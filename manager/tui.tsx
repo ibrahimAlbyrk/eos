@@ -10,7 +10,9 @@ const IS_TTY = !!process.stdin.isTTY;
 const ORCH_ID = "orchestrator";
 const SPINNER = ["◐", "◓", "◑", "◒"];
 const SPINNER_MS = 80;
-const POLL_MS = 1000;
+const POLL_MS = 1000;            // safety fallback when SSE is unavailable
+const SSE_FALLBACK_POLL_MS = 5000; // long-poll heartbeat while SSE is healthy
+const SSE_DEBOUNCE_MS = 80;       // coalesce SSE bursts before refetching
 const MAX_ACTIVITY = 5;
 const MAX_ORCH_ACTIVITY = 8;
 
@@ -64,9 +66,16 @@ function App() {
     fetch(`${DAEMON_URL}/orchestrator/start`, { method: "POST" }).catch(() => {});
   }, []);
 
+  // Workers + pending — driven by SSE 'change' events with a long-poll fallback.
+  // lastEventTsRef tracks the highest ts seen per worker so each refresh can
+  // delta-fetch via ?since= rather than refetching the whole event window.
+  const lastEventTsRef = useRef<Map<string, number>>(new Map());
+
   useEffect(() => {
     let alive = true;
-    const tick = async () => {
+    let debounce: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchAll = async () => {
       try {
         const [w, p] = await Promise.all([
           fetch(`${DAEMON_URL}/workers`).then((r) => r.json()),
@@ -76,35 +85,75 @@ function App() {
         setWorkers(w);
         setPending(p);
         setOnline(true);
+
+        const active = (w as Worker[]).filter((x) => x.state !== "DONE").map((x) => x.id);
+
+        // Evict cache for workers we no longer track.
+        for (const id of Array.from(lastEventTsRef.current.keys())) {
+          if (!active.includes(id)) lastEventTsRef.current.delete(id);
+        }
+
+        // Delta-fetch events per active worker. Collect into a side map, then
+        // setEventsBy() once at the end so React batches a single re-render.
+        const deltas: Array<{ id: string; events: Event[] }> = [];
+        await Promise.all(
+          active.map(async (id) => {
+            try {
+              const since = lastEventTsRef.current.get(id) ?? 0;
+              const url = `${DAEMON_URL}/workers/${id}/events?since=${since}&limit=30`;
+              const newEvents = (await fetch(url).then((r) => r.json())) as Event[];
+              if (newEvents.length > 0) {
+                lastEventTsRef.current.set(id, newEvents[newEvents.length - 1].ts);
+              }
+              deltas.push({ id, events: newEvents });
+            } catch {}
+          })
+        );
+        if (!alive) return;
+        setEventsBy((prev) => {
+          const next: Record<string, Event[]> = {};
+          for (const id of active) next[id] = prev[id] ?? [];
+          for (const { id, events } of deltas) {
+            if (events.length === 0) continue;
+            next[id] = (next[id] ?? []).concat(events).slice(-30);
+          }
+          return next;
+        });
       } catch {
         if (alive) setOnline(false);
       }
     };
-    tick();
-    const id = setInterval(tick, POLL_MS);
-    return () => { alive = false; clearInterval(id); };
-  }, []);
 
-  const activeIds = workers.filter((w) => w.state !== "DONE").map((w) => w.id).join(",");
-  useEffect(() => {
-    let alive = true;
-    const ids = activeIds.split(",").filter(Boolean);
-    const tick = async () => {
-      const ev: Record<string, Event[]> = {};
-      await Promise.all(
-        ids.map(async (id) => {
-          try {
-            const e = await fetch(`${DAEMON_URL}/workers/${id}/events?limit=30`).then((r) => r.json());
-            ev[id] = e;
-          } catch {}
-        })
-      );
-      if (alive) setEventsBy(ev);
+    const schedule = () => {
+      if (debounce) return;
+      debounce = setTimeout(() => { debounce = null; fetchAll(); }, SSE_DEBOUNCE_MS);
     };
-    tick();
-    const id = setInterval(tick, POLL_MS);
-    return () => { alive = false; clearInterval(id); };
-  }, [activeIds]);
+
+    fetchAll();
+
+    // SSE for push updates. Node 22.4+ exposes EventSource as a global; on
+    // older runtimes we silently fall back to short polling.
+    const ES = (globalThis as { EventSource?: typeof EventSource }).EventSource;
+    let es: EventSource | null = null;
+    let pollMs = POLL_MS;
+    if (typeof ES === "function") {
+      try {
+        es = new ES(`${DAEMON_URL}/stream`);
+        es.addEventListener("change", schedule);
+        es.onmessage = schedule;
+        es.onerror = () => { /* keep fallback poll running */ };
+        pollMs = SSE_FALLBACK_POLL_MS;
+      } catch { es = null; }
+    }
+    const id = setInterval(fetchAll, pollMs);
+
+    return () => {
+      alive = false;
+      clearInterval(id);
+      if (debounce) clearTimeout(debounce);
+      if (es) es.close();
+    };
+  }, []);
 
   function notify(msg: string) {
     setFlash(msg);
