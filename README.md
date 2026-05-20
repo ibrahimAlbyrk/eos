@@ -23,24 +23,11 @@
 
 <br/>
 
-<table>
-<tr>
-<td width="80" valign="top" align="center">
-
-`I`
-
-</td>
-<td valign="top">
-
-### Why this exists
+## `I` &nbsp;·&nbsp; Why this exists
 
 The interactive `claude` CLI bills against your **Max / Pro subscription**.
 The Agent SDK and `claude -p` will draw from a separate credit pool starting
 **June 15, 2026**. `claude-manager` is built around a single hard constraint:
-
-</td>
-</tr>
-</table>
 
 > Every Claude session is driven through an interactive PTY.
 > The `-p` flag is never used. Anywhere.
@@ -53,25 +40,12 @@ live, all paid for by the subscription you already have.
 
 <br/>
 
-<table>
-<tr>
-<td width="80" valign="top" align="center">
-
-`II`
-
-</td>
-<td valign="top">
-
-### How it works
+## `II` &nbsp;·&nbsp; How it works
 
 A single daemon supervises a singleton **orchestrator** (persistent Claude
 session) which dispatches **workers** via an MCP tool. Each worker owns its
 own PTY-driven `claude` process inside an isolated git worktree. Everything
 streams back to a SQLite event store, then out over SSE to the dashboards.
-
-</td>
-</tr>
-</table>
 
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
@@ -114,139 +88,56 @@ streams back to a SQLite event store, then out over SSE to the dashboards.
 
 <br/>
 
-<table>
-<tr>
-<td width="80" valign="top" align="center">
+## `III` &nbsp;·&nbsp; Features
 
-`III`
+**Parallel orchestration.** &nbsp; A persistent orchestrator decomposes one
+instruction into many. Workers run concurrently, each in its own git
+worktree on its own branch. Per-worker model selection — `opus`, `sonnet`,
+or `haiku`.
 
-</td>
-<td valign="top">
+**Live observation.** &nbsp; SSE-driven dashboard with ~100 ms event latency.
+JSONL transcripts parsed into structured tool calls, tool results, and
+assistant text. Per-worker logs at `~/.claude-mgr/logs/<id>.log`.
 
-### Features
+**Human-in-the-loop policy.** &nbsp; YAML rules: `allow`, `deny`, `ask`
+(long-poll for human approval), or `rewrite` (regex transform of tool
+input). Pending requests surface in every interface. Full audit log at
+`~/.claude-mgr/audit.jsonl`.
 
-</td>
-</tr>
-</table>
+**Cost accounting.** &nbsp; Token usage tracked per worker, priced against
+the current Anthropic rates for input, output, cache-read, and cache-create
+— settled cleanly against your Max / Pro plan.
 
-<table>
-<tr>
-<td width="50%" valign="top">
-
-##### Parallel orchestration
-A persistent orchestrator decomposes one instruction
-into many. Workers run concurrently, each in its own
-git worktree on its own branch. Per-worker model
-selection — `opus`, `sonnet`, or `haiku`.
-
-</td>
-<td width="50%" valign="top">
-
-##### Live observation
-SSE-driven dashboard with ~100 ms event latency.
-JSONL transcripts parsed into structured tool calls,
-tool results, assistant text. Per-worker logs at
-`~/.claude-mgr/logs/<id>.log`.
-
-</td>
-</tr>
-<tr>
-<td width="50%" valign="top">
-
-##### Human-in-the-loop policy
-YAML rules: `allow`, `deny`, `ask` (long-poll for
-approval), or `rewrite` (regex transform of tool
-input). Pending requests surface in every interface.
-Full audit log at `~/.claude-mgr/audit.jsonl`.
-
-</td>
-<td width="50%" valign="top">
-
-##### Cost accounting
-Token usage tracked per worker, priced against the
-current Anthropic rates for input, output, cache-read,
-and cache-create — settled cleanly against your
-Max / Pro plan.
-
-</td>
-</tr>
-<tr>
-<td colspan="2" valign="top">
-
-##### Three interfaces, one daemon
-`claude-manager` CLI for scripted use  ·  Ink TUI for terminal-native operation  ·  React 18 web UI served by the daemon at `/web/`.
-
-</td>
-</tr>
-</table>
+**Three interfaces, one daemon.** &nbsp; `claude-manager` CLI for scripted
+use · Ink TUI for terminal-native operation · React 18 web UI served by the
+daemon at `/web/`.
 
 <br/>
 
-<table>
-<tr>
-<td width="80" valign="top" align="center">
+## `IV` &nbsp;·&nbsp; Who it's for
 
-`IV`
-
-</td>
-<td valign="top">
-
-### Who it's for
-
-</td>
-</tr>
-</table>
-
-<table>
-<tr>
-<th align="left" width="50%">Built for</th>
-<th align="left" width="50%">Not for</th>
-</tr>
-<tr>
-<td valign="top">
-
-— Solo engineers with a Claude Max / Pro plan who want real parallelism.<br/>
-— Operators comfortable with daemons, PTYs, git worktrees, YAML policy.<br/>
-— Primarily macOS, secondarily Linux.
-
-</td>
-<td valign="top">
-
-— Teams looking for a hosted, multi-user platform.<br/>
-— Anyone trying to escape an interactive billing model.<br/>
-— Pipelines that need headless, `-p`-style invocation.
-
-</td>
-</tr>
-</table>
+|  Built for                                                                  |  Not for                                                          |
+| :-------------------------------------------------------------------------- | :---------------------------------------------------------------- |
+|  Solo engineers with a Claude Max / Pro plan who want real parallelism.     |  Teams looking for a hosted, multi-user platform.                 |
+|  Operators comfortable with daemons, PTYs, git worktrees, and YAML policy.  |  Anyone trying to escape an interactive billing model.            |
+|  Primarily macOS, secondarily Linux.                                        |  Pipelines that need headless, `-p`-style invocation.             |
 
 <br/>
 
-<table>
-<tr>
-<td width="80" valign="top" align="center">
+## `V` &nbsp;·&nbsp; Roadmap
 
-`V`
-
-</td>
-<td valign="top">
-
-### Roadmap
-
-— Linux-first testing and packaging.<br/>
-— Worker capability hints (read-only vs. mutating) for smarter policy defaults.<br/>
-— Cross-machine orchestration over the same daemon API.<br/>
-— Richer cost / latency analytics in the web dashboard.
-
-</td>
-</tr>
-</table>
+- Linux-first testing and packaging.
+- Worker capability hints (read-only vs. mutating) for smarter policy defaults.
+- Cross-machine orchestration over the same daemon API.
+- Richer cost / latency analytics in the web dashboard.
 
 <br/>
+
+---
 
 <div align="center">
-<sub><br/>
-<code>claude-manager</code> · <a href="./LICENSE">MIT</a> · © 2026 İbrahim Albayrak<br/>
-<sub><i>An atelier for Claude Code.</i></sub>
+<sub>
+<code>claude-manager</code> &nbsp;·&nbsp; <a href="./LICENSE">MIT</a> &nbsp;·&nbsp; © 2026 İbrahim Albayrak<br/>
+<i>An atelier for Claude Code.</i>
 </sub>
 </div>
