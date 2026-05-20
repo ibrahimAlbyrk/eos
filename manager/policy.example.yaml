@@ -1,0 +1,36 @@
+# Default action for unmatched rules: allow | deny | ask
+# Mirrors Claude Code's own settings.json: everything allowed by default,
+# only catastrophic destructive commands are hard-denied.
+default: allow
+
+# Human approval timeout (ms). Daemon auto-denies if no decision after this.
+ttlMs: 30000
+
+# Rules evaluated in order; first match wins.
+rules:
+  # ── Hard denies — destructive paths only (mirrors ~/.claude/settings.json deny list)
+  - { tool: Bash, command: "^\\s*rm\\s+-[rRf]+\\s+/(\\s|$)",            action: deny, reason: "rm -rf / blocked" }
+  - { tool: Bash, command: "^\\s*rm\\s+-[rRf]+\\s+~(\\s|$|/)",          action: deny, reason: "rm -rf ~ blocked" }
+  - { tool: Bash, command: "^\\s*rm\\s+-[rRf]+\\s+/Users(\\s|/|$)",     action: deny, reason: "rm -rf /Users blocked" }
+  - { tool: Bash, command: "rm\\s+-[rRf]+\\s+[~/]?[^\\s]*\\.claude",    action: deny, reason: ".claude directory removal blocked" }
+  - { tool: Bash, command: "rm\\s+-[rRf]+\\s+[~/]?[^\\s]*\\.claude-mgr", action: deny, reason: ".claude-mgr removal blocked" }
+
+  # ── Bash convenience: rewrite curl to inject a timeout so workers don't hang
+  - { tool: Bash, command: "(^|\\s)curl(?!.*--max-time)", action: rewrite,
+      rewriteFrom: "(^|\\s)curl\\b", rewriteTo: "$1curl --max-time 10" }
+
+  # ── Allow every default Claude tool (mirrors ~/.claude/settings.json allow list)
+  - { tool: Bash,         action: allow }
+  - { tool: Read,         action: allow }
+  - { tool: Write,        action: allow }
+  - { tool: Edit,         action: allow }
+  - { tool: Glob,         action: allow }
+  - { tool: Grep,         action: allow }
+  - { tool: WebFetch,     action: allow }
+  - { tool: WebSearch,    action: allow }
+  - { tool: NotebookEdit, action: allow }
+  - { tool: Agent,        action: allow }
+  - { tool: Task,         action: allow }
+  - { tool: TodoWrite,    action: allow }
+
+  # Unlisted tools (e.g. mcp__*) fall through to `default: allow` above.

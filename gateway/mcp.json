@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "gateway": {
+      "command": "/Users/ibrahimalbyrk/.local/bin/bun",
+      "args": ["run", "/Users/ibrahimalbyrk/Projects/CC/claude-manager/gateway/server.ts"]
+    }
+  }
+}

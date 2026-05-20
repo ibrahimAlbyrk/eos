@@ -1,0 +1,17 @@
+{
+  "name": "claude-manager-spawner",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@homebridge/node-pty-prebuilt-multiarch": "^0.12.0",
+    "chokidar": "^4.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  },
+  "trustedDependencies": [
+    "@homebridge/node-pty-prebuilt-multiarch"
+  ]
+}
