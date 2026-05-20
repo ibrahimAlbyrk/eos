@@ -8,7 +8,7 @@ export const Topbar = memo(function Topbar({ agents, session, online, sessionNam
     <header className="vb-topbar">
       <div className="vb-topbar__brand">
         <div className="vb-logomark">
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><path d="M5 12c0-3.9 3.1-7 7-7s7 3.1 7 7-3.1 7-7 7-7-3.1-7-7zm7-4.5L9 12l3 4.5L15 12z"/></svg>
+          <img src="./logo.png" alt="Claude Manager" />
         </div>
         <div className="vb-topbar__brand-text">
           <div className="vb-topbar__brand-name">Claude Manager</div>
