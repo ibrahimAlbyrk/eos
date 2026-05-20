@@ -197,17 +197,9 @@ function mapEvent(e, workerId, nameMap) {
       return { ...base, type: "thought", body: text.slice(0, 4096) };
     }
   }
-  if (e.type === "spawn" && p) {
-    return { ...base, type: "system", body: `process spawned · pid ${p.pid || "?"}` };
-  }
-  if (e.type === "exit" && p) {
-    const code = p.code;
-    const label = code === 129 ? "completed (SIGHUP)" : code === 143 ? "killed (SIGTERM)" : code === 0 ? "exit 0" : `exit ${code}`;
-    return { ...base, type: "complete", body: label };
-  }
-  if (e.type === "worktree" && p) {
-    return { ...base, type: "system", body: `worktree ${p.phase || ""} ${p.path || ""}`.trim() };
-  }
+  // Process lifecycle noise (spawn pid, exit code, worktree create/clean) is
+  // visible through the agent's status badge — no need to clutter the feed.
+  if (e.type === "spawn" || e.type === "exit" || e.type === "worktree") return null;
   return null;
 }
 
