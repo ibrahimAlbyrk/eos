@@ -173,7 +173,7 @@ export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, 
             <Icon name="history" size={12} /> <span>Load earlier ({hidden})</span>
           </button>
         )}
-        {turns.length === 0 && (
+        {turns.length === 0 && !busy && (
           <div className="vb-empty" style={{ padding: "40px 0" }}>
             <Icon name="sparkle" size={28} />
             <div>No activity yet — send a message to begin.</div>
