@@ -185,6 +185,7 @@
   transition: all .12s;
 }
 .vb-iconbtn:hover { color: var(--vb-fg); background: var(--vb-bg-3); }
+.vb-iconbtn:active { background: var(--vb-bg-2); transform: scale(0.94); transition-duration: 0s; }
 .vb-iconbtn--xs { width: 20px; height: 20px; border-radius: 4px; }
 .vb-iconbtn--solo {
   width: 32px; height: 32px;
@@ -306,13 +307,29 @@
   transition: all .12s;
 }
 .vb-pillbtn:hover { background: var(--vb-bg-3); }
+.vb-pillbtn:active { background: var(--vb-bg-2); transform: translateY(1px); transition-duration: 0s; }
 .vb-pillbtn--primary {
   background: var(--vb-clay);
   color: #1a0e08;
   border-color: var(--vb-clay);
   box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 4px 12px rgba(224, 137, 100, 0.28);
+  transition: background .12s, border-color .12s, transform .08s, box-shadow .12s;
 }
-.vb-pillbtn--primary:hover { filter: brightness(1.05); }
+.vb-pillbtn--primary:hover {
+  background: var(--vb-clay-strong);
+  border-color: var(--vb-clay-strong);
+  color: #1a0e08;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.24) inset, 0 6px 16px rgba(224, 137, 100, 0.38);
+}
+.vb-pillbtn--primary:active {
+  background: #b8643f;
+  border-color: #b8643f;
+  color: #1a0e08;
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25) inset, 0 1px 4px rgba(224, 137, 100, 0.18);
+  transition-duration: 0s;
+}
 
 .vb-agents__list {
   flex: 1; overflow-y: auto;
@@ -651,7 +668,8 @@
   padding: 12px 16px;
   box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 4px 16px rgba(224, 137, 100, 0.16);
 }
-.vb-userbubble__head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; font-size: 11px; }
+.vb-userbubble__head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 11px; }
+.vb-userbubble__head .vb-copybtn { margin-left: auto; }
 .vb-userbubble__name { font-weight: 700; }
 .vb-userbubble__ts { font-family: var(--vb-mono); font-size: 10.5px; opacity: 0.7; }
 .vb-userbubble__body { font-size: 14.5px; line-height: 1.55; }
@@ -701,7 +719,7 @@
   color: var(--vb-fg-1);
 }
 .vb-textblock__label {
-  display: inline-flex; align-items: center; gap: 5px;
+  display: flex; align-items: center; gap: 5px;
   font-size: 10.5px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -709,6 +727,7 @@
   font-weight: 600;
   margin-bottom: 6px;
 }
+.vb-textblock__copy { margin-left: auto; }
 
 /* Tool card */
 .vb-tool {
@@ -777,6 +796,7 @@
   font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--vb-fg-3); font-weight: 600;
   margin-bottom: 6px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
 }
 
 .vb-code {
@@ -891,13 +911,29 @@
   transition: all .12s;
 }
 .vb-btn:hover { background: var(--vb-bg-3); color: var(--vb-fg); }
+.vb-btn:active { background: var(--vb-bg-2); transform: translateY(1px); box-shadow: 0 1px 2px rgba(0,0,0,0.2) inset; transition-duration: 0s; }
 .vb-btn--primary {
   background: var(--vb-clay);
   border-color: var(--vb-clay);
   color: #1a0e08;
   box-shadow: 0 1px 0 rgba(255,255,255,0.18) inset, 0 4px 12px rgba(224, 137, 100, 0.28);
+  transition: background .12s, border-color .12s, transform .08s, box-shadow .12s;
 }
-.vb-btn--primary:hover { filter: brightness(1.06); }
+.vb-btn--primary:hover {
+  background: var(--vb-clay-strong);
+  border-color: var(--vb-clay-strong);
+  color: #1a0e08;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.24) inset, 0 6px 16px rgba(224, 137, 100, 0.38);
+}
+.vb-btn--primary:active {
+  background: #b8643f;
+  border-color: #b8643f;
+  color: #1a0e08;
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.25) inset, 0 1px 4px rgba(224, 137, 100, 0.18);
+  transition-duration: 0s;
+}
 .vb-btn--ghost { background: transparent; border-color: transparent; }
 .vb-btn--ghost:hover { background: var(--vb-bg-2); border-color: var(--vb-line); }
 .vb-btn--danger { color: var(--vb-ember); }
@@ -927,6 +963,8 @@
   overflow: hidden;
   transition: border-color .15s, box-shadow .15s;
 }
+.vb-composer.is-disabled { opacity: 0.55; pointer-events: none; filter: saturate(0.6); }
+.vb-composer.is-disabled .vb-composer__shell { border-color: var(--vb-line); box-shadow: none; }
 .vb-composer__shell:focus-within,
 .vb-composer.is-busy .vb-composer__shell {
   border-color: var(--vb-clay-line);
@@ -1269,8 +1307,21 @@
   border: none;
   font-weight: 700;
   box-shadow: 0 1px 0 rgba(255,255,255,0.2) inset, 0 4px 14px rgba(232, 197, 116, 0.32);
+  transition: background .12s, transform .08s, box-shadow .12s;
 }
-.vb-btn--pendbar-primary:hover { filter: brightness(1.06); }
+.vb-btn--pendbar-primary:hover {
+  background: #d4ad5c;
+  color: #1a1410;
+  transform: translateY(-1px);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.26) inset, 0 6px 18px rgba(232, 197, 116, 0.4);
+}
+.vb-btn--pendbar-primary:active {
+  background: #b8923f;
+  color: #1a1410;
+  transform: translateY(1px);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.22) inset, 0 1px 4px rgba(232, 197, 116, 0.22);
+  transition-duration: 0s;
+}
 
 @keyframes vb-banner-in {
   from { opacity: 0; transform: translateY(-4px); }
@@ -1503,4 +1554,43 @@
 .vb-qp-foot { display: flex; align-items: center; justify-content: space-between; }
 .vb-qp-hints { display: flex; gap: 14px; color: var(--vb-fg-3); font-size: 11px; }
 .vb-qp-hints span { display: flex; align-items: center; gap: 5px; }
+
+/* ───────── Copy button (small, ghost; used in user bubbles, text blocks, tool panes) ───────── */
+.vb-copybtn {
+  display: inline-grid; place-items: center;
+  width: 20px; height: 20px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  color: var(--vb-fg-3);
+  cursor: pointer;
+  transition: background .12s, color .12s, border-color .12s;
+  flex-shrink: 0;
+  opacity: 0.65;
+}
+.vb-copybtn:hover {
+  background: var(--vb-bg-3);
+  border-color: var(--vb-line);
+  color: var(--vb-fg);
+  opacity: 1;
+}
+.vb-copybtn.is-done {
+  background: var(--vb-sage-soft);
+  border-color: rgba(142, 176, 154, 0.35);
+  color: var(--vb-sage);
+  opacity: 1;
+}
+.vb-copybtn--on-clay {
+  color: rgba(26, 14, 8, 0.55);
+}
+.vb-copybtn--on-clay:hover {
+  background: rgba(26, 14, 8, 0.12);
+  border-color: rgba(26, 14, 8, 0.25);
+  color: rgba(26, 14, 8, 0.95);
+}
+.vb-copybtn--on-clay.is-done {
+  background: rgba(26, 14, 8, 0.16);
+  border-color: rgba(26, 14, 8, 0.32);
+  color: rgba(26, 14, 8, 0.95);
+}
 

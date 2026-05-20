@@ -1,7 +1,7 @@
 // SVG icon library — 1.5px stroke, currentColor. Sized at 16 by default.
 // Sans-serif modern dev tool look (Linear/Vercel/Resend).
 
-const Icon = ({ name, size = 16, strokeWidth = 1.5, ...rest }) => {
+export const Icon = ({ name, size = 16, strokeWidth = 1.5, ...rest }) => {
   const paths = ICONS[name];
   if (!paths) return null;
   return (
@@ -21,7 +21,7 @@ const Icon = ({ name, size = 16, strokeWidth = 1.5, ...rest }) => {
   );
 };
 
-const ICONS = {
+export const ICONS = {
   // Status / state
   play: <polygon points="6 4 20 12 6 20 6 4" />,
   pause: <><rect x="6" y="5" width="4" height="14" /><rect x="14" y="5" width="4" height="14" /></>,
@@ -81,4 +81,7 @@ const ICONS = {
   pin: <path d="M12 2v8M8 10h8l-2 6h-4l-2-6M12 16v6" />,
 };
 
+// Kept on window so any legacy code path that still reads window.Icon works.
+// Phase C migrates callers to ES module imports; this can be removed once all
+// components consume `import { Icon } from './icons.jsx'`.
 window.Icon = Icon;

@@ -418,26 +418,33 @@ const server = createServer(async (req, res) => {
       return;
     }
 
-    // Static web UI under /web/*
+    // Static web UI under /web/* — served from manager/web/dist (Vite build output).
+    // Run `npm run build` in manager/web to produce dist/.
     if (m === "GET" && (p === "/web" || p === "/web/" || p.startsWith("/web/"))) {
       let rel = p === "/web" || p === "/web/" ? "/index.html" : p.slice(4);
-      const webRoot = join(REPO_ROOT, "manager", "web");
+      const webRoot = join(REPO_ROOT, "manager", "web", "dist");
       const full = join(webRoot, rel);
       if (!full.startsWith(webRoot) || !existsSync(full)) {
         res.writeHead(404, { "content-type": "text/plain" });
-        res.end("not found");
+        res.end("not found — run `npm run build` in manager/web");
         return;
       }
       const ext = rel.split(".").pop() || "";
       const mime =
         ext === "html" ? "text/html; charset=utf-8" :
         ext === "css"  ? "text/css; charset=utf-8" :
-        ext === "jsx"  ? "text/javascript; charset=utf-8" :
         ext === "js"   ? "text/javascript; charset=utf-8" :
+        ext === "mjs"  ? "text/javascript; charset=utf-8" :
         ext === "json" ? "application/json; charset=utf-8" :
         ext === "svg"  ? "image/svg+xml" :
+        ext === "map"  ? "application/json; charset=utf-8" :
+        ext === "woff2" ? "font/woff2" :
+        ext === "woff" ? "font/woff" :
         "application/octet-stream";
-      res.writeHead(200, { "content-type": mime, "cache-control": "no-store" });
+      // Hashed asset filenames are stable — let the browser cache them. Only
+      // index.html stays no-store so the entrypoint always picks up new builds.
+      const cache = ext === "html" ? "no-store" : "public, max-age=31536000, immutable";
+      res.writeHead(200, { "content-type": mime, "cache-control": cache });
       res.end(readFileSync(full));
       return;
     }

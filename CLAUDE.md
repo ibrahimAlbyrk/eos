@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-`claude-manager` is an orchestration layer **on top of the interactive `claude` CLI binary** (not the Agent SDK or `claude -p`). A single user message goes to a long-running "orchestrator" agent which decomposes the task and dispatches background worker agents via an MCP tool. A daemon supervises everything; a TUI (Ink) and a web UI (React via babel-standalone) provide live observation and control.
+`claude-manager` is an orchestration layer **on top of the interactive `claude` CLI binary** (not the Agent SDK or `claude -p`). A single user message goes to a long-running "orchestrator" agent which decomposes the task and dispatches background worker agents via an MCP tool. A daemon supervises everything; a TUI (Ink) and a web UI (React 18 bundled with Vite) provide live observation and control.
 
 **Hard architectural constraint:** every Claude session runs as an *interactive* PTY-driven process so the user's Max/Pro subscription pays for token usage. **Never use `claude -p`** in any code path — starting June 15 2026 it draws from a separate Agent SDK credit pool. Drive `claude` via `node-pty`, write prompts/messages by `pty.write(text + "\r")`.
 
@@ -14,7 +14,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 gateway/       — MCP server for `--permission-prompt-tool` (dual-mode: standalone or daemon-forward)
 spawner/       — worker.ts: one process per Claude session. Owns PTY, hook HTTP server, JSONL tail, worktree lifecycle
 manager/       — daemon.ts (HTTP API + SQLite + child supervisor), cli.ts, tui.tsx, orchestrator-mcp.ts, web/
-manager/web/   — React 18 UMD + Babel-standalone web UI (no build step). Served by daemon at /web/*
+manager/web/   — React 18 + Vite-built web UI. Source in src/, build output in dist/. Served by daemon at /web/*. Run `npm run build` (or `npm run dev` for watch mode) before the daemon can serve it.
 ```
 
 Each of `gateway/`, `spawner/`, `manager/` is its own package.json with its own `node_modules`. They are NOT a workspace — install per directory.
@@ -79,7 +79,11 @@ rm -f ~/.claude-mgr/state.db* ~/.claude-mgr/daemon.pid   # if you want a clean D
 claude-manager daemon start &
 ```
 
-Browser cached JSX/CSS will not pick up edits to `manager/web/*` until you **hard-refresh (Cmd+Shift+R)**. The daemon serves with `cache-control: no-store` but browsers still cache aggressively.
+Web UI requires a build step. Run `npm install` once in `manager/web/`, then:
+- `npm run build` — one-shot production build → `manager/web/dist/`
+- `npm run dev` — `vite build --watch` for incremental rebuilds during development
+
+The daemon serves `dist/index.html` with `cache-control: no-store` and hashed assets (e.g. `index-aQjY8WGw.js`) with `immutable` cache headers, so a normal browser refresh picks up new builds without needing Cmd+Shift+R.
 
 ## Critical decisions and gotchas (read before editing)
 
