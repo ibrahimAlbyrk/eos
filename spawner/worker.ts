@@ -199,6 +199,17 @@ function startTail(sid: string) {
             }
           }
         }
+        // Built-in tools (ToolSearch, etc.) deliver their result as a top-level
+        // "attachment" entry with type "hook_success", NOT a tool_result block
+        // inside a user message. Synthesize a tool_result event from it so the
+        // UI can pair it with the matching tool_use by id.
+        else if (e.type === "attachment" && e.attachment?.type === "hook_success") {
+          const a = e.attachment;
+          const text = String(a.content ?? a.stdout ?? "").trim();
+          const isError = typeof a.exitCode === "number" && a.exitCode >= 400;
+          console.log(`[${name}][jsonl] attachment ${isError ? "ERR " : ""}${text.slice(0, 80).replace(/\s+/g, " ")}`);
+          emit("jsonl", { kind: "tool_result", toolUseId: a.toolUseID, isError, text });
+        }
         // Legacy top-level event shapes (older Claude Code transcript formats):
         else if (e.type === "tool_use") {
           emit("jsonl", { kind: "tool_use", name: e.name, input: e.input ?? {} });
