@@ -623,6 +623,158 @@ async function readBody(req: IncomingMessage): Promise<Record<string, unknown>> 
   });
 }
 
+// ---- /fs/* — open files with their OS default application ------------------
+//
+// macOS-only for now. Three pieces:
+//   1. resolveDefaultApp(path|ext) — runs scripts/macos-default-app.swift to
+//      discover the bundle that owns the file, cached per-extension with TTL.
+//   2. buildIconForApp(bundlePath, bundleId) — extracts the .icns out of the
+//      bundle's Resources and converts to 64×64 PNG via sips. Cached on disk.
+//   3. openPathWithDefaultApp(path) — shells out to `open` (no shell, argv only).
+//
+// The web UI shows the resolved icon in the corner of Read/Edit/Write tool
+// cards; clicking POSTs /fs/open. The daemon is localhost-bound, so the threat
+// model is identical to the existing /workers and /policy routes.
+
+type AppInfo = {
+  bundlePath: string;
+  bundleId: string;
+  appName: string;
+};
+
+const FS_HELPER_SCRIPT = join(REPO_ROOT, "manager", "scripts", "macos-default-app.swift");
+const ICON_CACHE_DIR = join(DAEMON_DIR, "icon-cache");
+const DEFAULT_APP_TTL_MS = 60 * 60 * 1000;
+
+type CachedApp = { info: AppInfo | null; expiresAt: number };
+const defaultAppCache = new Map<string, CachedApp>();
+const defaultAppInFlight = new Map<string, Promise<AppInfo | null>>();
+const iconBuildInFlight = new Map<string, Promise<string | null>>();
+
+try { mkdirSync(ICON_CACHE_DIR, { recursive: true }); } catch {}
+
+function sanitizeBundleId(id: string): string {
+  return id.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 200);
+}
+
+function defaultAppCacheKey(path: string | null, ext: string | null): string {
+  if (ext) return `ext:${ext.toLowerCase()}`;
+  return `path:${path}`;
+}
+
+async function runDefaultAppHelper(args: string[]): Promise<AppInfo | null> {
+  if (process.platform !== "darwin") return null;
+  if (!existsSync(FS_HELPER_SCRIPT)) return null;
+  return await new Promise<AppInfo | null>((resolve) => {
+    const proc = spawn("swift", [FS_HELPER_SCRIPT, ...args], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let out = "";
+    proc.stdout.on("data", (d) => { out += d.toString(); });
+    proc.on("exit", (code) => {
+      if (code !== 0) { resolve(null); return; }
+      const lines = out.split("\n").map((s) => s.trim()).filter(Boolean);
+      if (lines.length < 3) { resolve(null); return; }
+      resolve({ bundlePath: lines[0], bundleId: lines[1], appName: lines[2] });
+    });
+    proc.on("error", () => resolve(null));
+  });
+}
+
+async function resolveDefaultApp(opts: { path?: string; ext?: string }): Promise<AppInfo | null> {
+  const path = opts.path ?? null;
+  const ext = opts.ext ?? (path && path.includes(".") ? path.slice(path.lastIndexOf(".") + 1) : null);
+  const key = defaultAppCacheKey(path, ext);
+
+  const cached = defaultAppCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.info;
+
+  const inflight = defaultAppInFlight.get(key);
+  if (inflight) return inflight;
+
+  // Prefer the actual file path when it exists — handles weird files where
+  // the extension and content type disagree. Falls back to extension probe.
+  let helperArgs: string[];
+  if (path && existsSync(path)) helperArgs = [path];
+  else if (ext) helperArgs = ["--ext", ext];
+  else { defaultAppCache.set(key, { info: null, expiresAt: Date.now() + DEFAULT_APP_TTL_MS }); return null; }
+
+  const promise = (async () => {
+    try {
+      const info = await runDefaultAppHelper(helperArgs);
+      defaultAppCache.set(key, { info, expiresAt: Date.now() + DEFAULT_APP_TTL_MS });
+      return info;
+    } finally {
+      defaultAppInFlight.delete(key);
+    }
+  })();
+  defaultAppInFlight.set(key, promise);
+  return promise;
+}
+
+async function buildIconForApp(bundlePath: string, bundleId: string): Promise<string | null> {
+  if (process.platform !== "darwin") return null;
+  const safe = sanitizeBundleId(bundleId || bundlePath);
+  const outPath = join(ICON_CACHE_DIR, `${safe}.png`);
+  if (existsSync(outPath)) return outPath;
+
+  const inflight = iconBuildInFlight.get(safe);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    try {
+      // CFBundleIconFile from Info.plist points at the .icns (with or without
+      // extension). When missing, fall back to scanning Resources/ for any
+      // .icns — most apps have a single icon there.
+      let iconName: string | null = null;
+      try {
+        const raw = execFileSync("defaults", ["read", join(bundlePath, "Contents", "Info"), "CFBundleIconFile"], { encoding: "utf8" });
+        iconName = raw.trim() || null;
+      } catch {}
+      const resourcesDir = join(bundlePath, "Contents", "Resources");
+      let icnsPath: string | null = null;
+      if (iconName) {
+        const candidate = iconName.endsWith(".icns") ? iconName : `${iconName}.icns`;
+        const full = join(resourcesDir, candidate);
+        if (existsSync(full)) icnsPath = full;
+      }
+      if (!icnsPath && existsSync(resourcesDir)) {
+        try {
+          const hit = readdirSync(resourcesDir).find((n) => n.toLowerCase().endsWith(".icns"));
+          if (hit) icnsPath = join(resourcesDir, hit);
+        } catch {}
+      }
+      if (!icnsPath) return null;
+
+      await new Promise<void>((resolve, reject) => {
+        const proc = spawn("sips", ["-s", "format", "png", "-z", "64", "64", icnsPath!, "--out", outPath], { stdio: "ignore" });
+        proc.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`sips exit ${code}`)));
+        proc.on("error", reject);
+      });
+      return existsSync(outPath) ? outPath : null;
+    } catch {
+      return null;
+    } finally {
+      iconBuildInFlight.delete(safe);
+    }
+  })();
+  iconBuildInFlight.set(safe, promise);
+  return promise;
+}
+
+async function openPathWithDefaultApp(path: string): Promise<void> {
+  if (process.platform !== "darwin") throw new Error("open only supported on darwin");
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn("open", [path], { stdio: "ignore" });
+    proc.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`open exit ${code}`)));
+    proc.on("error", reject);
+  });
+}
+
+function isSafeAbsPath(p: unknown): p is string {
+  return typeof p === "string" && p.startsWith("/") && !p.includes("\0");
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
   const m = req.method ?? "GET";
@@ -662,6 +814,67 @@ const server = createServer(async (req, res) => {
       // osascript appends a trailing slash to directory paths — strip it.
       const path = out.endsWith("/") && out.length > 1 ? out.slice(0, -1) : out;
       return json(res, 200, { path });
+    }
+
+    // /fs/default-app — look up which app would open a given file (or extension).
+    // Query: ?path=<abs> or ?ext=<ext>. Returns null fields when no app maps.
+    if (m === "GET" && p === "/fs/default-app") {
+      const qPath = url.searchParams.get("path");
+      const qExt = url.searchParams.get("ext");
+      if (!qPath && !qExt) return json(res, 400, { error: "path or ext required" });
+      if (qPath && !isSafeAbsPath(qPath)) return json(res, 400, { error: "path must be absolute" });
+      const info = await resolveDefaultApp({
+        path: qPath ?? undefined,
+        ext: qExt ?? undefined,
+      });
+      if (!info) return json(res, 200, { app: null });
+      return json(res, 200, {
+        app: {
+          bundleId: info.bundleId,
+          bundlePath: info.bundlePath,
+          appName: info.appName,
+          iconUrl: info.bundleId ? `/fs/icon?bundleId=${encodeURIComponent(info.bundleId)}` : null,
+        },
+      });
+    }
+
+    // /fs/icon — serves the cached PNG for an app bundle. The first request
+    // for a bundle builds it; subsequent requests hit the on-disk cache.
+    if (m === "GET" && p === "/fs/icon") {
+      const bundleId = url.searchParams.get("bundleId");
+      if (!bundleId) return json(res, 400, { error: "bundleId required" });
+      // Resolve bundlePath from cache (any cached entry for this bundleId)
+      let bundlePath: string | null = null;
+      for (const cached of defaultAppCache.values()) {
+        if (cached.info?.bundleId === bundleId) { bundlePath = cached.info.bundlePath; break; }
+      }
+      const safe = sanitizeBundleId(bundleId);
+      let iconPath = join(ICON_CACHE_DIR, `${safe}.png`);
+      if (!existsSync(iconPath)) {
+        if (!bundlePath) return json(res, 404, { error: "bundle not resolved yet — query /fs/default-app first" });
+        const built = await buildIconForApp(bundlePath, bundleId);
+        if (!built) return json(res, 404, { error: "icon unavailable" });
+        iconPath = built;
+      }
+      res.writeHead(200, {
+        "content-type": "image/png",
+        "cache-control": "public, max-age=86400",
+      });
+      res.end(readFileSync(iconPath));
+      return;
+    }
+
+    // /fs/open — launches the user's default application for the given path.
+    // Path must be absolute. macOS-only (uses /usr/bin/open).
+    if (m === "POST" && p === "/fs/open") {
+      const body = (await readBody(req)) as { path?: string };
+      if (!isSafeAbsPath(body.path)) return json(res, 400, { error: "absolute path required" });
+      try {
+        await openPathWithDefaultApp(body.path);
+        return json(res, 200, { ok: true });
+      } catch (e) {
+        return json(res, 500, { error: (e as Error).message });
+      }
     }
 
     // Prometheus text exposition format. Scrapeable by node_exporter-style
