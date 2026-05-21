@@ -1,6 +1,7 @@
-// Centralized UI configuration. Tweak here instead of hunting through code.
-// Future: load overrides from /api/ui-config so the daemon can ship defaults
-// and the user can override via ~/.claude-mgr/ui.json.
+// Centralized UI configuration. Defaults below are used at module load. The
+// daemon publishes a subset at GET /api/ui-config; data.jsx fetches that on
+// startup and `Object.assign`s the relevant fields into CONFIG so the running
+// UI picks up server-side tuning without a rebuild.
 
 export const CONFIG = {
   // Live data layer
@@ -32,3 +33,21 @@ export const CONFIG = {
   // Max depth walk when computing agent tree role
   maxAgentTreeDepth: 8,
 };
+
+// Best-effort merge from daemon's /api/ui-config. Failures are silent — the
+// UI keeps the built-in defaults if the endpoint isn't there yet.
+export async function hydrateConfigFromDaemon() {
+  try {
+    const r = await fetch(`${location.origin}/api/ui-config`);
+    if (!r.ok) return;
+    const remote = await r.json();
+    if (Array.isArray(remote.models) && remote.models.length > 0) {
+      CONFIG.spawnModels = remote.models;
+    }
+    if (remote.budgets && typeof remote.budgets === "object") {
+      Object.assign(CONFIG.modelBudgets, remote.budgets);
+    }
+  } catch {
+    // Endpoint may be missing on older daemons — keep defaults.
+  }
+}

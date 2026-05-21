@@ -9,7 +9,7 @@ export const PendingBanner = memo(function PendingBanner({ pending, agents, onAp
   let brief = p.input;
   try { const j = JSON.parse(p.input); brief = j.file_path || j.command || j.url || JSON.stringify(j).slice(0, 80); } catch {}
   return (
-    <div className="vb-pendbar">
+    <div className="vb-pendbar" role="region" aria-label="Permission request">
       <div className="vb-pendbar__icon">
         <Icon name="shield" size={14} />
       </div>
@@ -23,7 +23,7 @@ export const PendingBanner = memo(function PendingBanner({ pending, agents, onAp
             : <span>approve to apply this change, deny to block it</span>}
         </div>
       </div>
-      <div className="vb-pendbar__timer">
+      <div className="vb-pendbar__timer" role="timer" aria-live="polite" aria-atomic="true">
         <Icon name="clock" size={12} />
         <span>auto-deny in <b>{expiresSec}s</b></span>
       </div>

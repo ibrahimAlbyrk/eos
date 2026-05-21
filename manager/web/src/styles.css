@@ -42,6 +42,21 @@
   --vb-r: 10px;
   --vb-r-sm: 6px;
   --vb-r-lg: 14px;
+  --vb-r-pill: 999px;
+
+  /* Spacing scale — 4px base. New rules should use these tokens; existing
+   * hard-coded paddings are migrated opportunistically when touched. */
+  --vb-space-1: 4px;
+  --vb-space-2: 8px;
+  --vb-space-3: 12px;
+  --vb-space-4: 16px;
+  --vb-space-5: 24px;
+  --vb-space-6: 32px;
+
+  /* Animation tokens */
+  --vb-dur-fast: 0.18s;
+  --vb-dur-base: 0.25s;
+  --vb-easing: cubic-bezier(.2, .7, .3, 1.05);
 
   font-family: var(--vb-sans);
   font-size: 14px;
@@ -407,16 +422,22 @@
   stroke-linecap: round;
   transition: stroke-dasharray .35s cubic-bezier(.2, .8, .3, 1);
 }
-.vb-ring-av__fill--main {
-  stroke: var(--vb-clay);
+/* Glow is paint-budget heavy — drop-shadow filter creates a compositor layer
+ * per avatar. On dashboards with 20+ agents it adds up. Restrict to selected
+ * cards and hover so only the focused avatar pays the cost. */
+.vb-ring-av__fill--main { stroke: var(--vb-clay); }
+.vb-ring-av__fill--sub  { stroke: var(--vb-sage); }
+.vb-ring-av__fill--sub2 { stroke: var(--vb-plum); }
+.vb-agentcard.is-selected .vb-ring-av__fill--main,
+.vb-agentcard:hover .vb-ring-av__fill--main {
   filter: drop-shadow(0 0 4px rgba(224, 137, 100, 0.6));
 }
-.vb-ring-av__fill--sub {
-  stroke: var(--vb-sage);
+.vb-agentcard.is-selected .vb-ring-av__fill--sub,
+.vb-agentcard:hover .vb-ring-av__fill--sub {
   filter: drop-shadow(0 0 4px rgba(142, 176, 154, 0.5));
 }
-.vb-ring-av__fill--sub2 {
-  stroke: var(--vb-plum);
+.vb-agentcard.is-selected .vb-ring-av__fill--sub2,
+.vb-agentcard:hover .vb-ring-av__fill--sub2 {
   filter: drop-shadow(0 0 4px rgba(196, 160, 212, 0.5));
 }
 .vb-ring-av__face {
@@ -679,7 +700,8 @@
 .vb-userbubble__head .vb-copybtn { margin-left: auto; }
 .vb-userbubble__name { font-weight: 700; }
 .vb-userbubble__ts { font-family: var(--vb-mono); font-size: 10.5px; opacity: 0.7; }
-.vb-userbubble__body { font-size: 14.5px; line-height: 1.55; }
+.vb-userbubble__body { font-size: 14.5px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.vb-textblock__body { white-space: pre-wrap; overflow-wrap: anywhere; }
 
 @keyframes vb-rise {
   from { opacity: 0; transform: translateY(8px); }
@@ -735,6 +757,33 @@
   margin-bottom: 6px;
 }
 .vb-textblock__copy { margin-left: auto; }
+
+/* Plain assistant response — prose with a near-invisible surface so the
+ * block has shape without competing with the thinking card. color-mix
+ * pulls the tint from --vb-fg so the same rule reads correctly on both
+ * dark and light themes (3.5% foreground over transparent).
+ *
+ * Browsers without color-mix (FF <113, Safari <16.4) fall back to the
+ * preceding rgba(); both look fine on dark — light-mode users on those
+ * browsers get a slightly off result. */
+.vb-textblock.is-response {
+  position: relative;
+  padding: 14px 16px;
+  border-radius: var(--vb-r);
+  color: var(--vb-fg);
+  background: rgba(241, 235, 222, 0.035);
+  background: color-mix(in srgb, var(--vb-fg) 3.5%, transparent);
+  border: 1px solid rgba(241, 235, 222, 0.06);
+  border: 1px solid color-mix(in srgb, var(--vb-fg) 5%, transparent);
+}
+.vb-textblock__copy--floating {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+  transition: opacity var(--vb-dur-fast) ease-out;
+}
+.vb-textblock.is-response:hover .vb-textblock__copy--floating { opacity: 1; }
 
 /* Tool card */
 .vb-tool {
@@ -1607,3 +1656,431 @@
   color: rgba(26, 14, 8, 0.95);
 }
 
+
+/* ─────────────────────────────────────────────────────────────────
+ * Tier-2 additions
+ * ───────────────────────────────────────────────────────────────── */
+
+/* Error boundary fallback */
+.vb-error-fallback {
+  margin: 16px;
+  padding: 18px 20px;
+  border: 1px solid rgba(217, 126, 126, 0.32);
+  background: rgba(217, 126, 126, 0.06);
+  border-radius: 10px;
+  color: var(--vb-fg);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.vb-error-fallback__title {
+  font-weight: 600;
+  color: var(--vb-err);
+}
+.vb-error-fallback__msg {
+  font-family: var(--vb-mono-font);
+  font-size: 12px;
+  padding: 8px 10px;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 6px;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+}
+
+/* Native <dialog> reset — kill UA defaults so existing .vb-modal-overlay /
+ * .vb-qp-overlay rules drive the layout. ::backdrop replaces the manual
+ * overlay div we used before. */
+.vb-modal-overlay[open],
+.vb-qp-overlay[open] {
+  padding: 0;
+  border: none;
+  background: transparent;
+  max-width: none;
+  max-height: none;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+  color: var(--vb-fg);
+}
+.vb-modal-overlay::backdrop,
+.vb-qp-overlay::backdrop {
+  background: rgba(8, 6, 4, 0.62);
+  backdrop-filter: blur(4px);
+}
+
+/* Focus-visible — keyboard-only focus rings. Pointer users keep the clean
+ * look; Tab-key users get a clear outline so they always know where they are. */
+:focus { outline: none; }
+.vb-app button:focus-visible,
+.vb-app input:focus-visible,
+.vb-app textarea:focus-visible,
+.vb-app select:focus-visible,
+.vb-app [role="tab"]:focus-visible,
+.vb-app [role="option"]:focus-visible,
+.vb-app [role="button"]:focus-visible,
+.vb-app a:focus-visible {
+  outline: 2px solid var(--vb-clay, #D77757);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+/* Where a wrapper paints its own focus halo (composer, agents-search,
+ * modals' fields, quick-prompt, pending-card editor), suppress the inner
+ * element's outline so we don't end up with a double ring. */
+.vb-app .vb-composer__shell textarea:focus-visible,
+.vb-app .vb-agents__search input:focus-visible,
+.vb-app .vb-qp-shell textarea:focus-visible,
+.vb-app .vb-field input:focus-visible,
+.vb-app .vb-field textarea:focus-visible,
+.vb-app .vb-field select:focus-visible,
+.vb-app .vb-pending-card__editor:focus-visible,
+.vb-app .vb-search-input:focus-visible {
+  outline: none;
+}
+
+/* Reduced motion — respect the OS-level user preference. Disables looping
+ * pulse/flash/shimmer animations and trims the entrance fades to near-zero
+ * duration so the UI snaps in place without strobing. Single-shot transitions
+ * stay (panel collapse) since they communicate state, not "look at me". */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .vb-spinner { animation: none !important; }
+  .vb-live-dot, .vb-pulse-dot, .vb-thinking-badge {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+ * Light theme — applied when <html data-theme="light"> is set.
+ * Topbar toggle in App.jsx mutates this attribute and persists the
+ * choice in localStorage. We only override color tokens — every other
+ * style references the variables so the whole UI flips with no extra
+ * rules.
+ * ───────────────────────────────────────────────────────────────── */
+html[data-theme="light"] .vb-app {
+  --vb-bg: #f6f1e6;
+  --vb-bg-1: #ece5d3;
+  --vb-bg-2: #e2d9c3;
+  --vb-bg-3: #d4cbb5;
+  --vb-bg-elev: #efe9d8;
+  --vb-line: #cdc4b0;
+  --vb-line-strong: #b3a98f;
+  --vb-line-soft: #ddd6c1;
+
+  --vb-fg: #1f1a14;
+  --vb-fg-1: #3a3326;
+  --vb-fg-2: #574e3d;
+  --vb-fg-3: #786f5e;
+  --vb-fg-4: #9c937f;
+
+  /* Accents stay close to dark theme tones but desaturated/darkened slightly
+   * so they read on the cream background. */
+  --vb-clay: #c46a3f;
+  --vb-clay-soft: rgba(196, 106, 63, 0.10);
+  --vb-clay-line: rgba(196, 106, 63, 0.30);
+  --vb-clay-strong: #ad5732;
+
+  --vb-sage: #5a8a6e;
+  --vb-sage-soft: rgba(90, 138, 110, 0.10);
+  --vb-plum: #8c5fa3;
+  --vb-plum-soft: rgba(140, 95, 163, 0.10);
+  --vb-saffron: #c79d3d;
+  --vb-saffron-soft: rgba(199, 157, 61, 0.10);
+  --vb-ember: #b85555;
+  --vb-ember-soft: rgba(184, 85, 85, 0.10);
+  --vb-ok: #5a8a6e;
+  --vb-warn: #c79d3d;
+  --vb-err: #b85555;
+}
+html[data-theme="light"] body { background: #f6f1e6; }
+
+/* Modal backdrop reads as too-dark on light; soften it. */
+html[data-theme="light"] .vb-modal-overlay::backdrop,
+html[data-theme="light"] .vb-qp-overlay::backdrop {
+  background: rgba(31, 26, 20, 0.32);
+}
+
+/* Cross-event search modal — opens via Cmd+Shift+F, lives at the top of the
+ * viewport like an editor's Quick Open. */
+.vb-search-overlay[open] {
+  padding: 0;
+  border: none;
+  background: transparent;
+  width: 100%;
+  height: 100%;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+}
+.vb-search-overlay::backdrop {
+  background: rgba(8, 6, 4, 0.55);
+  backdrop-filter: blur(3px);
+}
+.vb-search-shell {
+  width: min(720px, 90vw);
+  background: var(--vb-bg-elev);
+  border: 1px solid var(--vb-line-strong);
+  border-radius: var(--vb-r-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+  max-height: 70vh;
+}
+.vb-search-head {
+  display: flex;
+  align-items: center;
+  gap: var(--vb-space-2);
+  padding: var(--vb-space-3) var(--vb-space-4);
+  border-bottom: 1px solid var(--vb-line);
+}
+.vb-search-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--vb-fg);
+  font-size: 15px;
+  font-family: var(--vb-sans);
+}
+.vb-search-hint { font-size: 12px; color: var(--vb-fg-3); }
+.vb-search-results {
+  list-style: none;
+  margin: 0;
+  padding: var(--vb-space-1) 0;
+  overflow-y: auto;
+}
+.vb-search-result { margin: 0; padding: 0; }
+.vb-search-result__btn {
+  display: grid;
+  grid-template-columns: 100px 60px 1fr 60px;
+  gap: var(--vb-space-2);
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: none;
+  padding: var(--vb-space-2) var(--vb-space-4);
+  color: var(--vb-fg-1);
+  font-family: var(--vb-sans);
+  font-size: 12.5px;
+  cursor: pointer;
+}
+.vb-search-result__btn:hover { background: var(--vb-bg-2); color: var(--vb-fg); }
+.vb-search-result__agent { color: var(--vb-clay); font-weight: 500; }
+.vb-search-result__type { color: var(--vb-fg-3); }
+.vb-search-result__body { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vb-search-result__ts { color: var(--vb-fg-4); text-align: right; }
+.vb-search-empty { padding: 24px; color: var(--vb-fg-3); text-align: center; }
+
+/* ─────────────────────────────────────────────────────────────────
+ * Theme-toggle ripple — View Transitions API.
+ *
+ * The browser snapshots the OLD root (current theme) and the NEW root
+ * (target theme) and stacks them. We pin the old layer (no animation)
+ * and clip-path-grow the new layer from the button center, producing a
+ * circular wipe that reveals the new theme.
+ *
+ * Origin + radius come from JS-set CSS vars on <html>. Defaults cover
+ * the case where the toggle hasn't yet captured a rect (top-right
+ * corner of a 1440×900 viewport — close enough for first paint).
+ * ───────────────────────────────────────────────────────────────── */
+html {
+  --vb-theme-ripple-x: calc(100vw - 40px);
+  --vb-theme-ripple-y: 30px;
+  --vb-theme-ripple-r: 1500px;
+}
+
+@supports (view-transition-name: root) {
+  /* Disable the default cross-fade so our clip-path animation drives the
+   * full transition — otherwise the two layers blend mid-wipe and the
+   * ripple looks muddy. */
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+    mix-blend-mode: normal;
+  }
+  ::view-transition-old(root) { z-index: 1; }
+  ::view-transition-new(root) {
+    z-index: 2;
+    animation: vb-theme-ripple 0.55s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  @keyframes vb-theme-ripple {
+    from {
+      clip-path: circle(0 at var(--vb-theme-ripple-x) var(--vb-theme-ripple-y));
+    }
+    to {
+      clip-path: circle(var(--vb-theme-ripple-r) at var(--vb-theme-ripple-x) var(--vb-theme-ripple-y));
+    }
+  }
+}
+
+/* Small confirmation ripple on the toggle button itself — a quick pulse
+ * around the icon so even the no-View-Transitions path feels deliberate. */
+.vb-theme-toggle { position: relative; }
+.vb-theme-toggle::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  pointer-events: none;
+  background: radial-gradient(circle, var(--vb-clay) 0%, transparent 70%);
+  opacity: 0;
+  transform: scale(0.3);
+}
+.vb-theme-toggle:active::after {
+  animation: vb-toggle-pulse 0.5s ease-out;
+}
+@keyframes vb-toggle-pulse {
+  0%   { opacity: 0.6; transform: scale(0.4); }
+  100% { opacity: 0;   transform: scale(2.2); }
+}
+
+/* prefers-reduced-motion — kill the wipe + the button pulse. Theme still
+ * flips, just without the animation. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
+  .vb-theme-toggle:active::after { animation: none !important; }
+}
+
+/* Activity-feed "starting up" state — pairs with the Composer's queued
+ * disabled-reason so both surfaces agree while the PTY child boots. */
+.vb-empty--starting {
+  gap: 14px;
+  color: var(--vb-fg-1);
+}
+.vb-empty__sub {
+  margin-top: 4px;
+  color: var(--vb-fg-3);
+  font-size: 12.5px;
+}
+.vb-starting-spinner {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--vb-line-strong);
+  border-top-color: var(--vb-clay);
+  animation: vb-starting-spin 0.9s linear infinite;
+}
+@keyframes vb-starting-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .vb-starting-spinner { animation: none; border-top-color: var(--vb-line-strong); }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+ * Markdown — applied to .vb-md blocks (assistant text + extended
+ * thinking). Sized one notch larger than surrounding chrome so prose
+ * stays the visual focus.
+ * ───────────────────────────────────────────────────────────────── */
+.vb-md { color: inherit; line-height: 1.6; }
+.vb-md > *:first-child { margin-top: 0; }
+.vb-md > *:last-child { margin-bottom: 0; }
+
+.vb-md p { margin: 0 0 12px; }
+
+.vb-md h1, .vb-md h2, .vb-md h3, .vb-md h4, .vb-md h5, .vb-md h6 {
+  margin: 22px 0 10px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: var(--vb-fg);
+  letter-spacing: -0.01em;
+}
+.vb-md h1 { font-size: 1.55em; }
+.vb-md h2 { font-size: 1.30em; padding-bottom: 4px; border-bottom: 1px solid color-mix(in srgb, var(--vb-fg) 12%, transparent); }
+.vb-md h3 { font-size: 1.12em; }
+.vb-md h4 { font-size: 1.00em; }
+.vb-md h5, .vb-md h6 { font-size: 0.95em; color: var(--vb-fg-2); }
+
+.vb-md strong { font-weight: 600; color: var(--vb-fg); }
+.vb-md em { font-style: italic; }
+.vb-md del { text-decoration: line-through; color: var(--vb-fg-3); }
+
+.vb-md a {
+  color: var(--vb-clay);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  text-decoration-thickness: 1px;
+}
+.vb-md a:hover { color: var(--vb-clay-strong); }
+
+.vb-md ul, .vb-md ol { margin: 0 0 12px; padding-left: 22px; }
+.vb-md ul ul, .vb-md ol ol, .vb-md ul ol, .vb-md ol ul { margin-bottom: 4px; }
+.vb-md li { margin: 3px 0; }
+.vb-md li > p { margin: 0 0 6px; }
+.vb-md ul.contains-task-list { list-style: none; padding-left: 4px; }
+.vb-md li input[type="checkbox"] { margin-right: 6px; }
+
+.vb-md blockquote {
+  margin: 12px 0;
+  padding: 4px 14px;
+  border-left: 3px solid var(--vb-clay-line);
+  color: var(--vb-fg-1);
+  background: color-mix(in srgb, var(--vb-fg) 2.5%, transparent);
+  border-radius: 0 var(--vb-r-sm) var(--vb-r-sm) 0;
+}
+
+.vb-md hr {
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--vb-fg) 10%, transparent);
+  margin: 18px 0;
+}
+
+.vb-md code {
+  font-family: var(--vb-mono);
+  font-size: 0.88em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--vb-fg) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--vb-fg) 6%, transparent);
+}
+.vb-md pre {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: var(--vb-r);
+  background: var(--vb-bg);
+  border: 1px solid var(--vb-line);
+  overflow-x: auto;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.vb-md pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+
+.vb-md table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+  font-size: 0.95em;
+}
+.vb-md th, .vb-md td {
+  padding: 6px 10px;
+  border: 1px solid var(--vb-line);
+  text-align: left;
+}
+.vb-md th {
+  background: color-mix(in srgb, var(--vb-fg) 4%, transparent);
+  font-weight: 600;
+}
+.vb-md tr:nth-child(even) td { background: color-mix(in srgb, var(--vb-fg) 2%, transparent); }
+
+.vb-md img { max-width: 100%; border-radius: var(--vb-r-sm); }
+
+/* Compact thinking-card variant — smaller paragraph margins so the muted
+ * deliberation block doesn't sprawl. */
+.vb-textblock.is-thought .vb-md p { margin-bottom: 8px; }
+.vb-textblock.is-thought .vb-md h1,
+.vb-textblock.is-thought .vb-md h2,
+.vb-textblock.is-thought .vb-md h3 { margin-top: 14px; }

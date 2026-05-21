@@ -4,7 +4,7 @@
 // Event fetching uses the daemon's `?since=<ts>` query parameter so each poll
 // only transfers events newer than what we already have cached.
 
-import { CONFIG } from "./config.js";
+import { CONFIG, hydrateConfigFromDaemon } from "./config.js";
 
 const DAEMON = location.origin;
 
@@ -17,6 +17,16 @@ const state = {
   session: null,
 };
 const listeners = new Set();
+
+// Monotonic counter bumped on every notify. Components using
+// useSyncExternalStore read this as the snapshot — the `state` object itself
+// is mutated in place across polls (so referential equality would miss
+// updates), but the counter changes every time something downstream cares.
+let version = 0;
+function notify() {
+  version++;
+  listeners.forEach(fn => { try { fn(); } catch {} });
+}
 
 // Per-worker event cache + watermark. Survives across polls so each request
 // only transfers events newer than the highest ts we've already seen.
@@ -177,7 +187,9 @@ function mapEvent(e, workerId, nameMap) {
     if (p.kind === "thinking") {
       const text = String(p.text || "").trim();
       if (!text) return null;
-      return { ...base, type: "thought", body: text.slice(0, 4096) };
+      // Extended-thinking blocks get their own type so the UI can label them
+      // distinctly from regular assistant prose.
+      return { ...base, type: "thought", body: text };
     }
     if (p.kind === "tool_use") {
       const args = p.input ? JSON.stringify(p.input, null, 2) : "";
@@ -188,13 +200,16 @@ function mapEvent(e, workerId, nameMap) {
       // of its "running" state — emit with an empty body and let the UI hide
       // the output pane / orphan block when there is nothing to show.
       const text = String(p.text || "").trim();
-      const body = text ? substituteIds(text.slice(0, 4096), nameMap) : "";
+      const body = text ? substituteIds(text, nameMap) : "";
       return { ...base, type: p.isError ? "error" : "result", tool: "", body, toolUseId: p.toolUseId || null };
     }
     if (p.kind === "assistant_text") {
       const text = substituteIds(String(p.text || "").trim(), nameMap);
       if (!text) return null;
-      return { ...base, type: "thought", body: text.slice(0, 4096) };
+      // Plain assistant prose — rendered without the "thinking" badge so the
+      // UI distinguishes the model's actual response from its internal
+      // deliberation.
+      return { ...base, type: "text", body: text };
     }
   }
   // Process lifecycle noise (spawn pid, exit code, worktree create/clean) is
@@ -308,10 +323,10 @@ async function poll() {
     state.session = session;
     state.online = true;
 
-    listeners.forEach(fn => { try { fn(); } catch {} });
+    notify();
   } catch (e) {
     state.online = false;
-    listeners.forEach(fn => { try { fn(); } catch {} });
+    notify();
   } finally {
     polling = false;
   }
@@ -325,6 +340,9 @@ window.live = {
     listeners.add(fn);
     return () => listeners.delete(fn);
   },
+  // Monotonic version — useSyncExternalStore reads this as the snapshot so
+  // React's referential equality check works even though `state` is mutated.
+  getVersion() { return version; },
   sendMessage: async (text, agentId) => {
     const target = (!agentId || agentId === "orchestrator") ? "/orchestrator/message" : `/workers/${agentId}/message`;
     const r = await fetch(`${DAEMON}${target}`, {
@@ -384,16 +402,20 @@ function schedulePoll() {
 function connectStream() {
   try {
     const es = new EventSource(`${DAEMON}/stream`);
-    es.onopen = () => { state.streaming = true; listeners.forEach(fn => { try { fn(); } catch {} }); };
+    es.onopen = () => { state.streaming = true; notify(); };
     es.addEventListener("change", schedulePoll);
     es.onmessage = schedulePoll;
     es.onerror = () => {
       state.streaming = false;
-      listeners.forEach(fn => { try { fn(); } catch {} });
+      notify();
     };
   } catch (_) {}
 }
 
+// Fetch daemon-provided overrides in parallel with the first poll so neither
+// blocks the other — the merged values are picked up on the next render
+// triggered by the poll completing.
+hydrateConfigFromDaemon();
 poll();
 connectStream();
 setInterval(poll, CONFIG.pollFallbackMs);

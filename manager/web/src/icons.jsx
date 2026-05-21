@@ -79,6 +79,13 @@ export const ICONS = {
   flame: <path d="M12 3s4 4 4 8a4 4 0 1 1-8 0c0-2 1-3 1-3s-1 4 1.5 4S12 9 12 9s-2-2-2-4 2-2 2-2z" />,
   thinking: <><circle cx="12" cy="12" r="9" /><circle cx="9" cy="11" r="0.8" fill="currentColor" /><circle cx="12" cy="11" r="0.8" fill="currentColor" /><circle cx="15" cy="11" r="0.8" fill="currentColor" /></>,
   pin: <path d="M12 2v8M8 10h8l-2 6h-4l-2-6M12 16v6" />,
+
+  // Theme toggle — sun has 8 evenly spaced rays + a small core circle.
+  // The 0.001 viewBox padding on the rays prevents stroke clipping at 16px.
+  sun: <><circle cx="12" cy="12" r="4" /><line x1="12" y1="2" x2="12" y2="4" /><line x1="12" y1="20" x2="12" y2="22" /><line x1="2" y1="12" x2="4" y2="12" /><line x1="20" y1="12" x2="22" y2="12" /><line x1="4.93" y1="4.93" x2="6.34" y2="6.34" /><line x1="17.66" y1="17.66" x2="19.07" y2="19.07" /><line x1="4.93" y1="19.07" x2="6.34" y2="17.66" /><line x1="17.66" y1="6.34" x2="19.07" y2="4.93" /></>,
+  // Moon — a single crescent path (Feather-style). The bite is offset so the
+  // shape stays readable at 14px sizes without anti-alias mush.
+  moon: <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z" />,
 };
 
 // Kept on window so any legacy code path that still reads window.Icon works.

@@ -72,6 +72,7 @@ export function turnBlocks(turn) {
       continue;
     }
     if (e.type === "thought") { out.push({ kind: "thought", e }); continue; }
+    if (e.type === "text")    { out.push({ kind: "text",    e }); continue; }
   }
   return out;
 }

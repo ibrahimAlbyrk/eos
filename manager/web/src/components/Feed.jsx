@@ -1,7 +1,15 @@
 import { memo, useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { groupEvents, turnBlocks } from "../lib/groupEvents.js";
 import { toolIcon, modelShort, stripMcpPrefix } from "../lib/format.js";
+import { renderMarkdown } from "../lib/markdown.js";
 import { Icon, Avatar, CopyBtn } from "./primitives.jsx";
+
+// Memoized markdown render for prose blocks. Each block has a stable id so
+// the same parsed HTML survives across re-renders without re-parsing.
+const Markdown = memo(function Markdown({ source, className = "" }) {
+  const html = useMemo(() => renderMarkdown(source), [source]);
+  return <div className={`vb-md ${className}`} dangerouslySetInnerHTML={{ __html: html }} />;
+});
 
 const ToolCard = memo(function ToolCard({ tool, result }) {
   const [open, setOpen] = useState(false);
@@ -10,10 +18,12 @@ const ToolCard = memo(function ToolCard({ tool, result }) {
   // An empty body still counts as "completed" for the status pill (so we don't
   // get stuck on "running") but there's nothing useful to render in a pane.
   const showOutput = hasResult && !!(result.body && String(result.body).trim());
-  const argsPreview = (tool.args || "").replace(/\s+/g, " ").slice(0, 80);
+  // Whitespace-collapsed for the single-line header; CSS ellipsis handles the
+  // visual cut — the full args panel is one click away when the card expands.
+  const argsPreview = (tool.args || "").replace(/\s+/g, " ");
   return (
     <div className={`vb-tool ${open ? "is-open" : ""}`}>
-      <button className="vb-tool__head" onClick={() => setOpen(o => !o)}>
+      <button className="vb-tool__head" onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label={`${open ? "Collapse" : "Expand"} ${stripMcpPrefix(tool.tool)} tool details`}>
         <span className="vb-tool__icon"><Icon name={toolIcon(tool.tool)} size={13} /></span>
         <div className="vb-tool__head-text">
           <div className="vb-tool__head-name"><span>{stripMcpPrefix(tool.tool)}</span><Icon name={open ? "chevronDown" : "chevronRight"} size={11} /></div>
@@ -102,26 +112,48 @@ const AgentTurn = memo(function AgentTurn({ turn, agents }) {
         </div>
         <div className="vb-turn__content">
           {blocks.map((b, i) => {
+            // Stable keys derived from the underlying event id so reorders
+            // (or future incremental inserts) don't mis-identify nodes.
             if (b.kind === "thought") {
+              const key = b.e.id || `t-${i}`;
               return (
-                <div key={i} className="vb-textblock is-thought">
+                <div key={key} className="vb-textblock is-thought">
                   <div className="vb-textblock__label">
                     <Icon name="thinking" size={11} />
                     <span>thinking</span>
                     <CopyBtn text={b.e.body} className="vb-textblock__copy" />
                   </div>
-                  <div className="vb-textblock__body">{b.e.body}</div>
+                  <Markdown source={b.e.body} />
                 </div>
               );
             }
-            if (b.kind === "toolpair") return <ToolCard key={i} tool={b.tool} result={b.result} />;
-            if (b.kind === "tool") return <ToolCard key={i} tool={b.tool} />;
+            if (b.kind === "text") {
+              // Regular assistant response — no badge, just the prose. Copy
+              // affordance hovers in the corner so users can still grab the
+              // raw text without selecting around markdown.
+              const key = b.e.id || `x-${i}`;
+              return (
+                <div key={key} className="vb-textblock is-response">
+                  <Markdown source={b.e.body} />
+                  <CopyBtn text={b.e.body} className="vb-textblock__copy vb-textblock__copy--floating" />
+                </div>
+              );
+            }
+            if (b.kind === "toolpair") {
+              const key = b.tool.id || `tp-${i}`;
+              return <ToolCard key={key} tool={b.tool} result={b.result} />;
+            }
+            if (b.kind === "tool") {
+              const key = b.tool.id || `to-${i}`;
+              return <ToolCard key={key} tool={b.tool} />;
+            }
             if (b.kind === "result") {
               const body = (b.result.body || "").trim();
               if (!body) return null; // skip empty orphan results
               const isError = b.result.type === "error";
+              const key = b.result.id || `r-${i}`;
               return (
-                <div key={i} className="vb-tool">
+                <div key={key} className="vb-tool">
                   <div className="vb-tool__body" style={{ gridTemplateColumns: "1fr", borderTop: "none" }}>
                     <div className="vb-tool__pane">
                       <div className="vb-tool__pane-head">{isError ? "error" : "result"}</div>
@@ -141,7 +173,7 @@ const AgentTurn = memo(function AgentTurn({ turn, agents }) {
 
 // Visible window into the global event list. Phase D adds incremental
 // expansion via `visibleCount` to keep the DOM small even with 300+ events.
-export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, busy, visibleCount, onLoadEarlier }) {
+export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, busy, starting, visibleCount, onLoadEarlier }) {
   const sliced = useMemo(() => {
     if (!visibleCount || events.length <= visibleCount) return events;
     return events.slice(-visibleCount);
@@ -173,16 +205,27 @@ export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, 
             <Icon name="history" size={12} /> <span>Load earlier ({hidden})</span>
           </button>
         )}
-        {turns.length === 0 && !busy && (
+        {turns.length === 0 && !busy && starting && (
+          <div className="vb-empty vb-empty--starting" style={{ padding: "40px 0" }} role="status" aria-live="polite">
+            <span className="vb-starting-spinner" aria-hidden="true" />
+            <div>{scope} is starting up…</div>
+            <div className="vb-empty__sub">claude PTY is booting · first signal usually arrives in ~2s</div>
+          </div>
+        )}
+        {turns.length === 0 && !busy && !starting && (
           <div className="vb-empty" style={{ padding: "40px 0" }}>
             <Icon name="sparkle" size={28} />
             <div>No activity yet — send a message to begin.</div>
           </div>
         )}
         {turns.map((t, i) => {
-          if (t.kind === "user") return <UserTurn key={i} turn={t} />;
-          if (t.kind === "system") return <SystemTurn key={i} turn={t} agents={agents} />;
-          return <AgentTurn key={i} turn={t} agents={agents} />;
+          // Each turn carries at least one event; its id is stable across polls
+          // because data.jsx mints ids as `${workerId}-${e.id}`. Falls back to
+          // index when an event is somehow missing an id.
+          const key = t.events?.[0]?.id || `turn-${i}`;
+          if (t.kind === "user") return <UserTurn key={key} turn={t} />;
+          if (t.kind === "system") return <SystemTurn key={key} turn={t} agents={agents} />;
+          return <AgentTurn key={key} turn={t} agents={agents} />;
         })}
         {busy && (
           <div className="vb-feed__thinking">
@@ -199,21 +242,21 @@ export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, 
 
 export const ConsolePane = memo(function ConsolePane({ events, agents }) {
   return (
-    <div className="vb-feed vb-feed--console">
-      <div className="vb-feed__inner">
-        {events.length === 0 && <div className="vb-empty" style={{ padding: "40px 0" }}><div>No console output yet.</div></div>}
+    <div className="vb-feed vb-feed--console" role="log" aria-label="Console output" aria-live="polite">
+      <ol className="vb-feed__inner" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {events.length === 0 && <li className="vb-empty" style={{ padding: "40px 0" }}><div>No console output yet.</div></li>}
         {events.map(e => {
           const agent = agents.find(a => a.id === e.agent);
           return (
-            <div key={e.id} className="vb-console-line">
+            <li key={e.id} className="vb-console-line">
               <span className="vb-mono vb-console-line__ts">{e.ts}</span>
               <span className="vb-console-line__agent">{agent?.name || e.agent}</span>
               <span className={`vb-console-line__type vb-console-line__type--${e.type}`}>{e.type}</span>
-              <span className="vb-mono vb-console-line__body">{(e.body || e.args || "").slice(0, 200)}</span>
-            </div>
+              <span className="vb-mono vb-console-line__body">{e.body || e.args || ""}</span>
+            </li>
           );
         })}
-      </div>
+      </ol>
     </div>
   );
 });

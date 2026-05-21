@@ -83,7 +83,7 @@ export const SpawnChip = memo(function SpawnChip({ parent }) {
 
 export const LeftPanelHandle = memo(function LeftPanelHandle({ onExpand }) {
   return (
-    <button className="vb-panelhandle vb-panelhandle--left" onClick={onExpand} title="Show agents panel">
+    <button className="vb-panelhandle vb-panelhandle--left" onClick={onExpand} title="Show agents panel" aria-label="Show agents panel">
       <Icon name="panelLeft" size={14} />
     </button>
   );
@@ -91,7 +91,7 @@ export const LeftPanelHandle = memo(function LeftPanelHandle({ onExpand }) {
 
 export const RightPanelHandle = memo(function RightPanelHandle({ onExpand }) {
   return (
-    <button className="vb-panelhandle vb-panelhandle--right" onClick={onExpand} title="Show details panel">
+    <button className="vb-panelhandle vb-panelhandle--right" onClick={onExpand} title="Show details panel" aria-label="Show details panel">
       <Icon name="panelRight" size={14} />
     </button>
   );

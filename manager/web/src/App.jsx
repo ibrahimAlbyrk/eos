@@ -5,7 +5,7 @@
 // re-renders when window.live emits or the elapsed-tick fires, but the cheap
 // equality checks in memoized children prevent that from cascading.
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { CONFIG } from "./config.js";
 import { useLive, useTick } from "./hooks/useLive.js";
 import { LeftPanelHandle, RightPanelHandle } from "./components/primitives.jsx";
@@ -13,6 +13,8 @@ import { Topbar } from "./components/Topbar.jsx";
 import { AgentsPanel, SpawnModal, AgentContextMenu, QuickPromptModal } from "./components/AgentsPanel.jsx";
 import { Center } from "./components/Center.jsx";
 import { Details } from "./components/Details.jsx";
+import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
+import { SearchModal } from "./components/SearchModal.jsx";
 
 export default function App() {
   const { agents, events, pending, online, session } = useLive();
@@ -22,8 +24,21 @@ export default function App() {
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [spawnOpen, setSpawnOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [ctxMenu, setCtxMenu] = useState(null);          // { agentId, x, y }
   const [quickPrompt, setQuickPrompt] = useState(null);  // agentId
+
+  // Global keyboard shortcuts — Cmd/Ctrl+Shift+F opens cross-event search.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        setSearchOpen(true);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const selected = useMemo(
     () => agents.find(a => a.id === selectedId) || null,
@@ -78,30 +93,36 @@ export default function App() {
       <div className={bodyCls}>
         {leftCollapsed
           ? <LeftPanelHandle onExpand={onLeftExpand} />
-          : <AgentsPanel
-              agents={agents}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-              onCollapse={onLeftCollapse}
-              online={online}
-              onSpawnClick={onSpawnClick}
-              onSpawnOrchestrator={onSpawnOrchestrator}
-              session={session}
-              onContextMenu={onAgentContextMenu}
-            />
+          : <ErrorBoundary label="Agents panel">
+              <AgentsPanel
+                agents={agents}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                onCollapse={onLeftCollapse}
+                online={online}
+                onSpawnClick={onSpawnClick}
+                onSpawnOrchestrator={onSpawnOrchestrator}
+                session={session}
+                onContextMenu={onAgentContextMenu}
+              />
+            </ErrorBoundary>
         }
-        <Center
-          events={visibleEvents}
-          agents={agents}
-          selected={selected}
-          pending={pending}
-          onApprove={onApprove}
-          onDeny={onDeny}
-          onSend={onSend}
-        />
+        <ErrorBoundary label="Center">
+          <Center
+            events={visibleEvents}
+            agents={agents}
+            selected={selected}
+            pending={pending}
+            onApprove={onApprove}
+            onDeny={onDeny}
+            onSend={onSend}
+          />
+        </ErrorBoundary>
         {rightCollapsed
           ? <RightPanelHandle onExpand={onRightExpand} />
-          : <Details agent={selected} agents={agents} onSelect={setSelectedId} onCollapse={onRightCollapse} />
+          : <ErrorBoundary label="Details panel">
+              <Details agent={selected} agents={agents} onSelect={setSelectedId} onCollapse={onRightCollapse} />
+            </ErrorBoundary>
         }
       </div>
       <SpawnModal open={spawnOpen} onClose={onSpawnClose} onSpawned={onSpawnedSelect} />
@@ -116,6 +137,13 @@ export default function App() {
         agent={quickPromptAgent}
         onClose={onQuickPromptClose}
         onSend={onQuickPromptSend}
+      />
+      <SearchModal
+        open={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        events={events}
+        agents={agents}
+        onPick={(e) => { setSelectedId(e.agent); }}
       />
     </div>
   );

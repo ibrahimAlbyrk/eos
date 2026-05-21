@@ -74,8 +74,8 @@ export const Composer = memo(function Composer({ target, busy, onSend, model, di
             <span><kbd>⇧⏎</kbd> newline</span>
           </div>
           <div className="vb-composer__foot-actions">
-            <button className="vb-iconbtn" title="Attach (not implemented)" disabled><Icon name="folder" size={14} /></button>
-            <button className="vb-iconbtn" title="History (not implemented)" disabled><Icon name="history" size={14} /></button>
+            <button className="vb-iconbtn" title="Attach (not implemented)" aria-label="Attach files" disabled><Icon name="folder" size={14} /></button>
+            <button className="vb-iconbtn" title="History (not implemented)" aria-label="Message history" disabled><Icon name="history" size={14} /></button>
             <button className="vb-btn vb-btn--primary vb-btn--send" onClick={submit} disabled={!text.trim() || sending || disabled}>
               <span>{sending ? "Sending…" : "Send"}</span>
               <Icon name="send" size={12} />

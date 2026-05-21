@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { fmtCost, fmtElapsed } from "../lib/format.js";
+import { ThemeToggle } from "./ThemeToggle.jsx";
 
 export const Topbar = memo(function Topbar({ agents, session, online, sessionName }) {
   const running = agents.filter(a => a.status === "running" || a.status === "thinking").length;
@@ -44,6 +45,7 @@ export const Topbar = memo(function Topbar({ agents, session, online, sessionNam
             <div className="vb-headerstat__value" style={{ color: "var(--vb-err)" }}>offline</div>
           </div>
         )}
+        <ThemeToggle />
       </div>
     </header>
   );

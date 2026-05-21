@@ -2,6 +2,25 @@ import { memo, Fragment, useState } from "react";
 import { CONFIG } from "../config.js";
 import { ctxPct, modelShort, liveElapsed, fmtCost, toolIcon, stripMcpPrefix } from "../lib/format.js";
 import { Icon, Avatar, StatusBadge } from "./primitives.jsx";
+import { exportWorkerMarkdown, downloadAsFile } from "../lib/exportMarkdown.js";
+
+const ExportButton = memo(function ExportButton({ agent }) {
+  const click = () => {
+    // Pull the live event window straight from data.jsx — keeps the Details
+    // component decoupled from the global events prop chain.
+    const all = window.live.state.events || [];
+    const mine = all.filter((e) => e.agent === agent.id || (e.agent === "user" && agent.role === "main"));
+    const md = exportWorkerMarkdown(agent, mine);
+    const slug = (agent.name || agent.id).replace(/[^a-z0-9_-]+/gi, "_");
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    downloadAsFile(`${slug}-${stamp}.md`, md);
+  };
+  return (
+    <button className="vb-btn vb-btn--ghost" onClick={click} title="Download transcript as markdown" aria-label="Export transcript">
+      <Icon name="copy" size={12} /> <span>Export</span>
+    </button>
+  );
+});
 
 const KillButton = memo(function KillButton({ agent }) {
   const [pending, setPending] = useState(false);
@@ -57,7 +76,7 @@ export const Details = memo(function Details({ agent, agents, onSelect, onCollap
       <aside className="vb-details">
         <div className="vb-details__head-bar">
           <span>Details</span>
-          <button className="vb-iconbtn vb-iconbtn--paneltoggle" onClick={onCollapse} title="Collapse panel">
+          <button className="vb-iconbtn vb-iconbtn--paneltoggle" onClick={onCollapse} title="Collapse panel" aria-label="Collapse details panel">
             <Icon name="panelRight" size={14} />
           </button>
         </div>
@@ -78,7 +97,7 @@ export const Details = memo(function Details({ agent, agents, onSelect, onCollap
     <aside className="vb-details">
       <div className="vb-details__head-bar">
         <span>Agent details</span>
-        <button className="vb-iconbtn vb-iconbtn--paneltoggle" onClick={onCollapse} title="Collapse panel">
+        <button className="vb-iconbtn vb-iconbtn--paneltoggle" onClick={onCollapse} title="Collapse panel" aria-label="Collapse details panel">
           <Icon name="panelRight" size={14} />
         </button>
       </div>
@@ -88,7 +107,7 @@ export const Details = memo(function Details({ agent, agents, onSelect, onCollap
           <div className="vb-details__hero-name">{agent.name}</div>
           <div className="vb-details__hero-id">
             <code className="vb-inlinecode">{agent.id}</code>
-            <button className="vb-iconbtn vb-iconbtn--xs" onClick={() => navigator.clipboard?.writeText(agent.id)} title="Copy id"><Icon name="copy" size={10} /></button>
+            <button className="vb-iconbtn vb-iconbtn--xs" onClick={() => navigator.clipboard?.writeText(agent.id)} title="Copy id" aria-label="Copy worker id"><Icon name="copy" size={10} /></button>
           </div>
         </div>
         <StatusBadge status={agent.status} />
@@ -190,6 +209,7 @@ export const Details = memo(function Details({ agent, agents, onSelect, onCollap
       </div>
 
       <div className="vb-details__actions">
+        <ExportButton agent={agent} />
         <KillButton agent={agent} />
       </div>
     </aside>

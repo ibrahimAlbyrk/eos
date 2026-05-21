@@ -10,8 +10,22 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,500;8..60,600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
 <style>
   html, body { margin: 0; padding: 0; height: 100%; background: #1a1815; overflow: hidden; }
+  html[data-theme="light"], html[data-theme="light"] body { background: #f6f1e6; }
   #root { height: 100vh; width: 100vw; }
 </style>
+<script>
+  // Sync theme bootstrap — runs before the bundle loads so the initial paint
+  // matches the user's saved choice. No FOUC on reload.
+  (function () {
+    try {
+      var t = localStorage.getItem("vb.theme");
+      if (t !== "light" && t !== "dark") {
+        t = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+      }
+      document.documentElement.setAttribute("data-theme", t);
+    } catch (_) { document.documentElement.setAttribute("data-theme", "dark"); }
+  })();
+</script>
 </head>
 <body>
 <div id="root"></div>

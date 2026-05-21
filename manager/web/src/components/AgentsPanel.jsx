@@ -11,6 +11,12 @@ const AgentRow = memo(function AgentRow({ agent, agents, selected, onSelect, onC
       className={`vb-agentcard vb-agentcard--${agent.role} ${selected ? "is-selected" : ""}`}
       onClick={() => onSelect(agent.id)}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu && onContextMenu(agent.id, e.clientX, e.clientY); }}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(agent.id); } }}
+      role="option"
+      aria-selected={selected}
+      aria-current={selected ? "true" : undefined}
+      aria-label={`${agent.name} — ${agent.status}, ${modelShort(agent.model)}`}
+      tabIndex={0}
     >
       <RingAvatar agent={agent} ctxPct={pct} size={34} />
       <div className="vb-agentcard__main">
@@ -41,10 +47,21 @@ export const SpawnModal = memo(function SpawnModal({ open, onClose, onSpawned })
   const [branch, setBranch] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const dialogRef = useRef(null);
+
+  // Native <dialog> gives us: Esc-to-close, focus trap, and focus restoration
+  // back to the triggering button — for free, on every modern browser.
+  useEffect(() => {
+    const d = dialogRef.current;
+    if (!d) return;
+    if (open && !d.open) d.showModal();
+    if (!open && d.open) d.close();
+  }, [open]);
 
   useEffect(() => {
     if (!open) { setErr(null); setBusy(false); }
   }, [open]);
+
   if (!open) return null;
 
   const submit = async () => {
@@ -83,11 +100,18 @@ export const SpawnModal = memo(function SpawnModal({ open, onClose, onSpawned })
   };
 
   return (
-    <div className="vb-modal-overlay" onClick={onClose}>
+    <dialog
+      ref={dialogRef}
+      className="vb-modal-overlay"
+      aria-labelledby="spawn-modal-title"
+      onClose={onClose}
+      onCancel={onClose}
+      onClick={(e) => { if (e.target === dialogRef.current) onClose(); }}
+    >
       <div className="vb-modal" onClick={e => e.stopPropagation()}>
         <div className="vb-modal__head">
-          <div className="vb-modal__title">Spawn worker</div>
-          <button className="vb-iconbtn" onClick={onClose} title="Close"><Icon name="cross" size={14} /></button>
+          <div className="vb-modal__title" id="spawn-modal-title">Spawn worker</div>
+          <button className="vb-iconbtn" onClick={onClose} aria-label="Close spawn dialog"><Icon name="cross" size={14} /></button>
         </div>
         <div className="vb-modal__body">
           <label className="vb-field">
@@ -139,7 +163,7 @@ export const SpawnModal = memo(function SpawnModal({ open, onClose, onSpawned })
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 });
 
@@ -176,8 +200,18 @@ export const AgentContextMenu = memo(function AgentContextMenu({ menu, onClose, 
 // agent without switching the main selection.
 export const QuickPromptModal = memo(function QuickPromptModal({ open, agent, onClose, onSend }) {
   const ref = useRef(null);
+  const dialogRef = useRef(null);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+
+  // Native <dialog> handles Esc + focus trap + restore-on-close natively.
+  useEffect(() => {
+    const d = dialogRef.current;
+    if (!d) return;
+    if (open && agent && !d.open) d.showModal();
+    if ((!open || !agent) && d.open) d.close();
+  }, [open, agent]);
+
   useEffect(() => {
     if (open) {
       setText("");
@@ -185,12 +219,7 @@ export const QuickPromptModal = memo(function QuickPromptModal({ open, agent, on
       setTimeout(() => ref.current?.focus(), 30);
     }
   }, [open, agent?.id]);
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+
   if (!open || !agent) return null;
   const submit = async () => {
     const v = text.trim();
@@ -199,7 +228,14 @@ export const QuickPromptModal = memo(function QuickPromptModal({ open, agent, on
     try { await onSend(v, agent.id); } finally { setSending(false); onClose(); }
   };
   return (
-    <div className="vb-qp-overlay" onClick={onClose}>
+    <dialog
+      ref={dialogRef}
+      className="vb-qp-overlay"
+      aria-label={`Send prompt to ${agent.name}`}
+      onClose={onClose}
+      onCancel={onClose}
+      onClick={(e) => { if (e.target === dialogRef.current) onClose(); }}
+    >
       <div className="vb-qp-shell" onClick={(e) => e.stopPropagation()}>
         <div className="vb-qp-target">
           <Icon name="arrowRight" size={12} />
@@ -228,7 +264,7 @@ export const QuickPromptModal = memo(function QuickPromptModal({ open, agent, on
           </button>
         </div>
       </div>
-    </div>
+    </dialog>
   );
 });
 
@@ -289,7 +325,7 @@ export const AgentsPanel = memo(function AgentsPanel({ agents, selectedId, onSel
             <Icon name="plus" size={13} />
             <span>Spawn</span>
           </button>
-          <button className="vb-iconbtn vb-iconbtn--paneltoggle" onClick={onCollapse} title="Collapse panel">
+          <button className="vb-iconbtn vb-iconbtn--paneltoggle" onClick={onCollapse} title="Collapse panel" aria-label="Collapse agents panel">
             <Icon name="panelLeft" size={14} />
           </button>
         </div>
@@ -304,13 +340,14 @@ export const AgentsPanel = memo(function AgentsPanel({ agents, selectedId, onSel
           onChange={(e) => setQuery(e.target.value)}
         />
         {query && (
-          <button className="vb-agents__search-clear" onClick={() => setQuery("")} title="Clear">
+          <button className="vb-agents__search-clear" onClick={() => setQuery("")} title="Clear" aria-label="Clear search">
             <Icon name="cross" size={11} />
           </button>
         )}
       </div>
 
-      <div className="vb-agents__list">
+      <div className="vb-agents__list" role="listbox" aria-label="Agents">
+
         {!hasOrch && agents.length === 0 && (
           <div className="vb-agents__empty" style={{ padding: "32px 16px", lineHeight: 1.7 }}>
             <Icon name="orchestrator" size={28} />
