@@ -1,5 +1,6 @@
 import { memo, useState } from "react";
 import { Icon } from "../icons.jsx";
+import { pickPortrait } from "../lib/portraits.js";
 
 // Re-export Icon so other components in this folder can `import { Icon } from "./primitives.jsx"`.
 export { Icon };
@@ -25,11 +26,19 @@ export const CopyBtn = memo(function CopyBtn({ text, title = "Copy", className =
 
 export const Avatar = memo(function Avatar({ agent, size = 28 }) {
   const initial = agent.role === "main" ? "C" : (agent.name?.[0] || "?").toUpperCase();
+  const portrait = pickPortrait(agent);
   return (
     <div className={`vb-avatar vb-avatar--${agent.role}`} style={{ width: size, height: size, fontSize: size * 0.42 }}>
-      {agent.role === "main" ? (
-        <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="currentColor"><path d="M5 12c0-3.9 3.1-7 7-7s7 3.1 7 7-3.1 7-7 7-7-3.1-7-7zm7-4.5L9 12l3 4.5L15 12z"/></svg>
-      ) : initial}
+      <span className="vb-avatar__fallback">
+        {agent.role === "main" ? (
+          <svg width={size * 0.55} height={size * 0.55} viewBox="0 0 24 24" fill="currentColor"><path d="M5 12c0-3.9 3.1-7 7-7s7 3.1 7 7-3.1 7-7 7-7-3.1-7-7zm7-4.5L9 12l3 4.5L15 12z"/></svg>
+        ) : initial}
+      </span>
+      {portrait && (
+        <img className="vb-avatar__img" src={portrait.src} srcSet={portrait.srcSet} sizes={`${size}px`}
+             alt="" loading="lazy" decoding="async"
+             onError={(e) => { e.currentTarget.style.display = "none"; }} />
+      )}
     </div>
   );
 });
@@ -48,22 +57,31 @@ export const RingAvatar = memo(function RingAvatar({ agent, ctxPct: pct, size = 
   const initial = agent.role === "main" ? "C" : (agent.name?.[0] || "?").toUpperCase();
   const cx = size / 2;
   const cy = size / 2;
+  const r = cx - 1.5;
+  const portrait = pickPortrait(agent);
   return (
     <div className="vb-ring-av" style={{ width: size, height: size }}>
       <svg className="vb-ring-av__svg" viewBox={`0 0 ${size} ${size}`}>
-        <rect className="vb-ring-av__track" x="1.5" y="1.5" width={size - 3} height={size - 3} rx="7.5" fill="none" />
-        <rect className={`vb-ring-av__fill vb-ring-av__fill--${agent.role}`}
-              x="1.5" y="1.5" width={size - 3} height={size - 3} rx="7.5"
+        <circle className="vb-ring-av__track" cx={cx} cy={cy} r={r} fill="none" />
+        <circle className={`vb-ring-av__fill vb-ring-av__fill--${agent.role}`}
+              cx={cx} cy={cy} r={r}
               fill="none" pathLength="100"
               strokeDasharray={`${pct} 100`}
               transform={`rotate(-90 ${cx} ${cy})`} />
       </svg>
       <div className={`vb-ring-av__face vb-ring-av__face--${agent.role}`}>
-        {agent.role === "main" ? (
-          <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="currentColor">
-            <path d="M5 12c0-3.9 3.1-7 7-7s7 3.1 7 7-3.1 7-7 7-7-3.1-7-7zm7-4.5L9 12l3 4.5L15 12z"/>
-          </svg>
-        ) : initial}
+        <span className="vb-ring-av__fallback">
+          {agent.role === "main" ? (
+            <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="currentColor">
+              <path d="M5 12c0-3.9 3.1-7 7-7s7 3.1 7 7-3.1 7-7 7-7-3.1-7-7zm7-4.5L9 12l3 4.5L15 12z"/>
+            </svg>
+          ) : initial}
+        </span>
+        {portrait && (
+          <img className="vb-ring-av__img" src={portrait.src} srcSet={portrait.srcSet} sizes={`${size}px`}
+               alt="" loading="lazy" decoding="async"
+               onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        )}
       </div>
     </div>
   );
@@ -72,10 +90,18 @@ export const RingAvatar = memo(function RingAvatar({ agent, ctxPct: pct, size = 
 export const SpawnChip = memo(function SpawnChip({ parent }) {
   if (!parent) return null;
   const initial = parent.role === "main" ? "★" : (parent.name?.[0] || "?").toUpperCase();
+  const portrait = pickPortrait(parent);
   return (
     <span className="vb-spawnchip" title={`Spawned by ${parent.name}`}>
       <span className="vb-spawnchip__arrow">↳</span>
-      <span className={`vb-spawnchip__av vb-spawnchip__av--${parent.role}`}>{initial}</span>
+      <span className={`vb-spawnchip__av vb-spawnchip__av--${parent.role}`}>
+        <span className="vb-spawnchip__av-fallback">{initial}</span>
+        {portrait && (
+          <img className="vb-spawnchip__av-img" src={portrait.src} srcSet={portrait.srcSet} sizes="14px"
+               alt="" loading="lazy" decoding="async"
+               onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        )}
+      </span>
       <span className="vb-spawnchip__name">{parent.name}</span>
     </span>
   );

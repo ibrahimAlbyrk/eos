@@ -11,16 +11,71 @@ const Markdown = memo(function Markdown({ source, className = "" }) {
   return <div className={`vb-md ${className}`} dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
+// Module-scope set of block keys we've already revealed. Survives unmount
+// (e.g., when the user scrolls a block out of view or switches tabs) so we
+// never replay the typewriter for the same content twice.
+const revealedBlocks = new Set();
+
+// Wall-clock at page load. Anything with an event ts older than this is
+// "historical" — already happened before the user opened the page, so we
+// render it instantly instead of typewriter-replaying the whole transcript.
+const PAGE_LOAD_TS = Date.now();
+
+// Progressive character reveal driven by rAF. When `skip` is true the hook
+// resolves to fully-revealed without animating (used for historical events
+// and remounted-but-already-seen blocks).
+function useTypewriter(text, key, { cps = 320, skip = false } = {}) {
+  const total = text ? text.length : 0;
+  const alreadyDone = skip || revealedBlocks.has(key);
+  const [chars, setChars] = useState(() => (alreadyDone ? total : 0));
+  useEffect(() => {
+    if (alreadyDone) { setChars(total); revealedBlocks.add(key); return; }
+    if (total === 0) { revealedBlocks.add(key); return; }
+    let raf = 0;
+    let start = 0;
+    const duration = Math.min(4500, Math.max(350, (total / cps) * 1000));
+    const tick = (t) => {
+      if (!start) start = t;
+      const p = Math.min(1, (t - start) / duration);
+      // ease-out cubic — fast settle so the last few chars don't lag.
+      const eased = 1 - Math.pow(1 - p, 3);
+      setChars(Math.max(1, Math.floor(eased * total)));
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else revealedBlocks.add(key);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => { if (raf) cancelAnimationFrame(raf); };
+  }, [key, total, cps, alreadyDone]);
+  return { chars, done: alreadyDone || chars >= total };
+}
+
+// Markdown block that types itself in on first appearance. Subsequent
+// renders (after scroll/remount) show the full text immediately.
+const AnimatedMarkdown = memo(function AnimatedMarkdown({ source, blockKey, eventTs, className = "" }) {
+  const isHistorical = eventTs != null && eventTs < PAGE_LOAD_TS;
+  const { chars, done } = useTypewriter(source || "", blockKey, { skip: isHistorical });
+  const sliced = useMemo(() => (source || "").slice(0, chars), [source, chars]);
+  const html = useMemo(() => renderMarkdown(sliced), [sliced]);
+  return (
+    <div
+      className={`vb-md ${className} ${done ? "" : "is-typing"}`}
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
+  );
+});
+
 const ToolCard = memo(function ToolCard({ tool, result }) {
   const [open, setOpen] = useState(false);
   const hasResult = !!result;
   const isError = result?.type === "error";
+  const args = tool.args || "";
+  const showInput = !!args.trim();
   // An empty body still counts as "completed" for the status pill (so we don't
   // get stuck on "running") but there's nothing useful to render in a pane.
   const showOutput = hasResult && !!(result.body && String(result.body).trim());
   // Whitespace-collapsed for the single-line header; CSS ellipsis handles the
   // visual cut — the full args panel is one click away when the card expands.
-  const argsPreview = (tool.args || "").replace(/\s+/g, " ");
+  const argsPreview = args.replace(/\s+/g, " ");
   return (
     <div className={`vb-tool ${open ? "is-open" : ""}`}>
       <button className="vb-tool__head" onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label={`${open ? "Collapse" : "Expand"} ${stripMcpPrefix(tool.tool)} tool details`}>
@@ -37,15 +92,17 @@ const ToolCard = memo(function ToolCard({ tool, result }) {
             : <span className="vb-pill vb-pill--warn"><span className="vb-spinner" /> running</span>}
         </span>
       </button>
-      {open && (
-        <div className="vb-tool__body" style={showOutput ? undefined : { gridTemplateColumns: "1fr" }}>
-          <div className="vb-tool__pane">
-            <div className="vb-tool__pane-head">
-              <span>input</span>
-              <CopyBtn text={tool.args || ""} />
+      {open && (showInput || showOutput) && (
+        <div className="vb-tool__body" style={{ gridTemplateColumns: "1fr" }}>
+          {showInput && (
+            <div className="vb-tool__pane">
+              <div className="vb-tool__pane-head">
+                <span>input</span>
+                <CopyBtn text={args} />
+              </div>
+              <pre className="vb-code">{args}</pre>
             </div>
-            <pre className="vb-code">{tool.args || "(no args)"}</pre>
-          </div>
+          )}
           {showOutput && (
             <div className="vb-tool__pane">
               <div className="vb-tool__pane-head">
@@ -71,7 +128,7 @@ const UserTurn = memo(function UserTurn({ turn }) {
           <span className="vb-userbubble__ts">{e.ts}</span>
           <CopyBtn text={e.body} className="vb-copybtn--on-clay" />
         </div>
-        <div className="vb-userbubble__body">{e.body}</div>
+        <Markdown source={e.body} className="vb-userbubble__body" />
       </div>
     </div>
   );
@@ -123,7 +180,7 @@ const AgentTurn = memo(function AgentTurn({ turn, agents }) {
                     <span>thinking</span>
                     <CopyBtn text={b.e.body} className="vb-textblock__copy" />
                   </div>
-                  <Markdown source={b.e.body} />
+                  <AnimatedMarkdown source={b.e.body} blockKey={key} eventTs={b.e._ts} />
                 </div>
               );
             }
@@ -134,7 +191,7 @@ const AgentTurn = memo(function AgentTurn({ turn, agents }) {
               const key = b.e.id || `x-${i}`;
               return (
                 <div key={key} className="vb-textblock is-response">
-                  <Markdown source={b.e.body} />
+                  <AnimatedMarkdown source={b.e.body} blockKey={key} eventTs={b.e._ts} />
                   <CopyBtn text={b.e.body} className="vb-textblock__copy vb-textblock__copy--floating" />
                 </div>
               );
@@ -152,11 +209,28 @@ const AgentTurn = memo(function AgentTurn({ turn, agents }) {
               if (!body) return null; // skip empty orphan results
               const isError = b.result.type === "error";
               const key = b.result.id || `r-${i}`;
+              // Orphan result — its tool_use never made it through (rare
+              // matcher miss). Give it the same head shape as a paired tool
+              // card so it doesn't look like an unframed pane.
               return (
-                <div key={key} className="vb-tool">
-                  <div className="vb-tool__body" style={{ gridTemplateColumns: "1fr", borderTop: "none" }}>
+                <div key={key} className="vb-tool is-open">
+                  <div className="vb-tool__head vb-tool__head--static">
+                    <span className="vb-tool__icon"><Icon name={isError ? "cross" : "check"} size={13} /></span>
+                    <div className="vb-tool__head-text">
+                      <div className="vb-tool__head-name"><span>{isError ? "error" : "result"}</span></div>
+                    </div>
+                    <span className="vb-tool__status">
+                      {isError
+                        ? <span className="vb-pill" style={{ color: "var(--vb-err)", background: "var(--vb-ember-soft)", borderColor: "rgba(217,126,126,0.32)" }}><Icon name="cross" size={10} /> err</span>
+                        : <span className="vb-pill vb-pill--ok"><Icon name="check" size={10} /> ok</span>}
+                    </span>
+                  </div>
+                  <div className="vb-tool__body" style={{ gridTemplateColumns: "1fr" }}>
                     <div className="vb-tool__pane">
-                      <div className="vb-tool__pane-head">{isError ? "error" : "result"}</div>
+                      <div className="vb-tool__pane-head">
+                        <span>{isError ? "error" : "output"}</span>
+                        <CopyBtn text={body} />
+                      </div>
                       <pre className="vb-code">{body}</pre>
                     </div>
                   </div>
@@ -173,12 +247,27 @@ const AgentTurn = memo(function AgentTurn({ turn, agents }) {
 
 // Visible window into the global event list. Phase D adds incremental
 // expansion via `visibleCount` to keep the DOM small even with 300+ events.
-export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, scopeKey, busy, starting, visibleCount, onLoadEarlier }) {
+export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, scopeKey, busy, busyKind = "thinking", starting, visibleCount, onLoadEarlier }) {
   const sliced = useMemo(() => {
     if (!visibleCount || events.length <= visibleCount) return events;
     return events.slice(-visibleCount);
   }, [events, visibleCount]);
   const turns = useMemo(() => groupEvents(sliced), [sliced]);
+  // Decide whether the bottom-of-feed skeleton (or "is working" bar) is
+  // appropriate. We want the thought-forming skeleton whenever the agent is
+  // mid-turn but NOT currently waiting on a tool — tool execution is already
+  // signaled by the tool card's spinner, so doubling up reads as noise.
+  const showThoughtSkeleton = useMemo(() => {
+    if (!busy) return false;
+    const lastTurn = turns[turns.length - 1];
+    if (!lastTurn || lastTurn.kind !== "agent") return true;
+    const blocks = turnBlocks(lastTurn);
+    const lastBlock = blocks[blocks.length - 1];
+    if (!lastBlock) return true;
+    // An unpaired tool means the tool is still running — let its card own
+    // the loading affordance.
+    return lastBlock.kind !== "tool";
+  }, [busy, turns]);
   const ref = useRef(null);
   // Auto-scroll only when already pinned to bottom — preserves manual
   // scrollback while the user is reading older events.
@@ -213,6 +302,20 @@ export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, 
     if (!el) return;
     if (stickRef.current) el.scrollTop = el.scrollHeight;
   }, [turns.length]);
+  // Stick to bottom while content grows mid-block (typewriter reveal, async
+  // markdown loading, etc.) — without this, growing blocks visibly push the
+  // user's view up even though they were pinned to the latest output.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const inner = el.querySelector(".vb-feed__inner");
+    if (!inner) return;
+    const ro = new ResizeObserver(() => {
+      if (stickRef.current) el.scrollTop = el.scrollHeight;
+    });
+    ro.observe(inner);
+    return () => ro.disconnect();
+  }, []);
   const onScroll = useCallback(() => {
     const el = ref.current; if (!el) return;
     stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
@@ -252,12 +355,18 @@ export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, 
           if (t.kind === "system") return <SystemTurn key={key} turn={t} agents={agents} />;
           return <AgentTurn key={key} turn={t} agents={agents} />;
         })}
-        {busy && (
-          <div className="vb-feed__thinking">
-            <div className="vb-thinking-bar">
-              <div className="vb-thinking-bar__fill" />
+        {showThoughtSkeleton && (
+          <div className="vb-textblock is-thought vb-thought-skeleton" role="status" aria-live="polite">
+            <div className="vb-textblock__label">
+              <Icon name="thinking" size={11} />
+              <span>thinking</span>
+              <span className="vb-thought-skeleton__hint">{scope} is forming a thought…</span>
             </div>
-            <span>{scope} is thinking…</span>
+            <div className="vb-skel-lines" aria-hidden="true">
+              <span className="vb-skel-line" style={{ width: "92%" }} />
+              <span className="vb-skel-line" style={{ width: "78%" }} />
+              <span className="vb-skel-line" style={{ width: "54%" }} />
+            </div>
           </div>
         )}
       </div>
@@ -265,23 +374,3 @@ export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, 
   );
 });
 
-export const ConsolePane = memo(function ConsolePane({ events, agents }) {
-  return (
-    <div className="vb-feed vb-feed--console" role="log" aria-label="Console output" aria-live="polite">
-      <ol className="vb-feed__inner" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-        {events.length === 0 && <li className="vb-empty" style={{ padding: "40px 0" }}><div>No console output yet.</div></li>}
-        {events.map(e => {
-          const agent = agents.find(a => a.id === e.agent);
-          return (
-            <li key={e.id} className="vb-console-line">
-              <span className="vb-mono vb-console-line__ts">{e.ts}</span>
-              <span className="vb-console-line__agent">{agent?.name || e.agent}</span>
-              <span className={`vb-console-line__type vb-console-line__type--${e.type}`}>{e.type}</span>
-              <span className="vb-mono vb-console-line__body">{e.body || e.args || ""}</span>
-            </li>
-          );
-        })}
-      </ol>
-    </div>
-  );
-});

@@ -42,7 +42,6 @@ export const ICONS = {
   hammer: <path d="M14 7 7 14l-3-3 7-7 3 3z M14 7l5-5 3 3-5 5 M14 7l3 3" />,
   read: <><rect x="4" y="4" width="16" height="16" rx="1" /><line x1="8" y1="9" x2="16" y2="9" /><line x1="8" y1="13" x2="16" y2="13" /><line x1="8" y1="17" x2="12" y2="17" /></>,
   edit: <><path d="M4 20h4l10-10-4-4L4 16v4z" /><path d="M14 6l4 4" /></>,
-  terminal: <><polyline points="5 8 9 12 5 16" /><line x1="13" y1="16" x2="19" y2="16" /></>,
   grep: <><circle cx="11" cy="11" r="6" /><line x1="20" y1="20" x2="15.5" y2="15.5" /></>,
   globe: <><circle cx="12" cy="12" r="9" /><ellipse cx="12" cy="12" rx="4" ry="9" /><line x1="3" y1="12" x2="21" y2="12" /></>,
   spawn: <><circle cx="12" cy="12" r="9" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" /></>,

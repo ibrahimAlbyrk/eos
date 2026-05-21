@@ -263,8 +263,9 @@
   gap: 10px;
   border-bottom: 1px solid var(--vb-line);
 }
-.vb-agents__title-col { min-width: 0; }
-.vb-agents__head-actions { display: flex; align-items: center; gap: 6px; }
+.vb-agents__title-col { min-width: 0; flex: 1 1 auto; }
+.vb-agents__head-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.vb-agents__sub { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .vb-agents__title {
   font-family: var(--vb-serif);
   font-size: 19px;
@@ -273,6 +274,42 @@
   line-height: 1.1;
 }
 .vb-agents__sub { font-size: 11.5px; color: var(--vb-fg-3); margin-top: 4px; }
+
+.vb-recents {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.vb-recents__label {
+  font-size: 10.5px;
+  color: var(--vb-fg-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 2px;
+}
+.vb-recent {
+  text-align: left;
+  font-family: var(--vb-mono, ui-monospace, monospace);
+  font-size: 11.5px;
+  padding: 5px 8px;
+  border: 1px solid var(--vb-line);
+  border-radius: 6px;
+  background: var(--vb-bg-2);
+  color: var(--vb-fg-2);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vb-recent:hover {
+  background: var(--vb-bg-3, var(--vb-bg-2));
+  color: var(--vb-fg-1);
+}
+.vb-recent.is-active {
+  border-color: var(--vb-accent, currentColor);
+  color: var(--vb-fg-1);
+}
 
 .vb-agents__search {
   margin: 10px 14px 4px;
@@ -444,24 +481,35 @@
   position: absolute;
   inset: 4px;
   display: grid; place-items: center;
-  border-radius: 6px;
+  border-radius: 50%;
   font-weight: 700;
   font-size: 12px;
   letter-spacing: -0.02em;
+  overflow: hidden;
 }
-.vb-ring-av__face--main {
+.vb-ring-av__fallback {
+  position: absolute;
+  inset: 0;
+  display: grid; place-items: center;
+}
+.vb-ring-av__img {
+  position: relative;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: translateY(15%);
+}
+.vb-ring-av__face--main .vb-ring-av__fallback {
   background: linear-gradient(135deg, var(--vb-clay), var(--vb-clay-strong));
   color: #1a0e08;
 }
-.vb-ring-av__face--sub {
+.vb-ring-av__face--sub .vb-ring-av__fallback {
   background: rgba(142, 176, 154, 0.18);
   color: var(--vb-sage);
-  border: 1px solid rgba(142, 176, 154, 0.32);
 }
-.vb-ring-av__face--sub2 {
+.vb-ring-av__face--sub2 .vb-ring-av__fallback {
   background: rgba(196, 160, 212, 0.18);
   color: var(--vb-plum);
-  border: 1px solid rgba(196, 160, 212, 0.32);
 }
 
 /* Spawn-chip — lives on its own row beneath the meta, never fights for space */
@@ -483,22 +531,36 @@
   line-height: 1;
 }
 .vb-spawnchip__av {
-  width: 13px; height: 13px;
-  border-radius: 3px;
+  position: relative;
+  width: 14px; height: 14px;
+  border-radius: 50%;
   font-size: 8.5px; font-weight: 700;
   display: grid; place-items: center;
   flex-shrink: 0;
   letter-spacing: -0.02em;
+  overflow: hidden;
 }
-.vb-spawnchip__av--main {
+.vb-spawnchip__av-fallback {
+  position: absolute;
+  inset: 0;
+  display: grid; place-items: center;
+}
+.vb-spawnchip__av-img {
+  position: relative;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: translateY(15%);
+}
+.vb-spawnchip__av--main .vb-spawnchip__av-fallback {
   background: linear-gradient(135deg, var(--vb-clay), var(--vb-clay-strong));
   color: #1a0e08;
 }
-.vb-spawnchip__av--sub {
+.vb-spawnchip__av--sub .vb-spawnchip__av-fallback {
   background: rgba(142, 176, 154, 0.3);
   color: var(--vb-sage);
 }
-.vb-spawnchip__av--sub2 {
+.vb-spawnchip__av--sub2 .vb-spawnchip__av-fallback {
   background: rgba(196, 160, 212, 0.3);
   color: var(--vb-plum);
 }
@@ -513,26 +575,37 @@
 
 /* Avatar */
 .vb-avatar {
-  border-radius: 9px;
+  position: relative;
+  border-radius: 50%;
   display: grid; place-items: center;
   font-weight: 600;
   flex-shrink: 0;
   letter-spacing: -0.02em;
+  overflow: hidden;
 }
-.vb-avatar--main {
+.vb-avatar__fallback {
+  position: absolute;
+  inset: 0;
+  display: grid; place-items: center;
+}
+.vb-avatar__img {
+  position: relative;
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  transform: translateY(15%);
+}
+.vb-avatar--main .vb-avatar__fallback {
   background: linear-gradient(135deg, var(--vb-clay), var(--vb-clay-strong));
   color: #1a0e08;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.16) inset;
 }
-.vb-avatar--sub {
+.vb-avatar--sub .vb-avatar__fallback {
   background: var(--vb-sage-soft);
   color: var(--vb-sage);
-  border: 1px solid rgba(142, 176, 154, 0.32);
 }
-.vb-avatar--sub2 {
+.vb-avatar--sub2 .vb-avatar__fallback {
   background: var(--vb-plum-soft);
   color: var(--vb-plum);
-  border: 1px solid rgba(196, 160, 212, 0.32);
 }
 
 /* Status badge */
@@ -807,6 +880,8 @@
 }
 .vb-tool__head:hover { background: var(--vb-bg-2); }
 .vb-tool__head:active { background: var(--vb-bg-1); transform: translateY(1px); transition-duration: 0s; }
+.vb-tool__head--static { cursor: default; }
+.vb-tool__head--static:hover, .vb-tool__head--static:active { background: transparent; transform: none; }
 .vb-tool__icon {
   width: 28px; height: 28px;
   background: var(--vb-bg-3);
@@ -952,6 +1027,80 @@
 @keyframes vb-shimmer {
   0% { left: -30%; }
   100% { left: 100%; }
+}
+
+/* Thought-forming skeleton — appears while the agent is in "thinking" status
+ * but no thought text has been received yet. Matches .is-thought visually so
+ * the real block, once typed in, sits seamlessly in the same place. */
+.vb-thought-skeleton {
+  margin-top: 4px;
+  animation: vb-thought-breathe 2.4s ease-in-out infinite;
+}
+.vb-thought-skeleton__hint {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--vb-fg-3);
+}
+.vb-skel-lines {
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 4px;
+}
+.vb-skel-line {
+  display: block;
+  height: 10px;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--vb-fg) 6%, transparent) 0%,
+    color-mix(in srgb, var(--vb-clay) 22%, transparent) 50%,
+    color-mix(in srgb, var(--vb-fg) 6%, transparent) 100%
+  );
+  background-size: 220% 100%;
+  animation: vb-skel-shimmer 1.8s ease-in-out infinite;
+}
+.vb-skel-line:nth-child(2) { animation-delay: 0.18s; }
+.vb-skel-line:nth-child(3) { animation-delay: 0.36s; }
+@keyframes vb-skel-shimmer {
+  0%   { background-position: 120% 0; }
+  100% { background-position: -120% 0; }
+}
+@keyframes vb-thought-breathe {
+  0%, 100% { border-color: var(--vb-line-soft); box-shadow: none; }
+  50%      { border-color: var(--vb-clay-line); box-shadow: 0 0 0 1px var(--vb-clay-soft) inset; }
+}
+
+/* Typewriter — active while AnimatedMarkdown is still revealing characters.
+ * The caret sits at the end of the last block-level child so it tracks the
+ * actual end of text whether the block is a single <p>, a list, or an <h*>. */
+.vb-md.is-typing > *:last-child::after {
+  content: "▍";
+  display: inline-block;
+  margin-left: 2px;
+  color: var(--vb-clay);
+  font-weight: 400;
+  transform: translateY(-1px);
+  animation: vb-caret-blink 0.95s steps(1) infinite;
+}
+@keyframes vb-caret-blink {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+/* Subtle border glow on the surrounding thought card while typing so the
+ * "still forming" state reads at a glance without being noisy. */
+.vb-textblock.is-thought:has(.vb-md.is-typing) {
+  border-color: var(--vb-clay-line);
+  box-shadow: 0 0 0 1px var(--vb-clay-soft) inset;
+}
+.vb-textblock.is-response:has(.vb-md.is-typing) {
+  border-color: var(--vb-clay-line);
+}
+@media (prefers-reduced-motion: reduce) {
+  .vb-md.is-typing > *:last-child::after { animation: none; }
+  .vb-thought-skeleton { animation: none; }
+  .vb-skel-line { animation: none; background-position: 0 0; }
 }
 
 /* ───────── Buttons ───────── */
@@ -1115,23 +1264,6 @@
 .vb-pending-card__code { margin: 10px 0 14px; padding: 12px 14px; background: var(--vb-bg-2); border: 1px solid var(--vb-line); border-radius: var(--vb-r-sm); }
 .vb-pending-card__actions { display: flex; align-items: center; justify-content: space-between; }
 .vb-pending-card__actions-right { display: flex; align-items: center; gap: 6px; }
-
-/* ───────── Console ───────── */
-.vb-feed--console .vb-feed__inner { max-width: none; padding: 16px 24px; }
-.vb-console-line {
-  display: grid;
-  grid-template-columns: 72px 120px 80px 1fr;
-  gap: 14px;
-  padding: 3px 0;
-  font-size: 12px;
-}
-.vb-console-line__ts { color: var(--vb-fg-3); font-size: 11px; }
-.vb-console-line__agent { color: var(--vb-fg-1); font-weight: 500; }
-.vb-console-line__type { color: var(--vb-clay); font-family: var(--vb-mono); font-size: 11px; }
-.vb-console-line__type--error { color: var(--vb-err); }
-.vb-console-line__type--result { color: var(--vb-sage); }
-.vb-console-line__type--tool { color: var(--vb-saffron); }
-.vb-console-line__body { color: var(--vb-fg-2); font-size: 11.5px; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ───────── Details panel ───────── */
 .vb-details {
@@ -1980,7 +2112,7 @@ html {
  * thinking). Sized one notch larger than surrounding chrome so prose
  * stays the visual focus.
  * ───────────────────────────────────────────────────────────────── */
-.vb-md { color: inherit; line-height: 1.6; }
+.vb-md { color: inherit; line-height: 1.6; white-space: normal; }
 .vb-md > *:first-child { margin-top: 0; }
 .vb-md > *:last-child { margin-bottom: 0; }
 
