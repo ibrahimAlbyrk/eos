@@ -7,7 +7,9 @@
     "skipLibCheck": true,
     "strict": true,
     "jsx": "react-jsx",
-    "types": ["node"]
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    "noEmit": true
   },
-  "include": ["*.ts", "*.tsx"]
+  "include": ["*.ts", "*.tsx", "shared/*.ts"]
 }
