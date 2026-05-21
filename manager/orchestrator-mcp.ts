@@ -1,22 +1,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { daemonApi } from "./shared/http.ts";
 
 const DAEMON_URL = process.env.CLAUDE_MGR_DAEMON_URL ?? "http://127.0.0.1:7400";
 const SELF_ID = process.env.CLAUDE_MGR_WORKER_ID ?? "orchestrator";
 
-async function api(method: string, path: string, body?: unknown): Promise<unknown> {
-  const r = await fetch(`${DAEMON_URL}${path}`, {
-    method,
-    headers: body ? { "content-type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const text = await r.text();
-  if (!r.ok && r.status !== 201) {
-    throw new Error(`daemon ${r.status}: ${text}`);
-  }
-  return text ? JSON.parse(text) : {};
-}
+const api = (method: string, path: string, body?: unknown) => daemonApi(DAEMON_URL, method, path, body);
 
 const server = new McpServer({ name: "orchestrator", version: "0.0.1" });
 
@@ -32,14 +22,17 @@ server.registerTool(
       name: z.string().optional().describe("Friendly name for the worker (e.g. 'add-auth-tests')."),
       withGateway: z.boolean().optional().describe("Default true. Routes the worker's tool calls through the permission gateway."),
       model: z.string().optional().describe("Claude model for the worker: 'opus' (default, strongest reasoning), 'sonnet' (balanced), or 'haiku' (fastest/cheapest). Pick based on task complexity."),
+      maxCostUsd: z.number().optional().describe("Hard ceiling in USD. Worker SIGTERM'd if cumulative cost exceeds this. Useful for budget-bounded delegations."),
+      maxElapsedMs: z.number().optional().describe("Hard ceiling in milliseconds since worker started. Useful as a watchdog against runaway turns."),
     },
   },
-  async ({ prompt, worktreeFrom, cwd, name, withGateway, model }) => {
+  async ({ prompt, worktreeFrom, cwd, name, withGateway, model, maxCostUsd, maxElapsedMs }) => {
     try {
       const res = await api("POST", "/workers", {
         prompt, worktreeFrom, cwd, name, model,
         withGateway: withGateway ?? true,
         parentId: SELF_ID,
+        maxCostUsd, maxElapsedMs,
       });
       return { content: [{ type: "text" as const, text: JSON.stringify(res) }] };
     } catch (e) {
