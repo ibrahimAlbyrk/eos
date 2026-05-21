@@ -1,13 +1,37 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { mkdirSync, appendFileSync } from "node:fs";
+import { mkdirSync, appendFileSync, statSync, renameSync, existsSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
 const AUDIT_DIR = join(homedir(), ".claude-mgr");
 const AUDIT_LOG = join(AUDIT_DIR, "audit.jsonl");
+const AUDIT_MAX_BYTES = 10 * 1024 * 1024; // 10MB before rotating
+const AUDIT_KEEP = 3;                      // keep audit.jsonl.1 .. .3
 mkdirSync(AUDIT_DIR, { recursive: true });
+
+// Cheap size probe — stat is fast and we only call it on permission requests
+// (low frequency). Rotates audit.jsonl → audit.jsonl.1, shifting older
+// rotations one step. Anything past AUDIT_KEEP is dropped.
+function rotateAuditIfLarge() {
+  try {
+    const st = statSync(AUDIT_LOG);
+    if (st.size < AUDIT_MAX_BYTES) return;
+  } catch { return; /* no file yet */ }
+  try {
+    const oldest = `${AUDIT_LOG}.${AUDIT_KEEP}`;
+    if (existsSync(oldest)) { try { unlinkSync(oldest); } catch {} }
+    for (let i = AUDIT_KEEP - 1; i >= 1; i--) {
+      const src = `${AUDIT_LOG}.${i}`;
+      const dst = `${AUDIT_LOG}.${i + 1}`;
+      if (existsSync(src)) { try { renameSync(src, dst); } catch {} }
+    }
+    renameSync(AUDIT_LOG, `${AUDIT_LOG}.1`);
+  } catch (e) {
+    process.stderr.write(`[gateway] audit log rotation failed: ${(e as Error).message}\n`);
+  }
+}
 
 const DAEMON_URL = process.env.CLAUDE_MGR_DAEMON_URL;
 const WORKER_ID = process.env.CLAUDE_MGR_WORKER_ID;
@@ -72,6 +96,7 @@ server.registerTool(
       decision = decide(tool_name, input as Record<string, unknown>);
     }
 
+    rotateAuditIfLarge();
     appendFileSync(
       AUDIT_LOG,
       JSON.stringify({
