@@ -1,5 +1,22 @@
 import { memo, useState } from "react";
-import { Icon, Avatar } from "./primitives.jsx";
+import { Icon, Avatar, ExpandToggle, useExpandableCode } from "./primitives.jsx";
+
+// Pending-card variant of CodePane — the pending JSON viewer has its own
+// layout (no pane head) so the expand toggle is overlaid in the bottom-right
+// corner instead of riding in a head row.
+const PendingCodeView = memo(function PendingCodeView({ text }) {
+  const { ref, expanded, overflowing, toggle } = useExpandableCode(text);
+  return (
+    <div className="vb-pending-card__codewrap">
+      <pre ref={ref} className={`vb-code vb-pending-card__code ${expanded ? "is-expanded" : ""}`}>{text}</pre>
+      {(expanded || overflowing) && (
+        <div className="vb-pending-card__codectrl">
+          <ExpandToggle expanded={expanded} overflowing={overflowing} onToggle={toggle} />
+        </div>
+      )}
+    </div>
+  );
+});
 
 export const PendingBanner = memo(function PendingBanner({ pending, agents, onApprove, onDeny }) {
   if (!pending || pending.length === 0) return null;
@@ -73,7 +90,7 @@ const PendingCard = memo(function PendingCard({ p, agents, onApprove, onDeny }) 
       {editing ? (
         <textarea className="vb-pending-card__editor" value={text} onChange={e => setText(e.target.value)} rows={Math.min(20, text.split("\n").length + 1)} />
       ) : (
-        <pre className="vb-code vb-pending-card__code">{text}</pre>
+        <PendingCodeView text={text} />
       )}
       {err && <div className="vb-modal__err" style={{ margin: "0 0 8px" }}>{err}</div>}
       <div className="vb-pending-card__actions">

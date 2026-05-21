@@ -194,7 +194,10 @@ function mapEvent(e, workerId, nameMap) {
     }
     if (p.kind === "tool_use") {
       const args = p.input ? JSON.stringify(p.input, null, 2) : "";
-      return { ...base, type: "tool", tool: p.name, args, toolUseId: p.id || null };
+      // Keep the parsed input alongside the pretty-printed `args` string so
+      // UI features (e.g. file-open button) can read structured fields like
+      // `file_path` without re-parsing JSON on every render.
+      return { ...base, type: "tool", tool: p.name, args, input: p.input || null, toolUseId: p.id || null };
     }
     if (p.kind === "tool_result") {
       // Empty text still needs to flow through so the matching tool flips out

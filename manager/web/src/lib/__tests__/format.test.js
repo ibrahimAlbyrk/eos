@@ -57,10 +57,14 @@ describe("toolIcon", () => {
   it("maps known tool families", () => {
     expect(toolIcon("Read")).toBe("read");
     expect(toolIcon("Edit")).toBe("edit");
-    expect(toolIcon("Write")).toBe("edit");
+    expect(toolIcon("MultiEdit")).toBe("edit");
+    expect(toolIcon("Write")).toBe("filePlus");
     expect(toolIcon("Bash")).toBe("terminal");
     expect(toolIcon("Grep")).toBe("grep");
     expect(toolIcon("WebFetch")).toBe("globe");
+    expect(toolIcon("Task")).toBe("agentSpawn");
+    expect(toolIcon("TodoWrite")).toBe("checkSquare");
+    expect(toolIcon("ExitPlanMode")).toBe("scroll");
     expect(toolIcon("mcp__orchestrator__spawn_worker")).toBe("spawn");
   });
   it("falls back to tool icon", () => {

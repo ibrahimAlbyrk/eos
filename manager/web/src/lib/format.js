@@ -25,15 +25,46 @@ export function ctxPct(agent) {
   return Math.min(100, Math.round((used / budget) * 100));
 }
 
+// Tool family classification — drives both icon picking and which renderer
+// the Feed's ToolBlock dispatcher chooses. Keep these aligned with the
+// renderer registry in components/tools/ToolBlock.jsx.
+const FAMILY_TABLE = {
+  Read: "read", NotebookRead: "read",
+  Write: "write",
+  Edit: "edit", MultiEdit: "edit", NotebookEdit: "edit",
+  Bash: "bash", BashOutput: "bash", KillShell: "bash", KillBash: "bash",
+  Grep: "search", Glob: "search",
+  ToolSearch: "toolsearch",
+  WebFetch: "web", WebSearch: "web",
+  Task: "task",
+  TodoWrite: "todo",
+  ExitPlanMode: "plan",
+  spawn_worker: "orch", list_workers: "orch", get_worker: "orch",
+  kill_worker: "orch", list_pending_permissions: "orch",
+};
+
+export function toolFamily(name) {
+  const base = stripMcpPrefix(name);
+  return FAMILY_TABLE[base] || "generic";
+}
+
+const FAMILY_ICON = {
+  read: "read",
+  write: "filePlus",
+  edit: "edit",
+  bash: "terminal",
+  search: "grep",
+  toolsearch: "search",
+  web: "globe",
+  task: "agentSpawn",
+  orch: "spawn",
+  todo: "checkSquare",
+  plan: "scroll",
+  generic: "tool",
+};
+
 export function toolIcon(name) {
-  const n = (name || "").toLowerCase();
-  if (n.includes("read")) return "read";
-  if (n.includes("edit") || n.includes("write")) return "edit";
-  if (n.includes("bash")) return "terminal";
-  if (n.includes("grep")) return "grep";
-  if (n.includes("fetch") || n.includes("web")) return "globe";
-  if (n.includes("spawn")) return "spawn";
-  return "tool";
+  return FAMILY_ICON[toolFamily(name)] || "tool";
 }
 
 // Reads Date.now() at call time so the App's elapsedTickMs interval keeps
@@ -47,4 +78,18 @@ export function liveElapsed(agent) {
 // Strips the mcp__<server>__ prefix Claude prepends to MCP tool names.
 export function stripMcpPrefix(name) {
   return (name || "tool").replace(/^mcp__[^_]+__/, "");
+}
+
+// Pulls an absolute file path out of a tool's structured input, when the
+// tool is one that operates on a single file. Returns null for everything
+// else (Bash, Glob/Grep over directories, MCP tools, etc).
+export function filePathFromToolInput(toolName, input) {
+  if (!input || typeof input !== "object") return null;
+  const base = stripMcpPrefix(toolName);
+  const key = base === "NotebookEdit" || base === "NotebookRead" ? "notebook_path"
+    : (base === "Read" || base === "Edit" || base === "Write" || base === "MultiEdit") ? "file_path"
+    : null;
+  if (!key) return null;
+  const v = input[key];
+  return typeof v === "string" && v.startsWith("/") ? v : null;
 }

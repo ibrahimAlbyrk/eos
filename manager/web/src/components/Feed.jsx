@@ -1,8 +1,9 @@
 import { memo, useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { groupEvents, turnBlocks } from "../lib/groupEvents.js";
-import { toolIcon, modelShort, stripMcpPrefix } from "../lib/format.js";
+import { modelShort } from "../lib/format.js";
 import { renderMarkdown } from "../lib/markdown.js";
 import { Icon, Avatar, CopyBtn } from "./primitives.jsx";
+import { ToolBlock, OrphanResult } from "./tools/ToolBlock.jsx";
 
 // Memoized markdown render for prose blocks. Each block has a stable id so
 // the same parsed HTML survives across re-renders without re-parsing.
@@ -61,60 +62,6 @@ const AnimatedMarkdown = memo(function AnimatedMarkdown({ source, blockKey, even
       className={`vb-md ${className} ${done ? "" : "is-typing"}`}
       dangerouslySetInnerHTML={{ __html: html }}
     />
-  );
-});
-
-const ToolCard = memo(function ToolCard({ tool, result }) {
-  const [open, setOpen] = useState(false);
-  const hasResult = !!result;
-  const isError = result?.type === "error";
-  const args = tool.args || "";
-  const showInput = !!args.trim();
-  // An empty body still counts as "completed" for the status pill (so we don't
-  // get stuck on "running") but there's nothing useful to render in a pane.
-  const showOutput = hasResult && !!(result.body && String(result.body).trim());
-  // Whitespace-collapsed for the single-line header; CSS ellipsis handles the
-  // visual cut — the full args panel is one click away when the card expands.
-  const argsPreview = args.replace(/\s+/g, " ");
-  return (
-    <div className={`vb-tool ${open ? "is-open" : ""}`}>
-      <button className="vb-tool__head" onClick={() => setOpen(o => !o)} aria-expanded={open} aria-label={`${open ? "Collapse" : "Expand"} ${stripMcpPrefix(tool.tool)} tool details`}>
-        <span className="vb-tool__icon"><Icon name={toolIcon(tool.tool)} size={13} /></span>
-        <div className="vb-tool__head-text">
-          <div className="vb-tool__head-name"><span>{stripMcpPrefix(tool.tool)}</span><Icon name={open ? "chevronDown" : "chevronRight"} size={11} /></div>
-          <div className="vb-tool__head-args">{argsPreview}</div>
-        </div>
-        <span className="vb-tool__status">
-          {hasResult
-            ? (isError
-                ? <span className="vb-pill" style={{ color: "var(--vb-err)", background: "var(--vb-ember-soft)", borderColor: "rgba(217,126,126,0.32)" }}><Icon name="cross" size={10} /> err</span>
-                : <span className="vb-pill vb-pill--ok"><Icon name="check" size={10} /> ok</span>)
-            : <span className="vb-pill vb-pill--warn"><span className="vb-spinner" /> running</span>}
-        </span>
-      </button>
-      {open && (showInput || showOutput) && (
-        <div className="vb-tool__body" style={{ gridTemplateColumns: "1fr" }}>
-          {showInput && (
-            <div className="vb-tool__pane">
-              <div className="vb-tool__pane-head">
-                <span>input</span>
-                <CopyBtn text={args} />
-              </div>
-              <pre className="vb-code">{args}</pre>
-            </div>
-          )}
-          {showOutput && (
-            <div className="vb-tool__pane">
-              <div className="vb-tool__pane-head">
-                <span>{isError ? "error" : "output"}</span>
-                <CopyBtn text={result.body || ""} />
-              </div>
-              <pre className="vb-code">{result.body}</pre>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
   );
 });
 
@@ -198,44 +145,17 @@ const AgentTurn = memo(function AgentTurn({ turn, agents }) {
             }
             if (b.kind === "toolpair") {
               const key = b.tool.id || `tp-${i}`;
-              return <ToolCard key={key} tool={b.tool} result={b.result} />;
+              return <ToolBlock key={key} tool={b.tool} result={b.result} />;
             }
             if (b.kind === "tool") {
               const key = b.tool.id || `to-${i}`;
-              return <ToolCard key={key} tool={b.tool} />;
+              return <ToolBlock key={key} tool={b.tool} />;
             }
             if (b.kind === "result") {
               const body = (b.result.body || "").trim();
-              if (!body) return null; // skip empty orphan results
-              const isError = b.result.type === "error";
+              if (!body) return null;
               const key = b.result.id || `r-${i}`;
-              // Orphan result — its tool_use never made it through (rare
-              // matcher miss). Give it the same head shape as a paired tool
-              // card so it doesn't look like an unframed pane.
-              return (
-                <div key={key} className="vb-tool is-open">
-                  <div className="vb-tool__head vb-tool__head--static">
-                    <span className="vb-tool__icon"><Icon name={isError ? "cross" : "check"} size={13} /></span>
-                    <div className="vb-tool__head-text">
-                      <div className="vb-tool__head-name"><span>{isError ? "error" : "result"}</span></div>
-                    </div>
-                    <span className="vb-tool__status">
-                      {isError
-                        ? <span className="vb-pill" style={{ color: "var(--vb-err)", background: "var(--vb-ember-soft)", borderColor: "rgba(217,126,126,0.32)" }}><Icon name="cross" size={10} /> err</span>
-                        : <span className="vb-pill vb-pill--ok"><Icon name="check" size={10} /> ok</span>}
-                    </span>
-                  </div>
-                  <div className="vb-tool__body" style={{ gridTemplateColumns: "1fr" }}>
-                    <div className="vb-tool__pane">
-                      <div className="vb-tool__pane-head">
-                        <span>{isError ? "error" : "output"}</span>
-                        <CopyBtn text={body} />
-                      </div>
-                      <pre className="vb-code">{body}</pre>
-                    </div>
-                  </div>
-                </div>
-              );
+              return <OrphanResult key={key} result={b.result} />;
             }
             return null;
           })}

@@ -1,9 +1,120 @@
-import { memo, useState } from "react";
+import { memo, useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { Icon } from "../icons.jsx";
 import { pickPortrait } from "../lib/portraits.js";
 
 // Re-export Icon so other components in this folder can `import { Icon } from "./primitives.jsx"`.
 export { Icon };
+
+// Process-wide cache for /fs/default-app responses. Keyed by extension when
+// the path has one (the daemon caches the same way), else by full path.
+// Values are Promises so concurrent button mounts share a single in-flight
+// request. Persists for the page lifetime — restart to pick up changes if
+// you re-associate default apps in macOS settings.
+const _defaultAppCache = new Map();
+
+function _cacheKey(path) {
+  const dot = path.lastIndexOf(".");
+  if (dot > path.lastIndexOf("/") && dot < path.length - 1) {
+    return `ext:${path.slice(dot + 1).toLowerCase()}`;
+  }
+  return `path:${path}`;
+}
+
+function _lookupDefaultApp(path) {
+  const key = _cacheKey(path);
+  const hit = _defaultAppCache.get(key);
+  if (hit) return hit;
+  const promise = fetch(`/fs/default-app?path=${encodeURIComponent(path)}`)
+    .then((r) => r.ok ? r.json() : { app: null })
+    .then((data) => data?.app ?? null)
+    .catch(() => null);
+  _defaultAppCache.set(key, promise);
+  return promise;
+}
+
+// Text-style chip for "open this file in its default OS app". Resolves the
+// app lazily on mount (cheap — backend caches per extension), renders
+// nothing while loading or when no default app is found.
+export const FileOpenButton = memo(function FileOpenButton({ path, className = "" }) {
+  const [app, setApp] = useState(null);
+  const [opening, setOpening] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    _lookupDefaultApp(path).then((info) => { if (!cancelled) setApp(info); });
+    return () => { cancelled = true; };
+  }, [path]);
+  const onClick = useCallback(async (e) => {
+    e.stopPropagation();
+    if (opening) return;
+    setOpening(true);
+    try {
+      await fetch("/fs/open", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+    } catch {}
+    setTimeout(() => setOpening(false), 400);
+  }, [path, opening]);
+  if (!app || !app.appName) return null;
+  const label = `Open with ${app.appName}`;
+  return (
+    <button
+      className={`vb-fileopen ${opening ? "is-opening" : ""} ${className}`}
+      onClick={onClick}
+      title={label}
+      aria-label={label}
+    >
+      {label}
+    </button>
+  );
+});
+
+// Drives an expand/collapse affordance for a long <pre> code block. Returns
+// a ref to attach to the <pre>, the current expanded state, an `overflowing`
+// flag that's true only when content exceeds the CSS max-height, and a
+// toggle. The toggle is meant to live in the surrounding pane head next to
+// the copy button — see ExpandToggle for the rendered button.
+//
+// `deps` should include anything that can change the rendered length (the
+// text itself, sibling pane visibility, theme, etc.) so the overflow probe
+// re-runs after layout settles.
+export function useExpandableCode(...deps) {
+  const ref = useRef(null);
+  const [expanded, setExpanded] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    // Only measure while collapsed: once expanded, max-height is removed so
+    // scrollHeight == clientHeight and the probe would falsely report "no
+    // overflow", which would hide the collapse button.
+    if (expanded) return;
+    // +1 absorbs sub-pixel rounding; without it tall-but-not-overflowing
+    // panes flicker the button on/off as the viewport breathes.
+    setOverflowing(el.scrollHeight > el.clientHeight + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, ...deps]);
+  const toggle = useCallback(() => setExpanded((v) => !v), []);
+  return { ref, expanded, overflowing, toggle };
+}
+
+// Pane-head chip rendered when a code block is either currently expanded or
+// long enough to need expanding. Stays out of the way otherwise.
+export const ExpandToggle = memo(function ExpandToggle({ expanded, overflowing, onToggle }) {
+  if (!expanded && !overflowing) return null;
+  return (
+    <button
+      className="vb-expand-btn"
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
+      title={expanded ? "Collapse" : "Expand"}
+      aria-expanded={expanded}
+    >
+      <Icon name={expanded ? "chevronUp" : "chevronDown"} size={10} />
+      <span>{expanded ? "Collapse" : "Expand"}</span>
+    </button>
+  );
+});
 
 // Tiny clipboard button with a short "copied" feedback. Used on user bubbles,
 // agent text blocks, and tool input/output panes.
