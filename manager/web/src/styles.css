@@ -660,7 +660,6 @@
 /* ───────── Feed ───────── */
 .vb-feed {
   flex: 1; overflow-y: auto;
-  scroll-behavior: smooth;
   background: var(--vb-bg);
 }
 .vb-feed__inner {

@@ -1,4 +1,4 @@
-import { memo, useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { memo, useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { groupEvents, turnBlocks } from "../lib/groupEvents.js";
 import { toolIcon, modelShort, stripMcpPrefix } from "../lib/format.js";
 import { renderMarkdown } from "../lib/markdown.js";
@@ -173,7 +173,7 @@ const AgentTurn = memo(function AgentTurn({ turn, agents }) {
 
 // Visible window into the global event list. Phase D adds incremental
 // expansion via `visibleCount` to keep the DOM small even with 300+ events.
-export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, busy, starting, visibleCount, onLoadEarlier }) {
+export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, scopeKey, busy, starting, visibleCount, onLoadEarlier }) {
   const sliced = useMemo(() => {
     if (!visibleCount || events.length <= visibleCount) return events;
     return events.slice(-visibleCount);
@@ -183,7 +183,32 @@ export const ActivityFeed = memo(function ActivityFeed({ events, agents, scope, 
   // Auto-scroll only when already pinned to bottom — preserves manual
   // scrollback while the user is reading older events.
   const stickRef = useRef(true);
-  useEffect(() => {
+  // Per-scope scroll memory. Without this, switching agents leaves the
+  // scroll at whatever the previous agent had (which is meaningless for
+  // the new event list) and the turns.length effect snaps it to bottom.
+  const memRef = useRef(new Map());
+  const prevScopeRef = useRef(null);
+  const key = scopeKey ?? scope;
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const prev = prevScopeRef.current;
+    if (prev !== null && prev !== key) {
+      memRef.current.set(prev, { top: el.scrollTop, stick: stickRef.current });
+    }
+    if (prev !== key) {
+      const saved = memRef.current.get(key);
+      if (saved) {
+        stickRef.current = saved.stick;
+        el.scrollTop = saved.top;
+      } else {
+        stickRef.current = true;
+        el.scrollTop = el.scrollHeight;
+      }
+      prevScopeRef.current = key;
+    }
+  }, [key]);
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     if (stickRef.current) el.scrollTop = el.scrollHeight;

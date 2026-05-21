@@ -29,6 +29,11 @@ export const Center = memo(function Center({ events, agents, selected, pending, 
   const onLoadEarlier = useCallback(() => {
     setVisibleCount(c => Math.min(c + FEED_PAGE, CONFIG.maxEventHistory));
   }, []);
+  // Render both panes always; toggle via display so each pane's scroll
+  // position survives tab switches. display:none preserves scrollTop in
+  // modern browsers, so we don't need to save/restore manually.
+  const activeStyle = { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" };
+  const hiddenStyle = { display: "none" };
   return (
     <main className="vb-main">
       <div className="vb-main__head">
@@ -67,18 +72,21 @@ export const Center = memo(function Center({ events, agents, selected, pending, 
 
       <PendingBanner pending={pending} agents={agents} onApprove={onApprove} onDeny={onDeny} />
 
-      {tab === "activity" && (
+      <div style={tab === "activity" ? activeStyle : hiddenStyle}>
         <ActivityFeed
           events={events}
           agents={agents}
           scope={scope}
+          scopeKey={selected?.id || "__all__"}
           busy={busy}
           starting={starting}
           visibleCount={visibleCount}
           onLoadEarlier={onLoadEarlier}
         />
-      )}
-      {tab === "pending" && <PendingPane pending={pending} agents={agents} onApprove={onApprove} onDeny={onDeny} />}
+      </div>
+      <div style={tab === "pending" ? activeStyle : hiddenStyle}>
+        <PendingPane pending={pending} agents={agents} onApprove={onApprove} onDeny={onDeny} />
+      </div>
       {tab === "console" && <ConsolePane events={events} agents={agents} />}
 
       <Composer target={selected?.name || "Orchestrator"} busy={busy} onSend={onSend} model={selected?.model} disabled={disabled} disabledReason={disabledReason} />
