@@ -4,28 +4,30 @@ import { spawn } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import { createReadStream } from "node:fs";
 import { join } from "node:path";
-import { homedir } from "node:os";
+import { daemonFetch } from "./shared/http.ts";
+import { loadConfig } from "./shared/config.ts";
 
-const DAEMON_URL = process.env.CLAUDE_MGR_URL ?? "http://127.0.0.1:7400";
-const LOG_DIR = join(homedir(), ".claude-mgr", "logs");
-const REPO_ROOT = "/Users/ibrahimalbyrk/Projects/CC/claude-manager";
+const CONFIG = loadConfig();
+// CLAUDE_MGR_URL is kept as a separate override so callers can point the CLI
+// at a non-default daemon without writing a full config.json.
+const DAEMON_URL = process.env.CLAUDE_MGR_URL ?? `http://${CONFIG.daemon.host}:${CONFIG.daemon.port}`;
+const LOG_DIR = CONFIG.daemon.logDir;
+const REPO_ROOT = CONFIG.paths.repoRoot;
 
+// CLI-flavored wrapper: friendly error message + process.exit on failure.
+// The library-style throwing variant lives in shared/http.ts as daemonApi().
 async function api(method: string, path: string, body?: unknown): Promise<unknown> {
-  const r = await fetch(`${DAEMON_URL}${path}`, {
-    method,
-    headers: body ? { "content-type": "application/json" } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-  }).catch((e) => {
-    console.error(`error: cannot reach daemon at ${DAEMON_URL} (${e.message})`);
+  const r = await daemonFetch(DAEMON_URL, method, path, body);
+  if (r.networkError) {
+    console.error(`error: cannot reach daemon at ${DAEMON_URL} (${r.networkError.message})`);
     console.error(`hint: start daemon with: node --experimental-strip-types ${join(REPO_ROOT, "manager", "daemon.ts")}`);
     process.exit(1);
-  });
-  if (!r.ok && r.status !== 201) {
-    const txt = await r.text();
-    console.error(`error ${r.status}: ${txt}`);
+  }
+  if (!r.ok) {
+    console.error(`error ${r.status}: ${r.raw}`);
     process.exit(1);
   }
-  return r.json();
+  return r.body;
 }
 
 function fmtTs(ts: number | null): string {
@@ -258,8 +260,12 @@ usage:
   claude-manager deny <pending-id> [--reason '<text>']
                                                    deny a pending request
 
+  claude-manager config [print|init]               dump merged config or write default config.json
+  claude-manager doctor                            environment + daemon sanity checks
+
 env:
-  CLAUDE_MGR_URL  daemon URL (default http://127.0.0.1:7400)
+  CLAUDE_MGR_URL        daemon URL (default http://127.0.0.1:7400)
+  CLAUDE_MGR_LOG_LEVEL  debug | info | warn | error (default info)
 `);
 }
 
@@ -297,7 +303,7 @@ switch (cmd) {
         process.on("SIGINT", () => child.kill("SIGINT"));
         process.on("SIGTERM", () => child.kill("SIGTERM"));
       } else if (sub === "stop") {
-        const pidFile = join(homedir(), ".claude-mgr", "daemon.pid");
+        const pidFile = CONFIG.daemon.pidFile;
         if (!existsSync(pidFile)) { console.log("(no daemon running)"); break; }
         const pid = Number((await import("node:fs")).readFileSync(pidFile, "utf8").trim());
         try {
@@ -391,6 +397,100 @@ switch (cmd) {
   case "deny":
     await cmdDeny(rest);
     break;
+  case "config": {
+    const sub = rest[0];
+    if (sub === "print" || sub === undefined) {
+      console.log(JSON.stringify(CONFIG, null, 2));
+      break;
+    }
+    if (sub === "init") {
+      const { writeDefaultConfig } = await import("./shared/config.ts");
+      const path = writeDefaultConfig();
+      console.log(`wrote ${path}`);
+      console.log("edit it, then restart the daemon for changes to take effect.");
+      break;
+    }
+    console.error(`unknown config subcommand: ${sub} (use: print, init)`);
+    process.exit(1);
+    break;
+  }
+  case "doctor": {
+    // Lightweight environmental check — no daemon round-trip required for FS
+    // probes; only hits the daemon if it's actually up.
+    const { readdirSync, statSync: fsStatSync } = await import("node:fs");
+    const { execSync: shell } = await import("node:child_process");
+    const home = CONFIG.daemon.home;
+    const issues: string[] = [];
+    const ok = (m: string) => console.log(`  ✓ ${m}`);
+    const warn = (m: string) => { issues.push(m); console.log(`  ⚠ ${m}`); };
+
+    console.log("claude-manager doctor\n");
+
+    // Daemon reachable?
+    let daemonUp = false;
+    try {
+      const r = await fetch(`${DAEMON_URL}/health`);
+      daemonUp = r.ok;
+    } catch {}
+    if (daemonUp) ok(`daemon reachable at ${DAEMON_URL}`);
+    else warn(`daemon not reachable at ${DAEMON_URL} (start it with: claude-manager daemon start)`);
+
+    // ~/.claude-mgr structure
+    try {
+      const s = fsStatSync(home);
+      if (s.isDirectory()) ok(`home dir exists: ${home}`);
+      else warn(`home dir is not a directory: ${home}`);
+    } catch { warn(`home dir missing: ${home}`); }
+
+    // DB size
+    try {
+      const s = fsStatSync(CONFIG.daemon.dbFile);
+      const mb = (s.size / (1024 * 1024)).toFixed(1);
+      ok(`state.db size: ${mb} MB`);
+      if (s.size > 500 * 1024 * 1024) warn(`state.db is large (>500MB); consider archiving old workers`);
+    } catch { warn(`state.db missing: ${CONFIG.daemon.dbFile}`); }
+
+    // Log dir size
+    try {
+      let total = 0;
+      for (const f of readdirSync(CONFIG.daemon.logDir)) {
+        try { total += fsStatSync(join(CONFIG.daemon.logDir, f)).size; } catch {}
+      }
+      const mb = (total / (1024 * 1024)).toFixed(1);
+      ok(`logs dir size: ${mb} MB`);
+      if (total > 1024 * 1024 * 1024) warn(`logs dir >1GB — rotate or clean old worker logs`);
+    } catch {}
+
+    // Orphan claude/worker processes (cm- prefix from worker.ts mkdtempSync)
+    try {
+      const out = shell(`pgrep -f "cm-" 2>/dev/null || true`, { encoding: "utf8" });
+      const pids = out.split(/\s+/).filter(Boolean);
+      if (daemonUp) {
+        const ws = await fetch(`${DAEMON_URL}/workers`).then((r) => r.json()) as Array<{ pid?: number }>;
+        const known = new Set(ws.map((w) => w.pid).filter((x): x is number => typeof x === "number"));
+        const orphans = pids.map(Number).filter((p) => !known.has(p));
+        if (orphans.length > 0) warn(`${orphans.length} orphan cm-* processes (pids: ${orphans.slice(0, 5).join(", ")}...)`);
+        else ok(`no orphan cm-* processes`);
+      } else if (pids.length > 0) {
+        warn(`${pids.length} cm-* processes running but daemon is down — likely orphans`);
+      }
+    } catch {}
+
+    // Stuck pending permissions
+    if (daemonUp) {
+      try {
+        const pending = await fetch(`${DAEMON_URL}/pending`).then((r) => r.json()) as Array<{ expires_at: number }>;
+        const now = Date.now();
+        const stuck = pending.filter((p) => p.expires_at < now).length;
+        if (stuck > 0) warn(`${stuck} pending permission(s) past TTL — daemon should have swept these`);
+        else ok(`pending permissions clean (${pending.length} active, none expired)`);
+      } catch {}
+    }
+
+    console.log(`\n${issues.length === 0 ? "all good." : `${issues.length} issue(s) to review.`}`);
+    process.exit(issues.length === 0 ? 0 : 1);
+    break;
+  }
   case undefined:
   case "help":
   case "-h":
