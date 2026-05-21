@@ -149,6 +149,43 @@ describe("parseJsonlLine — attachment + legacy", () => {
     assert.equal((ev[0].payload as { isError: boolean }).isError, true);
   });
 
+  it("drops empty PostToolUse hook ack so it does not duplicate the real tool_result", () => {
+    const ev = collect(JSON.stringify({
+      type: "attachment",
+      attachment: {
+        type: "hook_success",
+        hookName: "PostToolUse:Read",
+        toolUseID: "T9",
+        hookEvent: "PostToolUse",
+        content: "",
+        stdout: '{"continue":true}',
+        stderr: "",
+        exitCode: 200,
+      },
+    }));
+    assert.deepEqual(ev, []);
+  });
+
+  it("emits when hook failed even if content is empty (falls back to stdout)", () => {
+    const ev = collect(JSON.stringify({
+      type: "attachment",
+      attachment: { type: "hook_success", toolUseID: "T9", content: "", stdout: "hook crash", exitCode: 500 },
+    }));
+    assert.equal(ev.length, 1);
+    const p = ev[0].payload as { isError: boolean; text: string };
+    assert.equal(p.isError, true);
+    assert.equal(p.text, "hook crash");
+  });
+
+  it("prefers content over stdout when both are present (success path)", () => {
+    const ev = collect(JSON.stringify({
+      type: "attachment",
+      attachment: { type: "hook_success", toolUseID: "T9", content: "real result", stdout: '{"continue":true}', exitCode: 0 },
+    }));
+    assert.equal(ev.length, 1);
+    assert.equal((ev[0].payload as { text: string }).text, "real result");
+  });
+
   it("handles legacy top-level tool_use", () => {
     const ev = collect(JSON.stringify({ type: "tool_use", name: "Read", input: { path: "/x" } }));
     assert.equal(ev.length, 1);

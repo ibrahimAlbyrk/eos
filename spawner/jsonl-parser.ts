@@ -102,17 +102,24 @@ export function parseJsonlLine(
 
   // Built-in tools (ToolSearch, etc.) deliver results as a top-level
   // "attachment" with type "hook_success" — synthesize a tool_result so the
-  // UI can still pair by id.
+  // UI can still pair by id. The worker's own PostToolUse HTTP hook also
+  // produces an attachment for every regular tool call, but with empty
+  // `content` (the ack JSON lives in stdout). Emitting that would duplicate
+  // the real tool_result already delivered via the user-role message, so we
+  // drop empty success attachments and keep stdout only as the error-path
+  // fallback when the hook itself failed.
   if (e.type === "attachment") {
     const a = e.attachment as Record<string, unknown> | undefined;
     if (a?.type === "hook_success") {
-      const text = String(a.content ?? a.stdout ?? "").trim();
       const exitCode = typeof a.exitCode === "number" ? a.exitCode : 0;
+      const isError = exitCode >= 400;
+      const content = String(a.content ?? "").trim();
+      if (!content && !isError) return;
       emit("jsonl", {
         kind: "tool_result",
         toolUseId: a.toolUseID as string,
-        isError: exitCode >= 400,
-        text,
+        isError,
+        text: content || String(a.stdout ?? "").trim(),
       });
     }
     return;
