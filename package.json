@@ -1,0 +1,16 @@
+{
+  "name": "claude-manager-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Repo-root for ESLint config and dev tooling. Each sub-package (gateway/, spawner/, manager/, manager/web/) has its own deps.",
+  "scripts": {
+    "lint": "eslint manager/cli.ts manager/daemon.ts manager/orchestrator-mcp.ts manager/tui.tsx manager/shared/ spawner/worker.ts spawner/jsonl-parser.ts gateway/server.ts gateway/verify.ts manager/web/src/"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@typescript-eslint/parser": "^8.59.4",
+    "eslint": "^10.4.0",
+    "globals": "^17.6.0"
+  }
+}
