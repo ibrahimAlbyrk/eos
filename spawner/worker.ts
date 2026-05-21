@@ -18,6 +18,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { spawnSync } from "node:child_process";
 import { spawn as ptySpawn } from "@homebridge/node-pty-prebuilt-multiarch";
 import chokidar from "chokidar";
+import { parseJsonlLine } from "./jsonl-parser.ts";
 
 const { values } = parseArgs({
   options: {
@@ -131,6 +132,9 @@ let lastJsonlActivityTs = 0;
 let lastUserMsgTs = 0;
 let lastTurnEndTs = 0;
 let pendingShutdown = false;
+// Kept at module scope so cleanup() can close it — chokidar's inotify handles
+// would otherwise outlive the worker and leak FDs across long sessions.
+let tailWatcher: import("chokidar").FSWatcher | null = null;
 const events: Array<{ event: string; t: number }> = [];
 
 function encodeCwd(p: string): string {
@@ -141,6 +145,7 @@ function startTail(sid: string) {
   const jsonlPath = join(homedir(), ".claude", "projects", encodeCwd(cwd), `${sid}.jsonl`);
   console.log(`[${name}] tail=${jsonlPath}`);
   const watcher = chokidar.watch(jsonlPath, { ignoreInitial: false, awaitWriteFinish: false });
+  tailWatcher = watcher;
   const readNew = () => {
     if (!existsSync(jsonlPath)) return;
     const stat = statSync(jsonlPath);
@@ -151,73 +156,26 @@ function startTail(sid: string) {
     closeSync(fd);
     jsonlOffset = stat.size;
     for (const line of buf.toString("utf8").split("\n").filter(Boolean)) {
-      try {
-        const e = JSON.parse(line);
-        // Claude Code JSONL wraps content blocks inside message objects.
-        // Assistant turns can contain BOTH text and tool_use blocks; user turns
-        // carry tool_result blocks. Extract all of them.
-        if (e.message?.role === "assistant") {
-          const usage = e.message?.usage;
-          if (usage && (usage.input_tokens || usage.output_tokens || usage.cache_read_input_tokens || usage.cache_creation_input_tokens)) {
-            emit("usage", {
-              in: usage.input_tokens ?? 0,
-              out: usage.output_tokens ?? 0,
-              cacheRead: usage.cache_read_input_tokens ?? 0,
-              cacheCreate: usage.cache_creation_input_tokens ?? 0,
-              model: e.message?.model ?? values.model ?? "opus",
-            });
+      parseJsonlLine(line, (type, payload) => {
+        emit(type, payload);
+        if (type === "jsonl") {
+          const p = payload as { kind: string; name?: string; text?: string; isError?: boolean };
+          // Mirror the previous in-line console.log so the worker stdout/log
+          // still surfaces parse activity for debugging.
+          if (p.kind === "assistant_text") {
+            console.log(`[${name}][jsonl] assistant ${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
+          } else if (p.kind === "tool_use") {
+            console.log(`[${name}][jsonl] tool_use ${p.name}`);
+          } else if (p.kind === "thinking") {
+            console.log(`[${name}][jsonl] thinking ${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
+          } else if (p.kind === "tool_result") {
+            console.log(`[${name}][jsonl] tool_result ${p.isError ? "ERR " : ""}${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
           }
-          for (const block of e.message.content ?? []) {
-            if (block.type === "text") {
-              const text = String(block.text);
-              console.log(`[${name}][jsonl] assistant ${text.slice(0, 80).replace(/\s+/g, " ")}`);
-              emit("jsonl", { kind: "assistant_text", text });
-              lastJsonlActivityTs = Date.now();
-            } else if (block.type === "tool_use") {
-              console.log(`[${name}][jsonl] tool_use ${block.name} ${JSON.stringify(block.input ?? {}).slice(0, 80)}`);
-              emit("jsonl", { kind: "tool_use", id: block.id, name: block.name, input: block.input ?? {} });
-              lastJsonlActivityTs = Date.now();
-            } else if (block.type === "thinking") {
-              const text = String(block.thinking ?? block.text ?? "");
-              console.log(`[${name}][jsonl] thinking ${text.slice(0, 80).replace(/\s+/g, " ")}`);
-              emit("jsonl", { kind: "thinking", text });
-              lastJsonlActivityTs = Date.now();
-            }
-          }
-        } else if (e.message?.role === "user") {
-          for (const block of e.message.content ?? []) {
-            if (block.type === "tool_result") {
-              const raw = block.content;
-              const text =
-                typeof raw === "string"
-                  ? raw
-                  : Array.isArray(raw)
-                    ? raw.map((c: { text?: string }) => c?.text ?? "").join("")
-                    : "";
-              console.log(`[${name}][jsonl] tool_result ${block.is_error ? "ERR " : ""}${text.slice(0, 80).replace(/\s+/g, " ")}`);
-              emit("jsonl", { kind: "tool_result", toolUseId: block.tool_use_id, isError: !!block.is_error, text });
-            }
+          if (p.kind === "assistant_text" || p.kind === "tool_use" || p.kind === "thinking") {
+            lastJsonlActivityTs = Date.now();
           }
         }
-        // Built-in tools (ToolSearch, etc.) deliver their result as a top-level
-        // "attachment" entry with type "hook_success", NOT a tool_result block
-        // inside a user message. Synthesize a tool_result event from it so the
-        // UI can pair it with the matching tool_use by id.
-        else if (e.type === "attachment" && e.attachment?.type === "hook_success") {
-          const a = e.attachment;
-          const text = String(a.content ?? a.stdout ?? "").trim();
-          const isError = typeof a.exitCode === "number" && a.exitCode >= 400;
-          console.log(`[${name}][jsonl] attachment ${isError ? "ERR " : ""}${text.slice(0, 80).replace(/\s+/g, " ")}`);
-          emit("jsonl", { kind: "tool_result", toolUseId: a.toolUseID, isError, text });
-        }
-        // Legacy top-level event shapes (older Claude Code transcript formats):
-        else if (e.type === "tool_use") {
-          emit("jsonl", { kind: "tool_use", name: e.name, input: e.input ?? {} });
-        } else if (e.type === "tool_result") {
-          const text = String(e.content?.[0]?.text ?? "");
-          emit("jsonl", { kind: "tool_result", isError: !!e.isError, text });
-        }
-      } catch {}
+      }, values.model ?? "opus");
     }
   };
   watcher.on("add", readNew).on("change", readNew);
@@ -309,13 +267,16 @@ if (values["mcp-config"]) {
   }
 } else if (values["with-gateway"]) {
   const mcpPath = join(settingsTmpDir, "mcp.json");
+  const bunBin = process.env.CLAUDE_MGR_BUN_BIN || "bun";
+  const gatewayScript = process.env.CLAUDE_MGR_GATEWAY_SCRIPT
+    || join(process.env.CLAUDE_MGR_REPO_ROOT || "", "gateway", "server.ts");
   writeFileSync(
     mcpPath,
     JSON.stringify({
       mcpServers: {
         gateway: {
-          command: "/Users/ibrahimalbyrk/.local/bin/bun",
-          args: ["run", "/Users/ibrahimalbyrk/Projects/CC/claude-manager/gateway/server.ts"],
+          command: bunBin,
+          args: ["run", gatewayScript],
           env: daemonUrl && workerId
             ? { ...(process.env as Record<string, string>), CLAUDE_MGR_DAEMON_URL: daemonUrl, CLAUDE_MGR_WORKER_ID: workerId }
             : { ...(process.env as Record<string, string>) },
@@ -342,7 +303,8 @@ claudeArgs.push("--model", values.model ?? "opus");
 console.log(`[${name}] spawn: claude ${claudeArgs.join(" ")}`);
 emit("lifecycle", { phase: "claude_spawning", args: claudeArgs, cwd, worktreeDir, branch });
 
-const pty = ptySpawn("/Users/ibrahimalbyrk/.local/bin/claude", claudeArgs, {
+const claudeBin = process.env.CLAUDE_MGR_CLAUDE_BIN || "claude";
+const pty = ptySpawn(claudeBin, claudeArgs, {
   cwd,
   cols: 120,
   rows: 30,
@@ -411,6 +373,7 @@ function cleanup(code: number) {
   cleanedUp = true;
   if (shutdownTimer) clearTimeout(shutdownTimer);
   clearInterval(heartbeatTimer);
+  if (tailWatcher) { try { tailWatcher.close(); } catch {} tailWatcher = null; }
   // Make absolutely sure the claude PTY child is signalled — process.exit alone
   // closes the master FD but timing race can leave orphan claude processes.
   try { pty.kill("SIGTERM"); } catch {}
