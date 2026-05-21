@@ -7,9 +7,10 @@ export const CONFIG = {
   // Live data layer
   pollFallbackMs: 4000,           // safety-net poll when SSE quiet
   refetchDebounceMs: 80,          // coalesce SSE bursts before refetching
-  eventsPerWorkerLimit: 400,      // max events fetched per worker per poll
-  maxEventHistory: 300,           // global event list cap shown in UI
-  cachePerWorkerCap: 800,         // in-memory event cache cap per worker
+  // Per-request page size for the forward-pagination loop in data.jsx. The
+  // loop keeps requesting pages while the previous page was full, so a small
+  // value just means more round trips on first load — never lost events.
+  eventsPerWorkerLimit: 2000,
 
   // Activity histogram
   activityBuckets: 24,            // 24 buckets × 60s = 24 minute window

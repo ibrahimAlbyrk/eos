@@ -238,21 +238,89 @@ async function cmdDeny(args: string[]): Promise<void> {
   console.log(JSON.stringify(res));
 }
 
+interface Orchestrator {
+  id: string;
+  name: string | null;
+  cwd: string | null;
+  state: string;
+  started_at: number;
+  ended_at: number | null;
+  is_orchestrator: number;
+}
+
+async function cmdOrchestrator(args: string[]): Promise<void> {
+  const sub = args[0];
+  if (sub === "new" || sub === "create") {
+    const { values } = parseArgs({
+      args: args.slice(1),
+      options: {
+        cwd: { type: "string" },
+        name: { type: "string" },
+        model: { type: "string" },
+      },
+      strict: true,
+    });
+    if (!values.cwd) { console.error("error: --cwd required"); process.exit(1); }
+    const res = (await api("POST", "/orchestrators", {
+      name: values.name,
+      cwd: values.cwd,
+      model: values.model,
+    })) as { id: string; port: number; name?: string };
+    console.log(`spawned orchestrator: ${res.id}  name=${res.name ?? values.name ?? "(auto)"}  cwd=${values.cwd}`);
+    return;
+  }
+  if (sub === "list" || sub === "ls" || sub === undefined) {
+    const rows = (await api("GET", "/orchestrators")) as Orchestrator[];
+    if (rows.length === 0) { console.log("(no orchestrators)"); return; }
+    console.log("ID         NAME                 STATE     DUR    CWD");
+    for (const o of rows) {
+      console.log(
+        `${o.id.padEnd(10)} ${(o.name ?? "-").slice(0, 20).padEnd(20)} ${o.state.padEnd(9)} ${fmtDur(o.started_at, o.ended_at).padEnd(6)} ${o.cwd ?? "-"}`
+      );
+    }
+    return;
+  }
+  console.error("usage: orchestrator [list | new --cwd <path> --name <n> [--model opus]]");
+  process.exit(1);
+}
+
+// Resolve which orchestrator to chat with. Explicit --to wins; otherwise auto-pick
+// when exactly one ACTIVE orchestrator exists; error on 0 or 2+. DONE rows are
+// historical and ignored for auto-targeting.
+async function resolveChatTarget(explicit: string | undefined): Promise<string> {
+  if (explicit) return explicit;
+  const rows = (await api("GET", "/orchestrators")) as Orchestrator[];
+  const active = rows.filter(o => o.state !== "DONE");
+  if (active.length === 0) {
+    console.error("error: no active orchestrator. Create one with: claude-manager orchestrator new --cwd <path> --name <n>");
+    process.exit(1);
+  }
+  if (active.length === 1) return active[0].id;
+  console.error("error: multiple orchestrators running — specify with --to <id>");
+  for (const o of active) console.error(`  ${o.id}  ${o.name ?? "-"}  ${o.cwd ?? "-"}`);
+  process.exit(1);
+}
+
 function help(): void {
   console.log(`claude-manager — orchestration CLI for Claude Code workers
 
 usage:
-  claude-manager daemon [start|stop|status]        manage the orchestrator daemon
+  claude-manager daemon [start|stop|status]        manage the daemon
   claude-manager web                               launch web UI in browser (starts daemon if needed)
-  claude-manager tui                               launch interactive TUI dashboard
-  claude-manager chat <message...>                 send a message to the orchestrator (starts it if needed)
+
+  claude-manager orchestrator new --cwd <path> [--name <n>] [--model opus|sonnet|haiku]
+                                                   create a new orchestrator in <path> (name auto-generated if blank)
+  claude-manager orchestrator list                 list orchestrators
+  claude-manager chat [--to <orch-id>] <message...>
+                                                   send a message to an orchestrator (auto-target when exactly one exists)
+
   claude-manager list                              list workers
   claude-manager spawn --cwd <dir> --prompt <text> spawn worker in <dir>
   claude-manager spawn --worktree-from <repo> --prompt <text> [--branch <b>]
                                                    spawn worker in new worktree
-  claude-manager show <id>                         worker detail + recent events
-  claude-manager logs <id> [-f]                    worker stdout/stderr (use -f to follow)
-  claude-manager kill <id>                         terminate worker
+  claude-manager show <id>                         worker/orchestrator detail + recent events
+  claude-manager logs <id> [-f]                    stdout/stderr (use -f to follow)
+  claude-manager kill <id>                         terminate worker or orchestrator
 
   claude-manager pending                           list pending permission requests
   claude-manager approve <pending-id> [--rewrite '<json>']
@@ -329,11 +397,22 @@ switch (cmd) {
     break;
   case "chat":
     {
-      const text = rest.join(" ").trim();
-      if (!text) { console.error("usage: chat <message...>"); process.exit(1); }
-      const res = await api("POST", "/orchestrator/message", { text });
+      const { values, positionals } = parseArgs({
+        args: rest,
+        allowPositionals: true,
+        options: { to: { type: "string" } },
+        strict: true,
+      });
+      const text = positionals.join(" ").trim();
+      if (!text) { console.error("usage: chat [--to <orchestrator-id>] <message...>"); process.exit(1); }
+      const targetId = await resolveChatTarget(values.to);
+      const res = await api("POST", `/orchestrators/${targetId}/message`, { text });
       console.log(JSON.stringify(res));
     }
+    break;
+  case "orchestrator":
+  case "orch":
+    await cmdOrchestrator(rest);
     break;
   case "tui":
     {

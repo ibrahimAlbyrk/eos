@@ -111,7 +111,7 @@ function computeActivity(events) {
 }
 
 function mapWorker(w, allWorkers, toolCounts, signals, activityMap) {
-  const isOrch = w.id === "orchestrator";
+  const isOrch = !!w.is_orchestrator;
   let depth = 0;
   let cur = w.parent_id;
   while (cur) {
@@ -155,6 +155,7 @@ function mapWorker(w, allWorkers, toolCounts, signals, activityMap) {
     thinking: isThinking,
     branch: w.branch || null,
     cwd: w.cwd || w.worktree_from || null,
+    isOrchestrator: isOrch,
     lastHeartbeatTs: sig.lastHeartbeatTs || null,
     heartbeatQuietMs: sig.heartbeatQuietMs || 0,
   };
@@ -199,8 +200,10 @@ function mapEvent(e, workerId, nameMap) {
       // Empty text still needs to flow through so the matching tool flips out
       // of its "running" state — emit with an empty body and let the UI hide
       // the output pane / orphan block when there is nothing to show.
-      const text = String(p.text || "").trim();
-      const body = text ? substituteIds(text, nameMap) : "";
+      // Do NOT run substituteIds here: MCP tools like spawn_worker return JSON
+      // containing worker ids, and rewriting them to names breaks parseability
+      // and corrupts what the user copies via the pane's copy button.
+      const body = String(p.text || "").trim();
       return { ...base, type: p.isError ? "error" : "result", tool: "", body, toolUseId: p.toolUseId || null };
     }
     if (p.kind === "assistant_text") {
@@ -274,21 +277,28 @@ async function poll() {
     await Promise.all(
       workers.map(async (w) => {
         try {
-          const since = lastEventTsByWorker.get(w.id) || 0;
-          const url = `${DAEMON}/workers/${w.id}/events?since=${since}&limit=${CONFIG.eventsPerWorkerLimit}`;
-          const newEvents = await fetch(url).then(r => r.json());
+          // Forward pagination (order=asc): each round returns the OLDEST
+          // events with ts > since. Loop until we get a short page — that's
+          // how we guarantee no event is ever skipped, even on first load of
+          // a worker with thousands of events and even when activity bursts
+          // exceed the per-request limit between polls.
+          const fetchBatch = [];
+          let cursor = lastEventTsByWorker.get(w.id) || 0;
+          for (;;) {
+            const url = `${DAEMON}/workers/${w.id}/events?since=${cursor}&order=asc&limit=${CONFIG.eventsPerWorkerLimit}`;
+            const page = await fetch(url).then(r => r.json());
+            if (!Array.isArray(page) || page.length === 0) break;
+            fetchBatch.push(...page);
+            cursor = page[page.length - 1].ts;
+            if (page.length < CONFIG.eventsPerWorkerLimit) break;
+          }
 
-          // Merge new events into cache. Daemon returns ASC, cache is ASC, so
-          // a plain append preserves order. Trim to per-worker cap to bound
-          // memory for long-lived workers.
           const existing = cachedEventsByWorker.get(w.id) || [];
-          let merged = existing;
-          if (newEvents.length > 0) {
-            merged = existing.length === 0 ? newEvents : existing.concat(newEvents);
-            if (merged.length > CONFIG.cachePerWorkerCap) {
-              merged = merged.slice(-CONFIG.cachePerWorkerCap);
-            }
-            lastEventTsByWorker.set(w.id, newEvents[newEvents.length - 1].ts);
+          const merged = fetchBatch.length === 0
+            ? existing
+            : (existing.length === 0 ? fetchBatch : existing.concat(fetchBatch));
+          if (fetchBatch.length > 0) {
+            lastEventTsByWorker.set(w.id, fetchBatch[fetchBatch.length - 1].ts);
           }
           cachedEventsByWorker.set(w.id, merged);
 
@@ -306,7 +316,9 @@ async function poll() {
 
     const agents = workers.map(w => mapWorker(w, workers, toolCounts, signals, activityMap));
 
-    // Flatten all cached events into the global feed, then take the most recent.
+    // Flatten EVERY cached event into the global feed. No global cap — events
+    // are retained for the lifetime of the worker (until DELETE wipes the
+    // worker, at which point its cache entry is evicted above).
     const flat = [];
     for (const [wid, evs] of cachedEventsByWorker.entries()) {
       for (const e of evs) {
@@ -315,7 +327,7 @@ async function poll() {
       }
     }
     flat.sort((a, b) => a._ts - b._ts);
-    const events = flat.slice(-CONFIG.maxEventHistory);
+    const events = flat;
 
     state.agents = agents;
     state.events = events;
@@ -344,7 +356,11 @@ window.live = {
   // React's referential equality check works even though `state` is mutated.
   getVersion() { return version; },
   sendMessage: async (text, agentId) => {
-    const target = (!agentId || agentId === "orchestrator") ? "/orchestrator/message" : `/workers/${agentId}/message`;
+    if (!agentId) return false;
+    const agent = state.agents.find(a => a.id === agentId);
+    const target = agent?.isOrchestrator
+      ? `/orchestrators/${agentId}/message`
+      : `/workers/${agentId}/message`;
     const r = await fetch(`${DAEMON}${target}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -362,10 +378,20 @@ window.live = {
     poll();
     return r.ok;
   },
-  spawnOrchestrator: async () => {
-    const r = await fetch(`${DAEMON}/orchestrator/start`, { method: "POST" });
+  spawnOrchestrator: async ({ name, cwd } = {}) => {
+    // Orchestrators are always opus — daemon defaults to opus when model omitted.
+    const r = await fetch(`${DAEMON}/orchestrators`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name, cwd }),
+    });
     poll();
-    return r.ok;
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      return { ok: false, error: j.error || `daemon ${r.status}` };
+    }
+    const res = await r.json();
+    return { ok: true, id: res.id };
   },
   approvePending: async (pendingId, updatedInput) => {
     const body = { decision: "allow" };
@@ -389,9 +415,6 @@ window.live = {
   },
   refresh: poll,
 };
-
-// Auto-start orchestrator on first load
-fetch(`${DAEMON}/orchestrator/start`, { method: "POST" }).catch(() => {});
 
 let debounceTimer = null;
 function schedulePoll() {

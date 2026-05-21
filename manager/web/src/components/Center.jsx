@@ -1,8 +1,7 @@
 import { memo, useState, useCallback } from "react";
-import { CONFIG } from "../config.js";
 import { Icon } from "./primitives.jsx";
 import { PendingBanner, PendingPane } from "./Pending.jsx";
-import { ActivityFeed, ConsolePane } from "./Feed.jsx";
+import { ActivityFeed } from "./Feed.jsx";
 import { Composer } from "./Composer.jsx";
 
 const FEED_PAGE = 50;
@@ -27,7 +26,7 @@ export const Center = memo(function Center({ events, agents, selected, pending, 
     disabled = true; disabledReason = `${selected.name} has ${selected.status === "killed" ? "been killed" : selected.status === "error" ? "errored" : "finished"} — spawn a new one`;
   }
   const onLoadEarlier = useCallback(() => {
-    setVisibleCount(c => Math.min(c + FEED_PAGE, CONFIG.maxEventHistory));
+    setVisibleCount(c => c + FEED_PAGE);
   }, []);
   // Render both panes always; toggle via display so each pane's scroll
   // position survives tab switches. display:none preserves scrollTop in
@@ -58,15 +57,6 @@ export const Center = memo(function Center({ events, agents, selected, pending, 
             <Icon name="shield" size={12} /> Pending
             {pending.length > 0 && <span className="vb-seg__badge vb-seg__badge--alert">{pending.length}</span>}
           </button>
-          <button
-            className={`vb-seg ${tab === "console" ? "is-active" : ""}`}
-            onClick={() => setTab("console")}
-            role="tab"
-            aria-selected={tab === "console"}
-            aria-controls="center-panel-console"
-          >
-            <Icon name="terminal" size={12} /> Console
-          </button>
         </div>
       </div>
 
@@ -79,6 +69,7 @@ export const Center = memo(function Center({ events, agents, selected, pending, 
           scope={scope}
           scopeKey={selected?.id || "__all__"}
           busy={busy}
+          busyKind={selected?.status === "thinking" ? "thinking" : "running"}
           starting={starting}
           visibleCount={visibleCount}
           onLoadEarlier={onLoadEarlier}
@@ -87,9 +78,8 @@ export const Center = memo(function Center({ events, agents, selected, pending, 
       <div style={tab === "pending" ? activeStyle : hiddenStyle}>
         <PendingPane pending={pending} agents={agents} onApprove={onApprove} onDeny={onDeny} />
       </div>
-      {tab === "console" && <ConsolePane events={events} agents={agents} />}
 
-      <Composer target={selected?.name || "Orchestrator"} busy={busy} onSend={onSend} model={selected?.model} disabled={disabled} disabledReason={disabledReason} />
+      <Composer target={selected?.name || "—"} busy={busy} onSend={onSend} model={selected?.model} disabled={disabled} disabledReason={disabledReason} />
     </main>
   );
 });

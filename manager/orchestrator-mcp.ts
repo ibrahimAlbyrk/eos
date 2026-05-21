@@ -1,6 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
+import { spawnSync } from "node:child_process";
 import { daemonApi } from "./shared/http.ts";
 
 const DAEMON_URL = process.env.CLAUDE_MGR_DAEMON_URL ?? "http://127.0.0.1:7400";
@@ -8,17 +9,27 @@ const SELF_ID = process.env.CLAUDE_MGR_WORKER_ID ?? "orchestrator";
 
 const api = (method: string, path: string, body?: unknown) => daemonApi(DAEMON_URL, method, path, body);
 
+// Resolve own cwd from daemon. Workers spawned via spawn_worker MUST run in
+// this directory — the LLM cannot override it. If the cwd is a git repo we
+// route through a worktree (isolation on its own branch); otherwise plain cwd.
+const self = (await api("GET", `/workers/${SELF_ID}`)) as { cwd?: string | null };
+const ORCH_CWD = (self.cwd ?? "").trim();
+if (!ORCH_CWD) {
+  process.stderr.write(`[orchestrator-mcp] FATAL: self (${SELF_ID}) has no cwd in daemon\n`);
+  process.exit(1);
+}
+const gitCheck = spawnSync("git", ["rev-parse", "--git-dir"], { cwd: ORCH_CWD, encoding: "utf8" });
+const ORCH_IS_GIT_REPO = gitCheck.status === 0;
+
 const server = new McpServer({ name: "orchestrator", version: "0.0.1" });
 
 server.registerTool(
   "spawn_worker",
   {
     description:
-      "Spawn a new background Claude worker to handle a task. Returns the worker ID and port. Prefer providing worktreeFrom (path to a git repo) so the worker runs in an isolated git worktree on its own branch. Use cwd only for read-only investigations.",
+      "Spawn a new background Claude worker to handle a task. Returns the worker ID and port. The worker automatically runs in your project directory — you do not (and cannot) choose the path.",
     inputSchema: {
       prompt: z.string().describe("The task instruction for the worker. Be specific and self-contained."),
-      worktreeFrom: z.string().optional().describe("Absolute path to a git repo. Creates an isolated worktree per worker."),
-      cwd: z.string().optional().describe("Absolute working directory (mutually exclusive with worktreeFrom)."),
       name: z.string().optional().describe("Friendly name for the worker (e.g. 'add-auth-tests')."),
       withGateway: z.boolean().optional().describe("Default true. Routes the worker's tool calls through the permission gateway."),
       model: z.string().optional().describe("Claude model for the worker: 'opus' (default, strongest reasoning), 'sonnet' (balanced), or 'haiku' (fastest/cheapest). Pick based on task complexity."),
@@ -26,14 +37,17 @@ server.registerTool(
       maxElapsedMs: z.number().optional().describe("Hard ceiling in milliseconds since worker started. Useful as a watchdog against runaway turns."),
     },
   },
-  async ({ prompt, worktreeFrom, cwd, name, withGateway, model, maxCostUsd, maxElapsedMs }) => {
+  async ({ prompt, name, withGateway, model, maxCostUsd, maxElapsedMs }) => {
     try {
-      const res = await api("POST", "/workers", {
-        prompt, worktreeFrom, cwd, name, model,
+      const body: Record<string, unknown> = {
+        prompt, name, model,
         withGateway: withGateway ?? true,
         parentId: SELF_ID,
         maxCostUsd, maxElapsedMs,
-      });
+      };
+      if (ORCH_IS_GIT_REPO) body.worktreeFrom = ORCH_CWD;
+      else body.cwd = ORCH_CWD;
+      const res = await api("POST", "/workers", body);
       return { content: [{ type: "text" as const, text: JSON.stringify(res) }] };
     } catch (e) {
       return { content: [{ type: "text" as const, text: `error: ${(e as Error).message}` }], isError: true };
@@ -114,4 +128,4 @@ server.registerTool(
 );
 
 await server.connect(new StdioServerTransport());
-process.stderr.write("[orchestrator-mcp] ready on stdio\n");
+process.stderr.write(`[orchestrator-mcp] ready on stdio (id=${SELF_ID}, cwd=${ORCH_CWD}, git=${ORCH_IS_GIT_REPO})\n`);

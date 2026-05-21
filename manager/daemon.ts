@@ -110,6 +110,8 @@ const MIGRATIONS: Array<{ id: string; sql: string }> = [
     )
   `},
   { id: "012_idx_pending_unresolved", sql: "CREATE INDEX IF NOT EXISTS idx_pending_unresolved ON pending_permissions(resolved, expires_at)" },
+  { id: "013_workers_add_is_orchestrator", sql: "ALTER TABLE workers ADD COLUMN is_orchestrator INTEGER DEFAULT 0" },
+  { id: "014_backfill_existing_orchestrator", sql: "UPDATE workers SET is_orchestrator = 1 WHERE id = 'orchestrator'" },
 ];
 
 db.exec(`CREATE TABLE IF NOT EXISTS schema_migrations (id TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)`);
@@ -344,6 +346,22 @@ function newId(): string {
   return "w-" + Math.random().toString(36).slice(2, 10);
 }
 
+function newOrchId(): string {
+  return "o-" + Math.random().toString(36).slice(2, 8);
+}
+
+const ORCH_NAME_ADJECTIVES = [
+  "swift", "brave", "calm", "bright", "sharp", "quiet", "bold", "kind",
+  "wise", "neat", "cool", "warm", "fast", "deep", "soft", "lone",
+  "spry", "vivid", "keen", "merry", "lucky", "fair", "tidy", "nimble",
+];
+
+function randomOrchName(): string {
+  const adj = ORCH_NAME_ADJECTIVES[Math.floor(Math.random() * ORCH_NAME_ADJECTIVES.length)];
+  const n = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
+  return `${adj}-${n}-orchestrator`;
+}
+
 async function findFreePort(start = CONFIG.worker.portRangeStart): Promise<number> {
   for (let p = start; p <= CONFIG.worker.portRangeEnd; p++) {
     if (usedPorts.has(p)) continue;
@@ -409,6 +427,7 @@ interface SpawnOpts {
   fixedId?: string;
   parentId?: string;
   model?: string;
+  isOrchestrator?: boolean;
   /** Hard ceiling in USD. When cur cost_usd exceeds this, daemon SIGTERMs the
    *  worker and logs a `limit_exceeded` event with kind="cost". Undefined = no cap. */
   maxCostUsd?: number;
@@ -529,8 +548,8 @@ async function spawnWorker(opts: SpawnOpts): Promise<{ id: string; port: number 
   }
 
   db.prepare(`
-    INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, pid, port, started_at, parent_id, model)
-    VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, pid, port, started_at, parent_id, model, is_orchestrator)
+    VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     opts.cwd ?? null,
@@ -543,6 +562,7 @@ async function spawnWorker(opts: SpawnOpts): Promise<{ id: string; port: number 
     Date.now(),
     opts.parentId ?? null,
     model,
+    opts.isOrchestrator ? 1 : 0,
   );
   logEvent(id, "spawn", { args: args.slice(2), pid: child.pid });
 
@@ -617,6 +637,32 @@ const server = createServer(async (req, res) => {
 
   try {
     if (m === "GET" && p === "/health") return json(res, 200, { ok: true });
+
+    // Native directory picker — daemon-side so the dialog returns an absolute
+    // path the worker can actually chdir into. Browser File System Access API
+    // can't expose absolute paths due to sandboxing, so we shell out to the OS.
+    // Async spawn (not execFileSync) so other requests aren't blocked while
+    // the user is interacting with the dialog.
+    if (m === "GET" && p === "/pick-directory") {
+      if (process.platform !== "darwin") {
+        return json(res, 501, { error: "directory picker only implemented on macOS" });
+      }
+      const out = await new Promise<string>((resolve) => {
+        const proc = spawn(
+          "osascript",
+          ["-e", "try", "-e", 'POSIX path of (choose folder with prompt "Select project directory")', "-e", "on error", "-e", 'return ""', "-e", "end try"],
+          { stdio: ["ignore", "pipe", "pipe"] }
+        );
+        let buf = "";
+        proc.stdout.on("data", (d) => { buf += d.toString(); });
+        proc.on("exit", () => resolve(buf.trim()));
+        proc.on("error", () => resolve(""));
+      });
+      if (!out) return json(res, 200, { cancelled: true });
+      // osascript appends a trailing slash to directory paths — strip it.
+      const path = out.endsWith("/") && out.length > 1 ? out.slice(0, -1) : out;
+      return json(res, 200, { path });
+    }
 
     // Prometheus text exposition format. Scrapeable by node_exporter-style
     // tools or just curl. No labels-by-worker — events table holds that
@@ -804,10 +850,23 @@ const server = createServer(async (req, res) => {
       if (m === "GET") {
         const since = Number(url.searchParams.get("since") ?? 0);
         const limit = Math.min(Number(url.searchParams.get("limit") ?? 500), 5000);
-        // Fetch the NEWEST N events (DESC + LIMIT), then re-sort ASC for chronological display.
-        const rows = db.prepare(
-          "SELECT * FROM (SELECT * FROM events WHERE worker_id = ? AND ts > ? ORDER BY ts DESC LIMIT ?) ORDER BY ts ASC"
-        ).all(id, since, limit) as Row[];
+        const order = url.searchParams.get("order");
+        // order=asc → forward pagination (oldest-first after `since`). Lets a
+        // client loop with the last-seen ts as the next `since` and drain
+        // every event without skipping. The default DESC+LIMIT path returns
+        // the newest N, which is what CLI/TUI "recent events" callers want.
+        const rows =
+          order === "asc"
+            ? (db
+                .prepare(
+                  "SELECT * FROM events WHERE worker_id = ? AND ts > ? ORDER BY ts ASC LIMIT ?"
+                )
+                .all(id, since, limit) as Row[])
+            : (db
+                .prepare(
+                  "SELECT * FROM (SELECT * FROM events WHERE worker_id = ? AND ts > ? ORDER BY ts DESC LIMIT ?) ORDER BY ts ASC"
+                )
+                .all(id, since, limit) as Row[]);
         return json(res, 200, rows);
       }
       if (m === "POST") {
@@ -901,66 +960,60 @@ const server = createServer(async (req, res) => {
       }
     }
 
-    const ORCH_ID = "orchestrator";
-    if (m === "POST" && p === "/orchestrator/start") {
-      const existing = db.prepare("SELECT id, state FROM workers WHERE id = ?").get(ORCH_ID) as Row | undefined;
-      if (existing && existing.state !== "DONE" && children.has(ORCH_ID)) {
-        return json(res, 200, { id: ORCH_ID, already_running: true });
-      }
-      if (existing) db.prepare("DELETE FROM workers WHERE id = ?").run(ORCH_ID);
-      const mcpPath = join(DAEMON_DIR, "orchestrator-mcp.json");
+    // Per-orchestrator MCP config — id is baked into the env so the MCP child
+    // process knows which orchestrator it serves (SELF_ID in orchestrator-mcp.ts).
+    // Without this, multi-orchestrator parent_id linking is broken.
+    const writeOrchestratorMcpConfig = (orchId: string): string => {
+      const mcpPath = join(DAEMON_DIR, `orchestrator-mcp-${orchId}.json`);
       writeFileSync(mcpPath, JSON.stringify({
         mcpServers: {
           orchestrator: {
             command: "node",
             args: ["--no-warnings", "--experimental-strip-types", join(REPO_ROOT, "manager", "orchestrator-mcp.ts")],
-            env: { ...process.env, CLAUDE_MGR_DAEMON_URL: `http://127.0.0.1:${PORT}` },
+            env: {
+              ...process.env,
+              CLAUDE_MGR_DAEMON_URL: `http://127.0.0.1:${PORT}`,
+              CLAUDE_MGR_WORKER_ID: orchId,
+            },
           },
         },
       }));
+      return mcpPath;
+    };
+
+    if (m === "POST" && p === "/orchestrators") {
+      const body = (await readBody(req)) as { name?: string; cwd?: string; model?: string };
+      const name = (body.name ?? "").trim() || randomOrchName();
+      const cwd = expandPath(body.cwd);
+      if (!cwd) return json(res, 400, { error: "cwd required" });
+      const id = newOrchId();
+      const mcpPath = writeOrchestratorMcpConfig(id);
       const result = await spawnWorker({
         prompt: "You are now active. Say 'orchestrator ready' and wait for the user's first message.",
-        cwd: REPO_ROOT,
-        name: "orchestrator",
-        fixedId: ORCH_ID,
+        cwd,
+        name,
+        fixedId: id,
         persistent: true,
         systemPromptFile: join(REPO_ROOT, "manager", "orchestrator-prompt.md"),
         mcpConfig: mcpPath,
         claudePermissionMode: "bypassPermissions",
-        model: "opus",
+        model: body.model ?? "opus",
+        isOrchestrator: true,
       });
-      return json(res, 201, result);
+      return json(res, 201, { ...result, name });
     }
 
-    if (m === "POST" && p === "/orchestrator/message") {
-      let row = db.prepare("SELECT id, port FROM workers WHERE id = ?").get(ORCH_ID) as Row | undefined;
-      if (!row || !children.has(ORCH_ID)) {
-        const mcpPath = join(DAEMON_DIR, "orchestrator-mcp.json");
-        writeFileSync(mcpPath, JSON.stringify({
-          mcpServers: {
-            orchestrator: {
-              command: "node",
-              args: ["--no-warnings", "--experimental-strip-types", join(REPO_ROOT, "manager", "orchestrator-mcp.ts")],
-              env: { ...process.env, CLAUDE_MGR_DAEMON_URL: `http://127.0.0.1:${PORT}` },
-            },
-          },
-        }));
-        if (row) db.prepare("DELETE FROM workers WHERE id = ?").run(ORCH_ID);
-        await spawnWorker({
-          prompt: "Standing by. Wait for the user's first instruction.",
-          cwd: REPO_ROOT,
-          name: "orchestrator",
-          fixedId: ORCH_ID,
-          persistent: true,
-          systemPromptFile: join(REPO_ROOT, "manager", "orchestrator-prompt.md"),
-          mcpConfig: mcpPath,
-          claudePermissionMode: "bypassPermissions",
-          model: "opus",
-        });
-        await new Promise((r) => setTimeout(r, 6000));
-        row = db.prepare("SELECT id, port FROM workers WHERE id = ?").get(ORCH_ID) as Row | undefined;
-      }
-      if (!row) return json(res, 500, { error: "failed to spawn orchestrator" });
+    if (m === "GET" && p === "/orchestrators") {
+      const rows = db.prepare("SELECT * FROM workers WHERE is_orchestrator = 1 ORDER BY started_at ASC").all() as Row[];
+      return json(res, 200, rows);
+    }
+
+    const orchMessageMatch = p.match(/^\/orchestrators\/([^/]+)\/message$/);
+    if (m === "POST" && orchMessageMatch) {
+      const id = orchMessageMatch[1];
+      const row = db.prepare("SELECT id, port, is_orchestrator FROM workers WHERE id = ?").get(id) as Row | undefined;
+      if (!row || !row.is_orchestrator) return json(res, 404, { error: "orchestrator not found" });
+      if (!children.has(id)) return json(res, 410, { error: "orchestrator process not running (was killed)" });
       const body = (await readBody(req)) as { text?: string };
       if (!body.text) return json(res, 400, { error: "text required" });
       try {
@@ -970,22 +1023,16 @@ const server = createServer(async (req, res) => {
           body: JSON.stringify({ text: body.text }),
         });
         const result = await r.json();
-        logEvent(ORCH_ID, "user_message", { text: body.text.slice(0, 500) });
-        setState(ORCH_ID, "WORKING");
+        logEvent(id, "user_message", { text: body.text.slice(0, 500) });
+        setState(id, "WORKING");
         return json(res, r.status, result);
       } catch (e) {
         return json(res, 502, { error: `orchestrator unreachable: ${(e as Error).message}` });
       }
     }
 
-    if (m === "GET" && p === "/orchestrator") {
-      const row = db.prepare("SELECT * FROM workers WHERE id = ?").get(ORCH_ID);
-      if (!row) return json(res, 404, { error: "orchestrator not started" });
-      return json(res, 200, row);
-    }
-
     if (m === "GET" && p === "/session") {
-      const orch = db.prepare("SELECT started_at FROM workers WHERE id = 'orchestrator'").get() as Row | undefined;
+      const orch = db.prepare("SELECT started_at FROM workers WHERE is_orchestrator = 1 ORDER BY started_at ASC LIMIT 1").get() as Row | undefined;
       const aggr = db.prepare("SELECT COUNT(*) AS total, COUNT(CASE WHEN state IN ('SPAWNING','WORKING','IDLE') THEN 1 END) AS active, COALESCE(SUM(cost_usd), 0) AS total_cost FROM workers").get() as Row | undefined;
       const since = Date.now() - 60 * 60 * 1000;
       const cph = db.prepare("SELECT COALESCE(SUM(json_extract(payload, '$.deltaCost')), 0) AS cph FROM events WHERE type = 'usage' AND ts > ?").get(since) as Row | undefined;

@@ -37,20 +37,86 @@ const AgentRow = memo(function AgentRow({ agent, agents, selected, onSelect, onC
   );
 });
 
-export const SpawnModal = memo(function SpawnModal({ open, onClose, onSpawned }) {
-  const [prompt, setPrompt] = useState("");
+const RECENT_PATHS_KEY = "cm-recent-paths";
+const RECENT_PATHS_CAP = 5;
+
+function loadRecentPaths() {
+  try { return JSON.parse(localStorage.getItem(RECENT_PATHS_KEY) || "[]"); }
+  catch { return []; }
+}
+export function pushRecentPath(path) {
+  if (!path) return;
+  try {
+    const cur = loadRecentPaths();
+    const next = [path, ...cur.filter(p => p !== path)].slice(0, RECENT_PATHS_CAP);
+    localStorage.setItem(RECENT_PATHS_KEY, JSON.stringify(next));
+  } catch {}
+}
+
+// Path input + native picker button + last-N recents below. Browser can't show
+// an absolute-path directory dialog (sandbox), so we ask the daemon to shell
+// out to osascript.
+function PathField({ value, onChange, placeholder }) {
+  const [picking, setPicking] = useState(false);
+  // Re-read recents whenever value changes (covers the post-spawn case where
+  // the modal calls pushRecentPath and immediately resets state).
+  const recents = useMemo(loadRecentPaths, [value]);
+  const pick = async () => {
+    setPicking(true);
+    try {
+      const r = await fetch(`${location.origin}/pick-directory`);
+      const j = await r.json();
+      if (j.path) onChange(j.path);
+    } catch {} finally { setPicking(false); }
+  };
+  return (
+    <>
+      <div style={{ display: "flex", gap: 6, alignItems: "stretch" }}>
+        <input style={{ flex: 1, minWidth: 0 }} placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)} />
+        <button type="button" className="vb-btn" onClick={pick} disabled={picking} title="Browse for a folder" style={{ flexShrink: 0 }}>
+          Browse…
+        </button>
+      </div>
+      {recents.length > 0 && (
+        <div className="vb-recents">
+          <div className="vb-recents__label">Recent</div>
+          {recents.map(p => (
+            <button
+              key={p}
+              type="button"
+              className={`vb-recent ${p === value ? "is-active" : ""}`}
+              onClick={() => onChange(p)}
+              title={p}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
+
+// Unified spawn modal: pick agent type at the top, fields swap accordingly.
+// Orchestrator → name + cwd (model always opus, locked).
+// Worker → prompt + name + model + cwd/worktree mode.
+export const SpawnAgentModal = memo(function SpawnAgentModal({ open, onClose, onSpawned, initialKind = "orchestrator" }) {
+  const [kind, setKind] = useState(initialKind);
+  // shared
   const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+  // orchestrator
+  const [orchCwd, setOrchCwd] = useState("");
+  // worker
+  const [prompt, setPrompt] = useState("");
   const [model, setModel] = useState(CONFIG.spawnModels[0]);
-  const [mode, setMode] = useState("cwd"); // "cwd" | "worktree"
+  const [mode, setMode] = useState("cwd");
   const [cwd, setCwd] = useState("");
   const [worktreeFrom, setWorktreeFrom] = useState("");
   const [branch, setBranch] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
   const dialogRef = useRef(null);
 
-  // Native <dialog> gives us: Esc-to-close, focus trap, and focus restoration
-  // back to the triggering button — for free, on every modern browser.
   useEffect(() => {
     const d = dialogRef.current;
     if (!d) return;
@@ -59,23 +125,39 @@ export const SpawnModal = memo(function SpawnModal({ open, onClose, onSpawned })
   }, [open]);
 
   useEffect(() => {
-    if (!open) { setErr(null); setBusy(false); }
-  }, [open]);
+    if (open) {
+      setKind(initialKind);
+      setErr(null);
+      setBusy(false);
+    } else {
+      // Reset everything when closed so reopening is clean.
+      setName(""); setOrchCwd(""); setPrompt(""); setCwd(""); setWorktreeFrom(""); setBranch("");
+    }
+  }, [open, initialKind]);
 
   if (!open) return null;
 
-  const submit = async () => {
-    setErr(null);
+  const submitOrchestrator = async () => {
+    if (!orchCwd.trim()) { setErr("working directory required"); return; }
+    setBusy(true);
+    try {
+      // Name optional — daemon auto-generates "<adj>-<NNN>-orchestrator" when blank.
+      const res = await window.live.spawnOrchestrator({ name: name.trim() || undefined, cwd: orchCwd.trim() });
+      if (!res.ok) { setErr(res.error || "spawn failed"); setBusy(false); return; }
+      pushRecentPath(orchCwd.trim());
+      window.live.refresh();
+      onSpawned && onSpawned(res.id);
+      onClose();
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
+  };
+
+  const submitWorker = async () => {
     if (!prompt.trim()) { setErr("prompt required"); return; }
     const loc = mode === "cwd" ? cwd.trim() : worktreeFrom.trim();
     if (!loc) { setErr(mode === "cwd" ? "cwd required" : "worktreeFrom required"); return; }
     setBusy(true);
     try {
-      const body = {
-        prompt: prompt.trim(),
-        name: name.trim() || undefined,
-        model,
-      };
+      const body = { prompt: prompt.trim(), name: name.trim() || undefined, model };
       if (mode === "cwd") body.cwd = cwd.trim();
       else { body.worktreeFrom = worktreeFrom.trim(); if (branch.trim()) body.branch = branch.trim(); }
       const r = await fetch(`${location.origin}/workers`, {
@@ -85,19 +167,17 @@ export const SpawnModal = memo(function SpawnModal({ open, onClose, onSpawned })
       });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
-        setErr(j.error || `daemon ${r.status}`);
-        setBusy(false);
-        return;
+        setErr(j.error || `daemon ${r.status}`); setBusy(false); return;
       }
       const res = await r.json();
+      pushRecentPath(mode === "cwd" ? cwd.trim() : worktreeFrom.trim());
       window.live.refresh();
       onSpawned && onSpawned(res.id);
       onClose();
-    } catch (e) {
-      setErr(String(e.message || e));
-      setBusy(false);
-    }
+    } catch (e) { setErr(String(e.message || e)); setBusy(false); }
   };
+
+  const submit = () => { setErr(null); kind === "orchestrator" ? submitOrchestrator() : submitWorker(); };
 
   return (
     <dialog
@@ -110,49 +190,75 @@ export const SpawnModal = memo(function SpawnModal({ open, onClose, onSpawned })
     >
       <div className="vb-modal" onClick={e => e.stopPropagation()}>
         <div className="vb-modal__head">
-          <div className="vb-modal__title" id="spawn-modal-title">Spawn worker</div>
+          <div className="vb-modal__title" id="spawn-modal-title">Spawn agent</div>
           <button className="vb-iconbtn" onClick={onClose} aria-label="Close spawn dialog"><Icon name="cross" size={14} /></button>
         </div>
         <div className="vb-modal__body">
-          <label className="vb-field">
-            <span>Prompt</span>
-            <textarea rows={4} placeholder="What should the worker do?" value={prompt} onChange={e => setPrompt(e.target.value)} />
-          </label>
-          <div className="vb-field-row">
-            <label className="vb-field">
-              <span>Name (optional)</span>
-              <input placeholder="e.g. refactor-auth" value={name} onChange={e => setName(e.target.value)} />
-            </label>
-            <label className="vb-field">
-              <span>Model</span>
-              <select value={model} onChange={e => setModel(e.target.value)}>
-                {CONFIG.spawnModels.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </label>
-          </div>
           <div className="vb-field">
-            <span>Working directory</span>
+            <span>Type</span>
             <div className="vb-segpick">
-              <button className={`vb-segpick__btn ${mode === "cwd" ? "is-active" : ""}`} onClick={() => setMode("cwd")}>cwd (plain dir)</button>
-              <button className={`vb-segpick__btn ${mode === "worktree" ? "is-active" : ""}`} onClick={() => setMode("worktree")}>worktree (git)</button>
+              <button type="button" className={`vb-segpick__btn ${kind === "orchestrator" ? "is-active" : ""}`} onClick={() => setKind("orchestrator")}>Orchestrator</button>
+              <button type="button" className={`vb-segpick__btn ${kind === "worker" ? "is-active" : ""}`} onClick={() => setKind("worker")}>Worker</button>
             </div>
           </div>
-          {mode === "cwd" ? (
-            <label className="vb-field">
-              <span>Path</span>
-              <input placeholder="/Users/me/Projects/foo or ~/Desktop" value={cwd} onChange={e => setCwd(e.target.value)} />
-            </label>
+
+          {kind === "orchestrator" ? (
+            <>
+              <label className="vb-field">
+                <span>Name (optional)</span>
+                <input placeholder="auto-generated if blank (e.g. swift-742-orchestrator)" value={name} onChange={e => setName(e.target.value)} autoFocus />
+              </label>
+              <label className="vb-field">
+                <span>Working directory</span>
+                <PathField placeholder="/Users/me/Projects/foo or ~/Projects/foo" value={orchCwd} onChange={setOrchCwd} />
+              </label>
+              <div style={{ marginTop: 4, opacity: 0.7, fontSize: 12 }}>
+                Workers this orchestrator spawns will always run in the directory above. Model is always Opus.
+              </div>
+            </>
           ) : (
-            <div className="vb-field-row">
+            <>
               <label className="vb-field">
-                <span>Repo path</span>
-                <input placeholder="/path/to/git/repo" value={worktreeFrom} onChange={e => setWorktreeFrom(e.target.value)} />
+                <span>Prompt</span>
+                <textarea rows={4} placeholder="What should the worker do?" value={prompt} onChange={e => setPrompt(e.target.value)} autoFocus />
               </label>
-              <label className="vb-field">
-                <span>Branch (optional)</span>
-                <input placeholder="auto-named if blank" value={branch} onChange={e => setBranch(e.target.value)} />
-              </label>
-            </div>
+              <div className="vb-field-row">
+                <label className="vb-field">
+                  <span>Name (optional)</span>
+                  <input placeholder="e.g. refactor-auth" value={name} onChange={e => setName(e.target.value)} />
+                </label>
+                <label className="vb-field">
+                  <span>Model</span>
+                  <select value={model} onChange={e => setModel(e.target.value)}>
+                    {CONFIG.spawnModels.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                </label>
+              </div>
+              <div className="vb-field">
+                <span>Working directory</span>
+                <div className="vb-segpick">
+                  <button type="button" className={`vb-segpick__btn ${mode === "cwd" ? "is-active" : ""}`} onClick={() => setMode("cwd")}>cwd (plain dir)</button>
+                  <button type="button" className={`vb-segpick__btn ${mode === "worktree" ? "is-active" : ""}`} onClick={() => setMode("worktree")}>worktree (git)</button>
+                </div>
+              </div>
+              {mode === "cwd" ? (
+                <label className="vb-field">
+                  <span>Path</span>
+                  <PathField placeholder="/Users/me/Projects/foo or ~/Desktop" value={cwd} onChange={setCwd} />
+                </label>
+              ) : (
+                <>
+                  <label className="vb-field">
+                    <span>Repo path</span>
+                    <PathField placeholder="/path/to/git/repo" value={worktreeFrom} onChange={setWorktreeFrom} />
+                  </label>
+                  <label className="vb-field">
+                    <span>Branch (optional)</span>
+                    <input placeholder="auto-named if blank" value={branch} onChange={e => setBranch(e.target.value)} />
+                  </label>
+                </>
+              )}
+            </>
           )}
           {err && <div className="vb-modal__err">{err}</div>}
         </div>
@@ -268,7 +374,7 @@ export const QuickPromptModal = memo(function QuickPromptModal({ open, agent, on
   );
 });
 
-export const AgentsPanel = memo(function AgentsPanel({ agents, selectedId, onSelect, onCollapse, online, onSpawnClick, onSpawnOrchestrator, session, onContextMenu }) {
+export const AgentsPanel = memo(function AgentsPanel({ agents, selectedId, onSelect, onCollapse, online, onSpawnClick, session, onContextMenu }) {
   const [query, setQuery] = useState("");
   const searchRef = useRef(null);
   // ⌘K focuses the filter input.
@@ -296,14 +402,13 @@ export const AgentsPanel = memo(function AgentsPanel({ agents, selectedId, onSel
   const flat = useMemo(() => {
     if (query.trim()) return filtered;
     const out = [];
+    // Multi-root walk: orchestrators are the roots (no parent), each followed
+    // by its worker subtree. Orphan parent_id chains (worker whose root isn't
+    // in this list) fall through to the leftovers loop at the end.
     const walk = (parentId) => {
       const kids = agents
         .filter(a => (a.parent || null) === parentId)
-        .sort((a, b) => {
-          if (a.id === "orchestrator") return -1;
-          if (b.id === "orchestrator") return 1;
-          return (a.startedTs || 0) - (b.startedTs || 0);
-        });
+        .sort((a, b) => (a.startedTs || 0) - (b.startedTs || 0));
       for (const k of kids) { out.push(k); walk(k.id); }
     };
     walk(null);
@@ -311,7 +416,7 @@ export const AgentsPanel = memo(function AgentsPanel({ agents, selectedId, onSel
     return out;
   }, [agents, filtered, query]);
 
-  const hasOrch = agents.some(a => a.id === "orchestrator");
+  const hasOrch = agents.some(a => a.isOrchestrator);
 
   return (
     <aside className="vb-agents">
@@ -321,9 +426,9 @@ export const AgentsPanel = memo(function AgentsPanel({ agents, selectedId, onSel
           <div className="vb-agents__sub">{agents.length} in this session</div>
         </div>
         <div className="vb-agents__head-actions">
-          <button className="vb-pillbtn vb-pillbtn--primary" onClick={onSpawnClick} title="Spawn a new worker">
+          <button className="vb-pillbtn vb-pillbtn--primary" onClick={onSpawnClick} title="Spawn a new agent (orchestrator or worker)">
             <Icon name="plus" size={13} />
-            <span>Spawn</span>
+            <span>Agent</span>
           </button>
           <button className="vb-iconbtn vb-iconbtn--paneltoggle" onClick={onCollapse} title="Collapse panel" aria-label="Collapse agents panel">
             <Icon name="panelLeft" size={14} />
@@ -352,7 +457,10 @@ export const AgentsPanel = memo(function AgentsPanel({ agents, selectedId, onSel
           <div className="vb-agents__empty" style={{ padding: "32px 16px", lineHeight: 1.7 }}>
             <Icon name="orchestrator" size={28} />
             <div style={{ marginTop: 10 }}>No orchestrator yet.</div>
-            <button className="vb-pillbtn vb-pillbtn--primary" style={{ marginTop: 14 }} onClick={onSpawnOrchestrator}>
+            <div style={{ marginTop: 4, opacity: 0.7, fontSize: 12 }}>
+              Create one to pick a project directory and start dispatching workers.
+            </div>
+            <button className="vb-pillbtn vb-pillbtn--primary" style={{ marginTop: 14 }} onClick={onSpawnClick}>
               <Icon name="play" size={12} /> <span>Spawn orchestrator</span>
             </button>
           </div>

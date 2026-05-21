@@ -10,7 +10,7 @@ import { CONFIG } from "./config.js";
 import { useLive, useTick } from "./hooks/useLive.js";
 import { LeftPanelHandle, RightPanelHandle } from "./components/primitives.jsx";
 import { Topbar } from "./components/Topbar.jsx";
-import { AgentsPanel, SpawnModal, AgentContextMenu, QuickPromptModal } from "./components/AgentsPanel.jsx";
+import { AgentsPanel, SpawnAgentModal, AgentContextMenu, QuickPromptModal } from "./components/AgentsPanel.jsx";
 import { Center } from "./components/Center.jsx";
 import { Details } from "./components/Details.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
@@ -20,7 +20,7 @@ export default function App() {
   const { agents, events, pending, online, session } = useLive();
   useTick(CONFIG.elapsedTickMs);
 
-  const [selectedId, setSelectedId] = useState("orchestrator");
+  const [selectedId, setSelectedId] = useState(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   const [rightCollapsed, setRightCollapsed] = useState(false);
   const [spawnOpen, setSpawnOpen] = useState(false);
@@ -40,6 +40,18 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // On initial load (page refresh), select the topmost agent in the panel —
+  // matches AgentsPanel's flat order: oldest root first, else any agent.
+  useEffect(() => {
+    if (selectedId !== null) return;
+    if (agents.length === 0) return;
+    const roots = agents
+      .filter(a => !a.parent)
+      .sort((a, b) => (a.startedTs || 0) - (b.startedTs || 0));
+    const first = roots[0] || agents[0];
+    if (first) setSelectedId(first.id);
+  }, [agents, selectedId]);
+
   const selected = useMemo(
     () => agents.find(a => a.id === selectedId) || null,
     [agents, selectedId],
@@ -56,10 +68,6 @@ export default function App() {
 
   const onApprove = useCallback((pid, updatedInput) => window.live.approvePending(pid, updatedInput), []);
   const onDeny = useCallback((pid) => window.live.denyPending(pid), []);
-  const onSpawnOrchestrator = useCallback(async () => {
-    await window.live.spawnOrchestrator();
-    setSelectedId("orchestrator");
-  }, []);
 
   const onAgentContextMenu = useCallback((agentId, x, y) => setCtxMenu({ agentId, x, y }), []);
   const onKillAgent = useCallback((agentId) => window.live.killAgent(agentId), []);
@@ -101,7 +109,6 @@ export default function App() {
                 onCollapse={onLeftCollapse}
                 online={online}
                 onSpawnClick={onSpawnClick}
-                onSpawnOrchestrator={onSpawnOrchestrator}
                 session={session}
                 onContextMenu={onAgentContextMenu}
               />
@@ -125,7 +132,7 @@ export default function App() {
             </ErrorBoundary>
         }
       </div>
-      <SpawnModal open={spawnOpen} onClose={onSpawnClose} onSpawned={onSpawnedSelect} />
+      <SpawnAgentModal open={spawnOpen} onClose={onSpawnClose} onSpawned={onSpawnedSelect} />
       <AgentContextMenu
         menu={ctxMenu}
         onClose={onCtxClose}
