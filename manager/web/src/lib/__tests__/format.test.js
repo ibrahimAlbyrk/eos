@@ -79,6 +79,11 @@ describe("stripMcpPrefix", () => {
     expect(stripMcpPrefix("mcp__orchestrator__spawn_worker")).toBe("spawn_worker");
     expect(stripMcpPrefix("mcp__gateway__decide")).toBe("decide");
   });
+  it("handles server names that contain underscores", () => {
+    expect(stripMcpPrefix("mcp__claude_ai_Gmail__create_draft")).toBe("create_draft");
+    expect(stripMcpPrefix("mcp__claude_ai_Google_Drive__copy_file")).toBe("copy_file");
+    expect(stripMcpPrefix("mcp__context7__resolve-library-id")).toBe("resolve-library-id");
+  });
   it("leaves non-MCP names alone", () => {
     expect(stripMcpPrefix("Bash")).toBe("Bash");
     expect(stripMcpPrefix("")).toBe("tool"); // default fallback

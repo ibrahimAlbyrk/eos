@@ -75,9 +75,14 @@ export function liveElapsed(agent) {
   return window.fmtDur(end - agent.startedTs);
 }
 
-// Strips the mcp__<server>__ prefix Claude prepends to MCP tool names.
+// Strips the mcp__<server>__ prefix Claude prepends to MCP tool names. Server
+// names can contain underscores (e.g. `claude_ai_Gmail`), so we locate the
+// second `__` separator by scan rather than a `[^_]+` charclass.
 export function stripMcpPrefix(name) {
-  return (name || "tool").replace(/^mcp__[^_]+__/, "");
+  if (!name) return "tool";
+  if (!name.startsWith("mcp__")) return name;
+  const idx = name.indexOf("__", 5);
+  return idx < 0 ? name : name.slice(idx + 2);
 }
 
 // Pulls an absolute file path out of a tool's structured input, when the
