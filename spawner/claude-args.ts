@@ -1,0 +1,63 @@
+// claude CLI argv composition. Two MCP wiring modes:
+//   1. explicit --mcp-config (orchestrator path) — caller passes the path
+//   2. --with-gateway — we synthesize a temp mcp.json wrapping the bundled
+//      gateway/server.ts, plus --permission-prompt-tool
+// Plus the optional system-prompt + permission-mode + model.
+
+import { writeFileSync } from "node:fs";
+import { join } from "node:path";
+import type { WorkerOptions } from "./options.ts";
+
+export interface ClaudeArgsResult {
+  args: string[];
+  /** Path to the synthesized mcp.json if `--with-gateway` was used.
+   * Cleaned up by settings tmp dir teardown — they share the same dir. */
+  syntheticMcpPath: string | null;
+}
+
+export function buildClaudeArgs(
+  opts: WorkerOptions,
+  settingsTmpDir: string,
+  settingsPath: string,
+  workerEnv: { daemonUrl?: string; workerId?: string },
+): ClaudeArgsResult {
+  const args: string[] = ["--settings", settingsPath];
+  let syntheticMcpPath: string | null = null;
+
+  if (opts.mcpConfig) {
+    args.push("--strict-mcp-config", "--mcp-config", opts.mcpConfig);
+    if (opts.permissionPromptTool) {
+      args.push("--permission-prompt-tool", opts.permissionPromptTool);
+    }
+  } else if (opts.withGateway) {
+    syntheticMcpPath = join(settingsTmpDir, "mcp.json");
+    const bunBin = process.env.CLAUDE_MGR_BUN_BIN || "bun";
+    const gatewayScript = process.env.CLAUDE_MGR_GATEWAY_SCRIPT
+      || join(process.env.CLAUDE_MGR_REPO_ROOT || "", "gateway", "server.ts");
+    writeFileSync(
+      syntheticMcpPath,
+      JSON.stringify({
+        mcpServers: {
+          gateway: {
+            command: bunBin,
+            args: ["run", gatewayScript],
+            env: workerEnv.daemonUrl && workerEnv.workerId
+              ? { ...(process.env as Record<string, string>), CLAUDE_MGR_DAEMON_URL: workerEnv.daemonUrl, CLAUDE_MGR_WORKER_ID: workerEnv.workerId }
+              : { ...(process.env as Record<string, string>) },
+          },
+        },
+      }),
+    );
+    args.push(
+      "--strict-mcp-config",
+      "--mcp-config",
+      syntheticMcpPath,
+      "--permission-prompt-tool",
+      "mcp__gateway__decide",
+    );
+  }
+  if (opts.systemPromptFile) args.push("--append-system-prompt-file", opts.systemPromptFile);
+  if (opts.claudePermissionMode) args.push("--permission-mode", opts.claudePermissionMode);
+  args.push("--model", opts.model);
+  return { args, syntheticMcpPath };
+}
