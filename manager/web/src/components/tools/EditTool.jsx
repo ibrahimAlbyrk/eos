@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import { stripMcpPrefix } from "../../lib/format.js";
+import { diffLinesUnified } from "../../lib/diff.js";
 import { ToolShell, PathLine } from "./ToolShell.jsx";
 import { DiffView } from "./DiffView.jsx";
 import { resultStatus, splitPath, langFromPath } from "./shared.js";
@@ -25,13 +26,14 @@ function pathOf(input, toolName) {
   return input?.file_path || "";
 }
 
+// Count actually-changed lines via the same line-diff the body renders,
+// so the subtitle stat matches what the user sees inside DiffView.
 function statsOf(eds) {
   let add = 0, del = 0;
   for (const e of eds) {
-    const oldLines = (e.old ? e.old.split("\n").length : 0);
-    const newLines = (e.new ? e.new.split("\n").length : 0);
-    del += oldLines;
-    add += newLines;
+    const { stats } = diffLinesUnified(e.old || "", e.new || "");
+    del += stats.del;
+    add += stats.add;
   }
   return { add, del };
 }
