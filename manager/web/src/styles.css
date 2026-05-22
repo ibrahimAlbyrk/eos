@@ -979,9 +979,17 @@
   line-height: 1.55;
   color: var(--vb-fg-1);
   margin: 0;
-  white-space: pre;
+  white-space: pre-wrap;
+  word-break: break-word;
   max-height: 320px;
   overflow: auto;
+}
+/* Highlighted code blocks keep strict pre so column-aligned output (tables,
+ * box-drawing, hljs token spans) stays grid-true. */
+.vb-code.hljs,
+pre code.hljs {
+  white-space: pre;
+  word-break: normal;
 }
 .vb-code.is-expanded { max-height: none; }
 

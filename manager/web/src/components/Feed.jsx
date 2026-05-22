@@ -1,14 +1,23 @@
 import { memo, useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from "react";
 import { groupEvents, turnBlocks } from "../lib/groupEvents.js";
 import { modelShort } from "../lib/format.js";
-import { renderMarkdown } from "../lib/markdown.js";
+import { renderMarkdown, onLanguageReady } from "../lib/markdown.js";
 import { Icon, Avatar, CopyBtn } from "./primitives.jsx";
 import { ToolBlock, OrphanResult } from "./tools/ToolBlock.jsx";
+
+// Subscribes to hljs language-pack load events. Bumps a counter so memoized
+// markdown renders refresh once a lazy-loaded grammar becomes available.
+function useLanguageReadyVersion() {
+  const [v, setV] = useState(0);
+  useEffect(() => onLanguageReady(() => setV((x) => x + 1)), []);
+  return v;
+}
 
 // Memoized markdown render for prose blocks. Each block has a stable id so
 // the same parsed HTML survives across re-renders without re-parsing.
 const Markdown = memo(function Markdown({ source, className = "" }) {
-  const html = useMemo(() => renderMarkdown(source), [source]);
+  const langVer = useLanguageReadyVersion();
+  const html = useMemo(() => renderMarkdown(source), [source, langVer]);
   return <div className={`vb-md ${className}`} dangerouslySetInnerHTML={{ __html: html }} />;
 });
 
@@ -56,7 +65,8 @@ const AnimatedMarkdown = memo(function AnimatedMarkdown({ source, blockKey, even
   const isHistorical = eventTs != null && eventTs < PAGE_LOAD_TS;
   const { chars, done } = useTypewriter(source || "", blockKey, { skip: isHistorical });
   const sliced = useMemo(() => (source || "").slice(0, chars), [source, chars]);
-  const html = useMemo(() => renderMarkdown(sliced), [sliced]);
+  const langVer = useLanguageReadyVersion();
+  const html = useMemo(() => renderMarkdown(sliced), [sliced, langVer]);
   return (
     <div
       className={`vb-md ${className} ${done ? "" : "is-typing"}`}
