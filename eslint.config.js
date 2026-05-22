@@ -59,4 +59,61 @@ export default [
       // We disable the rule for files that look like JSX (handled per-pkg).
     },
   },
+  // ---------------------------------------------------------------------------
+  // Dependency direction enforcement.
+  //
+  // Clean Architecture says the inner layers (domain → application) must not
+  // depend on outer layers (infrastructure → adapters → entrypoints). The
+  // rules below mechanically enforce this so a careless `import { fs } from
+  // "node:fs"` inside core/ trips lint instead of quietly working.
+  //
+  // contracts/ — the innermost layer. Only zod + own files allowed.
+  // core/      — pure domain + use-cases. No node:* / 3rd-party infra. Only
+  //              contracts/ + its own files.
+  // infra/     — adapter impls. May import node:*, 3rd-party libs, contracts/,
+  //              core/ports. NOT allowed to import from manager/, spawner/,
+  //              gateway/ (those are entrypoints, outermost ring).
+  //
+  // The `patterns` list uses simple substring matching against the resolved
+  // import path (node:* + relative paths). When you add a new infra concern,
+  // add it as a port in core/ first, then implement in infra/ — that flow is
+  // what these rules enforce.
+  // ---------------------------------------------------------------------------
+  {
+    // Tests are co-located in core/src/__tests__/ — they need node:test +
+    // node:assert. Production source under core/src/ — domain/, ports/,
+    // use-cases/, services/ — gets the strict rule applied via the file
+    // glob below.
+    files: ["core/src/domain/**/*.ts", "core/src/ports/**/*.ts", "core/src/use-cases/**/*.ts", "core/src/services/**/*.ts", "core/src/errors/**/*.ts", "core/src/index.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          { group: ["node:*"], message: "core/ must not import node built-ins. Define a port in core/ports/ and implement it in infra/." },
+          { group: ["chokidar", "@homebridge/node-pty-prebuilt-multiarch", "@modelcontextprotocol/sdk*", "yaml", "marked", "highlight.js", "dompurify", "diff", "ink", "react"], message: "core/ must not import 3rd-party infrastructure modules. Define a port and implement in infra/." },
+          { group: ["../../infra/*", "../../../infra/*", "../../manager/*", "../../../manager/*", "../../spawner/*", "../../../spawner/*", "../../gateway/*", "../../../gateway/*"], message: "core/ must not depend on outer layers (infra/, manager/, spawner/, gateway/). Dependency direction is inward." },
+        ],
+      }],
+    },
+  },
+  {
+    files: ["contracts/src/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          { group: ["node:*"], message: "contracts/ must not import node built-ins (pure schemas only)." },
+          { group: ["../../core/*", "../../../core/*", "../../infra/*", "../../../infra/*", "../../manager/*", "../../../manager/*", "../../spawner/*", "../../../spawner/*", "../../gateway/*", "../../../gateway/*"], message: "contracts/ is the innermost layer — must not depend on anything but zod + its own files." },
+        ],
+      }],
+    },
+  },
+  {
+    files: ["infra/src/**/*.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [
+          { group: ["../../manager/*", "../../../manager/*", "../../spawner/*", "../../../spawner/*", "../../gateway/*", "../../../gateway/*"], message: "infra/ must not depend on entrypoint packages. Configuration is injected at the composition root." },
+        ],
+      }],
+    },
+  },
 ];

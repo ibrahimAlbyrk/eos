@@ -4,24 +4,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-`claude-manager` is an orchestration layer **on top of the interactive `claude` CLI binary** (not the Agent SDK or `claude -p`). A single user message goes to a long-running "orchestrator" agent which decomposes the task and dispatches background worker agents via an MCP tool. A daemon supervises everything; a TUI (Ink) and a web UI (React 18 bundled with Vite) provide live observation and control.
+`claude-manager` is an orchestration layer **on top of the interactive `claude` CLI binary** (not the Agent SDK or `claude -p`). A single user message goes to a long-running "orchestrator" agent which decomposes the task and dispatches background worker agents via an MCP tool. A daemon supervises everything; a web UI (React 18 bundled with Vite) and a CLI provide live observation and control.
 
 **Hard architectural constraint:** every Claude session runs as an *interactive* PTY-driven process so the user's Max/Pro subscription pays for token usage. **Never use `claude -p`** in any code path — starting June 15 2026 it draws from a separate Agent SDK credit pool. Drive `claude` via `node-pty`, write prompts/messages by `pty.write(text + "\r")`.
 
 ## Repository layout
 
 ```
-gateway/       — MCP server for `--permission-prompt-tool` (dual-mode: standalone or daemon-forward)
-spawner/       — worker.ts: one process per Claude session. Owns PTY, hook HTTP server, JSONL tail, worktree lifecycle
-manager/       — daemon.ts (HTTP API + SQLite + child supervisor), cli.ts, tui.tsx, orchestrator-mcp.ts, web/
-manager/web/   — React 18 + Vite-built web UI. Source in src/, build output in dist/. Served by daemon at /web/*. Run `npm run build` (or `npm run dev` for watch mode) before the daemon can serve it.
+contracts/     — zod schemas + TS types shared between daemon ↔ worker ↔ gateway ↔ web/cli. Single source of truth for every request/response and event shape.
+core/          — Pure domain + application layer. No Node-specific imports — every external dependency is expressed as a port (interface). Use-cases (SpawnWorker, KillWorker, ProcessWorkerEvent, ResolvePending, …) live here.
+infra/         — Adapter implementations satisfying core/ ports: SqliteWorkerRepo, ChildProcessSupervisor, PortAllocator, InMemoryEventBus, StructLogger, HttpWorkerClient, YamlPolicyLoader, Darwin/NoopFsHelpers.
+gateway/       — MCP server for `--permission-prompt-tool`. Strategy split: DaemonProxyPolicy (forwards to daemon) vs StandalonePolicy (hardcoded Bash rules). AuditLog writer is its own module.
+spawner/       — worker.ts is a thin composition root over options.ts, events.ts, worktree.ts, settings.ts, claude-args.ts, pty-queue.ts (serialized PTY writes), tail.ts (chokidar+jsonl-parser), ingest.ts (local HTTP), session.ts (state + heartbeat + shutdown scheduling).
+manager/       — daemon.ts is a thin composition root that builds a Container (container.ts) and mounts routes (routes/*.ts) onto a Router with middleware (bodyReader, errorHandler, requestId, validate). cli.ts dispatches to commands/* (Command pattern; orchestrator-mcp.ts is a thin composition over orchestrator-mcp/tools/* via a tool registry).
+manager/web/   — React 18 + Vite. Sources in src/. api/client.js is the typed HTTP client (every fetch in the codebase resolves through routes.js + api). api/sse.js wraps EventSource with reconnect. Run `npm run build` (or `npm run dev` for watch mode) before the daemon can serve it.
 ```
 
-Each of `gateway/`, `spawner/`, `manager/` is its own package.json with its own `node_modules`. They are NOT a workspace — install per directory.
+Each of `contracts/`, `core/`, `infra/`, `gateway/`, `spawner/`, `manager/`, `manager/web/` is its own package.json with its own `node_modules`. They are NOT a workspace — install per directory. Cross-package imports use relative paths (e.g. `../../contracts/src/http.ts`).
 
 ## How a request flows end-to-end
 
-1. User types in TUI/web → `POST /orchestrator/message {text}` on daemon
+1. User types in web → `POST /orchestrators/:id/message {text}` on daemon
 2. Daemon proxies to worker.ts's local HTTP server (`POST http://127.0.0.1:<port>/message`)
 3. Worker.ts writes to PTY: `pty.write(text); setTimeout(() => pty.write("\r"), 300)` — splitting is required because bracketed-paste swallows the carriage return otherwise
 4. Claude (orchestrator instance) processes, calls `mcp__orchestrator__spawn_worker` autonomously (no permission prompt because orchestrator runs with `--permission-mode bypassPermissions`)
@@ -31,7 +34,7 @@ Each of `gateway/`, `spawner/`, `manager/` is its own package.json with its own 
 8. Hook detects `CLAUDE_MGR_SPAWNED=1` env var → forwards request body to `POST /policy/decide` on daemon → returns daemon's `{behavior, message?, updatedInput?}` decision verbatim, wrapped in `hookSpecificOutput`
 9. Worker's JSONL transcript is tailed by worker.ts (chokidar), nested `tool_use`/`tool_result`/`assistant_text` blocks extracted from `message.content[]` and emitted as events to daemon
 10. Daemon stores events in SQLite (WAL) and broadcasts `event: change` over SSE
-11. TUI and web UI subscribe to `/stream` and refetch on push
+11. Web UI subscribes to `/stream` and refetches on push
 
 ## Daemon HTTP surface (127.0.0.1:7400 by default)
 
@@ -55,8 +58,8 @@ The CLI is installed as a symlink: `~/.local/bin/claude-manager → manager/bin/
 ```bash
 claude-manager daemon start|stop|status      # daemon lifecycle (writes ~/.claude-mgr/daemon.pid)
 claude-manager web                            # ensures daemon is up, opens browser to /web/
-claude-manager tui                            # launch Ink TUI (uses node_modules/.bin/tsx, not bun)
-claude-manager chat <message...>              # send a message to the orchestrator
+claude-manager hooks install                  # install the PermissionRequest hook for daemon-spawned workers
+claude-manager chat [--to <id>] <message...>  # send a message to an orchestrator (auto-targets when one exists)
 claude-manager list                           # list workers
 claude-manager spawn --worktree-from <repo> --prompt "..." [--with-gateway] [--branch <b>]
 claude-manager spawn --cwd <dir> --prompt "..."
@@ -89,12 +92,12 @@ The daemon serves `dist/index.html` with `cache-control: no-store` and hashed as
 
 ### Runtime split: Node vs Bun
 
-- **TUI and worker.ts run under Node only** because Bun + `node-pty` is broken: `pty.onData(...)` never fires under Bun (Bun's N-API doesn't deliver the libuv stream events node-pty expects). Verified empirically.
+- **worker.ts runs under Node only** because Bun + `node-pty` is broken: `pty.onData(...)` never fires under Bun (Bun's N-API doesn't deliver the libuv stream events node-pty expects). Verified empirically.
 - The gateway MCP server runs under **Bun** (faster startup as a stdio child of Claude). Its `mcp.json` references `/Users/ibrahimalbyrk/.local/bin/bun` by absolute path because Claude's PATH inheritance is unreliable.
 
 ### Permission flow: hook-as-gateway, NOT `--permission-prompt-tool`
 
-Claude's permission resolution prefers the interactive TUI prompt over `--permission-prompt-tool` MCP whenever a `PermissionRequest` hook is configured — even one that exits silently. This means the MCP gateway flag is effectively bypassed for any user with hooks set up.
+Claude's permission resolution prefers the interactive in-CLI prompt over `--permission-prompt-tool` MCP whenever a `PermissionRequest` hook is configured — even one that exits silently. This means the MCP gateway flag is effectively bypassed for any user with hooks set up.
 
 **The working pattern is to make the hook itself the gateway.** User's `~/.claude/hooks/auto-allow.sh` checks `CLAUDE_MGR_SPAWNED` env var (set by worker.ts when spawned by the daemon), and when set, forwards the request to `POST /policy/decide` and returns the daemon's decision verbatim. Output shape (empirically verified):
 
@@ -150,7 +153,7 @@ Workers table has `parent_id` and `model` columns added after initial schema. Da
 - `143` → SIGTERM from `DELETE /workers/:id` (kill action)
 - Anything else → real crash; surface as red in UI
 
-CLI/TUI display labels them as `completed` / `killed` / `exit=N` so the user doesn't read 129 as an error.
+CLI/Web display labels them as `completed` / `killed` / `exit=N` so the user doesn't read 129 as an error.
 
 ### Policy gateway long-polls
 
@@ -164,18 +167,43 @@ SSE pushes are debounced 80ms on the web client and trigger a single refetch of 
 
 ## Where to find what
 
-- Worker lifecycle, PTY handling, hook HTTP server, worktree creation/teardown: `spawner/worker.ts`
-- Daemon HTTP routes, SQLite schema, SSE broadcast, policy engine, orchestrator spawn: `manager/daemon.ts`
-- Orchestrator MCP tools (spawn_worker etc): `manager/orchestrator-mcp.ts`
-- Orchestrator system prompt: `manager/orchestrator-prompt.md`
-- Permission policy rules: `manager/policy.example.yaml` (default) and `~/.claude-mgr/policy.yaml` (user override, loaded first)
-- Web UI live data layer, event mapping, ID→name substitution: `manager/web/data.jsx`
-- Web UI components (Topbar, AgentsPanel, CenterColumn, DetailsPanel, EventRow): `manager/web/parts.jsx`
-- CLI commands: `manager/cli.ts`
-- Persistent state: `~/.claude-mgr/state.db` (SQLite WAL), `~/.claude-mgr/logs/<worker-id>.log`, `~/.claude-mgr/daemon.pid`
+- **Types + zod schemas (single source of truth):** `contracts/src/{events,http,worker,policy,hooks,ipc}.ts`. Centralized `ROUTES` table at `contracts/src/http.ts`.
+- **Domain (pure)**: `core/src/domain/{policy,state-machine,value-objects}.ts`. Errors: `core/src/errors/index.ts`.
+- **Ports (interfaces)**: `core/src/ports/{Clock,IdGenerator,Logger,WorkerRepo,EventRepo,PendingRepo,EventBus,ProcessSupervisor,WorkerClient,DaemonClient,PolicyGateway,ModelCatalog}.ts`.
+- **Use-cases**: `core/src/use-cases/{SpawnWorker,KillWorker,DispatchMessage,ProcessWorkerEvent,ResolvePending,TransitionState,LogEvent}.ts`.
+- **Services**: `core/src/services/{PolicyGatewayService,LimitsEnforcer}.ts`.
+- **Persistence adapters**: `infra/src/persistence/{SqliteWorkerRepo,SqliteEventRepo,SqlitePendingRepo,MigrationRunner}.ts`.
+- **Supervision + IPC + bus + clock + ids**: `infra/src/{supervision,ipc,eventbus,time,id,net}/`.
+- **Filesystem helpers (icons, default-app, open, picker)**: `infra/src/filesystem/{DarwinFsHelpers,NoopFsHelpers}.ts`.
+- **Policy YAML loader**: `infra/src/policy/YamlPolicyLoader.ts`.
+- **Daemon entrypoint (composition root)**: `manager/daemon.ts` (≤120 LOC).
+- **Daemon container (DI wiring)**: `manager/container.ts`.
+- **Daemon routes (one per resource)**: `manager/routes/{health,stream,workers,orchestrators,policy,pending,session,fs,metrics,uiConfig,web}.ts`.
+- **Daemon middleware**: `manager/middleware/{bodyReader,errorHandler,requestId,validate}.ts`.
+- **SSE broadcaster**: `manager/sse/SseBroadcaster.ts`.
+- **Worker entrypoint**: `spawner/worker.ts` (thin) — submodules under `spawner/{options,events,worktree,settings,claude-args,pty-queue,tail,ingest,session}.ts`.
+- **Gateway**: `gateway/{server.ts,PolicyResolver.ts,StandalonePolicy.ts,DaemonProxyPolicy.ts,AuditLog.ts}`.
+- **Orchestrator MCP**: `manager/orchestrator-mcp.ts` (thin) — tools in `manager/orchestrator-mcp/tools/{spawn_worker,list_workers,get_worker,kill_worker,list_pending_permissions}.ts`.
+- **CLI**: `manager/cli.ts` (dispatcher) + `manager/cli/commands/` (Command pattern; new commands land here).
+- **Hook script**: `scripts/hooks/auto-allow.sh` (canonical; `claude-manager hooks install` copies it to `~/.claude/hooks/`).
+- **Orchestrator system prompt**: `manager/orchestrator-prompt.md`.
+- **Permission policy rules**: `manager/policy.example.yaml` (default) and `~/.claude-mgr/policy.yaml` (user override, loaded first).
+- **Web UI typed client**: `manager/web/src/api/client.js` (every component goes through here; no raw `fetch` outside `api/`).
+- **Web UI live data layer**: `manager/web/src/data.jsx` (poll + SSE + mapping + activity).
+- **Web UI components**: `manager/web/src/{App.jsx,components/*.jsx,components/tools/*.jsx}`.
+- **Persistent state**: `~/.claude-mgr/state.db` (SQLite WAL), `~/.claude-mgr/logs/<worker-id>.log`, `~/.claude-mgr/daemon.pid`.
 
 ## Style notes
 
-- Default to no comments. Only write comments when *why* is non-obvious (race-condition workarounds, undocumented Claude internals, etc.). The `worker.ts` JSONL parsing and the `auto-allow.sh` hook delegation each have such comments — keep them.
-- All in-codebase strings, comments, and CLI output are in English. The user's TUI/web messages may be Turkish; the orchestrator's system prompt explicitly instructs it to respond terse and English by default.
+- Default to no comments. Only write comments when *why* is non-obvious (race-condition workarounds, undocumented Claude internals, etc.). The `pty-queue.ts` 300ms CR delay, the `worktree.ts` realpath dance, and `scripts/hooks/auto-allow.sh` each have such comments — keep them.
+- All in-codebase strings, comments, and CLI output are in English. The user's web messages may be Turkish; the orchestrator's system prompt explicitly instructs it to respond terse and English by default.
 - Per-worker temp dirs use the pattern `cm-<name>-XXXXXX` (via `mkdtempSync`). Don't rename this prefix — daemon's force-kill `pgrep -f "cm-<name>-"` depends on it for orphan cleanup.
+
+## Clean Architecture rules
+
+- **Dependency direction is inward**: `contracts/` → `core/` → `infra/` → entrypoints (`manager/`, `spawner/`, `gateway/`). `core/` must not import from `infra/`, `manager/`, etc. — only `contracts/` types and its own files.
+- **No Node-specific imports inside `core/`** (`node:sqlite`, `node:child_process`, `node:fs`, `chokidar`, `node-pty`, `node:net`). Those belong in `infra/`. Phase 10 ESLint enforcement is planned.
+- **Every external dependency goes through a port**. Adding a new infra concern means: define the interface in `core/src/ports/`, implement in `infra/src/<concern>/`, wire in `manager/container.ts`.
+- **New HTTP endpoints**: schema in `contracts/src/http.ts` (request/response/`ROUTES` entry), route module in `manager/routes/<name>.ts`, register in `manager/daemon.ts`, ideally consumes a use-case in `core/src/use-cases/`.
+- **New event types**: enum in `contracts/src/events.ts`, handler in `core/src/use-cases/ProcessWorkerEvent.ts` HANDLERS table.
+- **New CLI commands**: file in `manager/cli/commands/<name>.ts` implementing `Command`, register in `manager/cli/commands/registry.ts`.

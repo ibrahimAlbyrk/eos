@@ -10,7 +10,7 @@
 
 [![status](https://img.shields.io/badge/status-alpha-d97e7e?style=for-the-badge&labelColor=1a1815)](#)
 [![runtime](https://img.shields.io/badge/runtime-node%20%C2%B7%20bun-e08964?style=for-the-badge&labelColor=1a1815)](#)
-[![ui](https://img.shields.io/badge/ui-react%2018%20%C2%B7%20ink-8eb09a?style=for-the-badge&labelColor=1a1815)](#)
+[![ui](https://img.shields.io/badge/ui-react%2018%20%C2%B7%20vite-8eb09a?style=for-the-badge&labelColor=1a1815)](#)
 [![pty](https://img.shields.io/badge/pty-only-c4a0d4?style=for-the-badge&labelColor=1a1815)](#)
 [![license](https://img.shields.io/badge/license-MIT-e8c574?style=for-the-badge&labelColor=1a1815)](./LICENSE)
 
@@ -50,7 +50,7 @@ streams back to a SQLite event store, then out over SSE to the dashboards.
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │                                                                      │
-│   user ─── one instruction ───►   TUI · Web · chat                   │
+│   user ─── one instruction ───►   Web · CLI · chat                   │
 │                                       │                              │
 │                                       ▼                              │
 │                              ┌──────────────────┐                    │
@@ -81,7 +81,7 @@ streams back to a SQLite event store, then out over SSE to the dashboards.
 │                              └────────┬─────────┘                    │
 │                                       │  sse · debounced 80 ms       │
 │                                       ▼                              │
-│                              TUI · Web · CLI                         │
+│                                Web · CLI                             │
 │                                                                      │
 └──────────────────────────────────────────────────────────────────────┘
 ```
@@ -108,9 +108,8 @@ input). Pending requests surface in every interface. Full audit log at
 the current Anthropic rates for input, output, cache-read, and cache-create
 — settled cleanly against your Max / Pro plan.
 
-**Three interfaces, one daemon.** &nbsp; `claude-manager` CLI for scripted
-use · Ink TUI for terminal-native operation · React 18 web UI served by the
-daemon at `/web/`.
+**Two interfaces, one daemon.** &nbsp; `claude-manager` CLI for scripted
+use · React 18 web UI served by the daemon at `/web/`.
 
 <br/>
 
