@@ -23,8 +23,18 @@ const Markdown = memo(function Markdown({ source, className = "" }) {
 
 // Module-scope set of block keys we've already revealed. Survives unmount
 // (e.g., when the user scrolls a block out of view or switches tabs) so we
-// never replay the typewriter for the same content twice.
+// never replay the typewriter for the same content twice. Bounded so long
+// sessions don't leak memory — oldest entries drop once we exceed the cap.
+const REVEALED_CAP = 2000;
 const revealedBlocks = new Set();
+function markRevealed(key) {
+  if (revealedBlocks.has(key)) return;
+  if (revealedBlocks.size >= REVEALED_CAP) {
+    const first = revealedBlocks.values().next().value;
+    if (first !== undefined) revealedBlocks.delete(first);
+  }
+  revealedBlocks.add(key);
+}
 
 // Wall-clock at page load. Anything with an event ts older than this is
 // "historical" — already happened before the user opened the page, so we
@@ -39,8 +49,8 @@ function useTypewriter(text, key, { cps = 320, skip = false } = {}) {
   const alreadyDone = skip || revealedBlocks.has(key);
   const [chars, setChars] = useState(() => (alreadyDone ? total : 0));
   useEffect(() => {
-    if (alreadyDone) { setChars(total); revealedBlocks.add(key); return; }
-    if (total === 0) { revealedBlocks.add(key); return; }
+    if (alreadyDone) { setChars(total); markRevealed(key); return; }
+    if (total === 0) { markRevealed(key); return; }
     let raf = 0;
     let start = 0;
     const duration = Math.min(4500, Math.max(350, (total / cps) * 1000));
@@ -51,7 +61,7 @@ function useTypewriter(text, key, { cps = 320, skip = false } = {}) {
       const eased = 1 - Math.pow(1 - p, 3);
       setChars(Math.max(1, Math.floor(eased * total)));
       if (p < 1) raf = requestAnimationFrame(tick);
-      else revealedBlocks.add(key);
+      else markRevealed(key);
     };
     raf = requestAnimationFrame(tick);
     return () => { if (raf) cancelAnimationFrame(raf); };
