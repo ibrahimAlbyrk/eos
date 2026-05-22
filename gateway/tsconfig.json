@@ -3,10 +3,12 @@
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "strict": true,
     "types": ["node"]
   },
-  "include": ["server.ts"]
+  "include": ["server.ts", "AuditLog.ts", "PolicyResolver.ts", "StandalonePolicy.ts", "DaemonProxyPolicy.ts"]
 }
