@@ -5,8 +5,8 @@
 // only transfers events newer than what we already have cached.
 
 import { CONFIG, hydrateConfigFromDaemon } from "./config.js";
-
-const DAEMON = location.origin;
+import { api } from "./api/client.js";
+import { createReconnectingStream } from "./api/sse.js";
 
 const state = {
   agents: [],
@@ -32,6 +32,18 @@ function notify() {
 // only transfers events newer than the highest ts we've already seen.
 const cachedEventsByWorker = new Map();   // workerId -> Event[] (ASC by ts)
 const lastEventTsByWorker = new Map();    // workerId -> highest ts seen
+// Mapped-event cache. mapEvent() is pure on (raw event, workerId, nameMap),
+// so once a name map exists and events are mapped, we keep the mapped form
+// and only re-map new arrivals on each poll. Without this, a long-running
+// orchestrator with thousands of cached events paid O(N) JSON.parse +
+// mapEvent calls on every SSE-triggered refetch — the single biggest
+// client-side cost after the AnimatedMarkdown reflow fix.
+const mappedEventsByWorker = new Map();   // workerId -> {raw: Event, mapped: MappedEvent|null}[]
+// Bumped whenever the nameMap changes so cached entries get re-resolved
+// (names can change mid-session: a worker that booted nameless gets a name
+// from later events).
+let nameMapVersion = 0;
+const mappedNameVersion = new Map();      // workerId -> nameMapVersion at last cache
 
 function mapState(s) {
   const u = String(s || "").toUpperCase();
@@ -256,9 +268,9 @@ async function poll() {
   polling = true;
   try {
     const [workers, pending, session] = await Promise.all([
-      fetch(`${DAEMON}/workers`).then(r => r.json()),
-      fetch(`${DAEMON}/pending`).then(r => r.json()),
-      fetch(`${DAEMON}/session`).then(r => r.json()).catch(() => null),
+      api.listWorkers(),
+      api.listPending(),
+      api.getSession(),
     ]);
 
     // Evict cache for workers no longer present (e.g. after DELETE).
@@ -267,11 +279,20 @@ async function poll() {
       if (!activeIds.has(id)) {
         cachedEventsByWorker.delete(id);
         lastEventTsByWorker.delete(id);
+        mappedEventsByWorker.delete(id);
+        mappedNameVersion.delete(id);
       }
     }
 
     const nameMap = new Map();
     for (const w of workers) if (w.name) nameMap.set(w.id, w.name);
+    // Detect name additions/changes to know when to invalidate the mapped
+    // cache (rare — names land in the first /workers response and stay).
+    const nameSnapshot = JSON.stringify(Array.from(nameMap.entries()).sort());
+    if (nameSnapshot !== window.__cmLastNameSnapshot) {
+      window.__cmLastNameSnapshot = nameSnapshot;
+      nameMapVersion++;
+    }
 
     const toolCounts = new Map();
     const signals = new Map();
@@ -288,8 +309,11 @@ async function poll() {
           const fetchBatch = [];
           let cursor = lastEventTsByWorker.get(w.id) || 0;
           for (;;) {
-            const url = `${DAEMON}/workers/${w.id}/events?since=${cursor}&order=asc&limit=${CONFIG.eventsPerWorkerLimit}`;
-            const page = await fetch(url).then(r => r.json());
+            const page = await api.getWorkerEvents(w.id, {
+              since: cursor,
+              order: "asc",
+              limit: CONFIG.eventsPerWorkerLimit,
+            });
             if (!Array.isArray(page) || page.length === 0) break;
             fetchBatch.push(...page);
             cursor = page[page.length - 1].ts;
@@ -297,11 +321,18 @@ async function poll() {
           }
 
           const existing = cachedEventsByWorker.get(w.id) || [];
-          const merged = fetchBatch.length === 0
+          let merged = fetchBatch.length === 0
             ? existing
             : (existing.length === 0 ? fetchBatch : existing.concat(fetchBatch));
           if (fetchBatch.length > 0) {
             lastEventTsByWorker.set(w.id, fetchBatch[fetchBatch.length - 1].ts);
+          }
+          // FIFO drop: events are appended in ts-ascending order, so slicing
+          // off the head preserves recency. The forward-pagination watermark
+          // (lastEventTsByWorker) stays correct because we only ever cap from
+          // the OLDEST end and the cursor tracks the NEWEST ts we've seen.
+          if (merged.length > CONFIG.maxCachedEventsPerWorker) {
+            merged = merged.slice(merged.length - CONFIG.maxCachedEventsPerWorker);
           }
           cachedEventsByWorker.set(w.id, merged);
 
@@ -319,15 +350,32 @@ async function poll() {
 
     const agents = workers.map(w => mapWorker(w, workers, toolCounts, signals, activityMap));
 
-    // Flatten EVERY cached event into the global feed. No global cap — events
-    // are retained for the lifetime of the worker (until DELETE wipes the
-    // worker, at which point its cache entry is evicted above).
+    // Flatten EVERY cached event into the global feed. Re-uses the
+    // mappedEventsByWorker cache so already-seen events skip mapEvent +
+    // JSON.parse. Worst case (cache miss / name change) is identical to
+    // the previous behavior; best case (steady-state, new events trickling
+    // in) is O(new events) not O(all events).
     const flat = [];
     for (const [wid, evs] of cachedEventsByWorker.entries()) {
-      for (const e of evs) {
-        const mapped = mapEvent(e, wid, nameMap);
-        if (mapped) flat.push(mapped);
+      const lastNameVer = mappedNameVersion.get(wid) ?? -1;
+      const stale = lastNameVer !== nameMapVersion;
+      let mappedList = mappedEventsByWorker.get(wid);
+      if (!mappedList || stale) {
+        mappedList = evs.map((e) => ({ raw: e, mapped: mapEvent(e, wid, nameMap) }));
+        mappedEventsByWorker.set(wid, mappedList);
+        mappedNameVersion.set(wid, nameMapVersion);
+      } else if (mappedList.length < evs.length) {
+        // New events appended at the tail — map only those.
+        const startIdx = mappedList.length;
+        for (let i = startIdx; i < evs.length; i++) {
+          mappedList.push({ raw: evs[i], mapped: mapEvent(evs[i], wid, nameMap) });
+        }
+      } else if (mappedList.length > evs.length) {
+        // FIFO eviction shrank the cache — drop matching head from mapped.
+        mappedList = mappedList.slice(mappedList.length - evs.length);
+        mappedEventsByWorker.set(wid, mappedList);
       }
+      for (const m of mappedList) if (m.mapped) flat.push(m.mapped);
     }
     flat.sort((a, b) => a._ts - b._ts);
     const events = flat;
@@ -361,19 +409,14 @@ window.live = {
   sendMessage: async (text, agentId) => {
     if (!agentId) return false;
     const agent = state.agents.find(a => a.id === agentId);
-    const target = agent?.isOrchestrator
-      ? `/orchestrators/${agentId}/message`
-      : `/workers/${agentId}/message`;
-    const r = await fetch(`${DAEMON}${target}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ text }),
-    });
+    const r = agent?.isOrchestrator
+      ? await api.sendOrchestratorMessage(agentId, text)
+      : await api.sendWorkerMessage(agentId, text);
     poll();
     return r.ok;
   },
   killAgent: async (id) => {
-    const r = await fetch(`${DAEMON}/workers/${id}`, { method: "DELETE" });
+    const r = await api.killWorker(id);
     // Evict eagerly so the UI does not flash stale events from a dead worker
     // between the DELETE and the next poll.
     cachedEventsByWorker.delete(id);
@@ -383,36 +426,20 @@ window.live = {
   },
   spawnOrchestrator: async ({ name, cwd } = {}) => {
     // Orchestrators are always opus — daemon defaults to opus when model omitted.
-    const r = await fetch(`${DAEMON}/orchestrators`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name, cwd }),
-    });
+    const r = await api.spawnOrchestrator({ name, cwd });
     poll();
     if (!r.ok) {
-      const j = await r.json().catch(() => ({}));
-      return { ok: false, error: j.error || `daemon ${r.status}` };
+      return { ok: false, error: r.body?.error || `daemon ${r.status}` };
     }
-    const res = await r.json();
-    return { ok: true, id: res.id };
+    return { ok: true, id: r.body?.id };
   },
   approvePending: async (pendingId, updatedInput) => {
-    const body = { decision: "allow" };
-    if (updatedInput) body.updatedInput = updatedInput;
-    const r = await fetch(`${DAEMON}/pending/${pendingId}/decision`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(body),
-    });
+    const r = await api.approvePending(pendingId, updatedInput);
     poll();
     return r.ok;
   },
   denyPending: async (pendingId, reason) => {
-    const r = await fetch(`${DAEMON}/pending/${pendingId}/decision`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ decision: "deny", reason: reason || "denied via web UI" }),
-    });
+    const r = await api.denyPending(pendingId, reason);
     poll();
     return r.ok;
   },
@@ -426,16 +453,12 @@ function schedulePoll() {
 }
 
 function connectStream() {
-  try {
-    const es = new EventSource(`${DAEMON}/stream`);
-    es.onopen = () => { state.streaming = true; notify(); };
-    es.addEventListener("change", schedulePoll);
-    es.onmessage = schedulePoll;
-    es.onerror = () => {
-      state.streaming = false;
-      notify();
-    };
-  } catch (_) {}
+  createReconnectingStream({
+    onOpen: () => { state.streaming = true; notify(); },
+    onChange: schedulePoll,
+    onMessage: schedulePoll,
+    onClose: () => { state.streaming = false; notify(); },
+  });
 }
 
 // Fetch daemon-provided overrides in parallel with the first poll so neither

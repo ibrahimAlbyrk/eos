@@ -1,6 +1,7 @@
 import { memo, useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { Icon } from "../icons.jsx";
 import { pickPortrait } from "../lib/portraits.js";
+import { api } from "../api/client.js";
 
 // Re-export Icon so other components in this folder can `import { Icon } from "./primitives.jsx"`.
 export { Icon };
@@ -8,9 +9,10 @@ export { Icon };
 // Process-wide cache for /fs/default-app responses. Keyed by extension when
 // the path has one (the daemon caches the same way), else by full path.
 // Values are Promises so concurrent button mounts share a single in-flight
-// request. Persists for the page lifetime — restart to pick up changes if
-// you re-associate default apps in macOS settings.
+// request. Bounded with FIFO eviction so distinct path keys (rare today, but
+// possible for files without an extension) don't grow unbounded.
 const _defaultAppCache = new Map();
+const _DEFAULT_APP_CACHE_MAX = 256;
 
 function _cacheKey(path) {
   const dot = path.lastIndexOf(".");
@@ -24,10 +26,13 @@ function _lookupDefaultApp(path) {
   const key = _cacheKey(path);
   const hit = _defaultAppCache.get(key);
   if (hit) return hit;
-  const promise = fetch(`/fs/default-app?path=${encodeURIComponent(path)}`)
-    .then((r) => r.ok ? r.json() : { app: null })
+  const promise = api.getDefaultApp(path)
     .then((data) => data?.app ?? null)
     .catch(() => null);
+  if (_defaultAppCache.size >= _DEFAULT_APP_CACHE_MAX) {
+    const oldest = _defaultAppCache.keys().next().value;
+    if (oldest !== undefined) _defaultAppCache.delete(oldest);
+  }
   _defaultAppCache.set(key, promise);
   return promise;
 }
@@ -47,13 +52,7 @@ export const FileOpenButton = memo(function FileOpenButton({ path, className = "
     e.stopPropagation();
     if (opening) return;
     setOpening(true);
-    try {
-      await fetch("/fs/open", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ path }),
-      });
-    } catch {}
+    try { await api.openFile(path); } catch {}
     setTimeout(() => setOpening(false), 400);
   }, [path, opening]);
   if (!app || !app.appName) return null;

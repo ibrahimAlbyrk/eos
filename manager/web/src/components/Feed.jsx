@@ -69,17 +69,32 @@ function useTypewriter(text, key, { cps = 320, skip = false } = {}) {
   return { chars, done: alreadyDone || chars >= total };
 }
 
+// Above this size we skip the per-frame re-parse and just reveal the full
+// markdown immediately. Each char update used to re-run marked.parse +
+// DOMPurify.sanitize on the entire sliced text — at 60fps for a 1000-char
+// block that's ~240 parse-and-sanitize cycles. For prose-heavy assistant
+// turns that was the single biggest client-side perf cost. Short blocks
+// (typical inline replies) still animate normally.
+const TYPEWRITER_MAX_CHARS = 280;
+
 // Markdown block that types itself in on first appearance. Subsequent
 // renders (after scroll/remount) show the full text immediately.
 const AnimatedMarkdown = memo(function AnimatedMarkdown({ source, blockKey, eventTs, className = "" }) {
+  const total = (source || "").length;
   const isHistorical = eventTs != null && eventTs < PAGE_LOAD_TS;
-  const { chars, done } = useTypewriter(source || "", blockKey, { skip: isHistorical });
-  const sliced = useMemo(() => (source || "").slice(0, chars), [source, chars]);
+  const tooLong = total > TYPEWRITER_MAX_CHARS;
+  const { chars, done } = useTypewriter(source || "", blockKey, {
+    skip: isHistorical || tooLong,
+  });
+  // When we're skipping the animation, render the full source directly.
+  // Avoids slicing (which would still trigger one extra parse) and lets
+  // the memo cache keep the same HTML stable across re-renders.
+  const display = tooLong || done || isHistorical ? source || "" : (source || "").slice(0, chars);
   const langVer = useLanguageReadyVersion();
-  const html = useMemo(() => renderMarkdown(sliced), [sliced, langVer]);
+  const html = useMemo(() => renderMarkdown(display), [display, langVer]);
   return (
     <div
-      className={`vb-md ${className} ${done ? "" : "is-typing"}`}
+      className={`vb-md ${className} ${done || isHistorical || tooLong ? "" : "is-typing"}`}
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

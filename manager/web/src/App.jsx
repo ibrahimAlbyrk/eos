@@ -10,7 +10,10 @@ import { CONFIG } from "./config.js";
 import { useLive, useTick } from "./hooks/useLive.js";
 import { LeftPanelHandle, RightPanelHandle } from "./components/primitives.jsx";
 import { Topbar } from "./components/Topbar.jsx";
-import { AgentsPanel, SpawnAgentModal, AgentContextMenu, QuickPromptModal } from "./components/AgentsPanel.jsx";
+import { AgentsPanel } from "./features/agents/AgentsPanel.jsx";
+import { SpawnAgentModal } from "./features/spawn/SpawnAgentModal.jsx";
+import { AgentContextMenu } from "./features/context-menu/AgentContextMenu.jsx";
+import { QuickPromptModal } from "./features/quick-prompt/QuickPromptModal.jsx";
 import { Center } from "./components/Center.jsx";
 import { Details } from "./components/Details.jsx";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
@@ -128,7 +131,7 @@ export default function App() {
         {rightCollapsed
           ? <RightPanelHandle onExpand={onRightExpand} />
           : <ErrorBoundary label="Details panel">
-              <Details agent={selected} agents={agents} onSelect={setSelectedId} onCollapse={onRightCollapse} />
+              <Details agent={selected} agents={agents} events={events} onSelect={setSelectedId} onCollapse={onRightCollapse} />
             </ErrorBoundary>
         }
       </div>

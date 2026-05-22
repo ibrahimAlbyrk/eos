@@ -3,13 +3,11 @@ import { CONFIG } from "../config.js";
 import { ctxPct, modelShort, liveElapsed, fmtCost, toolIcon, stripMcpPrefix } from "../lib/format.js";
 import { Icon, Avatar, StatusBadge } from "./primitives.jsx";
 import { exportWorkerMarkdown, downloadAsFile } from "../lib/exportMarkdown.js";
+import { api } from "../api/client.js";
 
-const ExportButton = memo(function ExportButton({ agent }) {
+const ExportButton = memo(function ExportButton({ agent, events }) {
   const click = () => {
-    // Pull the live event window straight from data.jsx — keeps the Details
-    // component decoupled from the global events prop chain.
-    const all = window.live.state.events || [];
-    const mine = all.filter((e) => e.agent === agent.id || (e.agent === "user" && agent.role === "main"));
+    const mine = (events || []).filter((e) => e.agent === agent.id || (e.agent === "user" && agent.role === "main"));
     const md = exportWorkerMarkdown(agent, mine);
     const slug = (agent.name || agent.id).replace(/[^a-z0-9_-]+/gi, "_");
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
@@ -29,8 +27,10 @@ const KillButton = memo(function KillButton({ agent }) {
     if (pending) return;
     setPending(true);
     try {
-      await fetch(`${location.origin}/workers/${agent.id}`, { method: "DELETE" }).catch(() => {});
-      window.live.refresh();
+      // Route through window.live so eager cache eviction stays consistent —
+      // raw api.killWorker would leave the events cache showing the dead
+      // worker until the next poll.
+      await window.live.killAgent(agent.id);
     } finally {
       setTimeout(() => setPending(false), 800);
     }
@@ -70,7 +70,7 @@ const ActivitySection = memo(function ActivitySection({ activity, max }) {
   );
 });
 
-export const Details = memo(function Details({ agent, agents, onSelect, onCollapse }) {
+export const Details = memo(function Details({ agent, agents, events, onSelect, onCollapse }) {
   if (!agent) {
     return (
       <aside className="vb-details">
@@ -209,7 +209,7 @@ export const Details = memo(function Details({ agent, agents, onSelect, onCollap
       </div>
 
       <div className="vb-details__actions">
-        <ExportButton agent={agent} />
+        <ExportButton agent={agent} events={events} />
         <KillButton agent={agent} />
       </div>
     </aside>

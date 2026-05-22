@@ -11,6 +11,11 @@ export const CONFIG = {
   // loop keeps requesting pages while the previous page was full, so a small
   // value just means more round trips on first load — never lost events.
   eventsPerWorkerLimit: 2000,
+  // Upper bound on cached events PER worker. Once exceeded, the oldest
+  // entries are dropped FIFO. Long-running orchestrators would otherwise
+  // grow unbounded across hours/days of work, eventually burning RAM and
+  // making the global flatten in data.jsx degenerate quadratic-ish.
+  maxCachedEventsPerWorker: 10_000,
 
   // Activity histogram
   activityBuckets: 24,            // 24 buckets × 60s = 24 minute window
