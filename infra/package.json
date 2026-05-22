@@ -1,0 +1,20 @@
+{
+  "name": "@claude-manager/infra",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Infrastructure adapters for core/ ports. Every node:* + 3rd-party import in the daemon path lives here.",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "node --no-warnings --experimental-strip-types --test src/__tests__/*.test.ts"
+  },
+  "dependencies": {
+    "@claude-manager/contracts": "file:../contracts",
+    "@claude-manager/core": "file:../core",
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}
