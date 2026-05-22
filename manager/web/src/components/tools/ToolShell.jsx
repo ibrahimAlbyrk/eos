@@ -47,15 +47,30 @@ export const ToolShell = memo(function ToolShell({
   const hasBody = body != null;
   const expandable = hasBody && !bare;
 
-  const onHeadClick = expandable ? () => setOpen(o => !o) : undefined;
-  const HeadTag = expandable ? "button" : "div";
+  const toggle = expandable ? () => setOpen(o => !o) : undefined;
+  // Use a div with role=button to avoid nesting <button>/<a> children (CopyBtn,
+  // FileOpenButton, WebFetch's host anchor) inside the head <button> — invalid
+  // HTML that breaks focus order and Cmd-click navigation.
+  const headProps = expandable
+    ? {
+        role: "button",
+        tabIndex: 0,
+        onClick: toggle,
+        onKeyDown: (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            toggle();
+          }
+        },
+        "aria-expanded": open,
+      }
+    : {};
 
   return (
     <div className={`vb-tool vb-tool--${family} ${open ? "is-open" : ""} ${bare ? "is-bare" : ""}`}>
-      <HeadTag
+      <div
         className={`vb-tool__head ${expandable ? "" : "vb-tool__head--static"}`}
-        onClick={onHeadClick}
-        aria-expanded={expandable ? open : undefined}
+        {...headProps}
       >
         <span className="vb-tool__icon"><Icon name={icon} size={14} /></span>
         <div className="vb-tool__head-text">
@@ -65,13 +80,13 @@ export const ToolShell = memo(function ToolShell({
           </div>
           {subtitle && <div className="vb-tool__head-args">{subtitle}</div>}
         </div>
-        <span className="vb-tool__actions">
+        <span className="vb-tool__actions" onClick={(e) => e.stopPropagation()}>
           {actions}
           {copyText != null && <CopyBtn text={copyText} />}
           {filePath && <FileOpenButton path={filePath} />}
           {status && <StatusPill tone={status.tone} label={status.label} />}
         </span>
-      </HeadTag>
+      </div>
       {hasBody && (open || bare) && (
         <div className="vb-tool__body vb-tool__body--solo">
           {body}
