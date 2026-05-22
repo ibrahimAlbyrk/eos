@@ -1,5 +1,21 @@
-import { memo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import { Icon, Avatar, ExpandToggle, useExpandableCode } from "./primitives.jsx";
+
+// 1Hz wall-clock tick so countdown displays refresh every second between the
+// debounced parent re-renders (which can be up to ~4s apart on the polling
+// fallback).
+function useCountdownSec(expiresAt) {
+  const compute = () => Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+  const [sec, setSec] = useState(compute);
+  useEffect(() => {
+    setSec(compute());
+    if (!expiresAt) return;
+    const id = setInterval(() => setSec(compute()), 1000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expiresAt]);
+  return sec;
+}
 
 // Pending-card variant of CodePane — the pending JSON viewer has its own
 // layout (no pane head) so the expand toggle is overlaid in the bottom-right
@@ -22,7 +38,7 @@ export const PendingBanner = memo(function PendingBanner({ pending, agents, onAp
   if (!pending || pending.length === 0) return null;
   const p = pending[0];
   const agent = agents.find(a => a.id === p.worker_id);
-  const expiresSec = Math.max(0, Math.round((p.expires_at - Date.now()) / 1000));
+  const expiresSec = useCountdownSec(p.expires_at);
   let brief = p.input;
   try { const j = JSON.parse(p.input); brief = j.file_path || j.command || j.url || JSON.stringify(j).slice(0, 80); } catch {}
   return (
@@ -61,7 +77,7 @@ const PendingCard = memo(function PendingCard({ p, agents, onApprove, onDeny }) 
   });
   const [err, setErr] = useState(null);
   const agent = agents.find(a => a.id === p.worker_id);
-  const expiresSec = Math.max(0, Math.round((p.expires_at - Date.now()) / 1000));
+  const expiresSec = useCountdownSec(p.expires_at);
   let brief = p.input;
   try { const j = JSON.parse(p.input); brief = j.file_path || j.command || j.url || JSON.stringify(j).slice(0, 80); } catch {}
 
