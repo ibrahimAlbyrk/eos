@@ -3,6 +3,14 @@ import { stripMcpPrefix } from "../../lib/format.js";
 import { ToolShell } from "./ToolShell.jsx";
 import { resultStatus } from "./shared.js";
 
+// Some daemon-cached events (older schema, JSONL parser drops) have no parsed
+// `input` object but still carry the JSON-stringified payload on `tool.args`.
+// Parse args lazily so we don't lose the command/description.
+function fallbackInput(args) {
+  if (!args || typeof args !== "string") return null;
+  try { return JSON.parse(args); } catch { return null; }
+}
+
 // Terminal-frame rendering: a header row with macOS-style traffic lights as
 // purely decorative chrome, then the command behind a $ prompt, and finally
 // the captured stdout/stderr in a darker pane.
@@ -10,10 +18,11 @@ export const BashTool = memo(function BashTool({ tool, result, family }) {
   const base = stripMcpPrefix(tool.tool);
   const isOutput = base === "BashOutput";
   const isKill = base === "KillShell" || base === "KillBash";
-  const command = tool.input?.command || "";
-  const description = tool.input?.description || "";
-  const bg = !!tool.input?.run_in_background;
-  const bashId = tool.input?.bash_id || tool.input?.shell_id;
+  const input = tool.input || fallbackInput(tool.args) || {};
+  const command = input.command || "";
+  const description = input.description || "";
+  const bg = !!input.run_in_background;
+  const bashId = input.bash_id || input.shell_id;
   const out = (result?.body || "").trim();
   const isError = result?.type === "error";
   const status = resultStatus(result);
