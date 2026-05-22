@@ -1,12 +1,12 @@
 // Markdown → safe HTML for agent-rendered prose.
 //
-// Why marked: smallest mainstream parser, GFM out of the box, default config
-// in v12+ escapes HTML in text content so we don't need a separate sanitizer.
-// We only pass through Claude's own output (extended thinking + assistant
-// text), so the trust boundary is the daemon — but defaulting to HTML-safe
-// keeps us honest if anything else ever feeds this function.
+// marked does NOT sanitize raw HTML in source — a <script>/<img onerror> the
+// model echoes (e.g. summarising a malicious WebFetch page) would otherwise
+// execute against the daemon-served origin. We run the output through
+// DOMPurify before handing it to dangerouslySetInnerHTML.
 
 import { marked } from "marked";
+import DOMPurify from "dompurify";
 import hljs from "highlight.js/lib/core";
 import javascript from "highlight.js/lib/languages/javascript";
 import typescript from "highlight.js/lib/languages/typescript";
@@ -131,10 +131,17 @@ marked.use({ renderer });
  * and falls back to the raw text inside <p> if parsing throws — the UI never
  * crashes because the model wrote a broken table.
  */
+const SANITIZE_CONFIG = {
+  ADD_ATTR: ["target", "rel"],
+  FORBID_TAGS: ["style", "iframe", "object", "embed", "form"],
+  FORBID_ATTR: ["onerror", "onload", "onclick", "onmouseover", "onfocus"],
+};
+
 export function renderMarkdown(text) {
   if (!text) return "";
   try {
-    return marked.parse(String(text));
+    const raw = marked.parse(String(text));
+    return DOMPurify.sanitize(raw, SANITIZE_CONFIG);
   } catch {
     return `<p>${escapeHtml(text)}</p>`;
   }
