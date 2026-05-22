@@ -1,0 +1,18 @@
+{
+  "name": "@claude-manager/contracts",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Shared zod schemas and TS types — the single source of truth for daemon/worker/gateway/hook/IPC payloads.",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "node --no-warnings --experimental-strip-types --test src/__tests__/*.test.ts"
+  },
+  "dependencies": {
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}
