@@ -8,6 +8,22 @@ function hostOf(url) {
   try { return new URL(url).host; } catch { return url; }
 }
 
+// Strip trailing punctuation that markdown-style prose ("see https://x.com/a.")
+// commonly leaves attached to a non-whitespace URL match. Conservatively peel
+// off pairs of unbalanced closers and sentence punctuation.
+function trimUrlTail(u) {
+  let s = u;
+  while (s.length > 0) {
+    const last = s[s.length - 1];
+    if (".,;:!?".includes(last)) { s = s.slice(0, -1); continue; }
+    if (last === ")" && !s.includes("(")) { s = s.slice(0, -1); continue; }
+    if (last === "]" && !s.includes("[")) { s = s.slice(0, -1); continue; }
+    if (last === ">" || last === "'" || last === '"') { s = s.slice(0, -1); continue; }
+    break;
+  }
+  return s;
+}
+
 export const WebTool = memo(function WebTool({ tool, result, family }) {
   const base = stripMcpPrefix(tool.tool);
   const status = resultStatus(result);
@@ -65,10 +81,13 @@ export const WebTool = memo(function WebTool({ tool, result, family }) {
   const body = (result?.body || "").trim();
   // Pull URL lines out as results; the rest renders as markdown context.
   const results = useMemo(() => {
-    const matches = [...body.matchAll(/https?:\/\/\S+/g)].map(m => m[0]);
-    // Dedupe
+    const matches = [...body.matchAll(/https?:\/\/\S+/g)].map(m => trimUrlTail(m[0]));
     return Array.from(new Set(matches)).slice(0, 12);
   }, [body]);
+  const fallbackHtml = useMemo(
+    () => (results.length === 0 && body ? renderMarkdown(body) : ""),
+    [body, results.length]
+  );
 
   const subtitle = (
     <span className="vb-tool__sub-grp">
@@ -96,7 +115,7 @@ export const WebTool = memo(function WebTool({ tool, result, family }) {
           ))}
         </ol>
       ) : (
-        <div className="vb-web__resp vb-md" dangerouslySetInnerHTML={{ __html: renderMarkdown(body) }} />
+        <div className="vb-web__resp vb-md" dangerouslySetInnerHTML={{ __html: fallbackHtml }} />
       )}
     </div>
   ) : null;
