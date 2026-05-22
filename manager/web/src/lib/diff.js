@@ -17,10 +17,17 @@ function splitLines(s) {
   return trimmed.length === 0 ? [""] : trimmed.split("\n");
 }
 
+// diffWordsWithSpace is O(N*M). Above this combined length we skip the
+// word-level highlight and let the row render as a plain del/add pair —
+// keeps the UI responsive on long single-line edits (minified bundles,
+// package-lock.json) where the per-token annotation isn't useful anyway.
+const WORD_DIFF_LIMIT = 4000;
+
 // Build word-level segments aligned to the deleted line and the added line.
 // Same diff fed both rows; on the del row we keep "removed" + "common", on
 // the add row we keep "added" + "common".
 function pairSegments(oldLine, newLine) {
+  if (oldLine.length + newLine.length > WORD_DIFF_LIMIT) return null;
   const parts = diffWordsWithSpace(oldLine, newLine);
   const del = [];
   const add = [];
@@ -75,8 +82,8 @@ export function diffLinesUnified(oldStr, newStr, { contextRadius = 3 } = {}) {
       const n = Math.min(delLines.length, addLines.length);
       for (let k = 0; k < n; k++) {
         const segs = pairSegments(delLines[k], addLines[k]);
-        rows.push({ kind: "del", oldNo: oldNo++, newNo: null, text: delLines[k], segments: segs.del });
-        rows.push({ kind: "add", oldNo: null, newNo: newNo++, text: addLines[k], segments: segs.add });
+        rows.push({ kind: "del", oldNo: oldNo++, newNo: null, text: delLines[k], segments: segs?.del });
+        rows.push({ kind: "add", oldNo: null, newNo: newNo++, text: addLines[k], segments: segs?.add });
         delCount++; addCount++;
       }
       for (let k = n; k < delLines.length; k++) {
