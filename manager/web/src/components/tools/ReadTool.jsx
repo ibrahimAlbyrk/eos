@@ -1,7 +1,7 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { stripMcpPrefix } from "../../lib/format.js";
-import { ToolShell, PathLine, Chips } from "./ToolShell.jsx";
-import { resultStatus, splitPath, langFromPath, lineCount } from "./shared.js";
+import { ToolShell, PathLine } from "./ToolShell.jsx";
+import { resultStatus, langFromPath, lineCount } from "./shared.js";
 
 // Strip Claude's "cat -n" output prefix (`     1\t...`). Keeps the rendered
 // content as plain text the line-number rail is responsible for.
@@ -25,47 +25,68 @@ function renderCode(code, lang) {
                // numbering trivially aligned. Could expand to hljs later.
 }
 
+const PREVIEW_LINES = 14;
+
 export const ReadTool = memo(function ReadTool({ tool, result, family }) {
   const base = stripMcpPrefix(tool.tool);
   const path = tool.input?.file_path || tool.input?.notebook_path || "";
   const lang = langFromPath(path);
   const offset = tool.input?.offset;
   const limit = tool.input?.limit;
+  const isError = result?.type === "error";
   const rawBody = (result?.body || "").trim();
-  const body = useMemo(() => stripCatN(rawBody), [rawBody]);
+  const body = useMemo(() => (isError ? rawBody : stripCatN(rawBody)), [rawBody, isError]);
   const numLines = useMemo(() => lineCount(body), [body]);
-  const previewLines = useMemo(() => {
-    if (!body) return [];
-    const all = body.split("\n");
-    return all.slice(0, 14);
-  }, [body]);
+  const [expanded, setExpanded] = useState(false);
+  const allLines = useMemo(() => (body ? body.split("\n") : []), [body]);
+  const previewLines = useMemo(
+    () => (expanded ? allLines : allLines.slice(0, PREVIEW_LINES)),
+    [allLines, expanded]
+  );
   const startLine = offset || 1;
 
   const subtitle = (
     <span className="vb-tool__sub-grp">
-      {limit ? <span>lines {startLine}–{startLine + Math.min(limit, numLines) - 1}</span>
-            : <span>{numLines || "—"} lines</span>}
+      {numLines > 0 && limit
+        ? <span>lines {startLine}–{startLine + Math.min(limit, numLines) - 1}</span>
+        : <span>{numLines || "—"} lines</span>}
       {lang && <><span className="vb-tool__sub-sep">·</span><span>{lang}</span></>}
     </span>
   );
 
-  const innerBody = body ? (
-    <div className="vb-toolbody vb-toolbody--read">
-      <div className="vb-readpane">
-        <pre className="vb-readpane__pre">
-{previewLines.map((line, i) => (
-  <div key={i} className="vb-readpane__row">
-    <span className="vb-readpane__num">{startLine + i}</span>
-    <span className="vb-readpane__txt">{renderCode(line, lang)}</span>
-  </div>
-))}
-{numLines > previewLines.length && (
-  <div className="vb-readpane__more">… {numLines - previewLines.length} more lines</div>
-)}
-        </pre>
+  let innerBody = null;
+  if (isError && body) {
+    innerBody = (
+      <div className="vb-toolbody vb-toolbody--read vb-toolbody--error">
+        <pre className="vb-code vb-code--error">{body}</pre>
       </div>
-    </div>
-  ) : null;
+    );
+  } else if (body) {
+    const hidden = numLines - previewLines.length;
+    innerBody = (
+      <div className="vb-toolbody vb-toolbody--read">
+        <div className="vb-readpane">
+          <pre className="vb-readpane__pre">
+            {previewLines.map((line, i) => (
+              <div key={i} className="vb-readpane__row">
+                <span className="vb-readpane__num">{startLine + i}</span>
+                <span className="vb-readpane__txt">{line}</span>
+              </div>
+            ))}
+          </pre>
+          {(hidden > 0 || expanded) && (
+            <button
+              type="button"
+              className="vb-readpane__more vb-readpane__more--toggle"
+              onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+            >
+              {expanded ? "Show less" : `Show ${hidden} more lines`}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ToolShell

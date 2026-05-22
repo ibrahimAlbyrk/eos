@@ -2644,6 +2644,15 @@ html {
   font-style: italic;
   font-size: 10.5px;
 }
+.vb-readpane__more--toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+}
+.vb-readpane__more--toggle:hover { color: var(--vb-fg-1); }
 
 /* ═════════════════════════════════════════════════════════════════
  * Write pane — all-green "+" rail
@@ -2690,6 +2699,15 @@ html {
   font-style: italic;
   font-size: 10.5px;
 }
+.vb-writepane__more--toggle {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+}
+.vb-writepane__more--toggle:hover { color: var(--vb-fg-1); }
 
 /* ═════════════════════════════════════════════════════════════════
  * Terminal frame for Bash
