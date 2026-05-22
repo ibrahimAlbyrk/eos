@@ -1,4 +1,4 @@
-import { memo } from "react";
+import { Component, memo } from "react";
 import { toolFamily } from "../../lib/format.js";
 import { ReadTool } from "./ReadTool.jsx";
 import { WriteTool } from "./WriteTool.jsx";
@@ -28,17 +28,38 @@ const RENDERERS = {
   generic: GenericTool,
 };
 
+// React render-phase errors can only be caught by an ErrorBoundary, not
+// try/catch around JSX. Falls back to GenericTool when a per-family renderer
+// crashes (schema drift, malformed input) so the rest of the feed survives.
+class ToolErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { errored: false };
+  }
+  static getDerivedStateFromError() {
+    return { errored: true };
+  }
+  componentDidUpdate(prev) {
+    if (prev.tool !== this.props.tool || prev.result !== this.props.result) {
+      if (this.state.errored) this.setState({ errored: false });
+    }
+  }
+  render() {
+    if (this.state.errored) {
+      return <GenericTool tool={this.props.tool} result={this.props.result} family="generic" />;
+    }
+    return this.props.children;
+  }
+}
+
 export const ToolBlock = memo(function ToolBlock({ tool, result }) {
   const family = toolFamily(tool.tool);
   const Renderer = RENDERERS[family] || GenericTool;
-  try {
-    return <Renderer tool={tool} result={result} family={family} />;
-  } catch (e) {
-    // Defensive: any per-tool renderer crash falls back to generic so the
-    // feed keeps rendering. Useful when daemon serializes a shape we didn't
-    // anticipate (older transcripts, schema drift).
-    return <GenericTool tool={tool} result={result} family="generic" />;
-  }
+  return (
+    <ToolErrorBoundary tool={tool} result={result}>
+      <Renderer tool={tool} result={result} family={family} />
+    </ToolErrorBoundary>
+  );
 });
 
 // Orphan result block (tool_use never paired). Renders as a stand-alone
