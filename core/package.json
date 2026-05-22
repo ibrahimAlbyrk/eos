@@ -1,0 +1,18 @@
+{
+  "name": "@claude-manager/core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Pure domain + application layer. No Node-specific imports — every external dependency is expressed as a port (interface) that infrastructure adapters satisfy.",
+  "main": "src/index.ts",
+  "scripts": {
+    "test": "node --no-warnings --experimental-strip-types --test src/__tests__/*.test.ts"
+  },
+  "dependencies": {
+    "@claude-manager/contracts": "file:../contracts"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^22.0.0"
+  }
+}
