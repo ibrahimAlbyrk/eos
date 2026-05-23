@@ -32,6 +32,7 @@ export class Router {
 
   get(pattern: string | RegExp, handler: RouteHandler): this { return this.on("GET", pattern, handler); }
   post(pattern: string | RegExp, handler: RouteHandler): this { return this.on("POST", pattern, handler); }
+  put(pattern: string | RegExp, handler: RouteHandler): this { return this.on("PUT", pattern, handler); }
   del(pattern: string | RegExp, handler: RouteHandler): this { return this.on("DELETE", pattern, handler); }
 
   /**

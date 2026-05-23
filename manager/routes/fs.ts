@@ -4,6 +4,8 @@ import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
+import { validate } from "../middleware/validate.ts";
+import { BranchesQuerySchema } from "../../contracts/src/http.ts";
 
 function isSafeAbsPath(p: unknown): p is string {
   return typeof p === "string" && p.startsWith("/") && !p.includes("\0");
@@ -64,5 +66,21 @@ export function registerFsRoutes(r: Router, c: Container): void {
     } catch (e) {
       writeJson(res, 500, { error: (e as Error).message });
     }
+  });
+
+  r.get("/fs/branches", async ({ url, res }) => {
+    const q = validate(BranchesQuerySchema, {
+      cwd: url.searchParams.get("cwd") ?? undefined,
+    });
+    if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
+    const [branches, current] = await Promise.all([
+      c.git.listBranches(q.cwd),
+      c.git.currentBranch(q.cwd),
+    ]);
+    writeJson(res, 200, { branches, current });
+  });
+
+  r.get("/fs/recents", ({ res }) => {
+    writeJson(res, 200, { paths: c.recents.list() });
   });
 }

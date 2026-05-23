@@ -40,9 +40,10 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         clock: c.clock, ids: c.ids, log: c.log,
         buildArgs: c.buildArgs, buildEnv: c.buildEnv, logFileFor: c.logFileFor,
         onLimitsSet: (id, limits) => c.limitsEnforcer.set(id, limits),
+        recents: c.recents,
       },
       {
-        prompt: "You are now active. Say 'orchestrator ready' and wait for the user's first message.",
+        prompt: "",
         cwd,
         name,
         fixedId: id,

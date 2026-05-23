@@ -10,12 +10,16 @@ import {
   SpawnWorkerRequestSchema,
   EventsQuerySchema,
   MessageRequestSchema,
+  SetPermissionRequestSchema,
+  SetModelRequestSchema,
 } from "../../contracts/src/http.ts";
 
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
 import { killWorker } from "../../core/src/use-cases/KillWorker.ts";
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
 import { processWorkerEvent } from "../../core/src/use-cases/ProcessWorkerEvent.ts";
+import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermissionMode.ts";
+import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 
 function expandPath(p: string | undefined): string | undefined {
   if (!p) return p;
@@ -55,6 +59,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         buildEnv: c.buildEnv,
         logFileFor: c.logFileFor,
         onLimitsSet: (id, limits) => c.limitsEnforcer.set(id, limits),
+        recents: c.recents,
       },
       spec,
     );
@@ -124,5 +129,40 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       { workerId: params.id, text: body.text },
     );
     writeJson(res, result.status, result.body);
+  });
+
+  r.put(/^\/workers\/(?<id>[^/]+)\/permission$/, async ({ params, req, res }) => {
+    const body = validate(SetPermissionRequestSchema, await readBody(req));
+    const out = await setWorkerPermissionMode(
+      {
+        workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
+        client: c.httpWorkerClient, log: c.log,
+      },
+      { workerId: params.id, mode: body.mode },
+    );
+    writeJson(res, 200, { ok: true, ...out });
+  });
+
+  r.put(/^\/workers\/(?<id>[^/]+)\/model$/, async ({ params, req, res }) => {
+    const body = validate(SetModelRequestSchema, await readBody(req));
+    const out = await setWorkerModel(
+      {
+        workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
+        client: c.httpWorkerClient, log: c.log,
+      },
+      { workerId: params.id, model: body.model, effort: body.effort },
+    );
+    writeJson(res, 200, { ok: true, ...out });
+  });
+
+  r.get(/^\/workers\/(?<id>[^/]+)\/diff$/, async ({ params, res }) => {
+    // Return 200+zeros for both "missing worker" and "no cwd" so a poll that
+    // races with a kill doesn't fire a 404 in the network log. Frontend
+    // already treats zero stats as "nothing to show".
+    const w = c.workers.findById(params.id);
+    const cwd = w ? (w.worktree_from ?? w.cwd) : null;
+    if (!w || !cwd) { writeJson(res, 200, { insertions: 0, deletions: 0, files: 0 }); return; }
+    const stat = await c.git.diffShortStat(cwd);
+    writeJson(res, 200, stat);
   });
 }

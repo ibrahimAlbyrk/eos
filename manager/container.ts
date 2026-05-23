@@ -22,6 +22,8 @@ import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
 import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
 import { createDarwinFsHelpers, type FsHelpers } from "../infra/src/filesystem/DarwinFsHelpers.ts";
 import { noopFsHelpers } from "../infra/src/filesystem/NoopFsHelpers.ts";
+import { childProcessGitInfo } from "../infra/src/git/ChildProcessGitInfo.ts";
+import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 
 import type { Policy } from "../core/src/domain/policy.ts";
 import type { ModelCatalog } from "../core/src/ports/ModelCatalog.ts";
@@ -169,6 +171,10 @@ export function buildContainer() {
       })
     : noopFsHelpers;
 
+  // Git info + recents -----------------------------------------------------
+  const git = childProcessGitInfo;
+  const recents = new JsonRecentsRepo(join(config.daemon.home, "recents.json"));
+
   // SpawnWorker dep builders -----------------------------------------------
   const buildArgs: SpawnWorkerDeps["buildArgs"] = ({ id, port, spec, model }) => {
     const args = [
@@ -178,8 +184,10 @@ export function buildContainer() {
       "--daemon-url", `http://127.0.0.1:${config.daemon.port}`,
       "--worker-id", id,
       "--port", String(port),
-      "--prompt", spec.prompt,
     ];
+    if (spec.prompt && spec.prompt.trim().length > 0) {
+      args.push("--prompt", spec.prompt);
+    }
     if (spec.cwd) args.push("--cwd", spec.cwd);
     if (spec.worktreeFrom) args.push("--worktree-from", spec.worktreeFrom);
     if (spec.branch) args.push("--branch", spec.branch);
@@ -253,6 +261,8 @@ export function buildContainer() {
     limitsEnforcer,
     metrics,
     fs,
+    git,
+    recents,
     buildArgs,
     buildEnv,
     logFileFor,
