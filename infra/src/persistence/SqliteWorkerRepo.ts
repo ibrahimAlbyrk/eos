@@ -17,6 +17,9 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtUpdateState;
   private readonly stmtMarkDone;
   private readonly stmtAddUsage;
+  private readonly stmtIncrementToolCalls;
+  private readonly stmtUpdatePermissionMode;
+  private readonly stmtUpdateModel;
   private readonly stmtDelete;
   private readonly stmtTotalCost;
   private readonly stmtCountByState;
@@ -43,6 +46,11 @@ export class SqliteWorkerRepo implements WorkerRepo {
         cost_usd = COALESCE(cost_usd, 0) + ?
       WHERE id = ?
     `);
+    this.stmtIncrementToolCalls = db.prepare(
+      "UPDATE workers SET tool_calls = COALESCE(tool_calls, 0) + 1 WHERE id = ?",
+    );
+    this.stmtUpdatePermissionMode = db.prepare("UPDATE workers SET permission_mode = ? WHERE id = ?");
+    this.stmtUpdateModel = db.prepare("UPDATE workers SET model = ?, effort = ? WHERE id = ?");
     this.stmtDelete = db.prepare("DELETE FROM workers WHERE id = ?");
     this.stmtTotalCost = db.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS total FROM workers");
     this.stmtCountByState = db.prepare("SELECT state, COUNT(*) AS n FROM workers GROUP BY state");
@@ -94,6 +102,18 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   addUsage(id: string, delta: UsageDelta): void {
     this.stmtAddUsage.run(delta.in, delta.out, delta.cacheRead, delta.cacheCreate, delta.costUsd, id);
+  }
+
+  incrementToolCalls(id: string): void {
+    this.stmtIncrementToolCalls.run(id);
+  }
+
+  updatePermissionMode(id: string, mode: string): void {
+    this.stmtUpdatePermissionMode.run(mode, id);
+  }
+
+  updateModel(id: string, model: string, effort: string | null): void {
+    this.stmtUpdateModel.run(model, effort, id);
   }
 
   delete(id: string): void {

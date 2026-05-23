@@ -65,6 +65,9 @@ export const MIGRATIONS: Migration[] = [
   { id: "012_idx_pending_unresolved", sql: "CREATE INDEX IF NOT EXISTS idx_pending_unresolved ON pending_permissions(resolved, expires_at)" },
   { id: "013_workers_add_is_orchestrator", sql: "ALTER TABLE workers ADD COLUMN is_orchestrator INTEGER DEFAULT 0" },
   { id: "014_backfill_existing_orchestrator", sql: "UPDATE workers SET is_orchestrator = 1 WHERE id = 'orchestrator'" },
+  { id: "015_workers_add_tool_calls", sql: "ALTER TABLE workers ADD COLUMN tool_calls INTEGER NOT NULL DEFAULT 0" },
+  { id: "016_workers_add_permission_mode", sql: "ALTER TABLE workers ADD COLUMN permission_mode TEXT" },
+  { id: "017_workers_add_effort", sql: "ALTER TABLE workers ADD COLUMN effort TEXT" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {
