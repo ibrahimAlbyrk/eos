@@ -577,26 +577,76 @@ kbd {
   color: var(--fg-faint);
   margin: 8px 0;
 }
+/* 4-point sparkle — two crossed strokes (cardinal + 45°), each breathing
+   on its own phase. The single .spark element hosts both via ::before /
+   ::after so existing JSX (<span class="spark"></span>) keeps working. */
 .thinking-line .spark {
-  width: 7px; height: 7px;
-  background: var(--warn);
-  transform: rotate(45deg);
-  opacity: 0.85;
-  animation: pulse 1.4s ease-in-out infinite;
-}
-/* Static variant: same icon, no animation. Used as a "this exchange took
-   N seconds" anchor under the latest agent reply. */
-.thinking-line--static .spark {
+  position: relative;
+  width: 28px; height: 28px;
+  display: inline-block;
+  vertical-align: middle;
+  color: var(--accent);
+  background: none;
+  transform: none;
+  opacity: 1;
   animation: none;
-  opacity: 0.55;
+  flex-shrink: 0;
 }
+.thinking-line .spark::before,
+.thinking-line .spark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(currentColor, currentColor) center / 3px 100% no-repeat,
+    linear-gradient(currentColor, currentColor) center / 100% 3px no-repeat;
+  -webkit-mask:
+    radial-gradient(ellipse 2px 14px at center, #000 0%, transparent 75%),
+    radial-gradient(ellipse 14px 2px at center, #000 0%, transparent 75%);
+          mask:
+    radial-gradient(ellipse 2px 14px at center, #000 0%, transparent 75%),
+    radial-gradient(ellipse 14px 2px at center, #000 0%, transparent 75%);
+}
+.thinking-line .spark::before {
+  animation: spark-a 1.8s ease-in-out infinite;
+}
+.thinking-line .spark::after {
+  animation: spark-b 1.8s ease-in-out infinite;
+  animation-delay: 0.4s;
+}
+@keyframes spark-a {
+  0%, 100% { transform: rotate(0deg)  scale(0.55); opacity: 0.35; }
+  50%      { transform: rotate(0deg)  scale(1);    opacity: 1; }
+}
+@keyframes spark-b {
+  0%, 100% { transform: rotate(45deg) scale(0.55); opacity: 0.25; }
+  50%      { transform: rotate(45deg) scale(0.9);  opacity: 0.7; }
+}
+/* Static — freeze both axes at their 50% peak frame so the mark stops
+   pulsing once the agent has replied. */
+.thinking-line--static .spark::before {
+  animation: none;
+  transform: rotate(0deg) scale(1);
+  opacity: 1;
+}
+.thinking-line--static .spark::after {
+  animation: none;
+  transform: rotate(45deg) scale(0.9);
+  opacity: 0.7;
+}
+/* Fixed-geometry separator dot — replaces the `·` character so flex gap
+   sits symmetrically on both sides regardless of font glyph metrics. */
 .thinking-line .thinking-sep {
-  color: var(--fg-faint);
-  font-size: 11px;
-  line-height: 1;
-  margin: 0 -1px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  flex-shrink: 0;
 }
-@keyframes pulse { 50% { opacity: 0.35; } }
+/* The sparkle mask leaves a few px of visual padding inside its 28×28
+   container, so flex's symmetric gap reads as icon→dot > dot→text. Push
+   the text slightly to balance the visible spacing. */
+.thinking-line .mono { margin-left: 4px; }
 
 /* suggested action chip (e.g. "mcplerini listele") */
 .suggest {

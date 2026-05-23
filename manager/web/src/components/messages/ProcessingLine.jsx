@@ -8,7 +8,7 @@ export function ProcessingLine({ busy, elapsed }) {
       <span className="spark"></span>
       {busy && elapsed && (
         <>
-          <span className="thinking-sep" aria-hidden="true">·</span>
+          <span className="thinking-sep" aria-hidden="true"></span>
           <span className="mono">{elapsed}</span>
         </>
       )}
