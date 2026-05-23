@@ -28,7 +28,18 @@ export const WorkerRowSchema = z.object({
   tokens_cache_create: z.number().nullable().optional(),
   cost_usd: z.number().nullable().optional(),
   is_orchestrator: z.number().nullable().optional(),
+  tool_calls: z.number().nullable().optional(),
+  permission_mode: z.string().nullable().optional(),
+  effort: z.string().nullable().optional(),
 });
+
+export const PermissionModeSchema = z.enum([
+  "default",
+  "acceptEdits",
+  "plan",
+  "bypassPermissions",
+]);
+export type PermissionMode = z.infer<typeof PermissionModeSchema>;
 export type WorkerRow = z.infer<typeof WorkerRowSchema>;
 
 // Pending permission row as returned by GET /pending.

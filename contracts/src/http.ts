@@ -5,7 +5,7 @@
 // not have shipped if these had existed first.
 
 import { z } from "zod";
-import { WorkerRowSchema, PendingPermissionRowSchema } from "./worker.ts";
+import { WorkerRowSchema, PendingPermissionRowSchema, PermissionModeSchema } from "./worker.ts";
 import { DecisionSchema, ExternalDecisionSchema } from "./policy.ts";
 
 // ---- POST /workers ---------------------------------------------------------
@@ -149,6 +149,59 @@ export const DefaultAppResponseSchema = z.object({
     .nullable(),
 });
 
+// ---- GET /fs/branches ------------------------------------------------------
+
+export const BranchesQuerySchema = z.object({ cwd: z.string().min(1) });
+export type BranchesQuery = z.infer<typeof BranchesQuerySchema>;
+
+export const BranchesResponseSchema = z.object({
+  branches: z.array(z.string()),
+  current: z.string().nullable(),
+});
+export type BranchesResponse = z.infer<typeof BranchesResponseSchema>;
+
+// ---- GET /fs/recents -------------------------------------------------------
+
+export const RecentsResponseSchema = z.object({ paths: z.array(z.string()) });
+export type RecentsResponse = z.infer<typeof RecentsResponseSchema>;
+
+// ---- PUT /workers/:id/permission -------------------------------------------
+
+export const SetPermissionRequestSchema = z.object({ mode: PermissionModeSchema });
+export type SetPermissionRequest = z.infer<typeof SetPermissionRequestSchema>;
+
+export const SetPermissionResponseSchema = z.object({
+  ok: z.boolean(),
+  mode: PermissionModeSchema,
+  runtimeApplied: z.boolean(),
+});
+export type SetPermissionResponse = z.infer<typeof SetPermissionResponseSchema>;
+
+// ---- PUT /workers/:id/model ------------------------------------------------
+
+export const SetModelRequestSchema = z.object({
+  model: z.string().min(1),
+  effort: z.string().optional(),
+});
+export type SetModelRequest = z.infer<typeof SetModelRequestSchema>;
+
+export const SetModelResponseSchema = z.object({
+  ok: z.boolean(),
+  model: z.string(),
+  effort: z.string().nullable(),
+  runtimeApplied: z.boolean(),
+});
+export type SetModelResponse = z.infer<typeof SetModelResponseSchema>;
+
+// ---- GET /workers/:id/diff -------------------------------------------------
+
+export const WorkerDiffResponseSchema = z.object({
+  insertions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+  files: z.number().int().nonnegative(),
+});
+export type WorkerDiffResponse = z.infer<typeof WorkerDiffResponseSchema>;
+
 // ---- error envelope --------------------------------------------------------
 
 export const ErrorResponseSchema = z.object({
@@ -183,5 +236,10 @@ export const ROUTES = {
   fsDefaultApp: "/fs/default-app",
   fsOpen: "/fs/open",
   fsIcon: "/fs/icon",
+  fsBranches: "/fs/branches",
+  fsRecents: "/fs/recents",
+  workerPermission: (id: string): string => `/workers/${id}/permission`,
+  workerModel: (id: string): string => `/workers/${id}/model`,
+  workerDiff: (id: string): string => `/workers/${id}/diff`,
   web: "/web/",
 } as const;
