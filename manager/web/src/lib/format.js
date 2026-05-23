@@ -15,6 +15,21 @@ export function fmtElapsed(ms) {
   return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
+// Compact elapsed format used inside in-line progress indicators where
+// fmtElapsed's "00:03" zero-padding looks heavier than needed.
+//   1234ms → "1s"
+//   72_000 → "1m 12s"
+//   3661000 → "1h 1m"
+export function fmtElapsedShort(ms) {
+  if (!ms || ms < 0) return "0s";
+  const s = Math.floor(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ${s % 60}s`;
+  const h = Math.floor(m / 60);
+  return `${h}h ${m % 60}m`;
+}
+
 export function fmtTokens(n) {
   if (!n) return "0";
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + "M";

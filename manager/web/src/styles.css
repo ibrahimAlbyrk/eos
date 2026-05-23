@@ -577,6 +577,18 @@ kbd {
   opacity: 0.85;
   animation: pulse 1.4s ease-in-out infinite;
 }
+/* Static variant: same icon, no animation. Used as a "this exchange took
+   N seconds" anchor under the latest agent reply. */
+.thinking-line--static .spark {
+  animation: none;
+  opacity: 0.55;
+}
+.thinking-line .thinking-sep {
+  color: var(--fg-faint);
+  font-size: 11px;
+  line-height: 1;
+  margin: 0 -1px;
+}
 @keyframes pulse { 50% { opacity: 0.35; } }
 
 /* suggested action chip (e.g. "mcplerini listele") */

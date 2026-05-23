@@ -8,10 +8,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { api } from "../../api/client.js";
+import { fmtElapsedShort } from "../../lib/format.js";
 import { MessageUser } from "./MessageUser.jsx";
 import { MessageAssistant } from "./MessageAssistant.jsx";
 import { ToolGroup } from "./ToolGroup.jsx";
 import { ThinkingLine } from "./ThinkingLine.jsx";
+import { ProcessingLine } from "./ProcessingLine.jsx";
 
 const POLL_MS = 1000;
 
@@ -53,15 +55,37 @@ export function Messages({ live }) {
     const base = buildBlocks(events);
     const opt = ui.optimisticMsgs.get(ui.selectedId) ?? [];
     for (const m of opt) {
-      base.push({ kind: "user", text: m.text, optimistic: true });
+      base.push({ kind: "user", text: m.text, ts: m.ts, optimistic: true });
     }
     return base;
   }, [events, ui.optimisticMsgs, ui.selectedId]);
+
+  // Activity anchor — sits below the most recent block. Two modes:
+  //   busy=true  → animated spark + live ticking elapsed (how long the
+  //                agent has been thinking since the user's message)
+  //   busy=false → static spark, no text (just an anchor under the reply)
+  const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
+  const lastBlock = blocks[blocks.length - 1];
+  const agentBusy = selectedWorker && (selectedWorker.state === "SPAWNING" || selectedWorker.state === "WORKING");
+  const isWaiting = !!(lastBlock && lastBlock.kind === "user" && agentBusy);
+  const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking");
+  let lastUserTs = null;
+  for (let i = blocks.length - 1; i >= 0; i--) {
+    if (blocks[i].kind === "user") { lastUserTs = blocks[i].ts; break; }
+  }
+  const waitingElapsedMs = isWaiting && lastUserTs ? Math.max(0, live.now - lastUserTs) : 0;
+  const showAnchor = isWaiting || isAgentReply;
 
   return (
     <div className="messages-wrap">
       <div className="messages">
         {blocks.map((b, i) => renderBlock(b, i))}
+        {showAnchor && (
+          <ProcessingLine
+            busy={isWaiting}
+            elapsed={isWaiting && lastUserTs ? fmtElapsedShort(waitingElapsedMs) : null}
+          />
+        )}
       </div>
     </div>
   );
@@ -86,7 +110,7 @@ function buildBlocks(events) {
     if (ev.type === "user_message") {
       lastAsst = null;
       const payload = parsePayload(ev.payload);
-      out.push({ kind: "user", text: payload.text ?? "" });
+      out.push({ kind: "user", text: payload.text ?? "", ts: ev.ts });
       continue;
     }
     if (ev.type !== "jsonl") continue;
@@ -95,15 +119,15 @@ function buildBlocks(events) {
       if (lastAsst && out[out.length - 1] === lastAsst) {
         lastAsst.text += "\n" + (p.text ?? "");
       } else {
-        lastAsst = { kind: "assistant", text: p.text ?? "" };
+        lastAsst = { kind: "assistant", text: p.text ?? "", ts: ev.ts };
         out.push(lastAsst);
       }
     } else if (p.kind === "thinking") {
       lastAsst = null;
-      out.push({ kind: "thinking", text: p.text ?? "", ms: p.ms });
+      out.push({ kind: "thinking", text: p.text ?? "", ms: p.ms, ts: ev.ts });
     } else if (p.kind === "tool_use") {
       lastAsst = null;
-      out.push({ kind: "toolGroup", verb: verbFor(p.name), title: titleFor(p), subtools: [{ name: p.name, file: fileFor(p) }] });
+      out.push({ kind: "toolGroup", verb: verbFor(p.name), title: titleFor(p), subtools: [{ name: p.name, file: fileFor(p) }], ts: ev.ts });
     }
   }
   return out;
