@@ -95,6 +95,24 @@ const heartbeat = startHeartbeat({
 
 // Ingest server (message + hook) ------------------------------------------
 
+// Messages that arrive before claude has finished its boot animation get
+// eaten by the TUI (cursor positioning swallows the CR). We buffer any
+// pre-boot writes here and flush them once the boot delay has elapsed.
+const BOOT_DELAY_MS = 2500;
+const bootCompleteAt = Date.now() + BOOT_DELAY_MS;
+let bootBuffer: string[] = [];
+let bootCompleted = false;
+setTimeout(() => {
+  bootCompleted = true;
+  for (const t of bootBuffer) writeQueue.enqueue(t);
+  bootBuffer = [];
+}, BOOT_DELAY_MS);
+
+function dispatchToPty(text: string): void {
+  if (bootCompleted) writeQueue.enqueue(text);
+  else bootBuffer.push(text);
+}
+
 const ingest = startIngestServer(opts.port, {
   onMessage(text): void {
     shutdown.cancel();
@@ -102,7 +120,7 @@ const ingest = startIngestServer(opts.port, {
     state.lastUserMsgTs = now;
     state.lastJsonlActivityTs = now;
     evt.emit("lifecycle", { phase: "message_received", text: text.slice(0, 200) });
-    writeQueue.enqueue(text);
+    dispatchToPty(text);
   },
   onHook(eventName, body): void {
     state.events.push({ event: eventName, t: Date.now() });
@@ -139,14 +157,29 @@ const ingest = startIngestServer(opts.port, {
 
 // Initial prompt — small delay so claude finishes its boot animation before
 // we start typing. The PtyWriteQueue handles the CR-after-text dance.
-setTimeout(() => {
-  console.log(`\n[${name}] writing prompt`);
-  evt.emit("lifecycle", { phase: "prompt_sent" });
-  const now = Date.now();
-  state.lastUserMsgTs = now;
-  state.lastJsonlActivityTs = now;
-  writeQueue.enqueue(opts.prompt);
-}, 2500);
+// Empty prompt (e.g. orchestrators that should idle until the first user
+// message) skips the write entirely and lifts the worker straight to IDLE
+// so the UI doesn't show it stuck in SPAWNING.
+if (opts.prompt && opts.prompt.trim().length > 0) {
+  setTimeout(() => {
+    console.log(`\n[${name}] writing prompt`);
+    evt.emit("lifecycle", { phase: "prompt_sent" });
+    const now = Date.now();
+    state.lastUserMsgTs = now;
+    state.lastJsonlActivityTs = now;
+    writeQueue.enqueue(opts.prompt);
+  }, BOOT_DELAY_MS);
+} else {
+  setTimeout(() => {
+    evt.emit("lifecycle", { phase: "ready_no_prompt" });
+    // Only push IDLE if no user message has arrived yet — otherwise we'd
+    // overwrite the WORKING state set by the just-dispatched message and
+    // confuse the UI. The user_message handler will keep state in WORKING.
+    if (state.lastUserMsgTs === 0) {
+      evt.emit("state", { state: "IDLE" });
+    }
+  }, BOOT_DELAY_MS);
+}
 
 // Exit + cleanup ----------------------------------------------------------
 

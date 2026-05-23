@@ -45,9 +45,9 @@ export function parseWorkerOptions(): WorkerOptions {
     strict: true,
   });
 
-  if (!values.prompt || (!values.cwd && !values["worktree-from"])) {
+  if (!values.cwd && !values["worktree-from"]) {
     console.error(
-      "usage: worker.ts (--cwd <dir> | --worktree-from <repo>) --prompt <text> " +
+      "usage: worker.ts (--cwd <dir> | --worktree-from <repo>) [--prompt <text>] " +
         "[--branch <name>] [--keep-worktree] [--with-gateway] [--port <n>] [--name <id>]",
     );
     process.exit(1);
@@ -55,7 +55,7 @@ export function parseWorkerOptions(): WorkerOptions {
 
   return {
     cwd: values.cwd,
-    prompt: values.prompt!,
+    prompt: values.prompt ?? "",
     name: values.name,
     worktreeFrom: values["worktree-from"],
     branch: values.branch,
