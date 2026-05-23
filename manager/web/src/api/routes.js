@@ -26,4 +26,9 @@ export const ROUTES = {
   fsDefaultApp: "/fs/default-app",
   fsOpen: "/fs/open",
   fsIcon: "/fs/icon",
+  fsBranches: "/fs/branches",
+  fsRecents: "/fs/recents",
+  workerPermission: (id) => `/workers/${id}/permission`,
+  workerModel: (id) => `/workers/${id}/model`,
+  workerDiff: (id) => `/workers/${id}/diff`,
 };

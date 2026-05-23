@@ -9,8 +9,11 @@ import { ROUTES } from "./routes.js";
 const DAEMON = typeof location !== "undefined" ? location.origin : "";
 const JSON_HEADERS = { "content-type": "application/json" };
 
-async function getJson(path) {
-  const r = await fetch(`${DAEMON}${path}`);
+async function getJson(path, { signal } = {}) {
+  const r = await fetch(`${DAEMON}${path}`, { signal });
+  // fetch doesn't throw on non-2xx; surface failures so callers can fall
+  // back instead of parsing an error envelope as the success shape.
+  if (!r.ok) throw new Error(`GET ${path} → ${r.status}`);
   return r.json();
 }
 
@@ -32,6 +35,17 @@ async function del(path) {
   return { ok: r.ok, status: r.status, body: parsed };
 }
 
+async function putJson(path, body) {
+  const r = await fetch(`${DAEMON}${path}`, {
+    method: "PUT",
+    headers: JSON_HEADERS,
+    body: JSON.stringify(body ?? {}),
+  });
+  let parsed = null;
+  try { parsed = await r.json(); } catch {}
+  return { ok: r.ok, status: r.status, body: parsed };
+}
+
 export const api = {
   daemon: DAEMON,
   routes: ROUTES,
@@ -47,12 +61,12 @@ export const api = {
   async listWorkers() { return getJson(ROUTES.workers); },
   async spawnWorker(spec) { return postJson(ROUTES.workers, spec); },
   async killWorker(id) { return del(ROUTES.worker(id)); },
-  async getWorkerEvents(id, { since = 0, order = "asc", limit } = {}) {
+  async getWorkerEvents(id, { since = 0, order = "asc", limit, signal } = {}) {
     const params = new URLSearchParams();
     params.set("since", String(since));
     params.set("order", order);
     if (limit != null) params.set("limit", String(limit));
-    return getJson(`${ROUTES.workerEvents(id)}?${params.toString()}`);
+    return getJson(`${ROUTES.workerEvents(id)}?${params.toString()}`, { signal });
   },
   async sendWorkerMessage(id, text) {
     return postJson(ROUTES.workerMessage(id), { text });
@@ -91,6 +105,29 @@ export const api = {
   },
   async openFile(path) {
     return postJson(ROUTES.fsOpen, { path });
+  },
+  async listBranches(cwd) {
+    const r = await fetch(`${DAEMON}${ROUTES.fsBranches}?cwd=${encodeURIComponent(cwd)}`);
+    return r.ok ? r.json() : { branches: [], current: null };
+  },
+  async listRecents() {
+    try { return await getJson(ROUTES.fsRecents); }
+    catch { return { paths: [] }; }
+  },
+
+  // Per-agent settings
+  async setWorkerPermission(id, mode) {
+    return putJson(ROUTES.workerPermission(id), { mode });
+  },
+  async setWorkerModel(id, model, effort) {
+    return putJson(ROUTES.workerModel(id), { model, effort });
+  },
+  async getWorkerDiff(id, { signal } = {}) {
+    try { return await getJson(ROUTES.workerDiff(id), { signal }); }
+    catch (e) {
+      if (e?.name === "AbortError") throw e;
+      return { insertions: 0, deletions: 0, files: 0 };
+    }
   },
 
   // SSE — returns the EventSource so the caller can attach listeners. The

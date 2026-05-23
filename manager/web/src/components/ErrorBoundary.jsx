@@ -1,34 +1,49 @@
 import { Component } from "react";
 
-// Catches render-time exceptions inside a subtree and falls back to a small
-// inline error card instead of unmounting the whole app. Reset clears the
-// error state — the subtree re-mounts on the next render.
-//
-// Function-component error boundaries don't exist in React 18, so this stays
-// as a class component on purpose.
+// Top-level error boundary so a render-time crash in one panel doesn't blank
+// the entire UI. Logs to the console and offers a one-click reset.
+
 export class ErrorBoundary extends Component {
   constructor(props) {
     super(props);
     this.state = { error: null };
   }
+
   static getDerivedStateFromError(error) {
     return { error };
   }
+
   componentDidCatch(error, info) {
-    // Surface the failure in the console for the developer; the daemon also
-    // sees it because the web UI is opened from the same machine.
-    console.error("[error boundary]", error, info?.componentStack);
+    // eslint-disable-next-line no-console
+    console.error("UI crash:", error, info?.componentStack);
   }
-  reset = () => this.setState({ error: null });
+
   render() {
     if (this.state.error) {
-      const label = this.props.label || "panel";
-      const msg = String(this.state.error?.message || this.state.error);
       return (
-        <div className="vb-error-fallback" role="alert">
-          <div className="vb-error-fallback__title">{label} crashed</div>
-          <pre className="vb-error-fallback__msg">{msg}</pre>
-          <button className="vb-btn vb-btn--ghost" onClick={this.reset}>Reset</button>
+        <div style={{
+          padding: 32, color: "var(--fg)", maxWidth: 720, margin: "40px auto",
+          fontFamily: "Inter, system-ui",
+        }}>
+          <h2 style={{ color: "var(--err)", marginTop: 0 }}>UI crashed</h2>
+          <p style={{ color: "var(--fg-dim)" }}>
+            A component threw during render. The daemon is still running — reset to recover.
+          </p>
+          <pre style={{
+            background: "var(--surface)", padding: 12, borderRadius: 8,
+            color: "var(--fg-dim)", fontSize: 12, overflow: "auto",
+            border: "1px solid var(--border)",
+          }}>{String(this.state.error?.stack ?? this.state.error)}</pre>
+          <button
+            onClick={() => this.setState({ error: null })}
+            style={{
+              marginTop: 12, padding: "8px 14px",
+              background: "var(--accent)", color: "#fff", border: 0,
+              borderRadius: 6, cursor: "pointer", fontSize: 13,
+            }}
+          >
+            Reset
+          </button>
         </div>
       );
     }

@@ -1,160 +1,81 @@
-// Root component — owns layout state (selection, panel collapse, modals) and
-// wires the data layer (window.live) to the rendered tree via useLive().
-//
-// Every leaf component is React.memo'd in its own file. App.jsx itself only
-// re-renders when window.live emits or the elapsed-tick fires, but the cheap
-// equality checks in memoized children prevent that from cascading.
-
-import { useState, useMemo, useCallback, useEffect } from "react";
-import { CONFIG } from "./config.js";
-import { useLive, useTick } from "./hooks/useLive.js";
-import { LeftPanelHandle, RightPanelHandle } from "./components/primitives.jsx";
-import { Topbar } from "./components/Topbar.jsx";
-import { AgentsPanel } from "./features/agents/AgentsPanel.jsx";
-import { SpawnAgentModal } from "./features/spawn/SpawnAgentModal.jsx";
-import { AgentContextMenu } from "./features/context-menu/AgentContextMenu.jsx";
-import { QuickPromptModal } from "./features/quick-prompt/QuickPromptModal.jsx";
-import { Center } from "./components/Center.jsx";
-import { Details } from "./components/Details.jsx";
+import { useEffect } from "react";
+import { UiProvider, useUi } from "./state/ui.jsx";
+import { useLive } from "./hooks/useLive.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
-import { SearchModal } from "./components/SearchModal.jsx";
+import { Sidebar } from "./components/sidebar/Sidebar.jsx";
+import { SideHandle } from "./components/sidebar/SideHandle.jsx";
+import { CenterHeader } from "./components/center/CenterHeader.jsx";
+import { Messages } from "./components/messages/Messages.jsx";
+import { Composer } from "./components/center/Composer.jsx";
+import { Islands } from "./components/islands/Islands.jsx";
+import { IslandHandle } from "./components/islands/IslandHandle.jsx";
+import { AgentContextMenu } from "./components/popovers/AgentContextMenu.jsx";
+import { QuickPromptModal } from "./components/popovers/QuickPromptModal.jsx";
 
-export default function App() {
-  const { agents, events, pending, online, session } = useLive();
-  useTick(CONFIG.elapsedTickMs);
+function Shell() {
+  const ui = useUi();
+  const live = useLive();
 
-  const [selectedId, setSelectedId] = useState(null);
-  const [leftCollapsed, setLeftCollapsed] = useState(false);
-  const [rightCollapsed, setRightCollapsed] = useState(false);
-  const [spawnOpen, setSpawnOpen] = useState(false);
-  const [searchOpen, setSearchOpen] = useState(false);
-  const [ctxMenu, setCtxMenu] = useState(null);          // { agentId, x, y }
-  const [quickPrompt, setQuickPrompt] = useState(null);  // agentId
-
-  // Global keyboard shortcuts — Cmd/Ctrl+Shift+F opens cross-event search.
+  // Auto-select first orchestrator on first load
   useEffect(() => {
-    const onKey = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
+    if (!ui.selectedId && live.orchestrators.length > 0) {
+      ui.setSelectedId(live.orchestrators[0].id);
+    }
+  }, [ui.selectedId, live.orchestrators, ui.setSelectedId]);
+
+  // Seed unseen workers so brand-new agents don't immediately notify.
+  useEffect(() => {
+    for (const w of live.workers) ui.seedViewed(w);
+  }, [live.workers, ui.seedViewed]);
+
+  // Continuously mark the currently-selected worker as viewed so its
+  // notification badge never fires while the user is actively looking at it.
+  useEffect(() => {
+    const w = live.workers.find((x) => x.id === ui.selectedId);
+    if (w) ui.markViewed(w);
+  }, [ui.selectedId, live.workers, ui.markViewed]);
+
+  // Outside-click closes any open popover (except the popover itself + trigger)
+  useEffect(() => {
+    if (!ui.openPopover) return;
+    const handler = (e) => {
+      const inside = e.target.closest(`[data-popover="${ui.openPopover}"]`)
+        || e.target.closest(`[data-popover-trigger="${ui.openPopover}"]`);
+      if (!inside) ui.closeAllPops();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [ui.openPopover, ui]);
 
-  // On initial load (page refresh), select the topmost agent in the panel —
-  // matches AgentsPanel's flat order: oldest root first, else any agent.
-  useEffect(() => {
-    if (selectedId !== null) return;
-    if (agents.length === 0) return;
-    const roots = agents
-      .filter(a => !a.parent)
-      .sort((a, b) => (a.startedTs || 0) - (b.startedTs || 0));
-    const first = roots[0] || agents[0];
-    if (first) setSelectedId(first.id);
-  }, [agents, selectedId]);
-
-  const selected = useMemo(
-    () => agents.find(a => a.id === selectedId) || null,
-    [agents, selectedId],
-  );
-
-  const visibleEvents = useMemo(() => {
-    if (!selectedId) return events;
-    return events.filter(e => e.agent === selectedId || e.agent === "user");
-  }, [events, selectedId]);
-
-  const onSend = useCallback(async (text) => {
-    await window.live.sendMessage(text, selectedId);
-  }, [selectedId]);
-
-  const onApprove = useCallback((pid, updatedInput) => window.live.approvePending(pid, updatedInput), []);
-  const onDeny = useCallback((pid) => window.live.denyPending(pid), []);
-
-  const onAgentContextMenu = useCallback((agentId, x, y) => setCtxMenu({ agentId, x, y }), []);
-  const onKillAgent = useCallback((agentId) => window.live.killAgent(agentId), []);
-  const onQuickPromptSend = useCallback((text, agentId) => window.live.sendMessage(text, agentId), []);
-  const onSpawnClick = useCallback(() => setSpawnOpen(true), []);
-  const onSpawnClose = useCallback(() => setSpawnOpen(false), []);
-  const onSpawnedSelect = useCallback((id) => setSelectedId(id), []);
-  const onCtxClose = useCallback(() => setCtxMenu(null), []);
-  const onQuickPromptOpen = useCallback((id) => setQuickPrompt(id), []);
-  const onQuickPromptClose = useCallback(() => setQuickPrompt(null), []);
-  const onLeftCollapse = useCallback(() => setLeftCollapsed(true), []);
-  const onLeftExpand = useCallback(() => setLeftCollapsed(false), []);
-  const onRightCollapse = useCallback(() => setRightCollapsed(true), []);
-  const onRightExpand = useCallback(() => setRightCollapsed(false), []);
-
-  const bodyCls = useMemo(() => {
-    if (leftCollapsed && rightCollapsed) return "vb-body vb-body--both-collapsed";
-    if (leftCollapsed) return "vb-body vb-body--left-collapsed";
-    if (rightCollapsed) return "vb-body vb-body--right-collapsed";
-    return "vb-body";
-  }, [leftCollapsed, rightCollapsed]);
-
-  const quickPromptAgent = useMemo(
-    () => agents.find(a => a.id === quickPrompt) || null,
-    [agents, quickPrompt],
-  );
+  const cls = ["app"];
+  if (ui.sideCollapsed) cls.push("side-collapsed");
 
   return (
-    <div className="vb-app">
-      <Topbar agents={agents} session={session} online={online} sessionName="claude-manager session" />
-      <div className={bodyCls}>
-        {leftCollapsed
-          ? <LeftPanelHandle onExpand={onLeftExpand} />
-          : <ErrorBoundary label="Agents panel">
-              <AgentsPanel
-                agents={agents}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-                onCollapse={onLeftCollapse}
-                online={online}
-                onSpawnClick={onSpawnClick}
-                session={session}
-                onContextMenu={onAgentContextMenu}
-              />
-            </ErrorBoundary>
-        }
-        <ErrorBoundary label="Center">
-          <Center
-            events={visibleEvents}
-            agents={agents}
-            selected={selected}
-            pending={pending}
-            onApprove={onApprove}
-            onDeny={onDeny}
-            onSend={onSend}
-          />
-        </ErrorBoundary>
-        {rightCollapsed
-          ? <RightPanelHandle onExpand={onRightExpand} />
-          : <ErrorBoundary label="Details panel">
-              <Details agent={selected} agents={agents} events={events} onSelect={setSelectedId} onCollapse={onRightCollapse} />
-            </ErrorBoundary>
-        }
-      </div>
-      <SpawnAgentModal open={spawnOpen} onClose={onSpawnClose} onSpawned={onSpawnedSelect} />
-      <AgentContextMenu
-        menu={ctxMenu}
-        onClose={onCtxClose}
-        onQuickPrompt={onQuickPromptOpen}
-        onKill={onKillAgent}
-      />
-      <QuickPromptModal
-        open={!!quickPrompt}
-        agent={quickPromptAgent}
-        onClose={onQuickPromptClose}
-        onSend={onQuickPromptSend}
-      />
-      <SearchModal
-        open={searchOpen}
-        onClose={() => setSearchOpen(false)}
-        events={events}
-        agents={agents}
-        onPick={(e) => { setSelectedId(e.agent); }}
-      />
+    <div className={cls.join(" ")}>
+      <Sidebar live={live} />
+      <SideHandle />
+
+      <section className="center">
+        <CenterHeader live={live} />
+        <Messages live={live} />
+        <Composer live={live} />
+      </section>
+
+      <Islands live={live} />
+      <IslandHandle />
+
+      <AgentContextMenu live={live} />
+      <QuickPromptModal live={live} />
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <UiProvider>
+        <Shell />
+      </UiProvider>
+    </ErrorBoundary>
   );
 }
