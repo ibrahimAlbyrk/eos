@@ -10,3 +10,5 @@ export * from "./WorkerClient.ts";
 export * from "./DaemonClient.ts";
 export * from "./PolicyGateway.ts";
 export * from "./ModelCatalog.ts";
+export * from "./GitInfo.ts";
+export * from "./RecentsRepo.ts";

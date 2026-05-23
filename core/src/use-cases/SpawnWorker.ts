@@ -9,6 +9,7 @@ import type { ProcessSupervisor, PortAllocator } from "../ports/ProcessSuperviso
 import type { Clock } from "../ports/Clock.ts";
 import type { IdGenerator } from "../ports/IdGenerator.ts";
 import type { Logger } from "../ports/Logger.ts";
+import type { RecentsRepo } from "../ports/RecentsRepo.ts";
 
 export interface SpawnWorkerSpec {
   prompt: string;
@@ -50,6 +51,8 @@ export interface SpawnWorkerDeps {
   /** Limit cache — wired up by the composition root to a service. Optional;
    * if absent, no limits are enforced. */
   onLimitsSet?(workerId: string, limits: { maxCostUsd?: number; maxElapsedMs?: number }): void;
+  /** Recent-folders log; updated with the resolved cwd after every spawn. */
+  recents?: RecentsRepo;
 }
 
 export async function spawnWorker(
@@ -98,6 +101,9 @@ export async function spawnWorker(
       maxElapsedMs: spec.maxElapsedMs,
     });
   }
+
+  const folder = spec.cwd ?? spec.worktreeFrom ?? null;
+  if (folder) deps.recents?.push(folder);
 
   const evtId = deps.events.append(id, deps.clock.now(), "spawn", {
     args: args.slice(2),

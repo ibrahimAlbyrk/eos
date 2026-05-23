@@ -72,6 +72,9 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
         transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: `jsonl:${kind}` });
       }
     }
+    if (kind === "tool_use") {
+      deps.workers.incrementToolCalls(input.workerId);
+    }
   },
   heartbeat(deps, input) {
     const cur = deps.workers.findById(input.workerId);
