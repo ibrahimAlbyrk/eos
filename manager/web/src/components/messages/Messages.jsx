@@ -83,7 +83,7 @@ export function Messages({ live }) {
         {showAnchor && (
           <ProcessingLine
             busy={isWaiting}
-            elapsed={isWaiting && lastUserTs ? fmtElapsedShort(waitingElapsedMs) : null}
+            elapsed={isWaiting && lastUserTs && waitingElapsedMs >= 1000 ? fmtElapsedShort(waitingElapsedMs) : null}
           />
         )}
       </div>
