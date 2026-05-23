@@ -49,6 +49,12 @@ function Shell() {
 
   const cls = ["app"];
   if (ui.sideCollapsed) cls.push("side-collapsed");
+  // Mark the layout when the islands column is occupying the right side, so
+  // messages/composer can reserve space for it instead of being overlapped
+  // by the absolute-positioned cards on narrower viewports.
+  const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
+  const islandsVisible = !!selectedWorker && !ui.islandsHidden;
+  if (islandsVisible) cls.push("has-islands");
 
   return (
     <div className={cls.join(" ")}>

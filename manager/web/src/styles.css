@@ -417,6 +417,13 @@ kbd {
   margin: 0 auto;
   padding: 16px 32px 32px;
 }
+/* Reserve room on the right for the floating islands column so messages
+   never wrap underneath the cards. Width derives from the same vars as the
+   islands themselves, so any responsive shrink applies in lock-step.
+   Composer sits below the islands' vertical bounds — no padding needed. */
+.app.has-islands .messages {
+  padding-right: calc(var(--islands-w) + var(--islands-right) + 20px);
+}
 
 /* User message — pill bubble */
 .msg-user {
@@ -1334,14 +1341,24 @@ kbd {
 /* ============================================================================
    FLOATING ISLANDS · selected-agent details (liquid glass, fragmented)
    ============================================================================ */
+/* CSS vars drive both the islands' own size AND the right-side reservation
+   on .messages, so changes propagate everywhere from one place. They scale
+   down on narrower viewports (see the @media blocks at the bottom of this
+   section) — this keeps the messages area readable on a MacBook Air without
+   the cards bleeding onto the text. */
+:root {
+  --islands-w: 208px;
+  --islands-right: 28px;
+  --islands-top: 16px;
+}
 .islands {
   position: absolute;
-  top: 18px;
-  right: 48px;
-  width: 264px;
+  top: var(--islands-top);
+  right: var(--islands-right);
+  width: var(--islands-w);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
   z-index: 10;
   pointer-events: none; /* re-enable on children */
 }
@@ -1380,7 +1397,7 @@ kbd {
 }
 
 /* HEADER ISLAND */
-.isl-header { padding: 13px 14px 12px; }
+.isl-header { padding: 10px 12px 11px; }
 .isl-header .close-btn {
   position: absolute; top: 9px; right: 9px;
   width: 20px; height: 20px;
@@ -1418,12 +1435,15 @@ kbd {
   100% { transform: scale(1.5); opacity: 0; }
 }
 .agent-name {
-  margin-top: 6px;
-  font-size: 18px;
+  margin-top: 5px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--fg);
   letter-spacing: -0.015em;
   line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .agent-meta {
   display: flex; align-items: center; gap: 7px;
@@ -1506,8 +1526,8 @@ kbd {
 }
 
 /* DUO METRIC ROW */
-.duo-row { display: flex; gap: 14px; }
-.isl-tile { flex: 1; padding: 10px 12px 11px; min-width: 0; }
+.duo-row { display: flex; gap: 10px; }
+.isl-tile { flex: 1; padding: 8px 10px 9px; min-width: 0; }
 .isl-tile .lab {
   font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
   color: var(--fg-faint); font-family: "JetBrains Mono", monospace;
@@ -1515,12 +1535,12 @@ kbd {
 }
 .isl-tile .val {
   font-family: "JetBrains Mono", monospace;
-  font-size: 16px; font-weight: 500; color: var(--fg);
-  margin-top: 4px; letter-spacing: -0.015em; white-space: nowrap;
+  font-size: 14px; font-weight: 500; color: var(--fg);
+  margin-top: 3px; letter-spacing: -0.015em; white-space: nowrap;
 }
 
 /* TOKENS ISLAND */
-.isl-tokens { padding: 10px 12px 11px; }
+.isl-tokens { padding: 8px 10px 9px; }
 .isl-tokens .lab {
   font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
   color: var(--fg-faint); font-family: "JetBrains Mono", monospace;
@@ -1531,7 +1551,7 @@ kbd {
 }
 .isl-tokens .val {
   font-family: "JetBrains Mono", monospace;
-  font-size: 16px; font-weight: 500; color: var(--fg);
+  font-size: 14px; font-weight: 500; color: var(--fg);
   letter-spacing: -0.015em;
 }
 .isl-tokens .breakdown {
@@ -1544,7 +1564,7 @@ kbd {
 /* TOOLS PILL */
 .isl-tools {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 9px 14px;
+  padding: 7px 12px;
 }
 .isl-tools .lab {
   font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
@@ -1553,11 +1573,35 @@ kbd {
 }
 .isl-tools .total {
   font-family: "JetBrains Mono", monospace;
-  font-size: 14px; font-weight: 500; color: var(--fg);
+  font-size: 12.5px; font-weight: 500; color: var(--fg);
   letter-spacing: -0.01em;
 }
 .isl-tools .total .word {
   font-size: 10.5px; color: var(--fg-faint); font-weight: 400; margin-left: 4px;
+}
+
+/* Responsive islands — scale down on narrower viewports so the cards don't
+   crowd the messages column. The CSS vars at the top of this section drive
+   both the islands' own size and the messages' right padding; one change
+   here propagates everywhere. Internal text shrinks proportionally so the
+   information density doesn't fall apart. */
+@media (max-width: 1440px) {
+  :root {
+    --islands-w: 192px;
+    --islands-right: 22px;
+  }
+}
+@media (max-width: 1280px) {
+  :root {
+    --islands-w: 176px;
+    --islands-right: 16px;
+    --islands-top: 14px;
+  }
+  .agent-name { font-size: 14px; }
+  .isl-tokens .val { font-size: 13px; }
+  .isl-tile .val { font-size: 13px; }
+  .agent-meta { gap: 5px; }
+  .model-badge { padding: 1px 5px; font-size: 10px; }
 }
 
 /* expand handle when islands hidden */
