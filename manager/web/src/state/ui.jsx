@@ -41,6 +41,9 @@ export function UiProvider({ children }) {
   // snapshot. The signature combines state + cumulative tokens + tool calls
   // + cost so any meaningful progress on an unselected agent surfaces.
   const [viewedSignatures, setViewedSignatures] = useState(() => new Map());
+  // File viewer panel — null means closed.
+  // { path: string, editMode: boolean }
+  const [fileViewer, setFileViewer] = useState(null);
 
   const openPop = useCallback((id, opts = {}) => {
     setOpenPopover(id);
@@ -52,10 +55,12 @@ export function UiProvider({ children }) {
     setPopoverData({});
   }, []);
 
+  useEffect(() => { setFileViewer(null); }, [selectedId]);
+
   // Esc closes everything
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") closeAllPops();
+      if (e.key === "Escape") { closeAllPops(); setFileViewer(null); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -161,6 +166,14 @@ export function UiProvider({ children }) {
     return seen !== sigOf(worker);
   }, [viewedSignatures]);
 
+  const openFileViewer = useCallback((path) => {
+    setFileViewer({ path, editMode: false });
+  }, []);
+  const closeFileViewer = useCallback(() => setFileViewer(null), []);
+  const toggleFileEditMode = useCallback(() => {
+    setFileViewer((prev) => prev ? { ...prev, editMode: !prev.editMode } : null);
+  }, []);
+
   const removeDraft = useCallback((id) => {
     setDrafts((prev) => {
       if (!prev.has(id)) return prev;
@@ -194,13 +207,15 @@ export function UiProvider({ children }) {
     optimisticMsgs, addOptimisticUserMessage, reconcileOptimisticMessages,
     drafts, createDraft, updateDraft, removeDraft,
     markViewed, seedViewed, hasNewActivity,
+    fileViewer, openFileViewer, closeFileViewer, toggleFileEditMode,
   }), [
     selectedId, sideCollapsed, islandsHidden, openPopover, popoverPos, popoverData,
-    collapsedNodes, composer, optimisticMsgs, drafts,
+    collapsedNodes, composer, optimisticMsgs, drafts, fileViewer,
     openPop, closeAllPops, toggleNodeCollapsed, updateComposer,
     addOptimisticUserMessage, reconcileOptimisticMessages,
     createDraft, updateDraft, removeDraft,
     markViewed, seedViewed, hasNewActivity,
+    openFileViewer, closeFileViewer, toggleFileEditMode,
   ]);
 
   return <UiContext.Provider value={value}>{children}</UiContext.Provider>;

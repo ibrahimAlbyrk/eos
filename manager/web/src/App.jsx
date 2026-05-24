@@ -11,6 +11,7 @@ import { Islands } from "./components/islands/Islands.jsx";
 import { IslandHandle } from "./components/islands/IslandHandle.jsx";
 import { AgentContextMenu } from "./components/popovers/AgentContextMenu.jsx";
 import { QuickPromptModal } from "./components/popovers/QuickPromptModal.jsx";
+import { FileViewer } from "./components/messages/FileViewer.jsx";
 
 function Shell() {
   const ui = useUi();
@@ -49,12 +50,10 @@ function Shell() {
 
   const cls = ["app"];
   if (ui.sideCollapsed) cls.push("side-collapsed");
-  // Mark the layout when the islands column is occupying the right side, so
-  // messages/composer can reserve space for it instead of being overlapped
-  // by the absolute-positioned cards on narrower viewports.
   const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
-  const islandsVisible = !!selectedWorker && !ui.islandsHidden;
+  const islandsVisible = !!selectedWorker && !ui.islandsHidden && !ui.fileViewer;
   if (islandsVisible) cls.push("has-islands");
+  if (ui.fileViewer) cls.push("file-open");
 
   return (
     <div className={cls.join(" ")}>
@@ -67,8 +66,9 @@ function Shell() {
         <Composer live={live} />
       </section>
 
-      <Islands live={live} />
-      <IslandHandle />
+      {!ui.fileViewer && <Islands live={live} />}
+      {!ui.fileViewer && <IslandHandle />}
+      <FileViewer />
 
       <AgentContextMenu live={live} />
       <QuickPromptModal live={live} />
