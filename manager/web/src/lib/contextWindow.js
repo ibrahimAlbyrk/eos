@@ -5,7 +5,7 @@
 const FALLBACK_MAX = 200_000;
 
 const MAX_BY_FAMILY = {
-  opus:   200_000,
+  opus:   1_000_000,
   sonnet: 200_000,
   haiku:  200_000,
 };
@@ -20,13 +20,14 @@ export function maxForModel(model) {
   return FALLBACK_MAX;
 }
 
-export function contextUsage(worker) {
-  const used =
-    (worker?.tokens_in ?? 0) +
-    (worker?.tokens_out ?? 0) +
-    (worker?.tokens_cache_read ?? 0) +
-    (worker?.tokens_cache_create ?? 0);
-  const total = maxForModel(worker?.model);
+export function contextUsage(worker, model, lastUsage) {
+  // Context window = last turn's input tokens (Claude re-reads the full
+  // context each turn). Falls back to cumulative tokens_in if no usage
+  // event is available yet.
+  const used = lastUsage
+    ? (lastUsage.in ?? 0) + (lastUsage.cacheRead ?? 0)
+    : (worker?.tokens_in ?? 0);
+  const total = maxForModel(model ?? worker?.model);
   const pct = Math.min(100, Math.round((used / total) * 100));
   return { used, total, pct };
 }

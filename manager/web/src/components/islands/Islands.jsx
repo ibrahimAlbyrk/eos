@@ -1,5 +1,6 @@
 import { useUi } from "../../state/ui.jsx";
 import { fmtCost, fmtElapsed, fmtTokens, statusFromState } from "../../lib/format.js";
+import { contextUsage } from "../../lib/contextWindow.js";
 
 export function Islands({ live }) {
   const ui = useUi();
@@ -14,11 +15,7 @@ export function Islands({ live }) {
 
   const status = statusFromState(selected.state);
   const elapsedMs = (selected.ended_at ?? live.now) - (selected.started_at ?? live.now);
-  const tokensTotal =
-    (selected.tokens_in ?? 0) +
-    (selected.tokens_out ?? 0) +
-    (selected.tokens_cache_read ?? 0) +
-    (selected.tokens_cache_create ?? 0);
+  const { used: ctxUsed } = contextUsage(selected, selected.model, live.lastUsage);
 
   return (
     <div className={"islands" + (hidden ? " hidden" : "")} id="islands">
@@ -62,7 +59,7 @@ export function Islands({ live }) {
       <div className="isl isl-tokens">
         <div className="lab">tokens</div>
         <div className="stack">
-          <div className="val">{fmtTokens(tokensTotal)}</div>
+          <div className="val">{fmtTokens(ctxUsed)}</div>
           <div className="breakdown">
             <span><b>{fmtTokens(selected.tokens_in ?? 0)}</b> in</span>
             <span>·</span>

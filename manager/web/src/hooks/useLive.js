@@ -12,6 +12,17 @@ import { createReconnectingStream } from "../api/sse.js";
 const POLL_MS = 4000;
 const SSE_DEBOUNCE_MS = 80;
 
+function extractLastUsage(events) {
+  if (!Array.isArray(events)) return null;
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (ev.type !== "usage") continue;
+    const p = typeof ev.payload === "string" ? JSON.parse(ev.payload) : ev.payload;
+    if (p && (p.in != null || p.out != null)) return p;
+  }
+  return null;
+}
+
 export function useLive() {
   const [workers, setWorkers] = useState([]);
   const [health, setHealth] = useState(true);
@@ -19,6 +30,8 @@ export function useLive() {
   const [session, setSession] = useState(null);
   const [uiConfig, setUiConfig] = useState(null);
   const [now, setNow] = useState(Date.now());
+  const [lastUsage, setLastUsage] = useState(null);
+  const lastUsageWorker = useRef(null);
 
   const refetchTimer = useRef(null);
   const scheduleRefetch = useCallback(() => {
@@ -116,6 +129,25 @@ export function useLive() {
     return r;
   }, [scheduleRefetch]);
 
+  const updateLastUsage = useCallback(async (workerId) => {
+    if (!workerId) { setLastUsage(null); return; }
+    if (lastUsageWorker.current === workerId && lastUsage) return;
+    try {
+      const events = await api.getWorkerEvents(workerId, { order: "desc", limit: 50 });
+      lastUsageWorker.current = workerId;
+      setLastUsage(extractLastUsage(events));
+    } catch { /* ignore */ }
+  }, [lastUsage]);
+
+  const refreshLastUsage = useCallback(async (workerId) => {
+    if (!workerId) return;
+    try {
+      const events = await api.getWorkerEvents(workerId, { order: "desc", limit: 50 });
+      lastUsageWorker.current = workerId;
+      setLastUsage(extractLastUsage(events));
+    } catch { /* ignore */ }
+  }, []);
+
   const orchestrators = useMemo(() => workers.filter((w) => !!w.is_orchestrator), [workers]);
 
   return {
@@ -132,5 +164,8 @@ export function useLive() {
     setPermissionMode,
     setModel,
     refreshRecents,
+    lastUsage,
+    updateLastUsage,
+    refreshLastUsage,
   };
 }

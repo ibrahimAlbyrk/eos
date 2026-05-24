@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { contextUsage } from "../../lib/contextWindow.js";
 import { AcceptPopover } from "../popovers/AcceptPopover.jsx";
@@ -34,7 +35,12 @@ export function ComposerControls({ live }) {
   const effort = selected?.effort ?? draft?.effort ?? ui.composer.effort;
   const modelInfo = MODEL_LABELS[model] || { name: model || "—", ctx: "" };
 
-  const { used, total, pct } = contextUsage(selected);
+  useEffect(() => { live.updateLastUsage(selected?.id ?? null); }, [selected?.id]);
+  useEffect(() => {
+    if (selected) live.refreshLastUsage(selected.id);
+  }, [selected?.tokens_in, selected?.tokens_out]);
+
+  const { used, total, pct } = contextUsage(selected, model, live.lastUsage);
   const r = 7;
   const C = 2 * Math.PI * r;
   const filled = (pct / 100) * C;
