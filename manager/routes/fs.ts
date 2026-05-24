@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
@@ -82,5 +82,41 @@ export function registerFsRoutes(r: Router, c: Container): void {
 
   r.get("/fs/recents", ({ res }) => {
     writeJson(res, 200, { paths: c.recents.list() });
+  });
+
+  r.post("/fs/reveal", async ({ req, res }) => {
+    const body = await readBody(req) as { path?: string };
+    if (!isSafeAbsPath(body.path)) { writeJson(res, 400, { error: "absolute path required" }); return; }
+    try {
+      const { execSync } = await import("node:child_process");
+      execSync(`open -R "${body.path}"`);
+      writeJson(res, 200, { ok: true });
+    } catch (e) {
+      writeJson(res, 500, { error: (e as Error).message });
+    }
+  });
+
+  r.get("/fs/read", ({ url, res }) => {
+    const qPath = url.searchParams.get("path");
+    if (!isSafeAbsPath(qPath)) { writeJson(res, 400, { error: "absolute path required" }); return; }
+    try {
+      const content = readFileSync(qPath, "utf8");
+      const lines = content.split("\n").length;
+      writeJson(res, 200, { path: qPath, content, lines });
+    } catch (e) {
+      writeJson(res, 404, { error: (e as Error).message });
+    }
+  });
+
+  r.post("/fs/write", async ({ req, res }) => {
+    const body = await readBody(req) as { path?: string; content?: string };
+    if (!isSafeAbsPath(body.path)) { writeJson(res, 400, { error: "absolute path required" }); return; }
+    if (typeof body.content !== "string") { writeJson(res, 400, { error: "content required" }); return; }
+    try {
+      writeFileSync(body.path, body.content, "utf8");
+      writeJson(res, 200, { ok: true });
+    } catch (e) {
+      writeJson(res, 500, { error: (e as Error).message });
+    }
   });
 }
