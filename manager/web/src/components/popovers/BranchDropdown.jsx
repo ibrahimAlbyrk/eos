@@ -28,7 +28,10 @@ export function BranchDropdown({ live, cwd }) {
 
   if (ui.openPopover !== "branch-dd") return null;
 
-  const pick = (b) => {
+  const pick = async (b) => {
+    if (cwd && b !== current) {
+      try { await api.checkout(cwd, b); } catch {}
+    }
     setBranch(b);
     ui.closeAllPops();
   };

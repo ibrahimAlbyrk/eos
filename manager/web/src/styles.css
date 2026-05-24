@@ -1101,23 +1101,67 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
 .diff-badge .diff-neg { color: var(--err); margin-left: -2px; }
 
 /* "Create PR" affordance — chip-style button matching cb-chip aesthetic */
+.pr-wrap { position: relative; display: inline-flex; }
 .pr-create-btn {
   display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 9px 4px 10px;
+  padding: 4px 10px;
   background: rgba(255, 255, 255, 0.06);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  border-right: 0;
+  border-radius: 6px 0 0 6px;
   color: var(--fg);
   font-size: 11.5px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease;
+  transition: background 120ms ease;
 }
-.pr-create-btn:hover {
-  background: rgba(255, 255, 255, 0.09);
-  border-color: rgba(255, 255, 255, 0.12);
+.pr-create-btn:hover { background: rgba(255, 255, 255, 0.09); }
+.pr-dropdown-toggle {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px;
+  padding: 4px 0;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0 6px 6px 0;
+  color: var(--fg-dim);
+  cursor: pointer;
+  transition: background 120ms ease;
 }
-.pr-create-btn svg { color: var(--fg-dim); flex-shrink: 0; }
+.pr-dropdown-toggle:hover { background: rgba(255, 255, 255, 0.09); color: var(--fg); }
+
+.pr-menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  min-width: 220px;
+  background: rgba(28, 28, 28, 0.92);
+  backdrop-filter: blur(22px) saturate(170%);
+  -webkit-backdrop-filter: blur(22px) saturate(170%);
+  border-radius: 8px;
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
+  padding: 4px;
+  z-index: 300;
+}
+.pr-menu::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  border-radius: inherit; padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(255,255,255,0.28), rgba(255,255,255,0.06) 38%,
+    rgba(255,255,255,0.06) 62%, rgba(255,255,255,0.18)) border-box;
+  -webkit-mask: linear-gradient(#000,#000) content-box, linear-gradient(#000,#000);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.pr-menu-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 8px 10px;
+  border-radius: 5px; font-size: 12.5px;
+  color: var(--fg); cursor: pointer;
+}
+.pr-menu-item:hover { background: rgba(255,255,255,0.06); }
+.pr-menu-item svg:first-child { color: var(--fg-dim); flex-shrink: 0; }
+.pr-menu-check { margin-left: auto; color: var(--fg-dim); }
+.pr-menu-item.on .pr-menu-check { color: var(--fg); }
 
 .c-row2 {
   display: flex;
@@ -2592,6 +2636,8 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   border: 0;
   border-radius: 0;
   padding: 0;
+  position: relative;
+  z-index: 2;
   height: auto;
   white-space: nowrap;
 }

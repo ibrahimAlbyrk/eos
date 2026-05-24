@@ -19,7 +19,7 @@ export function ComposerConfigRow({ live }) {
 
   const cwd = state.cwd ?? live.recents[0] ?? null;
   const folderLabel = cwd ? basename(cwd) : "pick folder…";
-  const branchLabel = state.branch ?? "main";
+  const [isGit, setIsGit] = useState(true);
 
   // initialize cwd from first recent if unset (one-shot)
   useEffect(() => {
@@ -29,18 +29,24 @@ export function ComposerConfigRow({ live }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live.recents, ui.selectedId]);
 
-  // initialize branch from current git branch if unset
+  // fetch current branch whenever cwd changes or window regains focus
   useEffect(() => {
-    if (!state.branch && cwd) {
-      (async () => {
-        try {
-          const r = await api.listBranches(cwd);
-          if (r.current) updateState({ branch: r.current });
-        } catch {}
-      })();
-    }
+    if (!cwd) return;
+    const refresh = async () => {
+      try {
+        const r = await api.listBranches(cwd);
+        setIsGit(r.isGit !== false);
+        if (r.current) updateState({ branch: r.current });
+        else if (!r.isGit) updateState({ branch: null });
+      } catch {}
+    };
+    refresh();
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cwd, ui.selectedId]);
+
+  const branchLabel = state.branch ?? "main";
 
   const toggle = (id, e) => {
     e.stopPropagation();
@@ -72,7 +78,7 @@ export function ComposerConfigRow({ live }) {
         <FolderDropdown live={live} />
       </div>
 
-      <div className="cb-chip-group">
+      {isGit && <div className="cb-chip-group">
         <div className="cb-chip-wrap">
           <button
             className="cb-chip cb-chip--in-group"
@@ -99,7 +105,7 @@ export function ComposerConfigRow({ live }) {
           </span>
           <span>worktree</span>
         </button>
-      </div>
+      </div>}
     </div>
   );
 }
