@@ -5,6 +5,7 @@
 // dropped daemon would be a security regression.
 
 import type { PolicyResolver, Decision } from "./PolicyResolver.ts";
+import { ExternalDecisionSchema } from "../contracts/src/policy.ts";
 
 export interface DaemonProxyOptions {
   daemonUrl: string;
@@ -15,15 +16,26 @@ export function createDaemonProxyPolicy(opts: DaemonProxyOptions): PolicyResolve
   return {
     name: "daemon",
     async decide({ tool_name, input, tool_use_id }): Promise<Decision> {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), 60_000);
       try {
         const r = await fetch(`${opts.daemonUrl}/policy/decide`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ worker_id: opts.workerId, tool_name, input, tool_use_id }),
+          signal: ac.signal,
         });
-        return (await r.json()) as Decision;
+        const parsed = ExternalDecisionSchema.safeParse(await r.json());
+        if (!parsed.success)
+          return { behavior: "deny", message: `invalid decision: ${parsed.error.message}` };
+        const d = parsed.data;
+        if (d.behavior === "allow")
+          return { behavior: "allow", updatedInput: d.updatedInput ?? input };
+        return d;
       } catch (e) {
         return { behavior: "deny", message: `daemon unreachable: ${(e as Error).message}` };
+      } finally {
+        clearTimeout(timer);
       }
     },
   };
