@@ -1,8 +1,10 @@
-import { useEffect, useLayoutEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { api } from "../../api/client.js";
-import hljs from "highlight.js/lib/common";
-import "highlight.js/styles/github-dark-dimmed.min.css";
+import { findAll, shortenHome } from "../../lib/fileUtils.jsx";
+import { CodeView } from "./CodeView.jsx";
+import { EditView } from "./EditView.jsx";
+import { MarkdownView } from "./MarkdownView.jsx";
 
 export function FileViewer() {
   const ui = useUi();
@@ -120,7 +122,7 @@ function FileViewerInner({ path, editMode }) {
                   <div className="fv-openwith" onClick={(e) => e.stopPropagation()}>
                     <div className="fv-ow-head">
                       <span>Open in</span>
-                      <button className="fv-ow-close" onClick={() => setShowOpenWith(false)}>×</button>
+                      <button className="fv-ow-close" onClick={() => setShowOpenWith(false)}>x</button>
                     </div>
                     <button className="fv-ow-item" onClick={() => { api.openFile(path); setShowOpenWith(false); }}>{defaultApp?.appName ?? "Default App"}</button>
                     <div className="fv-ow-sep" />
@@ -152,7 +154,7 @@ function FileViewerInner({ path, editMode }) {
             value={findQuery}
             onChange={(e) => { setFindQuery(e.target.value); setFindIdx(0); }}
             onKeyDown={(e) => { if (e.key === "Enter") setFindIdx((i) => i + (e.shiftKey ? -1 : 1)); if (e.key === "Escape") setShowFind(false); }}
-            placeholder="Find…"
+            placeholder="Find..."
             spellCheck={false}
           />
           {findQuery && <span className="fv-find-count">{matchCount > 0 ? `${safeIdx + 1} of ${matchCount}` : "No results"}</span>}
@@ -169,7 +171,7 @@ function FileViewerInner({ path, editMode }) {
       )}
       <div className="fv-body">
         {error && <div className="fv-error">{error}</div>}
-        {content === null && !error && <div className="fv-loading">Loading…</div>}
+        {content === null && !error && <div className="fv-loading">Loading...</div>}
         {content !== null && !editMode && (
           isMd ? <MarkdownView content={content} /> : <CodeView content={content} findQuery={findQuery} currentMatch={safeIdx} matches={findMatches} activeMatchKey={`${safeIdx}-${findQuery}`} filePath={path} />
         )}
@@ -187,265 +189,4 @@ function FileViewerInner({ path, editMode }) {
       </div>
     </>
   );
-}
-
-function EditView({ textareaRef, editContent, setEditContent, findQuery, currentMatch, matches, filePath }) {
-  const [cursorLine, setCursorLine] = useState(-1);
-  const overlayRef = useRef(null);
-
-  const updateCursor = (el) => {
-    const pos = el.selectionDirection === "backward" ? el.selectionStart : el.selectionEnd;
-    setCursorLine(el.value.substring(0, pos).split("\n").length - 1);
-  };
-
-  const syncScroll = (e) => {
-    if (overlayRef.current) {
-      overlayRef.current.scrollTop = e.target.scrollTop;
-      overlayRef.current.scrollLeft = e.target.scrollLeft;
-    }
-  };
-
-  const lang = extToLang(filePath);
-  const highlighted = useMemo(() => {
-    if (!editContent || !lang) return null;
-    try {
-      return hljs.highlight(editContent, { language: lang }).value;
-    } catch { return null; }
-  }, [editContent, lang]);
-
-  const highlightedLines = useMemo(() => {
-    if (!highlighted) return null;
-    return highlighted.split("\n");
-  }, [highlighted]);
-
-  const lines = (editContent || "").split("\n");
-  const currentMatchLine = matches.length > 0 ? editContent.substring(0, matches[currentMatch]).split("\n").length - 1 : -1;
-
-  useEffect(() => {
-    if (matches.length === 0 || !textareaRef.current) return;
-    const lineTop = currentMatchLine * 20;
-    const container = textareaRef.current;
-    const visible = lineTop >= container.scrollTop && lineTop <= container.scrollTop + container.clientHeight - 40;
-    if (!visible) container.scrollTop = Math.max(0, lineTop - container.clientHeight / 2);
-  }, [currentMatch, matches.length]);
-
-  return (
-    <div className="fv-editor">
-      <div className="fv-edit-gutter">
-        {lines.map((_, i) => (
-          <div className={"fv-gutter-ln" + (i === cursorLine ? " active" : "")} key={i}>{i + 1}</div>
-        ))}
-      </div>
-      <div className="fv-edit-content">
-        <div className={"fv-highlight-overlay" + (highlightedLines ? " fv-hl-active" : "")} ref={overlayRef} aria-hidden>
-          {lines.map((line, i) => {
-            const isCursor = i === cursorLine;
-            const isMatchLine = i === currentMatchLine;
-            const cls = "fv-ov-line" + (isCursor ? " cursor" : "") + (isMatchLine ? " match-line" : "");
-            if (highlightedLines) {
-              return <div key={i} className={cls} dangerouslySetInnerHTML={{ __html: highlightedLines[i] + "&nbsp;" }} />;
-            }
-            return <div key={i} className={cls}>{line}&nbsp;</div>;
-          })}
-        </div>
-        {findQuery && (
-          <div className="fv-find-overlay" aria-hidden>
-            {lines.map((line, i) => (
-              <div key={i}>{highlightMatches(line, findQuery, i, currentMatch, matches, editContent)}&nbsp;</div>
-            ))}
-          </div>
-        )}
-        <textarea
-          ref={textareaRef}
-          className={"fv-textarea" + (highlightedLines || findQuery ? " fv-textarea--hl" : "")}
-          value={editContent}
-          onChange={(e) => { setEditContent(e.target.value); updateCursor(e.target); }}
-          onKeyUp={(e) => updateCursor(e.target)}
-          onMouseDown={(e) => setTimeout(() => updateCursor(e.target), 0)}
-          onMouseMove={(e) => { if (e.buttons === 1) updateCursor(e.target); }}
-          onMouseUp={(e) => updateCursor(e.target)}
-          onFocus={(e) => updateCursor(e.target)}
-          onScroll={syncScroll}
-          spellCheck={false}
-        />
-      </div>
-    </div>
-  );
-}
-
-function CodeView({ content, findQuery, currentMatch, matches, activeMatchKey, filePath }) {
-  const bodyRef = useRef(null);
-  const lines = content.split("\n");
-  const lang = extToLang(filePath);
-
-  const highlightedLines = useMemo(() => {
-    if (!lang) return null;
-    try { return hljs.highlight(content, { language: lang }).value.split("\n"); }
-    catch { return null; }
-  }, [content, lang]);
-
-  useEffect(() => {
-    if (!bodyRef.current || matches.length === 0) return;
-    const mark = bodyRef.current.querySelector(".fv-match.current");
-    if (mark) mark.scrollIntoView({ block: "center", behavior: "smooth" });
-  }, [activeMatchKey, matches.length]);
-
-  return (
-    <div className="fv-code" ref={bodyRef}>
-      {lines.map((line, i) => (
-        <div className="fv-code-line" key={i}>
-          <span className="fv-ln">{i + 1}</span>
-          {findQuery ? (
-            <span className="fv-lc">{highlightMatches(line, findQuery, i, currentMatch, matches, content)}</span>
-          ) : highlightedLines ? (
-            <span className="fv-lc hljs" dangerouslySetInnerHTML={{ __html: highlightedLines[i] }} />
-          ) : (
-            <span className="fv-lc">{line}</span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function highlightMatches(line, query, lineIdx, currentMatch, matches, fullContent) {
-  if (!query) return line;
-  const lc = line.toLowerCase();
-  const qLc = query.toLowerCase();
-  const parts = [];
-  let last = 0;
-  let lineOffset = fullContent.split("\n").slice(0, lineIdx).join("\n").length + (lineIdx > 0 ? 1 : 0);
-  let idx = lc.indexOf(qLc);
-  while (idx !== -1) {
-    if (idx > last) parts.push(line.slice(last, idx));
-    const globalPos = lineOffset + idx;
-    const matchIdx = matches.indexOf(globalPos);
-    const isCurrent = matchIdx === currentMatch;
-    parts.push(<mark key={idx} className={"fv-match" + (isCurrent ? " current" : "")}>{line.slice(idx, idx + query.length)}</mark>);
-    last = idx + query.length;
-    idx = lc.indexOf(qLc, last);
-  }
-  if (last < line.length) parts.push(line.slice(last));
-  return parts.length > 0 ? parts : line;
-}
-
-function findAll(text, query) {
-  if (!query) return [];
-  const lc = text.toLowerCase();
-  const qLc = query.toLowerCase();
-  const results = [];
-  let idx = lc.indexOf(qLc);
-  while (idx !== -1) {
-    results.push(idx);
-    idx = lc.indexOf(qLc, idx + 1);
-  }
-  return results;
-}
-
-function MarkdownView({ content }) {
-  const html = renderMarkdown(content);
-  return <div className="fv-markdown" dangerouslySetInnerHTML={{ __html: html }} />;
-}
-
-const EXT_LANG = {
-  js: "javascript", jsx: "javascript", mjs: "javascript",
-  ts: "typescript", tsx: "typescript", mts: "typescript",
-  json: "json", json5: "json",
-  md: "markdown", mdx: "markdown",
-  css: "css", scss: "scss", less: "less",
-  html: "xml", htm: "xml", xml: "xml", svg: "xml", jsx: "xml",
-  py: "python",
-  rb: "ruby",
-  rs: "rust",
-  go: "go",
-  java: "java",
-  kt: "kotlin",
-  cs: "csharp",
-  c: "c", h: "c",
-  cpp: "cpp", cc: "cpp", cxx: "cpp", hpp: "cpp",
-  swift: "swift",
-  sh: "bash", bash: "bash", zsh: "bash",
-  sql: "sql",
-  yaml: "yaml", yml: "yaml",
-  toml: "ini",
-  ini: "ini",
-  lua: "lua",
-  r: "r",
-  php: "php",
-  pl: "perl",
-  diff: "diff", patch: "diff",
-  makefile: "makefile",
-  dockerfile: "bash",
-  graphql: "graphql", gql: "graphql",
-};
-
-function extToLang(filePath) {
-  if (!filePath) return null;
-  const name = filePath.split("/").pop().toLowerCase();
-  if (name === "makefile" || name === "dockerfile") return EXT_LANG[name.toLowerCase()] ?? null;
-  const ext = name.split(".").pop();
-  return EXT_LANG[ext] ?? null;
-}
-
-function shortenHome(p) {
-  if (!p) return "";
-  const home = "/Users/";
-  if (p.startsWith(home)) {
-    const rest = p.slice(home.length);
-    const slash = rest.indexOf("/");
-    return slash === -1 ? "~" : "~" + rest.slice(slash);
-  }
-  return p;
-}
-
-function renderMarkdown(src) {
-  const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  const lines = src.split("\n");
-  let html = "";
-  let inCode = false;
-  let inList = false;
-
-  for (const line of lines) {
-    if (line.startsWith("```")) {
-      if (inList) { html += "</ul>"; inList = false; }
-      if (inCode) { html += "</pre>"; inCode = false; }
-      else { html += "<pre>"; inCode = true; }
-      continue;
-    }
-    if (inCode) { html += esc(line) + "\n"; continue; }
-
-    const trimmed = line.trim();
-    if (!trimmed) {
-      if (inList) { html += "</ul>"; inList = false; }
-      html += "<br/>";
-      continue;
-    }
-
-    const hMatch = trimmed.match(/^(#{1,6})\s+(.*)$/);
-    if (hMatch) {
-      if (inList) { html += "</ul>"; inList = false; }
-      const level = hMatch[1].length;
-      html += `<h${level}>${inlineFormat(esc(hMatch[2]))}</h${level}>`;
-      continue;
-    }
-
-    const liMatch = trimmed.match(/^[-*]\s+(.*)$/);
-    if (liMatch) {
-      if (!inList) { html += "<ul>"; inList = true; }
-      html += `<li>${inlineFormat(esc(liMatch[1]))}</li>`;
-      continue;
-    }
-
-    if (inList) { html += "</ul>"; inList = false; }
-    html += `<p>${inlineFormat(esc(trimmed))}</p>`;
-  }
-  if (inCode) html += "</pre>";
-  if (inList) html += "</ul>";
-  return html;
-}
-
-function inlineFormat(s) {
-  return s
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .replace(/`(.+?)`/g, "<code>$1</code>");
 }
