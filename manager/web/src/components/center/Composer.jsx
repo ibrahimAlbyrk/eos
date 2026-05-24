@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { api } from "../../api/client.js";
 import { useCommands } from "../../hooks/useCommands.js";
@@ -7,11 +7,73 @@ import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
 import { ComposerControls } from "./ComposerControls.jsx";
 import { CommandMenu } from "./CommandMenu.jsx";
 
+function getCursorOffset(el) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount || !el.contains(sel.anchorNode)) return 0;
+  const range = sel.getRangeAt(0).cloneRange();
+  range.selectNodeContents(el);
+  range.setEnd(sel.anchorNode, sel.anchorOffset);
+  return range.toString().length;
+}
+
+function setCursorOffset(el, offset) {
+  const sel = window.getSelection();
+  const range = document.createRange();
+  let pos = 0;
+  function walk(node) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const len = node.textContent.length;
+      if (pos + len >= offset) {
+        range.setStart(node, offset - pos);
+        range.collapse(true);
+        return true;
+      }
+      pos += len;
+      return false;
+    }
+    for (const child of node.childNodes) {
+      if (walk(child)) return true;
+    }
+    return false;
+  }
+  if (walk(el)) {
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
+}
+
+function esc(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function colorize(text, cmdNames) {
+  if (!text.includes("/") || !cmdNames.size) return null;
+  let html = "";
+  let last = 0;
+  let found = false;
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] !== "/") continue;
+    let end = i + 1;
+    while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
+    if (!cmdNames.has(text.slice(i + 1, end))) continue;
+    found = true;
+    if (i > last) html += esc(text.slice(last, i));
+    html += `<span class="cmd-hl">${esc(text.slice(i, end))}</span>`;
+    last = end;
+    i = end - 1;
+  }
+  if (!found) return null;
+  if (last < text.length) html += esc(text.slice(last));
+  return html;
+}
+
 export function Composer({ live }) {
   const ui = useUi();
   const [text, setText] = useState("");
   const [menuIndex, setMenuIndex] = useState(0);
-  const textareaRef = useRef(null);
+  const editorRef = useRef(null);
+  const lastHtmlRef = useRef("");
+  const suppressInputRef = useRef(false);
 
   const draft = ui.drafts.get(ui.selectedId);
   const isDraft = !!draft;
@@ -21,6 +83,7 @@ export function Composer({ live }) {
     ? (draft.cwd ?? live.recents[0] ?? null)
     : (selected?.cwd ?? ui.composer.cwd ?? live.recents[0] ?? null);
   const commands = useCommands(cwd);
+  const cmdNames = useMemo(() => new Set(commands.map((c) => c.name)), [commands]);
 
   const [cursorPos, setCursorPos] = useState(0);
 
@@ -43,60 +106,82 @@ export function Composer({ live }) {
 
   const showMenu = filtered.length > 0;
 
-  const cmdNames = useMemo(() => new Set(commands.map((c) => c.name)), [commands]);
+  useEffect(() => { setMenuIndex(0); }, [slashCtx?.query]);
 
-  const overlayParts = useMemo(() => {
-    if (!commands.length || !text.includes("/")) return null;
-    const parts = [];
-    let last = 0;
+  const applyColoring = useCallback(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    const html = colorize(text, cmdNames);
+    const target = html ?? esc(text);
+    if (target !== lastHtmlRef.current) {
+      const off = getCursorOffset(el);
+      lastHtmlRef.current = target;
+      el.innerHTML = target;
+      setCursorOffset(el, off);
+    }
+  }, [text, cmdNames]);
+
+  useLayoutEffect(() => { applyColoring(); }, [applyColoring]);
+
+  const setTextAndSync = useCallback((newText, newCursor) => {
+    suppressInputRef.current = true;
+    setText(newText);
+    setCursorPos(newCursor ?? newText.length);
+    const el = editorRef.current;
+    if (!el) return;
+    const html = colorize(newText, cmdNames);
+    lastHtmlRef.current = html ?? esc(newText);
+    el.innerHTML = lastHtmlRef.current;
+    setCursorOffset(el, newCursor ?? newText.length);
+  }, [cmdNames]);
+
+  const handleInput = () => {
+    if (suppressInputRef.current) { suppressInputRef.current = false; return; }
+    const el = editorRef.current;
+    if (!el) return;
+    const raw = el.innerText;
+    const off = getCursorOffset(el);
+    setText(raw);
+    setCursorPos(off);
+  };
+
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const plain = e.clipboardData.getData("text/plain");
+    document.execCommand("insertText", false, plain);
+  };
+
+  const findCommandAt = (pos) => {
     for (let i = 0; i < text.length; i++) {
       if (text[i] !== "/") continue;
       let end = i + 1;
       while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
-      if (!cmdNames.has(text.slice(i + 1, end))) continue;
-      if (i > last) parts.push({ text: text.slice(last, i), hl: false });
-      parts.push({ text: text.slice(i, end), hl: true });
-      last = end;
-      i = end - 1;
+      if (cmdNames.has(text.slice(i + 1, end)) && pos > i && pos <= end) {
+        return { start: i, end };
+      }
     }
-    if (!parts.length) return null;
-    if (last < text.length) parts.push({ text: text.slice(last), hl: false });
-    return parts;
-  }, [text, cmdNames]);
-
-  useEffect(() => { setMenuIndex(0); }, [slashCtx?.query]);
-
-  const autoGrow = (el) => {
-    el.style.height = "auto";
-    el.style.height = Math.min(el.scrollHeight, 200) + "px";
+    return null;
   };
-
-  useEffect(() => {
-    if (textareaRef.current) autoGrow(textareaRef.current);
-  }, [text]);
 
   const selectCommand = (cmd) => {
     if (slashCtx) {
       const before = text.slice(0, slashCtx.start);
       const after = text.slice(cursorPos);
       const inserted = `/${cmd.name} `;
-      setText(before + inserted + after);
+      const newText = before + inserted + after;
       const newPos = before.length + inserted.length;
-      setCursorPos(newPos);
-      requestAnimationFrame(() => {
-        textareaRef.current?.setSelectionRange(newPos, newPos);
-      });
+      setTextAndSync(newText, newPos);
     } else {
-      setText(`/${cmd.name} `);
+      setTextAndSync(`/${cmd.name} `);
     }
     setMenuIndex(0);
-    textareaRef.current?.focus();
+    editorRef.current?.focus();
   };
 
   const send = async () => {
     const t = text.trim();
     if (!t) return;
-    setText("");
+    setTextAndSync("", 0);
 
     if (isDraft) {
       const cwd = draft.cwd ?? live.recents[0] ?? null;
@@ -157,7 +242,19 @@ export function Composer({ live }) {
       }
       if (e.key === "Escape") {
         e.preventDefault();
-        setText("");
+        setTextAndSync("", 0);
+        return;
+      }
+    }
+
+    if (e.key === "Backspace") {
+      const el = editorRef.current;
+      const pos = el ? getCursorOffset(el) : 0;
+      const cmd = findCommandAt(pos);
+      if (cmd) {
+        e.preventDefault();
+        const next = text.slice(0, cmd.start) + text.slice(cmd.end);
+        setTextAndSync(next, cmd.start);
         return;
       }
     }
@@ -182,29 +279,21 @@ export function Composer({ live }) {
             commands={filtered}
             selectedIndex={menuIndex}
             onSelect={selectCommand}
+            query={slashCtx?.query ?? ""}
           />
           <div className="c-row2">
-            <div className="textarea-wrap">
-              {overlayParts && (
-                <div className="textarea-overlay" aria-hidden="true">
-                  {overlayParts.map((p, i) =>
-                    p.hl ? <span key={i} className="cmd-highlight">{p.text}</span>
-                         : <span key={i}>{p.text}</span>
-                  )}
-                </div>
-              )}
-              <textarea
-                ref={textareaRef}
-                rows="1"
-                placeholder="Type / for commands"
-                className={overlayParts ? "has-command" : ""}
-                value={text}
-                onChange={(e) => { setText(e.target.value); setCursorPos(e.target.selectionStart); }}
-                onKeyDown={onKey}
-              onKeyUp={(e) => setCursorPos(e.target.selectionStart)}
-              onClick={(e) => setCursorPos(e.target.selectionStart)}
-              />
-            </div>
+            <div
+              ref={editorRef}
+              className="composer-editor"
+              contentEditable
+              role="textbox"
+              data-placeholder="Type / for commands"
+              onInput={handleInput}
+              onKeyDown={onKey}
+              onPaste={handlePaste}
+              onClick={() => { const el = editorRef.current; if (el) setCursorPos(getCursorOffset(el)); }}
+              onKeyUp={() => { const el = editorRef.current; if (el) setCursorPos(getCursorOffset(el)); }}
+            />
             <button className="submit" title="Send" onClick={send}>
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 4v5H4m3-3l-3 3 3 3" />
