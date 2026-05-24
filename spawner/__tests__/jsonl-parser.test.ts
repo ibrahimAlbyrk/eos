@@ -198,3 +198,47 @@ describe("parseJsonlLine — attachment + legacy", () => {
     assert.equal((ev[0].payload as { text: string }).text, "hi");
   });
 });
+
+describe("parseJsonlLine — non-array msg.content", () => {
+  it("string content → emits nothing, no crash", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "assistant", content: "just a string" },
+    }));
+    assert.deepEqual(ev, []);
+  });
+
+  it("null content → emits nothing, no crash", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "assistant", content: null },
+    }));
+    assert.deepEqual(ev, []);
+  });
+
+  it("undefined content → emits nothing, no crash", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "assistant" },
+    }));
+    assert.deepEqual(ev, []);
+  });
+
+  it("number content → emits nothing, no crash", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "assistant", content: 42 },
+    }));
+    assert.deepEqual(ev, []);
+  });
+
+  it("string content on user role → emits nothing, no crash", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "user", content: "just a string" },
+    }));
+    assert.deepEqual(ev, []);
+  });
+
+  it("null content on user role → emits nothing, no crash", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "user", content: null },
+    }));
+    assert.deepEqual(ev, []);
+  });
+});

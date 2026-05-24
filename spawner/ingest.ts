@@ -23,8 +23,23 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
     }
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
     let raw = "";
-    req.on("data", (c) => (raw += c));
+    let size = 0;
+    let rejected = false;
+    req.on("data", (c: Buffer | string) => {
+      size += typeof c === "string" ? Buffer.byteLength(c) : c.length;
+      if (size > 1_048_576) {
+        if (!rejected) {
+          rejected = true;
+          req.destroy();
+          res.writeHead(413, { "content-type": "application/json" });
+          res.end(JSON.stringify({ error: "body too large" }));
+        }
+        return;
+      }
+      raw += c;
+    });
     req.on("end", () => {
+      if (rejected) return;
       if (url.pathname === "/message") {
         try {
           const body = JSON.parse(raw) as { text?: string };

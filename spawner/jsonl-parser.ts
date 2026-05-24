@@ -62,7 +62,8 @@ export function parseJsonlLine(
         model: (msg.model as string) ?? defaultModel,
       });
     }
-    for (const block of (msg.content as Array<Record<string, unknown>>) ?? []) {
+    const assistantBlocks = Array.isArray(msg.content) ? msg.content as Array<Record<string, unknown>> : [];
+    for (const block of assistantBlocks) {
       if (block.type === "text") {
         emit("jsonl", { kind: "assistant_text", text: String(block.text) });
       } else if (block.type === "tool_use") {
@@ -80,7 +81,8 @@ export function parseJsonlLine(
   }
 
   if (msg?.role === "user") {
-    for (const block of (msg.content as Array<Record<string, unknown>>) ?? []) {
+    const userBlocks = Array.isArray(msg.content) ? msg.content as Array<Record<string, unknown>> : [];
+    for (const block of userBlocks) {
       if (block.type === "tool_result") {
         const raw = block.content;
         const text =

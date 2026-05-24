@@ -106,6 +106,20 @@ setTimeout(() => {
   bootCompleted = true;
   for (const t of bootBuffer) writeQueue.enqueue(t);
   bootBuffer = [];
+
+  if (opts.prompt && opts.prompt.trim().length > 0) {
+    console.log(`\n[${name}] writing prompt`);
+    evt.emit("lifecycle", { phase: "prompt_sent" });
+    const now = Date.now();
+    state.lastUserMsgTs = now;
+    state.lastJsonlActivityTs = now;
+    writeQueue.enqueue(opts.prompt);
+  } else {
+    evt.emit("lifecycle", { phase: "ready_no_prompt" });
+    if (state.lastUserMsgTs === 0) {
+      evt.emit("state", { state: "IDLE" });
+    }
+  }
 }, BOOT_DELAY_MS);
 
 function dispatchToPty(text: string): void {
@@ -155,32 +169,6 @@ const ingest = startIngestServer(opts.port, {
   },
 });
 
-// Initial prompt — small delay so claude finishes its boot animation before
-// we start typing. The PtyWriteQueue handles the CR-after-text dance.
-// Empty prompt (e.g. orchestrators that should idle until the first user
-// message) skips the write entirely and lifts the worker straight to IDLE
-// so the UI doesn't show it stuck in SPAWNING.
-if (opts.prompt && opts.prompt.trim().length > 0) {
-  setTimeout(() => {
-    console.log(`\n[${name}] writing prompt`);
-    evt.emit("lifecycle", { phase: "prompt_sent" });
-    const now = Date.now();
-    state.lastUserMsgTs = now;
-    state.lastJsonlActivityTs = now;
-    writeQueue.enqueue(opts.prompt);
-  }, BOOT_DELAY_MS);
-} else {
-  setTimeout(() => {
-    evt.emit("lifecycle", { phase: "ready_no_prompt" });
-    // Only push IDLE if no user message has arrived yet — otherwise we'd
-    // overwrite the WORKING state set by the just-dispatched message and
-    // confuse the UI. The user_message handler will keep state in WORKING.
-    if (state.lastUserMsgTs === 0) {
-      evt.emit("state", { state: "IDLE" });
-    }
-  }, BOOT_DELAY_MS);
-}
-
 // Exit + cleanup ----------------------------------------------------------
 
 pty.onExit(({ exitCode }: { exitCode: number }) => {
@@ -224,9 +212,11 @@ process.on("SIGTERM", () => cleanup(143));
 process.on("uncaughtException", (e: Error) => {
   console.error(`[${name}] uncaughtException: ${e.message}\n${e.stack ?? ""}`);
   evt.emit("lifecycle", { phase: "uncaught_exception", error: e.message });
+  cleanup(1);
 });
 process.on("unhandledRejection", (reason: unknown) => {
   const msg = reason instanceof Error ? reason.message : String(reason);
   console.error(`[${name}] unhandledRejection: ${msg}`);
   evt.emit("lifecycle", { phase: "unhandled_rejection", reason: msg });
+  cleanup(1);
 });
