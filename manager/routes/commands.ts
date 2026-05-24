@@ -1,5 +1,5 @@
-import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
-import { join, relative, basename } from "node:path";
+import { readdirSync, readFileSync, existsSync } from "node:fs";
+import { join, relative } from "node:path";
 import { homedir } from "node:os";
 import { parse as parseYaml } from "yaml";
 
@@ -11,10 +11,18 @@ import type { CommandItem } from "../../contracts/src/http.ts";
 function parseFrontmatter(content: string): Record<string, unknown> {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!match) return {};
-  try { return parseYaml(match[1]) ?? {}; } catch { return {}; }
+  try { return parseYaml(match[1]) ?? {}; } catch {
+    // fallback: line-by-line extraction for malformed YAML
+    const result: Record<string, string> = {};
+    for (const line of match[1].split("\n")) {
+      const m = line.match(/^(\w[\w-]*):\s*(.+)/);
+      if (m) result[m[1]] = m[2].trim();
+    }
+    return result;
+  }
 }
 
-function scanCommands(dir: string, source: "user" | "project"): CommandItem[] {
+function scanCommands(dir: string, source: CommandItem["source"]): CommandItem[] {
   if (!existsSync(dir)) return [];
   const results: CommandItem[] = [];
 
@@ -52,26 +60,77 @@ function scanCommands(dir: string, source: "user" | "project"): CommandItem[] {
   return results;
 }
 
+function scanSkills(dir: string, source: CommandItem["source"]): CommandItem[] {
+  if (!existsSync(dir)) return [];
+  const results: CommandItem[] = [];
+  try {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+      const skillFile = join(dir, entry.name, "SKILL.md");
+      if (!existsSync(skillFile)) continue;
+      try {
+        const content = readFileSync(skillFile, "utf8");
+        const fm = parseFrontmatter(content);
+        results.push({
+          name: typeof fm.name === "string" ? fm.name : entry.name,
+          description: typeof fm.description === "string" ? fm.description : "",
+          source,
+        });
+      } catch {}
+    }
+  } catch {}
+  return results;
+}
+
+function scanInstalledPluginSkills(): CommandItem[] {
+  const manifestPath = join(homedir(), ".claude", "plugins", "installed_plugins.json");
+  if (!existsSync(manifestPath)) return [];
+  const results: CommandItem[] = [];
+  try {
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    const plugins = manifest.plugins ?? {};
+    for (const entries of Object.values(plugins) as any[]) {
+      for (const entry of entries) {
+        const installPath = entry.installPath;
+        if (!installPath || !existsSync(installPath)) continue;
+        const skillsDir = join(installPath, "skills");
+        results.push(...scanSkills(skillsDir, "plugin"));
+      }
+    }
+  } catch {}
+  return results;
+}
+
 export function registerCommandRoutes(r: Router, _c: Container): void {
   r.get("/commands", ({ url, res }) => {
     const cwd = url.searchParams.get("cwd") ?? undefined;
+    const home = homedir();
 
-    const userDir = join(homedir(), ".claude", "commands");
-    const commands: CommandItem[] = scanCommands(userDir, "user");
+    const items: CommandItem[] = [];
 
+    // project commands + skills (highest priority)
     if (cwd) {
-      const projectDir = join(cwd, ".claude", "commands");
-      const projectCmds = scanCommands(projectDir, "project");
-      const seen = new Set(projectCmds.map((c) => c.name));
-      commands.unshift(...projectCmds);
-      // deduplicate: project commands override user commands with same name
-      const deduped = commands.filter((c, i) => {
-        if (c.source === "project") return true;
-        return !seen.has(c.name);
-      });
-      writeJson(res, 200, { commands: deduped });
-    } else {
-      writeJson(res, 200, { commands });
+      items.push(...scanCommands(join(cwd, ".claude", "commands"), "project"));
+      items.push(...scanSkills(join(cwd, ".claude", "skills"), "project"));
     }
+
+    // user commands
+    items.push(...scanCommands(join(home, ".claude", "commands"), "user"));
+
+    // user skills
+    items.push(...scanSkills(join(home, ".claude", "skills"), "skill"));
+
+    // installed plugin skills
+    items.push(...scanInstalledPluginSkills());
+
+    // deduplicate: first occurrence wins (project > user > skill > plugin)
+    const seen = new Set<string>();
+    const deduped = items.filter((c) => {
+      if (seen.has(c.name)) return false;
+      seen.add(c.name);
+      return true;
+    });
+
+    writeJson(res, 200, { commands: deduped });
   });
 }

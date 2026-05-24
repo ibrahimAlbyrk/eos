@@ -236,7 +236,7 @@ export type CommandsQuery = z.infer<typeof CommandsQuerySchema>;
 export const CommandItemSchema = z.object({
   name: z.string(),
   description: z.string(),
-  source: z.enum(["user", "project"]),
+  source: z.enum(["user", "project", "skill", "plugin"]),
   argumentHint: z.string().optional(),
 });
 export type CommandItem = z.infer<typeof CommandItemSchema>;
