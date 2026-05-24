@@ -12,4 +12,6 @@ export interface GitInfo {
   listBranches(cwd: string): Promise<string[]>;
   currentBranch(cwd: string): Promise<string | null>;
   diffShortStat(cwd: string): Promise<DiffStat>;
+  checkout(cwd: string, branch: string): Promise<void>;
+  remoteUrl(cwd: string): Promise<string | null>;
 }

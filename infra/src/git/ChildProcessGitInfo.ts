@@ -50,6 +50,23 @@ export const childProcessGitInfo: GitInfo = {
     }
   },
 
+  async checkout(cwd: string, branch: string): Promise<void> {
+    await runGit(cwd, ["checkout", branch]);
+  },
+
+  async remoteUrl(cwd: string): Promise<string | null> {
+    try {
+      const out = await runGit(cwd, ["remote", "get-url", "origin"]);
+      const raw = out.trim();
+      if (!raw) return null;
+      const ssh = raw.match(/^git@([^:]+):(.+?)(?:\.git)?$/);
+      if (ssh) return `https://${ssh[1]}/${ssh[2]}`;
+      return raw.replace(/\.git$/, "");
+    } catch {
+      return null;
+    }
+  },
+
   async diffShortStat(cwd: string): Promise<DiffStat> {
     try {
       // HEAD includes both staged and unstaged changes vs. the last commit.

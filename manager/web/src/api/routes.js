@@ -27,6 +27,7 @@ export const ROUTES = {
   fsOpen: "/fs/open",
   fsIcon: "/fs/icon",
   fsBranches: "/fs/branches",
+  fsCheckout: "/fs/checkout",
   fsRecents: "/fs/recents",
   fsRead: "/fs/read",
   fsWrite: "/fs/write",
