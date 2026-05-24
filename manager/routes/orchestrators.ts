@@ -1,5 +1,4 @@
 import { join } from "node:path";
-import { homedir } from "node:os";
 
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
@@ -10,17 +9,8 @@ import { validate } from "../middleware/validate.ts";
 import { SpawnOrchestratorRequestSchema, MessageRequestSchema } from "../../contracts/src/http.ts";
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
-import { randomOrchestratorName } from "../container.ts";
-
-function expandPath(p: string | undefined): string | undefined {
-  if (!p) return p;
-  let out = p.trim();
-  if (out.startsWith("~")) {
-    const home = process.env.HOME || homedir();
-    out = out === "~" || out.startsWith("~/") ? home + out.slice(1) : out;
-  }
-  return out;
-}
+import { randomOrchestratorName } from "../shared/names.ts";
+import { expandPath } from "../shared/path.ts";
 
 export function registerOrchestratorRoutes(r: Router, c: Container): void {
   r.get("/orchestrators", ({ res }) => {

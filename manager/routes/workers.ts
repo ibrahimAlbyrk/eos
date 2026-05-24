@@ -4,8 +4,6 @@ import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 
-import { homedir } from "node:os";
-
 import {
   SpawnWorkerRequestSchema,
   EventsQuerySchema,
@@ -20,16 +18,7 @@ import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
 import { processWorkerEvent } from "../../core/src/use-cases/ProcessWorkerEvent.ts";
 import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermissionMode.ts";
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
-
-function expandPath(p: string | undefined): string | undefined {
-  if (!p) return p;
-  let out = p.trim();
-  if (out.startsWith("~")) {
-    const home = process.env.HOME || homedir();
-    out = out === "~" || out.startsWith("~/") ? home + out.slice(1) : out;
-  }
-  return out;
-}
+import { expandPath } from "../shared/path.ts";
 
 export function registerWorkerRoutes(r: Router, c: Container): void {
   r.get("/workers", ({ res }) => {
