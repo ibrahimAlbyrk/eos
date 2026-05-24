@@ -144,8 +144,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     private func loadWeb() {
-        guard let url = URL(string: "\(DAEMON)/web/") else { return }
-        webView.load(URLRequest(url: url))
+        WKWebsiteDataStore.default().removeData(
+            ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+            modifiedSince: .distantPast) { [weak self] in
+            guard let url = URL(string: "\(DAEMON)/web/") else { return }
+            self?.webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
+        }
     }
 
     private func repoRoot() -> String {
