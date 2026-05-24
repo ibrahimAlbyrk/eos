@@ -29,6 +29,19 @@ export function ComposerConfigRow({ live }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live.recents, ui.selectedId]);
 
+  // initialize branch from current git branch if unset
+  useEffect(() => {
+    if (!state.branch && cwd) {
+      (async () => {
+        try {
+          const r = await api.listBranches(cwd);
+          if (r.current) updateState({ branch: r.current });
+        } catch {}
+      })();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cwd, ui.selectedId]);
+
   const toggle = (id, e) => {
     e.stopPropagation();
     if (ui.openPopover === id) ui.closeAllPops();
