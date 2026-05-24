@@ -3,6 +3,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { PendingPermissionRow } from "../../../contracts/src/worker.ts";
 import type { PendingRepo, InsertPendingInput, ResolvePendingInput } from "../../../core/src/ports/PendingRepo.ts";
+import { withTransaction } from "./transaction.ts";
 
 export class SqlitePendingRepo implements PendingRepo {
   private readonly db: DatabaseSync;
@@ -65,9 +66,11 @@ export class SqlitePendingRepo implements PendingRepo {
   }
 
   sweepExpired(now: number, reason: string): number {
-    const stale = this.stmtSelectStale.all(now) as Array<{ id: string }>;
-    for (const r of stale) this.stmtSweep.run(reason, r.id);
-    return stale.length;
+    return withTransaction(this.db, () => {
+      const stale = this.stmtSelectStale.all(now) as Array<{ id: string }>;
+      for (const r of stale) this.stmtSweep.run(reason, r.id);
+      return stale.length;
+    });
   }
 
   deleteByWorker(workerId: string): void {
