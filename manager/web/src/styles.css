@@ -455,12 +455,81 @@ kbd {
   line-height: 1.65;
   color: var(--fg);
 }
+.msg-asst > *:last-child { margin-bottom: 0; }
 .msg-asst p { margin: 0 0 10px; }
-.msg-asst p:last-child { margin-bottom: 0; }
-.msg-asst ul { margin: 4px 0 10px; padding-left: 22px; }
+.msg-asst h1, .msg-asst h2, .msg-asst h3,
+.msg-asst h4, .msg-asst h5, .msg-asst h6 { margin: 16px 0 8px; font-weight: 600; color: var(--fg); }
+.msg-asst h1 { font-size: 18px; }
+.msg-asst h2 { font-size: 16px; }
+.msg-asst h3 { font-size: 14px; }
+.msg-asst h4, .msg-asst h5, .msg-asst h6 { font-size: 13px; }
+.msg-asst ul, .msg-asst ol { margin: 4px 0 10px; padding-left: 22px; }
 .msg-asst li { margin: 2px 0; }
 .msg-asst li::marker { color: var(--fg-faint); }
 .msg-asst b, .msg-asst strong { font-weight: 600; color: var(--fg); }
+.msg-asst em { font-style: italic; }
+.msg-asst code {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  padding: 2px 5px;
+  background: var(--surface-2);
+  border-radius: 3px;
+}
+.msg-asst pre {
+  margin: 8px 0 12px;
+  padding: 10px 14px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.msg-asst pre code {
+  padding: 0;
+  background: none;
+  border-radius: 0;
+  font-size: inherit;
+}
+.msg-asst table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 2px;
+  margin: 8px 0 12px;
+  font-size: 13px;
+}
+.msg-asst th {
+  padding: 6px 14px;
+  font-weight: 500;
+  font-size: 13px;
+  text-align: left;
+  color: var(--fg-dim);
+  background: var(--surface-3);
+  border-radius: 4px;
+}
+.msg-asst td {
+  padding: 6px 14px;
+  color: var(--fg);
+  background: var(--surface-2);
+  border-radius: 4px;
+}
+.msg-asst tbody tr:hover td { background: var(--surface-3); }
+.msg-asst blockquote {
+  margin: 8px 0 12px;
+  padding: 6px 14px;
+  border-left: 3px solid var(--border);
+  color: var(--fg-dim);
+}
+.msg-asst blockquote p { margin: 0; }
+.msg-asst hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+.msg-asst a { color: var(--accent); text-decoration: none; }
+.msg-asst a:hover { text-decoration: underline; }
 .msg-asst .ic { font-size: 12px; }
 
 /* ── tool group (multi-tool) ── */

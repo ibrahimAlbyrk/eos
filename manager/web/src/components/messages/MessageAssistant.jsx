@@ -1,10 +1,22 @@
+import { useMemo } from "react";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
+
+marked.setOptions({
+  breaks: true,
+  gfm: true,
+});
+
 export function MessageAssistant({ text }) {
-  const paragraphs = String(text || "").split(/\n{2,}/).filter(Boolean);
+  const html = useMemo(() => {
+    const raw = marked.parse(String(text || ""));
+    return DOMPurify.sanitize(raw);
+  }, [text]);
+
   return (
-    <div className="msg-asst">
-      {paragraphs.map((p, i) => (
-        <p key={i}>{p}</p>
-      ))}
-    </div>
+    <div
+      className="msg-asst"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }
