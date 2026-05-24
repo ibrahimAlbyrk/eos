@@ -59,6 +59,7 @@ export const MessageRequestSchema = z.object({ text: z.string().min(1) });
 export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 
 export const MessageResponseSchema = z.object({ ok: z.boolean() }).passthrough();
+export type MessageResponse = z.infer<typeof MessageResponseSchema>;
 
 // ---- GET /workers/:id/events ----------------------------------------------
 
@@ -165,6 +166,31 @@ export type BranchesResponse = z.infer<typeof BranchesResponseSchema>;
 export const RecentsResponseSchema = z.object({ paths: z.array(z.string()) });
 export type RecentsResponse = z.infer<typeof RecentsResponseSchema>;
 
+// ---- POST /fs/reveal -------------------------------------------------------
+
+export const FsRevealRequestSchema = z.object({ path: z.string() });
+export type FsRevealRequest = z.infer<typeof FsRevealRequestSchema>;
+
+// ---- GET /fs/read ----------------------------------------------------------
+
+export const FsReadQuerySchema = z.object({ path: z.string().min(1) });
+export type FsReadQuery = z.infer<typeof FsReadQuerySchema>;
+
+export const FsReadResponseSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+  lines: z.number().int().nonnegative(),
+});
+export type FsReadResponse = z.infer<typeof FsReadResponseSchema>;
+
+// ---- POST /fs/write --------------------------------------------------------
+
+export const FsWriteRequestSchema = z.object({
+  path: z.string(),
+  content: z.string(),
+});
+export type FsWriteRequest = z.infer<typeof FsWriteRequestSchema>;
+
 // ---- PUT /workers/:id/permission -------------------------------------------
 
 export const SetPermissionRequestSchema = z.object({ mode: PermissionModeSchema });
@@ -238,6 +264,9 @@ export const ROUTES = {
   fsIcon: "/fs/icon",
   fsBranches: "/fs/branches",
   fsRecents: "/fs/recents",
+  fsReveal: "/fs/reveal",
+  fsRead: "/fs/read",
+  fsWrite: "/fs/write",
   workerPermission: (id: string): string => `/workers/${id}/permission`,
   workerModel: (id: string): string => `/workers/${id}/model`,
   workerDiff: (id: string): string => `/workers/${id}/diff`,
