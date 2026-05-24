@@ -651,7 +651,7 @@ kbd {
 
 /* thinking inline */
 .thinking-line {
-  display: flex; align-items: flex-start; gap: 7px;
+  display: flex; align-items: center; gap: 7px;
   font-size: 11.5px;
   color: var(--fg-faint);
   margin: 8px 0;
@@ -1578,8 +1578,8 @@ kbd {
    the cards bleeding onto the text. */
 :root {
   --islands-w: 208px;
-  --islands-right: 28px;
-  --islands-top: 16px;
+  --islands-right: 16px;
+  --islands-top: 24px;
 }
 .islands {
   position: absolute;
@@ -1592,7 +1592,9 @@ kbd {
   z-index: 10;
   pointer-events: none; /* re-enable on children */
 }
-.islands.hidden { display: none; }
+.app.ready .islands { transition: transform 200ms ease, opacity 200ms ease; }
+.app.ready .island-handle { transition: opacity 200ms ease; }
+.islands.hidden { transform: translateX(100%); opacity: 0; pointer-events: none; }
 
 /* liquid-glass tokens — matte body, thin sharp rim around all edges */
 .isl {
@@ -1818,7 +1820,7 @@ kbd {
 @media (max-width: 1440px) {
   :root {
     --islands-w: 192px;
-    --islands-right: 22px;
+    --islands-right: 16px;
   }
 }
 @media (max-width: 1280px) {
@@ -1838,7 +1840,7 @@ kbd {
 .island-handle {
   position: absolute;
   top: 24px;
-  right: 48px;
+  right: 16px;
   width: 28px; height: 28px;
   background: rgba(32, 32, 32, 0.42);
   backdrop-filter: blur(12px) saturate(140%);
@@ -1853,13 +1855,12 @@ kbd {
   z-index: 10;
 }
 .island-handle:hover { color: var(--fg); }
-.islands.hidden + .island-handle { display: inline-flex; }
-.island-handle { display: none; }
+.app.ready .islands.hidden + .island-handle { opacity: 1; pointer-events: auto; }
+.island-handle { opacity: 0; pointer-events: none; }
 
 /* ============================================================================
-   ISLANDS open/close (instant, no animation)
+   ISLANDS open/close
    ============================================================================ */
-.islands.hidden { display: none; }
 
 /* ============================================================================
    POPOVERS & MODALS — shared liquid-glass styling
@@ -2625,6 +2626,9 @@ kbd {
 .spawn-popover.spawn-popover--sidebar {
   bottom: auto;
   top: calc(100% + 6px);
+  background: var(--surface);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 
 /* ============== Attach popover (composer + button) ============== */

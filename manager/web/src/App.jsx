@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { UiProvider, useUi } from "./state/ui.jsx";
 import { useLive } from "./hooks/useLive.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
@@ -48,7 +48,14 @@ function Shell() {
     return () => document.removeEventListener("mousedown", handler);
   }, [ui.openPopover, ui]);
 
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    if (ready || live.workers.length === 0) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => setReady(true)));
+  }, [ready, live.workers.length]);
+
   const cls = ["app"];
+  if (ready) cls.push("ready");
   if (ui.sideCollapsed) cls.push("side-collapsed");
   const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
   const islandsVisible = !!selectedWorker && !ui.islandsHidden && !ui.fileViewer;
