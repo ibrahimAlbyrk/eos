@@ -114,6 +114,15 @@ export const api = {
     try { return await getJson(ROUTES.fsRecents); }
     catch { return { paths: [] }; }
   },
+  async readFile(path) {
+    return getJson(`${ROUTES.fsRead}?path=${encodeURIComponent(path)}`);
+  },
+  async writeFile(path, content) {
+    return postJson(ROUTES.fsWrite, { path, content });
+  },
+  async revealFile(path) {
+    return postJson(ROUTES.fsReveal, { path });
+  },
 
   // Per-agent settings
   async setWorkerPermission(id, mode) {
