@@ -134,6 +134,11 @@ export const api = {
   async setWorkerModel(id, model, effort) {
     return putJson(ROUTES.workerModel(id), { model, effort });
   },
+  async listCommands(cwd) {
+    const params = cwd ? `?cwd=${encodeURIComponent(cwd)}` : "";
+    return getJson(`${ROUTES.commands}${params}`);
+  },
+
   async getWorkerDiff(id, { signal } = {}) {
     try { return await getJson(ROUTES.workerDiff(id), { signal }); }
     catch (e) {

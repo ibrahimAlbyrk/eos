@@ -228,6 +228,24 @@ export const WorkerDiffResponseSchema = z.object({
 });
 export type WorkerDiffResponse = z.infer<typeof WorkerDiffResponseSchema>;
 
+// ---- GET /commands ---------------------------------------------------------
+
+export const CommandsQuerySchema = z.object({ cwd: z.string().optional() });
+export type CommandsQuery = z.infer<typeof CommandsQuerySchema>;
+
+export const CommandItemSchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  source: z.enum(["user", "project"]),
+  argumentHint: z.string().optional(),
+});
+export type CommandItem = z.infer<typeof CommandItemSchema>;
+
+export const CommandsResponseSchema = z.object({
+  commands: z.array(CommandItemSchema),
+});
+export type CommandsResponse = z.infer<typeof CommandsResponseSchema>;
+
 // ---- error envelope --------------------------------------------------------
 
 export const ErrorResponseSchema = z.object({
@@ -270,5 +288,6 @@ export const ROUTES = {
   workerPermission: (id: string): string => `/workers/${id}/permission`,
   workerModel: (id: string): string => `/workers/${id}/model`,
   workerDiff: (id: string): string => `/workers/${id}/diff`,
+  commands: "/commands",
   web: "/web/",
 } as const;

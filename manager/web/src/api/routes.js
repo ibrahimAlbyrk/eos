@@ -35,4 +35,5 @@ export const ROUTES = {
   workerPermission: (id) => `/workers/${id}/permission`,
   workerModel: (id) => `/workers/${id}/model`,
   workerDiff: (id) => `/workers/${id}/diff`,
+  commands: "/commands",
 };
