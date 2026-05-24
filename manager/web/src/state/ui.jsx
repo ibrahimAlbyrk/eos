@@ -183,12 +183,22 @@ export function UiProvider({ children }) {
     });
   }, []);
 
+  // Server-side DispatchMessage truncates the event text (excerptLimit 200
+  // for workers, 500 for orchestrators). The optimistic message holds the
+  // full text, so exact-match would fail on long messages. Use prefix match
+  // instead: if a server text starts with an optimistic's text OR vice-versa
+  // they're the same message.
   const reconcileOptimisticMessages = useCallback((workerId, serverTexts) => {
     if (!workerId) return;
     setOptimisticMsgs((prev) => {
       if (!prev.has(workerId)) return prev;
       const list = prev.get(workerId);
-      const filtered = list.filter((m) => !serverTexts.has(m.text));
+      const filtered = list.filter((m) => {
+        for (const st of serverTexts) {
+          if (m.text === st || st.startsWith(m.text) || m.text.startsWith(st)) return false;
+        }
+        return true;
+      });
       if (filtered.length === list.length) return prev;
       const next = new Map(prev);
       if (filtered.length === 0) next.delete(workerId);

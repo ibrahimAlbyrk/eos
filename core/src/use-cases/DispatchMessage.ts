@@ -54,9 +54,8 @@ export async function dispatchMessage(
     throw new UnreachableError("worker", e);
   }
 
-  const excerptLimit = deps.excerptLimit ?? 500;
   deps.events.append(input.workerId, deps.clock.now(), "user_message", {
-    text: input.text.slice(0, excerptLimit),
+    text: input.text,
   });
   deps.bus.publish("worker:change", { workerId: input.workerId });
 
