@@ -21,7 +21,7 @@ export function createPortAllocator(opts: PortAllocatorOptions): PortAllocator {
         const free = await new Promise<boolean>((resolve) => {
           const sock = createConnection({ port: p, host: opts.host, timeout: 50 });
           sock.once("connect", () => { sock.destroy(); resolve(false); });
-          sock.once("error", () => resolve(true));
+          sock.once("error", () => { sock.destroy(); resolve(true); });
           sock.once("timeout", () => { sock.destroy(); resolve(true); });
         });
         if (free) return p;
