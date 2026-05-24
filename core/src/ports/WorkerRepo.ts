@@ -39,6 +39,7 @@ export interface WorkerRepo {
   updatePermissionMode(id: string, mode: string): void;
   updateModel(id: string, model: string, effort: string | null): void;
   delete(id: string): void;
+  findChildrenIds(parentId: string): string[];
   // Aggregate helpers consumed by /session and /metrics — keep here so the
   // route layer doesn't compose SQL.
   totalCost(): number;

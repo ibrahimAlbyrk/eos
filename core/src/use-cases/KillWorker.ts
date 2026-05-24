@@ -35,7 +35,18 @@ export function killWorker(deps: KillWorkerDeps, id: string): KillWorkerResult {
   if (!w) throw new NotFoundError("worker", id);
 
   const killed: Array<{ pid: number; via: string }> = [];
-  const seen = new Set<number>();
+
+  // Recursively kill children first (depth-first)
+  for (const childId of deps.workers.findChildrenIds(id)) {
+    try {
+      const childResult = killWorker(deps, childId);
+      killed.push(...childResult.killed);
+    } catch {
+      // child may already be gone
+    }
+  }
+
+  const seen = new Set<number>(killed.map((k) => k.pid));
   const tryKill = (pid: number | null | undefined, via: string): void => {
     if (!pid || pid <= 0 || seen.has(pid)) return;
     deps.supervisor.killPid(pid, "SIGTERM");

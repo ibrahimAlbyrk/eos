@@ -21,6 +21,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtUpdatePermissionMode;
   private readonly stmtUpdateModel;
   private readonly stmtDelete;
+  private readonly stmtFindChildrenIds;
   private readonly stmtTotalCost;
   private readonly stmtCountByState;
   private readonly stmtCountActive;
@@ -52,6 +53,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtUpdatePermissionMode = db.prepare("UPDATE workers SET permission_mode = ? WHERE id = ?");
     this.stmtUpdateModel = db.prepare("UPDATE workers SET model = ?, effort = ? WHERE id = ?");
     this.stmtDelete = db.prepare("DELETE FROM workers WHERE id = ?");
+    this.stmtFindChildrenIds = db.prepare("SELECT id FROM workers WHERE parent_id = ?");
     this.stmtTotalCost = db.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS total FROM workers");
     this.stmtCountByState = db.prepare("SELECT state, COUNT(*) AS n FROM workers GROUP BY state");
     this.stmtCountActive = db.prepare(
@@ -118,6 +120,11 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   delete(id: string): void {
     this.stmtDelete.run(id);
+  }
+
+  findChildrenIds(parentId: string): string[] {
+    const rows = this.stmtFindChildrenIds.all(parentId) as Array<{ id: string }>;
+    return rows.map((r) => r.id);
   }
 
   totalCost(): number {
