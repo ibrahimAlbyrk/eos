@@ -5,7 +5,7 @@ export function ThinkingLine({ text, ms }) {
   return (
     <div className="thinking-line">
       <span className="mono">
-        thinking{ms ? ` · ${Math.round(ms / 1000)}s` : ""}{text ? ` · ${text.slice(0, 80)}` : ""}
+        thinking{ms ? ` · ${Math.round(ms / 1000)}s` : ""}{text ? ` · ${text}` : ""}
       </span>
     </div>
   );
