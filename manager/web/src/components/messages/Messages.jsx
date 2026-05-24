@@ -13,6 +13,7 @@ import { MessageUser } from "./MessageUser.jsx";
 import { MessageAssistant } from "./MessageAssistant.jsx";
 import { ToolGroup } from "./ToolGroup.jsx";
 import { ToolItem } from "./ToolItem.jsx";
+import { AgentBlock } from "./AgentBlock.jsx";
 import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
 
@@ -61,21 +62,21 @@ export function Messages({ live }) {
     return base;
   }, [events, ui.optimisticMsgs, ui.selectedId]);
 
-  // Activity anchor — sits below the most recent block. Two modes:
-  //   busy=true  → animated spark + live ticking elapsed (how long the
-  //                agent has been thinking since the user's message)
-  //   busy=false → static spark, no text (just an anchor under the reply)
+  // Activity anchor — sits below the most recent block.
+  //   Agent is busy (SPAWNING/WORKING) → animated spark (+ elapsed if last
+  //   block is a user message, so the timer counts from when user sent it)
+  //   Agent is idle and last block is from agent → static spark (anchor)
   const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
   const lastBlock = blocks[blocks.length - 1];
   const agentBusy = selectedWorker && (selectedWorker.state === "SPAWNING" || selectedWorker.state === "WORKING");
-  const isWaiting = !!(lastBlock && lastBlock.kind === "user" && agentBusy);
-  const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking");
+  const lastIsUser = !!(lastBlock && lastBlock.kind === "user");
+  const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "agentRun");
   let lastUserTs = null;
   for (let i = blocks.length - 1; i >= 0; i--) {
     if (blocks[i].kind === "user") { lastUserTs = blocks[i].ts; break; }
   }
-  const waitingElapsedMs = isWaiting && lastUserTs ? Math.max(0, live.now - lastUserTs) : 0;
-  const showAnchor = isWaiting || isAgentReply;
+  const waitingElapsedMs = agentBusy && lastIsUser && lastUserTs ? Math.max(0, live.now - lastUserTs) : 0;
+  const showAnchor = (agentBusy && blocks.length > 0) || isAgentReply;
 
   return (
     <div className="messages-wrap">
@@ -83,8 +84,8 @@ export function Messages({ live }) {
         {blocks.map((b, i) => renderBlock(b, i))}
         {showAnchor && (
           <ProcessingLine
-            busy={isWaiting}
-            elapsed={isWaiting && lastUserTs && waitingElapsedMs >= 1000 ? fmtElapsedShort(waitingElapsedMs) : null}
+            busy={!!agentBusy}
+            elapsed={agentBusy && lastIsUser && lastUserTs && waitingElapsedMs >= 1000 ? fmtElapsedShort(waitingElapsedMs) : null}
           />
         )}
       </div>
@@ -99,6 +100,7 @@ function renderBlock(b, i) {
     case "thinking":  return <ThinkingLine key={i} text={b.text} ms={b.ms} />;
     case "toolGroup": return <ToolGroup key={i} summary={b.summary} tools={b.tools} />;
     case "tool":      return <ToolItem key={i} tool={b.tool} standalone />;
+    case "agentRun":  return <AgentBlock key={i} block={b} />;
     default: return null;
   }
 }
@@ -152,14 +154,29 @@ function buildBlocks(events) {
       out.push({ kind: "thinking", text: p.text ?? "", ms: p.ms, ts: ev.ts });
     } else if (p.kind === "tool_use") {
       lastAsst = null;
-      pendingTools.push({
-        id: p.id,
-        name: p.name ?? "",
-        verb: verbFor(p.name),
-        input: p.input ?? {},
-        result: resultMap.get(p.id) ?? null,
-        ts: ev.ts,
-      });
+      if (p.name === "Agent") {
+        // Agent tool gets its own block type with running/completed states.
+        flushTools();
+        const result = resultMap.get(p.id);
+        out.push({
+          kind: "agentRun",
+          toolUseId: p.id,
+          description: p.input?.description || (p.input?.prompt ?? "").slice(0, 100) || "agent",
+          model: p.input?.model ?? null,
+          status: result ? "completed" : "running",
+          result: result?.text ?? null,
+          ts: ev.ts,
+        });
+      } else {
+        pendingTools.push({
+          id: p.id,
+          name: p.name ?? "",
+          verb: verbFor(p.name),
+          input: p.input ?? {},
+          result: resultMap.get(p.id) ?? null,
+          ts: ev.ts,
+        });
+      }
     }
   }
   flushTools();

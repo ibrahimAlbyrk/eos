@@ -750,6 +750,100 @@ kbd {
 .suggest:hover { background: rgba(110, 164, 232, 0.22); }
 
 /* ============================================================================
+   AGENT BLOCK — special display for Claude's Agent tool_use (spawn subagent)
+   Two states: running (header + dark card) and done (inline summary text).
+   ============================================================================ */
+.agent-block { margin: 14px 0; }
+
+/* Running — header line + card */
+.agent-block--running .agent-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--fg-faint);
+  margin-bottom: 8px;
+}
+.agent-block--running .agent-header-desc {
+  color: var(--fg-dim);
+}
+.agent-block--running .agent-header-chev {
+  color: var(--fg-faint);
+  margin-left: 2px;
+}
+.agent-block--running .agent-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 12px 16px;
+  max-width: 420px;
+  cursor: default;
+}
+.agent-block--running .agent-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.agent-block--running .agent-card-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.agent-block--running .agent-card-status {
+  font-size: 12.5px;
+  color: var(--fg-dim);
+}
+.agent-block--running .agent-card-chev {
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+
+/* Done — inline summary text */
+.agent-block--done .agent-done-line {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.agent-block--done .agent-done-text {
+  font-size: 13px;
+  color: var(--fg-dim);
+  line-height: 1.5;
+}
+.agent-block--done .agent-more {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+  font-family: inherit;
+}
+.agent-block--done .agent-more:hover { text-decoration: underline; }
+.agent-block--done .agent-result {
+  margin: 8px 0 0;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--fg-dim);
+  font-family: "JetBrains Mono", monospace;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ============================================================================
    COMPOSER — 3 separate stacked elements (not one container)
    ============================================================================ */
 .composer-wrap {
