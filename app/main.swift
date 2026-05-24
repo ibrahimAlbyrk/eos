@@ -3,7 +3,7 @@ import WebKit
 
 private let DAEMON = "http://127.0.0.1:7400"
 
-class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate, WKScriptMessageHandler {
     var window: NSWindow!
     var webView: WKWebView!
     private var adjustingButtons = false
@@ -22,6 +22,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
             WKUserScript(source: "document.documentElement.classList.add('native');",
                          injectionTime: .atDocumentStart, forMainFrameOnly: true)
         )
+        let dblClickJS = """
+        document.addEventListener('dblclick', (e) => {
+            let el = e.target;
+            while (el) {
+                const region = getComputedStyle(el).webkitAppRegion;
+                if (region === 'no-drag') return;
+                if (region === 'drag') {
+                    window.webkit.messageHandlers.titlebarDblClick.postMessage(null);
+                    return;
+                }
+                el = el.parentElement;
+            }
+        });
+        """
+        cfg.userContentController.addUserScript(
+            WKUserScript(source: dblClickJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+        )
+        cfg.userContentController.add(self, name: "titlebarDblClick")
 
         webView = WKWebView(frame: .zero, configuration: cfg)
         webView.navigationDelegate = self
@@ -59,6 +77,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     func windowDidResize(_: Notification) { positionTrafficLights() }
+
+    @objc func handleTitlebarDoubleClick(_: Any?) {
+        let action = UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") ?? "Maximize"
+        switch action {
+        case "Minimize": window.miniaturize(nil)
+        case "None": break
+        default: window.zoom(nil)
+        }
+    }
     func windowDidBecomeKey(_: Notification) { positionTrafficLights() }
 
     func windowWillEnterFullScreen(_: Notification) {
@@ -151,6 +178,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool { true }
 
     @objc func reloadPage(_: Any?) { webView.reload() }
+
+    func userContentController(_: WKUserContentController, didReceive _: WKScriptMessage) {
+        handleTitlebarDoubleClick(nil)
+    }
 
     private func showAlert(_ msg: String) {
         let a = NSAlert()
