@@ -1247,6 +1247,11 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   pointer-events: none;
 }
 .composer-editor .cmd-hl { color: var(--accent); }
+.composer-editor[data-hint]::after {
+  content: attr(data-hint);
+  color: var(--fg-faint);
+  opacity: 0.4;
+}
 
 .c-row2 {
   display: flex;

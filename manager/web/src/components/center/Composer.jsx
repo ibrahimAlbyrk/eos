@@ -46,8 +46,8 @@ function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function colorize(text, cmdNames) {
-  if (!text.includes("/") || !cmdNames.size) return null;
+function colorize(text, cmdMap) {
+  if (!text.includes("/") || !cmdMap.size) return null;
   let html = "";
   let last = 0;
   let found = false;
@@ -55,7 +55,9 @@ function colorize(text, cmdNames) {
     if (text[i] !== "/") continue;
     let end = i + 1;
     while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
-    if (!cmdNames.has(text.slice(i + 1, end))) continue;
+    const name = text.slice(i + 1, end);
+    const cmd = cmdMap.get(name);
+    if (!cmd) continue;
     found = true;
     if (i > last) html += esc(text.slice(last, i));
     html += `<span class="cmd-hl">${esc(text.slice(i, end))}</span>`;
@@ -83,7 +85,7 @@ export function Composer({ live }) {
     ? (draft.cwd ?? live.recents[0] ?? null)
     : (selected?.cwd ?? ui.composer.cwd ?? live.recents[0] ?? null);
   const commands = useCommands(cwd);
-  const cmdNames = useMemo(() => new Set(commands.map((c) => c.name)), [commands]);
+  const cmdMap = useMemo(() => new Map(commands.map((c) => [c.name, c])), [commands]);
 
   const [cursorPos, setCursorPos] = useState(0);
 
@@ -106,20 +108,35 @@ export function Composer({ live }) {
 
   const showMenu = filtered.length > 0;
 
+  const activeHint = useMemo(() => {
+    if (!text.includes("/")) return null;
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] !== "/") continue;
+      let end = i + 1;
+      while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
+      const cmd = cmdMap.get(text.slice(i + 1, end));
+      if (!cmd?.argumentHint) continue;
+      const after = text.slice(end);
+      if (after === " ") return cmd.argumentHint;
+    }
+    return null;
+  }, [text, cmdMap]);
+
   useEffect(() => { setMenuIndex(0); }, [slashCtx?.query]);
 
   const applyColoring = useCallback(() => {
     const el = editorRef.current;
     if (!el) return;
-    const html = colorize(text, cmdNames);
+    const html = colorize(text, cmdMap);
     const target = html ?? esc(text);
     if (target !== lastHtmlRef.current) {
       const off = getCursorOffset(el);
+      suppressInputRef.current = true;
       lastHtmlRef.current = target;
       el.innerHTML = target;
       setCursorOffset(el, off);
     }
-  }, [text, cmdNames]);
+  }, [text, cmdMap]);
 
   useLayoutEffect(() => { applyColoring(); }, [applyColoring]);
 
@@ -129,11 +146,11 @@ export function Composer({ live }) {
     setCursorPos(newCursor ?? newText.length);
     const el = editorRef.current;
     if (!el) return;
-    const html = colorize(newText, cmdNames);
+    const html = colorize(newText, cmdMap);
     lastHtmlRef.current = html ?? esc(newText);
     el.innerHTML = lastHtmlRef.current;
     setCursorOffset(el, newCursor ?? newText.length);
-  }, [cmdNames]);
+  }, [cmdMap]);
 
   const handleInput = () => {
     if (suppressInputRef.current) { suppressInputRef.current = false; return; }
@@ -156,7 +173,7 @@ export function Composer({ live }) {
       if (text[i] !== "/") continue;
       let end = i + 1;
       while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
-      if (cmdNames.has(text.slice(i + 1, end)) && pos > i && pos <= end) {
+      if (cmdMap.has(text.slice(i + 1, end)) && pos > i && pos <= end) {
         return { start: i, end };
       }
     }
@@ -288,6 +305,7 @@ export function Composer({ live }) {
               contentEditable
               role="textbox"
               data-placeholder="Type / for commands"
+              data-hint={activeHint || undefined}
               onInput={handleInput}
               onKeyDown={onKey}
               onPaste={handlePaste}

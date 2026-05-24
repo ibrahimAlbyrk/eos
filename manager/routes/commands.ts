@@ -50,7 +50,11 @@ function scanCommands(dir: string, source: CommandItem["source"]): CommandItem[]
           name: finalName,
           description: typeof fm.description === "string" ? fm.description : "",
           source,
-          argumentHint: typeof fm["argument-hint"] === "string" ? fm["argument-hint"] : undefined,
+          argumentHint: typeof fm["argument-hint"] === "string"
+            ? fm["argument-hint"]
+            : Array.isArray(fm["argument-hint"])
+              ? `[${fm["argument-hint"].join(" | ")}]`
+              : undefined,
         });
       } catch {}
     }
