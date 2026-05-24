@@ -9,6 +9,7 @@ import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { z } from "zod";
 
 export interface ModelPrice { in: number; out: number; cacheRead: number; cacheCreate: number; }
 
@@ -109,6 +110,39 @@ function defaults(): DaemonConfig {
   };
 }
 
+const ModelPriceOverrideSchema = z.object({
+  in: z.number().nonnegative(),
+  out: z.number().nonnegative(),
+  cacheRead: z.number().nonnegative(),
+  cacheCreate: z.number().nonnegative(),
+}).partial();
+
+const DaemonConfigOverrideSchema = z.object({
+  daemon: z.object({
+    host: z.string(),
+    port: z.number().int().positive(),
+    home: z.string(),
+    sseKeepaliveMs: z.number().int().positive(),
+  }).partial().optional(),
+  paths: z.object({
+    repoRoot: z.string(),
+    claudeBin: z.string(),
+    bunBin: z.string(),
+  }).partial().optional(),
+  worker: z.object({
+    portRangeStart: z.number().int().positive(),
+    portRangeEnd: z.number().int().positive(),
+    heartbeatMs: z.number().int().positive(),
+    heartbeatQuietMs: z.number().int().positive(),
+    shutdownGraceMs: z.number().int().positive(),
+    ptyWriteDelayMs: z.number().int().nonnegative(),
+  }).partial().optional(),
+  permissions: z.object({
+    defaultTtlMs: z.number().int().positive(),
+  }).partial().optional(),
+  prices: z.record(z.string(), ModelPriceOverrideSchema).optional(),
+}).passthrough();
+
 // Shallow-merge file-loaded overrides on top of defaults. Nested keys are
 // overridden one level deep — enough for our flat-ish structure.
 function mergeConfig(base: DaemonConfig, override: unknown): DaemonConfig {
@@ -143,8 +177,14 @@ export function loadConfig(): DaemonConfig {
   let override: unknown = null;
   if (existsSync(path)) {
     try {
-      override = JSON.parse(readFileSync(path, "utf8"));
-      console.log(`[config] overrides loaded from ${path}`);
+      const raw = JSON.parse(readFileSync(path, "utf8"));
+      const result = DaemonConfigOverrideSchema.safeParse(raw);
+      if (!result.success) {
+        console.log(`[config] invalid config in ${path}: ${result.error.message} — ignoring`);
+      } else {
+        override = result.data;
+        console.log(`[config] overrides loaded from ${path}`);
+      }
     } catch (e) {
       console.log(`[config] failed to parse ${path}: ${(e as Error).message} — ignoring`);
     }

@@ -105,3 +105,47 @@ describe("loadConfig — memoization", () => {
     assert.equal(a, b);
   });
 });
+
+describe("DaemonConfigOverrideSchema — Zod validation", () => {
+  let tmpHome: string;
+
+  beforeEach(async () => {
+    const fs = await import("node:fs");
+    tmpHome = (process.env.TMPDIR ?? "/tmp") + `/cfg-test-${Date.now()}-${Math.random()}`;
+    fs.mkdirSync(tmpHome, { recursive: true });
+    process.env.CLAUDE_MGR_HOME = tmpHome;
+  });
+  afterEach(async () => {
+    delete process.env.CLAUDE_MGR_HOME;
+    try {
+      const fs = await import("node:fs");
+      fs.rmSync(tmpHome, { recursive: true, force: true });
+    } catch {}
+  });
+
+  it("valid partial override is accepted", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ daemon: { port: 8000 } }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.daemon.port, 8000);
+  });
+
+  it("invalid type is rejected and defaults apply", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ daemon: { port: "not a number" } }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.daemon.port, 7400);
+  });
+
+  it("partial override leaves other fields at defaults", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ daemon: { host: "0.0.0.0" } }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.daemon.host, "0.0.0.0");
+    assert.equal(cfg.daemon.port, 7400);
+    assert.ok(cfg.paths.repoRoot.length > 0);
+  });
+});
