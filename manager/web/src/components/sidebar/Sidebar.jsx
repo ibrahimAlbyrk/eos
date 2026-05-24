@@ -84,6 +84,23 @@ export function Sidebar({ live }) {
 
         <div className="sb-divider"></div>
 
+        <div className="sb-section">
+          <span className="sb-section__title">Agents</span>
+          <div className="sidebar-plus-wrap" style={{ position: "relative" }}>
+            <button
+              className="sb-iconbtn"
+              title="Spawn a new agent"
+              onClick={handleSpawn}
+              data-popover-trigger="spawn"
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M8 3v10M3 8h10" />
+              </svg>
+            </button>
+            <SpawnPopover live={live} />
+          </div>
+        </div>
+
         <AgentsTree roots={tree} filter={filter} />
       </div>
 

@@ -75,6 +75,77 @@ kbd {
 }
 
 /* ============================================================================
+   NATIVE macOS TITLEBAR — visible only inside WKWebView (html.native)
+   Glass card extends into titlebar; sb-head becomes the titlebar row.
+   ============================================================================ */
+
+/* center header toggle — only in non-native collapsed */
+.head-toggle { display: none !important; }
+
+/* fixed toggle button — always visible at same position in native */
+.native-toggle { display: none !important; }
+html.native .native-toggle {
+  display: inline-flex !important;
+  position: fixed;
+  left: 90px;
+  top: 18px;
+  z-index: 300;
+  width: 24px; height: 24px;
+  border-radius: 5px;
+  align-items: center; justify-content: center;
+  color: var(--fg-dim);
+  -webkit-app-region: no-drag;
+}
+html.native .native-toggle:hover { background: rgba(255,255,255,0.06); color: var(--fg); }
+
+/* sidebar: card gap matches Claude Code reference */
+html.native .side { padding: 14px 14px 18px 14px; }
+
+/* sb-head becomes compact titlebar row, buttons after traffic lights */
+html.native .sb-head {
+  padding: 4px 8px 6px 76px;
+  min-height: 22px;
+}
+html.native .sb-head { display: none; }
+html.native .side-island--agents { padding-top: 38px; flex: 1; }
+html.native .side-island--status { display: none; }
+html.native .sb-divider { display: none; }
+html.native .empty-tree { padding: 6px 14px !important; }
+html.native .side { padding-bottom: 14px; }
+
+/* center header: compact 28px, inherits breadcrumb */
+html.native .head {
+  height: auto;
+  padding: 18px 16px 0;
+  transition: padding-left 280ms ease;
+}
+html.native .app.side-collapsed .head { padding-left: 124px; }
+html.native .side-handle { display: none !important; }
+
+/* fullscreen: no traffic lights in window, simplify layout */
+html.native.fullscreen .native-toggle { left: 16px; top: 10px; }
+html.native.fullscreen .side { padding: 6px 14px 14px 14px; }
+html.native.fullscreen .side-island--agents { padding-top: 14px; }
+html.native.fullscreen .sb-section { padding-left: 12px; }
+html.native.fullscreen .head { padding: 10px 16px 0; }
+html.native.fullscreen .app.side-collapsed .head { padding-left: 46px; }
+
+/* "Agents" section header — visible only in native mode */
+.sb-section { display: none; }
+html.native .sb-section {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px 4px;
+}
+html.native .sb-section__title {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--fg-dim);
+  letter-spacing: 0.03em;
+}
+html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
+
+/* ============================================================================
    APP SHELL  ·  3-column grid: sidebar | center | (floating right island)
    ============================================================================ */
 
