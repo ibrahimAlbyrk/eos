@@ -1,38 +1,24 @@
 import { useState } from "react";
+import { ToolItem } from "./ToolItem.jsx";
 
-export function ToolGroup({ verb, title, subtools, panel }) {
-  const [open, setOpen] = useState(true);
-  const cls = ["toolgroup"];
-  if (open) cls.push("open");
+export function ToolGroup({ summary, tools }) {
+  const [open, setOpen] = useState(false);
+
   return (
-    <div className={cls.join(" ")}>
-      <div className="head-row" onClick={() => setOpen((o) => !o)}>
-        <span>
-          <span className={`verb ${verb}`}>{verbLabel(verb)}</span>{" "}
-          {title}
-        </span>
-        <svg className="chev" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="m4 6 4 4 4-4" />
+    <div className={"tool-group" + (open ? " open" : "")}>
+      <div className="tool-group-header" onClick={() => setOpen((o) => !o)}>
+        <span className="tg-summary">{summary}</span>
+        <svg className="tg-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+          <path d="m6 4 4 4-4 4" />
         </svg>
       </div>
-      {subtools && subtools.length > 0 && (
-        <div className="subtools">
-          {subtools.map((s, i) => (
-            <div className="subtool" key={i}>
-              <span className={`v ${verb}`}>{s.name}</span>
-              <span className="name">{s.file}</span>
-              <span className="chev">›</span>
-            </div>
+      {open && (
+        <div className="tool-group-list">
+          {tools.map((t, i) => (
+            <ToolItem key={t.id ?? i} tool={t} />
           ))}
         </div>
       )}
-      {panel}
     </div>
   );
-}
-
-function verbLabel(verb) {
-  if (verb === "bash") return "Ran";
-  if (verb === "edit") return "Edit";
-  return "Read";
 }

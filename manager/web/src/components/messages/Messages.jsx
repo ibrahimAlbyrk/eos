@@ -12,6 +12,7 @@ import { fmtElapsedShort } from "../../lib/format.js";
 import { MessageUser } from "./MessageUser.jsx";
 import { MessageAssistant } from "./MessageAssistant.jsx";
 import { ToolGroup } from "./ToolGroup.jsx";
+import { ToolItem } from "./ToolItem.jsx";
 import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
 
@@ -96,18 +97,39 @@ function renderBlock(b, i) {
     case "user":      return <MessageUser key={i} text={b.text} />;
     case "assistant": return <MessageAssistant key={i} text={b.text} />;
     case "thinking":  return <ThinkingLine key={i} text={b.text} ms={b.ms} />;
-    case "toolGroup": return <ToolGroup key={i} verb={b.verb} title={b.title} subtools={b.subtools} panel={b.panel} />;
+    case "toolGroup": return <ToolGroup key={i} summary={b.summary} tools={b.tools} />;
+    case "tool":      return <ToolItem key={i} tool={b.tool} standalone />;
     default: return null;
   }
 }
 
-// Convert event list to renderable blocks. Group consecutive tool_use events
-// of the same verb into a toolGroup. Coalesce adjacent assistant_text.
 function buildBlocks(events) {
+  const resultMap = new Map();
+  for (const ev of events) {
+    if (ev.type !== "jsonl") continue;
+    const p = parsePayload(ev.payload);
+    if (p.kind === "tool_result" && p.toolUseId) {
+      resultMap.set(p.toolUseId, { text: p.text ?? "", isError: !!p.isError });
+    }
+  }
+
   const out = [];
   let lastAsst = null;
+  let pendingTools = [];
+
+  const flushTools = () => {
+    if (pendingTools.length === 0) return;
+    if (pendingTools.length === 1) {
+      out.push({ kind: "tool", tool: pendingTools[0], ts: pendingTools[0].ts });
+    } else {
+      out.push({ kind: "toolGroup", summary: buildSummary(pendingTools), tools: [...pendingTools], ts: pendingTools[0].ts });
+    }
+    pendingTools = [];
+  };
+
   for (const ev of events) {
     if (ev.type === "user_message") {
+      flushTools();
       lastAsst = null;
       const payload = parsePayload(ev.payload);
       out.push({ kind: "user", text: payload.text ?? "", ts: ev.ts });
@@ -115,7 +137,9 @@ function buildBlocks(events) {
     }
     if (ev.type !== "jsonl") continue;
     const p = parsePayload(ev.payload);
+
     if (p.kind === "assistant_text") {
+      flushTools();
       if (lastAsst && out[out.length - 1] === lastAsst) {
         lastAsst.text += "\n" + (p.text ?? "");
       } else {
@@ -123,14 +147,39 @@ function buildBlocks(events) {
         out.push(lastAsst);
       }
     } else if (p.kind === "thinking") {
+      flushTools();
       lastAsst = null;
       out.push({ kind: "thinking", text: p.text ?? "", ms: p.ms, ts: ev.ts });
     } else if (p.kind === "tool_use") {
       lastAsst = null;
-      out.push({ kind: "toolGroup", verb: verbFor(p.name), title: titleFor(p), subtools: [{ name: p.name, file: fileFor(p) }], ts: ev.ts });
+      pendingTools.push({
+        id: p.id,
+        name: p.name ?? "",
+        verb: verbFor(p.name),
+        input: p.input ?? {},
+        result: resultMap.get(p.id) ?? null,
+        ts: ev.ts,
+      });
     }
   }
+  flushTools();
   return out;
+}
+
+function buildSummary(tools) {
+  let reads = 0;
+  let edits = 0;
+  let others = 0;
+  for (const t of tools) {
+    if (t.name === "Read") reads++;
+    else if (t.verb === "edit") edits++;
+    else others++;
+  }
+  const parts = [];
+  if (reads > 0) parts.push(`Read ${reads} file${reads > 1 ? "s" : ""}`);
+  if (edits > 0) parts.push(`Edited ${edits} file${edits > 1 ? "s" : ""}`);
+  if (others > 0) parts.push(`used ${others} tool${others > 1 ? "s" : ""}`);
+  return parts.join(", ");
 }
 
 function parsePayload(payload) {
@@ -146,18 +195,4 @@ function verbFor(name) {
   if (n.includes("bash")) return "bash";
   if (n.includes("edit") || n.includes("write")) return "edit";
   return "read";
-}
-
-function titleFor(p) {
-  if (p.name === "Bash") return `Ran ${(p.input?.command ?? "").slice(0, 80)}`;
-  return `${p.name}${p.input?.file_path ? " · " + shortPath(p.input.file_path) : ""}`;
-}
-
-function fileFor(p) {
-  return p.input?.file_path || p.input?.command || "";
-}
-
-function shortPath(p) {
-  if (!p) return "";
-  return p.split("/").slice(-2).join("/");
 }
