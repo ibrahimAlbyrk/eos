@@ -305,5 +305,6 @@ export const ROUTES = {
   workerInterrupt: (id: string): string => `/workers/${id}/interrupt`,
   workerReport: (id: string): string => `/workers/${id}/report`,
   commands: "/commands",
+  notificationsConfig: "/api/notifications/config",
   web: "/web/",
 } as const;

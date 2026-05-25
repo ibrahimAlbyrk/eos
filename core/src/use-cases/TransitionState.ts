@@ -38,6 +38,6 @@ export function transitionState(deps: TransitionStateDeps, input: TransitionInpu
   const rowId = deps.events.append(input.workerId, deps.clock.now(), "state", {
     state: input.next, from, reason: input.reason,
   });
-  deps.bus.publish("worker:change", { workerId: input.workerId, rowId });
+  deps.bus.publish("worker:change", { workerId: input.workerId, rowId, from, state: input.next });
   return "applied";
 }
