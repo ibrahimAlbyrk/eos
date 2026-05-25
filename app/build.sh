@@ -4,7 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$SCRIPT_DIR/build"
-APP_NAME="Claude Manager"
+APP_NAME="Eos"
 APP_BUNDLE="$BUILD_DIR/$APP_NAME.app"
 
 rm -rf "$APP_BUNDLE"
@@ -13,7 +13,7 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 
 echo "compiling…"
 swiftc -O \
-  -o "$APP_BUNDLE/Contents/MacOS/ClaudeManager" \
+  -o "$APP_BUNDLE/Contents/MacOS/Eos" \
   -framework Cocoa -framework WebKit \
   "$SCRIPT_DIR/main.swift"
 
@@ -33,7 +33,9 @@ if [ -f "$LOGO" ]; then
   rm -rf "$ICONSET"
 fi
 
-echo "done → $APP_BUNDLE"
-echo ""
-echo "run:     open '$APP_BUNDLE'"
-echo "install: cp -r '$APP_BUNDLE' /Applications/"
+INSTALLED="/Applications/$APP_NAME.app"
+echo "installing → $INSTALLED"
+rm -rf "$INSTALLED"
+cp -r "$APP_BUNDLE" "$INSTALLED"
+
+echo "done → $INSTALLED"

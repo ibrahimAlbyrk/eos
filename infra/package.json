@@ -1,5 +1,5 @@
 {
-  "name": "@claude-manager/infra",
+  "name": "@eos/infra",
   "version": "0.0.1",
   "private": true,
   "type": "module",
@@ -9,8 +9,8 @@
     "test": "node --no-warnings --experimental-strip-types --test src/__tests__/*.test.ts"
   },
   "dependencies": {
-    "@claude-manager/contracts": "file:../contracts",
-    "@claude-manager/core": "file:../core",
+    "@eos/contracts": "file:../contracts",
+    "@eos/core": "file:../core",
     "yaml": "^2.6.0"
   },
   "devDependencies": {

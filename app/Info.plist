@@ -3,17 +3,17 @@
 <plist version="1.0">
 <dict>
     <key>CFBundleName</key>
-    <string>Claude Manager</string>
+    <string>Eos</string>
     <key>CFBundleDisplayName</key>
-    <string>Claude Manager</string>
+    <string>Eos</string>
     <key>CFBundleIdentifier</key>
-    <string>com.ibrahimalbyrk.claude-manager</string>
+    <string>com.ibrahimalbyrk.eos</string>
     <key>CFBundleVersion</key>
     <string>1.0</string>
     <key>CFBundleShortVersionString</key>
     <string>1.0</string>
     <key>CFBundleExecutable</key>
-    <string>ClaudeManager</string>
+    <string>Eos</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundlePackageType</key>

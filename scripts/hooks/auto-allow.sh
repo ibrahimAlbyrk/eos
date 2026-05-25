@@ -1,5 +1,5 @@
 #!/bin/bash
-# claude-manager PermissionRequest hook.
+# Eos PermissionRequest hook.
 #
 # Two modes:
 #   1. Daemon-aware: when worker.ts spawns claude with CLAUDE_MGR_SPAWNED=1,

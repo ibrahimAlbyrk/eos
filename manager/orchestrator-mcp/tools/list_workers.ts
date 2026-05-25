@@ -8,7 +8,7 @@ export const listWorkersTool: McpToolModule = {
       "list_workers",
       {
         description:
-          "List all workers managed by claude-manager (active and completed). Returns id, state, branch, duration, prompt summary.",
+          "List all workers managed by Eos (active and completed). Returns id, state, branch, duration, prompt summary.",
         inputSchema: {},
       },
       async () =>

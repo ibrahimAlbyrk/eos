@@ -199,7 +199,7 @@ export function loadConfig(): DaemonConfig {
 /**
  * Writes the active merged config (defaults + env + existing file) back to
  * `~/.claude-mgr/config.json` as a starting point for hand-editing. Used by
- * `claude-manager config init`. Returns the path it wrote to.
+ * `eos config init`. Returns the path it wrote to.
  */
 export function writeDefaultConfig(): string {
   const cfg = loadConfig();

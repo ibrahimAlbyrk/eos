@@ -51,7 +51,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered, defer: false
         )
-        window.title = "Claude Manager"
+        window.title = "Eos"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.minSize = NSSize(width: 800, height: 500)
@@ -59,7 +59,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         window.contentView = webView
         window.center()
         window.delegate = self
-        window.setFrameAutosaveName("ClaudeManager")
+        window.setFrameAutosaveName("Eos")
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         positionTrafficLights()
@@ -133,7 +133,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
 
     private func poll(_ n: Int) {
         guard n > 0 else {
-            showAlert("Daemon failed to start.\nRun `claude-manager daemon start` manually.")
+            showAlert("Daemon failed to start.\nRun `eos daemon start` manually.")
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
@@ -154,7 +154,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
 
     private func repoRoot() -> String {
         if let e = ProcessInfo.processInfo.environment["CLAUDE_MGR_REPO_ROOT"] { return e }
-        // <repoRoot>/app/build/Claude Manager.app/Contents/MacOS/ClaudeManager
+        // <repoRoot>/app/build/Eos.app/Contents/MacOS/Eos
         var d = Bundle.main.executablePath ?? ""
         for _ in 0..<5 { d = (d as NSString).deletingLastPathComponent }
         if FileManager.default.fileExists(atPath: "\(d)/manager/daemon.ts") { return d }
@@ -189,7 +189,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
 
     private func showAlert(_ msg: String) {
         let a = NSAlert()
-        a.messageText = "Claude Manager"
+        a.messageText = "Eos"
         a.informativeText = msg
         a.alertStyle = .critical
         a.runModal()
@@ -206,10 +206,10 @@ let menu = NSMenu()
 
 let ai = NSMenuItem(); menu.addItem(ai)
 let am = NSMenu()
-am.addItem(NSMenuItem(title: "About Claude Manager",
+am.addItem(NSMenuItem(title: "About Eos",
                        action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: ""))
 am.addItem(.separator())
-am.addItem(NSMenuItem(title: "Quit Claude Manager",
+am.addItem(NSMenuItem(title: "Quit Eos",
                        action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
 ai.submenu = am
 

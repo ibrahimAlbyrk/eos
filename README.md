@@ -1,7 +1,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)"  srcset="assets/banner-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="assets/banner-light.svg">
-  <img alt="claude-manager — one operator, one orchestrator, many workers" src="assets/banner-dark.svg">
+  <img alt="Eos — one operator, one orchestrator, many workers" src="assets/banner-dark.svg">
 </picture>
 
 <div align="center">
@@ -27,7 +27,7 @@
 
 The interactive `claude` CLI bills against your **Max / Pro subscription**.
 The Agent SDK and `claude -p` will draw from a separate credit pool starting
-**June 15, 2026**. `claude-manager` is built around a single hard constraint:
+**June 15, 2026**. `Eos` is built around a single hard constraint:
 
 > Every Claude session is driven through an interactive PTY.
 > The `-p` flag is never used. Anywhere.
@@ -108,7 +108,7 @@ input). Pending requests surface in every interface. Full audit log at
 the current Anthropic rates for input, output, cache-read, and cache-create
 — settled cleanly against your Max / Pro plan.
 
-**Two interfaces, one daemon.** &nbsp; `claude-manager` CLI for scripted
+**Two interfaces, one daemon.** &nbsp; `eos` CLI for scripted
 use · React 18 web UI served by the daemon at `/web/`.
 
 <br/>
@@ -136,7 +136,7 @@ use · React 18 web UI served by the daemon at `/web/`.
 
 <div align="center">
 <sub>
-<code>claude-manager</code> &nbsp;·&nbsp; <a href="./LICENSE">MIT</a> &nbsp;·&nbsp; © 2026 İbrahim Albayrak<br/>
+<code>Eos</code> &nbsp;·&nbsp; <a href="./LICENSE">MIT</a> &nbsp;·&nbsp; © 2026 İbrahim Albayrak<br/>
 <i>An atelier for Claude Code.</i>
 </sub>
 </div>

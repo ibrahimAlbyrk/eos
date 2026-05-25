@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-# claude-manager — orchestration CLI launcher
+# eos — orchestration CLI launcher
 exec node --no-warnings --experimental-strip-types \
   "/Users/ibrahimalbyrk/Projects/CC/claude-manager/manager/cli.ts" "$@"

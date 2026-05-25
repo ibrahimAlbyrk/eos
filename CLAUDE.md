@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-`claude-manager` is an orchestration layer **on top of the interactive `claude` CLI binary** (not the Agent SDK or `claude -p`). An "orchestrator" agent decomposes tasks and dispatches worker agents via MCP tools. A daemon supervises everything; a web UI (React 18 + Vite), CLI, and native macOS app (WKWebView in `app/`) provide live observation and control.
+`Eos` is an orchestration layer **on top of the interactive `claude` CLI binary** (not the Agent SDK or `claude -p`). An "orchestrator" agent decomposes tasks and dispatches worker agents via MCP tools. A daemon supervises everything; a web UI (React 18 + Vite), CLI, and native macOS app (WKWebView in `app/`) provide live observation and control.
 
 **Hard constraint:** every Claude session runs as an *interactive* PTY process so the user's Max/Pro subscription pays for tokens. **Never use `claude -p`** — it draws from a separate Agent SDK credit pool. Drive `claude` via `node-pty`, write prompts by `pty.write(text + "\r")`.
 
@@ -19,7 +19,7 @@ spawner/        — worker.ts composition root + submodules (pty-queue, tail, js
 manager/        — daemon.ts (composition root + container + routes), cli.ts (Command pattern), orchestrator-mcp.ts, worker-mcp.ts.
 manager/shared/ — Centralized config (env→file→default), daemon HTTP client, path utils.
 manager/web/    — React 18 + Vite. api/client.js (typed HTTP), hooks/useLive.js (SSE+poll), state/{selection,composer,notification}.jsx.
-app/            — Native macOS WKWebView wrapper. build.sh → Claude Manager.app.
+app/            — Native macOS WKWebView wrapper. build.sh → Eos.app.
 ```
 
 Each package has its own `package.json` + `node_modules`. **NOT a workspace** — install per directory. Cross-package imports use relative paths.
@@ -31,15 +31,15 @@ npm run lint                      # repo root — enforces dependency direction
 cd manager && npm test            # tests across manager/shared, core, spawner
 cd manager/web && npm run build   # production build → dist/
 cd manager/web && npm run dev     # vite build --watch
-bash app/build.sh                 # native macOS app
+bash app/build.sh                 # native macOS app → /Applications/Eos.app
 ```
 
 Daemon restart after code changes (clean DB + kill orphans):
 ```bash
-bash scripts/restart-daemon.sh
+eos restart
 ```
 
-CLI: `claude-manager help` for all commands. Symlink: `~/.local/bin/claude-manager`.
+CLI: `eos help` for all commands. Symlink: `~/.local/bin/eos`.
 
 HTTP surface: all endpoints defined in `contracts/src/http.ts` ROUTES table.
 
