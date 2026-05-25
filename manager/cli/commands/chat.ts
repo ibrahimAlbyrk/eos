@@ -6,7 +6,7 @@ import { resolveChatTarget } from "./orchestrator.ts";
 export const chatCommand: Command = {
   name: "chat",
   description: "Send a message to an orchestrator (auto-target when exactly one is active)",
-  usage: "claude-manager chat [--to <orchestrator-id>] <message...>",
+  usage: "eos chat [--to <orchestrator-id>] <message...>",
   async run(args, ctx): Promise<void> {
     const { values, positionals } = parseArgs({
       args, allowPositionals: true,

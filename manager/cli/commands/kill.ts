@@ -2,9 +2,8 @@ import type { Command } from "./Command.ts";
 
 export const killCommand: Command = {
   name: "kill",
-  aliases: ["stop"],
   description: "Terminate a worker or orchestrator (SIGTERM + DB row removal)",
-  usage: "claude-manager kill <id>",
+  usage: "eos kill <id>",
   async run(args, ctx): Promise<void> {
     const id = args[0];
     if (!id) { console.error("usage: kill <id>"); process.exit(1); }

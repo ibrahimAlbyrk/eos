@@ -1,4 +1,4 @@
-// `claude-manager help` (or no-args) — generated from the registry so a new
+// `eos help` (or no-args) — generated from the registry so a new
 // command's usage line appears automatically without editing the help text.
 
 import type { Command } from "./Command.ts";
@@ -14,14 +14,14 @@ export function createHelpCommand(getCommands: () => ReadonlyArray<Command>): Co
     name: "help",
     aliases: ["-h", "--help"],
     description: "Show this help text",
-    usage: "claude-manager help",
+    usage: "eos help",
     async run(): Promise<void> {
       const commands = getCommands();
-      console.log("claude-manager — orchestration CLI for Claude Code workers\n");
+      console.log("eos — orchestration CLI for Claude Code workers\n");
       console.log("usage:");
       for (const c of commands) {
         if (c.name === "help") continue;
-        const usage = c.usage ?? `claude-manager ${c.name}`;
+        const usage = c.usage ?? `eos ${c.name}`;
         const aliasLine = c.aliases && c.aliases.length > 0 ? ` (aliases: ${c.aliases.join(", ")})` : "";
         console.log(`  ${usage}`);
         console.log(`      ${c.description}${aliasLine}`);

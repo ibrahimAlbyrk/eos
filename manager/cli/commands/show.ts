@@ -31,7 +31,7 @@ export const showCommand: Command = {
   name: "show",
   aliases: ["info"],
   description: "Show worker/orchestrator detail + last 50 events",
-  usage: "claude-manager show <id>",
+  usage: "eos show <id>",
   async run(args, ctx): Promise<void> {
     if (!args[0]) { console.error("usage: show <id>"); process.exit(1); }
     const id = args[0];

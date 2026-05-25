@@ -3,7 +3,7 @@ import type { Command } from "./Command.ts";
 export const configCommand: Command = {
   name: "config",
   description: "Dump merged config (print) or write a starter config.json (init)",
-  usage: "claude-manager config [print|init]",
+  usage: "eos config [print|init]",
   async run(args, ctx): Promise<void> {
     const sub = args[0];
     if (sub === "print" || sub === undefined) {

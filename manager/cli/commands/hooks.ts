@@ -1,4 +1,4 @@
-// `claude-manager hooks install` — copies the canonical auto-allow.sh into
+// `eos hooks install` — copies the canonical auto-allow.sh into
 // ~/.claude/hooks/ and surfaces registration instructions when settings.json
 // doesn't already wire it up. Sanity-checks jq + curl presence.
 
@@ -87,7 +87,7 @@ export const hooksCommand: Command = {
       await install(ctx);
       return;
     }
-    console.error("usage: claude-manager hooks install");
+    console.error("usage: eos hooks install");
     process.exit(1);
   },
 };

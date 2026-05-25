@@ -42,10 +42,10 @@ async function listOrchestrators(ctx: Parameters<Command["run"]>[1]): Promise<vo
 }
 
 export const orchestratorCommand: Command = {
-  name: "orchestrator",
-  aliases: ["orch"],
+  name: "orch",
+  aliases: ["orchestrator"],
   description: "Create or list orchestrators",
-  usage: "claude-manager orchestrator [list | new --cwd <path> [--name <n>] [--model opus|sonnet|haiku]]",
+  usage: "eos orch [ls | new --cwd <path> [--name <n>] [--model opus|sonnet|haiku]]",
   async run(args, ctx): Promise<void> {
     const sub = args[0];
     if (sub === "new" || sub === "create") {
@@ -71,7 +71,7 @@ export async function resolveChatTarget(
   const rows = (await ctx.api("GET", "/orchestrators")) as OrchestratorRow[];
   const active = rows.filter((o) => o.state !== "DONE");
   if (active.length === 0) {
-    console.error("error: no active orchestrator. Create one with: claude-manager orchestrator new --cwd <path> --name <n>");
+    console.error("error: no active orchestrator. Create one with: eos orch new --cwd <path> --name <n>");
     process.exit(1);
   }
   if (active.length === 1) return active[0].id;

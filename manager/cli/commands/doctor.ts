@@ -7,14 +7,14 @@ import type { Command } from "./Command.ts";
 export const doctorCommand: Command = {
   name: "doctor",
   description: "Environment + daemon sanity checks (DB size, orphan processes, stuck pending)",
-  usage: "claude-manager doctor",
+  usage: "eos doctor",
   async run(_args, ctx): Promise<void> {
     const home = ctx.config.daemon.home;
     const issues: string[] = [];
     const ok = (m: string): void => { console.log(`  ✓ ${m}`); };
     const warn = (m: string): void => { issues.push(m); console.log(`  ⚠ ${m}`); };
 
-    console.log("claude-manager doctor\n");
+    console.log("eos doctor\n");
 
     let daemonUp = false;
     try {
@@ -22,7 +22,7 @@ export const doctorCommand: Command = {
       daemonUp = r.ok;
     } catch {}
     if (daemonUp) ok(`daemon reachable at ${ctx.daemonUrl}`);
-    else warn(`daemon not reachable at ${ctx.daemonUrl} (start it with: claude-manager daemon start)`);
+    else warn(`daemon not reachable at ${ctx.daemonUrl} (start it with: eos daemon start)`);
 
     try {
       const s = statSync(home);

@@ -3,16 +3,31 @@ import { join } from "node:path";
 
 import type { Command } from "./Command.ts";
 
-export const webCommand: Command = {
-  name: "web",
-  description: "Open the web UI in the default browser (starts daemon if needed)",
-  usage: "claude-manager web",
-  async run(_args, ctx): Promise<void> {
+export const startCommand: Command = {
+  name: "start",
+  description: "Start the daemon and open the web UI (-f for foreground)",
+  usage: "eos start [-f|--foreground]",
+  async run(args, ctx): Promise<void> {
+    const foreground = args.includes("-f") || args.includes("--foreground");
+
+    if (foreground) {
+      const child = spawn(
+        "node",
+        ["--no-warnings", "--experimental-strip-types", join(ctx.repoRoot, "manager", "daemon.ts")],
+        { stdio: "inherit" },
+      );
+      child.on("exit", (c) => process.exit(c ?? 0));
+      process.on("SIGINT", () => child.kill("SIGINT"));
+      process.on("SIGTERM", () => child.kill("SIGTERM"));
+      return;
+    }
+
     let alive = false;
     try {
       const r = await fetch(`${ctx.daemonUrl}/health`);
       alive = r.ok;
     } catch {}
+
     if (!alive) {
       console.log("starting daemon…");
       const child = spawn(
@@ -29,12 +44,13 @@ export const webCommand: Command = {
         } catch {}
       }
       if (!alive) {
-        console.error("daemon failed to start — see ~/.claude-mgr/logs or run `claude-manager daemon start` manually");
+        console.error("daemon failed to start — run `eos start -f` for foreground diagnostics");
         process.exit(1);
       }
     }
+
     const webUrl = `${ctx.daemonUrl}/web/`;
-    console.log(`claude-manager web → ${webUrl}`);
+    console.log(`eos → ${webUrl}`);
     const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
     try {
       const op = spawn(opener, [webUrl], { stdio: "ignore", detached: true });

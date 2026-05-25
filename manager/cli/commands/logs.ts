@@ -7,7 +7,7 @@ import type { Command } from "./Command.ts";
 export const logsCommand: Command = {
   name: "logs",
   description: "Tail a worker's stdout/stderr log file",
-  usage: "claude-manager logs <id> [-f|--follow]",
+  usage: "eos logs <id> [-f|--follow]",
   async run(args, ctx): Promise<void> {
     const id = args[0];
     if (!id) { console.error("usage: logs <id> [-f]"); process.exit(1); }

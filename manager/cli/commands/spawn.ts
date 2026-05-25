@@ -6,7 +6,7 @@ import type { Command } from "./Command.ts";
 export const spawnCommand: Command = {
   name: "spawn",
   description: "Spawn a worker in --cwd <dir> or --worktree-from <repo>",
-  usage: "claude-manager spawn (--cwd <dir> | --worktree-from <repo>) --prompt <text> [--name <id>] [--branch <b>] [--with-gateway] [--model opus|sonnet|haiku]",
+  usage: "eos spawn (--cwd <dir> | --worktree-from <repo>) --prompt <text> [--name <id>] [--branch <b>] [--with-gateway] [--model opus|sonnet|haiku]",
   async run(args, ctx): Promise<void> {
     const { values } = parseArgs({
       args,

@@ -1,7 +1,3 @@
-// Command registry. Adding a new command is: one file in this directory
-// implementing Command, one entry in COMMANDS. Aliases route to the same
-// command (e.g. "ls" → list, "stop" → kill).
-
 import type { Command } from "./Command.ts";
 import { hooksCommand } from "./hooks.ts";
 import { listCommand } from "./list.ts";
@@ -9,21 +5,23 @@ import { spawnCommand } from "./spawn.ts";
 import { showCommand } from "./show.ts";
 import { logsCommand } from "./logs.ts";
 import { killCommand } from "./kill.ts";
-import { pendingCommand } from "./pending.ts";
-import { approveCommand } from "./approve.ts";
-import { denyCommand } from "./deny.ts";
+import { permCommand } from "./perm.ts";
 import { orchestratorCommand } from "./orchestrator.ts";
 import { chatCommand } from "./chat.ts";
-import { daemonCommand } from "./daemon.ts";
-import { webCommand } from "./web.ts";
+import { startCommand } from "./start.ts";
+import { stopCommand } from "./stop.ts";
+import { statusCommand } from "./status.ts";
+import { restartCommand } from "./restart.ts";
 import { configCommand } from "./config.ts";
 import { doctorCommand } from "./doctor.ts";
 import { createHelpCommand } from "./help.ts";
 
 const COMMANDS: Command[] = [
-  // Ordered by display priority in `claude-manager help`.
-  daemonCommand,
-  webCommand,
+  // Ordered by display priority in `eos help`.
+  startCommand,
+  stopCommand,
+  restartCommand,
+  statusCommand,
   hooksCommand,
   orchestratorCommand,
   chatCommand,
@@ -32,9 +30,7 @@ const COMMANDS: Command[] = [
   showCommand,
   logsCommand,
   killCommand,
-  pendingCommand,
-  approveCommand,
-  denyCommand,
+  permCommand,
   configCommand,
   doctorCommand,
 ];

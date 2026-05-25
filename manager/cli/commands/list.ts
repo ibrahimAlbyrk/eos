@@ -2,10 +2,10 @@ import type { Command } from "./Command.ts";
 import { fmtDur, short, type WorkerRowMin } from "../format.ts";
 
 export const listCommand: Command = {
-  name: "list",
-  aliases: ["ls"],
+  name: "ls",
+  aliases: ["list"],
   description: "List all workers (active + completed) with state, duration, location, prompt",
-  usage: "claude-manager list",
+  usage: "eos ls",
   async run(_args, ctx): Promise<void> {
     const workers = (await ctx.api("GET", "/workers")) as WorkerRowMin[];
     if (workers.length === 0) {
