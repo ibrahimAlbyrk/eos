@@ -25,7 +25,7 @@ const EFFORT_LABELS = {
   low: "Low", medium: "Medium", high: "High", extrahigh: "Extra high",
 };
 
-export function ComposerControls({ live }) {
+export function ComposerControls({ live, onAttach }) {
   const ui = useUi();
   const draft = ui.drafts.get(ui.selectedId);
   const selected = !draft ? live.workers.find((w) => w.id === ui.selectedId) : null;
@@ -76,7 +76,7 @@ export function ComposerControls({ live }) {
               <path d="M8 3v10M3 8h10" />
             </svg>
           </button>
-          <AttachPopover />
+          <AttachPopover onAttach={onAttach} />
         </div>
       </div>
       <div className="grow"></div>

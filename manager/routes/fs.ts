@@ -22,6 +22,37 @@ export function registerFsRoutes(r: Router, c: Container): void {
     writeJson(res, 200, { path: picked });
   });
 
+  r.get("/pick-file", async ({ res }) => {
+    if (process.platform !== "darwin") {
+      writeJson(res, 501, { error: "file picker only implemented on macOS" });
+      return;
+    }
+    const picked = await c.fs.pickFiles();
+    if (!picked) { writeJson(res, 200, { cancelled: true }); return; }
+    writeJson(res, 200, { paths: picked });
+  });
+
+  r.get("/fs/image", ({ url, res }) => {
+    const qPath = url.searchParams.get("path");
+    if (!isSafeAbsPath(qPath)) { writeJson(res, 400, { error: "absolute path required" }); return; }
+    try {
+      const data = readFileSync(qPath);
+      const ext = qPath.split(".").pop()?.toLowerCase() ?? "";
+      const mimeMap: Record<string, string> = {
+        png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
+        gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
+        bmp: "image/bmp", ico: "image/x-icon",
+      };
+      res.writeHead(200, {
+        "content-type": mimeMap[ext] ?? "application/octet-stream",
+        "cache-control": "public, max-age=86400",
+      });
+      res.end(data);
+    } catch (e) {
+      writeJson(res, 404, { error: (e as Error).message });
+    }
+  });
+
   r.get("/fs/default-app", async ({ url, res }) => {
     const qPath = url.searchParams.get("path");
     const qExt = url.searchParams.get("ext");

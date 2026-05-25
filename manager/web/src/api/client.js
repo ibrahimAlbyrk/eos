@@ -99,6 +99,8 @@ export const api = {
 
   // FS helpers
   async pickDirectory() { return getJson(ROUTES.pickDirectory); },
+  async pickFiles() { return getJson(ROUTES.pickFile); },
+  imageUrl(path) { return `${DAEMON}${ROUTES.fsImage}?path=${encodeURIComponent(path)}`; },
   async getDefaultApp(path) {
     const r = await fetch(`${DAEMON}${ROUTES.fsDefaultApp}?path=${encodeURIComponent(path)}`);
     return r.ok ? r.json() : { app: null };

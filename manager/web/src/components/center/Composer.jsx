@@ -6,6 +6,7 @@ import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
 import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
 import { ComposerControls } from "./ComposerControls.jsx";
 import { CommandMenu } from "./CommandMenu.jsx";
+import { AttachmentChips } from "./AttachmentChips.jsx";
 
 function getCursorOffset(el) {
   const sel = window.getSelection();
@@ -76,6 +77,17 @@ export function Composer({ live }) {
   const editorRef = useRef(null);
   const lastHtmlRef = useRef("");
   const suppressInputRef = useRef(false);
+
+  const [attachments, setAttachments] = useState([]);
+  const addAttachment = useCallback((att) => {
+    setAttachments((prev) => {
+      if (prev.some((a) => a.path === att.path)) return prev;
+      return [...prev, att];
+    });
+  }, []);
+  const removeAttachment = useCallback((path) => {
+    setAttachments((prev) => prev.filter((a) => a.path !== path));
+  }, []);
 
   const draft = ui.drafts.get(ui.selectedId);
   const isDraft = !!draft;
@@ -197,8 +209,16 @@ export function Composer({ live }) {
 
   const send = async () => {
     const t = text.trim();
-    if (!t) return;
+    if (!t && attachments.length === 0) return;
     setTextAndSync("", 0);
+    const currentAttachments = [...attachments];
+    setAttachments([]);
+
+    let fullText = t;
+    if (currentAttachments.length > 0) {
+      const lines = currentAttachments.map((a) => `- ${a.type}: ${a.path}`).join("\n");
+      fullText = t ? `${t}\n\nattachments:\n${lines}` : `attachments:\n${lines}`;
+    }
 
     if (isDraft) {
       const cwd = draft.cwd ?? live.recents[0] ?? null;
@@ -213,8 +233,8 @@ export function Composer({ live }) {
         const realId = r.body.id;
         ui.removeDraft(draftId);
         ui.setSelectedId(realId);
-        ui.addOptimisticUserMessage(realId, t);
-        setTimeout(() => { api.sendOrchestratorMessage(realId, t); }, 1500);
+        ui.addOptimisticUserMessage(realId, fullText);
+        setTimeout(() => { api.sendOrchestratorMessage(realId, fullText); }, 1500);
       } else {
         console.error("spawn failed:", r);
         alert("Failed to create orchestrator.");
@@ -223,8 +243,8 @@ export function Composer({ live }) {
     }
 
     if (selected) {
-      ui.addOptimisticUserMessage(selected.id, t);
-      try { await live.sendToAgent(selected.id, t); }
+      ui.addOptimisticUserMessage(selected.id, fullText);
+      try { await live.sendToAgent(selected.id, fullText); }
       catch (e) { console.error("send failed:", e); }
       return;
     }
@@ -235,8 +255,8 @@ export function Composer({ live }) {
     if (r?.ok && r.body?.id) {
       const realId = r.body.id;
       ui.setSelectedId(realId);
-      ui.addOptimisticUserMessage(realId, t);
-      setTimeout(() => { api.sendOrchestratorMessage(realId, t); }, 1500);
+      ui.addOptimisticUserMessage(realId, fullText);
+      setTimeout(() => { api.sendOrchestratorMessage(realId, fullText); }, 1500);
     }
   };
 
@@ -299,6 +319,9 @@ export function Composer({ live }) {
             query={slashCtx?.query ?? ""}
           />
           <div className="c-row2">
+            {attachments.length > 0 && (
+              <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
+            )}
             <div
               ref={editorRef}
               className="composer-editor"
@@ -320,7 +343,7 @@ export function Composer({ live }) {
           </div>
         </div>
 
-        <ComposerControls live={live} />
+        <ComposerControls live={live} onAttach={addAttachment} />
       </div>
     </div>
   );

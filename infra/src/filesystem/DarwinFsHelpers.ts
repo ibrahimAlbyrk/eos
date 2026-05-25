@@ -14,6 +14,7 @@ export interface AppInfo {
 
 export interface FsHelpers {
   pickDirectory(): Promise<string | null>;
+  pickFiles(): Promise<string[] | null>;
   resolveDefaultApp(opts: { path?: string; ext?: string }): Promise<AppInfo | null>;
   iconForApp(bundlePath: string, bundleId: string): Promise<string | null>;
   openPath(path: string): Promise<void>;
@@ -80,6 +81,22 @@ export function createDarwinFsHelpers(opts: DarwinFsHelpersOptions): FsHelpers {
       });
       if (!out) return null;
       return out.endsWith("/") && out.length > 1 ? out.slice(0, -1) : out;
+    },
+
+    async pickFiles(): Promise<string[] | null> {
+      const out = await new Promise<string>((resolve) => {
+        const proc = spawn(
+          "osascript",
+          ["-e", "try", "-e", 'set f to choose file with prompt "Select files" with multiple selections allowed', "-e", "set out to \"\"", "-e", "repeat with i in f", "-e", "set out to out & POSIX path of i & \"\n\"", "-e", "end repeat", "-e", "return out", "-e", "on error", "-e", 'return ""', "-e", "end try"],
+          { stdio: ["ignore", "pipe", "pipe"] },
+        );
+        let buf = "";
+        proc.stdout.on("data", (d) => { buf += d.toString(); });
+        proc.on("exit", () => resolve(buf.trim()));
+        proc.on("error", () => resolve(""));
+      });
+      if (!out) return null;
+      return out.split("\n").map((p) => p.trim()).filter(Boolean);
     },
 
     async resolveDefaultApp({ path, ext }): Promise<AppInfo | null> {

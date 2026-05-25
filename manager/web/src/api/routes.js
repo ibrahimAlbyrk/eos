@@ -23,6 +23,8 @@ export const ROUTES = {
   metrics: "/metrics",
   uiConfig: "/api/ui-config",
   pickDirectory: "/pick-directory",
+  pickFile: "/pick-file",
+  fsImage: "/fs/image",
   fsDefaultApp: "/fs/default-app",
   fsOpen: "/fs/open",
   fsIcon: "/fs/icon",
