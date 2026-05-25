@@ -4,11 +4,7 @@ export function AgentContextMenu({ live }) {
   const ui = useUi();
   if (ui.openPopover !== "ctx-menu") return null;
   const { x, y } = ui.popoverPos;
-  const { agentId, name, model } = ui.popoverData;
-
-  const sendPrompt = () => {
-    ui.openPop("quick-prompt", { data: { agentId, name, model } });
-  };
+  const { agentId } = ui.popoverData;
 
   const rename = () => {
     ui.setRenamingId(agentId);
@@ -54,13 +50,6 @@ export function AgentContextMenu({ live }) {
       data-popover="ctx-menu"
       style={{ display: "block", left, top }}
     >
-      <button className="menu-item" onClick={sendPrompt}>
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-          <path d="M3 8h9M9 4l4 4-4 4" />
-        </svg>
-        Send prompt
-        <span className="kbd">⌘P</span>
-      </button>
       <button className="menu-item" onClick={rename}>
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M11.5 1.5l3 3L5 14H2v-3z" />

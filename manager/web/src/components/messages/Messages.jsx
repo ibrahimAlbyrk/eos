@@ -5,7 +5,7 @@
 // This is the initial render layer; refinement (tool-group collapse, file
 // chips, table rendering) lives in dedicated sub-components.
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { api } from "../../api/client.js";
 import { fmtElapsedShort } from "../../lib/format.js";
@@ -64,26 +64,81 @@ export function Messages({ live }) {
     return base;
   }, [events, ui.optimisticMsgs, ui.selectedId]);
 
-  // Activity anchor — sits below the most recent block.
-  //   Agent is busy (SPAWNING/WORKING) → animated spark (+ elapsed if last
-  //   block is a user message, so the timer counts from when user sent it)
-  //   Agent is idle and last block is from agent → static spark (anchor)
   const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
-  const lastBlock = blocks[blocks.length - 1];
   const agentBusy = selectedWorker && (selectedWorker.state === "SPAWNING" || selectedWorker.state === "WORKING");
+  const interrupted = live.interruptedId === selectedWorker?.id;
+
+  // Undo: hide the last user message and restore its text to the composer.
+  // hiddenMsgTs persists so the message stays hidden even after interruptedId clears.
+  const [hiddenMsgTs, setHiddenMsgTs] = useState(null);
+  const undoTriggered = ui.undoWorkerId === selectedWorker?.id;
+  const undoFiredRef = useRef(false);
+
+  useEffect(() => { setHiddenMsgTs(null); undoFiredRef.current = false; }, [ui.selectedId]);
+
+  useEffect(() => {
+    if (!undoTriggered || undoFiredRef.current) return;
+    undoFiredRef.current = true;
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      if (blocks[i].kind === "user") {
+        setHiddenMsgTs(blocks[i].ts);
+        ui.setRestoreText(blocks[i].text);
+        ui.removeLastOptimisticMessage(selectedWorker.id);
+        break;
+      }
+    }
+    ui.setUndoWorkerId(null);
+  }, [undoTriggered]);
+
+  const displayBlocks = useMemo(() => {
+    if (!hiddenMsgTs) return blocks;
+    return blocks.filter((b) => !(b.kind === "user" && b.ts === hiddenMsgTs));
+  }, [blocks, hiddenMsgTs]);
+
+  const lastBlock = displayBlocks[displayBlocks.length - 1];
+
+  // Auto-flush queued messages once the agent's response is actually rendered.
+  // Arms on busy→idle; fires when blocks update and last block is agent output.
+  const flushArmedRef = useRef(false);
+  const prevBusyRef = useRef(agentBusy);
+  useEffect(() => {
+    const wasBusy = prevBusyRef.current;
+    prevBusyRef.current = agentBusy;
+    if (agentBusy) { flushArmedRef.current = false; return; }
+    if (wasBusy && !agentBusy && selectedWorker) {
+      const q = ui.queuedMessages.get(selectedWorker.id);
+      if (q && q.length > 0) flushArmedRef.current = true;
+    }
+    if (!flushArmedRef.current || !selectedWorker) return;
+    if (!lastBlock || lastBlock.kind === "user") return;
+    flushArmedRef.current = false;
+    const list = ui.queuedMessages.get(selectedWorker.id);
+    if (!list || list.length === 0) return;
+    const combined = list.map((m) => m.text).join("\n\n");
+    ui.clearQueuedMessages(selectedWorker.id);
+    ui.addOptimisticUserMessage(selectedWorker.id, combined);
+    live.sendToAgent(selectedWorker.id, combined);
+  }, [agentBusy, blocks]);
   const lastIsUser = !!(lastBlock && lastBlock.kind === "user");
   const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "agentRun");
   let lastUserTs = null;
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    if (blocks[i].kind === "user") { lastUserTs = blocks[i].ts; break; }
+  for (let i = displayBlocks.length - 1; i >= 0; i--) {
+    if (displayBlocks[i].kind === "user") { lastUserTs = displayBlocks[i].ts; break; }
   }
   const waitingElapsedMs = agentBusy && lastIsUser && lastUserTs ? Math.max(0, live.now - lastUserTs) : 0;
-  const showAnchor = (agentBusy && blocks.length > 0) || isAgentReply;
+  const showAnchor = !interrupted && ((agentBusy && displayBlocks.length > 0) || isAgentReply);
 
   return (
     <div className="messages-wrap">
       <div className="messages">
-        {blocks.map((b, i) => renderBlock(b, i))}
+        {displayBlocks.map((b, i) => {
+          const isLast = i === displayBlocks.length - 1;
+          const block = renderBlock(b, i, selectedWorker?.cwd);
+          if (isLast && interrupted && b.kind !== "user") {
+            return <div key={i} className="msg-interrupted-wrap">{block}</div>;
+          }
+          return block;
+        })}
         {showAnchor && (
           <ProcessingLine
             busy={!!agentBusy}
@@ -95,9 +150,9 @@ export function Messages({ live }) {
   );
 }
 
-function renderBlock(b, i) {
+function renderBlock(b, i, cwd) {
   switch (b.kind) {
-    case "user":      return <MessageUser key={i} text={b.text} />;
+    case "user":      return <MessageUser key={i} text={b.text} cwd={cwd} />;
     case "report":    return <MessageReport key={i} text={b.text} label={b.workerName || b.fromWorker || "worker"} direction="in" />;
     case "directive": return <MessageReport key={i} text={b.text} label={b.parentName || b.fromParent || "orchestrator"} direction="out" />;
     case "assistant": return <MessageAssistant key={i} text={b.text} />;

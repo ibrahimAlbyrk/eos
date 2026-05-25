@@ -105,7 +105,7 @@ function TreeNode({ node, onRename }) {
     e.preventDefault();
     ui.openPop("ctx-menu", {
       x: e.clientX, y: e.clientY,
-      data: { agentId: node.id, name: nameOf(node), model: node.model },
+      data: { agentId: node.id },
     });
   };
 

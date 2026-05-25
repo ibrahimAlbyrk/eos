@@ -6,6 +6,7 @@ import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
 import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
 import { ComposerControls } from "./ComposerControls.jsx";
 import { CommandMenu } from "./CommandMenu.jsx";
+import { FileMenu } from "./FileMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
 
 function getCursorOffset(el) {
@@ -47,36 +48,66 @@ function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function colorize(text, cmdMap) {
-  if (!text.includes("/") || !cmdMap.size) return null;
-  let html = "";
-  let last = 0;
-  let found = false;
+function colorize(text, cmdMap, filePaths) {
+  const regions = [];
+
   for (let i = 0; i < text.length; i++) {
     if (text[i] !== "/") continue;
     let end = i + 1;
     while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
-    const name = text.slice(i + 1, end);
-    const cmd = cmdMap.get(name);
-    if (!cmd) continue;
-    found = true;
-    if (i > last) html += esc(text.slice(last, i));
-    html += `<span class="cmd-hl">${esc(text.slice(i, end))}</span>`;
-    last = end;
-    i = end - 1;
+    if (cmdMap.has(text.slice(i + 1, end))) {
+      regions.push({ start: i, end });
+    }
   }
-  if (!found) return null;
+
+  for (const [display] of filePaths) {
+    const token = "@" + display;
+    let idx = 0;
+    while ((idx = text.indexOf(token, idx)) !== -1) {
+      regions.push({ start: idx, end: idx + token.length });
+      idx += token.length;
+    }
+  }
+
+  if (regions.length === 0) return null;
+  regions.sort((a, b) => a.start - b.start);
+
+  let html = "";
+  let last = 0;
+  for (const r of regions) {
+    if (r.start < last) continue;
+    if (r.start > last) html += esc(text.slice(last, r.start));
+    html += `<span class="cmd-hl">${esc(text.slice(r.start, r.end))}</span>`;
+    last = r.end;
+  }
+  if (last === 0) return null;
   if (last < text.length) html += esc(text.slice(last));
   return html;
+}
+
+function QueuedPill({ text, onDismiss }) {
+  return (
+    <div className="queued-pill">
+      <div className="queued-pill-text">{text}</div>
+      <button className="queued-pill-x" onClick={onDismiss} title="Cancel queued message">
+        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+          <path d="M4 4l8 8M12 4l-8 8" />
+        </svg>
+      </button>
+    </div>
+  );
 }
 
 export function Composer({ live }) {
   const ui = useUi();
   const [text, setText] = useState("");
   const [menuIndex, setMenuIndex] = useState(0);
+  const [fileMenuIndex, setFileMenuIndex] = useState(0);
+  const [fileResults, setFileResults] = useState([]);
   const editorRef = useRef(null);
   const lastHtmlRef = useRef("");
   const suppressInputRef = useRef(false);
+  const insertedPathsRef = useRef(new Map());
 
   const [attachments, setAttachments] = useState([]);
   const addAttachment = useCallback((att) => {
@@ -110,6 +141,15 @@ export function Composer({ live }) {
     return { start: slashIdx, query: fragment.toLowerCase() };
   }, [text, cursorPos]);
 
+  const atCtx = useMemo(() => {
+    const before = text.slice(0, cursorPos);
+    const atIdx = before.lastIndexOf("@");
+    if (atIdx === -1) return null;
+    const fragment = before.slice(atIdx + 1);
+    if (fragment.includes(" ") || fragment.includes("\n")) return null;
+    return { start: atIdx, query: fragment.toLowerCase() };
+  }, [text, cursorPos]);
+
   const filtered = useMemo(() => {
     if (!slashCtx) return [];
     if (slashCtx.query === "") return commands;
@@ -118,7 +158,44 @@ export function Composer({ live }) {
     );
   }, [commands, slashCtx]);
 
-  const showMenu = filtered.length > 0;
+  const rootCacheRef = useRef({ cwd: null, entries: [] });
+  useEffect(() => {
+    if (!cwd) return;
+    let cancelled = false;
+    api.listFiles(cwd, "").then((r) => {
+      if (!cancelled) rootCacheRef.current = { cwd, entries: r.entries ?? [] };
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [cwd]);
+
+  const fileQuery = atCtx ? atCtx.query : null;
+  useEffect(() => {
+    if (fileQuery === null || !cwd) { setFileResults([]); return; }
+    if (fileQuery === "" && rootCacheRef.current.cwd === cwd) {
+      setFileResults(rootCacheRef.current.entries);
+      return;
+    }
+    let cancelled = false;
+    const delay = fileQuery === "" ? 0 : 150;
+    const timer = setTimeout(() => {
+      api.listFiles(cwd, fileQuery).then((r) => {
+        if (!cancelled) setFileResults(r.entries ?? []);
+      }).catch(() => {});
+    }, delay);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [fileQuery, cwd]);
+
+  const activeMenu = useMemo(() => {
+    if (slashCtx && atCtx) {
+      return atCtx.start > slashCtx.start ? "file" : "slash";
+    }
+    if (slashCtx && filtered.length > 0) return "slash";
+    if (atCtx && fileResults.length > 0) return "file";
+    return null;
+  }, [slashCtx, atCtx, filtered.length, fileResults.length]);
+
+  const showMenu = activeMenu === "slash";
+  const showFileMenu = activeMenu === "file";
 
   const activeHint = useMemo(() => {
     if (!text.includes("/")) return null;
@@ -135,11 +212,19 @@ export function Composer({ live }) {
   }, [text, cmdMap]);
 
   useEffect(() => { setMenuIndex(0); }, [slashCtx?.query]);
+  useEffect(() => { setFileMenuIndex(0); }, [atCtx?.query]);
+
+  useEffect(() => {
+    const paths = insertedPathsRef.current;
+    for (const [display] of paths) {
+      if (!text.includes("@" + display)) paths.delete(display);
+    }
+  }, [text]);
 
   const applyColoring = useCallback(() => {
     const el = editorRef.current;
     if (!el) return;
-    const html = colorize(text, cmdMap);
+    const html = colorize(text, cmdMap, insertedPathsRef.current);
     const target = html ?? esc(text);
     if (target !== lastHtmlRef.current) {
       const off = getCursorOffset(el);
@@ -152,13 +237,31 @@ export function Composer({ live }) {
 
   useLayoutEffect(() => { applyColoring(); }, [applyColoring]);
 
+  useEffect(() => {
+    if (ui.restoreText !== null) {
+      const t = ui.restoreText;
+      ui.setRestoreText(null);
+      setText(t);
+      setCursorPos(t.length);
+      requestAnimationFrame(() => {
+        const el = editorRef.current;
+        if (!el) return;
+        const html = colorize(t, cmdMap, insertedPathsRef.current);
+        lastHtmlRef.current = html ?? esc(t);
+        el.innerHTML = lastHtmlRef.current;
+        setCursorOffset(el, t.length);
+        el.focus();
+      });
+    }
+  }, [ui.restoreText]);
+
   const setTextAndSync = useCallback((newText, newCursor) => {
     suppressInputRef.current = true;
     setText(newText);
     setCursorPos(newCursor ?? newText.length);
     const el = editorRef.current;
     if (!el) return;
-    const html = colorize(newText, cmdMap);
+    const html = colorize(newText, cmdMap, insertedPathsRef.current);
     lastHtmlRef.current = html ?? esc(newText);
     el.innerHTML = lastHtmlRef.current;
     setCursorOffset(el, newCursor ?? newText.length);
@@ -207,17 +310,50 @@ export function Composer({ live }) {
     editorRef.current?.focus();
   };
 
+  const selectFile = (entry) => {
+    if (atCtx) {
+      const before = text.slice(0, atCtx.start);
+      const after = text.slice(cursorPos);
+      const inserted = "@" + entry.relativePath + " ";
+      const newText = before + inserted + after;
+      const newPos = before.length + inserted.length;
+      insertedPathsRef.current.set(entry.relativePath, entry.absolutePath);
+      setTextAndSync(newText, newPos);
+    }
+    setFileMenuIndex(0);
+    editorRef.current?.focus();
+  };
+
+  const findPathAt = (pos) => {
+    for (const [display] of insertedPathsRef.current) {
+      const token = "@" + display;
+      const idx = text.indexOf(token);
+      if (idx !== -1 && pos > idx && pos <= idx + token.length) {
+        return { start: idx, end: idx + token.length, display };
+      }
+    }
+    return null;
+  };
+
   const send = async () => {
     const t = text.trim();
     if (!t && attachments.length === 0) return;
+
+    let displayText = t;
+    let agentText = t;
+    for (const [display, absPath] of insertedPathsRef.current) {
+      agentText = agentText.replaceAll("@" + display, absPath);
+    }
+
     setTextAndSync("", 0);
+    insertedPathsRef.current.clear();
     const currentAttachments = [...attachments];
     setAttachments([]);
-
-    let fullText = t;
     if (currentAttachments.length > 0) {
       const lines = currentAttachments.map((a) => `- ${a.type}: ${a.path}`).join("\n");
-      fullText = t ? `${t}\n\nattachments:\n${lines}` : `attachments:\n${lines}`;
+      const suffix = `\n\nattachments:\n${lines}`;
+      displayText = displayText ? displayText + suffix : `attachments:\n${lines}`;
+      agentText = agentText ? agentText + suffix : `attachments:\n${lines}`;
     }
 
     if (isDraft) {
@@ -234,8 +370,8 @@ export function Composer({ live }) {
         const realId = r.body.id;
         ui.removeDraft(draftId);
         ui.setSelectedId(realId);
-        ui.addOptimisticUserMessage(realId, fullText);
-        setTimeout(() => { api.sendOrchestratorMessage(realId, fullText); }, 1500);
+        ui.addOptimisticUserMessage(realId, displayText, agentText);
+        setTimeout(() => { api.sendOrchestratorMessage(realId, agentText); }, 1500);
       } else {
         console.error("spawn failed:", r);
         alert("Failed to create orchestrator.");
@@ -244,8 +380,13 @@ export function Composer({ live }) {
     }
 
     if (selected) {
-      ui.addOptimisticUserMessage(selected.id, fullText);
-      try { await live.sendToAgent(selected.id, fullText); }
+      const busy = selected.state === "SPAWNING" || selected.state === "WORKING";
+      if (busy) {
+        ui.addQueuedMessage(selected.id, agentText);
+        return;
+      }
+      ui.addOptimisticUserMessage(selected.id, displayText, agentText);
+      try { await live.sendToAgent(selected.id, agentText); }
       catch (e) { console.error("send failed:", e); }
       return;
     }
@@ -256,8 +397,8 @@ export function Composer({ live }) {
     if (r?.ok && r.body?.id) {
       const realId = r.body.id;
       ui.setSelectedId(realId);
-      ui.addOptimisticUserMessage(realId, fullText);
-      setTimeout(() => { api.sendOrchestratorMessage(realId, fullText); }, 1500);
+      ui.addOptimisticUserMessage(realId, displayText, agentText);
+      setTimeout(() => { api.sendOrchestratorMessage(realId, agentText); }, 1500);
     }
   };
 
@@ -280,6 +421,31 @@ export function Composer({ live }) {
       }
       if (e.key === "Escape") {
         e.preventDefault();
+        e.stopPropagation();
+        setTextAndSync("", 0);
+        return;
+      }
+    }
+
+    if (showFileMenu) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setFileMenuIndex((i) => (i + 1) % fileResults.length);
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setFileMenuIndex((i) => (i - 1 + fileResults.length) % fileResults.length);
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        if (fileResults[fileMenuIndex]) selectFile(fileResults[fileMenuIndex]);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
         setTextAndSync("", 0);
         return;
       }
@@ -288,6 +454,14 @@ export function Composer({ live }) {
     if (e.key === "Backspace") {
       const el = editorRef.current;
       const pos = el ? getCursorOffset(el) : 0;
+      const pathHit = findPathAt(pos);
+      if (pathHit) {
+        e.preventDefault();
+        insertedPathsRef.current.delete(pathHit.display);
+        const next = text.slice(0, pathHit.start) + text.slice(pathHit.end);
+        setTextAndSync(next, pathHit.start);
+        return;
+      }
       const cmd = findCommandAt(pos);
       if (cmd) {
         e.preventDefault();
@@ -303,9 +477,23 @@ export function Composer({ live }) {
     }
   };
 
+  const agentBusy = selected && (selected.state === "SPAWNING" || selected.state === "WORKING");
+  const queuedList = selected ? (ui.queuedMessages.get(selected.id) ?? []) : [];
+
   return (
     <div className="composer-wrap">
       <div className="composer-inner">
+        {queuedList.length > 0 && (
+          <div className="queued-list">
+            {queuedList.map((q) => (
+              <QueuedPill
+                key={q.id}
+                text={q.text}
+                onDismiss={() => ui.removeQueuedMessage(selected.id, q.id)}
+              />
+            ))}
+          </div>
+        )}
         {selected ? (
           <ComposerDiffRow live={live} />
         ) : (
@@ -313,12 +501,22 @@ export function Composer({ live }) {
         )}
 
         <div className="c-row2-wrap">
-          <CommandMenu
-            commands={filtered}
-            selectedIndex={menuIndex}
-            onSelect={selectCommand}
-            query={slashCtx?.query ?? ""}
-          />
+          {showMenu && (
+            <CommandMenu
+              commands={filtered}
+              selectedIndex={menuIndex}
+              onSelect={selectCommand}
+              query={slashCtx?.query ?? ""}
+            />
+          )}
+          {showFileMenu && (
+            <FileMenu
+              entries={fileResults}
+              selectedIndex={fileMenuIndex}
+              onSelect={selectFile}
+              query={atCtx?.query ?? ""}
+            />
+          )}
           <div className="c-row2">
             {attachments.length > 0 && (
               <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
@@ -328,7 +526,7 @@ export function Composer({ live }) {
               className="composer-editor"
               contentEditable
               role="textbox"
-              data-placeholder="Type / for commands"
+              data-placeholder="Type / for commands, @ for files"
               data-hint={activeHint || undefined}
               onInput={handleInput}
               onKeyDown={onKey}

@@ -971,6 +971,21 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
    ThinkingLine has no spark — no extra indent needed. */
 .thinking-line .spark ~ .mono { margin-left: 4px; }
 
+/* interrupted indicator — yellow dot outside the left edge of the last block */
+.msg-interrupted-wrap {
+  position: relative;
+}
+.msg-interrupted-wrap::before {
+  content: "";
+  position: absolute;
+  left: -18px;
+  top: 13px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
 /* suggested action chip (e.g. "mcplerini listele") */
 .suggest {
   display: inline-flex;
@@ -1344,6 +1359,24 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   pointer-events: none;
 }
 .composer-editor .cmd-hl { color: var(--accent); }
+/* file menu items (reuses .cmd-menu / .cmd-names container) */
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%; padding: 6px 12px;
+  border-radius: 5px; cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  color: var(--fg-dim);
+  font-weight: 400;
+}
+.file-item b { font-weight: 700; color: var(--fg); }
+.file-item:hover, .file-item.active { background: rgba(255,255,255,0.06); color: var(--fg); }
+.file-icon { display: flex; align-items: center; opacity: 0.5; flex-shrink: 0; }
+.file-item.active .file-icon { opacity: 0.8; }
+.file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-path { margin-left: auto; font-size: 12px; color: var(--fg-faint); opacity: 0.5; white-space: nowrap; flex-shrink: 0; padding-left: 12px; }
 .composer-editor[data-hint]::after {
   content: attr(data-hint);
   color: var(--fg-faint);
@@ -1397,6 +1430,49 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   flex-shrink: 0;
 }
 .c-row2 .submit:hover { color: var(--fg); }
+
+/* ── queued message pills (shown above input when agent is busy) ── */
+.queued-list {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+.queued-pill {
+  position: relative;
+  display: inline-flex;
+  max-width: 80%;
+}
+.queued-pill-text {
+  background: #212b35;
+  color: #0099ff;
+  padding: 6px 13px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  opacity: 0.55;
+}
+.queued-pill-x {
+  display: none;
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--surface-3);
+  border: 1px solid var(--border-strong);
+  color: var(--fg-dim);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 2;
+}
+.queued-pill:hover .queued-pill-x { display: inline-flex; }
+.queued-pill:hover .queued-pill-text { opacity: 0.75; }
+.queued-pill-x:hover { color: var(--fg); background: var(--surface-2); }
 
 /* row 3 — inline plain controls, no container, no border */
 .c-row3 {
@@ -2446,7 +2522,10 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   text-align: left;
 }
 .mp-row:hover { background: rgba(255, 255, 255, 0.05); }
-.mp-row.on { background: rgba(110, 164, 232, 0.10); }
+.mp-row.on {
+  background: rgba(110, 164, 232, 0.13);
+}
+.mp-row.on .mp-name { color: var(--accent); }
 .mp-row .mp-name {
   font-family: "JetBrains Mono", monospace;
   font-size: 12.5px;
@@ -3262,125 +3341,6 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   font-weight: 600;
 }
 .sp-btn.primary:hover { background: #8ab9f0; }
-
-/* ============== Quick prompt modal (Send prompt) ============== */
-.qp-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(8px);
-  display: none;
-  align-items: center;
-  justify-content: center;
-  z-index: 250;
-}
-.qp-overlay.open { display: flex; }
-.qp-modal {
-  width: 460px;
-  max-width: calc(100vw - 48px);
-  display: flex;
-  flex-direction: column;
-}
-.qp-modal__head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 14px 18px 10px;
-  position: relative;
-  z-index: 1;
-}
-.qp-modal__arrow {
-  color: var(--fg-faint);
-  display: inline-flex;
-}
-.qp-modal__name {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--fg);
-  letter-spacing: -0.01em;
-}
-.qp-modal__model {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
-  color: var(--fg-faint);
-  padding: 1px 7px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 10px;
-}
-.qp-modal__close {
-  margin-left: auto;
-  width: 24px;
-  height: 24px;
-  border-radius: 5px;
-  color: var(--fg-faint);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.qp-modal__close:hover { background: rgba(255, 255, 255, 0.08); color: var(--fg); }
-.qp-modal__body {
-  padding: 4px 18px 12px;
-  position: relative;
-  z-index: 1;
-}
-.qp-modal__body textarea {
-  width: 100%;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 7px;
-  padding: 10px 12px;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--fg);
-  font-family: inherit;
-  outline: none;
-  resize: vertical;
-  min-height: 88px;
-  transition: border-color 120ms;
-}
-.qp-modal__body textarea:focus {
-  border-color: rgba(110, 164, 232, 0.45);
-  background: rgba(255, 255, 255, 0.05);
-}
-.qp-modal__foot {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 18px 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  position: relative;
-  z-index: 1;
-}
-.qp-modal__hints {
-  display: flex;
-  gap: 12px;
-  font-size: 11px;
-  color: var(--fg-faint);
-}
-.qp-modal__hints kbd {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
-  padding: 1px 5px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  border-radius: 3px;
-  color: var(--fg-dim);
-  margin-right: 4px;
-}
-.qp-modal__send {
-  margin-left: auto;
-  padding: 7px 14px;
-  border-radius: 6px;
-  font-size: 12.5px;
-  font-weight: 600;
-  background: var(--accent);
-  color: #0a0a0a;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-.qp-modal__send:hover { background: #8ab9f0; }
 
 /* ============================================================================
    FILE VIEWER — right panel split view

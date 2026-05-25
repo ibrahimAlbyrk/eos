@@ -71,6 +71,9 @@ export const api = {
   async sendWorkerMessage(id, text) {
     return postJson(ROUTES.workerMessage(id), { text });
   },
+  async interruptWorker(id) {
+    return postJson(ROUTES.workerInterrupt(id));
+  },
 
   // Orchestrators
   async spawnOrchestrator({ name, cwd, model, effort } = {}) {
@@ -139,6 +142,13 @@ export const api = {
   async setWorkerModel(id, model, effort) {
     return putJson(ROUTES.workerModel(id), { model, effort });
   },
+  async listFiles(cwd, query = "") {
+    const params = new URLSearchParams();
+    if (cwd) params.set("cwd", cwd);
+    if (query) params.set("query", query);
+    return getJson(`${ROUTES.fsList}?${params.toString()}`);
+  },
+
   async listCommands(cwd) {
     const params = cwd ? `?cwd=${encodeURIComponent(cwd)}` : "";
     return getJson(`${ROUTES.commands}${params}`);

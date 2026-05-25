@@ -26,8 +26,14 @@ function basename(path) {
   return p.split("/").pop() || p;
 }
 
-export function MessageUser({ text }) {
+function shortenPaths(text, cwd) {
+  if (!cwd || !text.includes(cwd)) return text;
+  return text.replaceAll(cwd + "/", "@");
+}
+
+export function MessageUser({ text, cwd }) {
   const { display, attachments } = parseAttachments(text);
+  const shortened = shortenPaths(display, cwd);
 
   return (
     <div className="msg-user">
@@ -56,7 +62,7 @@ export function MessageUser({ text }) {
           ))}
         </div>
       )}
-      {display && <div className="b">{display}</div>}
+      {shortened && <div className="b">{shortened}</div>}
     </div>
   );
 }

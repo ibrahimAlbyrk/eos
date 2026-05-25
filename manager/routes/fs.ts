@@ -1,4 +1,6 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
+import { join, basename } from "node:path";
 
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
@@ -6,6 +8,103 @@ import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 import { BranchesQuerySchema } from "../../contracts/src/http.ts";
+
+interface FsEntry {
+  name: string;
+  absolutePath: string;
+  relativePath: string;
+  type: "file" | "directory";
+}
+
+const IGNORED = new Set([".git", "node_modules", ".DS_Store", "__pycache__", ".next", ".nuxt", "dist", "build", ".cache"]);
+
+function sortEntries(a: FsEntry, b: FsEntry): number {
+  if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
+  return a.name.localeCompare(b.name);
+}
+
+function listRootDir(cwd: string): FsEntry[] {
+  const items = readdirSync(cwd, { withFileTypes: true });
+  const entries: FsEntry[] = [];
+  for (const item of items) {
+    if (item.name.startsWith(".") || IGNORED.has(item.name)) continue;
+    entries.push({
+      name: item.name,
+      absolutePath: join(cwd, item.name),
+      relativePath: item.name,
+      type: item.isDirectory() ? "directory" : "file",
+    });
+  }
+  return entries.sort(sortEntries);
+}
+
+function scoreMatch(name: string, relPath: string, query: string): number {
+  const lName = name.toLowerCase();
+  const lPath = relPath.toLowerCase();
+  if (lName === query) return 100;
+  if (lName.startsWith(query)) return 80;
+  if (lName.includes(query)) return 60;
+  if (lPath.includes(query)) return 30;
+  return 0;
+}
+
+function searchProject(cwd: string, query: string, limit: number): FsEntry[] {
+  let fileList: string[];
+  try {
+    const tracked = execSync("git ls-files", { cwd, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
+    const untracked = execSync("git ls-files --others --exclude-standard", { cwd, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
+    fileList = [...new Set([...tracked.trim().split("\n"), ...untracked.trim().split("\n")])].filter(Boolean);
+  } catch {
+    fileList = walkFiles(cwd, cwd, 5);
+  }
+
+  const scored: { entry: FsEntry; score: number }[] = [];
+  const seenDirs = new Set<string>();
+
+  for (const f of fileList) {
+    const parts = f.split("/");
+    let dirPath = "";
+    for (let i = 0; i < parts.length - 1; i++) {
+      dirPath = dirPath ? dirPath + "/" + parts[i] : parts[i];
+      if (seenDirs.has(dirPath)) continue;
+      seenDirs.add(dirPath);
+      const s = scoreMatch(parts[i], dirPath, query);
+      if (s > 0) {
+        scored.push({ entry: { name: parts[i], absolutePath: join(cwd, dirPath), relativePath: dirPath, type: "directory" }, score: s + 1 });
+      }
+    }
+  }
+
+  for (const f of fileList) {
+    const name = basename(f);
+    const s = scoreMatch(name, f, query);
+    if (s > 0) {
+      scored.push({ entry: { name, absolutePath: join(cwd, f), relativePath: f, type: "file" }, score: s });
+    }
+  }
+
+  scored.sort((a, b) => b.score - a.score || sortEntries(a.entry, b.entry));
+  return scored.slice(0, limit).map((s) => s.entry);
+}
+
+function walkFiles(base: string, dir: string, maxDepth: number): string[] {
+  if (maxDepth <= 0) return [];
+  const results: string[] = [];
+  try {
+    const items = readdirSync(dir, { withFileTypes: true });
+    for (const item of items) {
+      if (item.name.startsWith(".") || IGNORED.has(item.name)) continue;
+      const full = join(dir, item.name);
+      const rel = full.slice(base.length + 1);
+      if (item.isDirectory()) {
+        results.push(...walkFiles(base, full, maxDepth - 1));
+      } else {
+        results.push(rel);
+      }
+    }
+  } catch {}
+  return results;
+}
 
 function isSafeAbsPath(p: unknown): p is string {
   return typeof p === "string" && p.startsWith("/") && !p.includes("\0");
@@ -151,6 +250,19 @@ export function registerFsRoutes(r: Router, c: Container): void {
       writeJson(res, 200, { path: qPath, content, lines });
     } catch (e) {
       writeJson(res, 404, { error: (e as Error).message });
+    }
+  });
+
+  r.get("/fs/list", ({ url, res }) => {
+    const cwd = url.searchParams.get("cwd");
+    if (!isSafeAbsPath(cwd)) { writeJson(res, 400, { error: "cwd required" }); return; }
+    const query = (url.searchParams.get("query") ?? "").trim().toLowerCase();
+    const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 200);
+    try {
+      const entries = query ? searchProject(cwd, query, limit) : listRootDir(cwd);
+      writeJson(res, 200, { entries });
+    } catch (e) {
+      writeJson(res, 500, { error: (e as Error).message });
     }
   });
 
