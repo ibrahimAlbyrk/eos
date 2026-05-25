@@ -128,6 +128,9 @@ export const api = {
   },
 
   // Per-agent settings
+  async renameWorker(id, name) {
+    return putJson(ROUTES.workerName(id), { name });
+  },
   async setWorkerPermission(id, mode) {
     return putJson(ROUTES.workerPermission(id), { mode });
   },

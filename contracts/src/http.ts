@@ -251,6 +251,11 @@ export type CommandsResponse = z.infer<typeof CommandsResponseSchema>;
 export const ReportRequestSchema = z.object({ text: z.string().min(1) });
 export type ReportRequest = z.infer<typeof ReportRequestSchema>;
 
+// ---- PUT /workers/:id/name -------------------------------------------------
+
+export const SetNameRequestSchema = z.object({ name: z.string().nullable() });
+export type SetNameRequest = z.infer<typeof SetNameRequestSchema>;
+
 // ---- error envelope --------------------------------------------------------
 
 export const ErrorResponseSchema = z.object({
@@ -290,6 +295,7 @@ export const ROUTES = {
   fsReveal: "/fs/reveal",
   fsRead: "/fs/read",
   fsWrite: "/fs/write",
+  workerName: (id: string): string => `/workers/${id}/name`,
   workerPermission: (id: string): string => `/workers/${id}/permission`,
   workerModel: (id: string): string => `/workers/${id}/model`,
   workerDiff: (id: string): string => `/workers/${id}/diff`,

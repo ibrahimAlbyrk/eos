@@ -18,6 +18,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtMarkDone;
   private readonly stmtAddUsage;
   private readonly stmtIncrementToolCalls;
+  private readonly stmtUpdateName;
   private readonly stmtUpdatePermissionMode;
   private readonly stmtUpdateModel;
   private readonly stmtDelete;
@@ -50,6 +51,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtIncrementToolCalls = db.prepare(
       "UPDATE workers SET tool_calls = COALESCE(tool_calls, 0) + 1 WHERE id = ?",
     );
+    this.stmtUpdateName = db.prepare("UPDATE workers SET name = ? WHERE id = ?");
     this.stmtUpdatePermissionMode = db.prepare("UPDATE workers SET permission_mode = ? WHERE id = ?");
     this.stmtUpdateModel = db.prepare("UPDATE workers SET model = ?, effort = ? WHERE id = ?");
     this.stmtDelete = db.prepare("DELETE FROM workers WHERE id = ?");
@@ -108,6 +110,10 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   incrementToolCalls(id: string): void {
     this.stmtIncrementToolCalls.run(id);
+  }
+
+  updateName(id: string, name: string | null): void {
+    this.stmtUpdateName.run(name, id);
   }
 
   updatePermissionMode(id: string, mode: string): void {

@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { statusFromState } from "../../lib/format.js";
 
@@ -31,7 +32,7 @@ function filterClone(node, q) {
   return null;
 }
 
-export function AgentsTree({ roots, filter }) {
+export function AgentsTree({ roots, filter, onRename }) {
   const visible = visibleNodes(roots, filter);
   if (visible.length === 0) {
     return (
@@ -45,13 +46,49 @@ export function AgentsTree({ roots, filter }) {
   return (
     <div className="agents-section">
       {visible.map((n) => (
-        <TreeNode key={n.id} node={n} />
+        <TreeNode key={n.id} node={n} onRename={onRename} />
       ))}
     </div>
   );
 }
 
-function TreeNode({ node }) {
+function RenameInput({ currentName, onSave, onCancel }) {
+  const [value, setValue] = useState(currentName);
+  const inputRef = useRef(null);
+  const valueRef = useRef(value);
+  const doneRef = useRef(false);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  const commit = useCallback(() => {
+    if (doneRef.current) return;
+    doneRef.current = true;
+    const trimmed = valueRef.current.trim();
+    if (trimmed && trimmed !== currentName) onSave(trimmed);
+    else onCancel();
+  }, [currentName, onSave, onCancel]);
+
+  return (
+    <input
+      ref={inputRef}
+      className="ag-rename-input"
+      value={value}
+      onChange={(e) => { setValue(e.target.value); valueRef.current = e.target.value; }}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") { e.preventDefault(); commit(); }
+        if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+        e.stopPropagation();
+      }}
+      onBlur={commit}
+      onClick={(e) => e.stopPropagation()}
+    />
+  );
+}
+
+function TreeNode({ node, onRename }) {
   const ui = useUi();
   const collapsed = ui.collapsedNodes.has(node.id);
   const hasChildren = node.children.length > 0;
@@ -61,6 +98,7 @@ function TreeNode({ node }) {
   const isSelected = ui.selectedId === node.id;
   const rowCls = ["agents-row"];
   if (isSelected) rowCls.push("on");
+  const isRenaming = ui.renamingId === node.id;
 
   const onClick = () => ui.setSelectedId(node.id);
   const onCtx = (e) => {
@@ -70,6 +108,15 @@ function TreeNode({ node }) {
       data: { agentId: node.id, name: nameOf(node), model: node.model },
     });
   };
+
+  const handleRename = useCallback((newName) => {
+    ui.setRenamingId(null);
+    onRename?.(node.id, newName);
+  }, [node.id, onRename, ui]);
+
+  const cancelRename = useCallback(() => {
+    ui.setRenamingId(null);
+  }, [ui]);
 
   return (
     <div className={cls.join(" ")}>
@@ -88,15 +135,17 @@ function TreeNode({ node }) {
           <span className="tree-chev-spacer"></span>
         )}
         <span className={`ag-dot ${status.dot}`}></span>
-        <span className={`ag-name ${node.is_orchestrator ? "main" : ""}`}>{nameOf(node)}</span>
-        {ui.hasNewActivity(node)
+        {isRenaming
+          ? <RenameInput currentName={nameOf(node)} onSave={handleRename} onCancel={cancelRename} />
+          : <span className={`ag-name ${node.is_orchestrator ? "main" : ""}`}>{nameOf(node)}</span>}
+        {!isRenaming && (ui.hasNewActivity(node)
           ? <span className="ag-notify" aria-label="new activity" title="new activity"></span>
-          : <span className="ag-status">{status.label}</span>}
+          : <span className="ag-status">{status.label}</span>)}
       </div>
       {hasChildren && (
         <div className="tree-children">
           {node.children.map((c) => (
-            <TreeNode key={c.id} node={c} />
+            <TreeNode key={c.id} node={c} onRename={onRename} />
           ))}
         </div>
       )}

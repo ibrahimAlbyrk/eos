@@ -1758,6 +1758,17 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .agents-row .ag-name.main { font-weight: 500; }
+.agents-row .ag-rename-input {
+  flex: 1; min-width: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--fg);
+  font-size: 12.5px;
+  font-family: inherit;
+  padding: 1px 4px;
+  outline: none;
+}
 .agents-row .ag-status {
   font-family: "JetBrains Mono", monospace;
   font-size: 10px;

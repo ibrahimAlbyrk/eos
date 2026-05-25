@@ -9,6 +9,7 @@ import {
   EventsQuerySchema,
   MessageRequestSchema,
   ReportRequestSchema,
+  SetNameRequestSchema,
   SetPermissionRequestSchema,
   SetModelRequestSchema,
 } from "../../contracts/src/http.ts";
@@ -178,6 +179,15 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       c.log.warn("report delivery failed", { worker: params.id, parent: worker.parent_id, error: (e as Error).message });
       writeJson(res, 200, { ok: true, delivered: false });
     }
+  });
+
+  r.put(/^\/workers\/(?<id>[^/]+)\/name$/, async ({ params, req, res }) => {
+    const body = validate(SetNameRequestSchema, await readBody(req));
+    const worker = c.workers.findById(params.id);
+    if (!worker) { writeJson(res, 404, { error: "not found" }); return; }
+    c.workers.updateName(params.id, body.name);
+    c.bus.publish("worker:change", { workerId: params.id });
+    writeJson(res, 200, { ok: true });
   });
 
   r.put(/^\/workers\/(?<id>[^/]+)\/permission$/, async ({ params, req, res }) => {

@@ -117,6 +117,12 @@ export function useLive() {
     return r;
   }, [scheduleRefetch]);
 
+  const renameAgent = useCallback(async (id, name) => {
+    const r = await api.renameWorker(id, name || null);
+    scheduleRefetch();
+    return r;
+  }, [scheduleRefetch]);
+
   const setPermissionMode = useCallback(async (id, mode) => {
     const r = await api.setWorkerPermission(id, mode);
     scheduleRefetch();
@@ -161,6 +167,7 @@ export function useLive() {
     spawnOrchestrator,
     sendToAgent,
     killAgent,
+    renameAgent,
     setPermissionMode,
     setModel,
     refreshRecents,

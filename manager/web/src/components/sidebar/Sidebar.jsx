@@ -101,7 +101,7 @@ export function Sidebar({ live }) {
           </div>
         </div>
 
-        <AgentsTree roots={tree} filter={filter} />
+        <AgentsTree roots={tree} filter={filter} onRename={live.renameAgent} />
       </div>
 
       <div className="side-island side-island--status">

@@ -36,6 +36,7 @@ export interface WorkerRepo {
   markDone(id: string, endedAt: number, exitCode: number | null): void;
   addUsage(id: string, delta: UsageDelta): void;
   incrementToolCalls(id: string): void;
+  updateName(id: string, name: string | null): void;
   updatePermissionMode(id: string, mode: string): void;
   updateModel(id: string, model: string, effort: string | null): void;
   delete(id: string): void;

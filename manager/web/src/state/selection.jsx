@@ -14,6 +14,7 @@ export function SelectionProvider({ children }) {
   const [popoverData, setPopoverData] = useState({});
   const [collapsedNodes, setCollapsedNodes] = useState(() => new Set());
   const [fileViewer, setFileViewer] = useState(null);
+  const [renamingId, setRenamingId] = useState(null);
 
   const openPop = useCallback((id, opts = {}) => {
     setOpenPopover(id);
@@ -57,10 +58,11 @@ export function SelectionProvider({ children }) {
     islandsHidden, setIslandsHidden,
     openPopover, openPop, closeAllPops, popoverPos, popoverData,
     collapsedNodes, toggleNodeCollapsed,
+    renamingId, setRenamingId,
     fileViewer, openFileViewer, closeFileViewer, toggleFileEditMode,
   }), [
     selectedId, sideCollapsed, islandsHidden, openPopover, popoverPos, popoverData,
-    collapsedNodes, fileViewer,
+    collapsedNodes, renamingId, fileViewer,
     openPop, closeAllPops, toggleNodeCollapsed,
     openFileViewer, closeFileViewer, toggleFileEditMode,
   ]);

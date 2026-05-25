@@ -10,6 +10,11 @@ export function AgentContextMenu({ live }) {
     ui.openPop("quick-prompt", { data: { agentId, name, model } });
   };
 
+  const rename = () => {
+    ui.setRenamingId(agentId);
+    ui.closeAllPops();
+  };
+
   const kill = async () => {
     if (!agentId) return;
     // Drafts are local-only — no daemon call.
@@ -40,7 +45,7 @@ export function AgentContextMenu({ live }) {
 
   // Clamp to viewport
   const left = Math.min(x, window.innerWidth - 220);
-  const top = Math.min(y, window.innerHeight - 110);
+  const top = Math.min(y, window.innerHeight - 145);
 
   return (
     <div
@@ -55,6 +60,12 @@ export function AgentContextMenu({ live }) {
         </svg>
         Send prompt
         <span className="kbd">⌘P</span>
+      </button>
+      <button className="menu-item" onClick={rename}>
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M11.5 1.5l3 3L5 14H2v-3z" />
+        </svg>
+        Rename
       </button>
       <div className="menu-sep"></div>
       <button className="menu-item danger" onClick={kill}>
