@@ -14,7 +14,7 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 echo "compiling…"
 swiftc -O \
   -o "$APP_BUNDLE/Contents/MacOS/Eos" \
-  -framework Cocoa -framework WebKit \
+  -framework Cocoa -framework WebKit -framework UserNotifications \
   "$SCRIPT_DIR/main.swift"
 
 cp "$SCRIPT_DIR/Info.plist" "$APP_BUNDLE/Contents/"
@@ -44,5 +44,8 @@ fi
 echo "installing → $INSTALLED"
 rm -rf "$INSTALLED"
 cp -r "$APP_BUNDLE" "$INSTALLED"
+
+echo "signing…"
+codesign --force --deep --sign - "$INSTALLED"
 
 echo "done → $INSTALLED"

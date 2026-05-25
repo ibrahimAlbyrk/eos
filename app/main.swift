@@ -1,15 +1,20 @@
 import Cocoa
 import WebKit
+import UserNotifications
 
 private let DAEMON = "http://127.0.0.1:7400"
 
-class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate, WKScriptMessageHandler {
+class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate, URLSessionDataDelegate {
     var window: NSWindow!
     var webView: WKWebView!
     private var adjustingButtons = false
     private var defaultContainerOrigin: NSPoint?
+    private var sseSession: URLSession?
+    private var sseTask: URLSessionDataTask?
+    private var sseBuffer = Data()
 
     func applicationDidFinishLaunching(_: Notification) {
+        setupNotifications()
         setupWindow()
         ensureDaemon()
     }
@@ -19,7 +24,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         cfg.preferences.setValue(true, forKey: "developerExtrasEnabled")
 
         cfg.userContentController.addUserScript(
-            WKUserScript(source: "document.documentElement.classList.add('native');",
+            WKUserScript(source: """
+                document.documentElement.classList.add('native');
+                document.addEventListener('contextmenu', e => {
+                    if (!e.defaultPrevented) e.preventDefault();
+                });
+                """,
                          injectionTime: .atDocumentStart, forMainFrameOnly: true)
         )
         let dblClickJS = """
@@ -149,6 +159,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
             modifiedSince: .distantPast) { [weak self] in
             guard let url = URL(string: "\(DAEMON)/web/") else { return }
             self?.webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
+            self?.connectSSE()
         }
     }
 
@@ -159,6 +170,80 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         for _ in 0..<5 { d = (d as NSString).deletingLastPathComponent }
         if FileManager.default.fileExists(atPath: "\(d)/manager/daemon.ts") { return d }
         return "/Users/ibrahimalbyrk/Projects/CC/claude-manager"
+    }
+
+    // MARK: - Notifications
+
+    private func setupNotifications() {
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+            if !granted {
+                NSLog("[Eos] notification permission denied: \(error?.localizedDescription ?? "unknown")")
+            }
+        }
+    }
+
+    func userNotificationCenter(_: UNUserNotificationCenter,
+                                didReceive response: UNNotificationResponse,
+                                withCompletionHandler done: @escaping () -> Void) {
+        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        if let wid = response.notification.request.content.userInfo["workerId"] as? String {
+            webView.evaluateJavaScript("window.__nativeNavigate?.('\(wid)')")
+        }
+        done()
+    }
+
+    func userNotificationCenter(_: UNUserNotificationCenter,
+                                willPresent _: UNNotification,
+                                withCompletionHandler done: @escaping (UNNotificationPresentationOptions) -> Void) {
+        done([.banner, .sound])
+    }
+
+    private func showNotification(title: String, body: String, workerId: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.userInfo = ["workerId": workerId]
+        let req = UNNotificationRequest(identifier: "worker-\(workerId)",
+                                        content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(req)
+    }
+
+    // MARK: - SSE
+
+    private func connectSSE() {
+        sseTask?.cancel()
+        sseBuffer = Data()
+        guard let url = URL(string: "\(DAEMON)/stream") else { return }
+        let cfg = URLSessionConfiguration.default
+        cfg.timeoutIntervalForRequest = TimeInterval(INT_MAX)
+        cfg.timeoutIntervalForResource = TimeInterval(INT_MAX)
+        sseSession = URLSession(configuration: cfg, delegate: self, delegateQueue: .main)
+        var req = URLRequest(url: url)
+        req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        sseTask = sseSession?.dataTask(with: req)
+        sseTask?.resume()
+    }
+
+    private func handleSSELine(_ line: String) {
+        guard line.hasPrefix("data: ") else { return }
+        let json = String(line.dropFirst(6))
+        guard let data = json.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let reason = obj["reason"] as? String,
+              reason == "notification:fire" else { return }
+
+        guard !NSApp.isActive else { return }
+
+        guard let payload = obj["payload"] as? [String: Any],
+              let title = payload["title"] as? String,
+              let body = payload["body"] as? String else { return }
+
+        let workerId = payload["workerId"] as? String ?? ""
+        showNotification(title: title, body: body, workerId: workerId)
     }
 
     // MARK: - Navigation
@@ -180,6 +265,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool { true }
+
+    // MARK: - URLSessionDataDelegate (SSE streaming)
+
+    func urlSession(_: URLSession, dataTask _: URLSessionDataTask, didReceive data: Data) {
+        sseBuffer.append(data)
+        while let range = sseBuffer.range(of: Data("\n".utf8)) {
+            let lineData = sseBuffer.subdata(in: sseBuffer.startIndex..<range.lowerBound)
+            sseBuffer.removeSubrange(sseBuffer.startIndex...range.lowerBound)
+            if let line = String(data: lineData, encoding: .utf8), !line.isEmpty {
+                handleSSELine(line)
+            }
+        }
+    }
+
+    func urlSession(_: URLSession, task _: URLSessionTask, didCompleteWithError _: Error?) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            self?.connectSSE()
+        }
+    }
 
     @objc func reloadPage(_: Any?) { webView.reload() }
 

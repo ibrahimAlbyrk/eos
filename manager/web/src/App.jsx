@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { UiProvider, useUi } from "./state/ui.jsx";
 import { useLive } from "./hooks/useLive.js";
+import { useWebNotifications } from "./hooks/useWebNotifications.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { Sidebar } from "./components/sidebar/Sidebar.jsx";
 import { SideHandle } from "./components/sidebar/SideHandle.jsx";
@@ -15,6 +16,14 @@ import { FileViewer } from "./components/messages/FileViewer.jsx";
 function Shell() {
   const ui = useUi();
   const live = useLive();
+
+  useWebNotifications();
+
+  // Native app notification tap → navigate to worker
+  useEffect(() => {
+    window.__nativeNavigate = (id) => ui.setSelectedId(id);
+    return () => { delete window.__nativeNavigate; };
+  }, [ui.setSelectedId]);
 
   // Auto-select first orchestrator on first load
   useEffect(() => {
