@@ -514,12 +514,13 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   padding-right: calc(var(--islands-w) + var(--islands-right) + 20px);
 }
 
-/* scroll-to-bottom pill — sits between messages and composer via flex order */
+/* scroll-to-bottom pill — sticky to bottom-center of messages-wrap */
 .scroll-to-bottom {
+  position: sticky;
+  bottom: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  align-self: center;
   width: 20px;
   height: 20px;
   border-radius: 6px;
@@ -527,11 +528,10 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   background: #2c2c2c;
   color: #999;
   cursor: pointer;
-  z-index: 5;
+  z-index: 2;
   transition: background 0.15s, color 0.15s;
-  flex-shrink: 0;
-  margin: -4px auto 0;
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  margin: 0 auto;
 }
 .scroll-to-bottom:hover {
   background: #363636;

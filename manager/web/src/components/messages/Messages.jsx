@@ -20,7 +20,8 @@ import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
 
 const POLL_MS = 1000;
-const SCROLL_THRESHOLD = 80;
+const SCROLL_THRESHOLD = 2;
+const BUTTON_THRESHOLD = 300;
 
 export function Messages({ live }) {
   const ui = useUi();
@@ -32,9 +33,9 @@ export function Messages({ live }) {
   const checkNearBottom = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD;
-    isNearBottomRef.current = near;
-    setShowScrollBtn(!near);
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    isNearBottomRef.current = dist < SCROLL_THRESHOLD;
+    setShowScrollBtn(dist >= BUTTON_THRESHOLD);
   }, []);
 
   useEffect(() => {
@@ -130,29 +131,27 @@ export function Messages({ live }) {
   useEffect(() => {
     if (isNearBottomRef.current) {
       const el = wrapRef.current;
-      if (el) el.scrollTop = el.scrollHeight;
+      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     }
   }, [blocks]);
 
   return (
-    <>
-      <div className="messages-wrap" ref={wrapRef}>
-        <div className="messages">
-          {blocks.map((b, i) => {
-            const isLast = i === blocks.length - 1;
-            const block = renderBlock(b, i, selectedWorker?.cwd);
-            if (isLast && interrupted && b.kind !== "user") {
-              return <div key={i} className="msg-interrupted-wrap">{block}</div>;
-            }
-            return block;
-          })}
-          {showAnchor && (
-            <ProcessingLine
-              busy={!!agentBusy}
-              elapsed={agentBusy && lastIsUser && lastUserTs && waitingElapsedMs >= 1000 ? fmtElapsedShort(waitingElapsedMs) : null}
-            />
-          )}
-        </div>
+    <div className="messages-wrap" ref={wrapRef}>
+      <div className="messages">
+        {blocks.map((b, i) => {
+          const isLast = i === blocks.length - 1;
+          const block = renderBlock(b, i, selectedWorker?.cwd);
+          if (isLast && interrupted && b.kind !== "user") {
+            return <div key={i} className="msg-interrupted-wrap">{block}</div>;
+          }
+          return block;
+        })}
+        {showAnchor && (
+          <ProcessingLine
+            busy={!!agentBusy}
+            elapsed={agentBusy && lastIsUser && lastUserTs && waitingElapsedMs >= 1000 ? fmtElapsedShort(waitingElapsedMs) : null}
+          />
+        )}
       </div>
       {showScrollBtn && (
         <button className="scroll-to-bottom" onClick={scrollToBottom} aria-label="Scroll to bottom">
@@ -161,7 +160,7 @@ export function Messages({ live }) {
           </svg>
         </button>
       )}
-    </>
+    </div>
   );
 }
 
