@@ -136,6 +136,12 @@ const ingest = startIngestServer(opts.port, {
     evt.emit("lifecycle", { phase: "message_received", text: text.slice(0, 200) });
     dispatchToPty(text);
   },
+  onInterrupt(): { ok: boolean } {
+    pty.write("\x1b");
+    state.lastTurnEndTs = Date.now();
+    evt.emit("lifecycle", { phase: "interrupted" });
+    return { ok: true };
+  },
   onHook(eventName, body): void {
     state.events.push({ event: eventName, t: Date.now() });
     if (!state.sessionId && typeof body.session_id === "string") {

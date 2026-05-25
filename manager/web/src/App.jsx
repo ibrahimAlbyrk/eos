@@ -10,7 +10,6 @@ import { Composer } from "./components/center/Composer.jsx";
 import { Islands } from "./components/islands/Islands.jsx";
 import { IslandHandle } from "./components/islands/IslandHandle.jsx";
 import { AgentContextMenu } from "./components/popovers/AgentContextMenu.jsx";
-import { QuickPromptModal } from "./components/popovers/QuickPromptModal.jsx";
 import { FileViewer } from "./components/messages/FileViewer.jsx";
 
 function Shell() {
@@ -28,6 +27,16 @@ function Shell() {
   useEffect(() => {
     for (const w of live.workers) ui.seedViewed(w);
   }, [live.workers, ui.seedViewed]);
+
+  useEffect(() => {
+    ui.registerEscapeIdle(() => {
+      const w = live.workers.find((x) => x.id === ui.selectedId);
+      if (w && (w.state === "SPAWNING" || w.state === "WORKING")) {
+        live.interruptAgent(w.id);
+        ui.clearQueuedMessages(w.id);
+      }
+    });
+  }, [ui.selectedId, live.workers, live.interruptAgent, ui.registerEscapeIdle, ui.clearQueuedMessages]);
 
   // Continuously mark the currently-selected worker as viewed so its
   // notification badge never fires while the user is actively looking at it.
@@ -97,7 +106,6 @@ function Shell() {
       <FileViewer />
 
       <AgentContextMenu live={live} />
-      <QuickPromptModal live={live} />
     </div>
     </>
   );

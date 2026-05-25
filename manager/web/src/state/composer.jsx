@@ -16,8 +16,6 @@ export function ComposerProvider({ children }) {
   const [optimisticMsgs, setOptimisticMsgs] = useState(() => new Map());
   const [drafts, setDrafts] = useState(() => new Map());
   const [queuedMessages, setQueuedMessages] = useState(() => new Map());
-  const [restoreText, setRestoreText] = useState(null);
-  const [undoWorkerId, setUndoWorkerId] = useState(null);
 
   const updateComposer = useCallback((patch) => {
     setComposer((c) => ({ ...c, ...patch }));
@@ -81,18 +79,6 @@ export function ComposerProvider({ children }) {
     });
   }, []);
 
-  const removeLastOptimisticMessage = useCallback((workerId) => {
-    setOptimisticMsgs((prev) => {
-      const list = prev.get(workerId);
-      if (!list || list.length === 0) return prev;
-      const next = new Map(prev);
-      const remaining = list.slice(0, -1);
-      if (remaining.length === 0) next.delete(workerId);
-      else next.set(workerId, remaining);
-      return next;
-    });
-  }, []);
-
   const clearQueuedMessages = useCallback((workerId) => {
     setQueuedMessages((prev) => {
       if (!prev.has(workerId)) return prev;
@@ -141,16 +127,14 @@ export function ComposerProvider({ children }) {
 
   const value = useMemo(() => ({
     composer, updateComposer,
-    optimisticMsgs, addOptimisticUserMessage, reconcileOptimisticMessages, removeLastOptimisticMessage,
+    optimisticMsgs, addOptimisticUserMessage, reconcileOptimisticMessages,
     drafts, createDraft, updateDraft, removeDraft,
     queuedMessages, addQueuedMessage, removeQueuedMessage, clearQueuedMessages,
-    restoreText, setRestoreText,
-    undoWorkerId, setUndoWorkerId,
   }), [
-    composer, optimisticMsgs, drafts, queuedMessages, restoreText, undoWorkerId,
-    updateComposer, addOptimisticUserMessage, reconcileOptimisticMessages, removeLastOptimisticMessage,
+    composer, optimisticMsgs, drafts, queuedMessages,
+    updateComposer, addOptimisticUserMessage, reconcileOptimisticMessages,
     createDraft, updateDraft, removeDraft,
-    addQueuedMessage, removeQueuedMessage, clearQueuedMessages, setRestoreText, setUndoWorkerId,
+    addQueuedMessage, removeQueuedMessage, clearQueuedMessages,
   ]);
 
   return <ComposerContext.Provider value={value}>{children}</ComposerContext.Provider>;

@@ -32,6 +32,12 @@ export function useLive() {
   const [now, setNow] = useState(Date.now());
   const [lastUsage, setLastUsage] = useState(null);
   const lastUsageWorker = useRef(null);
+  const [interruptedId, _setInterruptedId] = useState(() => localStorage.getItem("cm:interruptedId"));
+  const setInterruptedId = useCallback((id) => {
+    _setInterruptedId(id);
+    if (id) localStorage.setItem("cm:interruptedId", id);
+    else localStorage.removeItem("cm:interruptedId");
+  }, []);
 
   const refetchTimer = useRef(null);
   const scheduleRefetch = useCallback(() => {
@@ -40,11 +46,18 @@ export function useLive() {
       refetchTimer.current = null;
       try {
         const [list, sess] = await Promise.all([api.listWorkers(), api.getSession()]);
-        if (Array.isArray(list)) setWorkers(list);
+        if (Array.isArray(list)) {
+          setWorkers(list);
+          const iid = localStorage.getItem("cm:interruptedId");
+          if (iid) {
+            const w = list.find((x) => x.id === iid);
+            if (!w || w.state === "DONE" || w.state === "IDLE") setInterruptedId(null);
+          }
+        }
         if (sess) setSession(sess);
       } catch { setHealth(false); }
     }, SSE_DEBOUNCE_MS);
-  }, []);
+  }, [setInterruptedId]);
 
   // initial load
   useEffect(() => {
@@ -94,14 +107,15 @@ export function useLive() {
     setRecents(r?.paths ?? []);
   }, []);
 
-  const spawnOrchestrator = useCallback(async ({ name, cwd, model, effort } = {}) => {
-    const r = await api.spawnOrchestrator({ name, cwd, model, effort });
+  const spawnOrchestrator = useCallback(async ({ name, cwd, model, effort, prompt } = {}) => {
+    const r = await api.spawnOrchestrator({ name, cwd, model, effort, prompt });
     scheduleRefetch();
     refreshRecents();
     return r;
   }, [scheduleRefetch, refreshRecents]);
 
   const sendToAgent = useCallback(async (id, text) => {
+    setInterruptedId(null);
     const worker = workers.find((w) => w.id === id);
     if (!worker) return { ok: false, status: 404, body: { error: "not found" } };
     const r = worker.is_orchestrator
@@ -110,6 +124,13 @@ export function useLive() {
     scheduleRefetch();
     return r;
   }, [workers, scheduleRefetch]);
+
+  const interruptAgent = useCallback(async (id) => {
+    setInterruptedId(id);
+    const r = await api.interruptWorker(id);
+    scheduleRefetch();
+    return r;
+  }, [scheduleRefetch]);
 
   const killAgent = useCallback(async (id) => {
     const r = await api.killWorker(id);
@@ -154,10 +175,15 @@ export function useLive() {
     } catch { /* ignore */ }
   }, []);
 
-  const orchestrators = useMemo(() => workers.filter((w) => !!w.is_orchestrator), [workers]);
+  const effectiveWorkers = useMemo(() => {
+    if (!interruptedId) return workers;
+    return workers.map((w) => w.id === interruptedId ? { ...w, state: "IDLE" } : w);
+  }, [workers, interruptedId]);
+
+  const orchestrators = useMemo(() => effectiveWorkers.filter((w) => !!w.is_orchestrator), [effectiveWorkers]);
 
   return {
-    workers,
+    workers: effectiveWorkers,
     orchestrators,
     health,
     session,
@@ -166,6 +192,7 @@ export function useLive() {
     now,
     spawnOrchestrator,
     sendToAgent,
+    interruptAgent,
     killAgent,
     renameAgent,
     setPermissionMode,
@@ -174,5 +201,6 @@ export function useLive() {
     lastUsage,
     updateLastUsage,
     refreshLastUsage,
+    interruptedId,
   };
 }

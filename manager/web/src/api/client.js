@@ -76,8 +76,8 @@ export const api = {
   },
 
   // Orchestrators
-  async spawnOrchestrator({ name, cwd, model, effort } = {}) {
-    return postJson(ROUTES.orchestrators, { name, cwd, model, effort });
+  async spawnOrchestrator({ name, cwd, model, effort, prompt } = {}) {
+    return postJson(ROUTES.orchestrators, { name, cwd, model, effort, prompt });
   },
   async sendOrchestratorMessage(id, text) {
     return postJson(ROUTES.orchestratorMessage(id), { text });

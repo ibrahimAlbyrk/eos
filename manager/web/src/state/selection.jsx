@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 
 const SelectionContext = createContext(null);
 
@@ -15,6 +15,8 @@ export function SelectionProvider({ children }) {
   const [collapsedNodes, setCollapsedNodes] = useState(() => new Set());
   const [fileViewer, setFileViewer] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
+  const escapeIdleRef = useRef(null);
+  const registerEscapeIdle = useCallback((fn) => { escapeIdleRef.current = fn; }, []);
 
   const openPop = useCallback((id, opts = {}) => {
     setOpenPopover(id);
@@ -30,11 +32,14 @@ export function SelectionProvider({ children }) {
 
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") { closeAllPops(); setFileViewer(null); }
+      if (e.key !== "Escape") return;
+      if (openPopover) { closeAllPops(); return; }
+      if (fileViewer) { setFileViewer(null); return; }
+      if (escapeIdleRef.current) { e.preventDefault(); escapeIdleRef.current(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeAllPops]);
+  }, [closeAllPops, openPopover, fileViewer]);
 
   const toggleNodeCollapsed = useCallback((id) => {
     setCollapsedNodes((prev) => {
@@ -60,11 +65,13 @@ export function SelectionProvider({ children }) {
     collapsedNodes, toggleNodeCollapsed,
     renamingId, setRenamingId,
     fileViewer, openFileViewer, closeFileViewer, toggleFileEditMode,
+    registerEscapeIdle,
   }), [
     selectedId, sideCollapsed, islandsHidden, openPopover, popoverPos, popoverData,
     collapsedNodes, renamingId, fileViewer,
     openPop, closeAllPops, toggleNodeCollapsed,
     openFileViewer, closeFileViewer, toggleFileEditMode,
+    registerEscapeIdle,
   ]);
 
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;

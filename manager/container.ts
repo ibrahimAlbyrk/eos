@@ -233,6 +233,11 @@ export function buildContainer() {
     } catch {}
   };
 
+  // Interrupt cooldown — suppresses heartbeat/hook → WORKING transitions
+  // for a short window after an interrupt so the IDLE state sticks.
+  const interruptCooldowns = new Map<string, number>();
+  const INTERRUPT_COOLDOWN_MS = 4_000;
+
   return {
     config,
     log,
@@ -257,6 +262,18 @@ export function buildContainer() {
     buildArgs,
     buildEnv,
     logFileFor,
+    markInterrupted(workerId: string): void {
+      interruptCooldowns.set(workerId, Date.now() + INTERRUPT_COOLDOWN_MS);
+    },
+    clearInterrupted(workerId: string): void {
+      interruptCooldowns.delete(workerId);
+    },
+    isInterruptCooldown(workerId: string): boolean {
+      const until = interruptCooldowns.get(workerId);
+      if (!until) return false;
+      if (Date.now() > until) { interruptCooldowns.delete(workerId); return false; }
+      return true;
+    },
     writeOrchestratorMcpConfig,
     cleanupOrchestratorMcpConfig,
     reloadPolicy(): void {

@@ -7,6 +7,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 
 export interface IngestHandlers {
   onMessage(text: string): void;
+  onInterrupt(): { ok: boolean; reason?: string };
   onHook(eventName: string, body: Record<string, unknown>): void;
 }
 
@@ -55,6 +56,12 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
           res.writeHead(500, { "content-type": "application/json" });
           res.end(JSON.stringify({ error: (e as Error).message }));
         }
+        return;
+      }
+      if (url.pathname === "/interrupt") {
+        const result = handlers.onInterrupt();
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(result));
         return;
       }
       // /event?event=<name>

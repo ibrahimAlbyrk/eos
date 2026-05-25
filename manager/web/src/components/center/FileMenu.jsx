@@ -17,6 +17,17 @@ function FileIcon() {
   );
 }
 
+function AgentIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="5" r="3" />
+      <path d="M2.5 14a5.5 5.5 0 0111 0" />
+    </svg>
+  );
+}
+
+const STATE_COLORS = { WORKING: "var(--ok)", IDLE: "var(--fg-faint)", SPAWNING: "var(--warn)" };
+
 function HighlightedName({ name, query }) {
   if (!query) return <span>{name}</span>;
   const idx = name.toLowerCase().indexOf(query.toLowerCase());
@@ -28,6 +39,10 @@ function HighlightedName({ name, query }) {
       {name.slice(idx + query.length)}
     </span>
   );
+}
+
+function entryKey(entry) {
+  return entry.type === "agent" ? `agent:${entry.id}` : entry.absolutePath;
 }
 
 export function FileMenu({ entries, selectedIndex, onSelect, query }) {
@@ -46,12 +61,31 @@ export function FileMenu({ entries, selectedIndex, onSelect, query }) {
       <div className="cmd-names">
         <div className="cmd-names-inner" ref={listRef}>
           {entries.map((entry, i) => {
-            const parentDir = entry.relativePath.includes("/")
+            if (entry.type === "agent") {
+              return (
+                <button
+                  key={entryKey(entry)}
+                  className={"file-item" + (i === selectedIndex ? " active" : "")}
+                  onMouseDown={(e) => { e.preventDefault(); onSelect(entry); }}
+                >
+                  <span className="file-icon">
+                    <AgentIcon />
+                  </span>
+                  <span className="file-name">
+                    <HighlightedName name={entry.name} query={query} />
+                  </span>
+                  <span className="file-path" style={{ color: STATE_COLORS[entry.state] || "var(--fg-faint)" }}>
+                    {(entry.state || "").toLowerCase()}
+                  </span>
+                </button>
+              );
+            }
+            const parentDir = entry.relativePath?.includes("/")
               ? entry.relativePath.slice(0, entry.relativePath.lastIndexOf("/"))
               : "";
             return (
               <button
-                key={entry.absolutePath}
+                key={entryKey(entry)}
                 className={"file-item" + (i === selectedIndex ? " active" : "")}
                 onMouseDown={(e) => { e.preventDefault(); onSelect(entry); }}
               >

@@ -42,6 +42,7 @@ export const SpawnOrchestratorRequestSchema = z.object({
   cwd: z.string().min(1),
   model: z.string().optional(),
   effort: z.string().optional(),
+  prompt: z.string().optional(),
 });
 export type SpawnOrchestratorRequest = z.infer<typeof SpawnOrchestratorRequestSchema>;
 
@@ -301,6 +302,7 @@ export const ROUTES = {
   workerPermission: (id: string): string => `/workers/${id}/permission`,
   workerModel: (id: string): string => `/workers/${id}/model`,
   workerDiff: (id: string): string => `/workers/${id}/diff`,
+  workerInterrupt: (id: string): string => `/workers/${id}/interrupt`,
   workerReport: (id: string): string => `/workers/${id}/report`,
   commands: "/commands",
   web: "/web/",

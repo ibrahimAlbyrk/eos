@@ -1,10 +1,13 @@
 import { useUi } from "../../state/ui.jsx";
 
 const MODELS = [
-  { id: "haiku-4.5",  label: "haiku-4.5",  tag: "fastest" },
-  { id: "sonnet-4.5", label: "sonnet-4.5", tag: "balanced" },
-  { id: "opus-4.7",   label: "opus-4.7",   tag: "most capable" },
+  { id: "haiku-4.5",  aliases: ["haiku"],  label: "haiku-4.5",  tag: "fastest" },
+  { id: "sonnet-4.5", aliases: ["sonnet"], label: "sonnet-4.5", tag: "balanced" },
+  { id: "opus-4.7",   aliases: ["opus"],   label: "opus-4.7",   tag: "most capable" },
 ];
+
+const matchesModel = (current, model) =>
+  current === model.id || model.aliases.includes(current);
 
 const EFFORTS = [
   { id: "low",       label: "Low" },
@@ -37,7 +40,7 @@ export function ModelPopover({ live }) {
     <div className="model-popover glass-pop open" id="modelPopover" data-popover="model">
       <div className="mp-head">Model</div>
       {MODELS.map((m) => (
-        <button key={m.id} className={"mp-row" + (currentModel === m.id ? " on" : "")} onClick={() => pickModel(m.id)}>
+        <button key={m.id} className={"mp-row" + (matchesModel(currentModel, m) ? " on" : "")} onClick={() => pickModel(m.id)}>
           <span className="mp-name">{m.label}</span>
           <span className="mp-tag">{m.tag}</span>
         </button>

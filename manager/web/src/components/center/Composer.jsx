@@ -185,14 +185,30 @@ export function Composer({ live }) {
     return () => { cancelled = true; clearTimeout(timer); };
   }, [fileQuery, cwd]);
 
+  const childAgents = useMemo(() => {
+    if (!selected || selected.parent_id) return [];
+    return live.workers
+      .filter((w) => w.parent_id === selected.id)
+      .map((w) => ({ name: w.name || w.id, type: "agent", state: w.state, id: w.id }));
+  }, [selected, live.workers]);
+
+  const atResults = useMemo(() => {
+    if (!atCtx) return [];
+    const q = atCtx.query;
+    const agents = q === ""
+      ? childAgents
+      : childAgents.filter((a) => a.name.toLowerCase().includes(q));
+    return [...agents, ...fileResults];
+  }, [atCtx, childAgents, fileResults]);
+
   const activeMenu = useMemo(() => {
     if (slashCtx && atCtx) {
-      return atCtx.start > slashCtx.start ? "file" : "slash";
+      return atCtx.start < slashCtx.start ? "file" : "slash";
     }
     if (slashCtx && filtered.length > 0) return "slash";
-    if (atCtx && fileResults.length > 0) return "file";
+    if (atCtx && atResults.length > 0) return "file";
     return null;
-  }, [slashCtx, atCtx, filtered.length, fileResults.length]);
+  }, [slashCtx, atCtx, filtered.length, atResults.length]);
 
   const showMenu = activeMenu === "slash";
   const showFileMenu = activeMenu === "file";
@@ -217,7 +233,11 @@ export function Composer({ live }) {
   useEffect(() => {
     const paths = insertedPathsRef.current;
     for (const [display] of paths) {
-      if (!text.includes("@" + display)) paths.delete(display);
+      const token = "@" + display;
+      const idx = text.indexOf(token);
+      if (idx === -1) { paths.delete(display); continue; }
+      const after = text[idx + token.length];
+      if (after && after !== " " && after !== "\n") paths.delete(display);
     }
   }, [text]);
 
@@ -232,28 +252,12 @@ export function Composer({ live }) {
       lastHtmlRef.current = target;
       el.innerHTML = target;
       setCursorOffset(el, off);
+      queueMicrotask(() => { suppressInputRef.current = false; });
     }
   }, [text, cmdMap]);
 
   useLayoutEffect(() => { applyColoring(); }, [applyColoring]);
 
-  useEffect(() => {
-    if (ui.restoreText !== null) {
-      const t = ui.restoreText;
-      ui.setRestoreText(null);
-      setText(t);
-      setCursorPos(t.length);
-      requestAnimationFrame(() => {
-        const el = editorRef.current;
-        if (!el) return;
-        const html = colorize(t, cmdMap, insertedPathsRef.current);
-        lastHtmlRef.current = html ?? esc(t);
-        el.innerHTML = lastHtmlRef.current;
-        setCursorOffset(el, t.length);
-        el.focus();
-      });
-    }
-  }, [ui.restoreText]);
 
   const setTextAndSync = useCallback((newText, newCursor) => {
     suppressInputRef.current = true;
@@ -265,13 +269,15 @@ export function Composer({ live }) {
     lastHtmlRef.current = html ?? esc(newText);
     el.innerHTML = lastHtmlRef.current;
     setCursorOffset(el, newCursor ?? newText.length);
+    queueMicrotask(() => { suppressInputRef.current = false; });
   }, [cmdMap]);
 
   const handleInput = () => {
     if (suppressInputRef.current) { suppressInputRef.current = false; return; }
     const el = editorRef.current;
     if (!el) return;
-    const raw = el.innerText;
+    let raw = el.innerText;
+    if (raw === "\n") raw = "";
     const off = getCursorOffset(el);
     setText(raw);
     setCursorPos(off);
@@ -311,14 +317,25 @@ export function Composer({ live }) {
   };
 
   const selectFile = (entry) => {
-    if (atCtx) {
-      const before = text.slice(0, atCtx.start);
-      const after = text.slice(cursorPos);
+    if (!atCtx) return;
+    const before = text.slice(0, atCtx.start);
+    const after = text.slice(cursorPos);
+    const newDisplay = entry.type === "agent" ? entry.name : entry.relativePath;
+    for (const [existing] of insertedPathsRef.current) {
+      if (newDisplay.startsWith(existing + "/") || existing.startsWith(newDisplay + "/") || existing === newDisplay) {
+        insertedPathsRef.current.delete(existing);
+      }
+    }
+    if (entry.type === "agent") {
+      const inserted = "@" + entry.name + " ";
+      const newText = before + inserted + after;
+      insertedPathsRef.current.set(entry.name, "@" + entry.name);
+      setTextAndSync(newText, before.length + inserted.length);
+    } else {
       const inserted = "@" + entry.relativePath + " ";
       const newText = before + inserted + after;
-      const newPos = before.length + inserted.length;
       insertedPathsRef.current.set(entry.relativePath, entry.absolutePath);
-      setTextAndSync(newText, newPos);
+      setTextAndSync(newText, before.length + inserted.length);
     }
     setFileMenuIndex(0);
     editorRef.current?.focus();
@@ -365,13 +382,13 @@ export function Composer({ live }) {
         cwd,
         model: draft.model,
         effort: draft.effort,
+        prompt: agentText,
       });
       if (r?.ok && r.body?.id) {
         const realId = r.body.id;
         ui.removeDraft(draftId);
         ui.setSelectedId(realId);
         ui.addOptimisticUserMessage(realId, displayText, agentText);
-        setTimeout(() => { api.sendOrchestratorMessage(realId, agentText); }, 1500);
       } else {
         console.error("spawn failed:", r);
         alert("Failed to create orchestrator.");
@@ -393,12 +410,11 @@ export function Composer({ live }) {
 
     const cwdFallback = ui.composer.cwd ?? live.recents[0] ?? null;
     if (!cwdFallback) { alert("Pick a folder first."); return; }
-    const r = await live.spawnOrchestrator({ cwd: cwdFallback, model: ui.composer.model, effort: ui.composer.effort });
+    const r = await live.spawnOrchestrator({ cwd: cwdFallback, model: ui.composer.model, effort: ui.composer.effort, prompt: agentText });
     if (r?.ok && r.body?.id) {
       const realId = r.body.id;
       ui.setSelectedId(realId);
       ui.addOptimisticUserMessage(realId, displayText, agentText);
-      setTimeout(() => { api.sendOrchestratorMessage(realId, agentText); }, 1500);
     }
   };
 
@@ -430,17 +446,17 @@ export function Composer({ live }) {
     if (showFileMenu) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
-        setFileMenuIndex((i) => (i + 1) % fileResults.length);
+        setFileMenuIndex((i) => (i + 1) % atResults.length);
         return;
       }
       if (e.key === "ArrowUp") {
         e.preventDefault();
-        setFileMenuIndex((i) => (i - 1 + fileResults.length) % fileResults.length);
+        setFileMenuIndex((i) => (i - 1 + atResults.length) % atResults.length);
         return;
       }
       if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
-        if (fileResults[fileMenuIndex]) selectFile(fileResults[fileMenuIndex]);
+        if (atResults[fileMenuIndex]) selectFile(atResults[fileMenuIndex]);
         return;
       }
       if (e.key === "Escape") {
@@ -511,7 +527,7 @@ export function Composer({ live }) {
           )}
           {showFileMenu && (
             <FileMenu
-              entries={fileResults}
+              entries={atResults}
               selectedIndex={fileMenuIndex}
               onSelect={selectFile}
               query={atCtx?.query ?? ""}
@@ -527,6 +543,7 @@ export function Composer({ live }) {
               contentEditable
               role="textbox"
               data-placeholder="Type / for commands, @ for files"
+              data-empty={!text ? "" : undefined}
               data-hint={activeHint || undefined}
               onInput={handleInput}
               onKeyDown={onKey}

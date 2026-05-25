@@ -33,7 +33,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         recents: c.recents,
       },
       {
-        prompt: "",
+        prompt: body.prompt ?? "",
         cwd,
         name,
         fixedId: id,
@@ -46,11 +46,16 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         isOrchestrator: true,
       },
     );
+    if (body.prompt) {
+      c.events.append(id, c.clock.now(), "user_message", { text: body.prompt });
+      c.bus.publish("worker:change", { workerId: id });
+    }
     writeJson(res, 201, { ...result, name });
   });
 
   r.post(/^\/orchestrators\/(?<id>[^/]+)\/message$/, async ({ params, req, res }) => {
     const body = validate(MessageRequestSchema, await readBody(req));
+    c.clearInterrupted(params.id);
     const result = await dispatchMessage(
       {
         workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,

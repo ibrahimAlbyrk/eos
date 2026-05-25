@@ -1353,7 +1353,7 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   word-break: break-word;
   -webkit-user-modify: read-write-plaintext-only;
 }
-.composer-editor:empty::before {
+.composer-editor[data-empty]::before {
   content: attr(data-placeholder);
   color: var(--fg-faint);
   pointer-events: none;
@@ -1419,8 +1419,8 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
 }
 .c-row2 .composer-editor, .c-row2 .submit { position: relative; z-index: 1; }
 .c-row2 .submit { transition: color 180ms, opacity 180ms; }
-.c-row2:has(.composer-editor:empty) .submit { color: var(--fg-faint); opacity: 0.55; }
-.c-row2:not(:has(.composer-editor:empty)) .submit { color: var(--fg-dim); opacity: 1; }
+.c-row2:has(.composer-editor[data-empty]) .submit { color: var(--fg-faint); opacity: 0.55; }
+.c-row2:not(:has(.composer-editor[data-empty])) .submit { color: var(--fg-dim); opacity: 1; }
 .c-row2 .submit {
   width: 22px; height: 22px;
   border-radius: 4px;

@@ -25,6 +25,9 @@ export interface ProcessWorkerEventDeps {
   /** Called after a usage event is recorded; lets the limits enforcer check
    * the new cumulative cost right away. */
   onUsageRecorded?(workerId: string): void;
+  /** Returns true while a worker is in interrupt cooldown — suppresses
+   *  heartbeat/hook transitions back to WORKING. */
+  isInterruptCooldown?(workerId: string): boolean;
 }
 
 export interface WorkerEventInput {
@@ -53,8 +56,8 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
   },
   hook(deps, input) {
     const evt = (input.payload as { event?: string })?.event;
-    // Hook → state mapping. Static rules; future hook event names go here.
     if (evt === "PostToolUse") {
+      if (deps.isInterruptCooldown?.(input.workerId)) return;
       transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: "hook:PostToolUse" });
     } else if (evt === "Stop") {
       transitionState(deps, { workerId: input.workerId, next: "IDLE", reason: "hook:Stop" });
@@ -63,8 +66,6 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
     }
   },
   jsonl(deps, input) {
-    // Lift SPAWNING → WORKING when the model emits anything substantive,
-    // even before the first tool runs.
     const kind = (input.payload as { kind?: string })?.kind;
     if (kind === "assistant_text" || kind === "thinking" || kind === "tool_use") {
       const cur = deps.workers.findById(input.workerId);
@@ -77,6 +78,7 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
     }
   },
   heartbeat(deps, input) {
+    if (deps.isInterruptCooldown?.(input.workerId)) return;
     const cur = deps.workers.findById(input.workerId);
     if (cur && (cur.state === "SPAWNING" || cur.state === "IDLE")) {
       transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: "heartbeat" });

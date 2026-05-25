@@ -103,6 +103,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         workers: c.workers, events: c.events, bus: c.bus,
         clock: c.clock, models: c.models, log: c.log,
         onUsageRecorded: (id) => c.limitsEnforcer.check(id),
+        isInterruptCooldown: (id) => c.isInterruptCooldown(id),
       },
       { workerId: params.id, type: body.type, payload: body.payload },
     );
@@ -115,6 +116,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const fromParent = typeof raw.fromParent === "string" ? raw.fromParent : null;
 
     if (fromParent) {
+      c.clearInterrupted(params.id);
       const worker = c.workers.findById(params.id);
       if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
       const parent = c.workers.findById(fromParent);
@@ -136,6 +138,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       return;
     }
 
+    c.clearInterrupted(params.id);
     const result = await dispatchMessage(
       {
         workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
@@ -146,6 +149,20 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       { workerId: params.id, text: body.text },
     );
     writeJson(res, result.status, result.body);
+  });
+
+  r.post(/^\/workers\/(?<id>[^/]+)\/interrupt$/, ({ params, res }) => {
+    const worker = c.workers.findById(params.id);
+    if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
+    if (!c.supervisor.has(params.id)) { writeJson(res, 409, { error: "worker not running" }); return; }
+    c.markInterrupted(params.id);
+    c.httpWorkerClient.sendInterrupt(worker.port).catch(() => {});
+    transitionState(
+      { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },
+      { workerId: params.id, next: "IDLE", reason: "interrupt" },
+    );
+    c.bus.publish("worker:change", { workerId: params.id });
+    writeJson(res, 200, { ok: true });
   });
 
   r.post(/^\/workers\/(?<id>[^/]+)\/report$/, async ({ params, req, res }) => {
