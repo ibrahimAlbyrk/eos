@@ -49,7 +49,8 @@ describe("loadConfig — defaults", () => {
     delete process.env.CLAUDE_MGR_REPO_ROOT;
     const cfg = await freshLoad();
     // detectRepoRoot() goes two levels up from shared/config.ts ⇒ the repo root.
-    assert.ok(cfg.paths.repoRoot.endsWith("claude-manager"), `unexpected repoRoot: ${cfg.paths.repoRoot}`);
+    const fs = await import("node:fs");
+    assert.ok(fs.existsSync(`${cfg.paths.repoRoot}/manager/daemon.ts`), `unexpected repoRoot: ${cfg.paths.repoRoot}`);
   });
   it("derives workerScript from repoRoot", async () => {
     delete process.env.CLAUDE_MGR_REPO_ROOT;
