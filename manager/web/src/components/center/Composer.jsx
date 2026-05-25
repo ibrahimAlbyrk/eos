@@ -228,6 +228,7 @@ export function Composer({ live }) {
         name: draft.name || undefined,
         cwd,
         model: draft.model,
+        effort: draft.effort,
       });
       if (r?.ok && r.body?.id) {
         const realId = r.body.id;
@@ -251,7 +252,7 @@ export function Composer({ live }) {
 
     const cwdFallback = ui.composer.cwd ?? live.recents[0] ?? null;
     if (!cwdFallback) { alert("Pick a folder first."); return; }
-    const r = await live.spawnOrchestrator({ cwd: cwdFallback, model: ui.composer.model });
+    const r = await live.spawnOrchestrator({ cwd: cwdFallback, model: ui.composer.model, effort: ui.composer.effort });
     if (r?.ok && r.body?.id) {
       const realId = r.body.id;
       ui.setSelectedId(realId);

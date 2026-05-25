@@ -16,6 +16,7 @@ export interface InsertWorkerInput {
   startedAt: number;
   parentId: string | null;
   model: string;
+  effort: string | null;
   isOrchestrator: boolean;
 }
 

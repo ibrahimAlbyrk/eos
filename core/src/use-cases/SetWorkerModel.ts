@@ -39,11 +39,16 @@ export async function setWorkerModel(
   let runtimeApplied = false;
   if (w.port) {
     try {
-      const slash = `/model ${input.model}`;
-      const r = await deps.client.sendMessage(w.port, slash);
+      const modelSlash = `/model ${input.model}`;
+      const r = await deps.client.sendMessage(w.port, modelSlash);
       runtimeApplied = r.ok;
+      if (effort) {
+        const effortSlash = `/effort ${effort}`;
+        const er = await deps.client.sendMessage(w.port, effortSlash);
+        runtimeApplied = runtimeApplied && er.ok;
+      }
     } catch (e) {
-      deps.log.warn("model runtime apply failed", {
+      deps.log.warn("model/effort runtime apply failed", {
         worker: input.workerId, error: (e as Error).message,
       });
     }

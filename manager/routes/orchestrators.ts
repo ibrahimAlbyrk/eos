@@ -42,6 +42,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         mcpConfig: mcpPath,
         claudePermissionMode: "bypassPermissions",
         model: body.model ?? "opus",
+        effort: body.effort ?? "high",
         isOrchestrator: true,
       },
     );

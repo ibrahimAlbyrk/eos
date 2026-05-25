@@ -22,7 +22,7 @@ const MODEL_LABELS = {
 };
 
 const EFFORT_LABELS = {
-  low: "Low", medium: "Medium", high: "High", extrahigh: "Extra high",
+  low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max",
 };
 
 export function ComposerControls({ live, onAttach }) {

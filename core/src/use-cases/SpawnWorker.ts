@@ -26,6 +26,7 @@ export interface SpawnWorkerSpec {
   fixedId?: string;
   parentId?: string;
   model?: string;
+  effort?: string;
   isOrchestrator?: boolean;
   maxCostUsd?: number;
   maxElapsedMs?: number;
@@ -64,6 +65,7 @@ export async function spawnWorker(
   const id = spec.fixedId ?? deps.ids.newWorkerId();
   const port = await deps.ports.allocate();
   const model = spec.model ?? "opus";
+  const effort = spec.effort ?? "high";
 
   const args = deps.buildArgs({ id, port, spec, model });
   const env = deps.buildEnv({ id, spec });
@@ -94,6 +96,7 @@ export async function spawnWorker(
     startedAt: deps.clock.now(),
     parentId: spec.parentId ?? null,
     model,
+    effort,
     isOrchestrator: !!spec.isOrchestrator,
   });
 

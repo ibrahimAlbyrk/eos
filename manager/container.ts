@@ -189,6 +189,7 @@ export function buildContainer() {
     if (spec.permissionPromptTool) args.push("--permission-prompt-tool", spec.permissionPromptTool);
     if (spec.claudePermissionMode) args.push("--claude-permission-mode", spec.claudePermissionMode);
     args.push("--model", model);
+    if (spec.effort) args.push("--effort", spec.effort);
     return args;
   };
 

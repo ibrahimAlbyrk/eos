@@ -19,6 +19,7 @@ export const SpawnWorkerRequestSchema = z
     name: z.string().optional(),
     withGateway: z.boolean().optional(),
     model: z.string().optional(),
+    effort: z.string().optional(),
     maxCostUsd: z.number().nonnegative().optional(),
     maxElapsedMs: z.number().int().positive().optional(),
     parentId: z.string().optional(),
@@ -40,6 +41,7 @@ export const SpawnOrchestratorRequestSchema = z.object({
   name: z.string().optional(),
   cwd: z.string().min(1),
   model: z.string().optional(),
+  effort: z.string().optional(),
 });
 export type SpawnOrchestratorRequest = z.infer<typeof SpawnOrchestratorRequestSchema>;
 

@@ -73,5 +73,6 @@ export function buildClaudeArgs(
   if (opts.systemPromptFile) args.push("--append-system-prompt-file", opts.systemPromptFile);
   if (opts.claudePermissionMode) args.push("--permission-mode", opts.claudePermissionMode);
   args.push("--model", opts.model);
+  if (opts.effort) args.push("--effort", opts.effort);
   return { args, syntheticMcpPath };
 }

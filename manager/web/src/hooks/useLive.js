@@ -94,8 +94,8 @@ export function useLive() {
     setRecents(r?.paths ?? []);
   }, []);
 
-  const spawnOrchestrator = useCallback(async ({ name, cwd, model } = {}) => {
-    const r = await api.spawnOrchestrator({ name, cwd, model });
+  const spawnOrchestrator = useCallback(async ({ name, cwd, model, effort } = {}) => {
+    const r = await api.spawnOrchestrator({ name, cwd, model, effort });
     scheduleRefetch();
     refreshRecents();
     return r;

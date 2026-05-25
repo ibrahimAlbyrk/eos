@@ -20,6 +20,7 @@ export interface WorkerOptions {
   permissionPromptTool: string | undefined;
   claudePermissionMode: string | undefined;
   model: string;
+  effort: string;
   parentId: string | undefined;
 }
 
@@ -42,6 +43,7 @@ export function parseWorkerOptions(): WorkerOptions {
       "permission-prompt-tool": { type: "string" },
       "claude-permission-mode": { type: "string" },
       model: { type: "string" },
+      effort: { type: "string" },
       "parent-id": { type: "string" },
     },
     strict: true,
@@ -72,6 +74,7 @@ export function parseWorkerOptions(): WorkerOptions {
     permissionPromptTool: values["permission-prompt-tool"],
     claudePermissionMode: values["claude-permission-mode"],
     model: values.model ?? "opus",
+    effort: values.effort ?? "high",
     parentId: values["parent-id"],
   };
 }
