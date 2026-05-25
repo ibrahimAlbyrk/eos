@@ -22,7 +22,7 @@ export const doctorCommand: Command = {
       daemonUp = r.ok;
     } catch {}
     if (daemonUp) ok(`daemon reachable at ${ctx.daemonUrl}`);
-    else warn(`daemon not reachable at ${ctx.daemonUrl} (start it with: eos daemon start)`);
+    else warn(`daemon not reachable at ${ctx.daemonUrl} (start it with: eos start)`);
 
     try {
       const s = statSync(home);

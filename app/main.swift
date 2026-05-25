@@ -133,7 +133,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
 
     private func poll(_ n: Int) {
         guard n > 0 else {
-            showAlert("Daemon failed to start.\nRun `eos daemon start` manually.")
+            showAlert("Daemon failed to start.\nRun `eos start -f` manually.")
             return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in

@@ -56,7 +56,7 @@ export const orchestratorCommand: Command = {
       await listOrchestrators(ctx);
       return;
     }
-    console.error("usage: orchestrator [list | new --cwd <path> --name <n> [--model opus]]");
+    console.error("usage: eos orch [ls | new --cwd <path> --name <n> [--model opus]]");
     process.exit(1);
   },
 };

@@ -17,7 +17,7 @@ export interface CommandContext {
 
 export interface Command {
   readonly name: string;
-  /** Aliases that route to the same command (e.g. "ls" → list, "stop" → kill). */
+  /** Aliases that route to the same command (e.g. "list" → ls, "orchestrator" → orch). */
   readonly aliases?: ReadonlyArray<string>;
   readonly description: string;
   /** Optional usage line for the help command. */
