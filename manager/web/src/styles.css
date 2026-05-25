@@ -782,6 +782,72 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
 }
 .bash-output.error { color: var(--err); }
 
+/* Edit detail (diff view) */
+.edit-detail {
+  margin: 4px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.tool-group .edit-detail { margin-left: 0; margin-right: 0; background: var(--surface-2); }
+.edit-filepath {
+  padding: 8px 14px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+.edit-diff {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  line-height: 1.65;
+  overflow: hidden;
+  padding: 0 0 6px;
+}
+.ed-line {
+  display: flex;
+  padding: 0 14px;
+  min-height: 19px;
+}
+.ed-line.ed-del { background: rgba(217, 118, 112, 0.13); }
+.ed-line.ed-add { background: rgba(103, 192, 132, 0.13); }
+.ed-num {
+  width: 28px;
+  text-align: right;
+  padding-right: 10px;
+  user-select: none;
+  flex-shrink: 0;
+  color: var(--fg-faint);
+}
+.ed-line.ed-del .ed-num { color: var(--err); }
+.ed-line.ed-add .ed-num { color: var(--ok); }
+.ed-sign {
+  width: 14px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.ed-line.ed-del .ed-sign { color: var(--err); }
+.ed-line.ed-add .ed-sign { color: var(--ok); }
+.ed-text {
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--fg);
+  flex: 1;
+}
+.ed-hl-del {
+  background: rgba(217, 118, 112, 0.3);
+  border-radius: 2px;
+}
+.ed-hl-add {
+  background: rgba(103, 192, 132, 0.3);
+  border-radius: 2px;
+}
+
+/* header diff stats */
+.ti-stats { font-size: 11.5px; margin-left: 2px; }
+.ti-add { color: var(--ok); }
+.ti-del { color: var(--err); }
+
 /* Generic detail (key-value) */
 .generic-detail {
   padding: 2px 13px 6px;

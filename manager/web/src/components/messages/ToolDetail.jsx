@@ -4,6 +4,7 @@ import { useUi } from "../../state/ui.jsx";
 export function ToolDetail({ tool }) {
   const name = tool.name ?? "";
   if (name === "Read") return <ReadDetail tool={tool} />;
+  if (name === "Edit") return <EditDetail tool={tool} />;
   if (name === "Bash") return <BashDetail tool={tool} />;
   if (isMessagingTool(name)) return <MessageDetail tool={tool} />;
   return <GenericDetail tool={tool} />;
@@ -87,6 +88,115 @@ function BashDetail({ tool }) {
       </div>
     </div>
   );
+}
+
+function EditDetail({ tool }) {
+  const filePath = tool.input?.file_path ?? "";
+  const oldStr = tool.input?.old_string ?? "";
+  const newStr = tool.input?.new_string ?? "";
+  const oldLines = oldStr ? oldStr.split("\n") : [];
+  const newLines = newStr ? newStr.split("\n") : [];
+
+  const hunks = buildDiffHunks(oldLines, newLines);
+
+  return (
+    <div className="tool-detail edit-detail">
+      <div className="edit-filepath">{filePath}</div>
+      <div className="edit-diff">
+        {hunks.map((h, i) => (
+          <div className={`ed-line ed-${h.type}`} key={i}>
+            <span className="ed-num">{h.num ?? ""}</span>
+            <span className="ed-sign">{h.type === "del" ? "-" : h.type === "add" ? "+" : " "}</span>
+            <span className="ed-text">{h.segments ?? h.text}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function buildDiffHunks(oldLines, newLines) {
+  const hunks = [];
+  const maxCtx = Math.max(oldLines.length, newLines.length);
+  if (maxCtx === 0) return hunks;
+
+  const lcs = computeLCS(oldLines, newLines);
+  let oi = 0, ni = 0, li = 0;
+  let lineNum = 1;
+
+  while (oi < oldLines.length || ni < newLines.length) {
+    if (li < lcs.length && oi < oldLines.length && ni < newLines.length
+        && oldLines[oi] === lcs[li] && newLines[ni] === lcs[li]) {
+      hunks.push({ type: "ctx", num: lineNum, text: lcs[li] });
+      oi++; ni++; li++; lineNum++;
+    } else {
+      const delStart = hunks.length;
+      while (oi < oldLines.length && (li >= lcs.length || oldLines[oi] !== lcs[li])) {
+        hunks.push({ type: "del", num: oi + 1, text: oldLines[oi] });
+        oi++;
+      }
+      const addStart = hunks.length;
+      while (ni < newLines.length && (li >= lcs.length || newLines[ni] !== lcs[li])) {
+        hunks.push({ type: "add", num: ni + 1, text: newLines[ni] });
+        ni++; lineNum++;
+      }
+      const delCount = addStart - delStart;
+      const addCount = hunks.length - addStart;
+      const pairCount = Math.min(delCount, addCount);
+      for (let p = 0; p < pairCount; p++) {
+        const dh = hunks[delStart + p];
+        const ah = hunks[addStart + p];
+        const [dSegs, aSegs] = inlineDiff(dh.text, ah.text);
+        dh.segments = dSegs;
+        ah.segments = aSegs;
+      }
+    }
+  }
+  return hunks;
+}
+
+function computeLCS(a, b) {
+  const m = a.length, n = b.length;
+  const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+  const result = [];
+  let i = m, j = n;
+  while (i > 0 && j > 0) {
+    if (a[i - 1] === b[j - 1]) { result.push(a[i - 1]); i--; j--; }
+    else if (dp[i - 1][j] >= dp[i][j - 1]) i--;
+    else j--;
+  }
+  return result.reverse();
+}
+
+function inlineDiff(oldText, newText) {
+  let prefix = 0;
+  while (prefix < oldText.length && prefix < newText.length && oldText[prefix] === newText[prefix]) prefix++;
+  let suffixO = oldText.length, suffixN = newText.length;
+  while (suffixO > prefix && suffixN > prefix && oldText[suffixO - 1] === newText[suffixN - 1]) { suffixO--; suffixN--; }
+
+  const common1 = oldText.slice(0, prefix);
+  const delPart = oldText.slice(prefix, suffixO);
+  const addPart = newText.slice(prefix, suffixN);
+  const common2 = oldText.slice(suffixO);
+
+  const delSegs = (
+    <>
+      {common1}
+      {delPart && <span className="ed-hl-del">{delPart}</span>}
+      {common2}
+    </>
+  );
+  const addSegs = (
+    <>
+      {common1}
+      {addPart && <span className="ed-hl-add">{addPart}</span>}
+      {common2}
+    </>
+  );
+  return [delSegs, addSegs];
 }
 
 function GenericDetail({ tool }) {

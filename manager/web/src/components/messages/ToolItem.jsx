@@ -6,7 +6,7 @@ export function ToolItem({ tool, standalone }) {
   const [expanded, setExpanded] = useState(false);
   const ui = useUi();
   const label = itemLabel(tool);
-  const hasPath = tool.name === "Read" && tool.input?.file_path;
+  const hasPath = (tool.name === "Read" || tool.name === "Edit" || tool.name === "Write") && tool.input?.file_path;
 
   const onFileClick = (e) => {
     if (!hasPath) return;
@@ -14,12 +14,21 @@ export function ToolItem({ tool, standalone }) {
     ui.openFileViewer(tool.input.file_path);
   };
 
+  const diffStats = tool.name === "Edit" ? editStats(tool) : null;
+
   return (
     <div className={"tool-item" + (standalone ? " standalone" : "") + (expanded ? " expanded" : "")}>
       <div className="tool-item-header" onClick={() => setExpanded((e) => !e)}>
         <span className="ti-verb">{label.verb}</span>
         {" "}
         <span className={"ti-file" + (hasPath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
+        {diffStats && (diffStats.add > 0 || diffStats.del > 0) && (
+          <span className="ti-stats">
+            {diffStats.add > 0 && <span className="ti-add">+{diffStats.add}</span>}
+            {diffStats.add > 0 && diffStats.del > 0 && " "}
+            {diffStats.del > 0 && <span className="ti-del">-{diffStats.del}</span>}
+          </span>
+        )}
         <svg className="ti-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="m6 4 4 4-4 4" />
         </svg>
@@ -27,6 +36,18 @@ export function ToolItem({ tool, standalone }) {
       {expanded && <ToolDetail tool={tool} />}
     </div>
   );
+}
+
+function editStats(tool) {
+  const oldLines = (tool.input?.old_string ?? "").split("\n");
+  const newLines = (tool.input?.new_string ?? "").split("\n");
+  const m = oldLines.length, n = newLines.length;
+  const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
+  for (let i = 1; i <= m; i++)
+    for (let j = 1; j <= n; j++)
+      dp[i][j] = oldLines[i - 1] === newLines[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
+  const shared = dp[m][n];
+  return { add: n - shared, del: m - shared };
 }
 
 function itemLabel(tool) {
