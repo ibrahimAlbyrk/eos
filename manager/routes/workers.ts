@@ -8,6 +8,7 @@ import {
   SpawnWorkerRequestSchema,
   EventsQuerySchema,
   MessageRequestSchema,
+  ReportRequestSchema,
   SetPermissionRequestSchema,
   SetModelRequestSchema,
 } from "../../contracts/src/http.ts";
@@ -15,6 +16,7 @@ import {
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
 import { killWorker } from "../../core/src/use-cases/KillWorker.ts";
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
+import { transitionState } from "../../core/src/use-cases/TransitionState.ts";
 import { processWorkerEvent } from "../../core/src/use-cases/ProcessWorkerEvent.ts";
 import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermissionMode.ts";
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
@@ -107,7 +109,32 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   });
 
   r.post(/^\/workers\/(?<id>[^/]+)\/message$/, async ({ params, req, res }) => {
-    const body = validate(MessageRequestSchema, await readBody(req));
+    const raw = await readBody(req) as { text?: string; fromParent?: string };
+    const body = validate(MessageRequestSchema, raw);
+    const fromParent = typeof raw.fromParent === "string" ? raw.fromParent : null;
+
+    if (fromParent) {
+      const worker = c.workers.findById(params.id);
+      if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
+      const parent = c.workers.findById(fromParent);
+      const parentName = parent?.name ?? fromParent;
+      try {
+        await c.httpWorkerClient.sendMessage(worker.port, body.text);
+      } catch (e) {
+        writeJson(res, 502, { error: "worker unreachable" }); return;
+      }
+      c.events.append(params.id, c.clock.now(), "orchestrator_message", {
+        text: body.text, fromParent, parentName,
+      });
+      transitionState(
+        { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },
+        { workerId: params.id, next: "WORKING", reason: "orchestrator_message" },
+      );
+      c.bus.publish("worker:change", { workerId: params.id });
+      writeJson(res, 200, { ok: true });
+      return;
+    }
+
     const result = await dispatchMessage(
       {
         workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
@@ -118,6 +145,39 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       { workerId: params.id, text: body.text },
     );
     writeJson(res, result.status, result.body);
+  });
+
+  r.post(/^\/workers\/(?<id>[^/]+)\/report$/, async ({ params, req, res }) => {
+    const body = validate(ReportRequestSchema, await readBody(req));
+    const worker = c.workers.findById(params.id);
+    if (!worker) { writeJson(res, 404, { error: "worker not found" }); return; }
+    if (!worker.parent_id) { writeJson(res, 400, { error: "worker has no parent" }); return; }
+
+    c.bus.publish("worker:report", { workerId: params.id, parentId: worker.parent_id });
+
+    const parent = c.workers.findById(worker.parent_id);
+    if (!parent?.port || !c.supervisor.has(worker.parent_id)) {
+      writeJson(res, 200, { ok: true, delivered: false });
+      return;
+    }
+
+    const label = worker.name ?? params.id;
+    const formatted = `[worker ${label} (${params.id})] reported:\n${body.text}`;
+    try {
+      await c.httpWorkerClient.sendMessage(parent.port, formatted);
+      c.events.append(worker.parent_id, c.clock.now(), "worker_report", {
+        text: body.text, fromWorker: params.id, workerName: label,
+      });
+      transitionState(
+        { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },
+        { workerId: worker.parent_id, next: "WORKING", reason: "worker_report" },
+      );
+      c.bus.publish("worker:change", { workerId: worker.parent_id });
+      writeJson(res, 200, { ok: true, delivered: true });
+    } catch (e) {
+      c.log.warn("report delivery failed", { worker: params.id, parent: worker.parent_id, error: (e as Error).message });
+      writeJson(res, 200, { ok: true, delivered: false });
+    }
   });
 
   r.put(/^\/workers\/(?<id>[^/]+)\/permission$/, async ({ params, req, res }) => {

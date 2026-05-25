@@ -181,6 +181,7 @@ export function buildContainer() {
     if (spec.worktreeFrom) args.push("--worktree-from", spec.worktreeFrom);
     if (spec.branch) args.push("--branch", spec.branch);
     if (spec.name) args.push("--name", spec.name);
+    if (spec.parentId) args.push("--parent-id", spec.parentId);
     if (spec.withGateway) args.push("--with-gateway");
     if (spec.persistent) args.push("--persistent");
     if (spec.systemPromptFile) args.push("--system-prompt-file", spec.systemPromptFile);

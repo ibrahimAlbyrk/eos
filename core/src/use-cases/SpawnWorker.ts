@@ -59,6 +59,8 @@ export async function spawnWorker(
   deps: SpawnWorkerDeps,
   spec: SpawnWorkerSpec,
 ): Promise<{ id: string; port: number }> {
+  if (spec.parentId) spec.persistent = true;
+
   const id = spec.fixedId ?? deps.ids.newWorkerId();
   const port = await deps.ports.allocate();
   const model = spec.model ?? "opus";

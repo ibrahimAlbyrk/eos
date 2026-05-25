@@ -8,6 +8,7 @@ import { spawnWorkerTool } from "./tools/spawn_worker.ts";
 import { listWorkersTool } from "./tools/list_workers.ts";
 import { getWorkerTool } from "./tools/get_worker.ts";
 import { killWorkerTool } from "./tools/kill_worker.ts";
+import { messageWorkerTool } from "./tools/message_worker.ts";
 import { listPendingPermissionsTool } from "./tools/list_pending_permissions.ts";
 
 export interface McpToolModule {
@@ -20,6 +21,7 @@ export const toolModules: McpToolModule[] = [
   listWorkersTool,
   getWorkerTool,
   killWorkerTool,
+  messageWorkerTool,
   listPendingPermissionsTool,
 ];
 

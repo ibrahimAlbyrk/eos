@@ -15,6 +15,19 @@ export interface ClaudeArgsResult {
   syntheticMcpPath: string | null;
 }
 
+function buildWorkerMcpEntry(workerEnv: { daemonUrl?: string; workerId?: string }): Record<string, unknown> {
+  const repoRoot = process.env.CLAUDE_MGR_REPO_ROOT || "";
+  return {
+    command: "node",
+    args: ["--no-warnings", "--experimental-strip-types", join(repoRoot, "manager", "worker-mcp.ts")],
+    env: {
+      ...(process.env as Record<string, string>),
+      CLAUDE_MGR_DAEMON_URL: workerEnv.daemonUrl ?? "",
+      CLAUDE_MGR_WORKER_ID: workerEnv.workerId ?? "",
+    },
+  };
+}
+
 export function buildClaudeArgs(
   opts: WorkerOptions,
   settingsTmpDir: string,
@@ -29,32 +42,33 @@ export function buildClaudeArgs(
     if (opts.permissionPromptTool) {
       args.push("--permission-prompt-tool", opts.permissionPromptTool);
     }
-  } else if (opts.withGateway) {
+  } else if (opts.withGateway || opts.parentId) {
     syntheticMcpPath = join(settingsTmpDir, "mcp.json");
-    const bunBin = process.env.CLAUDE_MGR_BUN_BIN || "bun";
-    const gatewayScript = process.env.CLAUDE_MGR_GATEWAY_SCRIPT
-      || join(process.env.CLAUDE_MGR_REPO_ROOT || "", "gateway", "server.ts");
-    writeFileSync(
-      syntheticMcpPath,
-      JSON.stringify({
-        mcpServers: {
-          gateway: {
-            command: bunBin,
-            args: ["run", gatewayScript],
-            env: workerEnv.daemonUrl && workerEnv.workerId
-              ? { ...(process.env as Record<string, string>), CLAUDE_MGR_DAEMON_URL: workerEnv.daemonUrl, CLAUDE_MGR_WORKER_ID: workerEnv.workerId }
-              : { ...(process.env as Record<string, string>) },
-          },
-        },
-      }),
-    );
-    args.push(
-      "--strict-mcp-config",
-      "--mcp-config",
-      syntheticMcpPath,
-      "--permission-prompt-tool",
-      "mcp__gateway__decide",
-    );
+    const servers: Record<string, unknown> = {};
+
+    if (opts.withGateway) {
+      const bunBin = process.env.CLAUDE_MGR_BUN_BIN || "bun";
+      const gatewayScript = process.env.CLAUDE_MGR_GATEWAY_SCRIPT
+        || join(process.env.CLAUDE_MGR_REPO_ROOT || "", "gateway", "server.ts");
+      servers.gateway = {
+        command: bunBin,
+        args: ["run", gatewayScript],
+        env: workerEnv.daemonUrl && workerEnv.workerId
+          ? { ...(process.env as Record<string, string>), CLAUDE_MGR_DAEMON_URL: workerEnv.daemonUrl, CLAUDE_MGR_WORKER_ID: workerEnv.workerId }
+          : { ...(process.env as Record<string, string>) },
+      };
+    }
+
+    if (opts.parentId) {
+      servers.worker = buildWorkerMcpEntry(workerEnv);
+    }
+
+    writeFileSync(syntheticMcpPath, JSON.stringify({ mcpServers: servers }));
+
+    args.push("--strict-mcp-config", "--mcp-config", syntheticMcpPath);
+    if (opts.withGateway) {
+      args.push("--permission-prompt-tool", "mcp__gateway__decide");
+    }
   }
   if (opts.systemPromptFile) args.push("--append-system-prompt-file", opts.systemPromptFile);
   if (opts.claudePermissionMode) args.push("--permission-mode", opts.claudePermissionMode);

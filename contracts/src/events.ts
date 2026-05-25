@@ -51,6 +51,8 @@ export const WorkerEventTypeSchema = z.enum([
   "limit_exceeded",
   "user_message",
   "state_reject",
+  "worker_report",
+  "orchestrator_message",
 ]);
 export type WorkerEventType = z.infer<typeof WorkerEventTypeSchema>;
 

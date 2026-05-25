@@ -246,6 +246,11 @@ export const CommandsResponseSchema = z.object({
 });
 export type CommandsResponse = z.infer<typeof CommandsResponseSchema>;
 
+// ---- POST /workers/:id/report ----------------------------------------------
+
+export const ReportRequestSchema = z.object({ text: z.string().min(1) });
+export type ReportRequest = z.infer<typeof ReportRequestSchema>;
+
 // ---- error envelope --------------------------------------------------------
 
 export const ErrorResponseSchema = z.object({
@@ -288,6 +293,7 @@ export const ROUTES = {
   workerPermission: (id: string): string => `/workers/${id}/permission`,
   workerModel: (id: string): string => `/workers/${id}/model`,
   workerDiff: (id: string): string => `/workers/${id}/diff`,
+  workerReport: (id: string): string => `/workers/${id}/report`,
   commands: "/commands",
   web: "/web/",
 } as const;

@@ -12,7 +12,8 @@ export type EventBusTopic =
   | "pending:resolved"
   | "pending:ttl_expired"
   | "usage:recorded"
-  | "limit:exceeded";
+  | "limit:exceeded"
+  | "worker:report";
 
 export interface EventBusMessage<T = unknown> {
   topic: EventBusTopic;
