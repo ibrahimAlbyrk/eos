@@ -34,6 +34,13 @@ if [ -f "$LOGO" ]; then
 fi
 
 INSTALLED="/Applications/$APP_NAME.app"
+if [ -d "$INSTALLED" ]; then
+  EXISTING_ID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$INSTALLED/Contents/Info.plist" 2>/dev/null || echo "")
+  if [ -n "$EXISTING_ID" ] && [ "$EXISTING_ID" != "com.ibrahimalbyrk.eos" ]; then
+    echo "error: $INSTALLED exists with different bundle ID ($EXISTING_ID); not overwriting"
+    exit 1
+  fi
+fi
 echo "installing → $INSTALLED"
 rm -rf "$INSTALLED"
 cp -r "$APP_BUNDLE" "$INSTALLED"
