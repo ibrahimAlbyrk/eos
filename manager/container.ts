@@ -29,6 +29,11 @@ import type { Policy } from "../core/src/domain/policy.ts";
 import type { ModelCatalog } from "../core/src/ports/ModelCatalog.ts";
 import { PolicyGatewayService } from "../core/src/services/PolicyGatewayService.ts";
 import { LimitsEnforcer } from "../core/src/services/LimitsEnforcer.ts";
+import { NotificationService } from "../core/src/services/NotificationService.ts";
+import {
+  agentFinishedTrigger, agentExitedTrigger,
+  permissionPendingTrigger, permissionExpiredTrigger, limitExceededTrigger,
+} from "../core/src/services/notification-triggers/index.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
@@ -151,6 +156,13 @@ export function buildContainer() {
     log: log.child({ scope: "limits" }),
   });
   setInterval(() => limitsEnforcer.sweep(), 30_000).unref();
+
+  // Notification service ----------------------------------------------------
+  const notificationService = new NotificationService(
+    { bus, workers, getConfig: () => config.notifications },
+    [agentFinishedTrigger, agentExitedTrigger, permissionPendingTrigger, permissionExpiredTrigger, limitExceededTrigger],
+  );
+  notificationService.start();
 
   // FS helpers (platform-specific) -----------------------------------------
   const fs: FsHelpers = process.platform === "darwin"

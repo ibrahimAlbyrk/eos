@@ -10,6 +10,7 @@ import { homedir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
+import { NotificationConfigSchema, type NotificationConfig } from "../../contracts/src/notifications.ts";
 
 export interface ModelPrice { in: number; out: number; cacheRead: number; cacheCreate: number; }
 
@@ -41,6 +42,7 @@ export interface DaemonConfig {
     defaultTtlMs: number;
   };
   prices: Record<string, ModelPrice>;
+  notifications: NotificationConfig;
 }
 
 // Walk up from this file's location to find the repo root. daemon.ts and
@@ -107,6 +109,7 @@ function defaults(): DaemonConfig {
       defaultTtlMs: envNum("CLAUDE_MGR_PERMISSION_TTL_MS", 30000),
     },
     prices: DEFAULT_PRICES,
+    notifications: NotificationConfigSchema.parse({}),
   };
 }
 
@@ -141,6 +144,7 @@ const DaemonConfigOverrideSchema = z.object({
     defaultTtlMs: z.number().int().positive(),
   }).partial().optional(),
   prices: z.record(z.string(), ModelPriceOverrideSchema).optional(),
+  notifications: NotificationConfigSchema.optional(),
 }).passthrough();
 
 // Shallow-merge file-loaded overrides on top of defaults. Nested keys are

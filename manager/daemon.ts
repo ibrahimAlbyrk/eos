@@ -29,6 +29,7 @@ import { registerFsRoutes } from "./routes/fs.ts";
 import { registerCommandRoutes } from "./routes/commands.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
+import { registerNotificationRoutes } from "./routes/notifications.ts";
 import { registerWebRoutes } from "./routes/web.ts";
 
 const c = buildContainer();
@@ -40,6 +41,7 @@ registerStreamRoutes(router, c);
 // doesn't accidentally shadow anything. Order matters: first match wins.
 registerWebRoutes(router, c);
 registerUiConfigRoutes(router, c);
+registerNotificationRoutes(router, c);
 registerMetricsRoutes(router, c);
 registerFsRoutes(router, c);
 registerCommandRoutes(router, c);

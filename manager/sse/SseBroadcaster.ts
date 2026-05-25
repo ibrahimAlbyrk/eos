@@ -17,9 +17,8 @@ export class SseBroadcaster {
 
   constructor(opts: SseBroadcasterOptions) {
     this.opts = opts;
-    // Single "*"-subscriber — any bus event triggers a refresh signal.
     this.opts.bus.subscribe("*", (msg) => {
-      this.broadcast(`${msg.topic}`);
+      this.broadcast(`${msg.topic}`, msg.payload);
     });
   }
 
@@ -47,9 +46,9 @@ export class SseBroadcaster {
     };
   }
 
-  broadcast(reason: string): void {
+  broadcast(reason: string, payload?: unknown): void {
     if (this.clients.size === 0) return;
-    const msg = `event: change\ndata: ${JSON.stringify({ reason, ts: Date.now() })}\n\n`;
+    const msg = `event: change\ndata: ${JSON.stringify({ reason, ts: Date.now(), payload })}\n\n`;
     for (const res of this.clients) {
       try { res.write(msg); } catch { this.clients.delete(res); }
     }
