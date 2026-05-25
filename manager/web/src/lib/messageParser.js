@@ -30,6 +30,32 @@ export function buildBlocks(events) {
       out.push({ kind: "user", text: payload.text ?? "", ts: ev.ts });
       continue;
     }
+    if (ev.type === "worker_report") {
+      flushTools();
+      lastAsst = null;
+      const payload = parsePayload(ev.payload);
+      out.push({
+        kind: "report",
+        text: payload.text ?? "",
+        fromWorker: payload.fromWorker ?? null,
+        workerName: payload.workerName ?? null,
+        ts: ev.ts,
+      });
+      continue;
+    }
+    if (ev.type === "orchestrator_message") {
+      flushTools();
+      lastAsst = null;
+      const payload = parsePayload(ev.payload);
+      out.push({
+        kind: "directive",
+        text: payload.text ?? "",
+        fromParent: payload.fromParent ?? null,
+        parentName: payload.parentName ?? null,
+        ts: ev.ts,
+      });
+      continue;
+    }
     if (ev.type !== "jsonl") continue;
     const p = parsePayload(ev.payload);
 

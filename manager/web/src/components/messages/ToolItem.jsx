@@ -41,6 +41,12 @@ function itemLabel(tool) {
   if (name === "Edit" || name === "Write") {
     return { verb: name, file: fileName(tool.input?.file_path) };
   }
+  if (name === "mcp__worker__send_message_to_parent") {
+    return { verb: "Sent report to", file: "orchestrator" };
+  }
+  if (name === "mcp__orchestrator__message_worker") {
+    return { verb: "Messaged", file: tool.input?.id ?? "worker" };
+  }
   return { verb: "Used", file: name };
 }
 

@@ -5,7 +5,13 @@ export function ToolDetail({ tool }) {
   const name = tool.name ?? "";
   if (name === "Read") return <ReadDetail tool={tool} />;
   if (name === "Bash") return <BashDetail tool={tool} />;
+  if (isMessagingTool(name)) return <MessageDetail tool={tool} />;
   return <GenericDetail tool={tool} />;
+}
+
+function isMessagingTool(name) {
+  return name === "mcp__worker__send_message_to_parent"
+    || name === "mcp__orchestrator__message_worker";
 }
 
 function ReadDetail({ tool }) {
@@ -110,6 +116,15 @@ function stripCatLineNumbers(text) {
     const m = line.match(/^\s*(\d+)\t(.*)$/);
     return m ? { num: parseInt(m[1], 10), text: m[2] } : { num: 0, text: line };
   });
+}
+
+function MessageDetail({ tool }) {
+  const text = tool.input?.text ?? "";
+  return (
+    <div className="report-detail" style={{ marginLeft: 0 }}>
+      <div className="report-detail-text">{text}</div>
+    </div>
+  );
 }
 
 function highlightLine(line) {

@@ -116,7 +116,7 @@ html.native .side { padding-bottom: 14px; }
 /* center header: compact 28px, inherits breadcrumb */
 html.native .head {
   height: auto;
-  padding: 18px 16px 0;
+  padding: 21px 16px 0;
   transition: padding-left 280ms ease;
 }
 html.native .app.side-collapsed .head { padding-left: 124px; }
@@ -127,7 +127,7 @@ html.native.fullscreen .native-toggle { left: 16px; top: 10px; }
 html.native.fullscreen .side { padding: 6px 14px 14px 14px; }
 html.native.fullscreen .side-island--agents { padding-top: 14px; }
 html.native.fullscreen .sb-section { padding-left: 12px; }
-html.native.fullscreen .head { padding: 10px 16px 0; }
+html.native.fullscreen .head { padding: 13px 16px 0; }
 html.native.fullscreen .app.side-collapsed .head { padding-left: 46px; }
 
 /* "Agents" section header — visible only in native mode */
@@ -452,6 +452,7 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
 
 /* top header strip — just session breadcrumb, nothing more */
 .head {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -482,6 +483,17 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   display: inline-flex; align-items: center; justify-content: center;
 }
 .head .right .ibtn:hover { background: var(--surface); color: var(--fg); }
+.head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 14px;
+  top: 100%;
+  height: 48px;
+  background: linear-gradient(to top, rgba(26, 26, 26, 0), var(--bg));
+  pointer-events: none;
+  z-index: 1;
+}
 
 /* messages scroll area */
 .messages-wrap {
@@ -515,6 +527,23 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   font-size: 13px;
   max-width: 80%;
   line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* report / directive detail */
+.report-detail {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-top: 2px;
+}
+.tool-group .report-detail { margin-left: 0; margin-right: 0; background: var(--surface-2); }
+.report-detail-text {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--fg);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -2687,25 +2716,35 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
 }
 .sp-name-input:focus { border-color: rgba(110, 164, 232, 0.45); background: rgba(255, 255, 255, 0.05); }
 
-/* New-orchestrator popover variant: name-only */
-.spawn-popover { width: 260px; }
-.sp-name-only {
-  width: 100%;
+/* New-orchestrator popover variant: name-only inline */
+.sp-inline-title {
+  display: block;
+  padding: 8px 10px 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--fg-dim);
+  letter-spacing: -0.005em;
+}
+.sp-inline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+}
+.sp-inline .sp-name-only {
+  flex: 1;
+  min-width: 0;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  padding: 8px 10px;
-  font-size: 13px;
+  border-radius: 5px;
+  padding: 6px 9px;
+  font-size: 12px;
   color: var(--fg);
   font-family: inherit;
   outline: none;
 }
-.sp-name-only:focus { border-color: rgba(110, 164, 232, 0.45); background: rgba(255, 255, 255, 0.05); }
-.sp-hint {
-  font-size: 11px;
-  color: var(--fg-faint);
-  line-height: 1.45;
-}
+.sp-inline .sp-name-only:focus { border-color: rgba(110, 164, 232, 0.45); background: rgba(255, 255, 255, 0.05); }
+.sp-inline .sp-btn { flex-shrink: 0; }
 
 /* Composer chip row (above input) — visible until first message sent */
 .c-row1.c-row1--config {
@@ -2922,8 +2961,8 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   position: absolute;
   bottom: calc(100% + 6px);
   left: 0;
-  width: 360px;
-  padding: 4px;
+  width: 260px;
+  padding: 0;
   display: none;
   z-index: 60;
 }

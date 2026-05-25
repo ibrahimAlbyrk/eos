@@ -11,6 +11,7 @@ import { api } from "../../api/client.js";
 import { fmtElapsedShort } from "../../lib/format.js";
 import { buildBlocks, parsePayload } from "../../lib/messageParser.js";
 import { MessageUser } from "./MessageUser.jsx";
+import { MessageReport } from "./MessageReport.jsx";
 import { MessageAssistant } from "./MessageAssistant.jsx";
 import { ToolGroup } from "./ToolGroup.jsx";
 import { ToolItem } from "./ToolItem.jsx";
@@ -97,6 +98,8 @@ export function Messages({ live }) {
 function renderBlock(b, i) {
   switch (b.kind) {
     case "user":      return <MessageUser key={i} text={b.text} />;
+    case "report":    return <MessageReport key={i} text={b.text} label={b.workerName || b.fromWorker || "worker"} direction="in" />;
+    case "directive": return <MessageReport key={i} text={b.text} label={b.parentName || b.fromParent || "orchestrator"} direction="out" />;
     case "assistant": return <MessageAssistant key={i} text={b.text} />;
     case "thinking":  return <ThinkingLine key={i} text={b.text} ms={b.ms} />;
     case "toolGroup": return <ToolGroup key={i} summary={b.summary} tools={b.tools} />;
