@@ -514,6 +514,30 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   padding-right: calc(var(--islands-w) + var(--islands-right) + 20px);
 }
 
+/* scroll-to-bottom pill — sits between messages and composer via flex order */
+.scroll-to-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  border: 1px solid #3a3a3a;
+  background: #2c2c2c;
+  color: #999;
+  cursor: pointer;
+  z-index: 5;
+  transition: background 0.15s, color 0.15s;
+  flex-shrink: 0;
+  margin: -4px auto 0;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.scroll-to-bottom:hover {
+  background: #363636;
+  color: var(--fg);
+}
+
 /* User message — pill bubble */
 .msg-user {
   display: flex;

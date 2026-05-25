@@ -5,7 +5,7 @@
 // This is the initial render layer; refinement (tool-group collapse, file
 // chips, table rendering) lives in dedicated sub-components.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { api } from "../../api/client.js";
 import { fmtElapsedShort } from "../../lib/format.js";
@@ -20,10 +20,35 @@ import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
 
 const POLL_MS = 1000;
+const SCROLL_THRESHOLD = 80;
 
 export function Messages({ live }) {
   const ui = useUi();
   const [events, setEvents] = useState([]);
+  const wrapRef = useRef(null);
+  const [showScrollBtn, setShowScrollBtn] = useState(false);
+  const isNearBottomRef = useRef(true);
+
+  const checkNearBottom = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const near = el.scrollHeight - el.scrollTop - el.clientHeight < SCROLL_THRESHOLD;
+    isNearBottomRef.current = near;
+    setShowScrollBtn(!near);
+  }, []);
+
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", checkNearBottom, { passive: true });
+    return () => el.removeEventListener("scroll", checkNearBottom);
+  }, [checkNearBottom]);
+
+  const scrollToBottom = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, []);
 
   useEffect(() => {
     // Drafts don't have a daemon-side worker row — skip the /events poll.
@@ -102,25 +127,41 @@ export function Messages({ live }) {
   const waitingElapsedMs = agentBusy && lastIsUser && lastUserTs ? Math.max(0, live.now - lastUserTs) : 0;
   const showAnchor = !interrupted && ((agentBusy && blocks.length > 0) || isAgentReply);
 
+  useEffect(() => {
+    if (isNearBottomRef.current) {
+      const el = wrapRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+  }, [blocks]);
+
   return (
-    <div className="messages-wrap">
-      <div className="messages">
-        {blocks.map((b, i) => {
-          const isLast = i === blocks.length - 1;
-          const block = renderBlock(b, i, selectedWorker?.cwd);
-          if (isLast && interrupted && b.kind !== "user") {
-            return <div key={i} className="msg-interrupted-wrap">{block}</div>;
-          }
-          return block;
-        })}
-        {showAnchor && (
-          <ProcessingLine
-            busy={!!agentBusy}
-            elapsed={agentBusy && lastIsUser && lastUserTs && waitingElapsedMs >= 1000 ? fmtElapsedShort(waitingElapsedMs) : null}
-          />
-        )}
+    <>
+      <div className="messages-wrap" ref={wrapRef}>
+        <div className="messages">
+          {blocks.map((b, i) => {
+            const isLast = i === blocks.length - 1;
+            const block = renderBlock(b, i, selectedWorker?.cwd);
+            if (isLast && interrupted && b.kind !== "user") {
+              return <div key={i} className="msg-interrupted-wrap">{block}</div>;
+            }
+            return block;
+          })}
+          {showAnchor && (
+            <ProcessingLine
+              busy={!!agentBusy}
+              elapsed={agentBusy && lastIsUser && lastUserTs && waitingElapsedMs >= 1000 ? fmtElapsedShort(waitingElapsedMs) : null}
+            />
+          )}
+        </div>
       </div>
-    </div>
+      {showScrollBtn && (
+        <button className="scroll-to-bottom" onClick={scrollToBottom} aria-label="Scroll to bottom">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+      )}
+    </>
   );
 }
 
