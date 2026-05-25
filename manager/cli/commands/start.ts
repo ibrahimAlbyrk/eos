@@ -11,6 +11,10 @@ export const startCommand: Command = {
     const foreground = args.includes("-f") || args.includes("--foreground");
 
     if (foreground) {
+      try {
+        const r = await fetch(`${ctx.daemonUrl}/health`);
+        if (r.ok) { console.error(`daemon already running at ${ctx.daemonUrl}`); process.exit(1); }
+      } catch {}
       const child = spawn(
         "node",
         ["--no-warnings", "--experimental-strip-types", join(ctx.repoRoot, "manager", "daemon.ts")],

@@ -48,6 +48,11 @@ export const permCommand: Command = {
       return;
     }
 
+    if (sub !== undefined) {
+      console.error("usage: eos perm [ok <id> [--rewrite '<json>'] | no <id> [--reason '<text>']]");
+      process.exit(1);
+    }
+
     const rows = (await ctx.api("GET", "/pending")) as PendingRow[];
     if (rows.length === 0) { console.log("(no pending)"); return; }
     const now = Date.now();

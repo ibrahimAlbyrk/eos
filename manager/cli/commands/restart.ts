@@ -1,5 +1,5 @@
 import { execSync, spawn } from "node:child_process";
-import { existsSync, readFileSync, unlinkSync, rmSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Command } from "./Command.ts";
@@ -17,7 +17,9 @@ export const restartCommand: Command = {
     const pidFile = ctx.config.daemon.pidFile;
     if (existsSync(pidFile)) {
       const pid = Number(readFileSync(pidFile, "utf8").trim());
-      try { process.kill(pid, "SIGTERM"); console.log(`stopped daemon pid=${pid}`); } catch {}
+      if (pid && !isNaN(pid)) {
+        try { process.kill(pid, "SIGTERM"); console.log(`stopped daemon pid=${pid}`); } catch {}
+      }
     }
     await sleep(1000);
 
@@ -38,7 +40,7 @@ export const restartCommand: Command = {
     } catch {}
     console.log("cleaned db + pid");
 
-    // 4. Start daemon (foreground, detached)
+    // 4. Start daemon (detached)
     const child = spawn(
       "node",
       ["--no-warnings", "--experimental-strip-types", join(ctx.repoRoot, "manager", "daemon.ts")],
