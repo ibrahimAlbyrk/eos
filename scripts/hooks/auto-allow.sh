@@ -39,7 +39,8 @@ fi
 # through to the safe standalone allow.
 if [ -n "${CLAUDE_MGR_SPAWNED:-}" ] && \
    [ -n "${CLAUDE_MGR_DAEMON_URL:-}" ] && \
-   [ -n "${CLAUDE_MGR_WORKER_ID:-}" ]; then
+   [ -n "${CLAUDE_MGR_WORKER_ID:-}" ] && \
+   [[ "${CLAUDE_MGR_DAEMON_URL:-}" =~ ^https?:// ]]; then
   body=$(printf '%s' "$input" \
     | jq -c --arg wid "$CLAUDE_MGR_WORKER_ID" \
         '{worker_id: $wid, tool_name: .tool_name, input: (.tool_input // {}), tool_use_id: (.tool_use_id // null)}' \
@@ -55,7 +56,7 @@ if [ -n "${CLAUDE_MGR_SPAWNED:-}" ] && \
     # mechanism handles human approval inside the long-poll, so we never
     # have to synthesize an "ask" decision here.
     wrapped=$(printf '%s' "$decision" | jq -c '
-      if (type == "object") and (.behavior != null) then {
+      if (type == "object") and (.behavior != null) and (.behavior == "allow" or .behavior == "deny") then {
         hookSpecificOutput: ({
           hookEventName: "PermissionRequest",
           decision: (
