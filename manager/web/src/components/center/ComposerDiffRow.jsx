@@ -117,10 +117,12 @@ export function ComposerDiffRow({ live }) {
         <span className="diff-branch">{branch}</span>
       </span>
       <span className="diff-grow"></span>
-      <span className="diff-badge">
-        +{(diff?.insertions ?? 0).toLocaleString()}{" "}
-        <span className="diff-neg">−{(diff?.deletions ?? 0).toLocaleString()}</span>
-      </span>
+      {(diff?.insertions > 0 || diff?.deletions > 0) && (
+        <span className="diff-badge">
+          +{diff.insertions.toLocaleString()}{" "}
+          <span className="diff-neg">−{diff.deletions.toLocaleString()}</span>
+        </span>
+      )}
       <div className="pr-wrap" ref={menuRef}>
         {menuOpen && (
           <div className="pr-menu">
