@@ -19,7 +19,7 @@ import { AgentBlock } from "./AgentBlock.jsx";
 import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
 
-const POLL_MS = 1000;
+const POLL_MS = 5000;
 const SCROLL_THRESHOLD = 2;
 const BUTTON_THRESHOLD = 300;
 
@@ -52,9 +52,10 @@ export function Messages({ live }) {
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, []);
 
+  const fetchRef = useRef(null);
+
   useEffect(() => {
-    // Drafts don't have a daemon-side worker row — skip the /events poll.
-    if (!ui.selectedId || ui.drafts.has(ui.selectedId)) { setEvents([]); return; }
+    if (!ui.selectedId || ui.drafts.has(ui.selectedId)) { setEvents([]); fetchRef.current = null; return; }
     const ac = new AbortController();
     let cancelled = false;
     const fetchOnce = async () => {
@@ -62,8 +63,6 @@ export function Messages({ live }) {
         const rows = await api.getWorkerEvents(ui.selectedId, { limit: 500, order: "asc", signal: ac.signal });
         if (!cancelled && Array.isArray(rows)) {
           setEvents(rows);
-          // Reconcile optimistic messages — drop the ones the server has
-          // now persisted as user_message rows.
           const serverTexts = new Set();
           for (const e of rows) {
             if (e.type !== "user_message") continue;
@@ -77,10 +76,16 @@ export function Messages({ live }) {
         if (!cancelled) setEvents([]);
       }
     };
+    fetchRef.current = fetchOnce;
     fetchOnce();
     const t = setInterval(fetchOnce, POLL_MS);
-    return () => { cancelled = true; clearInterval(t); ac.abort(); };
+    return () => { cancelled = true; clearInterval(t); ac.abort(); fetchRef.current = null; };
   }, [ui.selectedId, live.workers.length, ui.drafts, ui.reconcileOptimisticMessages]);
+
+  useEffect(() => {
+    if (live.eventSignal.workerId !== ui.selectedId) return;
+    fetchRef.current?.();
+  }, [live.eventSignal.tick]);
 
   const blocks = useMemo(() => {
     const base = buildBlocks(events);

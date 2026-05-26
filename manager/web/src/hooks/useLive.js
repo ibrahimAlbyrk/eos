@@ -30,6 +30,7 @@ export function useLive() {
   const [session, setSession] = useState(null);
   const [uiConfig, setUiConfig] = useState(null);
   const [pendingPermissions, setPendingPermissions] = useState([]);
+  const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null });
   const [now, setNow] = useState(Date.now());
   const [lastUsage, setLastUsage] = useState(null);
   const lastUsageWorker = useRef(null);
@@ -90,7 +91,15 @@ export function useLive() {
   useEffect(() => {
     const s = createReconnectingStream({
       onOpen: () => setHealth(true),
-      onChange: () => scheduleRefetch(),
+      onChange: (e) => {
+        scheduleRefetch();
+        try {
+          const data = JSON.parse(e.data);
+          if (data.payload?.workerId) {
+            setEventSignal(prev => ({ tick: prev.tick + 1, workerId: data.payload.workerId }));
+          }
+        } catch {}
+      },
       onClose: () => setHealth(false),
     });
     return () => s.close();
@@ -233,5 +242,6 @@ export function useLive() {
     approvePending,
     alwaysAllowPending,
     denyPending,
+    eventSignal,
   };
 }
