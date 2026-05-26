@@ -1,10 +1,14 @@
 export function buildBlocks(events) {
   const resultMap = new Map();
+  const toolUseIds = new Set();
   for (const ev of events) {
     if (ev.type !== "jsonl") continue;
     const p = parsePayload(ev.payload);
     if (p.kind === "tool_result" && p.toolUseId) {
       resultMap.set(p.toolUseId, { text: p.text ?? "", isError: !!p.isError });
+    }
+    if (p.kind === "tool_use" && p.id) {
+      toolUseIds.add(p.id);
     }
   }
 
@@ -54,6 +58,22 @@ export function buildBlocks(events) {
         parentName: payload.parentName ?? null,
         ts: ev.ts,
       });
+      continue;
+    }
+    if (ev.type === "tool_running") {
+      const tr = parsePayload(ev.payload);
+      if (tr.toolUseId && !toolUseIds.has(tr.toolUseId)) {
+        lastAsst = null;
+        pendingTools.push({
+          id: tr.toolUseId,
+          name: tr.toolName ?? "unknown",
+          verb: verbFor(tr.toolName),
+          input: tr.input ?? {},
+          result: null,
+          running: true,
+          ts: ev.ts,
+        });
+      }
       continue;
     }
     if (ev.type !== "jsonl") continue;

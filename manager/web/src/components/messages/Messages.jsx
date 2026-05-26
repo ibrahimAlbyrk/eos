@@ -18,6 +18,7 @@ import { ToolItem } from "./ToolItem.jsx";
 import { AgentBlock } from "./AgentBlock.jsx";
 import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
+import { MessageTask } from "./MessageTask.jsx";
 
 const POLL_MS = 5000;
 const SCROLL_THRESHOLD = 2;
@@ -100,6 +101,9 @@ export function Messages({ live }) {
   }, [events, ui.optimisticMsgs, ui.selectedId]);
 
   const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
+  const parentWorker = selectedWorker?.parent_id
+    ? live.workers.find((w) => w.id === selectedWorker.parent_id)
+    : null;
   const agentBusy = selectedWorker && (selectedWorker.state === "SPAWNING" || selectedWorker.state === "WORKING");
   const interrupted = live.interruptedId === selectedWorker?.id;
 
@@ -153,6 +157,12 @@ export function Messages({ live }) {
   return (
     <div className="messages-wrap" ref={wrapRef}>
       <div className="messages">
+        {selectedWorker?.parent_id && selectedWorker.prompt && (
+          <MessageTask
+            prompt={selectedWorker.prompt}
+            parentName={parentWorker?.name || "orchestrator"}
+          />
+        )}
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
           const block = renderBlock(b, i, selectedWorker?.cwd);

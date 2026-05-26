@@ -603,6 +603,33 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   word-break: break-word;
 }
 
+/* Initial task prompt — shown as first block for orchestrator-spawned workers */
+.msg-task {
+  margin: 0 0 24px;
+  padding: 12px 16px;
+  background: rgba(110, 164, 232, 0.06);
+  border: 1px solid rgba(110, 164, 232, 0.12);
+  border-radius: 10px;
+}
+.msg-task-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+  font-size: 11.5px;
+  color: var(--fg-dim);
+}
+.msg-task-header b { color: var(--fg); font-weight: 600; }
+.msg-task-icon { color: var(--accent); flex-shrink: 0; opacity: 0.7; }
+.msg-task-label { letter-spacing: 0.01em; }
+.msg-task-body {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* report / directive detail */
 .report-detail {
   background: var(--surface);
@@ -763,6 +790,16 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   flex-shrink: 0;
 }
 .tool-item.expanded .ti-chev { transform: rotate(90deg); }
+.ti-running { opacity: 0.7; cursor: default; }
+.ti-shimmer {
+  background: linear-gradient(90deg, var(--fg-dim) 0%, var(--fg-dim) 45%, #fff 50%, var(--fg-dim) 55%, var(--fg-dim) 100%);
+  background-size: 500% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: ti-shimmer 2s linear infinite;
+}
+@keyframes ti-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
 /* ── tool detail panels ── */
 .tool-detail {

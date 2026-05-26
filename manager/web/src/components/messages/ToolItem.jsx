@@ -1,11 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { ToolDetail } from "./ToolDetail.jsx";
+
+const APPEAR_MS = 600;
 
 export function ToolItem({ tool, standalone }) {
   const [expanded, setExpanded] = useState(false);
   const ui = useUi();
-  const label = itemLabel(tool);
+  const isRecent = (Date.now() - tool.ts) < 5000;
+  const [justAppeared, setJustAppeared] = useState(isRecent && !!tool.result);
+  useEffect(() => {
+    if (!justAppeared) return;
+    const t = setTimeout(() => setJustAppeared(false), APPEAR_MS);
+    return () => clearTimeout(t);
+  }, [justAppeared]);
+  const isRunning = tool.running || tool.result === null || justAppeared;
+  const label = isRunning ? runningLabel(tool) : itemLabel(tool);
   const hasPath = (tool.name === "Read" || tool.name === "Edit" || tool.name === "Write") && tool.input?.file_path;
 
   const onFileClick = (e) => {
@@ -18,8 +28,8 @@ export function ToolItem({ tool, standalone }) {
 
   return (
     <div className={"tool-item" + (standalone ? " standalone" : "") + (expanded ? " expanded" : "")}>
-      <div className="tool-item-header" onClick={() => setExpanded((e) => !e)}>
-        <span className="ti-verb">{label.verb}</span>
+      <div className={"tool-item-header" + (isRunning ? " ti-running" : "")} onClick={() => !isRunning && setExpanded((e) => !e)}>
+        <span className={"ti-verb" + (isRunning ? " ti-shimmer" : "")}>{label.verb}</span>
         {" "}
         <span className={"ti-file" + (hasPath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
         {diffStats && (diffStats.add > 0 || diffStats.del > 0) && (
@@ -48,6 +58,16 @@ function editStats(tool) {
       dp[i][j] = oldLines[i - 1] === newLines[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
   const shared = dp[m][n];
   return { add: n - shared, del: m - shared };
+}
+
+function runningLabel(tool) {
+  const name = tool.name ?? "";
+  if (name === "Read") return { verb: "Reading", file: fileName(tool.input?.file_path) };
+  if (name === "Bash") return { verb: "Running", file: (tool.input?.command ?? "").slice(0, 60) };
+  if (name === "Edit") return { verb: "Editing", file: fileName(tool.input?.file_path) };
+  if (name === "Write") return { verb: "Writing", file: fileName(tool.input?.file_path) };
+  if (name === "Glob" || name === "Grep") return { verb: "Searching", file: tool.input?.pattern ?? tool.input?.query ?? "" };
+  return { verb: "Running", file: name };
 }
 
 function itemLabel(tool) {
