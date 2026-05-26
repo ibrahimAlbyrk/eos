@@ -5,8 +5,10 @@
 // not have shipped if these had existed first.
 
 import { z } from "zod";
+import { UnknownRecordSchema } from "./shared.ts";
 import { WorkerRowSchema, PendingPermissionRowSchema, PermissionModeSchema } from "./worker.ts";
 import { DecisionSchema, ExternalDecisionSchema } from "./policy.ts";
+import { NotificationConfigSchema } from "./notifications.ts";
 
 // ---- POST /workers ---------------------------------------------------------
 
@@ -61,7 +63,7 @@ export const OrchestratorListResponseSchema = z.array(WorkerRowSchema);
 export const MessageRequestSchema = z.object({ text: z.string().min(1) });
 export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 
-export const MessageResponseSchema = z.object({ ok: z.boolean() }).passthrough();
+export const MessageResponseSchema = z.object({ ok: z.boolean() });
 export type MessageResponse = z.infer<typeof MessageResponseSchema>;
 
 // ---- GET /workers/:id/events ----------------------------------------------
@@ -78,7 +80,7 @@ export type EventsQuery = z.infer<typeof EventsQuerySchema>;
 export const PolicyDecideRequestSchema = z.object({
   worker_id: z.string(),
   tool_name: z.string(),
-  input: z.record(z.string(), z.unknown()),
+  input: UnknownRecordSchema,
   tool_use_id: z.string().nullable().optional(),
 });
 export type PolicyDecideRequest = z.infer<typeof PolicyDecideRequestSchema>;
@@ -99,7 +101,7 @@ export const PendingListResponseSchema = z.array(PendingPermissionRowSchema);
 export const PendingDecisionRequestSchema = z.object({
   decision: z.enum(["allow", "deny"]),
   reason: z.string().optional(),
-  updatedInput: z.record(z.string(), z.unknown()).optional(),
+  updatedInput: UnknownRecordSchema.optional(),
 });
 export type PendingDecisionRequest = z.infer<typeof PendingDecisionRequestSchema>;
 
@@ -249,10 +251,29 @@ export const CommandsResponseSchema = z.object({
 });
 export type CommandsResponse = z.infer<typeof CommandsResponseSchema>;
 
+// ---- POST /workers/:id/interrupt -------------------------------------------
+
+export const InterruptResponseSchema = z.object({ ok: z.boolean() });
+export type InterruptResponse = z.infer<typeof InterruptResponseSchema>;
+
 // ---- POST /workers/:id/report ----------------------------------------------
 
 export const ReportRequestSchema = z.object({ text: z.string().min(1) });
 export type ReportRequest = z.infer<typeof ReportRequestSchema>;
+
+export const ReportResponseSchema = z.object({
+  ok: z.boolean(),
+  delivered: z.boolean().optional(),
+});
+export type ReportResponse = z.infer<typeof ReportResponseSchema>;
+
+// ---- GET/PUT /api/notifications/config -------------------------------------
+
+export const NotificationConfigRequestSchema = NotificationConfigSchema.partial();
+export type NotificationConfigRequest = z.infer<typeof NotificationConfigRequestSchema>;
+
+export const NotificationConfigResponseSchema = NotificationConfigSchema;
+export type NotificationConfigResponse = z.infer<typeof NotificationConfigResponseSchema>;
 
 // ---- PUT /workers/:id/name -------------------------------------------------
 
@@ -263,9 +284,8 @@ export type SetNameRequest = z.infer<typeof SetNameRequestSchema>;
 
 export const ErrorResponseSchema = z.object({
   error: z.string(),
-  // Endpoints may attach a request id when the error happened mid-route.
   request_id: z.string().optional(),
-}).passthrough();
+});
 export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 
 // ---- routes table (paths used by clients) ----------------------------------

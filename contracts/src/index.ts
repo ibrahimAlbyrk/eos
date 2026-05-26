@@ -1,3 +1,4 @@
+export * from "./shared.ts";
 export * from "./events.ts";
 export * from "./policy.ts";
 export * from "./worker.ts";

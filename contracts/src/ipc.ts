@@ -12,11 +12,11 @@ export type WorkerMessageBody = z.infer<typeof WorkerMessageBodySchema>;
 export const WorkerMessageReplySchema = z.object({
   ok: z.boolean(),
   error: z.string().optional(),
-}).passthrough();
+});
 
 export const WorkerHookReplySchema = z.object({
   continue: z.boolean(),
-}).passthrough();
+});
 
 // Bag of env vars the daemon sets on every worker child process.
 // Three of them are critical for the hook to delegate properly.

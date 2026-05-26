@@ -4,6 +4,7 @@
 // limit_exceeded, user_message, state_reject).
 
 import { z } from "zod";
+import { UnknownRecordSchema } from "./shared.ts";
 
 export const HookEventNameSchema = z.enum([
   "SessionStart",
@@ -75,7 +76,7 @@ export const JsonlToolUseSchema = z.object({
   kind: z.literal("tool_use"),
   id: z.string().optional(),
   name: z.string(),
-  input: z.record(z.string(), z.unknown()).default({}),
+  input: UnknownRecordSchema.default({}),
 });
 export const JsonlToolResultSchema = z.object({
   kind: z.literal("tool_result"),
@@ -97,7 +98,7 @@ export type JsonlPayload = z.infer<typeof JsonlPayloadSchema>;
 
 export const HookPayloadSchema = z.object({
   event: HookEventNameSchema,
-  body: z.record(z.string(), z.unknown()).default({}),
+  body: UnknownRecordSchema.default({}),
 });
 export type HookPayload = z.infer<typeof HookPayloadSchema>;
 
@@ -124,8 +125,8 @@ export const LifecyclePhaseSchema = z.enum([
 ]);
 
 export const LifecyclePayloadSchema = z.object({
-  phase: z.union([LifecyclePhaseSchema, z.string()]),
-}).passthrough();
+  phase: LifecyclePhaseSchema,
+});
 export type LifecyclePayload = z.infer<typeof LifecyclePayloadSchema>;
 
 // Body the worker POSTs to /workers/:id/events.

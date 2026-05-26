@@ -7,6 +7,7 @@
 // discriminated union forces exhaustive handling.
 
 import { z } from "zod";
+import { UnknownRecordSchema } from "./shared.ts";
 
 export const PolicyBehaviorSchema = z.enum(["allow", "deny", "ask", "rewrite"]);
 export type PolicyBehavior = z.infer<typeof PolicyBehaviorSchema>;
@@ -33,35 +34,30 @@ export const PolicyFileSchema = z.object({
 });
 export type PolicyFile = z.infer<typeof PolicyFileSchema>;
 
+export const AllowVariant = z.object({
+  behavior: z.literal("allow"),
+  updatedInput: UnknownRecordSchema.optional(),
+  message: z.string().optional(),
+});
+
+export const DenyVariant = z.object({
+  behavior: z.literal("deny"),
+  message: z.string(),
+});
+
 // What the daemon/gateway returns to the hook caller. "ask" is internal to
 // the daemon — it never reaches the hook (the daemon resolves it via the
 // pending-permissions long-poll into allow|deny).
 export const DecisionSchema = z.discriminatedUnion("behavior", [
-  z.object({
-    behavior: z.literal("allow"),
-    updatedInput: z.record(z.string(), z.unknown()).optional(),
-    message: z.string().optional(),
-  }),
-  z.object({
-    behavior: z.literal("deny"),
-    message: z.string(),
-  }),
-  z.object({
-    behavior: z.literal("ask"),
-  }),
+  AllowVariant,
+  DenyVariant,
+  z.object({ behavior: z.literal("ask") }),
 ]);
 export type Decision = z.infer<typeof DecisionSchema>;
 
 // The decision shape exposed externally (hook, MCP gateway) — without "ask".
 export const ExternalDecisionSchema = z.discriminatedUnion("behavior", [
-  z.object({
-    behavior: z.literal("allow"),
-    updatedInput: z.record(z.string(), z.unknown()).optional(),
-    message: z.string().optional(),
-  }),
-  z.object({
-    behavior: z.literal("deny"),
-    message: z.string(),
-  }),
+  AllowVariant,
+  DenyVariant,
 ]);
 export type ExternalDecision = z.infer<typeof ExternalDecisionSchema>;

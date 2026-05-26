@@ -7,7 +7,9 @@ const EXPECTED_KEYS = [
   "orchestrators", "orchestratorMessage", "policyDecide", "pending",
   "pendingDecision", "session", "metrics", "uiConfig", "pickDirectory",
   "fsDefaultApp", "fsOpen", "fsIcon", "fsBranches", "fsRecents", "fsReveal",
-  "fsRead", "fsWrite", "workerPermission", "workerModel", "workerDiff", "web",
+  "fsRead", "fsWrite", "workerName", "workerPermission", "workerModel",
+  "workerDiff", "workerInterrupt", "workerReport", "commands",
+  "notificationsConfig", "web",
 ] as const;
 
 describe("ROUTES completeness", () => {
