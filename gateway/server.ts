@@ -38,7 +38,16 @@ server.registerTool(
       tool_use_id: z.string().optional(),
     },
   },
-  async ({ tool_name, input, tool_use_id }) => {
+  async (rawArgs) => {
+    const validated = z.object({
+      tool_name: z.string(),
+      input: z.record(z.string(), z.unknown()),
+      tool_use_id: z.string().optional(),
+    }).safeParse(rawArgs);
+    if (!validated.success) {
+      return { content: [{ type: "text" as const, text: JSON.stringify({ behavior: "deny", message: "invalid input" }) }] };
+    }
+    const { tool_name, input, tool_use_id } = validated.data;
     const decision = await resolver.decide({ tool_name, input, tool_use_id });
     audit.append({
       ts: new Date().toISOString(),

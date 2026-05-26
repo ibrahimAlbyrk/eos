@@ -17,7 +17,7 @@ export function createDaemonProxyPolicy(opts: DaemonProxyOptions): PolicyResolve
     name: "daemon",
     async decide({ tool_name, input, tool_use_id }): Promise<Decision> {
       const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), 60_000);
+      const timer = setTimeout(() => ac.abort(), 40_000);
       try {
         const r = await fetch(`${opts.daemonUrl}/policy/decide`, {
           method: "POST",
@@ -33,7 +33,7 @@ export function createDaemonProxyPolicy(opts: DaemonProxyOptions): PolicyResolve
           return { behavior: "allow", updatedInput: d.updatedInput ?? input };
         return d;
       } catch (e) {
-        return { behavior: "deny", message: `daemon unreachable: ${(e as Error).message}` };
+        return { behavior: "deny", message: "permission service unavailable" };
       } finally {
         clearTimeout(timer);
       }
