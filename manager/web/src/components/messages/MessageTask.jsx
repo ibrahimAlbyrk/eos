@@ -1,4 +1,13 @@
+import { useMemo } from "react";
+import { marked } from "marked";
+import DOMPurify from "dompurify";
+
 export function MessageTask({ prompt, parentName }) {
+  const html = useMemo(() => {
+    const raw = marked.parse(String(prompt || ""));
+    return DOMPurify.sanitize(raw);
+  }, [prompt]);
+
   return (
     <div className="msg-task">
       <div className="msg-task-header">
@@ -8,7 +17,10 @@ export function MessageTask({ prompt, parentName }) {
         </svg>
         <span className="msg-task-label">Task from <b>{parentName}</b></span>
       </div>
-      <div className="msg-task-body">{prompt}</div>
+      <div
+        className="msg-task-body msg-asst"
+        dangerouslySetInnerHTML={{ __html: html }}
+      />
     </div>
   );
 }

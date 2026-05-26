@@ -626,9 +626,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   font-size: 13px;
   line-height: 1.6;
   color: var(--fg);
-  white-space: pre-wrap;
-  word-break: break-word;
 }
+.msg-task-body.msg-asst { margin: 0; }
 
 /* report / directive detail */
 .report-detail {
