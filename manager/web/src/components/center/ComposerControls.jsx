@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { contextUsage } from "../../lib/contextWindow.js";
+import { modelName, modelCtx } from "../../lib/models.js";
 import { AcceptPopover } from "../popovers/AcceptPopover.jsx";
 import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { ModelPopover } from "../popovers/ModelPopover.jsx";
@@ -11,14 +12,6 @@ const MODE_LABELS = {
   acceptEdits: "Accept edits",
   plan: "Plan only",
   bypassPermissions: "Bypass all",
-};
-
-const MODEL_LABELS = {
-  "haiku-4.5":  { name: "Haiku 4.5",  ctx: "200k" },
-  "sonnet-4.5": { name: "Sonnet 4.5", ctx: "200k" },
-  "sonnet":     { name: "Sonnet 4.5", ctx: "200k" },
-  "opus-4.7":   { name: "Opus 4.7",   ctx: "1M" },
-  "opus":       { name: "Opus 4.7",   ctx: "1M" },
 };
 
 const EFFORT_LABELS = {
@@ -33,7 +26,7 @@ export function ComposerControls({ live, onAttach }) {
   const mode = selected?.permission_mode ?? draft?.permissionMode ?? ui.composer.permissionMode;
   const model = selected?.model ?? draft?.model ?? ui.composer.model;
   const effort = selected?.effort ?? draft?.effort ?? ui.composer.effort;
-  const modelInfo = MODEL_LABELS[model] || { name: model || "—", ctx: "" };
+  const modelInfo = { name: modelName(model) || model || "—", ctx: modelCtx(model) || "" };
 
   useEffect(() => { live.updateLastUsage(selected?.id ?? null); }, [selected?.id]);
   useEffect(() => {

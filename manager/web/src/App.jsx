@@ -13,6 +13,7 @@ import { Islands } from "./components/islands/Islands.jsx";
 import { IslandHandle } from "./components/islands/IslandHandle.jsx";
 import { AgentContextMenu } from "./components/popovers/AgentContextMenu.jsx";
 import { FileViewer } from "./components/messages/FileViewer.jsx";
+import { AgentViewer } from "./components/messages/AgentViewer.jsx";
 
 function Shell() {
   const ui = useUi();
@@ -73,9 +74,11 @@ function Shell() {
   if (ready) cls.push("ready");
   if (ui.sideCollapsed) cls.push("side-collapsed");
   const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
-  const islandsVisible = !!selectedWorker && !ui.islandsHidden && !ui.fileViewer;
+  const panelOpen = ui.fileViewer || ui.agentViewer;
+  const islandsVisible = !!selectedWorker && !ui.islandsHidden && !panelOpen;
   if (islandsVisible) cls.push("has-islands");
   if (ui.fileViewer) cls.push("file-open");
+  if (ui.agentViewer) cls.push("agent-open");
 
   const [nativeHover, setNativeHover] = useState(false);
   const nativeLeaveTimer = useRef(null);
@@ -136,9 +139,10 @@ function Shell() {
         <Composer live={live} />
       </section>
 
-      {!ui.fileViewer && <Islands live={live} />}
-      {!ui.fileViewer && <IslandHandle />}
+      {!panelOpen && <Islands live={live} />}
+      {!panelOpen && <IslandHandle />}
       <FileViewer />
+      <AgentViewer />
 
       <AgentContextMenu live={live} />
     </div>

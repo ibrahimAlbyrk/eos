@@ -19,6 +19,7 @@ export function SelectionProvider({ children }) {
   const [popoverData, setPopoverData] = useState({});
   const [collapsedNodes, setCollapsedNodes] = useState(() => new Set());
   const [fileViewer, setFileViewer] = useState(null);
+  const [agentViewer, setAgentViewer] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const escapeIdleRef = useRef(null);
   const registerEscapeIdle = useCallback((fn) => { escapeIdleRef.current = fn; }, []);
@@ -33,18 +34,19 @@ export function SelectionProvider({ children }) {
     setPopoverData({});
   }, []);
 
-  useEffect(() => { setFileViewer(null); }, [selectedId]);
+  useEffect(() => { setFileViewer(null); setAgentViewer(null); }, [selectedId]);
 
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
       if (openPopover) { closeAllPops(); return; }
+      if (agentViewer) { setAgentViewer(null); return; }
       if (fileViewer) { setFileViewer(null); return; }
       if (escapeIdleRef.current) { e.preventDefault(); escapeIdleRef.current(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeAllPops, openPopover, fileViewer]);
+  }, [closeAllPops, openPopover, fileViewer, agentViewer]);
 
   const toggleNodeCollapsed = useCallback((id) => {
     setCollapsedNodes((prev) => {
@@ -55,11 +57,20 @@ export function SelectionProvider({ children }) {
   }, []);
 
   const openFileViewer = useCallback((path) => {
+    setAgentViewer(null);
     setFileViewer({ path, editMode: false });
   }, []);
   const closeFileViewer = useCallback(() => setFileViewer(null), []);
   const toggleFileEditMode = useCallback(() => {
     setFileViewer((prev) => prev ? { ...prev, editMode: !prev.editMode } : null);
+  }, []);
+  const openAgentViewer = useCallback((block) => {
+    setFileViewer(null);
+    setAgentViewer(block);
+  }, []);
+  const closeAgentViewer = useCallback(() => setAgentViewer(null), []);
+  const syncAgentViewer = useCallback((block) => {
+    setAgentViewer((prev) => prev && prev.toolUseId === block.toolUseId ? block : prev);
   }, []);
 
   const value = useMemo(() => ({
@@ -70,12 +81,14 @@ export function SelectionProvider({ children }) {
     collapsedNodes, toggleNodeCollapsed,
     renamingId, setRenamingId,
     fileViewer, openFileViewer, closeFileViewer, toggleFileEditMode,
+    agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     registerEscapeIdle,
   }), [
     selectedId, sideCollapsed, islandsHidden, openPopover, popoverPos, popoverData,
-    collapsedNodes, renamingId, fileViewer,
+    collapsedNodes, renamingId, fileViewer, agentViewer,
     openPop, closeAllPops, toggleNodeCollapsed,
     openFileViewer, closeFileViewer, toggleFileEditMode,
+    openAgentViewer, closeAgentViewer, syncAgentViewer,
     registerEscapeIdle,
   ]);
 

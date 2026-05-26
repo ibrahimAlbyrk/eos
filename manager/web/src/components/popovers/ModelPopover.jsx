@@ -1,10 +1,5 @@
 import { useUi } from "../../state/ui.jsx";
-
-const MODELS = [
-  { id: "haiku-4.5",  aliases: ["haiku"],  label: "haiku-4.5",  tag: "fastest" },
-  { id: "sonnet-4.5", aliases: ["sonnet"], label: "sonnet-4.5", tag: "balanced" },
-  { id: "opus-4.7",   aliases: ["opus"],   label: "opus-4.7",   tag: "most capable" },
-];
+import { MODELS } from "../../lib/models.js";
 
 const matchesModel = (current, model) =>
   current === model.id || model.aliases.includes(current);

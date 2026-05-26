@@ -69,12 +69,16 @@ export function parseJsonlLine(
         emit("jsonl", { kind: "assistant_text", text: block.text });
       } else if (block.type === "tool_use") {
         if (typeof block.id !== "string" || typeof block.name !== "string") continue;
-        emit("jsonl", {
+        const toolEvt: Record<string, unknown> = {
           kind: "tool_use",
           id: block.id,
           name: block.name,
           input: (block.input as Record<string, unknown>) ?? {},
-        });
+        };
+        if (block.name === "Agent" && msg.model) {
+          toolEvt.parentModel = msg.model;
+        }
+        emit("jsonl", toolEvt);
       } else if (block.type === "thinking") {
         const thinkText = block.thinking ?? block.text;
         if (typeof thinkText !== "string") continue;

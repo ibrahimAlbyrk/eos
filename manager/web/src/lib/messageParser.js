@@ -1,6 +1,7 @@
 export function buildBlocks(events) {
   const resultMap = new Map();
   const toolUseIds = new Set();
+  const agentSpans = new Map();
   for (const ev of events) {
     if (ev.type !== "jsonl") continue;
     const p = parsePayload(ev.payload);
@@ -9,7 +10,67 @@ export function buildBlocks(events) {
     }
     if (p.kind === "tool_use" && p.id) {
       toolUseIds.add(p.id);
+      if (p.name === "Agent") {
+        agentSpans.set(p.id, { startTs: ev.ts, endTs: Infinity });
+      }
     }
+  }
+  for (const ev of events) {
+    if (ev.type !== "jsonl") continue;
+    const p = parsePayload(ev.payload);
+    if (p.kind === "tool_result" && p.toolUseId && agentSpans.has(p.toolUseId)) {
+      const isBackground = (p.text ?? "").includes("Async agent launched");
+      if (!isBackground) {
+        agentSpans.get(p.toolUseId).endTs = ev.ts;
+      }
+    }
+  }
+
+  const toolDoneSet = new Set();
+  const toolDoneMap = new Map();
+  for (const ev of events) {
+    if (ev.type !== "tool_done") continue;
+    const td = parsePayload(ev.payload);
+    if (td.toolUseId) {
+      toolDoneSet.add(td.toolUseId);
+      const text = td.result ?? "";
+      if (text) toolDoneMap.set(td.toolUseId, { text, isError: false });
+    }
+  }
+
+  const agentToolMap = new Map();
+  for (const ev of events) {
+    if (ev.type !== "tool_running") continue;
+    const tr = parsePayload(ev.payload);
+    if (!tr.toolUseId || toolUseIds.has(tr.toolUseId)) continue;
+    let bestAgent = null;
+    let bestDist = Infinity;
+    for (const [agentId, span] of agentSpans) {
+      if (ev.ts >= span.startTs && ev.ts <= span.endTs) {
+        bestAgent = agentId;
+        break;
+      }
+      if (ev.ts > span.startTs && (ev.ts - span.startTs) < bestDist) {
+        bestDist = ev.ts - span.startTs;
+        bestAgent = agentId;
+      }
+    }
+    if (bestAgent) {
+      if (!agentToolMap.has(bestAgent)) agentToolMap.set(bestAgent, []);
+      agentToolMap.get(bestAgent).push({
+        id: tr.toolUseId,
+        name: tr.toolName ?? "unknown",
+        input: tr.input ?? {},
+        result: toolDoneMap.get(tr.toolUseId) ?? null,
+        done: toolDoneSet.has(tr.toolUseId),
+        ts: ev.ts,
+      });
+    }
+  }
+
+  const attributedToolIds = new Set();
+  for (const tools of agentToolMap.values()) {
+    for (const t of tools) attributedToolIds.add(t.id);
   }
 
   const out = [];
@@ -62,7 +123,7 @@ export function buildBlocks(events) {
     }
     if (ev.type === "tool_running") {
       const tr = parsePayload(ev.payload);
-      if (tr.toolUseId && !toolUseIds.has(tr.toolUseId)) {
+      if (tr.toolUseId && !toolUseIds.has(tr.toolUseId) && !attributedToolIds.has(tr.toolUseId)) {
         lastAsst = null;
         pendingTools.push({
           id: tr.toolUseId,
@@ -96,13 +157,21 @@ export function buildBlocks(events) {
       if (p.name === "Agent") {
         flushTools();
         const result = resultMap.get(p.id);
+        const isBackground = result && (result.text ?? "").includes("Async agent launched");
+        const cleanResult = isBackground ? null : (result?.text ?? null);
+        const tools = agentToolMap.get(p.id) ?? [];
+        const allToolsDone = tools.length > 0 && tools.every((t) => t.done);
+        const bgDone = isBackground && allToolsDone;
         out.push({
           kind: "agentRun",
           toolUseId: p.id,
           description: p.input?.description || (p.input?.prompt ?? "").slice(0, 100) || "agent",
-          model: p.input?.model ?? null,
-          status: result ? "completed" : "running",
-          result: result?.text ?? null,
+          prompt: p.input?.prompt ?? "",
+          model: p.input?.model ?? p.parentModel ?? null,
+          subagentType: p.input?.subagent_type ?? null,
+          status: bgDone ? "completed" : (isBackground ? "running" : (result ? "completed" : "running")),
+          result: cleanResult,
+          tools,
           ts: ev.ts,
         });
       } else {

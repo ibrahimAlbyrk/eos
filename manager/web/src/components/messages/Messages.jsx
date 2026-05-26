@@ -100,6 +100,12 @@ export function Messages({ live }) {
     return base;
   }, [events, ui.optimisticMsgs, ui.selectedId]);
 
+  useEffect(() => {
+    if (!ui.agentViewer) return;
+    const match = blocks.find(b => b.kind === "agentRun" && b.toolUseId === ui.agentViewer.toolUseId);
+    if (match) ui.syncAgentViewer(match);
+  }, [blocks]);
+
   const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
   const parentWorker = selectedWorker?.parent_id
     ? live.workers.find((w) => w.id === selectedWorker.parent_id)

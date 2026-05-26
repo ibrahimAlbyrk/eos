@@ -164,6 +164,13 @@ const ingest = startIngestServer(opts.port, {
         input: body.tool_input ?? {},
       });
     }
+    if (eventName === "PostToolUse") {
+      evt.emit("tool_done", {
+        toolName: body.tool_name ?? "unknown",
+        toolUseId: body.tool_use_id ?? null,
+        result: extractToolResponse(body.tool_response ?? body.tool_result ?? ""),
+      });
+    }
     evt.emit("hook", { event: eventName, body });
     if (eventName === "PreToolUse") {
       console.log(`[${name}][hook] PreToolUse tool=${body.tool_name}`);
@@ -221,6 +228,19 @@ function cleanup(code: number): void {
   });
 
   process.exit(code);
+}
+
+function extractToolResponse(raw: unknown): string {
+  if (typeof raw === "string") return raw;
+  if (Array.isArray(raw)) return raw.map((b) => extractToolResponse(b)).join("");
+  if (raw && typeof raw === "object") {
+    const obj = raw as Record<string, unknown>;
+    const file = obj.file as Record<string, unknown> | undefined;
+    if (file && typeof file.content === "string") return file.content;
+    if (typeof obj.text === "string") return obj.text;
+    if (typeof obj.content === "string") return obj.content;
+  }
+  return "";
 }
 
 process.on("SIGINT", () => cleanup(130));
