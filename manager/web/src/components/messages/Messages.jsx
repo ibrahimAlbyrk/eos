@@ -33,9 +33,10 @@ export function Messages({ live }) {
   const checkNearBottom = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
+    const overflows = el.scrollHeight > el.clientHeight;
     const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
     isNearBottomRef.current = dist < SCROLL_THRESHOLD;
-    setShowScrollBtn(dist >= BUTTON_THRESHOLD);
+    setShowScrollBtn(overflows && dist >= BUTTON_THRESHOLD);
   }, []);
 
   useEffect(() => {
