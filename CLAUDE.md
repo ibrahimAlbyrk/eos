@@ -11,15 +11,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Repository layout
 
 ```
-contracts/      — Zod schemas + TS types. Single source of truth for all IPC shapes.
-core/           — Pure domain + ports (interfaces) + use-cases. Zero Node-specific imports.
-infra/          — Adapter implementations for core/ ports (SQLite, child_process, chokidar, etc.).
-gateway/        — MCP permission server. Strategy: DaemonProxyPolicy vs StandalonePolicy.
-spawner/        — worker.ts composition root + submodules (pty-queue, tail, jsonl-parser, session, worktree, etc.).
-manager/        — daemon.ts (composition root + container + routes), cli.ts (Command pattern), orchestrator-mcp.ts, worker-mcp.ts.
-manager/shared/ — Centralized config (env→file→default), daemon HTTP client, path utils.
-manager/web/    — React 18 + Vite. api/client.js (typed HTTP), hooks/useLive.js (SSE+poll), state/{selection,composer,notification}.jsx.
-app/            — Native macOS WKWebView wrapper. build.sh → Eos.app.
+contracts/        — Zod schemas + TS types. Single source of truth for all IPC shapes.
+contracts/shared  — Reusable schema primitives (UnknownRecordSchema, AllowVariant, DenyVariant).
+core/             — Pure domain + ports (interfaces) + use-cases. Zero Node-specific imports.
+infra/            — Adapter implementations for core/ ports (SQLite, child_process, chokidar, etc.).
+infra/util/       — Cross-cutting infra utilities (safeStringify).
+gateway/          — MCP permission server. Strategy: DaemonProxyPolicy vs StandalonePolicy.
+spawner/          — worker.ts composition root + submodules (pty-queue, tail, jsonl-parser, session, worktree, etc.).
+manager/          — daemon.ts (composition root + container + routes), cli.ts (Command pattern), orchestrator-mcp.ts, worker-mcp.ts.
+manager/services/ — Extracted stateful services (InterruptCooldownService).
+manager/routes/   — Split by concern: workers, orchestrators, policy, fs-picker, fs-read, fs-git, etc.
+manager/shared/   — Centralized config (env→file→default, deeply frozen), daemon HTTP client, path utils.
+manager/web/      — React 18 + Vite. api/client.js (typed HTTP + request dedup), hooks/useLive.js (SSE+poll), state/.
+app/              — Native macOS WKWebView wrapper. build.sh → Eos.app.
 ```
 
 Each package has its own `package.json` + `node_modules`. **NOT a workspace** — install per directory. Cross-package imports use relative paths.
@@ -52,7 +56,7 @@ HTTP surface: all endpoints defined in `contracts/src/http.ts` ROUTES table.
 
 ### Permission flow: hook-as-gateway
 
-Claude prefers interactive prompt over `--permission-prompt-tool` MCP when a `PermissionRequest` hook exists. So **the hook IS the gateway**: `scripts/hooks/auto-allow.sh` checks `CLAUDE_MGR_SPAWNED` env var → forwards to `POST /policy/decide` → returns decision verbatim. Output shape (empirically verified — `updatedInput` is a **sibling** of `decision`, NOT nested inside it):
+Claude prefers interactive prompt over `--permission-prompt-tool` MCP when a `PermissionRequest` hook exists. The hook is configured **per-worker** in `spawner/settings.ts` (added to the generated settings.json alongside other hooks). `scripts/hooks/auto-allow.sh` checks `CLAUDE_MGR_SPAWNED` env var → forwards to `POST /policy/decide` → returns decision verbatim. The hook only accepts `"allow"` or `"deny"` behavior values; anything else falls through to standalone default. Output shape (empirically verified — `updatedInput` is a **sibling** of `decision`, NOT nested inside it):
 
 ```json
 {
@@ -63,6 +67,8 @@ Claude prefers interactive prompt over `--permission-prompt-tool` MCP when a `Pe
   }
 }
 ```
+
+Web UI renders a **PermissionBanner** above the composer with Deny / Always allow / Allow once (⌘↵) buttons. "Always allow" adds a permanent rule to `policy.yaml` via `POST /api/policy/rule`.
 
 ### Worker env vars (required for daemon-aware mode)
 
@@ -94,7 +100,7 @@ Missing any → hook falls through to default auto-allow, gateway loop breaks.
 
 ### Policy long-poll timeouts
 
-`/policy/decide` blocks up to `ttlMs` (default 30s) on `ask` rules. Hook's curl timeout is 90s to exceed this. Don't reduce without coordinating both sides.
+`/policy/decide` blocks indefinitely on `ask` rules when `ttlMs` is not set in `policy.yaml`. If `ttlMs` IS set, the daemon auto-denies after that duration. Hook's curl timeout is 3600s, gateway abort timeout is 3600s. All three (policy ttlMs, hook curl, gateway abort) must be coordinated if changed.
 
 ### Temp dir prefix
 
@@ -111,11 +117,13 @@ Same worker.ts code. Distinguished by `--persistent` (no auto-shutdown), `--perm
 ## Style notes
 
 - No comments unless *why* is non-obvious. Keep existing comments on: `pty-queue.ts` CR delay, `worktree.ts` realpath dance, `auto-allow.sh`.
+- Use `safeStringify()` from `infra/src/util/json.ts` instead of raw `JSON.stringify()` for values that could be non-serializable.
+- Use `e instanceof Error ? e.message : String(e)` in catch blocks — never `(e as Error).message`.
 - All code/CLI output in English. User web messages may be Turkish.
 
 ## Clean Architecture rules
 
-Dependency direction: `contracts/` → `core/` → `infra/` → entrypoints. **Enforced at lint time** via `no-restricted-imports` in `eslint.config.js`. No Node-specific imports in `core/`.
+Dependency direction: `contracts/` → `core/` → `infra/` → entrypoints. **Enforced at lint time** via `no-restricted-imports` in `eslint.config.js`. No Node-specific imports in `core/`. Core uses `Clock` port everywhere — never `Date.now()` directly.
 
 Adding new things:
 - **HTTP endpoint**: schema in `contracts/src/http.ts` (+ ROUTES entry) → route in `manager/routes/` → register in `manager/daemon.ts`
@@ -123,3 +131,10 @@ Adding new things:
 - **CLI command**: `manager/cli/commands/<name>.ts` implementing `Command` → register in `registry.ts`
 - **MCP tool**: `manager/orchestrator-mcp/tools/` or `manager/worker-mcp/tools/` implementing `McpToolModule` → add to `tool-registry.ts`
 - **Infra concern**: port in `core/src/ports/` → impl in `infra/src/<concern>/` → wire in `manager/container.ts`
+- **Shared schema**: reusable Zod primitives go in `contracts/src/shared.ts` (e.g. `UnknownRecordSchema`)
+- **Manager service**: stateful extracted logic goes in `manager/services/` (e.g. `InterruptCooldownService`)
+- **Policy rule**: `POST /api/policy/rule` appends to `~/.claude-mgr/policy.yaml` + reloads; used by web UI "Always allow"
+
+Config is deeply frozen after load. Mutation requires `reloadConfig()` (writes file first, then reloads). Never `Object.assign` on live config.
+
+Node.js strip-only TS mode: don't use parameter properties (`constructor(private x: T)`) — use explicit field + assignment.
