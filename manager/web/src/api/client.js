@@ -9,12 +9,25 @@ import { ROUTES } from "./routes.js";
 const DAEMON = typeof location !== "undefined" ? location.origin : "";
 const JSON_HEADERS = { "content-type": "application/json" };
 
+const inflight = new Map();
+
+function deduplicatedFetch(url, opts) {
+  if (opts?.method && opts.method !== "GET") return fetch(url, opts);
+  if (opts?.signal) return fetch(url, opts);
+  const key = url;
+  if (inflight.has(key)) return inflight.get(key);
+  const p = fetch(url, opts).finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+
 async function getJson(path, { signal } = {}) {
-  const r = await fetch(`${DAEMON}${path}`, { signal });
-  // fetch doesn't throw on non-2xx; surface failures so callers can fall
-  // back instead of parsing an error envelope as the success shape.
-  if (!r.ok) throw new Error(`GET ${path} → ${r.status}`);
-  return r.json();
+  const url = `${DAEMON}${path}`;
+  const r = signal ? await fetch(url, { signal }) : await deduplicatedFetch(url);
+  let parsed = null;
+  try { parsed = await r.json(); } catch {}
+  if (!r.ok) return { ok: false, status: r.status, body: parsed };
+  return { ok: true, status: r.status, body: parsed };
 }
 
 async function postJson(path, body) {
@@ -51,14 +64,22 @@ export const api = {
   routes: ROUTES,
 
   // Health + status
-  async health() { return getJson(ROUTES.health); },
+  async health() {
+    const r = await getJson(ROUTES.health);
+    if (!r.ok) throw new Error(`health → ${r.status}`);
+    return r.body;
+  },
   async uiConfig() {
     const r = await fetch(`${DAEMON}${ROUTES.uiConfig}`);
     return r.ok ? r.json() : null;
   },
 
   // Workers
-  async listWorkers() { return getJson(ROUTES.workers); },
+  async listWorkers() {
+    const r = await getJson(ROUTES.workers);
+    if (!r.ok) throw new Error(`listWorkers → ${r.status}`);
+    return r.body;
+  },
   async spawnWorker(spec) { return postJson(ROUTES.workers, spec); },
   async killWorker(id) { return del(ROUTES.worker(id)); },
   async getWorkerEvents(id, { since = 0, order = "asc", limit, signal } = {}) {
@@ -66,7 +87,9 @@ export const api = {
     params.set("since", String(since));
     params.set("order", order);
     if (limit != null) params.set("limit", String(limit));
-    return getJson(`${ROUTES.workerEvents(id)}?${params.toString()}`, { signal });
+    const r = await getJson(`${ROUTES.workerEvents(id)}?${params.toString()}`, { signal });
+    if (!r.ok) throw new Error(`getWorkerEvents → ${r.status}`);
+    return r.body;
   },
   async sendWorkerMessage(id, text) {
     return postJson(ROUTES.workerMessage(id), { text });
@@ -84,7 +107,11 @@ export const api = {
   },
 
   // Pending
-  async listPending() { return getJson(ROUTES.pending); },
+  async listPending() {
+    const r = await getJson(ROUTES.pending);
+    if (!r.ok) throw new Error(`listPending → ${r.status}`);
+    return r.body;
+  },
   async approvePending(id, updatedInput) {
     const body = { decision: "allow" };
     if (updatedInput) body.updatedInput = updatedInput;
@@ -96,13 +123,23 @@ export const api = {
 
   // Session
   async getSession() {
-    try { return await getJson(ROUTES.session); }
-    catch { return null; }
+    try {
+      const r = await getJson(ROUTES.session);
+      return r.ok ? r.body : null;
+    } catch { return null; }
   },
 
   // FS helpers
-  async pickDirectory() { return getJson(ROUTES.pickDirectory); },
-  async pickFiles() { return getJson(ROUTES.pickFile); },
+  async pickDirectory() {
+    const r = await getJson(ROUTES.pickDirectory);
+    if (!r.ok) throw new Error(`pickDirectory → ${r.status}`);
+    return r.body;
+  },
+  async pickFiles() {
+    const r = await getJson(ROUTES.pickFile);
+    if (!r.ok) throw new Error(`pickFiles → ${r.status}`);
+    return r.body;
+  },
   imageUrl(path) { return `${DAEMON}${ROUTES.fsImage}?path=${encodeURIComponent(path)}`; },
   async getDefaultApp(path) {
     const r = await fetch(`${DAEMON}${ROUTES.fsDefaultApp}?path=${encodeURIComponent(path)}`);
@@ -119,11 +156,15 @@ export const api = {
     return postJson(ROUTES.fsCheckout, { cwd, branch });
   },
   async listRecents() {
-    try { return await getJson(ROUTES.fsRecents); }
-    catch { return { paths: [] }; }
+    try {
+      const r = await getJson(ROUTES.fsRecents);
+      return r.ok ? r.body : { paths: [] };
+    } catch { return { paths: [] }; }
   },
   async readFile(path) {
-    return getJson(`${ROUTES.fsRead}?path=${encodeURIComponent(path)}`);
+    const r = await getJson(`${ROUTES.fsRead}?path=${encodeURIComponent(path)}`);
+    if (!r.ok) throw new Error(`readFile → ${r.status}`);
+    return r.body;
   },
   async writeFile(path, content) {
     return postJson(ROUTES.fsWrite, { path, content });
@@ -146,17 +187,23 @@ export const api = {
     const params = new URLSearchParams();
     if (cwd) params.set("cwd", cwd);
     if (query) params.set("query", query);
-    return getJson(`${ROUTES.fsList}?${params.toString()}`);
+    const r = await getJson(`${ROUTES.fsList}?${params.toString()}`);
+    if (!r.ok) throw new Error(`listFiles → ${r.status}`);
+    return r.body;
   },
 
   async listCommands(cwd) {
     const params = cwd ? `?cwd=${encodeURIComponent(cwd)}` : "";
-    return getJson(`${ROUTES.commands}${params}`);
+    const r = await getJson(`${ROUTES.commands}${params}`);
+    if (!r.ok) throw new Error(`listCommands → ${r.status}`);
+    return r.body;
   },
 
   async getWorkerDiff(id, { signal } = {}) {
-    try { return await getJson(ROUTES.workerDiff(id), { signal }); }
-    catch (e) {
+    try {
+      const r = await getJson(ROUTES.workerDiff(id), { signal });
+      return r.ok ? r.body : { insertions: 0, deletions: 0, files: 0 };
+    } catch (e) {
       if (e?.name === "AbortError") throw e;
       return { insertions: 0, deletions: 0, files: 0 };
     }

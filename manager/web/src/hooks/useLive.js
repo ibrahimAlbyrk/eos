@@ -114,23 +114,26 @@ export function useLive() {
     return r;
   }, [scheduleRefetch, refreshRecents]);
 
+  const workersRef = useRef(workers);
+  workersRef.current = workers;
+
   const sendToAgent = useCallback(async (id, text) => {
     setInterruptedId(null);
-    const worker = workers.find((w) => w.id === id);
+    const worker = workersRef.current.find((w) => w.id === id);
     if (!worker) return { ok: false, status: 404, body: { error: "not found" } };
     const r = worker.is_orchestrator
       ? await api.sendOrchestratorMessage(id, text)
       : await api.sendWorkerMessage(id, text);
     scheduleRefetch();
     return r;
-  }, [workers, scheduleRefetch]);
+  }, [scheduleRefetch, setInterruptedId]);
 
   const interruptAgent = useCallback(async (id) => {
     setInterruptedId(id);
     const r = await api.interruptWorker(id);
     scheduleRefetch();
     return r;
-  }, [scheduleRefetch]);
+  }, [scheduleRefetch, setInterruptedId]);
 
   const killAgent = useCallback(async (id) => {
     const r = await api.killWorker(id);
@@ -156,15 +159,18 @@ export function useLive() {
     return r;
   }, [scheduleRefetch]);
 
+  const lastUsageRef = useRef(null);
   const updateLastUsage = useCallback(async (workerId) => {
-    if (!workerId) { setLastUsage(null); return; }
-    if (lastUsageWorker.current === workerId && lastUsage) return;
+    if (!workerId) { setLastUsage(null); lastUsageRef.current = null; return; }
+    if (lastUsageWorker.current === workerId && lastUsageRef.current) return;
     try {
       const events = await api.getWorkerEvents(workerId, { order: "desc", limit: 50 });
       lastUsageWorker.current = workerId;
-      setLastUsage(extractLastUsage(events));
+      const usage = extractLastUsage(events);
+      lastUsageRef.current = usage;
+      setLastUsage(usage);
     } catch { /* ignore */ }
-  }, [lastUsage]);
+  }, []);
 
   const refreshLastUsage = useCallback(async (workerId) => {
     if (!workerId) return;

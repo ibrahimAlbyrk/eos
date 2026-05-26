@@ -4,6 +4,7 @@ import { createReconnectingStream } from "../api/sse.js";
 
 export function useWebNotifications() {
   const permissionRef = useRef(null);
+  const streamRef = useRef(null);
 
   useEffect(() => {
     if (!("Notification" in window)) return;
@@ -15,6 +16,7 @@ export function useWebNotifications() {
   }, []);
 
   useEffect(() => {
+    if (streamRef.current) streamRef.current.close();
     const s = createReconnectingStream({
       onChange(e) {
         if (document.visibilityState !== "hidden") return;
@@ -32,6 +34,10 @@ export function useWebNotifications() {
         } catch {}
       },
     });
-    return () => s.close();
+    streamRef.current = s;
+    return () => {
+      s.close();
+      streamRef.current = null;
+    };
   }, []);
 }

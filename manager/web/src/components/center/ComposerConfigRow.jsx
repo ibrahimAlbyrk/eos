@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { api } from "../../api/client.js";
 import { basename } from "../../lib/path.js";
@@ -29,22 +29,35 @@ export function ComposerConfigRow({ live }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [live.recents, ui.selectedId]);
 
-  // fetch current branch whenever cwd changes or window regains focus
+  // Ref to track the latest cwd so the focus listener always reads current value
+  const cwdRef = useRef(cwd);
+  cwdRef.current = cwd;
+  const selectedIdRef = useRef(ui.selectedId);
+  selectedIdRef.current = ui.selectedId;
+
+  const refreshBranch = useCallback(async () => {
+    const c = cwdRef.current;
+    if (!c) return;
+    try {
+      const r = await api.listBranches(c);
+      setIsGit(r.isGit !== false);
+      if (r.current) updateState({ branch: r.current });
+      else if (!r.isGit) updateState({ branch: null });
+    } catch {}
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // fetch branch on cwd / selection change
   useEffect(() => {
     if (!cwd) return;
-    const refresh = async () => {
-      try {
-        const r = await api.listBranches(cwd);
-        setIsGit(r.isGit !== false);
-        if (r.current) updateState({ branch: r.current });
-        else if (!r.isGit) updateState({ branch: null });
-      } catch {}
-    };
-    refresh();
-    window.addEventListener("focus", refresh);
-    return () => window.removeEventListener("focus", refresh);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cwd, ui.selectedId]);
+    refreshBranch();
+  }, [cwd, ui.selectedId, refreshBranch]);
+
+  // single focus listener on mount
+  useEffect(() => {
+    window.addEventListener("focus", refreshBranch);
+    return () => window.removeEventListener("focus", refreshBranch);
+  }, [refreshBranch]);
 
   const branchLabel = state.branch ?? "main";
 

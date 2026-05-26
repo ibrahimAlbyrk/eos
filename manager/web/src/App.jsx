@@ -32,10 +32,13 @@ function Shell() {
     }
   }, [ui.selectedId, live.orchestrators, ui.setSelectedId]);
 
-  // Seed unseen workers so brand-new agents don't immediately notify.
+  // Seed unseen workers + mark the selected one as viewed in a single pass.
   useEffect(() => {
-    for (const w of live.workers) ui.seedViewed(w);
-  }, [live.workers, ui.seedViewed]);
+    for (const w of live.workers) {
+      ui.seedViewed(w);
+      if (w.id === ui.selectedId) ui.markViewed(w);
+    }
+  }, [live.workers, ui.selectedId, ui.seedViewed, ui.markViewed]);
 
   useEffect(() => {
     ui.registerEscapeIdle(() => {
@@ -46,13 +49,6 @@ function Shell() {
       }
     });
   }, [ui.selectedId, live.workers, live.interruptAgent, ui.registerEscapeIdle, ui.clearQueuedMessages]);
-
-  // Continuously mark the currently-selected worker as viewed so its
-  // notification badge never fires while the user is actively looking at it.
-  useEffect(() => {
-    const w = live.workers.find((x) => x.id === ui.selectedId);
-    if (w) ui.markViewed(w);
-  }, [ui.selectedId, live.workers, ui.markViewed]);
 
   // Outside-click closes any open popover (except the popover itself + trigger)
   useEffect(() => {

@@ -5,15 +5,23 @@
 
 import { api } from "./client.js";
 
+const MAX_BACKOFF_MS = 60_000;
+const MAX_RECONNECT_ATTEMPTS = 50;
+
 export function createReconnectingStream(handlers) {
   let es = null;
   let reconnectTimer = null;
   let closed = false;
   let backoffMs = 1000;
-  const MAX_BACKOFF_MS = 15_000;
+  let attempts = 0;
 
   function attach() {
     if (closed) return;
+    if (attempts >= MAX_RECONNECT_ATTEMPTS) {
+      console.warn(`[SSE] max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached, giving up`);
+      handlers.onClose?.();
+      return;
+    }
     try {
       es = api.newEventStream();
     } catch {
@@ -22,6 +30,7 @@ export function createReconnectingStream(handlers) {
     }
     es.onopen = () => {
       backoffMs = 1000;
+      attempts = 0;
       handlers.onOpen?.();
     };
     es.addEventListener("change", (e) => handlers.onChange?.(e));
@@ -39,6 +48,7 @@ export function createReconnectingStream(handlers) {
 
   function schedule() {
     if (closed || reconnectTimer) return;
+    attempts++;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
