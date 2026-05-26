@@ -29,6 +29,7 @@ export function Messages({ live }) {
   const wrapRef = useRef(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const isNearBottomRef = useRef(true);
+  const initialScrollDone = useRef(false);
 
   const checkNearBottom = useCallback(() => {
     const el = wrapRef.current;
@@ -53,6 +54,8 @@ export function Messages({ live }) {
   }, []);
 
   const fetchRef = useRef(null);
+
+  useEffect(() => { initialScrollDone.current = false; }, [ui.selectedId]);
 
   useEffect(() => {
     if (!ui.selectedId || ui.drafts.has(ui.selectedId)) { setEvents([]); fetchRef.current = null; return; }
@@ -135,9 +138,15 @@ export function Messages({ live }) {
   const showAnchor = !interrupted && ((agentBusy && blocks.length > 0) || isAgentReply);
 
   useEffect(() => {
+    const el = wrapRef.current;
+    if (!el || blocks.length === 0) return;
+    if (!initialScrollDone.current) {
+      initialScrollDone.current = true;
+      el.scrollTop = el.scrollHeight;
+      return;
+    }
     if (isNearBottomRef.current) {
-      const el = wrapRef.current;
-      if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     }
   }, [blocks]);
 
