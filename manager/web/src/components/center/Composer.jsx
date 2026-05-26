@@ -8,6 +8,7 @@ import { ComposerControls } from "./ComposerControls.jsx";
 import { CommandMenu } from "./CommandMenu.jsx";
 import { FileMenu } from "./FileMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
+import { PermissionBanner } from "./PermissionBanner.jsx";
 
 function getCursorOffset(el) {
   const sel = window.getSelection();
@@ -510,6 +511,15 @@ export function Composer({ live }) {
             ))}
           </div>
         )}
+        <PermissionBanner
+          permissions={(live.pendingPermissions ?? []).filter(
+            (p) => !selected || p.worker_id === selected.id
+          )}
+          workers={live.workers}
+          onApprove={live.approvePending}
+          onAlwaysAllow={live.alwaysAllowPending}
+          onDeny={live.denyPending}
+        />
         {selected ? (
           <ComposerDiffRow live={live} />
         ) : (

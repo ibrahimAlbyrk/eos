@@ -41,4 +41,5 @@ export const ROUTES = {
   workerInterrupt: (id) => `/workers/${id}/interrupt`,
   commands: "/commands",
   fsList: "/fs/list",
+  policyRule: "/api/policy/rule",
 };

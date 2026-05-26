@@ -1597,6 +1597,43 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
    CONTEXT POPOVER (opens above the model pill)
    ============================================================================ */
 .composer-wrap { position: relative; }
+
+/* ── permission banner (above composer) ── */
+.perm-banner { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.perm-item {
+  background: #252525; border: 1px solid #3a3a3a; border-radius: 10px;
+  padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;
+}
+.perm-header { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.perm-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: #e8a838; flex-shrink: 0;
+}
+.perm-title { flex: 1; color: #e8e8e8; }
+.perm-title strong { color: #fff; }
+.perm-scope {
+  font-size: 11px; color: #888; background: #2a2a2a; border: 1px solid #3a3a3a;
+  padding: 2px 8px; border-radius: 4px; white-space: nowrap;
+}
+.perm-detail {
+  margin: 0; padding: 8px 12px; background: #1a1a1a; border-radius: 6px;
+  font-family: var(--mono); font-size: 12px; color: #ccc; overflow-x: auto;
+  white-space: pre-wrap; word-break: break-all;
+}
+.perm-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.perm-right { display: flex; gap: 8px; align-items: center; }
+.perm-btn {
+  padding: 5px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  border: 1px solid #444; background: #2a2a2a; color: #ddd;
+}
+.perm-btn:hover { background: #333; }
+.perm-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.perm-deny { color: #e8e8e8; }
+.perm-deny:hover { background: #333; }
+.perm-always { color: #ddd; }
+.perm-always:hover { background: #333; color: #fff; }
+.perm-allow { color: #1a1a1a; background: #e8e8e8; border-color: #e8e8e8; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
+.perm-allow:hover { background: #fff; border-color: #fff; }
+.perm-shortcut { font-size: 11px; opacity: 0.6; }
 .ctx-popover {
   position: absolute;
   bottom: calc(100% + 6px);

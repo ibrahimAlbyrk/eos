@@ -120,6 +120,9 @@ export const api = {
   async denyPending(id, reason) {
     return postJson(ROUTES.pendingDecision(id), { decision: "deny", reason: reason || "denied via web UI" });
   },
+  async addPolicyRule(tool, behavior) {
+    return postJson(ROUTES.policyRule, { tool, behavior });
+  },
 
   // Session
   async getSession() {

@@ -29,6 +29,7 @@ export function useLive() {
   const [recents, setRecents] = useState([]);
   const [session, setSession] = useState(null);
   const [uiConfig, setUiConfig] = useState(null);
+  const [pendingPermissions, setPendingPermissions] = useState([]);
   const [now, setNow] = useState(Date.now());
   const [lastUsage, setLastUsage] = useState(null);
   const lastUsageWorker = useRef(null);
@@ -45,7 +46,8 @@ export function useLive() {
     refetchTimer.current = setTimeout(async () => {
       refetchTimer.current = null;
       try {
-        const [list, sess] = await Promise.all([api.listWorkers(), api.getSession()]);
+        const [list, sess, pend] = await Promise.all([api.listWorkers(), api.getSession(), api.listPending().catch(() => [])]);
+        if (Array.isArray(pend)) setPendingPermissions(pend);
         if (Array.isArray(list)) {
           setWorkers(list);
           const iid = localStorage.getItem("cm:interruptedId");
@@ -181,6 +183,25 @@ export function useLive() {
     } catch { /* ignore */ }
   }, []);
 
+  const approvePending = useCallback(async (id) => {
+    await api.approvePending(id);
+    setPendingPermissions((prev) => prev.filter((p) => p.id !== id));
+    scheduleRefetch();
+  }, [scheduleRefetch]);
+
+  const alwaysAllowPending = useCallback(async (id, toolName, _workerId) => {
+    await api.approvePending(id);
+    await api.addPolicyRule(toolName, "allow").catch(() => {});
+    setPendingPermissions((prev) => prev.filter((p) => p.id !== id));
+    scheduleRefetch();
+  }, [scheduleRefetch]);
+
+  const denyPending = useCallback(async (id, reason) => {
+    await api.denyPending(id, reason);
+    setPendingPermissions((prev) => prev.filter((p) => p.id !== id));
+    scheduleRefetch();
+  }, [scheduleRefetch]);
+
   const effectiveWorkers = useMemo(() => {
     if (!interruptedId) return workers;
     return workers.map((w) => w.id === interruptedId ? { ...w, state: "IDLE" } : w);
@@ -208,5 +229,9 @@ export function useLive() {
     updateLastUsage,
     refreshLastUsage,
     interruptedId,
+    pendingPermissions,
+    approvePending,
+    alwaysAllowPending,
+    denyPending,
   };
 }
