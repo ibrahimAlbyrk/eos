@@ -28,7 +28,8 @@ export function buildClaudeSettings(name: string, port: number): BuiltSettings {
           ask: ["Bash", "Edit", "Write", "WebFetch", "Glob", "Grep"],
         },
         hooks: {
-          PermissionRequest: [{ hooks: [{ type: "command", command: hookScript }] }],
+          ...(repoRoot ? { PermissionRequest: [{ hooks: [{ type: "command", command: hookScript }] }] } : {}),
+          PreToolUse: [httpHook("PreToolUse")],
           SessionStart: [httpHook("SessionStart", "startup")],
           Stop: [httpHook("Stop")],
           Notification: [httpHook("Notification")],

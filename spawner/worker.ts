@@ -157,8 +157,17 @@ const ingest = startIngestServer(opts.port, {
         onActivity: (): void => { state.lastJsonlActivityTs = Date.now(); },
       });
     }
+    if (eventName === "PreToolUse") {
+      evt.emit("tool_running", {
+        toolName: body.tool_name ?? "unknown",
+        toolUseId: body.tool_use_id ?? null,
+        input: body.tool_input ?? {},
+      });
+    }
     evt.emit("hook", { event: eventName, body });
-    if (eventName === "PostToolUse") {
+    if (eventName === "PreToolUse") {
+      console.log(`[${name}][hook] PreToolUse tool=${body.tool_name}`);
+    } else if (eventName === "PostToolUse") {
       console.log(`[${name}][hook] PostToolUse tool=${body.tool_name}`);
     } else if (eventName === "Stop") {
       console.log(`[${name}][hook] Stop`);

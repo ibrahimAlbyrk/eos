@@ -84,6 +84,7 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
       transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: "heartbeat" });
     }
   },
+  tool_running() {},
   usage(deps, input, rowId) {
     const u = (input.payload as {
       in?: number;
