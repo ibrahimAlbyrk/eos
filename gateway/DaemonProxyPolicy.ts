@@ -17,7 +17,7 @@ export function createDaemonProxyPolicy(opts: DaemonProxyOptions): PolicyResolve
     name: "daemon",
     async decide({ tool_name, input, tool_use_id }): Promise<Decision> {
       const ac = new AbortController();
-      const timer = setTimeout(() => ac.abort(), 40_000);
+      const timer = setTimeout(() => ac.abort(), 3_600_000);
       try {
         const r = await fetch(`${opts.daemonUrl}/policy/decide`, {
           method: "POST",

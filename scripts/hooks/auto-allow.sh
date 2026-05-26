@@ -46,7 +46,7 @@ if [ -n "${CLAUDE_MGR_SPAWNED:-}" ] && \
         '{worker_id: $wid, tool_name: .tool_name, input: (.tool_input // {}), tool_use_id: (.tool_use_id // null)}' \
         2>/dev/null || echo "")
   if [ -n "$body" ]; then
-    decision=$(curl -sS --max-time 90 -X POST \
+    decision=$(curl -sS --max-time 3600 -X POST \
       -H 'content-type: application/json' \
       -d "$body" \
       "${CLAUDE_MGR_DAEMON_URL}/policy/decide" 2>/dev/null || true)

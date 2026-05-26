@@ -72,16 +72,18 @@ export class PolicyGatewayService implements PolicyGateway {
 
     return new Promise<Decision>((resolve) => {
       this.resolvers.set(id, resolve);
-      setTimeout(() => {
-        if (!this.resolvers.has(id)) return;
-        this.resolvers.delete(id);
-        this.deps.pending.resolve({
-          id, decision: "deny", reason: "TTL exceeded", updatedInput: null,
-        });
-        this.deps.events.append(input.workerId, this.deps.clock.now(), "permission_ttl_deny", { id });
-        this.deps.bus.publish("pending:ttl_expired", { id, workerId: input.workerId });
-        resolve({ behavior: "deny", message: "human approval timed out" });
-      }, policy.ttlMs);
+      if (policy.ttlMs) {
+        setTimeout(() => {
+          if (!this.resolvers.has(id)) return;
+          this.resolvers.delete(id);
+          this.deps.pending.resolve({
+            id, decision: "deny", reason: "TTL exceeded", updatedInput: null,
+          });
+          this.deps.events.append(input.workerId, this.deps.clock.now(), "permission_ttl_deny", { id });
+          this.deps.bus.publish("pending:ttl_expired", { id, workerId: input.workerId });
+          resolve({ behavior: "deny", message: "human approval timed out" });
+        }, policy.ttlMs);
+      }
     });
   }
 
