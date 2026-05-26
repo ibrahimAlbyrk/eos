@@ -21,9 +21,11 @@ export interface PtyWriter {
 export class PtyWriteQueue {
   private chain: Promise<void> = Promise.resolve();
   private readonly writer: PtyWriter;
+  private readonly onWriteError?: (err: unknown) => void;
 
-  constructor(writer: PtyWriter) {
+  constructor(writer: PtyWriter, onWriteError?: (err: unknown) => void) {
     this.writer = writer;
+    this.onWriteError = onWriteError;
   }
 
   enqueue(text: string): Promise<void> {
@@ -36,7 +38,7 @@ export class PtyWriteQueue {
     });
     const next = this.chain.then(task, task);
     // Swallow rejections so one bad write doesn't poison the chain.
-    this.chain = next.catch(() => {});
+    this.chain = next.catch((err) => { this.onWriteError?.(err); });
     return next;
   }
 }

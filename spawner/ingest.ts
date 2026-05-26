@@ -26,14 +26,15 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
     let raw = "";
     let size = 0;
     let rejected = false;
+    req.on("error", () => { /* client disconnect — ignore */ });
     req.on("data", (c: Buffer | string) => {
       size += typeof c === "string" ? Buffer.byteLength(c) : c.length;
       if (size > 1_048_576) {
         if (!rejected) {
           rejected = true;
-          req.destroy();
           res.writeHead(413, { "content-type": "application/json" });
           res.end(JSON.stringify({ error: "body too large" }));
+          req.destroy();
         }
         return;
       }
@@ -72,6 +73,10 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ continue: true }));
     });
+  });
+  server.on("error", (err: Error) => {
+    console.error(`[ingest] server error: ${err.message}`);
+    throw err;
   });
   server.listen(port, "127.0.0.1");
   return {

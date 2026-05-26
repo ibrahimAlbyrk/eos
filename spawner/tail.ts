@@ -36,30 +36,32 @@ export function startJsonlTail(ctx: TailContext): TailHandle {
     const stat = statSync(jsonlPath);
     if (stat.size <= offset) return;
     const fd = openSync(jsonlPath, "r");
-    const buf = Buffer.alloc(stat.size - offset);
-    readSync(fd, buf, 0, buf.length, offset);
-    closeSync(fd);
-    offset = stat.size;
-    for (const line of buf.toString("utf8").split("\n").filter(Boolean)) {
-      parseJsonlLine(line, (type, payload) => {
-        ctx.onEvent(type, payload);
-        if (type === "jsonl") {
-          const p = payload as { kind: string; name?: string; text?: string; isError?: boolean };
-          // Stdout mirror for log-tail debugging.
-          if (p.kind === "assistant_text") {
-            console.log(`[${ctx.name}][jsonl] assistant ${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
-          } else if (p.kind === "tool_use") {
-            console.log(`[${ctx.name}][jsonl] tool_use ${p.name}`);
-          } else if (p.kind === "thinking") {
-            console.log(`[${ctx.name}][jsonl] thinking ${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
-          } else if (p.kind === "tool_result") {
-            console.log(`[${ctx.name}][jsonl] tool_result ${p.isError ? "ERR " : ""}${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
+    try {
+      const buf = Buffer.alloc(stat.size - offset);
+      readSync(fd, buf, 0, buf.length, offset);
+      offset = stat.size;
+      for (const line of buf.toString("utf8").split("\n").filter(Boolean)) {
+        parseJsonlLine(line, (type, payload) => {
+          ctx.onEvent(type, payload);
+          if (type === "jsonl") {
+            const p = payload as { kind: string; name?: string; text?: string; isError?: boolean };
+            if (p.kind === "assistant_text") {
+              console.log(`[${ctx.name}][jsonl] assistant ${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
+            } else if (p.kind === "tool_use") {
+              console.log(`[${ctx.name}][jsonl] tool_use ${p.name}`);
+            } else if (p.kind === "thinking") {
+              console.log(`[${ctx.name}][jsonl] thinking ${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
+            } else if (p.kind === "tool_result") {
+              console.log(`[${ctx.name}][jsonl] tool_result ${p.isError ? "ERR " : ""}${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
+            }
+            if (p.kind === "assistant_text" || p.kind === "tool_use" || p.kind === "thinking") {
+              ctx.onActivity?.();
+            }
           }
-          if (p.kind === "assistant_text" || p.kind === "tool_use" || p.kind === "thinking") {
-            ctx.onActivity?.();
-          }
-        }
-      }, ctx.defaultModel);
+        }, ctx.defaultModel);
+      }
+    } finally {
+      closeSync(fd);
     }
   };
   watcher.on("add", readNew).on("change", readNew);

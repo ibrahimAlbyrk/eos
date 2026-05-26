@@ -65,16 +65,20 @@ export function parseJsonlLine(
     const assistantBlocks = Array.isArray(msg.content) ? msg.content as Array<Record<string, unknown>> : [];
     for (const block of assistantBlocks) {
       if (block.type === "text") {
-        emit("jsonl", { kind: "assistant_text", text: String(block.text) });
+        if (typeof block.text !== "string") continue;
+        emit("jsonl", { kind: "assistant_text", text: block.text });
       } else if (block.type === "tool_use") {
+        if (typeof block.id !== "string" || typeof block.name !== "string") continue;
         emit("jsonl", {
           kind: "tool_use",
-          id: block.id as string,
-          name: block.name as string,
+          id: block.id,
+          name: block.name,
           input: (block.input as Record<string, unknown>) ?? {},
         });
       } else if (block.type === "thinking") {
-        emit("jsonl", { kind: "thinking", text: String(block.thinking ?? block.text ?? "") });
+        const thinkText = block.thinking ?? block.text;
+        if (typeof thinkText !== "string") continue;
+        emit("jsonl", { kind: "thinking", text: thinkText });
       }
     }
     return;
@@ -84,6 +88,7 @@ export function parseJsonlLine(
     const userBlocks = Array.isArray(msg.content) ? msg.content as Array<Record<string, unknown>> : [];
     for (const block of userBlocks) {
       if (block.type === "tool_result") {
+        if (typeof block.tool_use_id !== "string") continue;
         const raw = block.content;
         const text =
           typeof raw === "string"
@@ -93,7 +98,7 @@ export function parseJsonlLine(
               : "";
         emit("jsonl", {
           kind: "tool_result",
-          toolUseId: block.tool_use_id as string,
+          toolUseId: block.tool_use_id,
           isError: !!block.is_error,
           text,
         });
@@ -129,7 +134,8 @@ export function parseJsonlLine(
 
   // Legacy top-level event shapes (older Claude Code transcript formats).
   if (e.type === "tool_use") {
-    emit("jsonl", { kind: "tool_use", name: e.name as string, input: (e.input as Record<string, unknown>) ?? {} });
+    if (typeof e.name !== "string") return;
+    emit("jsonl", { kind: "tool_use", name: e.name, input: (e.input as Record<string, unknown>) ?? {} });
   } else if (e.type === "tool_result") {
     const c = e.content as Array<{ text?: string }> | undefined;
     emit("jsonl", { kind: "tool_result", isError: !!e.isError, text: String(c?.[0]?.text ?? "") });

@@ -74,7 +74,9 @@ const pty = ptySpawn(claudeBin, claudeArgs.args, {
   },
 });
 
-const writeQueue = new PtyWriteQueue(pty);
+const writeQueue = new PtyWriteQueue(pty, (err) => {
+  console.error(`[${name}] pty write error: ${err instanceof Error ? err.message : err}`);
+});
 pty.onData((data: string) => process.stdout.write(data));
 
 // Lifecycle ----------------------------------------------------------------
@@ -99,7 +101,6 @@ const heartbeat = startHeartbeat({
 // eaten by the TUI (cursor positioning swallows the CR). We buffer any
 // pre-boot writes here and flush them once the boot delay has elapsed.
 const BOOT_DELAY_MS = 2500;
-const bootCompleteAt = Date.now() + BOOT_DELAY_MS;
 let bootBuffer: string[] = [];
 let bootCompleted = false;
 setTimeout(() => {
@@ -193,7 +194,8 @@ function cleanup(code: number): void {
   // alone closes the master FD but a timing race can leave orphan claude
   // processes.
   try { pty.kill("SIGTERM"); } catch {}
-  setTimeout(() => { try { pty.kill("SIGKILL"); } catch {} }, 1500);
+  const killTimer = setTimeout(() => { try { pty.kill("SIGKILL"); } catch {} }, 1500);
+  killTimer.unref();
   ingest.close();
   try { rmSync(settings.tmpDir, { recursive: true, force: true }); } catch {}
 

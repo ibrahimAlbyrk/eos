@@ -88,8 +88,16 @@ export function teardownWorktree({ ctx, name, keep, emit }: TeardownInput): void
   }
   if (!hasChanges && !keep) {
     console.log(`  no changes — removing worktree`);
-    git(["worktree", "remove", worktreeDir, "--force"], repoRoot);
-    git(["branch", "-D", branch], repoRoot);
+    const removeResult = git(["worktree", "remove", worktreeDir, "--force"], repoRoot);
+    if (removeResult.code !== 0) {
+      console.error(`[${name}] worktree remove failed: ${removeResult.stderr}`);
+      emit("worktree", { phase: "error", path: worktreeDir, branch, error: removeResult.stderr });
+      return;
+    }
+    const branchResult = git(["branch", "-D", branch], repoRoot);
+    if (branchResult.code !== 0) {
+      console.error(`[${name}] branch delete failed: ${branchResult.stderr}`);
+    }
     emit("worktree", { phase: "cleaned", path: worktreeDir, branch });
   } else if (keep || hasChanges) {
     console.log(`  (worktree preserved for review; run: git -C ${repoRoot} worktree remove ${worktreeDir})`);
