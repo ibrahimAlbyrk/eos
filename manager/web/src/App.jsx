@@ -25,12 +25,12 @@ function Shell() {
     return () => { delete window.__nativeNavigate; };
   }, [ui.setSelectedId]);
 
-  // Auto-select first orchestrator on first load
+  // Auto-select first orchestrator if nothing valid is selected
   useEffect(() => {
-    if (!ui.selectedId && live.orchestrators.length > 0) {
-      ui.setSelectedId(live.orchestrators[0].id);
-    }
-  }, [ui.selectedId, live.orchestrators, ui.setSelectedId]);
+    if (live.orchestrators.length === 0) return;
+    const valid = ui.selectedId && live.workers.some((w) => w.id === ui.selectedId);
+    if (!valid) ui.setSelectedId(live.orchestrators[0].id);
+  }, [ui.selectedId, live.orchestrators, live.workers, ui.setSelectedId]);
 
   // Seed unseen workers + mark the selected one as viewed in a single pass.
   useEffect(() => {

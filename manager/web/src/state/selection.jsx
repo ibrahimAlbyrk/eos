@@ -3,7 +3,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 const SelectionContext = createContext(null);
 
 export function SelectionProvider({ children }) {
-  const [selectedId, setSelectedId] = useState(null);
+  const [selectedId, _setSelectedId] = useState(() => localStorage.getItem("cm:selectedId"));
+  const setSelectedId = useCallback((id) => {
+    _setSelectedId(id);
+    if (id) localStorage.setItem("cm:selectedId", id);
+    else localStorage.removeItem("cm:selectedId");
+  }, []);
   const [sideCollapsed, setSideCollapsed] = useState(() => localStorage.getItem("cm:sideCollapsed") === "1");
   const [islandsHidden, setIslandsHidden] = useState(() => localStorage.getItem("cm:islandsHidden") === "1");
 
