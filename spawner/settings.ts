@@ -13,10 +13,12 @@ export interface BuiltSettings {
 export function buildClaudeSettings(name: string, port: number): BuiltSettings {
   const tmpDir = mkdtempSync(join(tmpdir(), `cm-${name}-`));
   const settingsPath = join(tmpDir, "settings.json");
-  const hook = (event: string, matcher?: string): Record<string, unknown> => ({
+  const repoRoot = process.env.CLAUDE_MGR_REPO_ROOT || "";
+  const httpHook = (event: string, matcher?: string): Record<string, unknown> => ({
     ...(matcher ? { matcher } : {}),
     hooks: [{ type: "http", url: `http://127.0.0.1:${port}/event?event=${event}` }],
   });
+  const hookScript = join(repoRoot, "scripts", "hooks", "auto-allow.sh");
   writeFileSync(
     settingsPath,
     JSON.stringify(
@@ -26,11 +28,12 @@ export function buildClaudeSettings(name: string, port: number): BuiltSettings {
           ask: ["Bash", "Edit", "Write", "WebFetch", "Glob", "Grep"],
         },
         hooks: {
-          SessionStart: [hook("SessionStart", "startup")],
-          Stop: [hook("Stop")],
-          Notification: [hook("Notification")],
-          PostToolUse: [hook("PostToolUse")],
-          SessionEnd: [hook("SessionEnd")],
+          PermissionRequest: [{ hooks: [{ type: "command", command: hookScript }] }],
+          SessionStart: [httpHook("SessionStart", "startup")],
+          Stop: [httpHook("Stop")],
+          Notification: [httpHook("Notification")],
+          PostToolUse: [httpHook("PostToolUse")],
+          SessionEnd: [httpHook("SessionEnd")],
         },
       },
       null,
