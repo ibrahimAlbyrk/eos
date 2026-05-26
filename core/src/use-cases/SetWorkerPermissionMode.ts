@@ -45,7 +45,7 @@ export async function setWorkerPermissionMode(
       runtimeApplied = r.ok;
     } catch (e) {
       deps.log.warn("permission-mode runtime apply failed", {
-        worker: input.workerId, error: (e as Error).message,
+        worker: input.workerId, error: e instanceof Error ? e.message : String(e),
       });
     }
   }

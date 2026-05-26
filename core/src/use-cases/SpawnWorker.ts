@@ -60,15 +60,15 @@ export async function spawnWorker(
   deps: SpawnWorkerDeps,
   spec: SpawnWorkerSpec,
 ): Promise<{ id: string; port: number }> {
-  if (spec.parentId) spec.persistent = true;
+  const resolved = spec.parentId ? { ...spec, persistent: true } : spec;
 
-  const id = spec.fixedId ?? deps.ids.newWorkerId();
+  const id = resolved.fixedId ?? deps.ids.newWorkerId();
   const port = await deps.ports.allocate();
-  const model = spec.model ?? "opus";
-  const effort = spec.effort ?? "high";
+  const model = resolved.model ?? "opus";
+  const effort = resolved.effort ?? "high";
 
-  const args = deps.buildArgs({ id, port, spec, model });
-  const env = deps.buildEnv({ id, spec });
+  const args = deps.buildArgs({ id, port, spec: resolved, model });
+  const env = deps.buildEnv({ id, spec: resolved });
   const logFile = deps.logFileFor(id);
 
   const proc = deps.supervisor.spawn(id, {
@@ -86,28 +86,28 @@ export async function spawnWorker(
 
   deps.workers.insert({
     id,
-    prompt: spec.prompt,
-    cwd: spec.cwd ?? null,
-    worktreeFrom: spec.worktreeFrom ?? null,
-    branch: spec.branch ?? null,
-    name: spec.name ?? null,
+    prompt: resolved.prompt,
+    cwd: resolved.cwd ?? null,
+    worktreeFrom: resolved.worktreeFrom ?? null,
+    branch: resolved.branch ?? null,
+    name: resolved.name ?? null,
     pid: proc.pid,
     port,
     startedAt: deps.clock.now(),
-    parentId: spec.parentId ?? null,
+    parentId: resolved.parentId ?? null,
     model,
     effort,
-    isOrchestrator: !!spec.isOrchestrator,
+    isOrchestrator: !!resolved.isOrchestrator,
   });
 
-  if (spec.maxCostUsd != null || spec.maxElapsedMs != null) {
+  if (resolved.maxCostUsd != null || resolved.maxElapsedMs != null) {
     deps.onLimitsSet?.(id, {
-      maxCostUsd: spec.maxCostUsd,
-      maxElapsedMs: spec.maxElapsedMs,
+      maxCostUsd: resolved.maxCostUsd,
+      maxElapsedMs: resolved.maxElapsedMs,
     });
   }
 
-  const folder = spec.cwd ?? spec.worktreeFrom ?? null;
+  const folder = resolved.cwd ?? resolved.worktreeFrom ?? null;
   if (folder) deps.recents?.push(folder);
 
   const evtId = deps.events.append(id, deps.clock.now(), "spawn", {

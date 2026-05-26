@@ -12,8 +12,6 @@ import type { EventBus } from "../ports/EventBus.ts";
 import type { ProcessSupervisor } from "../ports/ProcessSupervisor.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { Logger } from "../ports/Logger.ts";
-import { transitionState } from "../use-cases/TransitionState.ts";
-
 export interface WorkerLimits {
   maxCostUsd?: number;
   maxElapsedMs?: number;
@@ -26,6 +24,7 @@ export interface LimitsEnforcerDeps {
   supervisor: ProcessSupervisor;
   clock: Clock;
   log: Logger;
+  transitionWorkerState(workerId: string, next: string, reason: string): void;
 }
 
 export class LimitsEnforcer {
@@ -65,10 +64,7 @@ export class LimitsEnforcer {
     this.deps.events.append(workerId, this.deps.clock.now(), "limit_exceeded", exceeded);
     this.deps.bus.publish("limit:exceeded", { workerId, ...exceeded });
     this.deps.log.warn("worker over limit, killing", { worker: workerId, ...exceeded });
-    transitionState(
-      { workers: this.deps.workers, events: this.deps.events, bus: this.deps.bus, clock: this.deps.clock },
-      { workerId, next: "KILLING", reason: `limit_exceeded:${exceeded.kind}` },
-    );
+    this.deps.transitionWorkerState(workerId, "KILLING", `limit_exceeded:${exceeded.kind}`);
     this.cache.delete(workerId);
     this.deps.supervisor.escalateKill(workerId);
   }

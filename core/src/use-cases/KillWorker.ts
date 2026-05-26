@@ -18,10 +18,9 @@ export interface KillWorkerDeps {
   bus: EventBus;
   supervisor: ProcessSupervisor;
   log: Logger;
-  /** Find OS pids matching `cm-<name>-` orphan pattern. Adapter pgreps. */
   findOrphanPids(safeName: string): number[];
-  /** Per-id post-kill cleanup (e.g. orchestrator MCP config file). */
   postKillCleanup?(workerId: string): void;
+  killGracePeriodMs?: number;
 }
 
 export interface KillWorkerResult {
@@ -72,7 +71,7 @@ export function killWorker(deps: KillWorkerDeps, id: string): KillWorkerResult {
   // case any one of them ignored SIGTERM.
   setTimeout(() => {
     for (const k of killed) deps.supervisor.killPid(k.pid, "SIGKILL");
-  }, 2000);
+  }, deps.killGracePeriodMs ?? 2000);
 
   deps.workers.delete(id);
   deps.events.deleteByWorker(id);

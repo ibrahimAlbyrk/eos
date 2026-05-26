@@ -1,16 +1,18 @@
 import type { EventBus, EventBusMessage } from "../ports/EventBus.ts";
 import type { WorkerRepo } from "../ports/WorkerRepo.ts";
+import type { Clock } from "../ports/Clock.ts";
 import type { NotificationConfig, NotificationPayload, NotificationTriggerName } from "../../../contracts/src/notifications.ts";
 
 export interface NotificationTrigger {
   id: NotificationTriggerName;
   topic: string;
-  shouldFire(msg: EventBusMessage, workers: WorkerRepo): NotificationPayload | null;
+  shouldFire(msg: EventBusMessage, workers: WorkerRepo, clock: Clock): NotificationPayload | null;
 }
 
 export interface NotificationServiceDeps {
   bus: EventBus;
   workers: WorkerRepo;
+  clock: Clock;
   getConfig: () => NotificationConfig;
 }
 
@@ -46,12 +48,12 @@ export class NotificationService {
     const rule = config.rules[trigger.id];
     if (!rule?.enabled) return;
 
-    const payload = trigger.shouldFire(msg, this.deps.workers);
+    const payload = trigger.shouldFire(msg, this.deps.workers, this.deps.clock);
     if (!payload) return;
 
     const cooldownKey = `${trigger.id}:${payload.workerId ?? "global"}`;
     const last = this.cooldowns.get(cooldownKey) ?? 0;
-    const now = Date.now();
+    const now = this.deps.clock.now();
     if (now - last < rule.cooldownMs) return;
 
     this.cooldowns.set(cooldownKey, now);

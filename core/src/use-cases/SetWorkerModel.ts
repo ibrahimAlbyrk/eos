@@ -49,7 +49,7 @@ export async function setWorkerModel(
       }
     } catch (e) {
       deps.log.warn("model/effort runtime apply failed", {
-        worker: input.workerId, error: (e as Error).message,
+        worker: input.workerId, error: e instanceof Error ? e.message : String(e),
       });
     }
   }

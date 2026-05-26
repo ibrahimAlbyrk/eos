@@ -3,7 +3,7 @@
 import type { Decision } from "../../../contracts/src/policy.ts";
 import type { PendingRepo } from "../ports/PendingRepo.ts";
 import type { PolicyGateway } from "../ports/PolicyGateway.ts";
-import { NotFoundError, ConflictError } from "../errors/index.ts";
+import { NotFoundError, ConflictError, ValidationError } from "../errors/index.ts";
 
 export interface ResolvePendingDeps {
   pending: PendingRepo;
@@ -27,7 +27,10 @@ export function resolvePending(
 
   let dec: Decision;
   if (input.decision === "allow") {
-    const baseInput = JSON.parse(row.input) as Record<string, unknown>;
+    let baseInput: Record<string, unknown>;
+    try { baseInput = JSON.parse(row.input); } catch (e) {
+      throw new ValidationError("pending permission input is not valid JSON", e);
+    }
     dec = { behavior: "allow", updatedInput: input.updatedInput ?? baseInput };
   } else {
     dec = { behavior: "deny", message: input.reason ?? "denied by human" };
