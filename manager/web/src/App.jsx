@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UiProvider, useUi } from "./state/ui.jsx";
 import { useLive } from "./hooks/useLive.js";
 import { useWebNotifications } from "./hooks/useWebNotifications.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { Sidebar } from "./components/sidebar/Sidebar.jsx";
 import { SideHandle } from "./components/sidebar/SideHandle.jsx";
+import { SidePopup } from "./components/sidebar/SidePopup.jsx";
 import { CenterHeader } from "./components/center/CenterHeader.jsx";
 import { Messages } from "./components/messages/Messages.jsx";
 import { Composer } from "./components/center/Composer.jsx";
@@ -76,29 +77,58 @@ function Shell() {
   if (islandsVisible) cls.push("has-islands");
   if (ui.fileViewer) cls.push("file-open");
 
+  const [nativeHover, setNativeHover] = useState(false);
+  const nativeLeaveTimer = useRef(null);
+  const nativeInsideRef = useRef(false);
+  const nativePopRef = useRef(ui.openPopover);
+  nativePopRef.current = ui.openPopover;
+  const nativeEnter = useCallback(() => {
+    nativeInsideRef.current = true;
+    clearTimeout(nativeLeaveTimer.current);
+    if (ui.sideCollapsed) setNativeHover(true);
+  }, [ui.sideCollapsed]);
+  const nativeLeave = useCallback(() => {
+    nativeInsideRef.current = false;
+    nativeLeaveTimer.current = setTimeout(() => {
+      if (!nativePopRef.current) setNativeHover(false);
+    }, 200);
+  }, []);
+  useEffect(() => {
+    if (!ui.openPopover && nativeHover && !nativeInsideRef.current) {
+      nativeLeaveTimer.current = setTimeout(() => setNativeHover(false), 300);
+    }
+  }, [ui.openPopover, nativeHover]);
+
   return (
     <>
-    <button
-      className="native-toggle sb-iconbtn"
-      onClick={() => ui.setSideCollapsed(!ui.sideCollapsed)}
-      title={ui.sideCollapsed ? "Show sidebar" : "Hide sidebar"}
+    <div
+      className="native-toggle-zone"
+      onMouseEnter={nativeEnter}
+      onMouseLeave={nativeLeave}
     >
-      {ui.sideCollapsed ? (
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-          <line x1="3" y1="4" x2="11" y2="4" />
-          <line x1="3" y1="8" x2="13" y2="8" />
-          <line x1="3" y1="12" x2="9" y2="12" />
-        </svg>
-      ) : (
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-          <rect x="2" y="3" width="12" height="10" rx="1.5" />
-          <line x1="6" y1="3" x2="6" y2="13" />
-        </svg>
-      )}
-    </button>
+      <button
+        className="native-toggle sb-iconbtn"
+        onClick={() => { ui.setSideCollapsed(!ui.sideCollapsed); setNativeHover(false); }}
+        title={ui.sideCollapsed ? "Show sidebar" : "Hide sidebar"}
+      >
+        {ui.sideCollapsed ? (
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <line x1="3" y1="4" x2="11" y2="4" />
+            <line x1="3" y1="8" x2="13" y2="8" />
+            <line x1="3" y1="12" x2="9" y2="12" />
+          </svg>
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+            <rect x="2" y="3" width="12" height="10" rx="1.5" />
+            <line x1="6" y1="3" x2="6" y2="13" />
+          </svg>
+        )}
+      </button>
+      {nativeHover && ui.sideCollapsed && <SidePopup live={live} />}
+    </div>
     <div className={cls.join(" ")}>
       <Sidebar live={live} />
-      <SideHandle />
+      <SideHandle live={live} />
 
       <section className="center">
         <CenterHeader live={live} />

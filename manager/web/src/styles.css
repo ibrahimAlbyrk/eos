@@ -83,13 +83,19 @@ kbd {
 .head-toggle { display: none !important; }
 
 /* fixed toggle button — always visible at same position in native */
-.native-toggle { display: none !important; }
-html.native .native-toggle {
-  display: inline-flex !important;
+.native-toggle-zone { display: none !important; }
+html.native .native-toggle-zone {
+  display: block !important;
   position: fixed;
   left: 90px;
   top: 18px;
   z-index: 300;
+  -webkit-app-region: no-drag;
+}
+.native-toggle { display: none !important; }
+html.native .native-toggle {
+  display: inline-flex !important;
+  position: relative;
   width: 24px; height: 24px;
   border-radius: 5px;
   align-items: center; justify-content: center;
@@ -120,10 +126,10 @@ html.native .head {
   transition: padding-left 280ms ease;
 }
 html.native .app.side-collapsed .head { padding-left: 124px; }
-html.native .side-handle { display: none !important; }
+html.native .side-handle-zone { display: none !important; }
 
 /* fullscreen: no traffic lights in window, simplify layout */
-html.native.fullscreen .native-toggle { left: 16px; top: 10px; }
+html.native.fullscreen .native-toggle-zone { left: 16px; top: 10px; }
 html.native.fullscreen .side { padding: 6px 14px 14px 14px; }
 html.native.fullscreen .side-island--agents { padding-top: 14px; }
 html.native.fullscreen .sb-section { padding-left: 12px; }
@@ -170,23 +176,63 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
 .side { transition: transform 200ms ease, opacity 200ms ease; }
 
 /* floating expand handle when sidebar collapsed */
-.side-handle {
+.side-handle-zone {
   position: absolute;
   top: 24px; left: 16px;
+  z-index: 60;
+  display: none;
+}
+.app.side-collapsed .side-handle-zone { display: block; }
+.side-handle {
   width: 28px; height: 28px;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 6px;
-  display: none;
+  display: inline-flex;
   align-items: center; justify-content: center;
   color: var(--fg-dim);
   cursor: pointer;
-  z-index: 50;
 }
 .side-handle:hover { color: var(--fg); border-color: var(--border-strong); }
-.app.side-collapsed .side-handle { display: inline-flex; }
 .app.side-collapsed .head { padding-left: 52px; }
 .app.side-collapsed .head .tl { display: none; }
+
+/* hover popup panel — appears on SideHandle / native-toggle hover */
+.side-handle-popup {
+  position: absolute;
+  top: 36px; left: 0;
+  width: 260px;
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  animation: side-popup-in 150ms ease;
+  overflow: visible;
+}
+.side-popup-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 8px 8px 0;
+}
+.side-popup-bar .sb-filter {
+  flex: 1; min-width: 0;
+  margin-bottom: 0;
+}
+.side-handle-popup .agents-section {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  border-bottom-left-radius: 11px;
+  border-bottom-right-radius: 11px;
+  max-height: calc(100vh - 200px);
+}
+/* position popup to align with sidebar area in native mode */
+html.native .native-toggle-zone .side-handle-popup { left: -76px; top: 14px; }
+html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
+@keyframes side-popup-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
 
 /* ============================================================================
    SIDEBAR
@@ -2428,7 +2474,7 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
   width: 190px;
   padding: 4px;
   display: none;
-  z-index: 200;
+  z-index: 400;
 }
 .ctx-menu.open { display: block; }
 .ctx-menu .menu-item {
