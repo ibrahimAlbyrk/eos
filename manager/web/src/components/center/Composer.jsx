@@ -284,7 +284,25 @@ export function Composer({ live }) {
     setCursorPos(off);
   };
 
-  const handlePaste = (e) => {
+  const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
+
+  const handlePaste = async (e) => {
+    const files = Array.from(e.clipboardData.files);
+    if (files.length > 0) {
+      e.preventDefault();
+      for (const file of files) {
+        try {
+          const res = await api.uploadPaste(file);
+          if (!res.ok || !res.body?.path) continue;
+          const ext = res.body.path.split(".").pop()?.toLowerCase() ?? "";
+          const type = IMAGE_EXTS.has(ext) || file.type.startsWith("image/") ? "image" : "file";
+          addAttachment({ type, path: res.body.path });
+        } catch (err) {
+          console.error("paste upload failed:", err);
+        }
+      }
+      return;
+    }
     e.preventDefault();
     const plain = e.clipboardData.getData("text/plain");
     document.execCommand("insertText", false, plain);

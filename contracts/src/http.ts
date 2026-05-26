@@ -318,6 +318,7 @@ export const ROUTES = {
   fsReveal: "/fs/reveal",
   fsRead: "/fs/read",
   fsWrite: "/fs/write",
+  fsPaste: "/fs/paste",
   workerName: (id: string): string => `/workers/${id}/name`,
   workerPermission: (id: string): string => `/workers/${id}/permission`,
   workerModel: (id: string): string => `/workers/${id}/model`,

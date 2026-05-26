@@ -6,6 +6,8 @@ import { CodeView } from "./CodeView.jsx";
 import { EditView } from "./EditView.jsx";
 import { MarkdownView } from "./MarkdownView.jsx";
 
+const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"]);
+
 export function FileViewer() {
   const ui = useUi();
   const open = !!ui.fileViewer;
@@ -31,7 +33,11 @@ function FileViewerInner({ path, editMode }) {
   const textareaRef = useRef(null);
   const findRef = useRef(null);
 
+  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  const isImage = IMAGE_EXTS.has(ext);
+
   useEffect(() => {
+    if (isImage) return;
     let cancelled = false;
     setContent(null);
     setError(null);
@@ -39,7 +45,7 @@ function FileViewerInner({ path, editMode }) {
       .then((data) => { if (!cancelled) { setContent(data.content); setEditContent(data.content); } })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
-  }, [path]);
+  }, [path, isImage]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -72,8 +78,8 @@ function FileViewerInner({ path, editMode }) {
   };
 
   const shortPath = shortenHome(path);
-  const isMd = path.endsWith(".md");
-  const dirty = editMode && content !== null && editContent !== content;
+  const isMd = !isImage && path.endsWith(".md");
+  const dirty = !isImage && editMode && content !== null && editContent !== content;
 
   const codeIcon = (
     <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -98,53 +104,55 @@ function FileViewerInner({ path, editMode }) {
       </div>
       <div className="fv-row2">
         <span className="fv-path">{shortPath}</span>
-        <div className="fv-actions">
-          {dirty ? (
-            <>
-              <button className="fv-btn" onClick={handleCancel}>Cancel</button>
-              <button className="fv-btn fv-btn--save" onClick={handleSave} disabled={saving}>Save</button>
-            </>
-          ) : (
-            <>
-              <button className="fv-icon-btn" onClick={ui.toggleFileEditMode} title={editMode ? "Preview" : "Edit"}>
-                {editMode ? eyeIcon : codeIcon}
-              </button>
-              <button className={"fv-icon-btn" + (showFind ? " on" : "")} onClick={toggleFind} title="Find">
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
-                  <circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" />
-                </svg>
-              </button>
-              <button className={"fv-icon-btn" + (showOpenWith ? " on" : "")} onClick={() => { const opening = !showOpenWith; setShowOpenWith(opening); setShowFind(false); if (opening && !defaultApp) api.getDefaultApp(path).then((r) => setDefaultApp(r.app)); }} title="Open with" style={{ position: "relative" }}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M2 5V3.5A1.5 1.5 0 0 1 3.5 2H6l1.5 2H12.5A1.5 1.5 0 0 1 14 5.5V12.5A1.5 1.5 0 0 1 12.5 14H3.5A1.5 1.5 0 0 1 2 12.5V5Z" />
-                </svg>
-                {showOpenWith && (
-                  <div className="fv-openwith" onClick={(e) => e.stopPropagation()}>
-                    <div className="fv-ow-head">
-                      <span>Open in</span>
-                      <button className="fv-ow-close" onClick={() => setShowOpenWith(false)}>x</button>
+        {!isImage && (
+          <div className="fv-actions">
+            {dirty ? (
+              <>
+                <button className="fv-btn" onClick={handleCancel}>Cancel</button>
+                <button className="fv-btn fv-btn--save" onClick={handleSave} disabled={saving}>Save</button>
+              </>
+            ) : (
+              <>
+                <button className="fv-icon-btn" onClick={ui.toggleFileEditMode} title={editMode ? "Preview" : "Edit"}>
+                  {editMode ? eyeIcon : codeIcon}
+                </button>
+                <button className={"fv-icon-btn" + (showFind ? " on" : "")} onClick={toggleFind} title="Find">
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                    <circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" />
+                  </svg>
+                </button>
+                <button className={"fv-icon-btn" + (showOpenWith ? " on" : "")} onClick={() => { const opening = !showOpenWith; setShowOpenWith(opening); setShowFind(false); if (opening && !defaultApp) api.getDefaultApp(path).then((r) => setDefaultApp(r.app)); }} title="Open with" style={{ position: "relative" }}>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 5V3.5A1.5 1.5 0 0 1 3.5 2H6l1.5 2H12.5A1.5 1.5 0 0 1 14 5.5V12.5A1.5 1.5 0 0 1 12.5 14H3.5A1.5 1.5 0 0 1 2 12.5V5Z" />
+                  </svg>
+                  {showOpenWith && (
+                    <div className="fv-openwith" onClick={(e) => e.stopPropagation()}>
+                      <div className="fv-ow-head">
+                        <span>Open in</span>
+                        <button className="fv-ow-close" onClick={() => setShowOpenWith(false)}>x</button>
+                      </div>
+                      <button className="fv-ow-item" onClick={() => { api.openFile(path); setShowOpenWith(false); }}>{defaultApp?.appName ?? "Default App"}</button>
+                      <div className="fv-ow-sep" />
+                      <button className="fv-ow-item" onClick={() => { api.revealFile(path); setShowOpenWith(false); }}>Show in Finder</button>
                     </div>
-                    <button className="fv-ow-item" onClick={() => { api.openFile(path); setShowOpenWith(false); }}>{defaultApp?.appName ?? "Default App"}</button>
-                    <div className="fv-ow-sep" />
-                    <button className="fv-ow-item" onClick={() => { api.revealFile(path); setShowOpenWith(false); }}>Show in Finder</button>
-                  </div>
-                )}
-              </button>
-              <button className="fv-icon-btn" onClick={() => { navigator.clipboard.writeText(content ?? ""); setCopied(true); setTimeout(() => setCopied(false), 3000); }} title="Copy">
-                {copied ? (
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m3 8.5 3 3 7-7" />
-                  </svg>
-                ) : (
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <rect x="5" y="5" width="9" height="9" rx="1.5" />
-                    <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
-                  </svg>
-                )}
-              </button>
-            </>
-          )}
-        </div>
+                  )}
+                </button>
+                <button className="fv-icon-btn" onClick={() => { navigator.clipboard.writeText(content ?? ""); setCopied(true); setTimeout(() => setCopied(false), 3000); }} title="Copy">
+                  {copied ? (
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m3 8.5 3 3 7-7" />
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <rect x="5" y="5" width="9" height="9" rx="1.5" />
+                      <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
+                    </svg>
+                  )}
+                </button>
+              </>
+            )}
+          </div>
+        )}
       </div>
       {showFind && (
         <div className="fv-find-bar">
@@ -170,21 +178,29 @@ function FileViewerInner({ path, editMode }) {
         </div>
       )}
       <div className="fv-body">
-        {error && <div className="fv-error">{error}</div>}
-        {content === null && !error && <div className="fv-loading">Loading...</div>}
-        {content !== null && !editMode && (
-          isMd ? <MarkdownView content={content} /> : <CodeView content={content} findQuery={findQuery} currentMatch={safeIdx} matches={findMatches} activeMatchKey={`${safeIdx}-${findQuery}`} filePath={path} />
-        )}
-        {content !== null && editMode && (
-          <EditView
-            textareaRef={textareaRef}
-            editContent={editContent}
-            setEditContent={setEditContent}
-            findQuery={findQuery}
-            currentMatch={safeIdx}
-            matches={findMatches}
-            filePath={path}
-          />
+        {isImage ? (
+          <div className="fv-image-wrap">
+            <img src={api.imageUrl(path)} alt={path.split("/").pop()} className="fv-image" />
+          </div>
+        ) : (
+          <>
+            {error && <div className="fv-error">{error}</div>}
+            {content === null && !error && <div className="fv-loading">Loading...</div>}
+            {content !== null && !editMode && (
+              isMd ? <MarkdownView content={content} /> : <CodeView content={content} findQuery={findQuery} currentMatch={safeIdx} matches={findMatches} activeMatchKey={`${safeIdx}-${findQuery}`} filePath={path} />
+            )}
+            {content !== null && editMode && (
+              <EditView
+                textareaRef={textareaRef}
+                editContent={editContent}
+                setEditContent={setEditContent}
+                findQuery={findQuery}
+                currentMatch={safeIdx}
+                matches={findMatches}
+                filePath={path}
+              />
+            )}
+          </>
         )}
       </div>
     </>

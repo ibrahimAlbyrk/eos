@@ -144,6 +144,20 @@ export const api = {
     return r.body;
   },
   imageUrl(path) { return `${DAEMON}${ROUTES.fsImage}?path=${encodeURIComponent(path)}`; },
+  async uploadPaste(file) {
+    const buf = await file.arrayBuffer();
+    const r = await fetch(`${DAEMON}${ROUTES.fsPaste}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/octet-stream",
+        "x-filename": file.name || "paste.png",
+      },
+      body: buf,
+    });
+    let parsed = null;
+    try { parsed = await r.json(); } catch {}
+    return { ok: r.ok, status: r.status, body: parsed };
+  },
   async getDefaultApp(path) {
     const r = await fetch(`${DAEMON}${ROUTES.fsDefaultApp}?path=${encodeURIComponent(path)}`);
     return r.ok ? r.json() : { app: null };

@@ -1,10 +1,36 @@
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { IncomingMessage } from "node:http";
 
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { isSafeAbsPath, listRootDir, searchProject } from "./fs-shared.ts";
+
+const PASTE_MAX_BYTES = 20 * 1024 * 1024;
+
+function readRawBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    let aborted = false;
+    req.on("data", (c: Buffer) => {
+      if (aborted) return;
+      size += c.length;
+      if (size > maxBytes) {
+        aborted = true;
+        try { req.destroy(); } catch {}
+        reject(new Error(`body too large (limit ${maxBytes})`));
+        return;
+      }
+      chunks.push(c);
+    });
+    req.on("end", () => { if (!aborted) resolve(Buffer.concat(chunks)); });
+    req.on("error", reject);
+  });
+}
 
 export function registerFsReadRoutes(r: Router, c: Container): void {
   r.get("/fs/image", ({ url, res }) => {
@@ -77,6 +103,28 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
       writeJson(res, 200, { ok: true });
     } catch (e) {
       writeJson(res, 500, { error: (e as Error).message });
+    }
+  });
+
+  r.post("/fs/paste", async ({ req, res }) => {
+    const ct = req.headers["content-type"] ?? "";
+    if (!ct.startsWith("application/octet-stream")) {
+      writeJson(res, 400, { error: "content-type must be application/octet-stream" });
+      return;
+    }
+    const name = req.headers["x-filename"];
+    if (typeof name !== "string" || !name) {
+      writeJson(res, 400, { error: "x-filename header required" });
+      return;
+    }
+    try {
+      const buf = await readRawBody(req, PASTE_MAX_BYTES);
+      const dir = mkdtempSync(join(tmpdir(), "cm-paste-"));
+      const dest = join(dir, name.replace(/[/\0]/g, "_"));
+      writeFileSync(dest, buf);
+      writeJson(res, 200, { path: dest });
+    } catch (e) {
+      writeJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
     }
   });
 }
