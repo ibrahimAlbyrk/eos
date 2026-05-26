@@ -15,8 +15,14 @@ export interface PolicyLoadOptions {
 export function loadPolicy(opts: PolicyLoadOptions): Policy {
   for (const p of opts.candidates) {
     if (!existsSync(p)) continue;
-    const raw = parseYaml(readFileSync(p, "utf8"));
-    const rawRules: PolicyRule[] = raw?.rules ?? [];
+    let raw: Record<string, unknown> | null;
+    try {
+      raw = parseYaml(readFileSync(p, "utf8")) as Record<string, unknown> | null;
+    } catch (e) {
+      opts.log.warn("failed to parse policy file", { source: p, error: (e as Error).message });
+      return { default: "ask" as const, ttlMs: opts.defaultTtlMs, rules: [] };
+    }
+    const rawRules: PolicyRule[] = (raw?.rules ?? []) as PolicyRule[];
     const compiled: CompiledRule[] = [];
     for (let i = 0; i < rawRules.length; i++) {
       const c = compileRule(rawRules[i], i, p, (m) => opts.log.warn(m));
@@ -24,8 +30,8 @@ export function loadPolicy(opts: PolicyLoadOptions): Policy {
     }
     opts.log.info("policy loaded", { source: p, applied: compiled.length, total: rawRules.length });
     return {
-      default: raw?.default ?? "ask",
-      ttlMs: raw?.ttlMs ?? opts.defaultTtlMs,
+      default: (raw?.default as string) ?? "ask",
+      ttlMs: (raw?.ttlMs as number) ?? opts.defaultTtlMs,
       rules: compiled,
     };
   }

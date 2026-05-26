@@ -2,6 +2,7 @@
 // remain grep-friendly and tool-parseable (jq/grep/awk).
 
 import type { Logger } from "../../../core/src/ports/Logger.ts";
+import { safeStringify } from "../util/json.ts";
 
 type Level = "debug" | "info" | "warn" | "error";
 
@@ -24,7 +25,7 @@ class StructLoggerImpl implements Logger {
 
   private log(level: Level, msg: string, fields?: Record<string, unknown>): void {
     if (LEVEL_RANK[level] < LEVEL_RANK[this.minLevel]) return;
-    const line = JSON.stringify({
+    const line = safeStringify({
       ts: nowIso(),
       level,
       scope: this.scope,

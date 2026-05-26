@@ -8,10 +8,12 @@ export interface PortAllocatorOptions {
   host: string;
   start: number;
   end: number;
+  socketTimeoutMs?: number;
 }
 
 export function createPortAllocator(opts: PortAllocatorOptions): PortAllocator {
   const reserved = new Set<number>();
+  const socketTimeout = opts.socketTimeoutMs ?? 50;
 
   return {
     async allocate(): Promise<number> {
@@ -19,7 +21,7 @@ export function createPortAllocator(opts: PortAllocatorOptions): PortAllocator {
         if (reserved.has(p)) continue;
         reserved.add(p);
         const free = await new Promise<boolean>((resolve) => {
-          const sock = createConnection({ port: p, host: opts.host, timeout: 50 });
+          const sock = createConnection({ port: p, host: opts.host, timeout: socketTimeout });
           sock.once("connect", () => { sock.destroy(); resolve(false); });
           sock.once("error", () => { sock.destroy(); resolve(true); });
           sock.once("timeout", () => { sock.destroy(); resolve(true); });

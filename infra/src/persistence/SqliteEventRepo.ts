@@ -3,6 +3,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { WorkerEventRow } from "../../../contracts/src/events.ts";
 import type { EventRepo, EventQuery } from "../../../core/src/ports/EventRepo.ts";
+import { safeStringify } from "../util/json.ts";
 
 export class SqliteEventRepo implements EventRepo {
   private readonly db: DatabaseSync;
@@ -38,13 +39,13 @@ export class SqliteEventRepo implements EventRepo {
       workerId,
       ts,
       type,
-      payload === undefined || payload === null ? null : JSON.stringify(payload),
+      payload === undefined || payload === null ? null : safeStringify(payload),
     );
     return Number(info.lastInsertRowid);
   }
 
   patchPayload(rowId: number, payload: unknown): void {
-    this.stmtPatchPayload.run(JSON.stringify(payload), rowId);
+    this.stmtPatchPayload.run(safeStringify(payload), rowId);
   }
 
   list(q: EventQuery): WorkerEventRow[] {

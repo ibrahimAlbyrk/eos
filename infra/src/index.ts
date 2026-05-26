@@ -14,3 +14,4 @@ export * from "./filesystem/DarwinFsHelpers.ts";
 export * from "./filesystem/NoopFsHelpers.ts";
 export * from "./git/ChildProcessGitInfo.ts";
 export * from "./persistence/JsonRecentsRepo.ts";
+export * from "./util/json.ts";

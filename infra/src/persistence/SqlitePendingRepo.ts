@@ -4,6 +4,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type { PendingPermissionRow } from "../../../contracts/src/worker.ts";
 import type { PendingRepo, InsertPendingInput, ResolvePendingInput } from "../../../core/src/ports/PendingRepo.ts";
 import { withTransaction } from "./transaction.ts";
+import { safeStringify } from "../util/json.ts";
 
 export class SqlitePendingRepo implements PendingRepo {
   private readonly db: DatabaseSync;
@@ -43,7 +44,7 @@ export class SqlitePendingRepo implements PendingRepo {
       input.id,
       input.workerId,
       input.toolName,
-      JSON.stringify(input.input),
+      safeStringify(input.input),
       input.toolUseId,
       input.createdAt,
       input.expiresAt,
@@ -60,7 +61,7 @@ export class SqlitePendingRepo implements PendingRepo {
   }
 
   resolve(input: ResolvePendingInput): boolean {
-    const updatedInput = input.updatedInput ? JSON.stringify(input.updatedInput) : null;
+    const updatedInput = input.updatedInput ? safeStringify(input.updatedInput) : null;
     const info = this.stmtResolve.run(input.decision, input.reason, updatedInput, input.id);
     return Number(info.changes) > 0;
   }

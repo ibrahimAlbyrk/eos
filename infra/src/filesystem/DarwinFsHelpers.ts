@@ -130,39 +130,36 @@ export function createDarwinFsHelpers(opts: DarwinFsHelpersOptions): FsHelpers {
       const fly = iconInflight.get(safe);
       if (fly) return fly;
       const promise = (async (): Promise<string | null> => {
+        let iconName: string | null = null;
         try {
-          let iconName: string | null = null;
-          try {
-            const raw = execFileSync("defaults", ["read", join(bundlePath, "Contents", "Info"), "CFBundleIconFile"], { encoding: "utf8" });
-            iconName = raw.trim() || null;
-          } catch {}
-          const resourcesDir = join(bundlePath, "Contents", "Resources");
-          let icnsPath: string | null = null;
-          if (iconName) {
-            const candidate = iconName.endsWith(".icns") ? iconName : `${iconName}.icns`;
-            const full = join(resourcesDir, candidate);
-            if (existsSync(full)) icnsPath = full;
-          }
-          if (!icnsPath && existsSync(resourcesDir)) {
-            try {
-              const hit = readdirSync(resourcesDir).find((n) => n.toLowerCase().endsWith(".icns"));
-              if (hit) icnsPath = join(resourcesDir, hit);
-            } catch {}
-          }
-          if (!icnsPath) return null;
-          await new Promise<void>((resolve, reject) => {
-            const proc = spawn("sips", ["-s", "format", "png", "-z", "64", "64", icnsPath!, "--out", outPath], { stdio: "ignore" });
-            proc.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`sips exit ${code}`)));
-            proc.on("error", reject);
-          });
-          return existsSync(outPath) ? outPath : null;
-        } catch {
-          return null;
-        } finally {
-          iconInflight.delete(safe);
+          const raw = execFileSync("defaults", ["read", join(bundlePath, "Contents", "Info"), "CFBundleIconFile"], { encoding: "utf8" });
+          iconName = raw.trim() || null;
+        } catch {}
+        const resourcesDir = join(bundlePath, "Contents", "Resources");
+        let icnsPath: string | null = null;
+        if (iconName) {
+          const candidate = iconName.endsWith(".icns") ? iconName : `${iconName}.icns`;
+          const full = join(resourcesDir, candidate);
+          if (existsSync(full)) icnsPath = full;
         }
-      })();
+        if (!icnsPath && existsSync(resourcesDir)) {
+          try {
+            const hit = readdirSync(resourcesDir).find((n) => n.toLowerCase().endsWith(".icns"));
+            if (hit) icnsPath = join(resourcesDir, hit);
+          } catch {}
+        }
+        if (!icnsPath) return null;
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawn("sips", ["-s", "format", "png", "-z", "64", "64", icnsPath!, "--out", outPath], { stdio: "ignore" });
+          proc.on("exit", (code) => code === 0 ? resolve() : reject(new Error(`sips exit ${code}`)));
+          proc.on("error", reject);
+        });
+        return existsSync(outPath) ? outPath : null;
+      })().catch(() => null);
       iconInflight.set(safe, promise);
+      // On settle (success or failure), remove inflight entry. On failure the
+      // promise resolved to null via .catch, so the next caller retries.
+      promise.finally(() => iconInflight.delete(safe));
       return promise;
     },
 
