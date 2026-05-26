@@ -55,7 +55,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
 
   r.post(/^\/orchestrators\/(?<id>[^/]+)\/message$/, async ({ params, req, res }) => {
     const body = validate(MessageRequestSchema, await readBody(req));
-    c.clearInterrupted(params.id);
+    c.interruptCooldown.clear(params.id);
     const result = await dispatchMessage(
       {
         workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,

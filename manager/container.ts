@@ -6,7 +6,7 @@ import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { writeFileSync, unlinkSync, existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from "node:fs";
 
-import { loadConfig, type DaemonConfig, type ModelPrice } from "./shared/config.ts";
+import { loadConfig, reloadConfig as reloadConfigFromDisk, type DaemonConfig, type ModelPrice } from "./shared/config.ts";
 
 import { systemClock } from "../infra/src/time/SystemClock.ts";
 import { randomIdGenerator } from "../infra/src/id/RandomIdGenerator.ts";
@@ -35,12 +35,14 @@ import {
   permissionPendingTrigger, permissionExpiredTrigger, limitExceededTrigger,
 } from "../core/src/services/notification-triggers/index.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
+import { InterruptCooldownService } from "./services/InterruptCooldownService.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
+import { transitionState } from "../core/src/use-cases/TransitionState.ts";
 export { randomOrchestratorName } from "./shared/names.ts";
 
 export function buildContainer() {
-  const config: DaemonConfig = loadConfig();
+  let config: DaemonConfig = loadConfig();
   const log = createLogger("daemon");
 
   // PID file ----------------------------------------------------------------
@@ -154,12 +156,15 @@ export function buildContainer() {
     workers, events, bus, supervisor,
     clock: systemClock,
     log: log.child({ scope: "limits" }),
+    transitionWorkerState(workerId, next, reason) {
+      transitionState({ workers, events, bus, clock: systemClock }, { workerId, next, reason });
+    },
   });
   setInterval(() => limitsEnforcer.sweep(), 30_000).unref();
 
   // Notification service ----------------------------------------------------
   const notificationService = new NotificationService(
-    { bus, workers, getConfig: () => config.notifications },
+    { bus, workers, clock: systemClock, getConfig: () => config.notifications },
     [agentFinishedTrigger, agentExitedTrigger, permissionPendingTrigger, permissionExpiredTrigger, limitExceededTrigger],
   );
   notificationService.start();
@@ -245,13 +250,10 @@ export function buildContainer() {
     } catch {}
   };
 
-  // Interrupt cooldown — suppresses heartbeat/hook → WORKING transitions
-  // for a short window after an interrupt so the IDLE state sticks.
-  const interruptCooldowns = new Map<string, number>();
-  const INTERRUPT_COOLDOWN_MS = 4_000;
+  const interruptCooldown = new InterruptCooldownService(systemClock);
 
   return {
-    config,
+    get config() { return config; },
     log,
     db,
     bus,
@@ -274,18 +276,7 @@ export function buildContainer() {
     buildArgs,
     buildEnv,
     logFileFor,
-    markInterrupted(workerId: string): void {
-      interruptCooldowns.set(workerId, Date.now() + INTERRUPT_COOLDOWN_MS);
-    },
-    clearInterrupted(workerId: string): void {
-      interruptCooldowns.delete(workerId);
-    },
-    isInterruptCooldown(workerId: string): boolean {
-      const until = interruptCooldowns.get(workerId);
-      if (!until) return false;
-      if (Date.now() > until) { interruptCooldowns.delete(workerId); return false; }
-      return true;
-    },
+    interruptCooldown,
     writeOrchestratorMcpConfig,
     cleanupOrchestratorMcpConfig,
     reloadPolicy(): void {
@@ -299,6 +290,7 @@ export function buildContainer() {
       });
     },
     getPolicy(): Policy { return policy; },
+    reloadConfig(): void { config = reloadConfigFromDisk(); },
   };
 }
 

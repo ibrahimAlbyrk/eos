@@ -34,8 +34,8 @@ export function registerNotificationRoutes(r: Router, c: Container): void {
 
     file.notifications = updated;
     writeFileSync(configPath, JSON.stringify(file, null, 2));
-    Object.assign(c.config.notifications, updated);
+    c.reloadConfig();
 
-    writeJson(res, 200, updated);
+    writeJson(res, 200, c.config.notifications);
   });
 }

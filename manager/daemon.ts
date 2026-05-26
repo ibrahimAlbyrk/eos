@@ -25,7 +25,9 @@ import { registerOrchestratorRoutes } from "./routes/orchestrators.ts";
 import { registerPolicyRoutes } from "./routes/policy.ts";
 import { registerPendingRoutes } from "./routes/pending.ts";
 import { registerSessionRoutes } from "./routes/session.ts";
-import { registerFsRoutes } from "./routes/fs.ts";
+import { registerFsPickerRoutes } from "./routes/fs-picker.ts";
+import { registerFsReadRoutes } from "./routes/fs-read.ts";
+import { registerFsGitRoutes } from "./routes/fs-git.ts";
 import { registerCommandRoutes } from "./routes/commands.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
@@ -43,7 +45,9 @@ registerWebRoutes(router, c);
 registerUiConfigRoutes(router, c);
 registerNotificationRoutes(router, c);
 registerMetricsRoutes(router, c);
-registerFsRoutes(router, c);
+registerFsPickerRoutes(router, c);
+registerFsReadRoutes(router, c);
+registerFsGitRoutes(router, c);
 registerCommandRoutes(router, c);
 registerWorkerRoutes(router, c);
 registerOrchestratorRoutes(router, c);
@@ -99,6 +103,7 @@ function shutdown(sig: string): void {
   c.log.info("shutting down", { signal: sig, workers: ids.length });
   for (const id of ids) c.supervisor.escalateKill(id, 0);
   try { unlinkSync(c.config.daemon.pidFile); } catch {}
+  try { c.db.close(); } catch {}
   setTimeout(() => process.exit(0), 1500);
 }
 process.on("SIGINT", () => shutdown("SIGINT"));

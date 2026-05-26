@@ -162,6 +162,13 @@ function mergeConfig(base: DaemonConfig, override: unknown): DaemonConfig {
   return out;
 }
 
+function deepFreeze<T extends object>(obj: T): Readonly<T> {
+  for (const v of Object.values(obj)) {
+    if (v && typeof v === "object" && !Object.isFrozen(v)) deepFreeze(v);
+  }
+  return Object.freeze(obj);
+}
+
 let cached: DaemonConfig | null = null;
 
 /**
@@ -193,11 +200,16 @@ export function loadConfig(): DaemonConfig {
       console.log(`[config] failed to parse ${path}: ${(e as Error).message} — ignoring`);
     }
   }
-  cached = mergeConfig(base, override);
+  cached = deepFreeze(mergeConfig(base, override));
   // Best-effort: ensure ~/.claude-mgr exists so callers can write logs/pid.
   try { mkdirSync(cached.daemon.home, { recursive: true }); } catch {}
   try { mkdirSync(cached.daemon.logDir, { recursive: true }); } catch {}
   return cached;
+}
+
+export function reloadConfig(): DaemonConfig {
+  cached = null;
+  return loadConfig();
 }
 
 /**
