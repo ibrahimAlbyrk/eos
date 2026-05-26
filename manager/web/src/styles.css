@@ -1599,8 +1599,17 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
 .composer-wrap { position: relative; }
 
 /* ── permission banner (above composer) ── */
-.perm-banner { display: flex; flex-direction: column; gap: 6px; margin-bottom: 6px; }
+.perm-banner { margin-bottom: 6px; }
+.perm-stack { position: relative; }
+.perm-ghost {
+  position: absolute; left: 0; right: 0; top: 0; bottom: 0;
+  background: #252525; border: 1px solid #3a3a3a; border-radius: 10px;
+  pointer-events: none;
+}
+.perm-ghost-1 { transform: translateY(-4px) scale(0.98); opacity: 0.5; }
+.perm-ghost-2 { transform: translateY(-8px) scale(0.96); opacity: 0.25; }
 .perm-item {
+  position: relative; z-index: 2;
   background: #252525; border: 1px solid #3a3a3a; border-radius: 10px;
   padding: 12px 16px; display: flex; flex-direction: column; gap: 8px;
 }
@@ -1610,6 +1619,11 @@ html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
 }
 .perm-title { flex: 1; color: #e8e8e8; }
 .perm-title strong { color: #fff; }
+.perm-count {
+  font-size: 11px; color: #e8a838; background: rgba(232,168,56,0.12);
+  border: 1px solid rgba(232,168,56,0.25); padding: 2px 8px; border-radius: 4px;
+  white-space: nowrap; font-weight: 500;
+}
 .perm-scope {
   font-size: 11px; color: #888; background: #2a2a2a; border: 1px solid #3a3a3a;
   padding: 2px 8px; border-radius: 4px; white-space: nowrap;
