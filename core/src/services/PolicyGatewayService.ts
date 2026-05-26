@@ -1,7 +1,7 @@
 // PolicyGatewayService — concrete implementation of the PolicyGateway port.
-// Wraps the pure evaluator with the in-memory pending resolver registry and
-// the TTL-auto-deny timer. Stateful (owns the resolver map), but holds no
-// I/O dependencies beyond the ports it composes.
+// Wraps the pure evaluator with the in-memory pending resolver registry.
+// Stateful (owns the resolver map), but holds no I/O dependencies beyond
+// the ports it composes.
 
 import type { Decision } from "../../../contracts/src/policy.ts";
 import type { Policy } from "../domain/policy.ts";
@@ -57,7 +57,7 @@ export class PolicyGatewayService implements PolicyGateway {
 
     const id = this.deps.ids.newPendingId();
     const now = this.deps.clock.now();
-    const expiresAt = now + policy.ttlMs;
+    const expiresAt = policy.ttlMs ? now + policy.ttlMs : now + 86_400_000;
     this.deps.pending.insert({
       id,
       workerId: input.workerId,
@@ -72,18 +72,6 @@ export class PolicyGatewayService implements PolicyGateway {
 
     return new Promise<Decision>((resolve) => {
       this.resolvers.set(id, resolve);
-      if (policy.ttlMs) {
-        setTimeout(() => {
-          if (!this.resolvers.has(id)) return;
-          this.resolvers.delete(id);
-          this.deps.pending.resolve({
-            id, decision: "deny", reason: "TTL exceeded", updatedInput: null,
-          });
-          this.deps.events.append(input.workerId, this.deps.clock.now(), "permission_ttl_deny", { id });
-          this.deps.bus.publish("pending:ttl_expired", { id, workerId: input.workerId });
-          resolve({ behavior: "deny", message: "human approval timed out" });
-        }, policy.ttlMs);
-      }
     });
   }
 

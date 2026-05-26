@@ -106,7 +106,7 @@ function defaults(): DaemonConfig {
       ptyWriteDelayMs: envNum("CLAUDE_MGR_PTY_WRITE_DELAY_MS", 300),
     },
     permissions: {
-      defaultTtlMs: envNum("CLAUDE_MGR_PERMISSION_TTL_MS", 30000),
+      defaultTtlMs: envNum("CLAUDE_MGR_PERMISSION_TTL_MS", 0),
     },
     prices: DEFAULT_PRICES,
     notifications: NotificationConfigSchema.parse({}),
