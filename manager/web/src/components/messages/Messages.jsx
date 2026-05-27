@@ -91,6 +91,37 @@ export function Messages({ live }) {
     fetchRef.current?.();
   }, [live.eventSignal.tick]);
 
+  const pendingQuestion = useMemo(() => {
+    const running = new Map();
+    const done = new Set();
+    let hasAnswerMessage = false;
+    for (const ev of events) {
+      if (ev.type === "tool_running") {
+        const p = parsePayload(ev.payload);
+        if (p.toolName === "AskUserQuestion" && p.toolUseId)
+          running.set(p.toolUseId, { input: p.input, ts: ev.ts });
+      }
+      if (ev.type === "tool_done") {
+        const p = parsePayload(ev.payload);
+        if (p.toolUseId) done.add(p.toolUseId);
+      }
+      if (ev.type === "user_message") {
+        const p = parsePayload(ev.payload);
+        if (p.text?.startsWith("My answers to your questions:")) hasAnswerMessage = true;
+      }
+    }
+    if (hasAnswerMessage) return null;
+    for (const [id, { input }] of running) {
+      if (!done.has(id) && Array.isArray(input?.questions) && input.questions.length > 0)
+        return { toolUseId: id, questions: input.questions };
+    }
+    return null;
+  }, [events]);
+
+  useEffect(() => {
+    ui.setPendingQuestion(pendingQuestion);
+  }, [pendingQuestion]);
+
   const blocks = useMemo(() => {
     const base = buildBlocks(events);
     const opt = ui.optimisticMsgs.get(ui.selectedId) ?? [];

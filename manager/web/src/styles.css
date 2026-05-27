@@ -802,7 +802,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  animation: ti-shimmer 2s linear infinite;
+  animation: ti-shimmer 8s linear infinite;
 }
 @keyframes ti-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 
@@ -970,6 +970,32 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .gd-row { padding: 2px 0; color: var(--fg-dim); }
 .gd-key { color: var(--fg-dim); }
 .gd-val { font-weight: 600; color: var(--fg); }
+
+/* AskUserQuestion Q&A detail */
+.tool-qa {
+  margin: 4px 0 8px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.tool-group .tool-qa { background: var(--surface-2); }
+.tool-qa-item { line-height: 1.55; }
+.tool-qa-q {
+  font-size: 12.5px;
+  color: var(--fg-dim);
+}
+.tool-qa-a {
+  font-size: 13px;
+  color: var(--fg);
+  font-weight: 500;
+  padding-left: 2px;
+}
+.tool-qa-arrow { color: var(--accent); margin-right: 2px; }
+.tool-qa-pending { color: var(--fg-faint); font-weight: 400; font-style: italic; }
 
 /* table inside assistant */
 .tbl {
@@ -1746,6 +1772,84 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .perm-allow { color: #1a1a1a; background: #e8e8e8; border-color: #e8e8e8; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; }
 .perm-allow:hover { background: #fff; border-color: #fff; }
 .perm-shortcut { font-size: 11px; opacity: 0.6; }
+
+/* ============================================================================
+   QUESTION BANNER — AskUserQuestion interactive form
+   ============================================================================ */
+.q-banner { margin-bottom: 6px; }
+.q-card {
+  background: #252525; border: 1px solid #3a3a3a; border-radius: 10px;
+  padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;
+}
+.q-header { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.q-step {
+  font-size: 11px; font-weight: 600; color: #4ade80; background: rgba(74,222,128,0.12);
+  border: 1px solid rgba(74,222,128,0.25); padding: 2px 8px; border-radius: 10px;
+  white-space: nowrap; flex-shrink: 0;
+}
+.q-chip {
+  font-size: 10px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em;
+  color: #aaa; background: #2a2a2a; border: 1px solid #3a3a3a;
+  padding: 2px 7px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;
+}
+.q-question { flex: 1; color: #e8e8e8; font-weight: 500; }
+.q-close {
+  width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; color: #888; flex-shrink: 0;
+}
+.q-close:hover { background: #333; color: #ccc; }
+
+.q-options {
+  display: flex; flex-direction: column;
+  border: 1px solid #333; border-radius: 8px; overflow: hidden;
+}
+.q-option {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 10px 12px; cursor: pointer; transition: background 0.1s;
+  border-bottom: 1px solid #2e2e2e;
+}
+.q-option:last-child { border-bottom: none; }
+.q-option:hover { background: #2a2a2a; }
+.q-option.q-selected { background: rgba(200,162,255,0.06); }
+.q-indicator { flex-shrink: 0; margin-top: 1px; }
+.q-opt-body { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.q-opt-label { font-size: 13px; color: #e8e8e8; font-weight: 500; }
+.q-opt-desc { font-size: 12px; color: #888; line-height: 1.4; }
+.q-num-badge {
+  font-size: 11px; font-family: var(--mono, "JetBrains Mono", monospace);
+  color: #777; background: #2a2a2a; border: 1px solid #3a3a3a;
+  min-width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  border-radius: 4px; flex-shrink: 0; margin-top: 1px;
+}
+.q-selected .q-num-badge { color: #c8a2ff; border-color: rgba(200,162,255,0.3); background: rgba(200,162,255,0.1); }
+
+.q-other-input {
+  width: 100%; margin-top: 6px; padding: 6px 10px;
+  background: #1a1a1a; border: 1px solid #3a3a3a; border-radius: 6px;
+  font-size: 12px; color: #ccc;
+}
+.q-other-input::placeholder { color: #555; }
+.q-other-input:focus { border-color: #555; outline: none; }
+
+.q-actions { display: flex; align-items: center; justify-content: space-between; }
+.q-left { display: flex; gap: 8px; }
+.q-right { display: flex; gap: 8px; align-items: center; }
+.q-btn {
+  padding: 5px 14px; border-radius: 6px; font-size: 12px; cursor: pointer;
+  border: 1px solid #444; background: #2a2a2a; color: #ddd;
+}
+.q-btn:hover { background: #333; }
+.q-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.q-back { color: #ccc; }
+.q-skip { color: #aaa; }
+.q-next { color: #ccc; }
+.q-next.q-primary {
+  color: #1a1a1a; background: #e8e8e8; border-color: #e8e8e8; font-weight: 500;
+}
+.q-next.q-primary:hover { background: #fff; border-color: #fff; }
+.q-next.q-primary:disabled { background: #666; border-color: #666; color: #333; }
+.q-shortcut { font-size: 11px; opacity: 0.6; }
+
 .ctx-popover {
   position: absolute;
   bottom: calc(100% + 6px);

@@ -125,13 +125,15 @@ export function buildBlocks(events) {
       const tr = parsePayload(ev.payload);
       if (tr.toolUseId && !toolUseIds.has(tr.toolUseId) && !attributedToolIds.has(tr.toolUseId)) {
         lastAsst = null;
+        const done = toolDoneSet.has(tr.toolUseId);
         pendingTools.push({
           id: tr.toolUseId,
           name: tr.toolName ?? "unknown",
           verb: verbFor(tr.toolName),
           input: tr.input ?? {},
-          result: null,
-          running: true,
+          result: toolDoneMap.get(tr.toolUseId) ?? null,
+          running: !done,
+          done,
           ts: ev.ts,
         });
       }
@@ -187,7 +189,31 @@ export function buildBlocks(events) {
     }
   }
   flushTools();
+  attachAskUserAnswers(out);
   return out;
+}
+
+function attachAskUserAnswers(blocks) {
+  const removeIndices = new Set();
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    const tool = b.kind === "tool" ? b.tool : null;
+    if (!tool || tool.name !== "AskUserQuestion") continue;
+    for (let j = i + 1; j < blocks.length && j <= i + 3; j++) {
+      if (blocks[j].kind === "user" && blocks[j].text?.startsWith("My answers to your questions:")) {
+        tool.result = { text: blocks[j].text, isError: false };
+        tool.running = false;
+        tool.done = true;
+        removeIndices.add(j);
+        break;
+      }
+    }
+  }
+  if (removeIndices.size > 0) {
+    for (let i = blocks.length - 1; i >= 0; i--) {
+      if (removeIndices.has(i)) blocks.splice(i, 1);
+    }
+  }
 }
 
 export function buildSummary(tools) {

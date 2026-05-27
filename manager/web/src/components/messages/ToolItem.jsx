@@ -14,7 +14,7 @@ export function ToolItem({ tool, standalone }) {
     const t = setTimeout(() => setJustAppeared(false), APPEAR_MS);
     return () => clearTimeout(t);
   }, [justAppeared]);
-  const isRunning = tool.running || tool.result === null || justAppeared;
+  const isRunning = (tool.running && !tool.done) || (!tool.done && tool.result === null) || justAppeared;
   const label = isRunning ? runningLabel(tool) : itemLabel(tool);
   const hasPath = (tool.name === "Read" || tool.name === "Edit" || tool.name === "Write") && tool.input?.file_path;
 
@@ -67,6 +67,7 @@ function runningLabel(tool) {
   if (name === "Edit") return { verb: "Editing", file: fileName(tool.input?.file_path) };
   if (name === "Write") return { verb: "Writing", file: fileName(tool.input?.file_path) };
   if (name === "Glob" || name === "Grep") return { verb: "Searching", file: tool.input?.pattern ?? tool.input?.query ?? "" };
+  if (name === "AskUserQuestion") return { verb: "Asking", file: "user" };
   return { verb: "Running", file: name };
 }
 
@@ -88,6 +89,7 @@ function itemLabel(tool) {
   if (name === "mcp__orchestrator__message_worker") {
     return { verb: "Messaged", file: tool.input?.id ?? "worker" };
   }
+  if (name === "AskUserQuestion") return { verb: "Asked", file: "user" };
   return { verb: "Used", file: name };
 }
 

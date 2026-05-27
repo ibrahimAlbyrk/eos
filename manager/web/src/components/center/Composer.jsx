@@ -9,6 +9,7 @@ import { CommandMenu } from "./CommandMenu.jsx";
 import { FileMenu } from "./FileMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
 import { PermissionBanner } from "./PermissionBanner.jsx";
+import { QuestionBanner } from "./QuestionBanner.jsx";
 
 function getCursorOffset(el) {
   const sel = window.getSelection();
@@ -528,6 +529,15 @@ export function Composer({ live }) {
               />
             ))}
           </div>
+        )}
+        {ui.pendingQuestion && selected && !ui.dismissedQuestions?.has(ui.pendingQuestion.toolUseId) && (
+          <QuestionBanner
+            questions={ui.pendingQuestion.questions}
+            workerId={selected.id}
+            onClose={() => ui.dismissQuestion(ui.pendingQuestion.toolUseId)}
+            sendToAgent={live.sendToAgent}
+            interruptAgent={live.interruptAgent}
+          />
         )}
         <PermissionBanner
           permissions={(live.pendingPermissions ?? []).filter(

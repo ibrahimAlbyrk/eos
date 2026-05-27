@@ -97,6 +97,12 @@ export const api = {
   async interruptWorker(id) {
     return postJson(ROUTES.workerInterrupt(id));
   },
+  async sendKeystroke(id, keys) {
+    return postJson(ROUTES.workerKeystroke(id), { keys });
+  },
+  async answerQuestion(id, answers) {
+    return postJson(ROUTES.workerQuestionAnswer(id), { answers });
+  },
 
   // Orchestrators
   async spawnOrchestrator({ name, cwd, model, effort, prompt } = {}) {

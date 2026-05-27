@@ -21,6 +21,11 @@ export function SelectionProvider({ children }) {
   const [fileViewer, setFileViewer] = useState(null);
   const [agentViewer, setAgentViewer] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
+  const [pendingQuestion, setPendingQuestion] = useState(null);
+  const [dismissedQuestions, setDismissedQuestions] = useState(() => new Set());
+  const dismissQuestion = useCallback((toolUseId) => {
+    setDismissedQuestions((prev) => new Set(prev).add(toolUseId));
+  }, []);
   const escapeIdleRef = useRef(null);
   const registerEscapeIdle = useCallback((fn) => { escapeIdleRef.current = fn; }, []);
 
@@ -80,12 +85,13 @@ export function SelectionProvider({ children }) {
     openPopover, openPop, closeAllPops, popoverPos, popoverData,
     collapsedNodes, toggleNodeCollapsed,
     renamingId, setRenamingId,
+    pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
     fileViewer, openFileViewer, closeFileViewer, toggleFileEditMode,
     agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     registerEscapeIdle,
   }), [
     selectedId, sideCollapsed, islandsHidden, openPopover, popoverPos, popoverData,
-    collapsedNodes, renamingId, fileViewer, agentViewer,
+    collapsedNodes, renamingId, pendingQuestion, dismissedQuestions, fileViewer, agentViewer,
     openPop, closeAllPops, toggleNodeCollapsed,
     openFileViewer, closeFileViewer, toggleFileEditMode,
     openAgentViewer, closeAgentViewer, syncAgentViewer,

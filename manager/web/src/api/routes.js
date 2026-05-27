@@ -40,6 +40,8 @@ export const ROUTES = {
   workerModel: (id) => `/workers/${id}/model`,
   workerDiff: (id) => `/workers/${id}/diff`,
   workerInterrupt: (id) => `/workers/${id}/interrupt`,
+  workerKeystroke: (id) => `/workers/${id}/keystroke`,
+  workerQuestionAnswer: (id) => `/workers/${id}/question-answer`,
   commands: "/commands",
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
