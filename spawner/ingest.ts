@@ -5,10 +5,16 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
+export interface QuestionAnswer {
+  answers: Record<string, string>;
+}
+
 export interface IngestHandlers {
   onMessage(text: string): void;
+  onKeystroke(keys: string): void;
   onInterrupt(): { ok: boolean; reason?: string };
   onHook(eventName: string, body: Record<string, unknown>): void;
+  onQuestionHook(body: Record<string, unknown>): Promise<QuestionAnswer | null>;
 }
 
 export interface IngestServer {
@@ -59,6 +65,23 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
         }
         return;
       }
+      if (url.pathname === "/keystroke") {
+        try {
+          const body = JSON.parse(raw) as { keys?: string };
+          if (!body.keys) {
+            res.writeHead(400, { "content-type": "application/json" });
+            res.end(JSON.stringify({ error: "keys required" }));
+            return;
+          }
+          handlers.onKeystroke(body.keys);
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) {
+          res.writeHead(500, { "content-type": "application/json" });
+          res.end(JSON.stringify({ error: (e as Error).message }));
+        }
+        return;
+      }
       if (url.pathname === "/interrupt") {
         const result = handlers.onInterrupt();
         res.writeHead(200, { "content-type": "application/json" });
@@ -70,6 +93,8 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
       let body: Record<string, unknown> = {};
       try { body = JSON.parse(raw); } catch {}
       handlers.onHook(eventName, body);
+
+
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ continue: true }));
     });

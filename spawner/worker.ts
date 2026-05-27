@@ -137,6 +137,31 @@ const ingest = startIngestServer(opts.port, {
     evt.emit("lifecycle", { phase: "message_received", text: text.slice(0, 200) });
     dispatchToPty(text);
   },
+  onKeystroke(keys): void {
+    state.lastJsonlActivityTs = Date.now();
+    pty.write(keys);
+  },
+  async onQuestionHook(body) {
+    if (!opts.daemonUrl || !opts.workerId) return null;
+    const toolInput = body.tool_input as Record<string, unknown> | undefined;
+    const questions = toolInput?.questions;
+    if (!Array.isArray(questions) || questions.length === 0) return null;
+
+    const url = `${opts.daemonUrl}/workers/${opts.workerId}/question`;
+    try {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ questions, toolUseId: body.tool_use_id }),
+        signal: AbortSignal.timeout(3600_000),
+      });
+      if (!r.ok) return null;
+      const data = await r.json() as { answers?: Record<string, string> };
+      return data.answers ? { answers: data.answers } : null;
+    } catch {
+      return null;
+    }
+  },
   onInterrupt(): { ok: boolean } {
     pty.write("\x1b");
     state.lastTurnEndTs = Date.now();

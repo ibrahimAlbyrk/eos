@@ -4,5 +4,6 @@
 
 export interface WorkerClient {
   sendMessage(port: number, text: string): Promise<{ ok: boolean; status: number; body: unknown }>;
+  sendKeystroke(port: number, keys: string): Promise<{ ok: boolean }>;
   sendInterrupt(port: number): Promise<{ ok: boolean; reason?: string }>;
 }

@@ -30,6 +30,24 @@ export function createHttpWorkerClient(opts: HttpWorkerClientOptions = {}): Work
       }
     },
 
+    async sendKeystroke(port: number, keys: string): Promise<{ ok: boolean }> {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), interruptTimeout);
+      try {
+        const r = await fetch(`http://127.0.0.1:${port}/keystroke`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ keys }),
+          signal: ac.signal,
+        });
+        return { ok: r.ok };
+      } catch {
+        return { ok: false };
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+
     async sendMessage(port: number, text: string): Promise<{ ok: boolean; status: number; body: unknown }> {
       const ac = new AbortController();
       const timer = setTimeout(() => ac.abort(), sendTimeout);

@@ -23,6 +23,14 @@ import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermi
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
 
+interface PendingQuestion {
+  questions: unknown[];
+  toolUseId: string;
+  resolve: (answers: Record<string, string>) => void;
+  reject: () => void;
+}
+const pendingQuestions = new Map<string, PendingQuestion>();
+
 export function registerWorkerRoutes(r: Router, c: Container): void {
   r.get("/workers", ({ res }) => {
     writeJson(res, 200, c.workers.listAll());
@@ -149,6 +157,68 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       { workerId: params.id, text: body.text },
     );
     writeJson(res, result.status, result.body);
+  });
+
+  // Non-blocking notification that a question is pending (fire-and-forget from hook)
+  r.post(/^\/workers\/(?<id>[^/]+)\/question-notify$/, async ({ params, req, res }) => {
+    const body = await readBody(req) as { questions?: unknown[]; toolUseId?: string };
+    if (!body.questions || !body.toolUseId) { writeJson(res, 400, { error: "questions and toolUseId required" }); return; }
+    c.events.append(params.id, c.clock.now(), "question_pending", {
+      toolUseId: body.toolUseId,
+      questions: body.questions,
+    });
+    c.bus.publish("worker:change", { workerId: params.id });
+    writeJson(res, 200, { ok: true });
+  });
+
+  // Worker's hook blocks here until user answers in web UI
+  r.post(/^\/workers\/(?<id>[^/]+)\/question$/, async ({ params, req, res }) => {
+    const body = await readBody(req) as { questions?: unknown[]; toolUseId?: string };
+    if (!body.questions || !body.toolUseId) { writeJson(res, 400, { error: "questions and toolUseId required" }); return; }
+
+    c.events.append(params.id, c.clock.now(), "question_pending", {
+      toolUseId: body.toolUseId,
+      questions: body.questions,
+    });
+    c.bus.publish("worker:change", { workerId: params.id });
+
+    const answers = await new Promise<Record<string, string>>((resolve, reject) => {
+      pendingQuestions.set(params.id, {
+        questions: body.questions!,
+        toolUseId: body.toolUseId!,
+        resolve,
+        reject,
+      });
+    });
+
+    pendingQuestions.delete(params.id);
+    writeJson(res, 200, { answers });
+  });
+
+  // Web UI posts answers here
+  r.post(/^\/workers\/(?<id>[^/]+)\/question-answer$/, async ({ params, req, res }) => {
+    const body = await readBody(req) as { answers?: Record<string, string> };
+    if (!body.answers) { writeJson(res, 400, { error: "answers required" }); return; }
+    const pending = pendingQuestions.get(params.id);
+    if (!pending) { writeJson(res, 404, { error: "no pending question" }); return; }
+    pending.resolve(body.answers);
+    c.events.append(params.id, c.clock.now(), "question_answered", { answers: body.answers });
+    c.bus.publish("worker:change", { workerId: params.id });
+    writeJson(res, 200, { ok: true });
+  });
+
+  r.post(/^\/workers\/(?<id>[^/]+)\/keystroke$/, async ({ params, req, res }) => {
+    const worker = c.workers.findById(params.id);
+    if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
+    if (!c.supervisor.has(params.id)) { writeJson(res, 409, { error: "worker not running" }); return; }
+    const body = await readBody(req) as { keys?: string };
+    if (!body.keys) { writeJson(res, 400, { error: "keys required" }); return; }
+    try {
+      await c.httpWorkerClient.sendKeystroke(worker.port, body.keys);
+    } catch {
+      writeJson(res, 502, { error: "worker unreachable" }); return;
+    }
+    writeJson(res, 200, { ok: true });
   });
 
   r.post(/^\/workers\/(?<id>[^/]+)\/interrupt$/, ({ params, res }) => {
