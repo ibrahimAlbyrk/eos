@@ -9,23 +9,28 @@ export const spawnWorkerTool: McpToolModule = {
       "spawn_worker",
       {
         description:
-          "Spawn a new background Claude worker to handle a task. Returns the worker ID and port. The worker automatically runs in your project directory — you do not (and cannot) choose the path.",
+          "Spawn a new background Claude worker in your project directory to do concrete work.\n\nWhen to use: every time the user requests code edits, builds, tests, refactors, investigations, or any other concrete action. You never do the work yourself; you spawn workers to do it.\n\nWhen NOT to use: for read-only orchestration tasks (checking worker state, listing pending permissions) — use the dedicated tools for those.\n\nDecomposition: spawn ONE worker per tightly-coupled unit of work. Spawn multiple in parallel when the parts are truly independent (no shared files, no sequential dependency).\n\nLifecycle: worker startup takes a few seconds. The worker receives `prompt` as its first user-turn, runs until it calls send_message_to_parent, then stays idle waiting for follow-ups. Call kill_worker only after the user has acknowledged the result.\n\nThe worker automatically inherits the project's worker system prompt, which already covers reporting structure and the result:/needs input:/failed: signal protocol — do not repeat that in `prompt`.\n\nReturns { id, port, name }. Use that id with get_worker, message_worker, and kill_worker.",
         inputSchema: {
-          prompt: z.string().describe("The task instruction for the worker. Be specific and self-contained."),
-          name: z.string().optional().describe("Friendly name for the worker (e.g. 'add-auth-tests')."),
-          withGateway: z.boolean().optional().describe("Default true. Routes the worker's tool calls through the permission gateway."),
-          model: z.string().optional().describe("Claude model for the worker: 'opus' (default, strongest reasoning), 'sonnet' (balanced), or 'haiku' (fastest/cheapest). Pick based on task complexity."),
-          maxCostUsd: z.number().optional().describe("Hard ceiling in USD. Worker SIGTERM'd if cumulative cost exceeds this."),
-          maxElapsedMs: z.number().optional().describe("Hard ceiling in milliseconds since worker started."),
+          prompt: z.string().describe(
+            "The directive for the worker. Follow the worker prompt template from your system prompt: directive sentence, Context (relevant files/branches), Acceptance (concrete done-check), Out of scope (if non-obvious), Report (task-specific items). Workers already know the signal protocol — do not repeat it.",
+          ),
+          name: z.string().optional().describe(
+            "Friendly slug for the worker (kebab-case). Should describe the outcome, not the action. Good: 'refactor-auth-tokens', 'add-billing-tests'. Bad: 'worker-1', 'fix-stuff', 'task'.",
+          ),
+          withGateway: z.boolean().optional().describe(
+            "Default true. Routes the worker's tool calls through the permission gateway. Set false only when you explicitly want a worker to run without permission checks (rare; needs strong justification).",
+          ),
+          model: z.string().optional().describe(
+            "Claude model: 'opus' (default; ambiguous, multi-file, or debugging work), 'sonnet' (balanced — well-specified routine work), 'haiku' (fastest/cheapest — trivial writes, summaries, simple greps). When in doubt, omit and let it default to opus.",
+          ),
         },
       },
-      async ({ prompt, name, withGateway, model, maxCostUsd, maxElapsedMs }) =>
+      async ({ prompt, name, withGateway, model }) =>
         safeText(async () => {
           const body: Record<string, unknown> = {
             prompt, name, model,
             withGateway: withGateway ?? true,
             parentId: session.selfId,
-            maxCostUsd, maxElapsedMs,
           };
           if (session.isGitRepo) body.worktreeFrom = session.cwd;
           else body.cwd = session.cwd;

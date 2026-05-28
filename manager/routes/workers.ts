@@ -1,3 +1,5 @@
+import { join } from "node:path";
+
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
@@ -44,11 +46,15 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     // from parent so children adopt the orchestrator's current mode.
     const claudePermissionMode = body.permissionMode
       ?? (body.parentId ? c.modeResolver.resolveFor(body.parentId) : undefined);
+    const systemPromptFile = body.parentId
+      ? join(c.config.paths.repoRoot, "manager", "worker-prompt.md")
+      : undefined;
     const spec = {
       ...body,
       cwd: expandPath(body.cwd),
       worktreeFrom: expandPath(body.worktreeFrom),
       claudePermissionMode,
+      systemPromptFile,
     };
     const result = await spawnWorker(
       {
