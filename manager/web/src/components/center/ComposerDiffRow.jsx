@@ -94,7 +94,7 @@ export function ComposerDiffRow({ live }) {
   if (!selected || !isGit) return null;
 
   const folder = basename(selected.cwd ?? selected.worktree_from ?? "");
-  const branch = selected.branch ?? "—";
+  const branch = currentBranch ?? selected.branch ?? null;
   const activeOption = PR_OPTIONS.find((o) => o.id === prMode) ?? PR_OPTIONS[0];
 
   const handlePrAction = () => {
@@ -123,8 +123,12 @@ export function ComposerDiffRow({ live }) {
     <div className="c-row-diff" id="composerDiffRow">
       <span className="diff-repo-label">
         <b>{folder}</b>
-        <span className="diff-sep">·</span>
-        <span className="diff-branch">{branch}</span>
+        {branch && (
+          <>
+            <span className="diff-sep">·</span>
+            <span className="diff-branch">{branch}</span>
+          </>
+        )}
       </span>
       <span className="diff-grow"></span>
       {showSync && (
