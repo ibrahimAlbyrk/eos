@@ -38,9 +38,10 @@ cd manager/web && npm run dev     # vite build --watch
 bash app/build.sh                 # native macOS app → /Applications/Eos.app
 ```
 
-Daemon restart after code changes (clean DB + kill orphans):
+Daemon restart after code changes (kill orphans, keep DB):
 ```bash
-eos restart
+eos restart           # restart only
+eos restart --db      # also wipe state.db*
 ```
 
 CLI: `eos help` for all commands. Symlink: `~/.local/bin/eos`.

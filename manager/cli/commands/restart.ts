@@ -10,9 +10,11 @@ function sleep(ms: number): Promise<void> {
 
 export const restartCommand: Command = {
   name: "restart",
-  description: "Stop daemon, kill orphans, clean DB, restart",
-  usage: "eos restart",
-  async run(_args, ctx): Promise<void> {
+  description: "Stop daemon, kill orphans, restart. Pass --db to also wipe state.db",
+  usage: "eos restart [--db]",
+  async run(args, ctx): Promise<void> {
+    const wipeDb = args.includes("--db");
+
     // 1. Graceful stop
     const pidFile = ctx.config.daemon.pidFile;
     if (existsSync(pidFile)) {
@@ -29,16 +31,16 @@ export const restartCommand: Command = {
     } catch {}
     await sleep(1000);
 
-    // 3. Clean DB + pid
+    // 3. Clean pid (and DB only if --db)
     const home = ctx.config.daemon.home;
     try {
       for (const f of readdirSync(home)) {
-        if (f.startsWith("state.db") || f === "daemon.pid") {
+        if (f === "daemon.pid" || (wipeDb && f.startsWith("state.db"))) {
           rmSync(join(home, f), { force: true });
         }
       }
     } catch {}
-    console.log("cleaned db + pid");
+    console.log(wipeDb ? "cleaned db + pid" : "cleaned pid");
 
     // 4. Start daemon (detached)
     const child = spawn(
