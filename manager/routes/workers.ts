@@ -40,10 +40,15 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const raw = await readBody(req);
     const body = validate(SpawnWorkerRequestSchema, raw);
     // Normalize tilde paths upstream so use-cases see absolute paths only.
+    // Mode inheritance: explicit body.permissionMode wins; otherwise resolve
+    // from parent so children adopt the orchestrator's current mode.
+    const claudePermissionMode = body.permissionMode
+      ?? (body.parentId ? c.modeResolver.resolveFor(body.parentId) : undefined);
     const spec = {
       ...body,
       cwd: expandPath(body.cwd),
       worktreeFrom: expandPath(body.worktreeFrom),
+      claudePermissionMode,
     };
     const result = await spawnWorker(
       {
@@ -284,7 +289,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
         client: c.httpWorkerClient, log: c.log,
       },
-      { workerId: params.id, mode: body.mode },
+      { workerId: params.id, mode: body.mode, cascade: body.cascade },
     );
     writeJson(res, 200, { ok: true, ...out });
   });

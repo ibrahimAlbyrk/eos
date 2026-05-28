@@ -25,6 +25,7 @@ export const SpawnWorkerRequestSchema = z
     maxCostUsd: z.number().nonnegative().optional(),
     maxElapsedMs: z.number().int().positive().optional(),
     parentId: z.string().optional(),
+    permissionMode: PermissionModeSchema.optional(),
   })
   .refine((b) => !!(b.cwd || b.worktreeFrom), {
     message: "cwd or worktreeFrom required",
@@ -45,6 +46,7 @@ export const SpawnOrchestratorRequestSchema = z.object({
   model: z.string().optional(),
   effort: z.string().optional(),
   prompt: z.string().optional(),
+  permissionMode: PermissionModeSchema.optional(),
 });
 export type SpawnOrchestratorRequest = z.infer<typeof SpawnOrchestratorRequestSchema>;
 
@@ -198,13 +200,17 @@ export type FsWriteRequest = z.infer<typeof FsWriteRequestSchema>;
 
 // ---- PUT /workers/:id/permission -------------------------------------------
 
-export const SetPermissionRequestSchema = z.object({ mode: PermissionModeSchema });
+export const SetPermissionRequestSchema = z.object({
+  mode: PermissionModeSchema,
+  cascade: z.boolean().optional(),
+});
 export type SetPermissionRequest = z.infer<typeof SetPermissionRequestSchema>;
 
 export const SetPermissionResponseSchema = z.object({
   ok: z.boolean(),
   mode: PermissionModeSchema,
   runtimeApplied: z.boolean(),
+  affected: z.array(z.string()),
 });
 export type SetPermissionResponse = z.infer<typeof SetPermissionResponseSchema>;
 

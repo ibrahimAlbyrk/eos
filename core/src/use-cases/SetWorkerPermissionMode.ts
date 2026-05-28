@@ -1,8 +1,11 @@
-// SetWorkerPermissionMode — persist per-worker accept-edits mode and try to
-// apply it to the live PTY. Persistence is authoritative; runtime apply is
-// best-effort: a /permissions slash command is written to claude's stdin.
-// If the worker is dead or has no port, we still persist (so the value is
-// honored on the next session) but report runtimeApplied=false.
+// SetWorkerPermissionMode — persist the mode and (optionally) cascade it
+// through the entire subtree rooted at this worker. Runtime apply for the
+// primary target is still attempted via the `/permissions` slash command;
+// children pick up the new mode at their next tool-call (the hook reads
+// from the DB through the resolver).
+//
+// Persistence is authoritative. If the worker is dead, we still persist
+// (so the next session honors it) and report runtimeApplied=false.
 
 import type { WorkerRepo } from "../ports/WorkerRepo.ts";
 import type { EventRepo } from "../ports/EventRepo.ts";
@@ -26,22 +29,34 @@ export interface SetWorkerPermissionModeDeps {
 export interface SetWorkerPermissionModeInput {
   workerId: string;
   mode: PermissionMode;
+  cascade?: boolean;
+}
+
+export interface SetWorkerPermissionModeResult {
+  mode: PermissionMode;
+  runtimeApplied: boolean;
+  affected: string[];
 }
 
 export async function setWorkerPermissionMode(
   deps: SetWorkerPermissionModeDeps,
   input: SetWorkerPermissionModeInput,
-): Promise<{ mode: PermissionMode; runtimeApplied: boolean }> {
-  const w = deps.workers.findById(input.workerId);
-  if (!w) throw new NotFoundError("worker", input.workerId);
+): Promise<SetWorkerPermissionModeResult> {
+  const root = deps.workers.findById(input.workerId);
+  if (!root) throw new NotFoundError("worker", input.workerId);
 
-  deps.workers.updatePermissionMode(input.workerId, input.mode);
+  const cascade = input.cascade !== false;
+  const affected = cascade ? collectSubtree(deps.workers, input.workerId) : [input.workerId];
+
+  for (const id of affected) {
+    deps.workers.updatePermissionMode(id, input.mode);
+  }
 
   let runtimeApplied = false;
-  if (w.port) {
+  if (root.port) {
     try {
       const slash = `/permissions ${input.mode}`;
-      const r = await deps.client.sendMessage(w.port, slash);
+      const r = await deps.client.sendMessage(root.port, slash);
       runtimeApplied = r.ok;
     } catch (e) {
       deps.log.warn("permission-mode runtime apply failed", {
@@ -50,12 +65,32 @@ export async function setWorkerPermissionMode(
     }
   }
 
-  deps.events.append(input.workerId, deps.clock.now(), "lifecycle", {
-    kind: "permission_mode_set",
-    mode: input.mode,
-    runtimeApplied,
-  });
-  deps.bus.publish("worker:change", { workerId: input.workerId });
+  const now = deps.clock.now();
+  for (const id of affected) {
+    deps.events.append(id, now, "lifecycle", {
+      kind: "permission_mode_set",
+      mode: input.mode,
+      runtimeApplied: id === input.workerId ? runtimeApplied : false,
+      via: id === input.workerId ? "direct" : "cascade",
+    });
+    deps.bus.publish("worker:change", { workerId: id });
+  }
 
-  return { mode: input.mode, runtimeApplied };
+  return { mode: input.mode, runtimeApplied, affected };
+}
+
+function collectSubtree(workers: WorkerRepo, rootId: string): string[] {
+  const out: string[] = [rootId];
+  const queue: string[] = [rootId];
+  const seen = new Set<string>([rootId]);
+  while (queue.length > 0) {
+    const next = queue.shift() as string;
+    for (const childId of workers.findChildrenIds(next)) {
+      if (seen.has(childId)) continue;
+      seen.add(childId);
+      out.push(childId);
+      queue.push(childId);
+    }
+  }
+  return out;
 }

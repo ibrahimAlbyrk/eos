@@ -40,7 +40,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         persistent: true,
         systemPromptFile: join(c.config.paths.repoRoot, "manager", "orchestrator-prompt.md"),
         mcpConfig: mcpPath,
-        claudePermissionMode: "bypassPermissions",
+        claudePermissionMode: body.permissionMode ?? "default",
         model: body.model ?? "opus",
         effort: body.effort ?? "high",
         isOrchestrator: true,

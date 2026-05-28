@@ -28,6 +28,7 @@ import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import type { Policy } from "../core/src/domain/policy.ts";
 import type { ModelCatalog } from "../core/src/ports/ModelCatalog.ts";
 import { PolicyGatewayService } from "../core/src/services/PolicyGatewayService.ts";
+import { SqlBackedModeResolver } from "../core/src/services/SqlBackedModeResolver.ts";
 import { LimitsEnforcer } from "../core/src/services/LimitsEnforcer.ts";
 import { NotificationService } from "../core/src/services/NotificationService.ts";
 import {
@@ -140,9 +141,13 @@ export function buildContainer() {
     bodyTooLarge: 0,
   };
 
+  // Mode resolver — walks worker.parent_id chain to find the active mode.
+  const modeResolver = new SqlBackedModeResolver(workers);
+
   // Policy gateway service --------------------------------------------------
   const policyGateway = new PolicyGatewayService({
     pending, events, bus, clock: systemClock, ids: randomIdGenerator,
+    modeResolver,
     getPolicy: () => policy,
     onDecision: (behavior) => {
       if (behavior === "allow") metrics.policyAllow++;
@@ -268,6 +273,7 @@ export function buildContainer() {
     httpWorkerClient,
     models,
     policyGateway,
+    modeResolver,
     limitsEnforcer,
     metrics,
     fs,

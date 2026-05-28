@@ -100,6 +100,10 @@ export async function spawnWorker(
     isOrchestrator: !!resolved.isOrchestrator,
   });
 
+  if (resolved.claudePermissionMode) {
+    deps.workers.updatePermissionMode(id, resolved.claudePermissionMode);
+  }
+
   if (resolved.maxCostUsd != null || resolved.maxElapsedMs != null) {
     deps.onLimitsSet?.(id, {
       maxCostUsd: resolved.maxCostUsd,
