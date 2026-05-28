@@ -6,46 +6,19 @@ function nameOf(w) {
   return w.name || (w.is_orchestrator ? "Orchestrator" : w.id);
 }
 
-function matches(w, q) {
-  if (!q) return true;
-  const ql = q.toLowerCase();
-  return nameOf(w).toLowerCase().includes(ql) || String(w.model ?? "").toLowerCase().includes(ql);
-}
-
-function visibleNodes(tree, q) {
-  // Show a node if it or any descendant matches the filter.
-  const out = [];
-  for (const root of tree) {
-    const r = filterClone(root, q);
-    if (r) out.push(r);
-  }
-  return out;
-}
-
-function filterClone(node, q) {
-  const kids = node.children
-    .map((c) => filterClone(c, q))
-    .filter(Boolean);
-  if (matches(node, q) || kids.length) {
-    return { ...node, children: kids };
-  }
-  return null;
-}
-
-export function AgentsTree({ roots, filter, onRename }) {
-  const visible = visibleNodes(roots, filter);
-  if (visible.length === 0) {
+export function AgentsTree({ roots, onRename }) {
+  if (roots.length === 0) {
     return (
       <div className="agents-section">
         <div className="empty-tree" style={{ padding: "24px 14px", color: "var(--fg-faint)", fontSize: 12 }}>
-          {filter ? "No agents match" : "No agents yet — click + to spawn an orchestrator"}
+          No agents yet — click + to spawn an orchestrator
         </div>
       </div>
     );
   }
   return (
     <div className="agents-section">
-      {visible.map((n) => (
+      {roots.map((n) => (
         <TreeNode key={n.id} node={n} onRename={onRename} />
       ))}
     </div>
