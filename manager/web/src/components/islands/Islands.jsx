@@ -46,7 +46,7 @@ export function Islands({ live }) {
       </div>
 
       <div className="duo-row">
-        <div className="isl isl-tile">
+        <div className="isl isl-tile" title="Estimated API-equivalent cost. If you use a Max/Pro subscription, no actual money is charged.">
           <div className="lab">cost</div>
           <div className="val">{fmtCost(selected.cost_usd ?? 0)}</div>
         </div>

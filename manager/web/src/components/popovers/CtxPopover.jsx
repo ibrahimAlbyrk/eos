@@ -16,7 +16,7 @@ export function CtxPopover({ used, total, pct, session }) {
         <div className="cp-context-bar"><i style={{ width: pct + "%" }}></i></div>
       </div>
       <div className="cp-divider"></div>
-      <div className="cp-row cp-foot">
+      <div className="cp-row cp-foot" title="Estimated API-equivalent cost. If you use a Max/Pro subscription, no actual money is charged.">
         <span className="cp-label">Session cost</span>
         <span className="cp-value">{fmtCost(session?.totalCost ?? 0)}</span>
       </div>
