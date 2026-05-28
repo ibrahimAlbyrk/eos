@@ -159,6 +159,9 @@ export function useLive() {
   }, [scheduleRefetch]);
 
   const renameAgent = useCallback(async (id, name) => {
+    // Optimistic — avoid flashing the old name between input close and
+    // the refetch landing.
+    setWorkers((prev) => prev.map((w) => w.id === id ? { ...w, name } : w));
     const r = await api.renameWorker(id, name || null);
     scheduleRefetch();
     return r;

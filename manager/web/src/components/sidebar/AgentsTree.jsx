@@ -137,7 +137,14 @@ function TreeNode({ node, onRename }) {
         <span className={`ag-dot ${status.dot}`}></span>
         {isRenaming
           ? <RenameInput currentName={nameOf(node)} onSave={handleRename} onCancel={cancelRename} />
-          : <span className={`ag-name ${node.is_orchestrator ? "main" : ""}`}>{nameOf(node)}</span>}
+          : <span
+              className={`ag-name ${node.is_orchestrator ? "main" : ""}`}
+              onDoubleClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                ui.setRenamingId(node.id);
+              }}
+            >{nameOf(node)}</span>}
         {!isRenaming && (ui.hasNewActivity(node)
           ? <span className="ag-notify" aria-label="new activity" title="new activity"></span>
           : <span className="ag-status">{status.label}</span>)}
