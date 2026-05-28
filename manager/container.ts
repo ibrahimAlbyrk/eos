@@ -29,17 +29,15 @@ import type { Policy } from "../core/src/domain/policy.ts";
 import type { ModelCatalog } from "../core/src/ports/ModelCatalog.ts";
 import { PolicyGatewayService } from "../core/src/services/PolicyGatewayService.ts";
 import { SqlBackedModeResolver } from "../core/src/services/SqlBackedModeResolver.ts";
-import { LimitsEnforcer } from "../core/src/services/LimitsEnforcer.ts";
 import { NotificationService } from "../core/src/services/NotificationService.ts";
 import {
   agentFinishedTrigger, agentExitedTrigger,
-  permissionPendingTrigger, permissionExpiredTrigger, limitExceededTrigger,
+  permissionPendingTrigger, permissionExpiredTrigger,
 } from "../core/src/services/notification-triggers/index.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { InterruptCooldownService } from "./services/InterruptCooldownService.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
-import { transitionState } from "../core/src/use-cases/TransitionState.ts";
 export { randomOrchestratorName } from "./shared/names.ts";
 
 export function buildContainer() {
@@ -156,21 +154,10 @@ export function buildContainer() {
     },
   });
 
-  // Limits enforcer ---------------------------------------------------------
-  const limitsEnforcer = new LimitsEnforcer({
-    workers, events, bus, supervisor,
-    clock: systemClock,
-    log: log.child({ scope: "limits" }),
-    transitionWorkerState(workerId, next, reason) {
-      transitionState({ workers, events, bus, clock: systemClock }, { workerId, next, reason });
-    },
-  });
-  setInterval(() => limitsEnforcer.sweep(), 30_000).unref();
-
   // Notification service ----------------------------------------------------
   const notificationService = new NotificationService(
     { bus, workers, clock: systemClock, getConfig: () => config.notifications },
-    [agentFinishedTrigger, agentExitedTrigger, permissionPendingTrigger, permissionExpiredTrigger, limitExceededTrigger],
+    [agentFinishedTrigger, agentExitedTrigger, permissionPendingTrigger, permissionExpiredTrigger],
   );
   notificationService.start();
 
@@ -274,7 +261,6 @@ export function buildContainer() {
     models,
     policyGateway,
     modeResolver,
-    limitsEnforcer,
     metrics,
     fs,
     git,

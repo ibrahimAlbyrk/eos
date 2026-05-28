@@ -1,7 +1,7 @@
 // Event types — daemon ↔ worker ↔ web/SSE.
 // Every event the worker POSTs to /workers/:id/events lands here, plus the
 // events the daemon synthesizes itself (spawn, exit, policy, permission_*,
-// limit_exceeded, user_message, state_reject).
+// user_message, state_reject).
 
 import { z } from "zod";
 import { UnknownRecordSchema } from "./shared.ts";
@@ -49,7 +49,6 @@ export const WorkerEventTypeSchema = z.enum([
   "policy",
   "permission_pending",
   "permission_ttl_deny",
-  "limit_exceeded",
   "user_message",
   "state_reject",
   "worker_report",

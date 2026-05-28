@@ -63,7 +63,6 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         buildArgs: c.buildArgs,
         buildEnv: c.buildEnv,
         logFileFor: c.logFileFor,
-        onLimitsSet: (id, limits) => c.limitsEnforcer.set(id, limits),
         recents: c.recents,
       },
       spec,
@@ -89,7 +88,6 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         log: c.log,
         findOrphanPids: (safeName) => supervisorWithFind.findPidsByPattern(`cm-${safeName}-`),
         postKillCleanup: (id) => {
-          c.limitsEnforcer.clear(id);
           c.cleanupOrchestratorMcpConfig(id);
         },
       },
@@ -115,7 +113,6 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       {
         workers: c.workers, events: c.events, bus: c.bus,
         clock: c.clock, models: c.models, log: c.log,
-        onUsageRecorded: (id) => c.limitsEnforcer.check(id),
         isInterruptCooldown: (id) => c.interruptCooldown.isActive(id),
       },
       { workerId: params.id, type: body.type, payload: body.payload },

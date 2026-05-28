@@ -22,8 +22,6 @@ export const SpawnWorkerRequestSchema = z
     withGateway: z.boolean().optional(),
     model: z.string().optional(),
     effort: z.string().optional(),
-    maxCostUsd: z.number().nonnegative().optional(),
-    maxElapsedMs: z.number().int().positive().optional(),
     parentId: z.string().optional(),
     permissionMode: PermissionModeSchema.optional(),
   })

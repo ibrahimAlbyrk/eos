@@ -1,6 +1,6 @@
 // EventBus — in-process pub/sub. Decouples event producers (use-cases) from
-// consumers (SSE broadcaster, metrics collector, usage aggregator, limit
-// enforcer). Adapter is InMemoryEventBus in infra/eventbus/.
+// consumers (SSE broadcaster, metrics collector, usage aggregator). Adapter
+// is InMemoryEventBus in infra/eventbus/.
 
 export type EventBusTopic =
   | "worker:change"
@@ -12,7 +12,6 @@ export type EventBusTopic =
   | "pending:resolved"
   | "pending:ttl_expired"
   | "usage:recorded"
-  | "limit:exceeded"
   | "worker:report"
   | "notification:fire";
 

@@ -22,9 +22,6 @@ export interface ProcessWorkerEventDeps {
   clock: Clock;
   models: ModelCatalog;
   log: Logger;
-  /** Called after a usage event is recorded; lets the limits enforcer check
-   * the new cumulative cost right away. */
-  onUsageRecorded?(workerId: string): void;
   /** Returns true while a worker is in interrupt cooldown — suppresses
    *  heartbeat/hook transitions back to WORKING. */
   isInterruptCooldown?(workerId: string): boolean;
@@ -109,8 +106,6 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
     // sum it without re-computing per model.
     deps.events.patchPayload(rowId, { ...u, deltaCost });
     deps.bus.publish("usage:recorded", { workerId: input.workerId, deltaCost });
-
-    deps.onUsageRecorded?.(input.workerId);
   },
 };
 

@@ -23,7 +23,6 @@ export const NotificationConfigSchema = z.object({
     agent_exited: NotificationRuleSchema.default({}),
     permission_pending: NotificationRuleSchema.default({}),
     permission_expired: NotificationRuleSchema.default({}),
-    limit_exceeded: NotificationRuleSchema.default({}),
   }).default({}),
 });
 export type NotificationConfig = z.infer<typeof NotificationConfigSchema>;

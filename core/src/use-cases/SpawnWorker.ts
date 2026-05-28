@@ -28,8 +28,6 @@ export interface SpawnWorkerSpec {
   model?: string;
   effort?: string;
   isOrchestrator?: boolean;
-  maxCostUsd?: number;
-  maxElapsedMs?: number;
 }
 
 export interface SpawnWorkerDeps {
@@ -49,9 +47,6 @@ export interface SpawnWorkerDeps {
   buildEnv(input: { id: string; spec: SpawnWorkerSpec }): Record<string, string>;
   /** Path where the supervisor should pipe the child's stdout/stderr. */
   logFileFor(id: string): string;
-  /** Limit cache — wired up by the composition root to a service. Optional;
-   * if absent, no limits are enforced. */
-  onLimitsSet?(workerId: string, limits: { maxCostUsd?: number; maxElapsedMs?: number }): void;
   /** Recent-folders log; updated with the resolved cwd after every spawn. */
   recents?: RecentsRepo;
 }
@@ -102,13 +97,6 @@ export async function spawnWorker(
 
   if (resolved.claudePermissionMode) {
     deps.workers.updatePermissionMode(id, resolved.claudePermissionMode);
-  }
-
-  if (resolved.maxCostUsd != null || resolved.maxElapsedMs != null) {
-    deps.onLimitsSet?.(id, {
-      maxCostUsd: resolved.maxCostUsd,
-      maxElapsedMs: resolved.maxElapsedMs,
-    });
   }
 
   const folder = resolved.cwd ?? resolved.worktreeFrom ?? null;
