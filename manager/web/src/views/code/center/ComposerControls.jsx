@@ -15,7 +15,7 @@ const MODE_LABELS = {
 };
 
 const EFFORT_LABELS = {
-  low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max",
+  auto: "Auto", low: "Low", medium: "Medium", high: "High", xhigh: "Extra high", max: "Max", ultracode: "Ultracode",
 };
 
 export function ComposerControls({ live, onAttach }) {

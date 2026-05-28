@@ -10,6 +10,8 @@ const EFFORTS = [
   { id: "high",      label: "High" },
   { id: "xhigh",    label: "Extra high" },
   { id: "max",       label: "Max" },
+  { id: "ultracode", label: "Ultracode" },
+  { id: "auto",      label: "Auto" },
 ];
 
 export function ModelPopover({ live }) {
