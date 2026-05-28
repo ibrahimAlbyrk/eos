@@ -12,13 +12,22 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
       cwd: url.searchParams.get("cwd") ?? undefined,
     });
     if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
-    const [branches, current, remoteUrl] = await Promise.all([
+    const [branches, current, remoteUrl, sync, stash, conflicts] = await Promise.all([
       c.git.listBranches(q.cwd),
       c.git.currentBranch(q.cwd),
       c.git.remoteUrl(q.cwd),
+      c.git.syncStatus(q.cwd),
+      c.git.stashCount(q.cwd),
+      c.git.conflictCount(q.cwd),
     ]);
     const isGit = branches.length > 0 || current !== null;
-    writeJson(res, 200, { branches, current, isGit, remoteUrl });
+    writeJson(res, 200, {
+      branches, current, isGit, remoteUrl,
+      ahead: sync?.ahead ?? null,
+      behind: sync?.behind ?? null,
+      stash,
+      conflicts,
+    });
   });
 
   r.post("/fs/checkout", async ({ req, res }) => {

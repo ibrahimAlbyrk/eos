@@ -41,6 +41,10 @@ export function ComposerDiffRow({ live }) {
   const [prMode, setPrMode] = useState("pr");
   const [remoteUrl, setRemoteUrl] = useState(null);
   const [currentBranch, setCurrentBranch] = useState(null);
+  const [ahead, setAhead] = useState(0);
+  const [behind, setBehind] = useState(0);
+  const [stash, setStash] = useState(0);
+  const [conflicts, setConflicts] = useState(0);
   const menuRef = useRef(null);
 
   useEffect(() => {
@@ -65,12 +69,16 @@ export function ComposerDiffRow({ live }) {
           setIsGit(r.isGit !== false);
           setRemoteUrl(r.remoteUrl ?? null);
           setCurrentBranch(r.current ?? null);
+          setAhead(r.ahead ?? 0);
+          setBehind(r.behind ?? 0);
+          setStash(r.stash ?? 0);
+          setConflicts(r.conflicts ?? 0);
         }
       } catch {}
     };
     checkGit();
     fetchDiff();
-    const t = setInterval(fetchDiff, DIFF_REFRESH_MS);
+    const t = setInterval(() => { fetchDiff(); checkGit(); }, DIFF_REFRESH_MS);
     return () => { cancelled = true; clearInterval(t); ac.abort(); };
   }, [ui.selectedId, selected?.cwd, selected?.worktree_from]);
 
@@ -109,6 +117,8 @@ export function ComposerDiffRow({ live }) {
     setMenuOpen(false);
   };
 
+  const showSync = ahead > 0 || behind > 0;
+
   return (
     <div className="c-row-diff" id="composerDiffRow">
       <span className="diff-repo-label">
@@ -116,6 +126,49 @@ export function ComposerDiffRow({ live }) {
         <span className="diff-sep">·</span>
         <span className="diff-branch">{branch}</span>
       </span>
+      {showSync && (
+        <span className="git-chip sync-chip">
+          {ahead > 0 && (
+            <span className="ahead">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 10V3M3 6l3-3 3 3" />
+              </svg>
+              <span className="num">{ahead}</span>
+            </span>
+          )}
+          {ahead > 0 && behind > 0 && <span className="dot"></span>}
+          {behind > 0 && (
+            <span className="behind">
+              <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M6 2v7M3 6l3 3 3-3" />
+              </svg>
+              <span className="num">{behind}</span>
+            </span>
+          )}
+        </span>
+      )}
+      {stash > 0 && (
+        <span className="git-chip stash-chip">
+          <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="2" y="5.5" width="10" height="6.5" rx="1" />
+            <line x1="3.5" y1="3.5" x2="10.5" y2="3.5" />
+            <line x1="4.5" y1="1.5" x2="9.5" y2="1.5" />
+          </svg>
+          <span className="num">{stash}</span>
+          <span className="lbl">stashed</span>
+        </span>
+      )}
+      {conflicts > 0 && (
+        <span className="git-chip conflict-chip">
+          <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M7 1.5L13 12H1L7 1.5z" />
+            <line x1="7" y1="5.5" x2="7" y2="8.5" />
+            <circle cx="7" cy="10.3" r="0.4" fill="currentColor" stroke="none" />
+          </svg>
+          <span className="num">{conflicts}</span>
+          <span className="lbl">{conflicts === 1 ? "conflict" : "conflicts"}</span>
+        </span>
+      )}
       <span className="diff-grow"></span>
       {(diff?.insertions > 0 || diff?.deletions > 0) && (
         <span className="diff-badge">

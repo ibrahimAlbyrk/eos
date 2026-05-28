@@ -165,6 +165,12 @@ export type BranchesQuery = z.infer<typeof BranchesQuerySchema>;
 export const BranchesResponseSchema = z.object({
   branches: z.array(z.string()),
   current: z.string().nullable(),
+  isGit: z.boolean(),
+  remoteUrl: z.string().nullable(),
+  ahead: z.number().int().nonnegative().nullable(),
+  behind: z.number().int().nonnegative().nullable(),
+  stash: z.number().int().nonnegative(),
+  conflicts: z.number().int().nonnegative(),
 });
 export type BranchesResponse = z.infer<typeof BranchesResponseSchema>;
 

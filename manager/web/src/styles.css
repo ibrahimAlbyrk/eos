@@ -1410,6 +1410,50 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 }
 .diff-badge .diff-neg { color: var(--err); margin-left: -2px; }
 
+/* sibling chips of diff-badge — sync (ahead/behind), stash, conflict */
+.git-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 9px;
+  border-radius: 5px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11.5px;
+  font-weight: 500;
+  line-height: 1;
+  height: 22px;
+  white-space: nowrap;
+}
+.git-chip svg { flex-shrink: 0; display: block; }
+.git-chip .num { font-variant-numeric: tabular-nums; }
+.git-chip .lbl { color: currentColor; opacity: 0.7; font-size: 10.5px; }
+
+.sync-chip {
+  background: rgba(110, 164, 232, 0.10);
+  color: var(--accent);
+  gap: 8px;
+}
+.sync-chip .ahead  { color: var(--ok); display: inline-flex; align-items: center; gap: 4px; }
+.sync-chip .behind { color: var(--err); display: inline-flex; align-items: center; gap: 4px; }
+.sync-chip .ahead svg, .sync-chip .behind svg { opacity: 0.85; }
+.sync-chip .dot {
+  width: 3px; height: 3px; border-radius: 50%;
+  background: currentColor; opacity: 0.25;
+}
+
+.stash-chip {
+  background: rgba(212, 165, 90, 0.11);
+  color: var(--warn);
+}
+.stash-chip svg { opacity: 0.9; }
+
+.conflict-chip {
+  background: rgba(217, 118, 112, 0.12);
+  color: var(--err);
+  box-shadow: inset 0 0 0 1px rgba(217, 118, 112, 0.18);
+  padding: 3px 9px 3px 8px;
+}
+.conflict-chip svg { opacity: 0.95; }
+.conflict-chip .lbl { opacity: 0.8; }
+
 /* "Create PR" affordance — chip-style button matching cb-chip aesthetic */
 .pr-wrap { position: relative; display: inline-flex; }
 .pr-create-btn {

@@ -8,10 +8,18 @@ export interface DiffStat {
   files: number;
 }
 
+export interface SyncStatus {
+  ahead: number;
+  behind: number;
+}
+
 export interface GitInfo {
   listBranches(cwd: string): Promise<string[]>;
   currentBranch(cwd: string): Promise<string | null>;
   diffShortStat(cwd: string): Promise<DiffStat>;
   checkout(cwd: string, branch: string): Promise<void>;
   remoteUrl(cwd: string): Promise<string | null>;
+  syncStatus(cwd: string): Promise<SyncStatus | null>;
+  stashCount(cwd: string): Promise<number>;
+  conflictCount(cwd: string): Promise<number>;
 }

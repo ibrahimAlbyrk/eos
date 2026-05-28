@@ -173,7 +173,9 @@ export const api = {
   },
   async listBranches(cwd) {
     const r = await fetch(`${DAEMON}${ROUTES.fsBranches}?cwd=${encodeURIComponent(cwd)}`);
-    return r.ok ? r.json() : { branches: [], current: null, isGit: false };
+    return r.ok
+      ? r.json()
+      : { branches: [], current: null, isGit: false, remoteUrl: null, ahead: null, behind: null, stash: 0, conflicts: 0 };
   },
   async checkout(cwd, branch) {
     return postJson(ROUTES.fsCheckout, { cwd, branch });

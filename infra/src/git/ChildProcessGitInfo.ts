@@ -5,7 +5,7 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { GitInfo, DiffStat } from "../../../core/src/ports/GitInfo.ts";
+import type { GitInfo, DiffStat, SyncStatus } from "../../../core/src/ports/GitInfo.ts";
 
 const exec = promisify(execFile);
 
@@ -74,6 +74,48 @@ export const childProcessGitInfo: GitInfo = {
       return parseShortStat(out.trim());
     } catch {
       return { files: 0, insertions: 0, deletions: 0 };
+    }
+  },
+
+  async syncStatus(cwd: string): Promise<SyncStatus | null> {
+    try {
+      // `--left-right --count A...B` prints "<behind>\t<ahead>" when A=@{u}, B=HEAD.
+      const out = await runGit(cwd, ["rev-list", "--left-right", "--count", "@{u}...HEAD"]);
+      const parts = out.trim().split(/\s+/);
+      const behind = parseInt(parts[0] ?? "0", 10);
+      const ahead = parseInt(parts[1] ?? "0", 10);
+      if (Number.isNaN(ahead) || Number.isNaN(behind)) return null;
+      return { ahead, behind };
+    } catch {
+      // No upstream configured, detached HEAD, etc.
+      return null;
+    }
+  },
+
+  async stashCount(cwd: string): Promise<number> {
+    try {
+      const out = await runGit(cwd, ["stash", "list", "--format=%H"]);
+      const trimmed = out.trim();
+      return trimmed ? trimmed.split("\n").length : 0;
+    } catch {
+      return 0;
+    }
+  },
+
+  async conflictCount(cwd: string): Promise<number> {
+    try {
+      const out = await runGit(cwd, ["status", "--porcelain"]);
+      let n = 0;
+      for (const line of out.split("\n")) {
+        const xy = line.slice(0, 2);
+        // Conflict combos per git docs: DD AU UD UA DU AA UU.
+        if (xy === "DD" || xy === "AU" || xy === "UD" || xy === "UA" || xy === "DU" || xy === "AA" || xy === "UU") {
+          n++;
+        }
+      }
+      return n;
+    } catch {
+      return 0;
     }
   },
 };
