@@ -113,7 +113,7 @@ html.native .sb-head {
   min-height: 22px;
 }
 html.native .sb-head { display: none; }
-html.native .side-island--agents { padding-top: 38px; flex: 1; }
+html.native .side-island--agents { padding-top: 30px; flex: 1; }
 html.native .side-island--status { display: none; }
 html.native .sb-divider { display: none; }
 html.native .empty-tree { padding: 6px 14px !important; }
@@ -131,7 +131,7 @@ html.native .side-handle-zone { display: none !important; }
 /* fullscreen: no traffic lights in window, simplify layout */
 html.native.fullscreen .native-toggle-zone { left: 16px; top: 10px; }
 html.native.fullscreen .side { padding: 6px 14px 14px 14px; }
-html.native.fullscreen .side-island--agents { padding-top: 14px; }
+html.native.fullscreen .side-island--agents { padding-top: 16px; }
 html.native.fullscreen .sb-section { padding-left: 12px; }
 html.native.fullscreen .head { padding: 13px 16px 0; }
 html.native.fullscreen .app.side-collapsed .head { padding-left: 46px; }
@@ -256,6 +256,58 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   position: relative;
   z-index: 50;
 }
+
+/* Workspace tab bar — segmented control at the top of the sidebar's first card.
+   Track sits LIGHTER than the panel; the selected state is a single outlined
+   glass pill that slides between tabs (transform set inline by TabBar). */
+.tabbar {
+  position: relative;
+  display: flex;
+  gap: 0;
+  margin: 10px 10px 2px;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--surface-3);
+  flex-shrink: 0;
+}
+.tabbar__indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: 8px;
+  border: 0.5px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+  z-index: 0;
+}
+.tabbar__tab {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  color: #c4c4c4;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+.tabbar__tab:not(.is-active):hover {
+  color: var(--fg);
+  background: rgba(255, 255, 255, 0.06);
+}
+.tabbar__tab.is-active { color: var(--fg); }
+.tabbar__tab svg { flex-shrink: 0; }
 
 /* base glass styling for sidebar islands — same as right-panel .isl */
 .side-island {
@@ -2205,6 +2257,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   z-index: 1;
 }
 /* legacy duplicated rules removed — handled above */
+
+/* search/filter temporarily hidden in the main sidebar — kept in DOM, re-enable later */
+.side-island--agents .sb-filter { display: none; }
 
 /* filter input */
 .sb-filter {
@@ -4184,3 +4239,17 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   font-size: 13px;
   color: var(--fg-faint);
 }
+
+/* Generic centered empty state for a view's main area (e.g. Workflows) */
+.view-empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  user-select: none;
+}
+.view-empty__icon { color: var(--fg-faint); opacity: 0.6; }
+.view-empty__title { font-size: 15px; font-weight: 600; color: var(--fg-dim); }
+.view-empty__sub { font-size: 12.5px; color: var(--fg-faint); }
