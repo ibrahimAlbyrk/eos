@@ -1,7 +1,7 @@
 export const MODELS = [
   { id: "haiku-4.5",  aliases: ["haiku"],  label: "haiku-4.5",  name: "Haiku 4.5",  ctx: "200k", tag: "fastest" },
   { id: "sonnet-4.5", aliases: ["sonnet"], label: "sonnet-4.5", name: "Sonnet 4.5", ctx: "200k", tag: "balanced" },
-  { id: "opus-4.7",   aliases: ["opus"],   label: "opus-4.7",   name: "Opus 4.7",   ctx: "1M",   tag: "most capable" },
+  { id: "opus-4.8",   aliases: ["opus"],   label: "opus-4.8",   name: "Opus 4.8",   ctx: "1M",   tag: "most capable" },
 ];
 
 export function modelName(raw) {
