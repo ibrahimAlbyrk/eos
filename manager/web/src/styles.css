@@ -85,7 +85,9 @@ kbd {
 /* fixed toggle button — always visible at same position in native */
 .native-toggle-zone { display: none !important; }
 html.native .native-toggle-zone {
-  display: block !important;
+  display: flex !important;
+  align-items: center;
+  gap: 2px;
   position: fixed;
   left: 90px;
   top: 18px;
@@ -218,11 +220,15 @@ html.native .sb-section > .sb-iconbtn { margin-left: auto; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 10px 8px 8px 0;
+  padding: 10px 10px 8px 12px;
 }
-.side-popup-bar .sb-filter {
-  flex: 1; min-width: 0;
-  margin-bottom: 0;
+.side-popup-bar__title {
+  font-size: 13px; font-weight: 600;
+  color: var(--fg); letter-spacing: -0.005em;
+}
+.side-popup-bar__actions {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 2px;
 }
 .side-handle-popup .agents-section {
   flex: 1;
@@ -233,7 +239,10 @@ html.native .sb-section > .sb-iconbtn { margin-left: auto; }
   max-height: calc(100vh - 200px);
 }
 /* position popup to align with sidebar area in native mode */
-html.native .native-toggle-zone .side-handle-popup { left: -76px; top: 14px; }
+/* Force truly out-of-flow: `.side-island` (later in source) sets position:relative,
+   which would otherwise make the popup an in-flow flex item of the flex zone and
+   drag the toggle into its vertical center. Absolute keeps the toggle put. */
+html.native .native-toggle-zone .side-handle-popup { position: absolute; left: -76px; top: 36px; }
 html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 @keyframes side-popup-in {
   from { opacity: 0; transform: translateY(-6px); }
@@ -2218,31 +2227,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 }
 .sb-iconbtn:hover { background: rgba(255,255,255,0.06); color: var(--fg); }
 
-/* filter input */
-.sb-filter {
-  display: flex; align-items: center; gap: 7px;
-  margin: 0 12px 12px;
-  height: 28px;
-  padding: 0 9px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 6px;
-}
-.sb-filter svg { color: var(--fg-faint); flex-shrink: 0; }
-.sb-filter input {
-  flex: 1; min-width: 0;
-  font-size: 12px; color: var(--fg);
-}
-.sb-filter kbd {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 9.5px;
-  padding: 1px 5px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.04);
-  border-radius: 3px;
-  color: var(--fg-faint);
-}
-
 /* divider between header section and agents list */
 .sb-divider {
   height: 1px;
@@ -2257,34 +2241,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   z-index: 1;
 }
 /* legacy duplicated rules removed — handled above */
-
-/* search/filter temporarily hidden in the main sidebar — kept in DOM, re-enable later */
-.side-island--agents .sb-filter { display: none; }
-
-/* filter input */
-.sb-filter {
-  display: flex; align-items: center; gap: 6px;
-  margin: 0 12px 6px;
-  height: 26px;
-  padding: 0 8px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 5px;
-}
-.sb-filter svg { color: var(--fg-faint); flex-shrink: 0; }
-.sb-filter input {
-  flex: 1; min-width: 0;
-  font-size: 11.5px; color: var(--fg);
-}
-.sb-filter kbd {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 9.5px;
-  padding: 1px 5px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  color: var(--fg-faint);
-}
 
 /* agents list — scrolls to fill inside agents island */
 .agents-section {
@@ -4253,3 +4209,119 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .view-empty__icon { color: var(--fg-faint); opacity: 0.6; }
 .view-empty__title { font-size: 15px; font-weight: 600; color: var(--fg-dim); }
 .view-empty__sub { font-size: 12.5px; color: var(--fg-faint); }
+
+/* ============================================================================
+   COMMAND PALETTE (⌘K) — centered liquid-glass search over every tab
+   ============================================================================ */
+.cmdk-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 22vh;
+  background: rgba(0, 0, 0, 0.40);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  animation: cmdk-fade 120ms ease-out;
+}
+.cmdk {
+  width: min(640px, calc(100vw - 32px));
+  max-height: 64vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: rgba(28, 28, 28, 0.88);
+  animation: cmdk-pop 140ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+@keyframes cmdk-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cmdk-pop {
+  from { opacity: 0; transform: translateY(-8px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.cmdk__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 14px 13px 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  position: relative;
+  z-index: 1;
+}
+.cmdk__search-icon { color: var(--fg-faint); flex-shrink: 0; }
+.cmdk__input {
+  flex: 1; min-width: 0;
+  font-size: 15px;
+  color: var(--fg);
+  letter-spacing: -0.01em;
+}
+.cmdk__close {
+  width: 26px; height: 26px;
+  border-radius: 6px;
+  color: var(--fg-faint);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.cmdk__close:hover { background: rgba(255, 255, 255, 0.08); color: var(--fg); }
+
+.cmdk__list {
+  overflow-y: auto;
+  padding: 6px;
+  position: relative;
+  z-index: 1;
+}
+.cmdk__empty {
+  padding: 26px 14px;
+  text-align: center;
+  color: var(--fg-faint);
+  font-size: 12.5px;
+}
+.cmdk__group { padding: 2px 0; }
+.cmdk__group + .cmdk__group { margin-top: 2px; }
+.cmdk__group-label {
+  padding: 8px 10px 5px;
+  font-size: 9.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  font-family: "JetBrains Mono", monospace;
+  color: var(--fg-faint);
+}
+.cmdk__item {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 7px;
+  text-align: left;
+  color: var(--fg);
+  position: relative;
+}
+.cmdk__item.is-active { background: rgba(255, 255, 255, 0.07); }
+.cmdk__item-icon {
+  display: inline-flex;
+  color: var(--fg-dim);
+  flex-shrink: 0;
+}
+.cmdk__item.is-active .cmdk__item-icon { color: var(--accent); }
+.cmdk__item-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cmdk__item-sub {
+  font-size: 11.5px;
+  color: var(--fg-faint);
+  font-family: "JetBrains Mono", monospace;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.cmdk__enter {
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}

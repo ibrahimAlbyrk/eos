@@ -3,6 +3,7 @@ import { useUi, UiProvider } from "./state/ui.jsx";
 import { useLive } from "./hooks/useLive.js";
 import { useWebNotifications } from "./hooks/useWebNotifications.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
+import { CommandPalette } from "./components/search/CommandPalette.jsx";
 import { getViewComponent } from "./views/registry.js";
 
 function Shell() {
@@ -18,7 +19,12 @@ function Shell() {
   }, [ui.setActiveView, ui.setSelectedId]);
 
   const ActiveView = getViewComponent(ui.activeViewId);
-  return <ActiveView live={live} />;
+  return (
+    <>
+      <ActiveView live={live} />
+      <CommandPalette live={live} />
+    </>
+  );
 }
 
 export default function App() {

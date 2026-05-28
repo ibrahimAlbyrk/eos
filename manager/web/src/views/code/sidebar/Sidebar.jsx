@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { TabBar } from "../../../components/TabBar.jsx";
 import { AgentsTree } from "./AgentsTree.jsx";
@@ -6,7 +5,6 @@ import { buildAgentTree } from "../../../lib/tree.js";
 
 export function Sidebar({ live }) {
   const ui = useUi();
-  const [filter, setFilter] = useState("");
   const tree = buildAgentTree(live.workers);
   const total = live.workers.length;
 
@@ -39,20 +37,13 @@ export function Sidebar({ live }) {
                 <line x1="6" y1="3" x2="6" y2="13" />
               </svg>
             </button>
+            <button className="sb-iconbtn" title="Search (⌘K)" onClick={() => ui.openSearch()}>
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="7" cy="7" r="5" />
+                <path d="m13 13-2.5-2.5" />
+              </svg>
+            </button>
           </div>
-        </div>
-
-        <div className="sb-filter">
-          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <circle cx="7" cy="7" r="5" />
-            <path d="m13 13-2.5-2.5" />
-          </svg>
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filter by name or model…"
-          />
-          <kbd>⌘K</kbd>
         </div>
 
         <div className="sb-divider"></div>
@@ -70,7 +61,7 @@ export function Sidebar({ live }) {
           </button>
         </div>
 
-        <AgentsTree roots={tree} filter={filter} onRename={live.renameAgent} />
+        <AgentsTree roots={tree} onRename={live.renameAgent} />
       </div>
 
       <div className="side-island side-island--status">

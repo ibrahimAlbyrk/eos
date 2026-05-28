@@ -51,6 +51,18 @@ export function NativeToggleZone({ popup }) {
           </svg>
         )}
       </button>
+      {!ui.sideCollapsed && (
+        <button
+          className="native-toggle sb-iconbtn"
+          onClick={() => { ui.openSearch(); setHover(false); }}
+          title="Search (⌘K)"
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <circle cx="7" cy="7" r="5" />
+            <path d="m13 13-2.5-2.5" />
+          </svg>
+        </button>
+      )}
       {hover && ui.sideCollapsed && popup}
     </div>
   );
