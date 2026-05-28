@@ -61,6 +61,9 @@ export const UsagePayloadSchema = z.object({
   out: z.number().nonnegative().default(0),
   cacheRead: z.number().nonnegative().default(0),
   cacheCreate: z.number().nonnegative().default(0),
+  // 1-hour ephemeral cache writes — billed at 2× input vs 1.25× for 5-min.
+  // Anthropic surfaces the split under usage.cache_creation; absent value → 0.
+  cacheCreate1h: z.number().nonnegative().default(0),
   model: z.string().optional(),
   // Added by the daemon after computing cost; never set by the worker.
   deltaCost: z.number().nonnegative().optional(),

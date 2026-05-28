@@ -45,6 +45,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
         tokens_out = COALESCE(tokens_out, 0) + ?,
         tokens_cache_read = COALESCE(tokens_cache_read, 0) + ?,
         tokens_cache_create = COALESCE(tokens_cache_create, 0) + ?,
+        tokens_cache_create_1h = COALESCE(tokens_cache_create_1h, 0) + ?,
         cost_usd = COALESCE(cost_usd, 0) + ?
       WHERE id = ?
     `);
@@ -106,7 +107,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   }
 
   addUsage(id: string, delta: UsageDelta): void {
-    this.stmtAddUsage.run(delta.in, delta.out, delta.cacheRead, delta.cacheCreate, delta.costUsd, id);
+    this.stmtAddUsage.run(delta.in, delta.out, delta.cacheRead, delta.cacheCreate, delta.cacheCreate1h, delta.costUsd, id);
   }
 
   incrementToolCalls(id: string): void {

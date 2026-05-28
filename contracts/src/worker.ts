@@ -26,6 +26,7 @@ export const WorkerRowSchema = z.object({
   tokens_out: z.number().nullable().optional(),
   tokens_cache_read: z.number().nullable().optional(),
   tokens_cache_create: z.number().nullable().optional(),
+  tokens_cache_create_1h: z.number().nullable().optional(),
   cost_usd: z.number().nullable().optional(),
   is_orchestrator: z.number().nullable().optional(),
   tool_calls: z.number().nullable().optional(),

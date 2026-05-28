@@ -25,6 +25,7 @@ export interface UsageDelta {
   out: number;
   cacheRead: number;
   cacheCreate: number;
+  cacheCreate1h: number;
   costUsd: number;
 }
 

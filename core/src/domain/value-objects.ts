@@ -58,7 +58,8 @@ export interface ModelPrice {
   in: number;
   out: number;
   cacheRead: number;
-  cacheCreate: number;
+  cacheCreate: number;     // 5-minute ephemeral writes (Anthropic: 1.25× input)
+  cacheCreate1h: number;   // 1-hour ephemeral writes (Anthropic: 2× input)
 }
 
 export interface ModelCatalog {
@@ -72,14 +73,15 @@ export interface ModelCatalog {
 export function computeCostUsd(
   catalog: ModelCatalog,
   model: string | null | undefined,
-  tokens: { in: number; out: number; cacheRead: number; cacheCreate: number },
+  tokens: { in: number; out: number; cacheRead: number; cacheCreate: number; cacheCreate1h: number },
 ): number {
   const p = catalog.priceFor(model);
   return (
     (tokens.in * p.in +
       tokens.out * p.out +
       tokens.cacheRead * p.cacheRead +
-      tokens.cacheCreate * p.cacheCreate) /
+      tokens.cacheCreate * p.cacheCreate +
+      tokens.cacheCreate1h * p.cacheCreate1h) /
     1_000_000
   );
 }

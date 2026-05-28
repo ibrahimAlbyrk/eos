@@ -88,19 +88,38 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
       out?: number;
       cacheRead?: number;
       cacheCreate?: number;
+      cacheCreate1h?: number;
       model?: string;
     }) ?? {};
     const tIn = u.in ?? 0;
     const tOut = u.out ?? 0;
     const cRead = u.cacheRead ?? 0;
     const cCreate = u.cacheCreate ?? 0;
+    const cCreate1h = u.cacheCreate1h ?? 0;
 
     const row = deps.workers.findById(input.workerId);
-    const model = u.model ?? row?.model ?? "opus";
-    const deltaCost = computeCostUsd(deps.models, model, { in: tIn, out: tOut, cacheRead: cRead, cacheCreate: cCreate });
+    let model = u.model ?? row?.model;
+    if (!model) {
+      // Falling back to opus over-estimates cost (highest tier). Logged so the
+      // operator can find why model attribution was missing for this turn.
+      deps.log.warn("usage event missing model — falling back to opus pricing", {
+        workerId: input.workerId,
+      });
+      model = "opus";
+    }
+    let deltaCost = computeCostUsd(deps.models, model, { in: tIn, out: tOut, cacheRead: cRead, cacheCreate: cCreate, cacheCreate1h: cCreate1h });
+    if (!Number.isFinite(deltaCost) || deltaCost < 0) {
+      // Defensive: a malformed price catalog (e.g. partial override leaving
+      // undefined fields) would yield NaN. Record 0 and surface the problem
+      // instead of corrupting cumulative cost_usd.
+      deps.log.error("computed deltaCost is invalid — recording as 0", {
+        workerId: input.workerId, model, deltaCost,
+      });
+      deltaCost = 0;
+    }
 
     deps.workers.addUsage(input.workerId, {
-      in: tIn, out: tOut, cacheRead: cRead, cacheCreate: cCreate, costUsd: deltaCost,
+      in: tIn, out: tOut, cacheRead: cRead, cacheCreate: cCreate, cacheCreate1h: cCreate1h, costUsd: deltaCost,
     });
     // Back-fill deltaCost into the just-inserted payload so /session can
     // sum it without re-computing per model.

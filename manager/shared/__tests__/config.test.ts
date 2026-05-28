@@ -149,4 +149,37 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
     assert.equal(cfg.daemon.port, 7400);
     assert.ok(cfg.paths.repoRoot.length > 0);
   });
+
+  // Regression: shallow-merge used to wipe other ModelPrice fields when a
+  // partial price override was supplied, yielding NaN cost downstream.
+  it("partial price override preserves other price fields", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(
+      path.join(tmpHome, "config.json"),
+      JSON.stringify({ prices: { sonnet: { in: 4.5 } } }),
+    );
+    const cfg = await freshLoad();
+    assert.equal(cfg.prices.sonnet.in, 4.5);
+    assert.equal(cfg.prices.sonnet.out, 15);
+    assert.equal(cfg.prices.sonnet.cacheRead, 0.30);
+    assert.equal(cfg.prices.sonnet.cacheCreate, 3.75);
+    assert.equal(cfg.prices.sonnet.cacheCreate1h, 6);
+    assert.equal(cfg.prices.opus.in, 15);
+  });
+
+  it("full price override replaces all values", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(
+      path.join(tmpHome, "config.json"),
+      JSON.stringify({ prices: { haiku: { in: 2, out: 8, cacheRead: 0.2, cacheCreate: 2.5, cacheCreate1h: 4 } } }),
+    );
+    const cfg = await freshLoad();
+    assert.equal(cfg.prices.haiku.in, 2);
+    assert.equal(cfg.prices.haiku.out, 8);
+    assert.equal(cfg.prices.haiku.cacheRead, 0.2);
+    assert.equal(cfg.prices.haiku.cacheCreate, 2.5);
+    assert.equal(cfg.prices.haiku.cacheCreate1h, 4);
+  });
 });

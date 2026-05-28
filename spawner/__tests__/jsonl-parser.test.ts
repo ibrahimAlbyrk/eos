@@ -86,6 +86,39 @@ describe("parseJsonlLine — assistant messages", () => {
     assert.equal(p.model, "claude-sonnet-4.5");
   });
 
+  it("splits cache creation tokens by TTL when usage.cache_creation present", () => {
+    const ev = collect(JSON.stringify({
+      message: {
+        role: "assistant",
+        model: "claude-sonnet-4.5",
+        content: [],
+        usage: {
+          input_tokens: 100,
+          output_tokens: 50,
+          cache_creation_input_tokens: 5000,
+          cache_creation: { ephemeral_5m_input_tokens: 3000, ephemeral_1h_input_tokens: 2000 },
+        },
+      },
+    }));
+    const p = ev[0].payload as { cacheCreate: number; cacheCreate1h: number };
+    assert.equal(p.cacheCreate, 3000);
+    assert.equal(p.cacheCreate1h, 2000);
+  });
+
+  it("treats cache_creation_input_tokens as 5m when split object absent", () => {
+    const ev = collect(JSON.stringify({
+      message: {
+        role: "assistant",
+        model: "claude-opus-4.7",
+        content: [],
+        usage: { input_tokens: 10, cache_creation_input_tokens: 500 },
+      },
+    }));
+    const p = ev[0].payload as { cacheCreate: number; cacheCreate1h: number };
+    assert.equal(p.cacheCreate, 500);
+    assert.equal(p.cacheCreate1h, 0);
+  });
+
   it("usage falls back to defaultModel when message lacks model", () => {
     const ev = collect(JSON.stringify({
       message: { role: "assistant", content: [], usage: { input_tokens: 1 } },

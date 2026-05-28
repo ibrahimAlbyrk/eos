@@ -11,6 +11,7 @@ export interface UsagePayload {
   out: number;
   cacheRead: number;
   cacheCreate: number;
+  cacheCreate1h: number;
   model: string;
 }
 
@@ -54,11 +55,19 @@ export function parseJsonlLine(
   if (msg?.role === "assistant") {
     const usage = msg.usage as Record<string, unknown> | undefined;
     if (usage && (usage.input_tokens || usage.output_tokens || usage.cache_read_input_tokens || usage.cache_creation_input_tokens)) {
+      // Anthropic surfaces cache writes split by TTL when both are present:
+      //   usage.cache_creation = { ephemeral_5m_input_tokens, ephemeral_1h_input_tokens }
+      // Without the split object, treat the total as 5-minute (legacy default).
+      const cc = usage.cache_creation as Record<string, unknown> | undefined;
+      const ccTotal = (usage.cache_creation_input_tokens as number) ?? 0;
+      const cacheCreate = cc ? ((cc.ephemeral_5m_input_tokens as number) ?? 0) : ccTotal;
+      const cacheCreate1h = cc ? ((cc.ephemeral_1h_input_tokens as number) ?? 0) : 0;
       emit("usage", {
         in: (usage.input_tokens as number) ?? 0,
         out: (usage.output_tokens as number) ?? 0,
         cacheRead: (usage.cache_read_input_tokens as number) ?? 0,
-        cacheCreate: (usage.cache_creation_input_tokens as number) ?? 0,
+        cacheCreate,
+        cacheCreate1h,
         model: (msg.model as string) ?? defaultModel,
       });
     }

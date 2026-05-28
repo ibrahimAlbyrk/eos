@@ -12,7 +12,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { NotificationConfigSchema, type NotificationConfig } from "../../contracts/src/notifications.ts";
 
-export interface ModelPrice { in: number; out: number; cacheRead: number; cacheCreate: number; }
+export interface ModelPrice { in: number; out: number; cacheRead: number; cacheCreate: number; cacheCreate1h: number; }
 
 export interface DaemonConfig {
   daemon: {
@@ -70,12 +70,13 @@ function envStr(name: string, fallback: string): string {
 }
 
 // Default model prices mirror public Anthropic API rates (per million tokens).
-// Cache-read is heavily discounted (~10% of input); cache-create is a slight
-// premium. Override in config.json under `prices` if Anthropic changes them.
+// Cache-read is heavily discounted (10% of input); cacheCreate is 5-minute
+// ephemeral writes (1.25× input); cacheCreate1h is 1-hour ephemeral writes
+// (2× input). Override in config.json under `prices` if Anthropic changes them.
 const DEFAULT_PRICES: Record<string, ModelPrice> = {
-  opus:   { in: 15.0, out: 75.0, cacheRead: 1.50, cacheCreate: 18.75 },
-  sonnet: { in:  3.0, out: 15.0, cacheRead: 0.30, cacheCreate:  3.75 },
-  haiku:  { in:  1.0, out:  5.0, cacheRead: 0.10, cacheCreate:  1.25 },
+  opus:   { in: 15.0, out: 75.0, cacheRead: 1.50, cacheCreate: 18.75, cacheCreate1h: 30.0 },
+  sonnet: { in:  3.0, out: 15.0, cacheRead: 0.30, cacheCreate:  3.75, cacheCreate1h:  6.0 },
+  haiku:  { in:  1.0, out:  5.0, cacheRead: 0.10, cacheCreate:  1.25, cacheCreate1h:  2.0 },
 };
 
 function defaults(): DaemonConfig {
@@ -118,6 +119,7 @@ const ModelPriceOverrideSchema = z.object({
   out: z.number().nonnegative(),
   cacheRead: z.number().nonnegative(),
   cacheCreate: z.number().nonnegative(),
+  cacheCreate1h: z.number().nonnegative(),
 }).partial();
 
 const DaemonConfigOverrideSchema = z.object({
@@ -147,15 +149,25 @@ const DaemonConfigOverrideSchema = z.object({
   notifications: NotificationConfigSchema.optional(),
 }).passthrough();
 
-// Shallow-merge file-loaded overrides on top of defaults. Nested keys are
-// overridden one level deep — enough for our flat-ish structure.
+// Merge file-loaded overrides on top of defaults. Most sections are flat and
+// merged one level deep. `prices` is special-cased: it's a two-level map
+// (model → {in,out,cacheRead,cacheCreate,cacheCreate1h}) and a partial
+// override like `{ sonnet: { in: 4 } }` must preserve the other 4 fields
+// instead of wiping them — otherwise computeCostUsd produces NaN.
 function mergeConfig(base: DaemonConfig, override: unknown): DaemonConfig {
   if (!override || typeof override !== "object") return base;
   const out: DaemonConfig = JSON.parse(JSON.stringify(base));
   const o = override as Record<string, unknown>;
   for (const k of Object.keys(out) as Array<keyof DaemonConfig>) {
     const incoming = o[k];
-    if (incoming && typeof incoming === "object" && !Array.isArray(incoming)) {
+    if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) continue;
+    if (k === "prices") {
+      const incPrices = incoming as Record<string, Partial<ModelPrice>>;
+      for (const model of Object.keys(incPrices)) {
+        const base = out.prices[model] ?? { in: 0, out: 0, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 };
+        out.prices[model] = { ...base, ...incPrices[model] };
+      }
+    } else {
       Object.assign(out[k] as Record<string, unknown>, incoming as Record<string, unknown>);
     }
   }
