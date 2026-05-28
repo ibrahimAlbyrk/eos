@@ -126,6 +126,7 @@ export function ComposerDiffRow({ live }) {
         <span className="diff-sep">·</span>
         <span className="diff-branch">{branch}</span>
       </span>
+      <span className="diff-grow"></span>
       {showSync && (
         <span className="git-chip sync-chip">
           {ahead > 0 && (
@@ -169,7 +170,6 @@ export function ComposerDiffRow({ live }) {
           <span className="lbl">{conflicts === 1 ? "conflict" : "conflicts"}</span>
         </span>
       )}
-      <span className="diff-grow"></span>
       {(diff?.insertions > 0 || diff?.deletions > 0) && (
         <span className="diff-badge">
           +{diff.insertions.toLocaleString()}{" "}
