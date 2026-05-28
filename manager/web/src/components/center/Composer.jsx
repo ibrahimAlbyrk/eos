@@ -122,13 +122,9 @@ export function Composer({ live }) {
     setAttachments((prev) => prev.filter((a) => a.path !== path));
   }, []);
 
-  const draft = ui.drafts.get(ui.selectedId);
-  const isDraft = !!draft;
-  const selected = !isDraft ? live.workers.find((w) => w.id === ui.selectedId) : null;
+  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
 
-  const cwd = isDraft
-    ? (draft.cwd ?? live.recents[0] ?? null)
-    : (selected?.cwd ?? ui.composer.cwd ?? live.recents[0] ?? null);
+  const cwd = selected?.cwd ?? ui.composer.cwd ?? live.recents[0] ?? null;
   const commands = useCommands(cwd);
   const cmdMap = useMemo(() => new Map(commands.map((c) => [c.name, c])), [commands]);
 
@@ -259,6 +255,13 @@ export function Composer({ live }) {
   }, [text, cmdMap]);
 
   useLayoutEffect(() => { applyColoring(); }, [applyColoring]);
+
+  // Auto-focus the editor whenever the selection changes — including the
+  // "new orchestrator" mode (+ clears selection) and switching between
+  // agents. Lets users type immediately without a second click.
+  useEffect(() => {
+    editorRef.current?.focus();
+  }, [ui.selectedId]);
 
 
   const setTextAndSync = useCallback((newText, newCursor) => {
@@ -393,29 +396,6 @@ export function Composer({ live }) {
       agentText = agentText ? agentText + suffix : `attachments:\n${lines}`;
     }
 
-    if (isDraft) {
-      const cwd = draft.cwd ?? live.recents[0] ?? null;
-      if (!cwd) { alert("Pick a folder first."); return; }
-      const draftId = ui.selectedId;
-      const r = await live.spawnOrchestrator({
-        name: draft.name || undefined,
-        cwd,
-        model: draft.model,
-        effort: draft.effort,
-        prompt: agentText,
-      });
-      if (r?.ok && r.body?.id) {
-        const realId = r.body.id;
-        ui.removeDraft(draftId);
-        ui.setSelectedId(realId);
-        ui.addOptimisticUserMessage(realId, displayText, agentText);
-      } else {
-        console.error("spawn failed:", r);
-        alert("Failed to create orchestrator.");
-      }
-      return;
-    }
-
     if (selected) {
       const busy = selected.state === "SPAWNING" || selected.state === "WORKING";
       if (busy) {
@@ -430,7 +410,7 @@ export function Composer({ live }) {
 
     const cwdFallback = ui.composer.cwd ?? live.recents[0] ?? null;
     if (!cwdFallback) { alert("Pick a folder first."); return; }
-    const r = await live.spawnOrchestrator({ cwd: cwdFallback, model: ui.composer.model, effort: ui.composer.effort, prompt: agentText });
+    const r = await live.spawnOrchestrator({ cwd: cwdFallback, model: ui.composer.model, effort: ui.composer.effort, prompt: agentText, permissionMode: ui.composer.permissionMode });
     if (r?.ok && r.body?.id) {
       const realId = r.body.id;
       ui.setSelectedId(realId);

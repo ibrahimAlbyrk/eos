@@ -7,15 +7,8 @@ import { BranchDropdown } from "../popovers/BranchDropdown.jsx";
 
 export function ComposerConfigRow({ live }) {
   const ui = useUi();
-  const draft = ui.drafts.get(ui.selectedId);
-  // Source of truth for chip values: a selected draft's settings, or the
-  // global composer when no draft is selected. The cwd ultimately falls
-  // back to live.recents[0] so the chip is never blank when there's history.
-  const state = draft ?? ui.composer;
-  const updateState = (patch) => {
-    if (draft) ui.updateDraft(ui.selectedId, patch);
-    else ui.updateComposer(patch);
-  };
+  const state = ui.composer;
+  const updateState = (patch) => ui.updateComposer(patch);
 
   const cwd = state.cwd ?? live.recents[0] ?? null;
   const folderLabel = cwd ? basename(cwd) : "pick folder…";

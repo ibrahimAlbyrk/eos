@@ -27,12 +27,29 @@ function Shell() {
     return () => { delete window.__nativeNavigate; };
   }, [ui.setSelectedId]);
 
-  // Auto-select first orchestrator if nothing valid is selected
+  // Cmd+T → new empty session (mirrors the + button).
   useEffect(() => {
-    if (live.orchestrators.length === 0) return;
-    const valid = ui.selectedId && live.workers.some((w) => w.id === ui.selectedId);
-    if (!valid) ui.setSelectedId(live.orchestrators[0].id);
-  }, [ui.selectedId, live.orchestrators, live.workers, ui.setSelectedId]);
+    const onKey = (e) => {
+      if (!e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
+      if (e.key !== "t" && e.key !== "T") return;
+      e.preventDefault();
+      ui.setSelectedId(null);
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [ui.setSelectedId]);
+
+  // Clear selection if the selected worker no longer exists. Leaving
+  // selectedId null is intentional (user pressed +, or first launch) and
+  // must not auto-fallback to another orchestrator. Skip when workers is
+  // empty — it can't tell "not loaded yet" from "no workers", and clearing
+  // a persisted selection during the initial fetch would lose it.
+  useEffect(() => {
+    if (!ui.selectedId) return;
+    if (live.workers.length === 0) return;
+    const exists = live.workers.some((w) => w.id === ui.selectedId);
+    if (!exists) ui.setSelectedId(null);
+  }, [ui.selectedId, live.workers, ui.setSelectedId]);
 
   // Seed unseen workers + mark the selected one as viewed in a single pass.
   useEffect(() => {

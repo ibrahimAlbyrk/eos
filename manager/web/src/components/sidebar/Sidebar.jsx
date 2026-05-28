@@ -1,42 +1,17 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { AgentsTree } from "./AgentsTree.jsx";
-import { SpawnPopover } from "../popovers/SpawnPopover.jsx";
 import { buildAgentTree } from "../../lib/tree.js";
 
 export function Sidebar({ live }) {
   const ui = useUi();
   const [filter, setFilter] = useState("");
-  // Merge real worker rows with local drafts. Drafts surface as root-level
-  // tree nodes with state="DRAFT" so the agents-tree treats them like any
-  // other orchestrator visually, just with a distinct status label.
-  const merged = useMemo(() => {
-    const draftRows = Array.from(ui.drafts.entries()).map(([id, d]) => ({
-      id,
-      state: "DRAFT",
-      cwd: d.cwd,
-      worktree_from: null,
-      branch: d.branch,
-      prompt: "",
-      name: d.name || null,
-      pid: null,
-      port: null,
-      started_at: d.createdAt,
-      ended_at: null,
-      exit_code: null,
-      parent_id: null,
-      model: d.model,
-      is_orchestrator: 1,
-    }));
-    return [...live.workers, ...draftRows];
-  }, [live.workers, ui.drafts]);
-  const tree = buildAgentTree(merged);
-  const total = merged.length;
+  const tree = buildAgentTree(live.workers);
+  const total = live.workers.length;
 
   const handleSpawn = (e) => {
     e.stopPropagation();
-    if (ui.openPopover === "spawn") ui.closeAllPops();
-    else ui.openPop("spawn");
+    ui.setSelectedId(null);
   };
 
   return (
@@ -47,19 +22,15 @@ export function Sidebar({ live }) {
             Agents <span className="sb-head__count">{total}</span>
           </div>
           <div className="sb-head__actions">
-            <div className="sidebar-plus-wrap" style={{ position: "relative" }}>
-              <button
-                className="sb-iconbtn"
-                title="Spawn a new agent"
-                onClick={handleSpawn}
-                data-popover-trigger="spawn"
-              >
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M8 3v10M3 8h10" />
-                </svg>
-              </button>
-              <SpawnPopover live={live} />
-            </div>
+            <button
+              className="sb-iconbtn"
+              title="New orchestrator"
+              onClick={handleSpawn}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M8 3v10M3 8h10" />
+              </svg>
+            </button>
             <button className="sb-iconbtn" title="Collapse sidebar" onClick={() => ui.setSideCollapsed(true)}>
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
                 <rect x="2" y="3" width="12" height="10" rx="1.5" />
@@ -86,19 +57,15 @@ export function Sidebar({ live }) {
 
         <div className="sb-section">
           <span className="sb-section__title">Agents</span>
-          <div className="sidebar-plus-wrap" style={{ position: "relative" }}>
-            <button
-              className="sb-iconbtn"
-              title="Spawn a new agent"
-              onClick={handleSpawn}
-              data-popover-trigger="spawn"
-            >
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M8 3v10M3 8h10" />
-              </svg>
-            </button>
-            <SpawnPopover live={live} />
-          </div>
+          <button
+            className="sb-iconbtn"
+            title="New orchestrator"
+            onClick={handleSpawn}
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <path d="M8 3v10M3 8h10" />
+            </svg>
+          </button>
         </div>
 
         <AgentsTree roots={tree} filter={filter} onRename={live.renameAgent} />

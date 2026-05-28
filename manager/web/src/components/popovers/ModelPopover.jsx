@@ -15,19 +15,16 @@ const EFFORTS = [
 export function ModelPopover({ live }) {
   const ui = useUi();
   if (ui.openPopover !== "model") return null;
-  const draft = ui.drafts.get(ui.selectedId);
-  const selected = !draft ? live.workers.find((w) => w.id === ui.selectedId) : null;
-  const currentModel = selected?.model ?? draft?.model ?? ui.composer.model;
-  const currentEffort = selected?.effort ?? draft?.effort ?? ui.composer.effort;
+  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
+  const currentModel = selected?.model ?? ui.composer.model;
+  const currentEffort = selected?.effort ?? ui.composer.effort;
 
   const pickModel = async (id) => {
     if (selected) await live.setModel(selected.id, id, currentEffort);
-    else if (draft) ui.updateDraft(ui.selectedId, { model: id });
     else ui.updateComposer({ model: id });
   };
   const pickEffort = async (id) => {
     if (selected) await live.setModel(selected.id, currentModel, id);
-    else if (draft) ui.updateDraft(ui.selectedId, { effort: id });
     else ui.updateComposer({ effort: id });
   };
 

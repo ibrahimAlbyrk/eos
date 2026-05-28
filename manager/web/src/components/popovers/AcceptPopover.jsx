@@ -10,13 +10,11 @@ const MODES = [
 export function AcceptPopover({ live }) {
   const ui = useUi();
   if (ui.openPopover !== "accept") return null;
-  const draft = ui.drafts.get(ui.selectedId);
-  const selected = !draft ? live.workers.find((w) => w.id === ui.selectedId) : null;
-  const current = selected?.permission_mode ?? draft?.permissionMode ?? ui.composer.permissionMode;
+  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
+  const current = selected?.permission_mode ?? ui.composer.permissionMode;
 
   const pick = async (mode) => {
     if (selected) await live.setPermissionMode(selected.id, mode);
-    else if (draft) ui.updateDraft(ui.selectedId, { permissionMode: mode });
     else ui.updateComposer({ permissionMode: mode });
     ui.closeAllPops();
   };

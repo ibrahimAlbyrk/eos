@@ -149,7 +149,7 @@ html.native .sb-section__title {
   color: var(--fg-dim);
   letter-spacing: 0.03em;
 }
-html.native .sb-section .sidebar-plus-wrap { margin-left: auto; }
+html.native .sb-section > .sb-iconbtn { margin-left: auto; }
 
 /* ============================================================================
    APP SHELL  ·  3-column grid: sidebar | center | (floating right island)

@@ -8,12 +8,8 @@ export function BranchDropdown({ live, cwd }) {
   const [current, setCurrent] = useState(null);
   const [filter, setFilter] = useState("");
 
-  const draft = ui.drafts.get(ui.selectedId);
-  const composerBranch = (draft ?? ui.composer).branch;
-  const setBranch = (b) => {
-    if (draft) ui.updateDraft(ui.selectedId, { branch: b });
-    else ui.updateComposer({ branch: b });
-  };
+  const composerBranch = ui.composer.branch;
+  const setBranch = (b) => ui.updateComposer({ branch: b });
 
   useEffect(() => {
     if (ui.openPopover !== "branch-dd" || !cwd) return;

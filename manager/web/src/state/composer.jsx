@@ -14,7 +14,6 @@ const DEFAULT_COMPOSER = {
 export function ComposerProvider({ children }) {
   const [composer, setComposer] = useState(DEFAULT_COMPOSER);
   const [optimisticMsgs, setOptimisticMsgs] = useState(() => new Map());
-  const [drafts, setDrafts] = useState(() => new Map());
   const [queuedMessages, setQueuedMessages] = useState(() => new Map());
 
   const updateComposer = useCallback((patch) => {
@@ -88,52 +87,13 @@ export function ComposerProvider({ children }) {
     });
   }, []);
 
-  const createDraft = useCallback((name) => {
-    const id = `draft-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    setDrafts((prev) => {
-      const next = new Map(prev);
-      next.set(id, {
-        name: name || "",
-        cwd: null,
-        branch: null,
-        worktree: false,
-        model: DEFAULT_COMPOSER.model,
-        effort: DEFAULT_COMPOSER.effort,
-        permissionMode: DEFAULT_COMPOSER.permissionMode,
-        createdAt: Date.now(),
-      });
-      return next;
-    });
-    return id;
-  }, []);
-
-  const updateDraft = useCallback((id, patch) => {
-    setDrafts((prev) => {
-      if (!prev.has(id)) return prev;
-      const next = new Map(prev);
-      next.set(id, { ...prev.get(id), ...patch });
-      return next;
-    });
-  }, []);
-
-  const removeDraft = useCallback((id) => {
-    setDrafts((prev) => {
-      if (!prev.has(id)) return prev;
-      const next = new Map(prev);
-      next.delete(id);
-      return next;
-    });
-  }, []);
-
   const value = useMemo(() => ({
     composer, updateComposer,
     optimisticMsgs, addOptimisticUserMessage, reconcileOptimisticMessages,
-    drafts, createDraft, updateDraft, removeDraft,
     queuedMessages, addQueuedMessage, removeQueuedMessage, clearQueuedMessages,
   }), [
-    composer, optimisticMsgs, drafts, queuedMessages,
+    composer, optimisticMsgs, queuedMessages,
     updateComposer, addOptimisticUserMessage, reconcileOptimisticMessages,
-    createDraft, updateDraft, removeDraft,
     addQueuedMessage, removeQueuedMessage, clearQueuedMessages,
   ]);
 

@@ -118,12 +118,18 @@ export function useLive() {
     setRecents(r?.paths ?? []);
   }, []);
 
-  const spawnOrchestrator = useCallback(async ({ name, cwd, model, effort, prompt } = {}) => {
-    const r = await api.spawnOrchestrator({ name, cwd, model, effort, prompt });
-    scheduleRefetch();
+  const spawnOrchestrator = useCallback(async ({ name, cwd, model, effort, prompt, permissionMode } = {}) => {
+    const r = await api.spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode });
+    // Refresh workers synchronously so the new id is visible before the
+    // caller sets it as selected — otherwise App.jsx's stale-selection
+    // cleanup races with the caller and immediately clears the selection.
+    try {
+      const list = await api.listWorkers();
+      if (Array.isArray(list)) setWorkers(list);
+    } catch { /* fallback to scheduleRefetch */ }
     refreshRecents();
     return r;
-  }, [scheduleRefetch, refreshRecents]);
+  }, [refreshRecents]);
 
   const workersRef = useRef(workers);
   workersRef.current = workers;

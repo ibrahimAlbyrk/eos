@@ -20,12 +20,11 @@ const EFFORT_LABELS = {
 
 export function ComposerControls({ live, onAttach }) {
   const ui = useUi();
-  const draft = ui.drafts.get(ui.selectedId);
-  const selected = !draft ? live.workers.find((w) => w.id === ui.selectedId) : null;
+  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
 
-  const mode = selected?.permission_mode ?? draft?.permissionMode ?? ui.composer.permissionMode;
-  const model = selected?.model ?? draft?.model ?? ui.composer.model;
-  const effort = selected?.effort ?? draft?.effort ?? ui.composer.effort;
+  const mode = selected?.permission_mode ?? ui.composer.permissionMode;
+  const model = selected?.model ?? ui.composer.model;
+  const effort = selected?.effort ?? ui.composer.effort;
   const modelInfo = { name: modelName(model) || model || "—", ctx: modelCtx(model) || "" };
 
   useEffect(() => { live.updateLastUsage(selected?.id ?? null); }, [selected?.id]);

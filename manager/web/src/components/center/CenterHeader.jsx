@@ -3,13 +3,12 @@ import { basename } from "../../lib/path.js";
 
 export function CenterHeader({ live }) {
   const ui = useUi();
-  const draft = ui.drafts.get(ui.selectedId);
-  const selected = !draft ? live.workers.find((w) => w.id === ui.selectedId) : null;
+  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
 
-  const scope = basename(selected?.cwd ?? selected?.worktree_from ?? draft?.cwd ?? "") || "—";
-  const cur = draft
-    ? (draft.name?.trim() || "new orchestrator")
-    : (selected?.name || (selected?.is_orchestrator ? "orchestrator" : "no-agent"));
+  const scope = basename(selected?.cwd ?? selected?.worktree_from ?? ui.composer.cwd ?? "") || "—";
+  const cur = selected
+    ? (selected.name || (selected.is_orchestrator ? "orchestrator" : "no-agent"))
+    : "new orchestrator";
 
   return (
     <div className="head">

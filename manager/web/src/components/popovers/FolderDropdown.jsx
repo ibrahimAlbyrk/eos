@@ -6,12 +6,8 @@ export function FolderDropdown({ live }) {
   const ui = useUi();
   if (ui.openPopover !== "folder-dd") return null;
 
-  const draft = ui.drafts.get(ui.selectedId);
-  const current = (draft ?? ui.composer).cwd;
-  const setCwd = (path) => {
-    if (draft) ui.updateDraft(ui.selectedId, { cwd: path });
-    else ui.updateComposer({ cwd: path });
-  };
+  const current = ui.composer.cwd;
+  const setCwd = (path) => ui.updateComposer({ cwd: path });
 
   const pick = (path) => {
     setCwd(path);

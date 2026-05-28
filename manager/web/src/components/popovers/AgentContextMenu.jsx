@@ -13,13 +13,6 @@ export function AgentContextMenu({ live }) {
 
   const kill = async () => {
     if (!agentId) return;
-    // Drafts are local-only — no daemon call.
-    if (ui.drafts.has(agentId)) {
-      if (ui.selectedId === agentId) ui.setSelectedId(null);
-      ui.removeDraft(agentId);
-      ui.closeAllPops();
-      return;
-    }
     // Clear selection *before* the DELETE returns so any in-flight diff /
     // events fetch for this agent doesn't race with the row removal.
     if (ui.selectedId === agentId) ui.setSelectedId(null);

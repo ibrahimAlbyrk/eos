@@ -105,8 +105,8 @@ export const api = {
   },
 
   // Orchestrators
-  async spawnOrchestrator({ name, cwd, model, effort, prompt } = {}) {
-    return postJson(ROUTES.orchestrators, { name, cwd, model, effort, prompt });
+  async spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode } = {}) {
+    return postJson(ROUTES.orchestrators, { name, cwd, model, effort, prompt, permissionMode });
   },
   async sendOrchestratorMessage(id, text) {
     return postJson(ROUTES.orchestratorMessage(id), { text });
@@ -200,8 +200,8 @@ export const api = {
   async renameWorker(id, name) {
     return putJson(ROUTES.workerName(id), { name });
   },
-  async setWorkerPermission(id, mode) {
-    return putJson(ROUTES.workerPermission(id), { mode });
+  async setWorkerPermission(id, mode, { cascade } = {}) {
+    return putJson(ROUTES.workerPermission(id), { mode, cascade });
   },
   async setWorkerModel(id, model, effort) {
     return putJson(ROUTES.workerModel(id), { model, effort });

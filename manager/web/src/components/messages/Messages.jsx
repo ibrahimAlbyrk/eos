@@ -59,7 +59,7 @@ export function Messages({ live }) {
   useEffect(() => { initialScrollDone.current = false; }, [ui.selectedId]);
 
   useEffect(() => {
-    if (!ui.selectedId || ui.drafts.has(ui.selectedId)) { setEvents([]); fetchRef.current = null; return; }
+    if (!ui.selectedId) { setEvents([]); fetchRef.current = null; return; }
     const ac = new AbortController();
     let cancelled = false;
     const fetchOnce = async () => {
@@ -84,7 +84,7 @@ export function Messages({ live }) {
     fetchOnce();
     const t = setInterval(fetchOnce, POLL_MS);
     return () => { cancelled = true; clearInterval(t); ac.abort(); fetchRef.current = null; };
-  }, [ui.selectedId, live.workers.length, ui.drafts, ui.reconcileOptimisticMessages]);
+  }, [ui.selectedId, live.workers.length, ui.reconcileOptimisticMessages]);
 
   useEffect(() => {
     if (live.eventSignal.workerId !== ui.selectedId) return;
