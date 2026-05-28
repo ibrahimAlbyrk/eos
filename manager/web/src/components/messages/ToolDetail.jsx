@@ -77,17 +77,21 @@ function BashDetail({ tool }) {
   const cmd = tool.input?.command ?? "";
   const output = tool.result?.text ?? "";
   const isError = tool.result?.isError ?? false;
+  const isDenied = isError && /^denied|permission mode|denied by policy/i.test(output);
 
   return (
     <div className="tool-detail bash-detail">
+      <FailureBanner tool={tool} />
       <div className="bash-label">Bash</div>
       <div className="bash-cmd">
         <span className="bash-prompt">$</span>
         <span className="bash-cmd-text">{cmd}</span>
       </div>
-      <div className={"bash-output" + (isError ? " error" : "")}>
-        {output ? output.slice(0, 4000) : "(Bash completed with no output)"}
-      </div>
+      {!isDenied && (
+        <div className={"bash-output" + (isError ? " error" : "")}>
+          {output ? output.slice(0, 4000) : "(Bash completed with no output)"}
+        </div>
+      )}
     </div>
   );
 }
@@ -103,6 +107,7 @@ function EditDetail({ tool }) {
 
   return (
     <div className="tool-detail edit-detail">
+      <FailureBanner tool={tool} />
       <div className="edit-filepath">{filePath}</div>
       <div className="edit-diff">
         {hunks.map((h, i) => (
@@ -113,6 +118,18 @@ function EditDetail({ tool }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+function FailureBanner({ tool }) {
+  if (!tool.result?.isError) return null;
+  const text = tool.result.text ?? "";
+  const isDenied = /^denied|permission mode|denied by policy/i.test(text);
+  return (
+    <div className={"tool-failure-banner" + (isDenied ? " denied" : "")}>
+      <span className="tfb-label">{isDenied ? "Denied" : "Failed"}</span>
+      <span className="tfb-msg">{text || (isDenied ? "Permission denied" : "Tool call failed")}</span>
     </div>
   );
 }
@@ -138,6 +155,7 @@ function WriteDetail({ tool }) {
 
   return (
     <div className="tool-detail read-detail">
+      <FailureBanner tool={tool} />
       <div className="file-path-bar" onClick={openInViewer}>
         <span className="fp-path">{filePath}</span>
         <button className="fp-copy" onClick={(e) => { e.stopPropagation(); copyContent(); }} title="Copy content">

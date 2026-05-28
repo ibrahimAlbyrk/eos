@@ -17,6 +17,7 @@ export function ToolItem({ tool, standalone }) {
   const isRunning = (tool.running && !tool.done) || (!tool.done && tool.result === null) || justAppeared;
   const label = isRunning ? runningLabel(tool) : itemLabel(tool);
   const hasPath = (tool.name === "Read" || tool.name === "Edit" || tool.name === "Write") && tool.input?.file_path;
+  const failure = failureKind(tool);
 
   const onFileClick = (e) => {
     if (!hasPath) return;
@@ -27,12 +28,13 @@ export function ToolItem({ tool, standalone }) {
   const diffStats = tool.name === "Edit" ? editStats(tool) : null;
 
   return (
-    <div className={"tool-item" + (standalone ? " standalone" : "") + (expanded ? " expanded" : "")}>
+    <div className={"tool-item" + (standalone ? " standalone" : "") + (expanded ? " expanded" : "") + (failure ? ` ti-failed-state ti-failed-state-${failure}` : "")}>
       <div className={"tool-item-header" + (isRunning ? " ti-running" : "")} onClick={() => !isRunning && setExpanded((e) => !e)}>
         <span className={"ti-verb" + (isRunning ? " ti-shimmer" : "")}>{label.verb}</span>
         {" "}
         <span className={"ti-file" + (hasPath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
-        {diffStats && (diffStats.add > 0 || diffStats.del > 0) && (
+        {failure && <span className={`ti-failed ti-failed-${failure}`}>{failure}</span>}
+        {!failure && diffStats && (diffStats.add > 0 || diffStats.del > 0) && (
           <span className="ti-stats">
             {diffStats.add > 0 && <span className="ti-add">+{diffStats.add}</span>}
             {diffStats.add > 0 && diffStats.del > 0 && " "}
@@ -97,4 +99,10 @@ function fileName(p) {
   if (!p) return "";
   const parts = p.split("/");
   return parts[parts.length - 1] || p;
+}
+
+function failureKind(tool) {
+  if (!tool.result?.isError) return null;
+  const text = tool.result.text ?? "";
+  return /^denied|permission mode|denied by policy/i.test(text) ? "denied" : "failed";
 }

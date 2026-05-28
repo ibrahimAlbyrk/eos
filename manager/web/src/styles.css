@@ -960,6 +960,56 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .ti-add { color: var(--ok); }
 .ti-del { color: var(--err); }
 
+/* failure (denied/errored) state */
+.ti-failed {
+  font-size: 10.5px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 600;
+  margin-left: 4px;
+}
+.ti-failed-denied { background: rgba(217, 118, 112, 0.18); color: var(--err); }
+.ti-failed-failed { background: rgba(212, 165, 90, 0.18); color: var(--warn); }
+.tool-item.ti-failed-state .ti-file {
+  text-decoration: line-through;
+  text-decoration-color: var(--err);
+  text-decoration-thickness: 1px;
+  opacity: 0.75;
+}
+.tool-item.ti-failed-state .code-preview,
+.tool-item.ti-failed-state .edit-diff {
+  opacity: 0.45;
+  filter: saturate(0.6);
+}
+.tool-failure-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 12px 4px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  background: rgba(212, 165, 90, 0.10);
+  border-left: 2px solid var(--warn);
+  font-size: 12px;
+  color: var(--fg-dim);
+}
+.tool-failure-banner.denied {
+  background: rgba(217, 118, 112, 0.10);
+  border-left-color: var(--err);
+}
+.tfb-label {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-size: 10.5px;
+  color: var(--warn);
+  flex-shrink: 0;
+}
+.tool-failure-banner.denied .tfb-label { color: var(--err); }
+.tfb-msg { white-space: pre-wrap; word-break: break-word; }
+
 /* Generic detail (key-value) */
 .generic-detail {
   padding: 2px 13px 6px;
