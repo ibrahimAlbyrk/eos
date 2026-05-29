@@ -5,6 +5,7 @@
 import { mkdirSync, appendFileSync, statSync, renameSync, existsSync, unlinkSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { errMsg } from "../contracts/src/util.ts";
 
 export interface AuditLogOptions {
   dir?: string;
@@ -31,7 +32,7 @@ export class AuditLog {
     try {
       appendFileSync(this.path, JSON.stringify(record) + "\n");
     } catch (e) {
-      process.stderr.write(`[gateway] audit write failed: ${(e as Error).message}\n`);
+      process.stderr.write(`[gateway] audit write failed: ${errMsg(e)}\n`);
     }
   }
 
@@ -42,15 +43,29 @@ export class AuditLog {
     } catch { return; /* no file yet */ }
     try {
       const oldest = `${this.path}.${this.keep}`;
-      if (existsSync(oldest)) { try { unlinkSync(oldest); } catch {} }
+      if (existsSync(oldest)) {
+        try {
+          unlinkSync(oldest);
+        } catch (e) {
+          process.stderr.write(`[gateway] audit rotation: failed to unlink oldest ${oldest}: ${errMsg(e)}; aborting rotation\n`);
+          return;
+        }
+      }
       for (let i = this.keep - 1; i >= 1; i--) {
         const src = `${this.path}.${i}`;
         const dst = `${this.path}.${i + 1}`;
-        if (existsSync(src)) { try { renameSync(src, dst); } catch {} }
+        if (existsSync(src)) {
+          try {
+            renameSync(src, dst);
+          } catch (e) {
+            process.stderr.write(`[gateway] audit rotation: failed to shift ${src} -> ${dst}: ${errMsg(e)}; aborting rotation\n`);
+            return;
+          }
+        }
       }
       renameSync(this.path, `${this.path}.1`);
     } catch (e) {
-      process.stderr.write(`[gateway] audit log rotation failed: ${(e as Error).message}\n`);
+      process.stderr.write(`[gateway] audit log rotation failed: ${errMsg(e)}\n`);
     }
   }
 }

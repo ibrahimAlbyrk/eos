@@ -3,6 +3,7 @@ import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { isSafeAbsPath } from "./fs-shared.ts";
+import { errMsg } from "../../contracts/src/util.ts";
 
 export function registerFsPickerRoutes(r: Router, c: Container): void {
   r.get("/pick-directory", async ({ res }) => {
@@ -53,7 +54,7 @@ export function registerFsPickerRoutes(r: Router, c: Container): void {
       await c.fs.openPath(body.path!);
       writeJson(res, 200, { ok: true });
     } catch (e) {
-      writeJson(res, 500, { error: (e as Error).message });
+      writeJson(res, 500, { error: errMsg(e) });
     }
   });
 
@@ -65,7 +66,7 @@ export function registerFsPickerRoutes(r: Router, c: Container): void {
       execFileSync("open", ["-R", body.path]);
       writeJson(res, 200, { ok: true });
     } catch (e) {
-      writeJson(res, 500, { error: (e as Error).message });
+      writeJson(res, 500, { error: errMsg(e) });
     }
   });
 }

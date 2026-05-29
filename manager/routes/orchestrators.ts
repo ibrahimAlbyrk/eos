@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
@@ -37,7 +35,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         name,
         fixedId: id,
         persistent: true,
-        systemPromptFile: join(c.config.paths.repoRoot, "manager", "orchestrator-prompt.md"),
+        systemPromptFile: c.config.paths.orchestratorPromptFile,
         mcpConfig: mcpPath,
         claudePermissionMode: body.permissionMode ?? "default",
         model: body.model ?? "opus",

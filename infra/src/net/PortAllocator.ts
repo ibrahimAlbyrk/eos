@@ -2,7 +2,7 @@
 // two concurrent callers can't both see the same port as free.
 
 import { createConnection } from "node:net";
-import type { PortAllocator } from "../../../core/src/ports/ProcessSupervisor.ts";
+import type { PortAllocator } from "../../../core/src/ports/PortAllocator.ts";
 
 export interface PortAllocatorOptions {
   host: string;

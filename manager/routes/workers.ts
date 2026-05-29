@@ -1,5 +1,3 @@
-import { join } from "node:path";
-
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
@@ -20,18 +18,11 @@ import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
 import { killWorker } from "../../core/src/use-cases/KillWorker.ts";
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
 import { transitionState } from "../../core/src/use-cases/TransitionState.ts";
+import { errMsg } from "../../contracts/src/util.ts";
 import { processWorkerEvent } from "../../core/src/use-cases/ProcessWorkerEvent.ts";
 import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermissionMode.ts";
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
-
-interface PendingQuestion {
-  questions: unknown[];
-  toolUseId: string;
-  resolve: (answers: Record<string, string>) => void;
-  reject: () => void;
-}
-const pendingQuestions = new Map<string, PendingQuestion>();
 
 export function registerWorkerRoutes(r: Router, c: Container): void {
   r.get("/workers", ({ res }) => {
@@ -47,7 +38,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const claudePermissionMode = body.permissionMode
       ?? (body.parentId ? c.modeResolver.resolveFor(body.parentId) : undefined);
     const systemPromptFile = body.parentId
-      ? join(c.config.paths.repoRoot, "manager", "worker-prompt.md")
+      ? c.config.paths.workerPromptFile
       : undefined;
     const spec = {
       ...body,
@@ -190,16 +181,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     });
     c.bus.publish("worker:change", { workerId: params.id });
 
-    const answers = await new Promise<Record<string, string>>((resolve, reject) => {
-      pendingQuestions.set(params.id, {
-        questions: body.questions!,
-        toolUseId: body.toolUseId!,
-        resolve,
-        reject,
-      });
-    });
-
-    pendingQuestions.delete(params.id);
+    const { promise } = c.pendingQuestions.register(params.id);
+    const answers = await promise;
     writeJson(res, 200, { answers });
   });
 
@@ -207,9 +190,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   r.post(/^\/workers\/(?<id>[^/]+)\/question-answer$/, async ({ params, req, res }) => {
     const body = await readBody(req) as { answers?: Record<string, string> };
     if (!body.answers) { writeJson(res, 400, { error: "answers required" }); return; }
-    const pending = pendingQuestions.get(params.id);
-    if (!pending) { writeJson(res, 404, { error: "no pending question" }); return; }
-    pending.resolve(body.answers);
+    if (!c.pendingQuestions.resolveByWorker(params.id, body.answers)) {
+      writeJson(res, 404, { error: "no pending question" }); return;
+    }
     c.events.append(params.id, c.clock.now(), "question_answered", { answers: body.answers });
     c.bus.publish("worker:change", { workerId: params.id });
     writeJson(res, 200, { ok: true });
@@ -271,7 +254,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       c.bus.publish("worker:change", { workerId: worker.parent_id });
       writeJson(res, 200, { ok: true, delivered: true });
     } catch (e) {
-      c.log.warn("report delivery failed", { worker: params.id, parent: worker.parent_id, error: (e as Error).message });
+      c.log.warn("report delivery failed", { worker: params.id, parent: worker.parent_id, error: errMsg(e) });
       writeJson(res, 200, { ok: true, delivered: false });
     }
   });

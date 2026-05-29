@@ -132,7 +132,8 @@ export function processWorkerEvent(
   deps: ProcessWorkerEventDeps,
   input: WorkerEventInput,
 ): void {
-  const rowId = logEvent(deps, input.workerId, input.type, input.payload);
-  const handler = HANDLERS[input.type as WorkerEventType];
+  const type = input.type as WorkerEventType;
+  const rowId = logEvent(deps, input.workerId, type, input.payload);
+  const handler = HANDLERS[type];
   if (handler) handler(deps, input, rowId);
 }

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, unlinkSync } from "node:fs";
 
 import type { Command } from "./Command.ts";
+import { errMsg } from "../../../contracts/src/util.ts";
 
 export const stopCommand: Command = {
   name: "stop",
@@ -23,7 +24,7 @@ export const stopCommand: Command = {
       process.kill(pid, "SIGTERM");
       console.log(`sent SIGTERM to daemon pid=${pid}`);
     } catch (e) {
-      console.log(`daemon pid=${pid} not alive (${(e as Error).message}); cleaning pid file`);
+      console.log(`daemon pid=${pid} not alive (${errMsg(e)}); cleaning pid file`);
       try { unlinkSync(pidFile); } catch {}
     }
   },

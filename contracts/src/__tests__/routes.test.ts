@@ -4,18 +4,27 @@ import { ROUTES } from "../http.ts";
 
 const EXPECTED_KEYS = [
   "health", "stream", "workers", "worker", "workerEvents", "workerMessage",
-  "orchestrators", "orchestratorMessage", "policyDecide", "pending",
-  "pendingDecision", "session", "metrics", "uiConfig", "pickDirectory",
-  "fsDefaultApp", "fsOpen", "fsIcon", "fsBranches", "fsRecents", "fsReveal",
-  "fsRead", "fsWrite", "workerName", "workerPermission", "workerModel",
-  "workerDiff", "workerInterrupt", "workerReport", "commands",
-  "notificationsConfig", "web",
+  "orchestrators", "orchestratorMessage", "policyDecide", "policyRule",
+  "pending", "pendingDecision", "session", "metrics", "uiConfig",
+  "pickDirectory", "pickFile", "fsDefaultApp", "fsOpen", "fsIcon",
+  "fsBranches", "fsRecents", "fsReveal", "fsRead", "fsList", "fsImage",
+  "fsCheckout", "fsWrite", "fsPaste", "workerName", "workerPermission",
+  "workerModel", "workerDiff", "workerInterrupt", "workerKeystroke",
+  "workerQuestion", "workerQuestionNotify", "workerQuestionAnswer",
+  "workerReport", "commands", "notificationsConfig", "web",
 ] as const;
 
 describe("ROUTES completeness", () => {
   it("has entries for all expected endpoints", () => {
     for (const key of EXPECTED_KEYS) {
       assert.ok(key in ROUTES, `missing ROUTES.${key}`);
+    }
+  });
+
+  it("has no ROUTES key missing from EXPECTED_KEYS", () => {
+    const expected = new Set<string>(EXPECTED_KEYS);
+    for (const key of Object.keys(ROUTES)) {
+      assert.ok(expected.has(key), `ROUTES.${key} added without updating EXPECTED_KEYS`);
     }
   });
 

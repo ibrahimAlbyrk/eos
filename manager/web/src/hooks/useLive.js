@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import { createReconnectingStream } from "../api/sse.js";
+import { useClockTick } from "./useClockTick.js";
+import { usePendingPermissions } from "./usePendingPermissions.js";
 
 const POLL_MS = 4000;
 const SSE_DEBOUNCE_MS = 80;
@@ -29,9 +31,8 @@ export function useLive() {
   const [recents, setRecents] = useState([]);
   const [session, setSession] = useState(null);
   const [uiConfig, setUiConfig] = useState(null);
-  const [pendingPermissions, setPendingPermissions] = useState([]);
   const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null });
-  const [now, setNow] = useState(Date.now());
+  const now = useClockTick();
   const [lastUsage, setLastUsage] = useState(null);
   const lastUsageWorker = useRef(null);
   const [interruptedId, _setInterruptedId] = useState(() => localStorage.getItem("cm:interruptedId"));
@@ -41,6 +42,7 @@ export function useLive() {
     else localStorage.removeItem("cm:interruptedId");
   }, []);
 
+  const setPendingPermissionsRef = useRef(null);
   const refetchTimer = useRef(null);
   const scheduleRefetch = useCallback(() => {
     if (refetchTimer.current) return;
@@ -48,7 +50,7 @@ export function useLive() {
       refetchTimer.current = null;
       try {
         const [list, sess, pend] = await Promise.all([api.listWorkers(), api.getSession(), api.listPending().catch(() => [])]);
-        if (Array.isArray(pend)) setPendingPermissions(pend);
+        if (Array.isArray(pend)) setPendingPermissionsRef.current?.(pend);
         if (Array.isArray(list)) {
           setWorkers(list);
           const iid = localStorage.getItem("cm:interruptedId");
@@ -104,12 +106,6 @@ export function useLive() {
     });
     return () => s.close();
   }, [scheduleRefetch]);
-
-  // tick for elapsed counters
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
 
   // mutations -------------------------------------------------------------
 
@@ -201,24 +197,14 @@ export function useLive() {
     } catch { /* ignore */ }
   }, []);
 
-  const approvePending = useCallback(async (id) => {
-    await api.approvePending(id);
-    setPendingPermissions((prev) => prev.filter((p) => p.id !== id));
-    scheduleRefetch();
-  }, [scheduleRefetch]);
-
-  const alwaysAllowPending = useCallback(async (id, toolName, _workerId) => {
-    await api.approvePending(id);
-    await api.addPolicyRule(toolName, "allow").catch(() => {});
-    setPendingPermissions((prev) => prev.filter((p) => p.id !== id));
-    scheduleRefetch();
-  }, [scheduleRefetch]);
-
-  const denyPending = useCallback(async (id, reason) => {
-    await api.denyPending(id, reason);
-    setPendingPermissions((prev) => prev.filter((p) => p.id !== id));
-    scheduleRefetch();
-  }, [scheduleRefetch]);
+  const {
+    pendingPermissions,
+    setPendingPermissions,
+    approvePending,
+    alwaysAllowPending,
+    denyPending,
+  } = usePendingPermissions(scheduleRefetch);
+  setPendingPermissionsRef.current = setPendingPermissions;
 
   const effectiveWorkers = useMemo(() => {
     if (!interruptedId) return workers;

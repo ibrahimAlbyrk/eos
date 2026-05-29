@@ -10,6 +10,7 @@
 
 import type { DatabaseSync } from "node:sqlite";
 import type { Logger } from "../../../core/src/ports/Logger.ts";
+import { errMsg } from "../../../contracts/src/util.ts";
 
 export interface Migration { id: string; sql: string }
 
@@ -86,7 +87,7 @@ export function runMigrations(db: DatabaseSync, log: Logger): number {
       insert.run(m.id, Date.now());
       ranCount++;
     } catch (e) {
-      const msg = (e as Error).message;
+      const msg = errMsg(e);
       if (/duplicate column|already exists/i.test(msg)) {
         insert.run(m.id, Date.now());
       } else {
@@ -123,6 +124,6 @@ export function maybeVacuum(db: DatabaseSync, log: Logger, reason: string): void
     else db.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, ?)").run(VACUUM_MARKER, now);
     log.info("VACUUM ok", { ms, reason });
   } catch (e) {
-    log.warn("VACUUM failed", { error: (e as Error).message });
+    log.warn("VACUUM failed", { error: errMsg(e) });
   }
 }

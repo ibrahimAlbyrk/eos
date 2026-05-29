@@ -5,6 +5,8 @@ import { readFileSync, existsSync } from "node:fs";
 import { parse as parseYaml } from "yaml";
 import { compileRule, type Policy, type PolicyRule, type CompiledRule } from "../../../core/src/domain/policy.ts";
 import type { Logger } from "../../../core/src/ports/Logger.ts";
+import { PolicyBehaviorSchema } from "../../../contracts/src/policy.ts";
+import { errMsg } from "../../../contracts/src/util.ts";
 
 export interface PolicyLoadOptions {
   candidates: string[];   // tried in order; first existing wins
@@ -19,7 +21,7 @@ export function loadPolicy(opts: PolicyLoadOptions): Policy {
     try {
       raw = parseYaml(readFileSync(p, "utf8")) as Record<string, unknown> | null;
     } catch (e) {
-      opts.log.warn("failed to parse policy file", { source: p, error: (e as Error).message });
+      opts.log.warn("failed to parse policy file", { source: p, error: errMsg(e) });
       return { default: "ask" as const, ttlMs: opts.defaultTtlMs, rules: [] };
     }
     const rawRules: PolicyRule[] = (raw?.rules ?? []) as PolicyRule[];
@@ -29,9 +31,13 @@ export function loadPolicy(opts: PolicyLoadOptions): Policy {
       if (c) compiled.push(c);
     }
     opts.log.info("policy loaded", { source: p, applied: compiled.length, total: rawRules.length });
+    const parsedDefault = PolicyBehaviorSchema.safeParse(raw?.default);
+    if (raw?.default != null && !parsedDefault.success) {
+      opts.log.warn("invalid policy default; using ask", { source: p, value: String(raw.default) });
+    }
     return {
-      default: (raw?.default as string) ?? "ask",
-      ttlMs: (raw?.ttlMs as number) ?? opts.defaultTtlMs,
+      default: parsedDefault.success ? parsedDefault.data : "ask",
+      ttlMs: typeof raw?.ttlMs === "number" ? raw.ttlMs : opts.defaultTtlMs,
       rules: compiled,
     };
   }

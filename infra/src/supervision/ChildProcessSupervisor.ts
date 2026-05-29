@@ -6,6 +6,7 @@ import { spawn, execFileSync, type ChildProcess } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import type { ProcessSupervisor, SpawnOptions, SupervisedProcess } from "../../../core/src/ports/ProcessSupervisor.ts";
 import type { Logger } from "../../../core/src/ports/Logger.ts";
+import { WORKER_EXIT, errMsg } from "../../../contracts/src/util.ts";
 
 export interface ChildProcessSupervisorOptions {
   binary: string;        // typically "node"
@@ -34,10 +35,23 @@ export function createChildProcessSupervisor(opts: ChildProcessSupervisorOptions
       children.set(id, child);
       spawnOpts.onSpawn?.(child.pid ?? 0);
 
-      child.on("exit", (code) => {
+      // A spawn failure (ENOENT/EACCES) emits "error" and never "exit"; a
+      // normal abnormal exit emits "exit". Both must run cleanup exactly once
+      // and surface through the same onExit path so the daemon treats it as a
+      // failed worker and runs its normal cleanup instead of crashing.
+      let settled = false;
+      const settle = (code: number | null) => {
+        if (settled) return;
+        settled = true;
         children.delete(id);
         try { out.end(); } catch {}
         spawnOpts.onExit?.(code);
+      };
+
+      child.on("exit", (code) => { settle(code); });
+      child.on("error", (err) => {
+        opts.logger.error("worker spawn/process error", { id, error: errMsg(err) });
+        settle(WORKER_EXIT.KILLED);
       });
 
       return { id, pid: child.pid ?? null };

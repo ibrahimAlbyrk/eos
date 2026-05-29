@@ -1,7 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useState, useMemo, useCallback } from "react";
+import { useEffect, useRef, useState, useMemo, useCallback } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { api } from "../../../api/client.js";
 import { useCommands } from "../../../hooks/useCommands.js";
+import { useContentEditableEditor, getCursorOffset } from "../../../hooks/useContentEditableEditor.js";
+import { useCompletion } from "../../../hooks/useCompletion.js";
+import { api } from "../../../api/client.js";
 import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
 import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
 import { ComposerControls } from "./ComposerControls.jsx";
@@ -10,82 +12,6 @@ import { FileMenu } from "./FileMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
 import { PermissionBanner } from "./PermissionBanner.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
-
-function getCursorOffset(el) {
-  const sel = window.getSelection();
-  if (!sel.rangeCount || !el.contains(sel.anchorNode)) return 0;
-  const range = sel.getRangeAt(0).cloneRange();
-  range.selectNodeContents(el);
-  range.setEnd(sel.anchorNode, sel.anchorOffset);
-  return range.toString().length;
-}
-
-function setCursorOffset(el, offset) {
-  const sel = window.getSelection();
-  const range = document.createRange();
-  let pos = 0;
-  function walk(node) {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const len = node.textContent.length;
-      if (pos + len >= offset) {
-        range.setStart(node, offset - pos);
-        range.collapse(true);
-        return true;
-      }
-      pos += len;
-      return false;
-    }
-    for (const child of node.childNodes) {
-      if (walk(child)) return true;
-    }
-    return false;
-  }
-  if (walk(el)) {
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
-}
-
-function esc(s) {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
-function colorize(text, cmdMap, filePaths) {
-  const regions = [];
-
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] !== "/") continue;
-    let end = i + 1;
-    while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
-    if (cmdMap.has(text.slice(i + 1, end))) {
-      regions.push({ start: i, end });
-    }
-  }
-
-  for (const [display] of filePaths) {
-    const token = "@" + display;
-    let idx = 0;
-    while ((idx = text.indexOf(token, idx)) !== -1) {
-      regions.push({ start: idx, end: idx + token.length });
-      idx += token.length;
-    }
-  }
-
-  if (regions.length === 0) return null;
-  regions.sort((a, b) => a.start - b.start);
-
-  let html = "";
-  let last = 0;
-  for (const r of regions) {
-    if (r.start < last) continue;
-    if (r.start > last) html += esc(text.slice(last, r.start));
-    html += `<span class="cmd-hl">${esc(text.slice(r.start, r.end))}</span>`;
-    last = r.end;
-  }
-  if (last === 0) return null;
-  if (last < text.length) html += esc(text.slice(last));
-  return html;
-}
 
 function QueuedPill({ text, onDismiss }) {
   return (
@@ -102,13 +28,8 @@ function QueuedPill({ text, onDismiss }) {
 
 export function Composer({ live }) {
   const ui = useUi();
-  const [text, setText] = useState("");
   const [menuIndex, setMenuIndex] = useState(0);
   const [fileMenuIndex, setFileMenuIndex] = useState(0);
-  const [fileResults, setFileResults] = useState([]);
-  const editorRef = useRef(null);
-  const lastHtmlRef = useRef("");
-  const suppressInputRef = useRef(false);
   const insertedPathsRef = useRef(new Map());
 
   const [attachments, setAttachments] = useState([]);
@@ -128,85 +49,24 @@ export function Composer({ live }) {
   const commands = useCommands(cwd);
   const cmdMap = useMemo(() => new Map(commands.map((c) => [c.name, c])), [commands]);
 
-  const [cursorPos, setCursorPos] = useState(0);
+  const {
+    text,
+    cursorPos,
+    setCursorPos,
+    editorRef,
+    setTextAndSync,
+    handleInput,
+  } = useContentEditableEditor(cmdMap, insertedPathsRef, ui.selectedId);
 
-  const slashCtx = useMemo(() => {
-    const before = text.slice(0, cursorPos);
-    const slashIdx = before.lastIndexOf("/");
-    if (slashIdx === -1) return null;
-    const fragment = before.slice(slashIdx + 1);
-    if (fragment.includes(" ") || fragment.includes("\n")) return null;
-    return { start: slashIdx, query: fragment.toLowerCase() };
-  }, [text, cursorPos]);
-
-  const atCtx = useMemo(() => {
-    const before = text.slice(0, cursorPos);
-    const atIdx = before.lastIndexOf("@");
-    if (atIdx === -1) return null;
-    const fragment = before.slice(atIdx + 1);
-    if (fragment.includes(" ") || fragment.includes("\n")) return null;
-    return { start: atIdx, query: fragment.toLowerCase() };
-  }, [text, cursorPos]);
-
-  const filtered = useMemo(() => {
-    if (!slashCtx) return [];
-    if (slashCtx.query === "") return commands;
-    return commands.filter((c) =>
-      c.name.toLowerCase().includes(slashCtx.query)
-    );
-  }, [commands, slashCtx]);
-
-  const rootCacheRef = useRef({ cwd: null, entries: [] });
-  useEffect(() => {
-    if (!cwd) return;
-    let cancelled = false;
-    api.listFiles(cwd, "").then((r) => {
-      if (!cancelled) rootCacheRef.current = { cwd, entries: r.entries ?? [] };
-    }).catch(() => {});
-    return () => { cancelled = true; };
-  }, [cwd]);
-
-  const fileQuery = atCtx ? atCtx.query : null;
-  useEffect(() => {
-    if (fileQuery === null || !cwd) { setFileResults([]); return; }
-    if (fileQuery === "" && rootCacheRef.current.cwd === cwd) {
-      setFileResults(rootCacheRef.current.entries);
-      return;
-    }
-    let cancelled = false;
-    const delay = fileQuery === "" ? 0 : 150;
-    const timer = setTimeout(() => {
-      api.listFiles(cwd, fileQuery).then((r) => {
-        if (!cancelled) setFileResults(r.entries ?? []);
-      }).catch(() => {});
-    }, delay);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [fileQuery, cwd]);
-
-  const childAgents = useMemo(() => {
-    if (!selected || selected.parent_id) return [];
-    return live.workers
-      .filter((w) => w.parent_id === selected.id)
-      .map((w) => ({ name: w.name || w.id, type: "agent", state: w.state, id: w.id }));
-  }, [selected, live.workers]);
-
-  const atResults = useMemo(() => {
-    if (!atCtx) return [];
-    const q = atCtx.query;
-    const agents = q === ""
-      ? childAgents
-      : childAgents.filter((a) => a.name.toLowerCase().includes(q));
-    return [...agents, ...fileResults];
-  }, [atCtx, childAgents, fileResults]);
-
-  const activeMenu = useMemo(() => {
-    if (slashCtx && atCtx) {
-      return atCtx.start < slashCtx.start ? "file" : "slash";
-    }
-    if (slashCtx && filtered.length > 0) return "slash";
-    if (atCtx && atResults.length > 0) return "file";
-    return null;
-  }, [slashCtx, atCtx, filtered.length, atResults.length]);
+  const { slashCtx, atCtx, filtered, atResults, activeMenu } = useCompletion({
+    text,
+    cursorPos,
+    commands,
+    cwd,
+    selected,
+    workers: live.workers,
+    insertedPathsRef,
+  });
 
   const showMenu = activeMenu === "slash";
   const showFileMenu = activeMenu === "file";
@@ -227,66 +87,6 @@ export function Composer({ live }) {
 
   useEffect(() => { setMenuIndex(0); }, [slashCtx?.query]);
   useEffect(() => { setFileMenuIndex(0); }, [atCtx?.query]);
-
-  useEffect(() => {
-    const paths = insertedPathsRef.current;
-    for (const [display] of paths) {
-      const token = "@" + display;
-      const idx = text.indexOf(token);
-      if (idx === -1) { paths.delete(display); continue; }
-      const after = text[idx + token.length];
-      if (after && after !== " " && after !== "\n") paths.delete(display);
-    }
-  }, [text]);
-
-  const applyColoring = useCallback(() => {
-    const el = editorRef.current;
-    if (!el) return;
-    const html = colorize(text, cmdMap, insertedPathsRef.current);
-    const target = html ?? esc(text);
-    if (target !== lastHtmlRef.current) {
-      const off = getCursorOffset(el);
-      suppressInputRef.current = true;
-      lastHtmlRef.current = target;
-      el.innerHTML = target;
-      setCursorOffset(el, off);
-      queueMicrotask(() => { suppressInputRef.current = false; });
-    }
-  }, [text, cmdMap]);
-
-  useLayoutEffect(() => { applyColoring(); }, [applyColoring]);
-
-  // Auto-focus the editor whenever the selection changes — including the
-  // "new orchestrator" mode (+ clears selection) and switching between
-  // agents. Lets users type immediately without a second click.
-  useEffect(() => {
-    editorRef.current?.focus();
-  }, [ui.selectedId]);
-
-
-  const setTextAndSync = useCallback((newText, newCursor) => {
-    suppressInputRef.current = true;
-    setText(newText);
-    setCursorPos(newCursor ?? newText.length);
-    const el = editorRef.current;
-    if (!el) return;
-    const html = colorize(newText, cmdMap, insertedPathsRef.current);
-    lastHtmlRef.current = html ?? esc(newText);
-    el.innerHTML = lastHtmlRef.current;
-    setCursorOffset(el, newCursor ?? newText.length);
-    queueMicrotask(() => { suppressInputRef.current = false; });
-  }, [cmdMap]);
-
-  const handleInput = () => {
-    if (suppressInputRef.current) { suppressInputRef.current = false; return; }
-    const el = editorRef.current;
-    if (!el) return;
-    let raw = el.innerText;
-    if (raw === "\n") raw = "";
-    const off = getCursorOffset(el);
-    setText(raw);
-    setCursorPos(off);
-  };
 
   const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
 

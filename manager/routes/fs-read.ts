@@ -8,6 +8,7 @@ import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { isSafeAbsPath, listRootDir, searchProject } from "./fs-shared.ts";
+import { errMsg } from "../../contracts/src/util.ts";
 
 const PASTE_MAX_BYTES = 20 * 1024 * 1024;
 
@@ -50,7 +51,7 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
       });
       res.end(data);
     } catch (e) {
-      writeJson(res, 404, { error: (e as Error).message });
+      writeJson(res, 404, { error: errMsg(e) });
     }
   });
 
@@ -77,7 +78,7 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
       const lines = content.split("\n").length;
       writeJson(res, 200, { path: qPath, content, lines });
     } catch (e) {
-      writeJson(res, 404, { error: (e as Error).message });
+      writeJson(res, 404, { error: errMsg(e) });
     }
   });
 
@@ -90,7 +91,7 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
       const entries = query ? searchProject(cwd, query, limit) : listRootDir(cwd);
       writeJson(res, 200, { entries });
     } catch (e) {
-      writeJson(res, 500, { error: (e as Error).message });
+      writeJson(res, 500, { error: errMsg(e) });
     }
   });
 
@@ -102,7 +103,7 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
       writeFileSync(body.path, body.content, "utf8");
       writeJson(res, 200, { ok: true });
     } catch (e) {
-      writeJson(res, 500, { error: (e as Error).message });
+      writeJson(res, 500, { error: errMsg(e) });
     }
   });
 

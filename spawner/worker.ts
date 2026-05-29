@@ -9,6 +9,7 @@
 import { rmSync } from "node:fs";
 import { spawn as ptySpawn } from "@homebridge/node-pty-prebuilt-multiarch";
 
+import { WORKER_EXIT } from "../contracts/src/util.ts";
 import { parseWorkerOptions } from "./options.ts";
 import { createDaemonEventClient } from "./events.ts";
 import { setupWorktree, teardownWorktree } from "./worktree.ts";
@@ -22,6 +23,23 @@ import {
   startHeartbeat,
   createShutdownScheduler,
 } from "./session.ts";
+
+// Timing defaults. Each is overridable by a CLI flag (see options.ts);
+// these are the fallbacks used when the flag is absent.
+const DEFAULT_HEARTBEAT_MS = 8000;
+const DEFAULT_HEARTBEAT_QUIET_MS = 6000;
+const DEFAULT_SHUTDOWN_GRACE_MS = 2500;
+const DEFAULT_PTY_WRITE_DELAY_MS = 300;
+
+// Boot animation settle window: messages written before claude finishes
+// booting get eaten by the TUI, so we buffer pre-boot writes for this long.
+const BOOT_DELAY_MS = 2500;
+// Grace between SIGTERM and SIGKILL of the claude PTY child during cleanup.
+const PTY_SIGKILL_DELAY_MS = 1500;
+// Long-poll timeout for the question hook → daemon round-trip. Must stay
+// coordinated with the daemon policy ttlMs and gateway abort timeout.
+const POLICY_LONG_POLL_TIMEOUT_MS =
+  Number.parseInt(process.env.CLAUDE_MGR_POLICY_TIMEOUT_MS ?? "", 10) || 3_600_000;
 
 const opts = parseWorkerOptions();
 const name = opts.name ?? "w" + Math.random().toString(36).slice(2, 7);
@@ -74,23 +92,27 @@ const pty = ptySpawn(claudeBin, claudeArgs.args, {
   },
 });
 
-const writeQueue = new PtyWriteQueue(pty, (err) => {
-  console.error(`[${name}] pty write error: ${err instanceof Error ? err.message : err}`);
-});
+const writeQueue = new PtyWriteQueue(
+  pty,
+  (err) => {
+    console.error(`[${name}] pty write error: ${err instanceof Error ? err.message : err}`);
+  },
+  opts.ptyWriteDelayMs ?? DEFAULT_PTY_WRITE_DELAY_MS,
+);
 pty.onData((data: string) => process.stdout.write(data));
 
 // Lifecycle ----------------------------------------------------------------
 
 const shutdown = createShutdownScheduler({
-  graceMs: 2500,
+  graceMs: opts.shutdownGraceMs ?? DEFAULT_SHUTDOWN_GRACE_MS,
   state,
   killPty: (): void => { try { pty.kill(); } catch {} },
   name,
 });
 
 const heartbeat = startHeartbeat({
-  intervalMs: 8000,
-  quietThresholdMs: 6000,
+  intervalMs: opts.heartbeatMs ?? DEFAULT_HEARTBEAT_MS,
+  quietThresholdMs: opts.heartbeatQuietMs ?? DEFAULT_HEARTBEAT_QUIET_MS,
   state,
   emit: (t, p) => evt.emit(t, p),
 });
@@ -99,8 +121,7 @@ const heartbeat = startHeartbeat({
 
 // Messages that arrive before claude has finished its boot animation get
 // eaten by the TUI (cursor positioning swallows the CR). We buffer any
-// pre-boot writes here and flush them once the boot delay has elapsed.
-const BOOT_DELAY_MS = 2500;
+// pre-boot writes here and flush them once BOOT_DELAY_MS has elapsed.
 let bootBuffer: string[] = [];
 let bootCompleted = false;
 setTimeout(() => {
@@ -153,7 +174,7 @@ const ingest = startIngestServer(opts.port, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ questions, toolUseId: body.tool_use_id }),
-        signal: AbortSignal.timeout(3600_000),
+        signal: AbortSignal.timeout(POLICY_LONG_POLL_TIMEOUT_MS),
       });
       if (!r.ok) return null;
       const data = await r.json() as { answers?: Record<string, string> };
@@ -222,7 +243,7 @@ const ingest = startIngestServer(opts.port, {
 pty.onExit(({ exitCode }: { exitCode: number }) => {
   console.log(`\n[${name}] pty exit code=${exitCode}`);
   evt.emit("lifecycle", { phase: "pty_exit", code: exitCode });
-  cleanup(exitCode ?? 0);
+  cleanup(exitCode ?? WORKER_EXIT.SUCCESS);
 });
 
 function cleanup(code: number): void {
@@ -235,7 +256,7 @@ function cleanup(code: number): void {
   // alone closes the master FD but a timing race can leave orphan claude
   // processes.
   try { pty.kill("SIGTERM"); } catch {}
-  const killTimer = setTimeout(() => { try { pty.kill("SIGKILL"); } catch {} }, 1500);
+  const killTimer = setTimeout(() => { try { pty.kill("SIGKILL"); } catch {} }, PTY_SIGKILL_DELAY_MS);
   killTimer.unref();
   ingest.close();
   try { rmSync(settings.tmpDir, { recursive: true, force: true }); } catch {}
@@ -268,8 +289,8 @@ function extractToolResponse(raw: unknown): string {
   return "";
 }
 
-process.on("SIGINT", () => cleanup(130));
-process.on("SIGTERM", () => cleanup(143));
+process.on("SIGINT", () => cleanup(WORKER_EXIT.INTERRUPTED));
+process.on("SIGTERM", () => cleanup(WORKER_EXIT.KILLED));
 
 process.on("uncaughtException", (e: Error) => {
   console.error(`[${name}] uncaughtException: ${e.message}\n${e.stack ?? ""}`);

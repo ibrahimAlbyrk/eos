@@ -1,4 +1,5 @@
 import type { Command } from "./Command.ts";
+import { errMsg } from "../../../contracts/src/util.ts";
 
 export const statusCommand: Command = {
   name: "status",
@@ -10,7 +11,7 @@ export const statusCommand: Command = {
       if (r.ok) console.log(`daemon up at ${ctx.daemonUrl}`);
       else console.log(`daemon at ${ctx.daemonUrl} returned ${r.status}`);
     } catch (e) {
-      console.log(`daemon not reachable at ${ctx.daemonUrl}: ${(e as Error).message}`);
+      console.log(`daemon not reachable at ${ctx.daemonUrl}: ${errMsg(e)}`);
     }
   },
 };

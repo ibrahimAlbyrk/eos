@@ -5,6 +5,7 @@ import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 import { BranchesQuerySchema } from "../../contracts/src/http.ts";
 import { isSafeAbsPath } from "./fs-shared.ts";
+import { errMsg } from "../../contracts/src/util.ts";
 
 export function registerFsGitRoutes(r: Router, c: Container): void {
   r.get("/fs/branches", async ({ url, res }) => {
@@ -38,7 +39,7 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
       await c.git.checkout(body.cwd, body.branch);
       writeJson(res, 200, { ok: true });
     } catch (e) {
-      writeJson(res, 400, { error: (e as Error).message });
+      writeJson(res, 400, { error: errMsg(e) });
     }
   });
 

@@ -1,11 +1,11 @@
-import type { EventBus, EventBusMessage } from "../ports/EventBus.ts";
+import type { EventBus, EventBusMessage, EventBusTopic } from "../ports/EventBus.ts";
 import type { WorkerRepo } from "../ports/WorkerRepo.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { NotificationConfig, NotificationPayload, NotificationTriggerName } from "../../../contracts/src/notifications.ts";
 
 export interface NotificationTrigger {
   id: NotificationTriggerName;
-  topic: string;
+  topic: EventBusTopic;
   shouldFire(msg: EventBusMessage, workers: WorkerRepo, clock: Clock): NotificationPayload | null;
 }
 
@@ -29,7 +29,7 @@ export class NotificationService {
 
   start(): void {
     for (const trigger of this.triggers) {
-      const unsub = this.deps.bus.subscribe(trigger.topic as any, (msg) => {
+      const unsub = this.deps.bus.subscribe(trigger.topic, (msg) => {
         this.evaluate(trigger, msg);
       });
       this.unsubscribes.push(unsub);

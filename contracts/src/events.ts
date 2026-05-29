@@ -43,6 +43,8 @@ export const WorkerEventTypeSchema = z.enum([
   "lifecycle",
   "warning",
   "worktree",
+  "tool_running",
+  "tool_done",
   // Synthesized by the daemon:
   "spawn",
   "exit",
@@ -53,6 +55,8 @@ export const WorkerEventTypeSchema = z.enum([
   "state_reject",
   "worker_report",
   "orchestrator_message",
+  "question_pending",
+  "question_answered",
 ]);
 export type WorkerEventType = z.infer<typeof WorkerEventTypeSchema>;
 

@@ -5,7 +5,8 @@
 import type { WorkerRepo } from "../ports/WorkerRepo.ts";
 import type { EventRepo } from "../ports/EventRepo.ts";
 import type { EventBus } from "../ports/EventBus.ts";
-import type { ProcessSupervisor, PortAllocator } from "../ports/ProcessSupervisor.ts";
+import type { ProcessSupervisor } from "../ports/ProcessSupervisor.ts";
+import type { PortAllocator } from "../ports/PortAllocator.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { IdGenerator } from "../ports/IdGenerator.ts";
 import type { Logger } from "../ports/Logger.ts";

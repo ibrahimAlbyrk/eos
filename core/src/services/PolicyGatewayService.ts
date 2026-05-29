@@ -8,8 +8,8 @@
 // dependencies beyond the ports it composes.
 
 import type { Decision } from "../../../contracts/src/policy.ts";
-import type { Policy, CompiledRule } from "../domain/policy.ts";
-import { ruleMatches } from "../domain/policy.ts";
+import type { Policy } from "../domain/policy.ts";
+import { ruleMatches, evaluatePolicy } from "../domain/policy.ts";
 import { MODE_SPECS, classifyTool } from "../domain/permission-mode.ts";
 import type { PendingRepo } from "../ports/PendingRepo.ts";
 import type { EventBus } from "../ports/EventBus.ts";
@@ -33,11 +33,32 @@ export interface PolicyGatewayServiceDeps {
 }
 
 export class PolicyGatewayService implements PolicyGateway {
-  private resolvers = new Map<string, (d: Decision) => void>();
+  private resolvers = new Map<string, { resolve: (d: Decision) => void; workerId: string }>();
   private readonly deps: PolicyGatewayServiceDeps;
 
   constructor(deps: PolicyGatewayServiceDeps) {
     this.deps = deps;
+    // A worker dying (killed or naturally exited) strands any of its parked
+    // `ask` resolvers + Map entries. KillWorker already deletes the pending
+    // rows before publishing, so we track workerId per resolver rather than
+    // querying PendingRepo. Both events also drive a periodic expiry sweep so
+    // stale pendings don't survive past startup.
+    deps.bus.subscribe("worker:removed", (msg) => this.onWorkerGone(msg.payload));
+    deps.bus.subscribe("worker:exit", (msg) => this.onWorkerGone(msg.payload));
+  }
+
+  private onWorkerGone(payload: unknown): void {
+    const workerId = (payload as { workerId?: unknown })?.workerId;
+    if (typeof workerId === "string") this.rejectWorkerResolvers(workerId);
+    this.deps.pending.sweepExpired(this.deps.clock.now(), "expired (swept on worker exit)");
+  }
+
+  private rejectWorkerResolvers(workerId: string): void {
+    for (const [id, entry] of this.resolvers) {
+      if (entry.workerId !== workerId) continue;
+      this.resolvers.delete(id);
+      entry.resolve({ behavior: "deny", message: "worker exited before permission was resolved" });
+    }
   }
 
   async decide(input: {
@@ -78,20 +99,23 @@ export class PolicyGatewayService implements PolicyGateway {
     this.deps.bus.publish("pending:created", { id, workerId: input.workerId });
 
     return new Promise<Decision>((resolve) => {
-      this.resolvers.set(id, resolve);
+      this.resolvers.set(id, { resolve, workerId: input.workerId });
     });
   }
 
   // Chain of responsibility: rule match → mode verdict → policy.default.
-  // Returns the first decision that fires.
+  // Returns the first decision that fires. Rule matching + default fallback
+  // are delegated to domain/evaluatePolicy; only the mode-verdict step (which
+  // sits between "no rule matched" and the default fallback) lives here.
   private evaluate(
     policy: Policy,
     workerId: string,
     toolName: string,
     input: Record<string, unknown>,
   ): Decision {
-    const matched = findMatchingRule(policy.rules, toolName, input);
-    if (matched) return applyRule(matched, input);
+    if (policy.rules.some((rule) => ruleMatches(rule, toolName, input))) {
+      return evaluatePolicy(policy, toolName, input);
+    }
 
     const mode = this.deps.modeResolver.resolveFor(workerId);
     const category = classifyTool(toolName);
@@ -101,9 +125,7 @@ export class PolicyGatewayService implements PolicyGateway {
       return { behavior: "deny", message: `denied by permission mode: ${mode}` };
     }
 
-    if (policy.default === "allow") return { behavior: "allow", updatedInput: input };
-    if (policy.default === "deny") return { behavior: "deny", message: "no rule matched (default deny)" };
-    return { behavior: "ask" };
+    return evaluatePolicy(policy, toolName, input);
   }
 
   resolvePending(input: { id: string; decision: Decision }): boolean {
@@ -117,38 +139,14 @@ export class PolicyGatewayService implements PolicyGateway {
       reason,
       updatedInput,
     });
-    const resolver = this.resolvers.get(input.id);
-    if (resolver) {
+    const entry = this.resolvers.get(input.id);
+    if (entry) {
       this.resolvers.delete(input.id);
-      resolver(dec);
+      entry.resolve(dec);
     }
     if (applied) {
       this.deps.bus.publish("pending:resolved", { id: input.id, behavior: dec.behavior });
     }
     return applied;
   }
-}
-
-function findMatchingRule(
-  rules: readonly CompiledRule[],
-  toolName: string,
-  input: Record<string, unknown>,
-): CompiledRule | null {
-  for (const rule of rules) {
-    if (ruleMatches(rule, toolName, input)) return rule;
-  }
-  return null;
-}
-
-function applyRule(rule: CompiledRule, input: Record<string, unknown>): Decision {
-  const raw = rule.raw;
-  if (raw.action === "allow") return { behavior: "allow", updatedInput: input };
-  if (raw.action === "deny") return { behavior: "deny", message: raw.reason ?? "denied by policy" };
-  if (raw.action === "ask") return { behavior: "ask" };
-  if (raw.action === "rewrite" && rule.rewriteRe && raw.rewriteTo) {
-    const field = raw.rewriteField ?? "command";
-    const next = String(input[field] ?? "").replace(rule.rewriteRe, raw.rewriteTo);
-    return { behavior: "allow", updatedInput: { ...input, [field]: next } };
-  }
-  return { behavior: "ask" };
 }
