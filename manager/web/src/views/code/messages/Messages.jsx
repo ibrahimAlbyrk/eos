@@ -214,9 +214,10 @@ export function Messages({ live }) {
         )}
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
-          const block = renderBlock(b, i, selectedWorker?.cwd);
+          const key = blockKey(b, i);
+          const block = renderBlock(b, key, selectedWorker?.cwd, ui);
           if (isLast && interrupted && b.kind !== "user") {
-            return <div key={i} className="msg-interrupted-wrap">{block}</div>;
+            return <div key={key} className="msg-interrupted-wrap">{block}</div>;
           }
           return block;
         })}
@@ -249,16 +250,29 @@ export function Messages({ live }) {
   );
 }
 
-function renderBlock(b, i, cwd) {
+function blockKey(b, i) {
   switch (b.kind) {
-    case "user":      return <MessageUser key={i} text={b.text} cwd={cwd} />;
-    case "report":    return <MessageReport key={i} text={b.text} label={b.workerName || b.fromWorker || "worker"} direction="in" />;
-    case "directive": return <MessageReport key={i} text={b.text} label={b.parentName || b.fromParent || "orchestrator"} direction="out" />;
-    case "assistant": return <MessageAssistant key={i} text={b.text} />;
-    case "thinking":  return <ThinkingLine key={i} text={b.text} ms={b.ms} />;
-    case "toolGroup": return <ToolGroup key={i} summary={b.summary} tools={b.tools} />;
-    case "tool":      return <ToolItem key={i} tool={b.tool} standalone />;
-    case "agentRun":  return <AgentBlock key={i} block={b} />;
+    case "toolGroup": return "tg-" + (b.tools[0]?.id ?? b.ts ?? i);
+    case "tool":      return "t-" + (b.tool.id ?? b.ts ?? i);
+    case "agentRun":  return "ag-" + (b.toolUseId ?? b.ts ?? i);
+    default:          return b.kind + "-" + (b.ts ?? i);
+  }
+}
+
+function renderBlock(b, key, cwd, ui) {
+  switch (b.kind) {
+    case "user":      return <MessageUser key={key} text={b.text} cwd={cwd} />;
+    case "report":    return <MessageReport key={key} text={b.text} label={b.workerName || b.fromWorker || "worker"} direction="in" />;
+    case "directive": return <MessageReport key={key} text={b.text} label={b.parentName || b.fromParent || "orchestrator"} direction="out" />;
+    case "assistant": return <MessageAssistant key={key} text={b.text} />;
+    case "thinking":  return <ThinkingLine key={key} text={b.text} ms={b.ms} />;
+    case "toolGroup": {
+      const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
+      return <ToolGroup key={key} summary={b.summary} tools={b.tools}
+        open={ui.expandedTools.has(groupKey)} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
+    }
+    case "tool":      return <ToolItem key={key} tool={b.tool} standalone />;
+    case "agentRun":  return <AgentBlock key={key} block={b} />;
     default: return null;
   }
 }

@@ -18,6 +18,7 @@ export function SelectionProvider({ children }) {
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
   const [popoverData, setPopoverData] = useState({});
   const [collapsedNodes, setCollapsedNodes] = useState(() => new Set());
+  const [expandedTools, setExpandedTools] = useState(() => new Set());
   const [fileViewer, setFileViewer] = useState(null);
   const [agentViewer, setAgentViewer] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
@@ -61,6 +62,14 @@ export function SelectionProvider({ children }) {
     });
   }, []);
 
+  const toggleToolExpanded = useCallback((id) => {
+    setExpandedTools((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
   const openFileViewer = useCallback((path) => {
     setAgentViewer(null);
     setFileViewer({ path, editMode: false });
@@ -84,6 +93,7 @@ export function SelectionProvider({ children }) {
     islandsHidden, setIslandsHidden,
     openPopover, openPop, closeAllPops, popoverPos, popoverData,
     collapsedNodes, toggleNodeCollapsed,
+    expandedTools, toggleToolExpanded,
     renamingId, setRenamingId,
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
     fileViewer, openFileViewer, closeFileViewer, toggleFileEditMode,
@@ -91,8 +101,8 @@ export function SelectionProvider({ children }) {
     registerEscapeIdle,
   }), [
     selectedId, sideCollapsed, islandsHidden, openPopover, popoverPos, popoverData,
-    collapsedNodes, renamingId, pendingQuestion, dismissedQuestions, fileViewer, agentViewer,
-    openPop, closeAllPops, toggleNodeCollapsed,
+    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, fileViewer, agentViewer,
+    openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded,
     openFileViewer, closeFileViewer, toggleFileEditMode,
     openAgentViewer, closeAgentViewer, syncAgentViewer,
     registerEscapeIdle,

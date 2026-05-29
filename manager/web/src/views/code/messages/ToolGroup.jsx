@@ -1,12 +1,9 @@
-import { useState } from "react";
 import { ToolItem } from "./ToolItem.jsx";
 
-export function ToolGroup({ summary, tools }) {
-  const [open, setOpen] = useState(false);
-
+export function ToolGroup({ summary, tools, open, onToggle }) {
   return (
     <div className={"tool-group" + (open ? " open" : "")}>
-      <div className="tool-group-header" onClick={() => setOpen((o) => !o)}>
+      <div className="tool-group-header" onClick={onToggle}>
         <span className="tg-summary">{summary}</span>
         <svg className="tg-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="m6 4 4 4-4 4" />

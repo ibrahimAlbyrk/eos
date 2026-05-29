@@ -5,8 +5,9 @@ import { ToolDetail } from "./ToolDetail.jsx";
 const APPEAR_MS = 600;
 
 export function ToolItem({ tool, standalone }) {
-  const [expanded, setExpanded] = useState(false);
   const ui = useUi();
+  const expandKey = "i:" + (tool.id ?? tool.ts);
+  const expanded = ui.expandedTools.has(expandKey);
   const isRecent = (Date.now() - tool.ts) < 5000;
   const [justAppeared, setJustAppeared] = useState(isRecent && !!tool.result);
   useEffect(() => {
@@ -29,7 +30,7 @@ export function ToolItem({ tool, standalone }) {
 
   return (
     <div className={"tool-item" + (standalone ? " standalone" : "") + (expanded ? " expanded" : "") + (failure ? ` ti-failed-state ti-failed-state-${failure}` : "")}>
-      <div className={"tool-item-header" + (isRunning ? " ti-running" : "")} onClick={() => !isRunning && setExpanded((e) => !e)}>
+      <div className={"tool-item-header" + (isRunning ? " ti-running" : "")} onClick={() => !isRunning && ui.toggleToolExpanded(expandKey)}>
         <span className={"ti-verb" + (isRunning ? " ti-shimmer" : "")}>{label.verb}</span>
         {" "}
         <span className={"ti-file" + (hasPath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
