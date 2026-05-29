@@ -1,5 +1,6 @@
 import { join } from "node:path";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
@@ -8,6 +9,7 @@ import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 
 import { PolicyDecideRequestSchema } from "../../contracts/src/http.ts";
+import { PolicyBehaviorSchema, type PolicyRule } from "../../contracts/src/policy.ts";
 
 export function registerPolicyRoutes(r: Router, c: Container): void {
   r.post("/policy/decide", async ({ req, res }) => {
@@ -22,18 +24,34 @@ export function registerPolicyRoutes(r: Router, c: Container): void {
   });
 
   r.post("/api/policy/rule", async ({ req, res }) => {
-    const body = await readBody(req) as { tool?: string; behavior?: string };
-    if (!body.tool || !body.behavior) { writeJson(res, 400, { error: "tool and behavior required" }); return; }
+    const body = await readBody(req) as { tool?: unknown; behavior?: unknown };
+    if (typeof body.tool !== "string" || body.tool.length === 0) {
+      writeJson(res, 400, { error: "tool must be a non-empty string" });
+      return;
+    }
+    const behaviorParsed = PolicyBehaviorSchema.safeParse(body.behavior);
+    if (!behaviorParsed.success) {
+      writeJson(res, 400, { error: "behavior must be one of allow, deny, ask, rewrite" });
+      return;
+    }
+    const tool = body.tool;
+    const behavior = behaviorParsed.data;
     const policyPath = join(c.config.daemon.home, "policy.yaml");
     try {
-      let yaml = existsSync(policyPath) ? readFileSync(policyPath, "utf8") : "default: ask\nrules:\n";
-      const ruleLine = `  - match:\n      tool: ${body.tool}\n    behavior: ${body.behavior}\n`;
-      if (yaml.includes(`tool: ${body.tool}`)) {
+      const existingRaw = existsSync(policyPath) ? readFileSync(policyPath, "utf8") : "";
+      const doc = (existingRaw ? parseYaml(existingRaw) : null) ?? {};
+      const root = typeof doc === "object" && doc !== null ? doc as Record<string, unknown> : {};
+      const rules: PolicyRule[] = Array.isArray(root.rules) ? root.rules as PolicyRule[] : [];
+      if (rules.some((rule) => rule?.match?.tool === tool)) {
         writeJson(res, 200, { ok: true, existed: true });
         return;
       }
-      yaml = yaml.trimEnd() + "\n" + ruleLine;
-      writeFileSync(policyPath, yaml);
+      const next = {
+        default: root.default ?? "ask",
+        ...(root.ttlMs !== undefined ? { ttlMs: root.ttlMs } : {}),
+        rules: [...rules, { match: { tool }, behavior }],
+      };
+      writeFileSync(policyPath, stringifyYaml(next));
       c.reloadPolicy();
       writeJson(res, 200, { ok: true });
     } catch (e) {

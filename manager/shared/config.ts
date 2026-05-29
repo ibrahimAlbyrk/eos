@@ -11,6 +11,7 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { NotificationConfigSchema, type NotificationConfig } from "../../contracts/src/notifications.ts";
+import { errMsg } from "../../contracts/src/util.ts";
 
 export interface ModelPrice { in: number; out: number; cacheRead: number; cacheCreate: number; cacheCreate1h: number; }
 
@@ -29,6 +30,8 @@ export interface DaemonConfig {
     claudeBin: string;       // path to `claude` CLI (or just "claude" for PATH lookup)
     bunBin: string;          // path to `bun` (used by gateway MCP)
     workerScript: string;    // <repoRoot>/spawner/worker.ts
+    orchestratorPromptFile: string;  // <repoRoot>/manager/orchestrator-prompt.md
+    workerPromptFile: string;        // <repoRoot>/manager/worker-prompt.md
   };
   worker: {
     portRangeStart: number;
@@ -97,6 +100,8 @@ function defaults(): DaemonConfig {
       claudeBin: envStr("CLAUDE_MGR_CLAUDE_BIN", "claude"),
       bunBin: envStr("CLAUDE_MGR_BUN_BIN", "bun"),
       workerScript: join(repoRoot, "spawner", "worker.ts"),
+      orchestratorPromptFile: envStr("CLAUDE_MGR_ORCHESTRATOR_PROMPT_FILE", join(repoRoot, "manager", "orchestrator-prompt.md")),
+      workerPromptFile: envStr("CLAUDE_MGR_WORKER_PROMPT_FILE", join(repoRoot, "manager", "worker-prompt.md")),
     },
     worker: {
       portRangeStart: envNum("CLAUDE_MGR_WORKER_PORT_START", 7500),
@@ -133,6 +138,8 @@ const DaemonConfigOverrideSchema = z.object({
     repoRoot: z.string(),
     claudeBin: z.string(),
     bunBin: z.string(),
+    orchestratorPromptFile: z.string(),
+    workerPromptFile: z.string(),
   }).partial().optional(),
   worker: z.object({
     portRangeStart: z.number().int().positive(),
@@ -209,7 +216,7 @@ export function loadConfig(): DaemonConfig {
         console.log(`[config] overrides loaded from ${path}`);
       }
     } catch (e) {
-      console.log(`[config] failed to parse ${path}: ${(e as Error).message} — ignoring`);
+      console.log(`[config] failed to parse ${path}: ${errMsg(e)} — ignoring`);
     }
   }
   cached = deepFreeze(mergeConfig(base, override));

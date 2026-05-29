@@ -45,4 +45,5 @@ export const ROUTES = {
   commands: "/commands",
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
+  notificationsConfig: "/api/notifications/config",
 };

@@ -7,7 +7,7 @@
     "eos": "./cli.ts"
   },
   "scripts": {
-    "test": "tsx --test shared/__tests__/*.test.ts ../core/src/__tests__/*.test.ts ../spawner/__tests__/*.test.ts"
+    "test": "tsx --test shared/__tests__/*.test.ts services/__tests__/*.test.ts ../core/src/__tests__/*.test.ts ../spawner/__tests__/*.test.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.0",

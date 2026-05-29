@@ -4,6 +4,7 @@
 // as an empty object so the hook delivery still works.
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { errMsg } from "../contracts/src/util.ts";
 
 export interface QuestionAnswer {
   answers: Record<string, string>;
@@ -61,7 +62,7 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
           res.end(JSON.stringify({ ok: true }));
         } catch (e) {
           res.writeHead(500, { "content-type": "application/json" });
-          res.end(JSON.stringify({ error: (e as Error).message }));
+          res.end(JSON.stringify({ error: errMsg(e) }));
         }
         return;
       }
@@ -78,7 +79,7 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
           res.end(JSON.stringify({ ok: true }));
         } catch (e) {
           res.writeHead(500, { "content-type": "application/json" });
-          res.end(JSON.stringify({ error: (e as Error).message }));
+          res.end(JSON.stringify({ error: errMsg(e) }));
         }
         return;
       }

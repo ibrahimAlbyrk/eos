@@ -1,6 +1,6 @@
 // EventRepo — append-only event log per worker. Adapter is SqliteEventRepo.
 
-import type { WorkerEventRow } from "../../../contracts/src/events.ts";
+import type { WorkerEventRow, WorkerEventType } from "../../../contracts/src/events.ts";
 
 export interface EventQuery {
   workerId: string;
@@ -11,7 +11,7 @@ export interface EventQuery {
 
 export interface EventRepo {
   /** Returns the row id of the newly inserted event. */
-  append(workerId: string, ts: number, type: string, payload: unknown): number;
+  append(workerId: string, ts: number, type: WorkerEventType, payload: unknown): number;
   /** Patches the payload of an existing row (used by usage delta-cost back-fill). */
   patchPayload(rowId: number, payload: unknown): void;
   list(q: EventQuery): WorkerEventRow[];

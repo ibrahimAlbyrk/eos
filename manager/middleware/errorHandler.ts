@@ -13,6 +13,7 @@ import {
   UnreachableError,
 } from "../../core/src/errors/index.ts";
 import type { Logger } from "../../core/src/ports/Logger.ts";
+import { errMsg } from "../../contracts/src/util.ts";
 import { BodyTooLargeError } from "./bodyReader.ts";
 
 export function writeJson(res: ServerResponse, status: number, body: unknown): void {
@@ -59,7 +60,7 @@ export function handleError(
     writeJson(res, 400, { error: e.message });
     return;
   }
-  const msg = (e as Error).message ?? String(e);
+  const msg = errMsg(e);
   ctx.log.error("request failed", { request_id: ctx.requestId, method: ctx.method, path: ctx.path, error: msg });
   writeJson(res, 500, { error: msg });
 }

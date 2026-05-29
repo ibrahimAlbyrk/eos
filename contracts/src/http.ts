@@ -94,6 +94,20 @@ export type PolicyDecideResponse = z.infer<typeof PolicyDecideResponseSchema>;
 // to a caller; this stays for in-process typing.
 export const InternalDecisionSchema = DecisionSchema;
 
+// ---- POST /api/policy/rule -------------------------------------------------
+
+export const PolicyRuleRequestSchema = z.object({
+  tool: z.string().min(1),
+  behavior: z.string().min(1),
+});
+export type PolicyRuleRequest = z.infer<typeof PolicyRuleRequestSchema>;
+
+export const PolicyRuleResponseSchema = z.object({
+  ok: z.boolean(),
+  existed: z.boolean().optional(),
+});
+export type PolicyRuleResponse = z.infer<typeof PolicyRuleResponseSchema>;
+
 // ---- GET /pending, POST /pending/:id/decision ------------------------------
 
 export const PendingListResponseSchema = z.array(PendingPermissionRowSchema);
@@ -128,7 +142,6 @@ export const ModelPriceSchema = z.object({
 
 export const UiConfigResponseSchema = z.object({
   models: z.array(z.string()),
-  budgets: z.record(z.string(), z.number()),
   prices: z.record(z.string(), ModelPriceSchema),
   permissions: z.object({ defaultTtlMs: z.number().int().positive() }),
   sse: z.object({ keepaliveMs: z.number().int().positive() }),
@@ -139,6 +152,13 @@ export type UiConfigResponse = z.infer<typeof UiConfigResponseSchema>;
 
 export const PickDirectoryResponseSchema = z.union([
   z.object({ path: z.string() }),
+  z.object({ cancelled: z.literal(true) }),
+]);
+
+// ---- GET /pick-file --------------------------------------------------------
+
+export const PickFileResponseSchema = z.union([
+  z.object({ paths: z.array(z.string()) }),
   z.object({ cancelled: z.literal(true) }),
 ]);
 
@@ -172,6 +192,17 @@ export const BranchesResponseSchema = z.object({
 });
 export type BranchesResponse = z.infer<typeof BranchesResponseSchema>;
 
+// ---- POST /fs/checkout -----------------------------------------------------
+
+export const FsCheckoutRequestSchema = z.object({
+  cwd: z.string().min(1),
+  branch: z.string().min(1),
+});
+export type FsCheckoutRequest = z.infer<typeof FsCheckoutRequestSchema>;
+
+export const FsCheckoutResponseSchema = z.object({ ok: z.boolean() });
+export type FsCheckoutResponse = z.infer<typeof FsCheckoutResponseSchema>;
+
 // ---- GET /fs/recents -------------------------------------------------------
 
 export const RecentsResponseSchema = z.object({ paths: z.array(z.string()) });
@@ -193,6 +224,34 @@ export const FsReadResponseSchema = z.object({
   lines: z.number().int().nonnegative(),
 });
 export type FsReadResponse = z.infer<typeof FsReadResponseSchema>;
+
+// ---- GET /fs/list ----------------------------------------------------------
+
+export const FsListQuerySchema = z.object({
+  cwd: z.string().min(1),
+  query: z.string().optional(),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+});
+export type FsListQuery = z.infer<typeof FsListQuerySchema>;
+
+export const FsEntrySchema = z.object({
+  name: z.string(),
+  absolutePath: z.string(),
+  relativePath: z.string(),
+  type: z.enum(["file", "directory"]),
+});
+export type FsEntry = z.infer<typeof FsEntrySchema>;
+
+export const FsListResponseSchema = z.object({
+  entries: z.array(FsEntrySchema),
+});
+export type FsListResponse = z.infer<typeof FsListResponseSchema>;
+
+// ---- GET /fs/image ---------------------------------------------------------
+// Binary response (image bytes); only the query is schematized.
+
+export const FsImageQuerySchema = z.object({ path: z.string().min(1) });
+export type FsImageQuery = z.infer<typeof FsImageQuerySchema>;
 
 // ---- POST /fs/write --------------------------------------------------------
 
@@ -277,6 +336,17 @@ export const ReportResponseSchema = z.object({
 });
 export type ReportResponse = z.infer<typeof ReportResponseSchema>;
 
+// ---- POST /workers/:id/question-notify -------------------------------------
+
+export const QuestionNotifyRequestSchema = z.object({
+  questions: z.array(UnknownRecordSchema),
+  toolUseId: z.string(),
+});
+export type QuestionNotifyRequest = z.infer<typeof QuestionNotifyRequestSchema>;
+
+export const QuestionNotifyResponseSchema = z.object({ ok: z.boolean() });
+export type QuestionNotifyResponse = z.infer<typeof QuestionNotifyResponseSchema>;
+
 // ---- GET/PUT /api/notifications/config -------------------------------------
 
 export const NotificationConfigRequestSchema = NotificationConfigSchema.partial();
@@ -314,12 +384,14 @@ export const ROUTES = {
   orchestrators: "/orchestrators",
   orchestratorMessage: (id: string): string => `/orchestrators/${id}/message`,
   policyDecide: "/policy/decide",
+  policyRule: "/api/policy/rule",
   pending: "/pending",
   pendingDecision: (id: string): string => `/pending/${id}/decision`,
   session: "/session",
   metrics: "/metrics",
   uiConfig: "/api/ui-config",
   pickDirectory: "/pick-directory",
+  pickFile: "/pick-file",
   fsDefaultApp: "/fs/default-app",
   fsOpen: "/fs/open",
   fsIcon: "/fs/icon",
@@ -327,6 +399,9 @@ export const ROUTES = {
   fsRecents: "/fs/recents",
   fsReveal: "/fs/reveal",
   fsRead: "/fs/read",
+  fsList: "/fs/list",
+  fsImage: "/fs/image",
+  fsCheckout: "/fs/checkout",
   fsWrite: "/fs/write",
   fsPaste: "/fs/paste",
   workerName: (id: string): string => `/workers/${id}/name`,
@@ -336,6 +411,7 @@ export const ROUTES = {
   workerInterrupt: (id: string): string => `/workers/${id}/interrupt`,
   workerKeystroke: (id: string): string => `/workers/${id}/keystroke`,
   workerQuestion: (id: string): string => `/workers/${id}/question`,
+  workerQuestionNotify: (id: string): string => `/workers/${id}/question-notify`,
   workerQuestionAnswer: (id: string): string => `/workers/${id}/question-answer`,
   workerReport: (id: string): string => `/workers/${id}/report`,
   commands: "/commands",

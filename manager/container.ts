@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { writeFileSync, unlinkSync, existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from "node:fs";
 
 import { loadConfig, reloadConfig as reloadConfigFromDisk, type DaemonConfig, type ModelPrice } from "./shared/config.ts";
+import { errMsg } from "../contracts/src/util.ts";
 
 import { systemClock } from "../infra/src/time/SystemClock.ts";
 import { randomIdGenerator } from "../infra/src/id/RandomIdGenerator.ts";
@@ -36,6 +37,7 @@ import {
 } from "../core/src/services/notification-triggers/index.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { InterruptCooldownService } from "./services/InterruptCooldownService.ts";
+import { PendingQuestionService } from "./services/PendingQuestionService.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
 export { randomOrchestratorName } from "./shared/names.ts";
@@ -63,7 +65,7 @@ export function buildContainer() {
         try { unlinkSync(join(backupDir, old.n)); } catch {}
       }
     } catch (e) {
-      process.stderr.write(`[daemon] backup skipped: ${(e as Error).message}\n`);
+      process.stderr.write(`[daemon] backup skipped: ${errMsg(e)}\n`);
     }
   }
 
@@ -111,6 +113,7 @@ export function buildContainer() {
   const models: ModelCatalog = {
     priceFor(model: string | null | undefined): ModelPrice {
       const m = String(model ?? "opus").toLowerCase();
+      if (m in config.prices) return config.prices[m];
       if (m.includes("opus")) return config.prices.opus;
       if (m.includes("sonnet")) return config.prices.sonnet;
       if (m.includes("haiku")) return config.prices.haiku;
@@ -182,6 +185,10 @@ export function buildContainer() {
       "--daemon-url", `http://127.0.0.1:${config.daemon.port}`,
       "--worker-id", id,
       "--port", String(port),
+      "--heartbeat-ms", String(config.worker.heartbeatMs),
+      "--heartbeat-quiet-ms", String(config.worker.heartbeatQuietMs),
+      "--shutdown-grace-ms", String(config.worker.shutdownGraceMs),
+      "--pty-write-delay-ms", String(config.worker.ptyWriteDelayMs),
     ];
     if (spec.prompt && spec.prompt.trim().length > 0) {
       args.push("--prompt", spec.prompt);
@@ -243,6 +250,10 @@ export function buildContainer() {
   };
 
   const interruptCooldown = new InterruptCooldownService(systemClock);
+  const pendingQuestions = new PendingQuestionService(systemClock, randomIdGenerator);
+
+  // Reaper — reject pending questions whose TTL has elapsed.
+  setInterval(() => pendingQuestions.sweepExpired(systemClock.now()), 30_000).unref();
 
   return {
     get config() { return config; },
@@ -269,6 +280,7 @@ export function buildContainer() {
     buildEnv,
     logFileFor,
     interruptCooldown,
+    pendingQuestions,
     writeOrchestratorMcpConfig,
     cleanupOrchestratorMcpConfig,
     reloadPolicy(): void {

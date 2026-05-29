@@ -14,8 +14,7 @@ import type { Clock } from "../ports/Clock.ts";
 import type { WorkerClient } from "../ports/WorkerClient.ts";
 import type { Logger } from "../ports/Logger.ts";
 import { NotFoundError } from "../errors/index.ts";
-
-export type PermissionMode = "default" | "acceptEdits" | "plan" | "bypassPermissions";
+import type { PermissionMode } from "../../../contracts/src/worker.ts";
 
 export interface SetWorkerPermissionModeDeps {
   workers: WorkerRepo;

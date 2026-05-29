@@ -2,6 +2,7 @@
 // runtime types from contracts/ so daemon and core share the same shapes.
 
 import type { Decision, PolicyBehavior } from "../../../contracts/src/policy.ts";
+import { errMsg } from "../../../contracts/src/util.ts";
 export type { Decision, PolicyBehavior };
 
 export type PolicyAction = PolicyBehavior;
@@ -60,7 +61,7 @@ export function compileRule(
     try {
       fieldMatchers.push({ key: k, re: new RegExp(v as string) });
     } catch (e) {
-      log(`policy rule ${idx} (${source}) has invalid regex for "${k}": ${(e as Error).message} — dropping rule`);
+      log(`policy rule ${idx} (${source}) has invalid regex for "${k}": ${errMsg(e)} — dropping rule`);
       return null;
     }
   }
@@ -73,7 +74,7 @@ export function compileRule(
     try {
       rewriteRe = new RegExp(rule.rewriteFrom);
     } catch (e) {
-      log(`policy rule ${idx} (${source}) bad rewriteFrom regex: ${(e as Error).message} — dropping`);
+      log(`policy rule ${idx} (${source}) bad rewriteFrom regex: ${errMsg(e)} — dropping`);
       return null;
     }
   }

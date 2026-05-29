@@ -5,6 +5,7 @@
 import type { EventRepo } from "../ports/EventRepo.ts";
 import type { EventBus } from "../ports/EventBus.ts";
 import type { Clock } from "../ports/Clock.ts";
+import type { WorkerEventType } from "../../../contracts/src/events.ts";
 
 export interface LogEventDeps {
   events: EventRepo;
@@ -15,7 +16,7 @@ export interface LogEventDeps {
 export function logEvent(
   deps: LogEventDeps,
   workerId: string,
-  type: string,
+  type: WorkerEventType,
   payload?: unknown,
 ): number {
   const rowId = deps.events.append(workerId, deps.clock.now(), type, payload);

@@ -27,23 +27,21 @@ const audit = new AuditLog();
 
 const server = new McpServer({ name: "gateway", version: "0.0.1" });
 
+const decideInputShape = {
+  tool_name: z.string(),
+  input: z.record(z.string(), z.unknown()),
+  tool_use_id: z.string().optional(),
+};
+
 server.registerTool(
   "decide",
   {
     description:
       "Permission gateway for Claude Code. Returns allow/deny with optional input rewrite. Wired via --permission-prompt-tool mcp__gateway__decide.",
-    inputSchema: {
-      tool_name: z.string(),
-      input: z.record(z.string(), z.unknown()),
-      tool_use_id: z.string().optional(),
-    },
+    inputSchema: decideInputShape,
   },
   async (rawArgs) => {
-    const validated = z.object({
-      tool_name: z.string(),
-      input: z.record(z.string(), z.unknown()),
-      tool_use_id: z.string().optional(),
-    }).safeParse(rawArgs);
+    const validated = z.object(decideInputShape).safeParse(rawArgs);
     if (!validated.success) {
       return { content: [{ type: "text" as const, text: JSON.stringify({ behavior: "deny", message: "invalid input" }) }] };
     }

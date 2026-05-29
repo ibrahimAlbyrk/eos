@@ -4,6 +4,18 @@ export const MODELS = [
   { id: "opus-4.8",   aliases: ["opus"],   label: "opus-4.8",   name: "Opus 4.8",   ctx: "1M",   tag: "most capable" },
 ];
 
+export const EFFORTS = [
+  { id: "low",       label: "Low" },
+  { id: "medium",    label: "Medium" },
+  { id: "high",      label: "High" },
+  { id: "xhigh",    label: "Extra high" },
+  { id: "max",       label: "Max" },
+  { id: "ultracode", label: "Ultracode" },
+  { id: "auto",      label: "Auto" },
+];
+
+export const EFFORT_LABELS = Object.fromEntries(EFFORTS.map((e) => [e.id, e.label]));
+
 export function modelName(raw) {
   if (!raw) return null;
   for (const m of MODELS) {

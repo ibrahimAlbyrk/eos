@@ -7,6 +7,7 @@
 import js from "@eslint/js";
 import globals from "globals";
 import tsParser from "@typescript-eslint/parser";
+import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   {
@@ -114,6 +115,26 @@ export default [
           { group: ["../../manager/*", "../../../manager/*", "../../spawner/*", "../../../spawner/*", "../../gateway/*", "../../../gateway/*"], message: "infra/ must not depend on entrypoint packages. Configuration is injected at the composition root." },
         ],
       }],
+    },
+  },
+  // Co-located contracts tests need node:test + node:assert. The strict
+  // contracts/ rule above bans node built-ins for the pure schemas; relax it
+  // for the __tests__ tree only.
+  {
+    files: ["contracts/src/__tests__/**/*.ts"],
+    rules: {
+      "no-restricted-imports": "off",
+    },
+  },
+  // React rules for the web package. rules-of-hooks is pure correctness;
+  // exhaustive-deps is advisory (warn) and the source uses explicit
+  // disable comments where a stale-closure is intentional.
+  {
+    files: ["manager/web/src/**/*.{js,jsx}"],
+    plugins: { "react-hooks": reactHooks },
+    rules: {
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
 ];

@@ -16,7 +16,7 @@ if [ "$tool_name" = "AskUserQuestion" ]; then
      [ -n "${CLAUDE_MGR_WORKER_ID:-}" ]; then
     q_body=$(printf '%s' "$input" | jq -c '{questions: .tool_input.questions, toolUseId: .tool_use_id}' 2>/dev/null || echo "")
     if [ -n "$q_body" ]; then
-      resp=$(curl -sS --max-time 3600 -X POST \
+      resp=$(curl -sS --max-time "${CLAUDE_MGR_POLICY_TIMEOUT_SEC:-3600}" -X POST \
         -H 'content-type: application/json' \
         -d "$q_body" \
         "${CLAUDE_MGR_DAEMON_URL}/workers/${CLAUDE_MGR_WORKER_ID}/question" 2>/dev/null || true)
@@ -44,7 +44,7 @@ if [ -n "${CLAUDE_MGR_SPAWNED:-}" ] && \
         '{worker_id: $wid, tool_name: .tool_name, input: (.tool_input // {}), tool_use_id: (.tool_use_id // null)}' \
         2>/dev/null || echo "")
   if [ -n "$body" ]; then
-    decision=$(curl -sS --max-time 3600 -X POST \
+    decision=$(curl -sS --max-time "${CLAUDE_MGR_POLICY_TIMEOUT_SEC:-3600}" -X POST \
       -H 'content-type: application/json' \
       -d "$body" \
       "${CLAUDE_MGR_DAEMON_URL}/policy/decide" 2>/dev/null || true)

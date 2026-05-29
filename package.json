@@ -11,6 +11,7 @@
     "@eslint/js": "^10.0.1",
     "@typescript-eslint/parser": "^8.59.4",
     "eslint": "^10.4.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.6.0"
   }
 }

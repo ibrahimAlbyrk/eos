@@ -8,10 +8,9 @@
 import type { WorkerRepo } from "../ports/WorkerRepo.ts";
 import type { PermissionModeResolver } from "../ports/PermissionModeResolver.ts";
 import type { PermissionMode } from "../domain/permission-mode.ts";
+import { PermissionModeSchema } from "../../../contracts/src/worker.ts";
 
-const VALID_MODES: ReadonlySet<PermissionMode> = new Set([
-  "default", "acceptEdits", "plan", "bypassPermissions",
-]);
+const VALID_MODES: ReadonlySet<PermissionMode> = new Set(PermissionModeSchema.options);
 
 function asMode(value: string | null | undefined): PermissionMode | null {
   if (!value) return null;

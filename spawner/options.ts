@@ -22,6 +22,16 @@ export interface WorkerOptions {
   model: string;
   effort: string;
   parentId: string | undefined;
+  heartbeatMs: number | undefined;
+  heartbeatQuietMs: number | undefined;
+  shutdownGraceMs: number | undefined;
+  ptyWriteDelayMs: number | undefined;
+}
+
+function parseIntFlag(v: string | undefined): number | undefined {
+  if (v === undefined) return undefined;
+  const n = Number.parseInt(v, 10);
+  return Number.isFinite(n) ? n : undefined;
 }
 
 export function parseWorkerOptions(): WorkerOptions {
@@ -45,6 +55,10 @@ export function parseWorkerOptions(): WorkerOptions {
       model: { type: "string" },
       effort: { type: "string" },
       "parent-id": { type: "string" },
+      "heartbeat-ms": { type: "string" },
+      "heartbeat-quiet-ms": { type: "string" },
+      "shutdown-grace-ms": { type: "string" },
+      "pty-write-delay-ms": { type: "string" },
     },
     strict: true,
   });
@@ -76,5 +90,9 @@ export function parseWorkerOptions(): WorkerOptions {
     model: values.model ?? "opus",
     effort: values.effort ?? "high",
     parentId: values["parent-id"],
+    heartbeatMs: parseIntFlag(values["heartbeat-ms"]),
+    heartbeatQuietMs: parseIntFlag(values["heartbeat-quiet-ms"]),
+    shutdownGraceMs: parseIntFlag(values["shutdown-grace-ms"]),
+    ptyWriteDelayMs: parseIntFlag(values["pty-write-delay-ms"]),
   };
 }

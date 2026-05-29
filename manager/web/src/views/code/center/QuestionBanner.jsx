@@ -11,10 +11,9 @@ export function QuestionBanner({ questions, workerId, onClose, sendToAgent, inte
 
   const total = questions.length;
   const q = questions[currentIndex];
-  if (!q) return null;
 
-  const multi = !!q.multiSelect;
-  const options = q.options ?? [];
+  const multi = !!q?.multiSelect;
+  const options = q?.options ?? [];
   const otherIndex = options.length;
   const sel = selections.get(currentIndex) ?? new Set();
   const otherText = otherTexts.get(currentIndex) ?? "";
@@ -119,6 +118,8 @@ export function QuestionBanner({ questions, workerId, onClose, sendToAgent, inte
   useEffect(() => {
     if (otherSelected && otherInputRef.current) otherInputRef.current.focus();
   }, [otherSelected]);
+
+  if (!q) return null;
 
   return (
     <div className="q-banner">

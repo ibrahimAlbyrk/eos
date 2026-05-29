@@ -1,18 +1,8 @@
 import { useUi } from "../../../state/ui.jsx";
-import { MODELS } from "../../../lib/models.js";
+import { MODELS, EFFORTS } from "../../../lib/models.js";
 
 const matchesModel = (current, model) =>
   current === model.id || model.aliases.includes(current);
-
-const EFFORTS = [
-  { id: "low",       label: "Low" },
-  { id: "medium",    label: "Medium" },
-  { id: "high",      label: "High" },
-  { id: "xhigh",    label: "Extra high" },
-  { id: "max",       label: "Max" },
-  { id: "ultracode", label: "Ultracode" },
-  { id: "auto",      label: "Auto" },
-];
 
 export function ModelPopover({ live }) {
   const ui = useUi();
