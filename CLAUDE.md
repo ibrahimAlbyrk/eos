@@ -19,7 +19,7 @@ infra/util/       — Cross-cutting infra utilities (safeStringify).
 gateway/          — MCP permission server. Strategy: DaemonProxyPolicy vs StandalonePolicy.
 spawner/          — worker.ts composition root + submodules (pty-queue, tail, jsonl-parser, session, worktree, etc.).
 manager/          — daemon.ts (composition root + container + routes), cli.ts (Command pattern), orchestrator-mcp.ts, worker-mcp.ts.
-manager/services/ — Extracted stateful services (InterruptCooldownService).
+manager/services/ — Extracted stateful services (TurnSettleService).
 manager/routes/   — Split by concern: workers, orchestrators, policy, fs-picker, fs-read, fs-git, etc.
 manager/shared/   — Centralized config (env→file→default, deeply frozen), daemon HTTP client, path utils.
 manager/web/      — React 18 + Vite. api/client.js (typed HTTP + request dedup), hooks/useLive.js (SSE+poll), state/.
@@ -133,7 +133,7 @@ Adding new things:
 - **MCP tool**: `manager/orchestrator-mcp/tools/` or `manager/worker-mcp/tools/` implementing `McpToolModule` → add to `tool-registry.ts`
 - **Infra concern**: port in `core/src/ports/` → impl in `infra/src/<concern>/` → wire in `manager/container.ts`
 - **Shared schema**: reusable Zod primitives go in `contracts/src/shared.ts` (e.g. `UnknownRecordSchema`)
-- **Manager service**: stateful extracted logic goes in `manager/services/` (e.g. `InterruptCooldownService`)
+- **Manager service**: stateful extracted logic goes in `manager/services/` (e.g. `TurnSettleService`)
 - **Policy rule**: `POST /api/policy/rule` appends to `~/.claude-mgr/policy.yaml` + reloads; used by web UI "Always allow"
 
 Config is deeply frozen after load. Mutation requires `reloadConfig()` (writes file first, then reloads). Never `Object.assign` on live config.

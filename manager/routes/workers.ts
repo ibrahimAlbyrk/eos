@@ -110,7 +110,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       {
         workers: c.workers, events: c.events, bus: c.bus,
         clock: c.clock, models: c.models, log: c.log,
-        isInterruptCooldown: (id) => c.interruptCooldown.isActive(id),
+        isSettling: (id) => c.turnSettle.isSettling(id),
+        markSettling: (id) => c.turnSettle.mark(id),
       },
       { workerId: params.id, type: body.type, payload: body.payload },
     );
@@ -123,7 +124,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const fromParent = typeof raw.fromParent === "string" ? raw.fromParent : null;
 
     if (fromParent) {
-      c.interruptCooldown.clear(params.id);
+      c.turnSettle.clear(params.id);
       const worker = c.workers.findById(params.id);
       if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
       const parent = c.workers.findById(fromParent);
@@ -145,7 +146,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       return;
     }
 
-    c.interruptCooldown.clear(params.id);
+    c.turnSettle.clear(params.id);
     const result = await dispatchMessage(
       {
         workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
@@ -216,7 +217,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const worker = c.workers.findById(params.id);
     if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
     if (!c.supervisor.has(params.id)) { writeJson(res, 409, { error: "worker not running" }); return; }
-    c.interruptCooldown.mark(params.id);
+    c.turnSettle.mark(params.id);
     c.httpWorkerClient.sendInterrupt(worker.port).catch(() => {});
     transitionState(
       { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },

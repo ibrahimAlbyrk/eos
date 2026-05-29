@@ -36,7 +36,7 @@ import {
   permissionPendingTrigger, permissionExpiredTrigger,
 } from "../core/src/services/notification-triggers/index.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
-import { InterruptCooldownService } from "./services/InterruptCooldownService.ts";
+import { TurnSettleService } from "./services/TurnSettleService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
@@ -249,7 +249,7 @@ export function buildContainer() {
     } catch {}
   };
 
-  const interruptCooldown = new InterruptCooldownService(systemClock);
+  const turnSettle = new TurnSettleService(systemClock);
   const pendingQuestions = new PendingQuestionService(systemClock, randomIdGenerator);
 
   // Reaper — reject pending questions whose TTL has elapsed.
@@ -279,7 +279,7 @@ export function buildContainer() {
     buildArgs,
     buildEnv,
     logFileFor,
-    interruptCooldown,
+    turnSettle,
     pendingQuestions,
     writeOrchestratorMcpConfig,
     cleanupOrchestratorMcpConfig,

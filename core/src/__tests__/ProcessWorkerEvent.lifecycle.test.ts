@@ -6,18 +6,23 @@ import type { WorkerState } from "../../../contracts/src/events.ts";
 
 interface AppendedEvent { type: string; payload: unknown }
 
-function buildDeps(initialState: WorkerState): {
+function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {}): {
   deps: ProcessWorkerEventDeps;
   events: AppendedEvent[];
   row: { state: WorkerState };
+  toolCalls: { count: number };
 } {
   const events: AppendedEvent[] = [];
   const row = { state: initialState };
+  const toolCalls = { count: 0 };
+  // Mutable so markSettling (driven by the Stop hook) actually opens the window
+  // a subsequent jsonl event then observes — mirrors TurnSettleService.
+  let settling = opts.settling ?? false;
 
   const workers = {
     findById: () => row as unknown as WorkerRow,
     updateState: (_id: string, next: WorkerState) => { row.state = next; },
-    incrementToolCalls: () => {},
+    incrementToolCalls: () => { toolCalls.count++; },
   } as unknown as ProcessWorkerEventDeps["workers"];
 
   const eventsRepo = {
@@ -40,9 +45,11 @@ function buildDeps(initialState: WorkerState): {
     clock: { now: () => 1234 },
     models: { priceFor: () => ({ in: 0, out: 0, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 }) },
     log: { info: () => {}, warn: () => {}, error: () => {}, child: () => deps.log },
+    isSettling: () => settling,
+    markSettling: () => { settling = true; },
   } as unknown as ProcessWorkerEventDeps;
 
-  return { deps, events, row };
+  return { deps, events, row, toolCalls };
 }
 
 const stateEvents = (events: AppendedEvent[]): Array<{ state?: string; reason?: string }> =>
@@ -108,5 +115,37 @@ describe("ProcessWorkerEvent.jsonl — IDLE self-heal", () => {
       { state: "IDLE", from: "WORKING", reason: "prompt_lost" },
       { state: "WORKING", from: "IDLE", reason: "jsonl:assistant_text" },
     ]);
+  });
+});
+
+describe("ProcessWorkerEvent.jsonl — turn-settle suppression", () => {
+  it("Stop opens a settle window so trailing JSONL does NOT re-flip IDLE → WORKING", () => {
+    const { deps, events, row } = buildDeps("WORKING");
+    processWorkerEvent(deps, { workerId: "w1", type: "hook", payload: { event: "Stop" } });
+    assert.equal(row.state, "IDLE");
+    // The just-ended turn's last assistant message lands after Stop (unordered
+    // event channel) — it must not re-animate the worker.
+    processWorkerEvent(deps, { workerId: "w1", type: "jsonl", payload: { kind: "assistant_text", text: "done" } });
+    assert.equal(row.state, "IDLE");
+    assert.deepEqual(stateEvents(events), [{ state: "IDLE", from: "WORKING", reason: "hook:Stop" }]);
+  });
+
+  it("does not recover IDLE → WORKING while settling (interrupt path)", () => {
+    const { deps, events } = buildDeps("IDLE", { settling: true });
+    processWorkerEvent(deps, { workerId: "w1", type: "jsonl", payload: { kind: "assistant_text" } });
+    assert.deepEqual(stateEvents(events), []);
+  });
+
+  it("still heals SPAWNING → WORKING while settling (boot recovery is not suppressed)", () => {
+    const { deps, events } = buildDeps("SPAWNING", { settling: true });
+    processWorkerEvent(deps, { workerId: "w1", type: "jsonl", payload: { kind: "tool_use", id: "T1" } });
+    assert.deepEqual(stateEvents(events), [{ state: "WORKING", from: "SPAWNING", reason: "jsonl:tool_use" }]);
+  });
+
+  it("counts trailing tool_use even when the WORKING re-flip is suppressed", () => {
+    const { deps, row, toolCalls } = buildDeps("IDLE", { settling: true });
+    processWorkerEvent(deps, { workerId: "w1", type: "jsonl", payload: { kind: "tool_use", id: "T1" } });
+    assert.equal(row.state, "IDLE");
+    assert.equal(toolCalls.count, 1);
   });
 });

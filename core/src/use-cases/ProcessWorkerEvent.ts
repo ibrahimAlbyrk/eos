@@ -22,9 +22,12 @@ export interface ProcessWorkerEventDeps {
   clock: Clock;
   models: ModelCatalog;
   log: Logger;
-  /** Returns true while a worker is in interrupt cooldown — suppresses
-   *  heartbeat/hook transitions back to WORKING. */
-  isInterruptCooldown?(workerId: string): boolean;
+  /** True while a worker is inside its post-turn settle window — suppresses
+   *  heartbeat/hook/jsonl transitions that would re-flip a just-idled worker
+   *  back to WORKING from trailing transcript of the finished turn. */
+  isSettling?(workerId: string): boolean;
+  /** Opens the settle window for a worker whose turn just ended (Stop hook). */
+  markSettling?(workerId: string): void;
 }
 
 export interface WorkerEventInput {
@@ -54,9 +57,13 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
   hook(deps, input) {
     const evt = (input.payload as { event?: string })?.event;
     if (evt === "PostToolUse") {
-      if (deps.isInterruptCooldown?.(input.workerId)) return;
+      if (deps.isSettling?.(input.workerId)) return;
       transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: "hook:PostToolUse" });
     } else if (evt === "Stop") {
+      // Turn ended. Open the settle window before going IDLE so trailing
+      // transcript JSONL (which can arrive after this Stop via the unordered
+      // event channel) does not re-animate the worker back to WORKING.
+      deps.markSettling?.(input.workerId);
       transitionState(deps, { workerId: input.workerId, next: "IDLE", reason: "hook:Stop" });
     } else if (evt === "SessionEnd") {
       transitionState(deps, { workerId: input.workerId, next: "ENDING", reason: "hook:SessionEnd" });
@@ -66,9 +73,15 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
     const kind = (input.payload as { kind?: string })?.kind;
     if (kind === "assistant_text" || kind === "thinking" || kind === "tool_use") {
       const cur = deps.workers.findById(input.workerId);
-      // Recover from IDLE too: a worker flipped to IDLE by prompt_unacknowledged
-      // was actually alive (just slow) if real JSONL eventually lands — heal it.
-      if (cur && (cur.state === "SPAWNING" || cur.state === "IDLE")) {
+      // SPAWNING always heals on first real JSONL (boot). IDLE heals only when
+      // the worker is NOT settling: an IDLE flipped by prompt_unacknowledged was
+      // actually alive (just slow) and should recover, but an IDLE reached via a
+      // just-ended turn (Stop/interrupt) must stay put — the incoming JSONL is
+      // trailing transcript of that finished turn, not a new one.
+      const canRecover =
+        cur?.state === "SPAWNING" ||
+        (cur?.state === "IDLE" && !deps.isSettling?.(input.workerId));
+      if (canRecover) {
         transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: `jsonl:${kind}` });
       }
     }
@@ -87,7 +100,7 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
     }
   },
   heartbeat(deps, input) {
-    if (deps.isInterruptCooldown?.(input.workerId)) return;
+    if (deps.isSettling?.(input.workerId)) return;
     const cur = deps.workers.findById(input.workerId);
     if (cur && (cur.state === "SPAWNING" || cur.state === "IDLE")) {
       transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: "heartbeat" });
