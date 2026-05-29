@@ -124,15 +124,20 @@ export type HeartbeatPayload = z.infer<typeof HeartbeatPayloadSchema>;
 export const LifecyclePhaseSchema = z.enum([
   "claude_spawning",
   "prompt_sent",
+  "ready_no_prompt",
+  "ready_timeout",
+  "prompt_unacknowledged",
   "message_received",
   "pty_exit",
   "uncaught_exception",
   "unhandled_rejection",
 ]);
 
+// Lifecycle payloads are open phase-tagged records — some phases carry extra
+// fields (e.g. prompt_unacknowledged carries elapsedMs), so we passthrough.
 export const LifecyclePayloadSchema = z.object({
   phase: LifecyclePhaseSchema,
-});
+}).passthrough();
 export type LifecyclePayload = z.infer<typeof LifecyclePayloadSchema>;
 
 // Body the worker POSTs to /workers/:id/events.

@@ -144,6 +144,18 @@ export function Messages({ live }) {
   const agentBusy = selectedWorker && (selectedWorker.state === "SPAWNING" || selectedWorker.state === "WORKING");
   const interrupted = live.interruptedId === selectedWorker?.id;
 
+  // The worker's boot prompt was never acknowledged (no hook / no JSONL): it
+  // sits IDLE having never started. Surface a resend so a silent loss is
+  // actionable instead of looking like a finished agent.
+  const promptLost = useMemo(() => {
+    if (!selectedWorker || selectedWorker.state !== "IDLE") return false;
+    let lastReason = null;
+    for (const ev of events) {
+      if (ev.type === "state") lastReason = parsePayload(ev.payload)?.reason ?? null;
+    }
+    return lastReason === "prompt_lost";
+  }, [events, selectedWorker?.state]);
+
   const lastBlock = blocks[blocks.length - 1];
 
   // Auto-flush queued messages once the agent's response is actually rendered.
@@ -213,6 +225,17 @@ export function Messages({ live }) {
             busy={!!agentBusy}
             elapsed={agentBusy && lastIsUser && lastUserTs && waitingElapsedMs >= 1000 ? fmtElapsedShort(waitingElapsedMs) : null}
           />
+        )}
+        {promptLost && selectedWorker && (
+          <div className="prompt-lost">
+            <span className="prompt-lost-text">Prompt may have been lost — the agent never started.</span>
+            <button
+              className="prompt-lost-btn"
+              onClick={() => { ui.addOptimisticUserMessage(selectedWorker.id, selectedWorker.prompt); live.sendToAgent(selectedWorker.id, selectedWorker.prompt); }}
+            >
+              Resend
+            </button>
+          </div>
         )}
       </div>
       {showScrollBtn && (

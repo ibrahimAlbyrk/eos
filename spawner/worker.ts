@@ -23,6 +23,8 @@ import {
   startHeartbeat,
   createShutdownScheduler,
 } from "./session.ts";
+import { createReadinessGate } from "./readiness-gate.ts";
+import { createPromptAckWatchdog } from "./prompt-ack.ts";
 
 // Timing defaults. Each is overridable by a CLI flag (see options.ts);
 // these are the fallbacks used when the flag is absent.
@@ -31,9 +33,17 @@ const DEFAULT_HEARTBEAT_QUIET_MS = 6000;
 const DEFAULT_SHUTDOWN_GRACE_MS = 2500;
 const DEFAULT_PTY_WRITE_DELAY_MS = 300;
 
-// Boot animation settle window: messages written before claude finishes
-// booting get eaten by the TUI, so we buffer pre-boot writes for this long.
-const BOOT_DELAY_MS = 2500;
+// Readiness gate: we wait for the composer box-border '╭' to appear in the PTY
+// stream (proof the TUI can accept pasted input) plus a short quiescence window
+// before writing the prompt, so the CR is never swallowed. If the marker never
+// shows we fall back after this bound — same blind delay as the old fixed wait.
+const COMPOSER_READY_MARKER = "╭";
+const DEFAULT_READINESS_FALLBACK_MS = 2500;
+const DEFAULT_READINESS_SETTLE_MS = 250;
+// If the boot prompt is not acknowledged (no hook / no JSONL) within this
+// window, we declare it lost so the daemon stops showing a false WORKING. Must
+// exceed heartbeatQuietMs + heartbeatMs so a healthy slow worker is not flagged.
+const DEFAULT_PROMPT_ACK_WINDOW_MS = 15000;
 // Grace between SIGTERM and SIGKILL of the claude PTY child during cleanup.
 const PTY_SIGKILL_DELAY_MS = 1500;
 // Long-poll timeout for the question hook → daemon round-trip. Must stay
@@ -99,7 +109,6 @@ const writeQueue = new PtyWriteQueue(
   },
   opts.ptyWriteDelayMs ?? DEFAULT_PTY_WRITE_DELAY_MS,
 );
-pty.onData((data: string) => process.stdout.write(data));
 
 // Lifecycle ----------------------------------------------------------------
 
@@ -117,32 +126,70 @@ const heartbeat = startHeartbeat({
   emit: (t, p) => evt.emit(t, p),
 });
 
-// Ingest server (message + hook) ------------------------------------------
+// Boot gate + prompt delivery ---------------------------------------------
 
-// Messages that arrive before claude has finished its boot animation get
-// eaten by the TUI (cursor positioning swallows the CR). We buffer any
-// pre-boot writes here and flush them once BOOT_DELAY_MS has elapsed.
+const ack = createPromptAckWatchdog({
+  ackWindowMs: opts.promptAckWindowMs ?? DEFAULT_PROMPT_ACK_WINDOW_MS,
+  now: () => Date.now(),
+  onUnacknowledged: (elapsedMs): void => {
+    // No hook and no JSONL ever arrived: the prompt was almost certainly
+    // swallowed. Zero lastUserMsgTs so the heartbeat stops emitting — otherwise
+    // it would flip the worker back to WORKING and re-hide the loss. The daemon
+    // turns prompt_unacknowledged into IDLE(prompt_lost); a genuinely
+    // slow-but-alive worker self-heals when its first real JSONL lands.
+    state.lastUserMsgTs = 0;
+    evt.emit("lifecycle", { phase: "prompt_unacknowledged", elapsedMs });
+  },
+});
+if (
+  (opts.promptAckWindowMs ?? DEFAULT_PROMPT_ACK_WINDOW_MS) <=
+  (opts.heartbeatQuietMs ?? DEFAULT_HEARTBEAT_QUIET_MS) +
+    (opts.heartbeatMs ?? DEFAULT_HEARTBEAT_MS)
+) {
+  console.warn(`[${name}] prompt-ack-window-ms should exceed heartbeat-quiet-ms + heartbeat-ms`);
+}
+
+// Pre-boot writes get eaten by the TUI, so we buffer them until the readiness
+// gate confirms the composer can accept input, then flush + write the prompt.
 let bootBuffer: string[] = [];
 let bootCompleted = false;
-setTimeout(() => {
+
+function onBootReady(reason: "marker" | "fallback"): void {
+  const hadBufferedMsg = bootBuffer.length > 0;
   bootCompleted = true;
   for (const t of bootBuffer) writeQueue.enqueue(t);
   bootBuffer = [];
 
-  if (opts.prompt && opts.prompt.trim().length > 0) {
+  // A user message that arrived during boot supersedes the initial prompt.
+  if (opts.prompt && opts.prompt.trim().length > 0 && !hadBufferedMsg) {
+    if (reason === "fallback") evt.emit("lifecycle", { phase: "ready_timeout" });
     console.log(`\n[${name}] writing prompt`);
     evt.emit("lifecycle", { phase: "prompt_sent" });
     const now = Date.now();
     state.lastUserMsgTs = now;
     state.lastJsonlActivityTs = now;
     writeQueue.enqueue(opts.prompt);
+    ack.arm();
   } else {
     evt.emit("lifecycle", { phase: "ready_no_prompt" });
     if (state.lastUserMsgTs === 0) {
       evt.emit("state", { state: "IDLE" });
     }
   }
-}, BOOT_DELAY_MS);
+}
+
+const readiness = createReadinessGate({
+  marker: COMPOSER_READY_MARKER,
+  fallbackMs: opts.readinessFallbackMs ?? DEFAULT_READINESS_FALLBACK_MS,
+  settleMs: opts.readinessSettleMs ?? DEFAULT_READINESS_SETTLE_MS,
+  onReady: onBootReady,
+});
+pty.onData((data: string) => {
+  process.stdout.write(data);
+  readiness.feed(data);
+});
+
+// Ingest server (message + hook) ------------------------------------------
 
 function dispatchToPty(text: string): void {
   if (bootCompleted) writeQueue.enqueue(text);
@@ -152,6 +199,7 @@ function dispatchToPty(text: string): void {
 const ingest = startIngestServer(opts.port, {
   onMessage(text): void {
     shutdown.cancel();
+    ack.cancel();
     const now = Date.now();
     state.lastUserMsgTs = now;
     state.lastJsonlActivityTs = now;
@@ -192,6 +240,9 @@ const ingest = startIngestServer(opts.port, {
   onHook(eventName, body): void {
     state.events.push({ event: eventName, t: Date.now() });
     if (!state.sessionId && typeof body.session_id === "string") {
+      // First hook carrying a session id is the earliest proof claude received
+      // the prompt and started the turn (precedes the first JSONL line).
+      ack.acknowledge();
       state.sessionId = body.session_id;
       console.log(`[${name}] captured session=${state.sessionId} via ${eventName}`);
       tailHandle = startJsonlTail({
@@ -200,7 +251,7 @@ const ingest = startIngestServer(opts.port, {
         defaultModel: opts.model,
         name,
         onEvent: (t, p) => evt.emit(t, p),
-        onActivity: (): void => { state.lastJsonlActivityTs = Date.now(); },
+        onActivity: (): void => { state.lastJsonlActivityTs = Date.now(); ack.acknowledge(); },
       });
     }
     if (eventName === "PreToolUse") {
@@ -251,6 +302,8 @@ function cleanup(code: number): void {
   state.cleanedUp = true;
   heartbeat.stop();
   shutdown.cancel();
+  readiness.cancel();
+  ack.cancel();
   if (tailHandle) { tailHandle.close(); tailHandle = null; }
   // Make absolutely sure the claude PTY child is signalled — process.exit
   // alone closes the master FD but a timing race can leave orphan claude

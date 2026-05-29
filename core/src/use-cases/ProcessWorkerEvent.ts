@@ -66,12 +66,24 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
     const kind = (input.payload as { kind?: string })?.kind;
     if (kind === "assistant_text" || kind === "thinking" || kind === "tool_use") {
       const cur = deps.workers.findById(input.workerId);
-      if (cur && cur.state === "SPAWNING") {
+      // Recover from IDLE too: a worker flipped to IDLE by prompt_unacknowledged
+      // was actually alive (just slow) if real JSONL eventually lands — heal it.
+      if (cur && (cur.state === "SPAWNING" || cur.state === "IDLE")) {
         transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: `jsonl:${kind}` });
       }
     }
     if (kind === "tool_use") {
       deps.workers.incrementToolCalls(input.workerId);
+    }
+  },
+  lifecycle(deps, input) {
+    const phase = (input.payload as { phase?: string })?.phase;
+    if (phase !== "prompt_unacknowledged") return;
+    // The boot prompt was never acknowledged (no hook, no JSONL). Clear the
+    // false WORKING/SPAWNING spinner so the worker reads as IDLE(prompt_lost).
+    const cur = deps.workers.findById(input.workerId);
+    if (cur && (cur.state === "SPAWNING" || cur.state === "WORKING")) {
+      transitionState(deps, { workerId: input.workerId, next: "IDLE", reason: "prompt_lost" });
     }
   },
   heartbeat(deps, input) {

@@ -26,6 +26,9 @@ export interface WorkerOptions {
   heartbeatQuietMs: number | undefined;
   shutdownGraceMs: number | undefined;
   ptyWriteDelayMs: number | undefined;
+  readinessFallbackMs: number | undefined;
+  readinessSettleMs: number | undefined;
+  promptAckWindowMs: number | undefined;
 }
 
 function parseIntFlag(v: string | undefined): number | undefined {
@@ -59,6 +62,9 @@ export function parseWorkerOptions(): WorkerOptions {
       "heartbeat-quiet-ms": { type: "string" },
       "shutdown-grace-ms": { type: "string" },
       "pty-write-delay-ms": { type: "string" },
+      "readiness-fallback-ms": { type: "string" },
+      "readiness-settle-ms": { type: "string" },
+      "prompt-ack-window-ms": { type: "string" },
     },
     strict: true,
   });
@@ -94,5 +100,8 @@ export function parseWorkerOptions(): WorkerOptions {
     heartbeatQuietMs: parseIntFlag(values["heartbeat-quiet-ms"]),
     shutdownGraceMs: parseIntFlag(values["shutdown-grace-ms"]),
     ptyWriteDelayMs: parseIntFlag(values["pty-write-delay-ms"]),
+    readinessFallbackMs: parseIntFlag(values["readiness-fallback-ms"]),
+    readinessSettleMs: parseIntFlag(values["readiness-settle-ms"]),
+    promptAckWindowMs: parseIntFlag(values["prompt-ack-window-ms"]),
   };
 }

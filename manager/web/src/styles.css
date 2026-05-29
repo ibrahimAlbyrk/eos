@@ -1235,6 +1235,31 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   background: var(--warn);
 }
 
+/* prompt-lost banner — boot prompt was never acknowledged; offer a resend */
+.prompt-lost {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(232, 168, 56, 0.10);
+  border: 1px solid rgba(232, 168, 56, 0.28);
+  font-size: 12px;
+}
+.prompt-lost-text { color: var(--warn); }
+.prompt-lost-btn {
+  margin-left: auto;
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+.prompt-lost-btn:hover { filter: brightness(1.08); }
+
 /* suggested action chip (e.g. "mcplerini listele") */
 .suggest {
   display: inline-flex;
