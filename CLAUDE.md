@@ -30,6 +30,12 @@ Each package has its own `package.json` + `node_modules`. **NOT a workspace** �
 
 ## Build and development
 
+One-time setup (NOT a workspace — installs all 8 package dirs in dependency order):
+```bash
+npm run bootstrap                 # install every package dir (contracts→core→infra→gateway→spawner→manager→manager/web→root)
+bash scripts/bootstrap.sh --link  # also symlink ~/.local/bin/eos
+```
+
 ```bash
 npm run lint                      # repo root — enforces dependency direction (per-glob allowlist)
 cd manager && npm test            # tsx --test across manager/{shared,services}, core, spawner
