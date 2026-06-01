@@ -43,6 +43,19 @@ export function buildBlocks(events) {
     if (ev.type !== "tool_running") continue;
     const tr = parsePayload(ev.payload);
     if (!tr.toolUseId || toolUseIds.has(tr.toolUseId)) continue;
+    if (tr.parentAgentToolUseId && agentSpans.has(tr.parentAgentToolUseId)) {
+      const agentId = tr.parentAgentToolUseId;
+      if (!agentToolMap.has(agentId)) agentToolMap.set(agentId, []);
+      agentToolMap.get(agentId).push({
+        id: tr.toolUseId,
+        name: tr.toolName ?? "unknown",
+        input: tr.input ?? {},
+        result: toolDoneMap.get(tr.toolUseId) ?? null,
+        done: toolDoneSet.has(tr.toolUseId),
+        ts: ev.ts,
+      });
+      continue;
+    }
     let bestAgent = null;
     let bestDist = Infinity;
     for (const [agentId, span] of agentSpans) {
@@ -182,7 +195,8 @@ export function buildBlocks(events) {
           name: p.name ?? "",
           verb: verbFor(p.name),
           input: p.input ?? {},
-          result: resultMap.get(p.id) ?? null,
+          result: resultMap.get(p.id) ?? toolDoneMap.get(p.id) ?? null,
+          done: toolDoneSet.has(p.id),
           ts: ev.ts,
         });
       }

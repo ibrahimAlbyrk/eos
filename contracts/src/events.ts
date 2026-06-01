@@ -74,6 +74,22 @@ export const UsagePayloadSchema = z.object({
 });
 export type UsagePayload = z.infer<typeof UsagePayloadSchema>;
 
+export const ToolRunningPayloadSchema = z.object({
+  toolName: z.string(),
+  toolUseId: z.string().nullable(),
+  input: UnknownRecordSchema.default({}),
+  parentAgentToolUseId: z.string().optional(),
+});
+export type ToolRunningPayload = z.infer<typeof ToolRunningPayloadSchema>;
+
+export const ToolDonePayloadSchema = z.object({
+  toolName: z.string(),
+  toolUseId: z.string().nullable(),
+  result: z.string().default(""),
+  parentAgentToolUseId: z.string().optional(),
+});
+export type ToolDonePayload = z.infer<typeof ToolDonePayloadSchema>;
+
 export const JsonlAssistantTextSchema = z.object({
   kind: z.literal("assistant_text"),
   text: z.string(),

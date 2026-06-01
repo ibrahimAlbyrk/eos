@@ -25,6 +25,7 @@ import {
 } from "./session.ts";
 import { createReadinessGate } from "./readiness-gate.ts";
 import { createPromptAckWatchdog } from "./prompt-ack.ts";
+import { resolveParentAgentToolUseId } from "./subagent-meta.ts";
 
 // Timing defaults. Each is overridable by a CLI flag (see options.ts);
 // these are the fallbacks used when the flag is absent.
@@ -72,6 +73,7 @@ console.log(`[${name}] cwd=${wt.cwd} port=${opts.port} settings=${settings.setti
 
 const state = newSessionState();
 let tailHandle: TailHandle | null = null;
+const agentToolUseIdCache = new Map<string, string>();
 
 // PTY ----------------------------------------------------------------------
 
@@ -254,11 +256,23 @@ const ingest = startIngestServer(opts.port, {
         onActivity: (): void => { state.lastJsonlActivityTs = Date.now(); ack.acknowledge(); },
       });
     }
+    // Subagent inner-tool hooks carry agent_id; resolve it to the parent Agent
+    // tool_use id so the UI attributes the tool deterministically. Parent-level
+    // hooks have no agent_id, so the field stays absent (back-compatible).
+    const agentId = typeof body.agent_id === "string" ? body.agent_id : null;
+    let parentAgentToolUseId: string | null = null;
+    if (agentId && state.sessionId) {
+      parentAgentToolUseId =
+        agentToolUseIdCache.get(agentId) ??
+        resolveParentAgentToolUseId(wt.cwd, state.sessionId, agentId);
+      if (parentAgentToolUseId) agentToolUseIdCache.set(agentId, parentAgentToolUseId);
+    }
     if (eventName === "PreToolUse") {
       evt.emit("tool_running", {
         toolName: body.tool_name ?? "unknown",
         toolUseId: body.tool_use_id ?? null,
         input: body.tool_input ?? {},
+        ...(parentAgentToolUseId ? { parentAgentToolUseId } : {}),
       });
     }
     if (eventName === "PostToolUse") {
@@ -266,6 +280,7 @@ const ingest = startIngestServer(opts.port, {
         toolName: body.tool_name ?? "unknown",
         toolUseId: body.tool_use_id ?? null,
         result: extractToolResponse(body.tool_response ?? body.tool_result ?? ""),
+        ...(parentAgentToolUseId ? { parentAgentToolUseId } : {}),
       });
     }
     evt.emit("hook", { event: eventName, body });
