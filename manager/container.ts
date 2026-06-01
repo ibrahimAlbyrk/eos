@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { writeFileSync, unlinkSync, existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from "node:fs";
 
 import { loadConfig, reloadConfig as reloadConfigFromDisk, type DaemonConfig, type ModelPrice } from "./shared/config.ts";
+import { buildWorkerArgs } from "./shared/worker-args.ts";
 import { errMsg } from "../contracts/src/util.ts";
 
 import { systemClock } from "../infra/src/time/SystemClock.ts";
@@ -177,37 +178,21 @@ export function buildContainer() {
   const recents = new JsonRecentsRepo(join(config.daemon.home, "recents.json"));
 
   // SpawnWorker dep builders -----------------------------------------------
-  const buildArgs: SpawnWorkerDeps["buildArgs"] = ({ id, port, spec, model }) => {
-    const args = [
-      "--experimental-strip-types",
-      "--no-warnings",
-      config.paths.workerScript,
-      "--daemon-url", `http://127.0.0.1:${config.daemon.port}`,
-      "--worker-id", id,
-      "--port", String(port),
-      "--heartbeat-ms", String(config.worker.heartbeatMs),
-      "--heartbeat-quiet-ms", String(config.worker.heartbeatQuietMs),
-      "--shutdown-grace-ms", String(config.worker.shutdownGraceMs),
-      "--pty-write-delay-ms", String(config.worker.ptyWriteDelayMs),
-    ];
-    if (spec.prompt && spec.prompt.trim().length > 0) {
-      args.push("--prompt", spec.prompt);
-    }
-    if (spec.cwd) args.push("--cwd", spec.cwd);
-    if (spec.worktreeFrom) args.push("--worktree-from", spec.worktreeFrom);
-    if (spec.branch) args.push("--branch", spec.branch);
-    if (spec.name) args.push("--name", spec.name);
-    if (spec.parentId) args.push("--parent-id", spec.parentId);
-    if (spec.withGateway) args.push("--with-gateway");
-    if (spec.persistent) args.push("--persistent");
-    if (spec.systemPromptFile) args.push("--system-prompt-file", spec.systemPromptFile);
-    if (spec.mcpConfig) args.push("--mcp-config", spec.mcpConfig);
-    if (spec.permissionPromptTool) args.push("--permission-prompt-tool", spec.permissionPromptTool);
-    if (spec.claudePermissionMode) args.push("--claude-permission-mode", spec.claudePermissionMode);
-    args.push("--model", model);
-    if (spec.effort) args.push("--effort", spec.effort);
-    return args;
-  };
+  const buildArgs: SpawnWorkerDeps["buildArgs"] = ({ id, port, spec, model }) =>
+    buildWorkerArgs({
+      id,
+      port,
+      model,
+      spec,
+      workerScript: config.paths.workerScript,
+      daemonPort: config.daemon.port,
+      worker: {
+        heartbeatMs: config.worker.heartbeatMs,
+        heartbeatQuietMs: config.worker.heartbeatQuietMs,
+        shutdownGraceMs: config.worker.shutdownGraceMs,
+        ptyWriteDelayMs: config.worker.ptyWriteDelayMs,
+      },
+    });
 
   const buildEnv: SpawnWorkerDeps["buildEnv"] = () => ({
     ...(process.env as Record<string, string>),
