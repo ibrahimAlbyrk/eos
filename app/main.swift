@@ -32,24 +32,27 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
                 """,
                          injectionTime: .atDocumentStart, forMainFrameOnly: true)
         )
-        let dblClickJS = """
-        document.addEventListener('dblclick', (e) => {
-            let el = e.target;
-            while (el) {
-                const region = getComputedStyle(el).webkitAppRegion;
-                if (region === 'no-drag') return;
-                if (region === 'drag') {
-                    window.webkit.messageHandlers.titlebarDblClick.postMessage(null);
-                    return;
-                }
-                el = el.parentElement;
+        // WKWebView ignores `-webkit-app-region`, so the titlebar drag/zoom is driven
+        // from JS: on mousedown over an `--app-region: drag` element we ask native to
+        // move the window (performWindowDragWithEvent). Double-click (detail>=2) zooms
+        // instead — handled in the same mousedown so the native drag loop can't eat it.
+        let titlebarJS = """
+        (function () {
+            function appRegion(el) {
+                return el ? getComputedStyle(el).getPropertyValue('--app-region').trim() : '';
             }
-        });
+            document.addEventListener('mousedown', function (e) {
+                if (e.button !== 0 || appRegion(e.target) !== 'drag') return;
+                const handler = e.detail >= 2 ? 'titlebarDblClick' : 'titlebarDrag';
+                window.webkit.messageHandlers[handler].postMessage(null);
+            }, true);
+        })();
         """
         cfg.userContentController.addUserScript(
-            WKUserScript(source: dblClickJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
+            WKUserScript(source: titlebarJS, injectionTime: .atDocumentEnd, forMainFrameOnly: true)
         )
         cfg.userContentController.add(self, name: "titlebarDblClick")
+        cfg.userContentController.add(self, name: "titlebarDrag")
 
         webView = WKWebView(frame: .zero, configuration: cfg)
         webView.navigationDelegate = self
@@ -289,7 +292,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
 
     @objc func reloadPage(_: Any?) { webView.reload() }
 
-    func userContentController(_: WKUserContentController, didReceive _: WKScriptMessage) {
+    func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "titlebarDrag" {
+            if let event = NSApp.currentEvent {
+                window.performDrag(with: event)
+            }
+            return
+        }
         handleTitlebarDoubleClick(nil)
     }
 
