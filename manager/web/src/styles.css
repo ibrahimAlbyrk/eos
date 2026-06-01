@@ -92,7 +92,7 @@ html.native .native-toggle-zone {
   left: 90px;
   top: 18px;
   z-index: 300;
-  -webkit-app-region: no-drag;
+  --app-region: no-drag;
 }
 .native-toggle { display: none !important; }
 html.native .native-toggle {
@@ -102,7 +102,7 @@ html.native .native-toggle {
   border-radius: 5px;
   align-items: center; justify-content: center;
   color: var(--fg-dim);
-  -webkit-app-region: no-drag;
+  --app-region: no-drag;
 }
 html.native .native-toggle:hover { background: rgba(255,255,255,0.06); color: var(--fg); }
 
@@ -354,7 +354,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   align-items: center;
   gap: 6px;
   padding: 9px 10px 9px 12px;
-  -webkit-app-region: drag;
+  --app-region: drag;
 }
 .side-island--chrome .tl {
   display: flex;
@@ -374,7 +374,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   border-radius: 5px;
   color: var(--fg-dim);
   display: inline-flex; align-items: center; justify-content: center;
-  -webkit-app-region: no-drag;
+  --app-region: no-drag;
   position: relative;
   z-index: 2;
 }
@@ -571,13 +571,13 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   gap: 8px;
   height: 60px;
   padding: 18px 16px 0;
-  -webkit-app-region: drag;
+  --app-region: drag;
   flex-shrink: 0;
 }
 .head .crumb {
   display: flex; align-items: baseline; gap: 7px;
   font-size: 12.5px;
-  -webkit-app-region: no-drag;
+  --app-region: no-drag;
 }
 .head .crumb .scope { color: var(--fg-dim); }
 .head .crumb .sep { color: var(--fg-faint); }
@@ -586,9 +586,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   margin-left: 4px;
   color: var(--fg-faint);
   cursor: pointer;
-  -webkit-app-region: no-drag;
+  --app-region: no-drag;
 }
-.head .right { margin-left: auto; display: flex; gap: 6px; -webkit-app-region: no-drag; }
+.head .right { margin-left: auto; display: flex; gap: 6px; --app-region: no-drag; }
 .head .right .ibtn {
   width: 24px; height: 24px;
   border-radius: 4px;
@@ -3387,7 +3387,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   display: none;
   z-index: 200;
   max-height: 280px;
-  overflow-y: auto;
+  overflow: hidden;
 }
 .cb-chip-dd::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
@@ -3404,7 +3404,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   -webkit-mask-composite: xor;
           mask-composite: exclude;
 }
-.cb-chip-dd.open { display: block; }
+.cb-chip-dd.open { display: flex; flex-direction: column; }
+.cb-chip-dd-scroll { overflow-y: auto; min-height: 0; }
 
 /* Branch + worktree grouped chip (joined inside one container) */
 .cb-chip-group {

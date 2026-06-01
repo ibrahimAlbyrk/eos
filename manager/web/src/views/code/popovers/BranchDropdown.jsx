@@ -38,25 +38,27 @@ export function BranchDropdown({ live, cwd }) {
 
   return (
     <div className="cb-chip-dd open" id="cbBranchDD" data-popover="branch-dd">
-      {filtered.length === 0 && (
-        <div style={{ padding: "10px 12px", color: "var(--fg-faint)", fontSize: 12 }}>
-          {cwd ? "No branches found" : "Pick a folder first"}
-        </div>
-      )}
-      {filtered.map((b) => (
-        <button
-          key={b}
-          className={"sp-chip-dd-item" + ((composerBranch ?? current) === b ? " on" : "")}
-          onClick={() => pick(b)}
-        >
-          <span>{b}</span>
-          <span className="check">
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <path d="m4 8 3 3 5-6" />
-            </svg>
-          </span>
-        </button>
-      ))}
+      <div className="cb-chip-dd-scroll">
+        {filtered.length === 0 && (
+          <div style={{ padding: "10px 12px", color: "var(--fg-faint)", fontSize: 12 }}>
+            {cwd ? "No branches found" : "Pick a folder first"}
+          </div>
+        )}
+        {filtered.map((b) => (
+          <button
+            key={b}
+            className={"sp-chip-dd-item" + ((composerBranch ?? current) === b ? " on" : "")}
+            onClick={() => pick(b)}
+          >
+            <span>{b}</span>
+            <span className="check">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="m4 8 3 3 5-6" />
+              </svg>
+            </span>
+          </button>
+        ))}
+      </div>
       <div className="cb-branch-search">
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
           <circle cx="7" cy="7" r="5" /><path d="m13 13-2.5-2.5" />
