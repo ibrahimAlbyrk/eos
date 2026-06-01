@@ -106,8 +106,18 @@ html.native .native-toggle {
 }
 html.native .native-toggle:hover { background: rgba(255,255,255,0.06); color: var(--fg); }
 
-/* sidebar: card gap matches Claude Code reference */
-html.native .side { padding: 14px 14px 18px 14px; }
+/* sidebar: card gap matches Claude Code reference; empty/top areas drag the window */
+html.native .side {
+  padding: 14px 14px 18px 14px;
+  --app-region: drag;
+  -webkit-user-select: none;
+}
+/* interactive content opts out of the drag region */
+html.native .tabbar,
+html.native .agents-section,
+html.native .sb-iconbtn { --app-region: no-drag; }
+/* keep agent names selectable / rename input usable */
+html.native .agents-section { -webkit-user-select: text; }
 
 /* sb-head becomes compact titlebar row, buttons after traffic lights */
 html.native .sb-head {
@@ -572,6 +582,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   height: 60px;
   padding: 18px 16px 0;
   --app-region: drag;
+  -webkit-user-select: none;
+  cursor: default;
   flex-shrink: 0;
 }
 .head .crumb {
