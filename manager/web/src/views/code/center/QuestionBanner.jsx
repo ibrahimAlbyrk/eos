@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../../../api/client.js";
 
 
-export function QuestionBanner({ questions, workerId, onClose, sendToAgent, interruptAgent }) {
+export function QuestionBanner({ questions, workerId, toolUseId, pendingCount, onClose }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selections, setSelections] = useState(() => new Map());
   const [otherTexts, setOtherTexts] = useState(() => new Map());
@@ -49,41 +49,43 @@ export function QuestionBanner({ questions, workerId, onClose, sendToAgent, inte
     if (submitting) return;
     setSubmitting(true);
     try {
-      if (total === 1) {
+      // Fast-path: a single-question banner that is the ONLY pending question
+      // for this worker can answer via a raw numeric keystroke into the TUI.
+      // With more than one pending (concurrent subagents) keystrokes are
+      // ambiguous, so always resolve the daemon long-poll deterministically.
+      if (total === 1 && pendingCount === 1) {
         const s = selections.get(0) ?? new Set();
         const picked = [...s][0];
         const oIdx = (questions[0]?.options ?? []).length;
         if (picked != null && picked !== oIdx) {
           await api.sendKeystroke(workerId, String(picked + 1));
+          return;
         }
-      } else {
-        const lines = [];
-        for (let qi = 0; qi < total; qi++) {
-          const s = selections.get(qi) ?? new Set();
-          const qObj = questions[qi];
-          const opts = qObj?.options ?? [];
-          const oIdx = opts.length;
-          const oText = (otherTexts.get(qi) ?? "").trim();
-          let answer;
-          if (s.has(oIdx) && oText) {
-            answer = oText;
-          } else if (qObj.multiSelect) {
-            answer = [...s].sort().filter(i => i !== oIdx).map(i => opts[i]?.label).filter(Boolean).join(", ");
-          } else {
-            const picked = [...s][0];
-            answer = opts[picked]?.label ?? "";
-          }
-          lines.push(`${qObj.question} → ${answer}`);
-        }
-        await interruptAgent(workerId);
-        await new Promise((r) => setTimeout(r, 500));
-        await sendToAgent(workerId, "My answers to your questions:\n" + lines.join("\n"));
       }
+      const answers = {};
+      for (let qi = 0; qi < total; qi++) {
+        const s = selections.get(qi) ?? new Set();
+        const qObj = questions[qi];
+        const opts = qObj?.options ?? [];
+        const oIdx = opts.length;
+        const oText = (otherTexts.get(qi) ?? "").trim();
+        let answer;
+        if (s.has(oIdx) && oText) {
+          answer = oText;
+        } else if (qObj.multiSelect) {
+          answer = [...s].sort().filter(i => i !== oIdx).map(i => opts[i]?.label).filter(Boolean).join(", ");
+        } else {
+          const picked = [...s][0];
+          answer = opts[picked]?.label ?? "";
+        }
+        answers[qObj.header ?? qObj.question] = answer;
+      }
+      await api.answerQuestion(workerId, toolUseId, answers);
     } finally {
       setSubmitting(false);
       onClose();
     }
-  }, [total, selections, otherTexts, questions, workerId, submitting, onClose, sendToAgent, interruptAgent]);
+  }, [total, pendingCount, selections, otherTexts, questions, workerId, toolUseId, submitting, onClose]);
 
   const handleNext = useCallback(() => {
     if (!hasAnswer) return;

@@ -12,6 +12,8 @@ import {
   SetNameRequestSchema,
   SetPermissionRequestSchema,
   SetModelRequestSchema,
+  QuestionRequestSchema,
+  QuestionAnswerRequestSchema,
 } from "../../contracts/src/http.ts";
 
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
@@ -90,6 +92,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       },
       params.id,
     );
+    c.pendingQuestions.rejectByWorker(params.id, new Error("worker killed"));
     writeJson(res, 200, { killed: result.killed, removed: result.removed, was_state: result.wasState });
   });
 
@@ -173,8 +176,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
   // Worker's hook blocks here until user answers in web UI
   r.post(/^\/workers\/(?<id>[^/]+)\/question$/, async ({ params, req, res }) => {
-    const body = await readBody(req) as { questions?: unknown[]; toolUseId?: string };
-    if (!body.questions || !body.toolUseId) { writeJson(res, 400, { error: "questions and toolUseId required" }); return; }
+    const body = validate(QuestionRequestSchema, await readBody(req));
 
     c.events.append(params.id, c.clock.now(), "question_pending", {
       toolUseId: body.toolUseId,
@@ -182,19 +184,21 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     });
     c.bus.publish("worker:change", { workerId: params.id });
 
-    const { promise } = c.pendingQuestions.register(params.id);
+    const { promise } = c.pendingQuestions.register(params.id, body.toolUseId);
     const answers = await promise;
     writeJson(res, 200, { answers });
   });
 
   // Web UI posts answers here
   r.post(/^\/workers\/(?<id>[^/]+)\/question-answer$/, async ({ params, req, res }) => {
-    const body = await readBody(req) as { answers?: Record<string, string> };
-    if (!body.answers) { writeJson(res, 400, { error: "answers required" }); return; }
-    if (!c.pendingQuestions.resolveByWorker(params.id, body.answers)) {
+    const body = validate(QuestionAnswerRequestSchema, await readBody(req));
+    if (!c.pendingQuestions.resolveByToolUseId(params.id, body.toolUseId, body.answers)) {
       writeJson(res, 404, { error: "no pending question" }); return;
     }
-    c.events.append(params.id, c.clock.now(), "question_answered", { answers: body.answers });
+    c.events.append(params.id, c.clock.now(), "question_answered", {
+      toolUseId: body.toolUseId,
+      answers: body.answers,
+    });
     c.bus.publish("worker:change", { workerId: params.id });
     writeJson(res, 200, { ok: true });
   });

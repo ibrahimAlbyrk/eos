@@ -347,6 +347,22 @@ export type QuestionNotifyRequest = z.infer<typeof QuestionNotifyRequestSchema>;
 export const QuestionNotifyResponseSchema = z.object({ ok: z.boolean() });
 export type QuestionNotifyResponse = z.infer<typeof QuestionNotifyResponseSchema>;
 
+// ---- POST /workers/:id/question --------------------------------------------
+
+export const QuestionRequestSchema = z.object({
+  questions: z.array(UnknownRecordSchema),
+  toolUseId: z.string(),
+});
+export type QuestionRequest = z.infer<typeof QuestionRequestSchema>;
+
+// ---- POST /workers/:id/question-answer -------------------------------------
+
+export const QuestionAnswerRequestSchema = z.object({
+  toolUseId: z.string(),
+  answers: z.record(z.string(), z.string()),
+});
+export type QuestionAnswerRequest = z.infer<typeof QuestionAnswerRequestSchema>;
+
 // ---- GET/PUT /api/notifications/config -------------------------------------
 
 export const NotificationConfigRequestSchema = NotificationConfigSchema.partial();

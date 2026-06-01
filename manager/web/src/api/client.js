@@ -100,8 +100,8 @@ export const api = {
   async sendKeystroke(id, keys) {
     return postJson(ROUTES.workerKeystroke(id), { keys });
   },
-  async answerQuestion(id, answers) {
-    return postJson(ROUTES.workerQuestionAnswer(id), { answers });
+  async answerQuestion(id, toolUseId, answers) {
+    return postJson(ROUTES.workerQuestionAnswer(id), { toolUseId, answers });
   },
 
   // Orchestrators
