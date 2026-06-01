@@ -9,6 +9,17 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: true,
     target: "es2022",
+    rollupOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: "react", test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+            { name: "highlight", test: /node_modules[\\/]highlight\.js[\\/]/ },
+            { name: "markdown", test: /node_modules[\\/](marked|dompurify|diff)[\\/]/ },
+          ],
+        },
+      },
+    },
   },
   plugins: [react()],
 });
