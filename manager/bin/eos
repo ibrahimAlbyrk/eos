@@ -1,4 +1,12 @@
 #!/usr/bin/env bash
 # eos — orchestration CLI launcher
-exec node --no-warnings --experimental-strip-types \
-  "/Users/ibrahimalbyrk/Projects/CC/claude-manager/manager/cli.ts" "$@"
+set -euo pipefail
+src="${BASH_SOURCE[0]}"
+while [ -h "$src" ]; do
+  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  src="$(readlink "$src")"
+  [[ "$src" != /* ]] && src="$dir/$src"
+done
+dir="$(cd -P "$(dirname "$src")" && pwd)"
+repo_root="$(cd "$dir/../.." && pwd)"
+exec node --no-warnings --experimental-strip-types "$repo_root/manager/cli.ts" "$@"

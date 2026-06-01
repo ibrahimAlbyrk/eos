@@ -165,11 +165,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
 
     private func repoRoot() -> String {
         if let e = ProcessInfo.processInfo.environment["CLAUDE_MGR_REPO_ROOT"] { return e }
-        // <repoRoot>/app/build/Eos.app/Contents/MacOS/Eos
+        // <repoRoot>/app/build/Eos.app/Contents/MacOS/Eos — 6 components up to <repoRoot>
         var d = Bundle.main.executablePath ?? ""
-        for _ in 0..<5 { d = (d as NSString).deletingLastPathComponent }
+        for _ in 0..<6 { d = (d as NSString).deletingLastPathComponent }
         if FileManager.default.fileExists(atPath: "\(d)/manager/daemon.ts") { return d }
-        return "/Users/ibrahimalbyrk/Projects/CC/claude-manager"
+        if let baked = Bundle.main.object(forInfoDictionaryKey: "CLAUDEMgrRepoRoot") as? String,
+           FileManager.default.fileExists(atPath: "\(baked)/manager/daemon.ts") { return baked }
+        return d
     }
 
     // MARK: - Notifications

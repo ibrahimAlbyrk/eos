@@ -18,6 +18,7 @@ swiftc -O \
   "$SCRIPT_DIR/main.swift"
 
 cp "$SCRIPT_DIR/Info.plist" "$APP_BUNDLE/Contents/"
+/usr/libexec/PlistBuddy -c "Add :CLAUDEMgrRepoRoot string $REPO_ROOT" "$APP_BUNDLE/Contents/Info.plist"
 
 LOGO="$REPO_ROOT/manager/web/public/logo.png"
 if [ -f "$LOGO" ]; then
