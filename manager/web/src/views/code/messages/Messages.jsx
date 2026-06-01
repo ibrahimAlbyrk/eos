@@ -10,6 +10,8 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { buildBlocks, parsePayload } from "../../../lib/messageParser.js";
+import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
+import { shouldStick, shouldAutoScroll } from "../../../lib/scrollStick.js";
 import { MessageUser } from "./MessageUser.jsx";
 import { MessageReport } from "./MessageReport.jsx";
 import { MessageAssistant } from "./MessageAssistant.jsx";
@@ -21,7 +23,7 @@ import { ProcessingLine } from "./ProcessingLine.jsx";
 import { MessageTask } from "./MessageTask.jsx";
 
 const POLL_MS = 5000;
-const SCROLL_THRESHOLD = 2;
+const SCROLL_THRESHOLD = 40;
 const BUTTON_THRESHOLD = 300;
 
 export function Messages({ live }) {
@@ -31,13 +33,21 @@ export function Messages({ live }) {
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const isNearBottomRef = useRef(true);
   const initialScrollDone = useRef(false);
+  const programmaticScrollRef = useRef(false);
+  const lastUserScrollTsRef = useRef(0);
 
   const checkNearBottom = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
     const overflows = el.scrollHeight > el.clientHeight;
     const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-    isNearBottomRef.current = dist < SCROLL_THRESHOLD;
+    if (!programmaticScrollRef.current) {
+      lastUserScrollTsRef.current = performance.now();
+      isNearBottomRef.current = shouldStick(
+        { scrollHeight: el.scrollHeight, scrollTop: el.scrollTop, clientHeight: el.clientHeight },
+        SCROLL_THRESHOLD,
+      );
+    }
     setShowScrollBtn(overflows && dist >= BUTTON_THRESHOLD);
   }, []);
 
@@ -48,11 +58,25 @@ export function Messages({ live }) {
     return () => el.removeEventListener("scroll", checkNearBottom);
   }, [checkNearBottom]);
 
+  // Guard code-initiated scrolls so the animation's own scroll events don't
+  // unpin the view. WKWebView may never fire scrollend, so the 200ms fallback
+  // that clears the guard is mandatory.
+  const runProgrammaticScroll = useCallback((el, writeFn) => {
+    programmaticScrollRef.current = true;
+    const clear = () => {
+      el.removeEventListener("scrollend", clear);
+      programmaticScrollRef.current = false;
+    };
+    writeFn();
+    el.addEventListener("scrollend", clear, { once: true });
+    setTimeout(clear, 200);
+  }, []);
+
   const scrollToBottom = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, []);
+    runProgrammaticScroll(el, () => el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }));
+  }, [runProgrammaticScroll]);
 
   const fetchRef = useRef(null);
 
@@ -91,36 +115,17 @@ export function Messages({ live }) {
     fetchRef.current?.();
   }, [live.eventSignal.tick]);
 
-  const pendingQuestion = useMemo(() => {
-    const running = new Map();
-    const done = new Set();
-    let hasAnswerMessage = false;
-    for (const ev of events) {
-      if (ev.type === "tool_running") {
-        const p = parsePayload(ev.payload);
-        if (p.toolName === "AskUserQuestion" && p.toolUseId)
-          running.set(p.toolUseId, { input: p.input, ts: ev.ts });
-      }
-      if (ev.type === "tool_done") {
-        const p = parsePayload(ev.payload);
-        if (p.toolUseId) done.add(p.toolUseId);
-      }
-      if (ev.type === "user_message") {
-        const p = parsePayload(ev.payload);
-        if (p.text?.startsWith("My answers to your questions:")) hasAnswerMessage = true;
-      }
-    }
-    if (hasAnswerMessage) return null;
-    for (const [id, { input }] of running) {
-      if (!done.has(id) && Array.isArray(input?.questions) && input.questions.length > 0)
-        return { toolUseId: id, questions: input.questions };
-    }
-    return null;
-  }, [events]);
+  const pendingQuestions = useMemo(() => derivePendingQuestions(events), [events]);
 
   useEffect(() => {
-    ui.setPendingQuestion(pendingQuestion);
-  }, [pendingQuestion]);
+    // Sequential answering: surface only the first open question as the active
+    // banner, but carry the total count so the banner can pick keystroke vs the
+    // deterministic answerQuestion path.
+    const first = pendingQuestions[0];
+    ui.setPendingQuestion(
+      first ? { ...first, pendingCount: pendingQuestions.length } : null,
+    );
+  }, [pendingQuestions]);
 
   const blocks = useMemo(() => {
     const base = buildBlocks(events);
@@ -198,9 +203,9 @@ export function Messages({ live }) {
       el.scrollTop = el.scrollHeight;
       return;
     }
-    if (isNearBottomRef.current) {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-    }
+    const msSinceUserScroll = performance.now() - lastUserScrollTsRef.current;
+    if (!shouldAutoScroll(isNearBottomRef.current, programmaticScrollRef.current, msSinceUserScroll)) return;
+    runProgrammaticScroll(el, () => { el.scrollTop = el.scrollHeight; });
   }, [blocks]);
 
   return (
