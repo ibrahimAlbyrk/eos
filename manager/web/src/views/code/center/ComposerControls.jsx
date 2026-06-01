@@ -113,7 +113,9 @@ export function ComposerControls({ live, onAttach }) {
           >
             <svg viewBox="0 0 18 18" aria-hidden="true">
               <circle className="ring-track" cx="9" cy="9" r="7" />
-              <circle className="ring-fill" cx="9" cy="9" r="7" strokeDasharray={dashArray} />
+              {pct > 0 && (
+                <circle className="ring-fill" cx="9" cy="9" r="7" strokeDasharray={dashArray} />
+              )}
             </svg>
           </button>
           <CtxPopover used={used} total={total} pct={pct} session={live.session} />
