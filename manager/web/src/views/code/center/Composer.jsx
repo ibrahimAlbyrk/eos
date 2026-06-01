@@ -3,6 +3,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { useCommands } from "../../../hooks/useCommands.js";
 import { useContentEditableEditor, getCursorOffset } from "../../../hooks/useContentEditableEditor.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
+import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
 import { api } from "../../../api/client.js";
 import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
 import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
@@ -30,6 +31,7 @@ export function Composer({ live }) {
   const ui = useUi();
   const [menuIndex, setMenuIndex] = useState(0);
   const [fileMenuIndex, setFileMenuIndex] = useState(0);
+  const [menuDismissed, setMenuDismissed] = useState(false);
   const insertedPathsRef = useRef(new Map());
 
   const [attachments, setAttachments] = useState([]);
@@ -68,8 +70,7 @@ export function Composer({ live }) {
     insertedPathsRef,
   });
 
-  const showMenu = activeMenu === "slash";
-  const showFileMenu = activeMenu === "file";
+  const { showMenu, showFileMenu } = menuVisibility({ activeMenu, menuDismissed });
 
   const activeHint = useMemo(() => {
     if (!text.includes("/")) return null;
@@ -85,8 +86,8 @@ export function Composer({ live }) {
     return null;
   }, [text, cmdMap]);
 
-  useEffect(() => { setMenuIndex(0); }, [slashCtx?.query]);
-  useEffect(() => { setFileMenuIndex(0); }, [atCtx?.query]);
+  useEffect(() => { setMenuIndex(0); setMenuDismissed(menuDismissedOnQueryChange()); }, [slashCtx?.query]);
+  useEffect(() => { setFileMenuIndex(0); setMenuDismissed(menuDismissedOnQueryChange()); }, [atCtx?.query]);
 
   const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
 
@@ -218,6 +219,12 @@ export function Composer({ live }) {
     }
   };
 
+  const applyEscapeMenu = () => {
+    const { keepText, dismissed } = escapeMenu();
+    if (!keepText) setTextAndSync("", 0);
+    setMenuDismissed(dismissed);
+  };
+
   const onKey = (e) => {
     if (showMenu) {
       if (e.key === "ArrowDown") {
@@ -238,7 +245,7 @@ export function Composer({ live }) {
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
-        setTextAndSync("", 0);
+        applyEscapeMenu();
         return;
       }
     }
@@ -262,7 +269,7 @@ export function Composer({ live }) {
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
-        setTextAndSync("", 0);
+        applyEscapeMenu();
         return;
       }
     }
@@ -314,9 +321,9 @@ export function Composer({ live }) {
           <QuestionBanner
             questions={ui.pendingQuestion.questions}
             workerId={selected.id}
+            toolUseId={ui.pendingQuestion.toolUseId}
+            pendingCount={ui.pendingQuestion.pendingCount ?? 1}
             onClose={() => ui.dismissQuestion(ui.pendingQuestion.toolUseId)}
-            sendToAgent={live.sendToAgent}
-            interruptAgent={live.interruptAgent}
           />
         )}
         <PermissionBanner
