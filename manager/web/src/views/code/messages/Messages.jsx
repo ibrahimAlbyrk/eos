@@ -118,13 +118,8 @@ export function Messages({ live }) {
   const pendingQuestions = useMemo(() => derivePendingQuestions(events), [events]);
 
   useEffect(() => {
-    // Sequential answering: surface only the first open question as the active
-    // banner, but carry the total count so the banner can pick keystroke vs the
-    // deterministic answerQuestion path.
-    const first = pendingQuestions[0];
-    ui.setPendingQuestion(
-      first ? { ...first, pendingCount: pendingQuestions.length } : null,
-    );
+    // Sequential answering: surface only the first open question as the active banner.
+    ui.setPendingQuestion(pendingQuestions[0] ?? null);
   }, [pendingQuestions]);
 
   const blocks = useMemo(() => {

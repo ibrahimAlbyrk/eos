@@ -14,6 +14,7 @@ import {
   SetModelRequestSchema,
   QuestionRequestSchema,
   QuestionAnswerRequestSchema,
+  QuestionNotifyRequestSchema,
 } from "../../contracts/src/http.ts";
 
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
@@ -162,39 +163,45 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, result.status, result.body);
   });
 
-  // Non-blocking notification that a question is pending (fire-and-forget from hook)
+  // Fire-and-forget notification that an AskUserQuestion is pending — surfaces the
+  // web banner. The PermissionRequest hook has no tool_use_id, so synthesize one;
+  // the banner keys off it and the web UI echoes it back to dismiss.
   r.post(/^\/workers\/(?<id>[^/]+)\/question-notify$/, async ({ params, req, res }) => {
-    const body = await readBody(req) as { questions?: unknown[]; toolUseId?: string };
-    if (!body.questions || !body.toolUseId) { writeJson(res, 400, { error: "questions and toolUseId required" }); return; }
+    const body = validate(QuestionNotifyRequestSchema, await readBody(req));
+    const toolUseId = body.toolUseId || c.ids.newPendingId();
     c.events.append(params.id, c.clock.now(), "question_pending", {
-      toolUseId: body.toolUseId,
+      toolUseId,
       questions: body.questions,
     });
     c.bus.publish("worker:change", { workerId: params.id });
     writeJson(res, 200, { ok: true });
   });
 
-  // Worker's hook blocks here until user answers in web UI
+  // Worker's hook blocks here until user answers in web UI. The PermissionRequest
+  // hook input has no tool_use_id, so synthesize one when absent — the banner and
+  // the answer round-trip key off it, and a unique id keeps concurrent subagent
+  // questions from superseding each other.
   r.post(/^\/workers\/(?<id>[^/]+)\/question$/, async ({ params, req, res }) => {
     const body = validate(QuestionRequestSchema, await readBody(req));
+    const toolUseId = body.toolUseId || c.ids.newPendingId();
 
     c.events.append(params.id, c.clock.now(), "question_pending", {
-      toolUseId: body.toolUseId,
+      toolUseId,
       questions: body.questions,
     });
     c.bus.publish("worker:change", { workerId: params.id });
 
-    const { promise } = c.pendingQuestions.register(params.id, body.toolUseId);
+    const { promise } = c.pendingQuestions.register(params.id, toolUseId);
     const answers = await promise;
     writeJson(res, 200, { answers });
   });
 
-  // Web UI posts answers here
+  // Web UI posts answers here. The answer is delivered to Claude as keystrokes
+  // into its native menu; this call records it so the banner dismisses durably
+  // (and resolves any legacy blocking long-poll — a no-op in the keystroke flow).
   r.post(/^\/workers\/(?<id>[^/]+)\/question-answer$/, async ({ params, req, res }) => {
     const body = validate(QuestionAnswerRequestSchema, await readBody(req));
-    if (!c.pendingQuestions.resolveByToolUseId(params.id, body.toolUseId, body.answers)) {
-      writeJson(res, 404, { error: "no pending question" }); return;
-    }
+    c.pendingQuestions.resolveByToolUseId(params.id, body.toolUseId, body.answers);
     c.events.append(params.id, c.clock.now(), "question_answered", {
       toolUseId: body.toolUseId,
       answers: body.answers,

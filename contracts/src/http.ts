@@ -340,7 +340,7 @@ export type ReportResponse = z.infer<typeof ReportResponseSchema>;
 
 export const QuestionNotifyRequestSchema = z.object({
   questions: z.array(UnknownRecordSchema),
-  toolUseId: z.string(),
+  toolUseId: z.string().nullish(),
 });
 export type QuestionNotifyRequest = z.infer<typeof QuestionNotifyRequestSchema>;
 
@@ -349,9 +349,12 @@ export type QuestionNotifyResponse = z.infer<typeof QuestionNotifyResponseSchema
 
 // ---- POST /workers/:id/question --------------------------------------------
 
+// The PermissionRequest hook payload carries no tool_use_id (only PreToolUse
+// does), so the hook posts null/absent. The daemon synthesizes a stable id
+// when it is missing, which the web UI echoes back on answer.
 export const QuestionRequestSchema = z.object({
   questions: z.array(UnknownRecordSchema),
-  toolUseId: z.string(),
+  toolUseId: z.string().nullish(),
 });
 export type QuestionRequest = z.infer<typeof QuestionRequestSchema>;
 

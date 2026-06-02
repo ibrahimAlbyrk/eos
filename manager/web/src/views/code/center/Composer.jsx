@@ -322,7 +322,8 @@ export function Composer({ live }) {
             questions={ui.pendingQuestion.questions}
             workerId={selected.id}
             toolUseId={ui.pendingQuestion.toolUseId}
-            pendingCount={ui.pendingQuestion.pendingCount ?? 1}
+            sendToAgent={live.sendToAgent}
+            interruptAgent={live.interruptAgent}
             onClose={() => ui.dismissQuestion(ui.pendingQuestion.toolUseId)}
           />
         )}

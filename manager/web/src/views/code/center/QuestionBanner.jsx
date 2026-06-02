@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../../../api/client.js";
 
 
-export function QuestionBanner({ questions, workerId, toolUseId, pendingCount, onClose }) {
+export function QuestionBanner({ questions, workerId, toolUseId, onClose, sendToAgent, interruptAgent }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selections, setSelections] = useState(() => new Map());
   const [otherTexts, setOtherTexts] = useState(() => new Map());
@@ -49,43 +49,46 @@ export function QuestionBanner({ questions, workerId, toolUseId, pendingCount, o
     if (submitting) return;
     setSubmitting(true);
     try {
-      // Fast-path: a single-question banner that is the ONLY pending question
-      // for this worker can answer via a raw numeric keystroke into the TUI.
-      // With more than one pending (concurrent subagents) keystrokes are
-      // ambiguous, so always resolve the daemon long-poll deterministically.
-      if (total === 1 && pendingCount === 1) {
-        const s = selections.get(0) ?? new Set();
-        const picked = [...s][0];
-        const oIdx = (questions[0]?.options ?? []).length;
-        if (picked != null && picked !== oIdx) {
-          await api.sendKeystroke(workerId, String(picked + 1));
-          return;
-        }
-      }
-      const answers = {};
-      for (let qi = 0; qi < total; qi++) {
+      const perQ = questions.map((qObj, qi) => {
         const s = selections.get(qi) ?? new Set();
-        const qObj = questions[qi];
         const opts = qObj?.options ?? [];
         const oIdx = opts.length;
         const oText = (otherTexts.get(qi) ?? "").trim();
+        const isOther = s.has(oIdx);
         let answer;
-        if (s.has(oIdx) && oText) {
+        if (isOther && oText) {
           answer = oText;
         } else if (qObj.multiSelect) {
           answer = [...s].sort().filter(i => i !== oIdx).map(i => opts[i]?.label).filter(Boolean).join(", ");
         } else {
-          const picked = [...s][0];
-          answer = opts[picked]?.label ?? "";
+          answer = opts[[...s][0]]?.label ?? "";
         }
-        answers[qObj.header ?? qObj.question] = answer;
+        return { qObj, answer, picked: [...s][0], isOther };
+      });
+      const answers = {};
+      for (const { qObj, answer } of perQ) answers[qObj.question ?? qObj.header] = answer;
+
+      // One single-select question with a real option: drive Claude's native menu
+      // with the option number — a single key both selects and submits. Anything
+      // else (multi-select, multiple questions, free text) cannot be driven by
+      // keystrokes reliably, so cancel the menu and deliver the answers as a message.
+      const solo = perQ.length === 1 ? perQ[0] : null;
+      const keystrokeable = solo && !solo.qObj.multiSelect && !solo.isOther
+        && solo.picked != null && solo.picked < (solo.qObj.options?.length ?? 0);
+      if (keystrokeable) {
+        await api.sendKeystroke(workerId, String(solo.picked + 1));
+      } else {
+        await interruptAgent?.(workerId);
+        const body = perQ.map(({ qObj, answer }) => `• ${qObj.question} → ${answer}`).join("\n");
+        await sendToAgent?.(workerId, "My answers to your questions:\n" + body);
       }
+      // Record the answer so the banner dismisses durably (survives a reload).
       await api.answerQuestion(workerId, toolUseId, answers);
     } finally {
       setSubmitting(false);
       onClose();
     }
-  }, [total, pendingCount, selections, otherTexts, questions, workerId, toolUseId, submitting, onClose]);
+  }, [questions, selections, otherTexts, workerId, toolUseId, submitting, onClose, sendToAgent, interruptAgent]);
 
   const handleNext = useCallback(() => {
     if (!hasAnswer) return;
