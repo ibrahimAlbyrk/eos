@@ -1,6 +1,6 @@
 import { ToolItem } from "./ToolItem.jsx";
 
-export function ToolGroup({ summary, tools, open, onToggle }) {
+export function ToolGroup({ summary, tools, open, onToggle, cwd }) {
   return (
     <div className={"tool-group" + (open ? " open" : "")}>
       <div className="tool-group-header" onClick={onToggle}>
@@ -12,7 +12,7 @@ export function ToolGroup({ summary, tools, open, onToggle }) {
       {open && (
         <div className="tool-group-list">
           {tools.map((t, i) => (
-            <ToolItem key={t.id ?? i} tool={t} />
+            <ToolItem key={t.id ?? i} tool={t} cwd={cwd} />
           ))}
         </div>
       )}

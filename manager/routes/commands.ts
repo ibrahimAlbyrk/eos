@@ -105,7 +105,72 @@ function scanInstalledPluginSkills(): CommandItem[] {
   return results;
 }
 
+type SkillHit = { path: string; content: string };
+
+function findSkillInDir(dir: string, name: string): SkillHit | null {
+  if (!existsSync(dir)) return null;
+  const direct = join(dir, name, "SKILL.md");
+  if (existsSync(direct)) {
+    try { return { path: direct, content: readFileSync(direct, "utf8") }; } catch { return null; }
+  }
+  try {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+      const skillFile = join(dir, entry.name, "SKILL.md");
+      if (!existsSync(skillFile)) continue;
+      try {
+        const content = readFileSync(skillFile, "utf8");
+        if (parseFrontmatter(content).name === name) return { path: skillFile, content };
+      } catch {}
+    }
+  } catch {}
+  return null;
+}
+
+function findSkillInPlugins(name: string): SkillHit | null {
+  const manifestPath = join(homedir(), ".claude", "plugins", "installed_plugins.json");
+  if (!existsSync(manifestPath)) return null;
+  try {
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    for (const entries of Object.values(manifest.plugins ?? {}) as any[]) {
+      for (const entry of entries) {
+        if (!entry.installPath) continue;
+        const hit = findSkillInDir(join(entry.installPath, "skills"), name);
+        if (hit) return hit;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function resolveSkill(name: string, cwd: string | undefined): { hit: SkillHit; source: "project" | "user" | "plugin" } | null {
+  if (cwd) {
+    const projectHit = findSkillInDir(join(cwd, ".claude", "skills"), name);
+    if (projectHit) return { hit: projectHit, source: "project" };
+  }
+  const userHit = findSkillInDir(join(homedir(), ".claude", "skills"), name);
+  if (userHit) return { hit: userHit, source: "user" };
+  const pluginHit = findSkillInPlugins(name);
+  if (pluginHit) return { hit: pluginHit, source: "plugin" };
+  return null;
+}
+
 export function registerCommandRoutes(r: Router, _c: Container): void {
+  r.get("/skills/read", ({ url, res }) => {
+    const name = url.searchParams.get("name");
+    if (!name) { writeJson(res, 400, { error: "name required" }); return; }
+    const cwd = url.searchParams.get("cwd") ?? undefined;
+    const found = resolveSkill(name, cwd);
+    if (!found) { writeJson(res, 404, { error: "skill not found" }); return; }
+    writeJson(res, 200, {
+      name,
+      path: found.hit.path,
+      content: found.hit.content,
+      source: found.source,
+      lines: found.hit.content.split("\n").length,
+    });
+  });
+
   r.get("/commands", ({ url, res }) => {
     const cwd = url.searchParams.get("cwd") ?? undefined;
     const home = homedir();

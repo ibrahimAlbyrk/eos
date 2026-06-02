@@ -43,6 +43,7 @@ export const ROUTES = {
   workerKeystroke: (id) => `/workers/${id}/keystroke`,
   workerQuestionAnswer: (id) => `/workers/${id}/question-answer`,
   commands: "/commands",
+  skillRead: "/skills/read",
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
   notificationsConfig: "/api/notifications/config",

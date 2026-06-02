@@ -1,14 +1,16 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { api } from "../../../api/client.js";
 import { buildDiffHunks, parseAskAnswers, stripCatLineNumbers } from "../../../lib/diff.jsx";
 
-export function ToolDetail({ tool }) {
+export function ToolDetail({ tool, cwd }) {
   const name = tool.name ?? "";
   if (name === "Read") return <ReadDetail tool={tool} />;
   if (name === "Edit") return <EditDetail tool={tool} />;
   if (name === "Write") return <WriteDetail tool={tool} />;
   if (name === "Bash") return <BashDetail tool={tool} />;
   if (name === "AskUserQuestion") return <AskUserQuestionDetail tool={tool} />;
+  if (name === "Skill") return <SkillDetail tool={tool} cwd={cwd} />;
   if (isMessagingTool(name)) return <MessageDetail tool={tool} />;
   return <GenericDetail tool={tool} />;
 }
@@ -206,6 +208,82 @@ function AskUserQuestionDetail({ tool }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function stripFrontmatter(text) {
+  const m = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
+  return (m ? text.slice(m[0].length) : text).replace(/^\s*\n+/, "");
+}
+
+function SkillDetail({ tool, cwd }) {
+  const ui = useUi();
+  const skill = tool.input?.skill ?? "skill";
+  const [copied, setCopied] = useState(false);
+  const [state, setState] = useState({ loading: true, content: "", path: "", error: null });
+
+  useEffect(() => {
+    let alive = true;
+    setState({ loading: true, content: "", path: "", error: null });
+    api.readSkill(skill, cwd)
+      .then((r) => { if (alive) setState({ loading: false, content: r.content ?? "", path: r.path ?? "", error: null }); })
+      .catch((e) => { if (alive) setState({ loading: false, content: "", path: "", error: e instanceof Error ? e.message : String(e) }); });
+    return () => { alive = false; };
+  }, [skill, cwd]);
+
+  const body = stripFrontmatter(state.content);
+  const lines = body ? body.split("\n").map((t, i) => ({ num: i + 1, text: t })) : [];
+  const hasMore = lines.length > 5;
+  const preview = lines.slice(0, 5);
+
+  const copyContent = () => {
+    navigator.clipboard.writeText(body).catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+  };
+
+  return (
+    <div className="tool-detail read-detail">
+      <div className="file-path-bar" onClick={() => state.path && ui.openFileViewer(state.path)}>
+        <span className={"fp-path" + (state.path ? " ti-link" : "")}>{skill} skill</span>
+        <button className="fp-copy" onClick={(e) => { e.stopPropagation(); copyContent(); }} title="Copy content">
+          {copied ? (
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m3 8.5 3 3 7-7" />
+            </svg>
+          ) : (
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+              <rect x="5" y="5" width="9" height="9" rx="1.5" />
+              <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
+            </svg>
+          )}
+        </button>
+      </div>
+      {(state.loading || state.error) && (
+        <div className="code-preview">
+          <div className="cp-line cp-fade">
+            <span className="cp-num"></span>
+            <span className="cp-text">{state.loading ? "Loading…" : state.error}</span>
+          </div>
+        </div>
+      )}
+      {!state.loading && !state.error && preview.length > 0 && (
+        <div className="code-preview">
+          {preview.map((l, i) => (
+            <div className="cp-line" key={i}>
+              <span className="cp-num">{l.num}</span>
+              <span className="cp-text">{highlightLine(l.text)}</span>
+            </div>
+          ))}
+          {hasMore && (
+            <div className="cp-line cp-fade">
+              <span className="cp-num"></span>
+              <span className="cp-text">({lines.length - 5} more lines)</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

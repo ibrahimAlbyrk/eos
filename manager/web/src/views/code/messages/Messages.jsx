@@ -268,10 +268,10 @@ function renderBlock(b, key, cwd, ui) {
     case "thinking":  return <ThinkingLine key={key} text={b.text} ms={b.ms} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
-      return <ToolGroup key={key} summary={b.summary} tools={b.tools}
+      return <ToolGroup key={key} summary={b.summary} tools={b.tools} cwd={cwd}
         open={ui.expandedTools.has(groupKey)} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
     }
-    case "tool":      return <ToolItem key={key} tool={b.tool} standalone />;
+    case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} />;
     case "agentRun":  return <AgentBlock key={key} block={b} />;
     default: return null;
   }

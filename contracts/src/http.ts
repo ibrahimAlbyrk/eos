@@ -320,6 +320,23 @@ export const CommandsResponseSchema = z.object({
 });
 export type CommandsResponse = z.infer<typeof CommandsResponseSchema>;
 
+// ---- GET /skills/read ------------------------------------------------------
+
+export const SkillReadQuerySchema = z.object({
+  name: z.string().min(1),
+  cwd: z.string().optional(),
+});
+export type SkillReadQuery = z.infer<typeof SkillReadQuerySchema>;
+
+export const SkillReadResponseSchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  content: z.string(),
+  source: z.enum(["project", "user", "plugin"]),
+  lines: z.number().int().nonnegative(),
+});
+export type SkillReadResponse = z.infer<typeof SkillReadResponseSchema>;
+
 // ---- POST /workers/:id/interrupt -------------------------------------------
 
 export const InterruptResponseSchema = z.object({ ok: z.boolean() });
@@ -434,6 +451,7 @@ export const ROUTES = {
   workerQuestionAnswer: (id: string): string => `/workers/${id}/question-answer`,
   workerReport: (id: string): string => `/workers/${id}/report`,
   commands: "/commands",
+  skillRead: "/skills/read",
   notificationsConfig: "/api/notifications/config",
   web: "/web/",
 } as const;

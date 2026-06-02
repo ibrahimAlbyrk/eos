@@ -4,7 +4,7 @@ import { ToolDetail } from "./ToolDetail.jsx";
 
 const APPEAR_MS = 600;
 
-export function ToolItem({ tool, standalone }) {
+export function ToolItem({ tool, standalone, cwd }) {
   const ui = useUi();
   const expandKey = "i:" + (tool.id ?? tool.ts);
   const expanded = ui.expandedTools.has(expandKey);
@@ -46,7 +46,7 @@ export function ToolItem({ tool, standalone }) {
           <path d="m6 4 4 4-4 4" />
         </svg>
       </div>
-      {expanded && <ToolDetail tool={tool} />}
+      {expanded && <ToolDetail tool={tool} cwd={cwd} />}
     </div>
   );
 }
@@ -71,6 +71,7 @@ function runningLabel(tool) {
   if (name === "Write") return { verb: "Writing", file: fileName(tool.input?.file_path) };
   if (name === "Glob" || name === "Grep") return { verb: "Searching", file: tool.input?.pattern ?? tool.input?.query ?? "" };
   if (name === "AskUserQuestion") return { verb: "Asking", file: "user" };
+  if (name === "Skill") return { verb: "Using", file: `${tool.input?.skill ?? "skill"} skill` };
   return { verb: "Running", file: name };
 }
 
@@ -93,6 +94,7 @@ function itemLabel(tool) {
     return { verb: "Messaged", file: tool.input?.id ?? "worker" };
   }
   if (name === "AskUserQuestion") return { verb: "Asked", file: "user" };
+  if (name === "Skill") return { verb: "Used", file: `${tool.input?.skill ?? "skill"} skill` };
   return { verb: "Used", file: name };
 }
 

@@ -233,15 +233,18 @@ function attachAskUserAnswers(blocks) {
 export function buildSummary(tools) {
   let reads = 0;
   let edits = 0;
+  let skills = 0;
   let others = 0;
   for (const t of tools) {
     if (t.name === "Read") reads++;
     else if (t.verb === "edit") edits++;
+    else if (t.name === "Skill") skills++;
     else others++;
   }
   const parts = [];
   if (reads > 0) parts.push(`Read ${reads} file${reads > 1 ? "s" : ""}`);
   if (edits > 0) parts.push(`Edited ${edits} file${edits > 1 ? "s" : ""}`);
+  if (skills > 0) parts.push(`Used ${skills} skill${skills > 1 ? "s" : ""}`);
   if (others > 0) parts.push(`used ${others} tool${others > 1 ? "s" : ""}`);
   return parts.join(", ");
 }
