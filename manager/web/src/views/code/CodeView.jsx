@@ -9,8 +9,6 @@ import { Composer } from "./center/Composer.jsx";
 import { Messages } from "./messages/Messages.jsx";
 import { FileViewer } from "./messages/FileViewer.jsx";
 import { AgentViewer } from "./messages/AgentViewer.jsx";
-import { Islands } from "./islands/Islands.jsx";
-import { IslandHandle } from "./islands/IslandHandle.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 
 // Latched once workers first load so returning to the Code tab does not replay
@@ -80,13 +78,8 @@ export function CodeView({ live }) {
     requestAnimationFrame(() => requestAnimationFrame(() => { everReady = true; setReady(true); }));
   }, [ready, live.workers.length]);
 
-  const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
-  const panelOpen = ui.fileViewer || ui.agentViewer;
-  const islandsVisible = !!selectedWorker && !ui.islandsHidden && !panelOpen;
-
   const gridClass = [
     ready ? "ready" : "",
-    islandsVisible ? "has-islands" : "",
     ui.fileViewer ? "file-open" : "",
     ui.agentViewer ? "agent-open" : "",
   ].filter(Boolean).join(" ");
@@ -111,8 +104,6 @@ export function CodeView({ live }) {
       }
     >
       <SideHandle live={live} />
-      {!panelOpen && <Islands live={live} />}
-      {!panelOpen && <IslandHandle />}
       <AgentContextMenu live={live} />
     </AppLayout>
   );

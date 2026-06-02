@@ -4,7 +4,7 @@
    ============================================================================ */
 
 *, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
+html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
 body {
   background: #1a1a1a;
   color: #e8e8e8;
@@ -328,7 +328,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .tabbar__tab.is-active { color: var(--fg); }
 .tabbar__tab svg { flex-shrink: 0; }
 
-/* base glass styling for sidebar islands — same as right-panel .isl */
+/* base glass styling for sidebar islands */
 .side-island {
   position: relative;
   background: rgba(32, 32, 32, 0.42);
@@ -624,6 +624,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .messages-wrap {
   flex: 1;
   overflow-y: auto;
+  overscroll-behavior-y: contain;
   padding: 0 0 8px;
 }
 .messages {
@@ -631,14 +632,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   margin: 0 auto;
   padding: 16px 32px 32px;
 }
-/* Reserve room on the right for the floating islands column so messages
-   never wrap underneath the cards. Width derives from the same vars as the
-   islands themselves, so any responsive shrink applies in lock-step.
-   Composer sits below the islands' vertical bounds — no padding needed. */
-.app.has-islands .messages {
-  padding-right: calc(var(--islands-w) + var(--islands-right) + 20px);
-}
-
 /* scroll-to-bottom pill — sticky to bottom-center of messages-wrap */
 .scroll-to-bottom {
   position: sticky;
@@ -2435,300 +2428,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 }
 
 /* sidebar foot legacy styles — removed, replaced by .side-island--status */
-
-/* ============================================================================
-   FLOATING ISLANDS · selected-agent details (liquid glass, fragmented)
-   ============================================================================ */
-/* CSS vars drive both the islands' own size AND the right-side reservation
-   on .messages, so changes propagate everywhere from one place. They scale
-   down on narrower viewports (see the @media blocks at the bottom of this
-   section) — this keeps the messages area readable on a MacBook Air without
-   the cards bleeding onto the text. */
-:root {
-  --islands-w: 208px;
-  --islands-right: 16px;
-  --islands-top: 24px;
-}
-.islands {
-  position: absolute;
-  top: var(--islands-top);
-  right: var(--islands-right);
-  width: var(--islands-w);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  z-index: 10;
-  pointer-events: none; /* re-enable on children */
-}
-.app.ready .islands { transition: transform 200ms ease, opacity 200ms ease; }
-.app.ready .island-handle { transition: opacity 200ms ease; }
-.islands.hidden { transform: translateX(100%); opacity: 0; pointer-events: none; }
-
-/* liquid-glass tokens — matte body, thin sharp rim around all edges */
-.isl {
-  position: relative;
-  background: rgba(32, 32, 32, 0.42);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border-radius: 12px;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.18),
-    0 1px 3px rgba(0, 0, 0, 0.12);
-  pointer-events: auto;
-}
-/* sharp thin gradient rim — visible all around the perimeter */
-.isl::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg,
-    rgba(255, 255, 255, 0.36),
-    rgba(255, 255, 255, 0.07) 38%,
-    rgba(255, 255, 255, 0.07) 62%,
-    rgba(255, 255, 255, 0.22)) border-box;
-  -webkit-mask:
-    linear-gradient(#000, #000) content-box,
-    linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-}
-
-/* HEADER ISLAND */
-.isl-header { padding: 10px 12px 11px; }
-.isl-header .close-btn {
-  position: absolute; top: 9px; right: 9px;
-  width: 20px; height: 20px;
-  border-radius: 5px;
-  color: var(--fg-faint);
-  display: inline-flex; align-items: center; justify-content: center;
-  z-index: 2;
-}
-.isl-header .close-btn:hover { background: rgba(255,255,255,0.08); color: var(--fg); }
-.live-eyebrow {
-  display: inline-flex; align-items: center; gap: 6px;
-  font-size: 9.5px; font-family: "JetBrains Mono", monospace;
-  color: var(--ok); text-transform: uppercase; letter-spacing: 0.14em;
-  font-weight: 500;
-}
-.live-eyebrow .pulse {
-  position: relative;
-  width: 7px; height: 7px;
-}
-.live-eyebrow .pulse::before, .live-eyebrow .pulse::after {
-  content: ""; position: absolute; inset: 0; border-radius: 50%;
-}
-.live-eyebrow .pulse::before {
-  background: var(--ok);
-  box-shadow: 0 0 6px rgba(103, 192, 132, 0.6);
-}
-.live-eyebrow .pulse::after {
-  border: 1.5px solid var(--ok);
-  inset: -3px;
-  opacity: 0.6;
-  animation: ring-pulse 1.8s ease-out infinite;
-}
-@keyframes ring-pulse {
-  0% { transform: scale(0.55); opacity: 0.8; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
-.agent-name {
-  margin-top: 5px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--fg);
-  letter-spacing: -0.015em;
-  line-height: 1.15;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.agent-meta {
-  display: flex; align-items: center; gap: 7px;
-  margin-top: 7px;
-}
-.model-badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 2px 7px;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 10px;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10.5px;
-  color: var(--fg);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-.status-text {
-  font-size: 11px;
-  color: var(--ok);
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-/* CONTEXT RING ISLAND */
-.isl-context {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 14px;
-}
-.ring-wrap {
-  position: relative;
-  width: 78px; height: 78px;
-  flex-shrink: 0;
-}
-.ring-wrap svg { width: 100%; height: 100%; transform: rotate(-90deg); }
-.ring-wrap .track { fill: none; stroke: rgba(255,255,255,0.08); stroke-width: 4; }
-.ring-wrap .fill {
-  fill: none; stroke: var(--accent); stroke-width: 4;
-  stroke-linecap: round;
-  transition: stroke-dasharray 400ms;
-  filter: drop-shadow(0 0 4px rgba(110, 164, 232, 0.4));
-}
-.ring-wrap .center {
-  position: absolute; inset: 0;
-  display: flex; align-items: center; justify-content: center;
-  flex-direction: column;
-  line-height: 1;
-}
-.ring-wrap .pct-num {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--fg);
-  letter-spacing: -0.02em;
-}
-.ring-wrap .pct-num .sign {
-  font-size: 11px; color: var(--fg-faint); font-weight: 400; margin-left: 1px;
-}
-.ring-wrap .pct-label {
-  margin-top: 4px;
-  font-size: 8.5px; color: var(--fg-faint);
-  text-transform: uppercase; letter-spacing: 0.14em;
-  font-family: "JetBrains Mono", monospace;
-}
-.ctx-info { min-width: 0; flex: 1; }
-.ctx-info .ctx-h {
-  font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--fg-faint); font-weight: 500;
-}
-.ctx-info .ctx-big {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 15px; font-weight: 500; color: var(--fg);
-  margin-top: 4px; letter-spacing: -0.01em;
-}
-.ctx-info .ctx-sub {
-  font-size: 10.5px; color: var(--fg-faint);
-  margin-top: 3px; font-family: "JetBrains Mono", monospace;
-}
-
-/* DUO METRIC ROW */
-.duo-row { display: flex; gap: 10px; }
-.isl-tile { flex: 1; padding: 8px 10px 9px; min-width: 0; }
-.isl-tile .lab {
-  font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--fg-faint); font-family: "JetBrains Mono", monospace;
-  font-weight: 500;
-}
-.isl-tile .val {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 14px; font-weight: 500; color: var(--fg);
-  margin-top: 3px; letter-spacing: -0.015em; white-space: nowrap;
-}
-
-/* TOKENS ISLAND */
-.isl-tokens { padding: 8px 10px 9px; }
-.isl-tokens .lab {
-  font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--fg-faint); font-family: "JetBrains Mono", monospace;
-  font-weight: 500;
-}
-.isl-tokens .stack {
-  display: flex; align-items: baseline; gap: 10px; margin-top: 5px;
-}
-.isl-tokens .val {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 14px; font-weight: 500; color: var(--fg);
-  letter-spacing: -0.015em;
-}
-.isl-tokens .breakdown {
-  display: flex; gap: 6px; font-size: 10.5px;
-  color: var(--fg-faint);
-  font-family: "JetBrains Mono", monospace;
-}
-.isl-tokens .breakdown b { color: var(--fg-dim); font-weight: 500; }
-
-/* TOOLS PILL */
-.isl-tools {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 7px 12px;
-}
-.isl-tools .lab {
-  font-size: 9px; text-transform: uppercase; letter-spacing: 0.1em;
-  color: var(--fg-faint); font-family: "JetBrains Mono", monospace;
-  font-weight: 500;
-}
-.isl-tools .total {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 12.5px; font-weight: 500; color: var(--fg);
-  letter-spacing: -0.01em;
-}
-.isl-tools .total .word {
-  font-size: 10.5px; color: var(--fg-faint); font-weight: 400; margin-left: 4px;
-}
-
-/* Responsive islands — scale down on narrower viewports so the cards don't
-   crowd the messages column. The CSS vars at the top of this section drive
-   both the islands' own size and the messages' right padding; one change
-   here propagates everywhere. Internal text shrinks proportionally so the
-   information density doesn't fall apart. */
-@media (max-width: 1440px) {
-  :root {
-    --islands-w: 192px;
-    --islands-right: 16px;
-  }
-}
-@media (max-width: 1280px) {
-  :root {
-    --islands-w: 176px;
-    --islands-right: 16px;
-    --islands-top: 14px;
-  }
-  .agent-name { font-size: 14px; }
-  .isl-tokens .val { font-size: 13px; }
-  .isl-tile .val { font-size: 13px; }
-  .agent-meta { gap: 5px; }
-  .model-badge { padding: 1px 5px; font-size: 10px; }
-}
-
-/* expand handle when islands hidden */
-.island-handle {
-  position: absolute;
-  top: 24px;
-  right: 16px;
-  width: 28px; height: 28px;
-  background: rgba(32, 32, 32, 0.42);
-  backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-top-color: rgba(255, 255, 255, 0.14);
-  border-radius: 8px;
-  display: inline-flex;
-  align-items: center; justify-content: center;
-  color: var(--fg-dim);
-  cursor: pointer;
-  z-index: 10;
-}
-.island-handle:hover { color: var(--fg); }
-.app.ready .islands.hidden + .island-handle { opacity: 1; pointer-events: auto; }
-.island-handle { opacity: 0; pointer-events: none; }
-
-/* ============================================================================
-   ISLANDS open/close
-   ============================================================================ */
 
 /* ============================================================================
    POPOVERS & MODALS — shared liquid-glass styling

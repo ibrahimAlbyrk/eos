@@ -10,10 +10,8 @@ export function SelectionProvider({ children }) {
     else localStorage.removeItem("cm:selectedId");
   }, []);
   const [sideCollapsed, setSideCollapsed] = useState(() => localStorage.getItem("cm:sideCollapsed") === "1");
-  const [islandsHidden, setIslandsHidden] = useState(() => localStorage.getItem("cm:islandsHidden") === "1");
 
   useEffect(() => { localStorage.setItem("cm:sideCollapsed", sideCollapsed ? "1" : "0"); }, [sideCollapsed]);
-  useEffect(() => { localStorage.setItem("cm:islandsHidden", islandsHidden ? "1" : "0"); }, [islandsHidden]);
   const [openPopover, setOpenPopover] = useState(null);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
   const [popoverData, setPopoverData] = useState({});
@@ -90,7 +88,6 @@ export function SelectionProvider({ children }) {
   const value = useMemo(() => ({
     selectedId, setSelectedId,
     sideCollapsed, setSideCollapsed,
-    islandsHidden, setIslandsHidden,
     openPopover, openPop, closeAllPops, popoverPos, popoverData,
     collapsedNodes, toggleNodeCollapsed,
     expandedTools, toggleToolExpanded,
@@ -100,7 +97,7 @@ export function SelectionProvider({ children }) {
     agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     registerEscapeIdle,
   }), [
-    selectedId, sideCollapsed, islandsHidden, openPopover, popoverPos, popoverData,
+    selectedId, sideCollapsed, openPopover, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, fileViewer, agentViewer,
     openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded,
     openFileViewer, closeFileViewer, toggleFileEditMode,
