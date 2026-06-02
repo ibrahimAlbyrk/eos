@@ -20,6 +20,10 @@ export interface KillWorkerDeps {
   log: Logger;
   findOrphanPids(safeName: string): number[];
   postKillCleanup?(workerId: string): void;
+  // Fire-and-forget worktree+branch removal for an explicitly deleted worker.
+  // Invoked after the kill grace (once the PTY child is dead) so it never races
+  // the live cwd or the worker's own teardown.
+  cleanupWorktree?(ref: { repoRoot: string; worktreeDir: string | null; branch: string }): void;
   killGracePeriodMs?: number;
 }
 
@@ -32,6 +36,14 @@ export interface KillWorkerResult {
 export function killWorker(deps: KillWorkerDeps, id: string): KillWorkerResult {
   const w = deps.workers.findById(id);
   if (!w) throw new NotFoundError("worker", id);
+
+  // Capture the worktree ref before the row is deleted. A plain-cwd worker has
+  // neither worktree_from nor branch → skipped. Each recursive call captures its
+  // own child row, so the depth-first recursion cleans the whole subtree.
+  const wtRef =
+    w.worktree_from && w.branch
+      ? { repoRoot: w.worktree_from, worktreeDir: w.worktree_dir ?? null, branch: w.branch }
+      : null;
 
   const killed: Array<{ pid: number; via: string }> = [];
 
@@ -68,9 +80,12 @@ export function killWorker(deps: KillWorkerDeps, id: string): KillWorkerResult {
   for (const pid of deps.findOrphanPids(safeName)) tryKill(pid, "pgrep");
 
   // Best-effort SIGKILL on every pid we touched, after a short grace, in
-  // case any one of them ignored SIGTERM.
+  // case any one of them ignored SIGTERM. The worktree removal piggybacks on
+  // this same grace: by now the PTY child is dead and its cwd is freed, so the
+  // force-remove can't race the worker's own teardown or a live working dir.
   setTimeout(() => {
     for (const k of killed) deps.supervisor.killPid(k.pid, "SIGKILL");
+    if (wtRef) deps.cleanupWorktree?.(wtRef);
   }, deps.killGracePeriodMs ?? 2000);
 
   deps.workers.delete(id);

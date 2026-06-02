@@ -11,10 +11,12 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
   events: AppendedEvent[];
   row: { state: WorkerState };
   toolCalls: { count: number };
+  worktreeDirCalls: Array<{ id: string; dir: string }>;
 } {
   const events: AppendedEvent[] = [];
   const row = { state: initialState };
   const toolCalls = { count: 0 };
+  const worktreeDirCalls: Array<{ id: string; dir: string }> = [];
   // Mutable so markSettling (driven by the Stop hook) actually opens the window
   // a subsequent jsonl event then observes — mirrors TurnSettleService.
   let settling = opts.settling ?? false;
@@ -23,6 +25,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
     findById: () => row as unknown as WorkerRow,
     updateState: (_id: string, next: WorkerState) => { row.state = next; },
     incrementToolCalls: () => { toolCalls.count++; },
+    setWorktreeDir: (id: string, dir: string) => { worktreeDirCalls.push({ id, dir }); },
   } as unknown as ProcessWorkerEventDeps["workers"];
 
   const eventsRepo = {
@@ -49,7 +52,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
     markSettling: () => { settling = true; },
   } as unknown as ProcessWorkerEventDeps;
 
-  return { deps, events, row, toolCalls };
+  return { deps, events, row, toolCalls, worktreeDirCalls };
 }
 
 const stateEvents = (events: AppendedEvent[]): Array<{ state?: string; reason?: string }> =>
@@ -84,6 +87,26 @@ describe("ProcessWorkerEvent.lifecycle — prompt_unacknowledged", () => {
       assert.deepEqual(stateEvents(events), []);
     });
   }
+});
+
+describe("ProcessWorkerEvent.lifecycle — claude_spawning worktree_dir enrichment", () => {
+  it("persists the resolved worktree dir", () => {
+    const { deps, worktreeDirCalls } = buildDeps("SPAWNING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning", worktreeDir: "/repo/.claude-mgr/worktrees/cm-w1-x", branch: "cm-w1-x" } });
+    assert.deepEqual(worktreeDirCalls, [{ id: "w1", dir: "/repo/.claude-mgr/worktrees/cm-w1-x" }]);
+  });
+
+  it("does not transition state on claude_spawning", () => {
+    const { deps, events } = buildDeps("SPAWNING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning", worktreeDir: "/x" } });
+    assert.deepEqual(stateEvents(events), []);
+  });
+
+  it("is a no-op when claude_spawning carries no worktreeDir (plain-cwd worker)", () => {
+    const { deps, worktreeDirCalls } = buildDeps("SPAWNING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning" } });
+    assert.deepEqual(worktreeDirCalls, []);
+  });
 });
 
 describe("ProcessWorkerEvent.jsonl — IDLE self-heal", () => {

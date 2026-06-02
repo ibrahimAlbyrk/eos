@@ -20,7 +20,6 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const name = (body.name ?? "").trim() || randomOrchestratorName();
     const cwd = expandPath(body.cwd);
     const id = c.ids.newOrchestratorId();
-    const mcpPath = c.writeOrchestratorMcpConfig(id);
     const result = await spawnWorker(
       {
         workers: c.workers, events: c.events, bus: c.bus,
@@ -36,7 +35,6 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         fixedId: id,
         persistent: true,
         systemPromptFile: c.config.paths.orchestratorPromptFile,
-        mcpConfig: mcpPath,
         claudePermissionMode: body.permissionMode ?? "default",
         model: body.model ?? "opus",
         effort: body.effort ?? "high",

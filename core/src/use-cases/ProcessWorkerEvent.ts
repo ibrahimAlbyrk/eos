@@ -90,7 +90,17 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
     }
   },
   lifecycle(deps, input) {
-    const phase = (input.payload as { phase?: string })?.phase;
+    const p = input.payload as { phase?: string; worktreeDir?: unknown } | null;
+    const phase = p?.phase;
+    if (phase === "claude_spawning") {
+      // Enrichment only: persist the worker's resolved (realpath'd) worktree dir
+      // so the daemon can remove it on delete even after the process is gone.
+      // Raw string only — no path/fs math here (core stays Node-free).
+      if (typeof p?.worktreeDir === "string" && p.worktreeDir.length > 0) {
+        deps.workers.setWorktreeDir(input.workerId, p.worktreeDir);
+      }
+      return;
+    }
     if (phase !== "prompt_unacknowledged") return;
     // The boot prompt was never acknowledged (no hook, no JSONL). Clear the
     // false WORKING/SPAWNING spinner so the worker reads as IDLE(prompt_lost).

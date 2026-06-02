@@ -1,0 +1,92 @@
+import { describe, it, before, after } from "node:test";
+import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, realpathSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+
+import { childProcessWorktreeManager as wm } from "../git/ChildProcessWorktreeManager.ts";
+
+let repo: string;
+
+function git(cwd: string, ...args: string[]): { code: number; out: string } {
+  const r = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
+  return { code: r.status ?? -1, out: (r.stdout ?? "") + (r.stderr ?? "") };
+}
+
+function addWorktree(branch: string): string {
+  const dir = join(repo, ".claude-mgr", "worktrees", branch);
+  mkdirSync(join(repo, ".claude-mgr", "worktrees"), { recursive: true });
+  const r = git(repo, "worktree", "add", dir, "-b", branch);
+  assert.equal(r.code, 0, `worktree add failed: ${r.out}`);
+  return realpathSync(dir);
+}
+
+before(() => {
+  repo = realpathSync(mkdtempSync(join(tmpdir(), "cm-wm-")));
+  assert.equal(git(repo, "init").code, 0);
+  git(repo, "config", "user.email", "t@t.t");
+  git(repo, "config", "user.name", "t");
+  git(repo, "config", "commit.gpgsign", "false");
+  writeFileSync(join(repo, "README.md"), "hi\n");
+  git(repo, "add", "-A");
+  assert.equal(git(repo, "commit", "-m", "init").code, 0);
+});
+
+after(() => {
+  try { rmSync(repo, { recursive: true, force: true }); } catch {}
+});
+
+describe("ChildProcessWorktreeManager.remove", () => {
+  it("force-removes a worktree + branch even with uncommitted changes", async () => {
+    const branch = "cm-dirty-1";
+    const dir = addWorktree(branch);
+    writeFileSync(join(dir, "scratch.txt"), "uncommitted work\n"); // dirty
+
+    const res = await wm.remove({ repoRoot: repo, worktreeDir: dir, branch });
+    assert.equal(res.removed, true);
+    assert.equal(existsSync(dir), false, "worktree dir should be gone");
+    assert.ok(!git(repo, "branch", "--list", branch).out.includes(branch), "branch should be deleted");
+  });
+
+  it("is idempotent — removing an already-gone ref resolves removed:true without throwing", async () => {
+    const branch = "cm-twice-2";
+    const dir = addWorktree(branch);
+    await wm.remove({ repoRoot: repo, worktreeDir: dir, branch });
+    const res = await wm.remove({ repoRoot: repo, worktreeDir: dir, branch });
+    assert.equal(res.removed, true);
+  });
+
+  it("derives the dir from branch when worktreeDir is null", async () => {
+    const branch = "cm-derive-3";
+    const dir = addWorktree(branch);
+    const res = await wm.remove({ repoRoot: repo, worktreeDir: null, branch });
+    assert.equal(res.removed, true);
+    assert.equal(existsSync(dir), false);
+  });
+
+  it("refuses to remove the repo root itself", async () => {
+    const res = await wm.remove({ repoRoot: repo, worktreeDir: repo, branch: "whatever" });
+    assert.equal(res.removed, false);
+    assert.ok(existsSync(repo), "repo root must survive");
+  });
+});
+
+describe("ChildProcessWorktreeManager.listWorktrees", () => {
+  it("flags the main worktree and parses cm-* branches", async () => {
+    const branch = "cm-list-4";
+    const dir = addWorktree(branch);
+    const entries = await wm.listWorktrees(repo);
+
+    const main = entries.find((e) => e.path === repo);
+    assert.ok(main, "main worktree present");
+    assert.equal(main!.isMain, true);
+
+    const child = entries.find((e) => e.path === dir);
+    assert.ok(child, "added worktree present");
+    assert.equal(child!.isMain, false);
+    assert.equal(child!.branch, branch);
+
+    await wm.remove({ repoRoot: repo, worktreeDir: dir, branch }); // cleanup
+  });
+});

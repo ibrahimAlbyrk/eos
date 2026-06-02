@@ -17,6 +17,7 @@ export interface WorkerOptions {
   persistent: boolean;
   systemPromptFile: string | undefined;
   mcpConfig: string | undefined;
+  mcpStrict: boolean | undefined;
   permissionPromptTool: string | undefined;
   claudePermissionMode: string | undefined;
   model: string;
@@ -53,6 +54,7 @@ export function parseWorkerOptions(): WorkerOptions {
       persistent: { type: "boolean", default: false },
       "system-prompt-file": { type: "string" },
       "mcp-config": { type: "string" },
+      "mcp-strict": { type: "string" },
       "permission-prompt-tool": { type: "string" },
       "claude-permission-mode": { type: "string" },
       model: { type: "string" },
@@ -91,6 +93,7 @@ export function parseWorkerOptions(): WorkerOptions {
     persistent: !!values.persistent,
     systemPromptFile: values["system-prompt-file"],
     mcpConfig: values["mcp-config"],
+    mcpStrict: values["mcp-strict"] === undefined ? undefined : values["mcp-strict"] !== "false",
     permissionPromptTool: values["permission-prompt-tool"],
     claudePermissionMode: values["claude-permission-mode"],
     model: values.model ?? "opus",

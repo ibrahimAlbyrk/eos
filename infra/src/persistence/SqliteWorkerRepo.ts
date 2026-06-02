@@ -21,6 +21,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtUpdateName;
   private readonly stmtUpdatePermissionMode;
   private readonly stmtUpdateModel;
+  private readonly stmtSetWorktreeDir;
   private readonly stmtDelete;
   private readonly stmtFindChildrenIds;
   private readonly stmtTotalCost;
@@ -55,6 +56,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtUpdateName = db.prepare("UPDATE workers SET name = ? WHERE id = ?");
     this.stmtUpdatePermissionMode = db.prepare("UPDATE workers SET permission_mode = ? WHERE id = ?");
     this.stmtUpdateModel = db.prepare("UPDATE workers SET model = ?, effort = ? WHERE id = ?");
+    this.stmtSetWorktreeDir = db.prepare("UPDATE workers SET worktree_dir = ? WHERE id = ?");
     this.stmtDelete = db.prepare("DELETE FROM workers WHERE id = ?");
     this.stmtFindChildrenIds = db.prepare("SELECT id FROM workers WHERE parent_id = ?");
     this.stmtTotalCost = db.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS total FROM workers");
@@ -124,6 +126,10 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   updateModel(id: string, model: string, effort: string | null): void {
     this.stmtUpdateModel.run(model, effort, id);
+  }
+
+  setWorktreeDir(id: string, worktreeDir: string): void {
+    this.stmtSetWorktreeDir.run(worktreeDir, id);
   }
 
   delete(id: string): void {

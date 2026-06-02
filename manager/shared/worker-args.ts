@@ -51,6 +51,7 @@ export function buildWorkerArgs(input: BuildWorkerArgsInput): string[] {
   if (spec.persistent) args.push("--persistent");
   if (spec.systemPromptFile) args.push(flagToken("--system-prompt-file", spec.systemPromptFile));
   if (spec.mcpConfig) args.push(flagToken("--mcp-config", spec.mcpConfig));
+  if (spec.mcpStrict !== undefined) args.push(flagToken("--mcp-strict", String(spec.mcpStrict)));
   if (spec.permissionPromptTool) args.push(flagToken("--permission-prompt-tool", spec.permissionPromptTool));
   if (spec.claudePermissionMode) args.push(flagToken("--claude-permission-mode", spec.claudePermissionMode));
   args.push(flagToken("--model", model));

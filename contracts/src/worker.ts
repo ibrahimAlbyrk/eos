@@ -32,6 +32,9 @@ export const WorkerRowSchema = z.object({
   tool_calls: z.number().nullable().optional(),
   permission_mode: z.string().nullable().optional(),
   effort: z.string().nullable().optional(),
+  // Resolved (realpath'd) worktree directory, persisted post-spawn so the
+  // daemon can remove the worktree on delete even after the worker is gone.
+  worktree_dir: z.string().nullable().optional(),
 });
 
 export const PermissionModeSchema = z.enum([

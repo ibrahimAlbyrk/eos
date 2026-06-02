@@ -38,7 +38,10 @@ export function buildClaudeArgs(
   let syntheticMcpPath: string | null = null;
 
   if (opts.mcpConfig) {
-    args.push("--strict-mcp-config", "--mcp-config", opts.mcpConfig);
+    // Strict by default (back-compat); the daemon passes --mcp-strict=false for
+    // the additive path, where claude must still discover its own MCP servers.
+    if (opts.mcpStrict !== false) args.push("--strict-mcp-config");
+    args.push("--mcp-config", opts.mcpConfig);
     if (opts.permissionPromptTool) {
       args.push("--permission-prompt-tool", opts.permissionPromptTool);
     }

@@ -70,6 +70,7 @@ export const MIGRATIONS: Migration[] = [
   { id: "016_workers_add_permission_mode", sql: "ALTER TABLE workers ADD COLUMN permission_mode TEXT" },
   { id: "017_workers_add_effort", sql: "ALTER TABLE workers ADD COLUMN effort TEXT" },
   { id: "018_workers_add_tokens_cache_create_1h", sql: "ALTER TABLE workers ADD COLUMN tokens_cache_create_1h INTEGER DEFAULT 0" },
+  { id: "019_workers_add_worktree_dir", sql: "ALTER TABLE workers ADD COLUMN worktree_dir TEXT" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

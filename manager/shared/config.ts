@@ -11,7 +11,9 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { NotificationConfigSchema, type NotificationConfig } from "../../contracts/src/notifications.ts";
+import { McpServerDefSchema } from "../../contracts/src/shared.ts";
 import { errMsg } from "../../contracts/src/util.ts";
+import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
 
 export interface ModelPrice { in: number; out: number; cacheRead: number; cacheCreate: number; cacheCreate1h: number; }
 
@@ -46,7 +48,21 @@ export interface DaemonConfig {
   };
   prices: Record<string, ModelPrice>;
   notifications: NotificationConfig;
+  // Per-agent-type MCP wiring. Defaults inherit all of claude's normal MCP
+  // servers (standard behavior); narrow with include/exclude or add type-only
+  // servers via extra. See core/src/domain/mcp-resolution.ts.
+  mcp: {
+    orchestrator: AgentMcpConfig;
+    worker: AgentMcpConfig;
+  };
 }
+
+const DEFAULT_AGENT_MCP: AgentMcpConfig = {
+  inheritDefaults: true,
+  include: ["*"],
+  exclude: [],
+  extra: {},
+};
 
 // Walk up from this file's location to find the repo root. daemon.ts and
 // worker.ts both live two levels below the repo root, so we resolve relative
@@ -116,6 +132,10 @@ function defaults(): DaemonConfig {
     },
     prices: DEFAULT_PRICES,
     notifications: NotificationConfigSchema.parse({}),
+    mcp: {
+      orchestrator: { ...DEFAULT_AGENT_MCP },
+      worker: { ...DEFAULT_AGENT_MCP },
+    },
   };
 }
 
@@ -125,6 +145,13 @@ const ModelPriceOverrideSchema = z.object({
   cacheRead: z.number().nonnegative(),
   cacheCreate: z.number().nonnegative(),
   cacheCreate1h: z.number().nonnegative(),
+}).partial();
+
+const AgentMcpConfigOverrideSchema = z.object({
+  inheritDefaults: z.boolean(),
+  include: z.array(z.string()),
+  exclude: z.array(z.string()),
+  extra: z.record(z.string(), McpServerDefSchema),
 }).partial();
 
 const DaemonConfigOverrideSchema = z.object({
@@ -154,6 +181,10 @@ const DaemonConfigOverrideSchema = z.object({
   }).partial().optional(),
   prices: z.record(z.string(), ModelPriceOverrideSchema).optional(),
   notifications: NotificationConfigSchema.optional(),
+  mcp: z.object({
+    orchestrator: AgentMcpConfigOverrideSchema.optional(),
+    worker: AgentMcpConfigOverrideSchema.optional(),
+  }).partial().optional(),
 }).passthrough();
 
 // Merge file-loaded overrides on top of defaults. Most sections are flat and
@@ -173,6 +204,13 @@ function mergeConfig(base: DaemonConfig, override: unknown): DaemonConfig {
       for (const model of Object.keys(incPrices)) {
         const base = out.prices[model] ?? { in: 0, out: 0, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 };
         out.prices[model] = { ...base, ...incPrices[model] };
+      }
+    } else if (k === "mcp") {
+      // Two-level (orchestrator|worker → AgentMcpConfig). Merge per agent,
+      // per field so overriding just `worker.include` keeps the other fields.
+      const incMcp = incoming as Record<string, Partial<AgentMcpConfig>>;
+      for (const t of ["orchestrator", "worker"] as const) {
+        if (incMcp[t]) out.mcp[t] = { ...out.mcp[t], ...incMcp[t] };
       }
     } else {
       Object.assign(out[k] as Record<string, unknown>, incoming as Record<string, unknown>);

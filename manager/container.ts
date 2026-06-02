@@ -25,7 +25,11 @@ import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
 import { createDarwinFsHelpers, type FsHelpers } from "../infra/src/filesystem/DarwinFsHelpers.ts";
 import { noopFsHelpers } from "../infra/src/filesystem/NoopFsHelpers.ts";
 import { childProcessGitInfo } from "../infra/src/git/ChildProcessGitInfo.ts";
+import { childProcessWorktreeManager } from "../infra/src/git/ChildProcessWorktreeManager.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
+import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
+import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
+import { resolveMcpServers } from "../core/src/domain/mcp-resolution.ts";
 
 import type { Policy } from "../core/src/domain/policy.ts";
 import type { ModelCatalog } from "../core/src/ports/ModelCatalog.ts";
@@ -86,14 +90,11 @@ export function buildContainer() {
   const swept = pending.sweepExpired(systemClock.now(), "daemon restart sweep");
   if (swept > 0) log.info("swept stale pending permissions", { count: swept });
 
-  // Orphan worktree scan — log-only, never deletes.
-  for (const r of workers.listAll()) {
-    if (r.worktree_from && !existsSync(r.worktree_from)) {
-      log.warn("worker references missing worktree path", {
-        worker: r.id, path: r.worktree_from, branch: r.branch,
-      });
-    }
-  }
+  // Safe orphan-worktree prune — removes only row-gone cm-* worktrees left by
+  // deleted workers (see PruneOrphanWorktrees for the conjunctive guards).
+  // Fire-and-forget so a slow git scan never blocks daemon boot.
+  void pruneOrphanWorktrees({ workers, worktrees: childProcessWorktreeManager, log })
+    .catch((e) => log.warn("worktree prune failed", { error: e instanceof Error ? e.message : String(e) }));
 
   // Bus + SSE ---------------------------------------------------------------
   const bus = createInMemoryEventBus();
@@ -175,15 +176,26 @@ export function buildContainer() {
 
   // Git info + recents -----------------------------------------------------
   const git = childProcessGitInfo;
+  const worktrees = childProcessWorktreeManager;
   const recents = new JsonRecentsRepo(join(config.daemon.home, "recents.json"));
 
   // SpawnWorker dep builders -----------------------------------------------
-  const buildArgs: SpawnWorkerDeps["buildArgs"] = ({ id, port, spec, model }) =>
-    buildWorkerArgs({
+  const buildArgs: SpawnWorkerDeps["buildArgs"] = ({ id, port, spec, model }) => {
+    const wire = writeMcpConfig({
+      id,
+      cwd: spec.cwd ?? spec.worktreeFrom,
+      isOrchestrator: !!spec.isOrchestrator,
+      withGateway: !!spec.withGateway,
+      parentId: spec.parentId,
+    });
+    const wiredSpec: SpawnWorkerSpec = wire.path
+      ? { ...spec, mcpConfig: wire.path, mcpStrict: wire.strict, permissionPromptTool: wire.permissionPromptTool ?? spec.permissionPromptTool }
+      : spec;
+    return buildWorkerArgs({
       id,
       port,
       model,
-      spec,
+      spec: wiredSpec,
       workerScript: config.paths.workerScript,
       daemonPort: config.daemon.port,
       worker: {
@@ -193,6 +205,7 @@ export function buildContainer() {
         ptyWriteDelayMs: config.worker.ptyWriteDelayMs,
       },
     });
+  };
 
   const buildEnv: SpawnWorkerDeps["buildEnv"] = () => ({
     ...(process.env as Record<string, string>),
@@ -204,33 +217,67 @@ export function buildContainer() {
 
   const logFileFor = (id: string): string => join(config.daemon.logDir, `${id}.log`);
 
-  // Per-orchestrator MCP config writer (used by /orchestrators POST and
-  // cleaned up by KillWorker via postKillCleanup).
-  const writeOrchestratorMcpConfig = (orchId: string): string => {
-    const mcpPath = join(config.daemon.home, `orchestrator-mcp-${orchId}.json`);
-    writeFileSync(
-      mcpPath,
-      JSON.stringify({
-        mcpServers: {
-          orchestrator: {
-            command: "node",
-            args: ["--no-warnings", "--experimental-strip-types", join(config.paths.repoRoot, "manager", "orchestrator-mcp.ts")],
-            env: {
-              ...process.env,
-              CLAUDE_MGR_DAEMON_URL: `http://127.0.0.1:${config.daemon.port}`,
-              CLAUDE_MGR_WORKER_ID: orchId,
-            },
-          },
-        },
-      }),
-    );
-    return mcpPath;
+  // Per-agent MCP config. Composes the type-specific built-in servers
+  // (orchestrator / gateway / worker) with the user's inherited MCP servers
+  // (filtered per config.mcp) into one mcp.json. `strict` tells the spawner
+  // whether to isolate claude to this file — see core mcp-resolution. Written
+  // at spawn (buildArgs) and removed by KillWorker via postKillCleanup.
+  const mcpCatalog = new FileMcpServerCatalog();
+  const mcpConfigPathFor = (id: string): string => join(config.daemon.home, `mcp-${id}.json`);
+
+  const buildMcpBuiltins = (input: {
+    id: string;
+    isOrchestrator: boolean;
+    withGateway: boolean;
+    parentId: string | undefined;
+  }): { builtins: Record<string, unknown>; permissionPromptTool: string | undefined } => {
+    const baseEnv = {
+      ...process.env,
+      CLAUDE_MGR_DAEMON_URL: `http://127.0.0.1:${config.daemon.port}`,
+      CLAUDE_MGR_WORKER_ID: input.id,
+    };
+    const node = (script: string) => ({
+      command: "node",
+      args: ["--no-warnings", "--experimental-strip-types", join(config.paths.repoRoot, "manager", script)],
+      env: baseEnv,
+    });
+    const builtins: Record<string, unknown> = {};
+    if (input.isOrchestrator) builtins.orchestrator = node("orchestrator-mcp.ts");
+    if (input.withGateway) {
+      builtins.gateway = {
+        command: config.paths.bunBin,
+        args: ["run", join(config.paths.repoRoot, "gateway", "server.ts")],
+        env: baseEnv,
+      };
+    }
+    if (input.parentId) builtins.worker = node("worker-mcp.ts");
+    return { builtins, permissionPromptTool: input.withGateway ? "mcp__gateway__decide" : undefined };
   };
 
-  const cleanupOrchestratorMcpConfig = (id: string): void => {
+  const writeMcpConfig = (input: {
+    id: string;
+    cwd: string | undefined;
+    isOrchestrator: boolean;
+    withGateway: boolean;
+    parentId: string | undefined;
+  }): { path: string | null; strict: boolean; permissionPromptTool: string | undefined } => {
+    const agentCfg = input.isOrchestrator ? config.mcp.orchestrator : config.mcp.worker;
+    const { builtins, permissionPromptTool } = buildMcpBuiltins(input);
+    const inherited = input.cwd ? mcpCatalog.listInherited(input.cwd) : {};
+    const { servers, strict } = resolveMcpServers({ inherited, builtins, config: agentCfg });
+    // Additive + nothing of ours to add → no file; claude inherits natively.
+    if (!strict && Object.keys(servers).length === 0) {
+      return { path: null, strict: false, permissionPromptTool };
+    }
+    const path = mcpConfigPathFor(input.id);
+    writeFileSync(path, JSON.stringify({ mcpServers: servers }));
+    return { path, strict, permissionPromptTool };
+  };
+
+  const cleanupMcpConfig = (id: string): void => {
     try {
-      const mcpPath = join(config.daemon.home, `orchestrator-mcp-${id}.json`);
-      if (existsSync(mcpPath)) unlinkSync(mcpPath);
+      const p = mcpConfigPathFor(id);
+      if (existsSync(p)) unlinkSync(p);
     } catch {}
   };
 
@@ -260,14 +307,14 @@ export function buildContainer() {
     metrics,
     fs,
     git,
+    worktrees,
     recents,
     buildArgs,
     buildEnv,
     logFileFor,
     turnSettle,
     pendingQuestions,
-    writeOrchestratorMcpConfig,
-    cleanupOrchestratorMcpConfig,
+    cleanupMcpConfig,
     reloadPolicy(): void {
       policy = loadPolicy({
         candidates: [

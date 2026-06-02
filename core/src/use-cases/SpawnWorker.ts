@@ -22,6 +22,7 @@ export interface SpawnWorkerSpec {
   persistent?: boolean;
   systemPromptFile?: string;
   mcpConfig?: string;
+  mcpStrict?: boolean;
   permissionPromptTool?: string;
   claudePermissionMode?: string;
   fixedId?: string;
@@ -63,8 +64,22 @@ export async function spawnWorker(
   const model = resolved.model ?? "opus";
   const effort = resolved.effort ?? "high";
 
-  const args = deps.buildArgs({ id, port, spec: resolved, model });
-  const env = deps.buildEnv({ id, spec: resolved });
+  // Generate the worktree branch daemon-side so the DB always has a non-null
+  // branch for a worktree worker (the worker used to auto-generate it and leave
+  // the column NULL). This is what lets delete + the startup prune clean up
+  // reliably. Clock port, not the system clock — core forbids it. The worker
+  // then takes the explicit-branch path and never auto-generates. The unique
+  // worker id guarantees no collision even if two same-named workers spawn in
+  // the same millisecond; name + clock are only for readability/sorting.
+  const label = resolved.name ? `${resolved.name}-` : "";
+  const branch =
+    resolved.worktreeFrom && !resolved.branch
+      ? `cm-${label}${id}-${deps.clock.now().toString(36)}`
+      : resolved.branch;
+  const withBranch = { ...resolved, branch };
+
+  const args = deps.buildArgs({ id, port, spec: withBranch, model });
+  const env = deps.buildEnv({ id, spec: withBranch });
   const logFile = deps.logFileFor(id);
 
   const proc = deps.supervisor.spawn(id, {
@@ -85,7 +100,7 @@ export async function spawnWorker(
     prompt: resolved.prompt,
     cwd: resolved.cwd ?? null,
     worktreeFrom: resolved.worktreeFrom ?? null,
-    branch: resolved.branch ?? null,
+    branch: withBranch.branch ?? null,
     name: resolved.name ?? null,
     pid: proc.pid,
     port,

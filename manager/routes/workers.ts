@@ -88,7 +88,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         log: c.log,
         findOrphanPids: (safeName) => supervisorWithFind.findPidsByPattern(`cm-${safeName}-`),
         postKillCleanup: (id) => {
-          c.cleanupOrchestratorMcpConfig(id);
+          c.cleanupMcpConfig(id);
+        },
+        cleanupWorktree: (ref) => {
+          void c.worktrees.remove(ref).catch((e) => c.log.warn("worktree cleanup failed", { worker: params.id, error: errMsg(e) }));
         },
       },
       params.id,

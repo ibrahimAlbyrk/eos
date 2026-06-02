@@ -41,6 +41,9 @@ export interface WorkerRepo {
   updateName(id: string, name: string | null): void;
   updatePermissionMode(id: string, mode: string): void;
   updateModel(id: string, model: string, effort: string | null): void;
+  // Persist the resolved (realpath'd) worktree directory once the worker
+  // reports it — enrichment only; branch is written at insert.
+  setWorktreeDir(id: string, worktreeDir: string): void;
   delete(id: string): void;
   findChildrenIds(parentId: string): string[];
   // Aggregate helpers consumed by /session and /metrics — keep here so the
