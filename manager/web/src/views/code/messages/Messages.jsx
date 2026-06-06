@@ -5,13 +5,14 @@
 // This is the initial render layer; refinement (tool-group collapse, file
 // chips, table rendering) lives in dedicated sub-components.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { buildBlocks, parsePayload } from "../../../lib/messageParser.js";
 import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
 import { shouldStick, shouldAutoScroll } from "../../../lib/scrollStick.js";
+import { loadScrollPos, saveScrollPos, clearScrollPos } from "../../../lib/scrollMemory.js";
 import { usePageFind } from "../../../hooks/usePageFind.js";
 import { FindBar } from "./FindBar.jsx";
 import { MessageUser } from "./MessageUser.jsx";
@@ -57,9 +58,16 @@ export function Messages({ live }) {
         { scrollHeight: el.scrollHeight, scrollTop: el.scrollTop, clientHeight: el.clientHeight },
         SCROLL_THRESHOLD,
       );
+      // Persist the user's position per agent; near-bottom clears the entry so
+      // the default stick-to-bottom resumes. Skipped until the initial scroll
+      // lands — content-swap clamp events during an agent switch must not save.
+      if (initialScrollDone.current && ui.selectedId) {
+        if (isNearBottomRef.current) clearScrollPos(ui.selectedId);
+        else saveScrollPos(ui.selectedId, el.scrollTop);
+      }
     }
     updateScrollBtn();
-  }, [updateScrollBtn]);
+  }, [updateScrollBtn, ui.selectedId]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -91,21 +99,28 @@ export function Messages({ live }) {
   const scrollToBottom = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
+    isNearBottomRef.current = true;
+    if (ui.selectedId) clearScrollPos(ui.selectedId);
     runProgrammaticScroll(el, () => el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }));
-  }, [runProgrammaticScroll]);
+  }, [runProgrammaticScroll, ui.selectedId]);
 
   const fetchRef = useRef(null);
+  // Which agent the current `events` belong to — during a switch, blocks still
+  // render the previous agent's rows, and the initial scroll must wait for the
+  // new agent's content before restoring a saved position.
+  const eventsForRef = useRef(null);
 
   useEffect(() => { initialScrollDone.current = false; }, [ui.selectedId]);
 
   useEffect(() => {
-    if (!ui.selectedId) { setEvents([]); fetchRef.current = null; return; }
+    if (!ui.selectedId) { setEvents([]); fetchRef.current = null; eventsForRef.current = null; return; }
     const ac = new AbortController();
     let cancelled = false;
     const fetchOnce = async () => {
       try {
         const rows = await api.getWorkerEvents(ui.selectedId, { limit: 500, order: "asc", signal: ac.signal });
         if (!cancelled && Array.isArray(rows)) {
+          eventsForRef.current = ui.selectedId;
           setEvents(rows);
           const serverTexts = new Set();
           for (const e of rows) {
@@ -117,7 +132,7 @@ export function Messages({ live }) {
         }
       } catch (e) {
         if (e?.name === "AbortError") return;
-        if (!cancelled) setEvents([]);
+        if (!cancelled) { eventsForRef.current = ui.selectedId; setEvents([]); }
       }
     };
     fetchRef.current = fetchOnce;
@@ -209,12 +224,25 @@ export function Messages({ live }) {
   const waitingElapsedMs = agentBusy && lastIsUser && lastUserTs ? Math.max(0, live.now - lastUserTs) : 0;
   const showAnchor = !interrupted && ((agentBusy && blocks.length > 0) || isAgentReply);
 
-  useEffect(() => {
+  // Layout effect: the initial scroll must land before paint, otherwise the
+  // content flashes at the top and visibly jumps to the restored position.
+  useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el || blocks.length === 0) return;
     if (!initialScrollDone.current) {
+      if (eventsForRef.current !== ui.selectedId) return;
       initialScrollDone.current = true;
-      el.scrollTop = el.scrollHeight;
+      const saved = loadScrollPos(ui.selectedId);
+      if (saved != null) {
+        el.scrollTop = saved;
+        isNearBottomRef.current = shouldStick(
+          { scrollHeight: el.scrollHeight, scrollTop: el.scrollTop, clientHeight: el.clientHeight },
+          SCROLL_THRESHOLD,
+        );
+      } else {
+        el.scrollTop = el.scrollHeight;
+        isNearBottomRef.current = true;
+      }
       return;
     }
     const msSinceUserScroll = performance.now() - lastUserScrollTsRef.current;
