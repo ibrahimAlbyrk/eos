@@ -14,6 +14,10 @@ import { encodeCwd } from "./worktree.ts";
 
 export interface TailHandle {
   readonly path: string;
+  /** Synchronously read the file to EOF and emit everything pending. Called
+   *  before forwarding Stop/SessionEnd/interrupt so trailing transcript lines
+   *  are emitted ahead of the turn-end event (deterministic ordering). */
+  drainNow(): void;
   close(): void;
 }
 
@@ -67,6 +71,9 @@ export function startJsonlTail(ctx: TailContext): TailHandle {
   watcher.on("add", readNew).on("change", readNew);
   return {
     path: jsonlPath,
+    drainNow(): void {
+      try { readNew(); } catch {}
+    },
     close(): void {
       try { watcher.close(); } catch {}
     },
