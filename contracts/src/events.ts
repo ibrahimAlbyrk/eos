@@ -143,6 +143,13 @@ export const LifecyclePhaseSchema = z.enum([
   "ready_no_prompt",
   "ready_timeout",
   "message_received",
+  "interrupted",
+  // Delivery pipeline (spawner/delivery.ts) verification outcomes:
+  "echo_timeout",        // text never echoed in the composer before fallback CR
+  "delivery_retry",      // a retry attempt (re-CR or re-paste) was issued
+  "prompt_delivered",    // turn-ACK confirmed: user message landed in the transcript
+  "delivery_unverified", // echo OK but no turn-ACK (mid-turn queue or slow disk) — informational
+  "delivery_failed",     // neither echo nor ACK after all attempts — input is lost
   "pty_exit",
   "uncaught_exception",
   "unhandled_rejection",
@@ -159,6 +166,9 @@ export type LifecyclePayload = z.infer<typeof LifecyclePayloadSchema>;
 export const WorkerEventPostBodySchema = z.object({
   type: WorkerEventTypeSchema,
   payload: z.unknown().optional(),
+  // Worker-side monotonic emission counter. The event client serializes sends,
+  // so arrival order matches seq; the daemon stores it for gap diagnostics.
+  seq: z.number().int().nonnegative().optional(),
 });
 export type WorkerEventPostBody = z.infer<typeof WorkerEventPostBodySchema>;
 
