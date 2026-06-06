@@ -770,7 +770,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 
 /* Initial task prompt — shown as first block for orchestrator-spawned workers */
 .msg-task {
-  margin: 0 0 24px;
+  margin: 18px 0 24px;
   padding: 12px 16px;
   background: rgba(110, 164, 232, 0.06);
   border: 1px solid rgba(110, 164, 232, 0.12);
