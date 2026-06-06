@@ -9,7 +9,7 @@ describe("settings registry", () => {
     expect(keysOf(section("general"))).toContain("appearance.theme");
     expect(SETTING_DEFAULTS["appearance.theme"]).toBe("system");
     const item = section("general").groups.flatMap((g) => g.items).find((i) => i.key === "appearance.theme");
-    expect(item.control.options.map((o) => o.value)).toEqual(["system", "dark", "light"]);
+    expect(item.control.options.map((o) => o.value)).toEqual(["system", "light", "dark"]);
   });
 
   it("verbose settings moved to the Code section, keys unchanged", () => {

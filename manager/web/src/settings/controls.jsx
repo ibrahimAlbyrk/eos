@@ -18,6 +18,28 @@ function ToggleControl({ value, onChange }) {
   );
 }
 
+// Icon segmented control — options: [{ value, label, Icon }]. Label becomes
+// the tooltip; the active segment gets a raised glass pill.
+function SegmentedControl({ value, onChange, options }) {
+  return (
+    <div className="stg-seg" role="radiogroup">
+      {(options ?? []).map((o) => (
+        <button
+          type="button"
+          key={o.value}
+          role="radio"
+          aria-checked={value === o.value}
+          title={o.label}
+          className={`stg-seg__btn${value === o.value ? " is-active" : ""}`}
+          onClick={() => onChange(o.value)}
+        >
+          {o.Icon ? <o.Icon /> : o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 // Custom dropdown (not a native <select>) so the open menu matches the
 // liquid-glass popover language. Same capture-phase outside-close as
 // ToolPickerControl below.
@@ -132,5 +154,6 @@ function ToolPickerControl({ value, onChange, tools }) {
 export const CONTROLS = {
   toggle: ToggleControl,
   select: SelectControl,
+  segmented: SegmentedControl,
   toolPicker: ToolPickerControl,
 };
