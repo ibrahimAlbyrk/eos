@@ -20,13 +20,16 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const name = (body.name ?? "").trim() || randomOrchestratorName();
     const cwd = expandPath(body.cwd);
     const id = c.ids.newOrchestratorId();
+    const rb = c.backendResolver.resolveForNewWorker({ isOrchestrator: true });
+    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     const result = await spawnWorker(
       {
         workers: c.workers, events: c.events, bus: c.bus,
         supervisor: c.supervisor, ports: c.portAllocator,
         clock: c.clock, ids: c.ids, log: c.log,
         buildArgs: c.buildArgs, buildEnv: c.buildEnv, logFileFor: c.logFileFor,
-        backend: c.claudeCliBackend,
+        backend,
+        onAgentEvent: c.onAgentEvent,
         recents: c.recents,
       },
       {
@@ -56,7 +59,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
       {
         workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
         client: c.httpWorkerClient,
-        backend: c.claudeCliBackend,
+        backends: c.backends,
         log: c.log,
         isLive: (id) => c.supervisor.has(id),
         requireOrchestrator: true,

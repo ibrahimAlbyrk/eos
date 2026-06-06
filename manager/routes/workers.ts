@@ -52,6 +52,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       claudePermissionMode,
       systemPromptFile,
     };
+    // Backend selection: resolve the effective backend (defaults to claude-cli)
+    // and pick the adapter. claude-cli keeps today's behavior exactly.
+    const rb = c.backendResolver.resolveForNewWorker({ parentId: body.parentId ?? null, isOrchestrator: false });
+    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     const result = await spawnWorker(
       {
         workers: c.workers,
@@ -65,7 +69,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         buildArgs: c.buildArgs,
         buildEnv: c.buildEnv,
         logFileFor: c.logFileFor,
-        backend: c.claudeCliBackend,
+        backend,
+        onAgentEvent: c.onAgentEvent,
         recents: c.recents,
       },
       spec,
@@ -162,7 +167,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       {
         workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
         client: c.httpWorkerClient,
-        backend: c.claudeCliBackend,
+        backends: c.backends,
         log: c.log,
         isLive: (id) => c.supervisor.has(id),
         excerptLimit: 200,

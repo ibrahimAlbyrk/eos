@@ -12,6 +12,7 @@ import type { IdGenerator } from "../ports/IdGenerator.ts";
 import type { Logger } from "../ports/Logger.ts";
 import type { RecentsRepo } from "../ports/RecentsRepo.ts";
 import type { AgentBackend } from "../ports/AgentBackend.ts";
+import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 
 export interface SpawnWorkerSpec {
   prompt: string;
@@ -54,6 +55,10 @@ export interface SpawnWorkerDeps {
    *  adapter owns port + argv + child). Absent → legacy supervisor path, which
    *  the unit tests exercise. This is the Phase 1 kill switch. */
   backend?: AgentBackend;
+  /** Routes an in-process backend's canonical events into the daemon pipeline
+   *  (events.append + reduceAgentSignal). Unused by out-of-process backends
+   *  (claude-cli posts events over HTTP). Injected by the composition root. */
+  onAgentEvent?(workerId: string, event: AgentEvent): void;
   /** Recent-folders log; updated with the resolved cwd after every spawn. */
   recents?: RecentsRepo;
 }
@@ -113,7 +118,7 @@ export async function spawnWorker(
         isOrchestrator: !!resolved.isOrchestrator,
         backendOptions: { spec: withBranch },
       },
-      { onExit },
+      { onExit, onEvent: (e) => deps.onAgentEvent?.(id, e) },
     );
     port = session.handle.kind === "http" ? session.handle.port : 0;
     pid = session.handle.kind === "http" ? session.handle.pid : null;

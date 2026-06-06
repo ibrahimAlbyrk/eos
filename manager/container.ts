@@ -17,6 +17,10 @@ import { createInMemoryEventBus } from "../infra/src/eventbus/InMemoryEventBus.t
 import { createPortAllocator } from "../infra/src/net/PortAllocator.ts";
 import { createChildProcessSupervisor } from "../infra/src/supervision/ChildProcessSupervisor.ts";
 import { createClaudeCliBackend } from "./backends/ClaudeCliBackend.ts";
+import { createInProcessBackend } from "../infra/src/backends/InProcessBackend.ts";
+import { createAnthropicModelClient } from "../infra/src/backends/AnthropicModelClient.ts";
+import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts";
+import type { AgentEvent } from "../contracts/src/canonical.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
 import { SqliteEventRepo } from "../infra/src/persistence/SqliteEventRepo.ts";
@@ -302,6 +306,32 @@ export function buildContainer() {
     logFileFor,
   });
 
+  // anthropic-api backend — in-process, ToolRuntime-driven. Text-only for now
+  // (the tool set is the documented expansion); needs ANTHROPIC_API_KEY at
+  // runtime. Selecting it is opt-in via config; claude-cli stays the default.
+  const anthropicBackend = createInProcessBackend("anthropic-api", (spec) => ({
+    model: createAnthropicModelClient({ apiKey: process.env.ANTHROPIC_API_KEY ?? "", model: spec.model }),
+    tools: new Map(),
+    gate: { async decide() { return { allow: true }; } },
+  }));
+  const backendMap = new Map([
+    ["claude-cli", claudeCliBackend],
+    ["anthropic-api", anthropicBackend],
+  ]);
+  const backends = {
+    get(kind: string) { const b = backendMap.get(kind); if (!b) throw new Error(`unknown backend: ${kind}`); return b; },
+    has(kind: string) { return backendMap.has(kind); },
+  };
+  // Route an in-process backend's canonical events into the daemon pipeline
+  // (log as agent_event + drive the state machine), mirroring the HTTP ingest
+  // path that out-of-process (claude-cli) workers use.
+  const onAgentEvent = (workerId: string, event: AgentEvent): void =>
+    processAgentSignal(
+      { workers, events, bus, clock: systemClock, models, log, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id) },
+      workerId,
+      event,
+    );
+
   return {
     get config() { return config; },
     log,
@@ -328,6 +358,8 @@ export function buildContainer() {
     buildEnv,
     logFileFor,
     claudeCliBackend,
+    backends,
+    onAgentEvent,
     backendResolver,
     turnSettle,
     pendingQuestions,
