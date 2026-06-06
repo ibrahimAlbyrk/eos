@@ -7,6 +7,7 @@ import type { EventRepo } from "../ports/EventRepo.ts";
 import type { EventBus } from "../ports/EventBus.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { WorkerClient } from "../ports/WorkerClient.ts";
+import type { AgentBackend } from "../ports/AgentBackend.ts";
 import type { Logger } from "../ports/Logger.ts";
 import { NotFoundError, ConflictError, UnreachableError } from "../errors/index.ts";
 import { transitionState } from "./TransitionState.ts";
@@ -17,6 +18,10 @@ export interface DispatchMessageDeps {
   bus: EventBus;
   clock: Clock;
   client: WorkerClient;
+  /** When injected, the message goes through the AgentBackend session (so a
+   *  port-less in-process backend works too). Absent → legacy client.sendMessage
+   *  by port. Phase 1 kill switch. */
+  backend?: AgentBackend;
   log: Logger;
   /** When true and the worker has no live supervised child, the use-case
    * throws ConflictError instead of forwarding. Used for orchestrators —
@@ -49,7 +54,12 @@ export async function dispatchMessage(
 
   let result;
   try {
-    result = await deps.client.sendMessage(w.port, input.text);
+    if (deps.backend) {
+      const session = deps.backend.attach(w.id, { kind: "http", port: w.port, pid: w.pid ?? null });
+      result = await session.sendMessage(input.text);
+    } else {
+      result = await deps.client.sendMessage(w.port, input.text);
+    }
   } catch (e) {
     throw new UnreachableError("worker", e);
   }

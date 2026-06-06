@@ -55,7 +55,9 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const result = await dispatchMessage(
       {
         workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
-        client: c.httpWorkerClient, log: c.log,
+        client: c.httpWorkerClient,
+        backend: c.claudeCliBackend,
+        log: c.log,
         isLive: (id) => c.supervisor.has(id),
         requireOrchestrator: true,
         excerptLimit: 500,
