@@ -1802,6 +1802,14 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   pointer-events: none;
 }
 .composer-editor .cmd-hl { color: var(--accent); }
+.composer-editor .att-hl,
+.msg-user .att-hl {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 5px;
+  padding: 1px 4px;
+}
+.composer-editor .att-hl-uploading { opacity: 0.55; }
 /* file menu items (reuses .cmd-menu / .cmd-names container) */
 .file-item {
   display: flex;
@@ -3390,6 +3398,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   border: 0; padding: 0;
 }
 .att-chip:hover .att-remove { display: flex; }
+.att-chip.att-uploading { opacity: 0.55; }
 
 /* ── message attachments ── */
 .msg-attachments {

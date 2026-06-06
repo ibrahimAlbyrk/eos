@@ -1,5 +1,6 @@
 import { api } from "../../../api/client.js";
 import { ImageLightbox } from "../ImageLightbox.jsx";
+import { labelTitle } from "../../../lib/attachmentTokens.js";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
 
@@ -13,6 +14,8 @@ function parseAttachments(text) {
     .map((line) => line.replace(/^- /, "").trim())
     .filter(Boolean)
     .map((raw) => {
+      const labeled = raw.match(/^(\{(image|file|folder) #\d+\}):\s*(.+)$/);
+      if (labeled) return { label: labeled[1], type: labeled[2], path: labeled[3] };
       const m = raw.match(/^(folder|file|image):\s*(.+)$/);
       if (m) return { type: m[1], path: m[2] };
       const ext = raw.split(".").pop()?.toLowerCase() ?? "";
@@ -31,9 +34,29 @@ function shortenPaths(text, cwd) {
   return text.replaceAll(cwd + "/", "@");
 }
 
+function escapeRegExp(s) {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderWithTokens(text, labels) {
+  if (!labels.length) return text;
+  const re = new RegExp(`(${labels.map(escapeRegExp).join("|")})`, "g");
+  const set = new Set(labels);
+  return text.split(re).map((part, i) =>
+    set.has(part) ? <span key={i} className="att-hl">{part}</span> : part
+  );
+}
+
 export function MessageUser({ text, cwd }) {
   const { display, attachments } = parseAttachments(text);
   const shortened = shortenPaths(display, cwd);
+  const labels = attachments.map((a) => a.label).filter(Boolean);
+  const images = attachments.filter((a) => a.type === "image");
+  const gallery = images.map((a, i) => ({
+    src: api.imageUrl(a.path),
+    alt: basename(a.path),
+    title: labelTitle(a.label) ?? `Image #${i + 1}`,
+  }));
 
   return (
     <div className="msg-user">
@@ -42,7 +65,7 @@ export function MessageUser({ text, cwd }) {
           {attachments.map((att) => (
             <div key={att.path} className={`msg-att msg-att-${att.type}`} title={att.path}>
               {att.type === "image" ? (
-                <ImageLightbox src={api.imageUrl(att.path)} alt={basename(att.path)}>
+                <ImageLightbox gallery={gallery} index={images.indexOf(att)}>
                   <img src={api.imageUrl(att.path)} alt={basename(att.path)} className="msg-att-img" />
                 </ImageLightbox>
               ) : (
@@ -62,7 +85,7 @@ export function MessageUser({ text, cwd }) {
           ))}
         </div>
       )}
-      {shortened && <div className="b">{shortened}</div>}
+      {shortened && <div className="b">{renderWithTokens(shortened, labels)}</div>}
     </div>
   );
 }

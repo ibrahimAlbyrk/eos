@@ -39,27 +39,37 @@ function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function colorize(text, cmdMap, filePaths) {
-  const regions = [];
-
-  for (let i = 0; i < text.length; i++) {
-    if (text[i] !== "/") continue;
-    let end = i + 1;
-    while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
-    if (cmdMap.has(text.slice(i + 1, end))) {
-      regions.push({ start: i, end });
+function slashRegions(cmdMap) {
+  return (text) => {
+    const regions = [];
+    for (let i = 0; i < text.length; i++) {
+      if (text[i] !== "/") continue;
+      let end = i + 1;
+      while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
+      if (cmdMap.has(text.slice(i + 1, end))) {
+        regions.push({ start: i, end, cls: "cmd-hl" });
+      }
     }
-  }
+    return regions;
+  };
+}
 
-  for (const [display] of filePaths) {
-    const token = "@" + display;
-    let idx = 0;
-    while ((idx = text.indexOf(token, idx)) !== -1) {
-      regions.push({ start: idx, end: idx + token.length });
-      idx += token.length;
+function literalRegions(tokens) {
+  return (text) => {
+    const regions = [];
+    for (const { token, cls } of tokens) {
+      let idx = 0;
+      while ((idx = text.indexOf(token, idx)) !== -1) {
+        regions.push({ start: idx, end: idx + token.length, cls });
+        idx += token.length;
+      }
     }
-  }
+    return regions;
+  };
+}
 
+function colorize(text, scanners) {
+  const regions = scanners.flatMap((scan) => scan(text));
   if (regions.length === 0) return null;
   regions.sort((a, b) => a.start - b.start);
 
@@ -68,7 +78,7 @@ function colorize(text, cmdMap, filePaths) {
   for (const r of regions) {
     if (r.start < last) continue;
     if (r.start > last) html += esc(text.slice(last, r.start));
-    html += `<span class="cmd-hl">${esc(text.slice(r.start, r.end))}</span>`;
+    html += `<span class="${r.cls}">${esc(text.slice(r.start, r.end))}</span>`;
     last = r.end;
   }
   if (last === 0) return null;
@@ -76,17 +86,26 @@ function colorize(text, cmdMap, filePaths) {
   return html;
 }
 
-export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId) {
+export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, attachItems = []) {
   const [text, setText] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
   const editorRef = useRef(null);
   const lastHtmlRef = useRef("");
   const suppressInputRef = useRef(false);
 
+  const buildScanners = useCallback(() => [
+    slashRegions(cmdMap),
+    literalRegions([...insertedPathsRef.current.keys()].map((d) => ({ token: "@" + d, cls: "cmd-hl" }))),
+    literalRegions(attachItems.map((it) => ({
+      token: it.label,
+      cls: it.status === "uploading" ? "att-hl att-hl-uploading" : "att-hl",
+    }))),
+  ], [cmdMap, insertedPathsRef, attachItems]);
+
   const applyColoring = useCallback(() => {
     const el = editorRef.current;
     if (!el) return;
-    const html = colorize(text, cmdMap, insertedPathsRef.current);
+    const html = colorize(text, buildScanners());
     const target = html ?? esc(text);
     if (target !== lastHtmlRef.current) {
       const off = getCursorOffset(el);
@@ -96,7 +115,7 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId) {
       setCursorOffset(el, off);
       queueMicrotask(() => { suppressInputRef.current = false; });
     }
-  }, [text, cmdMap, insertedPathsRef]);
+  }, [text, buildScanners]);
 
   useLayoutEffect(() => { applyColoring(); }, [applyColoring]);
 
@@ -113,12 +132,12 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId) {
     setCursorPos(newCursor ?? newText.length);
     const el = editorRef.current;
     if (!el) return;
-    const html = colorize(newText, cmdMap, insertedPathsRef.current);
+    const html = colorize(newText, buildScanners());
     lastHtmlRef.current = html ?? esc(newText);
     el.innerHTML = lastHtmlRef.current;
     setCursorOffset(el, newCursor ?? newText.length);
     queueMicrotask(() => { suppressInputRef.current = false; });
-  }, [cmdMap, insertedPathsRef]);
+  }, [buildScanners]);
 
   const handleInput = () => {
     if (suppressInputRef.current) { suppressInputRef.current = false; return; }

@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState, useMemo, useCallback } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { useCommands } from "../../../hooks/useCommands.js";
 import { useContentEditableEditor, getCursorOffset } from "../../../hooks/useContentEditableEditor.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
+import { useAttachments } from "../../../hooks/useAttachments.js";
 import { useInputHistory } from "../../../hooks/useInputHistory.js";
+import { findLabelAt } from "../../../lib/attachmentTokens.js";
 import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
-import { api } from "../../../api/client.js";
 import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
 import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
 import { ComposerControls } from "./ComposerControls.jsx";
@@ -43,22 +44,21 @@ export function Composer({ live }) {
   // Cleared on the next real input event.
   const recallRef = useRef(false);
 
-  const [attachments, setAttachments] = useState([]);
-  const addAttachment = useCallback((att) => {
-    setAttachments((prev) => {
-      if (prev.some((a) => a.path === att.path)) return prev;
-      return [...prev, att];
-    });
-  }, []);
-  const removeAttachment = useCallback((path) => {
-    setAttachments((prev) => prev.filter((a) => a.path !== path));
-  }, []);
-
   const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
 
   const cwd = selected?.cwd ?? ui.composer.cwd ?? live.recents[0] ?? null;
   const commands = useCommands(cwd);
   const cmdMap = useMemo(() => new Map(commands.map((c) => [c.name, c])), [commands]);
+
+  const uploadFailedRef = useRef(() => {});
+  const {
+    items: attachmentItems,
+    addUpload,
+    addPath,
+    remove: removeAttachmentItem,
+    clear: clearAttachments,
+    resolveForSend,
+  } = useAttachments({ onUploadFailed: (label) => uploadFailedRef.current(label) });
 
   const {
     text,
@@ -67,7 +67,34 @@ export function Composer({ live }) {
     editorRef,
     setTextAndSync,
     handleInput,
-  } = useContentEditableEditor(cmdMap, insertedPathsRef, ui.selectedId);
+  } = useContentEditableEditor(cmdMap, insertedPathsRef, ui.selectedId, attachmentItems);
+
+  const stripLabel = (label) => {
+    const idx = text.indexOf(label);
+    if (idx === -1) return;
+    let end = idx + label.length;
+    if (text[end] === " ") end++;
+    setTextAndSync(text.slice(0, idx) + text.slice(end), idx);
+  };
+  uploadFailedRef.current = stripLabel;
+
+  const insertLabels = (labels, pos) => {
+    const chunk = labels.map((l) => l + " ").join("");
+    setTextAndSync(text.slice(0, pos) + chunk + text.slice(pos), pos + chunk.length);
+  };
+
+  const removeAttachmentToken = (label) => {
+    removeAttachmentItem(label);
+    stripLabel(label);
+  };
+
+  // Token is the source of truth: if its text is gone (select-all delete,
+  // double-esc, manual edit), drop the chip too.
+  useEffect(() => {
+    for (const it of attachmentItems) {
+      if (!text.includes(it.label)) removeAttachmentItem(it.label);
+    }
+  }, [text, attachmentItems, removeAttachmentItem]);
 
   const { slashCtx, atCtx, filtered, atResults, activeMenu } = useCompletion({
     text,
@@ -107,26 +134,29 @@ export function Composer({ live }) {
 
   const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
 
-  const handlePaste = async (e) => {
+  const handlePaste = (e) => {
     const files = Array.from(e.clipboardData.files);
     if (files.length > 0) {
       e.preventDefault();
-      for (const file of files) {
-        try {
-          const res = await api.uploadPaste(file);
-          if (!res.ok || !res.body?.path) continue;
-          const ext = res.body.path.split(".").pop()?.toLowerCase() ?? "";
-          const type = IMAGE_EXTS.has(ext) || file.type.startsWith("image/") ? "image" : "file";
-          addAttachment({ type, path: res.body.path });
-        } catch (err) {
-          console.error("paste upload failed:", err);
-        }
-      }
+      const el = editorRef.current;
+      const pos = el ? getCursorOffset(el) : text.length;
+      const labels = files.map((file) => {
+        const ext = file.name?.split(".").pop()?.toLowerCase() ?? "";
+        const kind = IMAGE_EXTS.has(ext) || file.type.startsWith("image/") ? "image" : "file";
+        return addUpload(kind, file);
+      });
+      insertLabels(labels, pos);
       return;
     }
     e.preventDefault();
     const plain = e.clipboardData.getData("text/plain");
     document.execCommand("insertText", false, plain);
+  };
+
+  const addAttachments = (atts) => {
+    const labels = atts.map((a) => addPath(a.type, a.path));
+    insertLabels(labels, cursorPos);
+    editorRef.current?.focus();
   };
 
   const findCommandAt = (pos) => {
@@ -194,7 +224,7 @@ export function Composer({ live }) {
 
   const send = async () => {
     const t = text.trim();
-    if (!t && attachments.length === 0) return;
+    if (!t) return;
 
     let displayText = t;
     let agentText = t;
@@ -202,17 +232,15 @@ export function Composer({ live }) {
       agentText = agentText.replaceAll("@" + display, absPath);
     }
 
+    const msgLabels = attachmentItems.map((it) => it.label);
     history.push(t);
     setTextAndSync("", 0);
     insertedPathsRef.current.clear();
-    const currentAttachments = [...attachments];
-    setAttachments([]);
-    if (currentAttachments.length > 0) {
-      const lines = currentAttachments.map((a) => `- ${a.type}: ${a.path}`).join("\n");
-      const suffix = `\n\nattachments:\n${lines}`;
-      displayText = displayText ? displayText + suffix : `attachments:\n${lines}`;
-      agentText = agentText ? agentText + suffix : `attachments:\n${lines}`;
-    }
+    clearAttachments();
+
+    const suffix = await resolveForSend(msgLabels);
+    displayText += suffix;
+    agentText += suffix;
 
     if (selected) {
       const busy = selected.state === "SPAWNING" || selected.state === "WORKING";
@@ -319,6 +347,13 @@ export function Composer({ live }) {
     if (e.key === "Backspace") {
       const el = editorRef.current;
       const pos = el ? getCursorOffset(el) : 0;
+      const attHit = findLabelAt(text, pos, attachmentItems.map((it) => it.label));
+      if (attHit) {
+        e.preventDefault();
+        const next = text.slice(0, attHit.start) + text.slice(attHit.end);
+        setTextAndSync(next, attHit.start);
+        return;
+      }
       const pathHit = findPathAt(pos);
       if (pathHit) {
         e.preventDefault();
@@ -402,8 +437,8 @@ export function Composer({ live }) {
             />
           )}
           <div className="c-row2">
-            {attachments.length > 0 && (
-              <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
+            {attachmentItems.length > 0 && (
+              <AttachmentChips attachments={attachmentItems} onRemove={removeAttachmentToken} />
             )}
             <div
               ref={editorRef}
@@ -429,7 +464,7 @@ export function Composer({ live }) {
 
         <ComposerControls
           live={live}
-          onAttach={addAttachment}
+          onAttach={addAttachments}
           historyNav={history.nav && text === history.nav.entry ? history.nav : null}
         />
       </div>

@@ -10,11 +10,11 @@ export function AttachPopover({ onAttach }) {
     try {
       const res = await api.pickFiles();
       if (res.cancelled || !res.paths?.length) return;
-      for (const p of res.paths) {
+      onAttach(res.paths.map((p) => {
         const ext = p.split(".").pop()?.toLowerCase() ?? "";
         const isImage = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(ext);
-        onAttach({ type: isImage ? "image" : "file", path: p });
-      }
+        return { type: isImage ? "image" : "file", path: p };
+      }));
     } catch (e) {
       console.error("pickFiles failed:", e);
     }
@@ -25,7 +25,7 @@ export function AttachPopover({ onAttach }) {
     try {
       const res = await api.pickDirectory();
       if (res.cancelled || !res.path) return;
-      onAttach({ type: "folder", path: res.path });
+      onAttach([{ type: "folder", path: res.path }]);
     } catch (e) {
       console.error("pickDirectory failed:", e);
     }
