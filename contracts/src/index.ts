@@ -1,6 +1,7 @@
 export * from "./shared.ts";
 export * from "./events.ts";
 export * from "./canonical.ts";
+export * from "./backend.ts";
 export * from "./policy.ts";
 export * from "./worker.ts";
 export * from "./http.ts";

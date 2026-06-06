@@ -18,6 +18,8 @@ export interface InsertWorkerInput {
   model: string;
   effort: string | null;
   isOrchestrator: boolean;
+  backendKind: string;
+  backendProfile: string | null;
 }
 
 export interface UsageDelta {

@@ -71,6 +71,9 @@ export const MIGRATIONS: Migration[] = [
   { id: "017_workers_add_effort", sql: "ALTER TABLE workers ADD COLUMN effort TEXT" },
   { id: "018_workers_add_tokens_cache_create_1h", sql: "ALTER TABLE workers ADD COLUMN tokens_cache_create_1h INTEGER DEFAULT 0" },
   { id: "019_workers_add_worktree_dir", sql: "ALTER TABLE workers ADD COLUMN worktree_dir TEXT" },
+  { id: "020_workers_add_backend_kind", sql: "ALTER TABLE workers ADD COLUMN backend_kind TEXT" },
+  { id: "021_workers_add_backend_profile", sql: "ALTER TABLE workers ADD COLUMN backend_profile TEXT" },
+  { id: "022_backfill_backend_kind", sql: "UPDATE workers SET backend_kind = 'claude-cli' WHERE backend_kind IS NULL" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

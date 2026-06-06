@@ -148,6 +148,8 @@ export async function spawnWorker(
     model,
     effort,
     isOrchestrator: !!resolved.isOrchestrator,
+    backendKind: deps.backend?.kind ?? "claude-cli",
+    backendProfile: null,
   });
 
   if (resolved.claudePermissionMode) {
