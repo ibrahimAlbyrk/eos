@@ -1,4 +1,5 @@
-import { StreamLanguage } from "@codemirror/language";
+import { StreamLanguage, LanguageSupport } from "@codemirror/language";
+import { completeAnyWord } from "@codemirror/autocomplete";
 import { javascript } from "@codemirror/lang-javascript";
 import { python } from "@codemirror/lang-python";
 import { json } from "@codemirror/lang-json";
@@ -26,7 +27,11 @@ import { diff } from "@codemirror/legacy-modes/mode/diff";
 import { dockerFile } from "@codemirror/legacy-modes/mode/dockerfile";
 import { sCSS, less } from "@codemirror/legacy-modes/mode/css";
 
-const legacy = (mode) => StreamLanguage.define(mode);
+// Legacy modes ship no completion source — fall back to document words.
+const legacy = (mode) => {
+  const lang = StreamLanguage.define(mode);
+  return new LanguageSupport(lang, lang.data.of({ autocomplete: completeAnyWord }));
+};
 
 const LANGS = {
   js: () => javascript({ jsx: true }),

@@ -43,6 +43,8 @@ export function SelectionProvider({ children }) {
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape") return;
+      // consumed inside the editor (e.g. closing the autocomplete popup)
+      if (e.defaultPrevented) return;
       if (openPopover) { closeAllPops(); return; }
       if (agentViewer) { setAgentViewer(null); return; }
       if (fileViewer) { setFileViewer(null); return; }

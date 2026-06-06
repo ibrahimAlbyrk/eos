@@ -5,7 +5,7 @@ import {
 } from "@codemirror/view";
 import { indentOnInput, indentUnit, bracketMatching } from "@codemirror/language";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
-import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
+import { autocompletion, closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { cmLanguageFor } from "../../../lib/cmLang.js";
 import { detectIndentUnit } from "../../../lib/indentDetect.js";
 import { fvSyntaxHighlight } from "../../../lib/cmHighlight.js";
@@ -47,6 +47,7 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
           history(),
           bracketMatching(),
           closeBrackets(),
+          autocompletion(),
           indentOnInput(),
           indentUnit.of(unit),
           EditorState.tabSize.of(unit === "\t" ? 4 : unit.length),
