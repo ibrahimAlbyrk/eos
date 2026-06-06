@@ -6,5 +6,4 @@ export * from "./worker.ts";
 export * from "./http.ts";
 export * from "./hooks.ts";
 export * from "./ipc.ts";
-export * from "./notifications.ts";
 export * from "./util.ts";

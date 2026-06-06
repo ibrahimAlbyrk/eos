@@ -15,6 +15,7 @@ import {
   QuestionRequestSchema,
   QuestionAnswerRequestSchema,
   QuestionNotifyRequestSchema,
+  NotifyRequestSchema,
 } from "../../contracts/src/http.ts";
 
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
@@ -210,6 +211,20 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       answers: body.answers,
     });
     c.bus.publish("worker:change", { workerId: params.id });
+    writeJson(res, 200, { ok: true });
+  });
+
+  // Orchestrator-initiated user notification. Fire-and-forget: published on
+  // the bus as `notification:fire`; the native app delivers it only while
+  // backgrounded (app/main.swift checks NSApp.isActive).
+  r.post(/^\/workers\/(?<id>[^/]+)\/notify$/, async ({ params, req, res }) => {
+    const body = validate(NotifyRequestSchema, await readBody(req));
+    c.bus.publish("notification:fire", {
+      title: body.title,
+      body: body.body,
+      workerId: params.id,
+      ts: c.clock.now(),
+    });
     writeJson(res, 200, { ok: true });
   });
 

@@ -35,11 +35,6 @@ import type { Policy } from "../core/src/domain/policy.ts";
 import type { ModelCatalog } from "../core/src/ports/ModelCatalog.ts";
 import { PolicyGatewayService } from "../core/src/services/PolicyGatewayService.ts";
 import { SqlBackedModeResolver } from "../core/src/services/SqlBackedModeResolver.ts";
-import { NotificationService } from "../core/src/services/NotificationService.ts";
-import {
-  agentFinishedTrigger, agentExitedTrigger,
-  permissionPendingTrigger, permissionExpiredTrigger,
-} from "../core/src/services/notification-triggers/index.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
@@ -158,13 +153,6 @@ export function buildContainer() {
       else metrics.policyAsk++;
     },
   });
-
-  // Notification service ----------------------------------------------------
-  const notificationService = new NotificationService(
-    { bus, workers, clock: systemClock, getConfig: () => config.notifications },
-    [agentFinishedTrigger, agentExitedTrigger, permissionPendingTrigger, permissionExpiredTrigger],
-  );
-  notificationService.start();
 
   // FS helpers (platform-specific) -----------------------------------------
   const fs: FsHelpers = process.platform === "darwin"

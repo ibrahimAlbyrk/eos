@@ -72,6 +72,7 @@ function runningLabel(tool) {
   if (name === "Glob" || name === "Grep") return { verb: "Searching", file: tool.input?.pattern ?? tool.input?.query ?? "" };
   if (name === "AskUserQuestion") return { verb: "Asking", file: "user" };
   if (name === "Skill") return { verb: "Using", file: `${tool.input?.skill ?? "skill"} skill` };
+  if (name === "mcp__orchestrator__notify_user") return { verb: "Notifying", file: "user" };
   return { verb: "Running", file: name };
 }
 
@@ -92,6 +93,9 @@ function itemLabel(tool) {
   }
   if (name === "mcp__orchestrator__message_worker") {
     return { verb: "Messaged", file: tool.input?.id ?? "worker" };
+  }
+  if (name === "mcp__orchestrator__notify_user") {
+    return { verb: "Notified", file: "user" };
   }
   if (name === "AskUserQuestion") return { verb: "Asked", file: "user" };
   if (name === "Skill") return { verb: "Used", file: `${tool.input?.skill ?? "skill"} skill` };

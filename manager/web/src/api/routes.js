@@ -46,5 +46,4 @@ export const ROUTES = {
   skillRead: "/skills/read",
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
-  notificationsConfig: "/api/notifications/config",
 };

@@ -11,6 +11,7 @@ export function ToolDetail({ tool, cwd }) {
   if (name === "Bash") return <BashDetail tool={tool} />;
   if (name === "AskUserQuestion") return <AskUserQuestionDetail tool={tool} />;
   if (name === "Skill") return <SkillDetail tool={tool} cwd={cwd} />;
+  if (name === "mcp__orchestrator__notify_user") return <NotifyDetail tool={tool} />;
   if (isMessagingTool(name)) return <MessageDetail tool={tool} />;
   return <GenericDetail tool={tool} />;
 }
@@ -284,6 +285,24 @@ function SkillDetail({ tool, cwd }) {
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+function NotifyDetail({ tool }) {
+  const title = tool.input?.title ?? "";
+  const body = tool.input?.body ?? "";
+  return (
+    <div className="tool-detail notify-detail">
+      <FailureBanner tool={tool} />
+      <div className="nd-title">
+        <svg className="nd-bell" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <path d="M8 2a3.5 3.5 0 0 0-3.5 3.5c0 3-1.5 4-1.5 4h10s-1.5-1-1.5-4A3.5 3.5 0 0 0 8 2Z" />
+          <path d="M6.8 13.5a1.3 1.3 0 0 0 2.4 0" />
+        </svg>
+        {title}
+      </div>
+      {body && <div className="nd-body">{body}</div>}
     </div>
   );
 }

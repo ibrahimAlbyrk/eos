@@ -36,9 +36,4 @@ describe("web ROUTES parity with contracts ROUTES", () => {
     }
     expect(mismatched).toEqual([]);
   });
-
-  it("notificationsConfig key is present (cleanup: was missing, drove a literal fallback)", () => {
-    expect(webRoutes.notificationsConfig).toBe("/api/notifications/config");
-    expect(webRoutes.notificationsConfig).toBe(contractRoutes.notificationsConfig);
-  });
 });

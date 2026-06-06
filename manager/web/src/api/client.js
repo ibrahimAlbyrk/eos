@@ -130,17 +130,6 @@ export const api = {
     return postJson(ROUTES.policyRule, { tool, behavior });
   },
 
-  // Notifications config — routes.js lacks `notificationsConfig` (it is owned
-  // elsewhere); literal path mirrors the daemon route + contracts ROUTES.
-  async getNotificationConfig() {
-    const r = await getJson(ROUTES.notificationsConfig ?? "/api/notifications/config");
-    if (!r.ok) throw new Error(`getNotificationConfig → ${r.status}`);
-    return r.body;
-  },
-  async setNotificationConfig(config) {
-    return putJson(ROUTES.notificationsConfig ?? "/api/notifications/config", config);
-  },
-
   // Session
   async getSession() {
     try {

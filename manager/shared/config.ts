@@ -10,7 +10,6 @@ import { homedir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
-import { NotificationConfigSchema, type NotificationConfig } from "../../contracts/src/notifications.ts";
 import { McpServerDefSchema } from "../../contracts/src/shared.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
@@ -47,7 +46,6 @@ export interface DaemonConfig {
     defaultTtlMs: number;
   };
   prices: Record<string, ModelPrice>;
-  notifications: NotificationConfig;
   // Per-agent-type MCP wiring. Defaults inherit all of claude's normal MCP
   // servers (standard behavior); narrow with include/exclude or add type-only
   // servers via extra. See core/src/domain/mcp-resolution.ts.
@@ -131,7 +129,6 @@ function defaults(): DaemonConfig {
       defaultTtlMs: envNum("CLAUDE_MGR_PERMISSION_TTL_MS", 0),
     },
     prices: DEFAULT_PRICES,
-    notifications: NotificationConfigSchema.parse({}),
     mcp: {
       orchestrator: { ...DEFAULT_AGENT_MCP },
       worker: { ...DEFAULT_AGENT_MCP },
@@ -180,7 +177,6 @@ const DaemonConfigOverrideSchema = z.object({
     defaultTtlMs: z.number().int().positive(),
   }).partial().optional(),
   prices: z.record(z.string(), ModelPriceOverrideSchema).optional(),
-  notifications: NotificationConfigSchema.optional(),
   mcp: z.object({
     orchestrator: AgentMcpConfigOverrideSchema.optional(),
     worker: AgentMcpConfigOverrideSchema.optional(),

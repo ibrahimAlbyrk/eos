@@ -6,7 +6,6 @@ import { AcceptPopover } from "../popovers/AcceptPopover.jsx";
 import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { ModelPopover } from "../popovers/ModelPopover.jsx";
 import { CtxPopover } from "../popovers/CtxPopover.jsx";
-import { NotificationsPopover } from "../popovers/NotificationsPopover.jsx";
 
 const MODE_LABELS = {
   default: "Default",
@@ -15,7 +14,7 @@ const MODE_LABELS = {
   bypassPermissions: "Bypass all",
 };
 
-export function ComposerControls({ live, onAttach }) {
+export function ComposerControls({ live, onAttach, historyNav }) {
   const ui = useUi();
   const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
 
@@ -67,6 +66,9 @@ export function ComposerControls({ live, onAttach }) {
           </button>
           <AttachPopover onAttach={onAttach} />
         </div>
+        {historyNav && (
+          <div className="history-badge">history {historyNav.pos}/{historyNav.total}</div>
+        )}
       </div>
       <div className="grow"></div>
       <div className="right">
@@ -83,25 +85,6 @@ export function ComposerControls({ live, onAttach }) {
             <span className="effort">{EFFORT_LABELS[effort] ?? "High"}</span>
           </button>
           <ModelPopover live={live} />
-        </div>
-        <div className="notif-wrap" style={{ position: "relative" }}>
-          <button
-            className="iconbtn"
-            title="Notifications"
-            onClick={(e) => {
-              e.stopPropagation();
-              if (ui.openPopover === "notifications") { ui.closeAllPops(); return; }
-              const rect = e.currentTarget.getBoundingClientRect();
-              ui.openPop("notifications", { x: rect.left, y: rect.bottom + 6 });
-            }}
-            data-popover-trigger="notifications"
-          >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <path d="M8 2a3.5 3.5 0 0 0-3.5 3.5c0 3-1.5 4-1.5 4h10s-1.5-1-1.5-4A3.5 3.5 0 0 0 8 2Z" />
-              <path d="M6.8 13.5a1.3 1.3 0 0 0 2.4 0" />
-            </svg>
-          </button>
-          <NotificationsPopover />
         </div>
         <div className="ctx-ring-wrap">
           <button

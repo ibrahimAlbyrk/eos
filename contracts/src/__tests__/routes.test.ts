@@ -11,7 +11,7 @@ const EXPECTED_KEYS = [
   "fsCheckout", "fsWrite", "fsPaste", "workerName", "workerPermission",
   "workerModel", "workerDiff", "workerInterrupt", "workerKeystroke",
   "workerQuestion", "workerQuestionNotify", "workerQuestionAnswer",
-  "workerReport", "commands", "notificationsConfig", "web", "skillRead",
+  "workerNotify", "workerReport", "commands", "web", "skillRead",
 ] as const;
 
 describe("ROUTES completeness", () => {

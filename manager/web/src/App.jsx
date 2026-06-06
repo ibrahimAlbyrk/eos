@@ -1,7 +1,6 @@
 import { useEffect } from "react";
 import { useUi, UiProvider } from "./state/ui.jsx";
 import { useLive } from "./hooks/useLive.js";
-import { useWebNotifications } from "./hooks/useWebNotifications.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { CommandPalette } from "./components/search/CommandPalette.jsx";
 import { getViewComponent } from "./views/registry.js";
@@ -9,8 +8,6 @@ import { getViewComponent } from "./views/registry.js";
 function Shell() {
   const ui = useUi();
   const live = useLive();
-
-  useWebNotifications();
 
   // Native app notification tap → jump to the Code tab and select the worker.
   useEffect(() => {

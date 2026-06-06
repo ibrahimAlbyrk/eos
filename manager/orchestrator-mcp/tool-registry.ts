@@ -10,6 +10,7 @@ import { getWorkerTool } from "./tools/get_worker.ts";
 import { killWorkerTool } from "./tools/kill_worker.ts";
 import { messageWorkerTool } from "./tools/message_worker.ts";
 import { listPendingPermissionsTool } from "./tools/list_pending_permissions.ts";
+import { notifyUserTool } from "./tools/notify_user.ts";
 
 export { safeText };
 export type McpToolModule = McpToolModuleBase<OrchestratorSession>;
@@ -21,4 +22,5 @@ export const toolModules: McpToolModuleBase<OrchestratorSession>[] = [
   killWorkerTool,
   messageWorkerTool,
   listPendingPermissionsTool,
+  notifyUserTool,
 ];

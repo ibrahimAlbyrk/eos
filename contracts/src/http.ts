@@ -8,7 +8,6 @@ import { z } from "zod";
 import { UnknownRecordSchema } from "./shared.ts";
 import { WorkerRowSchema, PendingPermissionRowSchema, PermissionModeSchema } from "./worker.ts";
 import { DecisionSchema, ExternalDecisionSchema } from "./policy.ts";
-import { NotificationConfigSchema } from "./notifications.ts";
 
 // ---- POST /workers ---------------------------------------------------------
 
@@ -383,13 +382,16 @@ export const QuestionAnswerRequestSchema = z.object({
 });
 export type QuestionAnswerRequest = z.infer<typeof QuestionAnswerRequestSchema>;
 
-// ---- GET/PUT /api/notifications/config -------------------------------------
+// ---- POST /workers/:id/notify ----------------------------------------------
+//
+// Orchestrator-initiated user notification. Published on the event bus as
+// `notification:fire`; the native app delivers it when backgrounded.
 
-export const NotificationConfigRequestSchema = NotificationConfigSchema.partial();
-export type NotificationConfigRequest = z.infer<typeof NotificationConfigRequestSchema>;
-
-export const NotificationConfigResponseSchema = NotificationConfigSchema;
-export type NotificationConfigResponse = z.infer<typeof NotificationConfigResponseSchema>;
+export const NotifyRequestSchema = z.object({
+  title: z.string().min(1),
+  body: z.string().min(1),
+});
+export type NotifyRequest = z.infer<typeof NotifyRequestSchema>;
 
 // ---- PUT /workers/:id/name -------------------------------------------------
 
@@ -449,9 +451,9 @@ export const ROUTES = {
   workerQuestion: (id: string): string => `/workers/${id}/question`,
   workerQuestionNotify: (id: string): string => `/workers/${id}/question-notify`,
   workerQuestionAnswer: (id: string): string => `/workers/${id}/question-answer`,
+  workerNotify: (id: string): string => `/workers/${id}/notify`,
   workerReport: (id: string): string => `/workers/${id}/report`,
   commands: "/commands",
   skillRead: "/skills/read",
-  notificationsConfig: "/api/notifications/config",
   web: "/web/",
 } as const;

@@ -178,6 +178,6 @@ Adding new things:
 - **Manager service**: stateful extracted logic goes in `manager/services/` (e.g. `TurnSettleService`, `PendingQuestionService`)
 - **Policy rule**: `POST /api/policy/rule` appends to `~/.claude-mgr/policy.yaml` + reloads; used by web UI "Always allow"
 
-Config is deeply frozen after load. To mutate at runtime: write the updated `~/.claude-mgr/config.json` yourself, THEN call `container.reloadConfig()` (it only drops the cache and re-reads disk — it does NOT write the file). Only `PUT /api/notifications/config` mutates at runtime; everything else needs a daemon restart. Never `Object.assign` on live config.
+Config is deeply frozen after load. To mutate at runtime: write the updated `~/.claude-mgr/config.json` yourself, THEN call `container.reloadConfig()` (it only drops the cache and re-reads disk — it does NOT write the file). No endpoint mutates config at runtime; every config change needs a daemon restart. Never `Object.assign` on live config.
 
 Node.js strip-only TS mode: don't use parameter properties (`constructor(private x: T)`) — use explicit field + assignment.
