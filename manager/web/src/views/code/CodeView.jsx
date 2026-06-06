@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
+import { useAgentSwitchHotkeys } from "../../hooks/useAgentSwitchHotkeys.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { Sidebar } from "./sidebar/Sidebar.jsx";
 import { SideHandle } from "./sidebar/SideHandle.jsx";
@@ -17,6 +18,9 @@ let everReady = false;
 
 export function CodeView({ live }) {
   const ui = useUi();
+
+  // Cmd+1..9 → select Nth visible agent in the sidebar.
+  useAgentSwitchHotkeys(live);
 
   // Cmd+T → new empty session (mirrors the + button).
   useEffect(() => {

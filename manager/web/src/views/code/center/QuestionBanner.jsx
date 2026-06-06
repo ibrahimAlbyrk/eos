@@ -108,6 +108,7 @@ export function QuestionBanner({ questions, workerId, toolUseId, onClose, sendTo
         handleNext();
         return;
       }
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
       const tag = document.activeElement?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
       const num = parseInt(e.key);

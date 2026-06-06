@@ -27,3 +27,8 @@ export function flattenVisibleAgents(tree, collapsed) {
   for (const r of tree) walk(r, 0);
   return out;
 }
+
+export function agentIdAtIndex(workers, collapsed, index) {
+  const flat = flattenVisibleAgents(buildAgentTree(workers), collapsed);
+  return flat[index]?.id ?? null;
+}
