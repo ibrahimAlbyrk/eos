@@ -73,7 +73,7 @@ HTTP surface: all endpoints defined in `contracts/src/http.ts` ROUTES table.
 
 Claude prefers its interactive prompt over `--permission-prompt-tool` MCP when a `PermissionRequest` hook exists — so the gateway *is* the hook. `scripts/hooks/auto-allow.sh` (wired per-worker in `spawner/settings.ts`) checks `CLAUDE_MGR_SPAWNED`, then **branches on tool name**:
 
-- `AskUserQuestion` → long-polls `POST /workers/:id/question`, returns `{behavior:"allow", updatedInput: tool_input + {answers}}` so Claude proceeds with the web-supplied answers (no TUI multi-select).
+- `AskUserQuestion` → **fire-and-forget** `POST /workers/:id/question-notify` (surfaces the web QuestionBanner), then returns `{}` so Claude renders its native TUI menu. The hook does NOT block, and `updatedInput` does NOT pre-fill answers (empirically Claude ignores it and reports "user did not answer"). Answers come back as keystrokes (single-select: the option number) or, for multi-select/free-text, an interrupt + plain message.
 - every other tool → `POST /policy/decide`, returns the decision verbatim.
 
 The hook only accepts `"allow"`/`"deny"` behavior values; anything else falls through to standalone default. Output shape (empirically verified — `updatedInput` is a **sibling** of `decision`, NOT nested inside it):
@@ -116,7 +116,7 @@ hook and jsonl ride independent fire-and-forget channels, so trailing transcript
 
 ### AskUserQuestion pipeline
 
-Blocking request/response, distinct from the permission flow. The worker's hook POSTs `/workers/:id/question` → daemon appends `question_pending`, blocks on `PendingQuestionService` (one pending per worker; a new register rejects the prior; 30s reaper, 3600s TTL) until the web UI POSTs `/workers/:id/question-answer` (`question_answered`). Single-question answers can instead be sent as raw keystrokes via `POST /workers/:id/keystroke` (→ ingest → `pty.write`, no CR delay). `scripts/hooks/ask-question.sh` is dead — the logic lives in `auto-allow.sh`.
+**Fire-and-forget**, distinct from the permission flow. `auto-allow.sh` POSTs `/workers/:id/question-notify` (daemon appends `question_pending` + publishes `worker:change`, then returns immediately) and lets Claude's native TUI menu render. The web UI shows a **QuestionBanner**; answers go back as raw keystrokes via `POST /workers/:id/keystroke` (single-select: option number, no CR) or, for multi-select/free-text, `POST /workers/:id/interrupt` then a normal `/message`. `POST /workers/:id/question-answer` records `question_answered` to dismiss the banner durably. NOTE: a BLOCKING variant still exists in code (`POST /workers/:id/question` → `PendingQuestionService` long-poll, plus `worker.ts onQuestionHook`) but is **currently dead/unwired** — `ingest.ts` routes no path to it. It is the natural in-process human-prompt channel to resurrect for non-PTY backends (see `docs/adr/0001-backend-agnostic-agent-platform.md`). `scripts/hooks/ask-question.sh` is also dead — the live logic is in `auto-allow.sh`.
 
 ### PTY write: 300ms CR delay + serialized queue
 
@@ -138,7 +138,7 @@ Blocking request/response, distinct from the permission flow. The worker's hook 
 
 ### Policy long-poll timeouts
 
-`/policy/decide` blocks until a human decides. There is **no** `ttlMs` auto-deny timer (removed). `policy.ttlMs` now only seeds the pending row's `expiresAt`, which `sweepExpired()` consults lazily on worker exit to mark stranded `ask` pendings expired — it never denies a live worker mid-wait. The only hard ceiling is the abort timeout (3600s), shared by the hook curl, the gateway (`CLAUDE_MGR_POLICY_TIMEOUT_MS`), and the worker's question long-poll — keep all coordinated if changed.
+`/policy/decide` blocks until a human decides. There is **no** `ttlMs` auto-deny timer (removed). `policy.ttlMs` now only seeds the pending row's `expiresAt`, which `sweepExpired()` consults lazily on worker exit to mark stranded `ask` pendings expired — it never denies a live worker mid-wait. The only hard ceiling is the abort timeout (3600s), shared by the hook curl and the gateway (`CLAUDE_MGR_POLICY_TIMEOUT_MS`) — keep them coordinated if changed. (The worker-side question long-poll that also used this ceiling is currently dead code; see the AskUserQuestion pipeline note.)
 
 ### Temp dir prefix
 
