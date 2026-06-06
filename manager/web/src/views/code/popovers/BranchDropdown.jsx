@@ -37,7 +37,7 @@ export function BranchDropdown({ live, cwd }) {
     : branches;
 
   return (
-    <div className="cb-chip-dd open" id="cbBranchDD" data-popover="branch-dd">
+    <div className="cb-chip-dd cb-chip-dd--branch open" id="cbBranchDD" data-popover="branch-dd">
       <div className="cb-chip-dd-scroll">
         {filtered.length === 0 && (
           <div style={{ padding: "10px 12px", color: "var(--fg-faint)", fontSize: "var(--text-sm)" }}>
@@ -50,7 +50,7 @@ export function BranchDropdown({ live, cwd }) {
             className={"sp-chip-dd-item" + ((composerBranch ?? current) === b ? " on" : "")}
             onClick={() => pick(b)}
           >
-            <span>{b}</span>
+            <span className="cb-branch-name" title={b}>{b}</span>
             <span className="check">
               <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
                 <path d="m4 8 3 3 5-6" />

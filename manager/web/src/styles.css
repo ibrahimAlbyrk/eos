@@ -3255,6 +3255,20 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .cb-chip-dd.open { display: flex; flex-direction: column; }
 .cb-chip-dd-scroll { overflow-y: auto; min-height: 0; }
 
+/* Branch variant: left edge stays on the chip, long names grow rightward, capped at ~16 extra chars */
+.cb-chip-dd--branch {
+  width: max-content;
+  min-width: 220px;
+  max-width: calc(220px + 16ch);
+}
+.cb-chip-dd--branch .cb-branch-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Branch + worktree grouped chip (joined inside one container) */
 .cb-chip-group {
   display: inline-flex;
