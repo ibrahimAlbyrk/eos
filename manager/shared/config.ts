@@ -34,6 +34,8 @@ export interface DaemonConfig {
     workerScript: string;    // <repoRoot>/spawner/worker.ts
     orchestratorPromptFile: string;  // <repoRoot>/manager/orchestrator-prompt.md
     workerPromptFile: string;        // <repoRoot>/manager/worker-prompt.md
+    gitAgentPromptFile: string;      // <repoRoot>/manager/git-agent-prompt.md
+    promptsDir: string;              // <repoRoot>/manager/prompts — reusable prompt templates
   };
   worker: {
     portRangeStart: number;
@@ -130,6 +132,8 @@ function defaults(): DaemonConfig {
       workerScript: join(repoRoot, "spawner", "worker.ts"),
       orchestratorPromptFile: envStr("CLAUDE_MGR_ORCHESTRATOR_PROMPT_FILE", join(repoRoot, "manager", "orchestrator-prompt.md")),
       workerPromptFile: envStr("CLAUDE_MGR_WORKER_PROMPT_FILE", join(repoRoot, "manager", "worker-prompt.md")),
+      gitAgentPromptFile: envStr("CLAUDE_MGR_GIT_AGENT_PROMPT_FILE", join(repoRoot, "manager", "git-agent-prompt.md")),
+      promptsDir: envStr("CLAUDE_MGR_PROMPTS_DIR", join(repoRoot, "manager", "prompts")),
     },
     worker: {
       portRangeStart: envNum("CLAUDE_MGR_WORKER_PORT_START", 7500),
@@ -183,6 +187,7 @@ const DaemonConfigOverrideSchema = z.object({
     bunBin: z.string(),
     orchestratorPromptFile: z.string(),
     workerPromptFile: z.string(),
+    gitAgentPromptFile: z.string(),
   }).partial().optional(),
   worker: z.object({
     portRangeStart: z.number().int().positive(),

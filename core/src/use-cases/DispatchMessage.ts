@@ -36,6 +36,10 @@ export interface DispatchMessageDeps {
 export interface DispatchMessageInput {
   workerId: string;
   text: string;
+  /** When set, the user_message event (what the chat renders) carries this
+   * short label instead of the full text sent to the PTY. Used by predefined
+   * actions whose prompt templates should stay out of the UI. */
+  displayText?: string;
 }
 
 export async function dispatchMessage(
@@ -71,7 +75,7 @@ export async function dispatchMessage(
   }
 
   deps.events.append(input.workerId, deps.clock.now(), "user_message", {
-    text: input.text,
+    text: input.displayText ?? input.text,
   });
   deps.bus.publish("worker:change", { workerId: input.workerId });
 

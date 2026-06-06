@@ -9,6 +9,7 @@ const DEFAULT_COMPOSER = {
   model: "opus",
   effort: "high",
   permissionMode: "acceptEdits",
+  gitMode: false,
 };
 
 export function ComposerProvider({ children }) {

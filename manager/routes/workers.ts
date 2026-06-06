@@ -16,6 +16,7 @@ import {
   QuestionAnswerRequestSchema,
   QuestionNotifyRequestSchema,
   NotifyRequestSchema,
+  WorkerActionRequestSchema,
 } from "../../contracts/src/http.ts";
 
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
@@ -28,6 +29,7 @@ import { toCanonicalEvents } from "../../spawner/canonical-map.ts";
 import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermissionMode.ts";
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
+import { resolveWorkerAction } from "../services/worker-actions.ts";
 
 export function registerWorkerRoutes(r: Router, c: Container): void {
   r.get("/workers", ({ res }) => {
@@ -40,17 +42,29 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     // Normalize tilde paths upstream so use-cases see absolute paths only.
     // Mode inheritance: explicit body.permissionMode wins; otherwise resolve
     // from parent so children adopt the orchestrator's current mode.
+    // Git agents run shell-heavy git ops; the prompt file carries the safety
+    // rules (destructive ops require AskUserQuestion), so they default to
+    // bypassPermissions + persistent for a conversational session.
+    const isGitAgent = body.role === "git";
     const claudePermissionMode = body.permissionMode
+      ?? (isGitAgent ? "bypassPermissions" : undefined)
       ?? (body.parentId ? c.modeResolver.resolveFor(body.parentId) : undefined);
-    const systemPromptFile = body.parentId
-      ? c.config.paths.workerPromptFile
-      : undefined;
+    const systemPromptFile = isGitAgent
+      ? c.config.paths.gitAgentPromptFile
+      : body.parentId
+        ? c.config.paths.workerPromptFile
+        : undefined;
     const spec = {
       ...body,
       cwd: expandPath(body.cwd),
       worktreeFrom: expandPath(body.worktreeFrom),
       claudePermissionMode,
       systemPromptFile,
+      ...(isGitAgent ? {
+        persistent: true,
+        model: body.model ?? "sonnet",
+        effort: body.effort ?? "medium",
+      } : {}),
     };
     // Backend selection: resolve the effective backend (defaults to claude-cli)
     // and pick the adapter. claude-cli keeps today's behavior exactly.
@@ -75,6 +89,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       },
       spec,
     );
+    if (isGitAgent && body.prompt) {
+      c.events.append(result.id, c.clock.now(), "user_message", { text: body.prompt });
+      c.bus.publish("worker:change", { workerId: result.id });
+    }
     writeJson(res, 201, result);
   });
 
@@ -173,6 +191,26 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         excerptLimit: 200,
       },
       { workerId: params.id, text: body.text },
+    );
+    writeJson(res, result.status, result.body);
+  });
+
+  // Predefined action → resolve the prompt template server-side; the chat
+  // shows only the short display label (the full prompt never reaches the UI).
+  r.post(/^\/workers\/(?<id>[^/]+)\/action$/, async ({ params, req, res }) => {
+    const body = validate(WorkerActionRequestSchema, await readBody(req));
+    const { prompt, display } = resolveWorkerAction(c.promptTemplates, body.action);
+    c.turnSettle.clear(params.id);
+    const result = await dispatchMessage(
+      {
+        workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
+        client: c.httpWorkerClient,
+        backends: c.backends,
+        log: c.log,
+        isLive: (id) => c.supervisor.has(id),
+        excerptLimit: 200,
+      },
+      { workerId: params.id, text: prompt, displayText: display },
     );
     writeJson(res, result.status, result.body);
   });

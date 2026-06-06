@@ -6,6 +6,7 @@ import { AcceptPopover } from "../popovers/AcceptPopover.jsx";
 import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { ModelPopover } from "../popovers/ModelPopover.jsx";
 import { CtxPopover } from "../popovers/CtxPopover.jsx";
+import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 
 const MODE_LABELS = {
   default: "Default",
@@ -65,6 +66,33 @@ export function ComposerControls({ live, onAttach, historyNav }) {
             </svg>
           </button>
           <AttachPopover onAttach={onAttach} />
+        </div>
+        <div className="git-wrap" style={{ position: "relative" }}>
+          <button
+            className={"iconbtn git-agent-btn" + (ui.composer.gitMode ? " on" : "")}
+            title={ui.composer.gitMode ? "Exit git mode" : "Git agent"}
+            onClick={(e) => {
+              if (ui.composer.gitMode) {
+                e.stopPropagation();
+                ui.updateComposer({ gitMode: false });
+                ui.closeAllPops();
+                return;
+              }
+              toggle("git-agent", e);
+            }}
+            data-popover-trigger="git-agent"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="4.5" cy="3.5" r="1.5" />
+              <circle cx="4.5" cy="12.5" r="1.5" />
+              <circle cx="11.5" cy="5" r="1.5" />
+              <path d="M4.5 5v6M11.5 6.5c0 2.2-2.7 2.6-4.5 3.2" />
+            </svg>
+          </button>
+          <GitAgentPopover
+            live={live}
+            cwd={selected ? (selected.cwd ?? selected.worktree_from) : (ui.composer.cwd ?? live.recents[0] ?? null)}
+          />
         </div>
         {historyNav && (
           <div className="history-badge">history {historyNav.pos}/{historyNav.total}</div>

@@ -4,6 +4,7 @@ import { ROUTES } from "../http.ts";
 
 const EXPECTED_KEYS = [
   "health", "stream", "workers", "worker", "workerEvents", "workerMessage",
+  "workerAction",
   "orchestrators", "orchestratorMessage", "policyDecide", "policyRule",
   "pending", "pendingDecision", "session", "metrics", "uiConfig",
   "pickDirectory", "pickFile", "fsDefaultApp", "fsOpen", "fsIcon",

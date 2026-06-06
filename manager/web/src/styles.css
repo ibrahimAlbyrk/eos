@@ -91,6 +91,8 @@ kbd {
   --ok: #67c084;
   --warn: #d4a55a;
   --err: #d97670;
+  --git: #67c084;
+  --git-soft: rgba(103, 192, 132, 0.14);
 }
 
 /* ============================================================================
@@ -1690,6 +1692,20 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   transition: background 120ms ease;
 }
 .pr-dropdown-toggle:hover { background: rgba(255, 255, 255, 0.09); color: var(--fg); }
+.pr-create-btn:disabled, .pr-dropdown-toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.pr-create-btn:disabled:hover, .pr-dropdown-toggle:disabled:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg-dim);
+}
+.pr-create-btn:disabled:hover { color: var(--fg); }
+.pr-solo {
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+}
+.pr-solo svg { color: var(--fg-dim); }
 
 .pr-menu {
   position: absolute;
@@ -3386,6 +3402,87 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 }
 .attach-popover .menu-item:hover { background: rgba(255,255,255,0.06); }
 .attach-popover .menu-item svg { color: var(--fg-dim); flex-shrink: 0; }
+
+/* ============== Git agent popover (composer git button) ============== */
+.c-row3 .git-agent-btn.on {
+  background: var(--git-soft);
+  color: var(--git);
+  box-shadow: inset 0 0 0 1px rgba(103, 192, 132, 0.22);
+}
+.git-agent-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  width: 232px;
+  padding: 4px;
+  z-index: 60;
+}
+.git-agent-popover .menu-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 7px 10px;
+  font-size: var(--text-sm); color: var(--fg);
+  border-radius: 6px; cursor: pointer;
+  text-align: left; position: relative; z-index: 1;
+  background: none; border: 0;
+}
+.git-agent-popover .menu-item:hover { background: rgba(255,255,255,0.06); }
+.git-agent-popover .menu-item svg { color: var(--git); flex-shrink: 0; }
+.git-agent-popover .menu-item.warn { color: var(--warn); }
+.git-agent-popover .menu-item.warn svg { color: var(--warn); }
+.git-agent-popover .menu-item.warn:hover { background: rgba(212, 165, 90, 0.10); }
+.gap-head {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px 6px;
+  font-size: var(--text-xs); color: var(--fg-dim);
+  position: relative; z-index: 1;
+}
+.gap-head svg { color: var(--git); flex-shrink: 0; }
+.gap-branch {
+  color: var(--fg);
+  font-family: var(--font-mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 110px;
+}
+.gap-sync { display: inline-flex; gap: 4px; color: var(--fg-dim); font-family: var(--font-mono); }
+.gap-grow { flex: 1; }
+.gap-model {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--git-soft);
+  color: var(--git);
+}
+.gap-sep {
+  height: 1px; margin: 4px 6px;
+  background: rgba(255, 255, 255, 0.07);
+  position: relative; z-index: 1;
+}
+.gap-search {
+  width: calc(100% - 8px);
+  margin: 2px 4px 4px;
+  padding: 6px 9px;
+  font-size: var(--text-sm); color: var(--fg);
+  background: rgba(255, 255, 255, 0.05);
+  border: 0; border-radius: 6px; outline: none;
+  position: relative; z-index: 1;
+}
+.gap-search::placeholder { color: var(--fg-faint); }
+.gap-branches {
+  max-height: 180px; overflow-y: auto;
+  position: relative; z-index: 1;
+}
+.gap-branches .menu-item { padding: 6px 10px; }
+.gap-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gap-empty {
+  padding: 10px; text-align: center;
+  font-size: var(--text-sm); color: var(--fg-faint);
+  position: relative; z-index: 1;
+}
+
+/* ── git agent badge (sidebar) ── */
+.ag-git-badge {
+  display: inline-flex; align-items: center;
+  color: var(--git); flex-shrink: 0;
+}
 
 /* ── attachment chips (composer) ── */
 .attachment-chips {

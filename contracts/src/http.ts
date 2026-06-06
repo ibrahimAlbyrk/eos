@@ -23,6 +23,7 @@ export const SpawnWorkerRequestSchema = z
     effort: z.string().optional(),
     parentId: z.string().optional(),
     permissionMode: PermissionModeSchema.optional(),
+    role: z.enum(["git"]).optional(),
   })
   .refine((b) => !!(b.cwd || b.worktreeFrom), {
     message: "cwd or worktreeFrom required",
@@ -64,6 +65,17 @@ export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 
 export const MessageResponseSchema = z.object({ ok: z.boolean() });
 export type MessageResponse = z.infer<typeof MessageResponseSchema>;
+
+// ---- POST /workers/:id/action ----------------------------------------------
+// Predefined git actions; the daemon resolves each to a full prompt template
+// (manager/prompts/) and sends it to the PTY, while the chat shows only the
+// short display label.
+
+export const WorkerActionSchema = z.enum(["commit", "commit-push", "pr", "draft-pr"]);
+export type WorkerAction = z.infer<typeof WorkerActionSchema>;
+
+export const WorkerActionRequestSchema = z.object({ action: WorkerActionSchema });
+export type WorkerActionRequest = z.infer<typeof WorkerActionRequestSchema>;
 
 // ---- GET /workers/:id/events ----------------------------------------------
 
@@ -419,6 +431,7 @@ export const ROUTES = {
   worker: (id: string): string => `/workers/${id}`,
   workerEvents: (id: string): string => `/workers/${id}/events`,
   workerMessage: (id: string): string => `/workers/${id}/message`,
+  workerAction: (id: string): string => `/workers/${id}/action`,
   orchestrators: "/orchestrators",
   orchestratorMessage: (id: string): string => `/orchestrators/${id}/message`,
   policyDecide: "/policy/decide",

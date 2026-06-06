@@ -94,6 +94,9 @@ export const api = {
   async sendWorkerMessage(id, text) {
     return postJson(ROUTES.workerMessage(id), { text });
   },
+  async sendWorkerAction(id, action) {
+    return postJson(ROUTES.workerAction(id), { action });
+  },
   async interruptWorker(id) {
     return postJson(ROUTES.workerInterrupt(id));
   },

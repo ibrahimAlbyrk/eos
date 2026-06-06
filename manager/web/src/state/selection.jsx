@@ -27,6 +27,11 @@ export function SelectionProvider({ children }) {
   }, []);
   const escapeIdleRef = useRef(null);
   const registerEscapeIdle = useCallback((fn) => { escapeIdleRef.current = fn; }, []);
+  // Composer registers a handler that exits git mode; returns true when it
+  // consumed the Escape (ComposerProvider lives below this provider, so the
+  // state itself isn't readable here).
+  const escapeGitModeRef = useRef(null);
+  const registerEscapeGitMode = useCallback((fn) => { escapeGitModeRef.current = fn; }, []);
 
   const openPop = useCallback((id, opts = {}) => {
     setOpenPopover(id);
@@ -48,6 +53,7 @@ export function SelectionProvider({ children }) {
       if (openPopover) { closeAllPops(); return; }
       if (agentViewer) { setAgentViewer(null); return; }
       if (fileViewer) { setFileViewer(null); return; }
+      if (escapeGitModeRef.current?.()) { e.preventDefault(); return; }
       if (escapeIdleRef.current) { e.preventDefault(); escapeIdleRef.current(); }
     };
     window.addEventListener("keydown", onKey);
@@ -95,6 +101,7 @@ export function SelectionProvider({ children }) {
     fileViewer, openFileViewer, closeFileViewer,
     agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     registerEscapeIdle,
+    registerEscapeGitMode,
   }), [
     selectedId, sideCollapsed, openPopover, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, fileViewer, agentViewer,
@@ -102,6 +109,7 @@ export function SelectionProvider({ children }) {
     openFileViewer, closeFileViewer,
     openAgentViewer, closeAgentViewer, syncAgentViewer,
     registerEscapeIdle,
+    registerEscapeGitMode,
   ]);
 
   return <SelectionContext.Provider value={value}>{children}</SelectionContext.Provider>;

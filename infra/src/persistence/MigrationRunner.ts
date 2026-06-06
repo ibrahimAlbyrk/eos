@@ -74,6 +74,7 @@ export const MIGRATIONS: Migration[] = [
   { id: "020_workers_add_backend_kind", sql: "ALTER TABLE workers ADD COLUMN backend_kind TEXT" },
   { id: "021_workers_add_backend_profile", sql: "ALTER TABLE workers ADD COLUMN backend_profile TEXT" },
   { id: "022_backfill_backend_kind", sql: "UPDATE workers SET backend_kind = 'claude-cli' WHERE backend_kind IS NULL" },
+  { id: "023_workers_add_agent_role", sql: "ALTER TABLE workers ADD COLUMN agent_role TEXT" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

@@ -127,6 +127,18 @@ export function useLive() {
     return r;
   }, [refreshRecents]);
 
+  const spawnGitAgent = useCallback(async ({ cwd, prompt, name } = {}) => {
+    const r = await api.spawnWorker({ role: "git", cwd, prompt, name: name ?? "git" });
+    // Same sync refresh as spawnOrchestrator — keeps the new id visible
+    // before the caller selects it.
+    try {
+      const list = await api.listWorkers();
+      if (Array.isArray(list)) setWorkers(list);
+    } catch { /* fallback to scheduleRefetch */ }
+    refreshRecents();
+    return r;
+  }, [refreshRecents]);
+
   const workersRef = useRef(workers);
   workersRef.current = workers;
 
@@ -222,6 +234,7 @@ export function useLive() {
     uiConfig,
     now,
     spawnOrchestrator,
+    spawnGitAgent,
     sendToAgent,
     interruptAgent,
     killAgent,

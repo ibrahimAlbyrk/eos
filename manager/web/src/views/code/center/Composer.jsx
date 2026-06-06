@@ -8,6 +8,7 @@ import { useInputHistory } from "../../../hooks/useInputHistory.js";
 import { findLabelAt } from "../../../lib/attachmentTokens.js";
 import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
+import { gitAgentName, gitTaskLabel } from "../../../lib/gitAgentName.js";
 import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
 import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
 import { ComposerControls } from "./ComposerControls.jsx";
@@ -45,6 +46,17 @@ export function Composer({ live }) {
   const recallRef = useRef(false);
 
   const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
+
+  // Global Escape exits git mode regardless of focus — registered into the
+  // selection provider's Escape chain (popover/viewers first, interrupt last).
+  useEffect(() => {
+    ui.registerEscapeGitMode(() => {
+      if (!ui.composer.gitMode) return false;
+      ui.updateComposer({ gitMode: false });
+      return true;
+    });
+    return () => ui.registerEscapeGitMode(null);
+  }, [ui.composer.gitMode, ui.registerEscapeGitMode, ui.updateComposer]);
 
   const cwd = selected?.cwd ?? ui.composer.cwd ?? live.recents[0] ?? null;
   const commands = useCommands(cwd);
@@ -241,6 +253,25 @@ export function Composer({ live }) {
     const suffix = await resolveForSend(msgLabels);
     displayText += suffix;
     agentText += suffix;
+
+    if (ui.composer.gitMode) {
+      const gitCwd = selected
+        ? (selected.cwd ?? selected.worktree_from)
+        : (ui.composer.cwd ?? live.recents[0] ?? null);
+      if (!gitCwd) { alert("Pick a folder first."); return; }
+      ui.updateComposer({ gitMode: false });
+      const gitBranch = selected?.branch ?? ui.composer.branch ?? null;
+      const r = await live.spawnGitAgent({
+        cwd: gitCwd,
+        prompt: agentText,
+        name: gitAgentName(gitCwd, gitBranch, gitTaskLabel(t)),
+      });
+      if (r?.ok && r.body?.id) {
+        ui.setSelectedId(r.body.id);
+        ui.addOptimisticUserMessage(r.body.id, displayText, agentText);
+      }
+      return;
+    }
 
     if (selected) {
       const busy = selected.state === "SPAWNING" || selected.state === "WORKING";
@@ -445,7 +476,7 @@ export function Composer({ live }) {
               className={escArmed ? "composer-editor esc-armed" : "composer-editor"}
               contentEditable
               role="textbox"
-              data-placeholder="Type / for commands, @ for files"
+              data-placeholder={ui.composer.gitMode ? "Describe the git task — commit, rebase, merge…" : "Type / for commands, @ for files"}
               data-empty={!text ? "" : undefined}
               data-hint={activeHint || undefined}
               onInput={(e) => { recallRef.current = false; handleInput(e); }}

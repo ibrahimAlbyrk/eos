@@ -32,6 +32,7 @@ export interface SpawnWorkerSpec {
   model?: string;
   effort?: string;
   isOrchestrator?: boolean;
+  role?: string;
 }
 
 export interface SpawnWorkerDeps {
@@ -155,6 +156,7 @@ export async function spawnWorker(
     isOrchestrator: !!resolved.isOrchestrator,
     backendKind: deps.backend?.kind ?? "claude-cli",
     backendProfile: null,
+    agentRole: resolved.role ?? null,
   });
 
   if (resolved.claudePermissionMode) {

@@ -108,6 +108,16 @@ function TreeNode({ node, onRename }) {
           <span className="tree-chev-spacer"></span>
         )}
         <span className={`ag-dot ${status.dot}`}></span>
+        {node.agent_role === "git" && !isRenaming && (
+          <span className="ag-git-badge" title="Git agent">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="4.5" cy="3.5" r="1.5" />
+              <circle cx="4.5" cy="12.5" r="1.5" />
+              <circle cx="11.5" cy="5" r="1.5" />
+              <path d="M4.5 5v6M11.5 6.5c0 2.2-2.7 2.6-4.5 3.2" />
+            </svg>
+          </span>
+        )}
         {isRenaming
           ? <RenameInput currentName={nameOf(node)} onSave={handleRename} onCancel={cancelRename} />
           : <span

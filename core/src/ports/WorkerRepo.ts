@@ -20,6 +20,7 @@ export interface InsertWorkerInput {
   isOrchestrator: boolean;
   backendKind: string;
   backendProfile: string | null;
+  agentRole: string | null;
 }
 
 export interface UsageDelta {

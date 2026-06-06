@@ -11,7 +11,12 @@ const PR_OPTIONS = [
   { id: "manual", label: "Manually create PR", icon: "external" },
 ];
 
-function PrIcon({ type }) {
+const COMMIT_OPTIONS = [
+  { id: "commit", label: "Commit", icon: "commit" },
+  { id: "commit-push", label: "Commit & push", icon: "push" },
+];
+
+function OptionIcon({ type }) {
   if (type === "draft") return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
       <circle cx="8" cy="4" r="1.5" /><circle cx="8" cy="12" r="1.5" />
@@ -24,6 +29,18 @@ function PrIcon({ type }) {
       <path d="M9 2h5v5M14 2 7 9" />
     </svg>
   );
+  if (type === "commit") return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+      <circle cx="8" cy="8" r="2.5" />
+      <line x1="1.5" y1="8" x2="5.5" y2="8" /><line x1="10.5" y1="8" x2="14.5" y2="8" />
+    </svg>
+  );
+  if (type === "push") return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 13V5M5 8l3-3 3 3" />
+      <line x1="4" y1="2.5" x2="12" y2="2.5" />
+    </svg>
+  );
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
       <circle cx="5" cy="4" r="1.5" /><circle cx="5" cy="12" r="1.5" /><circle cx="11" cy="8" r="1.5" />
@@ -32,20 +49,63 @@ function PrIcon({ type }) {
   );
 }
 
+function SplitButton({ options, mode, onSelectMode, onAction, disabled, title }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [open]);
+
+  const active = options.find((o) => o.id === mode) ?? options[0];
+
+  return (
+    <div className="pr-wrap" ref={ref}>
+      {open && (
+        <div className="pr-menu">
+          {options.map((opt) => (
+            <button key={opt.id} className={"pr-menu-item" + (mode === opt.id ? " on" : "")} onClick={() => { onSelectMode(opt.id); setOpen(false); }}>
+              <OptionIcon type={opt.icon} />
+              <span>{opt.label}</span>
+              {mode === opt.id && (
+                <svg className="pr-menu-check" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="m3 8 3 3 7-7" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+      <button className="pr-create-btn" disabled={disabled} title={title} onClick={() => onAction(active.id)}>
+        <span>{active.label}</span>
+      </button>
+      <button className="pr-dropdown-toggle" disabled={disabled} onClick={() => setOpen(!open)}>
+        <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
+          <path d="m4 6 4 4 4-4" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 export function ComposerDiffRow({ live }) {
   const ui = useUi();
   const selected = live.workers.find((w) => w.id === ui.selectedId);
   const [diff, setDiff] = useState({ insertions: 0, deletions: 0, files: 0 });
   const [isGit, setIsGit] = useState(true);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [prMode, setPrMode] = useState("pr");
+  const [commitMode, setCommitMode] = useState("commit");
   const [remoteUrl, setRemoteUrl] = useState(null);
   const [currentBranch, setCurrentBranch] = useState(null);
   const [ahead, setAhead] = useState(0);
   const [behind, setBehind] = useState(0);
   const [stash, setStash] = useState(0);
   const [conflicts, setConflicts] = useState(0);
-  const menuRef = useRef(null);
 
   useEffect(() => {
     if (!ui.selectedId) return;
@@ -82,23 +142,13 @@ export function ComposerDiffRow({ live }) {
     return () => { cancelled = true; clearInterval(t); ac.abort(); };
   }, [ui.selectedId, selected?.cwd, selected?.worktree_from]);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-    const close = (e) => {
-      if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
-    };
-    document.addEventListener("mousedown", close);
-    return () => document.removeEventListener("mousedown", close);
-  }, [menuOpen]);
-
   if (!selected || !isGit) return null;
 
   const folder = basename(selected.cwd ?? selected.worktree_from ?? "");
   const branch = currentBranch ?? selected.branch ?? null;
-  const activeOption = PR_OPTIONS.find((o) => o.id === prMode) ?? PR_OPTIONS[0];
 
-  const handlePrAction = () => {
-    if (prMode === "manual") {
+  const handlePrAction = (id) => {
+    if (id === "manual") {
       if (remoteUrl) {
         const b = currentBranch ?? branch;
         const prUrl = `${remoteUrl}/compare/main...${b}?quick_pull=1`;
@@ -106,18 +156,20 @@ export function ComposerDiffRow({ live }) {
       }
       return;
     }
-    const prompt = prMode === "draft"
-      ? "Create a draft pull request for the current branch. Use `gh pr create --draft`."
-      : "Create a pull request for the current branch. Use `gh pr create`.";
-    api.sendWorkerMessage(ui.selectedId, prompt);
+    api.sendWorkerAction(ui.selectedId, id === "draft" ? "draft-pr" : "pr");
   };
 
-  const selectMode = (id) => {
-    setPrMode(id);
-    setMenuOpen(false);
+  const handleCommitAction = (id) => {
+    api.sendWorkerAction(ui.selectedId, id);
+  };
+
+  const handlePush = () => {
+    api.sendWorkerMessage(ui.selectedId, "Push the current branch to the remote.");
   };
 
   const showSync = ahead > 0 || behind > 0;
+  const dirty = diff?.insertions > 0 || diff?.deletions > 0 || diff?.files > 0;
+  const showPushOnly = !dirty && ahead > 0;
 
   return (
     <div className="c-row-diff" id="composerDiffRow">
@@ -180,31 +232,28 @@ export function ComposerDiffRow({ live }) {
           <span className="diff-neg">−{diff.deletions.toLocaleString()}</span>
         </span>
       )}
-      <div className="pr-wrap" ref={menuRef}>
-        {menuOpen && (
-          <div className="pr-menu">
-            {PR_OPTIONS.map((opt) => (
-              <button key={opt.id} className={"pr-menu-item" + (prMode === opt.id ? " on" : "")} onClick={() => selectMode(opt.id)}>
-                <PrIcon type={opt.icon} />
-                <span>{opt.label}</span>
-                {prMode === opt.id && (
-                  <svg className="pr-menu-check" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="m3 8 3 3 7-7" />
-                  </svg>
-                )}
-              </button>
-            ))}
-          </div>
-        )}
-        <button className="pr-create-btn" onClick={handlePrAction}>
-          <span>{activeOption.label}</span>
+      {dirty && (
+        <SplitButton
+          options={COMMIT_OPTIONS}
+          mode={commitMode}
+          onSelectMode={setCommitMode}
+          onAction={handleCommitAction}
+          disabled={conflicts > 0}
+          title={conflicts > 0 ? "Resolve conflicts first" : undefined}
+        />
+      )}
+      {showPushOnly && (
+        <button className="pr-create-btn pr-solo" onClick={handlePush}>
+          <OptionIcon type="push" />
+          <span>Push</span>
         </button>
-        <button className="pr-dropdown-toggle" onClick={() => setMenuOpen(!menuOpen)}>
-          <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
-            <path d="m4 6 4 4 4-4" />
-          </svg>
-        </button>
-      </div>
+      )}
+      <SplitButton
+        options={PR_OPTIONS}
+        mode={prMode}
+        onSelectMode={setPrMode}
+        onAction={handlePrAction}
+      />
     </div>
   );
 }
