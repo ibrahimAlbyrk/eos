@@ -1,0 +1,112 @@
+// ToolRuntime — the Eos-hosted agentic loop for backends that do NOT run their
+// own loop (anthropic-api / openai / codex). It drives a ModelClient: call the
+// model → if it returns tool calls, gate + execute each → feed results back →
+// repeat until the model ends the turn. The claude-cli backend does NOT use this
+// (the CLI runs its own loop); this is what makes "any LLM API" a viable backend.
+//
+// Backend-agnostic + pure: it emits canonical AgentEvents (contracts/canonical)
+// and gates EVERY tool through a single chokepoint (fail-closed — an unknown tool
+// or a denied decision yields an error tool_result, never a skipped gate). No
+// Node imports.
+
+import type { ModelClient, ModelMessage } from "../ports/ModelClient.ts";
+import type { AgentEvent } from "../../../contracts/src/canonical.ts";
+
+export interface RuntimeTool {
+  name: string;
+  execute(input: Record<string, unknown>): Promise<string>;
+}
+
+export interface ToolGate {
+  // Returns allow=false to deny (its message becomes the tool_result text).
+  decide(toolName: string, input: Record<string, unknown>): Promise<{ allow: boolean; message?: string }>;
+}
+
+export interface ToolRuntimeDeps {
+  model: ModelClient;
+  tools: Map<string, RuntimeTool>;
+  gate: ToolGate;
+  emit(event: AgentEvent): void;
+  /** Hard ceiling on model round-trips per turn (runaway guard). Default 50. */
+  maxIterations?: number;
+  /** Cooperative cancellation — checked between round-trips (interrupt). */
+  signal?: { aborted: boolean };
+}
+
+export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[]): Promise<ModelMessage[]> {
+  const messages = conversation.slice();
+  const max = deps.maxIterations ?? 50;
+  deps.emit({ type: "turn", phase: "started" });
+
+  for (let i = 0; i < max; i++) {
+    if (deps.signal?.aborted) {
+      deps.emit({ type: "turn", phase: "aborted", reason: "interrupted" });
+      return messages;
+    }
+
+    let turn;
+    try {
+      turn = await deps.model.createTurn(messages);
+    } catch (e) {
+      deps.emit({ type: "turn", phase: "error", reason: e instanceof Error ? e.message : String(e) });
+      return messages;
+    }
+
+    if (turn.reasoning) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "reasoning", text: turn.reasoning }] });
+    if (turn.text) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "text", text: turn.text }] });
+    if (turn.usage) {
+      deps.emit({
+        type: "usage",
+        usage: { inputTokens: turn.usage.inputTokens, outputTokens: turn.usage.outputTokens, cacheReadTokens: turn.usage.cacheReadTokens ?? 0, cacheWriteTokens: {} },
+      });
+    }
+
+    if (turn.stopReason === "error") {
+      deps.emit({ type: "turn", phase: "error", reason: turn.error });
+      return messages;
+    }
+
+    if (turn.toolCalls.length === 0) {
+      deps.emit({ type: "turn", phase: "ended" });
+      return messages;
+    }
+
+    messages.push({ role: "assistant", content: turn.toolCalls });
+
+    for (const call of turn.toolCalls) {
+      deps.emit({ type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: call.callId, name: call.name, input: call.input }] });
+      const result = await executeGated(deps, call.name, call.input);
+      deps.emit({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: call.callId, isError: result.isError, content: result.text }] });
+      messages.push({ role: "tool", content: { callId: call.callId, result: result.text, isError: result.isError } });
+    }
+  }
+
+  deps.emit({ type: "turn", phase: "aborted", reason: "max_iterations" });
+  return messages;
+}
+
+// Single chokepoint: every tool call is gated here before execution, so
+// "forgetting to gate" is unrepresentable. Denied / unknown / thrown → error
+// result fed back to the model (never a silent skip).
+async function executeGated(
+  deps: ToolRuntimeDeps,
+  name: string,
+  input: Record<string, unknown>,
+): Promise<{ text: string; isError: boolean }> {
+  let decision;
+  try {
+    decision = await deps.gate.decide(name, input);
+  } catch (e) {
+    return { text: `permission check failed: ${e instanceof Error ? e.message : String(e)}`, isError: true };
+  }
+  if (!decision.allow) return { text: decision.message ?? "denied by policy", isError: true };
+
+  const tool = deps.tools.get(name);
+  if (!tool) return { text: `unknown tool: ${name}`, isError: true };
+
+  try {
+    return { text: await tool.execute(input), isError: false };
+  } catch (e) {
+    return { text: e instanceof Error ? e.message : String(e), isError: true };
+  }
+}
