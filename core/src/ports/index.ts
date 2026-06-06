@@ -7,6 +7,7 @@ export * from "./PendingRepo.ts";
 export * from "./EventBus.ts";
 export * from "./ProcessSupervisor.ts";
 export * from "./AgentBackend.ts";
+export * from "./BackendDefaults.ts";
 export * from "./PortAllocator.ts";
 export * from "./WorkerClient.ts";
 export * from "./WorkerEventClient.ts";

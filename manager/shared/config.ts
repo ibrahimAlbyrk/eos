@@ -11,6 +11,7 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { McpServerDefSchema } from "../../contracts/src/shared.ts";
+import { type BackendProfile, BackendProfileSchema } from "../../contracts/src/backend.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
 
@@ -52,6 +53,13 @@ export interface DaemonConfig {
   mcp: {
     orchestrator: AgentMcpConfig;
     worker: AgentMcpConfig;
+  };
+  // Named backend profiles + per-role defaults. claude-cli everywhere by
+  // default → absent config = today's behavior.
+  backends: Record<string, BackendProfile>;
+  defaults: {
+    orchestrator: { backend: string };
+    worker: { backend: string };
   };
 }
 
@@ -96,6 +104,12 @@ const DEFAULT_PRICES: Record<string, ModelPrice> = {
   haiku:  { in:  1.0, out:  5.0, cacheRead: 0.10, cacheCreate:  1.25, cacheCreate1h:  2.0 },
 };
 
+const DEFAULT_BACKENDS: Record<string, BackendProfile> = {
+  "claude-cli-opus": { kind: "claude-cli", model: "opus", costMode: "included" },
+  "claude-cli-sonnet": { kind: "claude-cli", model: "sonnet", costMode: "included" },
+  "claude-cli-haiku": { kind: "claude-cli", model: "haiku", costMode: "included" },
+};
+
 function defaults(): DaemonConfig {
   const repoRoot = envStr("CLAUDE_MGR_REPO_ROOT", detectRepoRoot());
   const home = envStr("CLAUDE_MGR_HOME", join(homedir(), ".claude-mgr"));
@@ -132,6 +146,11 @@ function defaults(): DaemonConfig {
     mcp: {
       orchestrator: { ...DEFAULT_AGENT_MCP },
       worker: { ...DEFAULT_AGENT_MCP },
+    },
+    backends: { ...DEFAULT_BACKENDS },
+    defaults: {
+      orchestrator: { backend: "claude-cli-opus" },
+      worker: { backend: "claude-cli-opus" },
     },
   };
 }
@@ -181,6 +200,11 @@ const DaemonConfigOverrideSchema = z.object({
     orchestrator: AgentMcpConfigOverrideSchema.optional(),
     worker: AgentMcpConfigOverrideSchema.optional(),
   }).partial().optional(),
+  backends: z.record(z.string(), BackendProfileSchema).optional(),
+  defaults: z.object({
+    orchestrator: z.object({ backend: z.string() }).partial(),
+    worker: z.object({ backend: z.string() }).partial(),
+  }).partial().optional(),
 }).passthrough();
 
 // Merge file-loaded overrides on top of defaults. Most sections are flat and
@@ -207,6 +231,17 @@ function mergeConfig(base: DaemonConfig, override: unknown): DaemonConfig {
       const incMcp = incoming as Record<string, Partial<AgentMcpConfig>>;
       for (const t of ["orchestrator", "worker"] as const) {
         if (incMcp[t]) out.mcp[t] = { ...out.mcp[t], ...incMcp[t] };
+      }
+    } else if (k === "backends") {
+      // Per-profile replace — a profile is atomic (kind drives everything).
+      const incB = incoming as Record<string, BackendProfile>;
+      for (const name of Object.keys(incB)) out.backends[name] = incB[name];
+    } else if (k === "defaults") {
+      // Per-role field merge (setting just worker.backend keeps orchestrator).
+      const incD = incoming as Record<string, { backend?: string }>;
+      for (const role of ["orchestrator", "worker"] as const) {
+        const b = incD[role]?.backend;
+        if (b) out.defaults[role] = { backend: b };
       }
     } else {
       Object.assign(out[k] as Record<string, unknown>, incoming as Record<string, unknown>);

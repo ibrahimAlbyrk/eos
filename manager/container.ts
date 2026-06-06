@@ -36,6 +36,7 @@ import type { Policy } from "../core/src/domain/policy.ts";
 import type { ModelCatalog } from "../core/src/ports/ModelCatalog.ts";
 import { PolicyGatewayService } from "../core/src/services/PolicyGatewayService.ts";
 import { SqlBackedModeResolver } from "../core/src/services/SqlBackedModeResolver.ts";
+import { SqlBackedBackendResolver } from "../core/src/services/SqlBackedBackendResolver.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
@@ -142,6 +143,19 @@ export function buildContainer() {
 
   // Mode resolver — walks worker.parent_id chain to find the active mode.
   const modeResolver = new SqlBackedModeResolver(workers);
+  // Backend selection: materialize named profiles + per-role defaults from the
+  // frozen config, then a resolver that climbs parent_id for inheritance.
+  const backendDefaults = {
+    profile(name: string) {
+      const p = config.backends[name];
+      if (!p) return null;
+      return { kind: p.kind, model: p.model, profileName: name, baseUrl: p.baseUrl, pricing: p.pricing, costMode: p.costMode, params: p.params };
+    },
+    roleDefaultName(isOrchestrator: boolean): string | null {
+      return (isOrchestrator ? config.defaults.orchestrator.backend : config.defaults.worker.backend) ?? null;
+    },
+  };
+  const backendResolver = new SqlBackedBackendResolver(workers, backendDefaults);
 
   // Policy gateway service --------------------------------------------------
   const policyGateway = new PolicyGatewayService({
@@ -314,6 +328,7 @@ export function buildContainer() {
     buildEnv,
     logFileFor,
     claudeCliBackend,
+    backendResolver,
     turnSettle,
     pendingQuestions,
     cleanupMcpConfig,
