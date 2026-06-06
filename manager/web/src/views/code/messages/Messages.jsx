@@ -40,11 +40,17 @@ export function Messages({ live }) {
   const programmaticScrollRef = useRef(false);
   const lastUserScrollTsRef = useRef(0);
 
-  const checkNearBottom = useCallback(() => {
+  const updateScrollBtn = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
     const overflows = el.scrollHeight > el.clientHeight;
     const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
+    setShowScrollBtn(overflows && dist >= BUTTON_THRESHOLD);
+  }, []);
+
+  const checkNearBottom = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
     if (!programmaticScrollRef.current) {
       lastUserScrollTsRef.current = performance.now();
       isNearBottomRef.current = shouldStick(
@@ -52,15 +58,21 @@ export function Messages({ live }) {
         SCROLL_THRESHOLD,
       );
     }
-    setShowScrollBtn(overflows && dist >= BUTTON_THRESHOLD);
-  }, []);
+    updateScrollBtn();
+  }, [updateScrollBtn]);
 
   useEffect(() => {
     const el = wrapRef.current;
+    const content = contentRef.current;
     if (!el) return;
     el.addEventListener("scroll", checkNearBottom, { passive: true });
-    return () => el.removeEventListener("scroll", checkNearBottom);
-  }, [checkNearBottom]);
+    // Content can shrink without a scroll event (e.g. collapsing a task);
+    // re-evaluate the button on size changes so it doesn't get stuck visible.
+    const ro = new ResizeObserver(updateScrollBtn);
+    ro.observe(el);
+    if (content) ro.observe(content);
+    return () => { el.removeEventListener("scroll", checkNearBottom); ro.disconnect(); };
+  }, [checkNearBottom, updateScrollBtn]);
 
   // Guard code-initiated scrolls so the animation's own scroll events don't
   // unpin the view. WKWebView may never fire scrollend, so the 200ms fallback

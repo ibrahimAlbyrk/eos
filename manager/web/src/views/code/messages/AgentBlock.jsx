@@ -37,7 +37,7 @@ export function AgentBlock({ block }) {
       </div>
       <div className="agent-card" onClick={openPanel}>
         <div className="agent-card-body">
-          <div className="agent-card-title">{desc}</div>
+          <div className={"agent-card-title" + (isDone ? "" : " ti-shimmer")}>{desc}</div>
           <div className="agent-card-status">{statusText}</div>
         </div>
         <svg className="agent-card-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
