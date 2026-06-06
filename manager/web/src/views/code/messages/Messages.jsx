@@ -23,6 +23,7 @@ import { AgentBlock } from "./AgentBlock.jsx";
 import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
 import { MessageTask } from "./MessageTask.jsx";
+import { MessageRow } from "./MessageRow.jsx";
 
 const POLL_MS = 5000;
 const SCROLL_THRESHOLD = 40;
@@ -268,10 +269,10 @@ function blockKey(b, i) {
 
 function renderBlock(b, key, cwd, ui) {
   switch (b.kind) {
-    case "user":      return <MessageUser key={key} text={b.text} cwd={cwd} />;
-    case "report":    return <MessageReport key={key} text={b.text} label={b.workerName || b.fromWorker || "worker"} direction="in" />;
-    case "directive": return <MessageReport key={key} text={b.text} label={b.parentName || b.fromParent || "orchestrator"} direction="out" />;
-    case "assistant": return <MessageAssistant key={key} text={b.text} />;
+    case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right"><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
+    case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} label={b.workerName || b.fromWorker || "worker"} direction="in" /></MessageRow>;
+    case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} label={b.parentName || b.fromParent || "orchestrator"} direction="out" /></MessageRow>;
+    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} /></MessageRow>;
     case "thinking":  return <ThinkingLine key={key} text={b.text} ms={b.ms} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);

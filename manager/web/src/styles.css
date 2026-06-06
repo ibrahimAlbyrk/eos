@@ -717,23 +717,53 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   color: #fff;
 }
 
-/* User message — pill bubble */
+/* User message — right-aligned bubble */
 .msg-user {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  align-items: flex-end;
   margin: 18px 0;
 }
 .msg-user .b {
-  background: #212b35;
-  color: #0099ff;
-  padding: 6px 13px;
-  border-radius: 8px;
+  background: #313130;
+  color: #e2e1da;
+  padding: 7px 13px;
+  border-radius: 10px;
   font-size: var(--text-base);
   max-width: 80%;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+/* Hover action row (copy + timestamp) under text messages. Absolutely
+   positioned into the message's own margin gap so revealing it never
+   shifts layout — the transcript auto-scrolls and a reflow would jump it. */
+.msg-row { position: relative; }
+.msg-actions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 18px;
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.msg-row:hover .msg-actions { opacity: 1; }
+.msg-actions.right { justify-content: flex-end; }
+.msg-action-btn {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 3px;
+  color: var(--fg-faint);
+}
+.msg-action-btn:hover { color: var(--fg); background: var(--surface-2); }
+.msg-time {
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
 }
 
 /* Initial task prompt — shown as first block for orchestrator-spawned workers */
