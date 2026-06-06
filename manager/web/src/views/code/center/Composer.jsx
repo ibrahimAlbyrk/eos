@@ -3,7 +3,9 @@ import { useUi } from "../../../state/ui.jsx";
 import { useCommands } from "../../../hooks/useCommands.js";
 import { useContentEditableEditor, getCursorOffset } from "../../../hooks/useContentEditableEditor.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
+import { useInputHistory } from "../../../hooks/useInputHistory.js";
 import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
+import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
 import { api } from "../../../api/client.js";
 import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
 import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
@@ -33,6 +35,13 @@ export function Composer({ live }) {
   const [fileMenuIndex, setFileMenuIndex] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
   const insertedPathsRef = useRef(new Map());
+  const history = useInputHistory();
+  const lastEscRef = useRef(0);
+  const [escArmed, setEscArmed] = useState(false);
+  // True while showing a history-recalled entry; keeps the slash/file menus
+  // suppressed (the query-change effects below would otherwise re-open them).
+  // Cleared on the next real input event.
+  const recallRef = useRef(false);
 
   const [attachments, setAttachments] = useState([]);
   const addAttachment = useCallback((att) => {
@@ -86,8 +95,15 @@ export function Composer({ live }) {
     return null;
   }, [text, cmdMap]);
 
-  useEffect(() => { setMenuIndex(0); setMenuDismissed(menuDismissedOnQueryChange()); }, [slashCtx?.query]);
-  useEffect(() => { setFileMenuIndex(0); setMenuDismissed(menuDismissedOnQueryChange()); }, [atCtx?.query]);
+  useEffect(() => { setMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [slashCtx?.query]);
+  useEffect(() => { setFileMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [atCtx?.query]);
+
+  useEffect(() => { setEscArmed(false); }, [text]);
+  useEffect(() => {
+    if (!escArmed) return;
+    const t = setTimeout(() => setEscArmed(false), ESC_CHORD_WINDOW_MS);
+    return () => clearTimeout(t);
+  }, [escArmed]);
 
   const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
 
@@ -186,6 +202,7 @@ export function Composer({ live }) {
       agentText = agentText.replaceAll("@" + display, absPath);
     }
 
+    history.push(t);
     setTextAndSync("", 0);
     insertedPathsRef.current.clear();
     const currentAttachments = [...attachments];
@@ -272,6 +289,31 @@ export function Composer({ live }) {
         applyEscapeMenu();
         return;
       }
+    }
+
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+      const recalled = e.key === "ArrowUp" ? history.up(text) : history.down(text);
+      if (recalled !== null) {
+        e.preventDefault();
+        recallRef.current = true;
+        setTextAndSync(recalled);
+        return;
+      }
+    }
+
+    if (e.key === "Escape") {
+      const { isDouble, ts } = escChord(lastEscRef.current, Date.now());
+      lastEscRef.current = ts;
+      if (isDouble && text !== "") {
+        e.preventDefault();
+        e.stopPropagation();
+        setTextAndSync("", 0);
+        insertedPathsRef.current.clear();
+      } else if (text !== "") {
+        setEscArmed(true);
+      }
+      // first Esc: not consumed — bubbles to the global handler (interrupt etc.)
+      return;
     }
 
     if (e.key === "Backspace") {
@@ -365,13 +407,13 @@ export function Composer({ live }) {
             )}
             <div
               ref={editorRef}
-              className="composer-editor"
+              className={escArmed ? "composer-editor esc-armed" : "composer-editor"}
               contentEditable
               role="textbox"
               data-placeholder="Type / for commands, @ for files"
               data-empty={!text ? "" : undefined}
               data-hint={activeHint || undefined}
-              onInput={handleInput}
+              onInput={(e) => { recallRef.current = false; handleInput(e); }}
               onKeyDown={onKey}
               onPaste={handlePaste}
               onClick={() => { const el = editorRef.current; if (el) setCursorPos(getCursorOffset(el)); }}
@@ -385,7 +427,11 @@ export function Composer({ live }) {
           </div>
         </div>
 
-        <ComposerControls live={live} onAttach={addAttachment} />
+        <ComposerControls
+          live={live}
+          onAttach={addAttachment}
+          historyNav={history.nav && text === history.nav.entry ? history.nav : null}
+        />
       </div>
     </div>
   );
