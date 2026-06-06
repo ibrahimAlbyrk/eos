@@ -12,6 +12,8 @@ import { fmtElapsedShort } from "../../../lib/format.js";
 import { buildBlocks, parsePayload } from "../../../lib/messageParser.js";
 import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
 import { shouldStick, shouldAutoScroll } from "../../../lib/scrollStick.js";
+import { usePageFind } from "../../../hooks/usePageFind.js";
+import { FindBar } from "./FindBar.jsx";
 import { MessageUser } from "./MessageUser.jsx";
 import { MessageReport } from "./MessageReport.jsx";
 import { MessageAssistant } from "./MessageAssistant.jsx";
@@ -30,6 +32,7 @@ export function Messages({ live }) {
   const ui = useUi();
   const [events, setEvents] = useState([]);
   const wrapRef = useRef(null);
+  const contentRef = useRef(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const isNearBottomRef = useRef(true);
   const initialScrollDone = useRef(false);
@@ -137,6 +140,9 @@ export function Messages({ live }) {
     if (match) ui.syncAgentViewer(match);
   }, [blocks]);
 
+  // expandedTools in deps: expanding a tool mounts new text the ranges must cover.
+  const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools]);
+
   const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
   const parentWorker = selectedWorker?.parent_id
     ? live.workers.find((w) => w.id === selectedWorker.parent_id)
@@ -205,7 +211,8 @@ export function Messages({ live }) {
 
   return (
     <div className="messages-wrap" ref={wrapRef}>
-      <div className="messages">
+      {find.open && <FindBar find={find} />}
+      <div className="messages" ref={contentRef}>
         {selectedWorker?.parent_id && selectedWorker.prompt && (
           <MessageTask
             prompt={selectedWorker.prompt}
