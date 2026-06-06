@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `Eos` is an orchestration layer **on top of the interactive `claude` CLI binary** (not the Agent SDK or `claude -p`). An "orchestrator" agent decomposes tasks and dispatches worker agents via MCP tools. A daemon supervises everything; a web UI (React 18 + Vite), CLI, and native macOS app (WKWebView in `app/`) provide live observation and control.
 
-**Hard constraint:** every Claude session runs as an *interactive* PTY process so the user's Max/Pro subscription pays for tokens. **Never use `claude -p`** — it draws from a separate Agent SDK credit pool. Drive `claude` via `node-pty`, write prompts by `pty.write(text + "\r")`.
+**Hard constraint:** every Claude session runs as an *interactive* PTY process so the user's Max/Pro subscription pays for tokens. **Never use `claude -p`** — it draws from a separate Agent SDK credit pool. Drive `claude` via `node-pty`; never write raw `text + "\r"` yourself — all message delivery goes through `spawner/delivery.ts` (verified bracketed paste → composer echo → CR → transcript ACK).
 
 ## Repository layout
 
@@ -16,7 +16,7 @@ core/             — Pure domain + ports + use-cases + services. Zero Node-spec
 infra/            — Adapter implementations for core/ ports (SQLite, child_process, chokidar, etc.).
 infra/util/       — Cross-cutting infra utilities (safeStringify).
 gateway/          — MCP permission server. Strategy: DaemonProxyPolicy (fail-closed) vs StandalonePolicy (defense-in-depth).
-spawner/          — worker.ts composition root + submodules (options, pty-queue, tail, jsonl-parser, session, worktree, readiness-gate, ingest, claude-args, settings, events).
+spawner/          — worker.ts composition root + submodules (options, delivery, tail, jsonl-parser, session, worktree, readiness-gate, ingest, claude-args, settings, events).
 manager/          — daemon.ts (composition root + container + routes), cli.ts (Command pattern), orchestrator-mcp.ts, worker-mcp.ts, {orchestrator,worker}-prompt.md (externalized system prompts).
 manager/services/ — Extracted stateful services (TurnSettleService, PendingQuestionService).
 manager/routes/   — Split by concern: workers, orchestrators, policy, fs-picker, fs-read, fs-git, etc.
@@ -118,9 +118,9 @@ hook and jsonl ride independent fire-and-forget channels, so trailing transcript
 
 **Fire-and-forget**, distinct from the permission flow. `auto-allow.sh` POSTs `/workers/:id/question-notify` (daemon appends `question_pending` + publishes `worker:change`, then returns immediately) and lets Claude's native TUI menu render. The web UI shows a **QuestionBanner**; answers go back as raw keystrokes via `POST /workers/:id/keystroke` (single-select: option number, no CR) or, for multi-select/free-text, `POST /workers/:id/interrupt` then a normal `/message`. `POST /workers/:id/question-answer` records `question_answered` to dismiss the banner durably. NOTE: a BLOCKING variant still exists in code (`POST /workers/:id/question` → `PendingQuestionService` long-poll, plus `worker.ts onQuestionHook`) but is **currently dead/unwired** — `ingest.ts` routes no path to it. It is the natural in-process human-prompt channel to resurrect for non-PTY backends (see `docs/adr/0001-backend-agnostic-agent-platform.md`). `scripts/hooks/ask-question.sh` is also dead — the live logic is in `auto-allow.sh`.
 
-### PTY write: 300ms CR delay + serialized queue
+### PTY write: verified delivery pipeline (delivery.ts)
 
-`pty-queue.ts` `PtyWriteQueue` serializes all PTY writes through a promise chain (concurrent `/message` POSTs otherwise interleave bytes — a PTY has no message boundaries). Each write: text → wait `crDelayMs` (300, `--pty-write-delay-ms`) → `\r` → wait `PTY_POST_CR_SETTLE_MS` (50) before the next. The CR gap exists because bracketed-paste mode swallows a CR sent in the same write as text.
+`DeliveryPipeline` serializes all message writes through one promise chain (concurrent `/message` POSTs otherwise interleave bytes — a PTY has no message boundaries) and verifies each delivery instead of trusting timers: (1) text goes out wrapped in explicit bracketed-paste markers `\x1b[200~…\x1b[201~` in ONE write; (2) the CR is sent as soon as the composer **echoes** the text back (normalized match: ANSI + whitespace + box-drawing stripped; large pastes match the `[Pasted text` placeholder) — the fixed 300ms delay (`--pty-write-delay-ms`) is now only the fallback when no echo shows; (3) the message appearing as a **user entry in the transcript JSONL** (`user_text`, consumed worker-locally, never forwarded) is the end-to-end ACK. Retry ladder is duplicate-proof: echo OK + no ACK → one re-CR then `delivery_unverified`; no echo + no ACK → Esc + re-paste up to 3 attempts then `delivery_failed` (daemon heals the eager WORKING back to IDLE; chat shows a red line). Turn-ACK is **skipped mid-turn** — a steering message is queued by the TUI and hits the transcript minutes later, so an ACK timeout there would re-paste and duplicate it. Keystrokes (`/keystroke`, AUQ answers) still bypass the pipeline.
 
 ### macOS `/tmp` symlink
 
@@ -158,7 +158,7 @@ Same worker.ts code. Distinguished by `--persistent` (no auto-shutdown), `--mcp-
 
 ## Style notes
 
-- No comments unless *why* is non-obvious. Keep existing comments on: `pty-queue.ts` CR delay, `worktree.ts` realpath dance, `auto-allow.sh`.
+- No comments unless *why* is non-obvious. Keep existing comments on: `delivery.ts` retry-ladder rationale, `worktree.ts` realpath dance, `auto-allow.sh`.
 - Use `safeStringify()` from `infra/src/util/json.ts` instead of raw `JSON.stringify()` for values that could be non-serializable.
 - Use `e instanceof Error ? e.message : String(e)` in catch blocks — never `(e as Error).message`.
 - All code/CLI output in English. User web messages may be Turkish.
