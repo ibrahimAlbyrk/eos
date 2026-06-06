@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 // Worker entrypoint — composition root only. Each concern lives in a
-// neighbour module: options.ts (CLI parsing), events.ts (daemon RPC),
+// neighbour module: options.ts (CLI parsing), events.ts (ordered daemon RPC),
 // worktree.ts (git lifecycle), settings.ts (claude settings.json),
-// claude-args.ts (argv composition), pty-queue.ts (serialized writes),
-// tail.ts (JSONL chokidar), ingest.ts (local HTTP), session.ts (state +
-// heartbeat + shutdown scheduling).
+// claude-args.ts (argv composition), delivery.ts (verified serialized PTY
+// delivery), tail.ts (JSONL chokidar), ingest.ts (local HTTP), session.ts
+// (state + heartbeat + shutdown scheduling).
 
 import { rmSync } from "node:fs";
 import { spawn as ptySpawn } from "@homebridge/node-pty-prebuilt-multiarch";
@@ -15,7 +15,7 @@ import { createDaemonEventClient } from "./events.ts";
 import { setupWorktree, teardownWorktree } from "./worktree.ts";
 import { buildClaudeSettings } from "./settings.ts";
 import { buildClaudeArgs } from "./claude-args.ts";
-import { PtyWriteQueue } from "./pty-queue.ts";
+import { DeliveryPipeline } from "./delivery.ts";
 import { startJsonlTail, type TailHandle } from "./tail.ts";
 import { startIngestServer } from "./ingest.ts";
 import {
@@ -99,13 +99,34 @@ const pty = ptySpawn(claudeBin, claudeArgs.args, {
   },
 });
 
-const writeQueue = new PtyWriteQueue(
-  pty,
-  (err) => {
+// True from the moment we submit a message until Claude's Stop/SessionEnd (or
+// an interrupt). While open, the delivery pipeline skips turn-ACK: a mid-turn
+// message is queued by the TUI and reaches the transcript only when the queue
+// drains, so an ACK timeout there would retry and duplicate it.
+let claudeTurnOpen = false;
+
+const pipeline = new DeliveryPipeline({
+  write: (s) => pty.write(s),
+  emit: (t, p) => evt.emit(t, p),
+  canVerifyAck: () => tailHandle !== null,
+  isTurnActive: () => claudeTurnOpen,
+  onWriteError: (err) => {
     console.error(`[${name}] pty write error: ${err instanceof Error ? err.message : err}`);
   },
-  opts.ptyWriteDelayMs ?? DEFAULT_PTY_WRITE_DELAY_MS,
-);
+  fallbackCrDelayMs: opts.ptyWriteDelayMs ?? DEFAULT_PTY_WRITE_DELAY_MS,
+});
+
+function deliver(text: string): void {
+  void pipeline.enqueue(text).then((res) => {
+    if (res.outcome === "failed") {
+      // No turn started — stop the heartbeat from faking liveness so the
+      // daemon-side delivery_failed IDLE heal sticks.
+      state.lastTurnEndTs = Date.now();
+    } else {
+      claudeTurnOpen = true;
+    }
+  });
+}
 
 // Lifecycle ----------------------------------------------------------------
 
@@ -133,7 +154,7 @@ let bootCompleted = false;
 function onBootReady(reason: "marker" | "fallback"): void {
   const hadBufferedMsg = bootBuffer.length > 0;
   bootCompleted = true;
-  for (const t of bootBuffer) writeQueue.enqueue(t);
+  for (const t of bootBuffer) deliver(t);
   bootBuffer = [];
 
   // A user message that arrived during boot supersedes the initial prompt.
@@ -144,7 +165,7 @@ function onBootReady(reason: "marker" | "fallback"): void {
     const now = Date.now();
     state.lastUserMsgTs = now;
     state.lastJsonlActivityTs = now;
-    writeQueue.enqueue(opts.prompt);
+    deliver(opts.prompt);
   } else {
     evt.emit("lifecycle", { phase: "ready_no_prompt" });
     if (state.lastUserMsgTs === 0) {
@@ -162,12 +183,13 @@ const readiness = createReadinessGate({
 pty.onData((data: string) => {
   process.stdout.write(data);
   readiness.feed(data);
+  pipeline.feedOutput(data);
 });
 
 // Ingest server (message + hook) ------------------------------------------
 
 function dispatchToPty(text: string): void {
-  if (bootCompleted) writeQueue.enqueue(text);
+  if (bootCompleted) deliver(text);
   else bootBuffer.push(text);
 }
 
@@ -208,6 +230,10 @@ const ingest = startIngestServer(opts.port, {
   onInterrupt(): { ok: boolean } {
     pty.write("\x1b");
     state.lastTurnEndTs = Date.now();
+    claudeTurnOpen = false;
+    // Emit whatever transcript already landed before the abort marker so the
+    // daemon sees it ahead of the turn-aborted event.
+    tailHandle?.drainNow();
     evt.emit("lifecycle", { phase: "interrupted" });
     return { ok: true };
   },
@@ -221,7 +247,16 @@ const ingest = startIngestServer(opts.port, {
         sessionId: state.sessionId,
         defaultModel: opts.model,
         name,
-        onEvent: (t, p) => evt.emit(t, p),
+        onEvent: (t, p) => {
+          // user_text is the delivery pipeline's turn-ACK — consumed locally,
+          // never forwarded (the daemon's own user_message event already
+          // renders the message in the UI).
+          if (t === "jsonl" && (p as { kind?: string }).kind === "user_text") {
+            pipeline.notifyUserText((p as { text?: string }).text ?? "", Date.now());
+            return;
+          }
+          evt.emit(t, p);
+        },
         onActivity: (): void => { state.lastJsonlActivityTs = Date.now(); },
       });
     }
@@ -251,6 +286,14 @@ const ingest = startIngestServer(opts.port, {
         result: extractToolResponse(body.tool_response ?? body.tool_result ?? ""),
         ...(parentAgentToolUseId ? { parentAgentToolUseId } : {}),
       });
+    }
+    if (eventName === "Stop" || eventName === "SessionEnd") {
+      claudeTurnOpen = false;
+      // Drain the transcript to EOF before forwarding the turn-end hook: the
+      // event client is FIFO, so trailing jsonl of this turn is guaranteed to
+      // reach the daemon ahead of the Stop — the settle window becomes a
+      // safety net instead of the only defense.
+      tailHandle?.drainNow();
     }
     evt.emit("hook", { event: eventName, body });
     if (eventName === "PreToolUse") {
@@ -287,7 +330,7 @@ function cleanup(code: number): void {
   heartbeat.stop();
   shutdown.cancel();
   readiness.cancel();
-  if (tailHandle) { tailHandle.close(); tailHandle = null; }
+  if (tailHandle) { tailHandle.drainNow(); tailHandle.close(); tailHandle = null; }
   // Make absolutely sure the claude PTY child is signalled — process.exit
   // alone closes the master FD but a timing race can leave orphan claude
   // processes.
@@ -309,7 +352,9 @@ function cleanup(code: number): void {
     emit: (t, p) => evt.emit(t, p),
   });
 
-  process.exit(code);
+  // Give the queued events (trailing jsonl, pty_exit, worktree teardown) a
+  // bounded chance to reach the daemon before the process dies.
+  void evt.drain(800).finally(() => process.exit(code));
 }
 
 function extractToolResponse(raw: unknown): string {
