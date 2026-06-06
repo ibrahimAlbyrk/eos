@@ -128,8 +128,8 @@ function TreeNode({ node, onRename }) {
                 ui.setRenamingId(node.id);
               }}
             >{nameOf(node)}</span>}
-        {!isRenaming && (ui.hasNewActivity(node)
-          ? <span className="ag-notify" aria-label="new activity" title="new activity"></span>
+        {!isRenaming && (ui.needsAttention(node)
+          ? <span className="ag-notify" aria-label="finished with new output" title="finished with new output"></span>
           : <span className="ag-status">{status.label}</span>)}
       </div>
       {hasChildren && (

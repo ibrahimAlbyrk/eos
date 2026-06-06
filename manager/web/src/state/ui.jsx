@@ -2,14 +2,14 @@ import { useMemo } from "react";
 import { NavigationProvider, useNavigation } from "./navigation.jsx";
 import { SelectionProvider, useSelection } from "./selection.jsx";
 import { ComposerProvider, useComposer } from "./composer.jsx";
-import { NotificationProvider, useNotification } from "./notification.jsx";
+import { AttentionProvider, useAttention } from "./attention.jsx";
 import { SearchProvider, useSearch } from "./search.jsx";
 import { SettingsProvider, useSettings } from "./settings.jsx";
 
 export { useNavigation } from "./navigation.jsx";
 export { useSelection } from "./selection.jsx";
 export { useComposer } from "./composer.jsx";
-export { useNotification } from "./notification.jsx";
+export { useAttention, useAttentionSync } from "./attention.jsx";
 export { useSearch } from "./search.jsx";
 export { useSettings } from "./settings.jsx";
 
@@ -18,13 +18,13 @@ export function UiProvider({ children }) {
     <NavigationProvider>
       <SelectionProvider>
         <ComposerProvider>
-          <NotificationProvider>
+          <AttentionProvider>
             <SearchProvider>
               <SettingsProvider>
                 {children}
               </SettingsProvider>
             </SearchProvider>
-          </NotificationProvider>
+          </AttentionProvider>
         </ComposerProvider>
       </SelectionProvider>
     </NavigationProvider>
@@ -35,7 +35,7 @@ export function useUi() {
   const navigation = useNavigation();
   const selection = useSelection();
   const composer = useComposer();
-  const notification = useNotification();
+  const attention = useAttention();
   const search = useSearch();
   const settings = useSettings();
 
@@ -43,8 +43,8 @@ export function useUi() {
     ...navigation,
     ...selection,
     ...composer,
-    ...notification,
+    ...attention,
     ...search,
     ...settings,
-  }), [navigation, selection, composer, notification, search, settings]);
+  }), [navigation, selection, composer, attention, search, settings]);
 }

@@ -44,14 +44,6 @@ export function CodeView({ live }) {
     if (!exists) ui.setSelectedId(null);
   }, [ui.selectedId, live.workers, ui.setSelectedId]);
 
-  // Seed unseen workers + mark the selected one as viewed in a single pass.
-  useEffect(() => {
-    for (const w of live.workers) {
-      ui.seedViewed(w);
-      if (w.id === ui.selectedId) ui.markViewed(w);
-    }
-  }, [live.workers, ui.selectedId, ui.seedViewed, ui.markViewed]);
-
   useEffect(() => {
     ui.registerEscapeIdle(() => {
       const w = live.workers.find((x) => x.id === ui.selectedId);

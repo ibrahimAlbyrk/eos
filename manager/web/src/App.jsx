@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useUi, UiProvider } from "./state/ui.jsx";
+import { useUi, UiProvider, useAttentionSync } from "./state/ui.jsx";
 import { useLive } from "./hooks/useLive.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { CommandPalette } from "./components/search/CommandPalette.jsx";
@@ -9,6 +9,10 @@ import { getViewComponent } from "./views/registry.js";
 function Shell() {
   const ui = useUi();
   const live = useLive();
+
+  // Attention bookkeeping runs here, not in a view, so the sidebar dot
+  // state stays correct while other tabs are active.
+  useAttentionSync(live.workers, ui.selectedId);
 
   // Native app notification tap → jump to the Code tab and select the worker.
   useEffect(() => {
