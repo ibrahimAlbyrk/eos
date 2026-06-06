@@ -168,6 +168,41 @@ describe("parseJsonlLine — user messages", () => {
     }));
     assert.equal((ev[0].payload as { isError: boolean }).isError, true);
   });
+
+  it("emits user_text for string content (typed message — the delivery turn-ACK)", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "user", content: "fix the login bug" },
+    }));
+    assert.equal(ev.length, 1);
+    const p = ev[0].payload as { kind: string; text: string };
+    assert.equal(p.kind, "user_text");
+    assert.equal(p.text, "fix the login bug");
+  });
+
+  it("emits user_text for text blocks, skipping empty ones", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "user", content: [
+        { type: "text", text: "hello there" },
+        { type: "text", text: "   " },
+      ]},
+    }));
+    assert.equal(ev.length, 1);
+    assert.equal((ev[0].payload as { kind: string; text: string }).text, "hello there");
+  });
+
+  it("emits both user_text and tool_result from a mixed user message", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "user", content: [
+        { type: "text", text: "context note" },
+        { type: "tool_result", tool_use_id: "T4", content: "result", is_error: false },
+      ]},
+    }));
+    assert.deepEqual(ev.map((e) => (e.payload as { kind: string }).kind), ["user_text", "tool_result"]);
+  });
+
+  it("whitespace-only string content emits nothing", () => {
+    assert.deepEqual(collect(JSON.stringify({ message: { role: "user", content: "  \n " } })), []);
+  });
 });
 
 describe("parseJsonlLine — attachment + legacy", () => {
@@ -270,11 +305,12 @@ describe("parseJsonlLine — non-array msg.content", () => {
     assert.deepEqual(ev, []);
   });
 
-  it("string content on user role → emits nothing, no crash", () => {
+  it("string content on user role → emits user_text (turn-ACK source)", () => {
     const ev = collect(JSON.stringify({
       message: { role: "user", content: "just a string" },
     }));
-    assert.deepEqual(ev, []);
+    assert.equal(ev.length, 1);
+    assert.equal((ev[0].payload as { kind: string }).kind, "user_text");
   });
 
   it("null content on user role → emits nothing, no crash", () => {

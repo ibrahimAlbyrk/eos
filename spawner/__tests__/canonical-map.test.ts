@@ -87,6 +87,11 @@ test("lifecycle prompt_sent → turn started", () => {
   assert.deepEqual(mapValid("lifecycle", { phase: "prompt_sent" }), [{ type: "turn", phase: "started" }]);
 });
 
+test("lifecycle delivery_failed → turn error", () => {
+  assert.deepEqual(mapValid("lifecycle", { phase: "delivery_failed", text: "lost" }),
+    [{ type: "turn", phase: "error", reason: "delivery_failed" }]);
+});
+
 test("unknown / state events translate to nothing", () => {
   assert.deepEqual(toCanonicalEvents("state", { state: "WORKING" }), []);
   assert.deepEqual(toCanonicalEvents("bogus", {}), []);

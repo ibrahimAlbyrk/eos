@@ -119,6 +119,10 @@ function lifecycleToCanonical(p: Rec): AgentEvent[] {
       return [{ type: "turn", phase: "started" }];
     case "interrupted":
       return [{ type: "turn", phase: "aborted", reason: "interrupt" }];
+    case "delivery_failed":
+      // The turn never started — the delivery pipeline exhausted its attempts
+      // with neither a composer echo nor a transcript ACK.
+      return [{ type: "turn", phase: "error", reason: "delivery_failed" }];
     case "pty_exit": {
       const code = num(p.code);
       const outcome = code === 0 || code === 129 ? "success" : code === 143 ? "killed" : "crashed";

@@ -16,7 +16,10 @@ export interface UsagePayload {
 }
 
 export interface JsonlPayload {
-  kind: "assistant_text" | "tool_use" | "tool_result" | "thinking";
+  // "user_text" is consumed worker-locally as the delivery turn-ACK and never
+  // forwarded to the daemon (the daemon's own user_message event already
+  // renders the message in the UI).
+  kind: "assistant_text" | "tool_use" | "tool_result" | "thinking" | "user_text";
   text?: string;
   id?: string;
   name?: string;
@@ -100,9 +103,18 @@ export function parseJsonlLine(
   }
 
   if (msg?.role === "user") {
+    // Plain typed messages carry content as a bare string; structured ones use
+    // text blocks. Both become user_text (the delivery pipeline's turn-ACK).
+    if (typeof msg.content === "string") {
+      if (msg.content.trim() !== "") emit("jsonl", { kind: "user_text", text: msg.content });
+      return;
+    }
     const userBlocks = Array.isArray(msg.content) ? msg.content as Array<Record<string, unknown>> : [];
     for (const block of userBlocks) {
-      if (block.type === "tool_result") {
+      if (block.type === "text") {
+        if (typeof block.text !== "string" || block.text.trim() === "") continue;
+        emit("jsonl", { kind: "user_text", text: block.text });
+      } else if (block.type === "tool_result") {
         if (typeof block.tool_use_id !== "string") continue;
         const raw = block.content;
         const text =
