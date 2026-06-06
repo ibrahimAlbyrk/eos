@@ -4,11 +4,61 @@ import UserNotifications
 
 private let DAEMON = "http://127.0.0.1:7400"
 
+// Nudges the traffic lights from AppKit's unified-toolbar spot (x 19, center-y 26)
+// to the design spot (x 27, center-y 31) — aligned with the web breadcrumb row.
+// Moves each BUTTON inside its (tall) titlebar container, never the container,
+// so hit-testing stays exact. Idempotent: re-applying is a no-op unless AppKit
+// re-laid the frames; suspended in fullscreen where the overlay owns layout.
+final class TrafficLightPositioner {
+    private static let dx: CGFloat = 8
+    private static let dy: CGFloat = -5 // bottom-left origin: negative = down
+    private static let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+    private weak var window: NSWindow?
+    private var applied: [NSWindow.ButtonType: NSRect] = [:]
+    private var suspended = false
+
+    init(window: NSWindow) {
+        self.window = window
+    }
+
+    func apply() {
+        guard !suspended, let window else { return }
+        for type in Self.buttons {
+            guard let button = window.standardWindowButton(type) else { continue }
+            if button.frame == applied[type] { continue }
+            let target = button.frame.offsetBy(dx: Self.dx, dy: Self.dy)
+            button.setFrameOrigin(target.origin)
+            applied[type] = target
+        }
+    }
+
+    func suspend() {
+        guard let window, !suspended else { return }
+        suspended = true
+        for type in Self.buttons {
+            guard let button = window.standardWindowButton(type) else { continue }
+            if button.frame == applied[type] {
+                button.setFrameOrigin(NSPoint(x: button.frame.origin.x - Self.dx,
+                                              y: button.frame.origin.y - Self.dy))
+            }
+            applied[type] = nil
+        }
+    }
+
+    func resume() {
+        suspended = false
+        apply()
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate, URLSessionDataDelegate {
     var window: NSWindow!
     var webView: WKWebView!
-    private var adjustingButtons = false
-    private var defaultContainerOrigin: NSPoint?
+    // Empty toolbar + .unified style = tall titlebar; AppKit centers and insets
+    // the traffic lights natively (resize/fullscreen/hit-testing all correct).
+    // Detached during fullscreen so the reveal strip shows only the buttons.
+    private let titlebarToolbar = NSToolbar()
+    private var trafficLights: TrafficLightPositioner!
     private var sseSession: URLSession?
     private var sseTask: URLSessionDataTask?
     private var sseBuffer = Data()
@@ -71,8 +121,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
             backing: .buffered, defer: false
         )
         window.title = "Eos"
+        // created before `window.delegate = self`: setFrameAutosaveName fires
+        // windowDidResize synchronously, which already calls trafficLights.apply()
+        trafficLights = TrafficLightPositioner(window: window)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
+        window.toolbar = titlebarToolbar
+        window.toolbarStyle = .unified
+        window.titlebarSeparatorStyle = .none
         window.minSize = NSSize(width: 800, height: 500)
         window.backgroundColor = themeBackground(theme)
         window.contentView = webView
@@ -81,8 +137,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         window.setFrameAutosaveName("Eos")
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
-        positionTrafficLights()
+        trafficLights.apply()
     }
+
+    func windowDidResize(_: Notification) { trafficLights.apply() }
+    func windowDidBecomeKey(_: Notification) { trafficLights.apply() }
 
     // theme.js posts the resolved theme ("dark"/"light"); never set
     // window.appearance — it would freeze prefers-color-scheme inside the
@@ -98,19 +157,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         return NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .aqua ? "light" : "dark"
     }
 
-    private func positionTrafficLights() {
-        guard !adjustingButtons else { return }
-        adjustingButtons = true
-        defer { adjustingButtons = false }
-        guard let close = window.standardWindowButton(.closeButton),
-              let container = close.superview else { return }
-        if defaultContainerOrigin == nil { defaultContainerOrigin = container.frame.origin }
-        let base = defaultContainerOrigin ?? container.frame.origin
-        container.setFrameOrigin(NSPoint(x: base.x + 16, y: base.y - 14))
-    }
-
-    func windowDidResize(_: Notification) { positionTrafficLights() }
-
     @objc func handleTitlebarDoubleClick(_: Any?) {
         let action = UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") ?? "Maximize"
         switch action {
@@ -119,18 +165,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         default: window.zoom(nil)
         }
     }
-    func windowDidBecomeKey(_: Notification) { positionTrafficLights() }
-
     func windowWillEnterFullScreen(_: Notification) {
+        trafficLights.suspend()
+        window.toolbar = nil
         webView.evaluateJavaScript("document.documentElement.classList.add('fullscreen');")
     }
 
     func windowDidExitFullScreen(_: Notification) {
+        window.toolbar = titlebarToolbar
+        trafficLights.resume()
         webView.evaluateJavaScript("document.documentElement.classList.remove('fullscreen');")
-        defaultContainerOrigin = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            self?.positionTrafficLights()
-        }
     }
 
     // MARK: - Daemon lifecycle

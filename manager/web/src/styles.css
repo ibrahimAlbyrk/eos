@@ -202,8 +202,8 @@ html.native .native-toggle-zone {
   align-items: center;
   gap: 2px;
   position: fixed;
-  left: 90px;
-  top: 18px;
+  left: 100px;
+  top: 19px;
   z-index: 300;
   --app-region: no-drag;
 }
@@ -251,7 +251,7 @@ html.native .head {
   padding: 21px 16px 0;
   transition: padding-left 280ms ease;
 }
-html.native .app.side-collapsed .head { padding-left: 124px; }
+html.native .app.side-collapsed .head { padding-left: 134px; }
 html.native .side-handle-zone { display: none !important; }
 
 /* fullscreen: no traffic lights in window, simplify layout */
@@ -353,7 +353,7 @@ html.native .sb-section > .sb-iconbtn { margin-left: auto; }
 /* Force truly out-of-flow: `.side-island` (later in source) sets position:relative,
    which would otherwise make the popup an in-flow flex item of the flex zone and
    drag the toggle into its vertical center. Absolute keeps the toggle put. */
-html.native .native-toggle-zone .side-handle-popup { position: absolute; left: -76px; top: 36px; }
+html.native .native-toggle-zone .side-handle-popup { position: absolute; left: -86px; top: 36px; }
 html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .side-handle-popup--no-anim { animation: none; }
 @keyframes side-popup-in {
