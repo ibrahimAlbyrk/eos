@@ -93,7 +93,7 @@ function itemLabel(tool) {
   if (name === "Bash") {
     const actions = gitActions(tool);
     if (actions.length > 0) {
-      const verb = actions.map((a) => a.verb).join(", ");
+      const verb = gitVerbSummary(actions);
       const shas = actions.flatMap((a) => a.shas ?? []);
       const file = shas.length > 0 ? shas.join(", ") : actions[actions.length - 1].detail;
       return { verb, file };
@@ -113,6 +113,22 @@ function itemLabel(tool) {
   if (name === "AskUserQuestion") return { verb: "Asked", file: "user" };
   if (name === "Skill") return { verb: "Used", file: `${tool.input?.skill ?? "skill"} skill` };
   return { verb: "Used", file: name };
+}
+
+function gitVerbSummary(actions) {
+  const counts = [];
+  for (const a of actions) {
+    const c = counts.find((x) => x.verb === a.verb);
+    if (c) c.n++;
+    else counts.push({ verb: a.verb, n: 1 });
+  }
+  return counts
+    .map(({ verb, n }) => {
+      if (n === 1) return verb;
+      if (verb === "Viewed diff") return `Viewed ${n} diffs`;
+      return `${verb} ×${n}`;
+    })
+    .join(", ");
 }
 
 function fileName(p) {
