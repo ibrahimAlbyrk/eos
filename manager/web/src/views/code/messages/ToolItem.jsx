@@ -3,10 +3,16 @@ import { useUi } from "../../../state/ui.jsx";
 import { gitActions } from "../../../lib/messageParser.js";
 import { defaultToolExpanded } from "../../../settings/toolExpansion.js";
 import { ToolDetail } from "./ToolDetail.jsx";
+import { WorkerToolCard, isWorkerTool } from "./WorkerToolCard.jsx";
 
 const APPEAR_MS = 600;
 
-export function ToolItem({ tool, standalone, cwd }) {
+export function ToolItem({ tool, standalone, cwd, workers }) {
+  if (isWorkerTool(tool.name)) return <WorkerToolCard tool={tool} workers={workers} />;
+  return <PlainToolItem tool={tool} standalone={standalone} cwd={cwd} />;
+}
+
+function PlainToolItem({ tool, standalone, cwd }) {
   const ui = useUi();
   const expandKey = "i:" + (tool.id ?? tool.ts);
   // expandedTools holds toggles against the settings-driven default (XOR)
@@ -100,9 +106,6 @@ function itemLabel(tool) {
   }
   if (name === "mcp__worker__send_message_to_parent") {
     return { verb: "Sent report to", file: "orchestrator" };
-  }
-  if (name === "mcp__orchestrator__message_worker") {
-    return { verb: "Messaged", file: tool.input?.id ?? "worker" };
   }
   if (name === "mcp__orchestrator__notify_user") {
     return { verb: "Notified", file: "user" };

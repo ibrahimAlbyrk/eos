@@ -9,6 +9,9 @@ export const STANDALONE_TOOLS = new Set([
   "mcp__orchestrator__message_worker",
   "mcp__orchestrator__spawn_worker",
   "mcp__orchestrator__kill_worker",
+  "mcp__orchestrator__get_worker",
+  "mcp__orchestrator__list_workers",
+  "mcp__orchestrator__list_pending_permissions",
   "mcp__worker__send_message_to_parent",
 ]);
 

@@ -252,7 +252,7 @@ export function Messages({ live }) {
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
-          const block = renderBlock(b, key, selectedWorker?.cwd, ui);
+          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers);
           if (isLast && interrupted && b.kind !== "user") {
             return <div key={key} className="msg-interrupted-wrap">{block}</div>;
           }
@@ -285,7 +285,7 @@ function blockKey(b, i) {
   }
 }
 
-function renderBlock(b, key, cwd, ui) {
+function renderBlock(b, key, cwd, ui, workers) {
   switch (b.kind) {
     case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right"><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} label={b.workerName || b.fromWorker || "worker"} direction="in" /></MessageRow>;
@@ -299,7 +299,7 @@ function renderBlock(b, key, cwd, ui) {
       return <ToolGroup key={key} summary={b.summary} tools={b.tools} cwd={cwd}
         open={open} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
     }
-    case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} />;
+    case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} />;
     case "agentRun":  return <AgentBlock key={key} block={b} />;
     default: return null;
   }

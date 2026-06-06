@@ -12,13 +12,8 @@ export function ToolDetail({ tool, cwd }) {
   if (name === "AskUserQuestion") return <AskUserQuestionDetail tool={tool} />;
   if (name === "Skill") return <SkillDetail tool={tool} cwd={cwd} />;
   if (name === "mcp__orchestrator__notify_user") return <NotifyDetail tool={tool} />;
-  if (isMessagingTool(name)) return <MessageDetail tool={tool} />;
+  if (name === "mcp__worker__send_message_to_parent") return <MessageDetail tool={tool} />;
   return <GenericDetail tool={tool} />;
-}
-
-function isMessagingTool(name) {
-  return name === "mcp__worker__send_message_to_parent"
-    || name === "mcp__orchestrator__message_worker";
 }
 
 function ReadDetail({ tool }) {
