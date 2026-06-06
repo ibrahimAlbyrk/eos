@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
+import { findPlaceholders } from "../lib/placeholders.js";
 
 export function getCursorOffset(el) {
   const sel = window.getSelection();
@@ -9,30 +10,50 @@ export function getCursorOffset(el) {
   return range.toString().length;
 }
 
-function setCursorOffset(el, offset) {
+export function getSelectionOffsets(el) {
   const sel = window.getSelection();
+  if (!sel.rangeCount || !el.contains(sel.anchorNode)) return { start: 0, end: 0 };
+  const range = sel.getRangeAt(0);
+  const pre = range.cloneRange();
+  pre.selectNodeContents(el);
+  pre.setEnd(range.startContainer, range.startOffset);
+  const start = pre.toString().length;
+  pre.setEnd(range.endContainer, range.endOffset);
+  return { start, end: pre.toString().length };
+}
+
+export function setSelectionOffsets(el, start, end) {
   const range = document.createRange();
   let pos = 0;
+  let startSet = false;
+  let endSet = false;
   function walk(node) {
+    if (endSet) return;
     if (node.nodeType === Node.TEXT_NODE) {
       const len = node.textContent.length;
-      if (pos + len >= offset) {
-        range.setStart(node, offset - pos);
-        range.collapse(true);
-        return true;
+      if (!startSet && start <= pos + len) {
+        range.setStart(node, Math.max(0, start - pos));
+        startSet = true;
+      }
+      if (startSet && end <= pos + len) {
+        range.setEnd(node, Math.max(0, end - pos));
+        endSet = true;
       }
       pos += len;
-      return false;
+      return;
     }
-    for (const child of node.childNodes) {
-      if (walk(child)) return true;
-    }
-    return false;
+    for (const child of node.childNodes) walk(child);
   }
-  if (walk(el)) {
-    sel.removeAllRanges();
-    sel.addRange(range);
-  }
+  walk(el);
+  if (!startSet) return;
+  if (!endSet) range.collapse(true);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
+function setCursorOffset(el, offset) {
+  setSelectionOffsets(el, offset, offset);
 }
 
 function esc(s) {
@@ -52,6 +73,10 @@ function slashRegions(cmdMap) {
     }
     return regions;
   };
+}
+
+function placeholderRegions(text) {
+  return findPlaceholders(text).map(({ start, end }) => ({ start, end, cls: "tpl-hl" }));
 }
 
 function literalRegions(tokens) {
@@ -94,6 +119,7 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
   const suppressInputRef = useRef(false);
 
   const buildScanners = useCallback(() => [
+    placeholderRegions,
     slashRegions(cmdMap),
     literalRegions([...insertedPathsRef.current.keys()].map((d) => ({ token: "@" + d, cls: "cmd-hl" }))),
     literalRegions(attachItems.map((it) => ({

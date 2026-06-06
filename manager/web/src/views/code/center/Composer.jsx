@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { useCommands } from "../../../hooks/useCommands.js";
-import { useContentEditableEditor, getCursorOffset } from "../../../hooks/useContentEditableEditor.js";
+import { useTemplates } from "../../../hooks/useTemplates.js";
+import { useContentEditableEditor, getCursorOffset, getSelectionOffsets, setSelectionOffsets } from "../../../hooks/useContentEditableEditor.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
+import { findPlaceholders, nextPlaceholder, prevPlaceholder } from "../../../lib/placeholders.js";
 import { useAttachments } from "../../../hooks/useAttachments.js";
 import { useInputHistory } from "../../../hooks/useInputHistory.js";
 import { findLabelAt } from "../../../lib/attachmentTokens.js";
@@ -62,6 +64,14 @@ export function Composer({ live }) {
   const commands = useCommands(cwd);
   const cmdMap = useMemo(() => new Map(commands.map((c) => [c.name, c])), [commands]);
 
+  // Templates join the slash menu next to commands (same name allowed — the
+  // tooltip's "(template)" / "(skill)" source tag disambiguates).
+  const templates = useTemplates();
+  const slashItems = useMemo(() => [
+    ...commands,
+    ...templates.map((t) => ({ name: t.name, description: t.description, source: "template", template: t })),
+  ], [commands, templates]);
+
   const uploadFailedRef = useRef(() => {});
   const {
     items: attachmentItems,
@@ -111,7 +121,7 @@ export function Composer({ live }) {
   const { slashCtx, atCtx, filtered, atResults, activeMenu } = useCompletion({
     text,
     cursorPos,
-    commands,
+    commands: slashItems,
     cwd,
     selected,
     workers: live.workers,
@@ -133,6 +143,16 @@ export function Composer({ live }) {
     }
     return null;
   }, [text, cmdMap]);
+
+  // Template queued by the picker popover or the ⌘K palette — replaces the
+  // whole input, then enters placeholder navigation.
+  useEffect(() => {
+    const pt = ui.composer.pendingTemplate;
+    if (!pt) return;
+    ui.updateComposer({ pendingTemplate: null });
+    insertedPathsRef.current.clear();
+    applyTemplateText(pt.content, 0);
+  }, [ui.composer.pendingTemplate]);
 
   useEffect(() => { setMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [slashCtx?.query]);
   useEffect(() => { setFileMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [atCtx?.query]);
@@ -183,7 +203,29 @@ export function Composer({ live }) {
     return null;
   };
 
+  // Insert template content, select the first {{placeholder}} so typing
+  // replaces it; Tab/Shift+Tab walk the rest (see onKey).
+  const applyTemplateText = (newText, searchFrom) => {
+    const ph = nextPlaceholder(findPlaceholders(newText), searchFrom);
+    setTextAndSync(newText, ph ? ph.start : newText.length);
+    const el = editorRef.current;
+    el?.focus();
+    if (ph && el) {
+      setSelectionOffsets(el, ph.start, ph.end);
+      setCursorPos(ph.start);
+    }
+  };
+
   const selectCommand = (cmd) => {
+    if (cmd.template) {
+      const start = slashCtx ? slashCtx.start : 0;
+      const end = slashCtx ? cursorPos : text.length;
+      const before = text.slice(0, start);
+      const newText = before + cmd.template.content + text.slice(end);
+      setMenuIndex(0);
+      applyTemplateText(newText, before.length);
+      return;
+    }
     if (slashCtx) {
       const before = text.slice(0, slashCtx.start);
       const after = text.slice(cursorPos);
@@ -346,6 +388,22 @@ export function Composer({ live }) {
         e.preventDefault();
         e.stopPropagation();
         applyEscapeMenu();
+        return;
+      }
+    }
+
+    if (e.key === "Tab") {
+      const phs = findPlaceholders(text);
+      if (phs.length > 0) {
+        e.preventDefault();
+        const el = editorRef.current;
+        if (!el) return;
+        const sel = getSelectionOffsets(el);
+        const ph = e.shiftKey ? prevPlaceholder(phs, sel.start) : nextPlaceholder(phs, sel.end);
+        if (ph) {
+          setSelectionOffsets(el, ph.start, ph.end);
+          setCursorPos(ph.start);
+        }
         return;
       }
     }

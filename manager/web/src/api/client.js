@@ -235,6 +235,22 @@ export const api = {
     return r.body;
   },
 
+  // Prompt templates
+  async listTemplates() {
+    const r = await getJson(ROUTES.templates);
+    if (!r.ok) throw new Error(`listTemplates → ${r.status}`);
+    return r.body;
+  },
+  async createTemplate({ name, description, content }) {
+    return postJson(ROUTES.templates, { name, description, content });
+  },
+  async updateTemplate(name, { description, content }) {
+    return putJson(ROUTES.template(name), { description, content });
+  },
+  async deleteTemplate(name) {
+    return del(ROUTES.template(name));
+  },
+
   async getWorkerDiff(id, { signal } = {}) {
     try {
       const r = await getJson(ROUTES.workerDiff(id), { signal });

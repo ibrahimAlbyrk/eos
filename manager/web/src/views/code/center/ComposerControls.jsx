@@ -7,6 +7,7 @@ import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { ModelPopover } from "../popovers/ModelPopover.jsx";
 import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
+import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 
 const MODE_LABELS = {
   default: "Default",
@@ -93,6 +94,21 @@ export function ComposerControls({ live, onAttach, historyNav }) {
             live={live}
             cwd={selected ? (selected.cwd ?? selected.worktree_from) : (ui.composer.cwd ?? live.recents[0] ?? null)}
           />
+        </div>
+        <div className="tpl-wrap" style={{ position: "relative" }}>
+          <button
+            className="iconbtn"
+            title="Prompt templates"
+            onClick={(e) => toggle("templates", e)}
+            data-popover-trigger="templates"
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9.5 1.5h-5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V4.5z" />
+              <path d="M9.5 1.5V4.5h3" />
+              <path d="M6 8.5h4M6 11h2.5" />
+            </svg>
+          </button>
+          <TemplatePickerPopover />
         </div>
         {historyNav && (
           <div className="history-badge">history {historyNav.pos}/{historyNav.total}</div>

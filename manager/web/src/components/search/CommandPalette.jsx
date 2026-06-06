@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
+import { useTemplates } from "../../hooks/useTemplates.js";
 import { searchRegistry } from "../../search/index.js";
 import { ResultIcon } from "./ResultIcon.jsx";
 
@@ -13,14 +14,18 @@ export function CommandPalette({ live }) {
   const inputRef = useRef(null);
   const listRef = useRef(null);
 
+  const templates = useTemplates();
+
   const ctx = useMemo(
     () => ({
       workers: live?.workers ?? [],
       workflows: live?.workflows ?? [],
+      templates,
       setActiveView: ui.setActiveView,
       setSelectedId: ui.setSelectedId,
+      updateComposer: ui.updateComposer,
     }),
-    [live?.workers, live?.workflows, ui.setActiveView, ui.setSelectedId],
+    [live?.workers, live?.workflows, templates, ui.setActiveView, ui.setSelectedId, ui.updateComposer],
   );
 
   const groups = useMemo(
@@ -94,7 +99,7 @@ export function CommandPalette({ live }) {
             className="cmdk__input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search agents and workflows…"
+            placeholder="Search agents, workflows and templates…"
             spellCheck={false}
           />
           <button className="cmdk__close" title="Close (Esc)" onClick={() => ui.closeSearch()}>

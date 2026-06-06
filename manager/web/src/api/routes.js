@@ -45,6 +45,8 @@ export const ROUTES = {
   workerQuestionAnswer: (id) => `/workers/${id}/question-answer`,
   commands: "/commands",
   skillRead: "/skills/read",
+  templates: "/api/templates",
+  template: (name) => `/api/templates/${name}`,
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
 };

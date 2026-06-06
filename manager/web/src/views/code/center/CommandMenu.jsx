@@ -49,7 +49,7 @@ export function CommandMenu({ commands, selectedIndex, onSelect, query }) {
         <div className="cmd-names-inner" ref={listRef}>
           {commands.map((cmd, i) => (
             <button
-              key={cmd.name}
+              key={`${cmd.source ?? "cmd"}:${cmd.name}`}
               className={"cmd-item" + (i === selectedIndex ? " active" : "")}
               onMouseDown={(e) => { e.preventDefault(); onSelect(cmd); }}
             >
@@ -58,7 +58,7 @@ export function CommandMenu({ commands, selectedIndex, onSelect, query }) {
           ))}
         </div>
       </div>
-      {selected?.description && (
+      {(selected?.description || selected?.source) && (
         <div className="cmd-tooltip" ref={tooltipRef} style={tooltipStyle}>
           {selected.description}
           {selected.source && <span className="cmd-source"> ({selected.source})</span>}

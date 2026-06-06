@@ -11,6 +11,14 @@ export function ResultIcon({ name }) {
           <path d="M5.8 4h2.7a2 2 0 0 1 2 2v.3M5.8 12h2.7a2 2 0 0 0 2-2v-.3" />
         </svg>
       );
+    case "template":
+      return (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M9.5 1.5h-5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V4.5z" />
+          <path d="M9.5 1.5V4.5h3" />
+          <path d="M6 8.5h4M6 11h2.5" />
+        </svg>
+      );
     case "agent":
     default:
       return (
