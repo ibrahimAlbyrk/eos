@@ -187,9 +187,10 @@ export function buildBlocks(events) {
         out.push(lastAsst);
       }
     } else if (p.kind === "thinking") {
+      if (!p.text?.trim()) continue; // signature-only blocks already persisted as text:""
       flushTools();
       lastAsst = null;
-      out.push({ kind: "thinking", text: p.text ?? "", ms: p.ms, ts: ev.ts });
+      out.push({ kind: "thinking", text: p.text, ms: p.ms, ts: ev.ts });
     } else if (p.kind === "tool_use") {
       lastAsst = null;
       if (p.name === "Agent") {

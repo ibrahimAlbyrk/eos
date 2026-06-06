@@ -56,6 +56,15 @@ describe("parseJsonlLine — assistant messages", () => {
     assert.equal((ev[0].payload as { text: string }).text, "deliberating");
   });
 
+  it("skips signature-only thinking blocks (empty thinking text)", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "assistant", content: [
+        { type: "thinking", thinking: "", signature: "EtoCCmMIDRgC" },
+      ]},
+    }));
+    assert.equal(ev.length, 0);
+  });
+
   it("extracts text + tool_use + thinking from a single message in order", () => {
     const ev = collect(JSON.stringify({
       message: { role: "assistant", content: [

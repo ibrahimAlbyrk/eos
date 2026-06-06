@@ -90,7 +90,9 @@ export function parseJsonlLine(
         emit("jsonl", toolEvt);
       } else if (block.type === "thinking") {
         const thinkText = block.thinking ?? block.text;
-        if (typeof thinkText !== "string") continue;
+        // Signature-only thinking blocks (thinking:"") are common with
+        // interleaved thinking — rendering them yields a bare "thinking" line.
+        if (typeof thinkText !== "string" || thinkText.trim() === "") continue;
         emit("jsonl", { kind: "thinking", text: thinkText });
       }
     }
