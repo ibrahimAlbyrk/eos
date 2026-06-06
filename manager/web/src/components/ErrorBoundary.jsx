@@ -23,7 +23,7 @@ export class ErrorBoundary extends Component {
       return (
         <div style={{
           padding: 32, color: "var(--fg)", maxWidth: 720, margin: "40px auto",
-          fontFamily: "Inter, system-ui",
+          fontFamily: "var(--font-ui)",
         }}>
           <h2 style={{ color: "var(--err)", marginTop: 0 }}>UI crashed</h2>
           <p style={{ color: "var(--fg-dim)" }}>
@@ -31,7 +31,7 @@ export class ErrorBoundary extends Component {
           </p>
           <pre style={{
             background: "var(--surface)", padding: 12, borderRadius: 8,
-            color: "var(--fg-dim)", fontSize: 12, overflow: "auto",
+            color: "var(--fg-dim)", fontSize: "var(--text-sm)", overflow: "auto",
             border: "1px solid var(--border)",
           }}>{String(this.state.error?.stack ?? this.state.error)}</pre>
           <button
@@ -39,7 +39,7 @@ export class ErrorBoundary extends Component {
             style={{
               marginTop: 12, padding: "8px 14px",
               background: "var(--accent)", color: "#fff", border: 0,
-              borderRadius: 6, cursor: "pointer", fontSize: 13,
+              borderRadius: 6, cursor: "pointer", fontSize: "var(--text-base)",
             }}
           >
             Reset

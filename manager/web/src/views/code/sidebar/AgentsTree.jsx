@@ -10,7 +10,7 @@ export function AgentsTree({ roots, onRename }) {
   if (roots.length === 0) {
     return (
       <div className="agents-section">
-        <div className="empty-tree" style={{ padding: "24px 14px", color: "var(--fg-faint)", fontSize: 12 }}>
+        <div className="empty-tree" style={{ padding: "24px 14px", color: "var(--fg-faint)", fontSize: "var(--text-sm)" }}>
           No agents yet — click + to spawn an orchestrator
         </div>
       </div>

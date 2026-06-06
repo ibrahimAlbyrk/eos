@@ -40,7 +40,7 @@ export function BranchDropdown({ live, cwd }) {
     <div className="cb-chip-dd open" id="cbBranchDD" data-popover="branch-dd">
       <div className="cb-chip-dd-scroll">
         {filtered.length === 0 && (
-          <div style={{ padding: "10px 12px", color: "var(--fg-faint)", fontSize: 12 }}>
+          <div style={{ padding: "10px 12px", color: "var(--fg-faint)", fontSize: "var(--text-sm)" }}>
             {cwd ? "No branches found" : "Pick a folder first"}
           </div>
         )}

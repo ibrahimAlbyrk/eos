@@ -28,7 +28,7 @@ export function FolderDropdown({ live }) {
       <div className="cb-chip-dd-scroll">
         <div className="sp-chip-dd-head">Recent</div>
         {live.recents.length === 0 && (
-          <div style={{ padding: "10px 12px", color: "var(--fg-faint)", fontSize: 12 }}>
+          <div style={{ padding: "10px 12px", color: "var(--fg-faint)", fontSize: "var(--text-sm)" }}>
             No recent folders yet
           </div>
         )}
