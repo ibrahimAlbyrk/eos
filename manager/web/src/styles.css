@@ -4603,7 +4603,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .stg-overlay {
   position: fixed;
   inset: 0;
-  z-index: 250;
+  z-index: 450; /* above native-toggle-zone (300) + ctx-menu (400), below cmdk (500) */
   display: flex;
   align-items: center;
   justify-content: center;
