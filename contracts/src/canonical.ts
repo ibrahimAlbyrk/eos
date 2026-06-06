@@ -101,12 +101,11 @@ export const UsageEventSchema = z.object({
   usage: CanonicalUsageSchema,
 });
 
-// Session lifecycle — distinct from turn boundaries (boot / ready / exit / lost).
+// Session lifecycle — distinct from turn boundaries (boot / ready / exit).
 export const SessionEventSchema = z.object({
   type: z.literal("session"),
-  phase: z.enum(["started", "ready", "ended", "lost"]),
+  phase: z.enum(["started", "ready", "ended"]),
   outcome: z.enum(["success", "killed", "crashed"]).optional(),
-  reason: z.string().optional(),
 });
 
 export const PermissionRequestEventSchema = z.object({

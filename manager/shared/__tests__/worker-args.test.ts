@@ -49,7 +49,6 @@ const PARSE_OPTIONS = {
   "pty-write-delay-ms": { type: "string" },
   "readiness-fallback-ms": { type: "string" },
   "readiness-settle-ms": { type: "string" },
-  "prompt-ack-window-ms": { type: "string" },
 } as const;
 
 function postScriptSlice(args: string[]): string[] {

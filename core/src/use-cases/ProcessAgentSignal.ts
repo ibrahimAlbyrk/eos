@@ -15,9 +15,8 @@ import { logEvent } from "./LogEvent.ts";
 import { computeCostUsd } from "../domain/value-objects.ts";
 
 // SPAWNING always heals on activity (boot); IDLE heals only when NOT settling —
-// an IDLE reached via a just-ended turn must stay put (trailing transcript), but
-// an IDLE from prompt_unacknowledged should recover. Mirrors the legacy jsonl
-// handler's canRecover guard.
+// an IDLE reached via a just-ended turn must stay put (trailing transcript).
+// Mirrors the legacy jsonl handler's canRecover guard.
 function canRecover(deps: ProcessWorkerEventDeps, workerId: string): boolean {
   const cur = deps.workers.findById(workerId);
   return cur?.state === "SPAWNING" || (cur?.state === "IDLE" && !deps.isSettling?.(workerId));
@@ -85,11 +84,6 @@ export function reduceAgentSignal(
     case "session":
       if (event.phase === "ended") {
         transitionState(deps, { workerId, next: "ENDING", reason: "agent:session_ended" });
-      } else if (event.phase === "lost") {
-        const cur = deps.workers.findById(workerId);
-        if (cur && (cur.state === "SPAWNING" || cur.state === "WORKING")) {
-          transitionState(deps, { workerId, next: "IDLE", reason: event.reason ?? "prompt_lost" });
-        }
       }
       // started / ready carry no state transition here (explicit "state" events
       // still handle boot IDLE; worktreeDir enrichment stays on the legacy path).

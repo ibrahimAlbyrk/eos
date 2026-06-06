@@ -142,7 +142,6 @@ export const LifecyclePhaseSchema = z.enum([
   "prompt_sent",
   "ready_no_prompt",
   "ready_timeout",
-  "prompt_unacknowledged",
   "message_received",
   "pty_exit",
   "uncaught_exception",
@@ -150,7 +149,7 @@ export const LifecyclePhaseSchema = z.enum([
 ]);
 
 // Lifecycle payloads are open phase-tagged records — some phases carry extra
-// fields (e.g. prompt_unacknowledged carries elapsedMs), so we passthrough.
+// fields (e.g. pty_exit carries code), so we passthrough.
 export const LifecyclePayloadSchema = z.object({
   phase: LifecyclePhaseSchema,
 }).passthrough();

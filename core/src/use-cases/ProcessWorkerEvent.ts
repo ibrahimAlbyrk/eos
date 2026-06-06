@@ -81,10 +81,9 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
     if (kind === "assistant_text" || kind === "thinking" || kind === "tool_use") {
       const cur = deps.workers.findById(input.workerId);
       // SPAWNING always heals on first real JSONL (boot). IDLE heals only when
-      // the worker is NOT settling: an IDLE flipped by prompt_unacknowledged was
-      // actually alive (just slow) and should recover, but an IDLE reached via a
-      // just-ended turn (Stop/interrupt) must stay put — the incoming JSONL is
-      // trailing transcript of that finished turn, not a new one.
+      // the worker is NOT settling: an IDLE reached via a just-ended turn
+      // (Stop/interrupt) must stay put — the incoming JSONL is trailing
+      // transcript of that finished turn, not a new one.
       const canRecover =
         cur?.state === "SPAWNING" ||
         (cur?.state === "IDLE" && !deps.isSettling?.(input.workerId));
@@ -106,14 +105,6 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
       if (typeof p?.worktreeDir === "string" && p.worktreeDir.length > 0) {
         deps.workers.setWorktreeDir(input.workerId, p.worktreeDir);
       }
-      return;
-    }
-    if (phase !== "prompt_unacknowledged") return;
-    // The boot prompt was never acknowledged (no hook, no JSONL). Clear the
-    // false WORKING/SPAWNING spinner so the worker reads as IDLE(prompt_lost).
-    const cur = deps.workers.findById(input.workerId);
-    if (cur && (cur.state === "SPAWNING" || cur.state === "WORKING")) {
-      transitionState(deps, { workerId: input.workerId, next: "IDLE", reason: "prompt_lost" });
     }
   },
   heartbeat(deps, input) {

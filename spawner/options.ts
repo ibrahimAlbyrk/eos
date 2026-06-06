@@ -29,7 +29,6 @@ export interface WorkerOptions {
   ptyWriteDelayMs: number | undefined;
   readinessFallbackMs: number | undefined;
   readinessSettleMs: number | undefined;
-  promptAckWindowMs: number | undefined;
 }
 
 function parseIntFlag(v: string | undefined): number | undefined {
@@ -66,7 +65,6 @@ export function parseWorkerOptions(): WorkerOptions {
       "pty-write-delay-ms": { type: "string" },
       "readiness-fallback-ms": { type: "string" },
       "readiness-settle-ms": { type: "string" },
-      "prompt-ack-window-ms": { type: "string" },
     },
     strict: true,
   });
@@ -105,6 +103,5 @@ export function parseWorkerOptions(): WorkerOptions {
     ptyWriteDelayMs: parseIntFlag(values["pty-write-delay-ms"]),
     readinessFallbackMs: parseIntFlag(values["readiness-fallback-ms"]),
     readinessSettleMs: parseIntFlag(values["readiness-settle-ms"]),
-    promptAckWindowMs: parseIntFlag(values["prompt-ack-window-ms"]),
   };
 }

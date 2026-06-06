@@ -83,11 +83,6 @@ test("lifecycle pty_exit maps exit codes to outcome", () => {
   }
 });
 
-test("lifecycle prompt_unacknowledged → session lost", () => {
-  assert.deepEqual(mapValid("lifecycle", { phase: "prompt_unacknowledged" }),
-    [{ type: "session", phase: "lost", reason: "prompt_unacknowledged" }]);
-});
-
 test("lifecycle prompt_sent → turn started", () => {
   assert.deepEqual(mapValid("lifecycle", { phase: "prompt_sent" }), [{ type: "turn", phase: "started" }]);
 });

@@ -69,7 +69,7 @@ const states = (events: AppendedEvent[]): Array<{ state?: string; from?: string;
 const message = (block: ContentBlock): AgentEvent => ({ type: "message", role: "assistant", blocks: [block] });
 
 describe("ProcessAgentSignal — message blocks (mirror legacy jsonl)", () => {
-  it("text recovers IDLE → WORKING (prompt_lost safety net)", () => {
+  it("text recovers IDLE → WORKING", () => {
     const { deps, events } = buildDeps("IDLE");
     processAgentSignal(deps, "w1", message({ type: "text", text: "hi" }));
     assert.deepEqual(states(events), [{ state: "WORKING", from: "IDLE", reason: "agent:text" }]);
@@ -174,20 +174,6 @@ describe("ProcessAgentSignal — activity (mirror PostToolUse / heartbeat)", () 
 });
 
 describe("ProcessAgentSignal — session lifecycle", () => {
-  for (const from of ["SPAWNING", "WORKING"] as const) {
-    it(`session lost flips ${from} → IDLE(prompt_lost)`, () => {
-      const { deps, events } = buildDeps(from);
-      processAgentSignal(deps, "w1", { type: "session", phase: "lost", reason: "prompt_unacknowledged" });
-      assert.deepEqual(states(events), [{ state: "IDLE", from, reason: "prompt_unacknowledged" }]);
-    });
-  }
-
-  it("session lost is a no-op when already IDLE", () => {
-    const { deps, events } = buildDeps("IDLE");
-    processAgentSignal(deps, "w1", { type: "session", phase: "lost" });
-    assert.deepEqual(states(events), []);
-  });
-
   it("session ended → ENDING", () => {
     const { deps, events } = buildDeps("WORKING");
     processAgentSignal(deps, "w1", { type: "session", phase: "ended", outcome: "success" });

@@ -16,7 +16,7 @@ core/             — Pure domain + ports + use-cases + services. Zero Node-spec
 infra/            — Adapter implementations for core/ ports (SQLite, child_process, chokidar, etc.).
 infra/util/       — Cross-cutting infra utilities (safeStringify).
 gateway/          — MCP permission server. Strategy: DaemonProxyPolicy (fail-closed) vs StandalonePolicy (defense-in-depth).
-spawner/          — worker.ts composition root + submodules (options, pty-queue, tail, jsonl-parser, session, worktree, readiness-gate, prompt-ack, ingest, claude-args, settings, events).
+spawner/          — worker.ts composition root + submodules (options, pty-queue, tail, jsonl-parser, session, worktree, readiness-gate, ingest, claude-args, settings, events).
 manager/          — daemon.ts (composition root + container + routes), cli.ts (Command pattern), orchestrator-mcp.ts, worker-mcp.ts, {orchestrator,worker}-prompt.md (externalized system prompts).
 manager/services/ — Extracted stateful services (TurnSettleService, PendingQuestionService).
 manager/routes/   — Split by concern: workers, orchestrators, policy, fs-picker, fs-read, fs-git, etc.
@@ -106,9 +106,9 @@ CLAUDE_MGR_DAEMON_URL=http://127.0.0.1:7400
 
 Missing any → hook falls through to default auto-allow, gateway loop breaks.
 
-### Worker boot race: readiness-gate + prompt-ack
+### Worker boot race: readiness-gate
 
-Pre-boot PTY writes get eaten by the un-mounted TUI → silently lost prompt. `worker.ts` buffers all writes until `readiness-gate.ts` sees the composer border glyph `╭` (the only ready-marker stable across every permission mode) plus a quiescence window (`readinessSettleMs` 250; fallback `readinessFallbackMs` 2500), THEN flushes and writes `opts.prompt`. **Never write the prompt before `onBootReady` fires.** After writing, `prompt-ack.ts` arms a watchdog (`promptAckWindowMs` 15000); ack = first hook carrying a `session_id` (which also starts the JSONL tail) OR first JSONL line. No ack → emits `lifecycle{phase:prompt_unacknowledged}` and the daemon flips SPAWNING/WORKING → IDLE(`prompt_lost`). `promptAckWindowMs` MUST exceed `heartbeatQuietMs + heartbeatMs` or a slow-but-healthy worker is falsely flagged.
+Pre-boot PTY writes get eaten by the un-mounted TUI → silently lost prompt. `worker.ts` buffers all writes until `readiness-gate.ts` sees the composer border glyph `╭` (the only ready-marker stable across every permission mode) plus a quiescence window (`readinessSettleMs` 250; fallback `readinessFallbackMs` 2500), THEN flushes and writes `opts.prompt`. **Never write the prompt before `onBootReady` fires.** (The old prompt-ack watchdog / `prompt_unacknowledged` → IDLE(`prompt_lost`) system was removed — too many false positives on slow boots.)
 
 ### Post-turn settle window
 

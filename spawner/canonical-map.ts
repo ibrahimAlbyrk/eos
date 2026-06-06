@@ -119,8 +119,6 @@ function lifecycleToCanonical(p: Rec): AgentEvent[] {
       return [{ type: "turn", phase: "started" }];
     case "interrupted":
       return [{ type: "turn", phase: "aborted", reason: "interrupt" }];
-    case "prompt_unacknowledged":
-      return [{ type: "session", phase: "lost", reason: "prompt_unacknowledged" }];
     case "pty_exit": {
       const code = num(p.code);
       const outcome = code === 0 || code === 129 ? "success" : code === 143 ? "killed" : "crashed";
