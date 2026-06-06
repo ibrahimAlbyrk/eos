@@ -3942,6 +3942,29 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .lightbox-overlay.in .lightbox-img {
   opacity: 1;
 }
+.lightbox-counter,
+.lightbox-title {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: var(--text-xs, 0.75rem);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 250ms ease;
+}
+.lightbox-title {
+  top: 24px;
+  bottom: auto;
+}
+.lightbox-overlay.in .lightbox-counter,
+.lightbox-overlay.in .lightbox-title {
+  opacity: 1;
+}
 
 /* ============================================================================
    AGENT VIEWER — floating right panel for subagent details

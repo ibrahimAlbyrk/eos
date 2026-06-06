@@ -3,12 +3,16 @@ import { createPortal } from "react-dom";
 
 function clamp(v, min, max) { return Math.min(max, Math.max(min, v)); }
 
-export function ImageLightbox({ src, alt, children }) {
+export function ImageLightbox({ src, alt, gallery, index = 0, children }) {
   const [open, setOpen] = useState(false);
   const [animating, setAnimating] = useState(false);
+  const [idx, setIdx] = useState(index);
   const thumbRef = useRef(null);
   const imgRef = useRef(null);
   const [origin, setOrigin] = useState(null);
+
+  const items = gallery?.length ? gallery : [{ src, alt }];
+  const current = items[idx] ?? items[0];
 
   const scale = useRef(1);
   const pan = useRef({ x: 0, y: 0 });
@@ -36,12 +40,13 @@ export function ImageLightbox({ src, alt, children }) {
     if (!el) return;
     const r = el.getBoundingClientRect();
     setOrigin({ x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height });
+    setIdx(index);
     scale.current = 1;
     pan.current = { x: 0, y: 0 };
     smooth.current = true;
     setOpen(true);
     requestAnimationFrame(() => setAnimating(true));
-  }, []);
+  }, [index]);
 
   const hide = useCallback(() => {
     setAnimating(false);
@@ -65,12 +70,27 @@ export function ImageLightbox({ src, alt, children }) {
     }
   }, [resetZoom, apply]);
 
+  const navigate = useCallback((dir) => {
+    setIdx((i) => (i + dir + items.length) % items.length);
+    scale.current = 1;
+    pan.current = { x: 0, y: 0 };
+    smooth.current = true;
+    apply();
+  }, [items.length, apply]);
+
   useEffect(() => {
     if (!open) return;
-    const onKey = (e) => { if (e.key === "Escape") hide(); };
+    const onKey = (e) => {
+      if (e.key === "Escape") {
+        hide();
+      } else if (items.length > 1 && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+        e.preventDefault();
+        navigate(e.key === "ArrowRight" ? 1 : -1);
+      }
+    };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, hide]);
+  }, [open, hide, items.length, navigate]);
 
   useEffect(() => {
     if (!open || !animating) return;
@@ -119,12 +139,18 @@ export function ImageLightbox({ src, alt, children }) {
         <div className={`lightbox-overlay${animating ? " in" : ""}`} onClick={hide}>
           <img
             ref={imgRef}
-            src={src}
-            alt={alt}
+            src={current.src}
+            alt={current.alt}
             className="lightbox-img"
             style={!animating ? { transform: entryTransform } : undefined}
             onClick={onImgClick}
           />
+          {current.title && (
+            <div className="lightbox-title">{current.title}</div>
+          )}
+          {items.length > 1 && (
+            <div className="lightbox-counter">{idx + 1} / {items.length}</div>
+          )}
         </div>,
         document.body,
       )}
