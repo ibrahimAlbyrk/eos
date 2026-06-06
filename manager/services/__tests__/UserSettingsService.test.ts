@@ -22,8 +22,8 @@ describe("UserSettingsService", () => {
   });
 
   it("patch + read roundtrips values of every supported type", () => {
-    svc.patch({ "a.flag": true, "a.text": "hello", "a.num": 3 });
-    assert.deepEqual(svc.read(), { "a.flag": true, "a.text": "hello", "a.num": 3 });
+    svc.patch({ "a.flag": true, "a.text": "hello", "a.num": 3, "a.list": ["Bash", "Read"], "a.map": { Bash: "expand" } });
+    assert.deepEqual(svc.read(), { "a.flag": true, "a.text": "hello", "a.num": 3, "a.list": ["Bash", "Read"], "a.map": { Bash: "expand" } });
   });
 
   it("patch merges shallowly and preserves unrelated keys", () => {

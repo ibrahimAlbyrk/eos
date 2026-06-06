@@ -34,10 +34,11 @@ function SectionContent({ section, settings, setSetting }) {
       {section.groups.map((g) => (
         <div className="stg-group" key={g.title}>
           <div className="stg-group__title">{g.title}</div>
-          {g.items.map((item) => {
+          {g.items.filter((item) => !item.visibleWhen || item.visibleWhen(settings)).map((item) => {
             const Control = CONTROLS[item.control.type];
+            const stacked = item.control.layout === "stack";
             return (
-              <div className="stg-row" key={item.key}>
+              <div className={"stg-row" + (stacked ? " stg-row--stack" : "")} key={item.key}>
                 <div className="stg-row__text">
                   <div className="stg-row__label">{item.label}</div>
                   {item.description && <div className="stg-row__desc">{item.description}</div>}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { gitActions } from "../../../lib/messageParser.js";
+import { defaultToolExpanded } from "../../../settings/toolExpansion.js";
 import { ToolDetail } from "./ToolDetail.jsx";
 
 const APPEAR_MS = 600;
@@ -8,7 +9,8 @@ const APPEAR_MS = 600;
 export function ToolItem({ tool, standalone, cwd }) {
   const ui = useUi();
   const expandKey = "i:" + (tool.id ?? tool.ts);
-  const expanded = ui.expandedTools.has(expandKey);
+  // expandedTools holds toggles against the settings-driven default (XOR)
+  const expanded = defaultToolExpanded(tool.name, ui.settings) !== ui.expandedTools.has(expandKey);
   const isRecent = (Date.now() - tool.ts) < 5000;
   const [justAppeared, setJustAppeared] = useState(isRecent && !!tool.result);
   useEffect(() => {

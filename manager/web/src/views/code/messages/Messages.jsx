@@ -14,6 +14,7 @@ import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
 import { shouldStick, shouldAutoScroll } from "../../../lib/scrollStick.js";
 import { loadScrollPos, saveScrollPos, clearScrollPos } from "../../../lib/scrollMemory.js";
 import { usePageFind } from "../../../hooks/usePageFind.js";
+import { defaultGroupOpen } from "../../../settings/toolExpansion.js";
 import { FindBar } from "./FindBar.jsx";
 import { MessageUser } from "./MessageUser.jsx";
 import { MessageReport } from "./MessageReport.jsx";
@@ -168,8 +169,8 @@ export function Messages({ live }) {
     if (match) ui.syncAgentViewer(match);
   }, [blocks]);
 
-  // expandedTools in deps: expanding a tool mounts new text the ranges must cover.
-  const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools]);
+  // expandedTools/settings in deps: expanding a tool mounts new text the ranges must cover.
+  const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools, ui.settings]);
 
   const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
   const parentWorker = selectedWorker?.parent_id
@@ -177,18 +178,6 @@ export function Messages({ live }) {
     : null;
   const agentBusy = selectedWorker && (selectedWorker.state === "SPAWNING" || selectedWorker.state === "WORKING");
   const interrupted = live.interruptedId === selectedWorker?.id;
-
-  // The worker's boot prompt was never acknowledged (no hook / no JSONL): it
-  // sits IDLE having never started. Surface a resend so a silent loss is
-  // actionable instead of looking like a finished agent.
-  const promptLost = useMemo(() => {
-    if (!selectedWorker || selectedWorker.state !== "IDLE") return false;
-    let lastReason = null;
-    for (const ev of events) {
-      if (ev.type === "state") lastReason = parsePayload(ev.payload)?.reason ?? null;
-    }
-    return lastReason === "prompt_lost";
-  }, [events, selectedWorker?.state]);
 
   const lastBlock = blocks[blocks.length - 1];
 
@@ -275,17 +264,6 @@ export function Messages({ live }) {
             elapsed={agentBusy && lastIsUser && lastUserTs && waitingElapsedMs >= 1000 ? fmtElapsedShort(waitingElapsedMs) : null}
           />
         )}
-        {promptLost && selectedWorker && (
-          <div className="prompt-lost">
-            <span className="prompt-lost-text">Prompt may have been lost — the agent never started.</span>
-            <button
-              className="prompt-lost-btn"
-              onClick={() => { ui.addOptimisticUserMessage(selectedWorker.id, selectedWorker.prompt); live.sendToAgent(selectedWorker.id, selectedWorker.prompt); }}
-            >
-              Resend
-            </button>
-          </div>
-        )}
       </div>
       {showScrollBtn && (
         <button className="scroll-to-bottom" onClick={scrollToBottom} aria-label="Scroll to bottom">
@@ -316,8 +294,10 @@ function renderBlock(b, key, cwd, ui) {
     case "thinking":  return <ThinkingLine key={key} text={b.text} ms={b.ms} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
+      // expandedTools holds toggles against the settings-driven default (XOR)
+      const open = defaultGroupOpen(b.tools, ui.settings) !== ui.expandedTools.has(groupKey);
       return <ToolGroup key={key} summary={b.summary} tools={b.tools} cwd={cwd}
-        open={ui.expandedTools.has(groupKey)} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
+        open={open} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
     }
     case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} />;
     case "agentRun":  return <AgentBlock key={key} block={b} />;

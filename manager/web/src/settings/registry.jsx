@@ -2,7 +2,8 @@
 // SettingsSection contract (documented, not enforced — plain objects):
 //   { id, label, Icon, groups: [{ title, items: [SettingItem] }] }
 // SettingItem:
-//   { key, label, description?, control: { type, ...props }, defaultValue }
+//   { key, label, description?, control: { type, ...props }, defaultValue,
+//     visibleWhen?: (settings) => bool }   // conditional rows (e.g. mode-dependent)
 //
 // The modal, controls and persistence never change when settings are added
 // (Open/Closed): a new setting is a registry entry, a new control type is one
@@ -16,6 +17,13 @@ const GeneralIcon = () => (
   </svg>
 );
 
+const CodeIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m16 18 6-6-6-6" />
+    <path d="m8 6-6 6 6 6" />
+  </svg>
+);
+
 export const SETTINGS_SECTIONS = [
   {
     id: "general",
@@ -23,14 +31,67 @@ export const SETTINGS_SECTIONS = [
     Icon: GeneralIcon,
     groups: [
       {
-        title: "Preferences",
+        title: "Appearance",
         items: [
           {
-            key: "general.placeholder",
-            label: "Placeholder setting",
-            description: "Example toggle — replace with real settings as they land.",
+            key: "appearance.theme",
+            label: "Theme",
+            description: "System follows the macOS appearance.",
+            control: {
+              type: "select",
+              options: [
+                { value: "system", label: "System" },
+                { value: "dark", label: "Dark" },
+                { value: "light", label: "Light" },
+              ],
+            },
+            defaultValue: "system",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "code",
+    label: "Code",
+    Icon: CodeIcon,
+    groups: [
+      {
+        title: "Verbose",
+        items: [
+          {
+            key: "verbose.enabled",
+            label: "Verbose mode",
+            description: "Expand tool call details in the transcript instead of collapsing them.",
             control: { type: "toggle" },
             defaultValue: false,
+          },
+          {
+            key: "verbose.mode",
+            label: "Mode",
+            description: "Which tool calls verbose mode expands.",
+            control: {
+              type: "select",
+              options: [
+                { value: "expanded", label: "All expanded" },
+                { value: "selectedExpanded", label: "Only selected expanded" },
+                { value: "selectedCollapsed", label: "Only selected collapsed" },
+              ],
+            },
+            defaultValue: "expanded",
+            visibleWhen: (s) => !!s["verbose.enabled"],
+          },
+          {
+            key: "verbose.tools",
+            label: "Selected tools",
+            description: "Tools the mode above applies to.",
+            control: {
+              type: "toolPicker",
+              layout: "stack",
+              tools: ["Read", "Bash", "Edit", "Write", "Glob", "Grep", "Skill", "AskUserQuestion", "WebFetch", "WebSearch"],
+            },
+            defaultValue: [],
+            visibleWhen: (s) => !!s["verbose.enabled"] && (s["verbose.mode"] ?? "expanded") !== "expanded",
           },
         ],
       },

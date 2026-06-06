@@ -391,7 +391,13 @@ export type TemplateMutationResponse = z.infer<typeof TemplateMutationResponseSc
 // daemon only persists; the web settings registry owns key semantics and
 // defaults, so adding a setting is a registry entry — not a contract change.
 
-export const SettingValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+export const SettingValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.array(z.string()), // e.g. selected tool lists
+  z.record(z.string(), z.string()), // e.g. per-tool override maps
+]);
 export type SettingValue = z.infer<typeof SettingValueSchema>;
 
 export const UserSettingsSchema = z.record(z.string(), SettingValueSchema);
