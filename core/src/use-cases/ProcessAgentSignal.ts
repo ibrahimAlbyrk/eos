@@ -39,13 +39,14 @@ function handleBlock(deps: ProcessWorkerEventDeps, workerId: string, block: Cont
   // tool_result blocks never drive state (mirror legacy jsonl:tool_result).
 }
 
-export function processAgentSignal(
+// State-only reducer: drives the worker FSM from a canonical AgentEvent without
+// logging it. Used by the Phase 0 daemon flip, where the legacy event is already
+// logged and only its state effect is re-expressed canonically.
+export function reduceAgentSignal(
   deps: ProcessWorkerEventDeps,
   workerId: string,
   event: AgentEvent,
 ): void {
-  const rowId = logEvent(deps, workerId, "agent_event", event);
-
   switch (event.type) {
     case "message":
       for (const block of event.blocks) handleBlock(deps, workerId, block);
@@ -94,14 +95,26 @@ export function processAgentSignal(
       // still handle boot IDLE; worktreeDir enrichment stays on the legacy path).
       return;
 
-    case "usage":
-      handleUsage(deps, workerId, event, rowId);
-      return;
-
-    // permission_request / question_request are log-only (no state change).
+    // usage / permission_request / question_request drive no state transition.
     default:
       return;
   }
+}
+
+// Full canonical entry point: logs the agent_event, then drives state + cost.
+// Used when a backend adapter emits canonical events directly (Phase 1+). The
+// Phase 0 daemon flip instead logs the legacy event and calls reduceAgentSignal.
+export function processAgentSignal(
+  deps: ProcessWorkerEventDeps,
+  workerId: string,
+  event: AgentEvent,
+): void {
+  const rowId = logEvent(deps, workerId, "agent_event", event);
+  if (event.type === "usage") {
+    handleUsage(deps, workerId, event, rowId);
+    return;
+  }
+  reduceAgentSignal(deps, workerId, event);
 }
 
 function handleUsage(

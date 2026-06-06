@@ -24,6 +24,7 @@ import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
 import { transitionState } from "../../core/src/use-cases/TransitionState.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import { processWorkerEvent } from "../../core/src/use-cases/ProcessWorkerEvent.ts";
+import { toCanonicalEvents } from "../../spawner/canonical-map.ts";
 import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermissionMode.ts";
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
@@ -120,6 +121,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         clock: c.clock, models: c.models, log: c.log,
         isSettling: (id) => c.turnSettle.isSettling(id),
         markSettling: (id) => c.turnSettle.mark(id),
+        toCanonical: toCanonicalEvents,
       },
       { workerId: params.id, type: body.type, payload: body.payload },
     );

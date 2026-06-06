@@ -14,6 +14,8 @@ import type { Logger } from "../ports/Logger.ts";
 import { transitionState } from "./TransitionState.ts";
 import { logEvent } from "./LogEvent.ts";
 import { computeCostUsd } from "../domain/value-objects.ts";
+import { reduceAgentSignal } from "./ProcessAgentSignal.ts";
+import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 
 export interface ProcessWorkerEventDeps {
   workers: WorkerRepo;
@@ -28,6 +30,11 @@ export interface ProcessWorkerEventDeps {
   isSettling?(workerId: string): boolean;
   /** Opens the settle window for a worker whose turn just ended (Stop hook). */
   markSettling?(workerId: string): void;
+  /** When provided, hook/jsonl/heartbeat events are driven through the canonical
+   *  pipeline (toCanonical → reduceAgentSignal) instead of the legacy handlers.
+   *  Injected by the daemon composition root (the claude-cli adapter's
+   *  translator); absent in unit tests, which exercise the legacy path. */
+  toCanonical?(type: string, payload: unknown): AgentEvent[];
 }
 
 export interface WorkerEventInput {
@@ -163,12 +170,23 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
   },
 };
 
+// Claude-transport events whose state effects are re-expressed canonically when
+// a translator is injected. Everything else (state, usage, lifecycle, and the
+// daemon-synthesized events) stays on its dedicated legacy handler.
+const CANONICAL_DRIVEN = new Set<WorkerEventType>(["hook", "jsonl", "heartbeat"]);
+
 export function processWorkerEvent(
   deps: ProcessWorkerEventDeps,
   input: WorkerEventInput,
 ): void {
   const type = input.type as WorkerEventType;
   const rowId = logEvent(deps, input.workerId, type, input.payload);
+  if (deps.toCanonical && CANONICAL_DRIVEN.has(type)) {
+    for (const ev of deps.toCanonical(type, input.payload)) {
+      reduceAgentSignal(deps, input.workerId, ev);
+    }
+    return;
+  }
   const handler = HANDLERS[type];
   if (handler) handler(deps, input, rowId);
 }

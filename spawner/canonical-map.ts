@@ -98,8 +98,10 @@ function hookToCanonical(p: Rec): AgentEvent[] {
       return [{ type: "session", phase: "started" }];
     case "SessionEnd":
       return [{ type: "session", phase: "ended" }];
+    // Notification carries no state signal — mirror the legacy hook handler,
+    // which ignores it (only PostToolUse / Stop / SessionEnd drive state).
     case "Notification":
-      return [{ type: "activity", kind: "alive" }];
+      return [];
     default:
       return [];
   }
