@@ -386,6 +386,24 @@ export type TemplateUpdateRequest = z.infer<typeof TemplateUpdateRequestSchema>;
 export const TemplateMutationResponseSchema = z.object({ ok: z.boolean() });
 export type TemplateMutationResponse = z.infer<typeof TemplateMutationResponseSchema>;
 
+// ---- /api/settings -----------------------------------------------------------
+// User UI settings (~/.claude-mgr/settings.json), a flat key→value map. The
+// daemon only persists; the web settings registry owns key semantics and
+// defaults, so adding a setting is a registry entry — not a contract change.
+
+export const SettingValueSchema = z.union([z.string(), z.number(), z.boolean()]);
+export type SettingValue = z.infer<typeof SettingValueSchema>;
+
+export const UserSettingsSchema = z.record(z.string(), SettingValueSchema);
+export type UserSettings = z.infer<typeof UserSettingsSchema>;
+
+export const SettingsResponseSchema = z.object({ settings: UserSettingsSchema });
+export type SettingsResponse = z.infer<typeof SettingsResponseSchema>;
+
+// PUT body — merged into the stored map (shallow), then the full map returns.
+export const SettingsPatchRequestSchema = z.object({ settings: UserSettingsSchema });
+export type SettingsPatchRequest = z.infer<typeof SettingsPatchRequestSchema>;
+
 // ---- POST /workers/:id/interrupt -------------------------------------------
 
 export const InterruptResponseSchema = z.object({ ok: z.boolean() });
@@ -508,5 +526,6 @@ export const ROUTES = {
   skillRead: "/skills/read",
   templates: "/api/templates",
   template: (name: string): string => `/api/templates/${name}`,
+  settings: "/api/settings",
   web: "/web/",
 } as const;
