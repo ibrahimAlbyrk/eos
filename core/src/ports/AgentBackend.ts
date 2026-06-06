@@ -7,6 +7,8 @@
 // How the daemon addresses a running session. Out-of-process backends
 // (claude-cli) carry a loopback port + child pid; in-process backends carry an
 // opaque ref. Replaces the bare `port` + `pid` columns at the call sites.
+import type { AgentEvent } from "../../../contracts/src/canonical.ts";
+
 export type WorkerHandle =
   | { readonly kind: "http"; readonly port: number; readonly pid: number | null }
   | { readonly kind: "inproc"; readonly ref: string };
@@ -42,6 +44,10 @@ export interface AgentStartCallbacks {
   onSpawn?(handle: WorkerHandle): void;
   // Called when the session ends with its numeric code (signal → 128+n), or null.
   onExit?(code: number | null): void;
+  // Canonical event sink for IN-PROCESS backends, which have no child process /
+  // HTTP channel to POST events through. Out-of-process backends (claude-cli)
+  // leave this unset and deliver events via their own transport.
+  onEvent?(event: AgentEvent): void;
 }
 
 export interface AgentSession {
