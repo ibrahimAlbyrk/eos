@@ -1,41 +1,21 @@
-import { useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
+import { useHoverPopover } from "../../hooks/useHoverPopover.js";
 
 // Native macOS chrome: a fixed sidebar toggle near the traffic lights. When the
 // sidebar is collapsed, hovering reveals a popup whose content is view-specific
 // (passed in via `popup`).
 export function NativeToggleZone({ popup }) {
   const ui = useUi();
-  const [hover, setHover] = useState(false);
-  const leaveTimer = useRef(null);
-  const insideRef = useRef(false);
-  const popRef = useRef(ui.openPopover);
-  popRef.current = ui.openPopover;
-
-  const onEnter = useCallback(() => {
-    insideRef.current = true;
-    clearTimeout(leaveTimer.current);
-    if (ui.sideCollapsed) setHover(true);
-  }, [ui.sideCollapsed]);
-
-  const onLeave = useCallback(() => {
-    insideRef.current = false;
-    leaveTimer.current = setTimeout(() => {
-      if (!popRef.current) setHover(false);
-    }, 200);
-  }, []);
-
-  useEffect(() => {
-    if (!ui.openPopover && hover && !insideRef.current) {
-      leaveTimer.current = setTimeout(() => setHover(false), 300);
-    }
-  }, [ui.openPopover, hover]);
+  const { open, close, onMouseEnter, onMouseLeave } = useHoverPopover({
+    openPopover: ui.openPopover,
+    enabled: ui.sideCollapsed,
+  });
 
   return (
-    <div className="native-toggle-zone" onMouseEnter={onEnter} onMouseLeave={onLeave}>
+    <div className="native-toggle-zone" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <button
         className="native-toggle sb-iconbtn"
-        onClick={() => { ui.setSideCollapsed(!ui.sideCollapsed); setHover(false); }}
+        onClick={() => { ui.setSideCollapsed(!ui.sideCollapsed); close(); }}
         title={ui.sideCollapsed ? "Show sidebar" : "Hide sidebar"}
       >
         {ui.sideCollapsed ? (
@@ -54,7 +34,7 @@ export function NativeToggleZone({ popup }) {
       {!ui.sideCollapsed && (
         <button
           className="native-toggle sb-iconbtn"
-          onClick={() => { ui.openSearch(); setHover(false); }}
+          onClick={() => { ui.openSearch(); close(); }}
           title="Search (⌘K)"
         >
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -63,7 +43,7 @@ export function NativeToggleZone({ popup }) {
           </svg>
         </button>
       )}
-      {hover && ui.sideCollapsed && popup}
+      {open && ui.sideCollapsed && popup}
     </div>
   );
 }

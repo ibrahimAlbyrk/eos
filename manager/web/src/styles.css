@@ -138,15 +138,16 @@ html.native .sb-iconbtn { --app-region: no-drag; }
 /* keep agent names selectable / rename input usable */
 html.native .agents-section { -webkit-user-select: text; }
 
-/* sb-head becomes compact titlebar row, buttons after traffic lights */
-html.native .sb-head {
+/* sb-head becomes compact titlebar row, buttons after traffic lights.
+   Scoped to .side so the collapsed-hover popup keeps its head. */
+html.native .side .sb-head {
   padding: 4px 8px 6px 76px;
   min-height: 22px;
 }
-html.native .sb-head { display: none; }
+html.native .side .sb-head { display: none; }
 html.native .side-island--agents { padding-top: 30px; flex: 1; }
 html.native .side-island--status { display: none; }
-html.native .sb-divider { display: none; }
+html.native .side .sb-divider { display: none; }
 html.native .empty-tree { padding: 6px 14px !important; }
 html.native .side { padding-bottom: 14px; }
 
@@ -245,20 +246,7 @@ html.native .sb-section > .sb-iconbtn { margin-left: auto; }
   animation: side-popup-in 150ms ease;
   overflow: visible;
 }
-.side-popup-bar {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 10px 10px 8px 12px;
-}
-.side-popup-bar__title {
-  font-size: var(--text-base); font-weight: 600;
-  color: var(--fg); letter-spacing: -0.005em;
-}
-.side-popup-bar__actions {
-  margin-left: auto;
-  display: flex; align-items: center; gap: 2px;
-}
+.side-handle-popup .sb-head { padding: 10px 12px 8px; }
 .side-handle-popup .agents-section {
   flex: 1;
   min-height: 0;
@@ -273,6 +261,7 @@ html.native .sb-section > .sb-iconbtn { margin-left: auto; }
    drag the toggle into its vertical center. Absolute keeps the toggle put. */
 html.native .native-toggle-zone .side-handle-popup { position: absolute; left: -76px; top: 36px; }
 html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
+.side-handle-popup--no-anim { animation: none; }
 @keyframes side-popup-in {
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }

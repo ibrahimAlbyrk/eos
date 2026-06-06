@@ -2,9 +2,7 @@ import { useEffect, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { useAgentSwitchHotkeys } from "../../hooks/useAgentSwitchHotkeys.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
-import { Sidebar } from "./sidebar/Sidebar.jsx";
-import { SideHandle } from "./sidebar/SideHandle.jsx";
-import { SidePopup } from "./sidebar/SidePopup.jsx";
+import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { CenterHeader } from "./center/CenterHeader.jsx";
 import { Composer } from "./center/Composer.jsx";
 import { Messages } from "./messages/Messages.jsx";
@@ -91,8 +89,7 @@ export function CodeView({ live }) {
   return (
     <AppLayout
       gridClass={gridClass}
-      collapsedPopup={<SidePopup live={live} />}
-      sidebar={<Sidebar live={live} />}
+      sidebar={(variant) => <CodeSidebar live={live} variant={variant} />}
       main={
         <>
           <CenterHeader live={live} />
@@ -107,7 +104,6 @@ export function CodeView({ live }) {
         </>
       }
     >
-      <SideHandle live={live} />
       <AgentContextMenu live={live} />
     </AppLayout>
   );

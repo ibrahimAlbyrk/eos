@@ -2,17 +2,25 @@ import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { TabBar } from "../../components/TabBar.jsx";
 import { WorkflowsEmpty } from "./WorkflowsEmpty.jsx";
 
+function WorkflowsSidebar({ variant }) {
+  const body = (
+    <>
+      <TabBar />
+      <div className="sb-head">
+        <div className="sb-head__title">Workflows</div>
+      </div>
+    </>
+  );
+
+  if (variant === "popup") return body;
+
+  return <div className="side-island side-island--agents">{body}</div>;
+}
+
 export function WorkflowsView() {
   return (
     <AppLayout
-      sidebar={
-        <div className="side-island side-island--agents">
-          <TabBar />
-          <div className="sb-head">
-            <div className="sb-head__title">Workflows</div>
-          </div>
-        </div>
-      }
+      sidebar={(variant) => <WorkflowsSidebar variant={variant} />}
       main={<WorkflowsEmpty />}
     />
   );
