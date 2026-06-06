@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildBlocks } from "./messageParser.js";
+import { buildBlocks, buildSummary, gitActions } from "./messageParser.js";
 
 function agentRow(id, ts) {
   return { type: "jsonl", ts, payload: { kind: "tool_use", id, name: "Agent", input: { description: id } } };
@@ -148,5 +148,79 @@ describe("buildBlocks standalone tools", () => {
     const blocks = buildBlocks(events);
     expect(blocks.map((b) => b.kind)).toEqual(["tool", "tool", "tool"]);
     expect(blocks[1].tool.name).toBe("AskUserQuestion");
+  });
+});
+
+function bashTool(command, resultText, isError = false) {
+  return {
+    name: "Bash",
+    verb: "bash",
+    input: { command },
+    result: resultText != null ? { text: resultText, isError } : null,
+  };
+}
+
+describe("gitActions", () => {
+  it("maps git mutation subcommands to past-tense verbs", () => {
+    expect(gitActions(bashTool("git push origin dev")).map((a) => a.verb)).toEqual(["Pushed"]);
+    expect(gitActions(bashTool("git merge feature-x")).map((a) => a.verb)).toEqual(["Merged"]);
+    expect(gitActions(bashTool("cd /x && git -C /y rebase main")).map((a) => a.verb)).toEqual(["Rebased"]);
+  });
+
+  it("handles compound commands with multiple git actions", () => {
+    const verbs = gitActions(bashTool('git add -A && git commit -m "x" && git push')).map((a) => a.verb);
+    expect(verbs).toEqual(["Staged", "Committed", "Pushed"]);
+  });
+
+  it("treats read-only git commands as non-actions", () => {
+    expect(gitActions(bashTool("git status && git log --oneline"))).toEqual([]);
+  });
+
+  it("maps git diff to Viewed diff", () => {
+    expect(gitActions(bashTool("git diff main..dev")).map((a) => a.verb)).toEqual(["Viewed diff"]);
+  });
+
+  it("ignores git words inside quoted strings", () => {
+    expect(gitActions(bashTool('echo "run git push later"'))).toEqual([]);
+    expect(gitActions(bashTool('git commit -m "git merge notes"')).map((a) => a.sub)).toEqual(["commit"]);
+  });
+
+  it("extracts commit shas from the result text", () => {
+    const t = bashTool('git commit -m "msg"', "[dev fbce36a] msg\n 1 file changed");
+    expect(gitActions(t)[0].shas).toEqual(["fbce36a"]);
+  });
+
+  it("returns no actions for failed commands", () => {
+    expect(gitActions(bashTool("git push", "rejected", true))).toEqual([]);
+  });
+
+  it("strips flags and redirections from the detail", () => {
+    const a = gitActions(bashTool("git push -u origin dev 2>&1"))[0];
+    expect(a.detail).toBe("origin dev");
+  });
+});
+
+describe("buildSummary git awareness", () => {
+  it("verbs git bash tools and counts the rest as shell commands", () => {
+    const tools = [
+      { name: "Read", verb: "read", input: {} },
+      bashTool('git commit -m "x"', "[dev abc1234] x"),
+      bashTool("git push"),
+      bashTool("npm test"),
+    ];
+    expect(buildSummary(tools)).toBe("Read 1 file, Committed abc1234, Pushed, ran 1 shell command");
+  });
+
+  it("merges shas from multiple commits and dedupes verbs", () => {
+    const tools = [
+      bashTool('git commit -m "a"', "[dev aaa1111] a"),
+      bashTool('git commit -m "b"', "[dev bbb2222] b"),
+    ];
+    expect(buildSummary(tools)).toBe("Committed aaa1111, bbb2222");
+  });
+
+  it("keeps plain shell-only groups as shell commands", () => {
+    const tools = [bashTool("ls"), bashTool("npm run build")];
+    expect(buildSummary(tools)).toBe("ran 2 shell commands");
   });
 });

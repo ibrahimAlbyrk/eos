@@ -254,17 +254,77 @@ function attachAskUserAnswers(blocks) {
   }
 }
 
+const GIT_VERBS = {
+  commit: "Committed",
+  push: "Pushed",
+  pull: "Pulled",
+  merge: "Merged",
+  rebase: "Rebased",
+  fetch: "Fetched",
+  clone: "Cloned",
+  checkout: "Checked out",
+  switch: "Switched to",
+  stash: "Stashed",
+  "cherry-pick": "Cherry-picked",
+  revert: "Reverted",
+  reset: "Reset",
+  restore: "Restored",
+  tag: "Tagged",
+  add: "Staged",
+  diff: "Viewed diff",
+  apply: "Applied",
+  am: "Applied",
+};
+
+// Matches `git [global flags] <subcommand> <rest until ; & |>` outside quoted strings.
+const GIT_CMD_RE = /\bgit\s+(?:-[cC]\s+\S+\s+|--?[\w-]+(?:=\S+)?\s+)*([a-z][\w-]*)([^;&|]*)/g;
+
+export function gitActions(tool) {
+  if (tool.name !== "Bash" || tool.result?.isError) return [];
+  const cmd = (tool.input?.command ?? "").replace(/"(?:[^"\\]|\\.)*"|'[^']*'/g, '""');
+  const actions = [];
+  GIT_CMD_RE.lastIndex = 0;
+  let m;
+  while ((m = GIT_CMD_RE.exec(cmd))) {
+    const verb = GIT_VERBS[m[1]];
+    if (!verb) continue;
+    const detail = m[2]
+      .replace(/--?[\w-]+(?:=\S+)?/g, "")
+      .replace(/\S*[<>]\S*/g, "")
+      .replace(/""/g, "")
+      .trim()
+      .slice(0, 60);
+    actions.push({ sub: m[1], verb, detail });
+  }
+  if (actions.some((a) => a.sub === "commit")) {
+    const shas = [...(tool.result?.text ?? "").matchAll(/\[[^\]\n]*\b([0-9a-f]{7,40})\]/g)].map((x) => x[1]);
+    for (const a of actions) if (a.sub === "commit") a.shas = shas;
+  }
+  return actions;
+}
+
 export function buildSummary(tools) {
   let reads = 0;
   let edits = 0;
   let skills = 0;
   let notifies = 0;
+  let shells = 0;
   let others = 0;
+  const gitVerbs = [];
+  const commitShas = [];
   for (const t of tools) {
     if (t.name === "Read") reads++;
     else if (t.verb === "edit") edits++;
     else if (t.name === "Skill") skills++;
     else if (t.name === "mcp__orchestrator__notify_user") notifies++;
+    else if (t.name === "Bash") {
+      const actions = gitActions(t);
+      if (actions.length === 0) { shells++; continue; }
+      for (const a of actions) {
+        if (a.sub === "commit") commitShas.push(...(a.shas ?? []));
+        if (!gitVerbs.includes(a.verb)) gitVerbs.push(a.verb);
+      }
+    }
     else others++;
   }
   const parts = [];
@@ -272,6 +332,10 @@ export function buildSummary(tools) {
   if (edits > 0) parts.push(`Edited ${edits} file${edits > 1 ? "s" : ""}`);
   if (skills > 0) parts.push(`Used ${skills} skill${skills > 1 ? "s" : ""}`);
   if (notifies > 0) parts.push("Notified user");
+  for (const v of gitVerbs) {
+    parts.push(v === "Committed" && commitShas.length > 0 ? `Committed ${commitShas.join(", ")}` : v);
+  }
+  if (shells > 0) parts.push(`ran ${shells} shell command${shells > 1 ? "s" : ""}`);
   if (others > 0) parts.push(`used ${others} tool${others > 1 ? "s" : ""}`);
   return parts.join(", ");
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { gitActions } from "../../../lib/messageParser.js";
 import { ToolDetail } from "./ToolDetail.jsx";
 
 const APPEAR_MS = 600;
@@ -82,6 +83,13 @@ function itemLabel(tool) {
     return { verb: "Read", file: fileName(tool.input?.file_path) };
   }
   if (name === "Bash") {
+    const actions = gitActions(tool);
+    if (actions.length > 0) {
+      const verb = actions.map((a) => a.verb).join(", ");
+      const shas = actions.flatMap((a) => a.shas ?? []);
+      const file = shas.length > 0 ? shas.join(", ") : actions[actions.length - 1].detail;
+      return { verb, file };
+    }
     const cmd = (tool.input?.command ?? "").slice(0, 60);
     return { verb: "Ran", file: cmd };
   }
