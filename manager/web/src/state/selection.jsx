@@ -70,12 +70,9 @@ export function SelectionProvider({ children }) {
 
   const openFileViewer = useCallback((path) => {
     setAgentViewer(null);
-    setFileViewer({ path, editMode: false });
+    setFileViewer({ path });
   }, []);
   const closeFileViewer = useCallback(() => setFileViewer(null), []);
-  const toggleFileEditMode = useCallback(() => {
-    setFileViewer((prev) => prev ? { ...prev, editMode: !prev.editMode } : null);
-  }, []);
   const openAgentViewer = useCallback((block) => {
     setFileViewer(null);
     setAgentViewer(block);
@@ -93,14 +90,14 @@ export function SelectionProvider({ children }) {
     expandedTools, toggleToolExpanded,
     renamingId, setRenamingId,
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
-    fileViewer, openFileViewer, closeFileViewer, toggleFileEditMode,
+    fileViewer, openFileViewer, closeFileViewer,
     agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     registerEscapeIdle,
   }), [
     selectedId, sideCollapsed, openPopover, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, fileViewer, agentViewer,
     openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded,
-    openFileViewer, closeFileViewer, toggleFileEditMode,
+    openFileViewer, closeFileViewer,
     openAgentViewer, closeAgentViewer, syncAgentViewer,
     registerEscapeIdle,
   ]);

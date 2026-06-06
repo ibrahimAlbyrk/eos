@@ -1,87 +1,102 @@
-import { useEffect, useMemo, useState, useRef } from "react";
-import hljs from "highlight.js/lib/common";
-import { extToLang, highlightMatches } from "../../../lib/fileUtils.jsx";
+import { useEffect, useRef } from "react";
+import { EditorState, StateEffect, StateField } from "@codemirror/state";
+import {
+  EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, Decoration,
+} from "@codemirror/view";
+import { indentOnInput, indentUnit, bracketMatching } from "@codemirror/language";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
+import { cmLanguageFor } from "../../../lib/cmLang.js";
+import { detectIndentUnit } from "../../../lib/indentDetect.js";
+import { fvSyntaxHighlight } from "../../../lib/cmHighlight.js";
 
-export function EditView({ textareaRef, editContent, setEditContent, findQuery, currentMatch, matches, filePath }) {
-  const [cursorLine, setCursorLine] = useState(-1);
-  const overlayRef = useRef(null);
+const setFindDeco = StateEffect.define();
+const findDecoField = StateField.define({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    deco = deco.map(tr.changes);
+    for (const e of tr.effects) if (e.is(setFindDeco)) deco = e.value;
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+const findMark = Decoration.mark({ class: "fv-match" });
+const findMarkCurrent = Decoration.mark({ class: "fv-match current" });
 
-  const updateCursor = (el) => {
-    const pos = el.selectionDirection === "backward" ? el.selectionStart : el.selectionEnd;
-    setCursorLine(el.value.substring(0, pos).split("\n").length - 1);
-  };
-
-  const syncScroll = (e) => {
-    if (overlayRef.current) {
-      overlayRef.current.scrollTop = e.target.scrollTop;
-      overlayRef.current.scrollLeft = e.target.scrollLeft;
-    }
-  };
-
-  const lang = extToLang(filePath);
-  const highlighted = useMemo(() => {
-    if (!editContent || !lang) return null;
-    try {
-      return hljs.highlight(editContent, { language: lang }).value;
-    } catch { return null; }
-  }, [editContent, lang]);
-
-  const highlightedLines = useMemo(() => {
-    if (!highlighted) return null;
-    return highlighted.split("\n");
-  }, [highlighted]);
-
-  const lines = (editContent || "").split("\n");
-  const currentMatchLine = matches.length > 0 ? editContent.substring(0, matches[currentMatch]).split("\n").length - 1 : -1;
+export function EditView({ editContent, setEditContent, findQuery, currentMatch, matches, filePath }) {
+  const hostRef = useRef(null);
+  const viewRef = useRef(null);
+  const docRef = useRef(editContent);
+  const contentRef = useRef(editContent);
+  contentRef.current = editContent;
+  const setEditContentRef = useRef(setEditContent);
+  setEditContentRef.current = setEditContent;
+  const hadFindRef = useRef(false);
 
   useEffect(() => {
-    if (matches.length === 0 || !textareaRef.current) return;
-    const lineTop = currentMatchLine * 20;
-    const container = textareaRef.current;
-    const visible = lineTop >= container.scrollTop && lineTop <= container.scrollTop + container.clientHeight - 40;
-    if (!visible) container.scrollTop = Math.max(0, lineTop - container.clientHeight / 2);
-  }, [currentMatch, matches.length]);
+    const doc = contentRef.current;
+    const unit = detectIndentUnit(doc, filePath);
+    const lang = cmLanguageFor(filePath);
+    const view = new EditorView({
+      state: EditorState.create({
+        doc,
+        extensions: [
+          lineNumbers(),
+          highlightActiveLineGutter(),
+          highlightActiveLine(),
+          history(),
+          bracketMatching(),
+          closeBrackets(),
+          indentOnInput(),
+          indentUnit.of(unit),
+          EditorState.tabSize.of(unit === "\t" ? 4 : unit.length),
+          fvSyntaxHighlight,
+          findDecoField,
+          keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+          ...(lang ? [lang] : []),
+          EditorView.updateListener.of((u) => {
+            if (!u.docChanged) return;
+            const text = u.state.doc.toString();
+            docRef.current = text;
+            setEditContentRef.current(text);
+          }),
+        ],
+      }),
+      parent: hostRef.current,
+    });
+    docRef.current = doc;
+    viewRef.current = view;
+    return () => { view.destroy(); viewRef.current = null; };
+  }, [filePath]);
 
-  return (
-    <div className="fv-editor">
-      <div className="fv-edit-gutter">
-        {lines.map((_, i) => (
-          <div className={"fv-gutter-ln" + (i === cursorLine ? " active" : "")} key={i}>{i + 1}</div>
-        ))}
-      </div>
-      <div className="fv-edit-content">
-        <div className={"fv-highlight-overlay" + (highlightedLines ? " fv-hl-active" : "")} ref={overlayRef} aria-hidden>
-          {lines.map((line, i) => {
-            const isCursor = i === cursorLine;
-            const isMatchLine = i === currentMatchLine;
-            const cls = "fv-ov-line" + (isCursor ? " cursor" : "") + (isMatchLine ? " match-line" : "");
-            if (highlightedLines) {
-              return <div key={i} className={cls} dangerouslySetInnerHTML={{ __html: highlightedLines[i] + "&nbsp;" }} />;
-            }
-            return <div key={i} className={cls}>{line}&nbsp;</div>;
-          })}
-        </div>
-        {findQuery && (
-          <div className="fv-find-overlay" aria-hidden>
-            {lines.map((line, i) => (
-              <div key={i}>{highlightMatches(line, findQuery, i, currentMatch, matches, editContent)}&nbsp;</div>
-            ))}
-          </div>
-        )}
-        <textarea
-          ref={textareaRef}
-          className={"fv-textarea" + (highlightedLines || findQuery ? " fv-textarea--hl" : "")}
-          value={editContent}
-          onChange={(e) => { setEditContent(e.target.value); updateCursor(e.target); }}
-          onKeyUp={(e) => updateCursor(e.target)}
-          onMouseDown={(e) => setTimeout(() => updateCursor(e.target), 0)}
-          onMouseMove={(e) => { if (e.buttons === 1) updateCursor(e.target); }}
-          onMouseUp={(e) => updateCursor(e.target)}
-          onFocus={(e) => updateCursor(e.target)}
-          onScroll={syncScroll}
-          spellCheck={false}
-        />
-      </div>
-    </div>
-  );
+  // External resets (e.g. Cancel) — doc edits flow through updateListener, so
+  // docRef only diverges from editContent when the change came from outside.
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || docRef.current === editContent) return;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: editContent } });
+  }, [editContent]);
+
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view) return;
+    const qLen = findQuery.length;
+    if (!qLen && !hadFindRef.current) return;
+    hadFindRef.current = qLen > 0;
+    const docLen = view.state.doc.length;
+    const ranges = [];
+    for (let i = 0; i < matches.length; i++) {
+      const from = matches[i];
+      if (from + qLen > docLen) continue;
+      ranges.push((i === currentMatch ? findMarkCurrent : findMark).range(from, from + qLen));
+    }
+    const effects = [setFindDeco.of(Decoration.set(ranges))];
+    const cur = matches[currentMatch];
+    if (cur != null && cur + qLen <= docLen) {
+      effects.push(EditorView.scrollIntoView(cur, { y: "center" }));
+    }
+    view.dispatch({ effects });
+  }, [findQuery, currentMatch, matches]);
+
+  return <div className="fv-editor" ref={hostRef} />;
 }

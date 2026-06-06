@@ -1,10 +1,8 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { findAll, shortenHome } from "../../../lib/fileUtils.jsx";
-import { CodeView } from "./CodeView.jsx";
 import { EditView } from "./EditView.jsx";
-import { MarkdownView } from "./MarkdownView.jsx";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"]);
 
@@ -13,12 +11,12 @@ export function FileViewer() {
   const open = !!ui.fileViewer;
   return (
     <div className={"file-viewer" + (open ? " fv-open" : "")}>
-      {open && <FileViewerInner path={ui.fileViewer.path} editMode={ui.fileViewer.editMode} />}
+      {open && <FileViewerInner path={ui.fileViewer.path} />}
     </div>
   );
 }
 
-function FileViewerInner({ path, editMode }) {
+function FileViewerInner({ path }) {
   const ui = useUi();
   const [content, setContent] = useState(null);
   const [editContent, setEditContent] = useState("");
@@ -30,7 +28,6 @@ function FileViewerInner({ path, editMode }) {
   const [findIdx, setFindIdx] = useState(0);
   const [showOpenWith, setShowOpenWith] = useState(false);
   const [defaultApp, setDefaultApp] = useState(null);
-  const textareaRef = useRef(null);
   const findRef = useRef(null);
 
   const ext = path.split(".").pop()?.toLowerCase() ?? "";
@@ -52,7 +49,6 @@ function FileViewerInner({ path, editMode }) {
     try {
       await api.writeFile(path, editContent);
       setContent(editContent);
-      ui.toggleFileEditMode();
     } catch (e) {
       setError(e.message);
     }
@@ -63,8 +59,10 @@ function FileViewerInner({ path, editMode }) {
     setEditContent(content ?? "");
   };
 
-  const activeContent = editMode ? editContent : (content ?? "");
-  const findMatches = findQuery.length > 0 ? findAll(activeContent, findQuery) : [];
+  const findMatches = useMemo(
+    () => (findQuery.length > 0 ? findAll(editContent, findQuery) : []),
+    [editContent, findQuery],
+  );
   const matchCount = findMatches.length;
   const safeIdx = matchCount > 0 ? ((findIdx % matchCount) + matchCount) % matchCount : 0;
 
@@ -72,25 +70,12 @@ function FileViewerInner({ path, editMode }) {
     setShowFind((v) => !v);
     setShowOpenWith(false);
     if (!showFind) {
-      if (!editMode) ui.toggleFileEditMode();
       setTimeout(() => findRef.current?.focus(), 50);
     }
   };
 
   const shortPath = shortenHome(path);
-  const isMd = !isImage && path.endsWith(".md");
-  const dirty = !isImage && editMode && content !== null && editContent !== content;
-
-  const codeIcon = (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="m5 4.5-3.5 3.5 3.5 3.5" /><path d="m11 4.5 3.5 3.5-3.5 3.5" /><path d="m9.5 3-3 10" />
-    </svg>
-  );
-  const eyeIcon = (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M1.5 8s2.5-4.5 6.5-4.5 6.5 4.5 6.5 4.5-2.5 4.5-6.5 4.5S1.5 8 1.5 8Z" /><circle cx="8" cy="8" r="2" />
-    </svg>
-  );
+  const dirty = !isImage && content !== null && editContent !== content;
 
   return (
     <>
@@ -113,9 +98,6 @@ function FileViewerInner({ path, editMode }) {
               </>
             ) : (
               <>
-                <button className="fv-icon-btn" onClick={ui.toggleFileEditMode} title={editMode ? "Preview" : "Edit"}>
-                  {editMode ? eyeIcon : codeIcon}
-                </button>
                 <button className={"fv-icon-btn" + (showFind ? " on" : "")} onClick={toggleFind} title="Find">
                   <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
                     <circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" />
@@ -186,12 +168,8 @@ function FileViewerInner({ path, editMode }) {
           <>
             {error && <div className="fv-error">{error}</div>}
             {content === null && !error && <div className="fv-loading">Loading...</div>}
-            {content !== null && !editMode && (
-              isMd ? <MarkdownView content={content} /> : <CodeView content={content} findQuery={findQuery} currentMatch={safeIdx} matches={findMatches} activeMatchKey={`${safeIdx}-${findQuery}`} filePath={path} />
-            )}
-            {content !== null && editMode && (
+            {content !== null && (
               <EditView
-                textareaRef={textareaRef}
                 editContent={editContent}
                 setEditContent={setEditContent}
                 findQuery={findQuery}
