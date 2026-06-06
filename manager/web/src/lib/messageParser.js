@@ -178,6 +178,16 @@ export function buildBlocks(events) {
       }
       continue;
     }
+    if (ev.type === "lifecycle") {
+      const payload = parsePayload(ev.payload);
+      // Delivery pipeline gave up — the message never reached the agent.
+      if (payload.phase === "delivery_failed") {
+        flushTools();
+        lastAsst = null;
+        out.push({ kind: "deliveryFailed", text: payload.text ?? "", ts: ev.ts });
+      }
+      continue;
+    }
     if (ev.type !== "jsonl") continue;
     const p = parsePayload(ev.payload);
 

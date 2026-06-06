@@ -1560,6 +1560,14 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   background: var(--warn);
 }
 
+/* delivery failure — the worker exhausted its retries; the message never
+   reached the agent's composer */
+.delivery-failed {
+  font-size: var(--text-xs);
+  color: var(--err);
+  padding: 4px 0;
+}
+
 /* suggested action chip (e.g. "mcplerini listele") */
 .suggest {
   display: inline-flex;

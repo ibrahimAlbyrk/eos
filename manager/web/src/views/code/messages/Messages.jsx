@@ -301,6 +301,12 @@ function renderBlock(b, key, cwd, ui, workers) {
     }
     case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} />;
     case "agentRun":  return <AgentBlock key={key} block={b} />;
+    case "deliveryFailed":
+      return (
+        <div key={key} className="delivery-failed mono">
+          message was not delivered{b.text ? ` — “${b.text}”` : ""} · try sending again
+        </div>
+      );
     default: return null;
   }
 }
