@@ -45,6 +45,7 @@ import { SqlBackedBackendResolver } from "../core/src/services/SqlBackedBackendR
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
 import { PromptTemplateService } from "./services/PromptTemplateService.ts";
+import { UserTemplateService } from "./services/UserTemplateService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
@@ -293,6 +294,7 @@ export function buildContainer() {
   const turnSettle = new TurnSettleService(systemClock);
   const pendingQuestions = new PendingQuestionService(systemClock, randomIdGenerator);
   const promptTemplates = new PromptTemplateService(config.paths.promptsDir);
+  const userTemplates = new UserTemplateService(join(config.daemon.home, "templates"));
 
   // Reaper — reject pending questions whose TTL has elapsed.
   setInterval(() => pendingQuestions.sweepExpired(systemClock.now()), 30_000).unref();
@@ -378,6 +380,7 @@ export function buildContainer() {
     turnSettle,
     pendingQuestions,
     promptTemplates,
+    userTemplates,
     cleanupMcpConfig,
     reloadPolicy(): void {
       policy = loadPolicy({

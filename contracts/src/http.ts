@@ -348,6 +348,44 @@ export const SkillReadResponseSchema = z.object({
 });
 export type SkillReadResponse = z.infer<typeof SkillReadResponseSchema>;
 
+// ---- /api/templates ---------------------------------------------------------
+// User prompt templates (~/.claude-mgr/templates/*.md). Content may contain
+// {{label}} tab-stop placeholders the web composer navigates after insert.
+
+export const TemplateNameSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9-]*$/, "lowercase letters, digits and dashes only");
+
+export const TemplateSchema = z.object({
+  name: TemplateNameSchema,
+  description: z.string(),
+  content: z.string(),
+});
+export type Template = z.infer<typeof TemplateSchema>;
+
+export const TemplateListResponseSchema = z.object({
+  templates: z.array(TemplateSchema),
+});
+export type TemplateListResponse = z.infer<typeof TemplateListResponseSchema>;
+
+export const TemplateCreateRequestSchema = z.object({
+  name: TemplateNameSchema,
+  description: z.string().default(""),
+  content: z.string().min(1),
+});
+export type TemplateCreateRequest = z.infer<typeof TemplateCreateRequestSchema>;
+
+export const TemplateUpdateRequestSchema = z.object({
+  description: z.string().default(""),
+  content: z.string().min(1),
+});
+export type TemplateUpdateRequest = z.infer<typeof TemplateUpdateRequestSchema>;
+
+export const TemplateMutationResponseSchema = z.object({ ok: z.boolean() });
+export type TemplateMutationResponse = z.infer<typeof TemplateMutationResponseSchema>;
+
 // ---- POST /workers/:id/interrupt -------------------------------------------
 
 export const InterruptResponseSchema = z.object({ ok: z.boolean() });
@@ -468,5 +506,7 @@ export const ROUTES = {
   workerReport: (id: string): string => `/workers/${id}/report`,
   commands: "/commands",
   skillRead: "/skills/read",
+  templates: "/api/templates",
+  template: (name: string): string => `/api/templates/${name}`,
   web: "/web/",
 } as const;

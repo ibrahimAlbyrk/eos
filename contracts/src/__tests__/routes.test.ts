@@ -13,6 +13,7 @@ const EXPECTED_KEYS = [
   "workerModel", "workerDiff", "workerInterrupt", "workerKeystroke",
   "workerQuestion", "workerQuestionNotify", "workerQuestionAnswer",
   "workerNotify", "workerReport", "commands", "web", "skillRead",
+  "templates", "template",
 ] as const;
 
 describe("ROUTES completeness", () => {
