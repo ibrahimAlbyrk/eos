@@ -1,3 +1,17 @@
+// Tools that never merge into a toolGroup — always rendered as standalone blocks.
+// (Agent is already standalone via its own agentRun block.)
+export const STANDALONE_TOOLS = new Set([
+  "AskUserQuestion",
+  "Skill",
+  "EnterPlanMode",
+  "ExitPlanMode",
+  "mcp__orchestrator__notify_user",
+  "mcp__orchestrator__message_worker",
+  "mcp__orchestrator__spawn_worker",
+  "mcp__orchestrator__kill_worker",
+  "mcp__worker__send_message_to_parent",
+]);
+
 export function buildBlocks(events) {
   const resultMap = new Map();
   const toolUseIds = new Set();
@@ -100,6 +114,15 @@ export function buildBlocks(events) {
     pendingTools = [];
   };
 
+  const pushTool = (tool) => {
+    if (STANDALONE_TOOLS.has(tool.name)) {
+      flushTools();
+      out.push({ kind: "tool", tool, ts: tool.ts });
+    } else {
+      pendingTools.push(tool);
+    }
+  };
+
   for (const ev of events) {
     if (ev.type === "user_message") {
       flushTools();
@@ -139,7 +162,7 @@ export function buildBlocks(events) {
       if (tr.toolUseId && !toolUseIds.has(tr.toolUseId) && !attributedToolIds.has(tr.toolUseId)) {
         lastAsst = null;
         const done = toolDoneSet.has(tr.toolUseId);
-        pendingTools.push({
+        pushTool({
           id: tr.toolUseId,
           name: tr.toolName ?? "unknown",
           verb: verbFor(tr.toolName),
@@ -190,7 +213,7 @@ export function buildBlocks(events) {
           ts: ev.ts,
         });
       } else {
-        pendingTools.push({
+        pushTool({
           id: p.id,
           name: p.name ?? "",
           verb: verbFor(p.name),

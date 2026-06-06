@@ -122,3 +122,31 @@ describe("buildBlocks main-agent tool_done fallback", () => {
     expect(q1.result.text.startsWith("My answers to your questions:")).toBe(true);
   });
 });
+
+describe("buildBlocks standalone tools", () => {
+  it("keeps standalone tools out of toolGroups and splits the surrounding group", () => {
+    const events = [
+      mainToolUse("T1", 100),
+      mainToolUse("T2", 101),
+      mainToolUse("S1", 102, "Skill"),
+      mainToolUse("T3", 103),
+      mainToolUse("T4", 104),
+    ];
+    const blocks = buildBlocks(events);
+    expect(blocks.map((b) => b.kind)).toEqual(["toolGroup", "tool", "toolGroup"]);
+    expect(blocks[0].tools.map((t) => t.id)).toEqual(["T1", "T2"]);
+    expect(blocks[1].tool.id).toBe("S1");
+    expect(blocks[2].tools.map((t) => t.id)).toEqual(["T3", "T4"]);
+  });
+
+  it("renders a standalone tool alone even between groupable tools from tool_running events", () => {
+    const events = [
+      { type: "tool_running", ts: 100, payload: { toolName: "Bash", toolUseId: "B1", input: {} } },
+      { type: "tool_running", ts: 101, payload: { toolName: "AskUserQuestion", toolUseId: "Q1", input: {} } },
+      { type: "tool_running", ts: 102, payload: { toolName: "Bash", toolUseId: "B2", input: {} } },
+    ];
+    const blocks = buildBlocks(events);
+    expect(blocks.map((b) => b.kind)).toEqual(["tool", "tool", "tool"]);
+    expect(blocks[1].tool.name).toBe("AskUserQuestion");
+  });
+});
