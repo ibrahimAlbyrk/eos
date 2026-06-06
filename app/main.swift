@@ -53,11 +53,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         )
         cfg.userContentController.add(self, name: "titlebarDblClick")
         cfg.userContentController.add(self, name: "titlebarDrag")
+        cfg.userContentController.add(self, name: "themeChanged")
+        cfg.userContentController.add(self, name: "themeSnapshot")
+
+        // Last resolved theme (posted by theme.js) so the window/webview bg
+        // matches before the page paints — no dark flash in light mode.
+        let theme = initialTheme()
 
         webView = WKWebView(frame: .zero, configuration: cfg)
         webView.navigationDelegate = self
         webView.wantsLayer = true
-        webView.layer?.backgroundColor = NSColor(white: 0.102, alpha: 1).cgColor
+        webView.layer?.backgroundColor = themeBackground(theme).cgColor
 
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
@@ -68,7 +74,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.minSize = NSSize(width: 800, height: 500)
-        window.backgroundColor = NSColor(white: 0.102, alpha: 1)
+        window.backgroundColor = themeBackground(theme)
         window.contentView = webView
         window.center()
         window.delegate = self
@@ -76,6 +82,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
         positionTrafficLights()
+    }
+
+    // theme.js posts the resolved theme ("dark"/"light"); never set
+    // window.appearance — it would freeze prefers-color-scheme inside the
+    // webview and break the System theme mode.
+    private func themeBackground(_ theme: String) -> NSColor {
+        theme == "light"
+            ? NSColor(red: 246 / 255.0, green: 241 / 255.0, blue: 230 / 255.0, alpha: 1) // --bg #f6f1e6
+            : NSColor(white: 0.102, alpha: 1) // --bg #1a1a1a
+    }
+
+    private func initialTheme() -> String {
+        if let saved = UserDefaults.standard.string(forKey: "EosTheme") { return saved }
+        return NSApp.effectiveAppearance.bestMatch(from: [.aqua, .darkAqua]) == .aqua ? "light" : "dark"
     }
 
     private func positionTrafficLights() {
@@ -157,8 +177,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     private func loadWeb() {
+        // Clear only HTTP caches so a rebuilt dist/ loads fresh — wiping
+        // allWebsiteDataTypes() would also delete localStorage (input history,
+        // active view, scroll positions) on every launch.
         WKWebsiteDataStore.default().removeData(
-            ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(),
+            ofTypes: [WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeMemoryCache],
             modifiedSince: .distantPast) { [weak self] in
             guard let url = URL(string: "\(DAEMON)/web/") else { return }
             self?.webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
@@ -293,6 +316,34 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     @objc func reloadPage(_: Any?) { webView.reload() }
 
     func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "themeSnapshot" {
+            // Freeze the current frame for the JS circular theme reveal — the
+            // page flips theme under this image so backdrop-filter stays live.
+            webView.takeSnapshot(with: nil) { [weak self] image, _ in
+                guard let self else { return }
+                guard let image,
+                      let tiff = image.tiffRepresentation,
+                      let rep = NSBitmapImageRep(data: tiff),
+                      let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.85])
+                else {
+                    self.webView.evaluateJavaScript("window.__eosThemeSnapshot && window.__eosThemeSnapshot(null)")
+                    return
+                }
+                let b64 = jpeg.base64EncodedString()
+                self.webView.evaluateJavaScript(
+                    "window.__eosThemeSnapshot && window.__eosThemeSnapshot('data:image/jpeg;base64,\(b64)')")
+            }
+            return
+        }
+        if message.name == "themeChanged" {
+            if let theme = message.body as? String {
+                UserDefaults.standard.set(theme, forKey: "EosTheme")
+                let bg = themeBackground(theme)
+                webView.layer?.backgroundColor = bg.cgColor
+                window.backgroundColor = bg
+            }
+            return
+        }
         if message.name == "titlebarDrag" {
             if let event = NSApp.currentEvent {
                 window.performDrag(with: event)

@@ -205,7 +205,7 @@ export function QuestionBanner({ questions, workerId, toolUseId, onClose, sendTo
 
 function RadioOffIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#666" strokeWidth="1.5">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ stroke: "var(--fg-faint)" }} strokeWidth="1.5">
       <circle cx="8" cy="8" r="6" />
     </svg>
   );
@@ -213,14 +213,14 @@ function RadioOffIcon() {
 function RadioOnIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="6" stroke="#c8a2ff" strokeWidth="1.5" />
-      <circle cx="8" cy="8" r="3.5" fill="#c8a2ff" />
+      <circle cx="8" cy="8" r="6" style={{ stroke: "var(--violet)" }} strokeWidth="1.5" />
+      <circle cx="8" cy="8" r="3.5" style={{ fill: "var(--violet)" }} />
     </svg>
   );
 }
 function UncheckedIcon() {
   return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#666" strokeWidth="1.5">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ stroke: "var(--fg-faint)" }} strokeWidth="1.5">
       <rect x="2" y="2" width="12" height="12" rx="2" />
     </svg>
   );
@@ -228,8 +228,8 @@ function UncheckedIcon() {
 function CheckIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <rect x="2" y="2" width="12" height="12" rx="2" fill="#c8a2ff" />
-      <path d="M5 8l2.5 2.5L11 6" stroke="#1a1a1a" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="2" y="2" width="12" height="12" rx="2" style={{ fill: "var(--violet)" }} />
+      <path d="M5 8l2.5 2.5L11 6" style={{ stroke: "var(--bg)" }} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }

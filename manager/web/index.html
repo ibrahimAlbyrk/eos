@@ -6,7 +6,7 @@
 <link rel="icon" type="image/png" href="./logo.png" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <style>
-  html, body { margin: 0; padding: 0; height: 100%; background: #1a1815; overflow: hidden; }
+  html, body { margin: 0; padding: 0; height: 100%; background: #1a1a1a; overflow: hidden; }
   html[data-theme="light"], html[data-theme="light"] body { background: #f6f1e6; }
   #root { height: 100vh; width: 100vw; }
 </style>
@@ -15,7 +15,7 @@
   // matches the user's saved choice. No FOUC on reload.
   (function () {
     try {
-      var t = localStorage.getItem("vb.theme");
+      var t = localStorage.getItem("cm:theme");
       if (t !== "light" && t !== "dark") {
         t = window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
       }
