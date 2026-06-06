@@ -21,8 +21,11 @@ export function modelName(raw) {
   for (const m of MODELS) {
     if (raw === m.id || m.aliases.includes(raw)) return m.name;
   }
-  const match = raw.match(/claude-(\w+)-(\d[\d.]*)/);
-  if (match) return match[1].charAt(0).toUpperCase() + match[1].slice(1) + " " + match[2];
+  const match = raw.match(/claude-([a-z]+)-(\d+(?:[.-]\d+)*)/i);
+  if (match) {
+    const version = match[2].split(/[.-]/).filter((p) => p.length < 4).join(".");
+    return match[1].charAt(0).toUpperCase() + match[1].slice(1) + " " + version;
+  }
   return raw;
 }
 
