@@ -26,6 +26,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         supervisor: c.supervisor, ports: c.portAllocator,
         clock: c.clock, ids: c.ids, log: c.log,
         buildArgs: c.buildArgs, buildEnv: c.buildEnv, logFileFor: c.logFileFor,
+        backend: c.claudeCliBackend,
         recents: c.recents,
       },
       {

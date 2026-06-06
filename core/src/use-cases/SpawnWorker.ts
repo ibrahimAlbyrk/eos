@@ -11,6 +11,7 @@ import type { Clock } from "../ports/Clock.ts";
 import type { IdGenerator } from "../ports/IdGenerator.ts";
 import type { Logger } from "../ports/Logger.ts";
 import type { RecentsRepo } from "../ports/RecentsRepo.ts";
+import type { AgentBackend } from "../ports/AgentBackend.ts";
 
 export interface SpawnWorkerSpec {
   prompt: string;
@@ -49,6 +50,10 @@ export interface SpawnWorkerDeps {
   buildEnv(input: { id: string; spec: SpawnWorkerSpec }): Record<string, string>;
   /** Path where the supervisor should pipe the child's stdout/stderr. */
   logFileFor(id: string): string;
+  /** When injected, spawning goes through the AgentBackend (the claude-cli
+   *  adapter owns port + argv + child). Absent → legacy supervisor path, which
+   *  the unit tests exercise. This is the Phase 1 kill switch. */
+  backend?: AgentBackend;
   /** Recent-folders log; updated with the resolved cwd after every spawn. */
   recents?: RecentsRepo;
 }
@@ -60,7 +65,6 @@ export async function spawnWorker(
   const resolved = spec.parentId ? { ...spec, persistent: true } : spec;
 
   const id = resolved.fixedId ?? deps.ids.newWorkerId();
-  const port = await deps.ports.allocate();
   const model = resolved.model ?? "opus";
   const effort = resolved.effort ?? "high";
 
@@ -78,22 +82,57 @@ export async function spawnWorker(
       : resolved.branch;
   const withBranch = { ...resolved, branch };
 
-  const args = deps.buildArgs({ id, port, spec: withBranch, model });
-  const env = deps.buildEnv({ id, spec: withBranch });
-  const logFile = deps.logFileFor(id);
+  // Daemon bookkeeping on child exit — shared by both spawn paths. The backend
+  // path releases the port itself (it owns allocation); the legacy path releases
+  // it here.
+  const onExit = (code: number | null): void => {
+    const now = deps.clock.now();
+    deps.workers.markDone(id, now, code);
+    deps.events.append(id, now, "exit", { code });
+    deps.bus.publish("worker:exit", { workerId: id, code });
+  };
 
-  const proc = deps.supervisor.spawn(id, {
-    args,
-    env,
-    logFile,
-    onExit: (code) => {
-      const now = deps.clock.now();
-      deps.workers.markDone(id, now, code);
-      deps.events.append(id, now, "exit", { code });
-      deps.bus.publish("worker:exit", { workerId: id, code });
-      deps.ports.release(port);
-    },
-  });
+  let port: number;
+  let pid: number | null;
+  let logArgs: string[] | null = null;
+
+  if (deps.backend) {
+    // Backend-driven spawn — the adapter owns port allocation + argv + the child
+    // process. SpawnWorker only persists the result + does daemon bookkeeping.
+    const session = await deps.backend.start(
+      {
+        workerId: id,
+        cwd: resolved.cwd ?? resolved.worktreeFrom ?? "",
+        model,
+        effort,
+        prompt: resolved.prompt,
+        systemPromptFile: resolved.systemPromptFile ?? null,
+        permissionMode: resolved.claudePermissionMode ?? null,
+        persistent: !!resolved.persistent,
+        parentId: resolved.parentId ?? null,
+        isOrchestrator: !!resolved.isOrchestrator,
+        backendOptions: { spec: withBranch },
+      },
+      { onExit },
+    );
+    port = session.handle.kind === "http" ? session.handle.port : 0;
+    pid = session.handle.kind === "http" ? session.handle.pid : null;
+  } else {
+    // Legacy supervisor path (kill switch: no backend injected; unit tests).
+    port = await deps.ports.allocate();
+    logArgs = deps.buildArgs({ id, port, spec: withBranch, model });
+    const env = deps.buildEnv({ id, spec: withBranch });
+    const proc = deps.supervisor.spawn(id, {
+      args: logArgs,
+      env,
+      logFile: deps.logFileFor(id),
+      onExit: (code) => {
+        onExit(code);
+        deps.ports.release(port);
+      },
+    });
+    pid = proc.pid;
+  }
 
   deps.workers.insert({
     id,
@@ -102,7 +141,7 @@ export async function spawnWorker(
     worktreeFrom: resolved.worktreeFrom ?? null,
     branch: withBranch.branch ?? null,
     name: resolved.name ?? null,
-    pid: proc.pid,
+    pid,
     port,
     startedAt: deps.clock.now(),
     parentId: resolved.parentId ?? null,
@@ -119,8 +158,8 @@ export async function spawnWorker(
   if (folder) deps.recents?.push(folder);
 
   const evtId = deps.events.append(id, deps.clock.now(), "spawn", {
-    args: args.slice(2),
-    pid: proc.pid,
+    ...(logArgs ? { args: logArgs.slice(2) } : {}),
+    pid,
   });
   deps.bus.publish("worker:spawn", { workerId: id, rowId: evtId });
   return { id, port };

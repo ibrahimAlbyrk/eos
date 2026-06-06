@@ -16,6 +16,7 @@ import { createLogger } from "../infra/src/observability/StructLogger.ts";
 import { createInMemoryEventBus } from "../infra/src/eventbus/InMemoryEventBus.ts";
 import { createPortAllocator } from "../infra/src/net/PortAllocator.ts";
 import { createChildProcessSupervisor } from "../infra/src/supervision/ChildProcessSupervisor.ts";
+import { createClaudeCliBackend } from "./backends/ClaudeCliBackend.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
 import { SqliteEventRepo } from "../infra/src/persistence/SqliteEventRepo.ts";
@@ -275,6 +276,18 @@ export function buildContainer() {
   // Reaper — reject pending questions whose TTL has elapsed.
   setInterval(() => pendingQuestions.sweepExpired(systemClock.now()), 30_000).unref();
 
+  // The claude-cli AgentBackend — wraps the existing supervisor + port allocator
+  // + worker client + argv builders behind the backend-agnostic port. SpawnWorker
+  // (and later DispatchMessage/KillWorker) drive execution through this.
+  const claudeCliBackend = createClaudeCliBackend({
+    supervisor,
+    ports: portAllocator,
+    client: httpWorkerClient,
+    buildArgs,
+    buildEnv,
+    logFileFor,
+  });
+
   return {
     get config() { return config; },
     log,
@@ -300,6 +313,7 @@ export function buildContainer() {
     buildArgs,
     buildEnv,
     logFileFor,
+    claudeCliBackend,
     turnSettle,
     pendingQuestions,
     cleanupMcpConfig,

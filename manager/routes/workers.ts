@@ -65,6 +65,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         buildArgs: c.buildArgs,
         buildEnv: c.buildEnv,
         logFileFor: c.logFileFor,
+        backend: c.claudeCliBackend,
         recents: c.recents,
       },
       spec,

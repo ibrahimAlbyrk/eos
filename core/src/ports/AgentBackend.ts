@@ -60,7 +60,13 @@ export interface AgentSession {
 
 export interface AgentBackend {
   readonly kind: string; // "claude-cli" | "anthropic-api" | …
-  start(spec: AgentLaunchSpec, cb?: AgentStartCallbacks): AgentSession;
+  // Spawn a NEW session for this spec (may allocate resources, e.g. a port).
+  start(spec: AgentLaunchSpec, cb?: AgentStartCallbacks): Promise<AgentSession>;
+  // Reconstruct a session for an ALREADY-running worker from its persisted
+  // handle (stateless — the daemon re-derives operations on demand, exactly as
+  // it does today via the port column; no in-memory session registry). Used by
+  // the message / kill / interrupt / keystroke paths.
+  attach(workerId: string, handle: WorkerHandle): AgentSession;
 }
 
 // Multi-backend selection — resolves a profile's kind to its adapter.

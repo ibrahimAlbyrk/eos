@@ -36,46 +36,57 @@ export function createFakeAgentBackend(): FakeAgentBackend {
   const exits = new Map<string, (code: number | null) => void>();
   const alive = new Map<string, boolean>();
 
+  const recordFor = (workerId: string): FakeSessionRecord => {
+    let rec = sessions.get(workerId);
+    if (!rec) {
+      rec = { workerId, messages: [], keystrokes: [], interrupts: 0, stopped: false };
+      sessions.set(workerId, rec);
+    }
+    return rec;
+  };
+
+  const makeSession = (workerId: string, handle: WorkerHandle): AgentSession => {
+    const rec = recordFor(workerId);
+    return {
+      workerId,
+      handle,
+      capabilities: FAKE_CAPS,
+      async sendMessage(text: string) {
+        rec.messages.push(text);
+        return { ok: true, status: 200, body: { ok: true } };
+      },
+      async sendKeystroke(keys: string) {
+        rec.keystrokes.push(keys);
+        return { ok: true };
+      },
+      async interrupt() {
+        rec.interrupts++;
+        return { ok: true };
+      },
+      stop() {
+        rec.stopped = true;
+        alive.set(workerId, false);
+      },
+      isAlive() {
+        return alive.get(workerId) ?? false;
+      },
+    };
+  };
+
   return {
     kind: "fake",
-    start(spec, cb?: AgentStartCallbacks): AgentSession {
-      const rec: FakeSessionRecord = {
-        workerId: spec.workerId,
-        messages: spec.prompt ? [spec.prompt] : [],
-        keystrokes: [],
-        interrupts: 0,
-        stopped: false,
-      };
-      sessions.set(spec.workerId, rec);
+    async start(spec, cb?: AgentStartCallbacks): Promise<AgentSession> {
+      const rec = recordFor(spec.workerId);
+      if (spec.prompt) rec.messages.push(spec.prompt);
       alive.set(spec.workerId, true);
       if (cb?.onExit) exits.set(spec.workerId, cb.onExit);
       const handle: WorkerHandle = { kind: "inproc", ref: spec.workerId };
       cb?.onSpawn?.(handle);
-
-      return {
-        workerId: spec.workerId,
-        handle,
-        capabilities: FAKE_CAPS,
-        async sendMessage(text: string) {
-          rec.messages.push(text);
-          return { ok: true, status: 200, body: { ok: true } };
-        },
-        async sendKeystroke(keys: string) {
-          rec.keystrokes.push(keys);
-          return { ok: true };
-        },
-        async interrupt() {
-          rec.interrupts++;
-          return { ok: true };
-        },
-        stop() {
-          rec.stopped = true;
-          alive.set(spec.workerId, false);
-        },
-        isAlive() {
-          return alive.get(spec.workerId) ?? false;
-        },
-      };
+      return makeSession(spec.workerId, handle);
+    },
+    attach(workerId, handle): AgentSession {
+      if (!alive.has(workerId)) alive.set(workerId, true);
+      return makeSession(workerId, handle);
     },
     sessions,
     exit(workerId: string, code = 0): void {
