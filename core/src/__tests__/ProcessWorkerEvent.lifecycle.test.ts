@@ -88,6 +88,21 @@ describe("ProcessWorkerEvent.lifecycle — claude_spawning worktree_dir enrichme
   });
 });
 
+describe("ProcessWorkerEvent.lifecycle — delivery_failed heal", () => {
+  it("heals WORKING → IDLE (the eager user_message lift was a lie)", () => {
+    const { deps, events, row } = buildDeps("WORKING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "delivery_failed", text: "lost prompt" } });
+    assert.equal(row.state, "IDLE");
+    assert.deepEqual(stateEvents(events), [{ state: "IDLE", from: "WORKING", reason: "delivery_failed" }]);
+  });
+
+  it("is a no-op when already IDLE", () => {
+    const { deps, events } = buildDeps("IDLE");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "delivery_failed" } });
+    assert.deepEqual(stateEvents(events), []);
+  });
+});
+
 describe("ProcessWorkerEvent.jsonl — IDLE self-heal", () => {
   it("recovers IDLE → WORKING when real JSONL lands", () => {
     const { deps, events } = buildDeps("IDLE");

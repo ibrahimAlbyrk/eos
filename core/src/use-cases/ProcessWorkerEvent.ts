@@ -105,6 +105,11 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
       if (typeof p?.worktreeDir === "string" && p.worktreeDir.length > 0) {
         deps.workers.setWorktreeDir(input.workerId, p.worktreeDir);
       }
+    } else if (phase === "delivery_failed") {
+      // The delivery pipeline gave up (no composer echo AND no transcript ACK
+      // across every attempt) — the eager WORKING set on user_message is a lie;
+      // heal back to IDLE so the failure is visible instead of a stuck spinner.
+      transitionState(deps, { workerId: input.workerId, next: "IDLE", reason: "delivery_failed" });
     }
   },
   heartbeat(deps, input) {
