@@ -19,6 +19,7 @@ import { createChildProcessSupervisor } from "../infra/src/supervision/ChildProc
 import { createClaudeCliBackend } from "./backends/ClaudeCliBackend.ts";
 import { createInProcessBackend } from "../infra/src/backends/InProcessBackend.ts";
 import { createAnthropicModelClient } from "../infra/src/backends/AnthropicModelClient.ts";
+import { createOpenAIModelClient } from "../infra/src/backends/OpenAIModelClient.ts";
 import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts";
 import type { AgentEvent } from "../contracts/src/canonical.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
@@ -314,9 +315,20 @@ export function buildContainer() {
     tools: new Map(),
     gate: { async decide() { return { allow: true }; } },
   }));
+  // OpenAI-compatible backends (OpenAI, Codex-via-API, or any compatible
+  // endpoint via OPENAI_BASE_URL). Same in-process ToolRuntime path.
+  const openaiEnv = (spec: { model: string }) => ({
+    model: createOpenAIModelClient({ apiKey: process.env.OPENAI_API_KEY ?? "", model: spec.model, baseUrl: process.env.OPENAI_BASE_URL }),
+    tools: new Map(),
+    gate: { async decide() { return { allow: true }; } },
+  });
+  const openaiBackend = createInProcessBackend("openai", openaiEnv);
+  const codexBackend = createInProcessBackend("codex", openaiEnv);
   const backendMap = new Map([
     ["claude-cli", claudeCliBackend],
     ["anthropic-api", anthropicBackend],
+    ["openai", openaiBackend],
+    ["codex", codexBackend],
   ]);
   const backends = {
     get(kind: string) { const b = backendMap.get(kind); if (!b) throw new Error(`unknown backend: ${kind}`); return b; },
