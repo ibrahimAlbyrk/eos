@@ -1,5 +1,6 @@
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { TabBar } from "../../components/TabBar.jsx";
+import { SettingsFooter } from "../../components/SettingsFooter.jsx";
 import { WorkflowsEmpty } from "./WorkflowsEmpty.jsx";
 
 function WorkflowsSidebar({ variant }) {
@@ -9,6 +10,7 @@ function WorkflowsSidebar({ variant }) {
       <div className="sb-head">
         <div className="sb-head__title">Workflows</div>
       </div>
+      <SettingsFooter />
     </>
   );
 

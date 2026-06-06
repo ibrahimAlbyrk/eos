@@ -3,6 +3,7 @@ import { useUi, UiProvider } from "./state/ui.jsx";
 import { useLive } from "./hooks/useLive.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { CommandPalette } from "./components/search/CommandPalette.jsx";
+import { SettingsModal } from "./components/settings/SettingsModal.jsx";
 import { getViewComponent } from "./views/registry.js";
 
 function Shell() {
@@ -20,6 +21,7 @@ function Shell() {
     <>
       <ActiveView live={live} />
       <CommandPalette live={live} />
+      <SettingsModal />
     </>
   );
 }

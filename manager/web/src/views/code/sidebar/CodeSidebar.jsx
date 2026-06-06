@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { TabBar } from "../../../components/TabBar.jsx";
+import { SettingsFooter } from "../../../components/SettingsFooter.jsx";
 import { SidebarHead } from "./SidebarHead.jsx";
 import { AgentsTree } from "./AgentsTree.jsx";
 import { buildAgentTree } from "../../../lib/tree.js";
@@ -15,6 +16,7 @@ export function CodeSidebar({ live, variant = "full" }) {
       <TabBar />
       <SidebarHead total={live.workers.length} variant={variant} />
       <AgentsTree roots={tree} onRename={live.renameAgent} />
+      <SettingsFooter />
     </>
   );
 

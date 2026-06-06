@@ -24,8 +24,9 @@ export function CommandPalette({ live }) {
       setActiveView: ui.setActiveView,
       setSelectedId: ui.setSelectedId,
       updateComposer: ui.updateComposer,
+      openSettings: ui.openSettings,
     }),
-    [live?.workers, live?.workflows, templates, ui.setActiveView, ui.setSelectedId, ui.updateComposer],
+    [live?.workers, live?.workflows, templates, ui.setActiveView, ui.setSelectedId, ui.updateComposer, ui.openSettings],
   );
 
   const groups = useMemo(

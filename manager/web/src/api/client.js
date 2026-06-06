@@ -251,6 +251,17 @@ export const api = {
     return del(ROUTES.template(name));
   },
 
+  // User settings — flat key→value map persisted daemon-side (localStorage
+  // is wiped on every Eos.app launch, so it can't hold durable settings).
+  async getSettings() {
+    const r = await getJson(ROUTES.settings);
+    if (!r.ok) throw new Error(`getSettings → ${r.status}`);
+    return r.body?.settings ?? {};
+  },
+  async patchSettings(patch) {
+    return putJson(ROUTES.settings, { settings: patch });
+  },
+
   async getWorkerDiff(id, { signal } = {}) {
     try {
       const r = await getJson(ROUTES.workerDiff(id), { signal });

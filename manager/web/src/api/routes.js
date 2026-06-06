@@ -47,6 +47,7 @@ export const ROUTES = {
   skillRead: "/skills/read",
   templates: "/api/templates",
   template: (name) => `/api/templates/${name}`,
+  settings: "/api/settings",
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
 };

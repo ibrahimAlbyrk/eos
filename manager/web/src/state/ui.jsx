@@ -4,12 +4,14 @@ import { SelectionProvider, useSelection } from "./selection.jsx";
 import { ComposerProvider, useComposer } from "./composer.jsx";
 import { NotificationProvider, useNotification } from "./notification.jsx";
 import { SearchProvider, useSearch } from "./search.jsx";
+import { SettingsProvider, useSettings } from "./settings.jsx";
 
 export { useNavigation } from "./navigation.jsx";
 export { useSelection } from "./selection.jsx";
 export { useComposer } from "./composer.jsx";
 export { useNotification } from "./notification.jsx";
 export { useSearch } from "./search.jsx";
+export { useSettings } from "./settings.jsx";
 
 export function UiProvider({ children }) {
   return (
@@ -18,7 +20,9 @@ export function UiProvider({ children }) {
         <ComposerProvider>
           <NotificationProvider>
             <SearchProvider>
-              {children}
+              <SettingsProvider>
+                {children}
+              </SettingsProvider>
             </SearchProvider>
           </NotificationProvider>
         </ComposerProvider>
@@ -33,6 +37,7 @@ export function useUi() {
   const composer = useComposer();
   const notification = useNotification();
   const search = useSearch();
+  const settings = useSettings();
 
   return useMemo(() => ({
     ...navigation,
@@ -40,5 +45,6 @@ export function useUi() {
     ...composer,
     ...notification,
     ...search,
-  }), [navigation, selection, composer, notification, search]);
+    ...settings,
+  }), [navigation, selection, composer, notification, search, settings]);
 }
