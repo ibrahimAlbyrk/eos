@@ -4,7 +4,7 @@
 // returned so the cleanup path can close it (chokidar inotify handles
 // outlive the worker otherwise and leak FDs).
 
-import { openSync, readSync, closeSync, existsSync, statSync } from "node:fs";
+import { openSync, readSync, closeSync, existsSync, statSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 
@@ -28,6 +28,32 @@ export interface TailContext {
   name: string;
   onEvent(type: string, payload: unknown): void;
   onActivity?(): void;
+}
+
+// Locate the transcript /clear just created. Claude's http SessionStart hook
+// never fires (empirically — not even at startup), so the only way to learn
+// the new session id is to find the new file itself. Discriminators: not the
+// old session, written after the clear, and its head contains the local
+// command record "<command-name>/clear" — that last check keeps a concurrent
+// worker sharing the same cwd from being mistaken for our new session.
+export function findClearedSessionJsonl(cwd: string, excludeSessionId: string, sinceMs: number): string | null {
+  const dir = join(homedir(), ".claude", "projects", encodeCwd(cwd));
+  let names: string[];
+  try { names = readdirSync(dir); } catch { return null; }
+  let best: { id: string; mtime: number } | null = null;
+  for (const n of names) {
+    if (!n.endsWith(".jsonl")) continue;
+    const id = n.slice(0, -".jsonl".length);
+    if (id === excludeSessionId) continue;
+    let mtime = 0;
+    try { mtime = statSync(join(dir, n)).mtimeMs; } catch { continue; }
+    if (mtime < sinceMs) continue;
+    let head = "";
+    try { head = readFileSync(join(dir, n), "utf8").slice(0, 8192); } catch { continue; }
+    if (!head.includes("<command-name>/clear")) continue;
+    if (!best || mtime > best.mtime) best = { id, mtime };
+  }
+  return best?.id ?? null;
 }
 
 export function startJsonlTail(ctx: TailContext): TailHandle {

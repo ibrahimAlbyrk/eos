@@ -17,7 +17,7 @@ import { buildClaudeSettings } from "./settings.ts";
 import { buildClaudeArgs } from "./claude-args.ts";
 import { buildSystemPromptFile } from "./prompt-context.ts";
 import { DeliveryPipeline } from "./delivery.ts";
-import { startJsonlTail, type TailHandle } from "./tail.ts";
+import { startJsonlTail, findClearedSessionJsonl, type TailHandle } from "./tail.ts";
 import { startIngestServer } from "./ingest.ts";
 import {
   newSessionState,
@@ -139,12 +139,16 @@ const pipeline = new DeliveryPipeline({
 });
 
 function deliver(text: string): void {
+  const startedTs = Date.now();
   void pipeline.enqueue(text).then((res) => {
     if (res.outcome === "failed") {
       // No turn started — stop the heartbeat from faking liveness so the
       // daemon-side delivery_failed IDLE heal sticks.
       state.lastTurnEndTs = Date.now();
-    } else {
+    } else if (state.lastTurnEndTs < startedTs) {
+      // Skip when the turn already ended mid-delivery (a one-shot command like
+      // /clear fires SessionEnd before the ACK resolves) — setting the flag
+      // then would leave it stuck open with no Stop ever coming.
       claudeTurnOpen = true;
     }
   });
@@ -232,6 +236,61 @@ function dispatchToPty(text: string): void {
   deliver(text);
 }
 
+function startTail(sessionId: string): TailHandle {
+  return startJsonlTail({
+    cwd: wt.cwd,
+    sessionId,
+    defaultModel: opts.model,
+    name,
+    onEvent: (t, p) => {
+      // user_text is the delivery pipeline's turn-ACK — consumed locally,
+      // never forwarded (the daemon's own user_message event already
+      // renders the message in the UI).
+      if (t === "jsonl" && (p as { kind?: string }).kind === "user_text") {
+        pipeline.notifyUserText((p as { text?: string }).text ?? "", Date.now());
+        return;
+      }
+      evt.emit(t, p);
+    },
+    onActivity: (): void => { state.lastJsonlActivityTs = Date.now(); },
+  });
+}
+
+// /clear rolls the session: new id, NEW transcript file — without a retarget
+// the whole post-clear conversation is invisible to the daemon.
+function swapSession(newSessionId: string, via: string): void {
+  if (state.sessionId === newSessionId) return;
+  console.log(`[${name}] session changed ${state.sessionId} → ${newSessionId} (via ${via})`);
+  state.sessionId = newSessionId;
+  agentToolUseIdCache.clear();
+  tailHandle?.close();
+  tailHandle = startTail(newSessionId);
+}
+
+// Claude's http SessionStart hook never fires, so after SessionEnd(clear) the
+// new session id must be discovered from disk: poll briefly for the new
+// transcript file. A hook from the new session arriving later (session_id
+// mismatch in onHook) is the self-healing fallback if the poll misses.
+const CLEAR_SWAP_POLL_MS = 150;
+const CLEAR_SWAP_DEADLINE_MS = 6000;
+let clearSwapTimer: ReturnType<typeof setInterval> | null = null;
+function watchForClearedSession(oldSessionId: string, clearTs: number): void {
+  if (clearSwapTimer) clearInterval(clearSwapTimer);
+  const deadline = Date.now() + CLEAR_SWAP_DEADLINE_MS;
+  clearSwapTimer = setInterval(() => {
+    const found = findClearedSessionJsonl(wt.cwd, oldSessionId, clearTs - 2000);
+    if (found) {
+      clearInterval(clearSwapTimer!);
+      clearSwapTimer = null;
+      swapSession(found, "clear-poll");
+    } else if (Date.now() > deadline) {
+      clearInterval(clearSwapTimer!);
+      clearSwapTimer = null;
+      console.log(`[${name}] cleared-session poll timed out — will heal on next hook`);
+    }
+  }, CLEAR_SWAP_POLL_MS);
+}
+
 const ingest = startIngestServer(opts.port, {
   onMessage(text): void {
     shutdown.cancel();
@@ -302,23 +361,17 @@ const ingest = startIngestServer(opts.port, {
     if (!state.sessionId && typeof body.session_id === "string") {
       state.sessionId = body.session_id;
       console.log(`[${name}] captured session=${state.sessionId} via ${eventName}`);
-      tailHandle = startJsonlTail({
-        cwd: wt.cwd,
-        sessionId: state.sessionId,
-        defaultModel: opts.model,
-        name,
-        onEvent: (t, p) => {
-          // user_text is the delivery pipeline's turn-ACK — consumed locally,
-          // never forwarded (the daemon's own user_message event already
-          // renders the message in the UI).
-          if (t === "jsonl" && (p as { kind?: string }).kind === "user_text") {
-            pipeline.notifyUserText((p as { text?: string }).text ?? "", Date.now());
-            return;
-          }
-          evt.emit(t, p);
-        },
-        onActivity: (): void => { state.lastJsonlActivityTs = Date.now(); },
-      });
+      tailHandle = startTail(state.sessionId);
+    } else if (
+      typeof body.session_id === "string" &&
+      state.sessionId !== null &&
+      state.sessionId !== body.session_id &&
+      eventName !== "SessionEnd"
+    ) {
+      // A hook from a session we are not tailing — the clear-poll missed (or
+      // something else rolled the session). SessionEnd excluded: it is the one
+      // hook that legitimately closes the OLD session.
+      swapSession(body.session_id, `hook:${eventName}`);
     }
     // Subagent inner-tool hooks carry agent_id; resolve it to the parent Agent
     // tool_use id so the UI attributes the tool deterministically. Parent-level
@@ -377,9 +430,15 @@ const ingest = startIngestServer(opts.port, {
       state.lastTurnEndTs = Date.now();
       if (!opts.persistent) shutdown.schedule();
     } else if (eventName === "SessionEnd") {
-      console.log(`[${name}][hook] SessionEnd`);
+      console.log(`[${name}][hook] SessionEnd reason=${String(body.reason ?? "")}`);
       state.lastTurnEndTs = Date.now();
-      if (!opts.persistent) shutdown.schedule();
+      // reason "clear" = /clear rolled the session; the process lives on —
+      // find the new transcript file instead of scheduling a shutdown.
+      if (body.reason === "clear") {
+        if (state.sessionId) watchForClearedSession(state.sessionId, Date.now());
+      } else if (!opts.persistent) {
+        shutdown.schedule();
+      }
     } else if (eventName === "Notification") {
       console.log(`[${name}][hook] Notification ${JSON.stringify(body).slice(0, 100)}`);
     } else {
@@ -402,6 +461,7 @@ function cleanup(code: number): void {
   heartbeat.stop();
   shutdown.cancel();
   readiness.cancel();
+  if (clearSwapTimer) { clearInterval(clearSwapTimer); clearSwapTimer = null; }
   if (tailHandle) { tailHandle.drainNow(); tailHandle.close(); tailHandle = null; }
   // Make absolutely sure the claude PTY child is signalled — process.exit
   // alone closes the master FD but a timing race can leave orphan claude

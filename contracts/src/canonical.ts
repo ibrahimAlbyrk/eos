@@ -102,9 +102,11 @@ export const UsageEventSchema = z.object({
 });
 
 // Session lifecycle — distinct from turn boundaries (boot / ready / exit).
+// "cleared" = the conversation was wiped in-place (Claude's /clear): the
+// process lives on with a fresh context, unlike "ended" which precedes exit.
 export const SessionEventSchema = z.object({
   type: z.literal("session"),
-  phase: z.enum(["started", "ready", "ended"]),
+  phase: z.enum(["started", "ready", "ended", "cleared"]),
   outcome: z.enum(["success", "killed", "crashed"]).optional(),
 });
 

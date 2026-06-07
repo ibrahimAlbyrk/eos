@@ -58,6 +58,7 @@ export const WorkerEventTypeSchema = z.enum([
   "question_pending",
   "question_answered",
   "conversation_rewound",
+  "conversation_cleared",
   "try_applied",
   "try_kept",
   "try_discarded",

@@ -66,6 +66,13 @@ test("hook Stop → turn ended; SessionEnd → session ended", () => {
   assert.deepEqual(mapValid("hook", { event: "SessionEnd", body: {} }), [{ type: "session", phase: "ended" }]);
 });
 
+test("hook SessionEnd reason=clear → session cleared (not ended)", () => {
+  assert.deepEqual(mapValid("hook", { event: "SessionEnd", body: { reason: "clear" } }),
+    [{ type: "session", phase: "cleared" }]);
+  assert.deepEqual(mapValid("hook", { event: "SessionEnd", body: { reason: "other" } }),
+    [{ type: "session", phase: "ended" }]);
+});
+
 test("tool_running / tool_done → activity with callId", () => {
   assert.deepEqual(mapValid("tool_running", { toolName: "Bash", toolUseId: "t1" }),
     [{ type: "activity", kind: "tool_started", toolName: "Bash", callId: "t1" }]);

@@ -36,7 +36,11 @@ export function buildClaudeSettings(name: string, port: number): BuiltSettings {
         hooks: {
           ...(repoRoot ? { PermissionRequest: [{ hooks: [{ type: "command", command: hookScript }] }] } : {}),
           PreToolUse: [httpHook("PreToolUse")],
-          SessionStart: [httpHook("SessionStart", "startup")],
+          // NOTE: http SessionStart hooks never fire (empirically — not even
+          // at startup). Kept wired with "clear" included in case that is
+          // fixed upstream; the tail retarget after /clear does NOT rely on
+          // it (worker.ts polls for the new transcript file instead).
+          SessionStart: [httpHook("SessionStart", "startup|clear")],
           Stop: [httpHook("Stop")],
           Notification: [httpHook("Notification")],
           PostToolUse: [httpHook("PostToolUse")],

@@ -98,6 +98,9 @@ function hookToCanonical(p: Rec): AgentEvent[] {
     case "SessionStart":
       return [{ type: "session", phase: "started" }];
     case "SessionEnd":
+      // /clear ends the session in name only — the process lives on with a
+      // fresh context. Mapping it to "ended" would trap the worker in ENDING.
+      if (str(body.reason) === "clear") return [{ type: "session", phase: "cleared" }];
       return [{ type: "session", phase: "ended" }];
     // Notification carries no state signal — mirror the legacy hook handler,
     // which ignores it (only PostToolUse / Stop / SessionEnd drive state).
