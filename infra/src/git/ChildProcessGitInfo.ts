@@ -6,7 +6,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { GitInfo, DiffStat, SyncStatus } from "../../../core/src/ports/GitInfo.ts";
-import type { ChangedFile, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
+import type { ChangedFile, CommitDetail, CommitFile, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
 import { mergeChanges, mergeChangesWithBase, parseNameStatusZ, parseNumstatZ, parsePorcelainZ, truncatePatch } from "./changes-parse.ts";
 
 const exec = promisify(execFile);
@@ -156,6 +156,40 @@ export const childProcessGitInfo: GitInfo = {
         .filter((c) => c.sha.length > 0);
     } catch {
       return [];
+    }
+  },
+
+  async commitDetail(cwd: string, sha: string): Promise<CommitDetail | null> {
+    try {
+      const meta = await runGit(cwd, ["show", "-s", `--format=%h%x1f%an%x1f%ct%x1f%s%x1f%b`, sha]);
+      const [short, author, ct, subject, body] = meta.split("\x1f");
+      if (!short?.trim()) return null;
+      // Reuse the -z parsers: name-status gives per-file status letters,
+      // numstat the per-file line counts.
+      const [nameStatus, numstat] = await Promise.all([
+        runGit(cwd, ["show", sha, "--name-status", "-z", "--format="]),
+        runGit(cwd, ["show", sha, "--numstat", "-z", "--format="]),
+      ]);
+      const counts = new Map(parseNumstatZ(numstat).map((n) => [n.path, n]));
+      const files: CommitFile[] = parseNameStatusZ(nameStatus).map((e) => ({
+        path: e.path,
+        ...(e.oldPath ? { oldPath: e.oldPath } : {}),
+        status: e.status,
+        insertions: counts.get(e.path)?.insertions ?? null,
+        deletions: counts.get(e.path)?.deletions ?? null,
+      }));
+      return {
+        sha: short.trim(),
+        author: author ?? "",
+        ts: (Number.parseInt(ct ?? "", 10) || 0) * 1000,
+        subject: subject ?? "",
+        body: (body ?? "").trim(),
+        insertions: files.reduce((n, f) => n + (f.insertions ?? 0), 0),
+        deletions: files.reduce((n, f) => n + (f.deletions ?? 0), 0),
+        files,
+      };
+    } catch {
+      return null;
     }
   },
 

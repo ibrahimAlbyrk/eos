@@ -2,7 +2,7 @@
 // shells out to the `git` binary; we keep the interface narrow so any future
 // libgit2 implementation can plug in without disturbing callers.
 
-import type { ChangedFile, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
+import type { ChangedFile, CommitDetail, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
 
 export interface DiffStat {
   insertions: number;
@@ -31,6 +31,9 @@ export interface GitInfo {
   /** Commits the upstream doesn't have (@{u}..HEAD), newest first. Empty when
    *  there's no upstream. */
   unpushedCommits(cwd: string): Promise<UnpushedCommit[]>;
+  /** Full detail of one commit (message body + per-file changes). Null when
+   *  the sha doesn't resolve. */
+  commitDetail(cwd: string, sha: string): Promise<CommitDetail | null>;
   /** Fork point: merge-base of cwd's HEAD and otherRepoRoot's HEAD (shared
    *  object store assumed — a worktree vs its source checkout). Null when
    *  either side can't resolve. */

@@ -230,6 +230,30 @@ export const UnpushedResponseSchema = z.object({
 });
 export type UnpushedResponse = z.infer<typeof UnpushedResponseSchema>;
 
+// ---- GET /fs/commit ----------------------------------------------------------
+// Full detail of one commit: message body + per-file change list.
+
+export const CommitFileSchema = z.object({
+  path: z.string(),
+  oldPath: z.string().optional(),
+  status: z.enum(["M", "A", "D", "R"]),
+  insertions: z.number().int().nonnegative().nullable(),
+  deletions: z.number().int().nonnegative().nullable(),
+});
+export type CommitFile = z.infer<typeof CommitFileSchema>;
+
+export const CommitDetailSchema = z.object({
+  sha: z.string(),
+  author: z.string(),
+  ts: z.number(),
+  subject: z.string(),
+  body: z.string(),
+  insertions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+  files: z.array(CommitFileSchema),
+});
+export type CommitDetail = z.infer<typeof CommitDetailSchema>;
+
 // ---- POST /fs/checkout -----------------------------------------------------
 
 export const FsCheckoutRequestSchema = z.object({
@@ -683,6 +707,7 @@ export const ROUTES = {
   fsIcon: "/fs/icon",
   fsBranches: "/fs/branches",
   fsUnpushed: "/fs/unpushed",
+  fsCommit: "/fs/commit",
   fsRecents: "/fs/recents",
   fsReveal: "/fs/reveal",
   fsRead: "/fs/read",

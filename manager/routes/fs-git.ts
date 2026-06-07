@@ -39,6 +39,18 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
     writeJson(res, 200, { commits: await c.git.unpushedCommits(q.cwd) });
   });
 
+  r.get("/fs/commit", async ({ url, res }) => {
+    const q = validate(BranchesQuerySchema, {
+      cwd: url.searchParams.get("cwd") ?? undefined,
+    });
+    const sha = url.searchParams.get("sha") ?? "";
+    if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
+    if (!/^[0-9a-f]{4,40}$/i.test(sha)) { writeJson(res, 400, { error: "valid sha required" }); return; }
+    const detail = await c.git.commitDetail(q.cwd, sha);
+    if (!detail) { writeJson(res, 404, { error: "commit not found" }); return; }
+    writeJson(res, 200, detail);
+  });
+
   r.post("/fs/checkout", async ({ req, res }) => {
     const body = await readBody(req) as { cwd?: string; branch?: string };
     if (!isSafeAbsPath(body.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }

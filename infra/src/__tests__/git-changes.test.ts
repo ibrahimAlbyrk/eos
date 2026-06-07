@@ -271,6 +271,16 @@ describe("base-aware diff (worktree fork point)", () => {
       assert.equal(commits[0].author, "tester");
       assert.ok(commits[0].ts > 0);
       assert.match(commits[0].sha, /^[0-9a-f]{7,}$/);
+
+      // Detail of the newest commit: per-file list + totals + body.
+      const detail = await gitInfo.commitDetail(clone, commits[0].sha);
+      assert.ok(detail);
+      assert.equal(detail.subject, "fix: second unpushed");
+      assert.equal(detail.files.length, 1);
+      assert.equal(detail.files[0].path, "p2.txt");
+      assert.equal(detail.files[0].status, "A");
+      assert.equal(detail.insertions, 1);
+      assert.equal(await gitInfo.commitDetail(clone, "deadbeef"), null);
     } finally {
       rmSync(cloneBase, { recursive: true, force: true });
     }
