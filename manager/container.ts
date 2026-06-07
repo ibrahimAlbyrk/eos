@@ -8,6 +8,7 @@ import { randomBytes } from "node:crypto";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from "node:fs";
 
 import { loadConfig, reloadConfig as reloadConfigFromDisk, type DaemonConfig, type ModelPrice } from "./shared/config.ts";
+import { expandPath } from "./shared/path.ts";
 import { buildWorkerArgs } from "./shared/worker-args.ts";
 import { errMsg } from "../contracts/src/util.ts";
 
@@ -169,9 +170,13 @@ export function buildContainer() {
   const backendResolver = new SqlBackedBackendResolver(workers, backendDefaults);
 
   // Policy gateway service --------------------------------------------------
+  // Plan-mode workers must still write their plan artifact — fileEdits under
+  // this dir classify as planFile and bypass the mode verdict.
+  const plansDir = join(expandPath(process.env.CLAUDE_CONFIG_DIR ?? "~/.claude")!, "plans");
   const policyGateway = new PolicyGatewayService({
     pending, events, bus, clock: systemClock, ids: randomIdGenerator,
     modeResolver,
+    plansDir,
     getPolicy: () => policy,
     onDecision: (behavior) => {
       if (behavior === "allow") metrics.policyAllow++;

@@ -26,6 +26,9 @@ export interface PolicyGatewayServiceDeps {
   clock: Clock;
   ids: IdGenerator;
   modeResolver: PermissionModeResolver;
+  /** Absolute path of the Claude plans dir (~/.claude/plans). When set,
+   * fileEdits targeting it classify as planFile (allowed in every mode). */
+  plansDir?: string;
   getPolicy(): Policy;
   /** Optional metrics hook called once per decision (after rule eval, before
    * any pending wait). */
@@ -118,7 +121,7 @@ export class PolicyGatewayService implements PolicyGateway {
     }
 
     const mode = this.deps.modeResolver.resolveFor(workerId);
-    const category = classifyTool(toolName);
+    const category = classifyTool(toolName, input, this.deps.plansDir);
     const verdict = MODE_SPECS[mode].decide(category);
     if (verdict === "allow") return { behavior: "allow", updatedInput: input };
     if (verdict === "deny") {

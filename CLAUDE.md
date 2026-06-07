@@ -92,7 +92,7 @@ The hook only accepts `"allow"`/`"deny"` behavior values; anything else falls th
 
 ### Per-worker permission mode
 
-`PolicyGatewayService.decide()` is a 3-step chain: (1) explicit `policy.yaml` rule wins; (2) else the worker's permission mode — `classifyTool()` buckets the tool into read/mcp/fileEdit/shell/network/other, then `MODE_SPECS[mode]` decides. `read` and `mcp__*` are **always allowed**; `acceptEdits` also allows fileEdit; `plan` denies fileEdit/shell/network; `bypassPermissions` allows all; `default` asks for anything not read/mcp. (3) else `policy.default`. Adding a mode is data-only: one entry in `MODE_SPECS` (`core/src/domain/permission-mode.ts`).
+`PolicyGatewayService.decide()` is a 3-step chain: (1) explicit `policy.yaml` rule wins; (2) else the worker's permission mode — `classifyTool()` buckets the tool into read/mcp/fileEdit/planFile/shell/network/other, then `MODE_SPECS[mode]` decides. `read`, `mcp__*` and `planFile` (a fileEdit targeting `~/.claude/plans/` — traversal-normalized, so plan mode can still write its plan artifact) are **always allowed**; `acceptEdits` also allows fileEdit; `plan` denies fileEdit/shell/network; `bypassPermissions` allows all; `default` asks for anything not read/mcp/planFile. (3) else `policy.default`. Adding a mode is data-only: one entry in `MODE_SPECS` (`core/src/domain/permission-mode.ts`).
 
 Effective mode = `SqlBackedModeResolver.resolveFor(id)`, which climbs `parent_id` until an ancestor has an explicit mode (children inherit the orchestrator's). `PUT /workers/:id/permission {mode, cascade?}` persists it and (cascade default ON) BFS-updates the whole subtree; children pick it up at their next tool-call, not via a live slash command.
 

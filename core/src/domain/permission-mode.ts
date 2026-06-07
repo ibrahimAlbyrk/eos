@@ -11,6 +11,7 @@ export type { PermissionMode };
 
 export type ToolCategory =
   | "fileEdit"   // Edit, Write, MultiEdit, NotebookEdit
+  | "planFile"   // fileEdit targeting the Claude plans dir (~/.claude/plans) — plan artifact, always allowed
   | "shell"      // Bash, BashOutput, KillBash
   | "read"       // Read, Glob, Grep, LS
   | "mcp"        // Any mcp__* tool — infrastructure, always allowed
@@ -29,31 +30,65 @@ const SHELL_TOOLS = new Set(["Bash", "BashOutput", "KillBash", "KillShell"]);
 const READ_TOOLS = new Set(["Read", "Glob", "Grep", "LS"]);
 const NETWORK_TOOLS = new Set(["WebFetch", "WebSearch"]);
 
-export function classifyTool(toolName: string): ToolCategory {
+// Pure segment-level resolution (core can't use node:path). Resolves "."/".."
+// so a traversal like plans/../../etc can't spoof the prefix check. Symlinks
+// are NOT resolved — creating one inside plansDir already requires write
+// access, so that escape is outside the threat model.
+function resolveSegments(p: string): string[] | null {
+  if (!p.startsWith("/")) return null;
+  const out: string[] = [];
+  for (const seg of p.split("/")) {
+    if (seg === "" || seg === ".") continue;
+    if (seg === "..") { out.pop(); continue; }
+    out.push(seg);
+  }
+  return out;
+}
+
+export function isPathInside(child: string, parent: string): boolean {
+  const c = resolveSegments(child);
+  const p = resolveSegments(parent);
+  if (!c || !p) return false;
+  if (c.length <= p.length) return false;
+  return p.every((seg, i) => c[i] === seg);
+}
+
+export function classifyTool(
+  toolName: string,
+  input?: Record<string, unknown>,
+  plansDir?: string,
+): ToolCategory {
   if (toolName.startsWith("mcp__")) return "mcp";
-  if (FILE_EDIT_TOOLS.has(toolName)) return "fileEdit";
+  if (FILE_EDIT_TOOLS.has(toolName)) {
+    if (plansDir && input) {
+      const target = input.file_path ?? input.notebook_path;
+      if (typeof target === "string" && isPathInside(target, plansDir)) return "planFile";
+    }
+    return "fileEdit";
+  }
   if (SHELL_TOOLS.has(toolName)) return "shell";
   if (READ_TOOLS.has(toolName)) return "read";
   if (NETWORK_TOOLS.has(toolName)) return "network";
   return "other";
 }
 
-// Per-mode verdict table. Read + MCP are always allowed across modes —
-// MCP because it's orchestration plumbing, read because it never mutates.
+// Per-mode verdict table. Read + MCP + planFile are always allowed across
+// modes — MCP because it's orchestration plumbing, read because it never
+// mutates, planFile because writing the plan artifact IS the planning work.
 // `plan` denies anything that could touch the world; `acceptEdits` waves
 // through file writes; `bypassPermissions` opens the floodgates.
 export const MODE_SPECS: Record<PermissionMode, ModeSpec> = {
   default: {
     mode: "default",
     decide(category) {
-      if (category === "mcp" || category === "read") return "allow";
+      if (category === "mcp" || category === "read" || category === "planFile") return "allow";
       return "ask";
     },
   },
   acceptEdits: {
     mode: "acceptEdits",
     decide(category) {
-      if (category === "mcp" || category === "read") return "allow";
+      if (category === "mcp" || category === "read" || category === "planFile") return "allow";
       if (category === "fileEdit") return "allow";
       return "ask";
     },
@@ -61,7 +96,7 @@ export const MODE_SPECS: Record<PermissionMode, ModeSpec> = {
   plan: {
     mode: "plan",
     decide(category) {
-      if (category === "mcp" || category === "read") return "allow";
+      if (category === "mcp" || category === "read" || category === "planFile") return "allow";
       if (category === "fileEdit" || category === "shell" || category === "network") return "deny";
       return "ask";
     },
