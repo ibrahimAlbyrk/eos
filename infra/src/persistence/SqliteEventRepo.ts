@@ -20,13 +20,15 @@ export class SqliteEventRepo implements EventRepo {
     this.stmtPatchPayload = db.prepare("UPDATE events SET payload = ? WHERE id = ?");
     // Newest-N-in-ASC-order — the daemon's default response shape for callers
     // that want "recent events" in chronological reading order.
+    // `id` tiebreak: same-ms events must keep insertion order — the web's
+    // tool-lifecycle barriers (Stop/exit close open tools) depend on it.
     this.stmtListDesc = db.prepare(
-      "SELECT * FROM (SELECT * FROM events WHERE worker_id = ? AND ts > ? ORDER BY ts DESC LIMIT ?) ORDER BY ts ASC",
+      "SELECT * FROM (SELECT * FROM events WHERE worker_id = ? AND ts > ? ORDER BY ts DESC, id DESC LIMIT ?) ORDER BY ts ASC, id ASC",
     );
     // Forward pagination — oldest-first after `since`. The web data layer
     // loops with the last-seen ts as the next cursor.
     this.stmtListAsc = db.prepare(
-      "SELECT * FROM events WHERE worker_id = ? AND ts > ? ORDER BY ts ASC LIMIT ?",
+      "SELECT * FROM events WHERE worker_id = ? AND ts > ? ORDER BY ts ASC, id ASC LIMIT ?",
     );
     this.stmtDeleteByWorker = db.prepare("DELETE FROM events WHERE worker_id = ?");
     this.stmtSumDeltaCost = db.prepare(

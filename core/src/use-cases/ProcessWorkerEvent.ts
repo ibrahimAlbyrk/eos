@@ -63,9 +63,9 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
   },
   hook(deps, input) {
     const evt = (input.payload as { event?: string })?.event;
-    if (evt === "PostToolUse") {
+    if (evt === "PostToolUse" || evt === "PostToolUseFailure") {
       if (deps.isSettling?.(input.workerId)) return;
-      transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: "hook:PostToolUse" });
+      transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: `hook:${evt}` });
     } else if (evt === "Stop") {
       // Turn ended. Open the settle window before going IDLE so trailing
       // transcript JSONL (which can arrive after this Stop via the unordered
