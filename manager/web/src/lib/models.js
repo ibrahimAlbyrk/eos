@@ -1,11 +1,13 @@
 // Baseline shown until the daemon's live catalog (GET /v1/models via
 // /api/ui-config) arrives; applyCatalog() then swaps the entries in place so
 // every consumer — including the settings registry's lazy options — sees the
-// fresh list on the next render.
+// fresh list on the next render. ctxTokens (from the API's maxInputTokens) is
+// the single source of truth for context-window size: the picker's "200k"/"1M"
+// label and the usage meter's total both derive from it.
 const BASELINE = [
-  { id: "haiku-4.5",  aliases: ["haiku"],  label: "haiku-4.5",  name: "Haiku 4.5",  ctx: "200k", tag: "fastest" },
-  { id: "sonnet-4.5", aliases: ["sonnet"], label: "sonnet-4.5", name: "Sonnet 4.5", ctx: "200k", tag: "balanced" },
-  { id: "opus-4.8",   aliases: ["opus"],   label: "opus-4.8",   name: "Opus 4.8",   ctx: "1M",   tag: "most capable" },
+  { id: "haiku-4.5",  aliases: ["haiku"],  label: "haiku-4.5",  name: "Haiku 4.5",  ctxTokens: 200_000,   tag: "fastest" },
+  { id: "sonnet-4.5", aliases: ["sonnet"], label: "sonnet-4.5", name: "Sonnet 4.5", ctxTokens: 1_000_000, tag: "balanced" },
+  { id: "opus-4.8",   aliases: ["opus"],   label: "opus-4.8",   name: "Opus 4.8",   ctxTokens: 1_000_000, tag: "most capable" },
 ];
 
 export const MODELS = [...BASELINE];
@@ -16,10 +18,20 @@ const FAMILIES = [
   { key: "opus",   tag: "most capable" },
 ];
 
-function formatCtx(maxInputTokens) {
-  if (!Number.isFinite(maxInputTokens) || maxInputTokens <= 0) return "";
-  if (maxInputTokens >= 1_000_000) return `${maxInputTokens / 1_000_000}M`;
-  return `${Math.round(maxInputTokens / 1000)}k`;
+function formatCtx(ctxTokens) {
+  if (!Number.isFinite(ctxTokens) || ctxTokens <= 0) return "";
+  if (ctxTokens >= 1_000_000) return `${ctxTokens / 1_000_000}M`;
+  return `${Math.round(ctxTokens / 1000)}k`;
+}
+
+function resolveModel(raw) {
+  if (!raw) return null;
+  for (const m of MODELS) {
+    if (raw === m.id || m.aliases.includes(raw)) return m;
+  }
+  const lower = String(raw).toLowerCase();
+  const family = FAMILIES.find(({ key }) => lower.includes(key));
+  return family ? MODELS.find((m) => m.id.startsWith(`${family.key}-`)) ?? null : null;
 }
 
 export function curateCatalog(catalog) {
@@ -40,7 +52,7 @@ export function curateCatalog(catalog) {
       aliases: [key, latest.id],
       label: shortId,
       name: String(latest.displayName ?? "").replace(/^Claude\s+/, "") || shortId,
-      ctx: formatCtx(latest.maxInputTokens),
+      ctxTokens: Number.isFinite(latest.maxInputTokens) && latest.maxInputTokens > 0 ? latest.maxInputTokens : null,
       tag,
     });
   }
@@ -68,9 +80,8 @@ export const EFFORT_LABELS = Object.fromEntries(EFFORTS.map((e) => [e.id, e.labe
 
 export function modelName(raw) {
   if (!raw) return null;
-  for (const m of MODELS) {
-    if (raw === m.id || m.aliases.includes(raw)) return m.name;
-  }
+  const m = MODELS.find((e) => raw === e.id || e.aliases.includes(raw));
+  if (m) return m.name;
   const match = raw.match(/claude-([a-z]+)-(\d+(?:[.-]\d+)*)/i);
   if (match) {
     const version = match[2].split(/[.-]/).filter((p) => p.length < 4).join(".");
@@ -80,9 +91,9 @@ export function modelName(raw) {
 }
 
 export function modelCtx(raw) {
-  if (!raw) return null;
-  for (const m of MODELS) {
-    if (raw === m.id || m.aliases.includes(raw)) return m.ctx;
-  }
-  return null;
+  return formatCtx(resolveModel(raw)?.ctxTokens) || null;
+}
+
+export function modelCtxTokens(raw) {
+  return resolveModel(raw)?.ctxTokens ?? null;
 }

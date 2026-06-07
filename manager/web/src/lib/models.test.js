@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { curateCatalog, modelName, modelCtx } from "./models.js";
+import { curateCatalog, modelName, modelCtx, modelCtxTokens } from "./models.js";
 
 // Shape mirrors what the daemon maps from GET /v1/models
 const CATALOG = [
@@ -24,11 +24,11 @@ describe("curateCatalog", () => {
       aliases: ["haiku", "claude-haiku-4-5-20251001"],
       label: "haiku-4.5",
       name: "Haiku 4.5",
-      ctx: "200k",
+      ctxTokens: 200_000,
       tag: "fastest",
     });
     expect(sonnet.name).toBe("Sonnet 4.6");
-    expect(sonnet.ctx).toBe("1M");
+    expect(sonnet.ctxTokens).toBe(1_000_000);
     expect(opus.aliases).toEqual(["opus", "claude-opus-4-8"]);
     expect(opus.tag).toBe("most capable");
   });
@@ -62,5 +62,11 @@ describe("model helpers", () => {
   it("modelCtx resolves known models", () => {
     expect(modelCtx("opus")).toBe("1M");
     expect(modelCtx("unknown-model")).toBe(null);
+  });
+
+  it("modelCtxTokens resolves aliases and family substrings", () => {
+    expect(modelCtxTokens("sonnet")).toBe(1_000_000);
+    expect(modelCtxTokens("claude-haiku-4-5-20251001")).toBe(200_000);
+    expect(modelCtxTokens("unknown-model")).toBe(null);
   });
 });
