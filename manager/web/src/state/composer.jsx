@@ -6,7 +6,7 @@ const DEFAULT_COMPOSER = {
   cwd: null,
   branch: null,
   model: "opus",
-  effort: "high",
+  effort: "xhigh",
   permissionMode: "acceptEdits",
   gitMode: false,
   // {content, ts} queued by the template picker / ⌘K palette; the Composer

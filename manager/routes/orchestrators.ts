@@ -41,7 +41,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         systemPromptFile: c.config.paths.orchestratorPromptFile,
         claudePermissionMode: body.permissionMode ?? "default",
         model: body.model ?? "opus",
-        effort: body.effort ?? "high",
+        effort: body.effort ?? "xhigh",
         isOrchestrator: true,
       },
     );
