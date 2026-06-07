@@ -323,6 +323,41 @@ export const WorkerDiffResponseSchema = z.object({
 });
 export type WorkerDiffResponse = z.infer<typeof WorkerDiffResponseSchema>;
 
+// ---- GET /workers/:id/changes ------------------------------------------------
+
+export const ChangedFileSchema = z.object({
+  path: z.string(),
+  oldPath: z.string().optional(),
+  status: z.enum(["M", "A", "D", "R"]),
+  insertions: z.number().int().nonnegative().nullable(),
+  deletions: z.number().int().nonnegative().nullable(),
+  untracked: z.boolean(),
+});
+export type ChangedFile = z.infer<typeof ChangedFileSchema>;
+
+export const WorkerChangesResponseSchema = z.object({
+  files: z.array(ChangedFileSchema),
+  insertions: z.number().int().nonnegative(),
+  deletions: z.number().int().nonnegative(),
+});
+export type WorkerChangesResponse = z.infer<typeof WorkerChangesResponseSchema>;
+
+// ---- GET /workers/:id/changes/file -------------------------------------------
+
+export const FileDiffQuerySchema = z.object({
+  path: z.string().min(1),
+  oldPath: z.string().optional(),
+});
+export type FileDiffQuery = z.infer<typeof FileDiffQuerySchema>;
+
+export const FileDiffResponseSchema = z.object({
+  path: z.string(),
+  patch: z.string(),
+  binary: z.boolean(),
+  truncated: z.boolean(),
+});
+export type FileDiffResponse = z.infer<typeof FileDiffResponseSchema>;
+
 // ---- GET /commands ---------------------------------------------------------
 
 export const CommandsQuerySchema = z.object({ cwd: z.string().optional() });
@@ -582,6 +617,8 @@ export const ROUTES = {
   workerPermission: (id: string): string => `/workers/${id}/permission`,
   workerModel: (id: string): string => `/workers/${id}/model`,
   workerDiff: (id: string): string => `/workers/${id}/diff`,
+  workerChanges: (id: string): string => `/workers/${id}/changes`,
+  workerFileDiff: (id: string): string => `/workers/${id}/changes/file`,
   workerInterrupt: (id: string): string => `/workers/${id}/interrupt`,
   workerKeystroke: (id: string): string => `/workers/${id}/keystroke`,
   workerQuestion: (id: string): string => `/workers/${id}/question`,

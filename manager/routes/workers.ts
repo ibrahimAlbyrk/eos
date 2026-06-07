@@ -18,7 +18,9 @@ import {
   NotifyRequestSchema,
   WorkerActionRequestSchema,
   RewindRequestSchema,
+  FileDiffQuerySchema,
 } from "../../contracts/src/http.ts";
+import type { WorkerRow } from "../../contracts/src/worker.ts";
 
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
 import { killWorker } from "../../core/src/use-cases/KillWorker.ts";
@@ -31,6 +33,13 @@ import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermi
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
+
+// Where the agent actually edits: the worktree dir when spawned with a
+// worktree (cwd is NULL for those rows), plain cwd otherwise. worktree_from
+// only as fallback for the window before worktree_dir enrichment lands.
+function gitDirOf(w: WorkerRow | null): string | null {
+  return w ? (w.worktree_dir ?? w.cwd ?? w.worktree_from ?? null) : null;
+}
 
 export function registerWorkerRoutes(r: Router, c: Container): void {
   r.get("/workers", ({ res }) => {
@@ -406,10 +415,35 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     // Return 200+zeros for both "missing worker" and "no cwd" so a poll that
     // races with a kill doesn't fire a 404 in the network log. Frontend
     // already treats zero stats as "nothing to show".
-    const w = c.workers.findById(params.id);
-    const cwd = w ? (w.worktree_from ?? w.cwd) : null;
-    if (!w || !cwd) { writeJson(res, 200, { insertions: 0, deletions: 0, files: 0 }); return; }
+    const cwd = gitDirOf(c.workers.findById(params.id));
+    if (!cwd) { writeJson(res, 200, { insertions: 0, deletions: 0, files: 0 }); return; }
     const stat = await c.git.diffShortStat(cwd);
     writeJson(res, 200, stat);
+  });
+
+  r.get(/^\/workers\/(?<id>[^/]+)\/changes$/, async ({ params, res }) => {
+    // Same 200+empty convention as /diff above.
+    const dir = gitDirOf(c.workers.findById(params.id));
+    if (!dir) { writeJson(res, 200, { files: [], insertions: 0, deletions: 0 }); return; }
+    const files = await c.git.changedFiles(dir);
+    writeJson(res, 200, {
+      files,
+      insertions: files.reduce((n, f) => n + (f.insertions ?? 0), 0),
+      deletions: files.reduce((n, f) => n + (f.deletions ?? 0), 0),
+    });
+  });
+
+  r.get(/^\/workers\/(?<id>[^/]+)\/changes\/file$/, async ({ params, url, res }) => {
+    const q = validate(FileDiffQuerySchema, {
+      path: url.searchParams.get("path") ?? undefined,
+      oldPath: url.searchParams.get("oldPath") ?? undefined,
+    });
+    if (q.path.startsWith("/") || q.path.split("/").includes("..")) {
+      writeJson(res, 400, { error: "path must be repo-relative" });
+      return;
+    }
+    const dir = gitDirOf(c.workers.findById(params.id));
+    if (!dir) { writeJson(res, 200, { path: q.path, patch: "", binary: false, truncated: false }); return; }
+    writeJson(res, 200, await c.git.fileDiff(dir, q.path, q.oldPath));
   });
 }
