@@ -11,6 +11,8 @@ export function AgentContextMenu({ live }) {
     ui.closeAllPops();
   };
 
+  // Direct kill, no confirm (user choice) — the eos/trash tombstone tag keeps
+  // unmerged branch commits recoverable, and dirty worktrees are preserved.
   const kill = async () => {
     if (!agentId) return;
     // Clear selection *before* the DELETE returns so any in-flight diff /
@@ -20,15 +22,12 @@ export function AgentContextMenu({ live }) {
     try {
       const r = await live.killAgent(agentId);
       if (!r?.ok) {
-        const msg = r?.body?.error ?? `status ${r?.status ?? "?"}`;
         // eslint-disable-next-line no-console
-        console.error("kill failed:", msg);
-        alert(`Kill failed: ${msg}`);
+        console.error("kill failed:", r?.body?.error ?? `status ${r?.status ?? "?"}`);
       }
     } catch (e) {
       // eslint-disable-next-line no-console
       console.error("kill threw:", e);
-      alert(`Kill threw: ${(e instanceof Error) ? e.message : String(e)}`);
     }
   };
 

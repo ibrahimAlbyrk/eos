@@ -217,6 +217,22 @@ export function buildBlocks(events) {
       }
       continue;
     }
+    if (ev.type === "worktree") {
+      const payload = parsePayload(ev.payload);
+      // Worker exited with uncommitted work — the worktree was preserved.
+      if (payload.phase === "preserved") {
+        flushTools();
+        lastAsst = null;
+        out.push({
+          kind: "worktreePreserved",
+          path: payload.path ?? "",
+          branch: payload.branch ?? "",
+          diffStat: payload.diffStat ?? "",
+          ts: ev.ts,
+        });
+      }
+      continue;
+    }
     if (ev.type !== "jsonl") continue;
     const p = parsePayload(ev.payload);
 

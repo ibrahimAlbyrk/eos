@@ -11,6 +11,7 @@ import { api } from "../../../api/client.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { deriveActivity } from "../../../lib/agentActivity.js";
 import { buildBlocks, applyRewinds, parsePayload } from "../../../lib/messageParser.js";
+import { deriveVerdict, deriveChildVerdicts } from "../../../lib/verdict.js";
 import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
 import { shouldStick, shouldAutoScroll } from "../../../lib/scrollStick.js";
 import { loadScrollPos, saveScrollPos, clearScrollPos } from "../../../lib/scrollMemory.js";
@@ -158,6 +159,22 @@ export function Messages({ live }) {
     ui.setPendingQuestion(pendingQuestions[0] ?? null);
   }, [pendingQuestions]);
 
+  // Publish verification verdicts for the chip consumers (diff row/viewer).
+  // Orchestrators get no self-verdict — their transcript merely ECHOES worker
+  // Handover lines (a chip on the orchestrator's own repo row would lie);
+  // instead each worker_report yields a per-child verdict for the hub strip.
+  const verdict = useMemo(() => deriveVerdict(events), [events]);
+  const childVerdicts = useMemo(() => deriveChildVerdicts(events), [events]);
+  useEffect(() => {
+    if (eventsForRef.current !== ui.selectedId) return;
+    const isOrch = Boolean(live.workers.find((w) => w.id === ui.selectedId)?.is_orchestrator);
+    ui.setVerdict({
+      workerId: ui.selectedId,
+      ...(isOrch ? { verdict: "unverified", command: null, ts: null } : verdict),
+      children: childVerdicts,
+    });
+  }, [verdict, childVerdicts, ui.selectedId, live.workers]);
+
   const blocks = useMemo(() => {
     const w = live.workers.find((x) => x.id === ui.selectedId);
     const bootPromptOffset = w?.parent_id && w?.prompt ? 1 : 0;
@@ -224,7 +241,7 @@ export function Messages({ live }) {
     live.sendToAgent(selectedWorker.id, combined);
   }, [agentBusy, blocks, interrupted]);
   const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "agentRun");
-  const showAnchor = !interrupted && ((agentBusy && blocks.length > 0) || isAgentReply);
+  const showAnchor = !interrupted && (agentBusy || isAgentReply);
 
   // Layout effect: the initial scroll must land before paint, otherwise the
   // content flashes at the top and visibly jumps to the restored position.
@@ -321,6 +338,18 @@ function renderBlock(b, key, cwd, ui, workers, animate) {
           message was not delivered{b.text ? ` — “${b.text}”` : ""} · try sending again
         </div>
       );
+    case "worktreePreserved": {
+      const fileCount = (b.diffStat ?? "").trim().split("\n").filter(Boolean).length;
+      return (
+        <div key={key} className="worktree-preserved mono">
+          <span className="wp-title">Worktree preserved</span>
+          <span className="wp-detail">
+            {b.branch} · {fileCount > 0 ? `${fileCount} file${fileCount === 1 ? "" : "s"} changed` : "uncommitted changes"} · {b.path}
+          </span>
+          <button className="wp-btn" onClick={() => api.revealFile(b.path)}>Reveal</button>
+        </div>
+      );
+    }
     default: return null;
   }
 }

@@ -3,6 +3,8 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { parsePatch } from "../../../lib/patch.js";
 import { highlightToLines } from "../../../lib/codeHighlight.jsx";
+import { gitAgentName } from "../../../lib/gitAgentName.js";
+import { useWorkerVerdict } from "../../../hooks/useWorkerVerdict.js";
 
 const REFRESH_DEBOUNCE_MS = 800;
 // Let the 280ms grid-columns animation finish before laying out the list —
@@ -76,14 +78,35 @@ function DiffViewerInner({ workerId, live }) {
     refresh();
   }, [workerId, refresh]);
 
+  const worker = live.workers.find((w) => w.id === workerId);
+  const isolated = Boolean(worker?.worktree_from && worker?.branch);
+
+  // Try state — defined BEFORE the SSE effect below that depends on it.
+  // Apply hides while a try is ACTIVE (banner's Keep/Discard owns it) and
+  // FOREVER once this worker's try was KEPT — the work is integrated; only
+  // Discard ever brings Apply back.
+  const [tryState, setTryState] = useState({ phase: "idle" });
+  const [tryInfo, setTryInfo] = useState(null);
+  useEffect(() => { setTryState({ phase: "idle" }); setTryInfo(null); }, [workerId]);
+
+  const refreshTry = useCallback(async () => {
+    if (!isolated) { setTryInfo(null); return; }
+    setTryInfo(await api.getTryState(workerId));
+  }, [workerId, isolated]);
+  useEffect(() => { refreshTry(); }, [refreshTry]);
+  const activeTry = tryInfo?.activeTry ?? null;
+  const kept = Boolean(tryInfo?.kept);
+
   // SSE-driven refetch: worker:change fires per tool event, so debounce.
+  // try_applied/kept/discarded stamp this worker's id too — refresh the try
+  // state in the same breath so the Apply button tracks the banner.
   const timerRef = useRef(null);
   useEffect(() => {
     if (live.eventSignal.workerId !== workerId) return;
     clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(refresh, REFRESH_DEBOUNCE_MS);
+    timerRef.current = setTimeout(() => { refresh(); refreshTry(); }, REFRESH_DEBOUNCE_MS);
     return () => clearTimeout(timerRef.current);
-  }, [live.eventSignal.tick, live.eventSignal.workerId, workerId, refresh]);
+  }, [live.eventSignal.tick, live.eventSignal.workerId, workerId, refresh, refreshTry]);
 
   // Stable identity so memoized FileCards don't re-render on sibling updates.
   const toggle = useCallback((file) => {
@@ -99,6 +122,53 @@ function DiffViewerInner({ workerId, live }) {
   const files = changes?.files ?? [];
   const ready = settled && changes !== null;
 
+  // Own verdict when this worker is selected (Messages publishes it);
+  // otherwise derive from the worker's own transcript (hub opens children's
+  // viewers without changing selection), with the report-parsed Handover as
+  // the last fallback.
+  const selectedVerdict = ui.verdict?.workerId === workerId ? ui.verdict : null;
+  const derived = useWorkerVerdict(workerId, live, { enabled: !selectedVerdict });
+  const verdict = selectedVerdict
+    ?? (derived && derived.verdict !== "unverified" ? derived : null)
+    ?? (ui.verdict?.children?.[workerId] ?? null);
+  const showVerdict = verdict && verdict.verdict !== "unverified";
+  const gitDir = worker?.worktree_dir ?? worker?.cwd ?? worker?.worktree_from ?? null;
+
+  // Apply is one click — tryApply re-validates everything server-side
+  // (snapshot → virtual merge → conflict + dirty-file checks) and writes only
+  // when all pass; failures come back as structured reasons with nothing
+  // half-applied. Conflicts flip the button to the git-agent escalation.
+  const applyTry = async () => {
+    setTryState({ phase: "applying" });
+    const r = await api.tryApply(workerId);
+    if (r.ok) { setTryState({ phase: "idle" }); await refreshTry(); return; }
+    const b = r.body ?? {};
+    if (b.reason === "conflicts") { setTryState({ phase: "conflicts", count: b.files?.length ?? 0 }); return; }
+    setTryState({
+      phase: "error",
+      msg: b.reason === "dirty-files"
+        ? `your checkout has local edits in ${(b.files ?? []).slice(0, 3).join(", ")}${(b.files?.length ?? 0) > 3 ? "…" : ""}`
+        : b.reason === "active-try"
+          ? "a try is already active in this repo"
+          : b.reason === "nothing-to-apply"
+            ? "nothing to apply"
+            : b.reason === "unsupported"
+              ? "needs git >= 2.38"
+              : b.error ?? b.detail ?? b.reason ?? "failed",
+    });
+  };
+
+  const resolveWithGitAgent = async () => {
+    if (!worker?.worktree_from || !worker?.branch) return;
+    const prompt = `Merge branch ${worker.branch} into the current branch. Context: ${worker.branch} is a live Eos agent worktree branch — never check it out or delete it. Resolve any conflicts preserving both sides' intent.`;
+    const r = await live.spawnGitAgent({
+      cwd: worker.worktree_from,
+      prompt,
+      name: gitAgentName(worker.worktree_from, worker.branch, `merge ${worker.branch}`),
+    });
+    if (r?.ok && r.body?.id) ui.setSelectedId(r.body.id);
+  };
+
   return (
     <>
       <div className="dv-head">
@@ -110,7 +180,58 @@ function DiffViewerInner({ workerId, live }) {
             <span className="dv-count">{files.length} {files.length === 1 ? "file" : "files"}</span>
           </span>
         )}
+        {showVerdict && (
+          <span className={"git-chip verdict-chip verdict-" + verdict.verdict} title={verdict.command ? `verified by: ${verdict.command}` : undefined}>
+            <span className="lbl">{verdict.verdict}</span>
+          </span>
+        )}
+        {isolated && (activeTry || kept) && (
+          <span className="git-chip applied-chip" title={kept ? "These changes were applied to your checkout and kept" : "These changes are currently applied in your checkout (Keep/Discard in the banner)"}>
+            <span className="lbl">applied</span>
+          </span>
+        )}
         <span className="dv-grow" />
+        {isolated && !activeTry && !kept && tryState.phase === "idle" && (
+          <button className="dv-act dv-act-apply" title="Apply these changes as unstaged edits in your checkout (Keep/Discard after testing)" onClick={applyTry}>
+            Apply
+          </button>
+        )}
+        {isolated && tryState.phase === "applying" && (
+          <button className="dv-act dv-act-apply" disabled>Applying…</button>
+        )}
+        {isolated && !activeTry && tryState.phase === "conflicts" && (
+          <button className="dv-act dv-act-conflict" title={`${tryState.count} file(s) would conflict — nothing was touched`} onClick={resolveWithGitAgent}>
+            Resolve with git agent
+          </button>
+        )}
+        {isolated && !activeTry && tryState.phase === "error" && (
+          <button className="dv-act dv-act-err" title="Click to retry" onClick={applyTry}>
+            {tryState.msg}
+          </button>
+        )}
+        {gitDir && (
+          <button
+            className="fv-icon-btn"
+            title="Reveal workspace in Finder"
+            onClick={() => api.revealFile(gitDir)}
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <path d="M2 5a1 1 0 0 1 1-1h3l2 2h5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" />
+            </svg>
+          </button>
+        )}
+        {gitDir && (
+          <button
+            className="fv-icon-btn"
+            title="Copy workspace path"
+            onClick={() => navigator.clipboard?.writeText(gitDir)}
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+              <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
+            </svg>
+          </button>
+        )}
         <button className="fv-icon-btn fv-close" onClick={ui.closeDiffViewer} title="Close">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="m4 4 8 8M12 4l-8 8" />

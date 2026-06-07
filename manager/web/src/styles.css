@@ -763,7 +763,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .messages-wrap {
   flex: 1;
   overflow-y: auto;
-  overscroll-behavior-y: contain;
+  /* none (not contain): contain still allows rubber-band overscroll in WKWebView,
+     so high-momentum wheels (free-spin) push content past the bottom edge */
+  overscroll-behavior-y: none;
   padding: 0 0 8px;
 }
 .messages {
@@ -870,7 +872,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 /* Hover action row (copy + timestamp) under text messages. Absolutely
    positioned into the message's own margin gap so revealing it never
    shifts layout — the transcript auto-scrolls and a reflow would jump it. */
-.msg-row { position: relative; }
+.msg-row { position: relative; margin-bottom: 38px; }
 .msg-actions {
   position: absolute;
   top: 100%;
@@ -1590,6 +1592,67 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   padding: 4px 0;
 }
 
+/* worker exited with uncommitted work — preserved worktree block in chat */
+.worktree-preserved {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-xs);
+  color: var(--fg-dim);
+  padding: 6px 10px;
+  border: 1px solid rgba(var(--tint), 0.1);
+  border-radius: 8px;
+  margin: 4px 0;
+  min-width: 0;
+}
+.worktree-preserved .wp-title { color: var(--warn); font-weight: 600; flex-shrink: 0; }
+.worktree-preserved .wp-detail { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.worktree-preserved .wp-btn {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: var(--text-xs);
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 6px;
+}
+.worktree-preserved .wp-btn:hover { text-decoration: underline; }
+
+/* active try banner — worker changes applied unstaged in the user checkout */
+.try-banner {
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  border-radius: 10px;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  font-size: var(--text-sm);
+}
+.try-banner-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.try-banner .try-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.try-banner .try-text { color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.try-banner .try-hint { color: var(--warn); }
+.try-banner .try-grow { flex: 1; }
+.try-banner .try-btn {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 4px 12px;
+  border: 1px solid rgba(var(--tint), 0.12);
+  background: rgba(var(--tint), 0.04);
+  color: var(--fg);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.try-banner .try-btn:disabled { opacity: 0.5; cursor: default; }
+.try-banner .try-keep { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.try-banner .try-discard { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, transparent); }
+.try-banner-err { margin-top: 6px; font-size: var(--text-xs); color: var(--err); }
+
 /* suggested action chip (e.g. "mcplerini listele") */
 .suggest {
   display: inline-flex;
@@ -1846,6 +1909,72 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .git-chip svg { flex-shrink: 0; display: block; }
 .git-chip .num { font-variant-numeric: tabular-nums; }
 .git-chip .lbl { color: currentColor; opacity: 0.7; font-size: var(--text-xs); }
+
+/* worktree isolation indicator — same repo as the diff badge */
+.isolated-chip {
+  color: var(--fg-dim);
+  background: rgba(var(--tint), 0.05);
+  border: 1px solid rgba(var(--tint), 0.1);
+}
+
+/* orchestrator hub: per-child integration panel ABOVE the repo/diff row —
+   same glass-card language as .c-row-diff so it reads as its own area */
+.child-int-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 4px;
+  background: rgba(var(--tint), 0.02);
+  border: 1px solid rgba(var(--tint), 0.035);
+  border-radius: 10px;
+}
+/* every child row may self-hide (clean + no verdict) — drop the empty shell */
+.child-int-panel:empty { display: none; }
+.child-int-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border-radius: 7px;
+  font-size: var(--text-sm);
+  min-width: 0;
+}
+.child-int-row:hover { background: rgba(var(--tint), 0.04); }
+.child-int-row .cir-name {
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.child-int-row .cir-clean { color: var(--fg-dim); font-size: var(--text-xs); opacity: 0.7; }
+
+/* Verify button feedback: spinner while the agent runs its checks */
+.verify-spin {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  border-top-color: transparent;
+  animation: verify-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes verify-spin { to { transform: rotate(360deg); } }
+.verify-busy { opacity: 0.75; cursor: default; display: inline-flex; align-items: center; gap: 6px; }
+.verify-failed { color: var(--err) !important; }
+
+/* verification verdict (advisory) — default state is no chip (unverified) */
+.verdict-chip { border: 1px solid transparent; }
+.verdict-chip .lbl { opacity: 1; font-weight: 600; }
+.verdict-passed { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.verdict-failed { color: var(--err); background: color-mix(in srgb, var(--err) 12%, transparent); }
+.verdict-blocked { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+.verdict-flaky { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+
+/* "applied" — the worker's changes live in the user's checkout (active try or kept) */
+.applied-chip { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.applied-chip .lbl { opacity: 1; font-weight: 600; }
 
 .sync-chip {
   background: color-mix(in srgb, var(--accent) 10%, transparent);
@@ -3547,26 +3676,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   border-left: 1px solid rgba(var(--tint), 0.08);
 }
 
-/* Worktree checkbox indicator (left of label) */
-.cb-worktree-check {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 12px;
-  height: 12px;
-  border-radius: 3px;
-  background: rgba(var(--tint), 0.06);
-  border: 1px solid rgba(var(--tint), 0.16);
-  color: transparent;
-  flex-shrink: 0;
-  transition: background 100ms;
-}
-.cb-chip--worktree.on .cb-worktree-check {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--on-accent);
-}
-.cb-chip--worktree.on { color: var(--accent); }
 .cb-branch-search {
   display: flex;
   align-items: center;
@@ -4437,6 +4546,25 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .dv-del { color: var(--err); }
 .dv-count { color: var(--fg-dim); }
 .dv-grow { flex: 1; }
+
+/* dv-head action buttons: Verify / Try / Apply / conflict escalation */
+.dv-act {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  border-radius: 6px;
+  padding: 4px 10px;
+  border: 1px solid rgba(var(--tint), 0.12);
+  background: rgba(var(--tint), 0.04);
+  color: var(--fg);
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.dv-act:hover { background: rgba(var(--tint), 0.08); }
+.dv-act:disabled { opacity: 0.5; cursor: default; }
+.dv-act-apply { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+.dv-act-conflict { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.dv-act-err { color: var(--err); border-color: color-mix(in srgb, var(--err) 35%, transparent); max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 
 .dv-list {
   flex: 1;

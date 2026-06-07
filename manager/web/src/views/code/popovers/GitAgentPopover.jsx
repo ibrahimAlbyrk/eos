@@ -109,6 +109,11 @@ export function GitAgentPopover({ live, cwd }) {
   };
 
   const current = info.current;
+  const selected = live.workers.find((w) => w.id === ui.selectedId);
+  // Worktree workers' cm-* branch: integrate it from the user's checkout —
+  // the popover's cwd — with the branch named explicitly (the git agent can't
+  // infer it from its own cwd).
+  const agentBranch = selected?.worktree_from && selected?.branch ? selected.branch : null;
   const allBranches = (info.branches ?? []).filter((b) => b !== current);
   const shown = filter
     ? allBranches.filter((b) => b.toLowerCase().includes(filter.toLowerCase()))
@@ -169,6 +174,12 @@ export function GitAgentPopover({ live, cwd }) {
             <CommitIcon />
             Commit changes
           </button>
+          {agentBranch && (
+            <button className="menu-item" onClick={() => spawn(`Merge branch ${agentBranch} into the current branch (${current}). Context: ${agentBranch} is a live Eos agent worktree branch — never check it out or delete it. Resolve any conflicts preserving both sides' intent.`, `merge ${agentBranch}`)}>
+              <MergeIcon />
+              <span className="gap-ellipsis">Integrate {agentBranch}</span>
+            </button>
+          )}
           <button className="menu-item" onClick={() => setPicking("rebase")}>
             <RebaseIcon />
             Rebase onto…

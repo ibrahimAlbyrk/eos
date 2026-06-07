@@ -2,6 +2,8 @@ import { useEffect, useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { basename } from "../../../lib/path.js";
+import { VerifyButton } from "../VerifyButton.jsx";
+import { useWorkerVerdict } from "../../../hooks/useWorkerVerdict.js";
 
 const DIFF_REFRESH_MS = 10000;
 
@@ -93,6 +95,82 @@ function SplitButton({ options, mode, onSelectMode, onAction, disabled, title })
   );
 }
 
+// Orchestrator hub strip: one row per worktree child with unintegrated work.
+// The user reviews/tests the whole fleet from the orchestrator screen — the
+// badge opens that child's Changes panel (Verify/Try live in its header)
+// without changing the selection.
+function ChildIntegrationRow({ child, ui, live }) {
+  const [diff, setDiff] = useState(null);
+  const [tryState, setTryState] = useState({ activeTry: null, kept: false });
+  const fetchRef = useRef(null);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchDiff = async () => {
+      const [r, ts] = await Promise.all([api.getWorkerDiff(child.id), api.getTryState(child.id)]);
+      if (!cancelled) { setDiff(r); setTryState(ts); }
+    };
+    fetchRef.current = fetchDiff;
+    fetchDiff();
+    const t = setInterval(fetchDiff, DIFF_REFRESH_MS);
+    return () => { cancelled = true; clearInterval(t); fetchRef.current = null; };
+  }, [child.id]);
+
+  // SSE-driven: the child's own activity (tool events, try_*) refreshes its
+  // badge promptly; debounced per burst, the interval above stays as the
+  // fallback for out-of-band edits.
+  useEffect(() => {
+    if (live.eventSignal.workerId !== child.id) return;
+    const t = setTimeout(() => fetchRef.current?.(), 600);
+    return () => clearTimeout(t);
+  }, [live.eventSignal.tick, live.eventSignal.workerId, child.id]);
+
+  // Verdict from the child's OWN transcript (same selector as its own view —
+  // covers a user-clicked /verify that produced no parent report); the
+  // report-parsed Handover stays as fallback.
+  const derived = useWorkerVerdict(child.id, live);
+  const reported = ui.verdict?.children?.[child.id] ?? null;
+  const verdict = derived && derived.verdict !== "unverified" ? derived : reported;
+  const applied = Boolean(tryState.kept || tryState.activeTry?.workerId === child.id);
+  const dirty = diff && (diff.insertions > 0 || diff.deletions > 0 || diff.files > 0);
+  if (!dirty && !verdict && !applied) return null;
+
+  const viewing = ui.diffViewer?.workerId === child.id;
+  return (
+    <div className="child-int-row">
+      <span className="cir-name" title={child.branch ?? undefined}>{child.name ?? child.id}</span>
+      {verdict && verdict.verdict !== "unverified" && (
+        <span className={"git-chip verdict-chip verdict-" + verdict.verdict} title={verdict.command ? `verified by: ${verdict.command}` : undefined}>
+          <span className="lbl">{verdict.verdict}</span>
+        </span>
+      )}
+      {applied && (
+        <span className="git-chip applied-chip" title={tryState.kept ? "These changes were applied to your checkout and kept" : "These changes are currently applied in your checkout"}>
+          <span className="lbl">applied</span>
+        </span>
+      )}
+      <span className="diff-grow"></span>
+      {dirty ? (
+        <button
+          className={"diff-badge diff-badge-btn" + (viewing ? " on" : "")}
+          title="Review, verify and try this worker's changes"
+          onClick={() => (viewing ? ui.closeDiffViewer() : ui.openDiffViewer(child.id))}
+        >
+          {diff.insertions > 0 || diff.deletions > 0 ? (
+            <>
+              +{diff.insertions.toLocaleString()}{" "}
+              <span className="diff-neg">−{diff.deletions.toLocaleString()}</span>
+            </>
+          ) : (
+            <>{diff.files} new</>
+          )}
+        </button>
+      ) : (
+        <span className="cir-clean">integrated</span>
+      )}
+    </div>
+  );
+}
+
 export function ComposerDiffRow({ live }) {
   const ui = useUi();
   const selected = live.workers.find((w) => w.id === ui.selectedId);
@@ -107,6 +185,8 @@ export function ComposerDiffRow({ live }) {
   const [stash, setStash] = useState(0);
   const [conflicts, setConflicts] = useState(0);
 
+  const fetchDiffRef = useRef(null);
+
   useEffect(() => {
     if (!ui.selectedId) return;
     const ac = new AbortController();
@@ -120,8 +200,12 @@ export function ComposerDiffRow({ live }) {
         }
       } catch {}
     };
+    fetchDiffRef.current = fetchDiff;
     const checkGit = async () => {
-      const cwd = selected?.cwd ?? selected?.worktree_from;
+      // Where the agent actually edits: worktree dir first (cwd is NULL for
+      // worktree rows) — otherwise these chips describe the USER'S repo while
+      // the diff badge reads the worktree.
+      const cwd = selected?.worktree_dir ?? selected?.cwd ?? selected?.worktree_from;
       if (!cwd) return;
       try {
         const r = await api.listBranches(cwd);
@@ -139,13 +223,31 @@ export function ComposerDiffRow({ live }) {
     checkGit();
     fetchDiff();
     const t = setInterval(() => { fetchDiff(); checkGit(); }, DIFF_REFRESH_MS);
-    return () => { cancelled = true; clearInterval(t); ac.abort(); };
-  }, [ui.selectedId, selected?.cwd, selected?.worktree_from]);
+    return () => { cancelled = true; clearInterval(t); ac.abort(); fetchDiffRef.current = null; };
+  }, [ui.selectedId, selected?.cwd, selected?.worktree_from, selected?.worktree_dir]);
+
+  // SSE-driven: the selected agent's activity refreshes the badge promptly.
+  // Debounced per event burst; /diff is one cheap git call, and identical
+  // in-flight GETs are deduplicated by the client. The interval above stays
+  // as the fallback for edits that emit no events.
+  useEffect(() => {
+    if (live.eventSignal.workerId !== ui.selectedId) return;
+    const t = setTimeout(() => fetchDiffRef.current?.(), 600);
+    return () => clearTimeout(t);
+  }, [live.eventSignal.tick, live.eventSignal.workerId, ui.selectedId]);
 
   if (!selected || !isGit) return null;
 
+  const isolated = Boolean(selected.worktree_dir || (selected.worktree_from && selected.branch));
+  const isOrchestrator = Boolean(selected.is_orchestrator);
   const folder = basename(selected.cwd ?? selected.worktree_from ?? "");
   const branch = currentBranch ?? selected.branch ?? null;
+  const verdict = ui.verdict?.workerId === selected.id ? ui.verdict : null;
+  const showVerdict = verdict && verdict.verdict !== "unverified";
+  // Hub strip: the orchestrator's worktree children, reviewed/tried from here.
+  const childWorkers = isOrchestrator
+    ? live.workers.filter((w) => w.parent_id === selected.id && w.worktree_from && w.branch)
+    : [];
 
   const handlePrAction = (id) => {
     if (id === "manual") {
@@ -172,6 +274,14 @@ export function ComposerDiffRow({ live }) {
   const showPushOnly = !dirty && ahead > 0;
 
   return (
+    <>
+    {childWorkers.length > 0 && (
+      <div className="child-int-panel">
+        {childWorkers.map((w) => (
+          <ChildIntegrationRow key={w.id} child={w} ui={ui} live={live} />
+        ))}
+      </div>
+    )}
     <div className="c-row-diff" id="composerDiffRow">
       <span className="diff-repo-label">
         <b>{folder}</b>
@@ -182,6 +292,20 @@ export function ComposerDiffRow({ live }) {
           </>
         )}
       </span>
+      {isolated && (
+        <span className="git-chip isolated-chip" title={`Isolated worktree — changes are invisible to your checkout until you Try/integrate them.\n${selected.worktree_dir ?? ""}`}>
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+            <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
+            <path d="M5.5 8h5M8 5.5v5" />
+          </svg>
+          <span className="lbl">isolated</span>
+        </span>
+      )}
+      {showVerdict && (
+        <span className={"git-chip verdict-chip verdict-" + verdict.verdict} title={verdict.command ? `verified by: ${verdict.command}` : undefined}>
+          <span className="lbl">{verdict.verdict}</span>
+        </span>
+      )}
       <span className="diff-grow"></span>
       {showSync && (
         <span className="git-chip sync-chip">
@@ -226,15 +350,28 @@ export function ComposerDiffRow({ live }) {
           <span className="lbl">{conflicts === 1 ? "conflict" : "conflicts"}</span>
         </span>
       )}
-      {(diff?.insertions > 0 || diff?.deletions > 0) && (
+      {(diff?.insertions > 0 || diff?.deletions > 0 || diff?.files > 0) && (
         <button
           className={"diff-badge diff-badge-btn" + (ui.diffViewer ? " on" : "")}
           title="View changes"
           onClick={() => (ui.diffViewer ? ui.closeDiffViewer() : ui.openDiffViewer(ui.selectedId))}
         >
-          +{diff.insertions.toLocaleString()}{" "}
-          <span className="diff-neg">−{diff.deletions.toLocaleString()}</span>
+          {diff.insertions > 0 || diff.deletions > 0 ? (
+            <>
+              +{diff.insertions.toLocaleString()}{" "}
+              <span className="diff-neg">−{diff.deletions.toLocaleString()}</span>
+            </>
+          ) : (
+            <>{diff.files} new</>
+          )}
         </button>
+      )}
+      {dirty && !isOrchestrator && (
+        <VerifyButton
+          workerId={ui.selectedId}
+          workerState={selected.state}
+          className="pr-create-btn pr-solo"
+        />
       )}
       {dirty && (
         <SplitButton
@@ -259,5 +396,6 @@ export function ComposerDiffRow({ live }) {
         onAction={handlePrAction}
       />
     </div>
+    </>
   );
 }

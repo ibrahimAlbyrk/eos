@@ -22,6 +22,10 @@ export function SelectionProvider({ children }) {
   const [diffViewer, setDiffViewer] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [pendingQuestion, setPendingQuestion] = useState(null);
+  // {workerId, verdict, command, ts} — derived by Messages from the loaded
+  // event window (same publish pattern as pendingQuestion); read by the
+  // diff row / diff viewer verdict chips. Advisory only.
+  const [verdict, setVerdict] = useState(null);
   const [dismissedQuestions, setDismissedQuestions] = useState(() => new Set());
   const dismissQuestion = useCallback((toolUseId) => {
     setDismissedQuestions((prev) => new Set(prev).add(toolUseId));
@@ -125,6 +129,7 @@ export function SelectionProvider({ children }) {
     expandedTools, toggleToolExpanded,
     renamingId, setRenamingId,
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
+    verdict, setVerdict,
     fileViewer, openFileViewer, closeFileViewer,
     agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     diffViewer, openDiffViewer, closeDiffViewer,
@@ -133,7 +138,7 @@ export function SelectionProvider({ children }) {
     registerEscapeGitMode,
   }), [
     selectedId, sideCollapsed, openPopover, popoverPos, popoverData,
-    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, fileViewer, agentViewer, diffViewer,
+    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, fileViewer, agentViewer, diffViewer,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded,
     openFileViewer, closeFileViewer,

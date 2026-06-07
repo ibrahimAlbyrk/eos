@@ -19,6 +19,7 @@ import { FileMenu } from "./FileMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
 import { PermissionBanner } from "./PermissionBanner.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
+import { TryBanner } from "./TryBanner.jsx";
 
 function QueuedPill({ text, onDismiss }) {
   return (
@@ -308,12 +309,18 @@ export function Composer({ live }) {
     agentText += suffix;
 
     if (ui.composer.gitMode) {
+      // Git agents always run in the user's checkout (correct for integrating
+      // a worker's cm-* branch) — but they must be told which branch matters,
+      // since their cwd's current branch is the user's, not the worker's.
       const gitCwd = selected
         ? (selected.cwd ?? selected.worktree_from)
         : (ui.composer.cwd ?? live.recents[0] ?? null);
       if (!gitCwd) { alert("Pick a folder first."); return; }
       ui.updateComposer({ gitMode: false });
       const gitBranch = selected?.branch ?? ui.composer.branch ?? null;
+      if (selected?.branch && selected?.worktree_from) {
+        agentText = `Context: the selected Eos worker's branch is ${selected.branch} (a live agent worktree — never check it out or delete it).\n\n${agentText}`;
+      }
       const r = await live.spawnGitAgent({
         cwd: gitCwd,
         prompt: agentText,
@@ -513,6 +520,7 @@ export function Composer({ live }) {
           onAlwaysAllow={live.alwaysAllowPending}
           onDeny={live.denyPending}
         />
+        <TryBanner live={live} selected={selected} />
         {selected ? (
           <ComposerDiffRow live={live} />
         ) : (

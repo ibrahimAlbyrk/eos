@@ -30,15 +30,24 @@ async function getJson(path, { signal } = {}) {
   return { ok: true, status: r.status, body: parsed };
 }
 
-async function postJson(path, body) {
+async function postJson(path, body, extraHeaders) {
   const r = await fetch(`${DAEMON}${path}`, {
     method: "POST",
-    headers: JSON_HEADERS,
+    headers: extraHeaders ? { ...JSON_HEADERS, ...extraHeaders } : JSON_HEADERS,
     body: JSON.stringify(body ?? {}),
   });
   let parsed = null;
   try { parsed = await r.json(); } catch {}
   return { ok: r.ok, status: r.status, body: parsed };
+}
+
+// Per-boot UI-origin token, injected by the native app shell (WKUserScript).
+// Required on checkout-mutating endpoints so agents holding the daemon URL
+// cannot self-apply.
+function uiTokenHeader() {
+  return typeof window !== "undefined" && window.__EOS_UI_TOKEN
+    ? { "x-eos-ui-token": window.__EOS_UI_TOKEN }
+    : {};
 }
 
 async function del(path) {
@@ -293,6 +302,26 @@ export const api = {
     const r = await getJson(`${ROUTES.workerFileDiff(id)}?${params}`);
     if (!r.ok) throw new Error(`fileDiff → ${r.status}`);
     return r.body;
+  },
+
+  // Try (unstaged apply) — state is a read; apply/keep/discard mutate the
+  // user's checkout and carry the UI token.
+  async getTryState(id) {
+    try {
+      const r = await getJson(ROUTES.workerTryState(id));
+      return r.ok ? r.body : { activeTry: null, kept: false };
+    } catch {
+      return { activeTry: null, kept: false };
+    }
+  },
+  async tryApply(id) {
+    return postJson(ROUTES.workerTry(id), {}, uiTokenHeader());
+  },
+  async tryKeep(id) {
+    return postJson(ROUTES.workerTryKeep(id), {}, uiTokenHeader());
+  },
+  async tryDiscard(id) {
+    return postJson(ROUTES.workerTryDiscard(id), {}, uiTokenHeader());
   },
 
   // SSE — returns the EventSource so the caller can attach listeners. The

@@ -60,11 +60,6 @@ export function ComposerConfigRow({ live }) {
     else ui.openPop(id);
   };
 
-  const toggleWt = () => updateState({ worktree: !state.worktree });
-
-  const worktreeCls = ["cb-chip", "cb-chip--in-group", "cb-chip--worktree"];
-  if (state.worktree) worktreeCls.push("on");
-
   return (
     <div className="c-row1 c-row1--config" id="composerConfigRow">
       <div className="cb-chip-wrap">
@@ -99,18 +94,6 @@ export function ComposerConfigRow({ live }) {
           </button>
           <BranchDropdown live={live} cwd={cwd} />
         </div>
-
-        <button
-          className={worktreeCls.join(" ")}
-          onClick={toggleWt}
-        >
-          <span className="cb-worktree-check" aria-hidden="true">
-            <svg className="check-icon" width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="m3 8 3 3 7-7" />
-            </svg>
-          </span>
-          <span>worktree</span>
-        </button>
       </div>}
     </div>
   );

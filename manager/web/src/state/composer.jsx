@@ -5,7 +5,6 @@ const ComposerContext = createContext(null);
 const DEFAULT_COMPOSER = {
   cwd: null,
   branch: null,
-  worktree: false,
   model: "opus",
   effort: "high",
   permissionMode: "acceptEdits",
