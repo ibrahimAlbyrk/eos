@@ -15,6 +15,7 @@ import { createDaemonEventClient } from "./events.ts";
 import { setupWorktree, teardownWorktree } from "./worktree.ts";
 import { buildClaudeSettings } from "./settings.ts";
 import { buildClaudeArgs } from "./claude-args.ts";
+import { buildSystemPromptFile } from "./prompt-context.ts";
 import { DeliveryPipeline } from "./delivery.ts";
 import { startJsonlTail, type TailHandle } from "./tail.ts";
 import { startIngestServer } from "./ingest.ts";
@@ -57,10 +58,18 @@ const wt = setupWorktree({
   cwd: opts.cwd,
   name,
   branch: opts.branch,
+  hydrateEnv: opts.hydrateEnv,
 }, (m) => console.log(`[${name}] ${m}`));
 
 const settings = buildClaudeSettings(name, opts.port);
-const claudeArgs = buildClaudeArgs(opts, settings.tmpDir, settings.settingsPath, {
+const systemPromptFile = buildSystemPromptFile({
+  staticPromptFile: opts.systemPromptFile,
+  wt,
+  tmpDir: settings.tmpDir,
+  name,
+  workerId: opts.workerId,
+});
+const claudeArgs = buildClaudeArgs({ ...opts, systemPromptFile }, settings.tmpDir, settings.settingsPath, {
   daemonUrl: opts.daemonUrl,
   workerId: opts.workerId,
 });
@@ -81,6 +90,7 @@ evt.emit("lifecycle", {
   cwd: wt.cwd,
   worktreeDir: wt.worktreeDir,
   branch: wt.branch,
+  ...(wt.hydration ? { hydration: wt.hydration } : {}),
 });
 
 const pty = ptySpawn(claudeBin, claudeArgs.args, {
@@ -97,6 +107,17 @@ const pty = ptySpawn(claudeBin, claudeArgs.args, {
           CLAUDE_MGR_DAEMON_URL: opts.daemonUrl,
         }
       : {}),
+    // Worktree awareness: realpath'd facts so the agent (and anything it
+    // spawns) can tell it is isolated. SOURCE_ROOT, not REPO_ROOT — that
+    // name already means the Eos repo in the inherited env.
+    ...(wt.worktreeDir && wt.branch && wt.repoRoot
+      ? {
+          CLAUDE_MGR_WORKTREE_DIR: wt.worktreeDir,
+          CLAUDE_MGR_WORKTREE_BRANCH: wt.branch,
+          CLAUDE_MGR_SOURCE_ROOT: wt.repoRoot,
+        }
+      : {}),
+    CLAUDE_MGR_ISOLATION: wt.worktreeDir ? "worktree" : "none",
   },
 });
 

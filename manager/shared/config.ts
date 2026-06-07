@@ -44,6 +44,10 @@ export interface DaemonConfig {
     heartbeatQuietMs: number;
     shutdownGraceMs: number;
     ptyWriteDelayMs: number;
+    // Worktree hydration copies gitignored node_modules into fresh worktrees
+    // unconditionally; .env* files carry secrets and are copied only when this
+    // opt-in is set.
+    hydrateEnvFiles: boolean;
   };
   permissions: {
     defaultTtlMs: number;
@@ -142,6 +146,7 @@ function defaults(): DaemonConfig {
       heartbeatQuietMs: envNum("CLAUDE_MGR_HEARTBEAT_QUIET_MS", 6000),
       shutdownGraceMs: envNum("CLAUDE_MGR_SHUTDOWN_GRACE_MS", 2500),
       ptyWriteDelayMs: envNum("CLAUDE_MGR_PTY_WRITE_DELAY_MS", 300),
+      hydrateEnvFiles: envStr("CLAUDE_MGR_HYDRATE_ENV_FILES", "") === "1",
     },
     permissions: {
       defaultTtlMs: envNum("CLAUDE_MGR_PERMISSION_TTL_MS", 0),
@@ -196,6 +201,7 @@ const DaemonConfigOverrideSchema = z.object({
     heartbeatQuietMs: z.number().int().positive(),
     shutdownGraceMs: z.number().int().positive(),
     ptyWriteDelayMs: z.number().int().nonnegative(),
+    hydrateEnvFiles: z.boolean(),
   }).partial().optional(),
   permissions: z.object({
     defaultTtlMs: z.number().int().positive(),

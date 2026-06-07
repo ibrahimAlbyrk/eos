@@ -6,12 +6,14 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, realpathSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { hydrateWorktree, type HydrationItem } from "./hydrate.ts";
 
 export interface WorktreeContext {
   repoRoot: string | null;
   worktreeDir: string | null;
   branch: string | null;
   cwd: string;
+  hydration: HydrationItem[] | null;
 }
 
 function git(args: string[], cwd?: string): { code: number; stdout: string; stderr: string } {
@@ -24,6 +26,7 @@ export interface WorktreeSpec {
   cwd: string | undefined;
   name: string;
   branch: string | undefined;
+  hydrateEnv: boolean;
 }
 
 /**
@@ -51,11 +54,17 @@ export function setupWorktree(spec: WorktreeSpec, log: (m: string) => void): Wor
     }
     const worktreeDir = realpathSync(wtPath);
     log(`worktree created: ${worktreeDir} on branch ${branch}`);
-    return { repoRoot, worktreeDir, branch, cwd: worktreeDir };
+    const hydration = hydrateWorktree({
+      repoRoot,
+      worktreeDir,
+      includeEnvFiles: spec.hydrateEnv,
+      log,
+    });
+    return { repoRoot, worktreeDir, branch, cwd: worktreeDir, hydration };
   }
   const cwd = realpathSync(resolve(spec.cwd!));
   mkdirSync(cwd, { recursive: true });
-  return { repoRoot: null, worktreeDir: null, branch: null, cwd };
+  return { repoRoot: null, worktreeDir: null, branch: null, cwd, hydration: null };
 }
 
 /**

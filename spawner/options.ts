@@ -10,6 +10,7 @@ export interface WorkerOptions {
   worktreeFrom: string | undefined;
   branch: string | undefined;
   keepWorktree: boolean;
+  hydrateEnv: boolean;
   withGateway: boolean;
   port: number;
   daemonUrl: string | undefined;
@@ -46,6 +47,7 @@ export function parseWorkerOptions(): WorkerOptions {
       "worktree-from": { type: "string" },
       branch: { type: "string" },
       "keep-worktree": { type: "boolean", default: false },
+      "hydrate-env": { type: "boolean", default: false },
       "with-gateway": { type: "boolean", default: false },
       port: { type: "string", default: "7421" },
       "daemon-url": { type: "string" },
@@ -84,6 +86,7 @@ export function parseWorkerOptions(): WorkerOptions {
     worktreeFrom: values["worktree-from"],
     branch: values.branch,
     keepWorktree: !!values["keep-worktree"],
+    hydrateEnv: !!values["hydrate-env"],
     withGateway: !!values["with-gateway"],
     port: Number(values.port),
     daemonUrl: values["daemon-url"],

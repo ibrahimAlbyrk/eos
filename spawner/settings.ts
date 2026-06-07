@@ -23,6 +23,12 @@ export function buildClaudeSettings(name: string, port: number): BuiltSettings {
     settingsPath,
     JSON.stringify(
       {
+        // Without this, a project-level .mcp.json in the target repo triggers
+        // the "New MCP server found" boot dialog on every spawn (worktree
+        // paths are always fresh, so the per-path trust never sticks) — the
+        // readiness gate mistakes it for the composer and the initial prompt
+        // is pasted into the dialog and lost.
+        enableAllProjectMcpServers: true,
         permissions: {
           defaultMode: "default",
           ask: ["Bash", "Edit", "Write", "WebFetch", "Glob", "Grep"],
