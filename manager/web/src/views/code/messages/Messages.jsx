@@ -175,6 +175,17 @@ export function Messages({ live }) {
     if (match) ui.syncAgentViewer(match);
   }, [blocks]);
 
+  // Blur-in baseline: blocks already present when an agent's transcript first
+  // renders stay static; only blocks arriving afterwards animate. Re-baselined
+  // on every agent switch so revisiting history never re-animates it.
+  const baselineRef = useRef({ id: null, keys: null });
+  if (baselineRef.current.id !== ui.selectedId) baselineRef.current = { id: ui.selectedId, keys: null };
+  useEffect(() => {
+    if (baselineRef.current.keys || eventsForRef.current !== ui.selectedId || blocks.length === 0) return;
+    baselineRef.current.keys = new Set(blocks.map((b, i) => blockKey(b, i)));
+  }, [blocks, ui.selectedId]);
+  const baselineKeys = baselineRef.current.keys;
+
   // expandedTools/settings in deps: expanding a tool mounts new text the ranges must cover.
   const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools, ui.settings]);
 
@@ -254,7 +265,8 @@ export function Messages({ live }) {
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
-          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers);
+          const animate = b.kind === "assistant" && baselineKeys != null && !baselineKeys.has(key);
+          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, animate);
           if (isLast && interrupted && b.kind !== "user") {
             return <div key={key} className="msg-interrupted-wrap">{block}</div>;
           }
@@ -287,12 +299,12 @@ function blockKey(b, i) {
   }
 }
 
-function renderBlock(b, key, cwd, ui, workers) {
+function renderBlock(b, key, cwd, ui, workers, animate) {
   switch (b.kind) {
     case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right"><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} label={b.workerName || b.fromWorker || "worker"} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} label={b.parentName || b.fromParent || "orchestrator"} direction="out" /></MessageRow>;
-    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} /></MessageRow>;
+    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} /></MessageRow>;
     case "thinking":  return <ThinkingLine key={key} text={b.text} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
