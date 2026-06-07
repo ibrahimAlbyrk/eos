@@ -9,6 +9,7 @@ import { Messages } from "./messages/Messages.jsx";
 import { FileViewer } from "./messages/FileViewer.jsx";
 import { AgentViewer } from "./messages/AgentViewer.jsx";
 import { DiffViewer } from "./messages/DiffViewer.jsx";
+import { CommitsViewer } from "./messages/CommitsViewer.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
 
@@ -79,6 +80,7 @@ export function CodeView({ live }) {
     ui.fileViewer ? "file-open" : "",
     ui.agentViewer ? "agent-open" : "",
     ui.diffViewer ? "diff-open" : "",
+    ui.commitsViewer ? "commits-open" : "",
   ].filter(Boolean).join(" ");
 
   return (
@@ -97,6 +99,7 @@ export function CodeView({ live }) {
           <FileViewer />
           <AgentViewer />
           <DiffViewer live={live} />
+          <CommitsViewer />
         </>
       }
     >

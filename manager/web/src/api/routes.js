@@ -30,6 +30,7 @@ export const ROUTES = {
   fsOpen: "/fs/open",
   fsIcon: "/fs/icon",
   fsBranches: "/fs/branches",
+  fsUnpushed: "/fs/unpushed",
   fsCheckout: "/fs/checkout",
   fsRecents: "/fs/recents",
   fsRead: "/fs/read",

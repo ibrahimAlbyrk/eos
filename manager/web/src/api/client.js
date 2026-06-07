@@ -206,6 +206,14 @@ export const api = {
   async checkout(cwd, branch) {
     return postJson(ROUTES.fsCheckout, { cwd, branch });
   },
+  async getUnpushedCommits(cwd) {
+    try {
+      const r = await getJson(`${ROUTES.fsUnpushed}?cwd=${encodeURIComponent(cwd)}`);
+      return r.ok ? r.body : { commits: [] };
+    } catch {
+      return { commits: [] };
+    }
+  },
   async listRecents() {
     try {
       const r = await getJson(ROUTES.fsRecents);

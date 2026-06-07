@@ -20,6 +20,8 @@ export function SelectionProvider({ children }) {
   const [fileViewer, setFileViewer] = useState(null);
   const [agentViewer, setAgentViewer] = useState(null);
   const [diffViewer, setDiffViewer] = useState(null);
+  // {cwd} — right panel listing committed-but-unpushed commits (@{u}..HEAD).
+  const [commitsViewer, setCommitsViewer] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   // {workerId, verdict, command, ts} — derived by Messages from the loaded
@@ -53,7 +55,7 @@ export function SelectionProvider({ children }) {
     setPopoverData({});
   }, []);
 
-  useEffect(() => { setFileViewer(null); setAgentViewer(null); setDiffViewer(null); }, [selectedId]);
+  useEffect(() => { setFileViewer(null); setAgentViewer(null); setDiffViewer(null); setCommitsViewer(null); }, [selectedId]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -65,6 +67,7 @@ export function SelectionProvider({ children }) {
       if (agentViewer) { setAgentViewer(null); return; }
       if (fileViewer) { setFileViewer(null); return; }
       if (diffViewer) { setDiffViewer(null); return; }
+      if (commitsViewer) { setCommitsViewer(null); return; }
       if (escapeGitModeRef.current?.()) { e.preventDefault(); return; }
       // Double-Esc with an agent selected → rewind panel (Claude Code parity:
       // composer's own double-Esc-clears-text path preventDefaults, so this
@@ -81,7 +84,7 @@ export function SelectionProvider({ children }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeAllPops, openPopover, fileViewer, agentViewer, diffViewer, rewindPanel, selectedId]);
+  }, [closeAllPops, openPopover, fileViewer, agentViewer, diffViewer, commitsViewer, rewindPanel, selectedId]);
 
   const toggleNodeCollapsed = useCallback((id) => {
     setCollapsedNodes((prev) => {
@@ -102,21 +105,31 @@ export function SelectionProvider({ children }) {
   const openFileViewer = useCallback((path) => {
     setAgentViewer(null);
     setDiffViewer(null);
+    setCommitsViewer(null);
     setFileViewer({ path });
   }, []);
   const closeFileViewer = useCallback(() => setFileViewer(null), []);
   const openAgentViewer = useCallback((block) => {
     setFileViewer(null);
     setDiffViewer(null);
+    setCommitsViewer(null);
     setAgentViewer(block);
   }, []);
   const closeAgentViewer = useCallback(() => setAgentViewer(null), []);
   const openDiffViewer = useCallback((workerId) => {
     setFileViewer(null);
     setAgentViewer(null);
+    setCommitsViewer(null);
     setDiffViewer({ workerId });
   }, []);
   const closeDiffViewer = useCallback(() => setDiffViewer(null), []);
+  const openCommitsViewer = useCallback((cwd) => {
+    setFileViewer(null);
+    setAgentViewer(null);
+    setDiffViewer(null);
+    setCommitsViewer({ cwd });
+  }, []);
+  const closeCommitsViewer = useCallback(() => setCommitsViewer(null), []);
   const syncAgentViewer = useCallback((block) => {
     setAgentViewer((prev) => prev && prev.toolUseId === block.toolUseId ? block : prev);
   }, []);
@@ -133,17 +146,19 @@ export function SelectionProvider({ children }) {
     fileViewer, openFileViewer, closeFileViewer,
     agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     diffViewer, openDiffViewer, closeDiffViewer,
+    commitsViewer, openCommitsViewer, closeCommitsViewer,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
   }), [
     selectedId, sideCollapsed, openPopover, popoverPos, popoverData,
-    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, fileViewer, agentViewer, diffViewer,
+    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, fileViewer, agentViewer, diffViewer, commitsViewer,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded,
     openFileViewer, closeFileViewer,
     openAgentViewer, closeAgentViewer, syncAgentViewer,
     openDiffViewer, closeDiffViewer,
+    openCommitsViewer, closeCommitsViewer,
     registerEscapeIdle,
     registerEscapeGitMode,
   ]);

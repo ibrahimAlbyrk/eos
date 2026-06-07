@@ -308,7 +308,15 @@ export function ComposerDiffRow({ live }) {
       )}
       <span className="diff-grow"></span>
       {showSync && (
-        <span className="git-chip sync-chip">
+        <button
+          className={"git-chip sync-chip sync-chip-btn" + (ui.commitsViewer ? " on" : "")}
+          title="Show unpushed commits"
+          onClick={() => {
+            if (ui.commitsViewer) { ui.closeCommitsViewer(); return; }
+            const dir = selected.worktree_dir ?? selected.cwd ?? selected.worktree_from;
+            if (dir) ui.openCommitsViewer(dir);
+          }}
+        >
           {ahead > 0 && (
             <span className="ahead">
               <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -326,7 +334,7 @@ export function ComposerDiffRow({ live }) {
               <span className="num">{behind}</span>
             </span>
           )}
-        </span>
+        </button>
       )}
       {stash > 0 && (
         <span className="git-chip stash-chip">
