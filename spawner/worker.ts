@@ -80,6 +80,19 @@ const state = newSessionState();
 let tailHandle: TailHandle | null = null;
 const agentToolUseIdCache = new Map<string, string>();
 
+// Resume: the session id is known up front — seed it and tail from EOF so the
+// prior conversation already in the transcript is not replayed into the daemon
+// (duplicate chat events + double-counted usage). If claude forks to a new id
+// instead, the first hook mismatch swaps tails; that first swap also starts at
+// EOF (the forked file carries the copied history). A matching hook confirms
+// the id was kept and disarms the one-shot so later /clear swaps read from 0.
+let resumeSwapEofPending = !!opts.resumeSessionId;
+if (opts.resumeSessionId) {
+  state.sessionId = opts.resumeSessionId;
+  tailHandle = startTail(opts.resumeSessionId, true);
+  console.log(`[${name}] resuming session=${opts.resumeSessionId}`);
+}
+
 // PTY ----------------------------------------------------------------------
 
 const claudeBin = process.env.CLAUDE_MGR_CLAUDE_BIN || "claude";
@@ -236,12 +249,13 @@ function dispatchToPty(text: string): void {
   deliver(text);
 }
 
-function startTail(sessionId: string): TailHandle {
+function startTail(sessionId: string, startAtEof = false): TailHandle {
   return startJsonlTail({
     cwd: wt.cwd,
     sessionId,
     defaultModel: opts.model,
     name,
+    startAtEof,
     onEvent: (t, p) => {
       // user_text is the delivery pipeline's turn-ACK — consumed locally,
       // never forwarded (the daemon's own user_message event already
@@ -262,9 +276,11 @@ function swapSession(newSessionId: string, via: string): void {
   if (state.sessionId === newSessionId) return;
   console.log(`[${name}] session changed ${state.sessionId} → ${newSessionId} (via ${via})`);
   state.sessionId = newSessionId;
+  evt.emit("lifecycle", { phase: "session_captured", sessionId: newSessionId, via });
   agentToolUseIdCache.clear();
   tailHandle?.close();
-  tailHandle = startTail(newSessionId);
+  tailHandle = startTail(newSessionId, resumeSwapEofPending);
+  resumeSwapEofPending = false;
 }
 
 // Claude's http SessionStart hook never fires, so after SessionEnd(clear) the
@@ -361,6 +377,7 @@ const ingest = startIngestServer(opts.port, {
     if (!state.sessionId && typeof body.session_id === "string") {
       state.sessionId = body.session_id;
       console.log(`[${name}] captured session=${state.sessionId} via ${eventName}`);
+      evt.emit("lifecycle", { phase: "session_captured", sessionId: state.sessionId, via: `hook:${eventName}` });
       tailHandle = startTail(state.sessionId);
     } else if (
       typeof body.session_id === "string" &&
@@ -372,6 +389,10 @@ const ingest = startIngestServer(opts.port, {
       // something else rolled the session). SessionEnd excluded: it is the one
       // hook that legitimately closes the OLD session.
       swapSession(body.session_id, `hook:${eventName}`);
+    } else if (resumeSwapEofPending && typeof body.session_id === "string" && body.session_id === state.sessionId) {
+      // Resume kept the session id — disarm the one-shot EOF seed so a later
+      // /clear swap reads its fresh transcript from offset 0.
+      resumeSwapEofPending = false;
     }
     // Subagent inner-tool hooks carry agent_id; resolve it to the parent Agent
     // tool_use id so the UI attributes the tool deterministically. Parent-level

@@ -21,6 +21,7 @@ export interface WorkerOptions {
   mcpStrict: boolean | undefined;
   permissionPromptTool: string | undefined;
   claudePermissionMode: string | undefined;
+  resumeSessionId: string | undefined;
   model: string;
   effort: string;
   parentId: string | undefined;
@@ -58,6 +59,7 @@ export function parseWorkerOptions(): WorkerOptions {
       "mcp-strict": { type: "string" },
       "permission-prompt-tool": { type: "string" },
       "claude-permission-mode": { type: "string" },
+      "resume-session": { type: "string" },
       model: { type: "string" },
       effort: { type: "string" },
       "parent-id": { type: "string" },
@@ -97,6 +99,7 @@ export function parseWorkerOptions(): WorkerOptions {
     mcpStrict: values["mcp-strict"] === undefined ? undefined : values["mcp-strict"] !== "false",
     permissionPromptTool: values["permission-prompt-tool"],
     claudePermissionMode: values["claude-permission-mode"],
+    resumeSessionId: values["resume-session"],
     model: values.model ?? "opus",
     effort: values.effort ?? "high",
     parentId: values["parent-id"],

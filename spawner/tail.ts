@@ -26,6 +26,10 @@ export interface TailContext {
   sessionId: string;
   defaultModel: string;
   name: string;
+  /** Start reading at the current end of file instead of offset 0. Used on
+   *  resume, where the transcript already holds the full prior conversation —
+   *  replaying it would duplicate chat events and double-count usage cost. */
+  startAtEof?: boolean;
   onEvent(type: string, payload: unknown): void;
   onActivity?(): void;
 }
@@ -58,8 +62,11 @@ export function findClearedSessionJsonl(cwd: string, excludeSessionId: string, s
 
 export function startJsonlTail(ctx: TailContext): TailHandle {
   const jsonlPath = join(homedir(), ".claude", "projects", encodeCwd(ctx.cwd), `${ctx.sessionId}.jsonl`);
-  console.log(`[${ctx.name}] tail=${jsonlPath}`);
   let offset = 0;
+  if (ctx.startAtEof) {
+    try { offset = statSync(jsonlPath).size; } catch {}
+  }
+  console.log(`[${ctx.name}] tail=${jsonlPath}${offset > 0 ? ` (from offset ${offset})` : ""}`);
   const watcher = chokidar.watch(jsonlPath, { ignoreInitial: false, awaitWriteFinish: false });
   const readNew = (): void => {
     if (!existsSync(jsonlPath)) return;

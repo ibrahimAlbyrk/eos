@@ -56,6 +56,7 @@ export function buildWorkerArgs(input: BuildWorkerArgsInput): string[] {
   if (spec.mcpStrict !== undefined) args.push(flagToken("--mcp-strict", String(spec.mcpStrict)));
   if (spec.permissionPromptTool) args.push(flagToken("--permission-prompt-tool", spec.permissionPromptTool));
   if (spec.claudePermissionMode) args.push(flagToken("--claude-permission-mode", spec.claudePermissionMode));
+  if (spec.resumeSessionId) args.push(flagToken("--resume-session", spec.resumeSessionId));
   args.push(flagToken("--model", model));
   if (spec.effort) args.push(flagToken("--effort", spec.effort));
   return args;

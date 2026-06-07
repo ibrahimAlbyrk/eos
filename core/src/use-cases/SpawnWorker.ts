@@ -33,6 +33,9 @@ export interface SpawnWorkerSpec {
   effort?: string;
   isOrchestrator?: boolean;
   role?: string;
+  /** Resume an existing claude session (`claude --resume <id>`) instead of
+   * starting fresh. Set by ResumeWorker, never by a spawn route. */
+  resumeSessionId?: string;
 }
 
 export interface SpawnWorkerDeps {
@@ -157,6 +160,7 @@ export async function spawnWorker(
     backendKind: deps.backend?.kind ?? "claude-cli",
     backendProfile: null,
     agentRole: resolved.role ?? null,
+    withGateway: !!resolved.withGateway,
   });
 
   // A prompt-bearing spawn IS the start of a turn. The row is born busy
