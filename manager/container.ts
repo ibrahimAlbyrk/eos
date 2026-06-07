@@ -38,6 +38,7 @@ import { createChildProcessBranchIntegration } from "../infra/src/git/ChildProce
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
 import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
+import { reconcileWorkersOnBoot } from "../core/src/use-cases/ReconcileWorkersOnBoot.ts";
 import { resolveMcpServers } from "../core/src/domain/mcp-resolution.ts";
 
 import type { Policy } from "../core/src/domain/policy.ts";
@@ -108,6 +109,11 @@ export function buildContainer() {
   // Bus + SSE ---------------------------------------------------------------
   const bus = createInMemoryEventBus();
   const sse = new SseBroadcaster({ bus, keepaliveMs: config.daemon.sseKeepaliveMs });
+
+  // Stale-worker reconcile — the supervisor map starts empty, so every non-DONE
+  // row's process is gone. Resumable rows (session_id + cwd on disk) park as
+  // SUSPENDED; the rest close as DONE.
+  reconcileWorkersOnBoot({ workers, events, bus, clock: systemClock, log, pathExists: existsSync });
 
   // Process supervision + port allocator -----------------------------------
   const supervisor = createChildProcessSupervisor({
