@@ -9,6 +9,7 @@ import { Messages } from "./messages/Messages.jsx";
 import { FileViewer } from "./messages/FileViewer.jsx";
 import { AgentViewer } from "./messages/AgentViewer.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
+import { RewindPanel } from "./center/RewindPanel.jsx";
 
 // Latched once workers first load so returning to the Code tab does not replay
 // the initial fade-in.
@@ -97,6 +98,7 @@ export function CodeView({ live }) {
       }
     >
       <AgentContextMenu live={live} />
+      {ui.rewindPanel && <RewindPanel live={live} />}
     </AppLayout>
   );
 }

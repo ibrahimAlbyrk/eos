@@ -106,6 +106,12 @@ export const api = {
   async answerQuestion(id, toolUseId, answers) {
     return postJson(ROUTES.workerQuestionAnswer(id), { toolUseId, answers });
   },
+  async getRewindTargets(id) {
+    return getJson(ROUTES.workerRewindTargets(id));
+  },
+  async rewindWorker(id, uuid, mode = "conversation") {
+    return postJson(ROUTES.workerRewind(id), { uuid, mode });
+  },
 
   // Orchestrators
   async spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode } = {}) {

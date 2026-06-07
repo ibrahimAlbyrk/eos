@@ -15,6 +15,49 @@ export const STANDALONE_TOOLS = new Set([
   "mcp__worker__send_message_to_parent",
 ]);
 
+// conversation_rewound (double-Esc rewind) hides the abandoned branch: every
+// event from the rewound-to user message (it returns to the composer) up to
+// the rewind marker is dropped, mirroring Claude Code's in-memory fork. The
+// transcript and events store keep the branch — this is display-only.
+export function applyRewinds(events, { bootPromptOffset = 0 } = {}) {
+  let out = [];
+  for (const ev of events) {
+    if (ev.type !== "conversation_rewound") { out.push(ev); continue; }
+    const cut = findRewindCut(out, parsePayload(ev.payload), bootPromptOffset);
+    if (cut >= 0) out = out.slice(0, cut);
+  }
+  return out;
+}
+
+const normRewindText = (s) => (s ?? "").replace(/\s+/g, " ").trim();
+
+function findRewindCut(events, payload, bootPromptOffset) {
+  // Primary: last prompt event matching the rewound text (either-way prefix,
+  // same tolerance as optimistic reconciliation — attachments append suffixes).
+  const needles = [payload.text, payload.display].map(normRewindText).filter(Boolean);
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.type !== "user_message" && e.type !== "orchestrator_message") continue;
+    const t = normRewindText(parsePayload(e.payload).text);
+    if (!t) continue;
+    if (needles.some((n) => n === t || n.startsWith(t) || t.startsWith(n))) return i;
+  }
+  // Fallback by position: payload.index counts prompts on the transcript's
+  // active branch; bootPromptOffset accounts for prompts with no event (an
+  // orchestrator-dispatched worker's boot prompt renders from worker.prompt),
+  // so the k-th prompt event sits at active-branch index k + offset.
+  if (typeof payload.index === "number") {
+    let count = bootPromptOffset;
+    for (let i = 0; i < events.length; i++) {
+      const e = events[i];
+      if (e.type !== "user_message" && e.type !== "orchestrator_message") continue;
+      if (count === payload.index) return i;
+      count++;
+    }
+  }
+  return -1;
+}
+
 export function buildBlocks(events) {
   const resultMap = new Map();
   const toolUseIds = new Set();

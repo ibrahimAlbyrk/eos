@@ -13,6 +13,9 @@ const DEFAULT_COMPOSER = {
   // {content, ts} queued by the template picker / ⌘K palette; the Composer
   // consumes it (inserts text + selects the first {{placeholder}}) and clears.
   pendingTemplate: null,
+  // {content, ts} queued by the rewind panel — the restored prompt; the
+  // Composer consumes it (replaces the input, cursor at end) and clears.
+  pendingText: null,
 };
 
 export function ComposerProvider({ children }) {

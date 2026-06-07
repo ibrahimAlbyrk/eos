@@ -10,7 +10,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { deriveActivity } from "../../../lib/agentActivity.js";
-import { buildBlocks, parsePayload } from "../../../lib/messageParser.js";
+import { buildBlocks, applyRewinds, parsePayload } from "../../../lib/messageParser.js";
 import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
 import { shouldStick, shouldAutoScroll } from "../../../lib/scrollStick.js";
 import { loadScrollPos, saveScrollPos, clearScrollPos } from "../../../lib/scrollMemory.js";
@@ -159,13 +159,15 @@ export function Messages({ live }) {
   }, [pendingQuestions]);
 
   const blocks = useMemo(() => {
-    const base = buildBlocks(events);
+    const w = live.workers.find((x) => x.id === ui.selectedId);
+    const bootPromptOffset = w?.parent_id && w?.prompt ? 1 : 0;
+    const base = buildBlocks(applyRewinds(events, { bootPromptOffset }));
     const opt = ui.optimisticMsgs.get(ui.selectedId) ?? [];
     for (const m of opt) {
       base.push({ kind: "user", text: m.text, ts: m.ts, optimistic: true });
     }
     return base;
-  }, [events, ui.optimisticMsgs, ui.selectedId]);
+  }, [events, ui.optimisticMsgs, ui.selectedId, live.workers]);
 
   useEffect(() => {
     if (!ui.agentViewer) return;

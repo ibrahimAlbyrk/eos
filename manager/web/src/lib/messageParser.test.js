@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildBlocks, buildSummary, gitActions } from "./messageParser.js";
+import { buildBlocks, buildSummary, gitActions, applyRewinds } from "./messageParser.js";
 
 function agentRow(id, ts) {
   return { type: "jsonl", ts, payload: { kind: "tool_use", id, name: "Agent", input: { description: id } } };
@@ -222,5 +222,90 @@ describe("buildSummary git awareness", () => {
   it("keeps plain shell-only groups as shell commands", () => {
     const tools = [bashTool("ls"), bashTool("npm run build")];
     expect(buildSummary(tools)).toBe("ran 2 shell commands");
+  });
+});
+
+describe("applyRewinds", () => {
+  const user = (text, ts) => ({ type: "user_message", ts, payload: JSON.stringify({ text }) });
+  const asst = (text, ts) => ({ type: "jsonl", ts, payload: JSON.stringify({ kind: "assistant_text", text }) });
+  const rewound = (payload, ts) => ({ type: "conversation_rewound", ts, payload: JSON.stringify(payload) });
+
+  it("passes through when no rewind events exist", () => {
+    const events = [user("hello", 1), asst("hi", 2)];
+    expect(applyRewinds(events)).toEqual(events);
+  });
+
+  it("cuts from the matching user message (it returns to the composer)", () => {
+    const events = [
+      user("first", 1),
+      asst("r1", 2),
+      user("second", 3),
+      asst("r2", 4),
+      rewound({ text: "second", display: "second", index: 1 }, 5),
+    ];
+    expect(applyRewinds(events).map((e) => e.ts)).toEqual([1, 2]);
+  });
+
+  it("matches the LAST occurrence when texts repeat", () => {
+    const events = [
+      user("same", 1),
+      asst("r1", 2),
+      user("same", 3),
+      asst("r2", 4),
+      rewound({ text: "same", display: "same", index: 1 }, 5),
+    ];
+    expect(applyRewinds(events).map((e) => e.ts)).toEqual([1, 2]);
+  });
+
+  it("tolerates attachment suffixes via either-way prefix match", () => {
+    const events = [
+      user("fix the bug [Image #1]", 1),
+      asst("done", 2),
+      rewound({ text: "fix the bug", display: "fix the bug", index: 0 }, 3),
+    ];
+    expect(applyRewinds(events)).toEqual([]);
+  });
+
+  it("falls back to index when texts don't match (action prompts)", () => {
+    const events = [
+      user("hello", 1),
+      asst("hi", 2),
+      user("/commit", 3), // displayText — the transcript holds the full template
+      asst("committed", 4),
+      rewound({ text: "FULL COMMIT TEMPLATE …", display: "FULL COMMIT TEMPLATE …", index: 1 }, 5),
+    ];
+    expect(applyRewinds(events).map((e) => e.ts)).toEqual([1, 2]);
+  });
+
+  it("applies bootPromptOffset for prompts with no event", () => {
+    // Active branch: [boot prompt (no event), "hello"] → index 1 = first event prompt
+    const events = [
+      user("hello", 1),
+      asst("hi", 2),
+      rewound({ text: "NO MATCH", display: "NO MATCH", index: 1 }, 3),
+    ];
+    expect(applyRewinds(events, { bootPromptOffset: 1 })).toEqual([]);
+  });
+
+  it("hides nothing when no cut point is found", () => {
+    const events = [
+      user("hello", 1),
+      rewound({ text: "NO MATCH", display: "NO MATCH" }, 2),
+    ];
+    expect(applyRewinds(events)).toEqual([events[0]]);
+  });
+
+  it("supports sequential rewinds (each cuts the then-active branch)", () => {
+    const events = [
+      user("a", 1),
+      asst("ra", 2),
+      user("b", 3),
+      asst("rb", 4),
+      rewound({ text: "b", display: "b", index: 1 }, 5),
+      user("b2", 6),
+      asst("rb2", 7),
+      rewound({ text: "b2", display: "b2", index: 1 }, 8),
+    ];
+    expect(applyRewinds(events).map((e) => e.ts)).toEqual([1, 2]);
   });
 });

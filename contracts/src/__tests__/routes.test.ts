@@ -12,7 +12,8 @@ const EXPECTED_KEYS = [
   "fsCheckout", "fsWrite", "fsPaste", "workerName", "workerPermission",
   "workerModel", "workerDiff", "workerInterrupt", "workerKeystroke",
   "workerQuestion", "workerQuestionNotify", "workerQuestionAnswer",
-  "workerNotify", "workerReport", "commands", "web", "skillRead",
+  "workerNotify", "workerReport", "workerRewindTargets", "workerRewind",
+  "commands", "web", "skillRead",
   "templates", "template", "settings",
 ] as const;
 

@@ -6,7 +6,7 @@
 // delivery), tail.ts (JSONL chokidar), ingest.ts (local HTTP), session.ts
 // (state + heartbeat + shutdown scheduling).
 
-import { rmSync } from "node:fs";
+import { rmSync, readFileSync } from "node:fs";
 import { spawn as ptySpawn } from "@homebridge/node-pty-prebuilt-multiarch";
 
 import { WORKER_EXIT } from "../contracts/src/util.ts";
@@ -25,6 +25,7 @@ import {
 } from "./session.ts";
 import { createReadinessGate } from "./readiness-gate.ts";
 import { resolveParentAgentToolUseId } from "./subagent-meta.ts";
+import { RewindDriver, type RewindMode } from "./rewind.ts";
 
 // Timing defaults. Each is overridable by a CLI flag (see options.ts);
 // these are the fallbacks used when the flag is absent.
@@ -128,6 +129,21 @@ function deliver(text: string): void {
   });
 }
 
+// Rewind choreography (rewind.ts) — mutually exclusive with delivery: a paste
+// landing while the panel is open would feed the panel's list, and a CR would
+// execute whatever row is highlighted. Messages arriving mid-rewind are
+// buffered and flushed when the choreography ends.
+const rewindDriver = new RewindDriver({
+  write: (s) => pty.write(s),
+  readTranscript: (): string | null => {
+    if (!tailHandle) return null;
+    try { return readFileSync(tailHandle.path, "utf8"); } catch { return null; }
+  },
+  isBusy: () => claudeTurnOpen || pipeline.busy,
+  log: (m) => console.log(`[${name}][rewind] ${m}`),
+});
+let rewindBuffer: string[] = [];
+
 // Lifecycle ----------------------------------------------------------------
 
 const shutdown = createShutdownScheduler({
@@ -184,13 +200,15 @@ pty.onData((data: string) => {
   process.stdout.write(data);
   readiness.feed(data);
   pipeline.feedOutput(data);
+  rewindDriver.feed(data);
 });
 
 // Ingest server (message + hook) ------------------------------------------
 
 function dispatchToPty(text: string): void {
-  if (bootCompleted) deliver(text);
-  else bootBuffer.push(text);
+  if (!bootCompleted) { bootBuffer.push(text); return; }
+  if (rewindDriver.active) { rewindBuffer.push(text); return; }
+  deliver(text);
 }
 
 const ingest = startIngestServer(opts.port, {
@@ -203,8 +221,29 @@ const ingest = startIngestServer(opts.port, {
     dispatchToPty(text);
   },
   onKeystroke(keys): void {
+    // A stray keystroke mid-choreography would derail the panel navigation.
+    if (rewindDriver.active) {
+      console.log(`[${name}] keystroke dropped (rewind in progress)`);
+      return;
+    }
     state.lastJsonlActivityTs = Date.now();
     pty.write(keys);
+  },
+  onRewindTargets(): unknown {
+    return { targets: rewindDriver.targets() };
+  },
+  async onRewind(body): Promise<unknown> {
+    if (!bootCompleted) return { ok: false, error: "worker still booting" };
+    if (typeof body.uuid !== "string" || body.uuid === "") return { ok: false, error: "uuid required" };
+    const mode: RewindMode =
+      body.mode === "code" || body.mode === "both" ? body.mode : "conversation";
+    shutdown.cancel();
+    const result = await rewindDriver.rewind(body.uuid, mode);
+    // Messages that arrived mid-choreography were held back — flush them now.
+    const held = rewindBuffer;
+    rewindBuffer = [];
+    for (const t of held) deliver(t);
+    return result;
   },
   async onQuestionHook(body) {
     if (!opts.daemonUrl || !opts.workerId) return null;

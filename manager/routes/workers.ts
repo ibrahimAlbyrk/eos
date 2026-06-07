@@ -17,6 +17,7 @@ import {
   QuestionNotifyRequestSchema,
   NotifyRequestSchema,
   WorkerActionRequestSchema,
+  RewindRequestSchema,
 } from "../../contracts/src/http.ts";
 
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
@@ -288,6 +289,37 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       writeJson(res, 502, { error: "worker unreachable" }); return;
     }
     writeJson(res, 200, { ok: true });
+  });
+
+  r.get(/^\/workers\/(?<id>[^/]+)\/rewind-targets$/, async ({ params, res }) => {
+    const worker = c.workers.findById(params.id);
+    if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
+    if (!c.supervisor.has(params.id)) { writeJson(res, 409, { error: "worker not running" }); return; }
+    const data = await c.httpWorkerClient.getRewindTargets(worker.port);
+    writeJson(res, 200, data);
+  });
+
+  // Drives the native TUI rewind via the worker's keystroke choreography. The
+  // transcript is never truncated (Claude forks in memory), so on success we
+  // append conversation_rewound — the web chat hides the abandoned branch at
+  // that boundary and prefills the composer with the restored prompt.
+  r.post(/^\/workers\/(?<id>[^/]+)\/rewind$/, async ({ params, req, res }) => {
+    const body = validate(RewindRequestSchema, await readBody(req));
+    const worker = c.workers.findById(params.id);
+    if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
+    if (!c.supervisor.has(params.id)) { writeJson(res, 409, { error: "worker not running" }); return; }
+    const result = await c.httpWorkerClient.sendRewind(worker.port, { uuid: body.uuid, mode: body.mode });
+    if (result.ok) {
+      c.events.append(params.id, c.clock.now(), "conversation_rewound", {
+        uuid: result.uuid,
+        text: result.text,
+        display: result.display,
+        index: result.index,
+        mode: body.mode,
+      });
+      c.bus.publish("worker:change", { workerId: params.id });
+    }
+    writeJson(res, 200, result);
   });
 
   r.post(/^\/workers\/(?<id>[^/]+)\/interrupt$/, ({ params, res }) => {

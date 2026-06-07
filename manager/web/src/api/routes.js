@@ -43,6 +43,8 @@ export const ROUTES = {
   workerInterrupt: (id) => `/workers/${id}/interrupt`,
   workerKeystroke: (id) => `/workers/${id}/keystroke`,
   workerQuestionAnswer: (id) => `/workers/${id}/question-answer`,
+  workerRewindTargets: (id) => `/workers/${id}/rewind-targets`,
+  workerRewind: (id) => `/workers/${id}/rewind`,
   commands: "/commands",
   skillRead: "/skills/read",
   templates: "/api/templates",

@@ -154,6 +154,17 @@ export function Composer({ live }) {
     applyTemplateText(pt.content, 0);
   }, [ui.composer.pendingTemplate]);
 
+  // Restored prompt queued by the rewind panel — replaces the input so the
+  // user can edit and resend, mirroring Claude Code's native rewind.
+  useEffect(() => {
+    const pt = ui.composer.pendingText;
+    if (!pt) return;
+    ui.updateComposer({ pendingText: null });
+    insertedPathsRef.current.clear();
+    setTextAndSync(pt.content, pt.content.length);
+    editorRef.current?.focus();
+  }, [ui.composer.pendingText]);
+
   useEffect(() => { setMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [slashCtx?.query]);
   useEffect(() => { setFileMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [atCtx?.query]);
 

@@ -25,6 +25,11 @@ export function SelectionProvider({ children }) {
   const dismissQuestion = useCallback((toolUseId) => {
     setDismissedQuestions((prev) => new Set(prev).add(toolUseId));
   }, []);
+  // {workerId} while the rewind panel is open (double-Esc, like Claude Code).
+  const [rewindPanel, setRewindPanel] = useState(null);
+  const openRewindPanel = useCallback((workerId) => setRewindPanel({ workerId }), []);
+  const closeRewindPanel = useCallback(() => setRewindPanel(null), []);
+  const lastEscTsRef = useRef(0);
   const escapeIdleRef = useRef(null);
   const registerEscapeIdle = useCallback((fn) => { escapeIdleRef.current = fn; }, []);
   // Composer registers a handler that exits git mode; returns true when it
@@ -50,15 +55,27 @@ export function SelectionProvider({ children }) {
       if (e.key !== "Escape") return;
       // consumed inside the editor (e.g. closing the autocomplete popup)
       if (e.defaultPrevented) return;
+      if (rewindPanel) { setRewindPanel(null); return; }
       if (openPopover) { closeAllPops(); return; }
       if (agentViewer) { setAgentViewer(null); return; }
       if (fileViewer) { setFileViewer(null); return; }
       if (escapeGitModeRef.current?.()) { e.preventDefault(); return; }
+      // Double-Esc with an agent selected → rewind panel (Claude Code parity:
+      // composer's own double-Esc-clears-text path preventDefaults, so this
+      // only fires when the input was already empty).
+      const now = Date.now();
+      const isDouble = now - lastEscTsRef.current <= 500;
+      lastEscTsRef.current = now;
+      if (isDouble && selectedId) {
+        e.preventDefault();
+        setRewindPanel({ workerId: selectedId });
+        return;
+      }
       if (escapeIdleRef.current) { e.preventDefault(); escapeIdleRef.current(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeAllPops, openPopover, fileViewer, agentViewer]);
+  }, [closeAllPops, openPopover, fileViewer, agentViewer, rewindPanel, selectedId]);
 
   const toggleNodeCollapsed = useCallback((id) => {
     setCollapsedNodes((prev) => {
@@ -100,11 +117,13 @@ export function SelectionProvider({ children }) {
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
     fileViewer, openFileViewer, closeFileViewer,
     agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
+    rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
   }), [
     selectedId, sideCollapsed, openPopover, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, fileViewer, agentViewer,
+    rewindPanel, openRewindPanel, closeRewindPanel,
     openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded,
     openFileViewer, closeFileViewer,
     openAgentViewer, closeAgentViewer, syncAgentViewer,

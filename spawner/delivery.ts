@@ -135,6 +135,7 @@ export class DeliveryPipeline {
   private pendingEcho: (PendingWait & { needle: string }) | null = null;
   private pendingAck: (PendingWait & { sentNorm: string }) | null = null;
   private ackRing: Array<{ norm: string; ts: number }> = [];
+  private inFlight = 0;
 
   constructor(opts: DeliveryPipelineOptions) {
     this.opts = opts;
@@ -170,15 +171,21 @@ export class DeliveryPipeline {
     }
   }
 
+  /** True while any delivery is queued or in flight. */
+  get busy(): boolean {
+    return this.inFlight > 0;
+  }
+
   /** Serialized verified delivery. The returned promise never rejects. */
   enqueue(text: string): Promise<DeliveryResult> {
+    this.inFlight += 1;
     const run = (): Promise<DeliveryResult> =>
       this.deliver(text).catch((err): DeliveryResult => {
         this.opts.onWriteError?.(err);
         return { outcome: "failed", attempts: 0 };
       });
     const result = this.chain.then(run, run);
-    this.chain = result.then(() => undefined);
+    this.chain = result.then(() => { this.inFlight -= 1; });
     return result;
   }
 

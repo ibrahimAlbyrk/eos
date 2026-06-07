@@ -16,6 +16,8 @@ export interface IngestHandlers {
   onInterrupt(): { ok: boolean; reason?: string };
   onHook(eventName: string, body: Record<string, unknown>): void;
   onQuestionHook(body: Record<string, unknown>): Promise<QuestionAnswer | null>;
+  onRewindTargets(): unknown;
+  onRewind(body: { uuid?: string; mode?: string }): Promise<unknown>;
 }
 
 export interface IngestServer {
@@ -87,6 +89,26 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
         const result = handlers.onInterrupt();
         res.writeHead(200, { "content-type": "application/json" });
         res.end(JSON.stringify(result));
+        return;
+      }
+      if (url.pathname === "/rewind-targets") {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify(handlers.onRewindTargets()));
+        return;
+      }
+      if (url.pathname === "/rewind") {
+        let body: { uuid?: string; mode?: string } = {};
+        try { body = JSON.parse(raw); } catch {}
+        handlers.onRewind(body).then(
+          (result) => {
+            res.writeHead(200, { "content-type": "application/json" });
+            res.end(JSON.stringify(result));
+          },
+          (e) => {
+            res.writeHead(500, { "content-type": "application/json" });
+            res.end(JSON.stringify({ ok: false, error: errMsg(e) }));
+          },
+        );
         return;
       }
       // /event?event=<name>

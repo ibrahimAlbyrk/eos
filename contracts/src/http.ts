@@ -477,6 +477,57 @@ export const NotifyRequestSchema = z.object({
 });
 export type NotifyRequest = z.infer<typeof NotifyRequestSchema>;
 
+// ---- GET /workers/:id/rewind-targets ----------------------------------------
+//
+// User prompts on the transcript's active branch (parentUuid walk back from
+// the tip), oldest first. `upCount` = ↑ presses that reach the entry from the
+// TUI rewind panel's bottom "(current)" row.
+
+export const RewindTargetSchema = z.object({
+  uuid: z.string(),
+  // Raw transcript text (what delivery wrote to the PTY).
+  text: z.string(),
+  // Pretty form for UI lists — slash commands collapse to "/name args".
+  display: z.string(),
+  // Transcript ISO timestamp.
+  ts: z.string(),
+  upCount: z.number().int().positive(),
+});
+export type RewindTarget = z.infer<typeof RewindTargetSchema>;
+
+export const RewindTargetsResponseSchema = z.object({
+  targets: z.array(RewindTargetSchema),
+});
+export type RewindTargetsResponse = z.infer<typeof RewindTargetsResponseSchema>;
+
+// ---- POST /workers/:id/rewind ------------------------------------------------
+//
+// Drives Claude's native TUI rewind (Esc Esc → ↑×k → Enter → submenu) via
+// verified keystroke choreography. The transcript JSONL is never truncated —
+// Claude forks in memory and the next submit branches via parentUuid.
+
+export const RewindModeSchema = z.enum(["conversation", "code", "both"]);
+export type RewindMode = z.infer<typeof RewindModeSchema>;
+
+export const RewindRequestSchema = z.object({
+  uuid: z.string(),
+  mode: RewindModeSchema.default("conversation"),
+});
+export type RewindRequest = z.infer<typeof RewindRequestSchema>;
+
+export const RewindResponseSchema = z.object({
+  ok: z.boolean(),
+  uuid: z.string().optional(),
+  text: z.string().optional(),
+  display: z.string().optional(),
+  // Target's 0-based position among active-branch prompts — fallback cut
+  // point for the web chat when text matching fails (e.g. action prompts
+  // whose user_message event stores only the short displayText).
+  index: z.number().int().nonnegative().optional(),
+  error: z.string().optional(),
+});
+export type RewindResponse = z.infer<typeof RewindResponseSchema>;
+
 // ---- PUT /workers/:id/name -------------------------------------------------
 
 export const SetNameRequestSchema = z.object({ name: z.string().nullable() });
@@ -538,6 +589,8 @@ export const ROUTES = {
   workerQuestionAnswer: (id: string): string => `/workers/${id}/question-answer`,
   workerNotify: (id: string): string => `/workers/${id}/notify`,
   workerReport: (id: string): string => `/workers/${id}/report`,
+  workerRewindTargets: (id: string): string => `/workers/${id}/rewind-targets`,
+  workerRewind: (id: string): string => `/workers/${id}/rewind`,
   commands: "/commands",
   skillRead: "/skills/read",
   templates: "/api/templates",

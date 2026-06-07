@@ -57,6 +57,7 @@ export const WorkerEventTypeSchema = z.enum([
   "orchestrator_message",
   "question_pending",
   "question_answered",
+  "conversation_rewound",
 ]);
 export type WorkerEventType = z.infer<typeof WorkerEventTypeSchema>;
 
