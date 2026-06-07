@@ -107,6 +107,17 @@ describe("buildBlocks main-agent tool_done fallback", () => {
     const t1 = mainTool(blocks, "T1");
     expect(t1.result).toBe(null);
     expect(t1.done).toBe(false);
+    expect(t1.running).toBe(true);
+  });
+
+  it("marks a failed tool_done (PostToolUseFailure) result as error", () => {
+    const events = [
+      mainToolUse("T1", 100),
+      { type: "tool_done", ts: 101, payload: { toolName: "Read", toolUseId: "T1", result: "boom", isError: true } },
+    ];
+    const t1 = mainTool(buildBlocks(events), "T1");
+    expect(t1.running).toBe(false);
+    expect(t1.result).toEqual({ text: "boom", isError: true });
   });
 
   it("lets attachAskUserAnswers win over a present tool_done", () => {
@@ -120,6 +131,78 @@ describe("buildBlocks main-agent tool_done fallback", () => {
     expect(q1.done).toBe(true);
     expect(q1.running).toBe(false);
     expect(q1.result.text.startsWith("My answers to your questions:")).toBe(true);
+  });
+});
+
+describe("buildBlocks lifecycle barriers", () => {
+  const stop = (ts) => ({ type: "hook", ts, payload: { event: "Stop" } });
+  const idle = (ts, reason) => ({ type: "state", ts, payload: { state: "IDLE", from: "WORKING", reason } });
+  const exit = (ts) => ({ type: "exit", ts, payload: { code: 143 } });
+
+  it("closes a tool with no terminal signal once the turn ends (Stop)", () => {
+    const t1 = mainTool(buildBlocks([mainToolUse("T1", 100), stop(101)]), "T1");
+    expect(t1.running).toBe(false);
+    expect(t1.result).toBe(null); // closed, not faked as succeeded
+  });
+
+  it("closes a tool when the worker goes IDLE via interrupt", () => {
+    const t1 = mainTool(buildBlocks([mainToolUse("T1", 100), idle(101, "interrupt")]), "T1");
+    expect(t1.running).toBe(false);
+  });
+
+  it("closes a hook-only (tool_running) tool on worker exit", () => {
+    const events = [
+      { type: "tool_running", ts: 100, payload: { toolName: "Bash", toolUseId: "B1", input: {} } },
+      exit(101),
+    ];
+    const b1 = mainTool(buildBlocks(events), "B1");
+    expect(b1.running).toBe(false);
+  });
+
+  it("keeps a tool running when the barrier precedes it", () => {
+    const t1 = mainTool(buildBlocks([stop(99), mainToolUse("T1", 100)]), "T1");
+    expect(t1.running).toBe(true);
+  });
+
+  it("keeps background-agent inner tools running across a turn end", () => {
+    const events = [
+      agentRow("AG", 100),
+      mainToolResult("AG", 101, "Async agent launched successfully"),
+      toolRunning("I1", 102, "AG"),
+      stop(103),
+    ];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun");
+    expect(run.status).toBe("running");
+    expect(run.tools[0].running).toBe(true);
+  });
+
+  it("closes a background agent and its inner tools on worker exit", () => {
+    const events = [
+      agentRow("AG", 100),
+      mainToolResult("AG", 101, "Async agent launched successfully"),
+      toolRunning("I1", 102, "AG"),
+      exit(103),
+    ];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun");
+    expect(run.status).toBe("completed");
+    expect(run.tools[0].running).toBe(false);
+  });
+
+  it("completes a background agent when all inner tools are done", () => {
+    const events = [
+      agentRow("AG", 100),
+      mainToolResult("AG", 101, "Async agent launched successfully"),
+      toolRunning("I1", 102, "AG"),
+      mainToolDone("I1", 103, "ok", "Bash"),
+    ];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun");
+    expect(run.status).toBe("completed");
+  });
+
+  it("closes a foreground agent killed mid-run", () => {
+    const events = [agentRow("AG", 100), exit(101)];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun");
+    expect(run.status).toBe("completed");
   });
 });
 

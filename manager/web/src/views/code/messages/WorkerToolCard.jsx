@@ -40,7 +40,9 @@ function workerIdentity(tool, workers) {
 }
 
 function isRunning(tool) {
-  return (tool.running && !tool.done) || (!tool.done && tool.result === null);
+  // tool.running is authoritative — computed once in messageParser from the
+  // tool lifecycle (results, tool_done, turn/exit barriers).
+  return tool.running === true;
 }
 
 function failureKind(tool) {

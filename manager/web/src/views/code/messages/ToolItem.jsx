@@ -24,7 +24,9 @@ function PlainToolItem({ tool, standalone, cwd }) {
     const t = setTimeout(() => setJustAppeared(false), APPEAR_MS);
     return () => clearTimeout(t);
   }, [justAppeared]);
-  const isRunning = (tool.running && !tool.done) || (!tool.done && tool.result === null) || justAppeared;
+  // tool.running is authoritative — computed once in messageParser from the
+  // tool lifecycle (results, tool_done, turn/exit barriers).
+  const isRunning = tool.running === true || justAppeared;
   const label = isRunning ? runningLabel(tool) : itemLabel(tool);
   const hasPath = (tool.name === "Read" || tool.name === "Edit" || tool.name === "Write") && tool.input?.file_path;
   const failure = failureKind(tool);

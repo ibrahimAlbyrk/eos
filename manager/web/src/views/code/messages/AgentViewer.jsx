@@ -26,7 +26,7 @@ function AgentViewerInner({ block }) {
     verb: verbFor(t.name),
     input: t.input ?? {},
     result: t.result ?? (t.done || isDone ? { text: "", isError: false } : null),
-    running: !t.done && !isDone,
+    running: t.running === true && !isDone,
     ts: t.ts,
   }));
 
