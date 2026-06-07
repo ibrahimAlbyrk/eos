@@ -159,6 +159,13 @@ export async function spawnWorker(
     agentRole: resolved.role ?? null,
   });
 
+  // A prompt-bearing spawn IS the start of a turn. The row is born busy
+  // (SPAWNING), so TransitionState's non-busy→busy stamp never fires for the
+  // boot turn — without this the UI elapsed timer stays blank until turn two.
+  if (resolved.prompt && resolved.prompt.trim().length > 0) {
+    deps.workers.setTurnStartedAt(id, deps.clock.now());
+  }
+
   if (resolved.claudePermissionMode) {
     deps.workers.updatePermissionMode(id, resolved.claudePermissionMode);
   }

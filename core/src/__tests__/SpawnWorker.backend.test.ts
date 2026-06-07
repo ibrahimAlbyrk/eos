@@ -10,7 +10,7 @@ function buildDeps(backend: ReturnType<typeof createFakeAgentBackend>) {
   const inserted: Array<Record<string, unknown>> = [];
   const log = { info() {}, warn() {}, error() {}, child() { return log; } };
   const deps = {
-    workers: { insert: (r: Record<string, unknown>) => { inserted.push(r); }, updatePermissionMode: () => {} },
+    workers: { insert: (r: Record<string, unknown>) => { inserted.push(r); }, updatePermissionMode: () => {}, setTurnStartedAt: () => {} },
     events: { append: () => 1 },
     bus: { publish: () => {} },
     clock: { now: () => 1000 },

@@ -11,6 +11,7 @@ function buildDeps(): { deps: SpawnWorkerDeps; inserted: { branch: string | null
     workers: {
       insert: (input: { branch: string | null }) => { inserted.push(input); },
       updatePermissionMode: () => {},
+      setTurnStartedAt: () => {},
     },
     events: { append: () => 1 },
     bus: { publish: () => {} },
