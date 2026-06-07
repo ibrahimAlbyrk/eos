@@ -9,6 +9,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
+import { deriveActivity } from "../../../lib/agentActivity.js";
 import { buildBlocks, parsePayload } from "../../../lib/messageParser.js";
 import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
 import { shouldStick, shouldAutoScroll } from "../../../lib/scrollStick.js";
@@ -119,7 +120,10 @@ export function Messages({ live }) {
     let cancelled = false;
     const fetchOnce = async () => {
       try {
-        const rows = await api.getWorkerEvents(ui.selectedId, { limit: 500, order: "asc", signal: ac.signal });
+        // order:"desc" = newest 500, returned in ASC reading order (see
+        // SqliteEventRepo). "asc" here would pin the view to the OLDEST 500
+        // and freeze long transcripts.
+        const rows = await api.getWorkerEvents(ui.selectedId, { limit: 500, order: "desc", signal: ac.signal });
         if (!cancelled && Array.isArray(rows)) {
           eventsForRef.current = ui.selectedId;
           setEvents(rows);
@@ -176,7 +180,9 @@ export function Messages({ live }) {
   const parentWorker = selectedWorker?.parent_id
     ? live.workers.find((w) => w.id === selectedWorker.parent_id)
     : null;
-  const agentBusy = selectedWorker && (selectedWorker.state === "SPAWNING" || selectedWorker.state === "WORKING");
+  // live.workers already maps an interrupted agent to IDLE, so deriveActivity
+  // sees the effective state.
+  const { busy: agentBusy, elapsedMs: turnElapsedMs } = deriveActivity(selectedWorker, live.now);
   const interrupted = live.interruptedId === selectedWorker?.id;
 
   const lastBlock = blocks[blocks.length - 1];
@@ -204,13 +210,7 @@ export function Messages({ live }) {
     ui.addOptimisticUserMessage(selectedWorker.id, combined);
     live.sendToAgent(selectedWorker.id, combined);
   }, [agentBusy, blocks, interrupted]);
-  const lastIsUser = !!(lastBlock && lastBlock.kind === "user");
   const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "agentRun");
-  let lastUserTs = null;
-  for (let i = blocks.length - 1; i >= 0; i--) {
-    if (blocks[i].kind === "user") { lastUserTs = blocks[i].ts; break; }
-  }
-  const waitingElapsedMs = agentBusy && lastIsUser && lastUserTs ? Math.max(0, live.now - lastUserTs) : 0;
   const showAnchor = !interrupted && ((agentBusy && blocks.length > 0) || isAgentReply);
 
   // Layout effect: the initial scroll must land before paint, otherwise the
@@ -260,8 +260,8 @@ export function Messages({ live }) {
         })}
         {showAnchor && (
           <ProcessingLine
-            busy={!!agentBusy}
-            elapsed={agentBusy && lastIsUser && lastUserTs && waitingElapsedMs >= 1000 ? fmtElapsedShort(waitingElapsedMs) : null}
+            busy={agentBusy}
+            elapsed={turnElapsedMs >= 1000 ? fmtElapsedShort(turnElapsedMs) : null}
           />
         )}
       </div>
@@ -291,7 +291,7 @@ function renderBlock(b, key, cwd, ui, workers) {
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} label={b.workerName || b.fromWorker || "worker"} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} label={b.parentName || b.fromParent || "orchestrator"} direction="out" /></MessageRow>;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} /></MessageRow>;
-    case "thinking":  return <ThinkingLine key={key} text={b.text} ms={b.ms} />;
+    case "thinking":  return <ThinkingLine key={key} text={b.text} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
       // expandedTools holds toggles against the settings-driven default (XOR)

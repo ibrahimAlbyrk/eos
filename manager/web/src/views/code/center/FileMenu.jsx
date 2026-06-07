@@ -26,7 +26,7 @@ function AgentIcon() {
   );
 }
 
-const STATE_COLORS = { WORKING: "var(--ok)", IDLE: "var(--fg-faint)", SPAWNING: "var(--warn)" };
+const STATE_COLORS = { WORKING: "var(--ok)", IDLE: "var(--fg-faint)", SPAWNING: "var(--ok)" };
 
 function HighlightedName({ name, query }) {
   if (!query) return <span>{name}</span>;

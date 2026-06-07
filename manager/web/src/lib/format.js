@@ -60,7 +60,9 @@ export function modelShort(model) {
 export function statusFromState(state) {
   switch (state) {
     case "WORKING":  return { dot: "run",   label: "running" };
-    case "SPAWNING": return { dot: "think", label: "spawning" };
+    // Boot is part of the turn — surfacing "spawning" reads as slowness, so
+    // the UI presents it as already running. (FSM state is untouched.)
+    case "SPAWNING": return { dot: "run",   label: "running" };
     case "IDLE":     return { dot: "wait",  label: "idle" };
     case "ENDING":   return { dot: "wait",  label: "ending" };
     case "DONE":     return { dot: "wait",  label: "done" };
