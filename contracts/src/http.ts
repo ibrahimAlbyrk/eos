@@ -71,7 +71,7 @@ export type MessageResponse = z.infer<typeof MessageResponseSchema>;
 // (manager/prompts/) and sends it to the PTY, while the chat shows only the
 // short display label.
 
-export const WorkerActionSchema = z.enum(["commit", "commit-push", "pr", "draft-pr"]);
+export const WorkerActionSchema = z.enum(["commit", "commit-push", "pr", "draft-pr", "verify"]);
 export type WorkerAction = z.infer<typeof WorkerActionSchema>;
 
 export const WorkerActionRequestSchema = z.object({ action: WorkerActionSchema });
@@ -563,6 +563,66 @@ export const RewindResponseSchema = z.object({
 });
 export type RewindResponse = z.infer<typeof RewindResponseSchema>;
 
+// ---- /workers/:id/try* -------------------------------------------------------
+// Unstaged Try: the daemon applies the worker branch's merged result into the
+// user's checkout as working-tree-only edits (no index, no merge state), with
+// Keep/Discard. One active try per repo; state survives daemon restarts and
+// worker deletion. Mutating try endpoints require the per-boot UI token header
+// (x-eos-ui-token) so agents holding the daemon URL cannot self-apply.
+
+export const ActiveTrySchema = z.object({
+  workerId: z.string(),
+  branch: z.string(),
+  baseHead: z.string(),
+  files: z.array(z.string()),
+  lockfileChanged: z.boolean(),
+  createdAt: z.number(),
+});
+export type ActiveTry = z.infer<typeof ActiveTrySchema>;
+
+export const TryPreviewResponseSchema = z.object({
+  // false = git too old for merge-tree --write-tree (< 2.38) or snapshot failed
+  supported: z.boolean(),
+  ahead: z.number().int().nonnegative(),
+  behind: z.number().int().nonnegative(),
+  conflicts: z.array(z.string()),
+  files: z.array(z.string()),
+  lockfileChanged: z.boolean(),
+  activeTry: ActiveTrySchema.nullable(),
+});
+export type TryPreviewResponse = z.infer<typeof TryPreviewResponseSchema>;
+
+export const TryApplyResponseSchema = z.object({
+  ok: z.boolean(),
+  files: z.array(z.string()).optional(),
+  lockfileChanged: z.boolean().optional(),
+  reason: z.string().optional(),
+  detail: z.string().optional(),
+});
+export type TryApplyResponse = z.infer<typeof TryApplyResponseSchema>;
+
+export const TryDiscardResponseSchema = z.object({
+  ok: z.boolean(),
+  reason: z.string().optional(),
+  // On user-edited: the files whose post-apply hash no longer matches.
+  files: z.array(z.string()).optional(),
+  detail: z.string().optional(),
+});
+export type TryDiscardResponse = z.infer<typeof TryDiscardResponseSchema>;
+
+export const TryKeepResponseSchema = z.object({
+  ok: z.boolean(),
+  reason: z.string().optional(),
+});
+export type TryKeepResponse = z.infer<typeof TryKeepResponseSchema>;
+
+export const TryStateResponseSchema = z.object({
+  activeTry: ActiveTrySchema.nullable(),
+  // This worker's try was kept earlier — the UI never re-offers Apply for it.
+  kept: z.boolean(),
+});
+export type TryStateResponse = z.infer<typeof TryStateResponseSchema>;
+
 // ---- PUT /workers/:id/name -------------------------------------------------
 
 export const SetNameRequestSchema = z.object({ name: z.string().nullable() });
@@ -628,6 +688,11 @@ export const ROUTES = {
   workerReport: (id: string): string => `/workers/${id}/report`,
   workerRewindTargets: (id: string): string => `/workers/${id}/rewind-targets`,
   workerRewind: (id: string): string => `/workers/${id}/rewind`,
+  workerTryPreview: (id: string): string => `/workers/${id}/try/preview`,
+  workerTryState: (id: string): string => `/workers/${id}/try/state`,
+  workerTry: (id: string): string => `/workers/${id}/try`,
+  workerTryKeep: (id: string): string => `/workers/${id}/try/keep`,
+  workerTryDiscard: (id: string): string => `/workers/${id}/try/discard`,
   commands: "/commands",
   skillRead: "/skills/read",
   templates: "/api/templates",

@@ -14,6 +14,7 @@ const EXPECTED_KEYS = [
   "workerInterrupt", "workerKeystroke",
   "workerQuestion", "workerQuestionNotify", "workerQuestionAnswer",
   "workerNotify", "workerReport", "workerRewindTargets", "workerRewind",
+  "workerTryPreview", "workerTryState", "workerTry", "workerTryKeep", "workerTryDiscard",
   "commands", "web", "skillRead",
   "templates", "template", "settings",
 ] as const;

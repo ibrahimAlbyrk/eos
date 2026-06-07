@@ -41,6 +41,14 @@ function gitDirOf(w: WorkerRow | null): string | null {
   return w ? (w.worktree_dir ?? w.cwd ?? w.worktree_from ?? null) : null;
 }
 
+// Diff base for worktree workers: the fork point vs the source checkout, so
+// commits the agent made after forking still show in /diff and /changes (an
+// agent that commits must never look "clean"). Null → plain HEAD diff.
+async function diffBaseOf(c: Container, w: WorkerRow | null): Promise<string | undefined> {
+  if (!w?.worktree_dir || !w.worktree_from) return undefined;
+  return (await c.git.mergeBase(w.worktree_dir, w.worktree_from)) ?? undefined;
+}
+
 export function registerWorkerRoutes(r: Router, c: Container): void {
   r.get("/workers", ({ res }) => {
     writeJson(res, 200, c.workers.listAll());
@@ -128,6 +136,11 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         },
         cleanupWorktree: (ref) => {
           void c.worktrees.remove(ref).catch((e) => c.log.warn("worktree cleanup failed", { worker: params.id, error: errMsg(e) }));
+          // Drop the try snapshot ref too. An active try's patch/state live
+          // outside the worktree and are deliberately preserved — discard
+          // must survive worker deletion.
+          void c.branchIntegration.cleanupSnapshot({ repoRoot: ref.repoRoot, workerId: params.id })
+            .catch((e) => c.log.warn("snapshot cleanup failed", { worker: params.id, error: errMsg(e) }));
         },
       },
       params.id,
@@ -360,7 +373,15 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     }
 
     const label = worker.name ?? params.id;
-    const formatted = `[worker ${label} (${params.id})] reported:\n${body.text}`;
+    // Compliance-independent merge handle: the header carries the branch and
+    // worktree even when the worker forgot its Handover line. Branch-only
+    // during the window before worktree_dir enrichment lands.
+    const where = worker.branch
+      ? worker.worktree_dir
+        ? ` (branch ${worker.branch}, worktree ${worker.worktree_dir})`
+        : ` (branch ${worker.branch})`
+      : "";
+    const formatted = `[worker ${label} (${params.id})] reported${where}:\n${body.text}`;
     try {
       await c.httpWorkerClient.sendMessage(parent.port, formatted);
       c.events.append(worker.parent_id, c.clock.now(), "worker_report", {
@@ -415,22 +436,103 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     // Return 200+zeros for both "missing worker" and "no cwd" so a poll that
     // races with a kill doesn't fire a 404 in the network log. Frontend
     // already treats zero stats as "nothing to show".
-    const cwd = gitDirOf(c.workers.findById(params.id));
+    const w = c.workers.findById(params.id);
+    const cwd = gitDirOf(w);
     if (!cwd) { writeJson(res, 200, { insertions: 0, deletions: 0, files: 0 }); return; }
-    const stat = await c.git.diffShortStat(cwd);
+    const stat = await c.git.diffShortStat(cwd, await diffBaseOf(c, w));
     writeJson(res, 200, stat);
   });
 
   r.get(/^\/workers\/(?<id>[^/]+)\/changes$/, async ({ params, res }) => {
     // Same 200+empty convention as /diff above.
-    const dir = gitDirOf(c.workers.findById(params.id));
+    const w = c.workers.findById(params.id);
+    const dir = gitDirOf(w);
     if (!dir) { writeJson(res, 200, { files: [], insertions: 0, deletions: 0 }); return; }
-    const files = await c.git.changedFiles(dir);
+    const files = await c.git.changedFiles(dir, await diffBaseOf(c, w));
     writeJson(res, 200, {
       files,
       insertions: files.reduce((n, f) => n + (f.insertions ?? 0), 0),
       deletions: files.reduce((n, f) => n + (f.deletions ?? 0), 0),
     });
+  });
+
+  // ---- Try (unstaged apply) -------------------------------------------------
+  // The daemon applies the worker branch's merged result into the USER'S
+  // checkout (worktree_from) as working-tree-only edits. Mutating routes
+  // require the per-boot UI token so agents holding CLAUDE_MGR_DAEMON_URL
+  // cannot self-apply. 409 until worktree_dir enrichment lands — acting on
+  // worktree_from alone would snapshot the wrong tree.
+
+  const uiTokenOk = (req: { headers: Record<string, string | string[] | undefined> }): boolean =>
+    req.headers["x-eos-ui-token"] === c.uiToken;
+
+  const tryRefOf = (id: string): { ref?: { repoRoot: string; worktreeDir: string | null; branch: string; workerId: string }; status: number; error?: string } => {
+    const w = c.workers.findById(id);
+    if (!w) return { status: 404, error: "worker not found" };
+    if (!w.worktree_from || !w.branch) return { status: 409, error: "worker has no worktree branch" };
+    if (!w.worktree_dir) return { status: 409, error: "worktree not registered yet — retry shortly" };
+    return { status: 200, ref: { repoRoot: w.worktree_from, worktreeDir: w.worktree_dir, branch: w.branch, workerId: id } };
+  };
+
+  r.get(/^\/workers\/(?<id>[^/]+)\/try\/preview$/, async ({ params, res }) => {
+    const t = tryRefOf(params.id);
+    if (!t.ref) { writeJson(res, t.status, { error: t.error }); return; }
+    writeJson(res, 200, await c.branchIntegration.preview(t.ref));
+  });
+
+  r.get(/^\/workers\/(?<id>[^/]+)\/try\/state$/, async ({ params, res }) => {
+    const w = c.workers.findById(params.id);
+    if (!w) { writeJson(res, 404, { error: "worker not found" }); return; }
+    const repoRoot = w.worktree_from ?? w.cwd;
+    if (!repoRoot) { writeJson(res, 200, { activeTry: null, kept: false }); return; }
+    writeJson(res, 200, {
+      activeTry: await c.branchIntegration.activeTry(repoRoot),
+      kept: await c.branchIntegration.wasKept({ repoRoot, workerId: params.id }),
+    });
+  });
+
+  r.post(/^\/workers\/(?<id>[^/]+)\/try$/, async ({ params, req, res }) => {
+    if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const t = tryRefOf(params.id);
+    if (!t.ref) { writeJson(res, t.status, { error: t.error }); return; }
+    const result = await c.branchIntegration.apply(t.ref);
+    if (result.ok) {
+      c.events.append(params.id, c.clock.now(), "try_applied", {
+        branch: t.ref.branch, files: result.files, lockfileChanged: result.lockfileChanged,
+      });
+      c.bus.publish("worker:change", { workerId: params.id });
+      writeJson(res, 200, { ok: true, files: result.files, lockfileChanged: result.lockfileChanged });
+      return;
+    }
+    writeJson(res, 409, { ok: false, reason: result.reason, files: result.files, detail: result.detail });
+  });
+
+  r.post(/^\/workers\/(?<id>[^/]+)\/try\/keep$/, async ({ params, req, res }) => {
+    if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const w = c.workers.findById(params.id);
+    const repoRoot = w?.worktree_from ?? w?.cwd;
+    if (!repoRoot) { writeJson(res, 404, { error: "worker not found" }); return; }
+    const active = await c.branchIntegration.activeTry(repoRoot);
+    const result = await c.branchIntegration.keep(repoRoot);
+    if (result.ok && active) {
+      c.events.append(active.workerId, c.clock.now(), "try_kept", { branch: active.branch, files: active.files });
+      c.bus.publish("worker:change", { workerId: active.workerId });
+    }
+    writeJson(res, result.ok ? 200 : 409, result);
+  });
+
+  r.post(/^\/workers\/(?<id>[^/]+)\/try\/discard$/, async ({ params, req, res }) => {
+    if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const w = c.workers.findById(params.id);
+    const repoRoot = w?.worktree_from ?? w?.cwd;
+    if (!repoRoot) { writeJson(res, 404, { error: "worker not found" }); return; }
+    const active = await c.branchIntegration.activeTry(repoRoot);
+    const result = await c.branchIntegration.discard(repoRoot);
+    if (result.ok && active) {
+      c.events.append(active.workerId, c.clock.now(), "try_discarded", { branch: active.branch, files: active.files });
+      c.bus.publish("worker:change", { workerId: active.workerId });
+    }
+    writeJson(res, result.ok ? 200 : 409, result);
   });
 
   r.get(/^\/workers\/(?<id>[^/]+)\/changes\/file$/, async ({ params, url, res }) => {
@@ -442,8 +544,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       writeJson(res, 400, { error: "path must be repo-relative" });
       return;
     }
-    const dir = gitDirOf(c.workers.findById(params.id));
+    const w = c.workers.findById(params.id);
+    const dir = gitDirOf(w);
     if (!dir) { writeJson(res, 200, { path: q.path, patch: "", binary: false, truncated: false }); return; }
-    writeJson(res, 200, await c.git.fileDiff(dir, q.path, q.oldPath));
+    writeJson(res, 200, await c.git.fileDiff(dir, q.path, q.oldPath, await diffBaseOf(c, w)));
   });
 }

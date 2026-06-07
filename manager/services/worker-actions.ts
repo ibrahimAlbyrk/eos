@@ -17,6 +17,7 @@ const ACTIONS: Record<WorkerAction, ActionSpec> = {
   "commit-push": { template: "commit.md",    display: "/commit and push", args: ["true"] },
   "pr":          { template: "create-pr.md", display: "/create-pr",       args: ["false"] },
   "draft-pr":    { template: "create-pr.md", display: "/create-pr draft", args: ["true"] },
+  "verify":      { template: "verify.md",    display: "/verify",          args: [] },
 };
 
 export interface ResolvedAction {

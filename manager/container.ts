@@ -4,7 +4,8 @@
 
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
-import { writeFileSync, unlinkSync, existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from "node:fs";
+import { randomBytes } from "node:crypto";
+import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from "node:fs";
 
 import { loadConfig, reloadConfig as reloadConfigFromDisk, type DaemonConfig, type ModelPrice } from "./shared/config.ts";
 import { buildWorkerArgs } from "./shared/worker-args.ts";
@@ -32,6 +33,7 @@ import { createDarwinFsHelpers, type FsHelpers } from "../infra/src/filesystem/D
 import { noopFsHelpers } from "../infra/src/filesystem/NoopFsHelpers.ts";
 import { childProcessGitInfo } from "../infra/src/git/ChildProcessGitInfo.ts";
 import { childProcessWorktreeManager } from "../infra/src/git/ChildProcessWorktreeManager.ts";
+import { createChildProcessBranchIntegration } from "../infra/src/git/ChildProcessBranchIntegration.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
 import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
@@ -189,7 +191,33 @@ export function buildContainer() {
   // Git info + recents -----------------------------------------------------
   const git = childProcessGitInfo;
   const worktrees = childProcessWorktreeManager;
+  const branchIntegration = createChildProcessBranchIntegration({
+    triesDir: join(config.daemon.home, "tries"),
+    now: () => systemClock.now(),
+  });
   const recents = new JsonRecentsRepo(join(config.daemon.home, "recents.json"));
+
+  // UI-origin token. Required as the x-eos-ui-token header on every
+  // checkout-mutating endpoint (/workers/:id/try*) so agents holding
+  // CLAUDE_MGR_DAEMON_URL cannot self-apply into the user's checkout. Written
+  // to disk (0600) for the native app shell handshake — interim trust gate
+  // until ADR-0001 trust tiers. PERSISTENT across daemon restarts: the app
+  // injects it once at launch, and a per-boot rotation would 403 every open
+  // app after an `eos restart`. Rotate by deleting the file.
+  const uiTokenPath = join(config.daemon.home, "ui-token");
+  let uiToken = "";
+  try {
+    const existing = readFileSync(uiTokenPath, "utf8").trim();
+    if (/^[0-9a-f]{32,}$/.test(existing)) uiToken = existing;
+  } catch {}
+  if (!uiToken) {
+    uiToken = randomBytes(24).toString("hex");
+    try {
+      writeFileSync(uiTokenPath, uiToken, { mode: 0o600 });
+    } catch (e) {
+      log.warn("ui-token write failed", { error: errMsg(e) });
+    }
+  }
 
   // SpawnWorker dep builders -----------------------------------------------
   const buildArgs: SpawnWorkerDeps["buildArgs"] = ({ id, port, spec, model }) => {
@@ -215,6 +243,7 @@ export function buildContainer() {
         heartbeatQuietMs: config.worker.heartbeatQuietMs,
         shutdownGraceMs: config.worker.shutdownGraceMs,
         ptyWriteDelayMs: config.worker.ptyWriteDelayMs,
+        hydrateEnvFiles: config.worker.hydrateEnvFiles,
       },
     });
   };
@@ -373,6 +402,8 @@ export function buildContainer() {
     fs,
     git,
     worktrees,
+    branchIntegration,
+    uiToken,
     recents,
     buildArgs,
     buildEnv,

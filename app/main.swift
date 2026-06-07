@@ -221,6 +221,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     private func loadWeb() {
+        // Per-boot UI token handshake: the daemon writes ~/.claude-mgr/ui-token
+        // at startup; injecting it here (post-health, so a freshly spawned
+        // daemon has written it) lets the web layer call checkout-mutating
+        // endpoints. Agents only hold the daemon URL — not this token.
+        let tokenPath = ("~/.claude-mgr/ui-token" as NSString).expandingTildeInPath
+        if let token = try? String(contentsOfFile: tokenPath, encoding: .utf8) {
+            let t = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !t.isEmpty, t.range(of: "^[0-9a-f]+$", options: .regularExpression) != nil {
+                webView.configuration.userContentController.addUserScript(
+                    WKUserScript(source: "window.__EOS_UI_TOKEN = '\(t)';",
+                                 injectionTime: .atDocumentStart, forMainFrameOnly: true)
+                )
+            }
+        }
         // Clear only HTTP caches so a rebuilt dist/ loads fresh — wiping
         // allWebsiteDataTypes() would also delete localStorage (input history,
         // active view, scroll positions) on every launch.
