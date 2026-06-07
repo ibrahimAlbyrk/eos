@@ -56,7 +56,13 @@ export const childProcessWorktreeManager: WorktreeManager = {
       try { rmSync(dir, { recursive: true, force: true }); } catch {}
       await git(root, ["worktree", "prune"]);
     }
-    // 4. Delete the branch (already-gone is success).
+    // 4. Tombstone, then delete the branch (already-gone is success). When the
+    //    branch holds commits unreachable from HEAD, an eos/trash tag keeps
+    //    them recoverable — bytes-cheap in the shared object store.
+    const unmerged = await git(root, ["rev-list", "--count", ref.branch, "--not", "HEAD"]);
+    if (unmerged.code === 0 && (Number.parseInt(unmerged.stdout.trim(), 10) || 0) > 0) {
+      await git(root, ["tag", `eos/trash/${ref.branch}-${Date.now().toString(36)}`, ref.branch]);
+    }
     await git(root, ["branch", "-D", ref.branch]);
     return { removed: true };
   },

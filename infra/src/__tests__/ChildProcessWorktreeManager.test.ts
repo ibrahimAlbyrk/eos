@@ -65,6 +65,29 @@ describe("ChildProcessWorktreeManager.remove", () => {
     assert.equal(existsSync(dir), false);
   });
 
+  it("tags eos/trash before deleting a branch with unmerged commits", async () => {
+    const branch = "cm-trash-5";
+    const dir = addWorktree(branch);
+    writeFileSync(join(dir, "work.txt"), "committed work\n");
+    git(dir, "add", "-A");
+    assert.equal(git(dir, "commit", "-m", "worker commit").code, 0);
+
+    const res = await wm.remove({ repoRoot: repo, worktreeDir: dir, branch });
+    assert.equal(res.removed, true);
+    const tags = git(repo, "tag", "--list", `eos/trash/${branch}-*`).out.trim();
+    assert.ok(tags.length > 0, "tombstone tag should exist");
+    // The commit is still reachable via the tag.
+    assert.equal(git(repo, "rev-parse", `${tags.split("\n")[0]}^{commit}`).code, 0);
+  });
+
+  it("does not tag when the branch has no unmerged commits", async () => {
+    const branch = "cm-clean-6";
+    const dir = addWorktree(branch);
+    const res = await wm.remove({ repoRoot: repo, worktreeDir: dir, branch });
+    assert.equal(res.removed, true);
+    assert.equal(git(repo, "tag", "--list", `eos/trash/${branch}-*`).out.trim(), "");
+  });
+
   it("refuses to remove the repo root itself", async () => {
     const res = await wm.remove({ repoRoot: repo, worktreeDir: repo, branch: "whatever" });
     assert.equal(res.removed, false);
