@@ -65,6 +65,68 @@ export function parseNumstatZ(out: string): NumstatEntry[] {
   return entries;
 }
 
+export interface NameStatusEntry {
+  path: string;
+  oldPath?: string;
+  status: ChangedFile["status"];
+}
+
+// `git diff --name-status -z <base>`: records are "<letter>\0path\0"; renames
+// and copies are "R###"/"C###" followed by TWO paths (old, new). Typechange
+// (T) collapses to M; copies render as A with the source as oldPath.
+export function parseNameStatusZ(out: string): NameStatusEntry[] {
+  const tokens = out.split("\0").filter((t) => t.length > 0);
+  const entries: NameStatusEntry[] = [];
+  let i = 0;
+  while (i < tokens.length) {
+    const code = tokens[i++];
+    if (!/^[MADRCT]/.test(code)) continue;
+    if (code[0] === "R" || code[0] === "C") {
+      const oldPath = tokens[i++];
+      const path = tokens[i++];
+      if (path === undefined) break;
+      entries.push({ path, oldPath, status: code[0] === "R" ? "R" : "A" });
+    } else {
+      const path = tokens[i++];
+      if (path === undefined) break;
+      const status = code[0] === "T" ? "M" : (code[0] as ChangedFile["status"]);
+      entries.push({ path, status });
+    }
+  }
+  return entries;
+}
+
+// Base-aware listing: `git diff <base>` (base vs working tree) already covers
+// committed-after-fork AND uncommitted tracked changes — porcelain only
+// contributes untracked (??) files on top.
+export function mergeChangesWithBase(
+  nameStatus: NameStatusEntry[],
+  porcelain: PorcelainEntry[],
+  numstat: NumstatEntry[],
+): ChangedFile[] {
+  const counts = new Map(numstat.map((n) => [n.path, n]));
+  const files: ChangedFile[] = [];
+  for (const e of nameStatus) {
+    if (e.path.startsWith(".claude-mgr/")) continue;
+    const n = counts.get(e.path);
+    const file: ChangedFile = {
+      path: e.path,
+      status: e.status,
+      untracked: false,
+      insertions: n?.insertions ?? null,
+      deletions: n?.deletions ?? null,
+    };
+    if (e.oldPath) file.oldPath = e.oldPath;
+    files.push(file);
+  }
+  const seen = new Set(files.map((f) => f.path));
+  for (const e of porcelain) {
+    if (e.x + e.y !== "??" || seen.has(e.path) || e.path.startsWith(".claude-mgr/")) continue;
+    files.push({ path: e.path, status: "A", untracked: true, insertions: null, deletions: null });
+  }
+  return files.sort((a, b) => a.path.localeCompare(b.path));
+}
+
 function statusOf(e: PorcelainEntry): { status: ChangedFile["status"]; untracked: boolean } {
   const xy = e.x + e.y;
   if (xy === "??") return { status: "A", untracked: true };

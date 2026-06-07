@@ -18,12 +18,18 @@ export interface SyncStatus {
 export interface GitInfo {
   listBranches(cwd: string): Promise<string[]>;
   currentBranch(cwd: string): Promise<string | null>;
-  diffShortStat(cwd: string): Promise<DiffStat>;
+  /** With `base`, diffs base..working-tree (committed-after-fork + uncommitted);
+   *  without, HEAD..working-tree (uncommitted only). */
+  diffShortStat(cwd: string, base?: string): Promise<DiffStat>;
   checkout(cwd: string, branch: string): Promise<void>;
   remoteUrl(cwd: string): Promise<string | null>;
   syncStatus(cwd: string): Promise<SyncStatus | null>;
   stashCount(cwd: string): Promise<number>;
   conflictCount(cwd: string): Promise<number>;
-  changedFiles(cwd: string): Promise<ChangedFile[]>;
-  fileDiff(cwd: string, path: string, oldPath?: string): Promise<FileDiffResponse>;
+  changedFiles(cwd: string, base?: string): Promise<ChangedFile[]>;
+  fileDiff(cwd: string, path: string, oldPath?: string, base?: string): Promise<FileDiffResponse>;
+  /** Fork point: merge-base of cwd's HEAD and otherRepoRoot's HEAD (shared
+   *  object store assumed — a worktree vs its source checkout). Null when
+   *  either side can't resolve. */
+  mergeBase(cwd: string, otherRepoRoot: string): Promise<string | null>;
 }

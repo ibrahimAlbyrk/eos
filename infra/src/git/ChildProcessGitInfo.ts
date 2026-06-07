@@ -7,7 +7,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { GitInfo, DiffStat, SyncStatus } from "../../../core/src/ports/GitInfo.ts";
 import type { ChangedFile, FileDiffResponse } from "../../../contracts/src/http.ts";
-import { mergeChanges, parseNumstatZ, parsePorcelainZ, truncatePatch } from "./changes-parse.ts";
+import { mergeChanges, mergeChangesWithBase, parseNameStatusZ, parseNumstatZ, parsePorcelainZ, truncatePatch } from "./changes-parse.ts";
 
 const exec = promisify(execFile);
 
@@ -83,13 +83,40 @@ export const childProcessGitInfo: GitInfo = {
     }
   },
 
-  async diffShortStat(cwd: string): Promise<DiffStat> {
+  async diffShortStat(cwd: string, base?: string): Promise<DiffStat> {
     try {
-      // HEAD includes both staged and unstaged changes vs. the last commit.
-      const out = await runGit(cwd, ["diff", "--shortstat", "HEAD"]);
-      return parseShortStat(out.trim());
+      // Against HEAD: staged + unstaged vs the last commit. Against a base
+      // (worktree fork point): also includes commits made after the fork —
+      // a worktree agent that commits must not look "clean" in the UI.
+      const out = await runGit(cwd, ["diff", "--shortstat", base ?? "HEAD"]);
+      const stat = parseShortStat(out.trim());
+      // `git diff` never reports untracked files — an agent whose only change
+      // is a NEW file must not look clean either. Count them into `files`
+      // (line counts unknown); --exclude-standard keeps gitignored noise out.
+      // Managed worktrees live INSIDE the repo at .claude-mgr/ — never count
+      // them as user changes (same filter as the changes listing).
+      try {
+        const untracked = await runGit(cwd, ["ls-files", "--others", "--exclude-standard"]);
+        stat.files += untracked
+          .split("\n")
+          .filter((l) => l && !l.startsWith(".claude-mgr/") && l !== ".claude-mgr")
+          .length;
+      } catch {}
+      return stat;
     } catch {
       return { files: 0, insertions: 0, deletions: 0 };
+    }
+  },
+
+  async mergeBase(cwd: string, otherRepoRoot: string): Promise<string | null> {
+    try {
+      const other = (await runGit(otherRepoRoot, ["rev-parse", "HEAD"])).trim();
+      if (!other) return null;
+      // Worktree + source share one object store, so the sha resolves here.
+      const base = (await runGit(cwd, ["merge-base", "HEAD", other])).trim();
+      return base || null;
+    } catch {
+      return null;
     }
   },
 
@@ -135,9 +162,16 @@ export const childProcessGitInfo: GitInfo = {
     }
   },
 
-  async changedFiles(cwd: string): Promise<ChangedFile[]> {
+  async changedFiles(cwd: string, base?: string): Promise<ChangedFile[]> {
     try {
       const status = await runGit(cwd, ["status", "--porcelain=v1", "-z", "-uall"]);
+      if (base) {
+        // diff <base> covers committed-after-fork + uncommitted tracked work;
+        // porcelain contributes only untracked files on top.
+        const nameStatus = await runGit(cwd, ["diff", "--name-status", "-z", base]);
+        const numstat = await runGit(cwd, ["diff", "--numstat", "-z", base]);
+        return mergeChangesWithBase(parseNameStatusZ(nameStatus), parsePorcelainZ(status), parseNumstatZ(numstat));
+      }
       let numstat = "";
       // No HEAD yet (fresh repo) → degrade to status-only entries, null counts.
       try { numstat = await runGit(cwd, ["diff", "--numstat", "-z", "HEAD"]); } catch {}
@@ -147,14 +181,14 @@ export const childProcessGitInfo: GitInfo = {
     }
   },
 
-  async fileDiff(cwd: string, path: string, oldPath?: string): Promise<FileDiffResponse> {
+  async fileDiff(cwd: string, path: string, oldPath?: string, base?: string): Promise<FileDiffResponse> {
     try {
       // Single-file porcelain decides tracked vs untracked authoritatively —
       // covers staged deletes, which `ls-files` would misreport as untracked.
       const st = await runGit(cwd, ["status", "--porcelain=v1", "-z", "--", path]);
       const out = st.startsWith("??")
         ? await runGitDiffNoIndex(cwd, path)
-        : await runGit(cwd, ["diff", "HEAD", "--", ...(oldPath ? [path, oldPath] : [path])]);
+        : await runGit(cwd, ["diff", base ?? "HEAD", "--", ...(oldPath ? [path, oldPath] : [path])]);
       if (/^Binary files .* differ$/m.test(out)) {
         return { path, patch: "", binary: true, truncated: false };
       }

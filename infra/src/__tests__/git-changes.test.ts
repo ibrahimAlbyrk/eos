@@ -177,3 +177,97 @@ describe("changedFiles/fileDiff against a real repo", () => {
     }
   });
 });
+
+// Base-aware diff: a worktree agent that COMMITS must not look "clean" — the
+// fork point (merge-base vs the source checkout) becomes the diff base.
+describe("base-aware diff (worktree fork point)", () => {
+  let src: string;
+  let wt: string;
+
+  function git(cwd: string, ...args: string[]): { code: number; out: string } {
+    const r = spawnSync("git", ["-C", cwd, ...args], { encoding: "utf8" });
+    return { code: r.status ?? -1, out: (r.stdout ?? "") + (r.stderr ?? "") };
+  }
+
+  before(() => {
+    src = realpathSync(mkdtempSync(join(tmpdir(), "cm-base-src-")));
+    assert.equal(git(src, "init", "-b", "main").code, 0);
+    git(src, "config", "user.email", "t@t.t");
+    git(src, "config", "user.name", "t");
+    git(src, "config", "commit.gpgsign", "false");
+    writeFileSync(join(src, "a.txt"), "one\ntwo\n");
+    git(src, "add", "-A");
+    assert.equal(git(src, "commit", "-m", "init").code, 0);
+    wt = join(src, ".claude-mgr", "worktrees", "cm-base-w1");
+    assert.equal(git(src, "worktree", "add", wt, "-b", "cm-base-w1").code, 0);
+    wt = realpathSync(wt);
+    // Committed change + uncommitted change + untracked file in the worktree.
+    writeFileSync(join(wt, "a.txt"), "ONE\ntwo\n");
+    git(wt, "commit", "-aqm", "edit a");
+    writeFileSync(join(wt, "b.txt"), "newfile\n");
+    git(wt, "add", "b.txt");
+    git(wt, "commit", "-qm", "add b");
+    writeFileSync(join(wt, "b.txt"), "newfile\nmore\n");
+    writeFileSync(join(wt, "untracked.txt"), "u\n");
+  });
+
+  after(() => {
+    try { rmSync(src, { recursive: true, force: true }); } catch {}
+  });
+
+  it("mergeBase finds the fork point", async () => {
+    const base = await gitInfo.mergeBase(wt, src);
+    assert.ok(base);
+    assert.equal(base, git(src, "rev-parse", "HEAD").out.trim());
+  });
+
+  it("HEAD-only diff misses committed work; base diff includes it; untracked always counts", async () => {
+    const headOnly = await gitInfo.diffShortStat(wt);
+    assert.equal(headOnly.files, 2); // uncommitted edit to b.txt + untracked.txt
+    const base = await gitInfo.mergeBase(wt, src);
+    const full = await gitInfo.diffShortStat(wt, base!);
+    // a.txt (committed) + b.txt (committed+uncommitted) + untracked.txt
+    assert.equal(full.files, 3);
+    assert.ok(full.insertions >= 3);
+  });
+
+  it("untracked-only worktree is not reported clean", async () => {
+    const wt2 = join(src, ".claude-mgr", "worktrees", "cm-base-w2");
+    assert.equal(git(src, "worktree", "add", wt2, "-b", "cm-base-w2").code, 0);
+    try {
+      writeFileSync(join(wt2, "brand-new.md"), "hello\n");
+      const base = await gitInfo.mergeBase(wt2, src);
+      const stat = await gitInfo.diffShortStat(realpathSync(wt2), base!);
+      assert.equal(stat.files, 1);
+      assert.equal(stat.insertions, 0); // line counts unknown for untracked
+    } finally {
+      git(src, "worktree", "remove", "--force", wt2);
+      git(src, "branch", "-D", "cm-base-w2");
+    }
+  });
+
+  it("does not count the in-repo .claude-mgr worktree dir as a user change", async () => {
+    // src hosts worktrees under .claude-mgr/ and has NO .gitignore entry for
+    // it (mirrors a user repo that never ignored it) — the source checkout
+    // must still read clean.
+    const stat = await gitInfo.diffShortStat(src);
+    assert.equal(stat.files, 0);
+  });
+
+  it("changedFiles with base lists committed, uncommitted and untracked", async () => {
+    const base = await gitInfo.mergeBase(wt, src);
+    const files = await gitInfo.changedFiles(wt, base!);
+    const byPath = new Map(files.map((f) => [f.path, f]));
+    assert.equal(byPath.get("a.txt")?.status, "M");
+    assert.equal(byPath.get("a.txt")?.untracked, false);
+    assert.equal(byPath.get("b.txt")?.status, "A");
+    assert.equal(byPath.get("untracked.txt")?.untracked, true);
+  });
+
+  it("fileDiff with base shows the committed change", async () => {
+    const base = await gitInfo.mergeBase(wt, src);
+    const r = await gitInfo.fileDiff(wt, "a.txt", undefined, base!);
+    assert.match(r.patch, /^-one$/m);
+    assert.match(r.patch, /^\+ONE$/m);
+  });
+});
