@@ -10,6 +10,7 @@ import { api } from "../api/client.js";
 import { createReconnectingStream } from "../api/sse.js";
 import { useClockTick } from "./useClockTick.js";
 import { usePendingPermissions } from "./usePendingPermissions.js";
+import { applyCatalog } from "../lib/models.js";
 
 const POLL_MS = 4000;
 const SSE_DEBOUNCE_MS = 80;
@@ -77,6 +78,7 @@ export function useLive() {
         if (Array.isArray(list)) setWorkers(list);
         if (sess) setSession(sess);
         setRecents(rec?.paths ?? []);
+        applyCatalog(cfg?.modelCatalog);
         setUiConfig(cfg);
         setHealth(true);
       } catch { setHealth(false); }

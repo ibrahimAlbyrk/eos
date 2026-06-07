@@ -151,8 +151,18 @@ export const ModelPriceSchema = z.object({
   cacheCreate: z.number().nonnegative(),
 });
 
+export const CatalogModelSchema = z.object({
+  id: z.string().min(1),
+  displayName: z.string(),
+  createdAt: z.string(),
+  maxInputTokens: z.number().int().positive().nullable(),
+  maxTokens: z.number().int().positive().nullable(),
+});
+export type CatalogModel = z.infer<typeof CatalogModelSchema>;
+
 export const UiConfigResponseSchema = z.object({
   models: z.array(z.string()),
+  modelCatalog: z.array(CatalogModelSchema),
   prices: z.record(z.string(), ModelPriceSchema),
   permissions: z.object({ defaultTtlMs: z.number().int().positive() }),
   sse: z.object({ keepaliveMs: z.number().int().positive() }),

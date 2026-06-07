@@ -127,7 +127,11 @@ export const SETTINGS_SECTIONS = [
             description: "New agents spawn with this model.",
             control: {
               type: "select",
-              options: MODELS.map((m) => ({ value: m.aliases[0] ?? m.id, label: m.name, hint: m.tag })),
+              // Getter: re-evaluated on every render spread, so the list stays
+              // in sync after applyCatalog() replaces MODELS at runtime.
+              get options() {
+                return MODELS.map((m) => ({ value: m.aliases[0] ?? m.id, label: m.name, hint: m.tag }));
+              },
             },
             defaultValue: "opus",
           },
