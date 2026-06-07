@@ -168,6 +168,12 @@ export function useLive() {
     return r;
   }, [scheduleRefetch]);
 
+  const resumeAgent = useCallback(async (id) => {
+    const r = await api.resumeWorker(id);
+    scheduleRefetch();
+    return r;
+  }, [scheduleRefetch]);
+
   const renameAgent = useCallback(async (id, name) => {
     // Optimistic — avoid flashing the old name between input close and
     // the refetch landing.
@@ -240,6 +246,7 @@ export function useLive() {
     sendToAgent,
     interruptAgent,
     killAgent,
+    resumeAgent,
     renameAgent,
     setPermissionMode,
     setModel,

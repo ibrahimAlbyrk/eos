@@ -32,6 +32,7 @@ import { toCanonicalEvents } from "../../spawner/canonical-map.ts";
 import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermissionMode.ts";
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
+import { resumeWorkerVia, resumeIfDead } from "./resume-helpers.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
 
 // Where the agent actually edits: the worktree dir when spawned with a
@@ -48,6 +49,7 @@ async function diffBaseOf(c: Container, w: WorkerRow | null): Promise<string | u
   if (!w?.worktree_dir || !w.worktree_from) return undefined;
   return (await c.git.mergeBase(w.worktree_dir, w.worktree_from)) ?? undefined;
 }
+
 
 export function registerWorkerRoutes(r: Router, c: Container): void {
   r.get("/workers", ({ res }) => {
@@ -189,6 +191,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const body = validate(MessageRequestSchema, raw);
     const fromParent = typeof raw.fromParent === "string" ? raw.fromParent : null;
 
+    const target = c.workers.findById(params.id);
+    if (!target) { writeJson(res, 404, { error: "worker not found" }); return; }
+    await resumeIfDead(c, target);
+
     if (fromParent) {
       c.turnSettle.clear(params.id);
       const worker = c.workers.findById(params.id);
@@ -227,11 +233,24 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, result.status, result.body);
   });
 
+  // Revive a dead-but-resumable worker under the same id — claude restores the
+  // conversation via --resume <session_id>; the spec is rebuilt from the row.
+  r.post(/^\/workers\/(?<id>[^/]+)\/resume$/, async ({ params, res }) => {
+    const row = c.workers.findById(params.id);
+    if (!row) { writeJson(res, 404, { error: "not found" }); return; }
+    const result = await resumeWorkerVia(c, row);
+    c.turnSettle.clear(params.id);
+    writeJson(res, 200, result);
+  });
+
   // Predefined action → resolve the prompt template server-side; the chat
   // shows only the short display label (the full prompt never reaches the UI).
   r.post(/^\/workers\/(?<id>[^/]+)\/action$/, async ({ params, req, res }) => {
     const body = validate(WorkerActionRequestSchema, await readBody(req));
     const { prompt, display } = resolveWorkerAction(c.promptTemplates, body.action);
+    const target = c.workers.findById(params.id);
+    if (!target) { writeJson(res, 404, { error: "worker not found" }); return; }
+    await resumeIfDead(c, target);
     c.turnSettle.clear(params.id);
     const result = await dispatchMessage(
       {

@@ -67,6 +67,9 @@ export function statusFromState(state) {
     case "ENDING":   return { dot: "wait",  label: "ending" };
     case "DONE":     return { dot: "wait",  label: "done" };
     case "KILLING":  return { dot: "queue", label: "killing" };
+    // Process dead but the conversation is resumable — sending a message
+    // transparently revives it.
+    case "SUSPENDED": return { dot: "wait", label: "suspended" };
     // Drafts haven't been spawned yet, but the UI treats them as idle/ready
     // so the user doesn't get the impression the agent failed to start.
     case "DRAFT":    return { dot: "wait",  label: "idle" };

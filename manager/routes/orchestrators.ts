@@ -9,6 +9,7 @@ import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
 import { randomOrchestratorName } from "../shared/names.ts";
 import { expandPath } from "../shared/path.ts";
+import { resumeIfDead } from "./resume-helpers.ts";
 
 export function registerOrchestratorRoutes(r: Router, c: Container): void {
   r.get("/orchestrators", ({ res }) => {
@@ -54,6 +55,8 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
 
   r.post(/^\/orchestrators\/(?<id>[^/]+)\/message$/, async ({ params, req, res }) => {
     const body = validate(MessageRequestSchema, await readBody(req));
+    const target = c.workers.findById(params.id);
+    if (target) await resumeIfDead(c, target);
     c.turnSettle.clear(params.id);
     const result = await dispatchMessage(
       {

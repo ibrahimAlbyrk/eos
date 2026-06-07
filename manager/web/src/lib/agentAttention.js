@@ -3,7 +3,7 @@
 // "an agent needs attention when it has STOPPED with output the user hasn't
 // viewed yet". State (last-viewed signatures) lives in state/attention.jsx.
 
-const STOPPED_STATES = new Set(["IDLE", "DONE"]);
+const STOPPED_STATES = new Set(["IDLE", "DONE", "SUSPENDED"]);
 
 export function sigOf(worker) {
   return `${(worker.tokens_in ?? 0) + (worker.tokens_out ?? 0)}|${worker.tool_calls ?? 0}|${worker.cost_usd ?? 0}`;

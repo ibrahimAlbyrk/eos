@@ -74,6 +74,13 @@ export async function dispatchMessage(
     throw new UnreachableError("worker", e);
   }
 
+  // HttpWorkerClient swallows connection errors into {ok:false, status:0} —
+  // surface them instead of recording a user_message that never landed (and
+  // writeJson(res, 0, …) would throw anyway).
+  if (!result.ok && result.status === 0) {
+    throw new UnreachableError("worker", new Error("worker connection failed"));
+  }
+
   deps.events.append(input.workerId, deps.clock.now(), "user_message", {
     text: input.displayText ?? input.text,
   });
