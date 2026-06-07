@@ -1019,19 +1019,19 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .msg-asst .ic { font-size: var(--text-sm); }
 
 /* blur-in reveal for freshly arrived agent text (lib/blurInReveal.js) */
-.msg-asst .blur-word,
-.msg-asst .blur-in {
+.blur-word,
+.blur-in {
   opacity: 0;
   animation: msg-blur-in 0.22s ease forwards;
 }
-.msg-asst .blur-word { display: inline-block; }
+.blur-word { display: inline-block; }
 @keyframes msg-blur-in {
   from { opacity: 0; filter: blur(7px); transform: translateY(3px); }
   to { opacity: 1; filter: blur(0); transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .msg-asst .blur-word,
-  .msg-asst .blur-in { animation-duration: 0s; }
+  .blur-word,
+  .blur-in { animation-duration: 0s; }
 }
 
 /* ── tool group (multi-tool) ── */

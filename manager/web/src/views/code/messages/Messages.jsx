@@ -265,7 +265,7 @@ export function Messages({ live }) {
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
-          const animate = b.kind === "assistant" && baselineKeys != null && !baselineKeys.has(key);
+          const animate = (b.kind === "assistant" || b.kind === "thinking") && baselineKeys != null && !baselineKeys.has(key);
           const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, animate);
           if (isLast && interrupted && b.kind !== "user") {
             return <div key={key} className="msg-interrupted-wrap">{block}</div>;
@@ -305,7 +305,7 @@ function renderBlock(b, key, cwd, ui, workers, animate) {
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} label={b.workerName || b.fromWorker || "worker"} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} label={b.parentName || b.fromParent || "orchestrator"} direction="out" /></MessageRow>;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} /></MessageRow>;
-    case "thinking":  return <ThinkingLine key={key} text={b.text} />;
+    case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
       // expandedTools holds toggles against the settings-driven default (XOR)
