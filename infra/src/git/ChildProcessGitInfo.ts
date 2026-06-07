@@ -6,7 +6,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { GitInfo, DiffStat, SyncStatus } from "../../../core/src/ports/GitInfo.ts";
-import type { ChangedFile, FileDiffResponse } from "../../../contracts/src/http.ts";
+import type { ChangedFile, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
 import { mergeChanges, mergeChangesWithBase, parseNameStatusZ, parseNumstatZ, parsePorcelainZ, truncatePatch } from "./changes-parse.ts";
 
 const exec = promisify(execFile);
@@ -132,6 +132,30 @@ export const childProcessGitInfo: GitInfo = {
     } catch {
       // No upstream configured, detached HEAD, etc.
       return null;
+    }
+  },
+
+  async unpushedCommits(cwd: string): Promise<UnpushedCommit[]> {
+    try {
+      // Unit separators keep subjects with any punctuation parseable; record
+      // separator terminates each commit. No upstream → git errors → [].
+      const out = await runGit(cwd, ["log", "@{u}..HEAD", "--format=%h%x1f%an%x1f%ct%x1f%s%x1e"]);
+      return out
+        .split("\x1e")
+        .map((r) => r.trim())
+        .filter(Boolean)
+        .map((rec) => {
+          const [sha, author, ct, subject] = rec.split("\x1f");
+          return {
+            sha: sha ?? "",
+            author: author ?? "",
+            ts: (Number.parseInt(ct ?? "", 10) || 0) * 1000,
+            subject: subject ?? "",
+          };
+        })
+        .filter((c) => c.sha.length > 0);
+    } catch {
+      return [];
     }
   },
 

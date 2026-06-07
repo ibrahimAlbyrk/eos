@@ -31,6 +31,14 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
     });
   });
 
+  r.get("/fs/unpushed", async ({ url, res }) => {
+    const q = validate(BranchesQuerySchema, {
+      cwd: url.searchParams.get("cwd") ?? undefined,
+    });
+    if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
+    writeJson(res, 200, { commits: await c.git.unpushedCommits(q.cwd) });
+  });
+
   r.post("/fs/checkout", async ({ req, res }) => {
     const body = await readBody(req) as { cwd?: string; branch?: string };
     if (!isSafeAbsPath(body.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }

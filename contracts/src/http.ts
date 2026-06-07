@@ -213,6 +213,23 @@ export const BranchesResponseSchema = z.object({
 });
 export type BranchesResponse = z.infer<typeof BranchesResponseSchema>;
 
+// ---- GET /fs/unpushed --------------------------------------------------------
+// Commits on the current branch that the upstream doesn't have (@{u}..HEAD).
+
+export const UnpushedCommitSchema = z.object({
+  sha: z.string(),
+  author: z.string(),
+  // Commit time, epoch ms.
+  ts: z.number(),
+  subject: z.string(),
+});
+export type UnpushedCommit = z.infer<typeof UnpushedCommitSchema>;
+
+export const UnpushedResponseSchema = z.object({
+  commits: z.array(UnpushedCommitSchema),
+});
+export type UnpushedResponse = z.infer<typeof UnpushedResponseSchema>;
+
 // ---- POST /fs/checkout -----------------------------------------------------
 
 export const FsCheckoutRequestSchema = z.object({
@@ -665,6 +682,7 @@ export const ROUTES = {
   fsOpen: "/fs/open",
   fsIcon: "/fs/icon",
   fsBranches: "/fs/branches",
+  fsUnpushed: "/fs/unpushed",
   fsRecents: "/fs/recents",
   fsReveal: "/fs/reveal",
   fsRead: "/fs/read",

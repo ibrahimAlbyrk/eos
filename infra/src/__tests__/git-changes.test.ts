@@ -246,6 +246,36 @@ describe("base-aware diff (worktree fork point)", () => {
     }
   });
 
+  it("unpushedCommits lists @{u}..HEAD newest first; no upstream → []", async () => {
+    // src has no upstream — must degrade to empty, not throw.
+    assert.deepEqual(await gitInfo.unpushedCommits(src), []);
+
+    const cloneBase = mkdtempSync(join(tmpdir(), "cm-unpushed-"));
+    const clone = join(cloneBase, "clone");
+    try {
+      assert.equal(git(src, "clone", "-q", src, clone).code, 0);
+      git(clone, "config", "user.email", "t@t.t");
+      git(clone, "config", "user.name", "tester");
+      git(clone, "config", "commit.gpgsign", "false");
+      writeFileSync(join(clone, "p1.txt"), "1\n");
+      git(clone, "add", "-A");
+      assert.equal(git(clone, "commit", "-qm", "feat: first unpushed").code, 0);
+      writeFileSync(join(clone, "p2.txt"), "2\n");
+      git(clone, "add", "-A");
+      assert.equal(git(clone, "commit", "-qm", "fix: second unpushed").code, 0);
+
+      const commits = await gitInfo.unpushedCommits(clone);
+      assert.equal(commits.length, 2);
+      assert.equal(commits[0].subject, "fix: second unpushed");
+      assert.equal(commits[1].subject, "feat: first unpushed");
+      assert.equal(commits[0].author, "tester");
+      assert.ok(commits[0].ts > 0);
+      assert.match(commits[0].sha, /^[0-9a-f]{7,}$/);
+    } finally {
+      rmSync(cloneBase, { recursive: true, force: true });
+    }
+  });
+
   it("does not count the in-repo .claude-mgr worktree dir as a user change", async () => {
     // src hosts worktrees under .claude-mgr/ and has NO .gitignore entry for
     // it (mirrors a user repo that never ignored it) — the source checkout
