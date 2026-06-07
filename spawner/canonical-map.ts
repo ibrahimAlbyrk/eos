@@ -91,6 +91,7 @@ function hookToCanonical(p: Rec): AgentEvent[] {
     case "PreToolUse":
       return [{ type: "activity", kind: "tool_started", toolName, callId }];
     case "PostToolUse":
+    case "PostToolUseFailure":
       return [{ type: "activity", kind: "tool_finished", toolName, callId }];
     case "Stop":
       return [{ type: "turn", phase: "ended", reason: "stop" }];

@@ -326,6 +326,18 @@ const ingest = startIngestServer(opts.port, {
         ...(parentAgentToolUseId ? { parentAgentToolUseId } : {}),
       });
     }
+    // PostToolUse only fires on success; failures arrive here. Without this,
+    // a failed subagent inner tool (no transcript row to pair with) would
+    // never get its tool_done and shimmer as "running" forever.
+    if (eventName === "PostToolUseFailure") {
+      evt.emit("tool_done", {
+        toolName: body.tool_name ?? "unknown",
+        toolUseId: body.tool_use_id ?? null,
+        result: extractToolResponse(body.tool_response ?? body.error ?? ""),
+        isError: true,
+        ...(parentAgentToolUseId ? { parentAgentToolUseId } : {}),
+      });
+    }
     if (eventName === "Stop" || eventName === "SessionEnd") {
       claudeTurnOpen = false;
       // Drain the transcript to EOF before forwarding the turn-end hook: the

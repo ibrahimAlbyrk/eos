@@ -57,6 +57,8 @@ test("hook PreToolUse/PostToolUse → activity tool_started/finished", () => {
   assert.deepEqual(pre, [{ type: "activity", kind: "tool_started", toolName: "Edit", callId: "x" }]);
   const post = mapValid("hook", { event: "PostToolUse", body: { tool_name: "Edit", tool_use_id: "x" } });
   assert.equal(post[0].kind, "tool_finished");
+  const fail = mapValid("hook", { event: "PostToolUseFailure", body: { tool_name: "Edit", tool_use_id: "x" } });
+  assert.equal(fail[0].kind, "tool_finished");
 });
 
 test("hook Stop → turn ended; SessionEnd → session ended", () => {

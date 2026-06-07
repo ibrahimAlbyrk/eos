@@ -34,6 +34,7 @@ export function buildClaudeSettings(name: string, port: number): BuiltSettings {
           Stop: [httpHook("Stop")],
           Notification: [httpHook("Notification")],
           PostToolUse: [httpHook("PostToolUse")],
+          PostToolUseFailure: [httpHook("PostToolUseFailure")],
           SessionEnd: [httpHook("SessionEnd")],
         },
       },
