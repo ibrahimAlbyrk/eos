@@ -382,6 +382,28 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         : ` (branch ${worker.branch})`
       : "";
     const formatted = `[worker ${label} (${params.id})] reported${where}:\n${body.text}`;
+
+    // Opt-in auto-apply (settings: git.autoApplyOnReport): a finished worker's
+    // changes land in the user's checkout as unstaged edits, same as clicking
+    // Apply. Deterministic daemon-side git — no agent involved. Failures
+    // (conflicts, dirty files, another active try) are logged and left for
+    // the manual flow; nothing is half-applied.
+    if (
+      c.userSettings.read()["git.autoApplyOnReport"] === true &&
+      worker.worktree_from && worker.branch && worker.worktree_dir
+    ) {
+      const ref = { repoRoot: worker.worktree_from, worktreeDir: worker.worktree_dir, branch: worker.branch, workerId: params.id };
+      void c.branchIntegration.apply(ref).then((result) => {
+        if (result.ok) {
+          c.events.append(params.id, c.clock.now(), "try_applied", {
+            branch: ref.branch, files: result.files, lockfileChanged: result.lockfileChanged, auto: true,
+          });
+          c.bus.publish("worker:change", { workerId: params.id });
+        } else {
+          c.log.warn("auto-apply skipped", { worker: params.id, reason: result.reason, detail: result.detail });
+        }
+      }).catch((e) => c.log.warn("auto-apply failed", { worker: params.id, error: errMsg(e) }));
+    }
     try {
       await c.httpWorkerClient.sendMessage(parent.port, formatted);
       c.events.append(worker.parent_id, c.clock.now(), "worker_report", {

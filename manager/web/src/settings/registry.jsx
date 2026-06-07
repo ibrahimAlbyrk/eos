@@ -145,6 +145,18 @@ export const SETTINGS_SECTIONS = [
     Icon: CodeIcon,
     groups: [
       {
+        title: "Git",
+        items: [
+          {
+            key: "git.autoApplyOnReport",
+            label: "Auto-apply worker changes",
+            description: "When a worker reports done, its worktree changes land in your checkout as unstaged edits — test immediately, then Keep or Discard. Off = apply manually from the Changes panel.",
+            control: { type: "toggle" },
+            defaultValue: false,
+          },
+        ],
+      },
+      {
         title: "Verbose",
         items: [
           {
