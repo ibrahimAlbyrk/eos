@@ -15,6 +15,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtListAll;
   private readonly stmtListOrchestrators;
   private readonly stmtUpdateState;
+  private readonly stmtSetTurnStartedAt;
   private readonly stmtMarkDone;
   private readonly stmtAddUsage;
   private readonly stmtIncrementToolCalls;
@@ -32,13 +33,14 @@ export class SqliteWorkerRepo implements WorkerRepo {
   constructor(db: DatabaseSync) {
     this.db = db;
     this.stmtInsert = db.prepare(`
-      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role)
-      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role, turn_started_at)
+      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     this.stmtFindById = db.prepare("SELECT * FROM workers WHERE id = ?");
     this.stmtListAll = db.prepare("SELECT * FROM workers ORDER BY started_at DESC");
     this.stmtListOrchestrators = db.prepare("SELECT * FROM workers WHERE is_orchestrator = 1 ORDER BY started_at ASC");
     this.stmtUpdateState = db.prepare("UPDATE workers SET state = ? WHERE id = ?");
+    this.stmtSetTurnStartedAt = db.prepare("UPDATE workers SET turn_started_at = ? WHERE id = ?");
     this.stmtMarkDone = db.prepare("UPDATE workers SET state = 'DONE', ended_at = ?, exit_code = ? WHERE id = ?");
     this.stmtAddUsage = db.prepare(`
       UPDATE workers SET
@@ -87,6 +89,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
       input.backendKind ?? "claude-cli",
       input.backendProfile ?? null,
       input.agentRole ?? null,
+      input.startedAt,
     );
   }
 
@@ -105,6 +108,10 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   updateState(id: string, state: WorkerState): void {
     this.stmtUpdateState.run(state, id);
+  }
+
+  setTurnStartedAt(id: string, ts: number): void {
+    this.stmtSetTurnStartedAt.run(ts, id);
   }
 
   markDone(id: string, endedAt: number, exitCode: number | null): void {

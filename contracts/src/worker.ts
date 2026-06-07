@@ -38,6 +38,10 @@ export const WorkerRowSchema = z.object({
   // Resolved (realpath'd) worktree directory, persisted post-spawn so the
   // daemon can remove the worktree on delete even after the worker is gone.
   worktree_dir: z.string().nullable().optional(),
+  // Authoritative turn clock — set by TransitionState on every entry into the
+  // busy set (SPAWNING/WORKING) from a non-busy state. UI elapsed timers read
+  // this instead of inferring turn start from transcript blocks.
+  turn_started_at: z.number().nullable().optional(),
 });
 
 export const PermissionModeSchema = z.enum([

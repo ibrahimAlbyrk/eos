@@ -23,6 +23,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean; legacy
   const workers = {
     findById: () => row as unknown as WorkerRow,
     updateState: (_id: string, next: WorkerState) => { row.state = next; },
+    setTurnStartedAt: () => {},
     incrementToolCalls: () => { toolCalls.count++; },
     setWorktreeDir: () => {},
   } as unknown as ProcessWorkerEventDeps["workers"];

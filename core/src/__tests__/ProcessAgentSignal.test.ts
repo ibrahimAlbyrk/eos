@@ -31,6 +31,7 @@ function buildDeps(
   const workers = {
     findById: () => row as unknown as WorkerRow,
     updateState: (_id: string, next: WorkerState) => { row.state = next; },
+    setTurnStartedAt: () => {},
     incrementToolCalls: () => { toolCalls.count++; },
     setWorktreeDir: () => {},
     addUsage: (_id: string, d: UsageDelta) => { deltas.push(d); },

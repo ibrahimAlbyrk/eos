@@ -22,6 +22,8 @@ export interface TransitionInput {
   reason: string;
 }
 
+const BUSY_STATES = new Set<WorkerState>(["SPAWNING", "WORKING"]);
+
 export function transitionState(deps: TransitionStateDeps, input: TransitionInput): "applied" | "rejected" | "noop" {
   const cur = deps.workers.findById(input.workerId);
   if (!cur) return "noop";
@@ -35,6 +37,12 @@ export function transitionState(deps: TransitionStateDeps, input: TransitionInpu
     return "rejected";
   }
   deps.workers.updateState(input.workerId, input.next);
+  // Turn clock: stamp on every entry into the busy set from a non-busy state.
+  // Busy-internal moves (SPAWNING→WORKING) keep the original stamp so the UI
+  // elapsed covers the whole turn, not just the latest sub-phase.
+  if (!BUSY_STATES.has(from) && BUSY_STATES.has(input.next)) {
+    deps.workers.setTurnStartedAt(input.workerId, deps.clock.now());
+  }
   const rowId = deps.events.append(input.workerId, deps.clock.now(), "state", {
     state: input.next, from, reason: input.reason,
   });

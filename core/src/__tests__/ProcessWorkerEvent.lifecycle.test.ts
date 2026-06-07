@@ -24,6 +24,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
   const workers = {
     findById: () => row as unknown as WorkerRow,
     updateState: (_id: string, next: WorkerState) => { row.state = next; },
+    setTurnStartedAt: () => {},
     incrementToolCalls: () => { toolCalls.count++; },
     setWorktreeDir: (id: string, dir: string) => { worktreeDirCalls.push({ id, dir }); },
   } as unknown as ProcessWorkerEventDeps["workers"];

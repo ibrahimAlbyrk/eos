@@ -38,6 +38,8 @@ export interface WorkerRepo {
   listAll(): WorkerRow[];
   listOrchestrators(): WorkerRow[];
   updateState(id: string, state: WorkerState): void;
+  // Turn clock — stamped on every entry into the busy set (see TransitionState).
+  setTurnStartedAt(id: string, ts: number): void;
   markDone(id: string, endedAt: number, exitCode: number | null): void;
   addUsage(id: string, delta: UsageDelta): void;
   incrementToolCalls(id: string): void;
