@@ -19,6 +19,7 @@ export function SelectionProvider({ children }) {
   const [expandedTools, setExpandedTools] = useState(() => new Set());
   const [fileViewer, setFileViewer] = useState(null);
   const [agentViewer, setAgentViewer] = useState(null);
+  const [diffViewer, setDiffViewer] = useState(null);
   const [renamingId, setRenamingId] = useState(null);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   const [dismissedQuestions, setDismissedQuestions] = useState(() => new Set());
@@ -48,7 +49,7 @@ export function SelectionProvider({ children }) {
     setPopoverData({});
   }, []);
 
-  useEffect(() => { setFileViewer(null); setAgentViewer(null); }, [selectedId]);
+  useEffect(() => { setFileViewer(null); setAgentViewer(null); setDiffViewer(null); }, [selectedId]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -59,6 +60,7 @@ export function SelectionProvider({ children }) {
       if (openPopover) { closeAllPops(); return; }
       if (agentViewer) { setAgentViewer(null); return; }
       if (fileViewer) { setFileViewer(null); return; }
+      if (diffViewer) { setDiffViewer(null); return; }
       if (escapeGitModeRef.current?.()) { e.preventDefault(); return; }
       // Double-Esc with an agent selected → rewind panel (Claude Code parity:
       // composer's own double-Esc-clears-text path preventDefaults, so this
@@ -75,7 +77,7 @@ export function SelectionProvider({ children }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeAllPops, openPopover, fileViewer, agentViewer, rewindPanel, selectedId]);
+  }, [closeAllPops, openPopover, fileViewer, agentViewer, diffViewer, rewindPanel, selectedId]);
 
   const toggleNodeCollapsed = useCallback((id) => {
     setCollapsedNodes((prev) => {
@@ -95,14 +97,22 @@ export function SelectionProvider({ children }) {
 
   const openFileViewer = useCallback((path) => {
     setAgentViewer(null);
+    setDiffViewer(null);
     setFileViewer({ path });
   }, []);
   const closeFileViewer = useCallback(() => setFileViewer(null), []);
   const openAgentViewer = useCallback((block) => {
     setFileViewer(null);
+    setDiffViewer(null);
     setAgentViewer(block);
   }, []);
   const closeAgentViewer = useCallback(() => setAgentViewer(null), []);
+  const openDiffViewer = useCallback((workerId) => {
+    setFileViewer(null);
+    setAgentViewer(null);
+    setDiffViewer({ workerId });
+  }, []);
+  const closeDiffViewer = useCallback(() => setDiffViewer(null), []);
   const syncAgentViewer = useCallback((block) => {
     setAgentViewer((prev) => prev && prev.toolUseId === block.toolUseId ? block : prev);
   }, []);
@@ -117,16 +127,18 @@ export function SelectionProvider({ children }) {
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
     fileViewer, openFileViewer, closeFileViewer,
     agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
+    diffViewer, openDiffViewer, closeDiffViewer,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
   }), [
     selectedId, sideCollapsed, openPopover, popoverPos, popoverData,
-    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, fileViewer, agentViewer,
+    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, fileViewer, agentViewer, diffViewer,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded,
     openFileViewer, closeFileViewer,
     openAgentViewer, closeAgentViewer, syncAgentViewer,
+    openDiffViewer, closeDiffViewer,
     registerEscapeIdle,
     registerEscapeGitMode,
   ]);

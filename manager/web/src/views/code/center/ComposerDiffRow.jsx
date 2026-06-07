@@ -227,10 +227,14 @@ export function ComposerDiffRow({ live }) {
         </span>
       )}
       {(diff?.insertions > 0 || diff?.deletions > 0) && (
-        <span className="diff-badge">
+        <button
+          className={"diff-badge diff-badge-btn" + (ui.diffViewer ? " on" : "")}
+          title="View changes"
+          onClick={() => (ui.diffViewer ? ui.closeDiffViewer() : ui.openDiffViewer(ui.selectedId))}
+        >
           +{diff.insertions.toLocaleString()}{" "}
           <span className="diff-neg">−{diff.deletions.toLocaleString()}</span>
-        </span>
+        </button>
       )}
       {dirty && (
         <SplitButton

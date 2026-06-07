@@ -8,6 +8,7 @@ import { Composer } from "./center/Composer.jsx";
 import { Messages } from "./messages/Messages.jsx";
 import { FileViewer } from "./messages/FileViewer.jsx";
 import { AgentViewer } from "./messages/AgentViewer.jsx";
+import { DiffViewer } from "./messages/DiffViewer.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
 
@@ -77,6 +78,7 @@ export function CodeView({ live }) {
     ready ? "ready" : "",
     ui.fileViewer ? "file-open" : "",
     ui.agentViewer ? "agent-open" : "",
+    ui.diffViewer ? "diff-open" : "",
   ].filter(Boolean).join(" ");
 
   return (
@@ -94,6 +96,7 @@ export function CodeView({ live }) {
         <>
           <FileViewer />
           <AgentViewer />
+          <DiffViewer live={live} />
         </>
       }
     >

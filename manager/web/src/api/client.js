@@ -278,6 +278,23 @@ export const api = {
     }
   },
 
+  async getWorkerChanges(id) {
+    try {
+      const r = await getJson(ROUTES.workerChanges(id));
+      return r.ok ? r.body : { files: [], insertions: 0, deletions: 0 };
+    } catch {
+      return { files: [], insertions: 0, deletions: 0 };
+    }
+  },
+
+  async getWorkerFileDiff(id, path, oldPath) {
+    const params = new URLSearchParams({ path });
+    if (oldPath) params.set("oldPath", oldPath);
+    const r = await getJson(`${ROUTES.workerFileDiff(id)}?${params}`);
+    if (!r.ok) throw new Error(`fileDiff → ${r.status}`);
+    return r.body;
+  },
+
   // SSE — returns the EventSource so the caller can attach listeners. The
   // reconnect logic in store/sse.js wraps this.
   newEventStream() {
