@@ -10,6 +10,20 @@
 // entry in controls.jsx CONTROLS. A section may provide `Component` instead
 // of `groups` to render fully custom content.
 
+import { MODELS } from "../lib/models.js";
+
+// Providers carry their kind ("cli" | "api") so dependent rows (API key)
+// derive visibility from the data, not from provider-name checks. API
+// providers stay disabled until their backends are wired.
+const PROVIDERS = [
+  { value: "claude-cli", label: "Claude Code CLI", kind: "cli" },
+  { value: "anthropic-api", label: "Anthropic API", kind: "api", hint: "Soon", disabled: true },
+  { value: "openai", label: "OpenAI API", kind: "api", hint: "Soon", disabled: true },
+];
+
+const isApiProvider = (s) =>
+  PROVIDERS.find((p) => p.value === s["model.provider"])?.kind === "api";
+
 const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
@@ -44,6 +58,14 @@ const CodeIcon = () => (
   </svg>
 );
 
+const ModelIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="5" width="14" height="14" rx="2" />
+    <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
+    <path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" />
+  </svg>
+);
+
 export const SETTINGS_SECTIONS = [
   {
     id: "general",
@@ -66,6 +88,48 @@ export const SETTINGS_SECTIONS = [
               ],
             },
             defaultValue: "system",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    id: "model",
+    label: "Model",
+    Icon: ModelIcon,
+    groups: [
+      {
+        title: "Provider",
+        items: [
+          {
+            key: "model.provider",
+            label: "Provider",
+            description: "Runtime new agents launch on. API providers are coming soon.",
+            control: { type: "select", options: PROVIDERS },
+            defaultValue: "claude-cli",
+          },
+          {
+            key: "model.apiKey",
+            label: "API key",
+            description: "Used only for the selected provider.",
+            control: { type: "text", secret: true, placeholder: "sk-…" },
+            defaultValue: "",
+            visibleWhen: isApiProvider,
+          },
+        ],
+      },
+      {
+        title: "Model",
+        items: [
+          {
+            key: "model.default",
+            label: "Default model",
+            description: "New agents spawn with this model.",
+            control: {
+              type: "select",
+              options: MODELS.map((m) => ({ value: m.aliases[0] ?? m.id, label: m.name, hint: m.tag })),
+            },
+            defaultValue: "opus",
           },
         ],
       },

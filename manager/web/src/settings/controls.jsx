@@ -42,7 +42,8 @@ function SegmentedControl({ value, onChange, options }) {
 
 // Custom dropdown (not a native <select>) so the open menu matches the
 // liquid-glass popover language. Same capture-phase outside-close as
-// ToolPickerControl below.
+// ToolPickerControl below. Options may carry `disabled` (listed but not
+// pickable — e.g. providers that aren't wired yet) and `hint` (small badge).
 function SelectControl({ value, onChange, options }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef(null);
@@ -72,10 +73,12 @@ function SelectControl({ value, onChange, options }) {
               <button
                 type="button"
                 key={o.value}
-                className={`stg-dd__opt${o.value === value ? " is-active" : ""}`}
-                onClick={() => { onChange(o.value); setOpen(false); }}
+                disabled={o.disabled}
+                className={`stg-dd__opt${o.value === value ? " is-active" : ""}${o.disabled ? " is-disabled" : ""}`}
+                onClick={() => { if (o.disabled) return; onChange(o.value); setOpen(false); }}
               >
                 <span>{o.label}</span>
+                {o.hint && <span className="stg-dd__hint">{o.hint}</span>}
                 {o.value === value && (
                   <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M3 8.5l3.5 3.5L13 5" />
@@ -151,9 +154,59 @@ function ToolPickerControl({ value, onChange, tools }) {
   );
 }
 
+const EyeIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+    <circle cx="12" cy="12" r="3" />
+    <path d="M4 4l16 16" />
+  </svg>
+);
+
+// Text input committing on blur/Enter, not per keystroke (every change is a
+// PATCH to the daemon). `secret` masks the value at rest (API keys) with an
+// eye button toggling it readable.
+function TextControl({ value, onChange, placeholder, secret }) {
+  const [draft, setDraft] = useState(value ?? "");
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => { setDraft(value ?? ""); }, [value]);
+  const commit = () => { if (draft !== (value ?? "")) onChange(draft); };
+  return (
+    <div className="stg-input">
+      <input
+        type={secret && !revealed ? "password" : "text"}
+        value={draft}
+        placeholder={placeholder}
+        spellCheck={false}
+        autoComplete="new-password"
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => { if (e.key === "Enter") commit(); }}
+      />
+      {secret && (
+        <button
+          type="button"
+          className="stg-input__eye"
+          title={revealed ? "Hide" : "Show"}
+          onClick={() => setRevealed((v) => !v)}
+        >
+          {revealed ? <EyeOffIcon /> : <EyeIcon />}
+        </button>
+      )}
+    </div>
+  );
+}
+
 export const CONTROLS = {
   toggle: ToggleControl,
   select: SelectControl,
   segmented: SegmentedControl,
   toolPicker: ToolPickerControl,
+  text: TextControl,
 };

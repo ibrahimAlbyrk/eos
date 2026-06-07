@@ -4835,6 +4835,58 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 }
 .stg-dd__opt:hover { background: rgba(var(--tint), 0.07); }
 .stg-dd__opt svg { color: var(--accent); flex-shrink: 0; }
+.stg-dd__opt.is-disabled { color: var(--fg-faint); cursor: default; opacity: 0.55; }
+.stg-dd__opt.is-disabled:hover { background: none; }
+.stg-dd__hint {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+.stg-dd__opt.is-disabled .stg-dd__hint {
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(var(--tint), 0.07);
+}
+
+/* Text input (text control) — same surface language as the dropdown button;
+   wrapper holds the input + optional eye toggle (secret fields) */
+.stg-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 220px;
+  padding: 0 5px 0 12px;
+  background: rgba(var(--tint), 0.04);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.08);
+  border-radius: 8px;
+  flex-shrink: 0;
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+.stg-input:hover { background: rgba(var(--tint), 0.07); }
+.stg-input:focus-within {
+  background: rgba(var(--tint), 0.05);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.stg-input input {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 0;
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  color: var(--fg);
+}
+.stg-input__eye {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--fg-dim);
+  flex-shrink: 0;
+}
+.stg-input__eye:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
 
 /* Tool picker (toolPicker control) — chips + "+" popover */
 .stg-toolpick {

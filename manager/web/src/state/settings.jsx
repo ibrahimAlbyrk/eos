@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { api } from "../api/client.js";
 import { SETTINGS_SECTIONS, SETTING_DEFAULTS } from "../settings/registry.jsx";
 import { THEME_KEY, THEME_STORAGE_KEY, resolveTheme, setTheme, watchSystemTheme } from "../settings/theme.js";
+import { useComposer } from "./composer.jsx";
 
 const SettingsContext = createContext(null);
 
@@ -37,6 +38,14 @@ export function SettingsProvider({ children }) {
     setSettings((v) => ({ ...v, [key]: value }));
     api.patchSettings({ [key]: value }).catch(() => {});
   }, []);
+
+  // Default-model setting seeds the composer (what new agents spawn with);
+  // per-agent changes stay in the model popover and don't touch the setting.
+  const { updateComposer } = useComposer();
+  const defaultModel = settings["model.default"];
+  useEffect(() => {
+    if (defaultModel) updateComposer({ model: defaultModel });
+  }, [defaultModel, updateComposer]);
 
   // Apply theme whenever the setting changes; animate only user-initiated
   // switches (not the load merge or a macOS appearance flip in system mode).
