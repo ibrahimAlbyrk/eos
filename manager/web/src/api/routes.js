@@ -31,6 +31,7 @@ export const ROUTES = {
   fsIcon: "/fs/icon",
   fsBranches: "/fs/branches",
   fsUnpushed: "/fs/unpushed",
+  fsCommit: "/fs/commit",
   fsCheckout: "/fs/checkout",
   fsRecents: "/fs/recents",
   fsRead: "/fs/read",

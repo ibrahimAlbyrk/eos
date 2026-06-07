@@ -214,6 +214,11 @@ export const api = {
       return { commits: [] };
     }
   },
+  async getCommitDetail(cwd, sha) {
+    const r = await getJson(`${ROUTES.fsCommit}?cwd=${encodeURIComponent(cwd)}&sha=${encodeURIComponent(sha)}`);
+    if (!r.ok) throw new Error(r.body?.error ?? `commit → ${r.status}`);
+    return r.body;
+  },
   async listRecents() {
     try {
       const r = await getJson(ROUTES.fsRecents);
