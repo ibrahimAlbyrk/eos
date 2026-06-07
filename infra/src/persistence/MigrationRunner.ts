@@ -76,6 +76,8 @@ export const MIGRATIONS: Migration[] = [
   { id: "022_backfill_backend_kind", sql: "UPDATE workers SET backend_kind = 'claude-cli' WHERE backend_kind IS NULL" },
   { id: "023_workers_add_agent_role", sql: "ALTER TABLE workers ADD COLUMN agent_role TEXT" },
   { id: "024_workers_add_turn_started_at", sql: "ALTER TABLE workers ADD COLUMN turn_started_at INTEGER" },
+  { id: "025_workers_add_session_id", sql: "ALTER TABLE workers ADD COLUMN session_id TEXT" },
+  { id: "026_workers_add_with_gateway", sql: "ALTER TABLE workers ADD COLUMN with_gateway INTEGER" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {
@@ -114,7 +116,7 @@ export const VACUUM_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function maybeVacuum(db: DatabaseSync, log: Logger, reason: string): void {
   const busy = db.prepare(
-    "SELECT COUNT(*) AS n FROM workers WHERE state NOT IN ('DONE','KILLING')",
+    "SELECT COUNT(*) AS n FROM workers WHERE state NOT IN ('DONE','KILLING','SUSPENDED')",
   ).get() as { n: number } | undefined;
   if (busy && busy.n > 0) return;
 

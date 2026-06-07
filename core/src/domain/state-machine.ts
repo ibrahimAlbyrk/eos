@@ -7,16 +7,20 @@ export type { WorkerState };
 
 /**
  * Allowed forward transitions per state. Anything not listed is rejected
- * (daemon logs `state_reject` with the requested move). DONE is terminal —
- * once a worker is DONE the DB row stays put until DELETE.
+ * (daemon logs `state_reject` with the requested move). DONE is near-terminal:
+ * the row stays put until DELETE, but a resumable conversation (session_id
+ * persisted) may be revived via DONE → SPAWNING. SUSPENDED is set by boot
+ * reconciliation when the process died with the daemon but the session
+ * survived on disk.
  */
 export const ALLOWED_TRANSITIONS: Record<WorkerState, ReadonlyArray<WorkerState>> = {
-  SPAWNING: ["WORKING", "IDLE", "ENDING", "DONE", "KILLING"],
-  WORKING:  ["IDLE", "ENDING", "DONE", "KILLING"],
-  IDLE:     ["WORKING", "ENDING", "DONE", "KILLING"],
-  ENDING:   ["DONE", "KILLING"],
-  KILLING:  ["DONE"],
-  DONE:     [],
+  SPAWNING:  ["WORKING", "IDLE", "ENDING", "DONE", "KILLING", "SUSPENDED"],
+  WORKING:   ["IDLE", "ENDING", "DONE", "KILLING", "SUSPENDED"],
+  IDLE:      ["WORKING", "ENDING", "DONE", "KILLING", "SUSPENDED"],
+  ENDING:    ["DONE", "KILLING"],
+  KILLING:   ["DONE"],
+  DONE:      ["SPAWNING"],
+  SUSPENDED: ["SPAWNING", "DONE"],
 };
 
 /**

@@ -501,6 +501,13 @@ export type SettingsPatchRequest = z.infer<typeof SettingsPatchRequestSchema>;
 export const InterruptResponseSchema = z.object({ ok: z.boolean() });
 export type InterruptResponse = z.infer<typeof InterruptResponseSchema>;
 
+// ---- POST /workers/:id/resume -----------------------------------------------
+
+// Revives a dead-but-resumable worker (SUSPENDED, or DONE with a recorded
+// session) under the same worker id via `claude --resume <session_id>`.
+export const ResumeResponseSchema = z.object({ id: z.string(), port: z.number() });
+export type ResumeResponse = z.infer<typeof ResumeResponseSchema>;
+
 // ---- POST /workers/:id/report ----------------------------------------------
 
 export const ReportRequestSchema = z.object({ text: z.string().min(1) });
@@ -723,6 +730,7 @@ export const ROUTES = {
   workerChanges: (id: string): string => `/workers/${id}/changes`,
   workerFileDiff: (id: string): string => `/workers/${id}/changes/file`,
   workerInterrupt: (id: string): string => `/workers/${id}/interrupt`,
+  workerResume: (id: string): string => `/workers/${id}/resume`,
   workerKeystroke: (id: string): string => `/workers/${id}/keystroke`,
   workerQuestion: (id: string): string => `/workers/${id}/question`,
   workerQuestionNotify: (id: string): string => `/workers/${id}/question-notify`,

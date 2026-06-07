@@ -42,6 +42,10 @@ export const WorkerRowSchema = z.object({
   // busy set (SPAWNING/WORKING) from a non-busy state. UI elapsed timers read
   // this instead of inferring turn start from transcript blocks.
   turn_started_at: z.number().nullable().optional(),
+  // Claude session id, reported by the worker on capture/swap. The key for
+  // resuming a dead worker's conversation via `claude --resume`.
+  session_id: z.string().nullable().optional(),
+  with_gateway: z.number().nullable().optional(),
 });
 
 export const PermissionModeSchema = z.enum([

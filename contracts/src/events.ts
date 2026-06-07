@@ -22,6 +22,9 @@ export const WorkerStateSchema = z.enum([
   "ENDING",
   "DONE",
   "KILLING",
+  // Process dead (daemon restart/crash) but the conversation is resumable —
+  // session_id + cwd survived. Set by boot reconciliation, left by resume.
+  "SUSPENDED",
 ]);
 export type WorkerState = z.infer<typeof WorkerStateSchema>;
 
@@ -149,6 +152,7 @@ export const LifecyclePhaseSchema = z.enum([
   "ready_timeout",
   "message_received",
   "interrupted",
+  "session_captured",   // worker captured/swapped the claude session id — daemon persists it
   // Delivery pipeline (spawner/delivery.ts) verification outcomes:
   "echo_timeout",        // text never echoed in the composer before fallback CR
   "delivery_retry",      // a retry attempt (re-CR or re-paste) was issued

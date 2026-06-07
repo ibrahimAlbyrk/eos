@@ -21,6 +21,7 @@ export interface InsertWorkerInput {
   backendKind: string;
   backendProfile: string | null;
   agentRole: string | null;
+  withGateway: boolean;
 }
 
 export interface UsageDelta {
@@ -49,6 +50,15 @@ export interface WorkerRepo {
   // Persist the resolved (realpath'd) worktree directory once the worker
   // reports it — enrichment only; branch is written at insert.
   setWorktreeDir(id: string, worktreeDir: string): void;
+  // Persist the claude session id the worker reports on capture/swap — the
+  // key for resuming the conversation after the process dies.
+  setSessionId(id: string, sessionId: string): void;
+  // Null out pid/port when the process is known dead (suspend) — a stale pid
+  // could be reused by an unrelated process and get signalled on delete.
+  clearRuntime(id: string): void;
+  // Resume: re-bind a revived row to its new process. State moves separately
+  // (TransitionState); started_at and cost counters carry on.
+  reactivate(id: string, runtime: { pid: number | null; port: number }): void;
   delete(id: string): void;
   findChildrenIds(parentId: string): string[];
   // Aggregate helpers consumed by /session and /metrics — keep here so the

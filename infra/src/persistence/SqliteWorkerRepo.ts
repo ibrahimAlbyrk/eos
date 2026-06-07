@@ -23,6 +23,9 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtUpdatePermissionMode;
   private readonly stmtUpdateModel;
   private readonly stmtSetWorktreeDir;
+  private readonly stmtSetSessionId;
+  private readonly stmtClearRuntime;
+  private readonly stmtReactivate;
   private readonly stmtDelete;
   private readonly stmtFindChildrenIds;
   private readonly stmtTotalCost;
@@ -33,8 +36,8 @@ export class SqliteWorkerRepo implements WorkerRepo {
   constructor(db: DatabaseSync) {
     this.db = db;
     this.stmtInsert = db.prepare(`
-      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role, turn_started_at)
-      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role, with_gateway, turn_started_at)
+      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     this.stmtFindById = db.prepare("SELECT * FROM workers WHERE id = ?");
     this.stmtListAll = db.prepare("SELECT * FROM workers ORDER BY started_at DESC");
@@ -59,6 +62,9 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtUpdatePermissionMode = db.prepare("UPDATE workers SET permission_mode = ? WHERE id = ?");
     this.stmtUpdateModel = db.prepare("UPDATE workers SET model = ?, effort = ? WHERE id = ?");
     this.stmtSetWorktreeDir = db.prepare("UPDATE workers SET worktree_dir = ? WHERE id = ?");
+    this.stmtSetSessionId = db.prepare("UPDATE workers SET session_id = ? WHERE id = ?");
+    this.stmtClearRuntime = db.prepare("UPDATE workers SET pid = NULL, port = NULL WHERE id = ?");
+    this.stmtReactivate = db.prepare("UPDATE workers SET pid = ?, port = ?, ended_at = NULL, exit_code = NULL WHERE id = ?");
     this.stmtDelete = db.prepare("DELETE FROM workers WHERE id = ?");
     this.stmtFindChildrenIds = db.prepare("SELECT id FROM workers WHERE parent_id = ?");
     this.stmtTotalCost = db.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS total FROM workers");
@@ -89,6 +95,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
       input.backendKind ?? "claude-cli",
       input.backendProfile ?? null,
       input.agentRole ?? null,
+      input.withGateway ? 1 : 0,
       input.startedAt,
     );
   }
@@ -140,6 +147,18 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   setWorktreeDir(id: string, worktreeDir: string): void {
     this.stmtSetWorktreeDir.run(worktreeDir, id);
+  }
+
+  setSessionId(id: string, sessionId: string): void {
+    this.stmtSetSessionId.run(sessionId, id);
+  }
+
+  clearRuntime(id: string): void {
+    this.stmtClearRuntime.run(id);
+  }
+
+  reactivate(id: string, runtime: { pid: number | null; port: number }): void {
+    this.stmtReactivate.run(runtime.pid, runtime.port, id);
   }
 
   delete(id: string): void {
