@@ -172,6 +172,15 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       },
       { workerId: params.id, type: body.type, payload: body.payload },
     );
+    // /clear marker: mirror of conversation_rewound — the web hides everything
+    // before it. Synthesized here because the signal arrives as a plain hook.
+    const hp = body.payload as { event?: string; body?: { reason?: string; session_id?: string } } | undefined;
+    if (body.type === "hook" && hp?.event === "SessionEnd" && hp?.body?.reason === "clear") {
+      const rowId = c.events.append(params.id, c.clock.now(), "conversation_cleared", {
+        prevSessionId: hp.body?.session_id ?? null,
+      });
+      c.bus.publish("worker:change", { workerId: params.id, rowId });
+    }
     writeJson(res, 200, { ok: true });
   });
 

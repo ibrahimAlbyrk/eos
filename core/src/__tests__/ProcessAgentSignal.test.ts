@@ -187,6 +187,22 @@ describe("ProcessAgentSignal — session lifecycle", () => {
     processAgentSignal(deps, "w1", { type: "session", phase: "ready" });
     assert.deepEqual(states(events), []);
   });
+
+  it("session cleared → IDLE (not ENDING) and opens the settle window", () => {
+    const { deps, events, row } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", { type: "session", phase: "cleared" });
+    assert.deepEqual(states(events), [{ state: "IDLE", from: "WORKING", reason: "agent:session_cleared" }]);
+    assert.equal(row.state, "IDLE");
+    // Settle window open: trailing transcript of the cleared session must not
+    // re-animate the worker.
+    assert.equal(deps.isSettling?.("w1"), true);
+  });
+
+  it("session cleared while already IDLE is a no-op transition", () => {
+    const { deps, events } = buildDeps("IDLE");
+    processAgentSignal(deps, "w1", { type: "session", phase: "cleared" });
+    assert.deepEqual(states(events), []);
+  });
 });
 
 describe("ProcessAgentSignal — usage (mirror legacy cost handler)", () => {

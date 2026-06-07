@@ -84,6 +84,11 @@ export function reduceAgentSignal(
     case "session":
       if (event.phase === "ended") {
         transitionState(deps, { workerId, next: "ENDING", reason: "agent:session_ended" });
+      } else if (event.phase === "cleared") {
+        // /clear: the agent is alive with a fresh context — settle + IDLE, not
+        // ENDING (which is terminal and would reject every later transition).
+        deps.markSettling?.(workerId);
+        transitionState(deps, { workerId, next: "IDLE", reason: "agent:session_cleared" });
       }
       // started / ready carry no state transition here (explicit "state" events
       // still handle boot IDLE; worktreeDir enrichment stays on the legacy path).
