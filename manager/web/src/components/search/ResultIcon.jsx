@@ -26,6 +26,14 @@ export function ResultIcon({ name }) {
           <circle cx="12" cy="12" r="3" />
         </svg>
       );
+    case "diff":
+      return (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 2v6.5M5 8.5a2.5 2.5 0 0 0 2.5 2.5H11" />
+          <circle cx="5" cy="13" r="1.6" />
+          <path d="M11 8.5 13 11l-2 2.5M9 4.5h5" />
+        </svg>
+      );
     case "agent":
     default:
       return (

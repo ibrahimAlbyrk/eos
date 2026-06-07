@@ -21,12 +21,14 @@ export function CommandPalette({ live }) {
       workers: live?.workers ?? [],
       workflows: live?.workflows ?? [],
       templates,
+      selectedId: ui.selectedId,
       setActiveView: ui.setActiveView,
       setSelectedId: ui.setSelectedId,
       updateComposer: ui.updateComposer,
       openSettings: ui.openSettings,
+      openDiffViewer: ui.openDiffViewer,
     }),
-    [live?.workers, live?.workflows, templates, ui.setActiveView, ui.setSelectedId, ui.updateComposer, ui.openSettings],
+    [live?.workers, live?.workflows, templates, ui.selectedId, ui.setActiveView, ui.setSelectedId, ui.updateComposer, ui.openSettings, ui.openDiffViewer],
   );
 
   const groups = useMemo(
