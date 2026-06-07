@@ -1598,6 +1598,22 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   padding: 4px 0;
 }
 
+/* /clear divider — everything above it is hidden, fresh context below */
+.conversation-cleared {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--text-xs);
+  color: var(--fg-dim);
+  padding: 6px 0;
+}
+.conversation-cleared::before,
+.conversation-cleared::after {
+  content: "";
+  flex: 1;
+  border-top: 1px solid rgba(var(--tint), 0.12);
+}
+
 /* worker exited with uncommitted work — preserved worktree block in chat */
 .worktree-preserved {
   display: flex;

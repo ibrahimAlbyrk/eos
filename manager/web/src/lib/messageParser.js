@@ -19,6 +19,16 @@ export const STANDALONE_TOOLS = new Set([
   "mcp__worker__send_message_to_parent",
 ]);
 
+// conversation_cleared (/clear) wipes the visible history: everything before
+// the last marker is dropped (display-only — the events store keeps it). The
+// marker itself survives and renders as a divider.
+export function applyClears(events) {
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].type === "conversation_cleared") return events.slice(i);
+  }
+  return events;
+}
+
 // conversation_rewound (double-Esc rewind) hides the abandoned branch: every
 // event from the rewound-to user message (it returns to the composer) up to
 // the rewind marker is dropped, mirroring Claude Code's in-memory fork. The
@@ -215,6 +225,12 @@ export function buildBlocks(events) {
         lastAsst = null;
         out.push({ kind: "deliveryFailed", text: payload.text ?? "", ts: ev.ts });
       }
+      continue;
+    }
+    if (ev.type === "conversation_cleared") {
+      flushTools();
+      lastAsst = null;
+      out.push({ kind: "cleared", ts: ev.ts });
       continue;
     }
     if (ev.type === "worktree") {

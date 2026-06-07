@@ -21,6 +21,12 @@ import { PermissionBanner } from "./PermissionBanner.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
 import { TryBanner } from "./TryBanner.jsx";
 
+// Native Claude TUI commands the agent executes itself — sent as a plain
+// message ("/clear" pasted + CR runs the command); listed for discoverability.
+const BUILTIN_COMMANDS = [
+  { name: "clear", description: "Clear conversation history (agent context + chat)", source: "builtin" },
+];
+
 function QueuedPill({ text, onDismiss }) {
   return (
     <div className="queued-pill">
@@ -69,6 +75,7 @@ export function Composer({ live }) {
   // tooltip's "(template)" / "(skill)" source tag disambiguates).
   const templates = useTemplates();
   const slashItems = useMemo(() => [
+    ...BUILTIN_COMMANDS,
     ...commands,
     ...templates.map((t) => ({ name: t.name, description: t.description, source: "template", template: t })),
   ], [commands, templates]);
@@ -291,6 +298,9 @@ export function Composer({ live }) {
   const send = async () => {
     const t = text.trim();
     if (!t) return;
+    // "/clear" targets an existing agent's session — spawning a fresh agent
+    // (orchestrator/git) with it as the boot prompt would be meaningless.
+    if (t === "/clear" && (!selected || ui.composer.gitMode)) return;
 
     let displayText = t;
     let agentText = t;

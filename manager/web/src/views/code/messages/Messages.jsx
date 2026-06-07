@@ -10,7 +10,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { deriveActivity } from "../../../lib/agentActivity.js";
-import { buildBlocks, applyRewinds, parsePayload } from "../../../lib/messageParser.js";
+import { buildBlocks, applyRewinds, applyClears, parsePayload } from "../../../lib/messageParser.js";
 import { deriveVerdict, deriveChildVerdicts } from "../../../lib/verdict.js";
 import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
 import { shouldStick, shouldAutoScroll } from "../../../lib/scrollStick.js";
@@ -178,7 +178,7 @@ export function Messages({ live }) {
   const blocks = useMemo(() => {
     const w = live.workers.find((x) => x.id === ui.selectedId);
     const bootPromptOffset = w?.parent_id && w?.prompt ? 1 : 0;
-    const base = buildBlocks(applyRewinds(events, { bootPromptOffset }));
+    const base = buildBlocks(applyRewinds(applyClears(events), { bootPromptOffset }));
     const opt = ui.optimisticMsgs.get(ui.selectedId) ?? [];
     for (const m of opt) {
       base.push({ kind: "user", text: m.text, ts: m.ts, optimistic: true });
@@ -336,6 +336,12 @@ function renderBlock(b, key, cwd, ui, workers, animate) {
       return (
         <div key={key} className="delivery-failed mono">
           message was not delivered{b.text ? ` — “${b.text}”` : ""} · try sending again
+        </div>
+      );
+    case "cleared":
+      return (
+        <div key={key} className="conversation-cleared mono">
+          conversation cleared
         </div>
       );
     case "worktreePreserved": {

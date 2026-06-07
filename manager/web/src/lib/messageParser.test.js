@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildBlocks, buildSummary, gitActions, applyRewinds } from "./messageParser.js";
+import { buildBlocks, buildSummary, gitActions, applyRewinds, applyClears } from "./messageParser.js";
 
 function agentRow(id, ts) {
   return { type: "jsonl", ts, payload: { kind: "tool_use", id, name: "Agent", input: { description: id } } };
@@ -399,5 +399,31 @@ describe("applyRewinds", () => {
       rewound({ text: "b2", display: "b2", index: 1 }, 8),
     ];
     expect(applyRewinds(events).map((e) => e.ts)).toEqual([1, 2]);
+  });
+});
+
+describe("applyClears", () => {
+  const user = (text, ts) => ({ type: "user_message", ts, payload: JSON.stringify({ text }) });
+  const asst = (text, ts) => ({ type: "jsonl", ts, payload: JSON.stringify({ kind: "assistant_text", text }) });
+  const cleared = (ts) => ({ type: "conversation_cleared", ts, payload: JSON.stringify({}) });
+
+  it("passes through when no clear marker exists", () => {
+    const events = [user("hello", 1), asst("hi", 2)];
+    expect(applyClears(events)).toEqual(events);
+  });
+
+  it("drops everything before the marker, keeps the marker itself", () => {
+    const events = [user("/clear", 1), asst("old", 2), cleared(3), user("fresh", 4)];
+    expect(applyClears(events).map((e) => e.ts)).toEqual([3, 4]);
+  });
+
+  it("cuts at the LAST marker when cleared repeatedly", () => {
+    const events = [user("a", 1), cleared(2), user("b", 3), cleared(4), user("c", 5)];
+    expect(applyClears(events).map((e) => e.ts)).toEqual([4, 5]);
+  });
+
+  it("renders the marker as a divider block via buildBlocks", () => {
+    const blocks = buildBlocks(applyClears([user("old", 1), cleared(2), user("new", 3)]));
+    expect(blocks.map((b) => b.kind)).toEqual(["cleared", "user"]);
   });
 });
