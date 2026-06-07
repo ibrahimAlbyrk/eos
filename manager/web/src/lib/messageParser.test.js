@@ -223,6 +223,15 @@ describe("buildSummary git awareness", () => {
     const tools = [bashTool("ls"), bashTool("npm run build")];
     expect(buildSummary(tools)).toBe("ran 2 shell commands");
   });
+
+  it("counts repeated git verbs across the group", () => {
+    const tools = [
+      bashTool("git diff a.ts"),
+      bashTool("git diff b.ts && git diff c.ts && git diff d.ts"),
+      bashTool("git diff e.ts f.ts"),
+    ];
+    expect(buildSummary(tools)).toBe("Viewed 5 diffs");
+  });
 });
 
 describe("applyRewinds", () => {

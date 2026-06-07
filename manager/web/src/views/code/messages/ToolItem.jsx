@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { gitActions } from "../../../lib/messageParser.js";
+import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
 import { defaultToolExpanded } from "../../../settings/toolExpansion.js";
 import { ToolDetail } from "./ToolDetail.jsx";
 import { WorkerToolCard, isWorkerTool } from "./WorkerToolCard.jsx";
@@ -122,13 +122,7 @@ function gitVerbSummary(actions) {
     if (c) c.n++;
     else counts.push({ verb: a.verb, n: 1 });
   }
-  return counts
-    .map(({ verb, n }) => {
-      if (n === 1) return verb;
-      if (verb === "Viewed diff") return `Viewed ${n} diffs`;
-      return `${verb} ×${n}`;
-    })
-    .join(", ");
+  return counts.map(({ verb, n }) => gitVerbLabel(verb, n)).join(", ");
 }
 
 function fileName(p) {

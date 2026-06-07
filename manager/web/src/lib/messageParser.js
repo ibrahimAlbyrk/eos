@@ -359,6 +359,12 @@ export function gitActions(tool) {
   return actions;
 }
 
+export function gitVerbLabel(verb, n) {
+  if (n === 1) return verb;
+  if (verb === "Viewed diff") return `Viewed ${n} diffs`;
+  return `${verb} ×${n}`;
+}
+
 export function buildSummary(tools) {
   let reads = 0;
   let edits = 0;
@@ -378,7 +384,9 @@ export function buildSummary(tools) {
       if (actions.length === 0) { shells++; continue; }
       for (const a of actions) {
         if (a.sub === "commit") commitShas.push(...(a.shas ?? []));
-        if (!gitVerbs.includes(a.verb)) gitVerbs.push(a.verb);
+        const c = gitVerbs.find((x) => x.verb === a.verb);
+        if (c) c.n++;
+        else gitVerbs.push({ verb: a.verb, n: 1 });
       }
     }
     else others++;
@@ -388,8 +396,9 @@ export function buildSummary(tools) {
   if (edits > 0) parts.push(`Edited ${edits} file${edits > 1 ? "s" : ""}`);
   if (skills > 0) parts.push(`Used ${skills} skill${skills > 1 ? "s" : ""}`);
   if (notifies > 0) parts.push("Notified user");
-  for (const v of gitVerbs) {
-    parts.push(v === "Committed" && commitShas.length > 0 ? `Committed ${commitShas.join(", ")}` : v);
+  for (const { verb, n } of gitVerbs) {
+    if (verb === "Committed" && commitShas.length > 0) parts.push(`Committed ${commitShas.join(", ")}`);
+    else parts.push(gitVerbLabel(verb, n));
   }
   if (shells > 0) parts.push(`ran ${shells} shell command${shells > 1 ? "s" : ""}`);
   if (others > 0) parts.push(`used ${others} tool${others > 1 ? "s" : ""}`);
