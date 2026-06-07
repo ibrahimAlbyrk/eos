@@ -2,6 +2,8 @@
 // shells out to the `git` binary; we keep the interface narrow so any future
 // libgit2 implementation can plug in without disturbing callers.
 
+import type { ChangedFile, FileDiffResponse } from "../../../contracts/src/http.ts";
+
 export interface DiffStat {
   insertions: number;
   deletions: number;
@@ -22,4 +24,6 @@ export interface GitInfo {
   syncStatus(cwd: string): Promise<SyncStatus | null>;
   stashCount(cwd: string): Promise<number>;
   conflictCount(cwd: string): Promise<number>;
+  changedFiles(cwd: string): Promise<ChangedFile[]>;
+  fileDiff(cwd: string, path: string, oldPath?: string): Promise<FileDiffResponse>;
 }

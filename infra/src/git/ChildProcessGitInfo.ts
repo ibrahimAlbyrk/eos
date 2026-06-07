@@ -6,14 +6,30 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { GitInfo, DiffStat, SyncStatus } from "../../../core/src/ports/GitInfo.ts";
+import type { ChangedFile, FileDiffResponse } from "../../../contracts/src/http.ts";
+import { mergeChanges, parseNumstatZ, parsePorcelainZ, truncatePatch } from "./changes-parse.ts";
 
 const exec = promisify(execFile);
+
+const PATCH_MAX_BYTES = 256 * 1024;
 
 async function runGit(cwd: string, args: string[]): Promise<string> {
   const { stdout } = await exec("git", ["-C", cwd, ...args], {
     maxBuffer: 4 * 1024 * 1024,
   });
   return stdout;
+}
+
+// `git diff --no-index` exits 1 when the files differ — the promisified
+// execFile REJECTS with the patch sitting in e.stdout. Recover it.
+async function runGitDiffNoIndex(cwd: string, path: string): Promise<string> {
+  try {
+    return await runGit(cwd, ["diff", "--no-index", "--", "/dev/null", path]);
+  } catch (e) {
+    const stdout = (e as { stdout?: string }).stdout;
+    if (typeof stdout === "string" && stdout.length > 0) return stdout;
+    throw e;
+  }
 }
 
 function parseShortStat(line: string): DiffStat {
@@ -116,6 +132,36 @@ export const childProcessGitInfo: GitInfo = {
       return n;
     } catch {
       return 0;
+    }
+  },
+
+  async changedFiles(cwd: string): Promise<ChangedFile[]> {
+    try {
+      const status = await runGit(cwd, ["status", "--porcelain=v1", "-z", "-uall"]);
+      let numstat = "";
+      // No HEAD yet (fresh repo) → degrade to status-only entries, null counts.
+      try { numstat = await runGit(cwd, ["diff", "--numstat", "-z", "HEAD"]); } catch {}
+      return mergeChanges(parsePorcelainZ(status), parseNumstatZ(numstat));
+    } catch {
+      return [];
+    }
+  },
+
+  async fileDiff(cwd: string, path: string, oldPath?: string): Promise<FileDiffResponse> {
+    try {
+      // Single-file porcelain decides tracked vs untracked authoritatively —
+      // covers staged deletes, which `ls-files` would misreport as untracked.
+      const st = await runGit(cwd, ["status", "--porcelain=v1", "-z", "--", path]);
+      const out = st.startsWith("??")
+        ? await runGitDiffNoIndex(cwd, path)
+        : await runGit(cwd, ["diff", "HEAD", "--", ...(oldPath ? [path, oldPath] : [path])]);
+      if (/^Binary files .* differ$/m.test(out)) {
+        return { path, patch: "", binary: true, truncated: false };
+      }
+      const t = truncatePatch(out, PATCH_MAX_BYTES);
+      return { path, patch: t.patch, binary: false, truncated: t.truncated };
+    } catch {
+      return { path, patch: "", binary: false, truncated: false };
     }
   },
 };
