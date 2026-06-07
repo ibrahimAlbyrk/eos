@@ -12,11 +12,13 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
   row: { state: WorkerState };
   toolCalls: { count: number };
   worktreeDirCalls: Array<{ id: string; dir: string }>;
+  sessionIdCalls: Array<{ id: string; sessionId: string }>;
 } {
   const events: AppendedEvent[] = [];
   const row = { state: initialState };
   const toolCalls = { count: 0 };
   const worktreeDirCalls: Array<{ id: string; dir: string }> = [];
+  const sessionIdCalls: Array<{ id: string; sessionId: string }> = [];
   // Mutable so markSettling (driven by the Stop hook) actually opens the window
   // a subsequent jsonl event then observes — mirrors TurnSettleService.
   let settling = opts.settling ?? false;
@@ -27,6 +29,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
     setTurnStartedAt: () => {},
     incrementToolCalls: () => { toolCalls.count++; },
     setWorktreeDir: (id: string, dir: string) => { worktreeDirCalls.push({ id, dir }); },
+    setSessionId: (id: string, sessionId: string) => { sessionIdCalls.push({ id, sessionId }); },
   } as unknown as ProcessWorkerEventDeps["workers"];
 
   const eventsRepo = {
@@ -53,7 +56,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
     markSettling: () => { settling = true; },
   } as unknown as ProcessWorkerEventDeps;
 
-  return { deps, events, row, toolCalls, worktreeDirCalls };
+  return { deps, events, row, toolCalls, worktreeDirCalls, sessionIdCalls };
 }
 
 const stateEvents = (events: AppendedEvent[]): Array<{ state?: string; reason?: string }> =>
@@ -86,6 +89,27 @@ describe("ProcessWorkerEvent.lifecycle — claude_spawning worktree_dir enrichme
     const { deps, worktreeDirCalls } = buildDeps("SPAWNING");
     processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning" } });
     assert.deepEqual(worktreeDirCalls, []);
+  });
+});
+
+describe("ProcessWorkerEvent.lifecycle — session_captured enrichment", () => {
+  it("persists the claude session id", () => {
+    const { deps, sessionIdCalls } = buildDeps("SPAWNING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "session_captured", sessionId: "abc-123", via: "hook:Stop" } });
+    assert.deepEqual(sessionIdCalls, [{ id: "w1", sessionId: "abc-123" }]);
+  });
+
+  it("does not transition state", () => {
+    const { deps, events } = buildDeps("WORKING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "session_captured", sessionId: "abc-123" } });
+    assert.deepEqual(stateEvents(events), []);
+  });
+
+  it("is a no-op when sessionId is missing or empty", () => {
+    const { deps, sessionIdCalls } = buildDeps("WORKING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "session_captured" } });
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "session_captured", sessionId: "" } });
+    assert.deepEqual(sessionIdCalls, []);
   });
 });
 

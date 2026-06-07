@@ -23,9 +23,25 @@ describe("canTransition", () => {
     assert.equal(canTransition("WORKING", "SPAWNING"), false);
   });
 
-  it("forbids DONE → anything (terminal)", () => {
-    const targets: WorkerState[] = ["SPAWNING", "WORKING", "IDLE", "ENDING", "KILLING"];
+  it("permits DONE → SPAWNING only (resume)", () => {
+    assert.equal(canTransition("DONE", "SPAWNING"), true);
+    const targets: WorkerState[] = ["WORKING", "IDLE", "ENDING", "KILLING", "SUSPENDED"];
     for (const t of targets) assert.equal(canTransition("DONE", t), false, `DONE → ${t}`);
+  });
+
+  it("permits SUSPENDED → SPAWNING (resume) and DONE (close) only", () => {
+    assert.equal(canTransition("SUSPENDED", "SPAWNING"), true);
+    assert.equal(canTransition("SUSPENDED", "DONE"), true);
+    assert.equal(canTransition("SUSPENDED", "WORKING"), false);
+    assert.equal(canTransition("SUSPENDED", "IDLE"), false);
+  });
+
+  it("permits live states → SUSPENDED (boot reconcile), not ENDING/KILLING", () => {
+    for (const s of ["SPAWNING", "WORKING", "IDLE"] as WorkerState[]) {
+      assert.equal(canTransition(s, "SUSPENDED"), true, `${s} → SUSPENDED`);
+    }
+    assert.equal(canTransition("ENDING", "SUSPENDED"), false);
+    assert.equal(canTransition("KILLING", "SUSPENDED"), false);
   });
 
   it("permits KILLING → DONE only", () => {
@@ -42,20 +58,20 @@ describe("canTransition", () => {
   });
 
   it("treats self-transitions as allowed (caller short-circuits)", () => {
-    const all: WorkerState[] = ["SPAWNING", "WORKING", "IDLE", "ENDING", "DONE", "KILLING"];
+    const all: WorkerState[] = ["SPAWNING", "WORKING", "IDLE", "ENDING", "DONE", "KILLING", "SUSPENDED"];
     for (const s of all) assert.equal(canTransition(s, s), true, `${s} → ${s}`);
   });
 });
 
 describe("ALLOWED_TRANSITIONS shape", () => {
-  it("DONE has no outgoing transitions (terminal)", () => {
-    assert.equal(ALLOWED_TRANSITIONS.DONE.length, 0);
+  it("DONE only goes to SPAWNING (resume)", () => {
+    assert.deepEqual([...ALLOWED_TRANSITIONS.DONE], ["SPAWNING"]);
   });
   it("KILLING only goes to DONE", () => {
     assert.deepEqual([...ALLOWED_TRANSITIONS.KILLING], ["DONE"]);
   });
   it("every state has an entry (exhaustive)", () => {
-    const states: WorkerState[] = ["SPAWNING", "WORKING", "IDLE", "ENDING", "DONE", "KILLING"];
+    const states: WorkerState[] = ["SPAWNING", "WORKING", "IDLE", "ENDING", "DONE", "KILLING", "SUSPENDED"];
     for (const s of states) assert.ok(s in ALLOWED_TRANSITIONS, `missing entry for ${s}`);
   });
 });
