@@ -41,9 +41,16 @@ export function AttentionProvider({ children }) {
     return policyNeedsAttention(viewedSigs.get(worker.id), worker);
   }, [viewedSigs]);
 
+  // Panel-level signal: OR of every agent's attention. Drives the collapsed
+  // sidebar's expand-button pip ("any dot you'd see if the panel were open").
+  const anyNeedsAttention = useCallback(
+    (workers) => workers.some((w) => needsAttention(w)),
+    [needsAttention],
+  );
+
   const value = useMemo(() => ({
-    needsAttention, syncWorkers,
-  }), [needsAttention, syncWorkers]);
+    needsAttention, syncWorkers, anyNeedsAttention,
+  }), [needsAttention, syncWorkers, anyNeedsAttention]);
 
   return <AttentionContext.Provider value={value}>{children}</AttentionContext.Provider>;
 }

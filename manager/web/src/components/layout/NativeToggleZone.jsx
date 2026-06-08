@@ -4,21 +4,24 @@ import { useHoverPopover } from "../../hooks/useHoverPopover.js";
 // Native macOS chrome: a fixed sidebar toggle near the traffic lights. When the
 // sidebar is collapsed, hovering reveals a popup whose content is view-specific
 // (passed in via `popup`).
-export function NativeToggleZone({ popup }) {
+export function NativeToggleZone({ popup, hasAttention }) {
   const ui = useUi();
   const { open, close, onMouseEnter, onMouseLeave } = useHoverPopover({
     openPopover: ui.openPopover,
     enabled: ui.sideCollapsed,
   });
 
+  // Blink the hamburger blue only while it's actually showing (collapsed, no flyout).
+  const showAttention = hasAttention && ui.sideCollapsed && !open;
+
   return (
     <div className="native-toggle-zone" onMouseEnter={onMouseEnter} onMouseLeave={onMouseLeave}>
       <button
-        className="native-toggle sb-iconbtn"
+        className={`native-toggle sb-iconbtn${showAttention ? " attention-blink" : ""}`}
         onClick={() => { ui.setSideCollapsed(!ui.sideCollapsed); close(); }}
         title={ui.sideCollapsed ? "Show sidebar" : "Hide sidebar"}
       >
-        {ui.sideCollapsed ? (
+        {ui.sideCollapsed && !open ? (
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
             <line x1="3" y1="4" x2="11" y2="4" />
             <line x1="3" y1="8" x2="13" y2="8" />

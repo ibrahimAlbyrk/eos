@@ -17,6 +17,9 @@ function Shell() {
   // state stays correct while other tabs are active.
   useAttentionSync(live.workers, ui.selectedId);
 
+  // Panel-level attention for the collapsed-sidebar expand button pip.
+  const hasAttention = ui.anyNeedsAttention(live.workers);
+
   // Native app notification tap → jump to the Code tab and select the worker.
   useEffect(() => {
     window.__nativeNavigate = (id) => { ui.setActiveView("code"); ui.setSelectedId(id); };
@@ -35,8 +38,8 @@ function Shell() {
   return (
     <>
       <ActiveView live={live} />
-      <NativeToggleZone popup={popup} />
-      <SideHandle popup={popup} />
+      <NativeToggleZone popup={popup} hasAttention={hasAttention} />
+      <SideHandle popup={popup} hasAttention={hasAttention} />
       <CommandPalette live={live} />
       <SettingsModal />
     </>

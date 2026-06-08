@@ -4,7 +4,7 @@ import { useHoverPopover } from "../../hooks/useHoverPopover.js";
 // Web-only expand handle shown when the sidebar is collapsed; hovering
 // reveals the view's sidebar popup. Hidden in native mode, where
 // NativeToggleZone fills the role.
-export function SideHandle({ popup }) {
+export function SideHandle({ popup, hasAttention }) {
   const ui = useUi();
   const { open, onMouseEnter, onMouseLeave } = useHoverPopover({ openPopover: ui.openPopover });
 
@@ -17,7 +17,7 @@ export function SideHandle({ popup }) {
       onMouseLeave={onMouseLeave}
     >
       <button
-        className="side-handle"
+        className={`side-handle${hasAttention ? " attention-blink" : ""}`}
         onClick={() => ui.setSideCollapsed(false)}
         title="Show sidebar"
       >

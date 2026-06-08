@@ -339,6 +339,28 @@ html.native .sb-section > .sb-iconbtn { margin-left: auto; }
   cursor: pointer;
 }
 .side-handle:hover { color: var(--fg); border-color: var(--border-strong); }
+
+/* collapsed-sidebar expand button: when any agent needs attention, the icon
+   strokes turn blue and softly blink until the panel opens or attention clears. */
+html.native .native-toggle.attention-blink,
+.side-handle.attention-blink {
+  color: var(--accent);
+  animation: attention-blink 1.4s ease-in-out infinite;
+}
+@keyframes attention-blink {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 65%, transparent));
+  }
+  50% {
+    opacity: .4;
+    filter: drop-shadow(0 0 0 transparent);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .native-toggle.attention-blink,
+  .side-handle.attention-blink { animation: none; opacity: 1; }
+}
 .app.side-collapsed .head { padding-left: 52px; }
 .app.side-collapsed .head .tl { display: none; }
 
