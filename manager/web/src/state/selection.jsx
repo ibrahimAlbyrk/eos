@@ -1,13 +1,28 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
 
 const SelectionContext = createContext(null);
 
 export function SelectionProvider({ children }) {
   const [selectedId, _setSelectedId] = useState(() => localStorage.getItem("cm:selectedId"));
+  // Mirrors selectedId synchronously so setSelectedId can read the id it's
+  // leaving without an impure functional updater. History is the most-recent-
+  // last stack of prior selections (see lib/selectionHistory.js).
+  const selectedIdRef = useRef(selectedId);
+  const historyRef = useRef([]);
   const setSelectedId = useCallback((id) => {
+    historyRef.current = pushSelection(historyRef.current, selectedIdRef.current, id);
+    selectedIdRef.current = id;
     _setSelectedId(id);
     if (id) localStorage.setItem("cm:selectedId", id);
     else localStorage.removeItem("cm:selectedId");
+  }, []);
+  // Pop the most-recent prior selection that still satisfies `exists`. Agent
+  // deletion uses this to re-select the agent shown before the deleted one.
+  const takePreviousSelection = useCallback((exists) => {
+    const { id, history } = takePrevious(historyRef.current, exists, selectedIdRef.current);
+    historyRef.current = history;
+    return id;
   }, []);
   const [sideCollapsed, setSideCollapsed] = useState(() => localStorage.getItem("cm:sideCollapsed") === "1");
 
@@ -62,12 +77,15 @@ export function SelectionProvider({ children }) {
       if (e.key !== "Escape") return;
       // consumed inside the editor (e.g. closing the autocomplete popup)
       if (e.defaultPrevented) return;
-      if (rewindPanel) { setRewindPanel(null); return; }
-      if (openPopover) { closeAllPops(); return; }
-      if (agentViewer) { setAgentViewer(null); return; }
-      if (fileViewer) { setFileViewer(null); return; }
-      if (diffViewer) { setDiffViewer(null); return; }
-      if (commitsViewer) { setCommitsViewer(null); return; }
+      // preventDefault on every handled Escape: an unconsumed Esc reaches the
+      // WKWebView's native responder chain → NSWindow cancelOperation: → exits
+      // macOS fullscreen. Closing a panel must not also drop fullscreen.
+      if (rewindPanel) { e.preventDefault(); setRewindPanel(null); return; }
+      if (openPopover) { e.preventDefault(); closeAllPops(); return; }
+      if (agentViewer) { e.preventDefault(); setAgentViewer(null); return; }
+      if (fileViewer) { e.preventDefault(); setFileViewer(null); return; }
+      if (diffViewer) { e.preventDefault(); setDiffViewer(null); return; }
+      if (commitsViewer) { e.preventDefault(); setCommitsViewer(null); return; }
       if (escapeGitModeRef.current?.()) { e.preventDefault(); return; }
       // Double-Esc with an agent selected → rewind panel (Claude Code parity:
       // composer's own double-Esc-clears-text path preventDefaults, so this
@@ -135,7 +153,7 @@ export function SelectionProvider({ children }) {
   }, []);
 
   const value = useMemo(() => ({
-    selectedId, setSelectedId,
+    selectedId, setSelectedId, takePreviousSelection,
     sideCollapsed, setSideCollapsed,
     openPopover, openPop, closeAllPops, popoverPos, popoverData,
     collapsedNodes, toggleNodeCollapsed,
@@ -151,7 +169,8 @@ export function SelectionProvider({ children }) {
     registerEscapeIdle,
     registerEscapeGitMode,
   }), [
-    selectedId, sideCollapsed, openPopover, popoverPos, popoverData,
+    selectedId, setSelectedId, takePreviousSelection,
+    sideCollapsed, openPopover, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, fileViewer, agentViewer, diffViewer, commitsViewer,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded,

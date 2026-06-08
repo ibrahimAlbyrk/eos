@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { useAgentSwitchHotkeys } from "../../hooks/useAgentSwitchHotkeys.js";
+import { useDeleteAgentHotkey } from "../../hooks/useDeleteAgentHotkey.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { CenterHeader } from "./center/CenterHeader.jsx";
@@ -22,6 +23,9 @@ export function CodeView({ live }) {
 
   // Cmd+1..9 → select Nth visible agent in the sidebar.
   useAgentSwitchHotkeys(live);
+
+  // Cmd+W → delete the selected agent (falls back to the previous selection).
+  useDeleteAgentHotkey(live);
 
   // Cmd+T → new empty session (mirrors the + button).
   useEffect(() => {

@@ -1,7 +1,9 @@
 import { useUi } from "../../../state/ui.jsx";
+import { useDeleteAgent } from "../../../hooks/useDeleteAgent.js";
 
 export function AgentContextMenu({ live }) {
   const ui = useUi();
+  const deleteAgent = useDeleteAgent(live);
   if (ui.openPopover !== "ctx-menu") return null;
   const { x, y } = ui.popoverPos;
   const { agentId } = ui.popoverData;
@@ -29,23 +31,9 @@ export function AgentContextMenu({ live }) {
 
   // Direct kill, no confirm (user choice) — the eos/trash tombstone tag keeps
   // unmerged branch commits recoverable, and dirty worktrees are preserved.
-  const kill = async () => {
-    if (!agentId) return;
-    // Clear selection *before* the DELETE returns so any in-flight diff /
-    // events fetch for this agent doesn't race with the row removal.
-    if (ui.selectedId === agentId) ui.setSelectedId(null);
-    ui.closeAllPops();
-    try {
-      const r = await live.killAgent(agentId);
-      if (!r?.ok) {
-        // eslint-disable-next-line no-console
-        console.error("kill failed:", r?.body?.error ?? `status ${r?.status ?? "?"}`);
-      }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("kill threw:", e);
-    }
-  };
+  // Selection re-targeting + the pre-DELETE selection switch live in
+  // useDeleteAgent (shared with the Cmd+W hotkey).
+  const kill = () => deleteAgent(agentId);
 
   // Clamp to viewport
   const left = Math.min(x, window.innerWidth - 220);
