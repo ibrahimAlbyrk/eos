@@ -192,14 +192,6 @@ export const api = {
   async openFile(path) {
     return postJson(ROUTES.fsOpen, { path });
   },
-  async readSkill(name, cwd) {
-    const params = new URLSearchParams();
-    params.set("name", name);
-    if (cwd) params.set("cwd", cwd);
-    const r = await getJson(`${ROUTES.skillRead}?${params.toString()}`);
-    if (!r.ok) throw new Error(r.body?.error || `readSkill → ${r.status}`);
-    return r.body;
-  },
   async listBranches(cwd) {
     const r = await fetch(`${DAEMON}${ROUTES.fsBranches}?cwd=${encodeURIComponent(cwd)}`);
     return r.ok

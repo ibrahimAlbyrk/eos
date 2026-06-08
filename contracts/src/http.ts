@@ -417,23 +417,6 @@ export const CommandsResponseSchema = z.object({
 });
 export type CommandsResponse = z.infer<typeof CommandsResponseSchema>;
 
-// ---- GET /skills/read ------------------------------------------------------
-
-export const SkillReadQuerySchema = z.object({
-  name: z.string().min(1),
-  cwd: z.string().optional(),
-});
-export type SkillReadQuery = z.infer<typeof SkillReadQuerySchema>;
-
-export const SkillReadResponseSchema = z.object({
-  name: z.string(),
-  path: z.string(),
-  content: z.string(),
-  source: z.enum(["project", "user", "plugin"]),
-  lines: z.number().int().nonnegative(),
-});
-export type SkillReadResponse = z.infer<typeof SkillReadResponseSchema>;
-
 // ---- /api/templates ---------------------------------------------------------
 // User prompt templates (~/.claude-mgr/templates/*.md). Content may contain
 // {{label}} tab-stop placeholders the web composer navigates after insert.
@@ -745,7 +728,6 @@ export const ROUTES = {
   workerTryKeep: (id: string): string => `/workers/${id}/try/keep`,
   workerTryDiscard: (id: string): string => `/workers/${id}/try/discard`,
   commands: "/commands",
-  skillRead: "/skills/read",
   templates: "/api/templates",
   template: (name: string): string => `/api/templates/${name}`,
   settings: "/api/settings",

@@ -54,7 +54,6 @@ export const ROUTES = {
   workerTryKeep: (id) => `/workers/${id}/try/keep`,
   workerTryDiscard: (id) => `/workers/${id}/try/discard`,
   commands: "/commands",
-  skillRead: "/skills/read",
   templates: "/api/templates",
   template: (name) => `/api/templates/${name}`,
   settings: "/api/settings",
