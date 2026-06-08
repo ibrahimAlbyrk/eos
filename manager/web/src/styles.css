@@ -319,14 +319,15 @@ html.native .sb-section > .sb-iconbtn { margin-left: auto; }
 .app.side-collapsed .side { transform: translateX(-100%); opacity: 0; pointer-events: none; }
 .side { transition: transform 200ms ease, opacity 200ms ease; }
 
-/* floating expand handle when sidebar collapsed */
+/* floating expand handle when sidebar collapsed. Rendered by the Shell, which
+   only mounts it while collapsed, so it is visible whenever present (native
+   mode hides it via the rule above). */
 .side-handle-zone {
   position: absolute;
   top: 24px; left: 16px;
   z-index: 60;
-  display: none;
+  display: block;
 }
-.app.side-collapsed .side-handle-zone { display: block; }
 .side-handle {
   width: 28px; height: 28px;
   background: var(--surface);
@@ -367,7 +368,6 @@ html.native .sb-section > .sb-iconbtn { margin-left: auto; }
    drag the toggle into its vertical center. Absolute keeps the toggle put. */
 html.native .native-toggle-zone .side-handle-popup { position: absolute; left: -86px; top: 36px; }
 html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
-.side-handle-popup--no-anim { animation: none; }
 @keyframes side-popup-in {
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }

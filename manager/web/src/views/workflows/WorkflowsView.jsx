@@ -3,7 +3,7 @@ import { TabBar } from "../../components/TabBar.jsx";
 import { SettingsFooter } from "../../components/SettingsFooter.jsx";
 import { WorkflowsEmpty } from "./WorkflowsEmpty.jsx";
 
-function WorkflowsSidebar({ variant }) {
+export function WorkflowsSidebar({ variant }) {
   const body = (
     <>
       <TabBar />
