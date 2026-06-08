@@ -6,7 +6,7 @@ function nameOf(w) {
   return w.name || (w.is_orchestrator ? "Orchestrator" : w.id);
 }
 
-export function AgentsTree({ roots, onRename }) {
+export function AgentsTree({ roots, onRename, variant = "full" }) {
   if (roots.length === 0) {
     return (
       <div className="agents-section">
@@ -19,7 +19,7 @@ export function AgentsTree({ roots, onRename }) {
   return (
     <div className="agents-section">
       {roots.map((n) => (
-        <TreeNode key={n.id} node={n} onRename={onRename} />
+        <TreeNode key={n.id} node={n} onRename={onRename} variant={variant} />
       ))}
     </div>
   );
@@ -61,7 +61,7 @@ function RenameInput({ currentName, onSave, onCancel }) {
   );
 }
 
-function TreeNode({ node, onRename }) {
+function TreeNode({ node, onRename, variant = "full" }) {
   const ui = useUi();
   const collapsed = ui.collapsedNodes.has(node.id);
   const hasChildren = node.children.length > 0;
@@ -71,7 +71,12 @@ function TreeNode({ node, onRename }) {
   const isSelected = ui.selectedId === node.id;
   const rowCls = ["agents-row"];
   if (isSelected) rowCls.push("on");
-  const isRenaming = ui.renamingId === node.id;
+  // Only the visible instance owns the rename input. When collapsed the docked
+  // sidebar stays mounted (hidden via opacity/transform, still focusable), so
+  // without this gate it would mount a second RenameInput sharing renamingId —
+  // the two inputs fight for focus and the loser's onBlur cancels the rename.
+  const renameActive = variant === "popup" || !ui.sideCollapsed;
+  const isRenaming = renameActive && ui.renamingId === node.id;
 
   const onClick = () => ui.setSelectedId(node.id);
   const onCtx = (e) => {
@@ -135,7 +140,7 @@ function TreeNode({ node, onRename }) {
       {hasChildren && (
         <div className="tree-children">
           {node.children.map((c) => (
-            <TreeNode key={c.id} node={c} onRename={onRename} />
+            <TreeNode key={c.id} node={c} onRename={onRename} variant={variant} />
           ))}
         </div>
       )}
