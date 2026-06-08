@@ -117,13 +117,29 @@ describe("parseAskAnswers", () => {
     expect(parseAskAnswers(questions, result)).toEqual(["blue", "large"]);
   });
 
-  it("parses the 'have been answered' quoted format", () => {
+  it("parses the 'have been answered' quoted format including the first question", () => {
     const questions = [{ question: "What color?" }, { question: "What size?" }];
     const result =
       'Your questions have been answered: "What color?" = "blue", "What size?" = "large".';
-    const parsed = parseAskAnswers(questions, result);
-    expect(parsed).toHaveLength(2);
-    expect(parsed[1]).toBe("large");
+    expect(parseAskAnswers(questions, result)).toEqual(["blue", "large"]);
+  });
+
+  it("does not leak the trailing prose into the last answer (free text)", () => {
+    const questions = [
+      { question: "Dağıtım?" },
+      { question: "Model?" },
+      { question: "Bildirim?" },
+    ];
+    const result =
+      'Your questions have been answered: "Dağıtım?"="Paralel worker", "Model?"="Haiku", "Bildirim?"="geber". You can now continue with these answers in mind.';
+    expect(parseAskAnswers(questions, result)).toEqual(["Paralel worker", "Haiku", "geber"]);
+  });
+
+  it("keeps a multi-select value with an internal comma intact", () => {
+    const questions = [{ question: "Pick fruits" }];
+    const result =
+      'Your questions have been answered: "Pick fruits"="Apple, Cherry". You can now continue with these answers in mind.';
+    expect(parseAskAnswers(questions, result)).toEqual(["Apple, Cherry"]);
   });
 
   it("falls back to substring correlation when keys are not exact", () => {

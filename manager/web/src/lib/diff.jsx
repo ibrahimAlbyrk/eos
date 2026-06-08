@@ -139,11 +139,16 @@ export function parseAskAnswers(questions, resultText) {
     }
   }
 
+  // Format: Your questions have been answered: "Q1"="A1", "Q2"="A2". <boilerplate>
+  // Pull each quoted key="value" pair directly. Values may contain commas
+  // (multi-select "Apple, Cherry") but not quotes, so the trailing prose
+  // ("You can now continue …") and the leading opener never leak into a value.
   const answeredMatch = resultText.match(/Your questions have been answered:\s*([\s\S]*)/);
   if (answeredMatch) {
-    for (const part of answeredMatch[1].split(/"\s*[,.]?\s*"/)) {
-      const m = part.match(/^([^"]*?)"\s*=\s*"?(.+?)("?\s*\.?\s*)$/);
-      if (m) answerMap.set(m[1].trim(), m[2].trim().replace(/"$/, ""));
+    const pairRe = /"([^"]+)"\s*=\s*"([^"]*)"/g;
+    let m;
+    while ((m = pairRe.exec(answeredMatch[1])) !== null) {
+      answerMap.set(m[1].trim(), m[2].trim());
     }
   }
 
