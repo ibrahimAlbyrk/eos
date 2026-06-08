@@ -8,6 +8,7 @@
 export const VERBOSE_ENABLED_KEY = "verbose.enabled";
 export const VERBOSE_MODE_KEY = "verbose.mode";
 export const VERBOSE_TOOLS_KEY = "verbose.tools";
+export const VERBOSE_GROUP_EXPANDED_KEY = "verbose.groupExpanded";
 
 export function defaultToolExpanded(toolName, settings) {
   if (!settings?.[VERBOSE_ENABLED_KEY]) return false;
@@ -19,5 +20,6 @@ export function defaultToolExpanded(toolName, settings) {
 }
 
 export function defaultGroupOpen(tools, settings) {
+  if (settings?.[VERBOSE_GROUP_EXPANDED_KEY]) return true;
   return (tools ?? []).some((t) => defaultToolExpanded(t.name, settings));
 }

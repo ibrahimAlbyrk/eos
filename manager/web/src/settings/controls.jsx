@@ -2,7 +2,63 @@
 // Every control receives { value, onChange } plus the rest of its registry
 // `control` props. Adding a control type = one component + one CONTROLS entry.
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+
+// Fixed-position popover rendered in a body portal so it escapes the settings
+// modal's overflow:hidden + scrolling body, which otherwise clip a menu opening
+// near the bottom edge (the reported "half-cut dropdown"). Anchored to
+// `anchorRef`, flips above when there's no room below, and owns outside-click
+// close — the menu lives outside the control's DOM subtree, so the control can't
+// detect inside-clicks (a mousedown on an option would read as "outside" and
+// unmount it before its click fires).
+function AnchoredPopover({ anchorRef, open, onClose, align = "left", matchWidth = false, className, children }) {
+  const popRef = useRef(null);
+  const [style, setStyle] = useState(null);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    const place = () => {
+      const a = anchorRef.current?.getBoundingClientRect();
+      if (!a) return;
+      const gap = 6;
+      const h = popRef.current?.offsetHeight ?? 0;
+      const below = window.innerHeight - a.bottom;
+      const flipUp = below < h + gap && a.top > below;
+      const next = { position: "fixed", top: flipUp ? a.top - gap - h : a.bottom + gap };
+      if (align === "right") next.right = window.innerWidth - a.right;
+      else next.left = a.left;
+      if (matchWidth) next.minWidth = a.width;
+      setStyle(next);
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [open, anchorRef, align, matchWidth]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (anchorRef.current?.contains(e.target)) return;
+      if (popRef.current?.contains(e.target)) return;
+      onClose();
+    };
+    document.addEventListener("mousedown", onDown, true);
+    return () => document.removeEventListener("mousedown", onDown, true);
+  }, [open, anchorRef, onClose]);
+
+  if (!open) return null;
+  return createPortal(
+    <div ref={popRef} className={className} style={style ?? { position: "fixed", visibility: "hidden" }}>
+      {children}
+    </div>,
+    document.body,
+  );
+}
 
 function ToggleControl({ value, onChange }) {
   return (
@@ -46,49 +102,38 @@ function SegmentedControl({ value, onChange, options }) {
 // pickable — e.g. providers that aren't wired yet) and `hint` (small badge).
 function SelectControl({ value, onChange, options }) {
   const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
+  const btnRef = useRef(null);
   const current = (options ?? []).find((o) => o.value === value);
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e) => {
-      if (!wrapRef.current?.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown, true);
-    return () => document.removeEventListener("mousedown", onDown, true);
-  }, [open]);
-
   return (
-    <div className="stg-dd" ref={wrapRef}>
-      <button type="button" className={`stg-dd__btn${open ? " is-open" : ""}`} onClick={() => setOpen((v) => !v)}>
+    <div className="stg-dd">
+      <button ref={btnRef} type="button" className={`stg-dd__btn${open ? " is-open" : ""}`} onClick={() => setOpen((v) => !v)}>
         <span>{current?.label ?? String(value ?? "")}</span>
         <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 6l4 4 4-4" />
         </svg>
       </button>
-      {open && (
-        <div className="stg-dd__menu glass-pop">
-          <div className="stg-dd__list">
-            {(options ?? []).map((o) => (
-              <button
-                type="button"
-                key={o.value}
-                disabled={o.disabled}
-                className={`stg-dd__opt${o.value === value ? " is-active" : ""}${o.disabled ? " is-disabled" : ""}`}
-                onClick={() => { if (o.disabled) return; onChange(o.value); setOpen(false); }}
-              >
-                <span>{o.label}</span>
-                {o.hint && <span className="stg-dd__hint">{o.hint}</span>}
-                {o.value === value && (
-                  <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M3 8.5l3.5 3.5L13 5" />
-                  </svg>
-                )}
-              </button>
-            ))}
-          </div>
+      <AnchoredPopover anchorRef={btnRef} open={open} onClose={() => setOpen(false)} align="right" matchWidth className="stg-dd__menu glass-pop">
+        <div className="stg-dd__list">
+          {(options ?? []).map((o) => (
+            <button
+              type="button"
+              key={o.value}
+              disabled={o.disabled}
+              className={`stg-dd__opt${o.value === value ? " is-active" : ""}${o.disabled ? " is-disabled" : ""}`}
+              onClick={() => { if (o.disabled) return; onChange(o.value); setOpen(false); }}
+            >
+              <span>{o.label}</span>
+              {o.hint && <span className="stg-dd__hint">{o.hint}</span>}
+              {o.value === value && (
+                <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 8.5l3.5 3.5L13 5" />
+                </svg>
+              )}
+            </button>
+          ))}
         </div>
-      )}
+      </AnchoredPopover>
     </div>
   );
 }
@@ -99,22 +144,11 @@ function SelectControl({ value, onChange, options }) {
 function ToolPickerControl({ value, onChange, tools }) {
   const selected = Array.isArray(value) ? value : [];
   const [open, setOpen] = useState(false);
-  const wrapRef = useRef(null);
+  const addRef = useRef(null);
   const available = (tools ?? []).filter((t) => !selected.includes(t));
 
-  // Capture phase — the settings modal stops mousedown propagation (for its
-  // backdrop-close), so a bubble listener would never see inside-modal clicks.
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e) => {
-      if (!wrapRef.current?.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown, true);
-    return () => document.removeEventListener("mousedown", onDown, true);
-  }, [open]);
-
   return (
-    <div className="stg-toolpick" ref={wrapRef}>
+    <div className="stg-toolpick">
       {selected.map((t) => (
         <span className="stg-toolpick__chip" key={t}>
           {t}
@@ -132,22 +166,20 @@ function ToolPickerControl({ value, onChange, tools }) {
       {selected.length === 0 && <span className="stg-toolpick__empty">No tools selected</span>}
       {available.length > 0 && (
         <div className="stg-toolpick__addwrap">
-          <button className="stg-toolpick__add" title="Add tool" onClick={() => setOpen((v) => !v)}>
+          <button ref={addRef} className="stg-toolpick__add" title="Add tool" onClick={() => setOpen((v) => !v)}>
             <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
               <path d="M8 3v10M3 8h10" />
             </svg>
           </button>
-          {open && (
-            <div className="stg-toolpick__menu glass-pop">
-              <div className="stg-toolpick__list">
-                {available.map((t) => (
-                  <button key={t} className="stg-toolpick__opt" onClick={() => onChange([...selected, t])}>
-                    {t}
-                  </button>
-                ))}
-              </div>
+          <AnchoredPopover anchorRef={addRef} open={open} onClose={() => setOpen(false)} className="stg-toolpick__menu glass-pop">
+            <div className="stg-toolpick__list">
+              {available.map((t) => (
+                <button key={t} className="stg-toolpick__opt" onClick={() => onChange([...selected, t])}>
+                  {t}
+                </button>
+              ))}
             </div>
-          )}
+          </AnchoredPopover>
         </div>
       )}
     </div>

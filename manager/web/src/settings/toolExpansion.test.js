@@ -5,6 +5,7 @@ import {
   VERBOSE_ENABLED_KEY,
   VERBOSE_MODE_KEY,
   VERBOSE_TOOLS_KEY,
+  VERBOSE_GROUP_EXPANDED_KEY,
 } from "./toolExpansion.js";
 
 describe("defaultToolExpanded", () => {
@@ -48,5 +49,15 @@ describe("defaultGroupOpen", () => {
   it("handles empty/missing tool lists", () => {
     expect(defaultGroupOpen([], {})).toBe(false);
     expect(defaultGroupOpen(null, {})).toBe(false);
+  });
+
+  it("forces the group open when groupExpanded is set, regardless of tool defaults", () => {
+    const s = { [VERBOSE_GROUP_EXPANDED_KEY]: true };
+    expect(defaultGroupOpen([{ name: "Read" }, { name: "Bash" }], s)).toBe(true);
+  });
+
+  it("groupExpanded false leaves the derived behaviour intact", () => {
+    const s = { [VERBOSE_GROUP_EXPANDED_KEY]: false };
+    expect(defaultGroupOpen([{ name: "Read" }, { name: "Bash" }], s)).toBe(false);
   });
 });

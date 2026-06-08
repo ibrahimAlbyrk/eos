@@ -167,6 +167,13 @@ export const SETTINGS_SECTIONS = [
             defaultValue: false,
           },
           {
+            key: "verbose.groupExpanded",
+            label: "Expand tool groups",
+            description: "Start grouped tool calls expanded instead of collapsed.",
+            control: { type: "toggle" },
+            defaultValue: false,
+          },
+          {
             key: "verbose.mode",
             label: "Mode",
             description: "Which tool calls verbose mode expands.",
