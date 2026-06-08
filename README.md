@@ -97,12 +97,12 @@ or `haiku`.
 
 **Live observation.** &nbsp; SSE-driven dashboard with ~100 ms event latency.
 JSONL transcripts parsed into structured tool calls, tool results, and
-assistant text. Per-worker logs at `~/.claude-mgr/logs/<id>.log`.
+assistant text. Per-worker logs at `~/.eos/logs/<id>.log`.
 
 **Human-in-the-loop policy.** &nbsp; YAML rules: `allow`, `deny`, `ask`
 (long-poll for human approval), or `rewrite` (regex transform of tool
 input). Pending requests surface in every interface. Full audit log at
-`~/.claude-mgr/audit.jsonl`.
+`~/.eos/audit.jsonl`.
 
 **Cost accounting.** &nbsp; Token usage tracked per worker, priced against
 the current Anthropic rates for input, output, cache-read, and cache-create

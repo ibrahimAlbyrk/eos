@@ -7,10 +7,10 @@ export interface WorkerSession {
 }
 
 export function resolveSession(): WorkerSession {
-  const daemonUrl = process.env.CLAUDE_MGR_DAEMON_URL ?? "http://127.0.0.1:7400";
-  const selfId = process.env.CLAUDE_MGR_WORKER_ID;
+  const daemonUrl = process.env.EOS_DAEMON_URL ?? "http://127.0.0.1:7400";
+  const selfId = process.env.EOS_WORKER_ID;
   if (!selfId) {
-    process.stderr.write("[worker-mcp] FATAL: CLAUDE_MGR_WORKER_ID not set\n");
+    process.stderr.write("[worker-mcp] FATAL: EOS_WORKER_ID not set\n");
     process.exit(1);
   }
   const api = (method: string, path: string, body?: unknown): Promise<unknown> =>

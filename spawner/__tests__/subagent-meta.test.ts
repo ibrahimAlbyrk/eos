@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { resolveParentAgentToolUseId } from "../subagent-meta.ts";
 import { encodeCwd } from "../worktree.ts";
 
-const baseDir = mkdtempSync(join(tmpdir(), "cm-submeta-"));
+const baseDir = mkdtempSync(join(tmpdir(), "eos-submeta-"));
 const cwd = "/private/tmp/work";
 const sid = "sess-1";
 

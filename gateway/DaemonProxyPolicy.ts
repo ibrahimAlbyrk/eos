@@ -17,7 +17,7 @@ export function createDaemonProxyPolicy(opts: DaemonProxyOptions): PolicyResolve
     name: "daemon",
     async decide({ tool_name, input, tool_use_id }): Promise<Decision> {
       const ac = new AbortController();
-      const timeoutMs = parseInt(process.env.CLAUDE_MGR_POLICY_TIMEOUT_MS ?? "", 10) || 3_600_000;
+      const timeoutMs = parseInt(process.env.EOS_POLICY_TIMEOUT_MS ?? "", 10) || 3_600_000;
       const timer = setTimeout(() => ac.abort(), timeoutMs);
       try {
         const r = await fetch(`${opts.daemonUrl}/policy/decide`, {

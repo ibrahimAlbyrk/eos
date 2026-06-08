@@ -75,8 +75,8 @@ describe("ProcessWorkerEvent.lifecycle — non-spawning phases", () => {
 describe("ProcessWorkerEvent.lifecycle — claude_spawning worktree_dir enrichment", () => {
   it("persists the resolved worktree dir", () => {
     const { deps, worktreeDirCalls } = buildDeps("SPAWNING");
-    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning", worktreeDir: "/repo/.claude-mgr/worktrees/cm-w1-x", branch: "cm-w1-x" } });
-    assert.deepEqual(worktreeDirCalls, [{ id: "w1", dir: "/repo/.claude-mgr/worktrees/cm-w1-x" }]);
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning", worktreeDir: "/repo/.eos/worktrees/eos-w1-x", branch: "eos-w1-x" } });
+    assert.deepEqual(worktreeDirCalls, [{ id: "w1", dir: "/repo/.eos/worktrees/eos-w1-x" }]);
   });
 
   it("does not transition state on claude_spawning", () => {

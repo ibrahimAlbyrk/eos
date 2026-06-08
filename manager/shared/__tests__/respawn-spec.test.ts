@@ -57,8 +57,8 @@ describe("buildRespawnSpec", () => {
   });
 
   it("reattaches by worktree_dir over cwd, never sets worktreeFrom", () => {
-    const spec = buildRespawnSpec(row({ worktree_from: "/repo", branch: "cm-x", worktree_dir: "/repo/.claude-mgr/worktrees/cm-x" }), deps);
-    assert.equal(spec.cwd, "/repo/.claude-mgr/worktrees/cm-x");
+    const spec = buildRespawnSpec(row({ worktree_from: "/repo", branch: "eos-x", worktree_dir: "/repo/.eos/worktrees/eos-x" }), deps);
+    assert.equal(spec.cwd, "/repo/.eos/worktrees/eos-x");
     assert.equal(spec.worktreeFrom, undefined);
     assert.equal(spec.branch, undefined);
   });

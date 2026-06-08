@@ -1,5 +1,5 @@
-// Temp settings.json + tempdir. The mkdtemp prefix `cm-<name>-` is a hard
-// contract — the daemon's force-kill `pgrep -f "cm-<name>-"` depends on it.
+// Temp settings.json + tempdir. The mkdtemp prefix `eos-<name>-` is a hard
+// contract — the daemon's force-kill `pgrep -f "eos-<name>-"` depends on it.
 
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -11,9 +11,9 @@ export interface BuiltSettings {
 }
 
 export function buildClaudeSettings(name: string, port: number): BuiltSettings {
-  const tmpDir = mkdtempSync(join(tmpdir(), `cm-${name}-`));
+  const tmpDir = mkdtempSync(join(tmpdir(), `eos-${name}-`));
   const settingsPath = join(tmpDir, "settings.json");
-  const repoRoot = process.env.CLAUDE_MGR_REPO_ROOT || "";
+  const repoRoot = process.env.EOS_REPO_ROOT || "";
   const httpHook = (event: string, matcher?: string): Record<string, unknown> => ({
     ...(matcher ? { matcher } : {}),
     hooks: [{ type: "http", url: `http://127.0.0.1:${port}/event?event=${event}` }],

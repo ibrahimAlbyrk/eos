@@ -51,7 +51,7 @@ export interface SpawnWorkerDeps {
    * spec. The composition root injects the real builder which knows the
    * worker script path. Keeps SpawnWorker free of any FS knowledge. */
   buildArgs(input: { id: string; port: number; spec: SpawnWorkerSpec; model: string }): string[];
-  /** Builds the env map (the daemon-aware CLAUDE_MGR_* triplet + bin paths). */
+  /** Builds the env map (the daemon-aware EOS_* triplet + bin paths). */
   buildEnv(input: { id: string; spec: SpawnWorkerSpec }): Record<string, string>;
   /** Path where the supervisor should pipe the child's stdout/stderr. */
   logFileFor(id: string): string;
@@ -87,7 +87,7 @@ export async function spawnWorker(
   const label = resolved.name ? `${resolved.name}-` : "";
   const branch =
     resolved.worktreeFrom && !resolved.branch
-      ? `cm-${label}${id}-${deps.clock.now().toString(36)}`
+      ? `eos-${label}${id}-${deps.clock.now().toString(36)}`
       : resolved.branch;
   const withBranch = { ...resolved, branch };
 

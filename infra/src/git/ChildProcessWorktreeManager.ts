@@ -7,7 +7,7 @@
 // realpath note: the daemon stores worktree_from via expandPath (only `~`
 // expansion, NOT realpath), while git tracks realpath'd paths (and macOS /tmp
 // is a symlink to /private/tmp). So every git call realpaths repoRoot first, or
-// the derived `.claude-mgr/worktrees/<branch>` path won't match what git knows.
+// the derived `.eos/worktrees/<branch>` path won't match what git knows.
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -35,13 +35,13 @@ function realpathOr(p: string): string {
   try { return realpathSync(p); } catch { return p; }
 }
 
-const MANAGED_SEGMENT = `${sep}.claude-mgr${sep}worktrees${sep}`;
+const MANAGED_SEGMENT = `${sep}.eos${sep}worktrees${sep}`;
 
 export const childProcessWorktreeManager: WorktreeManager = {
   async remove(ref: WorktreeRef): Promise<{ removed: boolean; reason?: string }> {
     if (!ref.branch) return { removed: false, reason: "no branch" };
     const root = realpathOr(ref.repoRoot);
-    const dir = ref.worktreeDir ?? join(root, ".claude-mgr", "worktrees", ref.branch);
+    const dir = ref.worktreeDir ?? join(root, ".eos", "worktrees", ref.branch);
 
     // Safety: never operate on the repo's main worktree.
     if (realpathOr(dir) === root) return { removed: false, reason: "refusing repo root" };
@@ -51,7 +51,7 @@ export const childProcessWorktreeManager: WorktreeManager = {
     // 2. Reconcile stale admin entries left by a half-removed / racing teardown.
     await git(root, ["worktree", "prune"]);
     // 3. fs safety-net: guarantee the dir is gone, but only ever under the
-    //    managed .claude-mgr/worktrees/ tree so we can't touch anything else.
+    //    managed .eos/worktrees/ tree so we can't touch anything else.
     if (existsSync(dir) && dir.includes(MANAGED_SEGMENT)) {
       try { rmSync(dir, { recursive: true, force: true }); } catch {}
       await git(root, ["worktree", "prune"]);

@@ -16,7 +16,7 @@ export default [
       "**/dist/**",
       "**/build/**",
       "**/coverage/**",
-      "**/.claude-mgr/**",
+      "**/.eos/**",
       "**/*.d.ts",
     ],
   },

@@ -1,5 +1,5 @@
 // UserTemplateService — CRUD store for user prompt templates under
-// ~/.claude-mgr/templates/, one markdown file per template (YAML frontmatter
+// ~/.eos/templates/, one markdown file per template (YAML frontmatter
 // with `description`, body = prompt content). Same format as manager/prompts/
 // so files stay hand-editable; re-read on every call, no cache.
 

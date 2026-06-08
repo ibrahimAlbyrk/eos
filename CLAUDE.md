@@ -71,7 +71,7 @@ HTTP surface: all endpoints defined in `contracts/src/http.ts` ROUTES table.
 
 ### Permission flow: hook-as-gateway
 
-Claude prefers its interactive prompt over `--permission-prompt-tool` MCP when a `PermissionRequest` hook exists — so the gateway *is* the hook. `scripts/hooks/auto-allow.sh` (wired per-worker in `spawner/settings.ts`) checks `CLAUDE_MGR_SPAWNED`, then **branches on tool name**:
+Claude prefers its interactive prompt over `--permission-prompt-tool` MCP when a `PermissionRequest` hook exists — so the gateway *is* the hook. `scripts/hooks/auto-allow.sh` (wired per-worker in `spawner/settings.ts`) checks `EOS_SPAWNED`, then **branches on tool name**:
 
 - `AskUserQuestion` → **fire-and-forget** `POST /workers/:id/question-notify` (surfaces the web QuestionBanner), then returns `{}` so Claude renders its native TUI menu. The hook does NOT block, and `updatedInput` does NOT pre-fill answers (empirically Claude ignores it and reports "user did not answer"). Answers come back as keystrokes (single-select: the option number) or, for multi-select/free-text, an interrupt + plain message.
 - every other tool → `POST /policy/decide`, returns the decision verbatim.
@@ -99,9 +99,9 @@ Effective mode = `SqlBackedModeResolver.resolveFor(id)`, which climbs `parent_id
 ### Worker env vars (required for daemon-aware mode)
 
 ```
-CLAUDE_MGR_SPAWNED=1              — tells hook to delegate to daemon
-CLAUDE_MGR_WORKER_ID=<id>        — routes events to correct worker
-CLAUDE_MGR_DAEMON_URL=http://127.0.0.1:7400
+EOS_SPAWNED=1              — tells hook to delegate to daemon
+EOS_WORKER_ID=<id>        — routes events to correct worker
+EOS_DAEMON_URL=http://127.0.0.1:7400
 ```
 
 Missing any → hook falls through to default auto-allow, gateway loop breaks.
@@ -138,15 +138,15 @@ hook and jsonl ride independent fire-and-forget channels, so trailing transcript
 
 ### Policy long-poll timeouts
 
-`/policy/decide` blocks until a human decides. There is **no** `ttlMs` auto-deny timer (removed). `policy.ttlMs` now only seeds the pending row's `expiresAt`, which `sweepExpired()` consults lazily on worker exit to mark stranded `ask` pendings expired — it never denies a live worker mid-wait. The only hard ceiling is the abort timeout (3600s), shared by the hook curl and the gateway (`CLAUDE_MGR_POLICY_TIMEOUT_MS`) — keep them coordinated if changed. (The worker-side question long-poll that also used this ceiling is currently dead code; see the AskUserQuestion pipeline note.)
+`/policy/decide` blocks until a human decides. There is **no** `ttlMs` auto-deny timer (removed). `policy.ttlMs` now only seeds the pending row's `expiresAt`, which `sweepExpired()` consults lazily on worker exit to mark stranded `ask` pendings expired — it never denies a live worker mid-wait. The only hard ceiling is the abort timeout (3600s), shared by the hook curl and the gateway (`EOS_POLICY_TIMEOUT_MS`) — keep them coordinated if changed. (The worker-side question long-poll that also used this ceiling is currently dead code; see the AskUserQuestion pipeline note.)
 
 ### Temp dir prefix
 
-Workers use `cm-<name>-XXXXXX` via `mkdtempSync`. Don't rename — daemon's `pgrep -f "cm-<name>-"` depends on it for orphan cleanup.
+Workers use `eos-<name>-XXXXXX` via `mkdtempSync`. Don't rename — daemon's `pgrep -f "eos-<name>-"` depends on it for orphan cleanup.
 
 ### SQLite migrations
 
-`infra/src/persistence/MigrationRunner.ts` runs an ordered `MIGRATIONS: {id, sql}[]` array on startup; applied ids are recorded in `schema_migrations` so each runs once. New column: append `{id:"NNN_...", sql:"ALTER TABLE … ADD COLUMN …"}` — `runMigrations()` already wraps it in try/catch (duplicate-column = treated as applied); don't hand-roll your own. The daemon backs up `state.db` (newest 5 in `~/.claude-mgr/backups/`) on every startup before opening it.
+`infra/src/persistence/MigrationRunner.ts` runs an ordered `MIGRATIONS: {id, sql}[]` array on startup; applied ids are recorded in `schema_migrations` so each runs once. New column: append `{id:"NNN_...", sql:"ALTER TABLE … ADD COLUMN …"}` — `runMigrations()` already wraps it in try/catch (duplicate-column = treated as applied); don't hand-roll your own. The daemon backs up `state.db` (newest 5 in `~/.eos/backups/`) on every startup before opening it.
 
 ### Cost is display-only
 
@@ -176,8 +176,8 @@ Adding new things:
 - **Infra concern**: port in `core/src/ports/` → impl in `infra/src/<concern>/` → wire in `manager/container.ts`
 - **Shared schema**: reusable Zod primitives go in `contracts/src/shared.ts` (e.g. `UnknownRecordSchema`)
 - **Manager service**: stateful extracted logic goes in `manager/services/` (e.g. `TurnSettleService`, `PendingQuestionService`)
-- **Policy rule**: `POST /api/policy/rule` appends to `~/.claude-mgr/policy.yaml` + reloads; used by web UI "Always allow"
+- **Policy rule**: `POST /api/policy/rule` appends to `~/.eos/policy.yaml` + reloads; used by web UI "Always allow"
 
-Config is deeply frozen after load. To mutate at runtime: write the updated `~/.claude-mgr/config.json` yourself, THEN call `container.reloadConfig()` (it only drops the cache and re-reads disk — it does NOT write the file). No endpoint mutates config at runtime; every config change needs a daemon restart. Never `Object.assign` on live config.
+Config is deeply frozen after load. To mutate at runtime: write the updated `~/.eos/config.json` yourself, THEN call `container.reloadConfig()` (it only drops the cache and re-reads disk — it does NOT write the file). No endpoint mutates config at runtime; every config change needs a daemon restart. Never `Object.assign` on live config.
 
 Node.js strip-only TS mode: don't use parameter properties (`constructor(private x: T)`) — use explicit field + assignment.

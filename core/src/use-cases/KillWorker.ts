@@ -1,4 +1,4 @@
-// KillWorker — escalates SIGTERM→SIGKILL, also force-kills orphan cm-*
+// KillWorker — escalates SIGTERM→SIGKILL, also force-kills orphan eos-*
 // processes whose names match the worker's. After the OS signalling is in
 // flight, wipes the worker row + events + pending and publishes
 // `worker:removed` so subscribers (SSE) refresh.

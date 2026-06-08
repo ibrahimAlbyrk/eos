@@ -51,4 +51,4 @@ temp/
 *.tmp
 
 # Runtime state (claude-manager writes here, lives under $HOME but ignore if symlinked in)
-.claude-mgr/
+.eos/

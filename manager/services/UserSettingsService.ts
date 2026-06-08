@@ -1,5 +1,5 @@
 // UserSettingsService — flat key→value store for user UI settings at
-// ~/.claude-mgr/settings.json. The web settings registry owns key semantics
+// ~/.eos/settings.json. The web settings registry owns key semantics
 // and defaults; the daemon only persists. Re-read on every call, no cache,
 // atomic write (tmp + rename) so the file stays hand-editable.
 

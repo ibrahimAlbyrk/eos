@@ -29,10 +29,10 @@ function buildDeps(): { deps: SpawnWorkerDeps; inserted: { branch: string | null
 }
 
 describe("spawnWorker — daemon-side branch generation", () => {
-  it("generates cm-<name>-<id>-<clock36> when worktreeFrom is set and no branch given", async () => {
+  it("generates eos-<name>-<id>-<clock36> when worktreeFrom is set and no branch given", async () => {
     const { deps, inserted, argSpecs } = buildDeps();
     await spawnWorker(deps, { prompt: "p", name: "test", worktreeFrom: "/repo" });
-    const expected = `cm-test-w-fixed-${TS.toString(36)}`;
+    const expected = `eos-test-w-fixed-${TS.toString(36)}`;
     assert.equal(inserted[0].branch, expected);
     assert.equal(argSpecs[0].branch, expected);
   });
@@ -40,7 +40,7 @@ describe("spawnWorker — daemon-side branch generation", () => {
   it("omits the label but keeps the unique id when no name is provided", async () => {
     const { deps, inserted } = buildDeps();
     await spawnWorker(deps, { prompt: "p", worktreeFrom: "/repo" });
-    assert.equal(inserted[0].branch, `cm-w-fixed-${TS.toString(36)}`);
+    assert.equal(inserted[0].branch, `eos-w-fixed-${TS.toString(36)}`);
   });
 
   it("passes an explicit branch through unchanged", async () => {

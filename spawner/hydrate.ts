@@ -43,7 +43,7 @@ function findTargets(root: string): { nodeModules: string[]; envFiles: string[] 
       const abs = join(dir, e.name);
       if (e.isSymbolicLink()) continue;
       if (e.isDirectory()) {
-        if (e.name === ".git" || e.name === ".claude-mgr") continue;
+        if (e.name === ".git" || e.name === ".eos") continue;
         if (e.name === "node_modules") { nodeModules.push(abs); continue; }
         if (depth < MAX_SCAN_DEPTH) walk(abs, depth + 1);
       } else if (e.isFile() && /^\.env(\..+)?$/.test(e.name)) {

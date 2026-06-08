@@ -110,7 +110,7 @@ export function GitAgentPopover({ live, cwd }) {
 
   const current = info.current;
   const selected = live.workers.find((w) => w.id === ui.selectedId);
-  // Worktree workers' cm-* branch: integrate it from the user's checkout —
+  // Worktree workers' eos-* branch: integrate it from the user's checkout —
   // the popover's cwd — with the branch named explicitly (the git agent can't
   // infer it from its own cwd).
   const agentBranch = selected?.worktree_from && selected?.branch ? selected.branch : null;

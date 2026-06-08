@@ -21,26 +21,26 @@ function buildDeps(rows: Partial<WorkerRow>[], entries: Record<string, WorktreeE
 }
 
 const wt = (over: Partial<WorktreeEntry>): WorktreeEntry => ({
-  path: "/repo/.claude-mgr/worktrees/cm-x", branch: "cm-x", locked: false, isMain: false, ...over,
+  path: "/repo/.eos/worktrees/eos-x", branch: "eos-x", locked: false, isMain: false, ...over,
 });
 
 describe("pruneOrphanWorktrees", () => {
-  it("removes ONLY a row-gone, unlocked, cm-*, under-.claude-mgr worktree", async () => {
+  it("removes ONLY a row-gone, unlocked, eos-*, under-.eos worktree", async () => {
     const { deps, removed } = buildDeps(
-      [{ worktree_from: "/repo", branch: "cm-live-1" }], // one live worker
+      [{ worktree_from: "/repo", branch: "eos-live-1" }], // one live worker
       {
         "/repo": [
           wt({ path: "/repo", branch: "main", isMain: true }), // main → skip
-          wt({ path: "/repo/.claude-mgr/worktrees/cm-live-1", branch: "cm-live-1" }), // live → skip
-          wt({ path: "/repo/.claude-mgr/worktrees/cm-gone-2", branch: "cm-gone-2" }), // ORPHAN → remove
-          wt({ path: "/repo/.claude-mgr/worktrees/cm-lock-3", branch: "cm-lock-3", locked: true }), // locked → skip
-          wt({ path: "/repo/.claude-mgr/worktrees/feat-4", branch: "feature/4" }), // non-cm → skip
-          wt({ path: "/elsewhere/cm-stray-5", branch: "cm-stray-5" }), // not under managed tree → skip
+          wt({ path: "/repo/.eos/worktrees/eos-live-1", branch: "eos-live-1" }), // live → skip
+          wt({ path: "/repo/.eos/worktrees/eos-gone-2", branch: "eos-gone-2" }), // ORPHAN → remove
+          wt({ path: "/repo/.eos/worktrees/eos-lock-3", branch: "eos-lock-3", locked: true }), // locked → skip
+          wt({ path: "/repo/.eos/worktrees/feat-4", branch: "feature/4" }), // non-cm → skip
+          wt({ path: "/elsewhere/eos-stray-5", branch: "eos-stray-5" }), // not under managed tree → skip
         ],
       },
     );
     await pruneOrphanWorktrees(deps);
-    assert.deepEqual(removed, ["cm-gone-2"]);
+    assert.deepEqual(removed, ["eos-gone-2"]);
   });
 
   it("refuses to prune a repo that has a worktree worker with no recorded branch (transition guard)", async () => {
@@ -48,7 +48,7 @@ describe("pruneOrphanWorktrees", () => {
       [{ worktree_from: "/repo", branch: null }], // pre-fix ambiguous row
       {
         "/repo": [
-          wt({ path: "/repo/.claude-mgr/worktrees/cm-gone-2", branch: "cm-gone-2" }),
+          wt({ path: "/repo/.eos/worktrees/eos-gone-2", branch: "eos-gone-2" }),
         ],
       },
     );

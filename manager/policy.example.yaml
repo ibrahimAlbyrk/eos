@@ -13,7 +13,7 @@ rules:
   - { tool: Bash, command: "^\\s*rm\\s+-[rRf]+\\s+~(\\s|$|/)",          action: deny, reason: "rm -rf ~ blocked" }
   - { tool: Bash, command: "^\\s*rm\\s+-[rRf]+\\s+/Users(\\s|/|$)",     action: deny, reason: "rm -rf /Users blocked" }
   - { tool: Bash, command: "rm\\s+-[rRf]+\\s+[~/]?[^\\s]*\\.claude",    action: deny, reason: ".claude directory removal blocked" }
-  - { tool: Bash, command: "rm\\s+-[rRf]+\\s+[~/]?[^\\s]*\\.claude-mgr", action: deny, reason: ".claude-mgr removal blocked" }
+  - { tool: Bash, command: "rm\\s+-[rRf]+\\s+[~/]?[^\\s]*\\.eos", action: deny, reason: ".eos removal blocked" }
 
   # ── Bash convenience: rewrite curl to inject a timeout so workers don't hang
   - { tool: Bash, command: "(^|\\s)curl(?!.*--max-time)", action: rewrite,

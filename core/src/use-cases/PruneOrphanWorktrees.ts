@@ -6,8 +6,8 @@
 // Safety is keyed on BRANCH MEMBERSHIP in live rows, never on a persisted dir:
 // a live worker's branch is non-null (generated daemon-side at insert), so it is
 // always in liveBranches and never pruned. Conjunctive guards: only a worktree
-// whose branch is cm-*, is not owned by any live row, sits under the managed
-// .claude-mgr/worktrees/ tree, and is neither the main nor a locked worktree.
+// whose branch is eos-*, is not owned by any live row, sits under the managed
+// .eos/worktrees/ tree, and is neither the main nor a locked worktree.
 //
 // Transition guard: a pre-fix row may have a worktree (worktree_from set) but a
 // NULL branch — we can't know which on-disk worktree is its preserved copy, so
@@ -24,7 +24,7 @@ export interface PruneOrphanWorktreesDeps {
   log: Logger;
 }
 
-const MANAGED_SEGMENT = "/.claude-mgr/worktrees/";
+const MANAGED_SEGMENT = "/.eos/worktrees/";
 
 export async function pruneOrphanWorktrees(deps: PruneOrphanWorktreesDeps): Promise<void> {
   const rows = deps.workers.listAll();
@@ -52,7 +52,7 @@ export async function pruneOrphanWorktrees(deps: PruneOrphanWorktreesDeps): Prom
     }
     for (const e of entries) {
       if (e.isMain || e.locked) continue;
-      if (!e.branch || !e.branch.startsWith("cm-")) continue;
+      if (!e.branch || !e.branch.startsWith("eos-")) continue;
       if (liveBranches.has(e.branch)) continue;
       if (!e.path.includes(MANAGED_SEGMENT)) continue;
       const res = await deps.worktrees.remove({ repoRoot, worktreeDir: e.path, branch: e.branch });

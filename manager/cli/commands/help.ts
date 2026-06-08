@@ -5,8 +5,8 @@ import type { Command } from "./Command.ts";
 
 const ENV_DOCS = `
 env:
-  CLAUDE_MGR_URL        daemon URL (default http://127.0.0.1:7400)
-  CLAUDE_MGR_LOG_LEVEL  debug | info | warn | error (default info)
+  EOS_URL        daemon URL (default http://127.0.0.1:7400)
+  EOS_LOG_LEVEL  debug | info | warn | error (default info)
 `;
 
 export function createHelpCommand(getCommands: () => ReadonlyArray<Command>): Command {

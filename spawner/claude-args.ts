@@ -16,14 +16,14 @@ export interface ClaudeArgsResult {
 }
 
 function buildWorkerMcpEntry(workerEnv: { daemonUrl?: string; workerId?: string }): Record<string, unknown> {
-  const repoRoot = process.env.CLAUDE_MGR_REPO_ROOT || "";
+  const repoRoot = process.env.EOS_REPO_ROOT || "";
   return {
     command: "node",
     args: ["--no-warnings", "--experimental-strip-types", join(repoRoot, "manager", "worker-mcp.ts")],
     env: {
       ...(process.env as Record<string, string>),
-      CLAUDE_MGR_DAEMON_URL: workerEnv.daemonUrl ?? "",
-      CLAUDE_MGR_WORKER_ID: workerEnv.workerId ?? "",
+      EOS_DAEMON_URL: workerEnv.daemonUrl ?? "",
+      EOS_WORKER_ID: workerEnv.workerId ?? "",
     },
   };
 }
@@ -50,14 +50,14 @@ export function buildClaudeArgs(
     const servers: Record<string, unknown> = {};
 
     if (opts.withGateway) {
-      const bunBin = process.env.CLAUDE_MGR_BUN_BIN || "bun";
-      const gatewayScript = process.env.CLAUDE_MGR_GATEWAY_SCRIPT
-        || join(process.env.CLAUDE_MGR_REPO_ROOT || "", "gateway", "server.ts");
+      const bunBin = process.env.EOS_BUN_BIN || "bun";
+      const gatewayScript = process.env.EOS_GATEWAY_SCRIPT
+        || join(process.env.EOS_REPO_ROOT || "", "gateway", "server.ts");
       servers.gateway = {
         command: bunBin,
         args: ["run", gatewayScript],
         env: workerEnv.daemonUrl && workerEnv.workerId
-          ? { ...(process.env as Record<string, string>), CLAUDE_MGR_DAEMON_URL: workerEnv.daemonUrl, CLAUDE_MGR_WORKER_ID: workerEnv.workerId }
+          ? { ...(process.env as Record<string, string>), EOS_DAEMON_URL: workerEnv.daemonUrl, EOS_WORKER_ID: workerEnv.workerId }
           : { ...(process.env as Record<string, string>) },
       };
     }

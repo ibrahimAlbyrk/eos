@@ -15,15 +15,15 @@ function git(cwd: string, ...args: string[]): { code: number; out: string } {
 }
 
 function addWorktree(branch: string): string {
-  const dir = join(repo, ".claude-mgr", "worktrees", branch);
-  mkdirSync(join(repo, ".claude-mgr", "worktrees"), { recursive: true });
+  const dir = join(repo, ".eos", "worktrees", branch);
+  mkdirSync(join(repo, ".eos", "worktrees"), { recursive: true });
   const r = git(repo, "worktree", "add", dir, "-b", branch);
   assert.equal(r.code, 0, `worktree add failed: ${r.out}`);
   return realpathSync(dir);
 }
 
 before(() => {
-  repo = realpathSync(mkdtempSync(join(tmpdir(), "cm-wm-")));
+  repo = realpathSync(mkdtempSync(join(tmpdir(), "eos-wm-")));
   assert.equal(git(repo, "init").code, 0);
   git(repo, "config", "user.email", "t@t.t");
   git(repo, "config", "user.name", "t");
@@ -39,7 +39,7 @@ after(() => {
 
 describe("ChildProcessWorktreeManager.remove", () => {
   it("force-removes a worktree + branch even with uncommitted changes", async () => {
-    const branch = "cm-dirty-1";
+    const branch = "eos-dirty-1";
     const dir = addWorktree(branch);
     writeFileSync(join(dir, "scratch.txt"), "uncommitted work\n"); // dirty
 
@@ -50,7 +50,7 @@ describe("ChildProcessWorktreeManager.remove", () => {
   });
 
   it("is idempotent — removing an already-gone ref resolves removed:true without throwing", async () => {
-    const branch = "cm-twice-2";
+    const branch = "eos-twice-2";
     const dir = addWorktree(branch);
     await wm.remove({ repoRoot: repo, worktreeDir: dir, branch });
     const res = await wm.remove({ repoRoot: repo, worktreeDir: dir, branch });
@@ -58,7 +58,7 @@ describe("ChildProcessWorktreeManager.remove", () => {
   });
 
   it("derives the dir from branch when worktreeDir is null", async () => {
-    const branch = "cm-derive-3";
+    const branch = "eos-derive-3";
     const dir = addWorktree(branch);
     const res = await wm.remove({ repoRoot: repo, worktreeDir: null, branch });
     assert.equal(res.removed, true);
@@ -66,7 +66,7 @@ describe("ChildProcessWorktreeManager.remove", () => {
   });
 
   it("tags eos/trash before deleting a branch with unmerged commits", async () => {
-    const branch = "cm-trash-5";
+    const branch = "eos-trash-5";
     const dir = addWorktree(branch);
     writeFileSync(join(dir, "work.txt"), "committed work\n");
     git(dir, "add", "-A");
@@ -81,7 +81,7 @@ describe("ChildProcessWorktreeManager.remove", () => {
   });
 
   it("does not tag when the branch has no unmerged commits", async () => {
-    const branch = "cm-clean-6";
+    const branch = "eos-clean-6";
     const dir = addWorktree(branch);
     const res = await wm.remove({ repoRoot: repo, worktreeDir: dir, branch });
     assert.equal(res.removed, true);
@@ -96,8 +96,8 @@ describe("ChildProcessWorktreeManager.remove", () => {
 });
 
 describe("ChildProcessWorktreeManager.listWorktrees", () => {
-  it("flags the main worktree and parses cm-* branches", async () => {
-    const branch = "cm-list-4";
+  it("flags the main worktree and parses eos-* branches", async () => {
+    const branch = "eos-list-4";
     const dir = addWorktree(branch);
     const entries = await wm.listWorktrees(repo);
 

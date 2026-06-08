@@ -25,7 +25,7 @@ describe("deriveVerdict", () => {
 
   it("parses Handover lines", () => {
     const v = deriveVerdict([
-      asst("result: done\nHandover: branch cm-x; verified by npm test: passed; to try: npm run dev", 10),
+      asst("result: done\nHandover: branch eos-x; verified by npm test: passed; to try: npm run dev", 10),
     ]);
     expect(v.verdict).toBe("passed");
   });
@@ -68,9 +68,9 @@ describe("deriveChildVerdicts", () => {
 
   it("maps the latest Handover per child from worker_report events", () => {
     const m = deriveChildVerdicts([
-      report("w-1", "result: done\nHandover: branch cm-a; verified by npm test (passed); to try: npm run dev", 10),
-      report("w-2", "result: done\nHandover: branch cm-b; verified by npm test (failed); to try: x", 11),
-      report("w-1", "result: fixed\nHandover: branch cm-a; verified by npm test (failed); to try: x", 20),
+      report("w-1", "result: done\nHandover: branch eos-a; verified by npm test (passed); to try: npm run dev", 10),
+      report("w-2", "result: done\nHandover: branch eos-b; verified by npm test (failed); to try: x", 11),
+      report("w-1", "result: fixed\nHandover: branch eos-a; verified by npm test (failed); to try: x", 20),
     ]);
     expect(m["w-1"].verdict).toBe("failed");
     expect(m["w-2"].verdict).toBe("failed");

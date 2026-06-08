@@ -15,8 +15,8 @@ export interface OrchestratorSession {
 }
 
 export async function resolveSession(): Promise<OrchestratorSession> {
-  const daemonUrl = process.env.CLAUDE_MGR_DAEMON_URL ?? "http://127.0.0.1:7400";
-  const selfId = process.env.CLAUDE_MGR_WORKER_ID ?? "orchestrator";
+  const daemonUrl = process.env.EOS_DAEMON_URL ?? "http://127.0.0.1:7400";
+  const selfId = process.env.EOS_WORKER_ID ?? "orchestrator";
   const api = (method: string, path: string, body?: unknown): Promise<unknown> =>
     daemonApi(daemonUrl, method, path, body);
 

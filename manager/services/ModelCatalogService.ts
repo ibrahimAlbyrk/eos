@@ -1,7 +1,7 @@
 // ModelCatalogService — live model list from GET /v1/models, authenticated with
 // the user's Claude Code OAuth token (macOS Keychain; ~/.claude/.credentials.json
 // elsewhere). The endpoint is metadata-only, so it rides the subscription auth
-// without consuming API credits. Results are cached at ~/.claude-mgr/models.json;
+// without consuming API credits. Results are cached at ~/.eos/models.json;
 // a fetch failure (expired token, offline) falls back to the cached list, and the
 // web UI keeps its own hardcoded baseline as the final fallback.
 

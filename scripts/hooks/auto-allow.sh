@@ -14,15 +14,15 @@ tool_name=$(printf '%s' "$input" | jq -r '.tool_name // ""' 2>/dev/null || echo 
 # simulating keystrokes into that menu — Claude's PermissionRequest updatedInput
 # channel cannot pre-fill AskUserQuestion answers, so we must NOT block here.
 if [ "$tool_name" = "AskUserQuestion" ]; then
-  if [ -n "${CLAUDE_MGR_SPAWNED:-}" ] && \
-     [ -n "${CLAUDE_MGR_DAEMON_URL:-}" ] && \
-     [ -n "${CLAUDE_MGR_WORKER_ID:-}" ]; then
+  if [ -n "${EOS_SPAWNED:-}" ] && \
+     [ -n "${EOS_DAEMON_URL:-}" ] && \
+     [ -n "${EOS_WORKER_ID:-}" ]; then
     q_body=$(printf '%s' "$input" | jq -c 'select(.tool_input.questions | type == "array") | {questions: .tool_input.questions, toolUseId: .tool_use_id}' 2>/dev/null || echo "")
     if [ -n "$q_body" ]; then
       curl -sS --max-time 5 -X POST \
         -H 'content-type: application/json' \
         -d "$q_body" \
-        "${CLAUDE_MGR_DAEMON_URL}/workers/${CLAUDE_MGR_WORKER_ID}/question-notify" >/dev/null 2>&1 || true
+        "${EOS_DAEMON_URL}/workers/${EOS_WORKER_ID}/question-notify" >/dev/null 2>&1 || true
     fi
   fi
   echo '{}'
@@ -30,19 +30,19 @@ if [ "$tool_name" = "AskUserQuestion" ]; then
 fi
 
 # Daemon-aware path for regular tools
-if [ -n "${CLAUDE_MGR_SPAWNED:-}" ] && \
-   [ -n "${CLAUDE_MGR_DAEMON_URL:-}" ] && \
-   [ -n "${CLAUDE_MGR_WORKER_ID:-}" ] && \
-   [[ "${CLAUDE_MGR_DAEMON_URL:-}" =~ ^https?:// ]]; then
+if [ -n "${EOS_SPAWNED:-}" ] && \
+   [ -n "${EOS_DAEMON_URL:-}" ] && \
+   [ -n "${EOS_WORKER_ID:-}" ] && \
+   [[ "${EOS_DAEMON_URL:-}" =~ ^https?:// ]]; then
   body=$(printf '%s' "$input" \
-    | jq -c --arg wid "$CLAUDE_MGR_WORKER_ID" \
+    | jq -c --arg wid "$EOS_WORKER_ID" \
         '{worker_id: $wid, tool_name: .tool_name, input: (.tool_input // {}), tool_use_id: (.tool_use_id // null)}' \
         2>/dev/null || echo "")
   if [ -n "$body" ]; then
-    decision=$(curl -sS --max-time "${CLAUDE_MGR_POLICY_TIMEOUT_SEC:-3600}" -X POST \
+    decision=$(curl -sS --max-time "${EOS_POLICY_TIMEOUT_SEC:-3600}" -X POST \
       -H 'content-type: application/json' \
       -d "$body" \
-      "${CLAUDE_MGR_DAEMON_URL}/policy/decide" 2>/dev/null || true)
+      "${EOS_DAEMON_URL}/policy/decide" 2>/dev/null || true)
     wrapped=$(printf '%s' "$decision" | jq -c '
       if (type == "object") and (.behavior != null) and (.behavior == "allow" or .behavior == "deny") then {
         hookSpecificOutput: ({

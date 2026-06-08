@@ -16,7 +16,7 @@ let repo: string;
 let worktree: string;
 let triesDir: string;
 
-const BRANCH = "cm-test-w1";
+const BRANCH = "eos-test-w1";
 const REF = (): { repoRoot: string; worktreeDir: string | null; branch: string; workerId: string } => ({
   repoRoot: repo,
   worktreeDir: worktree,
@@ -39,12 +39,12 @@ beforeEach(() => {
   writeFileSync(join(repo, "a.txt"), "line1\nline2\nline3\n");
   writeFileSync(join(repo, "b.txt"), "b\n");
   // Mirrors documented reality: repos hosting managed worktrees gitignore
-  // .claude-mgr/ (it lives inside the repo root).
-  writeFileSync(join(repo, ".gitignore"), ".claude-mgr/\n");
+  // .eos/ (it lives inside the repo root).
+  writeFileSync(join(repo, ".gitignore"), ".eos/\n");
   git(repo, ["add", "-A"]);
   git(repo, ["commit", "-q", "-m", "init"]);
-  worktree = join(repo, ".claude-mgr", "worktrees", BRANCH);
-  mkdirSync(join(repo, ".claude-mgr", "worktrees"), { recursive: true });
+  worktree = join(repo, ".eos", "worktrees", BRANCH);
+  mkdirSync(join(repo, ".eos", "worktrees"), { recursive: true });
   git(repo, ["worktree", "add", "-q", worktree, "-b", BRANCH]);
 });
 
@@ -218,10 +218,10 @@ test("wasKept: set by keep, never by discard, survives new tries", async () => {
   assert.equal(await bi.wasKept({ repoRoot: repo, workerId: "w-other" }), false);
 
   // A different worker's apply+discard must not clear w-1's marker.
-  const wt2 = join(repo, ".claude-mgr", "worktrees", "cm-test-w2");
-  git(repo, ["worktree", "add", "-q", wt2, "-b", "cm-test-w2"]);
+  const wt2 = join(repo, ".eos", "worktrees", "eos-test-w2");
+  git(repo, ["worktree", "add", "-q", wt2, "-b", "eos-test-w2"]);
   writeFileSync(join(wt2, "b.txt"), "b CHANGED\n");
-  const r2 = await bi.apply({ repoRoot: repo, worktreeDir: wt2, branch: "cm-test-w2", workerId: "w-2" });
+  const r2 = await bi.apply({ repoRoot: repo, worktreeDir: wt2, branch: "eos-test-w2", workerId: "w-2" });
   assert.equal(r2.ok, true);
   assert.equal((await bi.discard(repo)).ok, true);
   assert.equal(await bi.wasKept({ repoRoot: repo, workerId: "w-2" }), false);

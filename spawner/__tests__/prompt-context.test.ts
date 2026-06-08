@@ -12,9 +12,9 @@ function makeTmp(): string {
 
 const WT = {
   repoRoot: "/Users/u/project",
-  worktreeDir: "/Users/u/project/.claude-mgr/worktrees/cm-fix-w1-abc",
-  branch: "cm-fix-w1-abc",
-  cwd: "/Users/u/project/.claude-mgr/worktrees/cm-fix-w1-abc",
+  worktreeDir: "/Users/u/project/.eos/worktrees/eos-fix-w1-abc",
+  branch: "eos-fix-w1-abc",
+  cwd: "/Users/u/project/.eos/worktrees/eos-fix-w1-abc",
 };
 
 test("non-worktree spawn returns the static prompt path unchanged", () => {
@@ -56,7 +56,7 @@ test("worktree spawn synthesizes environment section with literal facts", () => 
     assert.ok(content.includes(WT.worktreeDir));
     assert.ok(content.includes(WT.branch));
     assert.ok(content.includes(WT.repoRoot));
-    assert.match(content, /Handover: branch cm-fix-w1-abc/);
+    assert.match(content, /Handover: branch eos-fix-w1-abc/);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }

@@ -20,7 +20,7 @@ export class AuditLog {
   private readonly keep: number;
 
   constructor(opts: AuditLogOptions = {}) {
-    const dir = opts.dir ?? join(homedir(), ".claude-mgr");
+    const dir = opts.dir ?? join(homedir(), ".eos");
     mkdirSync(dir, { recursive: true });
     this.path = join(dir, opts.filename ?? "audit.jsonl");
     this.maxBytes = opts.maxBytes ?? 10 * 1024 * 1024;

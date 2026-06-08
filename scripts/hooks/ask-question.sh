@@ -9,9 +9,9 @@ set -uo pipefail
 input=$(cat)
 
 # Not daemon-aware — let it through
-if [ -z "${CLAUDE_MGR_SPAWNED:-}" ] || \
-   [ -z "${CLAUDE_MGR_DAEMON_URL:-}" ] || \
-   [ -z "${CLAUDE_MGR_WORKER_ID:-}" ]; then
+if [ -z "${EOS_SPAWNED:-}" ] || \
+   [ -z "${EOS_DAEMON_URL:-}" ] || \
+   [ -z "${EOS_WORKER_ID:-}" ]; then
   exit 0
 fi
 
@@ -25,7 +25,7 @@ fi
 resp=$(curl -sS --max-time 3600 -X POST \
   -H 'content-type: application/json' \
   -d "$q_body" \
-  "${CLAUDE_MGR_DAEMON_URL}/workers/${CLAUDE_MGR_WORKER_ID}/question" 2>/dev/null || true)
+  "${EOS_DAEMON_URL}/workers/${EOS_WORKER_ID}/question" 2>/dev/null || true)
 
 answers=$(printf '%s' "$resp" | jq -c '.answers // empty' 2>/dev/null || echo "")
 if [ -z "$answers" ]; then

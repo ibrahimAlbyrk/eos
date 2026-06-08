@@ -320,7 +320,7 @@ export function Composer({ live }) {
 
     if (ui.composer.gitMode) {
       // Git agents always run in the user's checkout (correct for integrating
-      // a worker's cm-* branch) — but they must be told which branch matters,
+      // a worker's eos-* branch) — but they must be told which branch matters,
       // since their cwd's current branch is the user's, not the worker's.
       const gitCwd = selected
         ? (selected.cwd ?? selected.worktree_from)
@@ -516,8 +516,6 @@ export function Composer({ live }) {
             questions={ui.pendingQuestion.questions}
             workerId={selected.id}
             toolUseId={ui.pendingQuestion.toolUseId}
-            sendToAgent={live.sendToAgent}
-            interruptAgent={live.interruptAgent}
             onClose={() => ui.dismissQuestion(ui.pendingQuestion.toolUseId)}
           />
         )}

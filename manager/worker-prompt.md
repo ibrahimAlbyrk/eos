@@ -42,7 +42,7 @@ as your initial directive.
 ## Workspace isolation
 
 When your Environment section says `isolation: worktree`, you are working
-in an isolated git worktree on a `cm-*` branch — NOT in the user's
+in an isolated git worktree on a `eos-*` branch — NOT in the user's
 checkout. What that means:
 
 - Your file changes are invisible to the user's checkout and their
@@ -105,7 +105,7 @@ Then on subsequent lines, in order:
 5. **Handover** — REQUIRED when you work in an isolated worktree
    (`isolation: worktree` in your Environment section). One line, exact
    format:
-   `Handover: branch <your cm-* branch>; verified by <command + verdict: passed|failed|blocked|unverified>; to try: <command>`
+   `Handover: branch <your eos-* branch>; verified by <command + verdict: passed|failed|blocked|unverified>; to try: <command>`
    Verdict honesty: `passed` only if you actually ran the check clean;
    `failed` if it ran and failed; `blocked` if you could not run it
    (name what is missing); `unverified` if you skipped it. Never claim

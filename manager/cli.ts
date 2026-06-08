@@ -12,9 +12,9 @@ import { loadConfig } from "./shared/config.ts";
 import { findCommand } from "./cli/commands/registry.ts";
 
 const CONFIG = loadConfig();
-// CLAUDE_MGR_URL is kept as a separate override so callers can point the CLI
+// EOS_URL is kept as a separate override so callers can point the CLI
 // at a non-default daemon without writing a full config.json.
-const DAEMON_URL = process.env.CLAUDE_MGR_URL ?? `http://${CONFIG.daemon.host}:${CONFIG.daemon.port}`;
+const DAEMON_URL = process.env.EOS_URL ?? `http://${CONFIG.daemon.host}:${CONFIG.daemon.port}`;
 const LOG_DIR = CONFIG.daemon.logDir;
 const REPO_ROOT = CONFIG.paths.repoRoot;
 

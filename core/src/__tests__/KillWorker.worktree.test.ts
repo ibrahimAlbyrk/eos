@@ -44,14 +44,14 @@ describe("killWorker — worktree cleanup", () => {
     mock.timers.enable({ apis: ["setTimeout"] });
     try {
       const { deps, cleanupCalls } = buildDeps({
-        w1: { worktree_from: "/repo", worktree_dir: "/repo/.claude-mgr/worktrees/cm-w1-x", branch: "cm-w1-x" },
+        w1: { worktree_from: "/repo", worktree_dir: "/repo/.eos/worktrees/eos-w1-x", branch: "eos-w1-x" },
       });
       killWorker(deps, "w1");
       // Deferred: nothing until the grace elapses (the PTY child is still dying).
       assert.equal(cleanupCalls.length, 0);
       mock.timers.tick(2000);
       assert.deepEqual(cleanupCalls, [
-        { repoRoot: "/repo", worktreeDir: "/repo/.claude-mgr/worktrees/cm-w1-x", branch: "cm-w1-x" },
+        { repoRoot: "/repo", worktreeDir: "/repo/.eos/worktrees/eos-w1-x", branch: "eos-w1-x" },
       ]);
     } finally {
       mock.timers.reset();
@@ -75,11 +75,11 @@ describe("killWorker — worktree cleanup", () => {
     mock.timers.enable({ apis: ["setTimeout"] });
     try {
       const { deps, cleanupCalls } = buildDeps({
-        w1: { worktree_from: "/repo", branch: "cm-w1-x" }, // worktree_dir absent
+        w1: { worktree_from: "/repo", branch: "eos-w1-x" }, // worktree_dir absent
       });
       killWorker(deps, "w1");
       mock.timers.tick(2000);
-      assert.deepEqual(cleanupCalls, [{ repoRoot: "/repo", worktreeDir: null, branch: "cm-w1-x" }]);
+      assert.deepEqual(cleanupCalls, [{ repoRoot: "/repo", worktreeDir: null, branch: "eos-w1-x" }]);
     } finally {
       mock.timers.reset();
     }
@@ -90,15 +90,15 @@ describe("killWorker — worktree cleanup", () => {
     try {
       const { deps, cleanupCalls } = buildDeps(
         {
-          parent: { worktree_from: "/repo", branch: "cm-parent-a" },
-          child: { worktree_from: "/repo", branch: "cm-child-b" },
+          parent: { worktree_from: "/repo", branch: "eos-parent-a" },
+          child: { worktree_from: "/repo", branch: "eos-child-b" },
         },
         { parent: ["child"] },
       );
       killWorker(deps, "parent");
       mock.timers.tick(2000);
       const branches = cleanupCalls.map((r) => r.branch).sort();
-      assert.deepEqual(branches, ["cm-child-b", "cm-parent-a"]);
+      assert.deepEqual(branches, ["eos-child-b", "eos-parent-a"]);
     } finally {
       mock.timers.reset();
     }

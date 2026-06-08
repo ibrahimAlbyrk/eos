@@ -72,8 +72,8 @@ describe("mergeChanges", () => {
     ]);
   });
 
-  it("filters .claude-mgr/ worktree noise", () => {
-    const porcelain = parsePorcelainZ("?? .claude-mgr/worktrees/x/f.ts\0 M a.ts\0");
+  it("filters .eos/ worktree noise", () => {
+    const porcelain = parsePorcelainZ("?? .eos/worktrees/x/f.ts\0 M a.ts\0");
     const merged = mergeChanges(porcelain, []);
     assert.deepEqual(merged.map((f) => f.path), ["a.ts"]);
   });
@@ -100,7 +100,7 @@ describe("changedFiles/fileDiff against a real repo", () => {
   }
 
   before(() => {
-    repo = realpathSync(mkdtempSync(join(tmpdir(), "cm-changes-")));
+    repo = realpathSync(mkdtempSync(join(tmpdir(), "eos-changes-")));
     spawnSync("git", ["-C", repo, "init"], { encoding: "utf8" });
     git("config", "user.email", "t@t.t");
     git("config", "user.name", "t");
@@ -169,7 +169,7 @@ describe("changedFiles/fileDiff against a real repo", () => {
   });
 
   it("changedFiles returns [] for a non-repo directory", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "cm-norepo-"));
+    const dir = mkdtempSync(join(tmpdir(), "eos-norepo-"));
     try {
       assert.deepEqual(await gitInfo.changedFiles(dir), []);
     } finally {
@@ -190,7 +190,7 @@ describe("base-aware diff (worktree fork point)", () => {
   }
 
   before(() => {
-    src = realpathSync(mkdtempSync(join(tmpdir(), "cm-base-src-")));
+    src = realpathSync(mkdtempSync(join(tmpdir(), "eos-base-src-")));
     assert.equal(git(src, "init", "-b", "main").code, 0);
     git(src, "config", "user.email", "t@t.t");
     git(src, "config", "user.name", "t");
@@ -198,8 +198,8 @@ describe("base-aware diff (worktree fork point)", () => {
     writeFileSync(join(src, "a.txt"), "one\ntwo\n");
     git(src, "add", "-A");
     assert.equal(git(src, "commit", "-m", "init").code, 0);
-    wt = join(src, ".claude-mgr", "worktrees", "cm-base-w1");
-    assert.equal(git(src, "worktree", "add", wt, "-b", "cm-base-w1").code, 0);
+    wt = join(src, ".eos", "worktrees", "eos-base-w1");
+    assert.equal(git(src, "worktree", "add", wt, "-b", "eos-base-w1").code, 0);
     wt = realpathSync(wt);
     // Committed change + uncommitted change + untracked file in the worktree.
     writeFileSync(join(wt, "a.txt"), "ONE\ntwo\n");
@@ -232,8 +232,8 @@ describe("base-aware diff (worktree fork point)", () => {
   });
 
   it("untracked-only worktree is not reported clean", async () => {
-    const wt2 = join(src, ".claude-mgr", "worktrees", "cm-base-w2");
-    assert.equal(git(src, "worktree", "add", wt2, "-b", "cm-base-w2").code, 0);
+    const wt2 = join(src, ".eos", "worktrees", "eos-base-w2");
+    assert.equal(git(src, "worktree", "add", wt2, "-b", "eos-base-w2").code, 0);
     try {
       writeFileSync(join(wt2, "brand-new.md"), "hello\n");
       const base = await gitInfo.mergeBase(wt2, src);
@@ -242,7 +242,7 @@ describe("base-aware diff (worktree fork point)", () => {
       assert.equal(stat.insertions, 0); // line counts unknown for untracked
     } finally {
       git(src, "worktree", "remove", "--force", wt2);
-      git(src, "branch", "-D", "cm-base-w2");
+      git(src, "branch", "-D", "eos-base-w2");
     }
   });
 
@@ -250,7 +250,7 @@ describe("base-aware diff (worktree fork point)", () => {
     // src has no upstream — must degrade to empty, not throw.
     assert.deepEqual(await gitInfo.unpushedCommits(src), []);
 
-    const cloneBase = mkdtempSync(join(tmpdir(), "cm-unpushed-"));
+    const cloneBase = mkdtempSync(join(tmpdir(), "eos-unpushed-"));
     const clone = join(cloneBase, "clone");
     try {
       assert.equal(git(src, "clone", "-q", src, clone).code, 0);
@@ -286,8 +286,8 @@ describe("base-aware diff (worktree fork point)", () => {
     }
   });
 
-  it("does not count the in-repo .claude-mgr worktree dir as a user change", async () => {
-    // src hosts worktrees under .claude-mgr/ and has NO .gitignore entry for
+  it("does not count the in-repo .eos worktree dir as a user change", async () => {
+    // src hosts worktrees under .eos/ and has NO .gitignore entry for
     // it (mirrors a user repo that never ignored it) — the source checkout
     // must still read clean.
     const stat = await gitInfo.diffShortStat(src);

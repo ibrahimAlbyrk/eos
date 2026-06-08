@@ -1,6 +1,6 @@
 import { basename } from "./path.js";
 
-// Worker name feeds the spawner's `cm-<name>-` mkdtemp prefix — a "/" (common
+// Worker name feeds the spawner's `eos-<name>-` mkdtemp prefix — a "/" (common
 // in branch names) would nest the temp path, so strip it to "-".
 const safe = (s) => String(s).replaceAll("/", "-").trim();
 

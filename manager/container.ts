@@ -100,7 +100,7 @@ export function buildContainer() {
   const swept = pending.sweepExpired(systemClock.now(), "daemon restart sweep");
   if (swept > 0) log.info("swept stale pending permissions", { count: swept });
 
-  // Safe orphan-worktree prune — removes only row-gone cm-* worktrees left by
+  // Safe orphan-worktree prune — removes only row-gone eos-* worktrees left by
   // deleted workers (see PruneOrphanWorktrees for the conjunctive guards).
   // Fire-and-forget so a slow git scan never blocks daemon boot.
   void pruneOrphanWorktrees({ workers, worktrees: childProcessWorktreeManager, log })
@@ -210,7 +210,7 @@ export function buildContainer() {
 
   // UI-origin token. Required as the x-eos-ui-token header on every
   // checkout-mutating endpoint (/workers/:id/try*) so agents holding
-  // CLAUDE_MGR_DAEMON_URL cannot self-apply into the user's checkout. Written
+  // EOS_DAEMON_URL cannot self-apply into the user's checkout. Written
   // to disk (0600) for the native app shell handshake — interim trust gate
   // until ADR-0001 trust tiers. PERSISTENT across daemon restarts: the app
   // injects it once at launch, and a per-boot rotation would 403 every open
@@ -261,10 +261,10 @@ export function buildContainer() {
 
   const buildEnv: SpawnWorkerDeps["buildEnv"] = () => ({
     ...(process.env as Record<string, string>),
-    CLAUDE_MGR_CLAUDE_BIN: config.paths.claudeBin,
-    CLAUDE_MGR_BUN_BIN: config.paths.bunBin,
-    CLAUDE_MGR_REPO_ROOT: config.paths.repoRoot,
-    CLAUDE_MGR_GATEWAY_SCRIPT: join(config.paths.repoRoot, "gateway", "server.ts"),
+    EOS_CLAUDE_BIN: config.paths.claudeBin,
+    EOS_BUN_BIN: config.paths.bunBin,
+    EOS_REPO_ROOT: config.paths.repoRoot,
+    EOS_GATEWAY_SCRIPT: join(config.paths.repoRoot, "gateway", "server.ts"),
   });
 
   const logFileFor = (id: string): string => join(config.daemon.logDir, `${id}.log`);
@@ -285,8 +285,8 @@ export function buildContainer() {
   }): { builtins: Record<string, unknown>; permissionPromptTool: string | undefined } => {
     const baseEnv = {
       ...process.env,
-      CLAUDE_MGR_DAEMON_URL: `http://127.0.0.1:${config.daemon.port}`,
-      CLAUDE_MGR_WORKER_ID: input.id,
+      EOS_DAEMON_URL: `http://127.0.0.1:${config.daemon.port}`,
+      EOS_WORKER_ID: input.id,
     };
     const node = (script: string) => ({
       command: "node",

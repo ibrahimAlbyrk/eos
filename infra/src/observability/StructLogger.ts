@@ -47,8 +47,8 @@ class StructLoggerImpl implements Logger {
 }
 
 export function createLogger(scope: string, level: Level = "info"): Logger {
-  // env override — `CLAUDE_MGR_LOG_LEVEL=debug` re-enables debug lines.
-  const env = (process.env.CLAUDE_MGR_LOG_LEVEL || "").toLowerCase() as Level;
+  // env override — `EOS_LOG_LEVEL=debug` re-enables debug lines.
+  const env = (process.env.EOS_LOG_LEVEL || "").toLowerCase() as Level;
   const min = env && env in LEVEL_RANK ? env : level;
   return new StructLoggerImpl(scope, {}, min);
 }

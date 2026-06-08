@@ -26,7 +26,7 @@ export interface ProcessSupervisor {
    * id is unknown (already exited). */
   escalateKill(id: string, killAfterMs?: number): void;
   /** Best-effort SIGTERM to an arbitrary OS pid (used to clean orphan
-   * cm-* claude children that aren't tracked by id). */
+   * eos-* claude children that aren't tracked by id). */
   killPid(pid: number, signal?: "SIGTERM" | "SIGKILL"): void;
   /** All currently tracked ids — used by shutdown to fan out SIGTERMs. */
   listIds(): string[];

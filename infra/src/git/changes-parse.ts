@@ -107,7 +107,7 @@ export function mergeChangesWithBase(
   const counts = new Map(numstat.map((n) => [n.path, n]));
   const files: ChangedFile[] = [];
   for (const e of nameStatus) {
-    if (e.path.startsWith(".claude-mgr/")) continue;
+    if (e.path.startsWith(".eos/")) continue;
     const n = counts.get(e.path);
     const file: ChangedFile = {
       path: e.path,
@@ -121,7 +121,7 @@ export function mergeChangesWithBase(
   }
   const seen = new Set(files.map((f) => f.path));
   for (const e of porcelain) {
-    if (e.x + e.y !== "??" || seen.has(e.path) || e.path.startsWith(".claude-mgr/")) continue;
+    if (e.x + e.y !== "??" || seen.has(e.path) || e.path.startsWith(".eos/")) continue;
     files.push({ path: e.path, status: "A", untracked: true, insertions: null, deletions: null });
   }
   return files.sort((a, b) => a.path.localeCompare(b.path));
@@ -146,9 +146,9 @@ export function mergeChanges(porcelain: PorcelainEntry[], numstat: NumstatEntry[
   const counts = new Map(numstat.map((n) => [n.path, n]));
   const files: ChangedFile[] = [];
   for (const e of porcelain) {
-    // Worktree dirs live under <repo>/.claude-mgr/worktrees — noise when the
+    // Worktree dirs live under <repo>/.eos/worktrees — noise when the
     // pre-enrichment fallback diffs the repo root.
-    if (e.path.startsWith(".claude-mgr/")) continue;
+    if (e.path.startsWith(".eos/")) continue;
     const { status, untracked } = statusOf(e);
     const n = counts.get(e.path);
     const file: ChangedFile = {

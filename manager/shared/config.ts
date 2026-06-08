@@ -1,5 +1,5 @@
 // Centralized configuration for the daemon + worker + cli. Precedence:
-//   env var → ~/.claude-mgr/config.json → built-in defaults
+//   env var → ~/.eos/config.json → built-in defaults
 //
 // Adding a new tunable: append a field below, give it a sensible default, and
 // (optionally) wire an env var override. Everything is overridable; nothing
@@ -21,10 +21,10 @@ export interface DaemonConfig {
   daemon: {
     host: string;
     port: number;
-    home: string;            // ~/.claude-mgr
-    logDir: string;          // ~/.claude-mgr/logs
-    pidFile: string;         // ~/.claude-mgr/daemon.pid
-    dbFile: string;          // ~/.claude-mgr/state.db
+    home: string;            // ~/.eos
+    logDir: string;          // ~/.eos/logs
+    pidFile: string;         // ~/.eos/daemon.pid
+    dbFile: string;          // ~/.eos/state.db
     sseKeepaliveMs: number;
   };
   paths: {
@@ -117,39 +117,39 @@ const DEFAULT_BACKENDS: Record<string, BackendProfile> = {
 };
 
 function defaults(): DaemonConfig {
-  const repoRoot = envStr("CLAUDE_MGR_REPO_ROOT", detectRepoRoot());
-  const home = envStr("CLAUDE_MGR_HOME", join(homedir(), ".claude-mgr"));
+  const repoRoot = envStr("EOS_REPO_ROOT", detectRepoRoot());
+  const home = envStr("EOS_HOME", join(homedir(), ".eos"));
   return {
     daemon: {
-      host: envStr("CLAUDE_MGR_HOST", "127.0.0.1"),
-      port: envNum("CLAUDE_MGR_PORT", 7400),
+      host: envStr("EOS_HOST", "127.0.0.1"),
+      port: envNum("EOS_PORT", 7400),
       home,
       logDir: join(home, "logs"),
       pidFile: join(home, "daemon.pid"),
       dbFile: join(home, "state.db"),
-      sseKeepaliveMs: envNum("CLAUDE_MGR_SSE_KEEPALIVE_MS", 25000),
+      sseKeepaliveMs: envNum("EOS_SSE_KEEPALIVE_MS", 25000),
     },
     paths: {
       repoRoot,
-      claudeBin: envStr("CLAUDE_MGR_CLAUDE_BIN", "claude"),
-      bunBin: envStr("CLAUDE_MGR_BUN_BIN", "bun"),
+      claudeBin: envStr("EOS_CLAUDE_BIN", "claude"),
+      bunBin: envStr("EOS_BUN_BIN", "bun"),
       workerScript: join(repoRoot, "spawner", "worker.ts"),
-      orchestratorPromptFile: envStr("CLAUDE_MGR_ORCHESTRATOR_PROMPT_FILE", join(repoRoot, "manager", "orchestrator-prompt.md")),
-      workerPromptFile: envStr("CLAUDE_MGR_WORKER_PROMPT_FILE", join(repoRoot, "manager", "worker-prompt.md")),
-      gitAgentPromptFile: envStr("CLAUDE_MGR_GIT_AGENT_PROMPT_FILE", join(repoRoot, "manager", "git-agent-prompt.md")),
-      promptsDir: envStr("CLAUDE_MGR_PROMPTS_DIR", join(repoRoot, "manager", "prompts")),
+      orchestratorPromptFile: envStr("EOS_ORCHESTRATOR_PROMPT_FILE", join(repoRoot, "manager", "orchestrator-prompt.md")),
+      workerPromptFile: envStr("EOS_WORKER_PROMPT_FILE", join(repoRoot, "manager", "worker-prompt.md")),
+      gitAgentPromptFile: envStr("EOS_GIT_AGENT_PROMPT_FILE", join(repoRoot, "manager", "git-agent-prompt.md")),
+      promptsDir: envStr("EOS_PROMPTS_DIR", join(repoRoot, "manager", "prompts")),
     },
     worker: {
-      portRangeStart: envNum("CLAUDE_MGR_WORKER_PORT_START", 7500),
-      portRangeEnd: envNum("CLAUDE_MGR_WORKER_PORT_END", 7699),
-      heartbeatMs: envNum("CLAUDE_MGR_HEARTBEAT_MS", 8000),
-      heartbeatQuietMs: envNum("CLAUDE_MGR_HEARTBEAT_QUIET_MS", 6000),
-      shutdownGraceMs: envNum("CLAUDE_MGR_SHUTDOWN_GRACE_MS", 2500),
-      ptyWriteDelayMs: envNum("CLAUDE_MGR_PTY_WRITE_DELAY_MS", 300),
-      hydrateEnvFiles: envStr("CLAUDE_MGR_HYDRATE_ENV_FILES", "") === "1",
+      portRangeStart: envNum("EOS_WORKER_PORT_START", 7500),
+      portRangeEnd: envNum("EOS_WORKER_PORT_END", 7699),
+      heartbeatMs: envNum("EOS_HEARTBEAT_MS", 8000),
+      heartbeatQuietMs: envNum("EOS_HEARTBEAT_QUIET_MS", 6000),
+      shutdownGraceMs: envNum("EOS_SHUTDOWN_GRACE_MS", 2500),
+      ptyWriteDelayMs: envNum("EOS_PTY_WRITE_DELAY_MS", 300),
+      hydrateEnvFiles: envStr("EOS_HYDRATE_ENV_FILES", "") === "1",
     },
     permissions: {
-      defaultTtlMs: envNum("CLAUDE_MGR_PERMISSION_TTL_MS", 0),
+      defaultTtlMs: envNum("EOS_PERMISSION_TTL_MS", 0),
     },
     prices: DEFAULT_PRICES,
     mcp: {
@@ -273,7 +273,7 @@ let cached: DaemonConfig | null = null;
 /**
  * Loads (and memoizes) the active daemon config. Precedence is:
  *
- *   env var  →  ~/.claude-mgr/config.json  →  built-in defaults
+ *   env var  →  ~/.eos/config.json  →  built-in defaults
  *
  * Safe to call from any module entry — the cached value is reused on
  * subsequent calls so daemon, cli, and worker share an identical view.
@@ -300,7 +300,7 @@ export function loadConfig(): DaemonConfig {
     }
   }
   cached = deepFreeze(mergeConfig(base, override));
-  // Best-effort: ensure ~/.claude-mgr exists so callers can write logs/pid.
+  // Best-effort: ensure ~/.eos exists so callers can write logs/pid.
   try { mkdirSync(cached.daemon.home, { recursive: true }); } catch {}
   try { mkdirSync(cached.daemon.logDir, { recursive: true }); } catch {}
   return cached;
@@ -313,7 +313,7 @@ export function reloadConfig(): DaemonConfig {
 
 /**
  * Writes the active merged config (defaults + env + existing file) back to
- * `~/.claude-mgr/config.json` as a starting point for hand-editing. Used by
+ * `~/.eos/config.json` as a starting point for hand-editing. Used by
  * `eos config init`. Returns the path it wrote to.
  */
 export function writeDefaultConfig(): string {

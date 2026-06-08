@@ -48,16 +48,16 @@ export const doctorCommand: Command = {
     } catch {}
 
     try {
-      const out = execSync(`pgrep -f "cm-" 2>/dev/null || true`, { encoding: "utf8" });
+      const out = execSync(`pgrep -f "eos-" 2>/dev/null || true`, { encoding: "utf8" });
       const pids = out.split(/\s+/).filter(Boolean);
       if (daemonUp) {
         const ws = await fetch(`${ctx.daemonUrl}/workers`).then((r) => r.json()) as Array<{ pid?: number }>;
         const known = new Set(ws.map((w) => w.pid).filter((x): x is number => typeof x === "number"));
         const orphans = pids.map(Number).filter((p) => !known.has(p));
-        if (orphans.length > 0) warn(`${orphans.length} orphan cm-* processes (pids: ${orphans.slice(0, 5).join(", ")}...)`);
-        else ok(`no orphan cm-* processes`);
+        if (orphans.length > 0) warn(`${orphans.length} orphan eos-* processes (pids: ${orphans.slice(0, 5).join(", ")}...)`);
+        else ok(`no orphan eos-* processes`);
       } else if (pids.length > 0) {
-        warn(`${pids.length} cm-* processes running but daemon is down — likely orphans`);
+        warn(`${pids.length} eos-* processes running but daemon is down — likely orphans`);
       }
     } catch {}
 

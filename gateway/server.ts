@@ -1,6 +1,6 @@
 // Gateway entrypoint — registers a single MCP tool (`decide`) whose
 // implementation is delegated to the resolver Strategy chosen at startup
-// (daemon-proxy when CLAUDE_MGR_DAEMON_URL + CLAUDE_MGR_WORKER_ID are set;
+// (daemon-proxy when EOS_DAEMON_URL + EOS_WORKER_ID are set;
 // standalone otherwise). Every decision is appended to the audit log.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -12,8 +12,8 @@ import { standalonePolicy } from "./StandalonePolicy.ts";
 import { createDaemonProxyPolicy } from "./DaemonProxyPolicy.ts";
 import type { PolicyResolver } from "./PolicyResolver.ts";
 
-const DAEMON_URL = process.env.CLAUDE_MGR_DAEMON_URL;
-const WORKER_ID = process.env.CLAUDE_MGR_WORKER_ID;
+const DAEMON_URL = process.env.EOS_DAEMON_URL;
+const WORKER_ID = process.env.EOS_WORKER_ID;
 
 const resolver: PolicyResolver = DAEMON_URL && WORKER_ID
   ? createDaemonProxyPolicy({ daemonUrl: DAEMON_URL, workerId: WORKER_ID })

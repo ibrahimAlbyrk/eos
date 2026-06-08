@@ -93,13 +93,13 @@ export const childProcessGitInfo: GitInfo = {
       // `git diff` never reports untracked files — an agent whose only change
       // is a NEW file must not look clean either. Count them into `files`
       // (line counts unknown); --exclude-standard keeps gitignored noise out.
-      // Managed worktrees live INSIDE the repo at .claude-mgr/ — never count
+      // Managed worktrees live INSIDE the repo at .eos/ — never count
       // them as user changes (same filter as the changes listing).
       try {
         const untracked = await runGit(cwd, ["ls-files", "--others", "--exclude-standard"]);
         stat.files += untracked
           .split("\n")
-          .filter((l) => l && !l.startsWith(".claude-mgr/") && l !== ".claude-mgr")
+          .filter((l) => l && !l.startsWith(".eos/") && l !== ".eos")
           .length;
       } catch {}
       return stat;

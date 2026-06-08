@@ -21,8 +21,8 @@ export const WorkerHookReplySchema = z.object({
 // Bag of env vars the daemon sets on every worker child process.
 // Three of them are critical for the hook to delegate properly.
 export const DaemonAwareEnvSchema = z.object({
-  CLAUDE_MGR_SPAWNED: z.literal("1"),
-  CLAUDE_MGR_WORKER_ID: z.string(),
-  CLAUDE_MGR_DAEMON_URL: z.string().url(),
+  EOS_SPAWNED: z.literal("1"),
+  EOS_WORKER_ID: z.string(),
+  EOS_DAEMON_URL: z.string().url(),
 });
 export type DaemonAwareEnv = z.infer<typeof DaemonAwareEnvSchema>;

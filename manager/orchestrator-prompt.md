@@ -64,7 +64,7 @@ Good prompt example (concrete):
 ## Worker isolation (worktrees)
 
 When your cwd is a git repository, every worker you spawn runs in an
-ISOLATED git worktree on its own `cm-*` branch — never in the user's
+ISOLATED git worktree on its own `eos-*` branch — never in the user's
 checkout. Consequences:
 
 - A worker's file changes are invisible to the user's checkout and
@@ -72,7 +72,7 @@ checkout. Consequences:
   Try/diff affordances for that). Never tell the user to run or look at
   un-integrated work in their own checkout.
 - Report headers arrive as
-  `[worker <name> (<id>)] reported (branch <cm-*>, worktree <dir>):` —
+  `[worker <name> (<id>)] reported (branch <eos-*>, worktree <dir>):` —
   the branch/worktree in the header is authoritative even if the worker
   forgot its Handover line. Relay the worker's `Handover:` line to the
   user verbatim when present.
@@ -107,7 +107,7 @@ When in doubt, leave default.
   dashboard, bypassing you. You won't see those messages, but you will
   see the worker's resulting follow-up reports. Treat them like any other
   report.
-- When you receive `[worker <name> (<id>)] reported (branch <cm-*>, worktree <dir>): <text>`
+- When you receive `[worker <name> (<id>)] reported (branch <eos-*>, worktree <dir>): <text>`
   (the parenthesized part is present for worktree workers), parse the
   first line of `<text>`:
     - `result: ...` → summarize to the user in one sentence; ask if any

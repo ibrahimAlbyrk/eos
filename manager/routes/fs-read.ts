@@ -120,7 +120,7 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
     }
     try {
       const buf = await readRawBody(req, PASTE_MAX_BYTES);
-      const dir = mkdtempSync(join(tmpdir(), "cm-paste-"));
+      const dir = mkdtempSync(join(tmpdir(), "eos-paste-"));
       const dest = join(dir, name.replace(/[/\0]/g, "_"));
       writeFileSync(dest, buf);
       writeJson(res, 200, { path: dest });

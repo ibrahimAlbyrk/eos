@@ -9,11 +9,11 @@ import assert from "node:assert/strict";
 // one explicit cache-reset test using internal module reload.
 
 const ENV_KEYS = [
-  "CLAUDE_MGR_PORT", "CLAUDE_MGR_HOST", "CLAUDE_MGR_HOME",
-  "CLAUDE_MGR_REPO_ROOT", "CLAUDE_MGR_CLAUDE_BIN", "CLAUDE_MGR_BUN_BIN",
-  "CLAUDE_MGR_WORKER_PORT_START", "CLAUDE_MGR_WORKER_PORT_END",
-  "CLAUDE_MGR_HEARTBEAT_MS", "CLAUDE_MGR_SHUTDOWN_GRACE_MS",
-  "CLAUDE_MGR_PERMISSION_TTL_MS", "CLAUDE_MGR_SSE_KEEPALIVE_MS",
+  "EOS_PORT", "EOS_HOST", "EOS_HOME",
+  "EOS_REPO_ROOT", "EOS_CLAUDE_BIN", "EOS_BUN_BIN",
+  "EOS_WORKER_PORT_START", "EOS_WORKER_PORT_END",
+  "EOS_HEARTBEAT_MS", "EOS_SHUTDOWN_GRACE_MS",
+  "EOS_PERMISSION_TTL_MS", "EOS_SSE_KEEPALIVE_MS",
 ];
 const saved: Record<string, string | undefined> = {};
 
@@ -36,24 +36,24 @@ async function freshLoad() {
 
 describe("loadConfig — defaults", () => {
   it("returns 7400 as default daemon port", async () => {
-    delete process.env.CLAUDE_MGR_PORT;
+    delete process.env.EOS_PORT;
     const cfg = await freshLoad();
     assert.equal(cfg.daemon.port, 7400);
   });
   it("returns 127.0.0.1 as default host", async () => {
-    delete process.env.CLAUDE_MGR_HOST;
+    delete process.env.EOS_HOST;
     const cfg = await freshLoad();
     assert.equal(cfg.daemon.host, "127.0.0.1");
   });
   it("auto-detects repoRoot above shared/config.ts", async () => {
-    delete process.env.CLAUDE_MGR_REPO_ROOT;
+    delete process.env.EOS_REPO_ROOT;
     const cfg = await freshLoad();
     // detectRepoRoot() goes two levels up from shared/config.ts ⇒ the repo root.
     const fs = await import("node:fs");
     assert.ok(fs.existsSync(`${cfg.paths.repoRoot}/manager/daemon.ts`), `unexpected repoRoot: ${cfg.paths.repoRoot}`);
   });
   it("derives workerScript from repoRoot", async () => {
-    delete process.env.CLAUDE_MGR_REPO_ROOT;
+    delete process.env.EOS_REPO_ROOT;
     const cfg = await freshLoad();
     assert.ok(cfg.paths.workerScript.endsWith("spawner/worker.ts"));
   });
@@ -66,35 +66,35 @@ describe("loadConfig — defaults", () => {
 });
 
 describe("loadConfig — env overrides", () => {
-  it("CLAUDE_MGR_PORT wins over default", async () => {
-    process.env.CLAUDE_MGR_PORT = "9999";
+  it("EOS_PORT wins over default", async () => {
+    process.env.EOS_PORT = "9999";
     const cfg = await freshLoad();
     assert.equal(cfg.daemon.port, 9999);
   });
   it("ignores non-numeric port and falls back", async () => {
-    process.env.CLAUDE_MGR_PORT = "not-a-number";
+    process.env.EOS_PORT = "not-a-number";
     const cfg = await freshLoad();
     assert.equal(cfg.daemon.port, 7400);
   });
-  it("CLAUDE_MGR_CLAUDE_BIN overrides path", async () => {
-    process.env.CLAUDE_MGR_CLAUDE_BIN = "/opt/custom/claude";
+  it("EOS_CLAUDE_BIN overrides path", async () => {
+    process.env.EOS_CLAUDE_BIN = "/opt/custom/claude";
     const cfg = await freshLoad();
     assert.equal(cfg.paths.claudeBin, "/opt/custom/claude");
   });
   it("worker port range respects both ends", async () => {
-    process.env.CLAUDE_MGR_WORKER_PORT_START = "8000";
-    process.env.CLAUDE_MGR_WORKER_PORT_END = "8010";
+    process.env.EOS_WORKER_PORT_START = "8000";
+    process.env.EOS_WORKER_PORT_END = "8010";
     const cfg = await freshLoad();
     assert.equal(cfg.worker.portRangeStart, 8000);
     assert.equal(cfg.worker.portRangeEnd, 8010);
   });
-  it("CLAUDE_MGR_HOME flows to derived paths", async () => {
-    process.env.CLAUDE_MGR_HOME = "/tmp/test-claude-mgr";
+  it("EOS_HOME flows to derived paths", async () => {
+    process.env.EOS_HOME = "/tmp/test-eos";
     const cfg = await freshLoad();
-    assert.equal(cfg.daemon.home, "/tmp/test-claude-mgr");
-    assert.equal(cfg.daemon.logDir, "/tmp/test-claude-mgr/logs");
-    assert.equal(cfg.daemon.dbFile, "/tmp/test-claude-mgr/state.db");
-    assert.equal(cfg.daemon.pidFile, "/tmp/test-claude-mgr/daemon.pid");
+    assert.equal(cfg.daemon.home, "/tmp/test-eos");
+    assert.equal(cfg.daemon.logDir, "/tmp/test-eos/logs");
+    assert.equal(cfg.daemon.dbFile, "/tmp/test-eos/state.db");
+    assert.equal(cfg.daemon.pidFile, "/tmp/test-eos/daemon.pid");
   });
 });
 
@@ -114,10 +114,10 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
     const fs = await import("node:fs");
     tmpHome = (process.env.TMPDIR ?? "/tmp") + `/cfg-test-${Date.now()}-${Math.random()}`;
     fs.mkdirSync(tmpHome, { recursive: true });
-    process.env.CLAUDE_MGR_HOME = tmpHome;
+    process.env.EOS_HOME = tmpHome;
   });
   afterEach(async () => {
-    delete process.env.CLAUDE_MGR_HOME;
+    delete process.env.EOS_HOME;
     try {
       const fs = await import("node:fs");
       fs.rmSync(tmpHome, { recursive: true, force: true });

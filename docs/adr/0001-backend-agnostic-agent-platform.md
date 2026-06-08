@@ -110,7 +110,7 @@ process model simultaneously.
 
 A second, **orthogonal axis** is the *process boundary* (in-process vs out-of-process).
 It is a property of each backend adapter, not a global: `claude-cli` *must* be
-out-of-process (`node-pty` needs Node, not Bun; crash containment; the `pgrep cm-*`
+out-of-process (`node-pty` needs Node, not Bun; crash containment; the `pgrep eos-*`
 orphan-reaper); an API backend defaults to in-process but can be hosted in a child for
 isolation.
 
@@ -252,7 +252,7 @@ interface AgentBackendRegistry { get(kind: BackendKind): AgentBackend; has(kind:
 **`ClaudeCliBackend` absorbs all PTY coupling.** Behind this one adapter live:
 `ProcessSupervisor`, `PortAllocator`, the `WorkerClient` HTTP transport, `buildClaudeArgs`,
 the synthesized `mcp.json`, the `╭` readiness gate, the JSONL tail, the hook ingest, the
-prompt-ack watchdog, the `cm-<name>-` orphan-reaper, and the `129/143` exit-code mapping.
+prompt-ack watchdog, the `eos-<name>-` orphan-reaper, and the `129/143` exit-code mapping.
 `stop()` performs today's SIGTERM→SIGKILL escalation.
 
 ### 6.2 Surface 2 — Observation: the canonical event model

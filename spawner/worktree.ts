@@ -43,8 +43,8 @@ export function setupWorktree(spec: WorktreeSpec, log: (m: string) => void): Wor
       console.error(`[${spec.name}] not a git repo: ${repoRoot}`);
       process.exit(1);
     }
-    const branch = spec.branch ?? `cm-${spec.name}-${Date.now().toString(36)}`;
-    const wtBase = join(repoRoot, ".claude-mgr", "worktrees");
+    const branch = spec.branch ?? `eos-${spec.name}-${Date.now().toString(36)}`;
+    const wtBase = join(repoRoot, ".eos", "worktrees");
     mkdirSync(wtBase, { recursive: true });
     const wtPath = join(wtBase, branch);
     const add = git(["worktree", "add", wtPath, "-b", branch], repoRoot);
