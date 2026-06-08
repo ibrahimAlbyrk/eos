@@ -1,8 +1,37 @@
 import Cocoa
+import ObjectiveC
 import WebKit
 import UserNotifications
 
 private let DAEMON = "http://127.0.0.1:7400"
+private let WINDOW_CORNER_RADIUS: CGFloat = 10
+
+// macOS Tahoe (26) draws large window corners — larger still for toolbar windows
+// (Eos uses a unified NSToolbar), which is why ours look softer than other apps.
+// No public API reduces it, but NSThemeFrame reads the radius from these private
+// methods; overriding them at launch (before any window exists) makes AppKit draw
+// the tighter radius itself — no layer masking, so no clipping/flicker artifacts.
+// Local self-signed app, so calling private API directly (no dylib injection) is
+// fine; a missing selector on another OS version is a harmless no-op.
+private func installWindowCornerRadius(_ radius: CGFloat) {
+    guard let cls = NSClassFromString("NSThemeFrame") else { return }
+
+    let radiusBlock: @convention(block) (AnyObject) -> CGFloat = { _ in radius }
+    let radiusIMP = imp_implementationWithBlock(radiusBlock)
+    for name in ["_cornerRadius", "_getCachedWindowCornerRadius"] {
+        if let m = class_getInstanceMethod(cls, NSSelectorFromString(name)) {
+            method_setImplementation(m, radiusIMP)
+        }
+    }
+
+    let sizeBlock: @convention(block) (AnyObject) -> CGSize = { _ in CGSize(width: radius, height: radius) }
+    let sizeIMP = imp_implementationWithBlock(sizeBlock)
+    for name in ["_topCornerSize", "_bottomCornerSize"] {
+        if let m = class_getInstanceMethod(cls, NSSelectorFromString(name)) {
+            method_setImplementation(m, sizeIMP)
+        }
+    }
+}
 
 // Nudges the traffic lights from AppKit's unified-toolbar spot (x 19, center-y 26)
 // to the design spot (x 27, center-y 31) — aligned with the web breadcrumb row.
@@ -132,6 +161,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         window.minSize = NSSize(width: 800, height: 500)
         window.backgroundColor = themeBackground(theme)
         window.contentView = webView
+        // NSThemeFrame only registers once a window's frame view exists (just
+        // above, via contentView), so swizzle here — before first paint, so the
+        // window never flashes the default 26pt radius.
+        installWindowCornerRadius(WINDOW_CORNER_RADIUS)
         window.center()
         window.delegate = self
         window.setFrameAutosaveName("Eos")
@@ -221,11 +254,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     private func loadWeb() {
-        // Per-boot UI token handshake: the daemon writes ~/.claude-mgr/ui-token
+        // Per-boot UI token handshake: the daemon writes ~/.eos/ui-token
         // at startup; injecting it here (post-health, so a freshly spawned
         // daemon has written it) lets the web layer call checkout-mutating
         // endpoints. Agents only hold the daemon URL — not this token.
-        let tokenPath = ("~/.claude-mgr/ui-token" as NSString).expandingTildeInPath
+        let tokenPath = ("~/.eos/ui-token" as NSString).expandingTildeInPath
         if let token = try? String(contentsOfFile: tokenPath, encoding: .utf8) {
             let t = token.trimmingCharacters(in: .whitespacesAndNewlines)
             if !t.isEmpty, t.range(of: "^[0-9a-f]+$", options: .regularExpression) != nil {
@@ -248,12 +281,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     private func repoRoot() -> String {
-        if let e = ProcessInfo.processInfo.environment["CLAUDE_MGR_REPO_ROOT"] { return e }
+        if let e = ProcessInfo.processInfo.environment["EOS_REPO_ROOT"] { return e }
         // <repoRoot>/app/build/Eos.app/Contents/MacOS/Eos — 6 components up to <repoRoot>
         var d = Bundle.main.executablePath ?? ""
         for _ in 0..<6 { d = (d as NSString).deletingLastPathComponent }
         if FileManager.default.fileExists(atPath: "\(d)/manager/daemon.ts") { return d }
-        if let baked = Bundle.main.object(forInfoDictionaryKey: "CLAUDEMgrRepoRoot") as? String,
+        if let baked = Bundle.main.object(forInfoDictionaryKey: "EosRepoRoot") as? String,
            FileManager.default.fileExists(atPath: "\(baked)/manager/daemon.ts") { return baked }
         return d
     }
