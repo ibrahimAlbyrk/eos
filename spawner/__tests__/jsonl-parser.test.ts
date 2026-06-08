@@ -160,6 +160,45 @@ describe("parseJsonlLine — user messages", () => {
     assert.equal((ev[0].payload as { text: string }).text, "part1part2");
   });
 
+  it("extracts tool_reference content (ToolSearch) as newline-joined names", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "user", content: [
+        { type: "tool_result", tool_use_id: "T7", content: [
+          { type: "tool_reference", tool_name: "mcp__orchestrator__spawn_worker" },
+          { type: "tool_reference", tool_name: "Read" },
+        ] },
+      ]},
+    }));
+    assert.equal((ev[0].payload as { text: string }).text, "mcp__orchestrator__spawn_worker\nRead");
+  });
+
+  it("captures structuredPatch from the top-level toolUseResult", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "user", content: [
+        { type: "tool_result", tool_use_id: "T5", content: "ok", is_error: false },
+      ]},
+      toolUseResult: {
+        structuredPatch: [
+          { oldStart: 35, oldLines: 2, newStart: 35, newLines: 2, lines: ["-b", "+x"] },
+        ],
+      },
+    }));
+    const p = ev[0].payload as { patch?: Array<{ oldStart: number; newStart: number; lines: string[] }> };
+    assert.equal(p.patch?.length, 1);
+    assert.equal(p.patch?.[0].oldStart, 35);
+    assert.equal(p.patch?.[0].newStart, 35);
+    assert.deepEqual(p.patch?.[0].lines, ["-b", "+x"]);
+  });
+
+  it("omits patch when toolUseResult has no structuredPatch", () => {
+    const ev = collect(JSON.stringify({
+      message: { role: "user", content: [
+        { type: "tool_result", tool_use_id: "T6", content: "file contents", is_error: false },
+      ]},
+    }));
+    assert.equal(Object.prototype.hasOwnProperty.call(ev[0].payload, "patch"), false);
+  });
+
   it("flags errors via is_error", () => {
     const ev = collect(JSON.stringify({
       message: { role: "user", content: [
@@ -202,6 +241,21 @@ describe("parseJsonlLine — user messages", () => {
 
   it("whitespace-only string content emits nothing", () => {
     assert.deepEqual(collect(JSON.stringify({ message: { role: "user", content: "  \n " } })), []);
+  });
+
+  it("routes a sourceToolUseID-tagged text block to skill_body, not user_text", () => {
+    const ev = collect(JSON.stringify({
+      sourceToolUseID: "toolu_skill_1",
+      isMeta: true,
+      message: { role: "user", content: [
+        { type: "text", text: "Base directory for this skill: /x\n\n# Demo\nbody" },
+      ]},
+    }));
+    assert.equal(ev.length, 1);
+    const p = ev[0].payload as { kind: string; toolUseId: string; text: string };
+    assert.equal(p.kind, "skill_body");
+    assert.equal(p.toolUseId, "toolu_skill_1");
+    assert.match(p.text, /# Demo/);
   });
 });
 

@@ -15,17 +15,30 @@ export interface UsagePayload {
   model: string;
 }
 
+// One hunk of an Edit/Write tool_result's structured patch — the only source
+// of *absolute* file line numbers (oldStart/newStart). The snippet in
+// tool.input (old_string/new_string) has no idea where in the file it sits.
+export interface PatchHunk {
+  oldStart: number;
+  newStart: number;
+  lines: string[];
+}
+
 export interface JsonlPayload {
   // "user_text" is consumed worker-locally as the delivery turn-ACK and never
   // forwarded to the daemon (the daemon's own user_message event already
-  // renders the message in the UI).
-  kind: "assistant_text" | "tool_use" | "tool_result" | "thinking" | "user_text";
+  // renders the message in the UI). "skill_body" carries a Skill's injected
+  // SKILL.md body, keyed by toolUseId — the only place that content exists for
+  // built-in/plugin skills (those live inside the claude binary / plugin cache,
+  // not resolvable by name on disk).
+  kind: "assistant_text" | "tool_use" | "tool_result" | "thinking" | "user_text" | "skill_body";
   text?: string;
   id?: string;
   name?: string;
   input?: Record<string, unknown>;
   toolUseId?: string;
   isError?: boolean;
+  patch?: PatchHunk[];
 }
 
 export type EmitFn =
@@ -113,21 +126,31 @@ export function parseJsonlLine(
     for (const block of userBlocks) {
       if (block.type === "text") {
         if (typeof block.text !== "string" || block.text.trim() === "") continue;
+        // A Skill launch injects the resolved SKILL.md body as an isMeta user
+        // message tagged with sourceToolUseID = the Skill tool_use id. Route it
+        // to skill_body (keyed by that id) so the UI can show it — instead of
+        // folding it into user_text, which is dropped worker-locally as the
+        // turn-ACK (and would falsely ack a pending delivery).
+        const sourceToolUseId = e.sourceToolUseID;
+        if (typeof sourceToolUseId === "string" && sourceToolUseId !== "") {
+          emit("jsonl", { kind: "skill_body", toolUseId: sourceToolUseId, text: block.text });
+          continue;
+        }
         emit("jsonl", { kind: "user_text", text: block.text });
       } else if (block.type === "tool_result") {
         if (typeof block.tool_use_id !== "string") continue;
-        const raw = block.content;
-        const text =
-          typeof raw === "string"
-            ? raw
-            : Array.isArray(raw)
-              ? raw.map((c: { text?: string }) => c?.text ?? "").join("")
-              : "";
+        const text = toolResultText(block.content);
+        // Edit/Write results carry a structured patch as a top-level sibling of
+        // `message` (not inside the content block) — keep it for absolute line
+        // numbers in the UI diff.
+        const tur = e.toolUseResult as { structuredPatch?: unknown } | undefined;
+        const patch = extractPatch(tur?.structuredPatch);
         emit("jsonl", {
           kind: "tool_result",
           toolUseId: block.tool_use_id,
           isError: !!block.is_error,
           text,
+          ...(patch ? { patch } : {}),
         });
       }
     }
@@ -167,4 +190,38 @@ export function parseJsonlLine(
     const c = e.content as Array<{ text?: string }> | undefined;
     emit("jsonl", { kind: "tool_result", isError: !!e.isError, text: String(c?.[0]?.text ?? "") });
   }
+}
+
+// Slims the transcript's structuredPatch down to the fields the UI diff needs.
+// Returns undefined for absent/empty patches (non-Edit tools, MCP edits).
+function extractPatch(sp: unknown): PatchHunk[] | undefined {
+  if (!Array.isArray(sp) || sp.length === 0) return undefined;
+  const hunks: PatchHunk[] = [];
+  for (const h of sp) {
+    const hr = h as Record<string, unknown>;
+    if (typeof hr.oldStart === "number" && typeof hr.newStart === "number" && Array.isArray(hr.lines)) {
+      hunks.push({ oldStart: hr.oldStart, newStart: hr.newStart, lines: hr.lines as string[] });
+    }
+  }
+  return hunks.length ? hunks : undefined;
+}
+
+// Tool results are usually a string or text blocks, but some tools return other
+// content shapes — e.g. ToolSearch returns `tool_reference` blocks naming the
+// tools it loaded. Pull a readable body out so the UI shows the result instead
+// of an empty one. Text blocks concatenate (continuous fragments); reference
+// names land one per line.
+function toolResultText(raw: unknown): string {
+  if (typeof raw === "string") return raw;
+  if (!Array.isArray(raw)) return "";
+  let text = "";
+  for (const c of raw) {
+    if (typeof c === "string") { text += c; continue; }
+    const b = c as Record<string, unknown>;
+    if (typeof b.text === "string") { text += b.text; continue; }
+    if (b.type === "tool_reference" && typeof b.tool_name === "string") {
+      text += (text ? "\n" : "") + b.tool_name;
+    }
+  }
+  return text;
 }
