@@ -1107,7 +1107,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   flex-shrink: 0;
 }
 .tool-item.expanded .ti-chev { transform: rotate(90deg); }
-.ti-running { opacity: 0.7; cursor: default; }
+.ti-running { opacity: 0.7; }
 .ti-shimmer {
   background: linear-gradient(90deg, var(--fg-dim) 0%, var(--fg-dim) 45%, var(--shimmer) 50%, var(--fg-dim) 55%, var(--fg-dim) 100%);
   background-size: 500% 100%;
@@ -1401,16 +1401,44 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .tool-failure-banner.denied .tfb-label { color: var(--err); }
 .tfb-msg { white-space: pre-wrap; word-break: break-word; }
 
-/* Generic detail (key-value) */
+/* Generic detail — parameters then output, unified in one card */
 .generic-detail {
-  padding: 2px 13px 6px;
   font-size: var(--text-base);
 }
-.tool-item.standalone .generic-detail { padding-left: 0; }
-.tool-group .generic-detail { padding-left: 0; }
-.gd-row { padding: 2px 0; color: var(--fg-dim); }
+.gd-card {
+  margin: 4px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.tool-group .gd-card { background: var(--surface-2); }
+.gd-block { padding: 8px 14px 10px; }
+.gd-block + .gd-block { border-top: 1px solid var(--border); }
+.gd-section {
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--fg-faint);
+  margin-bottom: 5px;
+}
+.gd-row { padding: 1px 0; color: var(--fg-dim); }
 .gd-key { color: var(--fg-dim); }
 .gd-val { font-weight: 600; color: var(--fg); }
+.gd-output-text {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--fg-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+.gd-output-more {
+  margin-top: 5px;
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
 
 /* AskUserQuestion Q&A detail */
 .tool-qa {
@@ -5300,12 +5328,11 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 }
 .stg-dd__btn > svg { color: var(--fg-dim); flex-shrink: 0; transition: transform 140ms ease; }
 .stg-dd__btn.is-open > svg { transform: rotate(180deg); }
+/* positioned via a body portal (AnchoredPopover) to escape the modal's
+   overflow:hidden; z-index sits above the settings overlay (450). Width is
+   matched to the trigger button in JS (matchWidth), so no min-width:100% here */
 .stg-dd__menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 10;
-  min-width: 100%;
+  z-index: 460;
   padding: 4px;
 }
 /* inner list scrolls so the gradient rim (::after) stays pinned to the popover */
@@ -5423,11 +5450,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.07);
 }
 .stg-toolpick__add:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
+/* positioned via a body portal (AnchoredPopover) — see .stg-dd__menu note */
 .stg-toolpick__menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  z-index: 10;
+  z-index: 460;
   min-width: 160px;
   padding: 4px;
 }

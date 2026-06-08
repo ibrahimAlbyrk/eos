@@ -38,6 +38,50 @@ export function buildDiffHunks(oldLines, newLines) {
   return hunks;
 }
 
+// Renders the Edit/Write tool_result's structuredPatch into the same row shape
+// as buildDiffHunks ({type, num, text, segments?}) — but with the *absolute*
+// file line numbers the patch carries (oldStart/newStart), instead of the
+// snippet-relative indices buildDiffHunks is forced to invent. del/add runs are
+// paired for inline word-level highlighting, same as buildDiffHunks.
+export function patchToHunks(structuredPatch) {
+  if (!Array.isArray(structuredPatch)) return [];
+  const rows = [];
+  for (const h of structuredPatch) {
+    let oldNum = typeof h?.oldStart === "number" ? h.oldStart : 1;
+    let newNum = typeof h?.newStart === "number" ? h.newStart : 1;
+    const lines = Array.isArray(h?.lines) ? h.lines : [];
+    let i = 0;
+    while (i < lines.length) {
+      const ch = lines[i][0];
+      if (ch === "\\") { i++; continue; } // "\ No newline at end of file"
+      if (ch === "-" || ch === "+") {
+        const delStart = rows.length;
+        while (i < lines.length && lines[i][0] === "-") {
+          rows.push({ type: "del", num: oldNum++, text: lines[i].slice(1) });
+          i++;
+        }
+        const addStart = rows.length;
+        while (i < lines.length && lines[i][0] === "+") {
+          rows.push({ type: "add", num: newNum++, text: lines[i].slice(1) });
+          i++;
+        }
+        const pairCount = Math.min(addStart - delStart, rows.length - addStart);
+        for (let p = 0; p < pairCount; p++) {
+          const dh = rows[delStart + p];
+          const ah = rows[addStart + p];
+          const [dSegs, aSegs] = inlineDiff(dh.text, ah.text);
+          dh.segments = dSegs;
+          ah.segments = aSegs;
+        }
+      } else {
+        rows.push({ type: "ctx", num: newNum, text: lines[i].slice(1) });
+        oldNum++; newNum++; i++;
+      }
+    }
+  }
+  return rows;
+}
+
 export function computeLCS(a, b) {
   const m = a.length, n = b.length;
   const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));

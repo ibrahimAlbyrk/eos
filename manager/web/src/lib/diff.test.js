@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   computeLCS,
   buildDiffHunks,
+  patchToHunks,
   parseAskAnswers,
   stripCatLineNumbers,
 } from "./diff.jsx";
@@ -62,6 +63,49 @@ describe("buildDiffHunks", () => {
     const hunks = buildDiffHunks(["a", "gone", "b"], ["a", "b"]);
     expect(hunks.map((h) => h.type)).toEqual(["ctx", "del", "ctx"]);
     expect(hunks.find((h) => h.type === "del").text).toBe("gone");
+  });
+});
+
+describe("patchToHunks", () => {
+  it("uses the patch's absolute line numbers, not snippet-relative ones", () => {
+    const hunks = patchToHunks([
+      { oldStart: 35, newStart: 35, lines: [" a", "-b", "+x", " c"] },
+    ]);
+    const shape = hunks.map((h) => ({ type: h.type, num: h.num, text: h.text }));
+    expect(shape).toEqual([
+      { type: "ctx", num: 35, text: "a" },
+      { type: "del", num: 36, text: "b" },
+      { type: "add", num: 36, text: "x" },
+      { type: "ctx", num: 37, text: "c" },
+    ]);
+  });
+
+  it("emits inline segments for a paired del/add line", () => {
+    const hunks = patchToHunks([
+      { oldStart: 10, newStart: 10, lines: ["-foo", "+bar"] },
+    ]);
+    expect(hunks.find((h) => h.type === "del").segments).toBeDefined();
+    expect(hunks.find((h) => h.type === "add").segments).toBeDefined();
+  });
+
+  it("restarts numbering per hunk so the gap between hunks is honored", () => {
+    const hunks = patchToHunks([
+      { oldStart: 1, newStart: 1, lines: ["-a", "+A"] },
+      { oldStart: 100, newStart: 100, lines: ["-z", "+Z"] },
+    ]);
+    expect(hunks.map((h) => h.num)).toEqual([1, 1, 100, 100]);
+  });
+
+  it("skips the no-newline marker line", () => {
+    const hunks = patchToHunks([
+      { oldStart: 5, newStart: 5, lines: ["-old", "+new", "\\ No newline at end of file"] },
+    ]);
+    expect(hunks.map((h) => h.type)).toEqual(["del", "add"]);
+  });
+
+  it("returns an empty array for non-array input", () => {
+    expect(patchToHunks(null)).toEqual([]);
+    expect(patchToHunks(undefined)).toEqual([]);
   });
 });
 
