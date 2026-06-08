@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { api } from "../../../api/client.js";
 
 
-export function QuestionBanner({ questions, workerId, toolUseId, onClose, sendToAgent, interruptAgent }) {
+export function QuestionBanner({ questions, workerId, toolUseId, onClose }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selections, setSelections] = useState(() => new Map());
   const [otherTexts, setOtherTexts] = useState(() => new Map());
@@ -49,46 +49,32 @@ export function QuestionBanner({ questions, workerId, toolUseId, onClose, sendTo
     if (submitting) return;
     setSubmitting(true);
     try {
-      const perQ = questions.map((qObj, qi) => {
+      // Build, per question: a structured selection the worker turns into verified
+      // native-menu keystrokes, plus a human-readable answer string for the record.
+      const answers = {};
+      const sels = questions.map((qObj, qi) => {
         const s = selections.get(qi) ?? new Set();
         const opts = qObj?.options ?? [];
         const oIdx = opts.length;
         const oText = (otherTexts.get(qi) ?? "").trim();
         const isOther = s.has(oIdx);
-        let answer;
-        if (isOther && oText) {
-          answer = oText;
-        } else if (qObj.multiSelect) {
-          answer = [...s].sort().filter(i => i !== oIdx).map(i => opts[i]?.label).filter(Boolean).join(", ");
-        } else {
-          answer = opts[[...s][0]]?.label ?? "";
-        }
-        return { qObj, answer, picked: [...s][0], isOther };
+        const picks = [...s].filter((i) => i < oIdx).sort((a, b) => a - b);
+        const labels = picks.map((i) => opts[i]?.label).filter(Boolean);
+        const answer = isOther && oText ? oText : labels.join(", ");
+        answers[qObj.question ?? qObj.header] = answer;
+        return {
+          multiSelect: !!qObj.multiSelect,
+          optionCount: opts.length,
+          picks,
+          ...(isOther && oText ? { freeText: oText } : {}),
+        };
       });
-      const answers = {};
-      for (const { qObj, answer } of perQ) answers[qObj.question ?? qObj.header] = answer;
-
-      // One single-select question with a real option: drive Claude's native menu
-      // with the option number — a single key both selects and submits. Anything
-      // else (multi-select, multiple questions, free text) cannot be driven by
-      // keystrokes reliably, so cancel the menu and deliver the answers as a message.
-      const solo = perQ.length === 1 ? perQ[0] : null;
-      const keystrokeable = solo && !solo.qObj.multiSelect && !solo.isOther
-        && solo.picked != null && solo.picked < (solo.qObj.options?.length ?? 0);
-      if (keystrokeable) {
-        await api.sendKeystroke(workerId, String(solo.picked + 1));
-      } else {
-        await interruptAgent?.(workerId);
-        const body = perQ.map(({ qObj, answer }) => `• ${qObj.question} → ${answer}`).join("\n");
-        await sendToAgent?.(workerId, "My answers to your questions:\n" + body);
-      }
-      // Record the answer so the banner dismisses durably (survives a reload).
-      await api.answerQuestion(workerId, toolUseId, answers);
+      await api.answerQuestion(workerId, toolUseId, answers, sels);
     } finally {
       setSubmitting(false);
       onClose();
     }
-  }, [questions, selections, otherTexts, workerId, toolUseId, submitting, onClose, sendToAgent, interruptAgent]);
+  }, [questions, selections, otherTexts, workerId, toolUseId, submitting, onClose]);
 
   const handleNext = useCallback(() => {
     if (!hasAnswer) return;

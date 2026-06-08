@@ -14,6 +14,8 @@ export function createHttpWorkerClient(opts: HttpWorkerClientOptions = {}): Work
   const interruptTimeout = opts.interruptTimeoutMs ?? 5_000;
   // Choreography scales with ↑-press count on long sessions — generous ceiling.
   const rewindTimeout = opts.rewindTimeoutMs ?? 60_000;
+  // Answer choreography: settle + per-key gaps + verify wait — generous ceiling.
+  const answerTimeout = 60_000;
 
   return {
     async sendInterrupt(port: number): Promise<{ ok: boolean; reason?: string }> {
@@ -44,6 +46,26 @@ export function createHttpWorkerClient(opts: HttpWorkerClientOptions = {}): Work
           signal: ac.signal,
         });
         return { ok: r.ok };
+      } catch {
+        return { ok: false };
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+
+    async answerQuestion(port: number, selections: unknown[]): Promise<{ ok: boolean; outcome?: string }> {
+      const ac = new AbortController();
+      const timer = setTimeout(() => ac.abort(), answerTimeout);
+      try {
+        const r = await fetch(`http://127.0.0.1:${port}/answer`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ selections }),
+          signal: ac.signal,
+        });
+        if (!r.ok) return { ok: false };
+        const data = (await r.json().catch(() => ({}))) as { ok?: boolean; outcome?: string };
+        return { ok: data.ok !== false, outcome: data.outcome };
       } catch {
         return { ok: false };
       } finally {

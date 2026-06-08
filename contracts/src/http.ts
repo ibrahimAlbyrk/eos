@@ -418,7 +418,7 @@ export const CommandsResponseSchema = z.object({
 export type CommandsResponse = z.infer<typeof CommandsResponseSchema>;
 
 // ---- /api/templates ---------------------------------------------------------
-// User prompt templates (~/.claude-mgr/templates/*.md). Content may contain
+// User prompt templates (~/.eos/templates/*.md). Content may contain
 // {{label}} tab-stop placeholders the web composer navigates after insert.
 
 export const TemplateNameSchema = z
@@ -456,7 +456,7 @@ export const TemplateMutationResponseSchema = z.object({ ok: z.boolean() });
 export type TemplateMutationResponse = z.infer<typeof TemplateMutationResponseSchema>;
 
 // ---- /api/settings -----------------------------------------------------------
-// User UI settings (~/.claude-mgr/settings.json), a flat key→value map. The
+// User UI settings (~/.eos/settings.json), a flat key→value map. The
 // daemon only persists; the web settings registry owns key semantics and
 // defaults, so adding a setting is a registry entry — not a contract change.
 
@@ -526,9 +526,23 @@ export type QuestionRequest = z.infer<typeof QuestionRequestSchema>;
 
 // ---- POST /workers/:id/question-answer -------------------------------------
 
+// One answered question, structured so the worker can drive Claude's native
+// AskUserQuestion menu with verified keystrokes (see spawner/answer-driver.ts).
+// `picks` are 0-based indices into the REAL options (excludes the auto-appended
+// "Type something."/"Chat about this" rows).
+export const AnswerSpecSchema = z.object({
+  multiSelect: z.boolean(),
+  optionCount: z.number().int().nonnegative(),
+  picks: z.array(z.number().int().nonnegative()),
+  freeText: z.string().optional(),
+});
+export type AnswerSpec = z.infer<typeof AnswerSpecSchema>;
+
 export const QuestionAnswerRequestSchema = z.object({
   toolUseId: z.string(),
   answers: z.record(z.string(), z.string()),
+  // Absent ⇒ banner-dismissal only (legacy / skip); present ⇒ also drive the menu.
+  selections: z.array(AnswerSpecSchema).optional(),
 });
 export type QuestionAnswerRequest = z.infer<typeof QuestionAnswerRequestSchema>;
 

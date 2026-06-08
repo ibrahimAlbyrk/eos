@@ -27,6 +27,7 @@ import {
 import { createReadinessGate } from "./readiness-gate.ts";
 import { resolveParentAgentToolUseId } from "./subagent-meta.ts";
 import { RewindDriver, type RewindMode } from "./rewind.ts";
+import { AnswerDriver, type AnswerSpec } from "./answer-driver.ts";
 
 // Timing defaults. Each is overridable by a CLI flag (see options.ts);
 // these are the fallbacks used when the flag is absent.
@@ -47,7 +48,7 @@ const PTY_SIGKILL_DELAY_MS = 1500;
 // Long-poll timeout for the question hook → daemon round-trip. Must stay
 // coordinated with the daemon policy ttlMs and gateway abort timeout.
 const POLICY_LONG_POLL_TIMEOUT_MS =
-  Number.parseInt(process.env.CLAUDE_MGR_POLICY_TIMEOUT_MS ?? "", 10) || 3_600_000;
+  Number.parseInt(process.env.EOS_POLICY_TIMEOUT_MS ?? "", 10) || 3_600_000;
 
 const opts = parseWorkerOptions();
 const name = opts.name ?? "w" + Math.random().toString(36).slice(2, 7);
@@ -95,7 +96,7 @@ if (opts.resumeSessionId) {
 
 // PTY ----------------------------------------------------------------------
 
-const claudeBin = process.env.CLAUDE_MGR_CLAUDE_BIN || "claude";
+const claudeBin = process.env.EOS_CLAUDE_BIN || "claude";
 console.log(`[${name}] spawn: claude ${claudeArgs.args.join(" ")}`);
 evt.emit("lifecycle", {
   phase: "claude_spawning",
@@ -115,9 +116,9 @@ const pty = ptySpawn(claudeBin, claudeArgs.args, {
     TERM: "xterm-256color",
     ...(opts.daemonUrl && opts.workerId
       ? {
-          CLAUDE_MGR_SPAWNED: "1",
-          CLAUDE_MGR_WORKER_ID: opts.workerId,
-          CLAUDE_MGR_DAEMON_URL: opts.daemonUrl,
+          EOS_SPAWNED: "1",
+          EOS_WORKER_ID: opts.workerId,
+          EOS_DAEMON_URL: opts.daemonUrl,
         }
       : {}),
     // Worktree awareness: realpath'd facts so the agent (and anything it
@@ -125,12 +126,12 @@ const pty = ptySpawn(claudeBin, claudeArgs.args, {
     // name already means the Eos repo in the inherited env.
     ...(wt.worktreeDir && wt.branch && wt.repoRoot
       ? {
-          CLAUDE_MGR_WORKTREE_DIR: wt.worktreeDir,
-          CLAUDE_MGR_WORKTREE_BRANCH: wt.branch,
-          CLAUDE_MGR_SOURCE_ROOT: wt.repoRoot,
+          EOS_WORKTREE_DIR: wt.worktreeDir,
+          EOS_WORKTREE_BRANCH: wt.branch,
+          EOS_SOURCE_ROOT: wt.repoRoot,
         }
       : {}),
-    CLAUDE_MGR_ISOLATION: wt.worktreeDir ? "worktree" : "none",
+    EOS_ISOLATION: wt.worktreeDir ? "worktree" : "none",
   },
 });
 
@@ -181,6 +182,18 @@ const rewindDriver = new RewindDriver({
   log: (m) => console.log(`[${name}][rewind] ${m}`),
 });
 let rewindBuffer: string[] = [];
+
+// AnswerDriver — answers Claude's native AskUserQuestion menu with verified
+// keystrokes (replaces the old web-side interrupt+message path whose Esc made
+// the agent see a "rejected" result). Mutually exclusive with delivery: while a
+// menu is open, messages are held so no paste/CR/Esc lands on it.
+let lastToolResultTs = 0;
+let answerBuffer: string[] = [];
+const answerDriver = new AnswerDriver({
+  write: (s) => pty.write(s),
+  lastToolResultTs: () => lastToolResultTs,
+  log: (m) => console.log(`[${name}][answer] ${m}`),
+});
 
 // Lifecycle ----------------------------------------------------------------
 
@@ -239,6 +252,7 @@ pty.onData((data: string) => {
   readiness.feed(data);
   pipeline.feedOutput(data);
   rewindDriver.feed(data);
+  answerDriver.feed(data);
 });
 
 // Ingest server (message + hook) ------------------------------------------
@@ -246,6 +260,9 @@ pty.onData((data: string) => {
 function dispatchToPty(text: string): void {
   if (!bootCompleted) { bootBuffer.push(text); return; }
   if (rewindDriver.active) { rewindBuffer.push(text); return; }
+  // An open AskUserQuestion menu owns the PTY — a paste/CR would feed the menu
+  // and an Esc would cancel it. Hold the message until the menu is answered.
+  if (answerDriver.menuOpen) { answerBuffer.push(text); return; }
   deliver(text);
 }
 
@@ -263,6 +280,11 @@ function startTail(sessionId: string, startAtEof = false): TailHandle {
       if (t === "jsonl" && (p as { kind?: string }).kind === "user_text") {
         pipeline.notifyUserText((p as { text?: string }).text ?? "", Date.now());
         return;
+      }
+      // A tool_result while a menu is being driven is the AUQ answer landing —
+      // the AnswerDriver waits on this timestamp to confirm delivery.
+      if (t === "jsonl" && (p as { kind?: string }).kind === "tool_result") {
+        lastToolResultTs = Date.now();
       }
       evt.emit(t, p);
     },
@@ -307,6 +329,12 @@ function watchForClearedSession(oldSessionId: string, clearTs: number): void {
   }, CLEAR_SWAP_POLL_MS);
 }
 
+function flushAnswerBuffer(): void {
+  const held = answerBuffer;
+  answerBuffer = [];
+  for (const t of held) dispatchToPty(t);
+}
+
 const ingest = startIngestServer(opts.port, {
   onMessage(text): void {
     shutdown.cancel();
@@ -315,6 +343,15 @@ const ingest = startIngestServer(opts.port, {
     state.lastJsonlActivityTs = now;
     evt.emit("lifecycle", { phase: "message_received", text: text.slice(0, 200) });
     dispatchToPty(text);
+  },
+  async onAnswer(selections): Promise<{ ok: boolean; outcome: string }> {
+    shutdown.cancel();
+    state.lastJsonlActivityTs = Date.now();
+    const outcome = await answerDriver.answer(selections as AnswerSpec[]);
+    // A turn re-opens once the answer is accepted; messages held during the menu
+    // flush after, in arrival order.
+    flushAnswerBuffer();
+    return { ok: outcome !== "no_menu", outcome };
   },
   onKeystroke(keys): void {
     // A stray keystroke mid-choreography would derail the panel navigation.

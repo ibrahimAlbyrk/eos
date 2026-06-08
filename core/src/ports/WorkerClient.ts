@@ -14,6 +14,8 @@ export interface RewindResult {
 export interface WorkerClient {
   sendMessage(port: number, text: string): Promise<{ ok: boolean; status: number; body: unknown }>;
   sendKeystroke(port: number, keys: string): Promise<{ ok: boolean }>;
+  /** Drive Claude's native AskUserQuestion menu with verified keystrokes. */
+  answerQuestion(port: number, selections: unknown[]): Promise<{ ok: boolean; outcome?: string }>;
   sendInterrupt(port: number): Promise<{ ok: boolean; reason?: string }>;
   getRewindTargets(port: number): Promise<{ targets: unknown[] }>;
   sendRewind(port: number, body: { uuid: string; mode: string }): Promise<RewindResult>;

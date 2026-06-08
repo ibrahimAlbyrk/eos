@@ -115,8 +115,8 @@ export const api = {
   async sendKeystroke(id, keys) {
     return postJson(ROUTES.workerKeystroke(id), { keys });
   },
-  async answerQuestion(id, toolUseId, answers) {
-    return postJson(ROUTES.workerQuestionAnswer(id), { toolUseId, answers });
+  async answerQuestion(id, toolUseId, answers, selections) {
+    return postJson(ROUTES.workerQuestionAnswer(id), { toolUseId, answers, selections });
   },
   async getRewindTargets(id) {
     return getJson(ROUTES.workerRewindTargets(id));

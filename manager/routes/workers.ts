@@ -132,7 +132,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         bus: c.bus,
         supervisor: c.supervisor,
         log: c.log,
-        findOrphanPids: (safeName) => supervisorWithFind.findPidsByPattern(`cm-${safeName}-`),
+        findOrphanPids: (safeName) => supervisorWithFind.findPidsByPattern(`eos-${safeName}-`),
         postKillCleanup: (id) => {
           c.cleanupMcpConfig(id);
         },
@@ -299,18 +299,30 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, 200, { answers });
   });
 
-  // Web UI posts answers here. The answer is delivered to Claude as keystrokes
-  // into its native menu; this call records it so the banner dismisses durably
-  // (and resolves any legacy blocking long-poll — a no-op in the keystroke flow).
+  // Web UI posts answers here. When structured `selections` are present, the
+  // worker drives Claude's native menu with verified keystrokes (answer-driver) —
+  // this replaces the old web-side interrupt+message path whose Esc cancelled the
+  // menu and made the agent receive a "rejected" result. The call always records
+  // question_answered so the banner dismisses durably.
   r.post(/^\/workers\/(?<id>[^/]+)\/question-answer$/, async ({ params, req, res }) => {
     const body = validate(QuestionAnswerRequestSchema, await readBody(req));
-    c.pendingQuestions.resolveByToolUseId(params.id, body.toolUseId, body.answers);
+    let outcome = "dismissed";
+    if (body.selections && body.selections.length > 0) {
+      const worker = c.workers.findById(params.id);
+      if (worker?.port && c.supervisor.has(params.id)) {
+        // Answering resumes the turn — clear the settle window so the trailing
+        // tool_result isn't suppressed.
+        c.turnSettle.clear(params.id);
+        const driven = await c.httpWorkerClient.answerQuestion(worker.port, body.selections);
+        outcome = driven.outcome ?? (driven.ok ? "answered" : "failed");
+      }
+    }
     c.events.append(params.id, c.clock.now(), "question_answered", {
       toolUseId: body.toolUseId,
       answers: body.answers,
     });
     c.bus.publish("worker:change", { workerId: params.id });
-    writeJson(res, 200, { ok: true });
+    writeJson(res, 200, { ok: true, outcome });
   });
 
   // Orchestrator-initiated user notification. Fire-and-forget: published on
@@ -509,7 +521,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   // ---- Try (unstaged apply) -------------------------------------------------
   // The daemon applies the worker branch's merged result into the USER'S
   // checkout (worktree_from) as working-tree-only edits. Mutating routes
-  // require the per-boot UI token so agents holding CLAUDE_MGR_DAEMON_URL
+  // require the per-boot UI token so agents holding EOS_DAEMON_URL
   // cannot self-apply. 409 until worktree_dir enrichment lands — acting on
   // worktree_from alone would snapshot the wrong tree.
 

@@ -12,6 +12,7 @@ export interface QuestionAnswer {
 
 export interface IngestHandlers {
   onMessage(text: string): void;
+  onAnswer(selections: unknown[]): Promise<{ ok: boolean; outcome: string }>;
   onKeystroke(keys: string): void;
   onInterrupt(): { ok: boolean; reason?: string };
   onHook(eventName: string, body: Record<string, unknown>): void;
@@ -83,6 +84,22 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
           res.writeHead(500, { "content-type": "application/json" });
           res.end(JSON.stringify({ error: errMsg(e) }));
         }
+        return;
+      }
+      if (url.pathname === "/answer") {
+        let body: { selections?: unknown[] } = {};
+        try { body = JSON.parse(raw); } catch {}
+        const selections = Array.isArray(body.selections) ? body.selections : [];
+        handlers.onAnswer(selections).then(
+          (result) => {
+            res.writeHead(200, { "content-type": "application/json" });
+            res.end(JSON.stringify(result));
+          },
+          (e) => {
+            res.writeHead(500, { "content-type": "application/json" });
+            res.end(JSON.stringify({ ok: false, error: errMsg(e) }));
+          },
+        );
         return;
       }
       if (url.pathname === "/interrupt") {
