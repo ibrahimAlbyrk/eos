@@ -74,6 +74,21 @@ function mainTool(blocks, id) {
   return null;
 }
 
+describe("buildBlocks skill_body attachment", () => {
+  const skillUse = (id, ts) => ({ type: "jsonl", ts, payload: { kind: "tool_use", id, name: "Skill", input: { skill: "demo" } } });
+  const skillBody = (toolUseId, ts, text) => ({ type: "jsonl", ts, payload: { kind: "skill_body", toolUseId, text } });
+
+  it("attaches the injected body to its Skill tool by id", () => {
+    const blocks = buildBlocks([skillUse("S1", 100), skillBody("S1", 101, "# Demo\nbody")]);
+    expect(mainTool(blocks, "S1").skillBody).toBe("# Demo\nbody");
+  });
+
+  it("leaves skillBody undefined when no body event arrives", () => {
+    const blocks = buildBlocks([skillUse("S1", 100)]);
+    expect(mainTool(blocks, "S1").skillBody).toBeUndefined();
+  });
+});
+
 describe("buildBlocks main-agent tool_done fallback", () => {
   it("clears a stuck-running tool when its tool_result jsonl is missing but tool_done fired", () => {
     const events = [

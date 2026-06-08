@@ -76,6 +76,9 @@ export function buildBlocks(events) {
   const lc = deriveToolLifecycle(events);
   const toolUseIds = new Set();
   const agentSpans = new Map();
+  // A Skill's injected SKILL.md body arrives as its own jsonl event, keyed to
+  // the Skill tool_use id — collect it up front so the tool block can carry it.
+  const skillBodyById = new Map();
   for (const ev of events) {
     if (ev.type !== "jsonl") continue;
     const p = parsePayload(ev.payload);
@@ -84,6 +87,8 @@ export function buildBlocks(events) {
       if (p.name === "Agent") {
         agentSpans.set(p.id, { startTs: ev.ts, endTs: Infinity, background: false });
       }
+    } else if (p.kind === "skill_body" && p.toolUseId) {
+      skillBodyById.set(p.toolUseId, p.text ?? "");
     }
   }
   for (const ev of events) {
@@ -302,6 +307,7 @@ export function buildBlocks(events) {
           running: !lc.isClosed(p.id, evIdx),
           done: lc.isDone(p.id),
           ts: ev.ts,
+          ...(skillBodyById.has(p.id) ? { skillBody: skillBodyById.get(p.id) } : {}),
         });
       }
     }

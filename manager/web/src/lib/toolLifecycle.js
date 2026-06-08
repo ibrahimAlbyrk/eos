@@ -28,7 +28,7 @@ export function deriveToolLifecycle(events) {
     if (ev.type === "jsonl") {
       const p = parsePayload(ev.payload);
       if (p.kind === "tool_result" && p.toolUseId) {
-        jsonlResults.set(p.toolUseId, { text: p.text ?? "", isError: p.isError === true });
+        jsonlResults.set(p.toolUseId, { text: p.text ?? "", isError: p.isError === true, patch: p.patch ?? null });
       }
       continue;
     }
