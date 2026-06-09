@@ -77,6 +77,38 @@ export type WorkerAction = z.infer<typeof WorkerActionSchema>;
 export const WorkerActionRequestSchema = z.object({ action: WorkerActionSchema });
 export type WorkerActionRequest = z.infer<typeof WorkerActionRequestSchema>;
 
+// ---- POST /workers/:id/push ------------------------------------------------
+// Deterministic push: the daemon inspects the branch's sync state and runs the
+// correct git push variant itself (set-upstream / fast-forward / force-with-lease)
+// — no agent turn. `outcome` is the single discriminant the UI maps to a label.
+
+export const PushOutcomeSchema = z.enum([
+  "pushed-new",    // no upstream existed → push -u (branch published + tracked)
+  "pushed",        // fast-forward push
+  "pushed-force",  // diverged (rebase/amend) → push --force-with-lease
+  "up-to-date",    // nothing to push
+  "behind-only",   // local strictly behind upstream → pull first, never force
+  "detached",      // detached HEAD → no branch to push
+  "no-remote",     // no remote configured
+  "rejected",      // non-fast-forward rejection (remote moved) on a plain push
+  "lease-stale",   // force-with-lease rejected (remote moved since last fetch)
+  "auth",          // authentication/permission failure
+  "failed",        // any other git failure
+]);
+export type PushOutcome = z.infer<typeof PushOutcomeSchema>;
+
+export const PushResultSchema = z.object({
+  outcome: PushOutcomeSchema,
+  ok: z.boolean(),
+  branch: z.string().nullable(),
+  remote: z.string().nullable(),
+  ahead: z.number().int().nonnegative(),
+  behind: z.number().int().nonnegative(),
+  message: z.string(),
+  detail: z.string().optional(),
+});
+export type PushResult = z.infer<typeof PushResultSchema>;
+
 // ---- GET /workers/:id/events ----------------------------------------------
 
 export const EventsQuerySchema = z.object({
@@ -695,6 +727,7 @@ export const ROUTES = {
   workerEvents: (id: string): string => `/workers/${id}/events`,
   workerMessage: (id: string): string => `/workers/${id}/message`,
   workerAction: (id: string): string => `/workers/${id}/action`,
+  workerPush: (id: string): string => `/workers/${id}/push`,
   orchestrators: "/orchestrators",
   orchestratorMessage: (id: string): string => `/orchestrators/${id}/message`,
   policyDecide: "/policy/decide",

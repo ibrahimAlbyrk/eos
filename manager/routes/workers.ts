@@ -34,6 +34,7 @@ import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
 import { resumeWorkerVia, resumeIfDead } from "./resume-helpers.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
+import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
 
 // Where the agent actually edits: the worktree dir when spawned with a
 // worktree (cwd is NULL for those rows), plain cwd otherwise. worktree_from
@@ -264,6 +265,20 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       { workerId: params.id, text: prompt, displayText: display },
     );
     writeJson(res, result.status, result.body);
+  });
+
+  // Deterministic push — no agent turn. The daemon inspects the branch's sync
+  // state and runs the correct git push variant itself (set-upstream / fast-forward
+  // / force-with-lease), then records a git_push event so the chat keeps a record.
+  r.post(/^\/workers\/(?<id>[^/]+)\/push$/, async ({ params, res }) => {
+    const w = c.workers.findById(params.id);
+    if (!w) { writeJson(res, 404, { error: "worker not found" }); return; }
+    const dir = gitDirOf(w);
+    if (!dir) { writeJson(res, 400, { error: "worker has no working directory" }); return; }
+    const result = await pushBranch({ git: c.git, branchPush: c.branchPush }, dir);
+    c.events.append(params.id, c.clock.now(), "git_push", result);
+    c.bus.publish("worker:change", { workerId: params.id });
+    writeJson(res, 200, result);
   });
 
   // Fire-and-forget notification that an AskUserQuestion is pending — surfaces the

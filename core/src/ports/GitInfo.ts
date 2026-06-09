@@ -3,6 +3,7 @@
 // libgit2 implementation can plug in without disturbing callers.
 
 import type { ChangedFile, CommitDetail, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
+import type { PushState } from "../domain/push-plan.ts";
 
 export interface DiffStat {
   insertions: number;
@@ -38,4 +39,7 @@ export interface GitInfo {
    *  object store assumed — a worktree vs its source checkout). Null when
    *  either side can't resolve. */
   mergeBase(cwd: string, otherRepoRoot: string): Promise<string | null>;
+  /** Branch + remote + upstream presence + ahead/behind, bundled — the input to
+   *  the pure push decision. Collapses to a benign all-null/zero state on error. */
+  pushState(cwd: string): Promise<PushState>;
 }

@@ -6,6 +6,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { GitInfo, DiffStat, SyncStatus } from "../../../core/src/ports/GitInfo.ts";
+import type { PushState } from "../../../core/src/domain/push-plan.ts";
 import type { ChangedFile, CommitDetail, CommitFile, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
 import { mergeChanges, mergeChangesWithBase, parseNameStatusZ, parseNumstatZ, parsePorcelainZ, truncatePatch } from "./changes-parse.ts";
 
@@ -133,6 +134,47 @@ export const childProcessGitInfo: GitInfo = {
       // No upstream configured, detached HEAD, etc.
       return null;
     }
+  },
+
+  async pushState(cwd: string): Promise<PushState> {
+    let branch: string | null = null;
+    let remote: string | null = null;
+    let hasUpstream = false;
+    let ahead = 0;
+    let behind = 0;
+
+    try {
+      const b = (await runGit(cwd, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
+      branch = b && b !== "HEAD" ? b : null;
+    } catch {}
+
+    // Upstream ref (e.g. "origin/feature/x") → presence + its remote name.
+    try {
+      const up = (await runGit(cwd, ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])).trim();
+      if (up) {
+        hasUpstream = true;
+        remote = up.split("/")[0] || null;
+      }
+    } catch {}
+
+    if (hasUpstream) {
+      try {
+        const out = (await runGit(cwd, ["rev-list", "--left-right", "--count", "@{u}...HEAD"])).trim();
+        const parts = out.split(/\s+/);
+        behind = parseInt(parts[0] ?? "0", 10) || 0;
+        ahead = parseInt(parts[1] ?? "0", 10) || 0;
+      } catch {}
+    }
+
+    // No upstream yet → pick the push target: prefer origin, else the only remote.
+    if (!remote) {
+      try {
+        const remotes = (await runGit(cwd, ["remote"])).split("\n").map((s) => s.trim()).filter(Boolean);
+        remote = remotes.includes("origin") ? "origin" : (remotes[0] ?? null);
+      } catch {}
+    }
+
+    return { branch, remote, hasUpstream, ahead, behind };
   },
 
   async unpushedCommits(cwd: string): Promise<UnpushedCommit[]> {
