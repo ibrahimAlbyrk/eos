@@ -183,7 +183,9 @@ export function ComposerDiffRow({ live }) {
   const [currentBranch, setCurrentBranch] = useState(null);
   const [ahead, setAhead] = useState(0);
   const [behind, setBehind] = useState(0);
-  const [hasUpstream, setHasUpstream] = useState(true);
+  const [pushable, setPushable] = useState(false);
+  const [pushKind, setPushKind] = useState("noop");
+  const [hasUncommitted, setHasUncommitted] = useState(false);
   const [stash, setStash] = useState(0);
   const [conflicts, setConflicts] = useState(0);
   const [pushFx, setPushFx] = useState(""); // "" | "sync-leaving" | "sync-exit"
@@ -213,17 +215,23 @@ export function ComposerDiffRow({ live }) {
       const cwd = selected?.worktree_dir ?? selected?.cwd ?? selected?.worktree_from;
       if (!cwd) return;
       try {
-        const r = await api.listBranches(cwd);
+        const [r, ps] = await Promise.all([
+          api.listBranches(cwd),
+          api.getPushState(ui.selectedId),
+        ]);
         if (!cancelled) {
           setIsGit(r.isGit !== false);
           setRemoteUrl(r.remoteUrl ?? null);
           setCurrentBranch(r.current ?? null);
-          // ahead === null ⇒ no upstream (branch not yet published).
-          setHasUpstream(r.ahead !== null);
           setAhead(r.ahead ?? 0);
           setBehind(r.behind ?? 0);
           setStash(r.stash ?? 0);
           setConflicts(r.conflicts ?? 0);
+          // Push affordance is authoritative: the SAME decidePushPlan the
+          // POST /push action runs — not re-derived from the fork-base diff.
+          setPushable(ps.pushable);
+          setPushKind(ps.kind);
+          setHasUncommitted(ps.hasUncommitted);
         }
       } catch {}
     };
@@ -281,10 +289,11 @@ export function ComposerDiffRow({ live }) {
 
   const showSync = ahead > 0 || behind > 0;
   const dirty = diff?.insertions > 0 || diff?.deletions > 0 || diff?.files > 0;
-  // Show Push when clean and there's something to publish: commits ahead, or a
-  // local-only branch (no upstream) that has a remote to push to.
-  const unpublished = !hasUpstream && !!remoteUrl;
-  const showPushOnly = !dirty && !!branch && (ahead > 0 || unpublished);
+  // Push shows iff the deterministic plan would actually push AND the working
+  // tree is clean (commit first). `dirty` (fork-base diff) counts committed-
+  // after-fork work, so it's NOT a clean-tree signal for worktrees — gate on
+  // hasUncommitted instead. "set-upstream" ⇒ local-only branch → "Publish".
+  const showPushOnly = pushable && !hasUncommitted;
 
   return (
     <>
@@ -408,7 +417,7 @@ export function ComposerDiffRow({ live }) {
       {showPushOnly && (
         <PushButton
           workerId={ui.selectedId}
-          label={unpublished ? "Publish" : "Push"}
+          label={pushKind === "set-upstream" ? "Publish" : "Push"}
           ahead={ahead}
           sourceRef={syncChipRef}
           onSourceFx={setPushFx}
