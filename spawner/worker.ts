@@ -107,12 +107,26 @@ evt.emit("lifecycle", {
   ...(wt.hydration ? { hydration: wt.hydration } : {}),
 });
 
+// Claude 2.1.168+ treats a child that inherits the parent's session markers
+// (CLAUDECODE / CLAUDE_CODE_*) as a NESTED session: it skips top-level
+// interactive registration and never persists the conversation transcript —
+// only the ai-title stub lands on disk. That silently starves the JSONL tail
+// (no assistant_text → blank chat). Strip them so each worker boots as its own
+// top-level interactive Claude session. (The daemon itself is often launched
+// from inside a Claude Code session, so these leak in via process.env.)
+const cleanEnv: Record<string, string> = {};
+for (const [k, v] of Object.entries(process.env)) {
+  if (v === undefined) continue;
+  if (k === "CLAUDECODE" || k.startsWith("CLAUDE_CODE_")) continue;
+  cleanEnv[k] = v;
+}
+
 const pty = ptySpawn(claudeBin, claudeArgs.args, {
   cwd: wt.cwd,
   cols: 120,
   rows: 30,
   env: {
-    ...(process.env as Record<string, string>),
+    ...cleanEnv,
     TERM: "xterm-256color",
     ...(opts.daemonUrl && opts.workerId
       ? {
