@@ -5,6 +5,8 @@ import { buildKeySequence, AnswerDriver } from "../answer-driver.ts";
 const DOWN = "\x1b[B";
 const RIGHT = "\x1b[C";
 const CR = "\r";
+// Footer fragment that flips the driver into "menu open" (see MENU_FRAGMENTS).
+const MENU = "some output ... Enter to select · ↑/↓ to navigate · Esc to cancel";
 
 // Compact the Step[] into a token string mirroring the probe notation
 // (scripts/probe/auq-probe.mjs) so each case reads like its verified sequence.
@@ -92,14 +94,39 @@ describe("AnswerDriver", () => {
 
   it("answer() writes the verified key bytes and confirms via a fresh tool_result", async () => {
     const { driver, writes } = makeDriver(() => Number.POSITIVE_INFINITY);
+    driver.feed(MENU);
     const outcome = await driver.answer([{ multiSelect: true, optionCount: 4, picks: [0, 2] }]);
     assert.equal(outcome, "answered");
     assert.deepEqual(writes, ["\r", "\x1b[B", "\x1b[B", "\r", "\x1b[C", "\r"]);
   });
 
-  it("answer() reports unverified when no tool_result lands", async () => {
+  it("answer() reports unverified when no tool_result lands, and still closes the menu", async () => {
     const { driver } = makeDriver(() => 0);
+    driver.feed(MENU);
     const outcome = await driver.answer([{ multiSelect: false, optionCount: 3, picks: [0] }]);
     assert.equal(outcome, "unverified");
+    assert.equal(driver.menuOpen, false); // close() runs in finally even when unverified
+  });
+
+  it("answer() is a no-op (no_menu) when no menu is open — never types into the composer", async () => {
+    const { driver, writes } = makeDriver(() => Number.POSITIVE_INFINITY);
+    const outcome = await driver.answer([{ multiSelect: false, optionCount: 3, picks: [0] }]);
+    assert.equal(outcome, "no_menu");
+    assert.deepEqual(writes, []);
+  });
+
+  it("cancel() escs an open menu then clears it", () => {
+    const { driver, writes } = makeDriver(() => 0);
+    driver.feed(MENU);
+    assert.equal(driver.menuOpen, true);
+    driver.cancel();
+    assert.deepEqual(writes, ["\x1b"]);
+    assert.equal(driver.menuOpen, false);
+  });
+
+  it("cancel() never writes Esc when no menu is open (cannot Esc-interrupt a turn)", () => {
+    const { driver, writes } = makeDriver(() => 0);
+    driver.cancel();
+    assert.deepEqual(writes, []);
   });
 });

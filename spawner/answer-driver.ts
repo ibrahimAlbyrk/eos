@@ -36,6 +36,7 @@ export type Step = { key: string } | { text: string };
 const DOWN = "\x1b[B";
 const RIGHT = "\x1b[C";
 const CR = "\r";
+const ESC = "\x1b";
 
 /**
  * Deterministic key sequence for a set of answered questions. Pure + exported so
@@ -136,6 +137,9 @@ export class AnswerDriver {
 
   async answer(answers: AnswerSpec[]): Promise<AnswerOutcome> {
     if (this.running) return "unverified";
+    // No menu on screen ⇒ never inject navigation keystrokes; they would land in
+    // the composer. The caller still releases any held messages.
+    if (!this.menu) return "no_menu";
     this.running = true;
     const t = this.deps.timeouts ?? {};
     const now = this.deps.now ?? Date.now;
@@ -147,12 +151,23 @@ export class AnswerDriver {
         await this.sleep(t.keyGapMs ?? KEY_GAP_MS);
       }
       const ok = await this.waitAnswerLanded(since, t.verifyMs ?? VERIFY_TIMEOUT_MS);
-      this.close();
       if (!ok) this.deps.log?.("answer delivered but no tool_result observed (unverified)");
       return ok ? "answered" : "unverified";
     } finally {
+      // close() on EVERY path (answered, unverified, throw) so the menu hold can
+      // never outlive the drive — this is the liveness guarantee dispatchToPty relies on.
+      this.close();
       this.running = false;
     }
+  }
+
+  /** Dismiss an open menu without answering: Esc cancels the native menu so the
+   *  agent unblocks with a "no answer" result, then state is cleared. No-op write
+   *  when no menu is believed open, so a stray cancel can't Esc-interrupt a turn. */
+  cancel(): void {
+    if (this.running) return;
+    if (this.menu) this.deps.write(ESC);
+    this.close();
   }
 
   private async waitAnswerLanded(since: number, timeoutMs: number): Promise<boolean> {
