@@ -240,7 +240,7 @@ export function ComposerDiffRow({ live }) {
   // as the fallback for edits that emit no events.
   useEffect(() => {
     if (live.eventSignal.workerId !== ui.selectedId) return;
-    const t = setTimeout(() => fetchDiffRef.current?.(), 600);
+    const t = setTimeout(() => { fetchDiffRef.current?.(); checkGitRef.current?.(); }, 600);
     return () => clearTimeout(t);
   }, [live.eventSignal.tick, live.eventSignal.workerId, ui.selectedId]);
 
