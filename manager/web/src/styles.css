@@ -2144,9 +2144,15 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 .pr-solo svg { color: var(--fg-dim); }
 
 /* ---- deterministic push button choreography ------------------------------ */
-.push-fx { position: relative; display: inline-flex; }
+.push-fx {
+  position: relative; display: inline-flex;
+  transform-origin: center;
+  transition: transform 300ms ease, opacity 300ms ease;
+}
+.push-fx.is-exit { transform: scale(0.3); opacity: 0; }
 .push-fx.is-run .push-fx-btn,
 .push-fx.is-done .push-fx-btn,
+.push-fx.is-exit .push-fx-btn,
 .push-fx.is-error .push-fx-btn { pointer-events: none; }
 
 /* Two faces (label / pushed-check) stacked in one grid cell so the button
@@ -2166,10 +2172,13 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 }
 .push-fx-check { opacity: 0; transform: translateY(9px); color: #fff; }
 .push-fx-check svg { color: #fff; }
-.push-fx.is-done .push-fx-label { opacity: 0; transform: translateY(-9px); }
-.push-fx.is-done .push-fx-check { opacity: 1; transform: none; }
+.push-fx.is-done .push-fx-label,
+.push-fx.is-exit .push-fx-label { opacity: 0; transform: translateY(-9px); }
+.push-fx.is-done .push-fx-check,
+.push-fx.is-exit .push-fx-check { opacity: 1; transform: none; }
 
-.push-fx.is-done .push-fx-btn {
+.push-fx.is-done .push-fx-btn,
+.push-fx.is-exit .push-fx-btn {
   background: var(--ok);
   border-color: var(--ok);
   color: #fff;
@@ -2226,7 +2235,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   80% { transform: translateX(2px); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .push-fx-btn, .push-fx-face { transition: none; }
+  .push-fx, .push-fx-btn, .push-fx-face { transition: none; }
   .push-fx-btn.splash::after, .push-fx.is-error .push-fx-btn { animation: none; }
 }
 

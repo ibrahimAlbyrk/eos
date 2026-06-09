@@ -88,17 +88,20 @@ export function PushButton({ workerId, label, ahead, sourceRef, onSettled }) {
       const to = { x: bb.left + bb.width / 2, y: bb.top + bb.height / 2 };
       sourceRef.current.style.transition = "opacity 140ms ease";
       sourceRef.current.style.opacity = "0";
-      setDrop({ x: from.x, y: from.y, dx: to.x - from.x, dy: to.y - from.y, n: ahead });
+      setDrop({ x: from.x, y: from.y, n: ahead });
       setPhase("run");
       await nextFrame();
       if (dropRef.current) {
+        // Travels horizontally into the button (no vertical motion), shrinking
+        // as it gets absorbed.
+        const dx = to.x - from.x;
         await dropRef.current.animate(
           [
             { transform: "translate(-50%,-50%) translate(0,0) scale(1)", opacity: 1, offset: 0 },
-            { transform: `translate(-50%,-50%) translate(${(to.x - from.x) * 0.55}px, ${(to.y - from.y) * 0.5 - 20}px) scale(0.9)`, opacity: 1, offset: 0.55 },
-            { transform: `translate(-50%,-50%) translate(${to.x - from.x}px, ${to.y - from.y}px) scale(0.2)`, opacity: 0.35, offset: 1 },
+            { transform: `translate(-50%,-50%) translate(${dx * 0.6}px,0) scale(0.92)`, opacity: 1, offset: 0.6 },
+            { transform: `translate(-50%,-50%) translate(${dx}px,0) scale(0.2)`, opacity: 0.3, offset: 1 },
           ],
-          { duration: DROP_MS, easing: "cubic-bezier(.45,.05,.55,.95)", fill: "forwards" },
+          { duration: DROP_MS, easing: "cubic-bezier(.4,0,.75,.45)", fill: "forwards" },
         ).finished;
       }
       setDrop(null);
@@ -123,14 +126,42 @@ export function PushButton({ workerId, label, ahead, sourceRef, onSettled }) {
     await settle(res?.body?.ok);
   }
 
+  function shrinkSource() {
+    const el = sourceRef?.current;
+    if (!el) return;
+    el.style.transition = "opacity 300ms ease, transform 300ms ease";
+    el.style.transformOrigin = "center";
+    el.style.transform = "scale(0.3)";
+    el.style.opacity = "0";
+  }
+  function restoreSource() {
+    const el = sourceRef?.current;
+    if (!el) return;
+    el.style.opacity = "";
+    el.style.transition = "";
+    el.style.transform = "";
+    el.style.transformOrigin = "";
+  }
+
   async function settle(ok) {
-    setPhase(ok ? "done" : "error");
-    await new Promise((r) => setTimeout(r, ok ? 760 : 1000));
-    if (sourceRef?.current) { sourceRef.current.style.opacity = ""; sourceRef.current.style.transition = ""; }
-    btnRef.current?.classList.remove("splash");
-    setRing(null);
-    setPhase("idle");
-    busyRef.current = false;
+    if (!ok) {
+      setPhase("error");
+      await new Promise((r) => setTimeout(r, 1000));
+      restoreSource();
+      btnRef.current?.classList.remove("splash");
+      setRing(null);
+      setPhase("idle");
+      busyRef.current = false;
+      onSettled?.();
+      return;
+    }
+    setPhase("done");
+    await new Promise((r) => setTimeout(r, 620));
+    // Shrink + fade the whole cluster away (keeping the green look), then let
+    // the data refresh unmount it while it's already faded — no abrupt pop.
+    shrinkSource();
+    setPhase("exit");
+    await new Promise((r) => setTimeout(r, 300));
     onSettled?.();
   }
 
