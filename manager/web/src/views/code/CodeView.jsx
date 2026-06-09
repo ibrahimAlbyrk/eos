@@ -83,12 +83,14 @@ export function CodeView({ live }) {
     requestAnimationFrame(() => requestAnimationFrame(() => { everReady = true; setReady(true); }));
   }, [ready, live.workers.length]);
 
+  // Grid sizing follows the VISIBLE (top) panel — buried panels stay mounted
+  // but must not claim the column.
   const gridClass = [
     ready ? "ready" : "",
-    ui.fileViewer ? "file-open" : "",
-    ui.agentViewer ? "agent-open" : "",
-    ui.diffViewer ? "diff-open" : "",
-    ui.commitsViewer ? "commits-open" : "",
+    ui.topPanelType === "file" ? "file-open" : "",
+    ui.topPanelType === "agent" ? "agent-open" : "",
+    ui.topPanelType === "diff" ? "diff-open" : "",
+    ui.topPanelType === "commits" ? "commits-open" : "",
   ].filter(Boolean).join(" ");
 
   return (

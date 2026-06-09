@@ -21,7 +21,7 @@ export function CommitsViewer() {
   const ui = useUi();
   const open = Boolean(ui.commitsViewer);
   return (
-    <div className={"commits-viewer" + (open ? " cv-open" : "")}>
+    <div className={"commits-viewer" + (ui.topPanelType === "commits" ? " cv-open" : "")}>
       {open && <CommitsViewerInner cwd={ui.commitsViewer.cwd} />}
     </div>
   );
