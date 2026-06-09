@@ -186,6 +186,7 @@ export function ComposerDiffRow({ live }) {
   const [hasUpstream, setHasUpstream] = useState(true);
   const [stash, setStash] = useState(0);
   const [conflicts, setConflicts] = useState(0);
+  const [pushFx, setPushFx] = useState(""); // "" | "sync-leaving" | "sync-exit"
 
   const fetchDiffRef = useRef(null);
   const checkGitRef = useRef(null);
@@ -242,6 +243,12 @@ export function ComposerDiffRow({ live }) {
     const t = setTimeout(() => fetchDiffRef.current?.(), 600);
     return () => clearTimeout(t);
   }, [live.eventSignal.tick, live.eventSignal.workerId, ui.selectedId]);
+
+  // Once there's nothing left to push, the sync chip unmounts — clear any push
+  // FX class so a future chip doesn't mount pre-hidden.
+  useEffect(() => {
+    if (ahead <= 0 && behind <= 0) setPushFx("");
+  }, [ahead, behind]);
 
   if (!selected || !isGit) return null;
 
@@ -316,7 +323,7 @@ export function ComposerDiffRow({ live }) {
       {showSync && (
         <button
           ref={syncChipRef}
-          className={"git-chip sync-chip sync-chip-btn" + (ui.commitsViewer ? " on" : "")}
+          className={"git-chip sync-chip sync-chip-btn" + (ui.commitsViewer ? " on" : "") + (pushFx ? " " + pushFx : "")}
           title="Show unpushed commits"
           onClick={() => {
             if (ui.commitsViewer) { ui.closeCommitsViewer(); return; }
@@ -404,6 +411,7 @@ export function ComposerDiffRow({ live }) {
           label={unpublished ? "Publish" : "Push"}
           ahead={ahead}
           sourceRef={syncChipRef}
+          onSourceFx={setPushFx}
           onSettled={() => checkGitRef.current?.()}
         />
       )}

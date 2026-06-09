@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../../api/client.js";
 
@@ -55,14 +55,17 @@ function CheckIcon() {
   );
 }
 
-export function PushButton({ workerId, label, ahead, sourceRef, onSettled }) {
+export function PushButton({ workerId, label, ahead, sourceRef, onSourceFx, onSettled }) {
   const btnRef = useRef(null);
   const ringRef = useRef(null);
   const dropRef = useRef(null);
   const busyRef = useRef(false);
-  const [phase, setPhase] = useState("idle"); // idle | run | done | error
+  const mountedRef = useRef(true);
+  const [phase, setPhase] = useState("idle"); // idle | run | done | exit | error
   const [ring, setRing] = useState(null);     // {w, h, d}
-  const [drop, setDrop] = useState(null);      // {x, y, dx, dy, n}
+  const [drop, setDrop] = useState(null);      // {x, y, n}
+
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
   const reduceMotion = () =>
     typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -86,8 +89,10 @@ export function PushButton({ workerId, label, ahead, sourceRef, onSettled }) {
     if (src && ahead > 0) {
       const from = { x: src.left + src.width / 2, y: src.top + src.height / 2 };
       const to = { x: bb.left + bb.width / 2, y: bb.top + bb.height / 2 };
-      sourceRef.current.style.transition = "opacity 140ms ease";
-      sourceRef.current.style.opacity = "0";
+      // Hide the original count via a React-managed class (never mutate the
+      // sibling's .style imperatively — React reuses that node and the stale
+      // inline style would leak onto whatever renders there next).
+      onSourceFx?.("sync-leaving");
       setDrop({ x: from.x, y: from.y, n: ahead });
       setPhase("run");
       await nextFrame();
@@ -126,32 +131,19 @@ export function PushButton({ workerId, label, ahead, sourceRef, onSettled }) {
     await settle(res?.body?.ok);
   }
 
-  function shrinkSource() {
-    const el = sourceRef?.current;
-    if (!el) return;
-    el.style.transition = "opacity 300ms ease, transform 300ms ease";
-    el.style.transformOrigin = "center";
-    el.style.transform = "scale(0.3)";
-    el.style.opacity = "0";
-  }
-  function restoreSource() {
-    const el = sourceRef?.current;
-    if (!el) return;
-    el.style.opacity = "";
-    el.style.transition = "";
-    el.style.transform = "";
-    el.style.transformOrigin = "";
+  function reset() {
+    onSourceFx?.("");
+    btnRef.current?.classList.remove("splash");
+    setRing(null);
+    setPhase("idle");
+    busyRef.current = false;
   }
 
   async function settle(ok) {
     if (!ok) {
       setPhase("error");
       await new Promise((r) => setTimeout(r, 1000));
-      restoreSource();
-      btnRef.current?.classList.remove("splash");
-      setRing(null);
-      setPhase("idle");
-      busyRef.current = false;
+      reset();
       onSettled?.();
       return;
     }
@@ -159,10 +151,14 @@ export function PushButton({ workerId, label, ahead, sourceRef, onSettled }) {
     await new Promise((r) => setTimeout(r, 620));
     // Shrink + fade the whole cluster away (keeping the green look), then let
     // the data refresh unmount it while it's already faded — no abrupt pop.
-    shrinkSource();
+    onSourceFx?.("sync-exit");
     setPhase("exit");
     await new Promise((r) => setTimeout(r, 300));
     onSettled?.();
+    // Usually the refresh unmounts us here (nothing left to push). If concurrent
+    // commits kept the button relevant, recover from the invisible exit state
+    // instead of staying hidden until a manual refresh.
+    setTimeout(() => { if (mountedRef.current) reset(); }, 450);
   }
 
   return (

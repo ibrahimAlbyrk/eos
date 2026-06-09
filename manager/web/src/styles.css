@@ -2210,6 +2210,19 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 }
 .push-fx.is-error .push-ring path { stroke: var(--err); }
 
+/* Sync chip fade/shrink while its count leaps into the push button. Driven by a
+   React class (not imperative .style) so the node never leaks a stale style. */
+.sync-chip.sync-leaving {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.sync-chip.sync-exit {
+  opacity: 0;
+  transform: scale(0.3);
+  transform-origin: center;
+  transition: opacity 300ms ease, transform 300ms ease;
+}
+
 /* The commit-count droplet that leaps into the button (portaled to <body>). */
 .push-drop {
   position: fixed; z-index: 1200;
