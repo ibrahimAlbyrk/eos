@@ -190,7 +190,9 @@ export function Messages({ live }) {
     if (!ui.agentViewer) return;
     const match = blocks.find(b => b.kind === "agentRun" && b.toolUseId === ui.agentViewer.toolUseId);
     if (match) ui.syncAgentViewer(match);
-  }, [blocks]);
+    // ui.agentViewer dep: re-sync when the agent panel returns to the top of
+    // the panel stack (its block may have gone stale while buried).
+  }, [blocks, ui.agentViewer]);
 
   // Blur-in baseline: blocks already present when an agent's transcript first
   // renders stay static; only blocks arriving afterwards animate. Re-baselined

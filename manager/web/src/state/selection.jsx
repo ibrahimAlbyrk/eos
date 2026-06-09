@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
+import { openPanel, closePanel, popPanel, topPanel, updatePanelData } from "../lib/panelStack.js";
 
 const SelectionContext = createContext(null);
 
@@ -32,11 +33,15 @@ export function SelectionProvider({ children }) {
   const [popoverData, setPopoverData] = useState({});
   const [collapsedNodes, setCollapsedNodes] = useState(() => new Set());
   const [expandedTools, setExpandedTools] = useState(() => new Set());
-  const [fileViewer, setFileViewer] = useState(null);
-  const [agentViewer, setAgentViewer] = useState(null);
-  const [diffViewer, setDiffViewer] = useState(null);
+  // Right-panel navigation stack (see lib/panelStack.js). The four viewer
+  // fields below derive from the top entry so consumers stay unchanged.
+  const [panelStack, setPanelStack] = useState([]);
+  const topViewer = topPanel(panelStack);
+  const fileViewer = topViewer?.type === "file" ? topViewer.data : null;
+  const agentViewer = topViewer?.type === "agent" ? topViewer.data : null;
+  const diffViewer = topViewer?.type === "diff" ? topViewer.data : null;
   // {cwd} — right panel listing committed-but-unpushed commits (@{u}..HEAD).
-  const [commitsViewer, setCommitsViewer] = useState(null);
+  const commitsViewer = topViewer?.type === "commits" ? topViewer.data : null;
   const [renamingId, setRenamingId] = useState(null);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   // {workerId, verdict, command, ts} — derived by Messages from the loaded
@@ -70,7 +75,7 @@ export function SelectionProvider({ children }) {
     setPopoverData({});
   }, []);
 
-  useEffect(() => { setFileViewer(null); setAgentViewer(null); setDiffViewer(null); setCommitsViewer(null); }, [selectedId]);
+  useEffect(() => { setPanelStack([]); }, [selectedId]);
 
   useEffect(() => {
     const onKey = (e) => {
@@ -82,10 +87,7 @@ export function SelectionProvider({ children }) {
       // macOS fullscreen. Closing a panel must not also drop fullscreen.
       if (rewindPanel) { e.preventDefault(); setRewindPanel(null); return; }
       if (openPopover) { e.preventDefault(); closeAllPops(); return; }
-      if (agentViewer) { e.preventDefault(); setAgentViewer(null); return; }
-      if (fileViewer) { e.preventDefault(); setFileViewer(null); return; }
-      if (diffViewer) { e.preventDefault(); setDiffViewer(null); return; }
-      if (commitsViewer) { e.preventDefault(); setCommitsViewer(null); return; }
+      if (panelStack.length) { e.preventDefault(); setPanelStack((s) => popPanel(s)); return; }
       if (escapeGitModeRef.current?.()) { e.preventDefault(); return; }
       // Double-Esc with an agent selected → rewind panel (Claude Code parity:
       // composer's own double-Esc-clears-text path preventDefaults, so this
@@ -102,7 +104,7 @@ export function SelectionProvider({ children }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeAllPops, openPopover, fileViewer, agentViewer, diffViewer, commitsViewer, rewindPanel, selectedId]);
+  }, [closeAllPops, openPopover, panelStack, rewindPanel, selectedId]);
 
   const toggleNodeCollapsed = useCallback((id) => {
     setCollapsedNodes((prev) => {
@@ -120,36 +122,16 @@ export function SelectionProvider({ children }) {
     });
   }, []);
 
-  const openFileViewer = useCallback((path) => {
-    setAgentViewer(null);
-    setDiffViewer(null);
-    setCommitsViewer(null);
-    setFileViewer({ path });
-  }, []);
-  const closeFileViewer = useCallback(() => setFileViewer(null), []);
-  const openAgentViewer = useCallback((block) => {
-    setFileViewer(null);
-    setDiffViewer(null);
-    setCommitsViewer(null);
-    setAgentViewer(block);
-  }, []);
-  const closeAgentViewer = useCallback(() => setAgentViewer(null), []);
-  const openDiffViewer = useCallback((workerId) => {
-    setFileViewer(null);
-    setAgentViewer(null);
-    setCommitsViewer(null);
-    setDiffViewer({ workerId });
-  }, []);
-  const closeDiffViewer = useCallback(() => setDiffViewer(null), []);
-  const openCommitsViewer = useCallback((cwd) => {
-    setFileViewer(null);
-    setAgentViewer(null);
-    setDiffViewer(null);
-    setCommitsViewer({ cwd });
-  }, []);
-  const closeCommitsViewer = useCallback(() => setCommitsViewer(null), []);
+  const openFileViewer = useCallback((path) => setPanelStack((s) => openPanel(s, "file", { path })), []);
+  const closeFileViewer = useCallback(() => setPanelStack((s) => closePanel(s, "file")), []);
+  const openAgentViewer = useCallback((block) => setPanelStack((s) => openPanel(s, "agent", block)), []);
+  const closeAgentViewer = useCallback(() => setPanelStack((s) => closePanel(s, "agent")), []);
+  const openDiffViewer = useCallback((workerId) => setPanelStack((s) => openPanel(s, "diff", { workerId })), []);
+  const closeDiffViewer = useCallback(() => setPanelStack((s) => closePanel(s, "diff")), []);
+  const openCommitsViewer = useCallback((cwd) => setPanelStack((s) => openPanel(s, "commits", { cwd })), []);
+  const closeCommitsViewer = useCallback(() => setPanelStack((s) => closePanel(s, "commits")), []);
   const syncAgentViewer = useCallback((block) => {
-    setAgentViewer((prev) => prev && prev.toolUseId === block.toolUseId ? block : prev);
+    setPanelStack((s) => updatePanelData(s, "agent", (prev) => prev.toolUseId === block.toolUseId ? block : prev));
   }, []);
 
   const value = useMemo(() => ({
@@ -171,7 +153,7 @@ export function SelectionProvider({ children }) {
   }), [
     selectedId, setSelectedId, takePreviousSelection,
     sideCollapsed, openPopover, popoverPos, popoverData,
-    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, fileViewer, agentViewer, diffViewer, commitsViewer,
+    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, panelStack,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded,
     openFileViewer, closeFileViewer,
