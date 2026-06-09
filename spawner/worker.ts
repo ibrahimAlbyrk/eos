@@ -195,19 +195,37 @@ const rewindDriver = new RewindDriver({
   isBusy: () => claudeTurnOpen || pipeline.busy,
   log: (m) => console.log(`[${name}][rewind] ${m}`),
 });
-let rewindBuffer: string[] = [];
+
+// A parked-writes buffer for one delivery gate: holds writes while the gate is
+// active and replays them, in arrival order, when flushed. The invariant every
+// hold must honor — there is always a path that flushes it. An unflushed hold
+// silently swallows the user's messages (the bug this guards against).
+class HoldBuffer {
+  private held: string[] = [];
+  private readonly isActive: () => boolean;
+  constructor(isActive: () => boolean) { this.isActive = isActive; }
+  get active(): boolean { return this.isActive(); }
+  hold(text: string): void { this.held.push(text); }
+  flush(sink: (_text: string) => void): void {
+    const pending = this.held;
+    this.held = [];
+    for (const t of pending) sink(t);
+  }
+}
+
+const rewindHold = new HoldBuffer(() => rewindDriver.active);
 
 // AnswerDriver — answers Claude's native AskUserQuestion menu with verified
 // keystrokes (replaces the old web-side interrupt+message path whose Esc made
 // the agent see a "rejected" result). Mutually exclusive with delivery: while a
 // menu is open, messages are held so no paste/CR/Esc lands on it.
 let lastToolResultTs = 0;
-let answerBuffer: string[] = [];
 const answerDriver = new AnswerDriver({
   write: (s) => pty.write(s),
   lastToolResultTs: () => lastToolResultTs,
   log: (m) => console.log(`[${name}][answer] ${m}`),
 });
+const answerHold = new HoldBuffer(() => answerDriver.menuOpen);
 
 // Lifecycle ----------------------------------------------------------------
 
@@ -272,11 +290,12 @@ pty.onData((data: string) => {
 // Ingest server (message + hook) ------------------------------------------
 
 function dispatchToPty(text: string): void {
+  // Each gate parks the write until it releases. Boot is special — its flush
+  // (onBootReady) also writes the initial prompt. An open rewind panel / AUQ
+  // menu owns the PTY: a paste/CR would feed it and an Esc would cancel it.
   if (!bootCompleted) { bootBuffer.push(text); return; }
-  if (rewindDriver.active) { rewindBuffer.push(text); return; }
-  // An open AskUserQuestion menu owns the PTY — a paste/CR would feed the menu
-  // and an Esc would cancel it. Hold the message until the menu is answered.
-  if (answerDriver.menuOpen) { answerBuffer.push(text); return; }
+  if (rewindHold.active) { rewindHold.hold(text); return; }
+  if (answerHold.active) { answerHold.hold(text); return; }
   deliver(text);
 }
 
@@ -343,11 +362,7 @@ function watchForClearedSession(oldSessionId: string, clearTs: number): void {
   }, CLEAR_SWAP_POLL_MS);
 }
 
-function flushAnswerBuffer(): void {
-  const held = answerBuffer;
-  answerBuffer = [];
-  for (const t of held) dispatchToPty(t);
-}
+function flushAnswerBuffer(): void { answerHold.flush(dispatchToPty); }
 
 const ingest = startIngestServer(opts.port, {
   onMessage(text): void {
