@@ -106,6 +106,9 @@ export const api = {
   async sendWorkerAction(id, action) {
     return postJson(ROUTES.workerAction(id), { action });
   },
+  async pushWorker(id) {
+    return postJson(ROUTES.workerPush(id));
+  },
   async interruptWorker(id) {
     return postJson(ROUTES.workerInterrupt(id));
   },

@@ -182,10 +182,13 @@ export function ComposerDiffRow({ live }) {
   const [currentBranch, setCurrentBranch] = useState(null);
   const [ahead, setAhead] = useState(0);
   const [behind, setBehind] = useState(0);
+  const [hasUpstream, setHasUpstream] = useState(true);
   const [stash, setStash] = useState(0);
   const [conflicts, setConflicts] = useState(0);
+  const [pushing, setPushing] = useState(false);
 
   const fetchDiffRef = useRef(null);
+  const checkGitRef = useRef(null);
 
   useEffect(() => {
     if (!ui.selectedId) return;
@@ -213,6 +216,8 @@ export function ComposerDiffRow({ live }) {
           setIsGit(r.isGit !== false);
           setRemoteUrl(r.remoteUrl ?? null);
           setCurrentBranch(r.current ?? null);
+          // ahead === null ⇒ no upstream (branch not yet published).
+          setHasUpstream(r.ahead !== null);
           setAhead(r.ahead ?? 0);
           setBehind(r.behind ?? 0);
           setStash(r.stash ?? 0);
@@ -220,10 +225,11 @@ export function ComposerDiffRow({ live }) {
         }
       } catch {}
     };
+    checkGitRef.current = checkGit;
     checkGit();
     fetchDiff();
     const t = setInterval(() => { fetchDiff(); checkGit(); }, DIFF_REFRESH_MS);
-    return () => { cancelled = true; clearInterval(t); ac.abort(); fetchDiffRef.current = null; };
+    return () => { cancelled = true; clearInterval(t); ac.abort(); fetchDiffRef.current = null; checkGitRef.current = null; };
   }, [ui.selectedId, selected?.cwd, selected?.worktree_from, selected?.worktree_dir]);
 
   // SSE-driven: the selected agent's activity refreshes the badge promptly.
@@ -265,13 +271,22 @@ export function ComposerDiffRow({ live }) {
     api.sendWorkerAction(ui.selectedId, id);
   };
 
-  const handlePush = () => {
-    api.sendWorkerMessage(ui.selectedId, "Push the current branch to the remote.");
+  // Deterministic push — the daemon picks the right variant (set-upstream /
+  // fast-forward / force-with-lease); no agent turn. Result lands in chat via
+  // the git_push event; refresh the sync chip once it settles.
+  const handlePush = async () => {
+    if (pushing) return;
+    setPushing(true);
+    try { await api.pushWorker(ui.selectedId); }
+    finally { setPushing(false); checkGitRef.current?.(); }
   };
 
   const showSync = ahead > 0 || behind > 0;
   const dirty = diff?.insertions > 0 || diff?.deletions > 0 || diff?.files > 0;
-  const showPushOnly = !dirty && ahead > 0;
+  // Show Push when clean and there's something to publish: commits ahead, or a
+  // local-only branch (no upstream) that has a remote to push to.
+  const unpublished = !hasUpstream && !!remoteUrl;
+  const showPushOnly = !dirty && !!branch && (ahead > 0 || unpublished);
 
   return (
     <>
@@ -392,9 +407,9 @@ export function ComposerDiffRow({ live }) {
         />
       )}
       {showPushOnly && (
-        <button className="pr-create-btn pr-solo" onClick={handlePush}>
+        <button className="pr-create-btn pr-solo" onClick={handlePush} disabled={pushing}>
           <OptionIcon type="push" />
-          <span>Push</span>
+          <span>{pushing ? "Pushing…" : unpublished ? "Publish" : "Push"}</span>
         </button>
       )}
       <SplitButton

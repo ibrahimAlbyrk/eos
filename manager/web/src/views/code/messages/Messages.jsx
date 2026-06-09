@@ -344,6 +344,14 @@ function renderBlock(b, key, cwd, ui, workers, animate) {
           conversation cleared
         </div>
       );
+    case "push":
+      return (
+        <div key={key} className={"git-push-line mono" + (b.ok ? " ok" : " err")}>
+          <span className="gp-icon" aria-hidden>{b.ok ? "↑" : "!"}</span>
+          <span className="gp-msg">{b.message}</span>
+          {b.branch && <span className="gp-branch">{b.branch}</span>}
+        </div>
+      );
     case "worktreePreserved": {
       const fileCount = (b.diffStat ?? "").trim().split("\n").filter(Boolean).length;
       return (

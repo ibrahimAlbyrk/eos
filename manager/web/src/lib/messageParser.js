@@ -238,6 +238,20 @@ export function buildBlocks(events) {
       out.push({ kind: "cleared", ts: ev.ts });
       continue;
     }
+    if (ev.type === "git_push") {
+      flushTools();
+      lastAsst = null;
+      const payload = parsePayload(ev.payload);
+      out.push({
+        kind: "push",
+        outcome: payload.outcome ?? "failed",
+        ok: payload.ok ?? false,
+        message: payload.message ?? "",
+        branch: payload.branch ?? null,
+        ts: ev.ts,
+      });
+      continue;
+    }
     if (ev.type === "worktree") {
       const payload = parsePayload(ev.payload);
       // Worker exited with uncommitted work — the worktree was preserved.

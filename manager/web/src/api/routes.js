@@ -15,6 +15,7 @@ export const ROUTES = {
   workerEvents: (id) => `/workers/${id}/events`,
   workerMessage: (id) => `/workers/${id}/message`,
   workerAction: (id) => `/workers/${id}/action`,
+  workerPush: (id) => `/workers/${id}/push`,
   orchestrators: "/orchestrators",
   orchestratorMessage: (id) => `/orchestrators/${id}/message`,
   policyDecide: "/policy/decide",
