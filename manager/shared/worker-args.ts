@@ -45,7 +45,9 @@ export function buildWorkerArgs(input: BuildWorkerArgsInput): string[] {
   }
   if (spec.cwd) args.push(flagToken("--cwd", spec.cwd));
   if (spec.worktreeFrom) args.push(flagToken("--worktree-from", spec.worktreeFrom));
-  if (spec.worktreeFrom && input.worker.hydrateEnvFiles) args.push("--hydrate-env");
+  if (spec.worktreeDir) args.push(flagToken("--worktree-dir", spec.worktreeDir));
+  if (spec.workspaceOf) args.push("--worktree-attach");
+  if (spec.worktreeFrom && !spec.workspaceOf && input.worker.hydrateEnvFiles) args.push("--hydrate-env");
   if (spec.branch) args.push(flagToken("--branch", spec.branch));
   if (spec.name) args.push(flagToken("--name", spec.name));
   if (spec.parentId) args.push(flagToken("--parent-id", spec.parentId));

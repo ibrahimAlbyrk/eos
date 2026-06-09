@@ -3,9 +3,9 @@
 // into module-scope globals.
 
 import { DatabaseSync } from "node:sqlite";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
-import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync, copyFileSync, readdirSync, statSync } from "node:fs";
+import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync, copyFileSync, readdirSync, statSync, realpathSync } from "node:fs";
 
 import { loadConfig, reloadConfig as reloadConfigFromDisk, type DaemonConfig, type ModelPrice } from "./shared/config.ts";
 import { expandPath } from "./shared/path.ts";
@@ -261,6 +261,12 @@ export function buildContainer() {
     });
   };
 
+  // Mirrors the worker's own derivation (realpath'd repo root + the managed
+  // .eos/worktrees/<branch> layout) so the precomputed dir and the dir the
+  // worker actually creates are byte-identical.
+  const resolveWorktreeDir: SpawnWorkerDeps["resolveWorktreeDir"] = (repoRoot, branch) =>
+    join(realpathSync(resolve(repoRoot)), ".eos", "worktrees", branch);
+
   const buildEnv: SpawnWorkerDeps["buildEnv"] = () => ({
     ...(process.env as Record<string, string>),
     EOS_CLAUDE_BIN: config.paths.claudeBin,
@@ -422,6 +428,7 @@ export function buildContainer() {
     recents,
     buildArgs,
     buildEnv,
+    resolveWorktreeDir,
     logFileFor,
     claudeCliBackend,
     backends,

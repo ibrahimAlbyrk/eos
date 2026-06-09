@@ -12,12 +12,14 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
   row: { state: WorkerState };
   toolCalls: { count: number };
   worktreeDirCalls: Array<{ id: string; dir: string }>;
+  forkBaseShaCalls: Array<{ id: string; sha: string }>;
   sessionIdCalls: Array<{ id: string; sessionId: string }>;
 } {
   const events: AppendedEvent[] = [];
   const row = { state: initialState };
   const toolCalls = { count: 0 };
   const worktreeDirCalls: Array<{ id: string; dir: string }> = [];
+  const forkBaseShaCalls: Array<{ id: string; sha: string }> = [];
   const sessionIdCalls: Array<{ id: string; sessionId: string }> = [];
   // Mutable so markSettling (driven by the Stop hook) actually opens the window
   // a subsequent jsonl event then observes — mirrors TurnSettleService.
@@ -29,6 +31,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
     setTurnStartedAt: () => {},
     incrementToolCalls: () => { toolCalls.count++; },
     setWorktreeDir: (id: string, dir: string) => { worktreeDirCalls.push({ id, dir }); },
+    setForkBaseSha: (id: string, sha: string) => { forkBaseShaCalls.push({ id, sha }); },
     setSessionId: (id: string, sessionId: string) => { sessionIdCalls.push({ id, sessionId }); },
   } as unknown as ProcessWorkerEventDeps["workers"];
 
@@ -56,7 +59,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
     markSettling: () => { settling = true; },
   } as unknown as ProcessWorkerEventDeps;
 
-  return { deps, events, row, toolCalls, worktreeDirCalls, sessionIdCalls };
+  return { deps, events, row, toolCalls, worktreeDirCalls, forkBaseShaCalls, sessionIdCalls };
 }
 
 const stateEvents = (events: AppendedEvent[]): Array<{ state?: string; reason?: string }> =>
@@ -89,6 +92,19 @@ describe("ProcessWorkerEvent.lifecycle — claude_spawning worktree_dir enrichme
     const { deps, worktreeDirCalls } = buildDeps("SPAWNING");
     processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning" } });
     assert.deepEqual(worktreeDirCalls, []);
+  });
+
+  it("persists the fork base sha stamped at worktree creation", () => {
+    const { deps, forkBaseShaCalls } = buildDeps("SPAWNING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning", worktreeDir: "/x", forkBaseSha: "abc123" } });
+    assert.deepEqual(forkBaseShaCalls, [{ id: "w1", sha: "abc123" }]);
+  });
+
+  it("is a no-op when forkBaseSha is missing or empty", () => {
+    const { deps, forkBaseShaCalls } = buildDeps("SPAWNING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning", worktreeDir: "/x" } });
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning", worktreeDir: "/x", forkBaseSha: "" } });
+    assert.deepEqual(forkBaseShaCalls, []);
   });
 });
 

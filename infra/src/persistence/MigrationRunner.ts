@@ -78,6 +78,8 @@ export const MIGRATIONS: Migration[] = [
   { id: "024_workers_add_turn_started_at", sql: "ALTER TABLE workers ADD COLUMN turn_started_at INTEGER" },
   { id: "025_workers_add_session_id", sql: "ALTER TABLE workers ADD COLUMN session_id TEXT" },
   { id: "026_workers_add_with_gateway", sql: "ALTER TABLE workers ADD COLUMN with_gateway INTEGER" },
+  { id: "027_workers_add_fork_base_sha", sql: "ALTER TABLE workers ADD COLUMN fork_base_sha TEXT" },
+  { id: "028_workers_add_workspace_owner_id", sql: "ALTER TABLE workers ADD COLUMN workspace_owner_id TEXT" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

@@ -82,6 +82,27 @@ test("worktree spawn appends environment section after static prompt", () => {
   }
 });
 
+test("attached spawn ships shared-workspace rules without a Handover line", () => {
+  const tmp = makeTmp();
+  try {
+    const out = buildSystemPromptFile({
+      staticPromptFile: undefined,
+      wt: { ...WT, attached: true },
+      tmpDir: tmp,
+      name: "git",
+      workerId: "w-2",
+    });
+    const content = readFileSync(out!, "utf8");
+    assert.match(content, /isolation: shared worktree \(attached\)/);
+    assert.match(content, /## Shared workspace rules/);
+    assert.ok(content.includes(WT.worktreeDir));
+    assert.ok(content.includes(WT.repoRoot));
+    assert.ok(!content.includes("Handover:"));
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
 test("unreadable static prompt still ships the environment section", () => {
   const tmp = makeTmp();
   try {

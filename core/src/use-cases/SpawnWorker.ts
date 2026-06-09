@@ -13,6 +13,7 @@ import type { Logger } from "../ports/Logger.ts";
 import type { RecentsRepo } from "../ports/RecentsRepo.ts";
 import type { AgentBackend } from "../ports/AgentBackend.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
+import { ConflictError, NotFoundError } from "../errors/index.ts";
 
 export interface SpawnWorkerSpec {
   prompt: string;
@@ -36,6 +37,15 @@ export interface SpawnWorkerSpec {
   /** Resume an existing claude session (`claude --resume <id>`) instead of
    * starting fresh. Set by ResumeWorker, never by a spawn route. */
   resumeSessionId?: string;
+  /** Spawn INTO an existing worker's worktree (shared workspace) instead of
+   * creating a fresh one. Resolved here: the target's worktree facts are
+   * copied onto this spec and the worker boots in attach mode (no create,
+   * no hydration, no teardown). Refused while the target is busy. */
+  workspaceOf?: string;
+  /** Resolved worktree directory. Internal: precomputed for fresh worktrees
+   * via deps.resolveWorktreeDir or copied from the workspaceOf target —
+   * never set by spawn routes. */
+  worktreeDir?: string;
 }
 
 export interface SpawnWorkerDeps {
@@ -53,6 +63,11 @@ export interface SpawnWorkerDeps {
   buildArgs(input: { id: string; port: number; spec: SpawnWorkerSpec; model: string }): string[];
   /** Builds the env map (the daemon-aware EOS_* triplet + bin paths). */
   buildEnv(input: { id: string; spec: SpawnWorkerSpec }): Record<string, string>;
+  /** Derives the worktree dir for a fresh worktree spawn (realpath'd repo root
+   * + the managed .eos/worktrees/<branch> layout) so the row is complete at
+   * insert — no enrichment window. The worker creates the worktree at exactly
+   * this path; its lifecycle event re-confirms it (idempotent). */
+  resolveWorktreeDir?(repoRoot: string, branch: string): string;
   /** Path where the supervisor should pipe the child's stdout/stderr. */
   logFileFor(id: string): string;
   /** When injected, spawning goes through the AgentBackend (the claude-cli
@@ -71,7 +86,30 @@ export async function spawnWorker(
   deps: SpawnWorkerDeps,
   spec: SpawnWorkerSpec,
 ): Promise<{ id: string; port: number }> {
-  const resolved = spec.parentId ? { ...spec, persistent: true } : spec;
+  let resolved = spec.parentId ? { ...spec, persistent: true } : spec;
+
+  // Attach mode: spawn INTO an existing worker's worktree. Copy the target's
+  // worktree facts so the rest of the flow (args, insert, delete cleanup)
+  // treats it like any worktree worker — except the worker boots with
+  // --worktree-attach and never creates/hydrates/tears down. Refused while
+  // the target is busy: two agents editing one tree mid-turn is a race.
+  if (resolved.workspaceOf) {
+    const target = deps.workers.findById(resolved.workspaceOf);
+    if (!target) throw new NotFoundError("worker", resolved.workspaceOf);
+    if (!target.worktree_from || !target.branch || !target.worktree_dir) {
+      throw new ConflictError("workspaceOf target has no worktree to attach to");
+    }
+    if (target.state === "SPAWNING" || target.state === "WORKING") {
+      throw new ConflictError("workspaceOf target is busy — attach when it is idle");
+    }
+    resolved = {
+      ...resolved,
+      cwd: undefined,
+      worktreeFrom: target.worktree_from,
+      branch: target.branch,
+      worktreeDir: target.worktree_dir,
+    };
+  }
 
   const id = resolved.fixedId ?? deps.ids.newWorkerId();
   const model = resolved.model ?? "opus";
@@ -89,7 +127,16 @@ export async function spawnWorker(
     resolved.worktreeFrom && !resolved.branch
       ? `eos-${label}${id}-${deps.clock.now().toString(36)}`
       : resolved.branch;
-  const withBranch = { ...resolved, branch };
+  // Complete the row at insert: a fresh worktree's dir is precomputed (the
+  // worker creates it at exactly this path), an attach already carries the
+  // target's dir. Kills the worktree_dir enrichment window the try/verify
+  // routes used to 409 on.
+  const worktreeDir =
+    resolved.worktreeDir ??
+    (resolved.worktreeFrom && branch && deps.resolveWorktreeDir
+      ? deps.resolveWorktreeDir(resolved.worktreeFrom, branch)
+      : undefined);
+  const withBranch = { ...resolved, branch, worktreeDir };
 
   // Daemon bookkeeping on child exit — shared by both spawn paths. The backend
   // path releases the port itself (it owns allocation); the legacy path releases
@@ -111,7 +158,10 @@ export async function spawnWorker(
     const session = await deps.backend.start(
       {
         workerId: id,
-        cwd: resolved.cwd ?? resolved.worktreeFrom ?? "",
+        // Attach: the shared worktree already exists on disk. Fresh worktree:
+        // the dir is only precomputed — it materializes during worker boot,
+        // so the launch cwd stays the source repo.
+        cwd: resolved.cwd ?? (resolved.workspaceOf ? worktreeDir : undefined) ?? resolved.worktreeFrom ?? "",
         model,
         effort,
         prompt: resolved.prompt,
@@ -161,6 +211,8 @@ export async function spawnWorker(
     backendProfile: null,
     agentRole: resolved.role ?? null,
     withGateway: !!resolved.withGateway,
+    worktreeDir: worktreeDir ?? null,
+    workspaceOwnerId: resolved.workspaceOf ?? null,
   });
 
   // A prompt-bearing spawn IS the start of a turn. The row is born busy

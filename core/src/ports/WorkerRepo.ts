@@ -22,6 +22,11 @@ export interface InsertWorkerInput {
   backendProfile: string | null;
   agentRole: string | null;
   withGateway: boolean;
+  // Known at insert for worktree spawns: precomputed for a fresh worktree
+  // (daemon derives the dir before the worker creates it) or copied from the
+  // workspaceOf target when attaching. Lifecycle enrichment stays as self-heal.
+  worktreeDir: string | null;
+  workspaceOwnerId: string | null;
 }
 
 export interface UsageDelta {
@@ -50,6 +55,9 @@ export interface WorkerRepo {
   // Persist the resolved (realpath'd) worktree directory once the worker
   // reports it — enrichment only; branch is written at insert.
   setWorktreeDir(id: string, worktreeDir: string): void;
+  // Persist the fork commit captured at worktree creation — the stable diff
+  // base (never re-derived from the source checkout's moving HEAD).
+  setForkBaseSha(id: string, sha: string): void;
   // Persist the claude session id the worker reports on capture/swap — the
   // key for resuming the conversation after the process dies.
   setSessionId(id: string, sessionId: string): void;

@@ -59,6 +59,8 @@ const wt = setupWorktree({
   cwd: opts.cwd,
   name,
   branch: opts.branch,
+  worktreeDir: opts.worktreeDir,
+  attach: opts.worktreeAttach,
   hydrateEnv: opts.hydrateEnv,
 }, (m) => console.log(`[${name}] ${m}`));
 
@@ -104,6 +106,8 @@ evt.emit("lifecycle", {
   cwd: wt.cwd,
   worktreeDir: wt.worktreeDir,
   branch: wt.branch,
+  forkBaseSha: wt.forkBaseSha,
+  attached: wt.attached,
   ...(wt.hydration ? { hydration: wt.hydration } : {}),
 });
 
@@ -585,7 +589,6 @@ function cleanup(code: number): void {
   teardownWorktree({
     ctx: wt,
     name,
-    keep: opts.keepWorktree,
     emit: (t, p) => evt.emit(t, p),
   });
 

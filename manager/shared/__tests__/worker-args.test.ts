@@ -29,8 +29,9 @@ const PARSE_OPTIONS = {
   prompt: { type: "string" },
   name: { type: "string" },
   "worktree-from": { type: "string" },
+  "worktree-dir": { type: "string" },
+  "worktree-attach": { type: "boolean", default: false },
   branch: { type: "string" },
-  "keep-worktree": { type: "boolean", default: false },
   "with-gateway": { type: "boolean", default: false },
   port: { type: "string", default: "7421" },
   "daemon-url": { type: "string" },
@@ -100,5 +101,34 @@ describe("buildWorkerArgs", () => {
     assert.ok(args.includes("--experimental-strip-types"));
     assert.ok(args.includes("--no-warnings"));
     assert.ok(args.includes(WORKER_SCRIPT));
+  });
+
+  it("emits worktree-dir + bare attach flag and skips hydration for attach specs", () => {
+    const input = baseInput({
+      prompt: "p",
+      worktreeFrom: "/repo",
+      branch: "eos-x",
+      worktreeDir: "/repo/.eos/worktrees/eos-x",
+      workspaceOf: "w-owner",
+    });
+    input.worker.hydrateEnvFiles = true;
+    const args = buildWorkerArgs(input);
+
+    assert.ok(args.includes("--worktree-dir=/repo/.eos/worktrees/eos-x"));
+    assert.ok(args.includes("--worktree-attach"));
+    assert.equal(args.indexOf("--hydrate-env"), -1);
+
+    const { values } = parseArgs({ args: postScriptSlice(args), options: PARSE_OPTIONS, strict: true });
+    assert.equal(values["worktree-dir"], "/repo/.eos/worktrees/eos-x");
+    assert.equal(values["worktree-attach"], true);
+  });
+
+  it("keeps hydration for fresh worktree specs with a precomputed dir", () => {
+    const input = baseInput({ prompt: "p", worktreeFrom: "/repo", branch: "eos-x", worktreeDir: "/repo/.eos/worktrees/eos-x" });
+    input.worker.hydrateEnvFiles = true;
+    const args = buildWorkerArgs(input);
+
+    assert.ok(args.includes("--hydrate-env"));
+    assert.equal(args.indexOf("--worktree-attach"), -1);
   });
 });

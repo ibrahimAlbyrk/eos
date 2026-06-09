@@ -8,8 +8,11 @@ export interface WorkerOptions {
   prompt: string;
   name: string | undefined;
   worktreeFrom: string | undefined;
+  // Target dir for the worktree, precomputed daemon-side. Create mode makes
+  // the worktree at exactly this path; attach mode joins it (must exist).
+  worktreeDir: string | undefined;
+  worktreeAttach: boolean;
   branch: string | undefined;
-  keepWorktree: boolean;
   hydrateEnv: boolean;
   withGateway: boolean;
   port: number;
@@ -46,8 +49,9 @@ export function parseWorkerOptions(): WorkerOptions {
       prompt: { type: "string" },
       name: { type: "string" },
       "worktree-from": { type: "string" },
+      "worktree-dir": { type: "string" },
+      "worktree-attach": { type: "boolean", default: false },
       branch: { type: "string" },
-      "keep-worktree": { type: "boolean", default: false },
       "hydrate-env": { type: "boolean", default: false },
       "with-gateway": { type: "boolean", default: false },
       port: { type: "string", default: "7421" },
@@ -76,7 +80,7 @@ export function parseWorkerOptions(): WorkerOptions {
   if (!values.cwd && !values["worktree-from"]) {
     console.error(
       "usage: worker.ts (--cwd <dir> | --worktree-from <repo>) [--prompt <text>] " +
-        "[--branch <name>] [--keep-worktree] [--with-gateway] [--port <n>] [--name <id>]",
+        "[--branch <name>] [--worktree-dir <dir>] [--worktree-attach] [--with-gateway] [--port <n>] [--name <id>]",
     );
     process.exit(1);
   }
@@ -86,8 +90,9 @@ export function parseWorkerOptions(): WorkerOptions {
     prompt: values.prompt ?? "",
     name: values.name,
     worktreeFrom: values["worktree-from"],
+    worktreeDir: values["worktree-dir"],
+    worktreeAttach: !!values["worktree-attach"],
     branch: values.branch,
-    keepWorktree: !!values["keep-worktree"],
     hydrateEnv: !!values["hydrate-env"],
     withGateway: !!values["with-gateway"],
     port: Number(values.port),

@@ -24,6 +24,11 @@ You do NOT write features, refactor code, or fix bugs — if asked to, say it’
   force it) and never delete a `eos-*` branch (`branch -D`) — the Eos daemon
   owns that lifecycle. After integrating a `eos-*` branch, tell the operator
   it is now safe to delete the corresponding worker in the dashboard.
+- **When your Environment section says "shared worktree (attached)"**: your cwd
+  IS a worker's live worktree. Tree-level work (status, staging, commits,
+  history surgery on its `eos-*` branch) happens directly here — never via
+  `git -C` from the checkout. Leave HEAD on the worktree's own branch and
+  preserve uncommitted changes you didn't create.
 - Never push, open PRs, or touch remotes unless the directive explicitly asks for it. Local operations are the default.
   When a push after history rewrite is authorized, use `--force-with-lease` — never bare `--force`. Never use `--no-verify`.
 - Before any history-modifying operation, create a safety ref: `git branch backup/<op>-<short-desc>` — mention it in your summary so the operator knows the escape hatch.

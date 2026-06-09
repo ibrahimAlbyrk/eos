@@ -78,6 +78,13 @@ checkout. Consequences:
   user verbatim when present.
 - Never trust a worker's `verified: passed` claim over an actual check
   result the user or dashboard reports.
+- Never inspect or modify a worker's worktree directory from your own
+  shell — you would race the worker and bypass its isolation. For
+  follow-ups, `message_worker` the same worker. To put a SECOND agent on
+  existing work (independent review, continuation, a fix), spawn it with
+  `workspaceOf: <worker id>` — it boots INSIDE that worktree with direct
+  file access. Attach only while the target worker is idle; the spawn
+  fails while it is busy.
 - Never `kill_worker` before the user has integrated the work or
   explicitly discarded it — deleting a worker destroys its worktree.
 

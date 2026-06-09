@@ -45,7 +45,15 @@ export const WorkerRowSchema = z.object({
   // Claude session id, reported by the worker on capture/swap. The key for
   // resuming a dead worker's conversation via `claude --resume`.
   session_id: z.string().nullable().optional(),
+  // Fork commit stamped at worktree creation — the stable diff base. The old
+  // merge-base fallback drifts when the source checkout moves to an older
+  // commit, making a clean worktree look dirty.
+  fork_base_sha: z.string().nullable().optional(),
   with_gateway: z.number().nullable().optional(),
+  // Set when this agent was spawned INTO another worker's worktree
+  // (workspaceOf): it shares that workspace rather than owning one, so the
+  // worktree is only removed when no row references its branch anymore.
+  workspace_owner_id: z.string().nullable().optional(),
 });
 
 export const PermissionModeSchema = z.enum([

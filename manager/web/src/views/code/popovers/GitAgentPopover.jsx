@@ -94,12 +94,20 @@ export function GitAgentPopover({ live, cwd }) {
 
   if (!open) return null;
 
-  const spawn = async (prompt, label) => {
+  const spawn = async (prompt, label, attach = null) => {
     ui.closeAllPops();
-    const r = await live.spawnGitAgent({ cwd, prompt, name: gitAgentName(cwd, info.current, label) });
+    // attach = {workspaceOf, branch}: tree-level ops on a selected worktree
+    // worker run INSIDE its worktree, not in the checkout.
+    const r = await live.spawnGitAgent(
+      attach
+        ? { workspaceOf: attach.workspaceOf, prompt, name: gitAgentName(cwd, attach.branch, label) }
+        : { cwd, prompt, name: gitAgentName(cwd, info.current, label) },
+    );
     if (r?.ok && r.body?.id) {
       ui.setSelectedId(r.body.id);
       ui.addOptimisticUserMessage(r.body.id, prompt, prompt);
+    } else if (!r?.ok) {
+      alert(r?.body?.error ?? "git agent spawn failed");
     }
   };
 
@@ -114,6 +122,11 @@ export function GitAgentPopover({ live, cwd }) {
   // the popover's cwd — with the branch named explicitly (the git agent can't
   // infer it from its own cwd).
   const agentBranch = selected?.worktree_from && selected?.branch ? selected.branch : null;
+  // Tree-level ops (commit) on a selected worktree worker attach INSIDE its
+  // worktree so the agent has direct access to that tree's state.
+  const treeAttach = selected?.worktree_dir && selected?.branch
+    ? { workspaceOf: selected.id, branch: selected.branch }
+    : null;
   const allBranches = (info.branches ?? []).filter((b) => b !== current);
   const shown = filter
     ? allBranches.filter((b) => b.toLowerCase().includes(filter.toLowerCase()))
@@ -170,7 +183,7 @@ export function GitAgentPopover({ live, cwd }) {
         </>
       ) : (
         <>
-          <button className="menu-item" onClick={() => spawn("Stage and commit the current changes. Review the diff first; split unrelated changes into atomic conventional commits.", "commit")}>
+          <button className="menu-item" onClick={() => spawn("Stage and commit the current changes. Review the diff first; split unrelated changes into atomic conventional commits.", "commit", treeAttach)}>
             <CommitIcon />
             Commit changes
           </button>

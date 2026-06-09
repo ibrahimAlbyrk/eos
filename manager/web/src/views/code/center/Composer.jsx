@@ -319,9 +319,29 @@ export function Composer({ live }) {
     agentText += suffix;
 
     if (ui.composer.gitMode) {
-      // Git agents always run in the user's checkout (correct for integrating
-      // a worker's eos-* branch) — but they must be told which branch matters,
-      // since their cwd's current branch is the user's, not the worker's.
+      // A worktree worker is selected → the git task is about ITS tree, so
+      // the git agent attaches INSIDE that worktree (direct file access, no
+      // `git -C` indirection); its Environment section carries the branch and
+      // checkout facts. Integration into the user's branch stays a checkout
+      // task (the popover's Integrate action).
+      if (selected?.worktree_dir && selected?.branch) {
+        ui.updateComposer({ gitMode: false });
+        const r = await live.spawnGitAgent({
+          workspaceOf: selected.id,
+          prompt: agentText,
+          name: gitAgentName(selected.worktree_from, selected.branch, gitTaskLabel(t)),
+        });
+        if (r?.ok && r.body?.id) {
+          ui.setSelectedId(r.body.id);
+          ui.addOptimisticUserMessage(r.body.id, displayText, agentText);
+        } else if (!r?.ok) {
+          alert(r?.body?.error ?? "git agent spawn failed");
+        }
+        return;
+      }
+      // Otherwise the git agent runs in the user's checkout — told which
+      // branch matters, since its cwd's current branch is the user's, not
+      // the worker's.
       const gitCwd = selected
         ? (selected.cwd ?? selected.worktree_from)
         : (ui.composer.cwd ?? live.recents[0] ?? null);

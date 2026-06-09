@@ -24,9 +24,12 @@ export const SpawnWorkerRequestSchema = z
     parentId: z.string().optional(),
     permissionMode: PermissionModeSchema.optional(),
     role: z.enum(["git"]).optional(),
+    // Spawn INTO an existing worker's worktree (shared workspace) instead of
+    // creating a fresh one. Takes precedence over cwd/worktreeFrom.
+    workspaceOf: z.string().optional(),
   })
-  .refine((b) => !!(b.cwd || b.worktreeFrom), {
-    message: "cwd or worktreeFrom required",
+  .refine((b) => !!(b.cwd || b.worktreeFrom || b.workspaceOf), {
+    message: "cwd, worktreeFrom or workspaceOf required",
   });
 export type SpawnWorkerRequest = z.infer<typeof SpawnWorkerRequestSchema>;
 

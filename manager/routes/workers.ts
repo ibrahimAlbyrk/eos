@@ -44,11 +44,15 @@ function gitDirOf(w: WorkerRow | null): string | null {
   return w ? (w.worktree_dir ?? w.cwd ?? w.worktree_from ?? null) : null;
 }
 
-// Diff base for worktree workers: the fork point vs the source checkout, so
-// commits the agent made after forking still show in /diff and /changes (an
-// agent that commits must never look "clean"). Null → plain HEAD diff.
+// Diff base for worktree workers: the fork point, so commits the agent made
+// after forking still show in /diff and /changes (an agent that commits must
+// never look "clean"). Prefer the SHA stamped at worktree creation — the
+// merge-base fallback (pre-027 rows) re-derives against the source checkout's
+// CURRENT head, which drifts when the user rewinds past the fork point and
+// makes a clean worktree look dirty. Null → plain HEAD diff.
 async function diffBaseOf(c: Container, w: WorkerRow | null): Promise<string | undefined> {
   if (!w?.worktree_dir || !w.worktree_from) return undefined;
+  if (w.fork_base_sha) return w.fork_base_sha;
   return (await c.git.mergeBase(w.worktree_dir, w.worktree_from)) ?? undefined;
 }
 
@@ -104,6 +108,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         log: c.log,
         buildArgs: c.buildArgs,
         buildEnv: c.buildEnv,
+        resolveWorktreeDir: c.resolveWorktreeDir,
         logFileFor: c.logFileFor,
         backend,
         onAgentEvent: c.onAgentEvent,
@@ -139,7 +144,19 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
           c.cleanupMcpConfig(id);
         },
         cleanupWorktree: (ref) => {
-          void c.worktrees.remove(ref).catch((e) => c.log.warn("worktree cleanup failed", { worker: params.id, error: errMsg(e) }));
+          // Shared-workspace guard: an attached agent (workspaceOf) — or the
+          // owner, when the attached agent is the one being deleted — may
+          // still live in this worktree. Remove only when no remaining row
+          // references the branch. (This fires 2s post-kill, so the deleted
+          // worker's own row is already gone from listAll.)
+          const shared = c.workers.listAll().some(
+            (w) => w.branch === ref.branch && w.worktree_from === ref.repoRoot,
+          );
+          if (shared) {
+            c.log.info("worktree kept — shared with another worker", { worker: params.id, branch: ref.branch });
+          } else {
+            void c.worktrees.remove(ref).catch((e) => c.log.warn("worktree cleanup failed", { worker: params.id, error: errMsg(e) }));
+          }
           // Drop the try snapshot ref too. An active try's patch/state live
           // outside the worktree and are deliberately preserved — discard
           // must survive worker deletion.

@@ -96,7 +96,7 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
     }
   },
   lifecycle(deps, input) {
-    const p = input.payload as { phase?: string; worktreeDir?: unknown; sessionId?: unknown } | null;
+    const p = input.payload as { phase?: string; worktreeDir?: unknown; forkBaseSha?: unknown; sessionId?: unknown } | null;
     const phase = p?.phase;
     if (phase === "claude_spawning") {
       // Enrichment only: persist the worker's resolved (realpath'd) worktree dir
@@ -104,6 +104,9 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
       // Raw string only — no path/fs math here (core stays Node-free).
       if (typeof p?.worktreeDir === "string" && p.worktreeDir.length > 0) {
         deps.workers.setWorktreeDir(input.workerId, p.worktreeDir);
+      }
+      if (typeof p?.forkBaseSha === "string" && p.forkBaseSha.length > 0) {
+        deps.workers.setForkBaseSha(input.workerId, p.forkBaseSha);
       }
     } else if (phase === "session_captured") {
       // Enrichment only: persist the claude session id so the conversation can
