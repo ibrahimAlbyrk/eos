@@ -1331,7 +1331,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   white-space: pre-wrap;
   word-break: break-all;
 }
-.bash-output.error { color: var(--err); }
 
 /* Edit detail (diff view) */
 .edit-detail {

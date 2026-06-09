@@ -72,7 +72,6 @@ export function BashDetail({ tool }) {
   const cmd = tool.input?.command ?? "";
   const output = tool.result?.text ?? "";
   const isError = tool.result?.isError ?? false;
-  const isDenied = isError && /^denied|permission mode|denied by policy/i.test(output);
 
   return (
     <div className="tool-detail bash-detail">
@@ -82,8 +81,8 @@ export function BashDetail({ tool }) {
         <span className="bash-prompt">$</span>
         <span className="bash-cmd-text">{cmd}</span>
       </div>
-      {!isDenied && (
-        <div className={"bash-output" + (isError ? " error" : "")}>
+      {!isError && (
+        <div className="bash-output">
           {output ? output.slice(0, 4000) : tool.running ? "Running…" : "(Bash completed with no output)"}
         </div>
       )}
