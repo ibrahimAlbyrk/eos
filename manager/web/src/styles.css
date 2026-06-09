@@ -2129,7 +2129,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.child-int-row .cir-clean { color: var(--fg-dim); font-size: var(--text-xs); opacity: 0.7; }
 
 /* Verify button feedback: spinner while the agent runs its checks */
 .verify-spin {

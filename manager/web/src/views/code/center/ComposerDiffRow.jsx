@@ -5,8 +5,8 @@ import { basename } from "../../../lib/path.js";
 import { VerifyButton } from "../VerifyButton.jsx";
 import { PushButton } from "./PushButton.jsx";
 import { useWorkerVerdict } from "../../../hooks/useWorkerVerdict.js";
-
-const DIFF_REFRESH_MS = 10000;
+import { useGitStatus } from "../../../hooks/useGitStatus.js";
+import { hasUnintegratedWork, isRowRelevant } from "../../../lib/workState.js";
 
 const PR_OPTIONS = [
   { id: "pr", label: "Create PR", icon: "pr" },
@@ -99,31 +99,14 @@ function SplitButton({ options, mode, onSelectMode, onAction, disabled, title })
 // Orchestrator hub strip: one row per worktree child with unintegrated work.
 // The user reviews/tests the whole fleet from the orchestrator screen — the
 // badge opens that child's Changes panel (Verify/Try live in its header)
-// without changing the selection.
+// without changing the selection. Dirty is the ONLY reason a row exists;
+// verdict/applied chips decorate existing work, they never resurrect a clean
+// child's row.
 function ChildIntegrationRow({ child, ui, live }) {
-  const [diff, setDiff] = useState(null);
-  const [tryState, setTryState] = useState({ activeTry: null, kept: false });
-  const fetchRef = useRef(null);
-  useEffect(() => {
-    let cancelled = false;
-    const fetchDiff = async () => {
-      const [r, ts] = await Promise.all([api.getWorkerDiff(child.id), api.getTryState(child.id)]);
-      if (!cancelled) { setDiff(r); setTryState(ts); }
-    };
-    fetchRef.current = fetchDiff;
-    fetchDiff();
-    const t = setInterval(fetchDiff, DIFF_REFRESH_MS);
-    return () => { cancelled = true; clearInterval(t); fetchRef.current = null; };
-  }, [child.id]);
-
-  // SSE-driven: the child's own activity (tool events, try_*) refreshes its
-  // badge promptly; debounced per burst, the interval above stays as the
-  // fallback for out-of-band edits.
-  useEffect(() => {
-    if (live.eventSignal.workerId !== child.id) return;
-    const t = setTimeout(() => fetchRef.current?.(), 600);
-    return () => clearTimeout(t);
-  }, [live.eventSignal.tick, live.eventSignal.workerId, child.id]);
+  const gitDir = child.worktree_dir ?? child.cwd ?? child.worktree_from;
+  const { status: gs } = useGitStatus(child.id, { gitDir, live });
+  const diff = gs?.diff ?? null;
+  const tryState = gs?.tryState ?? { activeTry: null, kept: false };
 
   // Verdict from the child's OWN transcript (same selector as its own view —
   // covers a user-clicked /verify that produced no parent report); the
@@ -132,8 +115,7 @@ function ChildIntegrationRow({ child, ui, live }) {
   const reported = ui.verdict?.children?.[child.id] ?? null;
   const verdict = derived && derived.verdict !== "unverified" ? derived : reported;
   const applied = Boolean(tryState.kept || tryState.activeTry?.workerId === child.id);
-  const dirty = diff && (diff.insertions > 0 || diff.deletions > 0 || diff.files > 0);
-  if (!dirty && !verdict && !applied) return null;
+  if (!hasUnintegratedWork(diff)) return null;
 
   // Top-only: a buried diff panel's badge must hoist on click, not close it.
   const viewing = ui.topPanelType === "diff" && ui.diffViewer?.workerId === child.id;
@@ -151,24 +133,20 @@ function ChildIntegrationRow({ child, ui, live }) {
         </span>
       )}
       <span className="diff-grow"></span>
-      {dirty ? (
-        <button
-          className={"diff-badge diff-badge-btn" + (viewing ? " on" : "")}
-          title="Review, verify and try this worker's changes"
-          onClick={() => (viewing ? ui.closeDiffViewer() : ui.openDiffViewer(child.id))}
-        >
-          {diff.insertions > 0 || diff.deletions > 0 ? (
-            <>
-              +{diff.insertions.toLocaleString()}{" "}
-              <span className="diff-neg">−{diff.deletions.toLocaleString()}</span>
-            </>
-          ) : (
-            <>{diff.files} new</>
-          )}
-        </button>
-      ) : (
-        <span className="cir-clean">integrated</span>
-      )}
+      <button
+        className={"diff-badge diff-badge-btn" + (viewing ? " on" : "")}
+        title="Review, verify and try this worker's changes"
+        onClick={() => (viewing ? ui.closeDiffViewer() : ui.openDiffViewer(child.id))}
+      >
+        {diff.insertions > 0 || diff.deletions > 0 ? (
+          <>
+            +{diff.insertions.toLocaleString()}{" "}
+            <span className="diff-neg">−{diff.deletions.toLocaleString()}</span>
+          </>
+        ) : (
+          <>{diff.files} new</>
+        )}
+      </button>
     </div>
   );
 }
@@ -176,82 +154,30 @@ function ChildIntegrationRow({ child, ui, live }) {
 export function ComposerDiffRow({ live }) {
   const ui = useUi();
   const selected = live.workers.find((w) => w.id === ui.selectedId);
-  const [diff, setDiff] = useState({ insertions: 0, deletions: 0, files: 0 });
-  const [isGit, setIsGit] = useState(true);
   const [prMode, setPrMode] = useState("pr");
   const [commitMode, setCommitMode] = useState("commit");
-  const [remoteUrl, setRemoteUrl] = useState(null);
-  const [currentBranch, setCurrentBranch] = useState(null);
-  const [ahead, setAhead] = useState(0);
-  const [behind, setBehind] = useState(0);
-  const [pushable, setPushable] = useState(false);
-  const [pushKind, setPushKind] = useState("noop");
-  const [hasUncommitted, setHasUncommitted] = useState(false);
-  const [stash, setStash] = useState(0);
-  const [conflicts, setConflicts] = useState(0);
   const [pushFx, setPushFx] = useState(""); // "" | "sync-leaving" | "sync-exit"
 
-  const fetchDiffRef = useRef(null);
-  const checkGitRef = useRef(null);
   const syncChipRef = useRef(null);
 
-  useEffect(() => {
-    if (!ui.selectedId) return;
-    const ac = new AbortController();
-    let cancelled = false;
-    const fetchDiff = async () => {
-      try {
-        const r = await api.getWorkerDiff(ui.selectedId, { signal: ac.signal });
-        if (!cancelled) {
-          if (r && (r.files > 0 || r.insertions > 0 || r.deletions > 0)) setIsGit(true);
-          setDiff(r ?? { insertions: 0, deletions: 0, files: 0 });
-        }
-      } catch {}
-    };
-    fetchDiffRef.current = fetchDiff;
-    const checkGit = async () => {
-      // Where the agent actually edits: worktree dir first (cwd is NULL for
-      // worktree rows) — otherwise these chips describe the USER'S repo while
-      // the diff badge reads the worktree.
-      const cwd = selected?.worktree_dir ?? selected?.cwd ?? selected?.worktree_from;
-      if (!cwd) return;
-      try {
-        const [r, ps] = await Promise.all([
-          api.listBranches(cwd),
-          api.getPushState(ui.selectedId),
-        ]);
-        if (!cancelled) {
-          setIsGit(r.isGit !== false);
-          setRemoteUrl(r.remoteUrl ?? null);
-          setCurrentBranch(r.current ?? null);
-          setAhead(r.ahead ?? 0);
-          setBehind(r.behind ?? 0);
-          setStash(r.stash ?? 0);
-          setConflicts(r.conflicts ?? 0);
-          // Push affordance is authoritative: the SAME decidePushPlan the
-          // POST /push action runs — not re-derived from the fork-base diff.
-          setPushable(ps.pushable);
-          setPushKind(ps.kind);
-          setHasUncommitted(ps.hasUncommitted);
-        }
-      } catch {}
-    };
-    checkGitRef.current = checkGit;
-    checkGit();
-    fetchDiff();
-    const t = setInterval(() => { fetchDiff(); checkGit(); }, DIFF_REFRESH_MS);
-    return () => { cancelled = true; clearInterval(t); ac.abort(); fetchDiffRef.current = null; checkGitRef.current = null; };
-  }, [ui.selectedId, selected?.cwd, selected?.worktree_from, selected?.worktree_dir]);
+  // Where the agent actually edits: worktree dir first (cwd is NULL for
+  // worktree rows) — otherwise these chips describe the USER'S repo while
+  // the diff badge reads the worktree.
+  const gitDir = selected?.worktree_dir ?? selected?.cwd ?? selected?.worktree_from;
+  const { status: gs, refresh } = useGitStatus(ui.selectedId, { gitDir, live });
 
-  // SSE-driven: the selected agent's activity refreshes the badge promptly.
-  // Debounced per event burst; /diff is one cheap git call, and identical
-  // in-flight GETs are deduplicated by the client. The interval above stays
-  // as the fallback for edits that emit no events.
-  useEffect(() => {
-    if (live.eventSignal.workerId !== ui.selectedId) return;
-    const t = setTimeout(() => { fetchDiffRef.current?.(); checkGitRef.current?.(); }, 600);
-    return () => clearTimeout(t);
-  }, [live.eventSignal.tick, live.eventSignal.workerId, ui.selectedId]);
+  // Snapshot missing (first visit) → render zeros: only folder/branch from the
+  // sync worker row show, chips/badges stay hidden until real data lands.
+  const diff = gs?.diff ?? { insertions: 0, deletions: 0, files: 0 };
+  const currentBranch = gs?.currentBranch ?? null;
+  const remoteUrl = gs?.remoteUrl ?? null;
+  const ahead = gs?.ahead ?? 0;
+  const behind = gs?.behind ?? 0;
+  const stash = gs?.stash ?? 0;
+  const conflicts = gs?.conflicts ?? 0;
+  const pushable = gs?.pushable ?? false;
+  const pushKind = gs?.pushKind ?? "noop";
+  const hasUncommitted = gs?.hasUncommitted ?? false;
 
   // Once there's nothing left to push, the sync chip unmounts — clear any push
   // FX class so a future chip doesn't mount pre-hidden.
@@ -259,7 +185,7 @@ export function ComposerDiffRow({ live }) {
     if (ahead <= 0 && behind <= 0) setPushFx("");
   }, [ahead, behind]);
 
-  if (!selected || !isGit) return null;
+  if (!selected || (gs && !gs.isGit)) return null;
 
   const isolated = Boolean(selected.worktree_dir || (selected.worktree_from && selected.branch));
   const isOrchestrator = Boolean(selected.is_orchestrator);
@@ -289,12 +215,18 @@ export function ComposerDiffRow({ live }) {
   };
 
   const showSync = ahead > 0 || behind > 0;
-  const dirty = diff?.insertions > 0 || diff?.deletions > 0 || diff?.files > 0;
+  const dirty = hasUnintegratedWork(diff);
   // Push shows iff the deterministic plan would actually push AND the working
   // tree is clean (commit first). `dirty` (fork-base diff) counts committed-
   // after-fork work, so it's NOT a clean-tree signal for worktrees — gate on
   // hasUncommitted instead. "set-upstream" ⇒ local-only branch → "Publish".
   const showPushOnly = pushable && !hasUncommitted;
+  // The orchestrator's own row earns its composer slot only when it has
+  // something to say — on a clean, synced checkout the field stays hidden
+  // (the hub strip above is independent and may still render).
+  const showOwnRow = !isOrchestrator ||
+    isRowRelevant({ diff, ahead, behind, stash, conflicts, verdict: showVerdict ? verdict : null });
+  if (!showOwnRow && childWorkers.length === 0) return null;
 
   return (
     <>
@@ -305,6 +237,7 @@ export function ComposerDiffRow({ live }) {
         ))}
       </div>
     )}
+    {showOwnRow && (
     <div className="c-row-diff" id="composerDiffRow">
       <span className="diff-repo-label">
         <b>{folder}</b>
@@ -382,7 +315,7 @@ export function ComposerDiffRow({ live }) {
           <span className="lbl">{conflicts === 1 ? "conflict" : "conflicts"}</span>
         </span>
       )}
-      {(diff?.insertions > 0 || diff?.deletions > 0 || diff?.files > 0) && (
+      {dirty && (
         <button
           className={"diff-badge diff-badge-btn" + (ui.topPanelType === "diff" ? " on" : "")}
           title="View changes"
@@ -422,7 +355,7 @@ export function ComposerDiffRow({ live }) {
           ahead={ahead}
           sourceRef={syncChipRef}
           onSourceFx={setPushFx}
-          onSettled={() => checkGitRef.current?.()}
+          onSettled={refresh}
         />
       )}
       <SplitButton
@@ -432,6 +365,7 @@ export function ComposerDiffRow({ live }) {
         onAction={handlePrAction}
       />
     </div>
+    )}
     </>
   );
 }
