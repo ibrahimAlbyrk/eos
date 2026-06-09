@@ -276,7 +276,7 @@ const FileCard = memo(function FileCard({ file, isOpen, patch, onToggle, onOpenF
   // Deleted files have nothing on disk to open.
   const openable = Boolean(onOpenFile) && file.status !== "D";
   return (
-    <div className={"dv-file dv-file-" + file.status.toLowerCase() + (isOpen ? " open" : "")}>
+    <div className={"dv-file" + (isOpen ? " open" : "")}>
       <button className="dv-row" onClick={() => onToggle(file)}>
         <svg className="dv-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="m6 4 4 4-4 4" />

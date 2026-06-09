@@ -4879,10 +4879,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   content-visibility: auto;
   contain-intrinsic-size: auto 35px;
 }
-.dv-file-m { --st-color: var(--warn); }
-.dv-file-a { --st-color: var(--ok); }
-.dv-file-d { --st-color: var(--err); }
-.dv-file-r { --st-color: var(--accent); }
+.dv-st-m { --st-color: var(--warn); }
+.dv-st-a { --st-color: var(--ok); }
+.dv-st-d { --st-color: var(--err); }
+.dv-st-r { --st-color: var(--accent); }
 
 .dv-row {
   display: flex;
@@ -4927,7 +4927,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   white-space: nowrap;
 }
 .dv-openable { cursor: pointer; }
-.dv-openable:hover .dv-base { color: var(--accent); }
+.dv-openable:hover .dv-base,
+.cv-file-path.dv-openable:hover { color: var(--accent); }
 .dv-dir {
   color: var(--fg-faint);
   overflow: hidden;

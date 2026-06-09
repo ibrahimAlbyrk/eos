@@ -90,7 +90,12 @@ function CommitsViewerInner({ cwd }) {
               <span className="cv-subject" title={c.subject}>{c.subject}</span>
               <span className="cv-meta">{c.author} · {ago(c.ts)}</span>
             </button>
-            {expanded.has(c.sha) && <CommitDetail detail={details.get(c.sha)} />}
+            {expanded.has(c.sha) && (
+              <CommitDetail
+                detail={details.get(c.sha)}
+                onOpenFile={(f) => ui.openFileViewer(cwd + "/" + f.path)}
+              />
+            )}
           </div>
         ))}
       </div>
@@ -98,7 +103,7 @@ function CommitsViewerInner({ cwd }) {
   );
 }
 
-function CommitDetail({ detail }) {
+function CommitDetail({ detail, onOpenFile }) {
   if (!detail || detail.loading) return <div className="dv-patch-note">Loading...</div>;
   if (detail.error) return <div className="dv-patch-note dv-patch-err">{detail.error}</div>;
   const d = detail.data;
@@ -111,19 +116,29 @@ function CommitDetail({ detail }) {
         <span className="dv-count">{d.files.length} file{d.files.length === 1 ? "" : "s"} changed</span>
       </div>
       <div className="cv-files">
-        {d.files.map((f) => (
+        {d.files.map((f) => {
+          // Files this commit deleted have nothing on disk to open.
+          const openable = f.status !== "D";
+          return (
           <div className="cv-file" key={f.path}>
             <span className={"dv-st dv-st-" + f.status.toLowerCase()} title={f.oldPath ? `${f.oldPath} → ${f.path}` : undefined}>
               {STATUS_LABEL[f.status]}
             </span>
-            <span className="cv-file-path" title={f.path}>{f.path}</span>
+            <span
+              className={"cv-file-path" + (openable ? " dv-openable" : "")}
+              title={f.path}
+              onClick={openable ? () => onOpenFile(f) : undefined}
+            >
+              {f.path}
+            </span>
             <span className="cv-file-counts">
               {f.insertions !== null && f.insertions > 0 && <span className="dv-add">+{f.insertions}</span>}
               {f.deletions !== null && f.deletions > 0 && <span className="dv-del">−{f.deletions}</span>}
               {f.insertions === null && <span className="dv-bin">bin</span>}
             </span>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
