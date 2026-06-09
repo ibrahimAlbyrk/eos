@@ -41,7 +41,11 @@ export function deriveChildVerdicts(events) {
     const p = parsePayload(ev.payload);
     if (!p.fromWorker || !p.text) continue;
     const v = verdictFromText(p.text);
-    if (v) map[p.fromWorker] = { ...v, ts: ev.ts };
+    if (!v) continue;
+    // Latest report wins; an "unverified" Handover clears the entry — it both
+    // invalidates an earlier verdict and must never read as a verdict itself.
+    if (v.verdict === "unverified") delete map[p.fromWorker];
+    else map[p.fromWorker] = { ...v, ts: ev.ts };
   }
   return map;
 }

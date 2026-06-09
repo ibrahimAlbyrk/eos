@@ -80,4 +80,12 @@ describe("deriveChildVerdicts", () => {
     const m = deriveChildVerdicts([report("w-1", "result: investigated, nothing to change", 10)]);
     expect(m["w-1"]).toBeUndefined();
   });
+
+  it("a later unverified Handover clears the earlier verdict instead of storing one", () => {
+    const m = deriveChildVerdicts([
+      report("w-1", "Handover: branch eos-a; verified by npm test (passed)", 10),
+      report("w-1", "Handover: branch eos-a; verified by nothing — unverified", 20),
+    ]);
+    expect(m["w-1"]).toBeUndefined();
+  });
 });

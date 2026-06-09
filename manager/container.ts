@@ -133,6 +133,7 @@ export function buildContainer() {
     priceFor(model: string | null | undefined): ModelPrice {
       const m = String(model ?? "opus").toLowerCase();
       if (m in config.prices) return config.prices[m];
+      if (m.includes("fable")) return config.prices.fable;
       if (m.includes("opus")) return config.prices.opus;
       if (m.includes("sonnet")) return config.prices.sonnet;
       if (m.includes("haiku")) return config.prices.haiku;

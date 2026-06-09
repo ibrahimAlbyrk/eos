@@ -3,6 +3,7 @@ import { curateCatalog, modelName, modelCtx, modelCtxTokens } from "./models.js"
 
 // Shape mirrors what the daemon maps from GET /v1/models
 const CATALOG = [
+  { id: "claude-fable-5", displayName: "Claude Fable 5", createdAt: "2026-06-09T00:00:00Z", maxInputTokens: 1000000, maxTokens: 128000 },
   { id: "claude-opus-4-8", displayName: "Claude Opus 4.8", createdAt: "2026-05-28T00:00:00Z", maxInputTokens: 1000000, maxTokens: 128000 },
   { id: "claude-opus-4-7", displayName: "Claude Opus 4.7", createdAt: "2026-04-14T00:00:00Z", maxInputTokens: 1000000, maxTokens: 128000 },
   { id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6", createdAt: "2026-02-17T00:00:00Z", maxInputTokens: 1000000, maxTokens: 128000 },
@@ -12,13 +13,13 @@ const CATALOG = [
 ];
 
 describe("curateCatalog", () => {
-  it("picks the newest model per family in haiku/sonnet/opus order", () => {
+  it("picks the newest model per family in haiku/sonnet/opus/fable order", () => {
     const out = curateCatalog(CATALOG);
-    expect(out.map((m) => m.id)).toEqual(["haiku-4.5", "sonnet-4.6", "opus-4.8"]);
+    expect(out.map((m) => m.id)).toEqual(["haiku-4.5", "sonnet-4.6", "opus-4.8", "fable-5"]);
   });
 
   it("derives display fields from API data", () => {
-    const [haiku, sonnet, opus] = curateCatalog(CATALOG);
+    const [haiku, sonnet, opus, fable] = curateCatalog(CATALOG);
     expect(haiku).toEqual({
       id: "haiku-4.5",
       aliases: ["haiku", "claude-haiku-4-5-20251001"],
@@ -31,6 +32,14 @@ describe("curateCatalog", () => {
     expect(sonnet.ctxTokens).toBe(1_000_000);
     expect(opus.aliases).toEqual(["opus", "claude-opus-4-8"]);
     expect(opus.tag).toBe("most capable");
+    expect(fable).toEqual({
+      id: "fable-5",
+      aliases: ["fable", "claude-fable-5"],
+      label: "fable-5",
+      name: "Fable 5",
+      ctxTokens: 1_000_000,
+      tag: "most powerful",
+    });
   });
 
   it("strips date suffixes from dated ids", () => {
@@ -49,7 +58,7 @@ describe("curateCatalog", () => {
 
   it("tolerates a partial catalog", () => {
     const out = curateCatalog([CATALOG[0]]);
-    expect(out.map((m) => m.id)).toEqual(["opus-4.8"]);
+    expect(out.map((m) => m.id)).toEqual(["fable-5"]);
   });
 });
 

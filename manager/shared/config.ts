@@ -105,6 +105,7 @@ function envStr(name: string, fallback: string): string {
 // ephemeral writes (1.25× input); cacheCreate1h is 1-hour ephemeral writes
 // (2× input). Override in config.json under `prices` if Anthropic changes them.
 const DEFAULT_PRICES: Record<string, ModelPrice> = {
+  fable:  { in: 10.0, out: 50.0, cacheRead: 1.00, cacheCreate: 12.50, cacheCreate1h: 20.0 },
   opus:   { in: 15.0, out: 75.0, cacheRead: 1.50, cacheCreate: 18.75, cacheCreate1h: 30.0 },
   sonnet: { in:  3.0, out: 15.0, cacheRead: 0.30, cacheCreate:  3.75, cacheCreate1h:  6.0 },
   haiku:  { in:  1.0, out:  5.0, cacheRead: 0.10, cacheCreate:  1.25, cacheCreate1h:  2.0 },

@@ -3,6 +3,7 @@ import { api } from "../api/client.js";
 import { SETTINGS_SECTIONS, SETTING_DEFAULTS } from "../settings/registry.jsx";
 import { THEME_KEY, THEME_STORAGE_KEY, resolveTheme, setTheme, watchSystemTheme } from "../settings/theme.js";
 import { useComposer } from "./composer.jsx";
+import { useSelection } from "./selection.jsx";
 
 const SettingsContext = createContext(null);
 
@@ -33,11 +34,16 @@ export function SettingsProvider({ children }) {
       .catch(() => { loaded.current = false; });
   }, []);
 
+  // Manual expand/collapse clicks are XOR overrides against the verbose
+  // defaults — a verbose.* change would render every previously-clicked tool
+  // row inverted to the new default, so drop the toggles with the change.
+  const { resetToolToggles } = useSelection();
   const setSetting = useCallback((key, value) => {
     if (key === THEME_KEY) themeChangedByUser.current = true;
+    if (key.startsWith("verbose.")) resetToolToggles();
     setSettings((v) => ({ ...v, [key]: value }));
     api.patchSettings({ [key]: value }).catch(() => {});
-  }, []);
+  }, [resetToolToggles]);
 
   // Default-model setting seeds the composer (what new agents spawn with);
   // per-agent changes stay in the model popover and don't touch the setting.

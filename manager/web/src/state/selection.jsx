@@ -125,6 +125,11 @@ export function SelectionProvider({ children }) {
     });
   }, []);
 
+  // Toggles are XOR overrides against the settings-driven default (see
+  // settings/toolExpansion.js). When a verbose.* setting changes, stale
+  // toggles would invert the new default — so settings.jsx drops them all.
+  const resetToolToggles = useCallback(() => setExpandedTools(new Set()), []);
+
   const openFileViewer = useCallback((path) => setPanelStack((s) => openPanel(s, "file", { path })), []);
   const closeFileViewer = useCallback(() => setPanelStack((s) => closePanel(s, "file")), []);
   const openAgentViewer = useCallback((block) => setPanelStack((s) => openPanel(s, "agent", block)), []);
@@ -142,7 +147,7 @@ export function SelectionProvider({ children }) {
     sideCollapsed, setSideCollapsed,
     openPopover, openPop, closeAllPops, popoverPos, popoverData,
     collapsedNodes, toggleNodeCollapsed,
-    expandedTools, toggleToolExpanded,
+    expandedTools, toggleToolExpanded, resetToolToggles,
     renamingId, setRenamingId,
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
     verdict, setVerdict,
@@ -159,7 +164,7 @@ export function SelectionProvider({ children }) {
     sideCollapsed, openPopover, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, panelStack,
     rewindPanel, openRewindPanel, closeRewindPanel,
-    openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded,
+    openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded, resetToolToggles,
     openFileViewer, closeFileViewer,
     openAgentViewer, closeAgentViewer, syncAgentViewer,
     openDiffViewer, closeDiffViewer,

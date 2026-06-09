@@ -7,7 +7,7 @@ import { WorkerToolCard, isWorkerTool } from "./WorkerToolCard.jsx";
 const APPEAR_MS = 600;
 
 export function ToolItem({ tool, standalone, cwd, workers }) {
-  if (isWorkerTool(tool.name)) return <WorkerToolCard tool={tool} workers={workers} />;
+  if (isWorkerTool(tool.name)) return <WorkerToolCard tool={tool} workers={workers} standalone={standalone} />;
   return <PlainToolItem tool={tool} standalone={standalone} cwd={cwd} />;
 }
 
