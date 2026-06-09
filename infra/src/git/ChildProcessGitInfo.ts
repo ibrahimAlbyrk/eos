@@ -177,6 +177,21 @@ export const childProcessGitInfo: GitInfo = {
     return { branch, remote, hasUpstream, ahead, behind };
   },
 
+  async hasUncommittedChanges(cwd: string): Promise<boolean> {
+    try {
+      const out = await runGit(cwd, ["status", "--porcelain"]);
+      // Managed worktrees live inside the repo at .eos/ — never count them as
+      // user changes (same filter as diffShortStat's untracked listing).
+      return out
+        .split("\n")
+        .map((l) => l.slice(3).trim())
+        .filter((p) => p && !p.startsWith(".eos/") && p !== ".eos")
+        .length > 0;
+    } catch {
+      return false;
+    }
+  },
+
   async unpushedCommits(cwd: string): Promise<UnpushedCommit[]> {
     try {
       // Unit separators keep subjects with any punctuation parseable; record

@@ -4,7 +4,7 @@
 import type { GitInfo } from "../ports/GitInfo.ts";
 import type { BranchPush } from "../ports/BranchPush.ts";
 import type { PushResult } from "../../../contracts/src/http.ts";
-import { decidePushPlan, summarizePushResult, type PushExecReason } from "../domain/push-plan.ts";
+import { decidePushPlan, isActionablePushPlan, summarizePushResult, type PushExecReason } from "../domain/push-plan.ts";
 
 export interface PushBranchDeps {
   git: GitInfo;
@@ -17,7 +17,7 @@ export async function pushBranch(deps: PushBranchDeps, cwd: string): Promise<Pus
 
   let reason: PushExecReason | null = null;
   let detail: string | undefined;
-  if (plan.kind === "set-upstream" || plan.kind === "fast-forward" || plan.kind === "force-with-lease") {
+  if (isActionablePushPlan(plan)) {
     const exec = await deps.branchPush.push(cwd, plan);
     reason = exec.reason;
     detail = (exec.stderr.trim() || exec.stdout.trim()) || undefined;

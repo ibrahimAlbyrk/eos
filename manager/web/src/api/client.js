@@ -298,6 +298,20 @@ export const api = {
     }
   },
 
+  async getPushState(id, { signal } = {}) {
+    const fallback = {
+      branch: null, remote: null, hasUpstream: false,
+      ahead: 0, behind: 0, kind: "blocked", pushable: false, hasUncommitted: false,
+    };
+    try {
+      const r = await getJson(ROUTES.workerPushState(id), { signal });
+      return r.ok ? r.body : fallback;
+    } catch (e) {
+      if (e?.name === "AbortError") throw e;
+      return fallback;
+    }
+  },
+
   async getWorkerChanges(id) {
     try {
       const r = await getJson(ROUTES.workerChanges(id));

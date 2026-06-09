@@ -42,4 +42,8 @@ export interface GitInfo {
   /** Branch + remote + upstream presence + ahead/behind, bundled — the input to
    *  the pure push decision. Collapses to a benign all-null/zero state on error. */
   pushState(cwd: string): Promise<PushState>;
+  /** True when the working tree has uncommitted changes (`git status --porcelain`
+   *  non-empty). Working-tree-only — unlike diffShortStat(base) it never counts
+   *  committed-after-fork work, so it's a correct "commit before pushing" gate. */
+  hasUncommittedChanges(cwd: string): Promise<boolean>;
 }

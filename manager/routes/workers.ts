@@ -35,6 +35,7 @@ import { expandPath } from "../shared/path.ts";
 import { resumeWorkerVia, resumeIfDead } from "./resume-helpers.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
 import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
+import { decidePushPlan, isActionablePushPlan } from "../../core/src/domain/push-plan.ts";
 
 // Where the agent actually edits: the worktree dir when spawned with a
 // worktree (cwd is NULL for those rows), plain cwd otherwise. worktree_from
@@ -518,6 +519,37 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     if (!cwd) { writeJson(res, 200, { insertions: 0, deletions: 0, files: 0 }); return; }
     const stat = await c.git.diffShortStat(cwd, await diffBaseOf(c, w));
     writeJson(res, 200, stat);
+  });
+
+  // Read-only push readiness — the SAME decidePushPlan the POST /push action
+  // runs, so the UI's Push-button visibility shares one source of truth. NOT
+  // gated on the fork-base diff (which counts committed work as dirty and hides
+  // Push on local-only worktrees); `hasUncommitted` is the real clean-tree gate.
+  r.get(/^\/workers\/(?<id>[^/]+)\/push-state$/, async ({ params, res }) => {
+    const w = c.workers.findById(params.id);
+    const dir = gitDirOf(w);
+    if (!dir) {
+      writeJson(res, 200, {
+        branch: null, remote: null, hasUpstream: false,
+        ahead: 0, behind: 0, kind: "blocked", pushable: false, hasUncommitted: false,
+      });
+      return;
+    }
+    const [state, hasUncommitted] = await Promise.all([
+      c.git.pushState(dir),
+      c.git.hasUncommittedChanges(dir),
+    ]);
+    const plan = decidePushPlan(state);
+    writeJson(res, 200, {
+      branch: state.branch,
+      remote: state.remote,
+      hasUpstream: state.hasUpstream,
+      ahead: state.ahead,
+      behind: state.behind,
+      kind: plan.kind,
+      pushable: isActionablePushPlan(plan),
+      hasUncommitted,
+    });
   });
 
   r.get(/^\/workers\/(?<id>[^/]+)\/changes$/, async ({ params, res }) => {

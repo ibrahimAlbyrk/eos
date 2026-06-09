@@ -45,6 +45,16 @@ export function decidePushPlan(s: PushState): PushPlan {
   return { kind: "noop", reason: "up-to-date" };
 }
 
+// The subset that invokes git — the SSOT for "is there something to push".
+// Both the push action and the UI's button-visibility check route through this.
+export function isActionablePushPlan(plan: PushPlan): plan is ActionablePushPlan {
+  return (
+    plan.kind === "set-upstream" ||
+    plan.kind === "fast-forward" ||
+    plan.kind === "force-with-lease"
+  );
+}
+
 export interface PushSummary {
   outcome: PushOutcome;
   ok: boolean;

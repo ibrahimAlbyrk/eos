@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
   decidePushPlan,
+  isActionablePushPlan,
   summarizePushResult,
   type PushState,
   type PushPlan,
@@ -47,6 +48,24 @@ describe("decidePushPlan", () => {
 
   it("noop when up to date", () => {
     assert.deepEqual(decidePushPlan(state({ ahead: 0, behind: 0 })), { kind: "noop", reason: "up-to-date" });
+  });
+});
+
+describe("isActionablePushPlan", () => {
+  it("treats a local-only branch (set-upstream) as pushable — the bug this fixes", () => {
+    assert.equal(isActionablePushPlan(decidePushPlan(state({ hasUpstream: false }))), true);
+  });
+
+  it("treats fast-forward and force-with-lease as pushable", () => {
+    assert.equal(isActionablePushPlan(decidePushPlan(state({ ahead: 1 }))), true);
+    assert.equal(isActionablePushPlan(decidePushPlan(state({ ahead: 1, behind: 1 }))), true);
+  });
+
+  it("treats noop/blocked as NOT pushable", () => {
+    assert.equal(isActionablePushPlan(decidePushPlan(state({}))), false);
+    assert.equal(isActionablePushPlan(decidePushPlan(state({ behind: 2 }))), false);
+    assert.equal(isActionablePushPlan(decidePushPlan(state({ branch: null }))), false);
+    assert.equal(isActionablePushPlan(decidePushPlan(state({ remote: null }))), false);
   });
 });
 

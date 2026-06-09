@@ -109,6 +109,35 @@ export const PushResultSchema = z.object({
 });
 export type PushResult = z.infer<typeof PushResultSchema>;
 
+// ---- GET /workers/:id/push-state -------------------------------------------
+// Read-only twin of POST /push: the SAME decidePushPlan verdict the push action
+// runs, surfaced so the UI's Push-button visibility shares one source of truth
+// instead of re-deriving it from the fork-base diff (which counts committed-
+// after-fork work as "dirty" and wrongly hides Push on local-only worktrees).
+// `pushable` = the plan would actually push; `hasUncommitted` = working tree is
+// dirty (commit before pushing).
+
+export const PushPlanKindSchema = z.enum([
+  "set-upstream",
+  "fast-forward",
+  "force-with-lease",
+  "noop",
+  "blocked",
+]);
+export type PushPlanKind = z.infer<typeof PushPlanKindSchema>;
+
+export const PushStateResponseSchema = z.object({
+  branch: z.string().nullable(),
+  remote: z.string().nullable(),
+  hasUpstream: z.boolean(),
+  ahead: z.number().int().nonnegative(),
+  behind: z.number().int().nonnegative(),
+  kind: PushPlanKindSchema,
+  pushable: z.boolean(),
+  hasUncommitted: z.boolean(),
+});
+export type PushStateResponse = z.infer<typeof PushStateResponseSchema>;
+
 // ---- GET /workers/:id/events ----------------------------------------------
 
 export const EventsQuerySchema = z.object({
@@ -728,6 +757,7 @@ export const ROUTES = {
   workerMessage: (id: string): string => `/workers/${id}/message`,
   workerAction: (id: string): string => `/workers/${id}/action`,
   workerPush: (id: string): string => `/workers/${id}/push`,
+  workerPushState: (id: string): string => `/workers/${id}/push-state`,
   orchestrators: "/orchestrators",
   orchestratorMessage: (id: string): string => `/orchestrators/${id}/message`,
   policyDecide: "/policy/decide",
