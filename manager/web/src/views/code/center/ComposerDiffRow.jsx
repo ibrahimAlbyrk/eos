@@ -3,6 +3,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { basename } from "../../../lib/path.js";
 import { VerifyButton } from "../VerifyButton.jsx";
+import { PushButton } from "./PushButton.jsx";
 import { useWorkerVerdict } from "../../../hooks/useWorkerVerdict.js";
 
 const DIFF_REFRESH_MS = 10000;
@@ -185,10 +186,10 @@ export function ComposerDiffRow({ live }) {
   const [hasUpstream, setHasUpstream] = useState(true);
   const [stash, setStash] = useState(0);
   const [conflicts, setConflicts] = useState(0);
-  const [pushing, setPushing] = useState(false);
 
   const fetchDiffRef = useRef(null);
   const checkGitRef = useRef(null);
+  const syncChipRef = useRef(null);
 
   useEffect(() => {
     if (!ui.selectedId) return;
@@ -271,16 +272,6 @@ export function ComposerDiffRow({ live }) {
     api.sendWorkerAction(ui.selectedId, id);
   };
 
-  // Deterministic push — the daemon picks the right variant (set-upstream /
-  // fast-forward / force-with-lease); no agent turn. Result lands in chat via
-  // the git_push event; refresh the sync chip once it settles.
-  const handlePush = async () => {
-    if (pushing) return;
-    setPushing(true);
-    try { await api.pushWorker(ui.selectedId); }
-    finally { setPushing(false); checkGitRef.current?.(); }
-  };
-
   const showSync = ahead > 0 || behind > 0;
   const dirty = diff?.insertions > 0 || diff?.deletions > 0 || diff?.files > 0;
   // Show Push when clean and there's something to publish: commits ahead, or a
@@ -324,6 +315,7 @@ export function ComposerDiffRow({ live }) {
       <span className="diff-grow"></span>
       {showSync && (
         <button
+          ref={syncChipRef}
           className={"git-chip sync-chip sync-chip-btn" + (ui.commitsViewer ? " on" : "")}
           title="Show unpushed commits"
           onClick={() => {
@@ -407,10 +399,13 @@ export function ComposerDiffRow({ live }) {
         />
       )}
       {showPushOnly && (
-        <button className="pr-create-btn pr-solo" onClick={handlePush} disabled={pushing}>
-          <OptionIcon type="push" />
-          <span>{pushing ? "Pushing…" : unpublished ? "Publish" : "Push"}</span>
-        </button>
+        <PushButton
+          workerId={ui.selectedId}
+          label={unpublished ? "Publish" : "Push"}
+          ahead={ahead}
+          sourceRef={syncChipRef}
+          onSettled={() => checkGitRef.current?.()}
+        />
       )}
       <SplitButton
         options={PR_OPTIONS}

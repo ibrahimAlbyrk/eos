@@ -2143,6 +2143,93 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 }
 .pr-solo svg { color: var(--fg-dim); }
 
+/* ---- deterministic push button choreography ------------------------------ */
+.push-fx { position: relative; display: inline-flex; }
+.push-fx.is-run .push-fx-btn,
+.push-fx.is-done .push-fx-btn,
+.push-fx.is-error .push-fx-btn { pointer-events: none; }
+
+/* Two faces (label / pushed-check) stacked in one grid cell so the button
+   keeps a stable width as it swaps between them. */
+.push-fx-btn {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  transition: background 200ms ease, border-color 200ms ease, color 200ms ease;
+}
+.push-fx-face {
+  grid-area: 1 / 1;
+  display: inline-flex; align-items: center; gap: 5px;
+  white-space: nowrap;
+  transition: opacity 220ms ease, transform 220ms ease;
+}
+.push-fx-check { opacity: 0; transform: translateY(9px); color: #fff; }
+.push-fx-check svg { color: #fff; }
+.push-fx.is-done .push-fx-label { opacity: 0; transform: translateY(-9px); }
+.push-fx.is-done .push-fx-check { opacity: 1; transform: none; }
+
+.push-fx.is-done .push-fx-btn {
+  background: var(--ok);
+  border-color: var(--ok);
+  color: #fff;
+}
+.push-fx.is-error .push-fx-btn {
+  background: var(--err);
+  border-color: var(--err);
+  color: #fff;
+  animation: push-shake 360ms ease;
+}
+
+/* Green splash where the droplet lands — clipped to the button by overflow. */
+.push-fx-btn::after {
+  content: "";
+  position: absolute; inset: 0; margin: auto;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: radial-gradient(circle, var(--ok) 0%, transparent 70%);
+  opacity: 0; transform: scale(0);
+  pointer-events: none;
+}
+.push-fx-btn.splash::after { animation: push-splash 460ms ease-out; }
+
+/* Counter-clockwise perimeter trace overlay. */
+.push-ring {
+  position: absolute; left: 0; top: 0;
+  width: 100%; height: 100%;
+  pointer-events: none; overflow: visible;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--ok) 60%, transparent));
+}
+.push-fx.is-error .push-ring path { stroke: var(--err); }
+
+/* The commit-count droplet that leaps into the button (portaled to <body>). */
+.push-drop {
+  position: fixed; z-index: 1200;
+  transform: translate(-50%, -50%);
+  display: inline-flex; align-items: center; gap: 3px;
+  padding: 2px 7px; border-radius: 999px;
+  background: var(--ok); color: rgba(3, 40, 18, 0.92);
+  font-size: 11px; font-weight: 700; line-height: 1;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+.push-drop svg { color: rgba(3, 40, 18, 0.85); }
+
+@keyframes push-splash {
+  0%   { opacity: 0.85; transform: scale(0); }
+  100% { opacity: 0; transform: scale(16); }
+}
+@keyframes push-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-2px); }
+  80% { transform: translateX(2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .push-fx-btn, .push-fx-face { transition: none; }
+  .push-fx-btn.splash::after, .push-fx.is-error .push-fx-btn { animation: none; }
+}
+
 .pr-menu {
   position: absolute;
   bottom: calc(100% + 6px);
@@ -3849,6 +3936,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 }
 .git-agent-popover .menu-item:hover { background: rgba(var(--tint), 0.06); }
 .git-agent-popover .menu-item svg { color: var(--git); flex-shrink: 0; }
+.git-agent-popover .menu-item kbd { margin-left: auto; }
 .git-agent-popover .menu-item.warn { color: var(--warn); }
 .git-agent-popover .menu-item.warn svg { color: var(--warn); }
 .git-agent-popover .menu-item.warn:hover { background: color-mix(in srgb, var(--warn) 10%, transparent); }
