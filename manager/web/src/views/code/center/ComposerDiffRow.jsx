@@ -135,7 +135,8 @@ function ChildIntegrationRow({ child, ui, live }) {
   const dirty = diff && (diff.insertions > 0 || diff.deletions > 0 || diff.files > 0);
   if (!dirty && !verdict && !applied) return null;
 
-  const viewing = ui.diffViewer?.workerId === child.id;
+  // Top-only: a buried diff panel's badge must hoist on click, not close it.
+  const viewing = ui.topPanelType === "diff" && ui.diffViewer?.workerId === child.id;
   return (
     <div className="child-int-row">
       <span className="cir-name" title={child.branch ?? undefined}>{child.name ?? child.id}</span>
@@ -332,10 +333,10 @@ export function ComposerDiffRow({ live }) {
       {showSync && (
         <button
           ref={syncChipRef}
-          className={"git-chip sync-chip sync-chip-btn" + (ui.commitsViewer ? " on" : "") + (pushFx ? " " + pushFx : "")}
+          className={"git-chip sync-chip sync-chip-btn" + (ui.topPanelType === "commits" ? " on" : "") + (pushFx ? " " + pushFx : "")}
           title="Show unpushed commits"
           onClick={() => {
-            if (ui.commitsViewer) { ui.closeCommitsViewer(); return; }
+            if (ui.topPanelType === "commits") { ui.closeCommitsViewer(); return; }
             const dir = selected.worktree_dir ?? selected.cwd ?? selected.worktree_from;
             if (dir) ui.openCommitsViewer(dir);
           }}
@@ -383,9 +384,9 @@ export function ComposerDiffRow({ live }) {
       )}
       {(diff?.insertions > 0 || diff?.deletions > 0 || diff?.files > 0) && (
         <button
-          className={"diff-badge diff-badge-btn" + (ui.diffViewer ? " on" : "")}
+          className={"diff-badge diff-badge-btn" + (ui.topPanelType === "diff" ? " on" : "")}
           title="View changes"
-          onClick={() => (ui.diffViewer ? ui.closeDiffViewer() : ui.openDiffViewer(ui.selectedId))}
+          onClick={() => (ui.topPanelType === "diff" ? ui.closeDiffViewer() : ui.openDiffViewer(ui.selectedId))}
         >
           {diff.insertions > 0 || diff.deletions > 0 ? (
             <>
