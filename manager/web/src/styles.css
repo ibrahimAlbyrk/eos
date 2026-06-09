@@ -4740,36 +4740,16 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   flex-direction: column;
   gap: 6px;
 }
-/* Commit cards share the dv-file liquid-glass language: glass fill, soft
-   shadow, gradient rim via masked ::after. */
+/* Commit cards share the dv-file flat-card language: --bg fill,
+   hairline border, panel-radius corners, no shadow/glass. */
 .cv-commit {
   position: relative;
-  background: rgba(var(--glass), 0.42);
-  border-radius: 10px;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.18),
-    0 1px 3px rgba(0, 0, 0, 0.12);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
   flex-shrink: 0;
   min-width: 0;
   overflow: hidden;
-}
-.cv-commit::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg,
-    rgba(var(--rim), 0.36),
-    rgba(var(--rim), 0.07) 38%,
-    rgba(var(--rim), 0.07) 62%,
-    rgba(var(--rim), 0.22)) border-box;
-  -webkit-mask:
-    linear-gradient(#000, #000) content-box,
-    linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
 }
 .cv-row {
   display: flex;
@@ -4783,14 +4763,14 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   cursor: pointer;
   min-width: 0;
 }
-.cv-row:hover { background: rgba(var(--tint), 0.05); }
+.cv-row:hover { background: var(--surface); }
 .cv-chev { color: var(--fg-faint); flex-shrink: 0; transition: transform 140ms ease; }
 .cv-commit.open .cv-chev { transform: rotate(90deg); }
 .cv-sha { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--accent); flex-shrink: 0; }
 .cv-subject { flex: 1; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cv-meta { font-size: var(--text-xs); color: var(--fg-faint); flex-shrink: 0; }
 .cv-detail {
-  border-top: 1px solid rgba(var(--rim), 0.10);
+  border-top: 1px solid var(--border);
   padding: 8px 12px 10px 30px;
   display: flex;
   flex-direction: column;
@@ -4877,7 +4857,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 }
 .dv-empty {
   padding: 24px;
@@ -4886,40 +4866,24 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   color: var(--fg-dim);
 }
 
-/* Liquid-glass file card. No backdrop-filter: the panel behind is opaque
-   (--bg), so a per-card blur costs GPU every animation frame for an
-   invisible effect — the rim + translucent fill carry the glass look.
+/* Flat file card — --bg well recessed into the island (same tone as the
+   center editor), hairline border, panel-radius corners, no shadow/glass.
+   Status color lives only in the small badge (--st-color per status class).
    content-visibility skips layout/paint of offscreen cards in long lists. */
 .dv-file {
   position: relative;
-  background: rgba(var(--glass), 0.42);
-  border-radius: 10px;
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.18),
-    0 1px 3px rgba(0, 0, 0, 0.12);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
   flex-shrink: 0;
   overflow: hidden;
   content-visibility: auto;
   contain-intrinsic-size: auto 35px;
 }
-.dv-file::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg,
-    rgba(var(--rim), 0.36),
-    rgba(var(--rim), 0.07) 38%,
-    rgba(var(--rim), 0.07) 62%,
-    rgba(var(--rim), 0.22)) border-box;
-  -webkit-mask:
-    linear-gradient(#000, #000) content-box,
-    linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-}
+.dv-file-m { --st-color: var(--warn); }
+.dv-file-a { --st-color: var(--ok); }
+.dv-file-d { --st-color: var(--err); }
+.dv-file-r { --st-color: var(--accent); }
 
 .dv-row {
   display: flex;
@@ -4932,7 +4896,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border: 0;
   text-align: left;
 }
-.dv-row:hover { background: rgba(var(--tint), 0.05); }
+.dv-row:hover { background: var(--surface); }
 .dv-chev {
   color: var(--fg-faint);
   flex-shrink: 0;
@@ -4940,19 +4904,22 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .dv-file.open .dv-chev { transform: rotate(90deg); }
 .dv-st {
-  width: 16px;
+  width: 17px;
+  height: 17px;
+  line-height: 17px;
+  border-radius: 5px;
   text-align: center;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   font-weight: 600;
   flex-shrink: 0;
+  color: var(--st-color, var(--fg-dim));
+  background: color-mix(in srgb, var(--st-color, var(--fg-dim)) 14%, transparent);
 }
-.dv-st-m { color: var(--warn); }
-.dv-st-a { color: var(--ok); }
-.dv-st-d { color: var(--err); }
-.dv-st-r { color: var(--accent); }
+/* Width hugs the text (a .dv-grow spacer takes the slack) so the click
+   target of the open-file affordance is the name itself, not the whole row. */
 .dv-path {
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   display: flex;
   font-family: var(--font-mono);
@@ -4960,6 +4927,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   color: var(--fg);
   white-space: nowrap;
 }
+.dv-openable { cursor: pointer; }
+.dv-openable:hover .dv-base { color: var(--accent); }
 .dv-dir {
   color: var(--fg-faint);
   overflow: hidden;
@@ -4980,7 +4949,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .dv-bin { color: var(--fg-dim); }
 
 .dv-patch {
-  border-top: 1px solid rgba(var(--tint), 0.06);
+  border-top: 1px solid var(--border);
   padding-top: 4px;
 }
 .dv-hunk {
@@ -4995,7 +4964,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   padding: 10px 14px;
   font-size: var(--text-xs);
   color: var(--fg-dim);
-  border-top: 1px solid rgba(var(--tint), 0.06);
+  border-top: 1px solid var(--border);
 }
 .dv-patch-err { color: var(--err); }
 .dv-more {
@@ -5006,7 +4975,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   color: var(--accent);
   background: rgba(var(--tint), 0.03);
   border: 0;
-  border-top: 1px solid rgba(var(--tint), 0.06);
+  border-top: 1px solid var(--border);
   cursor: pointer;
   text-align: center;
 }

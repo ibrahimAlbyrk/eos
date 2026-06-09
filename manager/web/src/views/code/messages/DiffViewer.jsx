@@ -22,9 +22,11 @@ function splitPath(path) {
 
 export function DiffViewer({ live }) {
   const ui = useUi();
+  // Mounted while anywhere in the panel stack (state survives a file viewer
+  // pushed on top); visible only when on top.
   const open = Boolean(ui.diffViewer);
   return (
-    <div className={"diff-viewer" + (open ? " dv-open" : "")}>
+    <div className={"diff-viewer" + (ui.topPanelType === "diff" ? " dv-open" : "")}>
       {open && <DiffViewerInner workerId={ui.diffViewer.workerId} live={live} />}
     </div>
   );
@@ -33,12 +35,13 @@ export function DiffViewer({ live }) {
 function DiffViewerInner({ workerId, live }) {
   const ui = useUi();
   const [changes, setChanges] = useState(null);
-  const [expanded, setExpanded] = useState(() => new Set());
+  // Files are expanded by default; the set tracks what the user collapsed.
+  const [collapsed, setCollapsed] = useState(() => new Set());
   const [patches, setPatches] = useState(() => new Map());
   const [settled, setSettled] = useState(false);
   const filesRef = useRef([]);
-  const expandedRef = useRef(expanded);
-  expandedRef.current = expanded;
+  const collapsedRef = useRef(collapsed);
+  collapsedRef.current = collapsed;
   const patchesRef = useRef(patches);
   patchesRef.current = patches;
 
@@ -66,17 +69,27 @@ function DiffViewerInner({ workerId, live }) {
     for (const f of r.files) {
       const old = prevByPath.get(f.path);
       const moved = old && (old.insertions !== f.insertions || old.deletions !== f.deletions);
-      if (moved && expandedRef.current.has(f.path)) loadPatch(f);
+      if (moved && !collapsedRef.current.has(f.path)) loadPatch(f);
     }
   }, [workerId, loadPatch]);
 
   useEffect(() => {
     setChanges(null);
-    setExpanded(new Set());
+    setCollapsed(new Set());
     setPatches(new Map());
     filesRef.current = [];
     refresh();
   }, [workerId, refresh]);
+
+  // Load the patch of every open file that has none yet — covers the initial
+  // list, files arriving via SSE refresh, and re-expanding after an error.
+  useEffect(() => {
+    for (const f of changes?.files ?? []) {
+      if (collapsed.has(f.path)) continue;
+      const p = patchesRef.current.get(f.path);
+      if (!p?.data && !p?.loading) loadPatch(f);
+    }
+  }, [changes, collapsed, loadPatch]);
 
   const worker = live.workers.find((w) => w.id === workerId);
   const isolated = Boolean(worker?.worktree_from && worker?.branch);
@@ -110,14 +123,12 @@ function DiffViewerInner({ workerId, live }) {
 
   // Stable identity so memoized FileCards don't re-render on sibling updates.
   const toggle = useCallback((file) => {
-    const isOpen = expandedRef.current.has(file.path);
-    setExpanded((prev) => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
-      if (isOpen) next.delete(file.path); else next.add(file.path);
+      if (next.has(file.path)) next.delete(file.path); else next.add(file.path);
       return next;
     });
-    if (!isOpen && !patchesRef.current.get(file.path)?.data) loadPatch(file);
-  }, [loadPatch]);
+  }, []);
 
   const files = changes?.files ?? [];
   const ready = settled && changes !== null;
@@ -133,6 +144,10 @@ function DiffViewerInner({ workerId, live }) {
     ?? (ui.verdict?.children?.[workerId] ?? null);
   const showVerdict = verdict && verdict.verdict !== "unverified";
   const gitDir = worker?.worktree_dir ?? worker?.cwd ?? worker?.worktree_from ?? null;
+
+  const openFile = useCallback((f) => {
+    if (gitDir) ui.openFileViewer(gitDir + "/" + f.path);
+  }, [gitDir, ui.openFileViewer]);
 
   // Apply is one click — tryApply re-validates everything server-side
   // (snapshot → virtual merge → conflict + dirty-file checks) and writes only
@@ -245,9 +260,10 @@ function DiffViewerInner({ workerId, live }) {
           <FileCard
             key={f.path}
             file={f}
-            isOpen={expanded.has(f.path)}
+            isOpen={!collapsed.has(f.path)}
             patch={patches.get(f.path)}
             onToggle={toggle}
+            onOpenFile={gitDir ? openFile : undefined}
           />
         ))}
       </div>
@@ -255,10 +271,12 @@ function DiffViewerInner({ workerId, live }) {
   );
 }
 
-const FileCard = memo(function FileCard({ file, isOpen, patch, onToggle }) {
+const FileCard = memo(function FileCard({ file, isOpen, patch, onToggle, onOpenFile }) {
   const [dir, base] = splitPath(file.path);
+  // Deleted files have nothing on disk to open.
+  const openable = Boolean(onOpenFile) && file.status !== "D";
   return (
-    <div className={"dv-file" + (isOpen ? " open" : "")}>
+    <div className={"dv-file dv-file-" + file.status.toLowerCase() + (isOpen ? " open" : "")}>
       <button className="dv-row" onClick={() => onToggle(file)}>
         <svg className="dv-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="m6 4 4 4-4 4" />
@@ -266,10 +284,15 @@ const FileCard = memo(function FileCard({ file, isOpen, patch, onToggle }) {
         <span className={"dv-st dv-st-" + file.status.toLowerCase()} title={file.oldPath ? `${file.oldPath} → ${file.path}` : undefined}>
           {STATUS_LABEL[file.status]}
         </span>
-        <span className="dv-path">
+        <span
+          className={"dv-path" + (openable ? " dv-openable" : "")}
+          title={openable ? "Open file" : undefined}
+          onClick={openable ? (e) => { e.stopPropagation(); onOpenFile(file); } : undefined}
+        >
           {dir && <span className="dv-dir">{dir}</span>}
           <span className="dv-base">{base}</span>
         </span>
+        <span className="dv-grow" />
         <span className="dv-counts">
           {file.untracked ? (
             <span className="dv-new">new</span>
