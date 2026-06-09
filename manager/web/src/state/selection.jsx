@@ -34,14 +34,17 @@ export function SelectionProvider({ children }) {
   const [collapsedNodes, setCollapsedNodes] = useState(() => new Set());
   const [expandedTools, setExpandedTools] = useState(() => new Set());
   // Right-panel navigation stack (see lib/panelStack.js). The four viewer
-  // fields below derive from the top entry so consumers stay unchanged.
+  // fields derive from anywhere in the stack so buried panels stay MOUNTED —
+  // their fetched data and expand state survive a viewer pushed on top.
+  // topPanelType is the visibility signal: only that island is shown.
   const [panelStack, setPanelStack] = useState([]);
-  const topViewer = topPanel(panelStack);
-  const fileViewer = topViewer?.type === "file" ? topViewer.data : null;
-  const agentViewer = topViewer?.type === "agent" ? topViewer.data : null;
-  const diffViewer = topViewer?.type === "diff" ? topViewer.data : null;
+  const topPanelType = topPanel(panelStack)?.type ?? null;
+  const panelData = (type) => panelStack.find((p) => p.type === type)?.data ?? null;
+  const fileViewer = panelData("file");
+  const agentViewer = panelData("agent");
+  const diffViewer = panelData("diff");
   // {cwd} — right panel listing committed-but-unpushed commits (@{u}..HEAD).
-  const commitsViewer = topViewer?.type === "commits" ? topViewer.data : null;
+  const commitsViewer = panelData("commits");
   const [renamingId, setRenamingId] = useState(null);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   // {workerId, verdict, command, ts} — derived by Messages from the loaded
@@ -143,6 +146,7 @@ export function SelectionProvider({ children }) {
     renamingId, setRenamingId,
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
     verdict, setVerdict,
+    topPanelType,
     fileViewer, openFileViewer, closeFileViewer,
     agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     diffViewer, openDiffViewer, closeDiffViewer,

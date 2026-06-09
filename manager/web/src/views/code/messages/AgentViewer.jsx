@@ -8,7 +8,7 @@ export function AgentViewer() {
   const ui = useUi();
   const open = !!ui.agentViewer;
   return (
-    <div className={"agent-viewer" + (open ? " av-open" : "")}>
+    <div className={"agent-viewer" + (ui.topPanelType === "agent" ? " av-open" : "")}>
       {open && <AgentViewerInner block={ui.agentViewer} />}
     </div>
   );

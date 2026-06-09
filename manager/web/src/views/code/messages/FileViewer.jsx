@@ -10,7 +10,7 @@ export function FileViewer() {
   const ui = useUi();
   const open = !!ui.fileViewer;
   return (
-    <div className={"file-viewer" + (open ? " fv-open" : "")}>
+    <div className={"file-viewer" + (ui.topPanelType === "file" ? " fv-open" : "")}>
       {open && <FileViewerInner path={ui.fileViewer.path} />}
     </div>
   );
