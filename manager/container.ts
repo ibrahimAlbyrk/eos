@@ -292,6 +292,7 @@ export function buildContainer() {
       command: "node",
       args: ["--no-warnings", "--experimental-strip-types", join(config.paths.repoRoot, "manager", script)],
       env: baseEnv,
+      alwaysLoad: true,
     });
     const builtins: Record<string, unknown> = {};
     if (input.isOrchestrator) builtins.orchestrator = node("orchestrator-mcp.ts");

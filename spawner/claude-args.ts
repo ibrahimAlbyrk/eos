@@ -25,6 +25,7 @@ function buildWorkerMcpEntry(workerEnv: { daemonUrl?: string; workerId?: string 
       EOS_DAEMON_URL: workerEnv.daemonUrl ?? "",
       EOS_WORKER_ID: workerEnv.workerId ?? "",
     },
+    alwaysLoad: true,
   };
 }
 
