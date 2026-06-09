@@ -34,13 +34,14 @@ private func installWindowCornerRadius(_ radius: CGFloat) {
 }
 
 // Nudges the traffic lights from AppKit's unified-toolbar spot (x 19, center-y 26)
-// to the design spot (x 27, center-y 31) — aligned with the web breadcrumb row.
+// to the design spot (x 19, center-y 23) — 13px from the sidebar island's corner,
+// which sits at the 6px --shell-gap inset (collapsed breadcrumb row matches).
 // Moves each BUTTON inside its (tall) titlebar container, never the container,
 // so hit-testing stays exact. Idempotent: re-applying is a no-op unless AppKit
 // re-laid the frames; suspended in fullscreen where the overlay owns layout.
 final class TrafficLightPositioner {
-    private static let dx: CGFloat = 8
-    private static let dy: CGFloat = -5 // bottom-left origin: negative = down
+    private static let dx: CGFloat = 0
+    private static let dy: CGFloat = 3 // bottom-left origin: positive = up
     private static let buttons: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
     private weak var window: NSWindow?
     private var applied: [NSWindow.ButtonType: NSRect] = [:]

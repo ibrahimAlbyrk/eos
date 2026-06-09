@@ -206,8 +206,10 @@ html.native .native-toggle-zone {
   align-items: center;
   gap: 2px;
   position: fixed;
-  left: 100px;
-  top: 19px;
+  /* tracks the traffic lights, which sit 8px closer to the corner since the
+     sidebar island inset went 14px → --shell-gap (see TrafficLightPositioner) */
+  left: 92px;
+  top: 11px;
   z-index: 300;
   --app-region: no-drag;
 }
@@ -223,9 +225,9 @@ html.native .native-toggle {
 }
 html.native .native-toggle:hover { background: rgba(var(--tint), 0.06); color: var(--fg); }
 
-/* sidebar: card gap matches Claude Code reference; empty/top areas drag the window */
+/* sidebar: thin island frame matches the right-panel gap; empty/top areas drag the window */
 html.native .side {
-  padding: 14px 14px 18px 14px;
+  padding: var(--shell-gap);
   --app-region: drag;
   -webkit-user-select: none;
 }
@@ -247,23 +249,22 @@ html.native .side-island--agents { padding-top: 30px; flex: 1; }
 html.native .side-island--status { display: none; }
 html.native .side .sb-divider { display: none; }
 html.native .empty-tree { padding: 6px 14px !important; }
-html.native .side { padding-bottom: 14px; }
 
 /* center header: compact 28px, inherits breadcrumb */
 html.native .head {
   height: auto;
-  padding: 21px 16px 0;
+  /* breadcrumb row sits at the traffic-light/toggle center-y (23) in BOTH
+     sidebar states — same padding-top, so collapsing never shifts it vertically */
+  padding: 13px 16px 0;
   transition: padding-left 280ms ease;
 }
-html.native .app.side-collapsed .head { padding-left: 134px; }
+html.native .app.side-collapsed .head { padding-left: 126px; }
 html.native .side-handle-zone { display: none !important; }
 
 /* fullscreen: no traffic lights in window, simplify layout */
 html.native.fullscreen .native-toggle-zone { left: 16px; top: 10px; }
-html.native.fullscreen .side { padding: 6px 14px 14px 14px; }
 html.native.fullscreen .side-island--agents { padding-top: 16px; }
 html.native.fullscreen .sb-section { padding-left: 12px; }
-html.native.fullscreen .head { padding: 13px 16px 0; }
 html.native.fullscreen .app.side-collapsed .head { padding-left: 46px; }
 
 /* "Agents" section header — visible only in native mode */
@@ -393,7 +394,7 @@ html.native .native-toggle.attention-blink,
    which would otherwise make the popup an in-flow flex item of the flex zone and
    drag the toggle into its vertical center. Absolute keeps the toggle put. */
 html.native .native-toggle-zone .side-handle-popup { position: absolute; left: -86px; top: 36px; }
-html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
+html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 @keyframes side-popup-in {
   from { opacity: 0; transform: translateY(-6px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -408,8 +409,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   border-right: none;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 18px 14px 18px 18px;
+  gap: var(--shell-gap);
+  padding: var(--shell-gap);
   min-width: 0;
   overflow: visible;
   position: relative;
