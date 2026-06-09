@@ -238,6 +238,23 @@ export function buildBlocks(events) {
       out.push({ kind: "cleared", ts: ev.ts });
       continue;
     }
+    if (ev.type === "terminal") {
+      flushTools();
+      lastAsst = null;
+      const payload = parsePayload(ev.payload);
+      out.push({
+        kind: "terminal",
+        runId: payload.runId ?? null,
+        command: payload.command ?? "",
+        output: payload.output ?? "",
+        exitCode: payload.exitCode ?? 0,
+        note: payload.note ?? null,
+        truncated: payload.truncated ?? false,
+        done: true,
+        ts: ev.ts,
+      });
+      continue;
+    }
     if (ev.type === "git_push") {
       flushTools();
       lastAsst = null;

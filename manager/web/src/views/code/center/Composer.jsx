@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { api } from "../../../api/client.js";
+import { startRun } from "../../../state/terminalStore.js";
 import { useCommands } from "../../../hooks/useCommands.js";
 import { useTemplates } from "../../../hooks/useTemplates.js";
 import { useContentEditableEditor, getCursorOffset, getSelectionOffsets, setSelectionOffsets } from "../../../hooks/useContentEditableEditor.js";
@@ -47,6 +49,7 @@ export function Composer({ live }) {
   const [menuDismissed, setMenuDismissed] = useState(false);
   const insertedPathsRef = useRef(new Map());
   const history = useInputHistory();
+  const termHistory = useInputHistory("cm:termHistory");
   const lastEscRef = useRef(0);
   const [escArmed, setEscArmed] = useState(false);
   // True while showing a history-recalled entry; keeps the slash/file menus
@@ -56,16 +59,20 @@ export function Composer({ live }) {
 
   const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
 
-  // Global Escape exits git mode regardless of focus — registered into the
-  // selection provider's Escape chain (popover/viewers first, interrupt last).
+  // Global Escape exits git/terminal mode regardless of focus — registered into
+  // the selection provider's Escape chain (popover/viewers first, interrupt last).
   useEffect(() => {
     ui.registerEscapeGitMode(() => {
+      if (ui.composer.termMode) {
+        ui.updateComposer({ termMode: false });
+        return true;
+      }
       if (!ui.composer.gitMode) return false;
       ui.updateComposer({ gitMode: false });
       return true;
     });
     return () => ui.registerEscapeGitMode(null);
-  }, [ui.composer.gitMode, ui.registerEscapeGitMode, ui.updateComposer]);
+  }, [ui.composer.gitMode, ui.composer.termMode, ui.registerEscapeGitMode, ui.updateComposer]);
 
   const cwd = selected?.cwd ?? ui.composer.cwd ?? live.recents[0] ?? null;
   const commands = useCommands(cwd);
@@ -136,7 +143,11 @@ export function Composer({ live }) {
     insertedPathsRef,
   });
 
-  const { showMenu, showFileMenu } = menuVisibility({ activeMenu, menuDismissed });
+  const menuVis = menuVisibility({ activeMenu, menuDismissed });
+  // Terminal mode: shell text is full of `/` and `@` — completion menus off.
+  const showMenu = menuVis.showMenu && !ui.composer.termMode;
+  const showFileMenu = menuVis.showFileMenu && !ui.composer.termMode;
+  const activeHistory = ui.composer.termMode ? termHistory : history;
 
   const activeHint = useMemo(() => {
     if (!text.includes("/")) return null;
@@ -298,6 +309,26 @@ export function Composer({ live }) {
   const send = async () => {
     const t = text.trim();
     if (!t) return;
+
+    if (ui.composer.termMode) {
+      termHistory.push(t);
+      setTextAndSync("", 0);
+      // One-shot like git mode: the mode closes on send, `!` re-enters.
+      ui.updateComposer({ termMode: false });
+      if (selected) {
+        const r = await api.runTerminal(selected.id, t);
+        if (r?.ok && r.body?.runId) startRun(selected.id, r.body.runId, t);
+        return;
+      }
+      // No agent selected → workspace-scoped run in the composer's cwd;
+      // ephemeral cards in the empty center, gone once an agent is selected.
+      const wsCwd = ui.composer.cwd ?? live.recents[0] ?? null;
+      if (!wsCwd) { alert("Pick a folder first."); return; }
+      const r = await api.runWorkspaceTerminal(wsCwd, t);
+      if (r?.ok && r.body?.runId) startRun(null, r.body.runId, t);
+      return;
+    }
+
     // "/clear" targets an existing agent's session — spawning a fresh agent
     // (orchestrator/git) with it as the boot prompt would be meaningless.
     if (t === "/clear" && (!selected || ui.composer.gitMode)) return;
@@ -440,6 +471,16 @@ export function Composer({ live }) {
       }
     }
 
+    // `!` as the first char of an empty input enters terminal mode (the char
+    // is consumed) — mirrors the Claude Code TUI bash-mode affordance.
+    // With no agent selected the run is workspace-scoped — any cwd candidate
+    // (composer picker / recents) is enough to enter the mode.
+    if (e.key === "!" && !text && !ui.composer.termMode && !ui.composer.gitMode && (selected || cwd)) {
+      e.preventDefault();
+      ui.updateComposer({ termMode: true });
+      return;
+    }
+
     if (e.key === "Tab") {
       const phs = findPlaceholders(text);
       if (phs.length > 0) {
@@ -457,7 +498,7 @@ export function Composer({ live }) {
     }
 
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-      const recalled = e.key === "ArrowUp" ? history.up(text) : history.down(text);
+      const recalled = e.key === "ArrowUp" ? activeHistory.up(text) : activeHistory.down(text);
       if (recalled !== null) {
         e.preventDefault();
         recallRef.current = true;
@@ -482,6 +523,11 @@ export function Composer({ live }) {
     }
 
     if (e.key === "Backspace") {
+      if (ui.composer.termMode && !text) {
+        e.preventDefault();
+        ui.updateComposer({ termMode: false });
+        return;
+      }
       const el = editorRef.current;
       const pos = el ? getCursorOffset(el) : 0;
       const attHit = findLabelAt(text, pos, attachmentItems.map((it) => it.label));
@@ -572,16 +618,17 @@ export function Composer({ live }) {
               query={atCtx?.query ?? ""}
             />
           )}
-          <div className="c-row2">
+          <div className={ui.composer.termMode ? "c-row2 term-mode" : ui.composer.gitMode ? "c-row2 git-mode" : "c-row2"}>
             {attachmentItems.length > 0 && (
               <AttachmentChips attachments={attachmentItems} onRemove={removeAttachmentToken} />
             )}
+            {ui.composer.termMode && <span className="term-prompt" aria-hidden>❯</span>}
             <div
               ref={editorRef}
               className={escArmed ? "composer-editor esc-armed" : "composer-editor"}
               contentEditable
               role="textbox"
-              data-placeholder={ui.composer.gitMode ? "Describe the git task — commit, rebase, merge…" : "Type / for commands, @ for files"}
+              data-placeholder={ui.composer.termMode ? "Run a shell command — Enter to run, Esc to exit" : ui.composer.gitMode ? "Describe the git task — commit, rebase, merge…" : "Type / for commands, @ for files"}
               data-empty={!text ? "" : undefined}
               data-hint={activeHint || undefined}
               onInput={(e) => { recallRef.current = false; handleInput(e); }}
@@ -601,7 +648,7 @@ export function Composer({ live }) {
         <ComposerControls
           live={live}
           onAttach={addAttachments}
-          historyNav={history.nav && text === history.nav.entry ? history.nav : null}
+          historyNav={activeHistory.nav && text === activeHistory.nav.entry ? activeHistory.nav : null}
         />
       </div>
     </div>

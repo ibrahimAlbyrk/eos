@@ -54,6 +54,7 @@ import { UserTemplateService } from "./services/UserTemplateService.ts";
 import { UserSettingsService } from "./services/UserSettingsService.ts";
 import { ModelCatalogService } from "./services/ModelCatalogService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
+import { TerminalRunService } from "./services/TerminalRunService.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
 export { randomOrchestratorName } from "./shared/names.ts";
@@ -344,6 +345,7 @@ export function buildContainer() {
 
   const turnSettle = new TurnSettleService(systemClock);
   const pendingQuestions = new PendingQuestionService(systemClock, randomIdGenerator);
+  const terminalRuns = new TerminalRunService({ bus, events, clock: systemClock, log });
   const promptTemplates = new PromptTemplateService(config.paths.promptsDir);
   const userTemplates = new UserTemplateService(join(config.daemon.home, "templates"));
   const userSettings = new UserSettingsService(join(config.daemon.home, "settings.json"));
@@ -436,6 +438,7 @@ export function buildContainer() {
     backendResolver,
     turnSettle,
     pendingQuestions,
+    terminalRuns,
     promptTemplates,
     userTemplates,
     userSettings,

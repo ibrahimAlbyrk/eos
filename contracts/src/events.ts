@@ -66,6 +66,7 @@ export const WorkerEventTypeSchema = z.enum([
   "try_kept",
   "try_discarded",
   "git_push",
+  "terminal",
 ]);
 export type WorkerEventType = z.infer<typeof WorkerEventTypeSchema>;
 

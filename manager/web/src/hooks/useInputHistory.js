@@ -3,16 +3,16 @@ import { parseHistory, recallUp, recallDown, commit } from "../lib/inputHistory.
 
 const STORAGE_KEY = "cm:inputHistory";
 
-function loadEntries() {
+function loadEntries(storageKey) {
   try {
-    return parseHistory(localStorage.getItem(STORAGE_KEY));
+    return parseHistory(localStorage.getItem(storageKey));
   } catch {
     return [];
   }
 }
 
-export function useInputHistory() {
-  const [entries, setEntries] = useState(loadEntries);
+export function useInputHistory(storageKey = STORAGE_KEY) {
+  const [entries, setEntries] = useState(() => loadEntries(storageKey));
   const [index, setIndex] = useState(null);
 
   const up = (currentText) => {
@@ -31,7 +31,7 @@ export function useInputHistory() {
     const next = commit(entries, text);
     if (next !== entries) {
       setEntries(next);
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(next)); } catch { /* quota/private mode */ }
+      try { localStorage.setItem(storageKey, JSON.stringify(next)); } catch { /* quota/private mode */ }
     }
     setIndex(null);
   };

@@ -827,6 +827,11 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   margin: 0 auto;
   padding: 16px 32px 32px;
 }
+/* no agent selected: workspace terminal cards take the chat bubble's top
+   offset (16px pad + 18px .msg-user margin) so both views align exactly */
+.messages-empty .terminal-card {
+  margin-top: 18px;
+}
 /* scroll-to-bottom pill — sticky to bottom-center of messages-wrap */
 .scroll-to-bottom {
   position: sticky;
@@ -1330,6 +1335,62 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   color: var(--fg-dim);
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+/* Terminal card (composer `!` mode) — live + durable user-run commands */
+.terminal-card {
+  margin: 4px 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  animation: msg-blur-in 0.22s ease forwards;
+}
+.tc-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 6px;
+}
+.tc-prompt { color: var(--amber); user-select: none; }
+.tc-cmd { color: var(--fg); flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.tc-exit { font-size: var(--text-xs); padding: 1px 7px; border-radius: 5px; flex-shrink: 0; }
+.tc-exit.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.tc-exit.err { color: var(--err); background: color-mix(in srgb, var(--err) 12%, transparent); }
+.tc-spin {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--amber) 35%, transparent);
+  border-top-color: var(--amber);
+  animation: verify-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+.tc-stop {
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 4px;
+  color: var(--fg-dim);
+  background: none; border: 0; cursor: pointer;
+  flex-shrink: 0;
+  transition: color 160ms ease, background 160ms ease;
+}
+.tc-stop:hover { color: var(--err); background: color-mix(in srgb, var(--err) 12%, transparent); }
+.tc-out {
+  padding: 4px 14px 10px;
+  line-height: 1.6;
+  color: var(--fg-dim);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.tc-out-empty { color: var(--fg-faint); }
+.tc-note {
+  padding: 0 14px 8px;
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
 }
 
 /* Edit detail (diff view) */
@@ -2460,6 +2521,34 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   box-shadow:
     0 4px 14px rgba(0, 0, 0, 0.18),
     0 1px 3px rgba(0, 0, 0, 0.12);
+  transition: box-shadow 200ms ease;
+}
+/* Terminal mode (`!` on empty input): amber ring + mono editor + ❯ prompt */
+.c-row2.term-mode {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--amber) 28%, transparent),
+    0 4px 14px rgba(0, 0, 0, 0.18),
+    0 1px 3px rgba(0, 0, 0, 0.12);
+}
+/* Git mode (⌘G): green ring */
+.c-row2.git-mode {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--ok) 28%, transparent),
+    0 4px 14px rgba(0, 0, 0, 0.18),
+    0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.c-row2 .term-prompt {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--amber);
+  user-select: none;
+  position: relative;
+  z-index: 1;
+}
+.c-row2.term-mode .composer-editor {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
 }
 .c-row2::after {
   content: "";

@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { nextGitMode } from "../lib/composerModes.js";
 
 const ComposerContext = createContext(null);
 
@@ -9,6 +10,9 @@ const DEFAULT_COMPOSER = {
   effort: "xhigh",
   permissionMode: "acceptEdits",
   gitMode: false,
+  // `!` on an empty input flips the composer into terminal mode: Enter runs
+  // the text as a daemon-side bash command instead of messaging the agent.
+  termMode: false,
   // {content, ts} queued by the template picker / ⌘K palette; the Composer
   // consumes it (inserts text + selects the first {{placeholder}}) and clears.
   pendingTemplate: null,
@@ -29,7 +33,10 @@ export function ComposerProvider({ children }) {
   // Single source of truth for the git ("custom task") mode flip. `on`
   // undefined toggles; the git button / startCustom / Cmd+G all route here.
   const toggleGitMode = useCallback((on) => {
-    setComposer((c) => ({ ...c, gitMode: on ?? !c.gitMode }));
+    setComposer((c) => {
+      const next = nextGitMode(c, on);
+      return next === c.gitMode ? c : { ...c, gitMode: next };
+    });
   }, []);
 
   const addOptimisticUserMessage = useCallback((workerId, text, agentText) => {

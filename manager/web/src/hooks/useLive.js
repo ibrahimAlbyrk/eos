@@ -11,6 +11,7 @@ import { createReconnectingStream } from "../api/sse.js";
 import { useClockTick } from "./useClockTick.js";
 import { usePendingPermissions } from "./usePendingPermissions.js";
 import { applyCatalog } from "../lib/models.js";
+import { applyChunk, applyDone } from "../state/terminalStore.js";
 
 const POLL_MS = 4000;
 const SSE_DEBOUNCE_MS = 80;
@@ -96,13 +97,19 @@ export function useLive() {
     const s = createReconnectingStream({
       onOpen: () => setHealth(true),
       onChange: (e) => {
-        scheduleRefetch();
         try {
           const data = JSON.parse(e.data);
+          // Terminal chunks are high-frequency live data, not state deltas —
+          // route them to the terminal store and skip the refetch entirely.
+          if (data.reason === "terminal:chunk") { applyChunk(data.payload ?? {}); return; }
+          if (data.reason === "terminal:done") applyDone(data.payload ?? {});
+          scheduleRefetch();
           if (data.payload?.workerId) {
             setEventSignal(prev => ({ tick: prev.tick + 1, workerId: data.payload.workerId }));
           }
-        } catch {}
+        } catch {
+          scheduleRefetch();
+        }
       },
       onClose: () => setHealth(false),
     });

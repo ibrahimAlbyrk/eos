@@ -13,7 +13,9 @@ export type EventBusTopic =
   | "pending:ttl_expired"
   | "usage:recorded"
   | "worker:report"
-  | "notification:fire";
+  | "notification:fire"
+  | "terminal:chunk"
+  | "terminal:done";
 
 export interface EventBusMessage<T = unknown> {
   topic: EventBusTopic;

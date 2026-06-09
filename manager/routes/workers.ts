@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
@@ -19,6 +20,8 @@ import {
   WorkerActionRequestSchema,
   RewindRequestSchema,
   FileDiffQuerySchema,
+  TerminalRunRequestSchema,
+  WorkspaceTerminalRunRequestSchema,
 } from "../../contracts/src/http.ts";
 import type { WorkerRow } from "../../contracts/src/worker.ts";
 
@@ -659,6 +662,37 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       c.bus.publish("worker:change", { workerId: active.workerId });
     }
     writeJson(res, result.ok ? 200 : 409, result);
+  });
+
+  // ---- Terminal (composer `!` mode) ----------------------------------------
+  // Daemon-side shell in the worker's working dir — no agent turn, no worker
+  // state change. UI-token gated: without it a policy-restricted agent holding
+  // EOS_DAEMON_URL would have a policy-free exec path.
+
+  r.post(/^\/workers\/(?<id>[^/]+)\/terminal$/, async ({ params, req, res }) => {
+    if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const body = validate(TerminalRunRequestSchema, await readBody(req));
+    const w = c.workers.findById(params.id);
+    if (!w) { writeJson(res, 404, { error: "worker not found" }); return; }
+    const cwd = gitDirOf(w);
+    if (!cwd) { writeJson(res, 400, { error: "worker has no working directory" }); return; }
+    writeJson(res, 200, c.terminalRuns.run(params.id, cwd, body.command));
+  });
+
+  // Workspace-scoped variant (no agent selected): explicit cwd, nothing
+  // persists — output is ephemeral SSE only.
+  r.post("/terminal", async ({ req, res }) => {
+    if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const body = validate(WorkspaceTerminalRunRequestSchema, await readBody(req));
+    const cwd = expandPath(body.cwd);
+    if (!cwd || !existsSync(cwd)) { writeJson(res, 400, { error: "cwd does not exist" }); return; }
+    writeJson(res, 200, c.terminalRuns.run(null, cwd, body.command));
+  });
+
+  // Kill is runId-scoped — one route serves worker and workspace runs alike.
+  r.post(/^\/terminal\/(?<runId>[^/]+)\/kill$/, ({ params, req, res }) => {
+    if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    writeJson(res, 200, { ok: c.terminalRuns.kill(params.runId) });
   });
 
   r.get(/^\/workers\/(?<id>[^/]+)\/changes\/file$/, async ({ params, url, res }) => {

@@ -141,6 +141,30 @@ export const PushStateResponseSchema = z.object({
 });
 export type PushStateResponse = z.infer<typeof PushStateResponseSchema>;
 
+// ---- POST /workers/:id/terminal ---------------------------------------------
+// User-initiated shell command (composer `!` terminal mode). Runs daemon-side
+// in the worker's working dir; output streams over SSE as `terminal:chunk`
+// bus messages and the full (capped) record persists as a single `terminal`
+// event on completion. UI-token gated — agents holding EOS_DAEMON_URL must
+// not get a policy-free exec path.
+
+export const TerminalRunRequestSchema = z.object({ command: z.string().min(1) });
+export type TerminalRunRequest = z.infer<typeof TerminalRunRequestSchema>;
+
+export const TerminalRunResponseSchema = z.object({ runId: z.string() });
+export type TerminalRunResponse = z.infer<typeof TerminalRunResponseSchema>;
+
+// ---- POST /terminal ----------------------------------------------------------
+// Workspace-scoped variant: no agent selected, so the command runs in an
+// explicit cwd and nothing persists — output is ephemeral (terminal:chunk /
+// terminal:done only). Kill is runId-scoped and shared with worker runs.
+
+export const WorkspaceTerminalRunRequestSchema = z.object({
+  cwd: z.string().min(1),
+  command: z.string().min(1),
+});
+export type WorkspaceTerminalRunRequest = z.infer<typeof WorkspaceTerminalRunRequestSchema>;
+
 // ---- GET /workers/:id/events ----------------------------------------------
 
 export const EventsQuerySchema = z.object({
@@ -802,6 +826,9 @@ export const ROUTES = {
   workerReport: (id: string): string => `/workers/${id}/report`,
   workerRewindTargets: (id: string): string => `/workers/${id}/rewind-targets`,
   workerRewind: (id: string): string => `/workers/${id}/rewind`,
+  workerTerminal: (id: string): string => `/workers/${id}/terminal`,
+  terminal: "/terminal",
+  terminalKill: (runId: string): string => `/terminal/${runId}/kill`,
   workerTryPreview: (id: string): string => `/workers/${id}/try/preview`,
   workerTryState: (id: string): string => `/workers/${id}/try/state`,
   workerTry: (id: string): string => `/workers/${id}/try`,

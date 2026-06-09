@@ -28,6 +28,8 @@ import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
 import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
+import { TerminalCard } from "./TerminalCard.jsx";
+import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceRuns } from "../../../state/terminalStore.js";
 
 const POLL_MS = 5000;
 const SCROLL_THRESHOLD = 40;
@@ -175,6 +177,20 @@ export function Messages({ live }) {
     });
   }, [verdict, childVerdicts, ui.selectedId, live.workers]);
 
+  // Live terminal runs (composer `!` mode) stream outside the event store —
+  // a tick subscription re-renders on every chunk.
+  const [termTick, setTermTick] = useState(0);
+  useEffect(() => subscribeTerminal(() => setTermTick((t) => t + 1)), []);
+
+  // Selecting an agent retires the no-selection workspace cards — the next
+  // "new session" view starts clean. Still-running commands get killed.
+  useEffect(() => {
+    if (!ui.selectedId) return;
+    for (const r of clearWorkspaceRuns()) {
+      if (!r.done) api.killTerminal(r.runId);
+    }
+  }, [ui.selectedId]);
+
   const blocks = useMemo(() => {
     const w = live.workers.find((x) => x.id === ui.selectedId);
     const bootPromptOffset = w?.parent_id && w?.prompt ? 1 : 0;
@@ -183,8 +199,31 @@ export function Messages({ live }) {
     for (const m of opt) {
       base.push({ kind: "user", text: m.text, ts: m.ts, optimistic: true });
     }
+    // Overlay live terminal runs whose durable `terminal` event hasn't landed.
+    const durableRuns = new Set(base.filter((b) => b.kind === "terminal" && b.runId).map((b) => b.runId));
+    for (const r of liveRunsFor(ui.selectedId)) {
+      if (durableRuns.has(r.runId)) continue;
+      base.push({
+        kind: "terminal", live: true, runId: r.runId, command: r.command,
+        output: r.output, exitCode: r.exitCode, note: r.note,
+        truncated: false, done: r.done, ts: r.ts,
+      });
+    }
     return base;
-  }, [events, ui.optimisticMsgs, ui.selectedId, live.workers]);
+  }, [events, ui.optimisticMsgs, ui.selectedId, live.workers, termTick]);
+
+  // Drop a live run once its durable event is in the window — the durable
+  // block has taken over rendering.
+  useEffect(() => {
+    const durable = new Set();
+    for (const b of blocks) {
+      if (b.kind === "terminal" && !b.live && b.runId) durable.add(b.runId);
+    }
+    if (durable.size === 0) return;
+    for (const r of liveRunsFor(ui.selectedId)) {
+      if (durable.has(r.runId)) removeRun(r.runId);
+    }
+  }, [blocks, ui.selectedId]);
 
   useEffect(() => {
     if (!ui.agentViewer) return;
@@ -274,7 +313,7 @@ export function Messages({ live }) {
   return (
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
-      <div className="messages" ref={contentRef}>
+      <div className={ui.selectedId ? "messages" : "messages messages-empty"} ref={contentRef}>
         {selectedWorker?.parent_id && selectedWorker.prompt && (
           <MessageTask
             prompt={selectedWorker.prompt}
@@ -314,6 +353,7 @@ function blockKey(b, i) {
     case "toolGroup": return "tg-" + (b.tools[0]?.id ?? b.ts ?? i);
     case "tool":      return "t-" + (b.tool.id ?? b.ts ?? i);
     case "agentRun":  return "ag-" + (b.toolUseId ?? b.ts ?? i);
+    case "terminal":  return "term-" + (b.runId ?? b.ts ?? i);
     default:          return b.kind + "-" + (b.ts ?? i);
   }
 }
@@ -333,6 +373,7 @@ function renderBlock(b, key, cwd, ui, workers, animate) {
         open={open} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
     }
     case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} />;
+    case "terminal":  return <TerminalCard key={key} block={b} />;
     case "agentRun":  return <AgentBlock key={key} block={b} />;
     case "deliveryFailed":
       return (

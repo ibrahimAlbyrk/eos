@@ -329,6 +329,20 @@ export const api = {
     return r.body;
   },
 
+  // Terminal (composer `!` mode) — UI-token gated like the try routes so
+  // agents holding the daemon URL get no policy-free exec path. The worker
+  // variant persists a durable event; the workspace variant (no agent
+  // selected) is ephemeral.
+  async runTerminal(id, command) {
+    return postJson(ROUTES.workerTerminal(id), { command }, uiTokenHeader());
+  },
+  async runWorkspaceTerminal(cwd, command) {
+    return postJson(ROUTES.terminal, { cwd, command }, uiTokenHeader());
+  },
+  async killTerminal(runId) {
+    return postJson(ROUTES.terminalKill(runId), {}, uiTokenHeader());
+  },
+
   // Try (unstaged apply) — state is a read; apply/keep/discard mutate the
   // user's checkout and carry the UI token.
   async getTryState(id) {
