@@ -105,7 +105,7 @@ export function GitAgentPopover({ live, cwd }) {
 
   const startCustom = () => {
     ui.closeAllPops();
-    ui.updateComposer({ gitMode: true });
+    ui.toggleGitMode(true);
   };
 
   const current = info.current;
@@ -204,6 +204,7 @@ export function GitAgentPopover({ live, cwd }) {
           <button className="menu-item" onClick={startCustom}>
             <PencilIcon />
             Custom git task…
+            <kbd>⌘G</kbd>
           </button>
         </>
       )}

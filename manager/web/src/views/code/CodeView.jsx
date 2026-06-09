@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { useAgentSwitchHotkeys } from "../../hooks/useAgentSwitchHotkeys.js";
 import { useDeleteAgentHotkey } from "../../hooks/useDeleteAgentHotkey.js";
+import { useGitModeHotkey } from "../../hooks/useGitModeHotkey.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { CenterHeader } from "./center/CenterHeader.jsx";
@@ -26,6 +27,9 @@ export function CodeView({ live }) {
 
   // Cmd+W → delete the selected agent (falls back to the previous selection).
   useDeleteAgentHotkey(live);
+
+  // Cmd+G → toggle the composer's git custom-task mode.
+  useGitModeHotkey();
 
   // Cmd+T → new empty session (mirrors the + button).
   useEffect(() => {

@@ -71,11 +71,11 @@ export function ComposerControls({ live, onAttach, historyNav }) {
         <div className="git-wrap" style={{ position: "relative" }}>
           <button
             className={"iconbtn git-agent-btn" + (ui.composer.gitMode ? " on" : "")}
-            title={ui.composer.gitMode ? "Exit git mode" : "Git agent"}
+            title={ui.composer.gitMode ? "Exit git mode (⌘G)" : "Git agent (⌘G)"}
             onClick={(e) => {
               if (ui.composer.gitMode) {
                 e.stopPropagation();
-                ui.updateComposer({ gitMode: false });
+                ui.toggleGitMode(false);
                 ui.closeAllPops();
                 return;
               }

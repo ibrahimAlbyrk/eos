@@ -26,6 +26,12 @@ export function ComposerProvider({ children }) {
     setComposer((c) => ({ ...c, ...patch }));
   }, []);
 
+  // Single source of truth for the git ("custom task") mode flip. `on`
+  // undefined toggles; the git button / startCustom / Cmd+G all route here.
+  const toggleGitMode = useCallback((on) => {
+    setComposer((c) => ({ ...c, gitMode: on ?? !c.gitMode }));
+  }, []);
+
   const addOptimisticUserMessage = useCallback((workerId, text, agentText) => {
     if (!workerId || !text) return null;
     const id = `opt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -94,12 +100,12 @@ export function ComposerProvider({ children }) {
   }, []);
 
   const value = useMemo(() => ({
-    composer, updateComposer,
+    composer, updateComposer, toggleGitMode,
     optimisticMsgs, addOptimisticUserMessage, reconcileOptimisticMessages,
     queuedMessages, addQueuedMessage, removeQueuedMessage, clearQueuedMessages,
   }), [
     composer, optimisticMsgs, queuedMessages,
-    updateComposer, addOptimisticUserMessage, reconcileOptimisticMessages,
+    updateComposer, toggleGitMode, addOptimisticUserMessage, reconcileOptimisticMessages,
     addQueuedMessage, removeQueuedMessage, clearQueuedMessages,
   ]);
 
