@@ -322,15 +322,15 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   r.post(/^\/workers\/(?<id>[^/]+)\/question-answer$/, async ({ params, req, res }) => {
     const body = validate(QuestionAnswerRequestSchema, await readBody(req));
     let outcome = "dismissed";
-    if (body.selections && body.selections.length > 0) {
-      const worker = c.workers.findById(params.id);
-      if (worker?.port && c.supervisor.has(params.id)) {
-        // Answering resumes the turn — clear the settle window so the trailing
-        // tool_result isn't suppressed.
-        c.turnSettle.clear(params.id);
-        const driven = await c.httpWorkerClient.answerQuestion(worker.port, body.selections);
-        outcome = driven.outcome ?? (driven.ok ? "answered" : "failed");
-      }
+    const worker = c.workers.findById(params.id);
+    if (worker?.port && c.supervisor.has(params.id)) {
+      // Always resolve the worker's menu hold: with selections the worker drives
+      // the native menu, without them it cancels the menu. Either way the worker
+      // stops holding messages — leaving the menu unresolved wedges delivery.
+      // Resolving resumes the turn, so clear the settle window too.
+      c.turnSettle.clear(params.id);
+      const driven = await c.httpWorkerClient.answerQuestion(worker.port, body.selections ?? []);
+      outcome = driven.outcome ?? (driven.ok ? "answered" : "failed");
     }
     c.events.append(params.id, c.clock.now(), "question_answered", {
       toolUseId: body.toolUseId,

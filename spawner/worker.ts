@@ -318,6 +318,15 @@ function startTail(sessionId: string, startAtEof = false): TailHandle {
       // the AnswerDriver waits on this timestamp to confirm delivery.
       if (t === "jsonl" && (p as { kind?: string }).kind === "tool_result") {
         lastToolResultTs = Date.now();
+        // Self-heal: a tool_result after a menu opened means the question
+        // resolved (answered out-of-band or cancelled). Release held messages
+        // even when no /answer drove the close, so the menu hold can never
+        // permanently wedge delivery. Skip while answer() is driving — it owns
+        // the close()+flush itself.
+        if (answerDriver.menuOpen && !answerDriver.active) {
+          answerDriver.close();
+          flushAnswerBuffer();
+        }
       }
       evt.emit(t, p);
     },
@@ -376,11 +385,22 @@ const ingest = startIngestServer(opts.port, {
   async onAnswer(selections): Promise<{ ok: boolean; outcome: string }> {
     shutdown.cancel();
     state.lastJsonlActivityTs = Date.now();
-    const outcome = await answerDriver.answer(selections as AnswerSpec[]);
-    // A turn re-opens once the answer is accepted; messages held during the menu
-    // flush after, in arrival order.
-    flushAnswerBuffer();
-    return { ok: outcome !== "no_menu", outcome };
+    try {
+      // Selections present ⇒ drive the native menu with verified keystrokes.
+      // Empty ⇒ the user skipped/dismissed: cancel the menu so the agent unblocks.
+      let outcome: string;
+      if (Array.isArray(selections) && selections.length > 0) {
+        outcome = await answerDriver.answer(selections as AnswerSpec[]);
+      } else {
+        answerDriver.cancel();
+        outcome = "dismissed";
+      }
+      return { ok: outcome !== "no_menu", outcome };
+    } finally {
+      // Always release: a turn re-opens once the menu is resolved; messages held
+      // during it flush after, in arrival order — even if the drive threw.
+      flushAnswerBuffer();
+    }
   },
   onKeystroke(keys): void {
     // A stray keystroke mid-choreography would derail the panel navigation.
@@ -402,9 +422,7 @@ const ingest = startIngestServer(opts.port, {
     shutdown.cancel();
     const result = await rewindDriver.rewind(body.uuid, mode);
     // Messages that arrived mid-choreography were held back — flush them now.
-    const held = rewindBuffer;
-    rewindBuffer = [];
-    for (const t of held) deliver(t);
+    rewindHold.flush(deliver);
     return result;
   },
   async onQuestionHook(body) {

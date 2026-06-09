@@ -76,6 +76,20 @@ export function QuestionBanner({ questions, workerId, toolUseId, onClose }) {
     }
   }, [questions, selections, otherTexts, workerId, toolUseId, submitting, onClose]);
 
+  // Skip/close: tell the worker to cancel the open native menu (empty selections)
+  // so it stops holding messages, then dismiss the banner. Without the server
+  // round-trip the worker's menu hold never releases and the agent goes silent.
+  const dismiss = useCallback(async () => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      await api.answerQuestion(workerId, toolUseId, {}, []);
+    } finally {
+      setSubmitting(false);
+      onClose();
+    }
+  }, [workerId, toolUseId, submitting, onClose]);
+
   const handleNext = useCallback(() => {
     if (!hasAnswer) return;
     if (isLast) submitAll();
@@ -120,7 +134,7 @@ export function QuestionBanner({ questions, workerId, toolUseId, onClose }) {
           <span className="q-step">{currentIndex + 1}/{total}</span>
           {q.header && <span className="q-chip">{q.header}</span>}
           <span className="q-question">{q.question}</span>
-          <button className="q-close" onClick={onClose} title="Close">
+          <button className="q-close" onClick={dismiss} title="Close">
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
               <path d="M4 4l8 8M12 4l-8 8" />
             </svg>
@@ -173,7 +187,7 @@ export function QuestionBanner({ questions, workerId, toolUseId, onClose }) {
             )}
           </div>
           <div className="q-right">
-            <button className="q-btn q-skip" onClick={onClose} disabled={submitting}>Skip</button>
+            <button className="q-btn q-skip" onClick={dismiss} disabled={submitting}>Skip</button>
             <button
               className={"q-btn q-next" + (hasAnswer ? " q-primary" : "")}
               onClick={handleNext}
