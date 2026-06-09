@@ -11,7 +11,7 @@ import { api } from "../../../api/client.js";
 //      red (the error detail lands in the chat git_push line).
 // The push request fires immediately; the green fill is gated on the real result.
 
-const STROKE = 2.4;
+const STROKE = 1.2;
 const RING_MS = 760;
 const DROP_MS = 460;
 
