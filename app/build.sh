@@ -13,6 +13,7 @@ mkdir -p "$APP_BUNDLE/Contents/Resources"
 
 echo "compiling…"
 swiftc -O \
+  -target arm64-apple-macos13.0 \
   -o "$APP_BUNDLE/Contents/MacOS/Eos" \
   -framework Cocoa -framework WebKit -framework UserNotifications \
   "$SCRIPT_DIR/main.swift"
