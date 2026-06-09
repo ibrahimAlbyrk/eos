@@ -78,6 +78,10 @@ kbd {
   --blur-sm: 8px;
   --blur-md: 14px;
   --blur-lg: 22px;
+  /* floating side/right islands: thin gap + radius; the center stays a
+     full-bleed background layer underneath */
+  --shell-gap: 6px;
+  --panel-radius: 12px;
   --bg: #1a1a1a;
   --surface: #1f1f1f;
   --surface-2: #252525;
@@ -738,6 +742,27 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
   min-width: 0;
   position: relative;
   background: var(--bg);
+}
+
+/* right-panel islands — shared geometry for every grid-column-3 viewer.
+   The center stays a full-bleed background layer; these float over it with a
+   thin margin frame (not grid gap — the closed 0fr track would keep a dead gap). */
+.file-viewer, .diff-viewer, .commits-viewer, .agent-viewer {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  margin: var(--shell-gap) var(--shell-gap) var(--shell-gap) 0;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  min-width: 0;
+  min-height: 0;
+  overflow: clip;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease 80ms;
+  grid-column: 3;
+  grid-row: 1;
 }
 
 /* top header strip — just session breadcrumb, nothing more */
@@ -4326,19 +4351,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 /* ============================================================================
    FILE VIEWER — right panel split view
    ============================================================================ */
-.file-viewer {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  border-left: 1px solid var(--border);
-  min-width: 0;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 200ms ease 80ms;
-  grid-column: 3;
-  grid-row: 1;
-}
 .file-viewer.fv-open {
   opacity: 1;
   pointer-events: auto;
@@ -4709,38 +4721,12 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 /* ============================================================================
    DIFF VIEWER — right panel listing working-tree changes, per-file accordion
    ============================================================================ */
-.diff-viewer {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  border-left: 1px solid var(--border);
-  min-width: 0;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 200ms ease 80ms;
-  grid-column: 3;
-  grid-row: 1;
-}
 .diff-viewer.dv-open {
   opacity: 1;
   pointer-events: auto;
 }
 
 /* COMMITS VIEWER — right panel listing committed-but-unpushed commits */
-.commits-viewer {
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  border-left: 1px solid var(--border);
-  min-width: 0;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 200ms ease 80ms;
-  grid-column: 3;
-  grid-row: 1;
-}
 .commits-viewer.cv-open {
   opacity: 1;
   pointer-events: auto;
@@ -5042,23 +5028,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -2px; }
 /* ============================================================================
    AGENT VIEWER — floating right panel for subagent details
    ============================================================================ */
-.agent-viewer {
-  display: flex;
-  flex-direction: column;
-  background: var(--surface-2, var(--bg));
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  margin: 8px 8px 8px 0;
-  min-width: 0;
-  min-height: 0;
-  overflow: clip;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 200ms ease 80ms;
-  grid-column: 3;
-  grid-row: 1;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
-}
 .agent-viewer.av-open { opacity: 1; pointer-events: auto; }
 
 .av-header {
