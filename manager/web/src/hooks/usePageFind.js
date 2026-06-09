@@ -20,6 +20,20 @@ function applyHighlights(ranges, current) {
   else highlights.delete("page-find-current");
 }
 
+// WKWebView never invalidates the paint of off-screen ::highlight tiles when the
+// highlight registry shrinks, so stale blue marks survive above/below the viewport
+// until scrolled into view. Toggling the content subtree's display tears down those
+// cached tiles so they repaint clean; one synchronous task (scroll preserved) means
+// the intermediate state never paints — no flash.
+function evictStaleHighlightPaint(content, wrap) {
+  if (!content) return;
+  const scrollTop = wrap ? wrap.scrollTop : 0;
+  content.style.display = "none";
+  void content.offsetHeight; // force the layout drop before restoring
+  content.style.display = "";
+  if (wrap) wrap.scrollTop = scrollTop;
+}
+
 function collectRanges(root, query) {
   const ranges = [];
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
@@ -42,6 +56,7 @@ export function usePageFind(contentRef, wrapRef, deps) {
   const [matchCount, setMatchCount] = useState(0);
   const rangesRef = useRef([]);
   const lastScrollKeyRef = useRef(null);
+  const paintedRef = useRef(0);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -74,6 +89,8 @@ export function usePageFind(contentRef, wrapRef, deps) {
       setMatchCount(0);
       lastScrollKeyRef.current = null;
       clearHighlights();
+      if (paintedRef.current > 0) evictStaleHighlightPaint(contentRef.current, wrapRef.current);
+      paintedRef.current = 0;
       return;
     }
     const root = contentRef.current;
@@ -84,6 +101,9 @@ export function usePageFind(contentRef, wrapRef, deps) {
     const cur = ranges.length ? Math.min(idx, ranges.length - 1) : 0;
     if (cur !== idx) { setIdx(cur); return; }
     applyHighlights(ranges, cur);
+    // Shrinking match set leaves stale paint on the dropped (possibly off-screen) ranges.
+    if (ranges.length < paintedRef.current) evictStaleHighlightPaint(contentRef.current, wrapRef.current);
+    paintedRef.current = ranges.length;
     // Scroll only when the target moved (new query or prev/next) — content
     // polls reapply highlights without re-centering the view.
     const key = query + ":" + cur;
