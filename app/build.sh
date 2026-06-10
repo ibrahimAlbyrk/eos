@@ -56,4 +56,11 @@ fi
 echo "signing…"
 codesign --force --deep --sign - "$INSTALLED"
 
+# The replaced bundle gets a fresh ad-hoc CDHash every build; refresh the
+# LaunchServices registration so a stale record can't fail the next launch.
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+if [ -x "$LSREGISTER" ]; then
+  "$LSREGISTER" -f "$INSTALLED"
+fi
+
 echo "done → $INSTALLED"

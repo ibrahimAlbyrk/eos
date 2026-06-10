@@ -7,7 +7,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import type { BuildCtx, BuildStep } from "./BuildStep.ts";
-import { applyRelaunch, relaunchPlan } from "./steps/app-relaunch.ts";
+import { applyRelaunch, deliverUi } from "./steps/app-relaunch.ts";
 
 function acquireLock(lockPath: string): boolean {
   if (existsSync(lockPath)) {
@@ -49,6 +49,7 @@ export async function runBuild(ctx: BuildCtx, steps: BuildStep[]): Promise<boole
   process.on("SIGINT", onSigint);
 
   try {
+    const applied = new Set<string>();
     for (const step of steps) {
       const desired = await step.desiredStamp(ctx);
       const current = await step.currentStamp(ctx);
@@ -58,6 +59,7 @@ export async function runBuild(ctx: BuildCtx, steps: BuildStep[]): Promise<boole
         continue;
       }
       if (ctx.dryRun) {
+        applied.add(step.id);
         ctx.log(`● ${step.id} would be ${step.verb.done} (${reason})`);
         continue;
       }
@@ -75,10 +77,11 @@ export async function runBuild(ctx: BuildCtx, steps: BuildStep[]): Promise<boole
         ctx.log(`✗ ${step.id} did not converge after apply (stamp still differs)`);
         return false;
       }
+      applied.add(step.id);
       ctx.log(`  ↳ ${step.verb.done} in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     }
 
-    const plan = relaunchPlan(ctx);
+    const plan = await deliverUi(ctx, { webApplied: applied.has("web"), appApplied: applied.has("app") });
     if (plan.action === "none") {
       ctx.log(`✓ app ${plan.reason}`);
     } else if (ctx.dryRun) {

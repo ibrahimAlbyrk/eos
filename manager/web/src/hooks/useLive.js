@@ -95,6 +95,9 @@ export function useLive() {
       onChange: (e) => {
         try {
           const data = JSON.parse(e.data);
+          // eos build rebuilt the web dist — reload in place so the running
+          // app picks up the new assets without a quit/reopen.
+          if (data.reason === "ui:reload") { window.location.reload(); return; }
           // Terminal chunks are high-frequency live data, not state deltas —
           // route them to the terminal store and skip the refetch entirely.
           if (data.reason === "terminal:chunk") { applyChunk(data.payload ?? {}); return; }

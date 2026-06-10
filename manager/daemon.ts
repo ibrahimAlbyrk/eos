@@ -37,6 +37,7 @@ import { registerTemplateRoutes } from "./routes/templates.ts";
 import { registerSettingsRoutes } from "./routes/settings.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
+import { registerUiReloadRoutes } from "./routes/ui-reload.ts";
 import { registerWebRoutes } from "./routes/web.ts";
 import { registerFsRawRoutes } from "./routes/fs-raw.ts";
 
@@ -57,6 +58,7 @@ registerStreamRoutes(router, c);
 // doesn't accidentally shadow anything. Order matters: first match wins.
 registerWebRoutes(router, c);
 registerUiConfigRoutes(router, c);
+registerUiReloadRoutes(router, c);
 registerMetricsRoutes(router, c);
 registerFsPickerRoutes(router, c);
 registerFsReadRoutes(router, c);
