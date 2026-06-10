@@ -9,6 +9,8 @@ import type { EventBus } from "../ports/EventBus.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { WorkerClient } from "../ports/WorkerClient.ts";
 import type { Logger } from "../ports/Logger.ts";
+import type { ModelCapabilities } from "../ports/ModelCapabilities.ts";
+import { resolveEffort } from "../domain/effort.ts";
 import { NotFoundError } from "../errors/index.ts";
 
 export interface SetWorkerModelDeps {
@@ -18,6 +20,8 @@ export interface SetWorkerModelDeps {
   clock: Clock;
   client: WorkerClient;
   log: Logger;
+  /** Capability lookup for effort normalization. Absent → pass through. */
+  caps?: ModelCapabilities;
 }
 
 export interface SetWorkerModelInput {
@@ -33,7 +37,16 @@ export async function setWorkerModel(
   const w = deps.workers.findById(input.workerId);
   if (!w) throw new NotFoundError("worker", input.workerId);
 
-  const effort = input.effort ?? null;
+  const requested = input.effort ?? null;
+  const effort =
+    requested && deps.caps
+      ? (resolveEffort(requested, await deps.caps.effortLevelsFor(input.model)) ?? null)
+      : requested;
+  if (effort !== requested) {
+    deps.log.info("effort adjusted to model capability", {
+      worker: input.workerId, model: input.model, requested, applied: effort,
+    });
+  }
   deps.workers.updateModel(input.workerId, input.model, effort);
 
   let runtimeApplied = false;

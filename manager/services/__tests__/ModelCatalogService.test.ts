@@ -12,6 +12,7 @@ const MODEL_A: CatalogModel = {
   createdAt: "2026-05-28T00:00:00Z",
   maxInputTokens: 1_000_000,
   maxTokens: 128_000,
+  effortLevels: ["low", "medium", "high", "xhigh", "max"],
 };
 const MODEL_B: CatalogModel = {
   id: "claude-haiku-4-5-20251001",
@@ -19,6 +20,7 @@ const MODEL_B: CatalogModel = {
   createdAt: "2025-10-01T00:00:00Z",
   maxInputTokens: 200_000,
   maxTokens: 64_000,
+  effortLevels: [],
 };
 
 function fakeClock(start: number) {
@@ -97,5 +99,34 @@ describe("ModelCatalogService", () => {
     writeFileSync(file, "{not json");
     const svc = new ModelCatalogService(file, fakeClock(0), async () => [MODEL_A]);
     assert.deepEqual(await svc.get(), [MODEL_A]);
+  });
+
+  it("parses a pre-upgrade cache without effortLevels as unknown (null)", async () => {
+    const { effortLevels: _ignored, ...legacy } = MODEL_A;
+    writeFileSync(file, JSON.stringify({ fetchedAt: 1000, models: [legacy] }));
+    const svc = new ModelCatalogService(file, fakeClock(2000), async () => []);
+    assert.deepEqual(await svc.get(), [{ ...legacy, effortLevels: null }]);
+    assert.equal(await svc.effortLevelsFor("opus"), null);
+  });
+
+  it("resolves effort levels by exact id, family alias, and id prefix", async () => {
+    const svc = new ModelCatalogService(file, fakeClock(0), async () => [MODEL_A, MODEL_B]);
+    assert.deepEqual(await svc.effortLevelsFor("claude-opus-4-8"), MODEL_A.effortLevels);
+    assert.deepEqual(await svc.effortLevelsFor("opus"), MODEL_A.effortLevels);
+    assert.deepEqual(await svc.effortLevelsFor("haiku"), []);
+    assert.deepEqual(await svc.effortLevelsFor("claude-haiku-4-5"), []); // dated id via prefix
+    assert.equal(await svc.effortLevelsFor("gpt-5"), null); // unknown → fail open
+  });
+
+  it("family alias resolves to the newest member", async () => {
+    const older: CatalogModel = {
+      ...MODEL_A,
+      id: "claude-opus-4-6",
+      createdAt: "2025-11-01T00:00:00Z",
+      effortLevels: ["low", "medium", "high", "max"],
+    };
+    const svc = new ModelCatalogService(file, fakeClock(0), async () => [older, MODEL_A]);
+    assert.deepEqual(await svc.effortLevelsFor("opus"), MODEL_A.effortLevels);
+    assert.deepEqual(await svc.effortLevelsFor("claude-opus-4-6"), older.effortLevels);
   });
 });

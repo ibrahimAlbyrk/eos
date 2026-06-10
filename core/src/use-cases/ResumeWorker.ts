@@ -53,7 +53,7 @@ export async function resumeWorker(
   }
 
   const model = input.spec.model ?? "opus";
-  const effort = input.spec.effort ?? "high";
+  const effort = input.spec.effort ?? "xhigh";
   // No boot prompt — the resumed session already holds the conversation.
   const spec: SpawnWorkerSpec = { ...input.spec, prompt: "", resumeSessionId: w.session_id };
 

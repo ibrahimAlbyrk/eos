@@ -12,7 +12,9 @@ import type { IdGenerator } from "../ports/IdGenerator.ts";
 import type { Logger } from "../ports/Logger.ts";
 import type { RecentsRepo } from "../ports/RecentsRepo.ts";
 import type { AgentBackend } from "../ports/AgentBackend.ts";
+import type { ModelCapabilities } from "../ports/ModelCapabilities.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
+import { resolveEffort } from "../domain/effort.ts";
 import { ConflictError, NotFoundError } from "../errors/index.ts";
 
 export interface SpawnWorkerSpec {
@@ -80,6 +82,9 @@ export interface SpawnWorkerDeps {
   onAgentEvent?(workerId: string, event: AgentEvent): void;
   /** Recent-folders log; updated with the resolved cwd after every spawn. */
   recents?: RecentsRepo;
+  /** Capability lookup for effort normalization. Absent (unit tests,
+   *  standalone) → requested effort passes through unchanged. */
+  caps?: ModelCapabilities;
 }
 
 export async function spawnWorker(
@@ -113,7 +118,18 @@ export async function spawnWorker(
 
   const id = resolved.fixedId ?? deps.ids.newWorkerId();
   const model = resolved.model ?? "opus";
-  const effort = resolved.effort ?? "high";
+  // xhigh matches claude's own default tier for current opus models. The
+  // capability check clamps/drops a level the model can't take (haiku has no
+  // effort at all) and fails open when the catalog doesn't know the model.
+  const requestedEffort = resolved.effort ?? "xhigh";
+  const effort = deps.caps
+    ? resolveEffort(requestedEffort, await deps.caps.effortLevelsFor(model))
+    : requestedEffort;
+  if (effort !== requestedEffort) {
+    deps.log.info("effort adjusted to model capability", {
+      workerId: id, model, requested: requestedEffort, applied: effort ?? null,
+    });
+  }
 
   // Generate the worktree branch daemon-side so the DB always has a non-null
   // branch for a worktree worker (the worker used to auto-generate it and leave
@@ -136,7 +152,9 @@ export async function spawnWorker(
     (resolved.worktreeFrom && branch && deps.resolveWorktreeDir
       ? deps.resolveWorktreeDir(resolved.worktreeFrom, branch)
       : undefined);
-  const withBranch = { ...resolved, branch, worktreeDir };
+  // Carry the normalized effort on the spec: buildArgs derives the --effort
+  // flag from spec.effort, so this is what actually reaches the claude CLI.
+  const withBranch = { ...resolved, branch, worktreeDir, effort };
 
   // Daemon bookkeeping on child exit — shared by both spawn paths. The backend
   // path releases the port itself (it owns allocation); the legacy path releases
@@ -205,7 +223,7 @@ export async function spawnWorker(
     startedAt: deps.clock.now(),
     parentId: resolved.parentId ?? null,
     model,
-    effort,
+    effort: effort ?? null,
     isOrchestrator: !!resolved.isOrchestrator,
     backendKind: deps.backend?.kind ?? "claude-cli",
     backendProfile: null,

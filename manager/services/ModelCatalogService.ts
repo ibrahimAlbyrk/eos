@@ -13,6 +13,7 @@ import { homedir } from "node:os";
 import type { Clock } from "../../core/src/ports/Clock.ts";
 import type { CatalogModel } from "../../contracts/src/http.ts";
 import { CatalogModelSchema } from "../../contracts/src/http.ts";
+import { EFFORT_LEVELS } from "../../contracts/src/shared.ts";
 import { z } from "zod";
 
 const TTL_MS = 6 * 60 * 60 * 1000;
@@ -51,6 +52,12 @@ export class ModelCatalogService {
     return this.cache?.models ?? [];
   }
 
+  /** ModelCapabilities port impl. null = model unknown to the catalog
+   * (fail open); [] = the model has no effort support at all. */
+  async effortLevelsFor(model: string): Promise<string[] | null> {
+    return resolveCatalogModel(await this.get(), model)?.effortLevels ?? null;
+  }
+
   private refresh(): Promise<void> {
     this.refreshing ??= this.fetchModels()
       .then((models) => {
@@ -84,6 +91,36 @@ export class ModelCatalogService {
       // cache is best-effort; in-memory copy still serves this run
     }
   }
+}
+
+// Maps the model strings Eos actually passes around — family aliases
+// ("opus"), exact ids, and dated variants — onto a catalog entry. Family
+// aliases resolve to the newest member, mirroring what claude CLI does.
+export function resolveCatalogModel(models: CatalogModel[], raw: string): CatalogModel | null {
+  const exact = models.find((m) => m.id === raw);
+  if (exact) return exact;
+  const newest = (list: CatalogModel[]): CatalogModel =>
+    [...list].sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+  const family = models.filter((m) => m.id.startsWith(`claude-${raw}-`));
+  if (family.length) return newest(family);
+  const prefix = models.filter((m) => m.id.startsWith(raw));
+  if (prefix.length) return newest(prefix);
+  return null;
+}
+
+// capabilities.effort from GET /v1/models: { supported, low: {supported}, … }.
+// Unknown/malformed shapes resolve to null so callers fail open.
+function extractEffortLevels(capabilities: unknown): string[] | null {
+  if (!capabilities || typeof capabilities !== "object") return null;
+  const effort = (capabilities as Record<string, unknown>).effort;
+  if (!effort || typeof effort !== "object") return null;
+  const eff = effort as Record<string, unknown>;
+  if (eff.supported === false) return [];
+  const levels = EFFORT_LEVELS.filter((lvl) => {
+    const leaf = eff[lvl];
+    return !!leaf && typeof leaf === "object" && (leaf as Record<string, unknown>).supported === true;
+  });
+  return levels.length ? levels : null;
 }
 
 // The same credential claude CLI maintains: refreshed whenever a session runs,
@@ -127,6 +164,7 @@ async function fetchModelsFromApi(): Promise<CatalogModel[]> {
       createdAt: m.created_at ?? "",
       maxInputTokens: m.max_input_tokens ?? null,
       maxTokens: m.max_tokens ?? null,
+      effortLevels: extractEffortLevels(m.capabilities),
     });
     return parsed.success ? [parsed.data] : [];
   });
