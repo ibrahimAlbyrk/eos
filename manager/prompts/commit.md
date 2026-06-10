@@ -14,6 +14,8 @@ PUSH_TO_REMOTE: $1
 ## Instructions
 
 - Group related changes into separate commits (1 logical change = 1 commit).
+- The unit of staging is the whole file: group files into logical commits, never split one file's changes across commits — no `git add -p`/`--patch`, no hunk or line-level staging.
+- If a single file mixes concerns, commit it whole under the dominant concern and mention the secondary change in the body.
 - Follow conventional commits:
 
 ```

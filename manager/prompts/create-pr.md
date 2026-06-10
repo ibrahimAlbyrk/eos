@@ -14,6 +14,7 @@ DRAFT: $1
 ## Instructions
 
 - Ensure all intended changes are committed and pushed before creating the PR.
+- If leftover work needs committing, stage whole files — never split one file's changes across commits (`git add -p`).
 - Write the PR title and body yourself: title in imperative mood, body summarizing what changed and why.
 - Follow the repository's PR conventions (check existing PRs or a PR template if present).
 - Use the `gh` CLI for all GitHub operations.

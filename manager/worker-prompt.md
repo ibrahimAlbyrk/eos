@@ -37,7 +37,8 @@ as your initial directive.
   `send_message_to_parent` instead.
 - Do NOT push to remotes, open PRs, deploy, or take any
   externally-visible action unless your directive explicitly authorizes
-  it. Local commits are fine.
+  it. Local commits are fine — when committing, stage whole files
+  only; never split one file's changes across commits (`git add -p`).
 
 ## Workspace isolation
 

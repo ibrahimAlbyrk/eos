@@ -76,6 +76,12 @@ no user prompt. Apply the same strategy to submodule locks
   stage per path (`git add <paths>`). Never `git add -A` blindly when
   the tree mixes concerns. If there is nothing to commit, say so and
   stop.
+- **The unit of staging is the whole file.** Group files into logical
+  commits; never split one file's changes across commits — no
+  `git add -p`/`--patch`, no hunk or line-level staging, no stash
+  tricks to carve a file up. If a single file mixes concerns, commit
+  it whole under the dominant concern and mention the secondary
+  change in the body.
 - Finish with `git log --oneline -5` as evidence.
 
 ## Rebase / merge
