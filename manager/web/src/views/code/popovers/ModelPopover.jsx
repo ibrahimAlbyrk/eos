@@ -24,7 +24,9 @@ export function ModelPopover({ live }) {
     <div className="model-popover glass-pop open" id="modelPopover" data-popover="model">
       <div className="mp-head">Model</div>
       {MODELS.map((m) => (
-        <button key={m.id} className={"mp-row" + (matchesModel(currentModel, m) ? " on" : "")} onClick={() => pickModel(m.id)}>
+        // Commit the family alias (claude CLI resolves "fable"/"opus"; the
+        // curated short id like "fable-5" is display-only and 404s at the API)
+        <button key={m.id} className={"mp-row" + (matchesModel(currentModel, m) ? " on" : "")} onClick={() => pickModel(m.aliases[0] ?? m.id)}>
           <span className="mp-name">{m.label}</span>
           <span className="mp-tag">{m.tag}</span>
         </button>
