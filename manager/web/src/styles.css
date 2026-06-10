@@ -1084,6 +1084,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .msg-asst a { color: var(--accent); text-decoration: none; }
 .msg-asst a:hover { text-decoration: underline; }
 .msg-asst .ic { font-size: var(--text-sm); }
+.msg-user a, .msg-user .msg-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.msg-user a:hover { opacity: 0.8; }
 
 /* blur-in reveal for freshly arrived agent text (lib/blurInReveal.js) */
 .blur-word,

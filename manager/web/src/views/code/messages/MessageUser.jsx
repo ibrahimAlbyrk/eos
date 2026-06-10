@@ -1,6 +1,7 @@
 import { api } from "../../../api/client.js";
 import { ImageLightbox } from "../ImageLightbox.jsx";
 import { labelTitle } from "../../../lib/attachmentTokens.js";
+import { segment, URL_RE } from "../../../lib/richText.jsx";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
 
@@ -38,13 +39,23 @@ function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function renderWithTokens(text, labels) {
-  if (!labels.length) return text;
-  const re = new RegExp(`(${labels.map(escapeRegExp).join("|")})`, "g");
-  const set = new Set(labels);
-  return text.split(re).map((part, i) =>
-    set.has(part) ? <span key={i} className="att-hl">{part}</span> : part
-  );
+function buildRules(labels) {
+  const rules = [
+    {
+      match: URL_RE,
+      render: (url, key) => (
+        <a key={key} className="msg-link" href={url} rel="noreferrer">{url}</a>
+      ),
+    },
+  ];
+  if (labels.length) {
+    const re = new RegExp(`(${labels.map(escapeRegExp).join("|")})`, "g");
+    rules.push({
+      match: re,
+      render: (lbl, key) => <span key={key} className="att-hl">{lbl}</span>,
+    });
+  }
+  return rules;
 }
 
 export function MessageUser({ text, cwd }) {
@@ -85,7 +96,7 @@ export function MessageUser({ text, cwd }) {
           ))}
         </div>
       )}
-      {shortened && <div className="b">{renderWithTokens(shortened, labels)}</div>}
+      {shortened && <div className="b">{segment(shortened, buildRules(labels))}</div>}
     </div>
   );
 }
