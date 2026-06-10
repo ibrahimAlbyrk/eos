@@ -52,7 +52,15 @@ cd manager && npx tsx --test --test-name-pattern="config" shared/__tests__/confi
 cd manager/web && npx vitest run match
 ```
 
-Daemon restart after code changes (kill orphans, keep DB):
+Deploy after code changes — one command, converges only what changed (content-hash stamps; exit 0 ⇒ everything running is current):
+```bash
+eos build             # deps → web dist → macOS app → daemon restart → app relaunch, each only if stale
+eos build --dry-run   # show what would rebuild and why
+eos build --check     # lint + all test suites before deploying
+```
+Stamps live inside the artifacts (`node_modules/.eos-stamp`, `dist/.eos-stamp`, app bundle Resources) and the daemon self-stamps `/health.sourceStamp` at boot — no side manifest; deleting an artifact just makes it dirty again. Input sets are defined once in `manager/builder/inputs.ts`; the backend set deliberately excludes `*.md` prompts, `scripts/hooks/`, and `manager/cli/` because those take effect without a restart.
+
+Manual daemon restart (kill orphans, keep DB):
 ```bash
 eos restart           # restart only
 eos restart --db      # also wipe state.db*
