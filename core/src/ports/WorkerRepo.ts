@@ -69,10 +69,7 @@ export interface WorkerRepo {
   reactivate(id: string, runtime: { pid: number | null; port: number }): void;
   delete(id: string): void;
   findChildrenIds(parentId: string): string[];
-  // Aggregate helpers consumed by /session and /metrics — keep here so the
-  // route layer doesn't compose SQL.
-  totalCost(): number;
+  // Aggregate helper consumed by /metrics — keep here so the route layer
+  // doesn't compose SQL.
   countByState(): Array<{ state: string; n: number }>;
-  countActive(): { active: number; total: number };
-  earliestOrchestratorStart(): number | null;
 }

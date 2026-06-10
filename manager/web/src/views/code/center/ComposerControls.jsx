@@ -145,7 +145,7 @@ export function ComposerControls({ live, onAttach, historyNav }) {
               )}
             </svg>
           </button>
-          <CtxPopover used={used} total={total} pct={pct} session={live.session} />
+          <CtxPopover used={used} total={total} pct={pct} costUsd={selected ? (selected.cost_usd ?? 0) : null} />
         </div>
       </div>
     </div>

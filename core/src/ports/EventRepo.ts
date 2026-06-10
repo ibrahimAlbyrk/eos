@@ -18,6 +18,4 @@ export interface EventRepo {
   patchPayload(rowId: number, payload: unknown): void;
   list(q: EventQuery): WorkerEventRow[];
   deleteByWorker(workerId: string): void;
-  /** Sum of `payload.deltaCost` for usage events since `sinceTs` (cost-per-hour). */
-  sumDeltaCostSince(sinceTs: number): number;
 }

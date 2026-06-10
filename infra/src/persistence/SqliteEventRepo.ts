@@ -13,7 +13,6 @@ export class SqliteEventRepo implements EventRepo {
   private readonly stmtListDesc;
   private readonly stmtListDescBefore;
   private readonly stmtDeleteByWorker;
-  private readonly stmtSumDeltaCost;
 
   constructor(db: DatabaseSync) {
     this.db = db;
@@ -38,9 +37,6 @@ export class SqliteEventRepo implements EventRepo {
       "SELECT * FROM events WHERE worker_id = ? AND ts > ? ORDER BY ts ASC, id ASC LIMIT ?",
     );
     this.stmtDeleteByWorker = db.prepare("DELETE FROM events WHERE worker_id = ?");
-    this.stmtSumDeltaCost = db.prepare(
-      "SELECT COALESCE(SUM(json_extract(payload, '$.deltaCost')), 0) AS cph FROM events WHERE type = 'usage' AND ts > ?",
-    );
   }
 
   append(workerId: string, ts: number, type: string, payload: unknown): number {
@@ -67,10 +63,5 @@ export class SqliteEventRepo implements EventRepo {
 
   deleteByWorker(workerId: string): void {
     this.stmtDeleteByWorker.run(workerId);
-  }
-
-  sumDeltaCostSince(sinceTs: number): number {
-    const row = this.stmtSumDeltaCost.get(sinceTs) as { cph?: number } | undefined;
-    return row?.cph ?? 0;
   }
 }

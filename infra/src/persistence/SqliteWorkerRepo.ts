@@ -29,10 +29,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtReactivate;
   private readonly stmtDelete;
   private readonly stmtFindChildrenIds;
-  private readonly stmtTotalCost;
   private readonly stmtCountByState;
-  private readonly stmtCountActive;
-  private readonly stmtEarliestOrch;
 
   constructor(db: DatabaseSync) {
     this.db = db;
@@ -69,14 +66,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtReactivate = db.prepare("UPDATE workers SET pid = ?, port = ?, ended_at = NULL, exit_code = NULL WHERE id = ?");
     this.stmtDelete = db.prepare("DELETE FROM workers WHERE id = ?");
     this.stmtFindChildrenIds = db.prepare("SELECT id FROM workers WHERE parent_id = ?");
-    this.stmtTotalCost = db.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS total FROM workers");
     this.stmtCountByState = db.prepare("SELECT state, COUNT(*) AS n FROM workers GROUP BY state");
-    this.stmtCountActive = db.prepare(
-      "SELECT COUNT(*) AS total, COUNT(CASE WHEN state IN ('SPAWNING','WORKING','IDLE') THEN 1 END) AS active FROM workers",
-    );
-    this.stmtEarliestOrch = db.prepare(
-      "SELECT started_at FROM workers WHERE is_orchestrator = 1 ORDER BY started_at ASC LIMIT 1",
-    );
   }
 
   insert(input: InsertWorkerInput): void {
@@ -178,21 +168,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
     return rows.map((r) => r.id);
   }
 
-  totalCost(): number {
-    return (this.stmtTotalCost.get() as { total?: number } | undefined)?.total ?? 0;
-  }
-
   countByState(): Array<{ state: string; n: number }> {
     return this.stmtCountByState.all() as Array<{ state: string; n: number }>;
-  }
-
-  countActive(): { active: number; total: number } {
-    const row = this.stmtCountActive.get() as { active?: number; total?: number } | undefined;
-    return { active: row?.active ?? 0, total: row?.total ?? 0 };
-  }
-
-  earliestOrchestratorStart(): number | null {
-    const row = this.stmtEarliestOrch.get() as { started_at?: number } | undefined;
-    return row?.started_at ?? null;
   }
 }

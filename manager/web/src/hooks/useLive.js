@@ -31,7 +31,6 @@ export function useLive() {
   const [workers, setWorkers] = useState([]);
   const [health, setHealth] = useState(true);
   const [recents, setRecents] = useState([]);
-  const [session, setSession] = useState(null);
   const [uiConfig, setUiConfig] = useState(null);
   const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null });
   const now = useClockTick();
@@ -51,7 +50,7 @@ export function useLive() {
     refetchTimer.current = setTimeout(async () => {
       refetchTimer.current = null;
       try {
-        const [list, sess, pend] = await Promise.all([api.listWorkers(), api.getSession(), api.listPending().catch(() => [])]);
+        const [list, pend] = await Promise.all([api.listWorkers(), api.listPending().catch(() => [])]);
         if (Array.isArray(pend)) setPendingPermissionsRef.current?.(pend);
         if (Array.isArray(list)) {
           setWorkers(list);
@@ -61,7 +60,6 @@ export function useLive() {
             if (!w || w.state === "DONE" || w.state === "IDLE") setInterruptedId(null);
           }
         }
-        if (sess) setSession(sess);
       } catch { setHealth(false); }
     }, SSE_DEBOUNCE_MS);
   }, [setInterruptedId]);
@@ -70,14 +68,12 @@ export function useLive() {
   useEffect(() => {
     (async () => {
       try {
-        const [list, sess, rec, cfg] = await Promise.all([
+        const [list, rec, cfg] = await Promise.all([
           api.listWorkers(),
-          api.getSession(),
           api.listRecents(),
           api.uiConfig(),
         ]);
         if (Array.isArray(list)) setWorkers(list);
-        if (sess) setSession(sess);
         setRecents(rec?.paths ?? []);
         applyCatalog(cfg?.modelCatalog);
         setUiConfig(cfg);
@@ -153,13 +149,14 @@ export function useLive() {
   const workersRef = useRef(workers);
   workersRef.current = workers;
 
-  const sendToAgent = useCallback(async (id, text) => {
+  const sendToAgent = useCallback(async (id, text, { clientMsgId, queueWhenBusy } = {}) => {
     setInterruptedId(null);
     const worker = workersRef.current.find((w) => w.id === id);
     if (!worker) return { ok: false, status: 404, body: { error: "not found" } };
+    const opts = { clientMsgId, queueWhenBusy };
     const r = worker.is_orchestrator
-      ? await api.sendOrchestratorMessage(id, text)
-      : await api.sendWorkerMessage(id, text);
+      ? await api.sendOrchestratorMessage(id, text, opts)
+      : await api.sendWorkerMessage(id, text, opts);
     scheduleRefetch();
     return r;
   }, [scheduleRefetch, setInterruptedId]);
@@ -246,7 +243,6 @@ export function useLive() {
     workers: effectiveWorkers,
     orchestrators,
     health,
-    session,
     recents,
     uiConfig,
     now,
