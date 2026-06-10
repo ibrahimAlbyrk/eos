@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildBlocks, buildSummary, gitActions, applyRewinds, applyClears } from "./messageParser.js";
+import { buildBlocks, buildSummary, gitActions, applyRewinds, applyClears, sortBlocksByTs } from "./messageParser.js";
 
 function agentRow(id, ts) {
   return { type: "jsonl", ts, payload: { kind: "tool_use", id, name: "Agent", input: { description: id } } };
@@ -453,5 +453,37 @@ describe("applyClears", () => {
   it("renders the marker as a divider block via buildBlocks", () => {
     const blocks = buildBlocks(applyClears([user("old", 1), cleared(2), user("new", 3)]));
     expect(blocks.map((b) => b.kind)).toEqual(["cleared", "user"]);
+  });
+});
+
+describe("chat ordering (sentAt + sortBlocksByTs)", () => {
+  const thinking = (text, ts) => ({ type: "jsonl", ts, payload: JSON.stringify({ kind: "thinking", text }) });
+  const asst = (text, ts) => ({ type: "jsonl", ts, payload: JSON.stringify({ kind: "assistant_text", text }) });
+  const userAt = (text, ts, sentAt) => ({ type: "user_message", ts, payload: JSON.stringify({ text, sentAt }) });
+
+  it("user block ts prefers payload.sentAt over the event row ts", () => {
+    const blocks = buildBlocks([userAt("hi", 500, 100)]);
+    expect(blocks[0]).toMatchObject({ kind: "user", ts: 100 });
+  });
+
+  it("user block ts falls back to event ts without sentAt", () => {
+    const blocks = buildBlocks([{ type: "user_message", ts: 500, payload: JSON.stringify({ text: "hi" }) }]);
+    expect(blocks[0].ts).toBe(500);
+  });
+
+  it("moves a late-emitted user bubble above the output it caused", () => {
+    // Append order: the turn's thinking/text rows landed before the
+    // user_message row (delivery_unverified emits at resolution) — sentAt
+    // predates them, so the bubble sorts back above.
+    const events = [thinking("hmm", 200), asst("out", 210), userAt("do it", 300, 150)];
+    const blocks = sortBlocksByTs(buildBlocks(events));
+    expect(blocks.map((b) => b.kind)).toEqual(["user", "thinking", "assistant"]);
+  });
+
+  it("keeps same-ts blocks in their original relative order", () => {
+    const events = [thinking("a", 100), asst("b", 100), userAt("c", 100, 100)];
+    const before = buildBlocks(events).map((b) => b.kind);
+    const after = sortBlocksByTs(buildBlocks(events)).map((b) => b.kind);
+    expect(after).toEqual(before);
   });
 });

@@ -37,4 +37,10 @@ describe("mergeEvents", () => {
     const incoming = [ev(1, 10), ev(3, 10)];
     expect(mergeEvents(current, incoming).map((e) => e.id)).toEqual([1, 2, 3]);
   });
+
+  it("appends a delta page (afterId fetch) after the loaded window", () => {
+    const current = [ev(1, 10), ev(2, 20)];
+    const delta = [ev(3, 30), ev(4, 40)];
+    expect(mergeEvents(current, delta).map((e) => e.id)).toEqual([1, 2, 3, 4]);
+  });
 });

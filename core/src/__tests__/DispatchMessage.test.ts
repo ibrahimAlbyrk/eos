@@ -82,7 +82,7 @@ describe("dispatchMessage — transcript-anchored message events", () => {
     const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
     await dispatchMessage(deps, { workerId: "w1", text: "hello" });
     assert.deepEqual(userMessages(events), []);
-    assert.deepEqual(sends, [{ text: "hello", record: { as: "user_message" } }]);
+    assert.deepEqual(sends, [{ text: "hello", record: { as: "user_message", sentAt: 1234 } }]);
   });
 
   it("self-reporting backend: displayText rides in the record, full text to the PTY", async () => {
@@ -90,7 +90,7 @@ describe("dispatchMessage — transcript-anchored message events", () => {
     const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
     await dispatchMessage(deps, { workerId: "w1", text: "full action prompt", displayText: "/commit" });
     assert.deepEqual(userMessages(events), []);
-    assert.deepEqual(sends, [{ text: "full action prompt", record: { as: "user_message", displayText: "/commit" } }]);
+    assert.deepEqual(sends, [{ text: "full action prompt", record: { as: "user_message", sentAt: 1234, displayText: "/commit" } }]);
   });
 
   it("non-reporting backend keeps the dispatch-time append and gets no record", async () => {
@@ -105,7 +105,7 @@ describe("dispatchMessage — transcript-anchored message events", () => {
     const { deps, events, clientSends } = buildDeps();
     await dispatchMessage(deps, { workerId: "w1", text: "hello" });
     assert.deepEqual(userMessages(events), []);
-    assert.deepEqual(clientSends, [{ text: "hello", record: { as: "user_message" } }]);
+    assert.deepEqual(clientSends, [{ text: "hello", record: { as: "user_message", sentAt: 1234 } }]);
   });
 
   it("still lifts the worker to WORKING eagerly", async () => {
@@ -170,14 +170,14 @@ describe("dispatchMessage — daemon-side queue + idempotency", () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
     const { deps } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
     await dispatchMessage(deps, { workerId: "w1", text: "hello", clientMsgId: "c1" });
-    assert.deepEqual(sends[0].record, { as: "user_message", clientMsgIds: ["c1"] });
+    assert.deepEqual(sends[0].record, { as: "user_message", sentAt: 1234, clientMsgIds: ["c1"] });
   });
 
   it("recordClientMsgIds (drain path) ride the record without claiming", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
     const { deps, queueRows } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
     await dispatchMessage(deps, { workerId: "w1", text: "a\n\nb", recordClientMsgIds: ["c1", "c2"] });
-    assert.deepEqual(sends[0].record, { as: "user_message", clientMsgIds: ["c1", "c2"] });
+    assert.deepEqual(sends[0].record, { as: "user_message", sentAt: 1234, clientMsgIds: ["c1", "c2"] });
     // no claim row for the drain dispatch itself — only the unkeyed audit row
     assert.equal(queueRows.filter((r) => r.clientMsgId !== null).length, 0);
   });
