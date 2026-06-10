@@ -1,18 +1,21 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { api } from "../../../api/client.js";
+import { createRingProgress } from "./pushRingProgress.js";
 
 // Deterministic push with a celebratory choreography:
 //   1. the unpushed-commit count (sourceRef, the sync chip) leaps in an arc and
 //      drops INTO the button, leaving a green splash;
 //   2. a green stroke traces the button's perimeter counter-clockwise from the
-//      top-center back to the top-center;
+//      top-center — born hidden, it trickles toward a cap while the push is in
+//      flight and sprints to full only when the real result lands, so it never
+//      sits complete before the push actually succeeded;
 //   3. on success the button fills green ("pushed" feel); on failure it flashes
-//      red (the error detail lands in the chat git_push line).
-// The push request fires immediately; the green fill is gated on the real result.
+//      red around the frozen partial ring (the error detail lands in the chat
+//      git_push line).
+// The push request fires immediately; ring completion is gated on the real result.
 
 const STROKE = 1.2;
-const RING_MS = 760;
 const DROP_MS = 460;
 
 const nextFrame = () =>
@@ -73,11 +76,13 @@ export function PushButton({ workerId, label, ahead, sourceRef, onSourceFx, onSe
   async function run() {
     if (busyRef.current) return;
     busyRef.current = true;
-    const push = api.pushWorker(workerId).then((r) => r, () => ({ body: { ok: false } }));
+    let outcome = null;
+    const push = api.pushWorker(workerId)
+      .then((r) => (outcome = { ok: Boolean(r?.body?.ok) }), () => (outcome = { ok: false }));
 
     if (reduceMotion() || !btnRef.current) {
-      const res = await push;
-      await settle(res?.body?.ok);
+      await push;
+      await settle(outcome.ok);
       return;
     }
 
@@ -115,20 +120,24 @@ export function PushButton({ workerId, label, ahead, sourceRef, onSourceFx, onSe
       await nextFrame();
     }
 
-    // Splash + counter-clockwise ring sweep.
+    // Splash + result-coupled ring: trickle while the push is in flight and
+    // sprint to full when the result lands; if the push already resolved
+    // during the droplet, celebrate with one uninterrupted sweep instead.
     btnRef.current?.classList.add("splash");
     if (ringRef.current) {
-      const total = ringRef.current.getTotalLength();
-      ringRef.current.style.strokeDasharray = `${total}`;
-      ringRef.current.style.strokeDashoffset = `${total}`;
-      await ringRef.current.animate(
-        [{ strokeDashoffset: total }, { strokeDashoffset: 0 }],
-        { duration: RING_MS, easing: "cubic-bezier(.65,0,.35,1)", fill: "forwards" },
-      ).finished;
+      const ringFx = createRingProgress(ringRef.current);
+      if (outcome) {
+        if (outcome.ok) await ringFx.sweep();
+      } else {
+        ringFx.trickle();
+        await push;
+        if (outcome.ok) await ringFx.finish();
+        else ringFx.fail();
+      }
+    } else {
+      await push;
     }
-
-    const res = await push;
-    await settle(res?.body?.ok);
+    await settle(outcome.ok);
   }
 
   function reset() {
@@ -173,7 +182,7 @@ export function PushButton({ workerId, label, ahead, sourceRef, onSourceFx, onSe
       </button>
       {ring && (
         <svg className="push-ring" width={ring.w} height={ring.h} viewBox={`0 0 ${ring.w} ${ring.h}`} aria-hidden>
-          <path ref={ringRef} d={ring.d} fill="none" stroke="var(--ok)" strokeWidth={STROKE} strokeLinecap="round" />
+          <path ref={ringRef} d={ring.d} pathLength="1" fill="none" stroke="var(--ok)" strokeWidth={STROKE} strokeLinecap="round" style={{ strokeDasharray: "1", strokeDashoffset: "1" }} />
         </svg>
       )}
       {drop && createPortal(
