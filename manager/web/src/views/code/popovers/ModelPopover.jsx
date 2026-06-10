@@ -1,5 +1,5 @@
 import { useUi } from "../../../state/ui.jsx";
-import { MODELS, EFFORTS } from "../../../lib/models.js";
+import { MODELS, effortChoicesFor } from "../../../lib/models.js";
 
 const matchesModel = (current, model) =>
   current === model.id || model.aliases.includes(current);
@@ -10,6 +10,7 @@ export function ModelPopover({ live }) {
   const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
   const currentModel = selected?.model ?? ui.composer.model;
   const currentEffort = selected?.effort ?? ui.composer.effort;
+  const effortChoices = effortChoicesFor(currentModel);
 
   const pickModel = async (id) => {
     if (selected) await live.setModel(selected.id, id, currentEffort);
@@ -31,15 +32,19 @@ export function ModelPopover({ live }) {
           <span className="mp-tag">{m.tag}</span>
         </button>
       ))}
-      <div className="mp-divider"></div>
-      <div className="mp-head">Thinking effort</div>
-      <div className="mp-effort">
-        {EFFORTS.map((e) => (
-          <button key={e.id} className={"mp-effort-btn" + (currentEffort === e.id ? " on" : "")} onClick={() => pickEffort(e.id)}>
-            {e.label}
-          </button>
-        ))}
-      </div>
+      {effortChoices.length > 0 && (
+        <>
+          <div className="mp-divider"></div>
+          <div className="mp-head">Thinking effort</div>
+          <div className="mp-effort">
+            {effortChoices.map((e) => (
+              <button key={e.id} className={"mp-effort-btn" + (currentEffort === e.id ? " on" : "")} onClick={() => pickEffort(e.id)}>
+                {e.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

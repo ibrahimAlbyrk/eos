@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { curateCatalog, modelName, modelCtx, modelCtxTokens } from "./models.js";
+import { curateCatalog, applyCatalog, effortChoicesFor, EFFORTS, modelName, modelCtx, modelCtxTokens } from "./models.js";
 
 // Shape mirrors what the daemon maps from GET /v1/models
 const CATALOG = [
@@ -26,6 +26,7 @@ describe("curateCatalog", () => {
       label: "haiku-4.5",
       name: "Haiku 4.5",
       ctxTokens: 200_000,
+      efforts: null,
       tag: "fastest",
     });
     expect(sonnet.name).toBe("Sonnet 4.6");
@@ -38,6 +39,7 @@ describe("curateCatalog", () => {
       label: "fable-5",
       name: "Fable 5",
       ctxTokens: 1_000_000,
+      efforts: null,
       tag: "most powerful",
     });
   });
@@ -77,5 +79,33 @@ describe("model helpers", () => {
     expect(modelCtxTokens("sonnet")).toBe(1_000_000);
     expect(modelCtxTokens("claude-haiku-4-5-20251001")).toBe(200_000);
     expect(modelCtxTokens("unknown-model")).toBe(null);
+  });
+});
+
+describe("effort capability", () => {
+  it("curateCatalog carries effortLevels onto the curated entry", () => {
+    const out = curateCatalog([
+      { ...CATALOG[1], effortLevels: ["low", "medium", "high", "xhigh", "max"] },
+      { ...CATALOG[5], effortLevels: [] },
+    ]);
+    expect(out.find((m) => m.aliases.includes("opus")).efforts).toEqual(["low", "medium", "high", "xhigh", "max"]);
+    expect(out.find((m) => m.aliases.includes("haiku")).efforts).toEqual([]);
+  });
+
+  it("shows all choices while capability is unknown (baseline)", () => {
+    expect(effortChoicesFor("opus")).toEqual(EFFORTS);
+    expect(effortChoicesFor("something-unknown")).toEqual(EFFORTS);
+  });
+
+  // Mutates module-level MODELS via applyCatalog — keep this test last.
+  it("gates API levels by capability and hides the section for no-effort models", () => {
+    applyCatalog([
+      { ...CATALOG[2], effortLevels: ["low", "medium", "high", "max"] }, // opus-4.7, no xhigh
+      { ...CATALOG[5], effortLevels: [] },
+    ]);
+    expect(effortChoicesFor("haiku")).toEqual([]);
+    const opusIds = effortChoicesFor("opus").map((e) => e.id);
+    expect(opusIds).not.toContain("xhigh");
+    expect(opusIds).toEqual(["low", "medium", "high", "max", "ultracode", "auto"]);
   });
 });

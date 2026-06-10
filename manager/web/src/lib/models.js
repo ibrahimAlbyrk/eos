@@ -55,6 +55,7 @@ export function curateCatalog(catalog) {
       label: shortId,
       name: String(latest.displayName ?? "").replace(/^Claude\s+/, "") || shortId,
       ctxTokens: Number.isFinite(latest.maxInputTokens) && latest.maxInputTokens > 0 ? latest.maxInputTokens : null,
+      efforts: Array.isArray(latest.effortLevels) ? latest.effortLevels : null,
       tag,
     });
   }
@@ -79,6 +80,19 @@ export const EFFORTS = [
 ];
 
 export const EFFORT_LABELS = Object.fromEntries(EFFORTS.map((e) => [e.id, e.label]));
+
+const EFFORT_API_LEVELS = ["low", "medium", "high", "xhigh", "max"];
+
+// Picker choices for a model: API levels gated by the catalog capability
+// (null = unknown → show all; [] = no effort support → hide the section).
+// ultracode/auto are Claude-Code session features, not API levels, so they
+// survive whenever the model supports effort at all.
+export function effortChoicesFor(raw) {
+  const efforts = resolveModel(raw)?.efforts ?? null;
+  if (!efforts) return EFFORTS;
+  if (efforts.length === 0) return [];
+  return EFFORTS.filter((e) => !EFFORT_API_LEVELS.includes(e.id) || efforts.includes(e.id));
+}
 
 export function modelName(raw) {
   if (!raw) return null;
