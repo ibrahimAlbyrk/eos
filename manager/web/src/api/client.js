@@ -7,7 +7,25 @@
 import { ROUTES } from "./routes.js";
 
 const DAEMON = typeof location !== "undefined" ? location.origin : "";
+// Raw-content origin (daemon.rawPort). Separate origin by design — runnable
+// HTML is sandboxed with allow-same-origin there; see manager/routes/fs-raw.ts.
+// The port mirrors the config default the same way the app shell hardcodes 7400.
+const RAW_ORIGIN = (() => {
+  try {
+    const u = new URL(DAEMON || "http://127.0.0.1:7400");
+    u.port = "7401";
+    return u.origin;
+  } catch {
+    return "http://127.0.0.1:7401";
+  }
+})();
 const JSON_HEADERS = { "content-type": "application/json" };
+
+// Path-style URL (segments encoded, slashes literal) so relative subresources
+// of served HTML resolve against the file's directory.
+function encodeRawPath(p) {
+  return p.split("/").map(encodeURIComponent).join("/");
+}
 
 const inflight = new Map();
 
@@ -101,8 +119,21 @@ export const api = {
     if (!r.ok) throw new Error(`getWorkerEvents → ${r.status}`);
     return r.body;
   },
-  async sendWorkerMessage(id, text) {
-    return postJson(ROUTES.workerMessage(id), { text });
+  async sendWorkerMessage(id, text, { clientMsgId, queueWhenBusy } = {}) {
+    return postJson(ROUTES.workerMessage(id), { text, clientMsgId, queueWhenBusy });
+  },
+  // Daemon-side message queue — pills render from this; dismiss removes a
+  // still-pending row.
+  async getWorkerQueue(id) {
+    try {
+      const r = await getJson(ROUTES.workerQueue(id));
+      return r.ok ? (r.body ?? { messages: [] }) : { messages: [] };
+    } catch {
+      return { messages: [] };
+    }
+  },
+  async dismissQueuedMessage(id, queueId) {
+    return del(ROUTES.workerQueueItem(id, queueId));
   },
   async sendWorkerAction(id, action) {
     return postJson(ROUTES.workerAction(id), { action });
@@ -133,8 +164,8 @@ export const api = {
   async spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode } = {}) {
     return postJson(ROUTES.orchestrators, { name, cwd, model, effort, prompt, permissionMode });
   },
-  async sendOrchestratorMessage(id, text) {
-    return postJson(ROUTES.orchestratorMessage(id), { text });
+  async sendOrchestratorMessage(id, text, { clientMsgId, queueWhenBusy } = {}) {
+    return postJson(ROUTES.orchestratorMessage(id), { text, clientMsgId, queueWhenBusy });
   },
 
   // Pending
@@ -155,14 +186,6 @@ export const api = {
     return postJson(ROUTES.policyRule, { tool, behavior });
   },
 
-  // Session
-  async getSession() {
-    try {
-      const r = await getJson(ROUTES.session);
-      return r.ok ? r.body : null;
-    } catch { return null; }
-  },
-
   // FS helpers
   async pickDirectory() {
     const r = await getJson(ROUTES.pickDirectory);
@@ -175,6 +198,11 @@ export const api = {
     return r.body;
   },
   imageUrl(path) { return `${DAEMON}${ROUTES.fsImage}?path=${encodeURIComponent(path)}`; },
+  rawUrl(path) { return `${RAW_ORIGIN}${ROUTES.fsRaw}${encodeRawPath(path)}`; },
+  pdfViewerUrl(path) {
+    const file = encodeURIComponent(`${ROUTES.fsRaw}${encodeRawPath(path)}`);
+    return `${RAW_ORIGIN}${ROUTES.pdfjs}/web/viewer.html?file=${file}`;
+  },
   async uploadPaste(file) {
     const buf = await file.arrayBuffer();
     const r = await fetch(`${DAEMON}${ROUTES.fsPaste}`, {

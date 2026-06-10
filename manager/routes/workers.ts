@@ -36,6 +36,7 @@ import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermi
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
 import { resumeWorkerVia, resumeIfDead } from "./resume-helpers.ts";
+import { dispatchDeps } from "./dispatch-deps.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
 import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
 import { decidePushPlan, isActionablePushPlan } from "../../core/src/domain/push-plan.ts";
@@ -120,6 +121,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         backend,
         onAgentEvent: c.onAgentEvent,
         recents: c.recents,
+        caps: c.modelCatalog,
       },
       spec,
     );
@@ -144,6 +146,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         workers: c.workers,
         events: c.events,
         pending: c.pending,
+        messageQueue: c.messageQueue,
         bus: c.bus,
         supervisor: c.supervisor,
         log: c.log,
@@ -250,17 +253,27 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
     c.turnSettle.clear(params.id);
     const result = await dispatchMessage(
+      dispatchDeps(c),
       {
-        workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
-        client: c.httpWorkerClient,
-        backends: c.backends,
-        log: c.log,
-        isLive: (id) => c.supervisor.has(id),
-        excerptLimit: 200,
+        workerId: params.id, text: body.text,
+        clientMsgId: body.clientMsgId, queueWhenBusy: body.queueWhenBusy,
+        origin: "dashboard",
       },
-      { workerId: params.id, text: body.text },
     );
     writeJson(res, result.status, result.body);
+  });
+
+  // Daemon-side message queue — pills render from this; dismiss deletes a
+  // still-pending row (a drained row is gone from the pending list already).
+  r.get(/^\/workers\/(?<id>[^/]+)\/queue$/, ({ params, res }) => {
+    const rows = c.messageQueue.listPending(params.id);
+    writeJson(res, 200, { messages: rows.map((m) => ({ id: m.id, text: m.text, ts: m.createdAt })) });
+  });
+
+  r.del(/^\/workers\/(?<id>[^/]+)\/queue\/(?<queueId>\d+)$/, ({ params, res }) => {
+    const removed = c.messageQueue.removePending(params.id, Number(params.queueId));
+    if (removed) c.bus.publish("worker:change", { workerId: params.id });
+    writeJson(res, removed ? 200 : 404, { ok: removed });
   });
 
   // Revive a dead-but-resumable worker under the same id — claude restores the
@@ -283,15 +296,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     await resumeIfDead(c, target);
     c.turnSettle.clear(params.id);
     const result = await dispatchMessage(
-      {
-        workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
-        client: c.httpWorkerClient,
-        backends: c.backends,
-        log: c.log,
-        isLive: (id) => c.supervisor.has(id),
-        excerptLimit: 200,
-      },
-      { workerId: params.id, text: prompt, displayText: display },
+      dispatchDeps(c),
+      { workerId: params.id, text: prompt, displayText: display, origin: "action" },
     );
     writeJson(res, result.status, result.body);
   });
@@ -432,6 +438,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const worker = c.workers.findById(params.id);
     if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
     if (!c.supervisor.has(params.id)) { writeJson(res, 409, { error: "worker not running" }); return; }
+    // Esc cancels what the user queued — clear BEFORE the IDLE transition or
+    // the drain would fire the queued messages the interrupt meant to stop.
+    const clearedQueued = c.messageQueue.clearPending(params.id);
+    if (clearedQueued > 0) c.log.info("interrupt cleared queued messages", { workerId: params.id, count: clearedQueued });
     c.turnSettle.mark(params.id);
     c.httpWorkerClient.sendInterrupt(worker.port).catch(() => {});
     transitionState(
@@ -533,7 +543,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const out = await setWorkerModel(
       {
         workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
-        client: c.httpWorkerClient, log: c.log,
+        client: c.httpWorkerClient, log: c.log, caps: c.modelCatalog,
       },
       { workerId: params.id, model: body.model, effort: body.effort },
     );

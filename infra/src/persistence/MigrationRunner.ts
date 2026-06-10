@@ -80,6 +80,22 @@ export const MIGRATIONS: Migration[] = [
   { id: "026_workers_add_with_gateway", sql: "ALTER TABLE workers ADD COLUMN with_gateway INTEGER" },
   { id: "027_workers_add_fork_base_sha", sql: "ALTER TABLE workers ADD COLUMN fork_base_sha TEXT" },
   { id: "028_workers_add_workspace_owner_id", sql: "ALTER TABLE workers ADD COLUMN workspace_owner_id TEXT" },
+  // Daemon-side message queue + idempotency ledger: dispatched_at NULL = pending
+  // (delivered at the worker's next IDLE), set = dedup/audit row. The UNIQUE
+  // index is the idempotency guarantee — a duplicate (worker, clientMsgId)
+  // insert is a no-op, so one message can never become two turns.
+  { id: "029_queued_messages", sql: `
+    CREATE TABLE IF NOT EXISTS queued_messages (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      worker_id TEXT NOT NULL,
+      client_msg_id TEXT,
+      text TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      dispatched_at INTEGER
+    );
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_qm_worker_client ON queued_messages(worker_id, client_msg_id);
+    CREATE INDEX IF NOT EXISTS idx_qm_worker_dispatched ON queued_messages(worker_id, dispatched_at);
+  `},
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

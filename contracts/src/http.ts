@@ -67,7 +67,17 @@ export const OrchestratorListResponseSchema = z.array(WorkerRowSchema);
 
 // ---- POST /workers/:id/message and /orchestrators/:id/message --------------
 
-export const MessageRequestSchema = z.object({ text: z.string().min(1) });
+// clientMsgId: client-generated uuid — the daemon's idempotency key. A retry
+// or accidental double-POST with the same id is a silent no-op, so a message
+// can never become two turns. queueWhenBusy: dashboard sends set it — a
+// message arriving while the worker is WORKING is held in the daemon-side
+// queue and dispatched at the next IDLE instead of steering mid-turn.
+// MCP/action paths omit both (mid-turn steering stays available to them).
+export const MessageRequestSchema = z.object({
+  text: z.string().min(1),
+  clientMsgId: z.string().min(1).max(128).optional(),
+  queueWhenBusy: z.boolean().optional(),
+});
 export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 
 // Daemon → worker /message body extra: asks the worker to emit the chat event
@@ -76,15 +86,39 @@ export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 // (slash commands) that must produce no chat event. displayText: what the
 // chat shows instead of the delivered text (action prompt label, a report's
 // unwrapped body).
+// clientMsgIds: the dashboard message ids this record covers (plural — a
+// queue drain combines several into one delivery). Carried back in the
+// user_message chat event so the web can reconcile its optimistic bubbles
+// by id instead of text-prefix matching.
 export const MessageRecordSchema = z.union([
-  z.object({ as: z.literal("user_message"), displayText: z.string().optional() }),
+  z.object({ as: z.literal("user_message"), displayText: z.string().optional(), clientMsgIds: z.array(z.string()).optional() }),
   z.object({ as: z.literal("orchestrator_message"), fromParent: z.string(), parentName: z.string().optional() }),
   z.object({ as: z.literal("worker_report"), fromWorker: z.string(), workerName: z.string().optional(), displayText: z.string().optional() }),
 ]);
 export type MessageRecord = z.infer<typeof MessageRecordSchema>;
 
-export const MessageResponseSchema = z.object({ ok: z.boolean() });
+// queued: held in the daemon queue, will dispatch at next IDLE.
+// deduped: same clientMsgId already seen — request was a no-op.
+export const MessageResponseSchema = z.object({
+  ok: z.boolean(),
+  queued: z.boolean().optional(),
+  queueId: z.number().optional(),
+  deduped: z.boolean().optional(),
+});
 export type MessageResponse = z.infer<typeof MessageResponseSchema>;
+
+// ---- GET /workers/:id/queue --------------------------------------------------
+// Daemon-side message queue (the only queue — the web renders pills from this).
+
+export const QueuedMessageSchema = z.object({
+  id: z.number(),
+  text: z.string(),
+  ts: z.number(),
+});
+export const WorkerQueueResponseSchema = z.object({
+  messages: z.array(QueuedMessageSchema),
+});
+export type WorkerQueueResponse = z.infer<typeof WorkerQueueResponseSchema>;
 
 // ---- POST /workers/:id/action ----------------------------------------------
 // Predefined git actions; the daemon resolves each to a full prompt template
@@ -200,6 +234,9 @@ export const PolicyDecideRequestSchema = z.object({
   tool_name: z.string(),
   input: UnknownRecordSchema,
   tool_use_id: z.string().nullable().optional(),
+  // Present when the hook fired inside a subagent — drives the Eos
+  // control-tool caller-scope deny.
+  agent_id: z.string().nullable().optional(),
 });
 export type PolicyDecideRequest = z.infer<typeof PolicyDecideRequestSchema>;
 
@@ -237,18 +274,6 @@ export const PendingDecisionRequestSchema = z.object({
 });
 export type PendingDecisionRequest = z.infer<typeof PendingDecisionRequestSchema>;
 
-// ---- GET /session ----------------------------------------------------------
-
-export const SessionStatsResponseSchema = z.object({
-  sessionStartTs: z.number().nullable(),
-  totalCost: z.number(),
-  costPerHour: z.number(),
-  activeAgents: z.number(),
-  totalAgents: z.number(),
-  now: z.number(),
-});
-export type SessionStatsResponse = z.infer<typeof SessionStatsResponseSchema>;
-
 // ---- GET /api/ui-config ----------------------------------------------------
 
 export const ModelPriceSchema = z.object({
@@ -264,6 +289,9 @@ export const CatalogModelSchema = z.object({
   createdAt: z.string(),
   maxInputTokens: z.number().int().positive().nullable(),
   maxTokens: z.number().int().positive().nullable(),
+  // Supported effort levels from the API's capabilities tree. Empty = model
+  // has no effort support; null = unknown (pre-upgrade cache, missing field).
+  effortLevels: z.array(z.string()).nullable().default(null),
 });
 export type CatalogModel = z.infer<typeof CatalogModelSchema>;
 
@@ -801,6 +829,8 @@ export const ROUTES = {
   worker: (id: string): string => `/workers/${id}`,
   workerEvents: (id: string): string => `/workers/${id}/events`,
   workerMessage: (id: string): string => `/workers/${id}/message`,
+  workerQueue: (id: string): string => `/workers/${id}/queue`,
+  workerQueueItem: (id: string, queueId: number): string => `/workers/${id}/queue/${queueId}`,
   workerAction: (id: string): string => `/workers/${id}/action`,
   workerPush: (id: string): string => `/workers/${id}/push`,
   workerPushState: (id: string): string => `/workers/${id}/push-state`,
@@ -810,7 +840,6 @@ export const ROUTES = {
   policyRule: "/api/policy/rule",
   pending: "/pending",
   pendingDecision: (id: string): string => `/pending/${id}/decision`,
-  session: "/session",
   metrics: "/metrics",
   uiConfig: "/api/ui-config",
   pickDirectory: "/pick-directory",
@@ -826,6 +855,9 @@ export const ROUTES = {
   fsRead: "/fs/read",
   fsList: "/fs/list",
   fsImage: "/fs/image",
+  // On the raw-content listener (daemon.rawPort), not the main API port:
+  fsRaw: "/fs/raw",
+  pdfjs: "/pdfjs",
   fsCheckout: "/fs/checkout",
   fsWrite: "/fs/write",
   fsPaste: "/fs/paste",

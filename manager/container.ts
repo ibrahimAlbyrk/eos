@@ -27,6 +27,7 @@ import type { AgentEvent } from "../contracts/src/canonical.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
 import { SqliteEventRepo } from "../infra/src/persistence/SqliteEventRepo.ts";
+import { SqliteMessageQueueRepo } from "../infra/src/persistence/SqliteMessageQueueRepo.ts";
 import { SqlitePendingRepo } from "../infra/src/persistence/SqlitePendingRepo.ts";
 import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
 import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
@@ -41,6 +42,7 @@ import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
 import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
 import { reconcileWorkersOnBoot } from "../core/src/use-cases/ReconcileWorkersOnBoot.ts";
 import { resolveMcpServers } from "../core/src/domain/mcp-resolution.ts";
+import type { EosBuiltinMcpServer } from "../core/src/domain/tool-scope.ts";
 
 import type { Policy } from "../core/src/domain/policy.ts";
 import type { ModelCatalog } from "../core/src/ports/ModelCatalog.ts";
@@ -97,6 +99,10 @@ export function buildContainer() {
   const workers = new SqliteWorkerRepo(db);
   const events = new SqliteEventRepo(db);
   const pending = new SqlitePendingRepo(db);
+  const messageQueue = new SqliteMessageQueueRepo(db);
+  // Dispatched ledger rows only feed the idempotency window + forensics —
+  // a day is plenty; pending rows are never pruned.
+  messageQueue.prune(systemClock.now() - 24 * 60 * 60 * 1000);
 
   // Stale-pending sweep — daemon may have died while requests were waiting.
   const swept = pending.sweepExpired(systemClock.now(), "daemon restart sweep");
@@ -304,7 +310,9 @@ export function buildContainer() {
       env: baseEnv,
       alwaysLoad: true,
     });
-    const builtins: Record<string, unknown> = {};
+    // Key set = EOS_BUILTIN_MCP_SERVERS — the subagent caller-scope deny
+    // (core/domain/tool-scope.ts) matches on these server names.
+    const builtins: Partial<Record<EosBuiltinMcpServer, unknown>> = {};
     if (input.isOrchestrator) builtins.orchestrator = node("orchestrator-mcp.ts");
     if (input.withGateway) {
       builtins.gateway = {
@@ -415,6 +423,7 @@ export function buildContainer() {
     workers,
     events,
     pending,
+    messageQueue,
     supervisor,
     portAllocator,
     httpWorkerClient,

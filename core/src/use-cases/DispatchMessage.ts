@@ -14,15 +14,23 @@ import type { EventBus } from "../ports/EventBus.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { WorkerClient } from "../ports/WorkerClient.ts";
 import type { AgentBackendRegistry } from "../ports/AgentBackend.ts";
+import type { MessageQueueRepo } from "../ports/MessageQueueRepo.ts";
 import type { Logger } from "../ports/Logger.ts";
 import { NotFoundError, ConflictError, UnreachableError } from "../errors/index.ts";
 import { transitionState } from "./TransitionState.ts";
+
+// Same-text re-dispatch inside this window (for sends without a clientMsgId)
+// appends a log-only duplicate_dispatch_suspected lifecycle event — the
+// breadcrumb that makes a future "message keeps repeating" report diagnosable
+// from the DB alone.
+const DUPLICATE_TEXT_WINDOW_MS = 10_000;
 
 export interface DispatchMessageDeps {
   workers: WorkerRepo;
   events: EventRepo;
   bus: EventBus;
   clock: Clock;
+  queue: MessageQueueRepo;
   client: WorkerClient;
   /** When injected, the message goes through the AgentBackend selected by the
    *  worker's backend_kind (so a port-less in-process backend works too). Absent
@@ -46,6 +54,21 @@ export interface DispatchMessageInput {
    * short label instead of the full text sent to the PTY. Used by predefined
    * actions whose prompt templates should stay out of the UI. */
   displayText?: string;
+  /** Client-generated idempotency key. A second dispatch carrying an
+   * already-seen id is a silent no-op ({deduped:true}) — a duplicate POST
+   * can never become a second turn. */
+  clientMsgId?: string;
+  /** Dashboard semantics: if the worker is mid-turn (WORKING), hold the
+   * message in the daemon queue and deliver at the next IDLE instead of
+   * steering. Omitted (MCP/action paths) → direct dispatch as before. */
+  queueWhenBusy?: boolean;
+  /** Queue drain only: the clientMsgIds of the drained rows, carried in the
+   * record so the web reconciles its optimistic bubbles by id. The drain
+   * tracks these rows itself — they are NOT re-claimed here. */
+  recordClientMsgIds?: string[];
+  /** Where this dispatch came from (composer/action/mcp/queue-drain) — log +
+   * forensics only. */
+  origin?: string;
 }
 
 export async function dispatchMessage(
@@ -65,9 +88,67 @@ export async function dispatchMessage(
   if (!isInproc && !w.port) throw new ConflictError("worker has no port");
   const backend = deps.backends?.has(kind) ? deps.backends.get(kind) : undefined;
 
+  const now = deps.clock.now();
+
+  // Dashboard sends hold here while a turn is running and dispatch at the
+  // next IDLE (DrainQueuedMessages). WORKING only — a SPAWNING worker buffers
+  // pre-boot writes itself (readiness gate), and gating on SPAWNING would
+  // deadlock resumed sessions that only reach IDLE through a turn.
+  const state = String(w.state).toUpperCase();
+  if (input.queueWhenBusy && state === "WORKING") {
+    const queueId = deps.queue.insert({
+      workerId: input.workerId,
+      clientMsgId: input.clientMsgId ?? null,
+      text: input.text,
+      createdAt: now,
+      dispatchedAt: null,
+    });
+    if (queueId === null) return { status: 200, body: { ok: true, deduped: true } };
+    deps.log.info("message queued (worker busy)", { workerId: input.workerId, queueId, origin: input.origin });
+    // queued:true doubles as a drain trigger — it closes the enqueue/IDLE race
+    // (turn ended between the busy check and the insert → no future IDLE
+    // transition would ever fire for this row).
+    deps.bus.publish("worker:change", { workerId: input.workerId, queued: true });
+    return { status: 202, body: { ok: true, queued: true, queueId } };
+  }
+
+  // Idempotency claim — inserted BEFORE the send so two concurrent POSTs with
+  // the same id cannot both pass the check while the first one is awaiting the
+  // worker. Rolled back on dispatch failure so a retry is not falsely deduped.
+  let claimId: number | null = null;
+  if (input.clientMsgId) {
+    claimId = deps.queue.insert({
+      workerId: input.workerId,
+      clientMsgId: input.clientMsgId,
+      text: input.text,
+      createdAt: now,
+      dispatchedAt: now,
+    });
+    if (claimId === null) {
+      deps.log.info("duplicate clientMsgId — dispatch skipped", { workerId: input.workerId, clientMsgId: input.clientMsgId, origin: input.origin });
+      return { status: 200, body: { ok: true, deduped: true } };
+    }
+  } else if (deps.queue.hasRecentDispatch(input.workerId, input.text, now - DUPLICATE_TEXT_WINDOW_MS)) {
+    // Unkeyed send repeating the exact text of a just-dispatched message —
+    // can't be safely dropped (no id), but leave the forensic breadcrumb.
+    deps.events.append(input.workerId, now, "lifecycle", {
+      phase: "duplicate_dispatch_suspected",
+      text: input.text.slice(0, deps.excerptLimit ?? 500),
+      origin: input.origin,
+    });
+    deps.log.warn("duplicate dispatch suspected (same text within window)", { workerId: input.workerId, origin: input.origin });
+  }
+
+  const recordClientMsgIds = input.recordClientMsgIds
+    ?? (input.clientMsgId ? [input.clientMsgId] : undefined);
   const record = {
     as: "user_message" as const,
     ...(input.displayText ? { displayText: input.displayText } : {}),
+    ...(recordClientMsgIds && recordClientMsgIds.length > 0 ? { clientMsgIds: recordClientMsgIds } : {}),
+  };
+
+  const rollbackClaim = (): void => {
+    if (claimId !== null) deps.queue.removeById(claimId);
   };
 
   let result;
@@ -87,6 +168,7 @@ export async function dispatchMessage(
       result = await deps.client.sendMessage(w.port, input.text, record);
     }
   } catch (e) {
+    rollbackClaim();
     throw new UnreachableError("worker", e);
   }
 
@@ -94,12 +176,26 @@ export async function dispatchMessage(
   // surface them instead of recording a user_message that never landed (and
   // writeJson(res, 0, …) would throw anyway).
   if (!result.ok && result.status === 0) {
+    rollbackClaim();
     throw new UnreachableError("worker", new Error("worker connection failed"));
+  }
+
+  // Unkeyed dispatches leave a ledger row too — it powers hasRecentDispatch
+  // and doubles as the dispatch audit trail (pruned on daemon startup).
+  if (!input.clientMsgId) {
+    deps.queue.insert({
+      workerId: input.workerId,
+      clientMsgId: null,
+      text: input.text,
+      createdAt: now,
+      dispatchedAt: now,
+    });
   }
 
   if (!selfReports) {
     deps.events.append(input.workerId, deps.clock.now(), "user_message", {
       text: input.displayText ?? input.text,
+      ...(recordClientMsgIds && recordClientMsgIds.length > 0 ? { clientMsgIds: recordClientMsgIds } : {}),
     });
   }
   deps.bus.publish("worker:change", { workerId: input.workerId });

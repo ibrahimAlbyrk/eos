@@ -4,11 +4,13 @@ import { ROUTES } from "../http.ts";
 
 const EXPECTED_KEYS = [
   "health", "stream", "workers", "worker", "workerEvents", "workerMessage",
+  "workerQueue", "workerQueueItem",
   "workerAction", "workerPush", "workerPushState",
   "orchestrators", "orchestratorMessage", "policyDecide", "policyRule",
-  "pending", "pendingDecision", "session", "metrics", "uiConfig",
+  "pending", "pendingDecision", "metrics", "uiConfig",
   "pickDirectory", "pickFile", "fsDefaultApp", "fsOpen", "fsIcon",
   "fsBranches", "fsUnpushed", "fsCommit", "fsRecents", "fsReveal", "fsRead", "fsList", "fsImage",
+  "fsRaw", "pdfjs",
   "fsCheckout", "fsWrite", "fsPaste", "workerName", "workerPermission",
   "workerModel", "workerDiff", "workerChanges", "workerFileDiff",
   "workerInterrupt", "workerResume", "workerKeystroke",

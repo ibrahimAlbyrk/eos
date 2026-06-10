@@ -17,6 +17,9 @@ import { buildContainer } from "./container.ts";
 import { Router } from "./routes/Router.ts";
 import { mintRequestId } from "./middleware/requestId.ts";
 import { handleError, writeJson } from "./middleware/errorHandler.ts";
+import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
+import { drainQueuedMessages } from "../core/src/use-cases/DrainQueuedMessages.ts";
+import { dispatchDeps } from "./routes/dispatch-deps.ts";
 
 import { registerHealthRoutes } from "./routes/health.ts";
 import { registerStreamRoutes } from "./routes/stream.ts";
@@ -24,7 +27,6 @@ import { registerWorkerRoutes } from "./routes/workers.ts";
 import { registerOrchestratorRoutes } from "./routes/orchestrators.ts";
 import { registerPolicyRoutes } from "./routes/policy.ts";
 import { registerPendingRoutes } from "./routes/pending.ts";
-import { registerSessionRoutes } from "./routes/session.ts";
 import { registerFsPickerRoutes } from "./routes/fs-picker.ts";
 import { registerFsReadRoutes } from "./routes/fs-read.ts";
 import { registerFsGitRoutes } from "./routes/fs-git.ts";
@@ -34,6 +36,7 @@ import { registerSettingsRoutes } from "./routes/settings.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
 import { registerWebRoutes } from "./routes/web.ts";
+import { registerFsRawRoutes } from "./routes/fs-raw.ts";
 
 const c = buildContainer();
 
@@ -55,45 +58,86 @@ registerWorkerRoutes(router, c);
 registerOrchestratorRoutes(router, c);
 registerPolicyRoutes(router, c);
 registerPendingRoutes(router, c);
-registerSessionRoutes(router, c);
 
-const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-  c.metrics.requests++;
-  const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
-  const method = req.method ?? "GET";
-  const requestId = mintRequestId(req, res, c.ids);
-
-  try {
-    const match = router.match(method, url.pathname);
-    if (!match) {
-      writeJson(res, 404, { error: "not found", path: url.pathname });
-      return;
-    }
-    await match.handler({
-      method,
-      path: url.pathname,
-      url,
-      params: match.params,
-      req,
-      res,
-      requestId,
-    });
-  } catch (e) {
-    handleError(res, e, {
-      requestId,
-      method,
-      path: url.pathname,
-      log: c.log,
-      metrics: c.metrics,
-    });
-  }
+// Queue drain — queued dashboard messages dispatch when their worker reaches
+// IDLE. Triggers: every IDLE state transition (payload carries `state`), plus
+// the enqueue signal (`queued`) that closes the enqueue/turn-end race. The
+// in-flight set keeps bus bursts from double-draining; the use-case re-checks
+// state + pending rows itself, so a spurious trigger is a no-op.
+const draining = new Set<string>();
+c.bus.subscribe("worker:change", (msg) => {
+  const p = msg.payload as { workerId?: string; state?: string; queued?: boolean };
+  if (!p?.workerId) return;
+  if (p.state !== "IDLE" && p.queued !== true) return;
+  const workerId = p.workerId;
+  if (draining.has(workerId)) return;
+  draining.add(workerId);
+  void drainQueuedMessages(
+    {
+      workers: c.workers, queue: c.messageQueue, clock: c.clock, log: c.log,
+      clearTurnSettle: (id) => c.turnSettle.clear(id),
+      dispatch: (input) => dispatchMessage(dispatchDeps(c), input),
+    },
+    { workerId },
+  )
+    .catch((e) => c.log.warn("queue drain error", { workerId, error: e instanceof Error ? e.message : String(e) }))
+    .finally(() => draining.delete(workerId));
 });
+
+function makeHandler(router: Router) {
+  return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+    c.metrics.requests++;
+    const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
+    const method = req.method ?? "GET";
+    const requestId = mintRequestId(req, res, c.ids);
+
+    try {
+      const match = router.match(method, url.pathname);
+      if (!match) {
+        writeJson(res, 404, { error: "not found", path: url.pathname });
+        return;
+      }
+      await match.handler({
+        method,
+        path: url.pathname,
+        url,
+        params: match.params,
+        req,
+        res,
+        requestId,
+      });
+    } catch (e) {
+      handleError(res, e, {
+        requestId,
+        method,
+        path: url.pathname,
+        log: c.log,
+        metrics: c.metrics,
+      });
+    }
+  };
+}
+
+const server = createServer(makeHandler(router));
+
+// Raw-content origin: arbitrary disk bytes + the vendored pdf.js viewer on a
+// separate port. Viewer iframes run untrusted HTML with `allow-same-origin`,
+// so that content must never share an origin with the uiToken-bearing app/API
+// server above.
+const rawRouter = new Router();
+registerFsRawRoutes(rawRouter, c);
+const rawServer = createServer(makeHandler(rawRouter));
 
 server.listen(c.config.daemon.port, c.config.daemon.host, () => {
   c.log.info("listening", {
     url: `http://${c.config.daemon.host}:${c.config.daemon.port}`,
     state: c.config.daemon.dbFile,
     logs: c.config.daemon.logDir,
+  });
+});
+rawServer.listen(c.config.daemon.rawPort, c.config.daemon.host, () => {
+  c.log.info("raw listening", {
+    url: `http://${c.config.daemon.host}:${c.config.daemon.rawPort}`,
   });
 });
 

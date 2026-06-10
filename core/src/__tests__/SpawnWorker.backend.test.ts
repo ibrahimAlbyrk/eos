@@ -45,4 +45,24 @@ describe("spawnWorker — backend path", () => {
     // The legacy stubs throw if called — this resolves only if they were not.
     await assert.doesNotReject(spawnWorker(deps, { prompt: "x", cwd: "/tmp" }));
   });
+
+  it("defaults effort to xhigh and persists it", async () => {
+    const { deps, inserted } = buildDeps(createFakeAgentBackend());
+    await spawnWorker(deps, { prompt: "x", cwd: "/tmp" });
+    assert.equal(inserted[0].effort, "xhigh");
+  });
+
+  it("drops effort when caps say the model has none", async () => {
+    const { deps, inserted } = buildDeps(createFakeAgentBackend());
+    deps.caps = { effortLevelsFor: async () => [] };
+    await spawnWorker(deps, { prompt: "x", cwd: "/tmp", model: "haiku" });
+    assert.equal(inserted[0].effort, null);
+  });
+
+  it("clamps a requested effort down to the model's capability", async () => {
+    const { deps, inserted } = buildDeps(createFakeAgentBackend());
+    deps.caps = { effortLevelsFor: async () => ["low", "medium", "high", "max"] };
+    await spawnWorker(deps, { prompt: "x", cwd: "/tmp", model: "claude-opus-4-6" });
+    assert.equal(inserted[0].effort, "high"); // default xhigh → clamped
+  });
 });

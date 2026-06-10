@@ -10,6 +10,7 @@ import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
 import { randomOrchestratorName } from "../shared/names.ts";
 import { expandPath } from "../shared/path.ts";
 import { resumeIfDead } from "./resume-helpers.ts";
+import { dispatchDeps } from "./dispatch-deps.ts";
 
 export function registerOrchestratorRoutes(r: Router, c: Container): void {
   r.get("/orchestrators", ({ res }) => {
@@ -32,6 +33,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         backend,
         onAgentEvent: c.onAgentEvent,
         recents: c.recents,
+        caps: c.modelCatalog,
       },
       {
         prompt: body.prompt ?? "",
@@ -59,16 +61,12 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     if (target) await resumeIfDead(c, target);
     c.turnSettle.clear(params.id);
     const result = await dispatchMessage(
+      dispatchDeps(c, { requireOrchestrator: true, excerptLimit: 500 }),
       {
-        workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
-        client: c.httpWorkerClient,
-        backends: c.backends,
-        log: c.log,
-        isLive: (id) => c.supervisor.has(id),
-        requireOrchestrator: true,
-        excerptLimit: 500,
+        workerId: params.id, text: body.text,
+        clientMsgId: body.clientMsgId, queueWhenBusy: body.queueWhenBusy,
+        origin: "dashboard",
       },
-      { workerId: params.id, text: body.text },
     );
     writeJson(res, result.status, result.body);
   });

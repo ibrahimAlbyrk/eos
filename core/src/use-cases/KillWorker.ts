@@ -6,6 +6,7 @@
 import type { WorkerRepo } from "../ports/WorkerRepo.ts";
 import type { EventRepo } from "../ports/EventRepo.ts";
 import type { PendingRepo } from "../ports/PendingRepo.ts";
+import type { MessageQueueRepo } from "../ports/MessageQueueRepo.ts";
 import type { EventBus } from "../ports/EventBus.ts";
 import type { ProcessSupervisor } from "../ports/ProcessSupervisor.ts";
 import type { Logger } from "../ports/Logger.ts";
@@ -15,6 +16,7 @@ export interface KillWorkerDeps {
   workers: WorkerRepo;
   events: EventRepo;
   pending: PendingRepo;
+  messageQueue?: MessageQueueRepo;
   bus: EventBus;
   supervisor: ProcessSupervisor;
   log: Logger;
@@ -91,6 +93,7 @@ export function killWorker(deps: KillWorkerDeps, id: string): KillWorkerResult {
   deps.workers.delete(id);
   deps.events.deleteByWorker(id);
   deps.pending.deleteByWorker(id);
+  deps.messageQueue?.deleteByWorker(id);
   deps.postKillCleanup?.(id);
   deps.bus.publish("worker:removed", { workerId: id });
 

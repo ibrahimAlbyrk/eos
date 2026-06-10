@@ -21,6 +21,7 @@ export interface DaemonConfig {
   daemon: {
     host: string;
     port: number;
+    rawPort: number;         // raw-content origin (fs-raw + pdf.js viewer)
     home: string;            // ~/.eos
     logDir: string;          // ~/.eos/logs
     pidFile: string;         // ~/.eos/daemon.pid
@@ -124,6 +125,7 @@ function defaults(): DaemonConfig {
     daemon: {
       host: envStr("EOS_HOST", "127.0.0.1"),
       port: envNum("EOS_PORT", 7400),
+      rawPort: envNum("EOS_RAW_PORT", 7401),
       home,
       logDir: join(home, "logs"),
       pidFile: join(home, "daemon.pid"),
@@ -184,6 +186,7 @@ const DaemonConfigOverrideSchema = z.object({
   daemon: z.object({
     host: z.string(),
     port: z.number().int().positive(),
+    rawPort: z.number().int().positive(),
     home: z.string(),
     sseKeepaliveMs: z.number().int().positive(),
   }).partial().optional(),
