@@ -32,7 +32,8 @@ export interface IngestServer {
 // block message delivery — it just degrades to "no chat event from this worker".
 function parseRecord(raw: unknown): MessageRecord | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const r = raw as { as?: unknown; displayText?: unknown; clientMsgIds?: unknown; fromParent?: unknown; parentName?: unknown; fromWorker?: unknown; workerName?: unknown };
+  const r = raw as { as?: unknown; displayText?: unknown; clientMsgIds?: unknown; fromParent?: unknown; parentName?: unknown; fromWorker?: unknown; workerName?: unknown; sentAt?: unknown };
+  const sentAt = typeof r.sentAt === "number" ? { sentAt: r.sentAt } : {};
   if (r.as === "user_message") {
     const clientMsgIds = Array.isArray(r.clientMsgIds)
       ? r.clientMsgIds.filter((x): x is string => typeof x === "string")
@@ -41,6 +42,7 @@ function parseRecord(raw: unknown): MessageRecord | undefined {
       as: "user_message",
       ...(typeof r.displayText === "string" ? { displayText: r.displayText } : {}),
       ...(clientMsgIds.length > 0 ? { clientMsgIds } : {}),
+      ...sentAt,
     };
   }
   if (r.as === "orchestrator_message" && typeof r.fromParent === "string") {
@@ -48,6 +50,7 @@ function parseRecord(raw: unknown): MessageRecord | undefined {
       as: "orchestrator_message",
       fromParent: r.fromParent,
       ...(typeof r.parentName === "string" ? { parentName: r.parentName } : {}),
+      ...sentAt,
     };
   }
   if (r.as === "worker_report" && typeof r.fromWorker === "string") {
@@ -56,6 +59,7 @@ function parseRecord(raw: unknown): MessageRecord | undefined {
       fromWorker: r.fromWorker,
       ...(typeof r.workerName === "string" ? { workerName: r.workerName } : {}),
       ...(typeof r.displayText === "string" ? { displayText: r.displayText } : {}),
+      ...sentAt,
     };
   }
   return undefined;

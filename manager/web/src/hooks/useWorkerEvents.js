@@ -65,6 +65,25 @@ export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
 
   const refetchNewest = useCallback(() => { fetchRef.current?.(); }, []);
 
+  // SSE fast path: pull only the rows appended after the highest loaded id.
+  // Falls back to the newest-page fetch until a first page exists. Best-effort —
+  // a missed delta is healed by the poll's newest-page merge.
+  const fetchDelta = useCallback(async () => {
+    const s = stateRef.current;
+    if (!workerId || s.for !== workerId || s.events.length === 0) {
+      fetchRef.current?.();
+      return;
+    }
+    let maxId = 0;
+    for (const e of s.events) if (e.id > maxId) maxId = e.id;
+    try {
+      const rows = await api.getWorkerEvents(workerId, { afterId: maxId, limit: PAGE_SIZE });
+      if (!Array.isArray(rows) || rows.length === 0) return;
+      setState((cur) => cur.for !== workerId ? cur : { ...cur, events: mergeEvents(cur.events, rows) });
+      onNewestRef.current?.(workerId, rows);
+    } catch { /* transient; poll heals */ }
+  }, [workerId]);
+
   const loadOlder = useCallback(async () => {
     const s = stateRef.current;
     if (!workerId || s.for !== workerId || !s.hasOlder || loadingOlderRef.current) return;
@@ -95,5 +114,6 @@ export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
     loadingOlder,
     loadOlder,
     refetchNewest,
+    fetchDelta,
   };
 }

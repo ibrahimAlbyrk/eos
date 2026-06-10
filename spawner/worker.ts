@@ -178,12 +178,16 @@ const pipeline = new DeliveryPipeline({
 const pendingMessages = new PendingMessageRegistry();
 
 function emitMessageEvent(p: PendingMessage): void {
+  // sentAt (dispatch wall-clock) rides through so the chat can order a
+  // late-emitted bubble (unverified resolution, drain) at its send position.
+  const sentAt = p.record.sentAt != null ? { sentAt: p.record.sentAt } : {};
   switch (p.record.as) {
     case "orchestrator_message":
       evt.emit("orchestrator_message", {
         text: p.text,
         fromParent: p.record.fromParent,
         parentName: p.record.parentName ?? p.record.fromParent,
+        ...sentAt,
       });
       return;
     case "worker_report":
@@ -193,6 +197,7 @@ function emitMessageEvent(p: PendingMessage): void {
         text: p.record.displayText ?? p.text,
         fromWorker: p.record.fromWorker,
         workerName: p.record.workerName ?? p.record.fromWorker,
+        ...sentAt,
       });
       return;
     case "user_message":
@@ -203,6 +208,7 @@ function emitMessageEvent(p: PendingMessage): void {
         ...(p.record.clientMsgIds && p.record.clientMsgIds.length > 0
           ? { clientMsgIds: p.record.clientMsgIds }
           : {}),
+        ...sentAt,
       });
   }
 }

@@ -143,6 +143,7 @@ export async function dispatchMessage(
     ?? (input.clientMsgId ? [input.clientMsgId] : undefined);
   const record = {
     as: "user_message" as const,
+    sentAt: now,
     ...(input.displayText ? { displayText: input.displayText } : {}),
     ...(recordClientMsgIds && recordClientMsgIds.length > 0 ? { clientMsgIds: recordClientMsgIds } : {}),
   };

@@ -73,6 +73,19 @@ function findRewindCut(events, payload, bootPromptOffset) {
   return -1;
 }
 
+// Stable chronological order for the rendered block list. Blocks normally
+// come out of buildBlocks already in ts order (event append order); the
+// exceptions are blocks whose ts deliberately differs from their event row —
+// optimistic bubbles (send time) and late-emitted user messages (sentAt) —
+// which this moves to their conversation position. Same-ts runs keep their
+// relative order (Array.prototype.sort is stable).
+export function sortBlocksByTs(blocks) {
+  return blocks.sort((a, b) => {
+    const d = (a.ts ?? 0) - (b.ts ?? 0);
+    return Number.isNaN(d) ? 0 : d;
+  });
+}
+
 export function buildBlocks(events) {
   const lc = deriveToolLifecycle(events);
   const toolUseIds = new Set();
@@ -177,7 +190,9 @@ export function buildBlocks(events) {
       flushTools();
       lastAsst = null;
       const payload = parsePayload(ev.payload);
-      out.push({ kind: "user", text: payload.text ?? "", ts: ev.ts });
+      // sentAt (dispatch time) over event ts: a late-emitted row (unverified
+      // delivery, drain) must still sort above the output it caused.
+      out.push({ kind: "user", text: payload.text ?? "", ts: payload.sentAt ?? ev.ts });
       continue;
     }
     if (ev.type === "worker_report") {
@@ -189,7 +204,7 @@ export function buildBlocks(events) {
         text: payload.text ?? "",
         fromWorker: payload.fromWorker ?? null,
         workerName: payload.workerName ?? null,
-        ts: ev.ts,
+        ts: payload.sentAt ?? ev.ts,
       });
       continue;
     }
@@ -202,7 +217,7 @@ export function buildBlocks(events) {
         text: payload.text ?? "",
         fromParent: payload.fromParent ?? null,
         parentName: payload.parentName ?? null,
-        ts: ev.ts,
+        ts: payload.sentAt ?? ev.ts,
       });
       continue;
     }

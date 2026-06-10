@@ -10,7 +10,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { deriveActivity } from "../../../lib/agentActivity.js";
-import { buildBlocks, applyRewinds, applyClears, parsePayload } from "../../../lib/messageParser.js";
+import { buildBlocks, applyRewinds, applyClears, parsePayload, sortBlocksByTs } from "../../../lib/messageParser.js";
 import { deriveVerdict, deriveChildVerdicts } from "../../../lib/verdict.js";
 import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
 import { loadScrollPos, saveScrollPos, clearScrollPos } from "../../../lib/scrollMemory.js";
@@ -100,14 +100,14 @@ export function Messages({ live }) {
   // switch, blocks still render the previous agent's rows, and the initial
   // scroll must wait for the new agent's content before restoring a saved
   // position.
-  const { events, eventsFor, hasOlder, loadingOlder, loadOlder, refetchNewest } = useWorkerEvents(
+  const { events, eventsFor, hasOlder, loadingOlder, loadOlder, fetchDelta } = useWorkerEvents(
     ui.selectedId,
     { restartKey: live.workers.length, onNewest: reconcileFromNewest },
   );
 
   useEffect(() => {
     if (live.eventSignal.workerId !== ui.selectedId) return;
-    refetchNewest();
+    fetchDelta();
   }, [live.eventSignal.tick]);
 
   // "Load older" sentinel at the top of the list. Before each load, anchor the
@@ -204,7 +204,10 @@ export function Messages({ live }) {
         truncated: false, done: r.done, ts: r.ts,
       });
     }
-    return base;
+    // Conversation position is ts, not append order: optimistic bubbles carry
+    // their send time and late-emitted user messages carry sentAt — the stable
+    // sort puts both above output they precede and leaves everything else as-is.
+    return sortBlocksByTs(base);
   }, [events, ui.optimisticMsgs, ui.selectedId, live.workers, termTick]);
 
   // Drop a live run once its durable event is in the window — the durable
