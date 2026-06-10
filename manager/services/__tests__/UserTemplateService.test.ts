@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { UserTemplateService } from "../UserTemplateService.ts";
@@ -59,11 +59,15 @@ describe("UserTemplateService", () => {
     assert.throws(() => svc.delete("UPPER"));
   });
 
-  it("delete removes the file and reports missing", () => {
+  it("delete moves the file to .trash and reports missing", () => {
     svc.write({ name: "gone", description: "", content: "x" });
     assert.equal(svc.delete("gone"), true);
     assert.equal(svc.delete("gone"), false);
     assert.deepEqual(svc.list(), []);
+    const trashed = readdirSync(join(dir, ".trash"));
+    assert.equal(trashed.length, 1);
+    assert.ok(trashed[0].startsWith("gone."));
+    assert.ok(trashed[0].endsWith(".md"));
   });
 
   it("written file is frontmatter + body markdown", () => {

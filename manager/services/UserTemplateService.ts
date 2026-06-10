@@ -2,13 +2,14 @@
 // ~/.eos/templates/, one markdown file per template (YAML frontmatter
 // with `description`, body = prompt content). Same format as manager/prompts/
 // so files stay hand-editable; re-read on every call, no cache.
+// Deletes are soft: the file moves to templates/.trash/<name>.<stamp>.md
+// so a wrong click (or a misbehaving agent) is recoverable by hand.
 
 import {
   readdirSync,
   readFileSync,
   writeFileSync,
   renameSync,
-  unlinkSync,
   mkdirSync,
   existsSync,
 } from "node:fs";
@@ -21,9 +22,11 @@ const NAME_RE = /^[a-z0-9][a-z0-9-]*$/;
 
 export class UserTemplateService {
   private readonly dir: string;
+  private readonly now: () => Date;
 
-  constructor(dir: string) {
+  constructor(dir: string, now: () => Date = () => new Date()) {
     this.dir = dir;
+    this.now = now;
   }
 
   list(): Template[] {
@@ -66,7 +69,10 @@ export class UserTemplateService {
     assertName(name);
     const path = join(this.dir, `${name}.md`);
     if (!existsSync(path)) return false;
-    unlinkSync(path);
+    const trash = join(this.dir, ".trash");
+    mkdirSync(trash, { recursive: true });
+    const stamp = this.now().toISOString().replace(/[:.]/g, "-").replace(/Z$/, "");
+    renameSync(path, join(trash, `${name}.${stamp}.md`));
     return true;
   }
 }
