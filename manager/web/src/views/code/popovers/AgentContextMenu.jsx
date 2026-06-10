@@ -7,26 +7,10 @@ export function AgentContextMenu({ live }) {
   if (ui.openPopover !== "ctx-menu") return null;
   const { x, y } = ui.popoverPos;
   const { agentId } = ui.popoverData;
-  const agent = live.workers?.find((w) => w.id === agentId);
-  const resumable = !!agent && (agent.state === "SUSPENDED" || agent.state === "DONE") && !!agent.session_id;
 
   const rename = () => {
     ui.setRenamingId(agentId);
     ui.closeAllPops();
-  };
-
-  const resume = async () => {
-    ui.closeAllPops();
-    try {
-      const r = await live.resumeAgent(agentId);
-      if (!r?.ok) {
-        // eslint-disable-next-line no-console
-        console.error("resume failed:", r?.body?.error ?? `status ${r?.status ?? "?"}`);
-      }
-    } catch (e) {
-      // eslint-disable-next-line no-console
-      console.error("resume threw:", e);
-    }
   };
 
   // Direct kill, no confirm (user choice) — the eos/trash tombstone tag keeps
@@ -52,14 +36,6 @@ export function AgentContextMenu({ live }) {
         </svg>
         Rename
       </button>
-      {resumable && (
-        <button className="menu-item" onClick={resume}>
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M4 2.5l9 5.5-9 5.5z" />
-          </svg>
-          Resume
-        </button>
-      )}
       <div className="menu-sep"></div>
       <button className="menu-item danger" onClick={kill}>
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">

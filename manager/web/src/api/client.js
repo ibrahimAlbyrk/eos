@@ -145,9 +145,6 @@ export const api = {
   async interruptWorker(id) {
     return postJson(ROUTES.workerInterrupt(id));
   },
-  async resumeWorker(id) {
-    return postJson(ROUTES.workerResume(id));
-  },
   async sendKeystroke(id, keys) {
     return postJson(ROUTES.workerKeystroke(id), { keys });
   },

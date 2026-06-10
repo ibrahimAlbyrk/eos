@@ -52,7 +52,6 @@ export const ROUTES = {
   workerChanges: (id) => `/workers/${id}/changes`,
   workerFileDiff: (id) => `/workers/${id}/changes/file`,
   workerInterrupt: (id) => `/workers/${id}/interrupt`,
-  workerResume: (id) => `/workers/${id}/resume`,
   workerKeystroke: (id) => `/workers/${id}/keystroke`,
   workerQuestionAnswer: (id) => `/workers/${id}/question-answer`,
   workerRewindTargets: (id) => `/workers/${id}/rewind-targets`,
