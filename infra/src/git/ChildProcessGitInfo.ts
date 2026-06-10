@@ -14,6 +14,12 @@ const exec = promisify(execFile);
 
 const PATCH_MAX_BYTES = 256 * 1024;
 
+// A submodule's working-tree noise (the `-dirty` suffix from modified/untracked
+// content inside it) is not the agent's change — suppress it across every
+// status/diff so the count, the file list, and the per-file patch agree.
+// Genuine committed pointer moves still surface (that's `=dirty`, not `=all`).
+const SUBMODULE_IGNORE = ["--ignore-submodules=dirty"];
+
 async function runGit(cwd: string, args: string[]): Promise<string> {
   const { stdout } = await exec("git", ["-C", cwd, ...args], {
     maxBuffer: 4 * 1024 * 1024,
@@ -89,7 +95,7 @@ export const childProcessGitInfo: GitInfo = {
       // Against HEAD: staged + unstaged vs the last commit. Against a base
       // (worktree fork point): also includes commits made after the fork —
       // a worktree agent that commits must not look "clean" in the UI.
-      const out = await runGit(cwd, ["diff", "--shortstat", base ?? "HEAD"]);
+      const out = await runGit(cwd, ["diff", "--shortstat", ...SUBMODULE_IGNORE, base ?? "HEAD"]);
       const stat = parseShortStat(out.trim());
       // `git diff` never reports untracked files — an agent whose only change
       // is a NEW file must not look clean either. Count them into `files`
@@ -179,7 +185,7 @@ export const childProcessGitInfo: GitInfo = {
 
   async hasUncommittedChanges(cwd: string): Promise<boolean> {
     try {
-      const out = await runGit(cwd, ["status", "--porcelain"]);
+      const out = await runGit(cwd, ["status", "--porcelain", ...SUBMODULE_IGNORE]);
       // Managed worktrees live inside the repo at .eos/ — never count them as
       // user changes (same filter as diffShortStat's untracked listing).
       return out
@@ -262,7 +268,7 @@ export const childProcessGitInfo: GitInfo = {
 
   async conflictCount(cwd: string): Promise<number> {
     try {
-      const out = await runGit(cwd, ["status", "--porcelain"]);
+      const out = await runGit(cwd, ["status", "--porcelain", ...SUBMODULE_IGNORE]);
       let n = 0;
       for (const line of out.split("\n")) {
         const xy = line.slice(0, 2);
@@ -279,17 +285,17 @@ export const childProcessGitInfo: GitInfo = {
 
   async changedFiles(cwd: string, base?: string): Promise<ChangedFile[]> {
     try {
-      const status = await runGit(cwd, ["status", "--porcelain=v1", "-z", "-uall"]);
+      const status = await runGit(cwd, ["status", "--porcelain=v1", "-z", "-uall", ...SUBMODULE_IGNORE]);
       if (base) {
         // diff <base> covers committed-after-fork + uncommitted tracked work;
         // porcelain contributes only untracked files on top.
-        const nameStatus = await runGit(cwd, ["diff", "--name-status", "-z", base]);
-        const numstat = await runGit(cwd, ["diff", "--numstat", "-z", base]);
+        const nameStatus = await runGit(cwd, ["diff", "--name-status", "-z", ...SUBMODULE_IGNORE, base]);
+        const numstat = await runGit(cwd, ["diff", "--numstat", "-z", ...SUBMODULE_IGNORE, base]);
         return mergeChangesWithBase(parseNameStatusZ(nameStatus), parsePorcelainZ(status), parseNumstatZ(numstat));
       }
       let numstat = "";
       // No HEAD yet (fresh repo) → degrade to status-only entries, null counts.
-      try { numstat = await runGit(cwd, ["diff", "--numstat", "-z", "HEAD"]); } catch {}
+      try { numstat = await runGit(cwd, ["diff", "--numstat", "-z", ...SUBMODULE_IGNORE, "HEAD"]); } catch {}
       return mergeChanges(parsePorcelainZ(status), parseNumstatZ(numstat));
     } catch {
       return [];
@@ -303,7 +309,7 @@ export const childProcessGitInfo: GitInfo = {
       const st = await runGit(cwd, ["status", "--porcelain=v1", "-z", "--", path]);
       const out = st.startsWith("??")
         ? await runGitDiffNoIndex(cwd, path)
-        : await runGit(cwd, ["diff", base ?? "HEAD", "--", ...(oldPath ? [path, oldPath] : [path])]);
+        : await runGit(cwd, ["diff", ...SUBMODULE_IGNORE, base ?? "HEAD", "--", ...(oldPath ? [path, oldPath] : [path])]);
       if (/^Binary files .* differ$/m.test(out)) {
         return { path, patch: "", binary: true, truncated: false };
       }
