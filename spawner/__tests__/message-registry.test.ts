@@ -50,14 +50,17 @@ describe("PendingMessageRegistry — consumeMatching", () => {
     ]);
   });
 
-  it("keeps the record meta (displayText, orchestrator fields)", () => {
+  it("keeps the record meta (displayText, orchestrator/report fields)", () => {
     const reg = new PendingMessageRegistry();
     reg.register("full action prompt body here", user("/commit"));
     reg.register("directive text from the parent", { as: "orchestrator_message", fromParent: "o-1", parentName: "hub" });
+    reg.register("[worker w (w-1)] reported:\nHandover: done", { as: "worker_report", fromWorker: "w-1", workerName: "w", displayText: "Handover: done" });
     const [a] = reg.consumeMatching("full action prompt body here");
     assert.deepEqual(a.record, { as: "user_message", displayText: "/commit" });
     const [b] = reg.consumeMatching("directive text from the parent");
     assert.deepEqual(b.record, { as: "orchestrator_message", fromParent: "o-1", parentName: "hub" });
+    const [c] = reg.consumeMatching("[worker w (w-1)] reported:\nHandover: done");
+    assert.deepEqual(c.record, { as: "worker_report", fromWorker: "w-1", workerName: "w", displayText: "Handover: done" });
   });
 });
 

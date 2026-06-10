@@ -67,7 +67,7 @@ const PASTE_PLACEHOLDER = "[Pastedtext";
 const ECHO_BUF_CAP = 8192;
 // Ack texts kept so an ACK arriving between two wait windows isn't lost.
 const ACK_RING_CAP = 4;
-const ACK_MATCH_PREFIX = 512;
+export const ACK_MATCH_PREFIX = 512;
 
 const ANSI_RE = new RegExp(
   [
@@ -316,8 +316,9 @@ function echoTimeoutMs(textLen: number, floorMs: number, ceilingMs?: number): nu
 // Containment both ways: very long sends are prefix-truncated on both sides
 // (equal prefixes). Slash commands reach the transcript split across
 // <command-name>/<command-args> XML tags, so when the raw form misses, retry
-// with the observed side's tags removed.
-function ackMatches(sentNorm: string, observedNorm: string): boolean {
+// with the observed side's tags removed. Exported: the message registry uses
+// the same tolerance to pair a transcript user entry with its pending record.
+export function ackMatches(sentNorm: string, observedNorm: string): boolean {
   if (sentNorm.length === 0) return false;
   if (observedNorm.includes(sentNorm) || sentNorm.includes(observedNorm)) return true;
   const stripped = observedNorm.replace(/<[^>]*>/g, "");

@@ -25,12 +25,13 @@ export interface PatchHunk {
 }
 
 export interface JsonlPayload {
-  // "user_text" is consumed worker-locally as the delivery turn-ACK and never
-  // forwarded to the daemon (the daemon's own user_message event already
-  // renders the message in the UI). "skill_body" carries a Skill's injected
-  // SKILL.md body, keyed by toolUseId — the only place that content exists for
-  // built-in/plugin skills (those live inside the claude binary / plugin cache,
-  // not resolvable by name on disk).
+  // "user_text" is never forwarded raw; the worker consumes it as the delivery
+  // turn-ACK and as the transcript sighting that releases the pending
+  // user_message/orchestrator_message chat event (message-registry.ts) in true
+  // conversation order. "skill_body" carries a Skill's injected SKILL.md body,
+  // keyed by toolUseId — the only place that content exists for built-in/plugin
+  // skills (those live inside the claude binary / plugin cache, not resolvable
+  // by name on disk).
   kind: "assistant_text" | "tool_use" | "tool_result" | "thinking" | "user_text" | "skill_body";
   text?: string;
   id?: string;
