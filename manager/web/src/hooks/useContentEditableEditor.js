@@ -57,6 +57,26 @@ function setCursorOffset(el, offset) {
   setSelectionOffsets(el, offset, offset);
 }
 
+// Pure: how far to move scrollTop so [top,bottom] sits inside [boxTop,boxBottom]
+// with a margin. Negative → scroll up, positive → scroll down. Layout-free → unit-testable.
+export function scrollDelta(top, bottom, boxTop, boxBottom, margin = 8) {
+  if (top < boxTop + margin) return top - (boxTop + margin);
+  if (bottom > boxBottom - margin) return bottom - (boxBottom - margin);
+  return 0;
+}
+
+// Scroll the current selection into view within the `el` scroll container.
+// Programmatic Selection changes don't auto-scroll (unlike typing), so Tab/Shift+Tab
+// placeholder navigation needs this to reveal off-screen {{fields}}.
+export function scrollSelectionIntoView(el) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount || !el.contains(sel.anchorNode)) return;
+  const rect = sel.getRangeAt(0).getBoundingClientRect();
+  if (rect.width === 0 && rect.height === 0) return;
+  const box = el.getBoundingClientRect();
+  el.scrollTop += scrollDelta(rect.top, rect.bottom, box.top, box.bottom);
+}
+
 function esc(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }

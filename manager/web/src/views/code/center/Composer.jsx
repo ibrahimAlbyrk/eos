@@ -4,7 +4,7 @@ import { api } from "../../../api/client.js";
 import { startRun } from "../../../state/terminalStore.js";
 import { useCommands } from "../../../hooks/useCommands.js";
 import { useTemplates } from "../../../hooks/useTemplates.js";
-import { useContentEditableEditor, getCursorOffset, getSelectionOffsets, setSelectionOffsets } from "../../../hooks/useContentEditableEditor.js";
+import { useContentEditableEditor, getCursorOffset, getSelectionOffsets, setSelectionOffsets, scrollSelectionIntoView } from "../../../hooks/useContentEditableEditor.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
 import { findPlaceholders, nextPlaceholder, prevPlaceholder } from "../../../lib/placeholders.js";
 import { useAttachments } from "../../../hooks/useAttachments.js";
@@ -233,6 +233,14 @@ export function Composer({ live }) {
     return null;
   };
 
+  // Select a {{placeholder}}, keep cursorPos in sync, and reveal it when the
+  // input has scrolled past the visible window (Selection changes don't auto-scroll).
+  const selectPlaceholder = (el, ph) => {
+    setSelectionOffsets(el, ph.start, ph.end);
+    scrollSelectionIntoView(el);
+    setCursorPos(ph.start);
+  };
+
   // Insert template content, select the first {{placeholder}} so typing
   // replaces it; Tab/Shift+Tab walk the rest (see onKey).
   const applyTemplateText = (newText, searchFrom) => {
@@ -240,10 +248,7 @@ export function Composer({ live }) {
     setTextAndSync(newText, ph ? ph.start : newText.length);
     const el = editorRef.current;
     el?.focus();
-    if (ph && el) {
-      setSelectionOffsets(el, ph.start, ph.end);
-      setCursorPos(ph.start);
-    }
+    if (ph && el) selectPlaceholder(el, ph);
   };
 
   const selectCommand = (cmd) => {
@@ -489,10 +494,7 @@ export function Composer({ live }) {
         if (!el) return;
         const sel = getSelectionOffsets(el);
         const ph = e.shiftKey ? prevPlaceholder(phs, sel.start) : nextPlaceholder(phs, sel.end);
-        if (ph) {
-          setSelectionOffsets(el, ph.start, ph.end);
-          setCursorPos(ph.start);
-        }
+        if (ph) selectPlaceholder(el, ph);
         return;
       }
     }
