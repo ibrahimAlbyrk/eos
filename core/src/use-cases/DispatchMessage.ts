@@ -1,6 +1,12 @@
 // DispatchMessage — proxies a user-typed message to a worker's PTY.
 // Sets the worker's state to WORKING eagerly so the UI shows activity even
 // before the first hook event fires.
+//
+// The user_message chat event is NOT appended here for backends that report
+// it themselves (reportsMessageEvents): a dispatch-time append races the
+// previous turn's trailing transcript JSONL and gets durably ordered above
+// the agent's final output. The claude-cli worker emits it when the text
+// lands in the transcript — the only true conversation order.
 
 import type { WorkerRepo } from "../ports/WorkerRepo.ts";
 import type { EventRepo } from "../ports/EventRepo.ts";
@@ -59,16 +65,26 @@ export async function dispatchMessage(
   if (!isInproc && !w.port) throw new ConflictError("worker has no port");
   const backend = deps.backends?.has(kind) ? deps.backends.get(kind) : undefined;
 
+  const record = {
+    as: "user_message" as const,
+    ...(input.displayText ? { displayText: input.displayText } : {}),
+  };
+
   let result;
+  let selfReports: boolean;
   try {
     if (backend) {
       const handle = isInproc
         ? { kind: "inproc" as const, ref: w.id }
         : { kind: "http" as const, port: w.port as number, pid: w.pid ?? null };
-      result = await backend.attach(w.id, handle).sendMessage(input.text);
+      const session = backend.attach(w.id, handle);
+      selfReports = session.capabilities.reportsMessageEvents === true;
+      result = await session.sendMessage(input.text, selfReports ? record : undefined);
     } else {
+      // Legacy port path drives a claude-cli PTY worker — it self-reports.
       if (!w.port) throw new ConflictError("worker has no port");
-      result = await deps.client.sendMessage(w.port, input.text);
+      selfReports = true;
+      result = await deps.client.sendMessage(w.port, input.text, record);
     }
   } catch (e) {
     throw new UnreachableError("worker", e);
@@ -81,9 +97,11 @@ export async function dispatchMessage(
     throw new UnreachableError("worker", new Error("worker connection failed"));
   }
 
-  deps.events.append(input.workerId, deps.clock.now(), "user_message", {
-    text: input.displayText ?? input.text,
-  });
+  if (!selfReports) {
+    deps.events.append(input.workerId, deps.clock.now(), "user_message", {
+      text: input.displayText ?? input.text,
+    });
+  }
   deps.bus.publish("worker:change", { workerId: input.workerId });
 
   // Eager state lift — same rationale as the old daemon code: a new turn is

@@ -25,6 +25,9 @@ const CLI_CAPS: AgentCapabilities = {
   keystroke: true,
   runtimeModelSwitch: true,
   runtimePermissionSwitch: true,
+  // The worker emits user_message/orchestrator_message itself when the text
+  // lands in the transcript JSONL — transcript-anchored ordering.
+  reportsMessageEvents: true,
 };
 
 export interface ClaudeCliBackendDeps {
@@ -41,7 +44,7 @@ export function createClaudeCliBackend(deps: ClaudeCliBackendDeps): AgentBackend
     workerId,
     handle: { kind: "http", port, pid },
     capabilities: CLI_CAPS,
-    sendMessage: (text) => deps.client.sendMessage(port, text),
+    sendMessage: (text, record) => deps.client.sendMessage(port, text, record),
     sendKeystroke: (keys) => deps.client.sendKeystroke(port, keys),
     interrupt: () => deps.client.sendInterrupt(port),
     stop: (graceMs) => deps.supervisor.escalateKill(workerId, graceMs),

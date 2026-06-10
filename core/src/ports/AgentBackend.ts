@@ -8,6 +8,7 @@
 // (claude-cli) carry a loopback port + child pid; in-process backends carry an
 // opaque ref. Replaces the bare `port` + `pid` columns at the call sites.
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
+import type { MessageRecord } from "./WorkerClient.ts";
 
 export type WorkerHandle =
   | { readonly kind: "http"; readonly port: number; readonly pid: number | null }
@@ -20,6 +21,11 @@ export interface AgentCapabilities {
   readonly keystroke: boolean;
   readonly runtimeModelSwitch: boolean;
   readonly runtimePermissionSwitch: boolean;
+  /** True when the backend emits the user_message/orchestrator_message chat
+   *  event itself at transcript-consumption time (claude-cli: the worker's
+   *  JSONL tail). False/absent → DispatchMessage appends it at dispatch time,
+   *  which cannot be ordered against in-flight turn output. */
+  readonly reportsMessageEvents?: boolean;
 }
 
 // Identity + execution context to start a session. Deliberately free of argv /
@@ -56,7 +62,8 @@ export interface AgentSession {
   readonly capabilities: AgentCapabilities;
   // Deliver a user/orchestrator message (a new turn). Resolves when the backend
   // has accepted it, not when the turn completes (observed via the event stream).
-  sendMessage(text: string): Promise<{ ok: boolean; status: number; body: unknown }>;
+  // `record` is only meaningful for backends with reportsMessageEvents.
+  sendMessage(text: string, record?: MessageRecord): Promise<{ ok: boolean; status: number; body: unknown }>;
   sendKeystroke(keys: string): Promise<{ ok: boolean }>;
   interrupt(): Promise<{ ok: boolean; reason?: string }>;
   // Graceful stop → forced kill after graceMs. Idempotent.

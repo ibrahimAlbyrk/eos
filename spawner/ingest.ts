@@ -5,13 +5,14 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { errMsg } from "../contracts/src/util.ts";
+import type { MessageRecord } from "./message-registry.ts";
 
 export interface QuestionAnswer {
   answers: Record<string, string>;
 }
 
 export interface IngestHandlers {
-  onMessage(text: string): void;
+  onMessage(text: string, record?: MessageRecord): void;
   onAnswer(selections: unknown[]): Promise<{ ok: boolean; outcome: string }>;
   onKeystroke(keys: string): void;
   onInterrupt(): { ok: boolean; reason?: string };
@@ -23,6 +24,32 @@ export interface IngestHandlers {
 
 export interface IngestServer {
   close(): void;
+}
+
+// Best-effort, like the rest of the body parsing: a malformed record must not
+// block message delivery — it just degrades to "no chat event from this worker".
+function parseRecord(raw: unknown): MessageRecord | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as { as?: unknown; displayText?: unknown; fromParent?: unknown; parentName?: unknown; fromWorker?: unknown; workerName?: unknown };
+  if (r.as === "user_message") {
+    return { as: "user_message", ...(typeof r.displayText === "string" ? { displayText: r.displayText } : {}) };
+  }
+  if (r.as === "orchestrator_message" && typeof r.fromParent === "string") {
+    return {
+      as: "orchestrator_message",
+      fromParent: r.fromParent,
+      ...(typeof r.parentName === "string" ? { parentName: r.parentName } : {}),
+    };
+  }
+  if (r.as === "worker_report" && typeof r.fromWorker === "string") {
+    return {
+      as: "worker_report",
+      fromWorker: r.fromWorker,
+      ...(typeof r.workerName === "string" ? { workerName: r.workerName } : {}),
+      ...(typeof r.displayText === "string" ? { displayText: r.displayText } : {}),
+    };
+  }
+  return undefined;
 }
 
 export function startIngestServer(port: number, handlers: IngestHandlers): IngestServer {
@@ -54,13 +81,13 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
       if (rejected) return;
       if (url.pathname === "/message") {
         try {
-          const body = JSON.parse(raw) as { text?: string };
+          const body = JSON.parse(raw) as { text?: string; record?: unknown };
           if (!body.text) {
             res.writeHead(400, { "content-type": "application/json" });
             res.end(JSON.stringify({ error: "text required" }));
             return;
           }
-          handlers.onMessage(body.text);
+          handlers.onMessage(body.text, parseRecord(body.record));
           res.writeHead(200, { "content-type": "application/json" });
           res.end(JSON.stringify({ ok: true }));
         } catch (e) {

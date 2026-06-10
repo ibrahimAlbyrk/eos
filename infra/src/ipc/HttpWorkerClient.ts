@@ -1,7 +1,7 @@
 // HttpWorkerClient — daemon → worker outbound. Worker exposes its
 // /message endpoint on 127.0.0.1:<port>; this adapter hits it.
 
-import type { WorkerClient, RewindResult } from "../../../core/src/ports/WorkerClient.ts";
+import type { WorkerClient, RewindResult, MessageRecord } from "../../../core/src/ports/WorkerClient.ts";
 
 export interface HttpWorkerClientOptions {
   sendTimeoutMs?: number;
@@ -109,14 +109,14 @@ export function createHttpWorkerClient(opts: HttpWorkerClientOptions = {}): Work
       }
     },
 
-    async sendMessage(port: number, text: string): Promise<{ ok: boolean; status: number; body: unknown }> {
+    async sendMessage(port: number, text: string, record?: MessageRecord): Promise<{ ok: boolean; status: number; body: unknown }> {
       const ac = new AbortController();
       const timer = setTimeout(() => ac.abort(), sendTimeout);
       try {
         const r = await fetch(`http://127.0.0.1:${port}/message`, {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ text }),
+          body: JSON.stringify(record ? { text, record } : { text }),
           signal: ac.signal,
         });
         let body: unknown = null;

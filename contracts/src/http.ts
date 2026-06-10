@@ -70,6 +70,19 @@ export const OrchestratorListResponseSchema = z.array(WorkerRowSchema);
 export const MessageRequestSchema = z.object({ text: z.string().min(1) });
 export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 
+// Daemon → worker /message body extra: asks the worker to emit the chat event
+// for this message itself when the text lands in its transcript JSONL — the
+// only channel that carries true conversation order. Absent → control traffic
+// (slash commands) that must produce no chat event. displayText: what the
+// chat shows instead of the delivered text (action prompt label, a report's
+// unwrapped body).
+export const MessageRecordSchema = z.union([
+  z.object({ as: z.literal("user_message"), displayText: z.string().optional() }),
+  z.object({ as: z.literal("orchestrator_message"), fromParent: z.string(), parentName: z.string().optional() }),
+  z.object({ as: z.literal("worker_report"), fromWorker: z.string(), workerName: z.string().optional(), displayText: z.string().optional() }),
+]);
+export type MessageRecord = z.infer<typeof MessageRecordSchema>;
+
 export const MessageResponseSchema = z.object({ ok: z.boolean() });
 export type MessageResponse = z.infer<typeof MessageResponseSchema>;
 
@@ -175,6 +188,8 @@ export const EventsQuerySchema = z.object({
   since: z.coerce.number().int().nonnegative().default(0),
   limit: z.coerce.number().int().positive().max(5000).default(500),
   order: z.enum(["asc", "desc"]).default("desc"),
+  // Backward pagination cursor: only rows with id < beforeId (desc order only).
+  beforeId: z.coerce.number().int().positive().optional(),
 });
 export type EventsQuery = z.infer<typeof EventsQuerySchema>;
 

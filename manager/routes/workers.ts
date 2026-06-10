@@ -183,8 +183,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       since: url.searchParams.get("since") ?? undefined,
       limit: url.searchParams.get("limit") ?? undefined,
       order: url.searchParams.get("order") ?? undefined,
+      beforeId: url.searchParams.get("beforeId") ?? undefined,
     });
-    const rows = c.events.list({ workerId: params.id, since: q.since, limit: q.limit, order: q.order });
+    const rows = c.events.list({ workerId: params.id, since: q.since, limit: q.limit, order: q.order, beforeId: q.beforeId });
     writeJson(res, 200, rows);
   });
 
@@ -229,13 +230,15 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       const parent = c.workers.findById(fromParent);
       const parentName = parent?.name ?? fromParent;
       try {
-        await c.httpWorkerClient.sendMessage(worker.port, body.text);
+        // The worker records the orchestrator_message event itself when the
+        // directive lands in its transcript — see DispatchMessage header for
+        // why a dispatch-time append misorders against trailing turn output.
+        await c.httpWorkerClient.sendMessage(worker.port, body.text, {
+          as: "orchestrator_message", fromParent, parentName,
+        });
       } catch (e) {
         writeJson(res, 502, { error: "worker unreachable" }); return;
       }
-      c.events.append(params.id, c.clock.now(), "orchestrator_message", {
-        text: body.text, fromParent, parentName,
-      });
       transitionState(
         { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },
         { workerId: params.id, next: "WORKING", reason: "orchestrator_message" },
@@ -486,9 +489,11 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       }).catch((e) => c.log.warn("auto-apply failed", { worker: params.id, error: errMsg(e) }));
     }
     try {
-      await c.httpWorkerClient.sendMessage(parent.port, formatted);
-      c.events.append(worker.parent_id, c.clock.now(), "worker_report", {
-        text: body.text, fromWorker: params.id, workerName: label,
+      // The parent records the worker_report event itself when the report
+      // lands in its transcript — see DispatchMessage header for why a
+      // dispatch-time append misorders against the parent's in-flight turn.
+      await c.httpWorkerClient.sendMessage(parent.port, formatted, {
+        as: "worker_report", fromWorker: params.id, workerName: label, displayText: body.text,
       });
       transitionState(
         { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },

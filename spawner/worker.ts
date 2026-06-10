@@ -28,6 +28,7 @@ import { createReadinessGate } from "./readiness-gate.ts";
 import { resolveParentAgentToolUseId } from "./subagent-meta.ts";
 import { RewindDriver, type RewindMode } from "./rewind.ts";
 import { AnswerDriver, type AnswerSpec } from "./answer-driver.ts";
+import { PendingMessageRegistry, type PendingMessage } from "./message-registry.ts";
 
 // Timing defaults. Each is overridable by a CLI flag (see options.ts);
 // these are the fallbacks used when the flag is absent.
@@ -170,6 +171,34 @@ const pipeline = new DeliveryPipeline({
   fallbackCrDelayMs: opts.ptyWriteDelayMs ?? DEFAULT_PTY_WRITE_DELAY_MS,
 });
 
+// Daemon-dispatched messages waiting for their transcript sighting — the
+// worker emits the user_message/orchestrator_message chat event at that
+// moment so it is durably ordered after the previous turn's trailing output.
+const pendingMessages = new PendingMessageRegistry();
+
+function emitMessageEvent(p: PendingMessage): void {
+  switch (p.record.as) {
+    case "orchestrator_message":
+      evt.emit("orchestrator_message", {
+        text: p.text,
+        fromParent: p.record.fromParent,
+        parentName: p.record.parentName ?? p.record.fromParent,
+      });
+      return;
+    case "worker_report":
+      // displayText = the report body without the routing wrapper the parent's
+      // PTY received ("[worker x] reported…") — what the chat renders.
+      evt.emit("worker_report", {
+        text: p.record.displayText ?? p.text,
+        fromWorker: p.record.fromWorker,
+        workerName: p.record.workerName ?? p.record.fromWorker,
+      });
+      return;
+    case "user_message":
+      evt.emit("user_message", { text: p.record.displayText ?? p.text });
+  }
+}
+
 function deliver(text: string): void {
   const startedTs = Date.now();
   void pipeline.enqueue(text).then((res) => {
@@ -177,12 +206,23 @@ function deliver(text: string): void {
       // No turn started — stop the heartbeat from faking liveness so the
       // daemon-side delivery_failed IDLE heal sticks.
       state.lastTurnEndTs = Date.now();
+      // The text never reached Claude — no chat event; the daemon-side
+      // delivery_failed line is the user-visible signal.
+      pendingMessages.consumeByText(text);
     } else if (state.lastTurnEndTs < startedTs) {
       // Skip when the turn already ended mid-delivery (a one-shot command like
       // /clear fires SessionEnd before the ACK resolves) — setting the flag
       // then would leave it stuck open with no Stop ever coming.
       claudeTurnOpen = true;
     }
+    if (res.outcome === "unverified") {
+      // No transcript sighting, but the text provably reached the composer —
+      // record it now rather than risk a silently missing chat message.
+      const p = pendingMessages.consumeByText(text);
+      if (p) emitMessageEvent(p);
+    }
+    // "delivered" → already consumed by the tail's user_text match.
+    // "sent" (mid-turn steer) → stays pending until Claude consumes it.
   });
 }
 
@@ -311,11 +351,15 @@ function startTail(sessionId: string, startAtEof = false): TailHandle {
     name,
     startAtEof,
     onEvent: (t, p) => {
-      // user_text is the delivery pipeline's turn-ACK — consumed locally,
-      // never forwarded (the daemon's own user_message event already
-      // renders the message in the UI).
+      // user_text doubles as the delivery turn-ACK and as the transcript
+      // sighting that releases the message's chat event: emitting it HERE —
+      // through the same FIFO queue as the surrounding jsonl — pins the
+      // user/orchestrator message into true conversation order. The raw
+      // user_text itself is still never forwarded.
       if (t === "jsonl" && (p as { kind?: string }).kind === "user_text") {
-        pipeline.notifyUserText((p as { text?: string }).text ?? "", Date.now());
+        const text = (p as { text?: string }).text ?? "";
+        pipeline.notifyUserText(text, Date.now());
+        for (const m of pendingMessages.consumeMatching(text)) emitMessageEvent(m);
         return;
       }
       // A tool_result while a menu is being driven is the AUQ answer landing —
@@ -378,12 +422,17 @@ function watchForClearedSession(oldSessionId: string, clearTs: number): void {
 function flushAnswerBuffer(): void { answerHold.flush(dispatchToPty); }
 
 const ingest = startIngestServer(opts.port, {
-  onMessage(text): void {
+  onMessage(text, record): void {
     shutdown.cancel();
     const now = Date.now();
     state.lastUserMsgTs = now;
     state.lastJsonlActivityTs = now;
     evt.emit("lifecycle", { phase: "message_received", text: text.slice(0, 200) });
+    // Cap-evicted entries lost their chance at a transcript sighting — emit
+    // them now (early-ordered beats silently missing).
+    if (record) {
+      for (const m of pendingMessages.register(text, record)) emitMessageEvent(m);
+    }
     dispatchToPty(text);
   },
   async onAnswer(selections): Promise<{ ok: boolean; outcome: string }> {
@@ -457,6 +506,9 @@ const ingest = startIngestServer(opts.port, {
     // Emit whatever transcript already landed before the abort marker so the
     // daemon sees it ahead of the turn-aborted event.
     tailHandle?.drainNow();
+    // Steers the Esc tossed back to the composer will never get a transcript
+    // sighting — record them now so the chat keeps showing what was sent.
+    for (const m of pendingMessages.drainAll()) emitMessageEvent(m);
     evt.emit("lifecycle", { phase: "interrupted" });
     return { ok: true };
   },
@@ -572,6 +624,8 @@ function cleanup(code: number): void {
   readiness.cancel();
   if (clearSwapTimer) { clearInterval(clearSwapTimer); clearSwapTimer = null; }
   if (tailHandle) { tailHandle.drainNow(); tailHandle.close(); tailHandle = null; }
+  // Delivered-but-unsighted messages must not vanish with the process.
+  for (const m of pendingMessages.drainAll()) emitMessageEvent(m);
   // Make absolutely sure the claude PTY child is signalled — process.exit
   // alone closes the master FD but a timing race can leave orphan claude
   // processes.
