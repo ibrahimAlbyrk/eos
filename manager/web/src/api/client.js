@@ -91,11 +91,12 @@ export const api = {
   },
   async spawnWorker(spec) { return postJson(ROUTES.workers, spec); },
   async killWorker(id) { return del(ROUTES.worker(id)); },
-  async getWorkerEvents(id, { since = 0, order = "asc", limit, signal } = {}) {
+  async getWorkerEvents(id, { since = 0, order = "asc", limit, beforeId, signal } = {}) {
     const params = new URLSearchParams();
     params.set("since", String(since));
     params.set("order", order);
     if (limit != null) params.set("limit", String(limit));
+    if (beforeId != null) params.set("beforeId", String(beforeId));
     const r = await getJson(`${ROUTES.workerEvents(id)}?${params.toString()}`, { signal });
     if (!r.ok) throw new Error(`getWorkerEvents → ${r.status}`);
     return r.body;

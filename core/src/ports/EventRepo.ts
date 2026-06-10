@@ -7,6 +7,8 @@ export interface EventQuery {
   since: number;
   limit: number;
   order: "asc" | "desc";
+  /** Exclusive upper id bound — backward pagination ("load older"). Desc order only. */
+  beforeId?: number;
 }
 
 export interface EventRepo {

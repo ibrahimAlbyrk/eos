@@ -11,6 +11,7 @@ export class SqliteEventRepo implements EventRepo {
   private readonly stmtPatchPayload;
   private readonly stmtListAsc;
   private readonly stmtListDesc;
+  private readonly stmtListDescBefore;
   private readonly stmtDeleteByWorker;
   private readonly stmtSumDeltaCost;
 
@@ -24,6 +25,12 @@ export class SqliteEventRepo implements EventRepo {
     // tool-lifecycle barriers (Stop/exit close open tools) depend on it.
     this.stmtListDesc = db.prepare(
       "SELECT * FROM (SELECT * FROM events WHERE worker_id = ? AND ts > ? ORDER BY ts DESC, id DESC LIMIT ?) ORDER BY ts ASC, id ASC",
+    );
+    // Backward pagination — newest N strictly older (by id) than the cursor,
+    // same ASC reading order. `id` cursor, not ts: same-ms rows would be
+    // skipped or duplicated across pages with a ts cursor.
+    this.stmtListDescBefore = db.prepare(
+      "SELECT * FROM (SELECT * FROM events WHERE worker_id = ? AND ts > ? AND id < ? ORDER BY ts DESC, id DESC LIMIT ?) ORDER BY ts ASC, id ASC",
     );
     // Forward pagination — oldest-first after `since`. The web data layer
     // loops with the last-seen ts as the next cursor.
@@ -51,6 +58,9 @@ export class SqliteEventRepo implements EventRepo {
   }
 
   list(q: EventQuery): WorkerEventRow[] {
+    if (q.order === "desc" && q.beforeId != null) {
+      return this.stmtListDescBefore.all(q.workerId, q.since, q.beforeId, q.limit) as unknown as WorkerEventRow[];
+    }
     const stmt = q.order === "asc" ? this.stmtListAsc : this.stmtListDesc;
     return stmt.all(q.workerId, q.since, q.limit) as unknown as WorkerEventRow[];
   }
