@@ -13,6 +13,7 @@ export function BranchDropdown({ live, cwd }) {
 
   useEffect(() => {
     if (ui.openPopover !== "branch-dd" || !cwd) return;
+    setFilter("");
     (async () => {
       const r = await api.listBranches(cwd);
       setBranches(r.branches ?? []);
@@ -65,6 +66,7 @@ export function BranchDropdown({ live, cwd }) {
         </svg>
         <input
           placeholder="Search branches…"
+          autoFocus
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         />
