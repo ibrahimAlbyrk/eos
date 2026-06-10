@@ -87,6 +87,19 @@ describe("buildBlocks skill_body attachment", () => {
     const blocks = buildBlocks([skillUse("S1", 100)]);
     expect(mainTool(blocks, "S1").skillBody).toBeUndefined();
   });
+
+  it("extracts skillPath from the injected base-directory line and cleans the body", () => {
+    const text = "Base directory for this skill: /s/demo\n\n# Demo\nbody";
+    const blocks = buildBlocks([skillUse("S1", 100), skillBody("S1", 101, text)]);
+    const t = mainTool(blocks, "S1");
+    expect(t.skillPath).toBe("/s/demo");
+    expect(t.skillBody).toBe("# Demo\nbody");
+  });
+
+  it("attaches a null skillPath when the body has no base-directory line", () => {
+    const blocks = buildBlocks([skillUse("S1", 100), skillBody("S1", 101, "# Demo\nbody")]);
+    expect(mainTool(blocks, "S1").skillPath).toBeNull();
+  });
 });
 
 describe("buildBlocks main-agent tool_done fallback", () => {

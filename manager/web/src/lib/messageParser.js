@@ -1,4 +1,5 @@
 import { deriveToolLifecycle, parsePayload } from "./toolLifecycle.js";
+import { parseSkillBody } from "./skillBody.js";
 
 export { parsePayload };
 
@@ -88,7 +89,7 @@ export function buildBlocks(events) {
         agentSpans.set(p.id, { startTs: ev.ts, endTs: Infinity, background: false });
       }
     } else if (p.kind === "skill_body" && p.toolUseId) {
-      skillBodyById.set(p.toolUseId, p.text ?? "");
+      skillBodyById.set(p.toolUseId, parseSkillBody(p.text));
     }
   }
   for (const ev of events) {
@@ -338,7 +339,9 @@ export function buildBlocks(events) {
           running: !lc.isClosed(p.id, evIdx),
           done: lc.isDone(p.id),
           ts: ev.ts,
-          ...(skillBodyById.has(p.id) ? { skillBody: skillBodyById.get(p.id) } : {}),
+          ...(skillBodyById.has(p.id)
+            ? { skillBody: skillBodyById.get(p.id).body, skillPath: skillBodyById.get(p.id).path }
+            : {}),
         });
       }
     }
