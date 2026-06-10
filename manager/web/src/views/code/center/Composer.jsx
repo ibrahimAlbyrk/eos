@@ -14,6 +14,7 @@ import { draftKey } from "../../../state/composerDrafts.js";
 import { findLabelAt } from "../../../lib/attachmentTokens.js";
 import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
+import { composerMode, modeFlags } from "../../../lib/composerModes.js";
 import { gitAgentName, gitTaskLabel } from "../../../lib/gitAgentName.js";
 import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
 import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
@@ -51,7 +52,6 @@ export function Composer({ live }) {
   const [menuDismissed, setMenuDismissed] = useState(false);
   const insertedPathsRef = useRef(new Map());
   const history = useInputHistory();
-  const termHistory = useInputHistory("cm:termHistory");
   const lastEscRef = useRef(0);
   const [escArmed, setEscArmed] = useState(false);
   // True while showing a history-recalled entry; keeps the slash/file menus
@@ -60,6 +60,27 @@ export function Composer({ live }) {
   const recallRef = useRef(false);
 
   const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
+
+  // Daemon-side message queue for the selected agent — pills render from this
+  // (the daemon is the only queue; this is just its mirror). Refetched on
+  // selection change, on the agent's SSE signal, and after a queued send.
+  const [serverQueue, setServerQueue] = useState({ for: null, messages: [] });
+  const refetchQueue = async (workerId) => {
+    if (!workerId) { setServerQueue({ for: null, messages: [] }); return; }
+    const body = await api.getWorkerQueue(workerId);
+    setServerQueue({ for: workerId, messages: body?.messages ?? [] });
+  };
+  useEffect(() => { refetchQueue(selected?.id ?? null); }, [selected?.id]);
+  useEffect(() => {
+    if (!selected?.id || live.eventSignal.workerId !== selected.id) return;
+    refetchQueue(selected.id);
+  }, [live.eventSignal.tick]);
+
+  const dismissQueued = async (queueId) => {
+    if (!selected?.id) return;
+    await api.dismissQueuedMessage(selected.id, queueId);
+    refetchQueue(selected.id);
+  };
 
   // Global Escape exits git/terminal mode regardless of focus — registered into
   // the selection provider's Escape chain (popover/viewers first, interrupt last).
@@ -178,7 +199,6 @@ export function Composer({ live }) {
   // Terminal mode: shell text is full of `/` and `@` — completion menus off.
   const showMenu = menuVis.showMenu && !ui.composer.termMode;
   const showFileMenu = menuVis.showFileMenu && !ui.composer.termMode;
-  const activeHistory = ui.composer.termMode ? termHistory : history;
 
   const activeHint = useMemo(() => {
     if (!text.includes("/")) return null;
@@ -345,9 +365,15 @@ export function Composer({ live }) {
   const send = async () => {
     const t = text.trim();
     if (!t) return;
+    const mode = composerMode(ui.composer);
+
+    // "/clear" targets an existing agent's session — spawning a fresh agent
+    // (orchestrator/git) with it as the boot prompt would be meaningless.
+    if (mode !== "term" && t === "/clear" && (!selected || ui.composer.gitMode)) return;
+
+    history.push({ text: t, mode });
 
     if (ui.composer.termMode) {
-      termHistory.push(t);
       setTextAndSync("", 0);
       // One-shot like git mode: the mode closes on send, `!` re-enters.
       ui.updateComposer({ termMode: false });
@@ -365,10 +391,6 @@ export function Composer({ live }) {
       return;
     }
 
-    // "/clear" targets an existing agent's session — spawning a fresh agent
-    // (orchestrator/git) with it as the boot prompt would be meaningless.
-    if (t === "/clear" && (!selected || ui.composer.gitMode)) return;
-
     let displayText = t;
     let agentText = t;
     for (const [display, absPath] of insertedPathsRef.current) {
@@ -376,7 +398,6 @@ export function Composer({ live }) {
     }
 
     const msgLabels = attachmentItems.map((it) => it.label);
-    history.push(t);
     setTextAndSync("", 0);
     insertedPathsRef.current.clear();
     clearAttachments();
@@ -431,14 +452,25 @@ export function Composer({ live }) {
     }
 
     if (selected) {
-      const busy = selected.state === "SPAWNING" || selected.state === "WORKING";
-      if (busy) {
-        ui.addQueuedMessage(selected.id, agentText);
-        return;
+      // No busy branch here anymore: the daemon decides queue-vs-dispatch
+      // against authoritative state (the old client-side check read a stale
+      // workers snapshot). clientMsgId makes the send idempotent end-to-end.
+      const clientMsgId = crypto.randomUUID();
+      const optId = ui.addOptimisticUserMessage(selected.id, displayText, agentText, clientMsgId);
+      try {
+        const r = await live.sendToAgent(selected.id, agentText, { clientMsgId, queueWhenBusy: true });
+        if (r?.body?.queued) {
+          // Held in the daemon queue — the pill (server state) takes over.
+          ui.removeOptimisticMessage(selected.id, optId);
+          refetchQueue(selected.id);
+        } else if (!r?.ok) {
+          ui.removeOptimisticMessage(selected.id, optId);
+          console.error("send rejected:", r?.body?.error ?? `status ${r?.status ?? "?"}`);
+        }
+      } catch (e) {
+        ui.removeOptimisticMessage(selected.id, optId);
+        console.error("send failed:", e);
       }
-      ui.addOptimisticUserMessage(selected.id, displayText, agentText);
-      try { await live.sendToAgent(selected.id, agentText); }
-      catch (e) { console.error("send failed:", e); }
       return;
     }
 
@@ -531,11 +563,13 @@ export function Composer({ live }) {
     }
 
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-      const recalled = e.key === "ArrowUp" ? activeHistory.up(text) : activeHistory.down(text);
+      const current = { text, mode: composerMode(ui.composer) };
+      const recalled = e.key === "ArrowUp" ? history.up(current) : history.down(current);
       if (recalled !== null) {
         e.preventDefault();
         recallRef.current = true;
-        setTextAndSync(recalled);
+        setTextAndSync(recalled.text);
+        if (current.mode !== recalled.mode) ui.updateComposer(modeFlags(recalled.mode));
         return;
       }
     }
@@ -594,7 +628,7 @@ export function Composer({ live }) {
   };
 
   const agentBusy = selected && (selected.state === "SPAWNING" || selected.state === "WORKING");
-  const queuedList = selected ? (ui.queuedMessages.get(selected.id) ?? []) : [];
+  const queuedList = selected && serverQueue.for === selected.id ? serverQueue.messages : [];
 
   return (
     <div className="composer-wrap">
@@ -605,7 +639,7 @@ export function Composer({ live }) {
               <QueuedPill
                 key={q.id}
                 text={q.text}
-                onDismiss={() => ui.removeQueuedMessage(selected.id, q.id)}
+                onDismiss={() => dismissQueued(q.id)}
               />
             ))}
           </div>
@@ -681,7 +715,7 @@ export function Composer({ live }) {
         <ComposerControls
           live={live}
           onAttach={addAttachments}
-          historyNav={activeHistory.nav && text === activeHistory.nav.entry ? activeHistory.nav : null}
+          historyNav={history.nav && text === history.nav.entry.text ? history.nav : null}
         />
       </div>
     </div>

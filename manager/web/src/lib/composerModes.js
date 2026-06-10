@@ -6,3 +6,14 @@ export function nextGitMode({ gitMode, termMode }, on) {
   if (next && termMode) return gitMode;
   return next;
 }
+
+// Flag↔mode converters shared by history capture (send) and recall apply.
+// modeFlags always yields an exclusive pair, so applying a recalled mode can
+// never produce gitMode && termMode.
+export function composerMode({ gitMode, termMode }) {
+  return termMode ? "term" : gitMode ? "git" : "chat";
+}
+
+export function modeFlags(mode) {
+  return { gitMode: mode === "git", termMode: mode === "term" };
+}
