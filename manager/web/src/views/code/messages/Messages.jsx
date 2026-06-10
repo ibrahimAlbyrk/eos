@@ -16,6 +16,7 @@ import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
 import { shouldStick, shouldAutoScroll } from "../../../lib/scrollStick.js";
 import { loadScrollPos, saveScrollPos, clearScrollPos } from "../../../lib/scrollMemory.js";
 import { usePageFind } from "../../../hooks/usePageFind.js";
+import { useWorkerEvents } from "../../../hooks/useWorkerEvents.js";
 import { defaultGroupOpen } from "../../../settings/toolExpansion.js";
 import { FindBar } from "./FindBar.jsx";
 import { MessageUser } from "./MessageUser.jsx";
@@ -31,13 +32,11 @@ import { MessageRow } from "./MessageRow.jsx";
 import { TerminalCard } from "./TerminalCard.jsx";
 import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceRuns } from "../../../state/terminalStore.js";
 
-const POLL_MS = 5000;
 const SCROLL_THRESHOLD = 40;
 const BUTTON_THRESHOLD = 300;
 
 export function Messages({ live }) {
   const ui = useUi();
-  const [events, setEvents] = useState([]);
   const wrapRef = useRef(null);
   const contentRef = useRef(null);
   const [showScrollBtn, setShowScrollBtn] = useState(false);
@@ -54,9 +53,19 @@ export function Messages({ live }) {
     setShowScrollBtn(overflows && dist >= BUTTON_THRESHOLD);
   }, []);
 
+  // The header's fade-out scrim (.head::after) paints over the first ~2 lines
+  // of content — hide it while the view sits at the very top so the start of
+  // the transcript is never veiled.
+  const syncHeadScrim = useCallback(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    el.closest(".center")?.classList.toggle("msgs-at-top", el.scrollTop <= 4);
+  }, []);
+
   const checkNearBottom = useCallback(() => {
     const el = wrapRef.current;
     if (!el) return;
+    syncHeadScrim();
     if (!programmaticScrollRef.current) {
       lastUserScrollTsRef.current = performance.now();
       isNearBottomRef.current = shouldStick(
@@ -72,7 +81,7 @@ export function Messages({ live }) {
       }
     }
     updateScrollBtn();
-  }, [updateScrollBtn, ui.selectedId]);
+  }, [updateScrollBtn, ui.selectedId, syncHeadScrim]);
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -109,50 +118,77 @@ export function Messages({ live }) {
     runProgrammaticScroll(el, () => el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }));
   }, [runProgrammaticScroll, ui.selectedId]);
 
-  const fetchRef = useRef(null);
-  // Which agent the current `events` belong to — during a switch, blocks still
-  // render the previous agent's rows, and the initial scroll must wait for the
-  // new agent's content before restoring a saved position.
-  const eventsForRef = useRef(null);
-
   useEffect(() => { initialScrollDone.current = false; }, [ui.selectedId]);
 
-  useEffect(() => {
-    if (!ui.selectedId) { setEvents([]); fetchRef.current = null; eventsForRef.current = null; return; }
-    const ac = new AbortController();
-    let cancelled = false;
-    const fetchOnce = async () => {
-      try {
-        // order:"desc" = newest 500, returned in ASC reading order (see
-        // SqliteEventRepo). "asc" here would pin the view to the OLDEST 500
-        // and freeze long transcripts.
-        const rows = await api.getWorkerEvents(ui.selectedId, { limit: 500, order: "desc", signal: ac.signal });
-        if (!cancelled && Array.isArray(rows)) {
-          eventsForRef.current = ui.selectedId;
-          setEvents(rows);
-          const serverTexts = new Set();
-          for (const e of rows) {
-            if (e.type !== "user_message") continue;
-            const p = parsePayload(e.payload);
-            if (p.text) serverTexts.add(p.text);
-          }
-          ui.reconcileOptimisticMessages(ui.selectedId, serverTexts);
-        }
-      } catch (e) {
-        if (e?.name === "AbortError") return;
-        if (!cancelled) { eventsForRef.current = ui.selectedId; setEvents([]); }
+  const reconcileFromNewest = useCallback((workerId, rows) => {
+    const serverTexts = new Set();
+    const failures = [];
+    for (const e of rows) {
+      const p = parsePayload(e.payload);
+      if (e.type === "user_message" && p.text) serverTexts.add(p.text);
+      // A failed delivery never yields a user_message — the failure event
+      // itself must release the optimistic copy.
+      if (e.type === "lifecycle" && p.phase === "delivery_failed" && p.text) {
+        failures.push({ text: p.text, ts: e.ts });
       }
-    };
-    fetchRef.current = fetchOnce;
-    fetchOnce();
-    const t = setInterval(fetchOnce, POLL_MS);
-    return () => { cancelled = true; clearInterval(t); ac.abort(); fetchRef.current = null; };
-  }, [ui.selectedId, live.workers.length, ui.reconcileOptimisticMessages]);
+    }
+    ui.reconcileOptimisticMessages(workerId, serverTexts, failures);
+  }, [ui.reconcileOptimisticMessages]);
+
+  // `eventsFor` = which agent the current `events` belong to — during a
+  // switch, blocks still render the previous agent's rows, and the initial
+  // scroll must wait for the new agent's content before restoring a saved
+  // position.
+  const { events, eventsFor, hasOlder, loadingOlder, loadOlder, refetchNewest } = useWorkerEvents(
+    ui.selectedId,
+    { restartKey: live.workers.length, onNewest: reconcileFromNewest },
+  );
 
   useEffect(() => {
     if (live.eventSignal.workerId !== ui.selectedId) return;
-    fetchRef.current?.();
+    refetchNewest();
   }, [live.eventSignal.tick]);
+
+  // "Load older" sentinel at the top of the list. Before each load, anchor the
+  // current scroll geometry; once older rows land, shift scrollTop by the
+  // height delta so the viewport keeps showing the same content. (A bottom
+  // append racing the in-flight fetch would skew the delta slightly — rare
+  // enough to accept over per-block DOM anchoring.)
+  const prependAnchorRef = useRef(null);
+  const triggerLoadOlderRef = useRef(() => {});
+  triggerLoadOlderRef.current = () => {
+    if (!hasOlder || loadingOlder) return;
+    const el = wrapRef.current;
+    if (el) {
+      prependAnchorRef.current = {
+        firstId: events[0]?.id ?? null,
+        scrollTop: el.scrollTop,
+        scrollHeight: el.scrollHeight,
+      };
+    }
+    loadOlder();
+  };
+  const [sentinelEl, setSentinelEl] = useState(null);
+  useEffect(() => {
+    if (!sentinelEl || !wrapRef.current) return;
+    const io = new IntersectionObserver(
+      (entries) => { if (entries.some((e) => e.isIntersecting)) triggerLoadOlderRef.current(); },
+      { root: wrapRef.current, rootMargin: "200px 0px 0px 0px" },
+    );
+    io.observe(sentinelEl);
+    return () => io.disconnect();
+  }, [sentinelEl]);
+
+  useLayoutEffect(() => {
+    const anchor = prependAnchorRef.current;
+    const el = wrapRef.current;
+    if (!anchor || !el) return;
+    if ((events[0]?.id ?? null) === anchor.firstId) return; // nothing prepended yet
+    prependAnchorRef.current = null;
+    runProgrammaticScroll(el, () => {
+      el.scrollTop = anchor.scrollTop + (el.scrollHeight - anchor.scrollHeight);
+    });
+  }, [events]);
 
   const pendingQuestions = useMemo(() => derivePendingQuestions(events), [events]);
 
@@ -168,14 +204,14 @@ export function Messages({ live }) {
   const verdict = useMemo(() => deriveVerdict(events), [events]);
   const childVerdicts = useMemo(() => deriveChildVerdicts(events), [events]);
   useEffect(() => {
-    if (eventsForRef.current !== ui.selectedId) return;
+    if (eventsFor !== ui.selectedId) return;
     const isOrch = Boolean(live.workers.find((w) => w.id === ui.selectedId)?.is_orchestrator);
     ui.setVerdict({
       workerId: ui.selectedId,
       ...(isOrch ? { verdict: "unverified", command: null, ts: null } : verdict),
       children: childVerdicts,
     });
-  }, [verdict, childVerdicts, ui.selectedId, live.workers]);
+  }, [verdict, childVerdicts, ui.selectedId, live.workers, eventsFor]);
 
   // Live terminal runs (composer `!` mode) stream outside the event store —
   // a tick subscription re-renders on every chunk.
@@ -239,9 +275,9 @@ export function Messages({ live }) {
   const baselineRef = useRef({ id: null, keys: null });
   if (baselineRef.current.id !== ui.selectedId) baselineRef.current = { id: ui.selectedId, keys: null };
   useEffect(() => {
-    if (baselineRef.current.keys || eventsForRef.current !== ui.selectedId || blocks.length === 0) return;
+    if (baselineRef.current.keys || eventsFor !== ui.selectedId || blocks.length === 0) return;
     baselineRef.current.keys = new Set(blocks.map((b, i) => blockKey(b, i)));
-  }, [blocks, ui.selectedId]);
+  }, [blocks, ui.selectedId, eventsFor]);
   const baselineKeys = baselineRef.current.keys;
 
   // expandedTools/settings in deps: expanding a tool mounts new text the ranges must cover.
@@ -290,7 +326,7 @@ export function Messages({ live }) {
     const el = wrapRef.current;
     if (!el || blocks.length === 0) return;
     if (!initialScrollDone.current) {
-      if (eventsForRef.current !== ui.selectedId) return;
+      if (eventsFor !== ui.selectedId) return;
       initialScrollDone.current = true;
       const saved = loadScrollPos(ui.selectedId);
       if (saved != null) {
@@ -310,10 +346,23 @@ export function Messages({ live }) {
     runProgrammaticScroll(el, () => { el.scrollTop = el.scrollHeight; });
   }, [blocks]);
 
+  // Scroll position can change without a scroll event (content fill, agent
+  // switch) — re-sync the scrim after every commit; clean it off on unmount.
+  useLayoutEffect(() => { syncHeadScrim(); });
+  useEffect(() => {
+    const center = wrapRef.current?.closest(".center");
+    return () => center?.classList.remove("msgs-at-top");
+  }, []);
+
   return (
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
       <div className={ui.selectedId ? "messages" : "messages messages-empty"} ref={contentRef}>
+        {ui.selectedId && hasOlder && (
+          <div className="load-older" ref={setSentinelEl}>
+            {loadingOlder ? "loading earlier messages…" : ""}
+          </div>
+        )}
         {selectedWorker?.parent_id && selectedWorker.prompt && (
           <MessageTask
             prompt={selectedWorker.prompt}

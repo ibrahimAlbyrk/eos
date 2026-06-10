@@ -82,6 +82,11 @@ kbd {
      full-bleed background layer underneath */
   --shell-gap: 6px;
   --panel-radius: 12px;
+  /* transcript rhythm: .messages flex gap owns ALL inter-block spacing —
+     block roots carry no outer margins. Must stay ≥ --msg-actions-h so the
+     hover copy/timestamp row fits inside the gap. */
+  --block-gap: 26px;
+  --msg-actions-h: 18px;
   --bg: #1a1a1a;
   --surface: #1f1f1f;
   --surface-2: #252525;
@@ -811,6 +816,12 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   background: linear-gradient(to top, transparent, var(--bg));
   pointer-events: none;
   z-index: 1;
+  transition: opacity 160ms ease;
+}
+/* scrolled to the very top: the scrim would veil the transcript's first
+   lines — Messages toggles this class from its scroll handler */
+.center.msgs-at-top .head::after {
+  opacity: 0;
 }
 
 /* messages scroll area */
@@ -829,12 +840,20 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .messages {
   max-width: 1260px;
   margin: 0 auto;
-  padding: 16px 32px 32px;
+  padding: 24px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--block-gap);
 }
-/* no agent selected: workspace terminal cards take the chat bubble's top
-   offset (16px pad + 18px .msg-user margin) so both views align exactly */
-.messages-empty .terminal-card {
-  margin-top: 18px;
+/* backward-pagination sentinel — fixed height so the IntersectionObserver has
+   a stable target and the loading label doesn't shift content */
+.load-older {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
 }
 /* scroll-to-bottom pill — sticky to bottom-center of messages-wrap */
 .scroll-to-bottom {
@@ -918,7 +937,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  margin: 18px 0;
 }
 .msg-user .b {
   background: var(--bubble-user-bg);
@@ -933,9 +951,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 
 /* Hover action row (copy + timestamp) under text messages. Absolutely
-   positioned into the message's own margin gap so revealing it never
-   shifts layout — the transcript auto-scrolls and a reflow would jump it. */
-.msg-row { position: relative; margin-bottom: 38px; }
+   positioned into the container's --block-gap below the message so revealing
+   it never shifts layout — the transcript auto-scrolls and a reflow would
+   jump it. */
+.msg-row { position: relative; }
 .msg-actions {
   position: absolute;
   top: 100%;
@@ -944,7 +963,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   display: flex;
   align-items: center;
   gap: 8px;
-  height: 18px;
+  height: var(--msg-actions-h);
   opacity: 0;
   transition: opacity 120ms;
 }
@@ -964,7 +983,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 
 /* Initial task prompt — shown as first block for orchestrator-spawned workers */
 .msg-task {
-  margin: 18px 0 24px;
   padding: 12px 16px;
   background: color-mix(in srgb, var(--accent) 6%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 12%, transparent);
@@ -986,7 +1004,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   line-height: 1.6;
   color: var(--fg);
 }
-.msg-task-body.msg-asst { margin: 0; }
 
 /* report / directive detail */
 .report-detail {
@@ -1007,7 +1024,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 
 /* Assistant text — plain prose */
 .msg-asst {
-  margin: 14px 0 18px;
   font-size: var(--text-base);
   line-height: 1.65;
   color: var(--fg);
@@ -1108,10 +1124,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 
 /* ── tool group (multi-tool) ── */
-.tool-group {
-  margin: 8px 0 12px;
-}
-
 .tool-group-header {
   display: flex; align-items: center; gap: 8px;
   padding: 9px 0;
@@ -1145,9 +1157,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* ── tool item (single row) ── */
 .tool-item {
   font-size: var(--text-base);
-}
-.tool-item.standalone {
-  margin: 8px 0 12px;
 }
 .tool-item-header {
   display: flex; align-items: center; gap: 5px;
@@ -1266,7 +1275,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 
 /* Terminal card (composer `!` mode) — live + durable user-run commands */
 .terminal-card {
-  margin: 4px 0 8px;
   border: 1px solid var(--border);
   border-radius: 10px;
   overflow: hidden;
@@ -1558,7 +1566,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   display: flex; align-items: center; gap: 7px;
   font-size: var(--text-sm);
   color: var(--fg-faint);
-  margin: 8px 0;
 }
 .thinking-line .mono {
   white-space: pre-wrap;
@@ -1687,7 +1694,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   padding: 6px 10px;
   border: 1px solid rgba(var(--tint), 0.1);
   border-radius: 8px;
-  margin: 4px 0;
   min-width: 0;
 }
 .worktree-preserved .wp-title { color: var(--warn); font-weight: 600; flex-shrink: 0; }
@@ -1780,8 +1786,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    AGENT BLOCK — special display for Claude's Agent tool_use (spawn subagent)
    Two states: running (header + dark card) and done (inline summary text).
    ============================================================================ */
-.agent-block { margin: 14px 0; }
-
 /* Running — header line + card */
 .agent-block--running .agent-header {
   display: flex;
@@ -5071,10 +5075,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   gap: 0;
   margin-bottom: 16px;
 }
-.av-tools .tool-item.standalone {
-  margin: 0;
-}
-
 .av-output-bubble {
   background: var(--surface, rgba(var(--tint), 0.06));
   border-radius: 10px;
