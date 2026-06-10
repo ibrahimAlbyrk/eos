@@ -41,11 +41,19 @@ export function TemplateEditorModal({ initial, onClose }) {
     setError(null);
     const body = { name: slug, description: description.trim(), content: content.trim() };
     let r;
-    if (initial && initial.name === slug) {
-      r = await api.updateTemplate(slug, body);
-    } else {
-      r = await api.createTemplate(body);
-      if (r.ok && initial) await api.deleteTemplate(initial.name);
+    // fetch rejects (vs resolving non-ok) when the daemon is down/restarting —
+    // without this catch the modal sticks on "Saving…" and Esc loses the content.
+    try {
+      if (initial && initial.name === slug) {
+        r = await api.updateTemplate(slug, body);
+      } else {
+        r = await api.createTemplate(body);
+        if (r.ok && initial) await api.deleteTemplate(initial.name);
+      }
+    } catch {
+      setBusy(false);
+      setError("Daemon unreachable — nothing saved, your content is still here. Try again.");
+      return;
     }
     setBusy(false);
     if (!r.ok) {
