@@ -169,8 +169,8 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
     deps.workers.addUsage(input.workerId, {
       in: tIn, out: tOut, cacheRead: cRead, cacheCreate: cCreate, cacheCreate1h: cCreate1h, costUsd: deltaCost,
     });
-    // Back-fill deltaCost into the just-inserted payload so /session can
-    // sum it without re-computing per model.
+    // Back-fill deltaCost into the just-inserted payload — freezes the cost at
+    // record-time prices, so later price-table changes can't rewrite history.
     deps.events.patchPayload(rowId, { ...u, deltaCost });
     deps.bus.publish("usage:recorded", { workerId: input.workerId, deltaCost });
   },

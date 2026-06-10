@@ -59,11 +59,12 @@ export function CodeView({ live }) {
     ui.registerEscapeIdle(() => {
       const w = live.workers.find((x) => x.id === ui.selectedId);
       if (w && (w.state === "SPAWNING" || w.state === "WORKING")) {
+        // The interrupt route also clears the daemon-side message queue, so
+        // Esc still cancels everything the user queued.
         live.interruptAgent(w.id);
-        ui.clearQueuedMessages(w.id);
       }
     });
-  }, [ui.selectedId, live.workers, live.interruptAgent, ui.registerEscapeIdle, ui.clearQueuedMessages]);
+  }, [ui.selectedId, live.workers, live.interruptAgent, ui.registerEscapeIdle]);
 
   // Outside-click closes any open popover (except the popover itself + trigger)
   useEffect(() => {

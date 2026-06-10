@@ -7,7 +7,7 @@ import { deleteDraft } from "../state/composerDrafts.js";
 // kill it. Shared by the Cmd+W hotkey and the sidebar context menu so both
 // entry points behave identically.
 export function useDeleteAgent(live) {
-  const { selectedId, setSelectedId, takePreviousSelection, closeAllPops } = useUi();
+  const { selectedId, setSelectedId, takePreviousSelection, closeAllPops, purgeAgentMessages } = useUi();
   return useCallback(async (agentId) => {
     if (!agentId) return undefined;
     // Switch selection off the doomed agent *before* the DELETE so any in-flight
@@ -22,7 +22,10 @@ export function useDeleteAgent(live) {
       // After the await: the selection switch above has committed by now, so
       // its draft-save (sync cleanup) already ran — deleting here can't be
       // undone by a late save under the dead id.
-      if (r?.ok) deleteDraft(agentId);
+      if (r?.ok) {
+        deleteDraft(agentId);
+        purgeAgentMessages(agentId);
+      }
       if (!r?.ok) {
         // eslint-disable-next-line no-console
         console.error("kill failed:", r?.body?.error ?? `status ${r?.status ?? "?"}`);
@@ -33,5 +36,5 @@ export function useDeleteAgent(live) {
       console.error("kill threw:", e);
       return undefined;
     }
-  }, [selectedId, setSelectedId, takePreviousSelection, closeAllPops, live]);
+  }, [selectedId, setSelectedId, takePreviousSelection, closeAllPops, purgeAgentMessages, live]);
 }
