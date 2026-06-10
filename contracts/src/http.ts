@@ -220,6 +220,14 @@ export const WorkspaceTerminalRunRequestSchema = z.object({
 });
 export type WorkspaceTerminalRunRequest = z.infer<typeof WorkspaceTerminalRunRequestSchema>;
 
+// ---- POST /workers/:id/open --------------------------------------------------
+// Open the agent's working directory (worktree dir when isolated, else cwd)
+// in a host app. UI-token gated like /terminal — launching host apps is a UI
+// affordance, not an agent capability.
+
+export const OpenInRequestSchema = z.object({ target: z.enum(["vscode", "finder"]) });
+export type OpenInRequest = z.infer<typeof OpenInRequestSchema>;
+
 // ---- GET /workers/:id/events ----------------------------------------------
 
 export const EventsQuerySchema = z.object({
@@ -829,6 +837,18 @@ export const HealthResponseSchema = z.object({
 });
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 
+// ---- POST /api/ui-reload -----------------------------------------------------
+// Broadcasts ui:reload over SSE so connected pages refresh in place — lets a
+// web-dist rebuild reach the running app without a quit/reopen. subscribers
+// is the SSE client count at broadcast time: 0 means nobody took the signal
+// and the caller (eos build) must fall back to relaunching the app.
+
+export const UiReloadResponseSchema = z.object({
+  ok: z.literal(true),
+  subscribers: z.number().int(),
+});
+export type UiReloadResponse = z.infer<typeof UiReloadResponseSchema>;
+
 // ---- error envelope --------------------------------------------------------
 
 export const ErrorResponseSchema = z.object({
@@ -863,6 +883,7 @@ export const ROUTES = {
   pendingDecision: (id: string): string => `/pending/${id}/decision`,
   metrics: "/metrics",
   uiConfig: "/api/ui-config",
+  uiReload: "/api/ui-reload",
   pickDirectory: "/pick-directory",
   pickFile: "/pick-file",
   fsDefaultApp: "/fs/default-app",
@@ -883,6 +904,7 @@ export const ROUTES = {
   fsWrite: "/fs/write",
   fsPaste: "/fs/paste",
   workerName: (id: string): string => `/workers/${id}/name`,
+  workerOpen: (id: string): string => `/workers/${id}/open`,
   workerPermission: (id: string): string => `/workers/${id}/permission`,
   workerModel: (id: string): string => `/workers/${id}/model`,
   workerDiff: (id: string): string => `/workers/${id}/diff`,

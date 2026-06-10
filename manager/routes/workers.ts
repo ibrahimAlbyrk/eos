@@ -22,6 +22,8 @@ import {
   FileDiffQuerySchema,
   TerminalRunRequestSchema,
   WorkspaceTerminalRunRequestSchema,
+  OpenInRequestSchema,
+  type OpenInRequest,
 } from "../../contracts/src/http.ts";
 import type { WorkerRow } from "../../contracts/src/worker.ts";
 
@@ -714,6 +716,29 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   r.post(/^\/terminal\/(?<runId>[^/]+)\/kill$/, ({ params, req, res }) => {
     if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
     writeJson(res, 200, { ok: c.terminalRuns.kill(params.runId) });
+  });
+
+  // Breadcrumb "Open in" — launches a host app on the agent's working dir.
+  // The dir is resolved server-side from the row (never from the request).
+  const OPEN_TARGETS: Record<OpenInRequest["target"], string[]> = {
+    finder: [],
+    vscode: ["-a", "Visual Studio Code"],
+  };
+
+  r.post(/^\/workers\/(?<id>[^/]+)\/open$/, async ({ params, req, res }) => {
+    if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const body = validate(OpenInRequestSchema, await readBody(req));
+    const w = c.workers.findById(params.id);
+    if (!w) { writeJson(res, 404, { error: "worker not found" }); return; }
+    const dir = gitDirOf(w);
+    if (!dir || !existsSync(dir)) { writeJson(res, 400, { error: "worker has no working directory" }); return; }
+    try {
+      const { execFileSync } = await import("node:child_process");
+      execFileSync("open", [...OPEN_TARGETS[body.target], dir]);
+      writeJson(res, 200, { ok: true });
+    } catch (e) {
+      writeJson(res, 500, { error: errMsg(e) });
+    }
   });
 
   r.get(/^\/workers\/(?<id>[^/]+)\/changes\/file$/, async ({ params, url, res }) => {
