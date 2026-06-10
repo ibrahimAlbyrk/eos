@@ -51,9 +51,25 @@ export function useAttachments({ onUploadFailed } = {}) {
     setItems((prev) => prev.filter((it) => it.label !== label));
   }, []);
 
+  // Counters survive clear(): labels key the global pathsRef and other agents'
+  // stashed drafts may still hold older labels — resetting would mint duplicate
+  // labels that overwrite their paths.
   const clear = useCallback(() => {
     setItems([]);
-    countersRef.current = {};
+  }, []);
+
+  // Re-seat a stashed draft's items after an agent switch. An upload that
+  // settled while stashed left no trace in `items` (its setItems mapped over
+  // another agent's list) — reconcile from pathsRef/pendingRef: finished →
+  // ready, still in flight → keep, failed → drop.
+  const restore = useCallback((list) => {
+    setItems(list.flatMap((it) => {
+      if (it.status !== "uploading") return [it];
+      const path = pathsRef.current.get(it.label);
+      if (path) return [{ ...it, path, status: "ready" }];
+      if (pendingRef.current.has(it.label)) return [it];
+      return [];
+    }));
   }, []);
 
   // Returns the "attachments:" mapping suffix for the given labels — kept as
@@ -64,5 +80,5 @@ export function useAttachments({ onUploadFailed } = {}) {
     return buildAttachmentSuffix(labels, pathsRef.current);
   }, []);
 
-  return { items, addPath, addUpload, remove, clear, resolveForSend };
+  return { items, addPath, addUpload, remove, clear, restore, resolveForSend };
 }

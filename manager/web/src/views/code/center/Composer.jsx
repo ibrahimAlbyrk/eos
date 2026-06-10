@@ -8,7 +8,9 @@ import { useContentEditableEditor, getCursorOffset, getSelectionOffsets, setSele
 import { useCompletion } from "../../../hooks/useCompletion.js";
 import { findPlaceholders, nextPlaceholder, prevPlaceholder } from "../../../lib/placeholders.js";
 import { useAttachments } from "../../../hooks/useAttachments.js";
+import { useComposerDraftSync } from "../../../hooks/useComposerDraftSync.js";
 import { useInputHistory } from "../../../hooks/useInputHistory.js";
+import { draftKey } from "../../../state/composerDrafts.js";
 import { findLabelAt } from "../../../lib/attachmentTokens.js";
 import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
@@ -94,6 +96,7 @@ export function Composer({ live }) {
     addPath,
     remove: removeAttachmentItem,
     clear: clearAttachments,
+    restore: restoreAttachments,
     resolveForSend,
   } = useAttachments({ onUploadFailed: (label) => uploadFailedRef.current(label) });
 
@@ -132,6 +135,34 @@ export function Composer({ live }) {
       if (!text.includes(it.label)) removeAttachmentItem(it.label);
     }
   }, [text, attachmentItems, removeAttachmentItem]);
+
+  // Stash this agent's unsent input on switch, re-seat the next agent's.
+  // Text, chips and @paths swap in one effect body (one React batch) so the
+  // token-GC effects never see one agent's text against another's chips.
+  // git/term modes ride along: a term-mode draft restored without the mode
+  // would send as a chat message instead of running as a shell command.
+  useComposerDraftSync(
+    draftKey(ui.selectedId),
+    () => ({
+      text,
+      cursorPos,
+      insertedPaths: [...insertedPathsRef.current],
+      attachments: attachmentItems,
+      gitMode: ui.composer.gitMode,
+      termMode: ui.composer.termMode,
+    }),
+    (d) => {
+      insertedPathsRef.current = new Map(d?.insertedPaths ?? []);
+      restoreAttachments(d?.attachments ?? []);
+      recallRef.current = true; // suppress menu auto-open, same as history recall
+      setTextAndSync(d?.text ?? "", d?.cursorPos ?? 0);
+      const gitMode = d?.gitMode ?? false;
+      const termMode = d?.termMode ?? false;
+      if (ui.composer.gitMode !== gitMode || ui.composer.termMode !== termMode) {
+        ui.updateComposer({ gitMode, termMode });
+      }
+    }
+  );
 
   const { slashCtx, atCtx, filtered, atResults, activeMenu } = useCompletion({
     text,
