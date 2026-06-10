@@ -1,26 +1,13 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { api } from "../api/client.js";
+import { triggerContext } from "../lib/triggerContext.js";
 
 export function useCompletion({ text, cursorPos, commands, cwd, selected, workers, insertedPathsRef }) {
   const [fileResults, setFileResults] = useState([]);
 
-  const slashCtx = useMemo(() => {
-    const before = text.slice(0, cursorPos);
-    const slashIdx = before.lastIndexOf("/");
-    if (slashIdx === -1) return null;
-    const fragment = before.slice(slashIdx + 1);
-    if (fragment.includes(" ") || fragment.includes("\n")) return null;
-    return { start: slashIdx, query: fragment.toLowerCase() };
-  }, [text, cursorPos]);
+  const slashCtx = useMemo(() => triggerContext(text, cursorPos, "/"), [text, cursorPos]);
 
-  const atCtx = useMemo(() => {
-    const before = text.slice(0, cursorPos);
-    const atIdx = before.lastIndexOf("@");
-    if (atIdx === -1) return null;
-    const fragment = before.slice(atIdx + 1);
-    if (fragment.includes(" ") || fragment.includes("\n")) return null;
-    return { start: atIdx, query: fragment.toLowerCase() };
-  }, [text, cursorPos]);
+  const atCtx = useMemo(() => triggerContext(text, cursorPos, "@"), [text, cursorPos]);
 
   const filtered = useMemo(() => {
     if (!slashCtx) return [];

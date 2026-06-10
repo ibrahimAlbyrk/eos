@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { findPlaceholders } from "../lib/placeholders.js";
+import { isTriggerBoundary } from "../lib/triggerContext.js";
 
 export function getCursorOffset(el) {
   const sel = window.getSelection();
@@ -64,7 +65,7 @@ function slashRegions(cmdMap) {
   return (text) => {
     const regions = [];
     for (let i = 0; i < text.length; i++) {
-      if (text[i] !== "/") continue;
+      if (text[i] !== "/" || !isTriggerBoundary(text, i)) continue;
       let end = i + 1;
       while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
       if (cmdMap.has(text.slice(i + 1, end))) {
