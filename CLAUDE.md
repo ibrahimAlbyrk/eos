@@ -60,6 +60,8 @@ eos build --check     # lint + all test suites before deploying
 ```
 Stamps live inside the artifacts (`node_modules/.eos-stamp`, `dist/.eos-stamp`, app bundle Resources) and the daemon self-stamps `/health.sourceStamp` at boot — no side manifest; deleting an artifact just makes it dirty again. Input sets are defined once in `manager/builder/inputs.ts`; the backend set deliberately excludes `*.md` prompts, `scripts/hooks/`, and `manager/cli/` because those take effect without a restart.
 
+UI delivery: a web-dist rebuild reaches the running app **in place** via `POST /api/ui-reload` → SSE `ui:reload` → `location.reload()` (subscriber count is the delivery proof; 0 ⇒ fall back to relaunch). A real quit+reopen happens only when the app bundle itself changed, and is verified: quit waits for LaunchServices deregistration (`lsappinfo`, not just pgrep — LS lags process exit ~40ms and `open` in that window fails with -600), then `open` is retried up to 3× and must yield a pid that survives 1.5s. `app/build.sh` refreshes the LS registration (`lsregister -f`) after each install.
+
 Manual daemon restart (kill orphans, keep DB):
 ```bash
 eos restart           # restart only
