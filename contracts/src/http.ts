@@ -808,6 +808,19 @@ export type TryStateResponse = z.infer<typeof TryStateResponseSchema>;
 export const SetNameRequestSchema = z.object({ name: z.string().nullable() });
 export type SetNameRequest = z.infer<typeof SetNameRequestSchema>;
 
+// ---- GET /health -----------------------------------------------------------
+
+export const HealthResponseSchema = z.object({
+  ok: z.literal(true),
+  pid: z.number().int(),
+  startedAt: z.number(),
+  // sha256 over the backend source set (manager/builder/inputs.ts), computed
+  // by the daemon itself at boot. `eos build` compares it against the current
+  // tree to decide whether a restart is needed.
+  sourceStamp: z.string(),
+});
+export type HealthResponse = z.infer<typeof HealthResponseSchema>;
+
 // ---- error envelope --------------------------------------------------------
 
 export const ErrorResponseSchema = z.object({

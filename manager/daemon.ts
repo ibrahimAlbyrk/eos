@@ -12,8 +12,10 @@
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { unlinkSync } from "node:fs";
+import { join } from "node:path";
 
 import { buildContainer } from "./container.ts";
+import { computeBackendStamp } from "./builder/backend-stamp.ts";
 import { Router } from "./routes/Router.ts";
 import { mintRequestId } from "./middleware/requestId.ts";
 import { handleError, writeJson } from "./middleware/errorHandler.ts";
@@ -40,8 +42,16 @@ import { registerFsRawRoutes } from "./routes/fs-raw.ts";
 
 const c = buildContainer();
 
+// Self-stamp once at boot: /health reports the source hash this process
+// actually loaded. Never recompute per request — after a source edit an old
+// daemon would report the NEW hash and read as falsely fresh.
+const sourceStamp = computeBackendStamp(
+  c.config.paths.repoRoot,
+  join(c.config.daemon.home, "config.json"),
+);
+
 const router = new Router();
-registerHealthRoutes(router);
+registerHealthRoutes(router, { pid: process.pid, startedAt: Date.now(), sourceStamp });
 registerStreamRoutes(router, c);
 // FS + UI routes registered before /workers etc. so the `/web/*` regex
 // doesn't accidentally shadow anything. Order matters: first match wins.
