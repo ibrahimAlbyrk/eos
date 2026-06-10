@@ -74,7 +74,12 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
     const qPath = url.searchParams.get("path");
     if (!isSafeAbsPath(qPath)) { writeJson(res, 400, { error: "absolute path required" }); return; }
     try {
-      const content = readFileSync(qPath, "utf8");
+      const buf = readFileSync(qPath);
+      if (buf.subarray(0, 8192).includes(0)) {
+        writeJson(res, 200, { path: qPath, binary: true, size: buf.length });
+        return;
+      }
+      const content = buf.toString("utf8");
       const lines = content.split("\n").length;
       writeJson(res, 200, { path: qPath, content, lines });
     } catch (e) {

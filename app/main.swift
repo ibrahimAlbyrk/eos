@@ -81,6 +81,16 @@ final class TrafficLightPositioner {
     }
 }
 
+// Key events the page doesn't preventDefault (WASD in a game iframe, keys
+// with nothing focused) travel back up the responder chain and hit NSWindow's
+// default noResponder(for:), which calls NSBeep — swallow keyDown there.
+final class QuietWindow: NSWindow {
+    override func noResponder(for eventSelector: Selector) {
+        if eventSelector == #selector(NSResponder.keyDown(with:)) { return }
+        super.noResponder(for: eventSelector)
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate, URLSessionDataDelegate {
     var window: NSWindow!
     var webView: WKWebView!
@@ -111,6 +121,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
                 });
                 """,
                          injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        )
+        // The main-frame script above doesn't reach cross-origin subframes; raw
+        // content (HTML games, pdf.js) lives on the 7401 origin and must not
+        // pop the native context menu either.
+        cfg.userContentController.addUserScript(
+            WKUserScript(source: """
+                if (location.port === '7401') {
+                    document.addEventListener('contextmenu', e => {
+                        if (!e.defaultPrevented) e.preventDefault();
+                    });
+                }
+                """,
+                         injectionTime: .atDocumentStart, forMainFrameOnly: false)
         )
         // WKWebView ignores `-webkit-app-region`, so the titlebar drag/zoom is driven
         // from JS: on mousedown over an `--app-region: drag` element we ask native to
@@ -145,7 +168,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         webView.wantsLayer = true
         webView.layer?.backgroundColor = themeBackground(theme).cgColor
 
-        window = NSWindow(
+        window = QuietWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1280, height: 820),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered, defer: false

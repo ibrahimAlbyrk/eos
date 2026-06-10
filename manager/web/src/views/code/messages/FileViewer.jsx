@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { findAll, shortenHome } from "../../../lib/fileUtils.jsx";
+import { fileKind } from "../../../lib/fileKind.js";
 import { EditView } from "./EditView.jsx";
-
-const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "ico"]);
+import { getFileViewer } from "./fileViewers.jsx";
 
 export function FileViewer() {
   const ui = useUi();
@@ -20,6 +20,7 @@ function FileViewerInner({ path }) {
   const ui = useUi();
   const [content, setContent] = useState(null);
   const [editContent, setEditContent] = useState("");
+  const [binaryMeta, setBinaryMeta] = useState(null);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState(null);
@@ -28,21 +29,40 @@ function FileViewerInner({ path }) {
   const [findIdx, setFindIdx] = useState(0);
   const [showOpenWith, setShowOpenWith] = useState(false);
   const [defaultApp, setDefaultApp] = useState(null);
+  const [htmlMode, setHtmlMode] = useState("preview");
+  const [frameGen, setFrameGen] = useState(0);
   const findRef = useRef(null);
 
-  const ext = path.split(".").pop()?.toLowerCase() ?? "";
-  const isImage = IMAGE_EXTS.has(ext);
+  const baseKind = fileKind(path);
+  const wantsText = baseKind === "text" || (baseKind === "html" && htmlMode === "source");
+  const kind = wantsText ? (binaryMeta ? "binary" : "text") : baseKind;
+  const viewer = getFileViewer(kind);
+  const isText = kind === "text";
 
   useEffect(() => {
-    if (isImage) return;
+    setHtmlMode("preview");
+    setFrameGen(0);
+    setBinaryMeta(null);
+  }, [path]);
+
+  useEffect(() => {
+    if (!wantsText) return;
     let cancelled = false;
     setContent(null);
     setError(null);
     api.readFile(path)
-      .then((data) => { if (!cancelled) { setContent(data.content); setEditContent(data.content); } })
+      .then((data) => {
+        if (cancelled) return;
+        if (data.binary) {
+          setBinaryMeta({ size: data.size });
+          return;
+        }
+        setContent(data.content);
+        setEditContent(data.content);
+      })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
-  }, [path, isImage]);
+  }, [path, wantsText]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -75,7 +95,7 @@ function FileViewerInner({ path }) {
   };
 
   const shortPath = shortenHome(path);
-  const dirty = !isImage && content !== null && editContent !== content;
+  const dirty = isText && content !== null && editContent !== content;
 
   return (
     <>
@@ -89,9 +109,23 @@ function FileViewerInner({ path }) {
       </div>
       <div className="fv-row2">
         <span className="fv-path">{shortPath}</span>
-        {!isImage && (
+        {(isText || baseKind === "html") && (
           <div className="fv-actions">
-            {dirty ? (
+            {baseKind === "html" && (
+              <>
+                {htmlMode === "preview" && (
+                  <button className="fv-icon-btn" onClick={() => setFrameGen((g) => g + 1)} title="Reload">
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" /><path d="M13.5 1.5v3h-3" />
+                    </svg>
+                  </button>
+                )}
+                <button className="fv-btn" onClick={() => setHtmlMode((m) => (m === "preview" ? "source" : "preview"))}>
+                  {htmlMode === "preview" ? "Source" : "Preview"}
+                </button>
+              </>
+            )}
+            {isText && (dirty ? (
               <>
                 <button className="fv-btn" onClick={handleCancel}>Cancel</button>
                 <button className="fv-btn fv-btn--save" onClick={handleSave} disabled={saving}>Save</button>
@@ -132,7 +166,7 @@ function FileViewerInner({ path }) {
                   )}
                 </button>
               </>
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -160,10 +194,8 @@ function FileViewerInner({ path }) {
         </div>
       )}
       <div className="fv-body">
-        {isImage ? (
-          <div className="fv-image-wrap">
-            <img src={api.imageUrl(path)} alt={path.split("/").pop()} className="fv-image" />
-          </div>
+        {viewer ? (
+          <viewer.Body path={path} frameGen={frameGen} size={binaryMeta?.size} />
         ) : (
           <>
             {error && <div className="fv-error">{error}</div>}
