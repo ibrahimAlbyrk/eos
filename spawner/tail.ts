@@ -10,6 +10,7 @@ import { homedir } from "node:os";
 
 import chokidar from "chokidar";
 import { parseJsonlLine } from "./jsonl-parser.ts";
+import { LineFramer } from "./line-framer.ts";
 import { encodeCwd } from "./worktree.ts";
 
 export interface TailHandle {
@@ -68,6 +69,10 @@ export function startJsonlTail(ctx: TailContext): TailHandle {
   }
   console.log(`[${ctx.name}] tail=${jsonlPath}${offset > 0 ? ` (from offset ${offset})` : ""}`);
   const watcher = chokidar.watch(jsonlPath, { ignoreInitial: false, awaitWriteFinish: false });
+  // Framing through LineFramer, not split("\n"): a read can land mid-write,
+  // and the offset advances past the half-written line — without the carry
+  // buffer that line would parse as broken JSON once and be lost forever.
+  const framer = new LineFramer();
   const readNew = (): void => {
     if (!existsSync(jsonlPath)) return;
     const stat = statSync(jsonlPath);
@@ -77,7 +82,7 @@ export function startJsonlTail(ctx: TailContext): TailHandle {
       const buf = Buffer.alloc(stat.size - offset);
       readSync(fd, buf, 0, buf.length, offset);
       offset = stat.size;
-      for (const line of buf.toString("utf8").split("\n").filter(Boolean)) {
+      for (const line of framer.push(buf)) {
         parseJsonlLine(line, (type, payload) => {
           ctx.onEvent(type, payload);
           if (type === "jsonl") {
