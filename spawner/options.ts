@@ -26,7 +26,9 @@ export interface WorkerOptions {
   claudePermissionMode: string | undefined;
   resumeSessionId: string | undefined;
   model: string;
-  effort: string;
+  // No default here: the daemon sends an explicit (capability-checked) effort;
+  // absent flag means "let claude pick its own default for the model".
+  effort: string | undefined;
   parentId: string | undefined;
   heartbeatMs: number | undefined;
   heartbeatQuietMs: number | undefined;
@@ -106,7 +108,7 @@ export function parseWorkerOptions(): WorkerOptions {
     claudePermissionMode: values["claude-permission-mode"],
     resumeSessionId: values["resume-session"],
     model: values.model ?? "opus",
-    effort: values.effort ?? "high",
+    effort: values.effort,
     parentId: values["parent-id"],
     heartbeatMs: parseIntFlag(values["heartbeat-ms"]),
     heartbeatQuietMs: parseIntFlag(values["heartbeat-quiet-ms"]),
