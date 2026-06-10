@@ -53,7 +53,11 @@ export function ComposerProvider({ children }) {
     return id;
   }, []);
 
-  const reconcileOptimisticMessages = useCallback((workerId, serverTexts) => {
+  // serverTexts: durable user_message texts (delivered → drop the optimistic
+  // copy). failures: delivery_failed previews with their event ts — a failure
+  // recorded AFTER the optimistic send means that send died; drop it so the
+  // red delivery line isn't shadowed by a forever-pinned optimistic bubble.
+  const reconcileOptimisticMessages = useCallback((workerId, serverTexts, failures = []) => {
     if (!workerId) return;
     setOptimisticMsgs((prev) => {
       if (!prev.has(workerId)) return prev;
@@ -63,6 +67,10 @@ export function ComposerProvider({ children }) {
         for (const st of serverTexts) {
           if (mAgent === st || st.startsWith(mAgent) || mAgent.startsWith(st)) return false;
           if (m.text === st || st.startsWith(m.text) || m.text.startsWith(st)) return false;
+        }
+        for (const f of failures) {
+          // f.text is a 120-char preview of the text sent to the PTY.
+          if (f.ts >= m.ts && (mAgent === f.text || mAgent.startsWith(f.text))) return false;
         }
         return true;
       });
