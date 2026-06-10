@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 
 import type { Command } from "./Command.ts";
+import { spawnDaemonDetached, waitHealthy } from "../daemon-lifecycle.ts";
 
 export const startCommand: Command = {
   name: "start",
@@ -34,19 +35,8 @@ export const startCommand: Command = {
 
     if (!alive) {
       console.log("starting daemon…");
-      const child = spawn(
-        "node",
-        ["--no-warnings", "--experimental-strip-types", join(ctx.repoRoot, "manager", "daemon.ts")],
-        { stdio: ["ignore", "ignore", "ignore"], detached: true },
-      );
-      child.unref();
-      for (let i = 0; i < 40; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
-        try {
-          const r = await fetch(`${ctx.daemonUrl}/health`);
-          if (r.ok) { alive = true; break; }
-        } catch {}
-      }
+      spawnDaemonDetached(ctx.repoRoot);
+      alive = (await waitHealthy(ctx.daemonUrl, 40)) !== null;
       if (!alive) {
         console.error("daemon failed to start — run `eos start -f` for foreground diagnostics");
         process.exit(1);

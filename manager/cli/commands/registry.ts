@@ -12,6 +12,7 @@ import { startCommand } from "./start.ts";
 import { stopCommand } from "./stop.ts";
 import { statusCommand } from "./status.ts";
 import { restartCommand } from "./restart.ts";
+import { buildCommand } from "./build.ts";
 import { configCommand } from "./config.ts";
 import { doctorCommand } from "./doctor.ts";
 import { createHelpCommand } from "./help.ts";
@@ -21,6 +22,7 @@ const COMMANDS: Command[] = [
   startCommand,
   stopCommand,
   restartCommand,
+  buildCommand,
   statusCommand,
   hooksCommand,
   orchestratorCommand,

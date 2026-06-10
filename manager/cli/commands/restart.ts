@@ -1,12 +1,8 @@
-import { execSync, spawn } from "node:child_process";
-import { existsSync, readFileSync, rmSync, readdirSync } from "node:fs";
+import { readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Command } from "./Command.ts";
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((r) => setTimeout(r, ms));
-}
+import { spawnDaemonDetached, stopDaemonAndOrphans, waitHealthy } from "../daemon-lifecycle.ts";
 
 export const restartCommand: Command = {
   name: "restart",
@@ -15,48 +11,22 @@ export const restartCommand: Command = {
   async run(args, ctx): Promise<void> {
     const wipeDb = args.includes("--db");
 
-    // 1. Graceful stop
-    const pidFile = ctx.config.daemon.pidFile;
-    if (existsSync(pidFile)) {
-      const pid = Number(readFileSync(pidFile, "utf8").trim());
-      if (pid && !isNaN(pid)) {
-        try { process.kill(pid, "SIGTERM"); console.log(`stopped daemon pid=${pid}`); } catch {}
-      }
-    }
-    await sleep(1000);
+    await stopDaemonAndOrphans(ctx.config.daemon.pidFile);
 
-    // 2. Kill orphans
-    try {
-      execSync('pkill -9 -f "manager/daemon.ts|spawner/worker.ts|orchestrator-mcp.ts|worker-mcp.ts|claude --settings"', { stdio: "ignore" });
-    } catch {}
-    await sleep(1000);
-
-    // 3. Clean pid (and DB only if --db)
-    const home = ctx.config.daemon.home;
-    try {
-      for (const f of readdirSync(home)) {
-        if (f === "daemon.pid" || (wipeDb && f.startsWith("state.db"))) {
-          rmSync(join(home, f), { force: true });
+    if (wipeDb) {
+      try {
+        for (const f of readdirSync(ctx.config.daemon.home)) {
+          if (f.startsWith("state.db")) rmSync(join(ctx.config.daemon.home, f), { force: true });
         }
-      }
-    } catch {}
+      } catch {}
+    }
     console.log(wipeDb ? "cleaned db + pid" : "cleaned pid");
 
-    // 4. Start daemon (detached)
-    const child = spawn(
-      "node",
-      ["--no-warnings", "--experimental-strip-types", join(ctx.repoRoot, "manager", "daemon.ts")],
-      { stdio: ["ignore", "ignore", "ignore"], detached: true },
-    );
-    child.unref();
+    spawnDaemonDetached(ctx.repoRoot);
 
-    // 5. Wait for health
-    for (let i = 0; i < 20; i++) {
-      await sleep(250);
-      try {
-        const r = await fetch(`${ctx.daemonUrl}/health`);
-        if (r.ok) { console.log(`daemon up at ${ctx.daemonUrl}`); return; }
-      } catch {}
+    if (await waitHealthy(ctx.daemonUrl, 20)) {
+      console.log(`daemon up at ${ctx.daemonUrl}`);
+      return;
     }
     console.error("daemon failed to start");
     process.exit(1);

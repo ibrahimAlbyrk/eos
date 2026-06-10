@@ -47,6 +47,12 @@ echo "installing → $INSTALLED"
 rm -rf "$INSTALLED"
 cp -r "$APP_BUNDLE" "$INSTALLED"
 
+# eos build embeds its input stamp; must land before codesign so the
+# signature stays valid.
+if [ -n "${EOS_BUILD_STAMP:-}" ]; then
+  printf '%s\n' "$EOS_BUILD_STAMP" > "$INSTALLED/Contents/Resources/.eos-stamp"
+fi
+
 echo "signing…"
 codesign --force --deep --sign - "$INSTALLED"
 
