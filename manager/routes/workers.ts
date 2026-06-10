@@ -39,6 +39,7 @@ import { resumeWorkerVia, resumeIfDead } from "./resume-helpers.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
 import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
 import { decidePushPlan, isActionablePushPlan } from "../../core/src/domain/push-plan.ts";
+import { resolveSpawnIsolation } from "../../core/src/domain/worktree-policy.ts";
 
 // Where the agent actually edits: the worktree dir when spawned with a
 // worktree (cwd is NULL for those rows), plain cwd otherwise. worktree_from
@@ -83,10 +84,13 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       : body.parentId
         ? c.config.paths.workerPromptFile
         : undefined;
+    const iso = resolveSpawnIsolation(body, {
+      worktreesDisabled: c.userSettings.read()["git.spawnWithoutWorktree"] === true,
+    });
     const spec = {
       ...body,
-      cwd: expandPath(body.cwd),
-      worktreeFrom: expandPath(body.worktreeFrom),
+      cwd: expandPath(iso.cwd),
+      worktreeFrom: expandPath(iso.worktreeFrom),
       claudePermissionMode,
       systemPromptFile,
       ...(isGitAgent ? {
@@ -123,7 +127,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       c.events.append(result.id, c.clock.now(), "user_message", { text: body.prompt });
       c.bus.publish("worker:change", { workerId: result.id });
     }
-    writeJson(res, 201, result);
+    const isolation = spec.worktreeFrom || body.workspaceOf ? "worktree" : "cwd";
+    writeJson(res, 201, { ...result, isolation });
   });
 
   r.get(/^\/workers\/(?<id>[^/]+)$/, ({ params, res }) => {

@@ -36,6 +36,10 @@ export type SpawnWorkerRequest = z.infer<typeof SpawnWorkerRequestSchema>;
 export const SpawnWorkerResponseSchema = z.object({
   id: z.string(),
   port: z.number().int(),
+  // Where the worker actually runs. "worktree" may downgrade to "cwd" when
+  // the user disables worktrees (settings: git.spawnWithoutWorktree) — this
+  // field is the authoritative outcome, not the request's intent.
+  isolation: z.enum(["worktree", "cwd"]).optional(),
 });
 export type SpawnWorkerResponse = z.infer<typeof SpawnWorkerResponseSchema>;
 

@@ -154,6 +154,13 @@ export const SETTINGS_SECTIONS = [
             control: { type: "toggle" },
             defaultValue: false,
           },
+          {
+            key: "git.spawnWithoutWorktree",
+            label: "Spawn workers without worktrees",
+            description: "Workers run directly in the orchestrator's checkout — edits land in your files immediately, but parallel workers can conflict. Off = each worker gets an isolated git worktree.",
+            control: { type: "toggle" },
+            defaultValue: false,
+          },
         ],
       },
       {

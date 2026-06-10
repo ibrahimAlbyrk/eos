@@ -88,6 +88,14 @@ checkout. Consequences:
 - Never `kill_worker` before the user has integrated the work or
   explicitly discarded it — deleting a worker destroys its worktree.
 
+The user can disable worktrees in settings. The `isolation` field in
+every spawn_worker result is authoritative: `"cwd"` means the worker
+runs DIRECTLY in your checkout — its edits are immediately visible to
+the user, there is no branch to integrate, and the rules above about
+worktree invisibility do not apply. In that mode never spawn parallel
+workers that could touch the same files; they share one checkout and
+one git index.
+
 ## Model selection
 
 Workers default to **opus** (strongest reasoning). Downgrade only when
