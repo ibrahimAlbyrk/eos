@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useLayoutEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { useStickToBottom } from "../../../hooks/useStickToBottom.js";
 import { MarkdownView } from "./MarkdownView.jsx";
 import { ToolItem } from "./ToolItem.jsx";
 import { verbFor } from "../../../lib/messageParser.js";
@@ -16,8 +17,8 @@ export function AgentViewer() {
 
 function AgentViewerInner({ block }) {
   const ui = useUi();
-  const scrollRef = useRef(null);
-  const isNearBottomRef = useRef(true);
+  const stick = useStickToBottom({ threshold: 30 });
+  useLayoutEffect(() => { stick.write(Infinity, { pin: true }); }, []);
   const isDone = block.status === "completed";
 
   const tools = (block.tools || []).map((t) => ({
@@ -30,25 +31,6 @@ function AgentViewerInner({ block }) {
     ts: t.ts,
   }));
 
-  const checkNearBottom = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 30;
-  }, []);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.addEventListener("scroll", checkNearBottom, { passive: true });
-    return () => el.removeEventListener("scroll", checkNearBottom);
-  }, [checkNearBottom]);
-
-  useEffect(() => {
-    const el = scrollRef.current;
-    if (!el || !isNearBottomRef.current) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
-  }, [tools.length, block.result]);
-
   return (
     <>
       <div className="av-header">
@@ -60,28 +42,30 @@ function AgentViewerInner({ block }) {
         </button>
       </div>
 
-      <div className="av-scroll" ref={scrollRef}>
-        {block.prompt && (
-          <div className="av-prompt-bubble">{block.prompt}</div>
-        )}
+      <div className="av-scroll" ref={stick.scrollerRef}>
+        <div ref={stick.contentRef}>
+          {block.prompt && (
+            <div className="av-prompt-bubble">{block.prompt}</div>
+          )}
 
-        {tools.length > 0 && (
-          <div className="av-tools">
-            {tools.map((t) => (
-              <ToolItem key={t.id} tool={t} standalone />
-            ))}
-          </div>
-        )}
+          {tools.length > 0 && (
+            <div className="av-tools">
+              {tools.map((t) => (
+                <ToolItem key={t.id} tool={t} standalone />
+              ))}
+            </div>
+          )}
 
-        {block.result && (
-          <div className="av-output-bubble">
-            <MarkdownView content={block.result.replace(/<usage>[\s\S]*?<\/usage>\s*/g, "").trim()} />
-          </div>
-        )}
+          {block.result && (
+            <div className="av-output-bubble">
+              <MarkdownView content={block.result.replace(/<usage>[\s\S]*?<\/usage>\s*/g, "").trim()} />
+            </div>
+          )}
 
-        {!isDone && tools.length === 0 && !block.result && (
-          <div className="av-running-hint">Agent is running...</div>
-        )}
+          {!isDone && tools.length === 0 && !block.result && (
+            <div className="av-running-hint">Agent is running...</div>
+          )}
+        </div>
       </div>
     </>
   );

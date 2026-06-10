@@ -13,10 +13,10 @@ import { deriveActivity } from "../../../lib/agentActivity.js";
 import { buildBlocks, applyRewinds, applyClears, parsePayload } from "../../../lib/messageParser.js";
 import { deriveVerdict, deriveChildVerdicts } from "../../../lib/verdict.js";
 import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
-import { shouldStick, shouldAutoScroll } from "../../../lib/scrollStick.js";
 import { loadScrollPos, saveScrollPos, clearScrollPos } from "../../../lib/scrollMemory.js";
 import { usePageFind } from "../../../hooks/usePageFind.js";
 import { useWorkerEvents } from "../../../hooks/useWorkerEvents.js";
+import { useStickToBottom } from "../../../hooks/useStickToBottom.js";
 import { defaultGroupOpen } from "../../../settings/toolExpansion.js";
 import { FindBar } from "./FindBar.jsx";
 import { MessageUser } from "./MessageUser.jsx";
@@ -37,88 +37,44 @@ const BUTTON_THRESHOLD = 300;
 
 export function Messages({ live }) {
   const ui = useUi();
-  const wrapRef = useRef(null);
-  const contentRef = useRef(null);
-  const [showScrollBtn, setShowScrollBtn] = useState(false);
-  const isNearBottomRef = useRef(true);
   const initialScrollDone = useRef(false);
-  const programmaticScrollRef = useRef(false);
-  const lastUserScrollTsRef = useRef(0);
 
-  const updateScrollBtn = useCallback(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    const overflows = el.scrollHeight > el.clientHeight;
-    const dist = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setShowScrollBtn(overflows && dist >= BUTTON_THRESHOLD);
-  }, []);
+  // Persist the user's position per agent; pinned clears the entry so the
+  // default stick-to-bottom resumes. Skipped until the initial scroll lands —
+  // content-swap clamp events during an agent switch must not save.
+  const persistAway = useCallback((top) => {
+    if (initialScrollDone.current && ui.selectedId) saveScrollPos(ui.selectedId, top);
+  }, [ui.selectedId]);
+  const persistPinned = useCallback(() => {
+    if (initialScrollDone.current && ui.selectedId) clearScrollPos(ui.selectedId);
+  }, [ui.selectedId]);
 
   // The header's fade-out scrim (.head::after) paints over the first ~2 lines
   // of content — hide it while the view sits at the very top so the start of
   // the transcript is never veiled.
-  const syncHeadScrim = useCallback(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    el.closest(".center")?.classList.toggle("msgs-at-top", el.scrollTop <= 4);
+  const syncHeadScrim = useCallback((el) => {
+    el?.closest(".center")?.classList.toggle("msgs-at-top", el.scrollTop <= 4);
   }, []);
 
-  const checkNearBottom = useCallback(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    syncHeadScrim();
-    if (!programmaticScrollRef.current) {
-      lastUserScrollTsRef.current = performance.now();
-      isNearBottomRef.current = shouldStick(
-        { scrollHeight: el.scrollHeight, scrollTop: el.scrollTop, clientHeight: el.clientHeight },
-        SCROLL_THRESHOLD,
-      );
-      // Persist the user's position per agent; near-bottom clears the entry so
-      // the default stick-to-bottom resumes. Skipped until the initial scroll
-      // lands — content-swap clamp events during an agent switch must not save.
-      if (initialScrollDone.current && ui.selectedId) {
-        if (isNearBottomRef.current) clearScrollPos(ui.selectedId);
-        else saveScrollPos(ui.selectedId, el.scrollTop);
-      }
-    }
-    updateScrollBtn();
-  }, [updateScrollBtn, ui.selectedId, syncHeadScrim]);
-
-  useEffect(() => {
-    const el = wrapRef.current;
-    const content = contentRef.current;
-    if (!el) return;
-    el.addEventListener("scroll", checkNearBottom, { passive: true });
-    // Content can shrink without a scroll event (e.g. collapsing a task);
-    // re-evaluate the button on size changes so it doesn't get stuck visible.
-    const ro = new ResizeObserver(updateScrollBtn);
-    ro.observe(el);
-    if (content) ro.observe(content);
-    return () => { el.removeEventListener("scroll", checkNearBottom); ro.disconnect(); };
-  }, [checkNearBottom, updateScrollBtn]);
-
-  // Guard code-initiated scrolls so the animation's own scroll events don't
-  // unpin the view. WKWebView may never fire scrollend, so the 200ms fallback
-  // that clears the guard is mandatory.
-  const runProgrammaticScroll = useCallback((el, writeFn) => {
-    programmaticScrollRef.current = true;
-    const clear = () => {
-      el.removeEventListener("scrollend", clear);
-      programmaticScrollRef.current = false;
-    };
-    writeFn();
-    el.addEventListener("scrollend", clear, { once: true });
-    setTimeout(clear, 200);
-  }, []);
+  const stick = useStickToBottom({
+    threshold: SCROLL_THRESHOLD,
+    buttonThreshold: BUTTON_THRESHOLD,
+    onUserAway: persistAway,
+    onPinned: persistPinned,
+    onScroll: syncHeadScrim,
+  });
+  const wrapRef = stick.scrollerRef;
+  const contentRef = stick.contentRef;
 
   const scrollToBottom = useCallback(() => {
-    const el = wrapRef.current;
-    if (!el) return;
-    isNearBottomRef.current = true;
     if (ui.selectedId) clearScrollPos(ui.selectedId);
-    runProgrammaticScroll(el, () => el.scrollTo({ top: el.scrollHeight, behavior: "smooth" }));
-  }, [runProgrammaticScroll, ui.selectedId]);
+    stick.scrollToBottom();
+  }, [stick.scrollToBottom, ui.selectedId]);
 
-  useEffect(() => { initialScrollDone.current = false; }, [ui.selectedId]);
+  useEffect(() => {
+    initialScrollDone.current = false;
+    stick.reset();
+  }, [ui.selectedId, stick.reset]);
 
   const reconcileFromNewest = useCallback((workerId, rows) => {
     const texts = new Set();
@@ -190,9 +146,7 @@ export function Messages({ live }) {
     if (!anchor || !el) return;
     if ((events[0]?.id ?? null) === anchor.firstId) return; // nothing prepended yet
     prependAnchorRef.current = null;
-    runProgrammaticScroll(el, () => {
-      el.scrollTop = anchor.scrollTop + (el.scrollHeight - anchor.scrollHeight);
-    });
+    stick.write(anchor.scrollTop + (el.scrollHeight - anchor.scrollHeight), { pin: "keep" });
   }, [events]);
 
   const pendingQuestions = useMemo(() => derivePendingQuestions(events), [events]);
@@ -307,33 +261,22 @@ export function Messages({ live }) {
 
   // Layout effect: the initial scroll must land before paint, otherwise the
   // content flashes at the top and visibly jumps to the restored position.
+  // Subsequent appends need no handling here — the hook's ResizeObserver
+  // glides the view while pinned.
   useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el || blocks.length === 0) return;
-    if (!initialScrollDone.current) {
-      if (eventsFor !== ui.selectedId) return;
-      initialScrollDone.current = true;
-      const saved = loadScrollPos(ui.selectedId);
-      if (saved != null) {
-        el.scrollTop = saved;
-        isNearBottomRef.current = shouldStick(
-          { scrollHeight: el.scrollHeight, scrollTop: el.scrollTop, clientHeight: el.clientHeight },
-          SCROLL_THRESHOLD,
-        );
-      } else {
-        el.scrollTop = el.scrollHeight;
-        isNearBottomRef.current = true;
-      }
-      return;
-    }
-    const msSinceUserScroll = performance.now() - lastUserScrollTsRef.current;
-    if (!shouldAutoScroll(isNearBottomRef.current, programmaticScrollRef.current, msSinceUserScroll)) return;
-    runProgrammaticScroll(el, () => { el.scrollTop = el.scrollHeight; });
+    if (initialScrollDone.current) return;
+    if (eventsFor !== ui.selectedId) return;
+    initialScrollDone.current = true;
+    const saved = loadScrollPos(ui.selectedId);
+    if (saved != null) stick.write(saved);
+    else stick.write(Infinity, { pin: true });
   }, [blocks]);
 
   // Scroll position can change without a scroll event (content fill, agent
   // switch) — re-sync the scrim after every commit; clean it off on unmount.
-  useLayoutEffect(() => { syncHeadScrim(); });
+  useLayoutEffect(() => { syncHeadScrim(wrapRef.current); });
   useEffect(() => {
     const center = wrapRef.current?.closest(".center");
     return () => center?.classList.remove("msgs-at-top");
@@ -373,7 +316,7 @@ export function Messages({ live }) {
           />
         )}
       </div>
-      {showScrollBtn && (
+      {stick.showJumpBtn && (
         <button className="scroll-to-bottom" onClick={scrollToBottom} aria-label="Scroll to bottom">
           <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="6 9 12 15 18 9" />
