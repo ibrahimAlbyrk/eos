@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import type { Clock } from "../../core/src/ports/Clock.ts";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
+import { buildShellInvocation } from "./shell-invocation.ts";
 
 // User-initiated shell command runner (composer `!` terminal mode). Each run
 // is an independent `bash -lc` in the worker's working dir — no PTY, no agent
@@ -65,8 +66,10 @@ export class TerminalRunService {
     const runId = randomUUID();
     // The user's own login shell, not bash: a foreign shell sourcing the
     // user's profile sprays "bad substitution" noise into every command.
-    const shell = process.env.SHELL || "/bin/bash";
-    const child = spawn(shell, ["-lc", command], {
+    // Flags come from shell-invocation.ts — zsh needs -i or .zshrc (aliases,
+    // functions, PATH edits) is never sourced.
+    const { file, args } = buildShellInvocation(process.env.SHELL || "/bin/bash", command);
+    const child = spawn(file, args, {
       cwd,
       env: process.env,
       stdio: ["ignore", "pipe", "pipe"],
