@@ -12,6 +12,7 @@ export class SqliteEventRepo implements EventRepo {
   private readonly stmtListAsc;
   private readonly stmtListDesc;
   private readonly stmtListDescBefore;
+  private readonly stmtListAfter;
   private readonly stmtDeleteByWorker;
 
   constructor(db: DatabaseSync) {
@@ -36,6 +37,11 @@ export class SqliteEventRepo implements EventRepo {
     this.stmtListAsc = db.prepare(
       "SELECT * FROM events WHERE worker_id = ? AND ts > ? ORDER BY ts ASC, id ASC LIMIT ?",
     );
+    // Delta fetch — rows appended after an id cursor, in insertion order.
+    // id, not ts: same-ms rows would be skipped or duplicated with a ts cursor.
+    this.stmtListAfter = db.prepare(
+      "SELECT * FROM events WHERE worker_id = ? AND id > ? ORDER BY id ASC LIMIT ?",
+    );
     this.stmtDeleteByWorker = db.prepare("DELETE FROM events WHERE worker_id = ?");
   }
 
@@ -54,6 +60,9 @@ export class SqliteEventRepo implements EventRepo {
   }
 
   list(q: EventQuery): WorkerEventRow[] {
+    if (q.afterId != null) {
+      return this.stmtListAfter.all(q.workerId, q.afterId, q.limit) as unknown as WorkerEventRow[];
+    }
     if (q.order === "desc" && q.beforeId != null) {
       return this.stmtListDescBefore.all(q.workerId, q.since, q.beforeId, q.limit) as unknown as WorkerEventRow[];
     }

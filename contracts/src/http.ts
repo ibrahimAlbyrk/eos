@@ -90,10 +90,14 @@ export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 // queue drain combines several into one delivery). Carried back in the
 // user_message chat event so the web can reconcile its optimistic bubbles
 // by id instead of text-prefix matching.
+// sentAt: dispatch wall-clock. Late-emitted records (delivery_unverified
+// resolution, interrupt/exit drain) get an event ts AFTER the turn's output;
+// the chat sorts the bubble by sentAt so it never renders below output it
+// caused.
 export const MessageRecordSchema = z.union([
-  z.object({ as: z.literal("user_message"), displayText: z.string().optional(), clientMsgIds: z.array(z.string()).optional() }),
-  z.object({ as: z.literal("orchestrator_message"), fromParent: z.string(), parentName: z.string().optional() }),
-  z.object({ as: z.literal("worker_report"), fromWorker: z.string(), workerName: z.string().optional(), displayText: z.string().optional() }),
+  z.object({ as: z.literal("user_message"), displayText: z.string().optional(), clientMsgIds: z.array(z.string()).optional(), sentAt: z.number().optional() }),
+  z.object({ as: z.literal("orchestrator_message"), fromParent: z.string(), parentName: z.string().optional(), sentAt: z.number().optional() }),
+  z.object({ as: z.literal("worker_report"), fromWorker: z.string(), workerName: z.string().optional(), displayText: z.string().optional(), sentAt: z.number().optional() }),
 ]);
 export type MessageRecord = z.infer<typeof MessageRecordSchema>;
 
@@ -224,6 +228,10 @@ export const EventsQuerySchema = z.object({
   order: z.enum(["asc", "desc"]).default("desc"),
   // Backward pagination cursor: only rows with id < beforeId (desc order only).
   beforeId: z.coerce.number().int().positive().optional(),
+  // Forward delta cursor: only rows with id > afterId, id-ASC (insertion
+  // order). The web's SSE fast path pulls just-appended rows with this
+  // instead of refetching the whole newest page. Overrides order/beforeId.
+  afterId: z.coerce.number().int().nonnegative().optional(),
 });
 export type EventsQuery = z.infer<typeof EventsQuerySchema>;
 

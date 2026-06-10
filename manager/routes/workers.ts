@@ -187,8 +187,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       limit: url.searchParams.get("limit") ?? undefined,
       order: url.searchParams.get("order") ?? undefined,
       beforeId: url.searchParams.get("beforeId") ?? undefined,
+      afterId: url.searchParams.get("afterId") ?? undefined,
     });
-    const rows = c.events.list({ workerId: params.id, since: q.since, limit: q.limit, order: q.order, beforeId: q.beforeId });
+    const rows = c.events.list({ workerId: params.id, since: q.since, limit: q.limit, order: q.order, beforeId: q.beforeId, afterId: q.afterId });
     writeJson(res, 200, rows);
   });
 
@@ -237,7 +238,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         // directive lands in its transcript — see DispatchMessage header for
         // why a dispatch-time append misorders against trailing turn output.
         await c.httpWorkerClient.sendMessage(worker.port, body.text, {
-          as: "orchestrator_message", fromParent, parentName,
+          as: "orchestrator_message", fromParent, parentName, sentAt: c.clock.now(),
         });
       } catch (e) {
         writeJson(res, 502, { error: "worker unreachable" }); return;
@@ -503,7 +504,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       // lands in its transcript — see DispatchMessage header for why a
       // dispatch-time append misorders against the parent's in-flight turn.
       await c.httpWorkerClient.sendMessage(parent.port, formatted, {
-        as: "worker_report", fromWorker: params.id, workerName: label, displayText: body.text,
+        as: "worker_report", fromWorker: params.id, workerName: label, displayText: body.text, sentAt: c.clock.now(),
       });
       transitionState(
         { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },

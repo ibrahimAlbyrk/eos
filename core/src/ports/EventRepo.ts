@@ -9,6 +9,9 @@ export interface EventQuery {
   order: "asc" | "desc";
   /** Exclusive upper id bound — backward pagination ("load older"). Desc order only. */
   beforeId?: number;
+  /** Exclusive lower id bound — forward delta fetch in id-ASC (insertion)
+   *  order. Takes precedence over order/beforeId. */
+  afterId?: number;
 }
 
 export interface EventRepo {
