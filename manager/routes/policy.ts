@@ -19,6 +19,7 @@ export function registerPolicyRoutes(r: Router, c: Container): void {
       toolName: body.tool_name,
       input: body.input,
       toolUseId: body.tool_use_id ?? null,
+      agentId: body.agent_id ?? null,
     });
     writeJson(res, 200, decision);
   });

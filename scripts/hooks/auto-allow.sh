@@ -36,7 +36,7 @@ if [ -n "${EOS_SPAWNED:-}" ] && \
    [[ "${EOS_DAEMON_URL:-}" =~ ^https?:// ]]; then
   body=$(printf '%s' "$input" \
     | jq -c --arg wid "$EOS_WORKER_ID" \
-        '{worker_id: $wid, tool_name: .tool_name, input: (.tool_input // {}), tool_use_id: (.tool_use_id // null)}' \
+        '{worker_id: $wid, tool_name: .tool_name, input: (.tool_input // {}), tool_use_id: (.tool_use_id // null), agent_id: (.agent_id // null)}' \
         2>/dev/null || echo "")
   if [ -n "$body" ]; then
     decision=$(curl -sS --max-time "${EOS_POLICY_TIMEOUT_SEC:-3600}" -X POST \

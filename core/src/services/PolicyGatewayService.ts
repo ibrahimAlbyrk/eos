@@ -1,5 +1,7 @@
 // PolicyGatewayService — concrete implementation of the PolicyGateway port.
 // Decision chain (Chain of Responsibility):
+//   0. Subagent caller scope — Eos control tools (domain/tool-scope.ts) are
+//      main-agent only; calls carrying agent_id are denied outright
 //   1. Explicit policy.yaml rule match → use that decision
 //   2. Per-worker permission mode → MODE_SPECS verdict by tool category
 //   3. policy.default → final fallback
@@ -11,6 +13,7 @@ import type { Decision } from "../../../contracts/src/policy.ts";
 import type { Policy } from "../domain/policy.ts";
 import { ruleMatches, evaluatePolicy } from "../domain/policy.ts";
 import { MODE_SPECS, classifyTool } from "../domain/permission-mode.ts";
+import { isEosControlTool } from "../domain/tool-scope.ts";
 import type { PendingRepo } from "../ports/PendingRepo.ts";
 import type { EventBus } from "../ports/EventBus.ts";
 import type { EventRepo } from "../ports/EventRepo.ts";
@@ -69,9 +72,10 @@ export class PolicyGatewayService implements PolicyGateway {
     toolName: string;
     input: Record<string, unknown>;
     toolUseId?: string | null;
+    agentId?: string | null;
   }): Promise<Decision> {
     const policy = this.deps.getPolicy();
-    const decision = this.evaluate(policy, input.workerId, input.toolName, input.input);
+    const decision = this.evaluate(policy, input.workerId, input.toolName, input.input, input.agentId ?? null);
     this.deps.onDecision?.(decision.behavior);
 
     this.deps.events.append(input.workerId, this.deps.clock.now(), "policy", {
@@ -115,7 +119,17 @@ export class PolicyGatewayService implements PolicyGateway {
     workerId: string,
     toolName: string,
     input: Record<string, unknown>,
+    agentId: string | null,
   ): Decision {
+    // Structural invariant ahead of user rules: a policy.yaml allow or a
+    // permissive mode (bypassPermissions) must not let a subagent drive the
+    // control plane. Absent agent_id (main loop) falls through unchanged.
+    if (agentId && isEosControlTool(toolName)) {
+      return {
+        behavior: "deny",
+        message: `${toolName} is main-agent only — subagents cannot use Eos control tools. Return your findings; the main agent acts on them.`,
+      };
+    }
     if (policy.rules.some((rule) => ruleMatches(rule, toolName, input))) {
       return evaluatePolicy(policy, toolName, input);
     }

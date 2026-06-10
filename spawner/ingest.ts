@@ -16,7 +16,9 @@ export interface IngestHandlers {
   onAnswer(selections: unknown[]): Promise<{ ok: boolean; outcome: string }>;
   onKeystroke(keys: string): void;
   onInterrupt(): { ok: boolean; reason?: string };
-  onHook(eventName: string, body: Record<string, unknown>): void;
+  /** Optional return value is sent back as the hook's HTTP response body —
+   * Claude honors it as hook output (e.g. a PreToolUse permission deny). */
+  onHook(eventName: string, body: Record<string, unknown>): Record<string, unknown> | undefined;
   onQuestionHook(body: Record<string, unknown>): Promise<QuestionAnswer | null>;
   onRewindTargets(): unknown;
   onRewind(body: { uuid?: string; mode?: string }): Promise<unknown>;
@@ -30,9 +32,16 @@ export interface IngestServer {
 // block message delivery — it just degrades to "no chat event from this worker".
 function parseRecord(raw: unknown): MessageRecord | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const r = raw as { as?: unknown; displayText?: unknown; fromParent?: unknown; parentName?: unknown; fromWorker?: unknown; workerName?: unknown };
+  const r = raw as { as?: unknown; displayText?: unknown; clientMsgIds?: unknown; fromParent?: unknown; parentName?: unknown; fromWorker?: unknown; workerName?: unknown };
   if (r.as === "user_message") {
-    return { as: "user_message", ...(typeof r.displayText === "string" ? { displayText: r.displayText } : {}) };
+    const clientMsgIds = Array.isArray(r.clientMsgIds)
+      ? r.clientMsgIds.filter((x): x is string => typeof x === "string")
+      : [];
+    return {
+      as: "user_message",
+      ...(typeof r.displayText === "string" ? { displayText: r.displayText } : {}),
+      ...(clientMsgIds.length > 0 ? { clientMsgIds } : {}),
+    };
   }
   if (r.as === "orchestrator_message" && typeof r.fromParent === "string") {
     return {
@@ -159,11 +168,10 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
       const eventName = url.searchParams.get("event") ?? "Unknown";
       let body: Record<string, unknown> = {};
       try { body = JSON.parse(raw); } catch {}
-      handlers.onHook(eventName, body);
-
+      const hookOutput = handlers.onHook(eventName, body);
 
       res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify({ continue: true }));
+      res.end(JSON.stringify(hookOutput ?? { continue: true }));
     });
   });
   server.on("error", (err: Error) => {

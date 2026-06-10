@@ -10,6 +10,7 @@ import { rmSync, readFileSync } from "node:fs";
 import { spawn as ptySpawn } from "@homebridge/node-pty-prebuilt-multiarch";
 
 import { WORKER_EXIT } from "../contracts/src/util.ts";
+import { isEosControlTool } from "../contracts/src/tool-scope.ts";
 import { parseWorkerOptions } from "./options.ts";
 import { createDaemonEventClient } from "./events.ts";
 import { setupWorktree, teardownWorktree } from "./worktree.ts";
@@ -195,7 +196,14 @@ function emitMessageEvent(p: PendingMessage): void {
       });
       return;
     case "user_message":
-      evt.emit("user_message", { text: p.record.displayText ?? p.text });
+      // clientMsgIds ride through so the web reconciles its optimistic
+      // bubbles by id (text-prefix stays the fallback for unkeyed sends).
+      evt.emit("user_message", {
+        text: p.record.displayText ?? p.text,
+        ...(p.record.clientMsgIds && p.record.clientMsgIds.length > 0
+          ? { clientMsgIds: p.record.clientMsgIds }
+          : {}),
+      });
   }
 }
 
@@ -512,7 +520,7 @@ const ingest = startIngestServer(opts.port, {
     evt.emit("lifecycle", { phase: "interrupted" });
     return { ok: true };
   },
-  onHook(eventName, body): void {
+  onHook(eventName, body): Record<string, unknown> | undefined {
     state.events.push({ event: eventName, t: Date.now() });
     if (!state.sessionId && typeof body.session_id === "string") {
       state.sessionId = body.session_id;
@@ -545,13 +553,34 @@ const ingest = startIngestServer(opts.port, {
         resolveParentAgentToolUseId(wt.cwd, state.sessionId, agentId);
       if (parentAgentToolUseId) agentToolUseIdCache.set(agentId, parentAgentToolUseId);
     }
+    let hookOutput: Record<string, unknown> | undefined;
     if (eventName === "PreToolUse") {
-      evt.emit("tool_running", {
-        toolName: body.tool_name ?? "unknown",
-        toolUseId: body.tool_use_id ?? null,
-        input: body.tool_input ?? {},
-        ...(parentAgentToolUseId ? { parentAgentToolUseId } : {}),
-      });
+      // Subagents may not drive the Eos control plane. The deny must live
+      // here: under native bypassPermissions PermissionRequest never fires,
+      // while PreToolUse fires in every mode and its HTTP response is
+      // honored as hook output. Synthetic tool_done because a blocked
+      // subagent inner tool gets no PostToolUse and would stay "running".
+      const toolName = typeof body.tool_name === "string" ? body.tool_name : "unknown";
+      if (agentId && isEosControlTool(toolName)) {
+        const reason = `${toolName} is main-agent only — subagents cannot use Eos control tools. Return your findings; the main agent acts on them.`;
+        const attribution = parentAgentToolUseId ? { parentAgentToolUseId } : {};
+        evt.emit("tool_running", { toolName, toolUseId: body.tool_use_id ?? null, input: body.tool_input ?? {}, ...attribution });
+        evt.emit("tool_done", { toolName, toolUseId: body.tool_use_id ?? null, result: reason, isError: true, ...attribution });
+        hookOutput = {
+          hookSpecificOutput: {
+            hookEventName: "PreToolUse",
+            permissionDecision: "deny",
+            permissionDecisionReason: reason,
+          },
+        };
+      } else {
+        evt.emit("tool_running", {
+          toolName: body.tool_name ?? "unknown",
+          toolUseId: body.tool_use_id ?? null,
+          input: body.tool_input ?? {},
+          ...(parentAgentToolUseId ? { parentAgentToolUseId } : {}),
+        });
+      }
     }
     if (eventName === "PostToolUse") {
       evt.emit("tool_done", {
@@ -605,6 +634,7 @@ const ingest = startIngestServer(opts.port, {
     } else {
       console.log(`[${name}][hook] ${eventName}`);
     }
+    return hookOutput;
   },
 });
 

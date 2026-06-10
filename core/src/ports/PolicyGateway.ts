@@ -11,6 +11,8 @@ export interface PolicyGateway {
     toolName: string;
     input: Record<string, unknown>;
     toolUseId?: string | null;
+    /** Subagent id from the hook input — when set, Eos control tools are denied. */
+    agentId?: string | null;
   }): Promise<Decision>;
   /** Resolve a pending request from an external trigger (UI/CLI). Returns
    * true if the resolution was applied; false if the id was already
