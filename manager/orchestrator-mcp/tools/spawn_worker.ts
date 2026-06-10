@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { EFFORT_LEVELS } from "../../../contracts/src/shared.ts";
 import type { McpToolModule } from "../tool-registry.ts";
 import { safeText } from "../tool-registry.ts";
 
@@ -18,20 +19,24 @@ export const spawnWorkerTool: McpToolModule = {
             "Friendly slug for the worker (kebab-case). Should describe the outcome, not the action. Good: 'refactor-auth-tokens', 'add-billing-tests'. Bad: 'worker-1', 'fix-stuff', 'task'.",
           ),
           model: z.string().optional().describe(
-            "Claude model: 'opus' (default; ambiguous, multi-file, or debugging work), 'sonnet' (balanced — well-specified routine work), 'haiku' (fastest/cheapest — trivial writes, summaries, simple greps). When in doubt, omit and let it default to opus.",
+            "Claude model: 'opus' (default; ambiguous, multi-file, or debugging work), 'sonnet' (balanced — well-specified routine work), 'haiku' (fastest/cheapest — trivial writes, summaries, simple greps), 'fable' (most powerful — the very hardest problems where opus falls short). When in doubt, omit and let it default to opus.",
+          ),
+          effort: z.enum(EFFORT_LEVELS).optional().describe(
+            "Reasoning effort for the worker. ONLY pass this when the chosen model supports effort — opus, fable, and sonnet do; haiku does NOT (omit it there). 'low' (trivial mechanical edits, summaries), 'medium' (routine well-specified work), 'high' (substantial but straightforward implementation), 'xhigh' (default — complex debugging, design, anything where wrong output is expensive), 'max' (correctness-critical, cost-insensitive). When in doubt, omit and let it default to xhigh.",
           ),
           workspaceOf: z.string().optional().describe(
             "Spawn this worker INSIDE an existing worker's isolated worktree instead of a fresh one. Use it to review, continue, or fix that worker's work with direct file access — never read another worker's worktree via your own shell. Pass the existing worker's id. Only allowed while that worker is idle (fails with a conflict while it is busy); for plain follow-ups prefer message_worker to the same worker.",
           ),
         },
       },
-      async ({ prompt, name, model, workspaceOf }) =>
+      async ({ prompt, name, model, effort, workspaceOf }) =>
         safeText(async () => {
           const body: Record<string, unknown> = {
             prompt, name, model,
             withGateway: true,
             parentId: session.selfId,
           };
+          if (effort) body.effort = effort;
           if (workspaceOf) body.workspaceOf = workspaceOf;
           else if (session.isGitRepo) body.worktreeFrom = session.cwd;
           else body.cwd = session.cwd;

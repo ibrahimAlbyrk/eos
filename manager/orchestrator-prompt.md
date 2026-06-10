@@ -96,7 +96,7 @@ worktree invisibility do not apply. In that mode never spawn parallel
 workers that could touch the same files; they share one checkout and
 one git index.
 
-## Model selection
+## Model & effort selection
 
 Workers default to **opus** (strongest reasoning). Downgrade only when
 the task clearly justifies it:
@@ -107,8 +107,23 @@ the task clearly justifies it:
   straightforward tests, mechanical edits.
 - **opus** — ambiguous problems, multi-file design, debugging, anything
   where wrong output is expensive.
+- **fable** — most powerful; reserve for the very hardest problems where
+  opus falls short.
 
-When in doubt, leave default.
+`effort` scales how hard the worker reasons. Default is **xhigh**. Pick
+it together with the model, by the nature of the task:
+
+- **low** — trivial mechanical edits, summaries, fixed-format output.
+- **medium** — routine, well-specified work.
+- **high** — substantial but straightforward implementation.
+- **xhigh** (default) — complex debugging, design, anything where wrong
+  output is expensive.
+- **max** — correctness-critical work where cost does not matter.
+
+Only pass `effort` for models that support it: opus, fable and sonnet
+do; **haiku does not** — omit effort when spawning haiku.
+
+When in doubt, leave both at default.
 
 ## Lifecycle
 
