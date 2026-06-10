@@ -121,18 +121,23 @@ export function Messages({ live }) {
   useEffect(() => { initialScrollDone.current = false; }, [ui.selectedId]);
 
   const reconcileFromNewest = useCallback((workerId, rows) => {
-    const serverTexts = new Set();
+    const texts = new Set();
+    const ids = new Set();
     const failures = [];
     for (const e of rows) {
       const p = parsePayload(e.payload);
-      if (e.type === "user_message" && p.text) serverTexts.add(p.text);
+      if (e.type === "user_message") {
+        if (p.text) texts.add(p.text);
+        // clientMsgIds echoed by the worker — the authoritative settle signal.
+        for (const cid of p.clientMsgIds ?? []) ids.add(cid);
+      }
       // A failed delivery never yields a user_message — the failure event
       // itself must release the optimistic copy.
       if (e.type === "lifecycle" && p.phase === "delivery_failed" && p.text) {
         failures.push({ text: p.text, ts: e.ts });
       }
     }
-    ui.reconcileOptimisticMessages(workerId, serverTexts, failures);
+    ui.reconcileOptimisticMessages(workerId, { ids, texts, failures });
   }, [ui.reconcileOptimisticMessages]);
 
   // `eventsFor` = which agent the current `events` belong to — during a
@@ -294,29 +299,9 @@ export function Messages({ live }) {
 
   const lastBlock = blocks[blocks.length - 1];
 
-  // Auto-flush queued messages once the agent's response is actually rendered.
-  // Arms on busy→idle; fires when blocks update and last block is agent output.
-  const flushArmedRef = useRef(false);
-  const prevBusyRef = useRef(agentBusy);
-  useEffect(() => {
-    const wasBusy = prevBusyRef.current;
-    prevBusyRef.current = agentBusy;
-    if (agentBusy) { flushArmedRef.current = false; return; }
-    if (interrupted) { flushArmedRef.current = false; return; }
-    if (wasBusy && !agentBusy && selectedWorker) {
-      const q = ui.queuedMessages.get(selectedWorker.id);
-      if (q && q.length > 0) flushArmedRef.current = true;
-    }
-    if (!flushArmedRef.current || !selectedWorker) return;
-    if (!lastBlock || lastBlock.kind === "user") return;
-    flushArmedRef.current = false;
-    const list = ui.queuedMessages.get(selectedWorker.id);
-    if (!list || list.length === 0) return;
-    const combined = list.map((m) => m.text).join("\n\n");
-    ui.clearQueuedMessages(selectedWorker.id);
-    ui.addOptimisticUserMessage(selectedWorker.id, combined);
-    live.sendToAgent(selectedWorker.id, combined);
-  }, [agentBusy, blocks, interrupted]);
+  // (The old auto-flush effect lived here. Queued messages are now held and
+  // drained by the DAEMON at the worker's IDLE transition — the view never
+  // dispatches; see core/use-cases/DrainQueuedMessages.)
   const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "agentRun");
   const showAnchor = !interrupted && (agentBusy || isAgentReply);
 
@@ -366,14 +351,16 @@ export function Messages({ live }) {
         {selectedWorker?.parent_id && selectedWorker.prompt && (
           <MessageTask
             prompt={selectedWorker.prompt}
+            parentId={selectedWorker.parent_id}
             parentName={parentWorker?.name || "orchestrator"}
+            workers={live.workers}
           />
         )}
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
           const animate = (b.kind === "assistant" || b.kind === "thinking") && baselineKeys != null && !baselineKeys.has(key);
-          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, animate);
+          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, animate, parentWorker);
           if (isLast && interrupted && b.kind !== "user") {
             return <div key={key} className="msg-interrupted-wrap">{block}</div>;
           }
@@ -407,11 +394,11 @@ function blockKey(b, i) {
   }
 }
 
-function renderBlock(b, key, cwd, ui, workers, animate) {
+function renderBlock(b, key, cwd, ui, workers, animate, parent) {
   switch (b.kind) {
     case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right"><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
-    case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} label={b.workerName || b.fromWorker || "worker"} direction="in" /></MessageRow>;
-    case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} label={b.parentName || b.fromParent || "orchestrator"} direction="out" /></MessageRow>;
+    case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
+    case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} /></MessageRow>;
     case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} />;
     case "toolGroup": {
@@ -421,7 +408,7 @@ function renderBlock(b, key, cwd, ui, workers, animate) {
       return <ToolGroup key={key} summary={b.summary} tools={b.tools} cwd={cwd}
         open={open} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
     }
-    case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} />;
+    case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} parent={parent} />;
     case "terminal":  return <TerminalCard key={key} block={b} />;
     case "agentRun":  return <AgentBlock key={key} block={b} />;
     case "deliveryFailed":

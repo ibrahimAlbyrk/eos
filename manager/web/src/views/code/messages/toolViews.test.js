@@ -34,6 +34,13 @@ describe("getToolView", () => {
     expect(stats).toEqual({ add: 1, del: 0 });
   });
 
+  it("resolves agentRef for send_message_to_parent from ctx.parent, null elsewhere", () => {
+    const v = getToolView("mcp__worker__send_message_to_parent");
+    expect(v.agentRef({}, { parent: { id: "w1", name: "orch" } })).toEqual({ id: "w1", name: "orch" });
+    expect(v.agentRef({}, {})).toBe(null);
+    expect(getToolView("Read").agentRef({}, {})).toBe(null);
+  });
+
   it("summarizes git verbs for Bash, else Ran", () => {
     const bash = getToolView("Bash");
     expect(bash.label({ name: "Bash", input: { command: "git push origin dev" }, result: { isError: false } }).verb).toBe("Pushed");

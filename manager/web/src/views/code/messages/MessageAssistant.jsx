@@ -1,19 +1,10 @@
 import { useMemo, useRef } from "react";
-import { marked } from "marked";
-import DOMPurify from "dompurify";
+import { renderMarkdown } from "../../../lib/markdown.js";
 import { useBlurInReveal } from "../../../hooks/useBlurInReveal.js";
-
-marked.setOptions({
-  breaks: true,
-  gfm: true,
-});
 
 export function MessageAssistant({ text, animate = false }) {
   const ref = useRef(null);
-  const html = useMemo(() => {
-    const raw = marked.parse(String(text || ""));
-    return DOMPurify.sanitize(raw);
-  }, [text]);
+  const html = useMemo(() => renderMarkdown(text), [text]);
 
   useBlurInReveal(ref, html, animate);
 

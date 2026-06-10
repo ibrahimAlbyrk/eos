@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { buildDiffHunks, patchToHunks, parseAskAnswers, stripCatLineNumbers } from "../../../lib/diff.jsx";
+import { skillFilePath } from "../../../lib/skillBody.js";
 
 // Per-tool expanded detail components. Routing (tool name → Detail) and the
 // header labels live in ./toolViews.jsx; this file only owns the bodies.
@@ -206,27 +207,19 @@ export function AskUserQuestionDetail({ tool }) {
   );
 }
 
-function stripFrontmatter(text) {
-  const m = text.match(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/);
-  return (m ? text.slice(m[0].length) : text).replace(/^\s*\n+/, "");
-}
-
-// The skill body is the SKILL.md content Claude injects on launch, carried in
-// the transcript (the only source that works for built-in/plugin skills too —
-// those aren't resolvable on disk by name). It opens with an orienting line
-// ("Base directory for this skill: <path>") that's noise here — drop it.
-function cleanSkillBody(text) {
-  return stripFrontmatter(text ?? "").replace(/^Base directory for this skill:.*\r?\n+/, "");
-}
-
 export function SkillDetail({ tool }) {
-  const skill = tool.input?.skill ?? "skill";
+  const ui = useUi();
   const [copied, setCopied] = useState(false);
 
-  const body = cleanSkillBody(tool.skillBody);
+  const body = tool.skillBody ?? "";
+  // skillPath is the skill's base directory, parsed out of the injected body
+  // (lib/skillBody.js); pathless skills (built-ins) get no header bar at all.
+  const skillFile = skillFilePath(tool.skillPath);
   const lines = body ? body.split("\n").map((t, i) => ({ num: i + 1, text: t })) : [];
   const hasMore = lines.length > 5;
   const preview = lines.slice(0, 5);
+
+  if (!body && !skillFile) return null;
 
   const copyContent = () => {
     navigator.clipboard.writeText(body).catch(() => {});
@@ -234,25 +227,33 @@ export function SkillDetail({ tool }) {
     setTimeout(() => setCopied(false), 3000);
   };
 
+  const openInViewer = () => {
+    if (skillFile) ui.openFileViewer(skillFile);
+  };
+
+  const copyBtn = body ? (
+    <button className={"fp-copy" + (skillFile ? "" : " fp-copy-float")} onClick={(e) => { e.stopPropagation(); copyContent(); }} title="Copy content">
+      {copied ? (
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="m3 8.5 3 3 7-7" />
+        </svg>
+      ) : (
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="5" y="5" width="9" height="9" rx="1.5" />
+          <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
+        </svg>
+      )}
+    </button>
+  ) : null;
+
   return (
     <div className="tool-detail read-detail">
-      <div className="file-path-bar">
-        <span className="fp-path">{skill} skill</span>
-        {body && (
-          <button className="fp-copy" onClick={(e) => { e.stopPropagation(); copyContent(); }} title="Copy content">
-            {copied ? (
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m3 8.5 3 3 7-7" />
-              </svg>
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <rect x="5" y="5" width="9" height="9" rx="1.5" />
-                <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
-              </svg>
-            )}
-          </button>
-        )}
-      </div>
+      {skillFile ? (
+        <div className="file-path-bar" onClick={openInViewer}>
+          <span className="fp-path">{skillFile.replace(/^\/Users\/[^/]+/, "~")}</span>
+          {copyBtn}
+        </div>
+      ) : copyBtn}
       {preview.length > 0 && (
         <div className="code-preview">
           {preview.map((l, i) => (

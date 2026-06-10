@@ -1,9 +1,12 @@
 // Orchestrator worker tools render with the exact same chrome as every other
 // tool row (tool-item header + report-detail body, like send_message_to_parent)
-// — only the worker-name resolution and click-to-select need bespoke logic.
+// — only the worker-name resolution (tool input/result JSON) is bespoke;
+// click-to-select is the shared AgentLink.
 
 import { useUi } from "../../../state/ui.jsx";
 import { defaultToolExpanded } from "../../../settings/toolExpansion.js";
+import { AgentLink } from "./AgentLink.jsx";
+import { DisclosureRow } from "./DisclosureRow.jsx";
 
 const TOOLS = {
   mcp__orchestrator__spawn_worker: { verb: "Spawned", running: "Spawning", detail: (t) => t.input?.prompt ?? "" },
@@ -30,7 +33,7 @@ function workerIdentity(tool, workers) {
   const id = tool.input?.id ?? fromRes?.id ?? null;
   const live = id ? (workers ?? []).find((w) => w.id === id) : null;
   const name = tool.input?.name ?? live?.name ?? fromRes?.name ?? id ?? "worker";
-  return { id, live, name };
+  return { id, name };
 }
 
 function failureKind(tool) {
@@ -39,7 +42,7 @@ function failureKind(tool) {
   return /^denied|permission mode|denied by policy/i.test(text) ? "denied" : "failed";
 }
 
-function Target({ tool, workers, ui }) {
+function Target({ tool, workers }) {
   if (tool.name === "mcp__orchestrator__list_workers") {
     const res = parseResultJson(tool);
     const count = Array.isArray(res) ? res.length : null;
@@ -48,14 +51,8 @@ function Target({ tool, workers, ui }) {
   if (tool.name === "mcp__orchestrator__list_pending_permissions") {
     return <span className="ti-file">pending permissions</span>;
   }
-  const { live, name } = workerIdentity(tool, workers);
-  if (!live) return <span className="ti-file">{name}</span>;
-  return (
-    <span
-      className="ti-file ti-link"
-      onClick={(e) => { e.stopPropagation(); ui.setSelectedId(live.id); }}
-    >{name}</span>
-  );
+  const { id, name } = workerIdentity(tool, workers);
+  return <AgentLink id={id} name={name} workers={workers} />;
 }
 
 export function WorkerToolCard({ tool, workers, standalone }) {
@@ -73,21 +70,18 @@ export function WorkerToolCard({ tool, workers, standalone }) {
   const expanded = hasDetail && defaultToolExpanded(tool.name, ui.settings) !== ui.expandedTools.has(expandKey);
 
   return (
-    <div className={"tool-item" + (standalone ? " standalone" : "") + (expanded ? " expanded" : "") + (failure ? ` ti-failed-state ti-failed-state-${failure}` : "")}>
-      <div
+    <div className={"tool-item" + (standalone ? " standalone" : "") + (failure ? ` ti-failed-state ti-failed-state-${failure}` : "")}>
+      <DisclosureRow
+        expanded={expanded}
+        expandable={hasDetail}
+        onToggle={() => ui.toggleToolExpanded(expandKey)}
         className={"tool-item-header" + (running ? " ti-running" : "")}
-        onClick={() => hasDetail && ui.toggleToolExpanded(expandKey)}
       >
         <span className={"ti-verb" + (running ? " ti-shimmer" : "")}>{running ? spec.running : spec.verb}</span>
         {" "}
-        <Target tool={tool} workers={workers} ui={ui} />
+        <Target tool={tool} workers={workers} />
         {failure && <span className={`ti-failed ti-failed-${failure}`}>{failure}</span>}
-        {hasDetail && (
-          <svg className="ti-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-            <path d="m6 4 4 4-4 4" />
-          </svg>
-        )}
-      </div>
+      </DisclosureRow>
       {expanded && (
         <div className="report-detail" style={{ marginLeft: 0 }}>
           <div className="report-detail-text">{detail}</div>

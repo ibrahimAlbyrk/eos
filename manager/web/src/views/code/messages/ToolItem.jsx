@@ -3,15 +3,17 @@ import { useUi } from "../../../state/ui.jsx";
 import { defaultToolExpanded } from "../../../settings/toolExpansion.js";
 import { getToolView } from "./toolViews.jsx";
 import { WorkerToolCard, isWorkerTool } from "./WorkerToolCard.jsx";
+import { AgentLink } from "./AgentLink.jsx";
+import { DisclosureRow } from "./DisclosureRow.jsx";
 
 const APPEAR_MS = 600;
 
-export function ToolItem({ tool, standalone, cwd, workers }) {
+export function ToolItem({ tool, standalone, cwd, workers, parent }) {
   if (isWorkerTool(tool.name)) return <WorkerToolCard tool={tool} workers={workers} standalone={standalone} />;
-  return <PlainToolItem tool={tool} standalone={standalone} cwd={cwd} />;
+  return <PlainToolItem tool={tool} standalone={standalone} cwd={cwd} workers={workers} parent={parent} />;
 }
 
-function PlainToolItem({ tool, standalone, cwd }) {
+function PlainToolItem({ tool, standalone, cwd, workers, parent }) {
   const ui = useUi();
   const view = getToolView(tool.name);
   const expandKey = "i:" + (tool.id ?? tool.ts);
@@ -29,6 +31,7 @@ function PlainToolItem({ tool, standalone, cwd }) {
   const isRunning = tool.running === true || justAppeared;
   const label = isRunning ? view.runningLabel(tool) : view.label(tool);
   const filePath = view.filePath(tool);
+  const agentRef = view.agentRef(tool, { workers, parent });
   const failure = failureKind(tool);
   const diffStats = view.stats(tool);
 
@@ -39,11 +42,19 @@ function PlainToolItem({ tool, standalone, cwd }) {
   };
 
   return (
-    <div className={"tool-item" + (standalone ? " standalone" : "") + (expanded ? " expanded" : "") + (failure ? ` ti-failed-state ti-failed-state-${failure}` : "")}>
-      <div className={"tool-item-header" + (isRunning ? " ti-running" : "")} onClick={() => ui.toggleToolExpanded(expandKey)}>
+    <div className={"tool-item" + (standalone ? " standalone" : "") + (failure ? ` ti-failed-state ti-failed-state-${failure}` : "")}>
+      <DisclosureRow
+        expanded={expanded}
+        onToggle={() => ui.toggleToolExpanded(expandKey)}
+        className={"tool-item-header" + (isRunning ? " ti-running" : "")}
+      >
         <span className={"ti-verb" + (isRunning ? " ti-shimmer" : "")}>{label.verb}</span>
         {" "}
-        <span className={"ti-file" + (filePath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
+        {agentRef ? (
+          <AgentLink id={agentRef.id} name={agentRef.name} workers={workers} fallback={label.file} />
+        ) : (
+          <span className={"ti-file" + (filePath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
+        )}
         {failure && <span className={`ti-failed ti-failed-${failure}`}>{failure}</span>}
         {!failure && diffStats && (diffStats.add > 0 || diffStats.del > 0) && (
           <span className="ti-stats">
@@ -52,10 +63,7 @@ function PlainToolItem({ tool, standalone, cwd }) {
             {diffStats.del > 0 && <span className="ti-del">-{diffStats.del}</span>}
           </span>
         )}
-        <svg className="ti-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="m6 4 4 4-4 4" />
-        </svg>
-      </div>
+      </DisclosureRow>
       {expanded && <view.Detail tool={tool} cwd={cwd} />}
     </div>
   );

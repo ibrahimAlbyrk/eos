@@ -1,6 +1,7 @@
 // Single source of truth for how a tool renders in the chat. Each descriptor
 // owns one tool's presentation: header labels (idle + running), optional header
-// decorations (clickable file path, diff stats), and the expanded Detail body.
+// decorations (clickable file path, diff stats, clickable agent ref), and the
+// expanded Detail body.
 // ToolItem reads from here instead of switching on tool.name, so adding a tool
 // means registering one entry — no edits to ToolItem/ToolDetail (Open/Closed).
 //
@@ -12,12 +13,14 @@ import {
   SkillDetail, NotifyDetail, MessageDetail, GenericDetail,
 } from "./ToolDetail.jsx";
 import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
+import { skillFilePath } from "../../../lib/skillBody.js";
 
 const DEFAULT = {
   label: (t) => ({ verb: "Used", file: t.name ?? "" }),
   runningLabel: (t) => ({ verb: "Running", file: t.name ?? "" }),
   filePath: () => null,
   stats: () => null,
+  agentRef: () => null,
   Detail: GenericDetail,
 };
 
@@ -77,6 +80,7 @@ register("AskUserQuestion", {
 register("Skill", {
   label: (t) => ({ verb: "Used", file: `${t.input?.skill ?? "skill"} skill` }),
   runningLabel: (t) => ({ verb: "Using", file: `${t.input?.skill ?? "skill"} skill` }),
+  filePath: (t) => skillFilePath(t.skillPath),
   Detail: SkillDetail,
 });
 
@@ -88,6 +92,7 @@ register("mcp__orchestrator__notify_user", {
 
 register("mcp__worker__send_message_to_parent", {
   label: () => ({ verb: "Sent report to", file: "orchestrator" }),
+  agentRef: (t, ctx) => (ctx?.parent ? { id: ctx.parent.id, name: ctx.parent.name } : null),
   Detail: MessageDetail,
 });
 

@@ -1,14 +1,12 @@
 import { ToolItem } from "./ToolItem.jsx";
+import { DisclosureRow } from "./DisclosureRow.jsx";
 
 export function ToolGroup({ summary, tools, open, onToggle, cwd }) {
   return (
-    <div className={"tool-group" + (open ? " open" : "")}>
-      <div className="tool-group-header" onClick={onToggle}>
+    <div className="tool-group">
+      <DisclosureRow expanded={open} onToggle={onToggle} className="tool-group-header">
         <span className="tg-summary">{summary}</span>
-        <svg className="tg-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
-          <path d="m6 4 4 4-4 4" />
-        </svg>
-      </div>
+      </DisclosureRow>
       {open && (
         <div className="tool-group-list">
           {tools.map((t, i) => (

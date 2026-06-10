@@ -1003,6 +1003,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   font-size: var(--text-base);
   line-height: 1.6;
   color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* report / directive detail */
@@ -1104,8 +1106,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .msg-asst a { color: var(--accent); text-decoration: none; }
 .msg-asst a:hover { text-decoration: underline; }
 .msg-asst .ic { font-size: var(--text-sm); }
-.msg-user a, .msg-user .msg-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
-.msg-user a:hover { opacity: 0.8; }
+.msg-user a, .msg-user .msg-link, .msg-task-body .msg-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.msg-user a:hover, .msg-task-body .msg-link:hover { opacity: 0.8; }
 
 /* blur-in reveal for freshly arrived agent text (lib/blurInReveal.js) */
 .blur-word,
@@ -1123,11 +1125,23 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   .blur-in { animation-duration: 0s; }
 }
 
+/* ── disclosure row — shared expand affordance (DisclosureRow.jsx) ── */
+/* hit-area hugs the content instead of the full column; hover brightens the
+   dim parts one token step (children set their own colors, so a row-level
+   color change wouldn't reach them) */
+.disclosure-row {
+  width: fit-content;
+  max-width: 100%;
+}
+.disclosure-row[role="button"] { cursor: pointer; }
+.disclosure-row[role="button"]:hover .ti-verb { color: var(--fg); }
+.disclosure-row[role="button"]:hover .ti-chev { color: var(--fg-dim); }
+.disclosure-row[aria-expanded="true"] .ti-chev { transform: rotate(90deg); }
+
 /* ── tool group (multi-tool) ── */
 .tool-group-header {
   display: flex; align-items: center; gap: 8px;
-  padding: 9px 0;
-  cursor: pointer;
+  padding-block: 9px;
   font-size: var(--text-base);
   color: var(--fg-dim);
 }
@@ -1139,12 +1153,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   flex-shrink: 0;
 }
 .tg-summary { }
-.tg-chev {
-  color: var(--fg-faint);
-  transition: transform 150ms ease;
-  flex-shrink: 0;
-}
-.tool-group.open .tg-chev { transform: rotate(90deg); }
 
 .tool-group-list {
   background: var(--surface);
@@ -1160,11 +1168,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .tool-item-header {
   display: flex; align-items: center; gap: 5px;
-  padding: 5px 0;
-  cursor: pointer;
+  padding-block: 5px;
   color: var(--fg);
 }
-.tool-item-header:hover { color: var(--fg); }
 .ti-verb { color: var(--fg-dim); }
 .ti-file { font-weight: 600; color: var(--fg); }
 .ti-link { cursor: pointer; }
@@ -1174,7 +1180,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   transition: transform 150ms ease;
   flex-shrink: 0;
 }
-.tool-item.expanded .ti-chev { transform: rotate(90deg); }
 .ti-running { opacity: 0.7; }
 .ti-shimmer {
   background: linear-gradient(90deg, var(--fg-dim) 0%, var(--fg-dim) 45%, var(--shimmer) 50%, var(--fg-dim) 55%, var(--fg-dim) 100%);
@@ -1220,6 +1225,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .read-detail:hover .fp-copy { opacity: 1; }
 .fp-copy:hover { color: var(--fg); background: var(--surface-2); }
+.fp-copy-float { position: absolute; top: 8px; right: 10px; z-index: 1; background: var(--surface); }
 
 .code-preview {
   font-family: var(--font-mono);
@@ -4552,6 +4558,33 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   object-fit: contain;
   border-radius: 6px;
 }
+
+.fv-frame {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+.fv-frame--html { background: #fff; }
+.fv-media-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  height: 100%;
+}
+.fv-media { max-width: 100%; max-height: 100%; border-radius: 6px; }
+.fv-binary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  height: 100%;
+  color: var(--fg-faint);
+  font-size: var(--text-base);
+}
+.fv-binary-name { color: var(--fg); font-weight: 600; }
 
 /* Code view */
 .fv-code {
