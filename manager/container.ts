@@ -5,7 +5,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
-import { writeFileSync, readFileSync, unlinkSync, existsSync, mkdirSync, copyFileSync, readdirSync, statSync, realpathSync } from "node:fs";
+import { writeFileSync, readFileSync, unlinkSync, existsSync, realpathSync } from "node:fs";
 
 import { loadConfig, reloadConfig as reloadConfigFromDisk, type DaemonConfig, type ModelPrice } from "./shared/config.ts";
 import { expandPath } from "./shared/path.ts";
@@ -51,6 +51,7 @@ import { SqlBackedModeResolver } from "../core/src/services/SqlBackedModeResolve
 import { SqlBackedBackendResolver } from "../core/src/services/SqlBackedBackendResolver.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
+import { StartupBackupService } from "./services/StartupBackupService.ts";
 import { PromptTemplateService } from "./services/PromptTemplateService.ts";
 import { UserTemplateService } from "./services/UserTemplateService.ts";
 import { UserSettingsService } from "./services/UserSettingsService.ts";
@@ -68,24 +69,11 @@ export function buildContainer() {
   // PID file ----------------------------------------------------------------
   try { writeFileSync(config.daemon.pidFile, String(process.pid)); } catch {}
 
-  // DB backup before opening ------------------------------------------------
-  if (existsSync(config.daemon.dbFile)) {
-    try {
-      const backupDir = join(config.daemon.home, "backups");
-      mkdirSync(backupDir, { recursive: true });
-      const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-      const dst = join(backupDir, `state.db.${stamp}.bak`);
-      copyFileSync(config.daemon.dbFile, dst);
-      const all = readdirSync(backupDir)
-        .filter((n) => n.startsWith("state.db.") && n.endsWith(".bak"))
-        .map((n) => ({ n, t: statSync(join(backupDir, n)).mtimeMs }))
-        .sort((a, b) => b.t - a.t);
-      for (const old of all.slice(5)) {
-        try { unlinkSync(join(backupDir, old.n)); } catch {}
-      }
-    } catch (e) {
-      process.stderr.write(`[daemon] backup skipped: ${errMsg(e)}\n`);
-    }
+  // User-data backup before opening the DB -----------------------------------
+  try {
+    new StartupBackupService(config.daemon.home, join(config.daemon.home, "backups")).run();
+  } catch (e) {
+    process.stderr.write(`[daemon] backup skipped: ${errMsg(e)}\n`);
   }
 
   // Open DB + run migrations -----------------------------------------------

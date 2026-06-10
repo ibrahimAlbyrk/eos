@@ -160,7 +160,11 @@ Workers use `eos-<name>-XXXXXX` via `mkdtempSync`. Don't rename — daemon's `pg
 
 ### SQLite migrations
 
-`infra/src/persistence/MigrationRunner.ts` runs an ordered `MIGRATIONS: {id, sql}[]` array on startup; applied ids are recorded in `schema_migrations` so each runs once. New column: append `{id:"NNN_...", sql:"ALTER TABLE … ADD COLUMN …"}` — `runMigrations()` already wraps it in try/catch (duplicate-column = treated as applied); don't hand-roll your own. The daemon backs up `state.db` (newest 5 in `~/.eos/backups/`) on every startup before opening it.
+`infra/src/persistence/MigrationRunner.ts` runs an ordered `MIGRATIONS: {id, sql}[]` array on startup; applied ids are recorded in `schema_migrations` so each runs once. New column: append `{id:"NNN_...", sql:"ALTER TABLE … ADD COLUMN …"}` — `runMigrations()` already wraps it in try/catch (duplicate-column = treated as applied); don't hand-roll your own. On every startup, before opening the DB, the daemon snapshots the user-data manifest (`manager/shared/user-data.ts` → `StartupBackupService`) into `~/.eos/backups/<stamp>/` (newest 5).
+
+### Daemon home (`~/.eos`) is user data — never rm/mv it by hand
+
+Non-regenerable user data in the home is declared ONCE in `manager/shared/user-data.ts` (state.db, templates/, policy.yaml, config.json); `StartupBackupService` and any future home migration consume that manifest — a new user-data file added to the home MUST be added there too, or it lives outside every safety net. Never `rm -rf`/`mv` the daemon home in scripts or agent sessions (the 2026-06-08 `.claude-mgr`→`.eos` hand migration `rm -rf`'d a home the daemon had been writing to for hours); a future home move = daemon-owned merge step, never destroy. Template deletes are soft (`templates/.trash/`). Agent smoke tests must NOT CRUD the production store — boot a throwaway daemon with `EOS_HOME=$(mktemp -d)`.
 
 ### Cost is display-only
 
