@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { needsAttention as policyNeedsAttention, sigOf } from "../lib/agentAttention.js";
+import { useSettings } from "./settings.jsx";
 
 // Attention state — tracks, per worker, the activity signature the user last
 // viewed. Whether the blue dot shows is DERIVED from (state, signature, last
@@ -9,6 +10,12 @@ import { needsAttention as policyNeedsAttention, sigOf } from "../lib/agentAtten
 const AttentionContext = createContext(null);
 
 export function AttentionProvider({ children }) {
+  const { settings } = useSettings();
+  // User preference gate. When off, the blue dot and the collapsed-rail blink
+  // disappear entirely (the derive returns false). Bookkeeping below keeps
+  // running so re-enabling doesn't surface a backlog of "unseen" output.
+  const enabled = settings["notifications.sidebarAttention"] !== false;
+
   const [viewedSigs, setViewedSigs] = useState(() => new Map());
 
   // Seed unseen workers, keep the selected one in sync, and prune entries
@@ -37,15 +44,16 @@ export function AttentionProvider({ children }) {
   }, []);
 
   const needsAttention = useCallback((worker) => {
+    if (!enabled) return false;
     if (!worker || !worker.id) return false;
     return policyNeedsAttention(viewedSigs.get(worker.id), worker);
-  }, [viewedSigs]);
+  }, [enabled, viewedSigs]);
 
   // Panel-level signal: OR of every agent's attention. Drives the collapsed
   // sidebar's expand-button pip ("any dot you'd see if the panel were open").
   const anyNeedsAttention = useCallback(
-    (workers) => workers.some((w) => needsAttention(w)),
-    [needsAttention],
+    (workers) => enabled && workers.some((w) => needsAttention(w)),
+    [enabled, needsAttention],
   );
 
   const value = useMemo(() => ({

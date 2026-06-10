@@ -91,6 +91,19 @@ export const SETTINGS_SECTIONS = [
           },
         ],
       },
+      {
+        title: "Notifications",
+        items: [
+          {
+            key: "notifications.sidebarAttention",
+            label: "Sidebar activity indicators",
+            description:
+              "Blue dot and pulsing icon in the sidebar when an agent finishes with new output. Does not affect system notifications the orchestrator sends with notify_user.",
+            control: { type: "toggle" },
+            defaultValue: true,
+          },
+        ],
+      },
     ],
   },
   {

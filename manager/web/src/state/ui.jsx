@@ -18,13 +18,13 @@ export function UiProvider({ children }) {
     <NavigationProvider>
       <SelectionProvider>
         <ComposerProvider>
-          <AttentionProvider>
-            <SearchProvider>
-              <SettingsProvider>
+          <SettingsProvider>
+            <AttentionProvider>
+              <SearchProvider>
                 {children}
-              </SettingsProvider>
-            </SearchProvider>
-          </AttentionProvider>
+              </SearchProvider>
+            </AttentionProvider>
+          </SettingsProvider>
         </ComposerProvider>
       </SelectionProvider>
     </NavigationProvider>
