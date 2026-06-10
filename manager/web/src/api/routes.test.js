@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ROUTES as webRoutes } from "./routes.js";
+import clientSrc from "./client.js?raw";
 // Vitest transpiles TS on the fly and resolves the contracts package's own
 // node_modules (for zod), so importing the source schema file works directly.
 // This is the whole point of the test: catch drift between the duplicated web
@@ -23,6 +24,16 @@ describe("web ROUTES parity with contracts ROUTES", () => {
     const missing = Object.keys(webRoutes).filter(
       (key) => !(key in contractRoutes),
     );
+    expect(missing).toEqual([]);
+  });
+
+  // The mirror is deliberately partial (web ⊂ contracts), so contracts-only
+  // keys are fine — but a ROUTES.x referenced by client.js that's missing
+  // here resolves to undefined and dies as a silent unhandled rejection
+  // inside the async api fns. Catch that drift at test time.
+  it("every ROUTES key referenced by client.js exists in the web table", () => {
+    const used = [...clientSrc.matchAll(/ROUTES\.(\w+)/g)].map((m) => m[1]);
+    const missing = [...new Set(used)].filter((key) => !(key in webRoutes));
     expect(missing).toEqual([]);
   });
 

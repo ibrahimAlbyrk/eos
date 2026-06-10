@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
-
-function nameOf(w) {
-  return w.name || (w.is_orchestrator ? "Orchestrator" : w.id);
-}
+import { nameOf } from "../../../lib/agentName.js";
+import { RenameInput } from "../../../components/RenameInput.jsx";
 
 export function AgentsTree({ roots, onRename, variant = "full" }) {
   if (roots.length === 0) {
@@ -22,42 +20,6 @@ export function AgentsTree({ roots, onRename, variant = "full" }) {
         <TreeNode key={n.id} node={n} onRename={onRename} variant={variant} />
       ))}
     </div>
-  );
-}
-
-function RenameInput({ currentName, onSave, onCancel }) {
-  const [value, setValue] = useState(currentName);
-  const inputRef = useRef(null);
-  const valueRef = useRef(value);
-  const doneRef = useRef(false);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-    inputRef.current?.select();
-  }, []);
-
-  const commit = useCallback(() => {
-    if (doneRef.current) return;
-    doneRef.current = true;
-    const trimmed = valueRef.current.trim();
-    if (trimmed && trimmed !== currentName) onSave(trimmed);
-    else onCancel();
-  }, [currentName, onSave, onCancel]);
-
-  return (
-    <input
-      ref={inputRef}
-      className="ag-rename-input"
-      value={value}
-      onChange={(e) => { setValue(e.target.value); valueRef.current = e.target.value; }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") { e.preventDefault(); commit(); }
-        if (e.key === "Escape") { e.preventDefault(); onCancel(); }
-        e.stopPropagation();
-      }}
-      onBlur={commit}
-      onClick={(e) => e.stopPropagation()}
-    />
   );
 }
 

@@ -269,6 +269,10 @@ export const api = {
   async renameWorker(id, name) {
     return putJson(ROUTES.workerName(id), { name });
   },
+  // Breadcrumb "Open in" — UI-token gated like the terminal routes.
+  async openWorkerIn(id, target) {
+    return postJson(ROUTES.workerOpen(id), { target }, uiTokenHeader());
+  },
   async setWorkerPermission(id, mode, { cascade } = {}) {
     return putJson(ROUTES.workerPermission(id), { mode, cascade });
   },

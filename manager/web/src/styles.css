@@ -789,15 +789,36 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   font-size: var(--text-sm);
   --app-region: no-drag;
 }
+.head .crumb .v-wrap {
+  position: relative;
+  align-self: center;
+  display: inline-flex;
+}
 .head .crumb .scope { color: var(--fg-dim); }
 .head .crumb .sep { color: var(--fg-faint); }
 .head .crumb .cur { color: var(--fg); font-weight: 450; }
+.head .crumb .crumb-link { color: var(--fg-dim); font-size: inherit; }
+.head .crumb .crumb-link:hover { color: var(--fg); }
+.head .crumb .ag-rename-input {
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  padding: 1px 4px;
+  outline: none;
+  width: 180px;
+}
 .head .crumb .v {
   margin-left: 4px;
   color: var(--fg-faint);
   cursor: pointer;
+  align-self: center;
+  display: inline-flex;
   --app-region: no-drag;
 }
+.head .crumb .v:hover { color: var(--fg); }
 .head .right { margin-left: auto; display: flex; gap: 6px; --app-region: no-drag; }
 .head .right .ibtn {
   width: 24px; height: 24px;
@@ -3278,6 +3299,27 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   letter-spacing: -0.005em;
   margin-top: 1px;
 }
+
+/* ============== Header breadcrumb menu (chevron dropdown) ============== */
+/* Reuses .ctx-menu row styling; .head-menu anchors the pane under the
+   chevron (.v-wrap) instead of the ctx-menu's fixed cursor position. */
+.head-menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: -10px;
+  z-index: 400;
+  --app-region: no-drag;
+}
+.head-menu > .ctx-menu.menu-pane { position: static; width: 200px; }
+.menu-pane:focus { outline: none; }
+.head-menu > .menu-flyout {
+  position: absolute;
+  left: calc(100% + 6px);
+  width: 150px;
+}
+.ctx-menu .menu-item.active { background: rgba(var(--tint), 0.06); }
+.ctx-menu .menu-item.danger.active { background: color-mix(in srgb, var(--err) 10%, transparent); }
+.ctx-menu .menu-item .sub-chev { margin-left: auto; color: var(--fg-faint); flex-shrink: 0; }
 
 /* ============== Accept-edits popover (above composer Accept edits btn) ============== */
 .accept-popover {
