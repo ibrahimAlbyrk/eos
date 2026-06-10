@@ -817,6 +817,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .messages-wrap {
   flex: 1;
   overflow-y: auto;
+  /* both-edges: forced classic scrollbars (line 32) always consume 10px on the
+     right, shifting the centered .messages block left of the composer's axis.
+     A symmetric gutter on both sides keeps the content box centered. */
+  scrollbar-gutter: stable both-edges;
   /* none (not contain): contain still allows rubber-band overscroll in WKWebView,
      so high-momentum wheels (free-spin) push content past the bottom edge */
   overscroll-behavior-y: none;
