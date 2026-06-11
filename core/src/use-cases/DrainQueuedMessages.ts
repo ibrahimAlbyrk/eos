@@ -4,8 +4,15 @@
 // web's old render-effect flush (stale busy snapshots, refs surviving agent
 // switches) is gone entirely.
 //
-// Rows are marked dispatched only AFTER a successful dispatch: a failed drain
-// leaves them pending and the next IDLE retries. The rare opposite (crash
+// FIFO, one message per turn: each IDLE dispatches only the OLDEST pending
+// row, so the agent answers a, stops, gets b, stops, gets c — a deep backlog
+// never collapses into one mega-prompt. No scheduler is needed for the rest:
+// the dispatched turn's own Stop → IDLE transition is the next trigger (and
+// a delivery_failed heal reaches IDLE the same way, so the chain survives a
+// lost message).
+//
+// The row is marked dispatched only AFTER a successful dispatch: a failed
+// drain leaves it pending and the next IDLE retries. The rare opposite (crash
 // between dispatch and mark) re-sends rather than silently losing a message.
 
 import type { WorkerRepo } from "../ports/WorkerRepo.ts";
@@ -43,26 +50,30 @@ export async function drainQueuedMessages(
   const rows = deps.queue.listPending(input.workerId);
   if (rows.length === 0) return "empty";
 
-  // One combined delivery, matching the old web flush UX (and one turn, not N).
-  const combined = rows.map((r) => r.text).join("\n\n");
-  const clientMsgIds = rows.map((r) => r.clientMsgId).filter((x): x is string => x !== null);
+  // listPending is id-ASC — rows[0] is the oldest message (FIFO head).
+  const head = rows[0];
 
   deps.clearTurnSettle(input.workerId);
   try {
     await deps.dispatch({
       workerId: input.workerId,
-      text: combined,
-      recordClientMsgIds: clientMsgIds,
+      text: head.text,
+      recordClientMsgIds: head.clientMsgId !== null ? [head.clientMsgId] : [],
       origin: "queue-drain",
     });
   } catch (e) {
-    deps.log.warn("queue drain dispatch failed — rows stay pending", {
+    deps.log.warn("queue drain dispatch failed — row stays pending", {
       workerId: input.workerId,
+      queueId: head.id,
       error: e instanceof Error ? e.message : String(e),
     });
     return "failed";
   }
-  deps.queue.markDispatched(rows.map((r) => r.id), deps.clock.now());
-  deps.log.info("queue drained", { workerId: input.workerId, count: rows.length });
+  deps.queue.markDispatched([head.id], deps.clock.now());
+  deps.log.info("queue drained one", {
+    workerId: input.workerId,
+    queueId: head.id,
+    remaining: rows.length - 1,
+  });
   return "dispatched";
 }

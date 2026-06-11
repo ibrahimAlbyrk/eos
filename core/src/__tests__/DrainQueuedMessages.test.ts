@@ -36,19 +36,32 @@ const enqueue = (q: ReturnType<typeof fakeQueue>, text: string, clientMsgId: str
 };
 
 describe("drainQueuedMessages", () => {
-  it("combines pending rows into one dispatch and marks them dispatched", async () => {
+  it("dispatches ONLY the oldest pending row; the rest wait for their own IDLE", async () => {
     const { deps, dispatched, settleCleared, queue } = buildDeps();
-    enqueue(queue, "first", "c1");
-    enqueue(queue, "second", "c2");
+    enqueue(queue, "a", "c1");
+    enqueue(queue, "b", "c2");
+    enqueue(queue, "c", "c3");
     const outcome = await drainQueuedMessages(deps, { workerId: "w1" });
     assert.equal(outcome, "dispatched");
     assert.equal(dispatched.length, 1);
-    assert.equal(dispatched[0].text, "first\n\nsecond");
-    assert.deepEqual(dispatched[0].recordClientMsgIds, ["c1", "c2"]);
+    assert.equal(dispatched[0].text, "a");
+    assert.deepEqual(dispatched[0].recordClientMsgIds, ["c1"]);
     assert.equal(dispatched[0].origin, "queue-drain");
     assert.deepEqual(settleCleared, ["w1"]);
+    assert.deepEqual(queue.repo.listPending("w1").map((r) => r.text), ["b", "c"]);
+  });
+
+  it("walks the backlog FIFO across successive IDLE triggers (a, then b, then c)", async () => {
+    const { deps, dispatched, queue } = buildDeps();
+    enqueue(queue, "a", "c1");
+    enqueue(queue, "b", "c2");
+    enqueue(queue, "c", "c3");
+    await drainQueuedMessages(deps, { workerId: "w1" });
+    await drainQueuedMessages(deps, { workerId: "w1" });
+    await drainQueuedMessages(deps, { workerId: "w1" });
+    assert.deepEqual(dispatched.map((d) => d.text), ["a", "b", "c"]);
     assert.equal(queue.repo.listPending("w1").length, 0);
-    assert.ok(queue.rows.every((r) => r.dispatchedAt === 5000));
+    assert.equal(await drainQueuedMessages(deps, { workerId: "w1" }), "empty");
   });
 
   it("rows without clientMsgId still drain (no ids in the record)", async () => {
@@ -74,11 +87,12 @@ describe("drainQueuedMessages", () => {
     assert.deepEqual(settleCleared, []);
   });
 
-  it("dispatch failure leaves rows pending for the next IDLE", async () => {
+  it("dispatch failure leaves the head pending for the next IDLE (no skip-ahead)", async () => {
     const { deps, queue } = buildDeps({ dispatchError: new Error("worker unreachable") });
     enqueue(queue, "retry me", "c1");
+    enqueue(queue, "after", "c2");
     const outcome = await drainQueuedMessages(deps, { workerId: "w1" });
     assert.equal(outcome, "failed");
-    assert.equal(queue.repo.listPending("w1").length, 1);
+    assert.deepEqual(queue.repo.listPending("w1").map((r) => r.text), ["retry me", "after"]);
   });
 });
