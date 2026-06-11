@@ -1,17 +1,17 @@
-import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { parsePatch } from "../../../lib/patch.js";
-import { highlightToLines } from "../../../lib/codeHighlight.jsx";
+import { highlightAsync } from "../../../lib/asyncHighlight.js";
 import { gitAgentName } from "../../../lib/gitAgentName.js";
 import { useWorkerVerdict } from "../../../hooks/useWorkerVerdict.js";
+import { useWorkerChanges } from "../../../hooks/useWorkerChanges.js";
+import { useTryState } from "../../../hooks/useTryState.js";
 
-const REFRESH_DEBOUNCE_MS = 800;
-// Let the 280ms grid-columns animation finish before laying out the list —
-// rendering cards mid-transition janks every animation frame.
-const SETTLE_MS = 300;
-// Initial row budget per file; full diff renders only on explicit request.
+// Initial row budget per file; further rows stream in as the sentinel below
+// the rendered window scrolls into reach — no all-at-once "Show all" commit.
 const MAX_ROWS = 300;
+const CHUNK_ROWS = 400;
 
 const STATUS_LABEL = { M: "M", A: "A", D: "D", R: "R" };
 
@@ -34,92 +34,26 @@ export function DiffViewer({ live }) {
 
 function DiffViewerInner({ workerId, live }) {
   const ui = useUi();
-  const [changes, setChanges] = useState(null);
+  // Cached snapshot renders synchronously; revalidation + SSE debounce live
+  // in the diffStore (stale-while-revalidate).
+  const { changes, patches, loadPatch } = useWorkerChanges(workerId, live);
   // Files are expanded by default; the set tracks what the user collapsed.
   const [collapsed, setCollapsed] = useState(() => new Set());
-  const [patches, setPatches] = useState(() => new Map());
-  const [settled, setSettled] = useState(false);
-  const filesRef = useRef([]);
-  const collapsedRef = useRef(collapsed);
-  collapsedRef.current = collapsed;
-  const patchesRef = useRef(patches);
-  patchesRef.current = patches;
-
-  useEffect(() => {
-    const t = setTimeout(() => setSettled(true), SETTLE_MS);
-    return () => clearTimeout(t);
-  }, []);
-
-  const loadPatch = useCallback(async (file) => {
-    setPatches((prev) => new Map(prev).set(file.path, { loading: true }));
-    try {
-      const data = await api.getWorkerFileDiff(workerId, file.path, file.oldPath);
-      setPatches((prev) => new Map(prev).set(file.path, { loading: false, data }));
-    } catch (e) {
-      setPatches((prev) => new Map(prev).set(file.path, { loading: false, error: e.message }));
-    }
-  }, [workerId]);
-
-  const refresh = useCallback(async () => {
-    const r = await api.getWorkerChanges(workerId);
-    setChanges(r);
-    // Refetch the patch of any expanded file whose counts moved.
-    const prevByPath = new Map(filesRef.current.map((f) => [f.path, f]));
-    filesRef.current = r.files;
-    for (const f of r.files) {
-      const old = prevByPath.get(f.path);
-      const moved = old && (old.insertions !== f.insertions || old.deletions !== f.deletions);
-      if (moved && !collapsedRef.current.has(f.path)) loadPatch(f);
-    }
-  }, [workerId, loadPatch]);
-
-  useEffect(() => {
-    setChanges(null);
-    setCollapsed(new Set());
-    setPatches(new Map());
-    filesRef.current = [];
-    refresh();
-  }, [workerId, refresh]);
+  useEffect(() => { setCollapsed(new Set()); }, [workerId]);
 
   // Load the patch of every open file that has none yet — covers the initial
   // list, files arriving via SSE refresh, and re-expanding after an error.
   useEffect(() => {
     for (const f of changes?.files ?? []) {
       if (collapsed.has(f.path)) continue;
-      const p = patchesRef.current.get(f.path);
+      const p = patches.get(f.path);
       if (!p?.data && !p?.loading) loadPatch(f);
     }
-  }, [changes, collapsed, loadPatch]);
+  }, [changes, collapsed, patches, loadPatch]);
 
   const worker = live.workers.find((w) => w.id === workerId);
   const isolated = Boolean(worker?.worktree_from && worker?.branch);
-
-  // Try state — defined BEFORE the SSE effect below that depends on it.
-  // Apply hides while a try is ACTIVE (banner's Keep/Discard owns it) and
-  // FOREVER once this worker's try was KEPT — the work is integrated; only
-  // Discard ever brings Apply back.
-  const [tryState, setTryState] = useState({ phase: "idle" });
-  const [tryInfo, setTryInfo] = useState(null);
-  useEffect(() => { setTryState({ phase: "idle" }); setTryInfo(null); }, [workerId]);
-
-  const refreshTry = useCallback(async () => {
-    if (!isolated) { setTryInfo(null); return; }
-    setTryInfo(await api.getTryState(workerId));
-  }, [workerId, isolated]);
-  useEffect(() => { refreshTry(); }, [refreshTry]);
-  const activeTry = tryInfo?.activeTry ?? null;
-  const kept = Boolean(tryInfo?.kept);
-
-  // SSE-driven refetch: worker:change fires per tool event, so debounce.
-  // try_applied/kept/discarded stamp this worker's id too — refresh the try
-  // state in the same breath so the Apply button tracks the banner.
-  const timerRef = useRef(null);
-  useEffect(() => {
-    if (live.eventSignal.workerId !== workerId) return;
-    clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => { refresh(); refreshTry(); }, REFRESH_DEBOUNCE_MS);
-    return () => clearTimeout(timerRef.current);
-  }, [live.eventSignal.tick, live.eventSignal.workerId, workerId, refresh, refreshTry]);
+  const { tryState, activeTry, kept, applyTry } = useTryState(workerId, isolated, live);
 
   // Stable identity so memoized FileCards don't re-render on sibling updates.
   const toggle = useCallback((file) => {
@@ -131,7 +65,7 @@ function DiffViewerInner({ workerId, live }) {
   }, []);
 
   const files = changes?.files ?? [];
-  const ready = settled && changes !== null;
+  const ready = changes !== null;
 
   // Own verdict when this worker is selected (Messages publishes it);
   // otherwise derive from the worker's own transcript (hub opens children's
@@ -148,30 +82,6 @@ function DiffViewerInner({ workerId, live }) {
   const openFile = useCallback((f) => {
     if (gitDir) ui.openFileViewer(gitDir + "/" + f.path);
   }, [gitDir, ui.openFileViewer]);
-
-  // Apply is one click — tryApply re-validates everything server-side
-  // (snapshot → virtual merge → conflict + dirty-file checks) and writes only
-  // when all pass; failures come back as structured reasons with nothing
-  // half-applied. Conflicts flip the button to the git-agent escalation.
-  const applyTry = async () => {
-    setTryState({ phase: "applying" });
-    const r = await api.tryApply(workerId);
-    if (r.ok) { setTryState({ phase: "idle" }); await refreshTry(); return; }
-    const b = r.body ?? {};
-    if (b.reason === "conflicts") { setTryState({ phase: "conflicts", count: b.files?.length ?? 0 }); return; }
-    setTryState({
-      phase: "error",
-      msg: b.reason === "dirty-files"
-        ? `your checkout has local edits in ${(b.files ?? []).slice(0, 3).join(", ")}${(b.files?.length ?? 0) > 3 ? "…" : ""}`
-        : b.reason === "active-try"
-          ? "a try is already active in this repo"
-          : b.reason === "nothing-to-apply"
-            ? "nothing to apply"
-            : b.reason === "unsupported"
-              ? "needs git >= 2.38"
-              : b.error ?? b.detail ?? b.reason ?? "failed",
-    });
-  };
 
   const resolveWithGitAgent = async () => {
     if (!worker?.worktree_from || !worker?.branch) return;
@@ -311,65 +221,108 @@ const FileCard = memo(function FileCard({ file, isOpen, patch, onToggle, onOpenF
   );
 });
 
-// Parse + highlight once per fetched patch, not per render. Each hunk's old
-// side (ctx+del) and new side (ctx+add) are highlighted as separate blocks so
+// Align worker-highlighted blocks back onto hunk rows. Each hunk's old side
+// (ctx+del) and new side (ctx+add) are highlighted as separate blocks so
 // multi-line constructs keep their context within the hunk.
-function buildHunkView(patch, filePath) {
-  const hunks = parsePatch(patch);
-  for (const h of hunks) {
-    const oldRows = h.rows.filter((r) => r.type !== "add");
-    const newRows = h.rows.filter((r) => r.type !== "del");
-    const oldHL = highlightToLines(oldRows.map((r) => r.text).join("\n"), filePath);
-    const newHL = highlightToLines(newRows.map((r) => r.text).join("\n"), filePath);
-    let oi = 0, ni = 0;
-    for (const r of h.rows) {
-      if (r.type === "del") r.rich = oldHL?.[oi++];
-      else if (r.type === "add") r.rich = newHL?.[ni++];
-      else { r.rich = newHL?.[ni++]; oi++; }
-    }
-  }
-  return hunks;
+function alignRich(hunk, oldHL, newHL) {
+  let oi = 0, ni = 0;
+  return hunk.rows.map((r) => {
+    if (r.type === "del") return oldHL?.[oi++] ?? null;
+    if (r.type === "add") return newHL?.[ni++] ?? null;
+    oi++;
+    return newHL?.[ni++] ?? null;
+  });
+}
+
+function renderTokens(tokens) {
+  return tokens.map((tok, k) => (tok.c ? <span key={k} className={tok.c}>{tok.t}</span> : tok.t));
 }
 
 function PatchBody({ file, patch }) {
-  const [showAll, setShowAll] = useState(false);
   const data = patch?.data;
   const hunks = useMemo(
-    () => (data && !data.binary ? buildHunkView(data.patch, file.path) : []),
-    [data, file.path],
+    () => (data && !data.binary ? parsePatch(data.patch) : []),
+    [data],
   );
 
-  if (!patch || patch.loading) return <div className="dv-patch-note">Loading diff...</div>;
-  if (patch.error) return <div className="dv-patch-note dv-patch-err">{patch.error}</div>;
+  // rich.perHunk[i][j] = token line for hunks[i].rows[j]; arrives async from
+  // the highlight worker — rows paint as plain text immediately and colorize
+  // when the worker answers. Carries its hunks reference so a refreshed patch
+  // never renders stale tokens onto new rows.
+  const [rich, setRich] = useState(null);
+  useEffect(() => {
+    if (!hunks.length) { setRich(null); return; }
+    let cancelled = false;
+    Promise.all(hunks.map(async (h) => {
+      const oldRows = h.rows.filter((r) => r.type !== "add");
+      const newRows = h.rows.filter((r) => r.type !== "del");
+      const [oldHL, newHL] = await Promise.all([
+        highlightAsync(oldRows.map((r) => r.text).join("\n"), file.path),
+        highlightAsync(newRows.map((r) => r.text).join("\n"), file.path),
+      ]);
+      return alignRich(h, oldHL, newHL);
+    })).then((perHunk) => {
+      if (!cancelled) setRich({ hunks, perHunk });
+    });
+    return () => { cancelled = true; };
+  }, [hunks, file.path]);
+  const perHunk = rich?.hunks === hunks ? rich.perHunk : null;
+
+  const totalRows = useMemo(() => hunks.reduce((n, h) => n + h.rows.length, 0), [hunks]);
+  const [budget, setBudget] = useState(MAX_ROWS);
+  const needMore = totalRows > budget;
+  const sentinelRef = useRef(null);
+  // Recreate the observer per budget step: a fresh observe() always reports
+  // the current intersection, so a sentinel still inside the preload margin
+  // keeps cascading CHUNK_ROWS-sized commits until it falls out of reach.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const io = new IntersectionObserver((es) => {
+      if (es.some((x) => x.isIntersecting)) setBudget((b) => b + CHUNK_ROWS);
+    }, { rootMargin: "800px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [needMore, budget]);
+
+  // Stale-while-revalidate: keep showing the previous patch while a refresh
+  // is inflight; only fall back to the note when there is nothing to show.
+  if (!data) {
+    if (patch?.error) return <div className="dv-patch-note dv-patch-err">{patch.error}</div>;
+    return <div className="dv-patch-note">Loading diff...</div>;
+  }
   if (data.binary) return <div className="dv-patch-note">Binary file</div>;
   if (hunks.length === 0) return <div className="dv-patch-note">No textual changes</div>;
 
-  const totalRows = hunks.reduce((n, h) => n + h.rows.length, 0);
-  let budget = showAll ? Infinity : MAX_ROWS;
+  let left = budget;
 
   return (
     <div className="dv-patch edit-diff">
       {hunks.map((h, i) => {
-        if (budget <= 0) return null;
-        const rows = h.rows.length > budget ? h.rows.slice(0, budget) : h.rows;
-        budget -= rows.length;
+        if (left <= 0) return null;
+        const rows = h.rows.length > left ? h.rows.slice(0, left) : h.rows;
+        left -= rows.length;
         return (
-          <Fragment key={i}>
+          <div
+            className="dv-hunk-block"
+            key={i}
+            style={{ containIntrinsicSize: `auto ${rows.length * 21 + 26}px` }}
+          >
             <div className="dv-hunk">{h.header}</div>
             {rows.map((r, j) => (
               <div className={"ed-line ed-" + r.type} key={j}>
                 <span className="ed-num">{r.num}</span>
                 <span className="ed-sign">{r.type === "del" ? "-" : r.type === "add" ? "+" : " "}</span>
-                <span className="ed-text">{r.rich ?? r.text}</span>
+                <span className="ed-text">{perHunk?.[i]?.[j] ? renderTokens(perHunk[i][j]) : r.text}</span>
               </div>
             ))}
-          </Fragment>
+          </div>
         );
       })}
-      {!showAll && totalRows > MAX_ROWS && (
-        <button className="dv-more" onClick={() => setShowAll(true)}>
-          Show all {totalRows.toLocaleString()} lines
-        </button>
+      {needMore && (
+        <div ref={sentinelRef} className="dv-patch-note">
+          {(totalRows - budget).toLocaleString()} more lines…
+        </div>
       )}
       {data.truncated && <div className="dv-patch-note">Diff truncated</div>}
     </div>
