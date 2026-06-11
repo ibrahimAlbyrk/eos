@@ -10,14 +10,15 @@ describe("filterOptimistic", () => {
     expect(out.map((m) => m.id)).toEqual(["opt-2"]);
   });
 
-  it("keeps a keyed entry whose text matches but id does not — id wins only positively", () => {
-    // Text matching still applies to keyed entries: a drain combines messages,
-    // so the durable text may cover them even when ids are present.
+  it("never drops a keyed entry on a text match — only its own id echo settles it", () => {
+    // Identical texts recur (retries, repeated test sends); an OLDER same-text
+    // user_message in the fetched window must not kill a live keyed item.
+    // Drains echo every row's clientMsgId, so the id path covers them.
     const out = filterOptimistic([entry({ clientMsgId: "c1" })], { ids: new Set(["zzz"]), texts: new Set(["hello"]) });
-    expect(out).toEqual([]);
+    expect(out).toHaveLength(1);
   });
 
-  it("drops by either-way text prefix (attachment suffixes)", () => {
+  it("drops unkeyed entries by either-way text prefix (attachment suffixes)", () => {
     const out = filterOptimistic(
       [entry({ text: "hello", agentText: "hello\n\n[attachment]" })],
       { ids: new Set(), texts: new Set(["hello"]) },

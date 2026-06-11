@@ -487,3 +487,61 @@ describe("chat ordering (sentAt + sortBlocksByTs)", () => {
     expect(after).toEqual(before);
   });
 });
+
+describe("creation-domain ordering (tsTranscript / anchorTs)", () => {
+  // ev.ts = daemon receipt time; tsTranscript/anchorTs = transcript creation.
+  const asstAt = (text, ts, tsTranscript) =>
+    ({ type: "jsonl", ts, payload: JSON.stringify({ kind: "assistant_text", text, tsTranscript }) });
+  const userMsg = (text, ts, extra = {}) =>
+    ({ type: "user_message", ts, payload: JSON.stringify({ text, ...extra }) });
+
+  it("sorts a drained queue message AFTER the previous turn's trailing output", () => {
+    // Turn 1's final text was created at 1000 but batch-flushed late (receipt
+    // 2300). The drain dispatched at 2000 (sentAt) and the message's user_text
+    // landed in the transcript at 2500 (anchorTs). Receipt/sentAt comparison
+    // would flip them; creation-domain comparison must not.
+    const events = [
+      asstAt("final output", 2300, 1000),
+      userMsg("queued msg", 2600, { sentAt: 2000, anchorTs: 2500 }),
+    ];
+    const blocks = sortBlocksByTs(buildBlocks(events));
+    expect(blocks.map((b) => b.kind)).toEqual(["assistant", "user"]);
+  });
+
+  it("keeps the bubble above the output it caused (new turn, late flush)", () => {
+    const events = [
+      userMsg("go", 4000, { sentAt: 2000, anchorTs: 2500 }),
+      asstAt("response", 4100, 3000),
+    ];
+    const blocks = sortBlocksByTs(buildBlocks(events));
+    expect(blocks.map((b) => b.kind)).toEqual(["user", "assistant"]);
+  });
+
+  it("assistant/thinking/tool blocks prefer tsTranscript over receipt ts", () => {
+    const events = [
+      { type: "jsonl", ts: 900, payload: JSON.stringify({ kind: "thinking", text: "t", tsTranscript: 500 }) },
+      asstAt("a", 901, 510),
+      { type: "jsonl", ts: 902, payload: JSON.stringify({ kind: "tool_use", id: "T1", name: "Read", input: {}, tsTranscript: 520 }) },
+    ];
+    const blocks = buildBlocks(events);
+    expect(blocks.find((b) => b.kind === "thinking").ts).toBe(500);
+    expect(blocks.find((b) => b.kind === "assistant").ts).toBe(510);
+    expect(blocks.find((b) => b.kind === "tool").ts).toBe(520);
+  });
+
+  it("falls back anchorTs → sentAt → ev.ts on legacy rows", () => {
+    const both = buildBlocks([userMsg("x", 300, { sentAt: 150, anchorTs: 250 })]);
+    const sent = buildBlocks([userMsg("x", 300, { sentAt: 150 })]);
+    const bare = buildBlocks([userMsg("x", 300)]);
+    expect(both[0].ts).toBe(250);
+    expect(sent[0].ts).toBe(150);
+    expect(bare[0].ts).toBe(300);
+  });
+
+  it("report/directive blocks use the same anchor chain", () => {
+    const rep = buildBlocks([{ type: "worker_report", ts: 300, payload: JSON.stringify({ text: "r", sentAt: 100, anchorTs: 200 }) }]);
+    const dir = buildBlocks([{ type: "orchestrator_message", ts: 300, payload: JSON.stringify({ text: "d", sentAt: 100, anchorTs: 200 }) }]);
+    expect(rep[0].ts).toBe(200);
+    expect(dir[0].ts).toBe(200);
+  });
+});

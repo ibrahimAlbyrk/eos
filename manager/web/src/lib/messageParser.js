@@ -73,12 +73,14 @@ function findRewindCut(events, payload, bootPromptOffset) {
   return -1;
 }
 
-// Stable chronological order for the rendered block list. Blocks normally
-// come out of buildBlocks already in ts order (event append order); the
-// exceptions are blocks whose ts deliberately differs from their event row —
-// optimistic bubbles (send time) and late-emitted user messages (sentAt) —
-// which this moves to their conversation position. Same-ts runs keep their
-// relative order (Array.prototype.sort is stable).
+// Stable chronological order for the rendered block list. Block ts lives in
+// the transcript-CREATION clock domain wherever possible (payload.tsTranscript
+// for jsonl blocks, payload.anchorTs for sighting-anchored messages): event-row
+// ts is daemon RECEIPT time, and the CLI batch-flushes transcript lines
+// 150ms–2.5s after creation, so receipt-domain comparisons misplace anything
+// emitted in that window (e.g. a drained queue message vs the previous turn's
+// trailing output). Optimistic bubbles (send time) share the same wall clock.
+// Same-ts runs keep their relative order (Array.prototype.sort is stable).
 export function sortBlocksByTs(blocks) {
   return blocks.sort((a, b) => {
     const d = (a.ts ?? 0) - (b.ts ?? 0);
@@ -190,9 +192,10 @@ export function buildBlocks(events) {
       flushTools();
       lastAsst = null;
       const payload = parsePayload(ev.payload);
-      // sentAt (dispatch time) over event ts: a late-emitted row (unverified
-      // delivery, drain) must still sort above the output it caused.
-      out.push({ kind: "user", text: payload.text ?? "", ts: payload.sentAt ?? ev.ts });
+      // anchorTs (the consuming transcript entry's creation time) is the true
+      // conversation position; sentAt (dispatch time) covers emissions with no
+      // sighting (unverified delivery, flush); event receipt ts is last resort.
+      out.push({ kind: "user", text: payload.text ?? "", ts: payload.anchorTs ?? payload.sentAt ?? ev.ts });
       continue;
     }
     if (ev.type === "worker_report") {
@@ -204,7 +207,7 @@ export function buildBlocks(events) {
         text: payload.text ?? "",
         fromWorker: payload.fromWorker ?? null,
         workerName: payload.workerName ?? null,
-        ts: payload.sentAt ?? ev.ts,
+        ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
       });
       continue;
     }
@@ -217,7 +220,7 @@ export function buildBlocks(events) {
         text: payload.text ?? "",
         fromParent: payload.fromParent ?? null,
         parentName: payload.parentName ?? null,
-        ts: payload.sentAt ?? ev.ts,
+        ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
       });
       continue;
     }
@@ -309,14 +312,14 @@ export function buildBlocks(events) {
       if (lastAsst && out[out.length - 1] === lastAsst) {
         lastAsst.text += "\n" + (p.text ?? "");
       } else {
-        lastAsst = { kind: "assistant", text: p.text ?? "", ts: ev.ts };
+        lastAsst = { kind: "assistant", text: p.text ?? "", ts: p.tsTranscript ?? ev.ts };
         out.push(lastAsst);
       }
     } else if (p.kind === "thinking") {
       if (!p.text?.trim()) continue; // signature-only blocks already persisted as text:""
       flushTools();
       lastAsst = null;
-      out.push({ kind: "thinking", text: p.text, ts: ev.ts });
+      out.push({ kind: "thinking", text: p.text, ts: p.tsTranscript ?? ev.ts });
     } else if (p.kind === "tool_use") {
       lastAsst = null;
       if (p.name === "Agent") {
@@ -342,7 +345,7 @@ export function buildBlocks(events) {
           status: closed ? "completed" : "running",
           result: cleanResult,
           tools,
-          ts: ev.ts,
+          ts: p.tsTranscript ?? ev.ts,
         });
       } else {
         pushTool({
@@ -353,7 +356,7 @@ export function buildBlocks(events) {
           result: lc.resultOf(p.id),
           running: !lc.isClosed(p.id, evIdx),
           done: lc.isDone(p.id),
-          ts: ev.ts,
+          ts: p.tsTranscript ?? ev.ts,
           ...(skillBodyById.has(p.id)
             ? { skillBody: skillBodyById.get(p.id).body, skillPath: skillBodyById.get(p.id).path }
             : {}),
