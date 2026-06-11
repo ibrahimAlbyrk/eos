@@ -5,7 +5,7 @@ import { mkdtempSync, writeFileSync, rmSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { parsePorcelainZ, parseNumstatZ, mergeChanges, truncatePatch } from "../git/changes-parse.ts";
+import { parsePorcelainZ, parseNumstatZ, mergeChanges, truncatePatch, splitUnifiedDiff, attachPatches } from "../git/changes-parse.ts";
 import { childProcessGitInfo as gitInfo } from "../git/ChildProcessGitInfo.ts";
 
 describe("parsePorcelainZ", () => {
@@ -309,5 +309,104 @@ describe("base-aware diff (worktree fork point)", () => {
     const r = await gitInfo.fileDiff(wt, "a.txt", undefined, base!);
     assert.match(r.patch, /^-one$/m);
     assert.match(r.patch, /^\+ONE$/m);
+  });
+
+  it("fullDiff + attachPatches embeds the same patch fileDiff serves", async () => {
+    const base = await gitInfo.mergeBase(wt, src);
+    const [files, full] = await Promise.all([
+      gitInfo.changedFiles(wt, base!),
+      gitInfo.fullDiff(wt, base!),
+    ]);
+    assert.ok(full);
+    attachPatches(files, full!, 256 * 1024, 2 * 1024 * 1024);
+    const a = files.find((f) => f.path === "a.txt");
+    assert.match(a!.patch!, /^\+ONE$/m);
+    assert.equal(a!.truncated, false);
+    // Untracked files have no tree-diff section — they stay lazy.
+    const u = files.find((f) => f.untracked);
+    assert.equal(u!.patch, undefined);
+  });
+});
+
+describe("splitUnifiedDiff", () => {
+  const section = (path: string, body: string) =>
+    `diff --git a/${path} b/${path}\nindex 111..222 100644\n--- a/${path}\n+++ b/${path}\n${body}`;
+
+  it("splits a multi-file diff keyed by path", () => {
+    const diff = section("src/a.ts", "@@ -1 +1 @@\n-x\n+y\n") + section("b.txt", "@@ -1 +1 @@\n-1\n+2\n");
+    const m = splitUnifiedDiff(diff);
+    assert.deepEqual([...m.keys()].sort(), ["b.txt", "src/a.ts"]);
+    assert.match(m.get("src/a.ts")!, /^diff --git a\/src\/a\.ts/);
+    assert.match(m.get("b.txt")!, /\+2\n$/);
+  });
+
+  it("keys deletions on the old path", () => {
+    const diff = "diff --git a/gone.txt b/gone.txt\ndeleted file mode 100644\n--- a/gone.txt\n+++ /dev/null\n@@ -1 +0,0 @@\n-bye\n";
+    assert.ok(splitUnifiedDiff(diff).has("gone.txt"));
+  });
+
+  it("keys renames on the new path via `rename to`", () => {
+    const diff = "diff --git a/old name.ts b/new name.ts\nsimilarity index 90%\nrename from old name.ts\nrename to new name.ts\n--- a/old name.ts\n+++ b/new name.ts\n@@ -1 +1 @@\n-a\n+b\n";
+    assert.ok(splitUnifiedDiff(diff).has("new name.ts"));
+  });
+
+  it("resolves binary sections from the ambiguous header (spaces included)", () => {
+    const diff = "diff --git a/img dir/p.png b/img dir/p.png\nindex 111..222 100644\nBinary files a/img dir/p.png and b/img dir/p.png differ\n";
+    assert.ok(splitUnifiedDiff(diff).has("img dir/p.png"));
+  });
+
+  it("unquotes git-quoted paths (octal escapes are UTF-8 bytes)", () => {
+    const diff = 'diff --git "a/\\303\\244.txt" "b/\\303\\244.txt"\n--- "a/\\303\\244.txt"\n+++ "b/\\303\\244.txt"\n@@ -1 +1 @@\n-a\n+b\n';
+    assert.ok(splitUnifiedDiff(diff).has("ä.txt"));
+  });
+
+  it("does not mistake an added '++ ' line for a file header", () => {
+    const diff = section("a.txt", "@@ -1 +1,2 @@\n x\n+++ not a header\n") + section("b.txt", "@@ -1 +1 @@\n-1\n+2\n");
+    const m = splitUnifiedDiff(diff);
+    assert.equal(m.size, 2);
+    assert.match(m.get("a.txt")!, /\+\+\+ not a header/);
+  });
+});
+
+describe("attachPatches", () => {
+  const mkFile = (path: string, untracked = false) =>
+    ({ path, status: "M", untracked, insertions: 1, deletions: 1 }) as Parameters<typeof attachPatches>[0][number];
+  const section = (path: string, body: string) =>
+    `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n${body}`;
+
+  it("embeds patches and flags binaries", () => {
+    const files = [mkFile("a.txt"), mkFile("img.png")];
+    const diff = section("a.txt", "@@ -1 +1 @@\n-x\n+y\n")
+      + "diff --git a/img.png b/img.png\nBinary files a/img.png and b/img.png differ\n";
+    attachPatches(files, diff, 1024, 4096);
+    assert.match(files[0].patch!, /\+y/);
+    assert.equal(files[0].binary, false);
+    assert.equal(files[1].binary, true);
+    assert.equal(files[1].patch, "");
+  });
+
+  it("skips untracked files", () => {
+    const files = [mkFile("new.txt", true)];
+    attachPatches(files, section("new.txt", "@@ -0,0 +1 @@\n+hi\n"), 1024, 4096);
+    assert.equal(files[0].patch, undefined);
+  });
+
+  it("truncates oversized files at the per-file cap", () => {
+    const files = [mkFile("big.txt")];
+    const body = "@@ -1 +1,200 @@\n" + "+line\n".repeat(200);
+    attachPatches(files, section("big.txt", body), 256, 4096);
+    assert.equal(files[0].truncated, true);
+    assert.ok(Buffer.byteLength(files[0].patch!, "utf8") <= 256);
+  });
+
+  it("skips files past the total budget so lazy loading serves them whole", () => {
+    const files = [mkFile("a.txt"), mkFile("b.txt")];
+    const body = "@@ -1 +1,20 @@\n" + "+x\n".repeat(20);
+    const diff = section("a.txt", body) + section("b.txt", body);
+    const oneSection = Buffer.byteLength(section("a.txt", body), "utf8");
+    attachPatches(files, diff, 1024, oneSection + 10);
+    assert.ok(files[0].patch);
+    assert.equal(files[1].patch, undefined);
+    assert.equal(files[1].truncated, undefined);
   });
 });

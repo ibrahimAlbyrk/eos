@@ -8,11 +8,9 @@ import { promisify } from "node:util";
 import type { GitInfo, DiffStat, SyncStatus } from "../../../core/src/ports/GitInfo.ts";
 import type { PushState } from "../../../core/src/domain/push-plan.ts";
 import type { ChangedFile, CommitDetail, CommitFile, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
-import { mergeChanges, mergeChangesWithBase, parseNameStatusZ, parseNumstatZ, parsePorcelainZ, truncatePatch } from "./changes-parse.ts";
+import { PATCH_MAX_BYTES, mergeChanges, mergeChangesWithBase, parseNameStatusZ, parseNumstatZ, parsePorcelainZ, truncatePatch } from "./changes-parse.ts";
 
 const exec = promisify(execFile);
-
-const PATCH_MAX_BYTES = 256 * 1024;
 
 // A submodule's working-tree noise (the `-dirty` suffix from modified/untracked
 // content inside it) is not the agent's change — suppress it across every
@@ -299,6 +297,19 @@ export const childProcessGitInfo: GitInfo = {
       return mergeChanges(parsePorcelainZ(status), parseNumstatZ(numstat));
     } catch {
       return [];
+    }
+  },
+
+  async fullDiff(cwd: string, base?: string): Promise<string | null> {
+    try {
+      // Bigger buffer than runGit's: this is the whole tree in one patch.
+      // Overflow rejects → null → the route falls back to per-file diffs.
+      const { stdout } = await exec("git", ["-C", cwd, "diff", ...SUBMODULE_IGNORE, base ?? "HEAD"], {
+        maxBuffer: 32 * 1024 * 1024,
+      });
+      return stdout;
+    } catch {
+      return null;
     }
   },
 

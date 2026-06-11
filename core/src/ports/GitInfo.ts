@@ -29,6 +29,11 @@ export interface GitInfo {
   conflictCount(cwd: string): Promise<number>;
   changedFiles(cwd: string, base?: string): Promise<ChangedFile[]>;
   fileDiff(cwd: string, path: string, oldPath?: string, base?: string): Promise<FileDiffResponse>;
+  /** One whole-tree unified diff (base/HEAD vs working tree) — feeds the
+   *  batched per-file patches of /changes?patches=1. Null when unavailable
+   *  (huge diff overflowing the buffer, no repo) — callers fall back to
+   *  per-file diffs. */
+  fullDiff(cwd: string, base?: string): Promise<string | null>;
   /** Commits the upstream doesn't have (@{u}..HEAD), newest first. Empty when
    *  there's no upstream. */
   unpushedCommits(cwd: string): Promise<UnpushedCommit[]>;
