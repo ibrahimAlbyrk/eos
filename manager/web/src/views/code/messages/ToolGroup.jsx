@@ -1,7 +1,7 @@
 import { ToolItem } from "./ToolItem.jsx";
 import { DisclosureRow } from "./DisclosureRow.jsx";
 
-export function ToolGroup({ summary, tools, open, onToggle, cwd }) {
+export function ToolGroup({ summary, tools, open, onToggle, cwd, workers }) {
   return (
     <div className="tool-group">
       <DisclosureRow expanded={open} onToggle={onToggle} className="tool-group-header">
@@ -10,7 +10,7 @@ export function ToolGroup({ summary, tools, open, onToggle, cwd }) {
       {open && (
         <div className="tool-group-list">
           {tools.map((t, i) => (
-            <ToolItem key={t.id ?? i} tool={t} cwd={cwd} />
+            <ToolItem key={t.id ?? i} tool={t} cwd={cwd} workers={workers} />
           ))}
         </div>
       )}

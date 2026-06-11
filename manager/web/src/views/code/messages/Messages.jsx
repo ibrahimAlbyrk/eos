@@ -398,7 +398,7 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
       // expandedTools holds toggles against the settings-driven default (XOR)
       const open = defaultGroupOpen(b.tools, ui.settings) !== ui.expandedTools.has(groupKey);
-      return <ToolGroup key={key} summary={b.summary} tools={b.tools} cwd={cwd}
+      return <ToolGroup key={key} summary={b.summary} tools={b.tools} cwd={cwd} workers={workers}
         open={open} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
     }
     case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} parent={parent} />;

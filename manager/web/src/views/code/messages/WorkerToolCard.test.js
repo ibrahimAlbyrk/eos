@@ -18,6 +18,17 @@ describe("workerToolDetailText", () => {
     expect(out).toContain("w2 · running");
   });
 
+  it("prefers the name carried in the result over live resolution", () => {
+    const tool = {
+      name: "mcp__orchestrator__list_workers",
+      ...result([{ id: "w9", name: "refactor-auth", state: "completed", prompt: "Rotate tokens" }]),
+    };
+    // No live worker for w9 — the embedded name must still show (not the id).
+    const out = workerToolDetailText(tool, []);
+    expect(out).toContain("refactor-auth · completed");
+    expect(out).not.toContain("w9");
+  });
+
   it("renders informative empty states for the list tools", () => {
     expect(workerToolDetailText({ name: "mcp__orchestrator__list_workers", ...result([]) }, [])).toBe("No workers.");
     expect(

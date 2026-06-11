@@ -3,32 +3,47 @@
 // — only the worker-name resolution (tool input/result JSON) is bespoke;
 // click-to-select is the shared AgentLink.
 
+import { Fragment } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { defaultToolExpanded } from "../../../settings/toolExpansion.js";
+import { WORKER_TOOL_SPECS } from "../../../lib/workerTools.js";
 import { AgentLink } from "./AgentLink.jsx";
 import { DisclosureRow } from "./DisclosureRow.jsx";
 
-const TOOLS = {
-  mcp__orchestrator__spawn_worker: { verb: "Spawned", running: "Spawning", detail: (t) => t.input?.prompt ?? "" },
-  mcp__orchestrator__kill_worker: { verb: "Killed", running: "Killing", detail: killWorkerDetail },
-  mcp__orchestrator__message_worker: { verb: "Messaged", running: "Messaging", detail: (t) => t.input?.text ?? "" },
-  mcp__orchestrator__get_worker: { verb: "Checked", running: "Checking", detail: getWorkerDetail },
-  mcp__orchestrator__list_workers: { verb: "Listed", running: "Listing", detail: listWorkersDetail },
-  mcp__orchestrator__list_pending_permissions: { verb: "Checked", running: "Checking", detail: pendingPermissionsDetail },
+// Verb/running labels live in lib/workerTools.js (shared with the parser's
+// lane grouping); this map owns only the expanded body. `detail` → plain-text
+// body. `rows` → a worker-keyed row list rendered with clickable AgentLinks
+// (and serialized to the same text for the expand gate).
+const BODIES = {
+  mcp__orchestrator__spawn_worker: { detail: (t) => t.input?.prompt ?? "" },
+  mcp__orchestrator__kill_worker: { detail: killWorkerDetail },
+  mcp__orchestrator__message_worker: { detail: (t) => t.input?.text ?? "" },
+  mcp__orchestrator__get_worker: { detail: getWorkerDetail },
+  mcp__orchestrator__list_workers: { rows: listWorkersRows, emptyText: "No workers." },
+  mcp__orchestrator__list_pending_permissions: { rows: pendingRows, emptyText: "No pending permissions." },
 };
-
-export function isWorkerTool(name) {
-  return Object.hasOwn(TOOLS, name);
-}
 
 // The expanded body text for a worker tool — error text when the call failed,
 // otherwise a readable summary of the tool's result JSON. Same plain-text
 // design as spawn/message (rendered in the shared report-detail block).
 export function workerToolDetailText(tool, workers) {
-  const spec = TOOLS[tool.name];
-  if (!spec) return "";
+  const body = BODIES[tool.name];
+  if (!body) return "";
   if (tool.result?.isError) return tool.result?.text ?? "";
-  return spec.detail?.(tool, workers) ?? "";
+  if (body.rows) return rowsToText(body.rows(tool, workers), body.emptyText);
+  return body.detail?.(tool, workers) ?? "";
+}
+
+// Each row: { id, name, meta, sub }. Head = "name · meta", sub on its own line.
+function rowsToText(rows, emptyText) {
+  if (!rows) return "";
+  if (rows.length === 0) return emptyText ?? "";
+  return rows
+    .map((r) => {
+      const head = joinDot([r.name, r.meta]);
+      return r.sub ? `${head}\n${r.sub}` : head;
+    })
+    .join("\n\n");
 }
 
 function clip(s, n = 140) {
@@ -43,17 +58,12 @@ function nameOf(id, workers) {
   return live?.name ?? id ?? "worker";
 }
 
-function listWorkersDetail(tool, workers) {
+function listWorkersRows(tool, workers) {
   const res = parseResultJson(tool);
-  if (!Array.isArray(res)) return "";
-  if (res.length === 0) return "No workers.";
-  return res
-    .map((w) => {
-      const head = joinDot([nameOf(w.id, workers), w.state]);
-      const prompt = clip(w.prompt);
-      return prompt ? `${head}\n${prompt}` : head;
-    })
-    .join("\n\n");
+  if (!Array.isArray(res)) return null;
+  // Prefer the name carried in the result snapshot (correct even for workers
+  // that no longer exist); fall back to live resolution for old transcripts.
+  return res.map((w) => ({ id: w.id, name: w.name || nameOf(w.id, workers), meta: w.state ?? "", sub: clip(w.prompt) }));
 }
 
 function getWorkerDetail(tool) {
@@ -73,17 +83,10 @@ function killWorkerDetail(tool) {
   return joinDot([res.state, res.branch]);
 }
 
-function pendingPermissionsDetail(tool, workers) {
+function pendingRows(tool, workers) {
   const res = parseResultJson(tool);
-  if (!Array.isArray(res)) return "";
-  if (res.length === 0) return "No pending permissions.";
-  return res
-    .map((p) => {
-      const head = joinDot([nameOf(p.worker_id, workers), p.tool]);
-      const input = pendingInputSummary(p.input);
-      return input ? `${head}\n${input}` : head;
-    })
-    .join("\n\n");
+  if (!Array.isArray(res)) return null;
+  return res.map((p) => ({ id: p.worker_id, name: nameOf(p.worker_id, workers), meta: p.tool ?? "", sub: pendingInputSummary(p.input) }));
 }
 
 function pendingInputSummary(input) {
@@ -130,7 +133,8 @@ function Target({ tool, workers }) {
 
 export function WorkerToolCard({ tool, workers, standalone }) {
   const ui = useUi();
-  const spec = TOOLS[tool.name];
+  const spec = WORKER_TOOL_SPECS[tool.name];
+  const body = BODIES[tool.name];
   // tool.running is authoritative — computed once in messageParser from the
   // tool lifecycle (results, tool_done, turn/exit barriers).
   const running = tool.running === true;
@@ -157,9 +161,29 @@ export function WorkerToolCard({ tool, workers, standalone }) {
       </DisclosureRow>
       {expanded && (
         <div className="report-detail" style={{ marginLeft: 0 }}>
-          <div className="report-detail-text">{detail}</div>
+          {!failure && body?.rows
+            ? <RowsBody rows={body.rows(tool, workers)} emptyText={body.emptyText} workers={workers} />
+            : <div className="report-detail-text">{detail}</div>}
         </div>
       )}
+    </div>
+  );
+}
+
+// Same pre-wrap layout as the plain-text body, but each row's worker name is a
+// click-to-select AgentLink — identical affordance to the header Target.
+function RowsBody({ rows, emptyText, workers }) {
+  if (!rows || rows.length === 0) return <div className="report-detail-text">{emptyText}</div>;
+  return (
+    <div className="report-detail-text">
+      {rows.map((r, i) => (
+        <Fragment key={r.id ?? i}>
+          {i > 0 && "\n\n"}
+          <AgentLink id={r.id} name={r.name} workers={workers} />
+          {r.meta ? ` · ${r.meta}` : ""}
+          {r.sub ? `\n${r.sub}` : ""}
+        </Fragment>
+      ))}
     </div>
   );
 }

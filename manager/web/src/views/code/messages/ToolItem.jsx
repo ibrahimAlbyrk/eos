@@ -2,14 +2,15 @@ import { useState, useEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { defaultToolExpanded } from "../../../settings/toolExpansion.js";
 import { getToolView } from "./toolViews.jsx";
-import { WorkerToolCard, isWorkerTool } from "./WorkerToolCard.jsx";
+import { isWorkerToolName } from "../../../lib/workerTools.js";
+import { WorkerToolCard } from "./WorkerToolCard.jsx";
 import { AgentLink } from "./AgentLink.jsx";
 import { DisclosureRow } from "./DisclosureRow.jsx";
 
 const APPEAR_MS = 600;
 
 export function ToolItem({ tool, standalone, cwd, workers, parent }) {
-  if (isWorkerTool(tool.name)) return <WorkerToolCard tool={tool} workers={workers} standalone={standalone} />;
+  if (isWorkerToolName(tool.name)) return <WorkerToolCard tool={tool} workers={workers} standalone={standalone} />;
   return <PlainToolItem tool={tool} standalone={standalone} cwd={cwd} workers={workers} parent={parent} />;
 }
 
