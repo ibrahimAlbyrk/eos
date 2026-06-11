@@ -12,6 +12,7 @@ import { useClockTick } from "./useClockTick.js";
 import { usePendingPermissions } from "./usePendingPermissions.js";
 import { applyCatalog } from "../lib/models.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
+import { cancelQueued } from "../state/outboxStore.js";
 
 const POLL_MS = 4000;
 const SSE_DEBOUNCE_MS = 80;
@@ -166,6 +167,9 @@ export function useLive() {
 
   const interruptAgent = useCallback(async (id) => {
     setInterruptedId(id);
+    // Esc cancels what the user queued — the daemon clears its pending rows
+    // before the IDLE transition; mirror that on the pills instantly.
+    cancelQueued(id);
     const r = await api.interruptWorker(id);
     scheduleRefetch();
     return r;

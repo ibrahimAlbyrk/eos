@@ -32,3 +32,22 @@ export function agentIdAtIndex(workers, collapsed, index) {
   const flat = flattenVisibleAgents(buildAgentTree(workers), collapsed);
   return flat[index]?.id ?? null;
 }
+
+// rootId plus all its descendants. Used to purge per-agent UI state when a
+// delete cascades to children daemon-side.
+export function subtreeIds(workers, rootId) {
+  const childrenOf = new Map();
+  for (const w of workers) {
+    if (!w.parent_id) continue;
+    if (!childrenOf.has(w.parent_id)) childrenOf.set(w.parent_id, []);
+    childrenOf.get(w.parent_id).push(w.id);
+  }
+  const out = [];
+  const stack = [rootId];
+  while (stack.length) {
+    const id = stack.pop();
+    out.push(id);
+    for (const c of childrenOf.get(id) ?? []) stack.push(c);
+  }
+  return out;
+}

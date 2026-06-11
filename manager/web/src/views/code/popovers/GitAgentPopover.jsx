@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { gitAgentName } from "../../../lib/gitAgentName.js";
+import { addDispatched } from "../../../state/outboxStore.js";
 
 const EMPTY = { isGit: true, current: null, branches: [], ahead: 0, behind: 0, conflicts: 0 };
 
@@ -105,7 +106,7 @@ export function GitAgentPopover({ live, cwd }) {
     );
     if (r?.ok && r.body?.id) {
       ui.setSelectedId(r.body.id);
-      ui.addOptimisticUserMessage(r.body.id, prompt, prompt);
+      addDispatched(r.body.id, { text: prompt });
     } else if (!r?.ok) {
       alert(r?.body?.error ?? "git agent spawn failed");
     }

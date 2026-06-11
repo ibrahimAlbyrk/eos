@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { agentIdAtIndex } from "./tree.js";
+import { agentIdAtIndex, subtreeIds } from "./tree.js";
 
 const w = (id, parent_id = null, started_at = 0) => ({ id, parent_id, started_at });
 
@@ -32,5 +32,23 @@ describe("agentIdAtIndex", () => {
   it("returns null when index is out of range", () => {
     expect(agentIdAtIndex(workers, none, 5)).toBeNull();
     expect(agentIdAtIndex([], none, 0)).toBeNull();
+  });
+});
+
+describe("subtreeIds", () => {
+  const deep = [...workers, w("subA1a", "workerA1", 1150)];
+
+  it("collects the root and all descendants", () => {
+    expect(new Set(subtreeIds(deep, "orchA"))).toEqual(
+      new Set(["orchA", "workerA1", "workerA2", "subA1a"]),
+    );
+  });
+
+  it("returns just the id for a leaf", () => {
+    expect(subtreeIds(deep, "workerB1")).toEqual(["workerB1"]);
+  });
+
+  it("ignores unrelated branches", () => {
+    expect(subtreeIds(deep, "orchB")).toEqual(["orchB", "workerB1"]);
   });
 });

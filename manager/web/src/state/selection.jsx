@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
 import { openPanel, closePanel, popPanel, topPanel, updatePanelData } from "../lib/panelStack.js";
+import { loadCollapsedNodes, saveCollapsedNodes } from "../lib/collapseMemory.js";
 
 const SelectionContext = createContext(null);
 
@@ -31,7 +32,8 @@ export function SelectionProvider({ children }) {
   const [openPopover, setOpenPopover] = useState(null);
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
   const [popoverData, setPopoverData] = useState({});
-  const [collapsedNodes, setCollapsedNodes] = useState(() => new Set());
+  const [collapsedNodes, setCollapsedNodes] = useState(() => loadCollapsedNodes());
+  useEffect(() => { saveCollapsedNodes(collapsedNodes); }, [collapsedNodes]);
   const [expandedTools, setExpandedTools] = useState(() => new Set());
   // Right-panel navigation stack (see lib/panelStack.js). The four viewer
   // fields derive from anywhere in the stack so buried panels stay MOUNTED —
@@ -117,6 +119,15 @@ export function SelectionProvider({ children }) {
     });
   }, []);
 
+  const removeCollapsedNodes = useCallback((ids) => {
+    setCollapsedNodes((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      for (const id of ids) if (next.delete(id)) changed = true;
+      return changed ? next : prev;
+    });
+  }, []);
+
   const toggleToolExpanded = useCallback((id) => {
     setExpandedTools((prev) => {
       const next = new Set(prev);
@@ -146,7 +157,7 @@ export function SelectionProvider({ children }) {
     selectedId, setSelectedId, takePreviousSelection,
     sideCollapsed, setSideCollapsed,
     openPopover, openPop, closeAllPops, popoverPos, popoverData,
-    collapsedNodes, toggleNodeCollapsed,
+    collapsedNodes, toggleNodeCollapsed, removeCollapsedNodes,
     expandedTools, toggleToolExpanded, resetToolToggles,
     renamingId, setRenamingId,
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
@@ -164,7 +175,7 @@ export function SelectionProvider({ children }) {
     sideCollapsed, openPopover, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, panelStack,
     rewindPanel, openRewindPanel, closeRewindPanel,
-    openPop, closeAllPops, toggleNodeCollapsed, toggleToolExpanded, resetToolToggles,
+    openPop, closeAllPops, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
     openFileViewer, closeFileViewer,
     openAgentViewer, closeAgentViewer, syncAgentViewer,
     openDiffViewer, closeDiffViewer,
