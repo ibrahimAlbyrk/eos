@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildBlocks, buildSummary, gitActions, applyRewinds, applyClears, sortBlocksByTs } from "./messageParser.js";
+import { buildBlocks, buildSummary, buildWorkerSummary, gitActions, applyRewinds, applyClears, sortBlocksByTs } from "./messageParser.js";
 
 function agentRow(id, ts) {
   return { type: "jsonl", ts, payload: { kind: "tool_use", id, name: "Agent", input: { description: id } } };
@@ -259,6 +259,59 @@ describe("buildBlocks standalone tools", () => {
     const blocks = buildBlocks(events);
     expect(blocks.map((b) => b.kind)).toEqual(["tool", "tool", "tool"]);
     expect(blocks[1].tool.name).toBe("AskUserQuestion");
+  });
+});
+
+describe("buildBlocks worker-tool lane", () => {
+  const kill = (id, ts) => mainToolUse(id, ts, "mcp__orchestrator__kill_worker");
+  const spawn = (id, ts) => mainToolUse(id, ts, "mcp__orchestrator__spawn_worker");
+
+  it("collapses consecutive worker tools into one group with a worker summary", () => {
+    const blocks = buildBlocks([kill("K1", 100), kill("K2", 101), kill("K3", 102)]);
+    expect(blocks.map((b) => b.kind)).toEqual(["toolGroup"]);
+    expect(blocks[0].lane).toBe("worker");
+    expect(blocks[0].tools.map((t) => t.id)).toEqual(["K1", "K2", "K3"]);
+    expect(blocks[0].summary).toBe("Killed 3 workers");
+  });
+
+  it("summarizes mixed worker tools per verb in first-appearance order", () => {
+    const blocks = buildBlocks([spawn("S1", 100), spawn("S2", 101), kill("K1", 102)]);
+    expect(blocks.map((b) => b.kind)).toEqual(["toolGroup"]);
+    expect(blocks[0].summary).toBe("Spawned 2 workers, killed 1 worker");
+  });
+
+  it("does not merge worker tools into a generic group — a lane change splits the run", () => {
+    const events = [mainToolUse("T1", 100), mainToolUse("T2", 101), kill("K1", 102), kill("K2", 103), mainToolUse("T3", 104)];
+    const blocks = buildBlocks(events);
+    expect(blocks.map((b) => b.kind)).toEqual(["toolGroup", "toolGroup", "tool"]);
+    expect(blocks[0].lane).toBe("generic");
+    expect(blocks[1].lane).toBe("worker");
+    expect(blocks[1].tools.map((t) => t.id)).toEqual(["K1", "K2"]);
+    expect(blocks[2].tool.id).toBe("T3");
+  });
+
+  it("keeps a lone worker tool as a standalone tool block", () => {
+    const blocks = buildBlocks([kill("K1", 100)]);
+    expect(blocks.map((b) => b.kind)).toEqual(["tool"]);
+    expect(blocks[0].tool.id).toBe("K1");
+  });
+
+  it("phrases noun-less worker tools with ×n", () => {
+    const t = (name) => ({ name });
+    expect(buildWorkerSummary([t("mcp__orchestrator__list_workers"), t("mcp__orchestrator__list_workers")])).toBe("Listed workers ×2");
+    expect(buildWorkerSummary([t("mcp__orchestrator__get_worker"), t("mcp__orchestrator__list_pending_permissions")]))
+      .toBe("Checked 1 worker, checked pending permissions");
+  });
+
+  it("groups worker tools arriving via tool_running events", () => {
+    const events = [
+      { type: "tool_running", ts: 100, payload: { toolName: "mcp__orchestrator__kill_worker", toolUseId: "K1", input: {} } },
+      { type: "tool_running", ts: 101, payload: { toolName: "mcp__orchestrator__kill_worker", toolUseId: "K2", input: {} } },
+    ];
+    const blocks = buildBlocks(events);
+    expect(blocks.map((b) => b.kind)).toEqual(["toolGroup"]);
+    expect(blocks[0].lane).toBe("worker");
+    expect(blocks[0].summary).toBe("Killed 2 workers");
   });
 });
 

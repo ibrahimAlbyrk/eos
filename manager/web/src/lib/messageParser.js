@@ -1,5 +1,6 @@
 import { deriveToolLifecycle, parsePayload } from "./toolLifecycle.js";
 import { parseSkillBody } from "./skillBody.js";
+import { isWorkerToolName, WORKER_TOOL_SPECS } from "./workerTools.js";
 
 export { parsePayload };
 
@@ -11,14 +12,15 @@ export const STANDALONE_TOOLS = new Set([
   "EnterPlanMode",
   "ExitPlanMode",
   "mcp__orchestrator__notify_user",
-  "mcp__orchestrator__message_worker",
-  "mcp__orchestrator__spawn_worker",
-  "mcp__orchestrator__kill_worker",
-  "mcp__orchestrator__get_worker",
-  "mcp__orchestrator__list_workers",
-  "mcp__orchestrator__list_pending_permissions",
   "mcp__worker__send_message_to_parent",
 ]);
+
+// Grouping lanes: a consecutive run of same-lane tools collapses into one
+// toolGroup; a lane change flushes the run. null = standalone, never groups.
+const laneOf = (name) =>
+  STANDALONE_TOOLS.has(name) ? null
+  : isWorkerToolName(name) ? "worker"
+  : "generic";
 
 // conversation_cleared (/clear) wipes the visible history: everything before
 // the last marker is dropped (display-only — the events store keeps it). The
@@ -166,24 +168,35 @@ export function buildBlocks(events) {
   const out = [];
   let lastAsst = null;
   let pendingTools = [];
+  let pendingLane = null;
 
   const flushTools = () => {
     if (pendingTools.length === 0) return;
     if (pendingTools.length === 1) {
       out.push({ kind: "tool", tool: pendingTools[0], ts: pendingTools[0].ts });
     } else {
-      out.push({ kind: "toolGroup", summary: buildSummary(pendingTools), tools: [...pendingTools], ts: pendingTools[0].ts });
+      out.push({
+        kind: "toolGroup",
+        lane: pendingLane,
+        summary: LANES[pendingLane].summarize(pendingTools),
+        tools: [...pendingTools],
+        ts: pendingTools[0].ts,
+      });
     }
     pendingTools = [];
+    pendingLane = null;
   };
 
   const pushTool = (tool) => {
-    if (STANDALONE_TOOLS.has(tool.name)) {
+    const lane = laneOf(tool.name);
+    if (lane === null) {
       flushTools();
       out.push({ kind: "tool", tool, ts: tool.ts });
-    } else {
-      pendingTools.push(tool);
+      return;
     }
+    if (pendingTools.length > 0 && lane !== pendingLane) flushTools();
+    pendingLane = lane;
+    pendingTools.push(tool);
   };
 
   for (let evIdx = 0; evIdx < events.length; evIdx++) {
@@ -452,6 +465,8 @@ export function buildSummary(tools) {
   let edits = 0;
   let skills = 0;
   let notifies = 0;
+  let webSearches = 0;
+  let webFetches = 0;
   let shells = 0;
   let others = 0;
   const gitVerbs = [];
@@ -460,6 +475,8 @@ export function buildSummary(tools) {
     if (t.name === "Read") reads++;
     else if (t.verb === "edit") edits++;
     else if (t.name === "Skill") skills++;
+    else if (t.name === "WebSearch") webSearches++;
+    else if (t.name === "WebFetch") webFetches++;
     else if (t.name === "mcp__orchestrator__notify_user") notifies++;
     else if (t.name === "Bash") {
       const actions = gitActions(t);
@@ -477,6 +494,8 @@ export function buildSummary(tools) {
   if (reads > 0) parts.push(`Read ${reads} file${reads > 1 ? "s" : ""}`);
   if (edits > 0) parts.push(`Edited ${edits} file${edits > 1 ? "s" : ""}`);
   if (skills > 0) parts.push(`Used ${skills} skill${skills > 1 ? "s" : ""}`);
+  if (webSearches > 0) parts.push(`Searched the web${webSearches > 1 ? ` ×${webSearches}` : ""}`);
+  if (webFetches > 0) parts.push(`Fetched ${webFetches} page${webFetches > 1 ? "s" : ""}`);
   if (notifies > 0) parts.push("Notified user");
   for (const { verb, n } of gitVerbs) {
     if (verb === "Committed" && commitShas.length > 0) parts.push(`Committed ${commitShas.join(", ")}`);
@@ -486,6 +505,24 @@ export function buildSummary(tools) {
   if (others > 0) parts.push(`used ${others} tool${others > 1 ? "s" : ""}`);
   return parts.join(", ");
 }
+
+// Per-tool counts in first-appearance order; only the first part keeps its
+// capitalized verb ("Spawned 2 workers, killed 1 worker").
+export function buildWorkerSummary(tools) {
+  const counts = new Map();
+  for (const t of tools) counts.set(t.name, (counts.get(t.name) ?? 0) + 1);
+  const parts = [];
+  for (const [name, n] of counts) {
+    const phrase = WORKER_TOOL_SPECS[name].summary(n);
+    parts.push(parts.length === 0 ? phrase : phrase[0].toLowerCase() + phrase.slice(1));
+  }
+  return parts.join(", ");
+}
+
+const LANES = {
+  generic: { summarize: buildSummary },
+  worker: { summarize: buildWorkerSummary },
+};
 
 export function verbFor(name) {
   const n = String(name || "").toLowerCase();
