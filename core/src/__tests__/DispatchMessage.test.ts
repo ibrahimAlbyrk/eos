@@ -139,6 +139,30 @@ describe("dispatchMessage — daemon-side queue + idempotency", () => {
     assert.equal(queueRows[0].dispatchedAt, 1234);
   });
 
+  it("queueWhenBusy + IDLE with a pending backlog queues — never overtakes the drain", async () => {
+    // The live race: msg lands in the Stop→drain window (state already IDLE,
+    // rows still pending) and a direct dispatch would reach the PTY before
+    // the drained backlog. It must queue behind the rows instead.
+    const { deps, clientSends, queueRows, published } = buildDeps({ state: "WORKING" });
+    await dispatchMessage(deps, { workerId: "w1", text: "first", clientMsgId: "c1", queueWhenBusy: true });
+    (deps.workers.findById("w1") as { state: string }).state = "IDLE";
+    const r = await dispatchMessage(deps, { workerId: "w1", text: "second", clientMsgId: "c2", queueWhenBusy: true });
+    assert.equal(r.status, 202);
+    assert.deepEqual(r.body, { ok: true, queued: true, queueId: 2 });
+    assert.equal(clientSends.length, 0);
+    assert.equal(queueRows.filter((row) => row.dispatchedAt === null).length, 2);
+    // the enqueue signal still fires so the drain picks both up immediately
+    assert.ok(published.some((p) => p.topic === "worker:change" && (p.payload as { queued?: boolean }).queued === true));
+  });
+
+  it("queueWhenBusy + IDLE with only ledger rows (no pending) still dispatches directly", async () => {
+    const { deps, clientSends } = buildDeps();
+    await dispatchMessage(deps, { workerId: "w1", text: "first", clientMsgId: "c1" });
+    const r = await dispatchMessage(deps, { workerId: "w1", text: "second", clientMsgId: "c2", queueWhenBusy: true });
+    assert.equal(r.status, 200);
+    assert.equal(clientSends.length, 2);
+  });
+
   it("duplicate clientMsgId is a no-op: one send, second returns deduped", async () => {
     const { deps, clientSends } = buildDeps();
     await dispatchMessage(deps, { workerId: "w1", text: "hello", clientMsgId: "c1" });
@@ -180,6 +204,21 @@ describe("dispatchMessage — daemon-side queue + idempotency", () => {
     assert.deepEqual(sends[0].record, { as: "user_message", sentAt: 1234, clientMsgIds: ["c1", "c2"] });
     // no claim row for the drain dispatch itself — only the unkeyed audit row
     assert.equal(queueRows.filter((r) => r.clientMsgId !== null).length, 0);
+  });
+
+  it("clears the settle window only on an actual dispatch — never on enqueue or dedup", async () => {
+    const cleared: string[] = [];
+    const working = buildDeps({ state: "WORKING" });
+    (working.deps as { clearTurnSettle?: (id: string) => void }).clearTurnSettle = (id) => cleared.push(id);
+    await dispatchMessage(working.deps, { workerId: "w1", text: "later", clientMsgId: "c1", queueWhenBusy: true });
+    assert.deepEqual(cleared, []); // enqueue must not re-open the trailing-jsonl gate
+
+    const idle = buildDeps();
+    (idle.deps as { clearTurnSettle?: (id: string) => void }).clearTurnSettle = (id) => cleared.push(id);
+    await dispatchMessage(idle.deps, { workerId: "w1", text: "now", clientMsgId: "c2" });
+    assert.deepEqual(cleared, ["w1"]);
+    await dispatchMessage(idle.deps, { workerId: "w1", text: "now", clientMsgId: "c2" });
+    assert.deepEqual(cleared, ["w1"]); // deduped repeat is not a new turn
   });
 
   it("unkeyed same-text re-dispatch within the window leaves the forensic event", async () => {

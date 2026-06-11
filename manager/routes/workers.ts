@@ -43,6 +43,7 @@ import { resolveWorkerAction } from "../services/worker-actions.ts";
 import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
 import { decidePushPlan, isActionablePushPlan } from "../../core/src/domain/push-plan.ts";
 import { resolveSpawnIsolation } from "../../core/src/domain/worktree-policy.ts";
+import { attachPatches, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES } from "../../infra/src/git/changes-parse.ts";
 
 // Where the agent actually edits: the worktree dir when spawned with a
 // worktree (cwd is NULL for those rows), plain cwd otherwise. worktree_from
@@ -212,6 +213,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     // before it. Synthesized here because the signal arrives as a plain hook.
     const hp = body.payload as { event?: string; body?: { reason?: string; session_id?: string } } | undefined;
     if (body.type === "hook" && hp?.event === "SessionEnd" && hp?.body?.reason === "clear") {
+      // Same cancel semantics as interrupt: messages queued against the old
+      // conversation must not drain into the fresh context at the next IDLE.
+      const clearedQueued = c.messageQueue.clearPending(params.id);
+      if (clearedQueued > 0) c.log.info("/clear cleared queued messages", { workerId: params.id, count: clearedQueued });
       const rowId = c.events.append(params.id, c.clock.now(), "conversation_cleared", {
         prevSessionId: hp.body?.session_id ?? null,
       });
@@ -254,7 +259,6 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       return;
     }
 
-    c.turnSettle.clear(params.id);
     const result = await dispatchMessage(
       dispatchDeps(c),
       {
@@ -297,7 +301,6 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const target = c.workers.findById(params.id);
     if (!target) { writeJson(res, 404, { error: "worker not found" }); return; }
     await resumeIfDead(c, target);
-    c.turnSettle.clear(params.id);
     const result = await dispatchMessage(
       dispatchDeps(c),
       { workerId: params.id, text: prompt, displayText: display, origin: "action" },
@@ -595,12 +598,21 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     });
   });
 
-  r.get(/^\/workers\/(?<id>[^/]+)\/changes$/, async ({ params, res }) => {
+  r.get(/^\/workers\/(?<id>[^/]+)\/changes$/, async ({ params, url, res }) => {
     // Same 200+empty convention as /diff above.
     const w = c.workers.findById(params.id);
     const dir = gitDirOf(w);
     if (!dir) { writeJson(res, 200, { files: [], insertions: 0, deletions: 0 }); return; }
-    const files = await c.git.changedFiles(dir, await diffBaseOf(c, w));
+    const base = await diffBaseOf(c, w);
+    // ?patches=1 embeds per-file patches split from ONE whole-tree diff —
+    // 2 git spawns total instead of 2 per file. fullDiff null (overflow) or a
+    // missing/over-budget section ⇒ that file keeps lazy per-file loading.
+    const wantPatches = url.searchParams.get("patches") === "1";
+    const [files, full] = await Promise.all([
+      c.git.changedFiles(dir, base),
+      wantPatches ? c.git.fullDiff(dir, base) : Promise.resolve(null),
+    ]);
+    if (full !== null) attachPatches(files, full, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES);
     writeJson(res, 200, {
       files,
       insertions: files.reduce((n, f) => n + (f.insertions ?? 0), 0),

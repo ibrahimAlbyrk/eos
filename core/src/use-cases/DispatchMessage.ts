@@ -44,6 +44,11 @@ export interface DispatchMessageDeps {
   /** True for orchestrator targets — used by the route to gate this
    * use-case (404 if the target isn't an orchestrator). */
   requireOrchestrator?: boolean;
+  /** TurnSettleService.clear — called ONLY when a message actually dispatches
+   * (a genuine new turn). An enqueue must NOT clear the settle window: that
+   * would re-open the trailing-jsonl false-WORKING gate right when the drain
+   * needs a stable IDLE, starving the queue. */
+  clearTurnSettle?(workerId: string): void;
   excerptLimit?: number;
 }
 
@@ -91,11 +96,20 @@ export async function dispatchMessage(
   const now = deps.clock.now();
 
   // Dashboard sends hold here while a turn is running and dispatch at the
-  // next IDLE (DrainQueuedMessages). WORKING only — a SPAWNING worker buffers
-  // pre-boot writes itself (readiness gate), and gating on SPAWNING would
-  // deadlock resumed sessions that only reach IDLE through a turn.
+  // next IDLE (DrainQueuedMessages). Two cases queue:
+  //   WORKING        — a turn is running.
+  //   IDLE + backlog — pending rows exist; a direct dispatch would OVERTAKE
+  //                    them (observed live: a send landing in the Stop→drain
+  //                    window raced the drain and reached the PTY first, and
+  //                    both then delivered interleaved). Enqueueing instead
+  //                    lets the drain ship everything as one ordered dispatch
+  //                    (the queued:true signal below triggers it immediately).
+  // SPAWNING never queues — the worker-side readiness gate buffers pre-boot
+  // writes, and gating on SPAWNING would deadlock resumed sessions that only
+  // reach IDLE through a turn (with queued rows, nothing would start one).
   const state = String(w.state).toUpperCase();
-  if (input.queueWhenBusy && state === "WORKING") {
+  const hasBacklog = (): boolean => deps.queue.listPending(input.workerId).length > 0;
+  if (input.queueWhenBusy && (state === "WORKING" || (state === "IDLE" && hasBacklog()))) {
     const queueId = deps.queue.insert({
       workerId: input.workerId,
       clientMsgId: input.clientMsgId ?? null,
@@ -151,6 +165,10 @@ export async function dispatchMessage(
   const rollbackClaim = (): void => {
     if (claimId !== null) deps.queue.removeById(claimId);
   };
+
+  // A real dispatch starts a genuine new turn — the settle window must not
+  // suppress its WORKING lift or its first transcript events.
+  deps.clearTurnSettle?.(input.workerId);
 
   let result;
   let selfReports: boolean;

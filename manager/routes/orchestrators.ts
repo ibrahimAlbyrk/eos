@@ -59,7 +59,6 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const body = validate(MessageRequestSchema, await readBody(req));
     const target = c.workers.findById(params.id);
     if (target) await resumeIfDead(c, target);
-    c.turnSettle.clear(params.id);
     const result = await dispatchMessage(
       dispatchDeps(c, { requireOrchestrator: true, excerptLimit: 500 }),
       {

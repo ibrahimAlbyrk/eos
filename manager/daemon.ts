@@ -77,23 +77,41 @@ registerPendingRoutes(router, c);
 // in-flight set keeps bus bursts from double-draining; the use-case re-checks
 // state + pending rows itself, so a spurious trigger is a no-op.
 const draining = new Set<string>();
+const drainFor = (workerId: string): void => {
+  if (draining.has(workerId)) return;
+  draining.add(workerId);
+  void (async () => {
+    try {
+      return await drainQueuedMessages(
+        {
+          workers: c.workers, queue: c.messageQueue, clock: c.clock, log: c.log,
+          clearTurnSettle: (id) => c.turnSettle.clear(id),
+          dispatch: (input) => dispatchMessage(dispatchDeps(c), input),
+        },
+        { workerId },
+      );
+    } catch (e) {
+      c.log.warn("queue drain error", { workerId, error: e instanceof Error ? e.message : String(e) });
+      return "failed" as const;
+    } finally {
+      draining.delete(workerId);
+    }
+  })().then((outcome) => {
+    // A row enqueued while this pass was in flight had its queued:true
+    // trigger swallowed by the in-flight guard — re-run once for it. Only
+    // "empty" re-runs: "dispatched" lifted the worker to WORKING (its Stop
+    // triggers the next drain), "not-idle" waits for the next IDLE
+    // transition, and "failed" retrying here would hot-loop on a dead port.
+    if (outcome === "empty" && c.messageQueue.listPending(workerId).length > 0) {
+      drainFor(workerId);
+    }
+  });
+};
 c.bus.subscribe("worker:change", (msg) => {
   const p = msg.payload as { workerId?: string; state?: string; queued?: boolean };
   if (!p?.workerId) return;
   if (p.state !== "IDLE" && p.queued !== true) return;
-  const workerId = p.workerId;
-  if (draining.has(workerId)) return;
-  draining.add(workerId);
-  void drainQueuedMessages(
-    {
-      workers: c.workers, queue: c.messageQueue, clock: c.clock, log: c.log,
-      clearTurnSettle: (id) => c.turnSettle.clear(id),
-      dispatch: (input) => dispatchMessage(dispatchDeps(c), input),
-    },
-    { workerId },
-  )
-    .catch((e) => c.log.warn("queue drain error", { workerId, error: e instanceof Error ? e.message : String(e) }))
-    .finally(() => draining.delete(workerId));
+  drainFor(p.workerId);
 });
 
 function makeHandler(router: Router) {

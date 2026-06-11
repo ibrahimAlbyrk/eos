@@ -343,9 +343,9 @@ export const api = {
     }
   },
 
-  async getWorkerChanges(id) {
+  async getWorkerChanges(id, { patches = false } = {}) {
     try {
-      const r = await getJson(ROUTES.workerChanges(id));
+      const r = await getJson(ROUTES.workerChanges(id) + (patches ? "?patches=1" : ""));
       return r.ok ? r.body : { files: [], insertions: 0, deletions: 0 };
     } catch {
       return { files: [], insertions: 0, deletions: 0 };

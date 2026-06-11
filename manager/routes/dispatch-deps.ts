@@ -19,6 +19,9 @@ export function dispatchDeps(
     backends: c.backends,
     log: c.log,
     isLive: (id: string) => c.supervisor.has(id),
+    // Cleared inside the use-case ONLY when the message actually dispatches —
+    // an enqueue must leave the settle window alone (see DispatchMessageDeps).
+    clearTurnSettle: (id: string) => c.turnSettle.clear(id),
     ...(opts.requireOrchestrator ? { requireOrchestrator: true } : {}),
     excerptLimit: opts.excerptLimit ?? 200,
   };
