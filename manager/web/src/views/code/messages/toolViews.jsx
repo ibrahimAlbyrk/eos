@@ -37,6 +37,15 @@ function fileName(p) {
   return parts[parts.length - 1] || p;
 }
 
+function hostOf(url) {
+  if (!url) return "";
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+}
+
 const filePathOf = (t) => t.input?.file_path ?? null;
 
 register("Read", {
@@ -70,6 +79,16 @@ register("Bash", {
 const searchLabel = (t) => ({ verb: "Searching", file: t.input?.pattern ?? t.input?.query ?? "" });
 register("Glob", { runningLabel: searchLabel });
 register("Grep", { runningLabel: searchLabel });
+
+register("WebSearch", {
+  label: (t) => ({ verb: "Searched the web", file: t.input?.query ?? "" }),
+  runningLabel: (t) => ({ verb: "Searching the web", file: t.input?.query ?? "" }),
+});
+
+register("WebFetch", {
+  label: (t) => ({ verb: "Fetched", file: hostOf(t.input?.url) }),
+  runningLabel: (t) => ({ verb: "Fetching", file: hostOf(t.input?.url) }),
+});
 
 register("AskUserQuestion", {
   label: () => ({ verb: "Asked", file: "user" }),

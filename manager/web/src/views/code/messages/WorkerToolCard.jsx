@@ -10,15 +10,88 @@ import { DisclosureRow } from "./DisclosureRow.jsx";
 
 const TOOLS = {
   mcp__orchestrator__spawn_worker: { verb: "Spawned", running: "Spawning", detail: (t) => t.input?.prompt ?? "" },
-  mcp__orchestrator__kill_worker: { verb: "Killed", running: "Killing" },
+  mcp__orchestrator__kill_worker: { verb: "Killed", running: "Killing", detail: killWorkerDetail },
   mcp__orchestrator__message_worker: { verb: "Messaged", running: "Messaging", detail: (t) => t.input?.text ?? "" },
-  mcp__orchestrator__get_worker: { verb: "Checked", running: "Checking" },
-  mcp__orchestrator__list_workers: { verb: "Listed", running: "Listing" },
-  mcp__orchestrator__list_pending_permissions: { verb: "Checked", running: "Checking" },
+  mcp__orchestrator__get_worker: { verb: "Checked", running: "Checking", detail: getWorkerDetail },
+  mcp__orchestrator__list_workers: { verb: "Listed", running: "Listing", detail: listWorkersDetail },
+  mcp__orchestrator__list_pending_permissions: { verb: "Checked", running: "Checking", detail: pendingPermissionsDetail },
 };
 
 export function isWorkerTool(name) {
   return Object.hasOwn(TOOLS, name);
+}
+
+// The expanded body text for a worker tool — error text when the call failed,
+// otherwise a readable summary of the tool's result JSON. Same plain-text
+// design as spawn/message (rendered in the shared report-detail block).
+export function workerToolDetailText(tool, workers) {
+  const spec = TOOLS[tool.name];
+  if (!spec) return "";
+  if (tool.result?.isError) return tool.result?.text ?? "";
+  return spec.detail?.(tool, workers) ?? "";
+}
+
+function clip(s, n = 140) {
+  const t = String(s ?? "").replace(/\s+/g, " ").trim();
+  return t.length > n ? t.slice(0, n - 1) + "…" : t;
+}
+
+const joinDot = (parts) => parts.filter(Boolean).join(" · ");
+
+function nameOf(id, workers) {
+  const live = id ? (workers ?? []).find((w) => w.id === id) : null;
+  return live?.name ?? id ?? "worker";
+}
+
+function listWorkersDetail(tool, workers) {
+  const res = parseResultJson(tool);
+  if (!Array.isArray(res)) return "";
+  if (res.length === 0) return "No workers.";
+  return res
+    .map((w) => {
+      const head = joinDot([nameOf(w.id, workers), w.state]);
+      const prompt = clip(w.prompt);
+      return prompt ? `${head}\n${prompt}` : head;
+    })
+    .join("\n\n");
+}
+
+function getWorkerDetail(tool) {
+  const res = parseResultJson(tool);
+  const w = res && !Array.isArray(res) ? res.worker : null;
+  if (!w) return "";
+  const meta = joinDot([
+    typeof w.cost_usd === "number" ? "$" + w.cost_usd.toFixed(4) : null,
+    Array.isArray(res.events) ? `${res.events.length} events` : null,
+  ]);
+  return [joinDot([w.state, w.branch]), meta, clip(w.prompt)].filter(Boolean).join("\n");
+}
+
+function killWorkerDetail(tool) {
+  const res = parseResultJson(tool);
+  if (!res || Array.isArray(res)) return "";
+  return joinDot([res.state, res.branch]);
+}
+
+function pendingPermissionsDetail(tool, workers) {
+  const res = parseResultJson(tool);
+  if (!Array.isArray(res)) return "";
+  if (res.length === 0) return "No pending permissions.";
+  return res
+    .map((p) => {
+      const head = joinDot([nameOf(p.worker_id, workers), p.tool]);
+      const input = pendingInputSummary(p.input);
+      return input ? `${head}\n${input}` : head;
+    })
+    .join("\n\n");
+}
+
+function pendingInputSummary(input) {
+  if (input == null) return "";
+  if (typeof input === "string") return clip(input);
+  const pick = input.command ?? input.file_path ?? input.path ?? input.pattern ?? input.url ?? null;
+  if (pick) return clip(pick);
+  try { return clip(JSON.stringify(input)); } catch { return ""; }
 }
 
 function parseResultJson(tool) {
@@ -62,7 +135,7 @@ export function WorkerToolCard({ tool, workers, standalone }) {
   // tool lifecycle (results, tool_done, turn/exit barriers).
   const running = tool.running === true;
   const failure = failureKind(tool);
-  const detail = failure ? (tool.result?.text ?? "") : (spec.detail?.(tool) ?? "");
+  const detail = workerToolDetailText(tool, workers);
   const hasDetail = detail.trim().length > 0;
 
   const expandKey = "i:" + (tool.id ?? tool.ts);
