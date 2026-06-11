@@ -1,7 +1,8 @@
-// Standalone syntax highlighting for code fragments outside CodeMirror
+// Pure, DOM-free syntax tokenizer for code fragments outside CodeMirror
 // (diff hunks etc). Reuses the same Lezer parsers as the FileViewer editor
-// (cmLang.js) and the same --hl-* palette, but emits plain spans so callers
-// can render line-by-line.
+// (cmLang.js) and the same --hl-* palette classes, but emits serializable
+// {t, c} tokens so it can run inside a Web Worker — the render layer turns
+// them into spans.
 
 import { highlightCode, tagHighlighter, tags as t } from "@lezer/highlight";
 import { cmLanguageFor } from "./cmLang.js";
@@ -34,9 +35,10 @@ function parserFor(filePath) {
   return parserCache.get(ext);
 }
 
-// Highlights a multi-line block once and returns one React-node array per
-// line, or null when the language is unknown (caller falls back to raw text).
-export function highlightToLines(code, filePath) {
+// Highlights a multi-line block once and returns one token array per line
+// ({t: text, c: class|null}), or null when the language is unknown (caller
+// falls back to raw text).
+export function highlightToTokenLines(code, filePath) {
   if (!code || !filePath) return null;
   const parser = parserFor(filePath);
   if (!parser) return null;
@@ -48,11 +50,10 @@ export function highlightToLines(code, filePath) {
   }
   const lines = [];
   let cur = [];
-  let key = 0;
   highlightCode(
     code, tree, highlighter,
     (text, classes) => {
-      cur.push(classes ? <span key={key++} className={classes}>{text}</span> : text);
+      cur.push({ t: text, c: classes || null });
     },
     () => { lines.push(cur); cur = []; },
   );
