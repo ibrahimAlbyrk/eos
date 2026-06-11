@@ -42,6 +42,7 @@ export interface WorkerRepo {
   insert(input: InsertWorkerInput): void;
   findById(id: string): WorkerRow | null;
   listAll(): WorkerRow[];
+  listByParent(parentId: string): WorkerRow[];
   listOrchestrators(): WorkerRow[];
   updateState(id: string, state: WorkerState): void;
   // Turn clock — stamped on every entry into the busy set (see TransitionState).

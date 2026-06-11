@@ -13,6 +13,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtInsert;
   private readonly stmtFindById;
   private readonly stmtListAll;
+  private readonly stmtListByParent;
   private readonly stmtListOrchestrators;
   private readonly stmtUpdateState;
   private readonly stmtSetTurnStartedAt;
@@ -39,6 +40,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
     `);
     this.stmtFindById = db.prepare("SELECT * FROM workers WHERE id = ?");
     this.stmtListAll = db.prepare("SELECT * FROM workers ORDER BY started_at DESC");
+    this.stmtListByParent = db.prepare("SELECT * FROM workers WHERE parent_id = ? ORDER BY started_at DESC");
     this.stmtListOrchestrators = db.prepare("SELECT * FROM workers WHERE is_orchestrator = 1 ORDER BY started_at ASC");
     this.stmtUpdateState = db.prepare("UPDATE workers SET state = ? WHERE id = ?");
     this.stmtSetTurnStartedAt = db.prepare("UPDATE workers SET turn_started_at = ? WHERE id = ?");
@@ -101,6 +103,10 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   listAll(): WorkerRow[] {
     return this.stmtListAll.all() as unknown as WorkerRow[];
+  }
+
+  listByParent(parentId: string): WorkerRow[] {
+    return this.stmtListByParent.all(parentId) as unknown as WorkerRow[];
   }
 
   listOrchestrators(): WorkerRow[] {
