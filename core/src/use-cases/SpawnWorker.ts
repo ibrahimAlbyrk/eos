@@ -15,6 +15,7 @@ import type { AgentBackend } from "../ports/AgentBackend.ts";
 import type { ModelCapabilities } from "../ports/ModelCapabilities.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import { resolveEffort } from "../domain/effort.ts";
+import { assertOwnedBy } from "../services/WorkerOwnership.ts";
 import { ConflictError, NotFoundError } from "../errors/index.ts";
 
 export interface SpawnWorkerSpec {
@@ -101,6 +102,8 @@ export async function spawnWorker(
   if (resolved.workspaceOf) {
     const target = deps.workers.findById(resolved.workspaceOf);
     if (!target) throw new NotFoundError("worker", resolved.workspaceOf);
+    // An orchestrator may only attach into a worktree of a worker it spawned.
+    if (resolved.parentId) assertOwnedBy(deps.workers, resolved.parentId, resolved.workspaceOf);
     if (!target.worktree_from || !target.branch || !target.worktree_dir) {
       throw new ConflictError("workspaceOf target has no worktree to attach to");
     }

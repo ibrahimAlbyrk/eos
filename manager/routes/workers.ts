@@ -35,6 +35,7 @@ import { errMsg } from "../../contracts/src/util.ts";
 import { processWorkerEvent } from "../../core/src/use-cases/ProcessWorkerEvent.ts";
 import { toCanonicalEvents } from "../../spawner/canonical-map.ts";
 import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermissionMode.ts";
+import { assertOwnedBy } from "../../core/src/services/WorkerOwnership.ts";
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
 import { resumeWorkerVia, resumeIfDead } from "./resume-helpers.ts";
@@ -66,8 +67,9 @@ async function diffBaseOf(c: Container, w: WorkerRow | null): Promise<string | u
 
 
 export function registerWorkerRoutes(r: Router, c: Container): void {
-  r.get("/workers", ({ res }) => {
-    writeJson(res, 200, c.workers.listAll());
+  r.get("/workers", ({ url, res }) => {
+    const parentId = url.searchParams.get("parentId");
+    writeJson(res, 200, parentId ? c.workers.listByParent(parentId) : c.workers.listAll());
   });
 
   r.post("/workers", async ({ req, res }) => {
@@ -136,13 +138,17 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, 201, { ...result, isolation });
   });
 
-  r.get(/^\/workers\/(?<id>[^/]+)$/, ({ params, res }) => {
+  r.get(/^\/workers\/(?<id>[^/]+)$/, ({ params, url, res }) => {
+    const actorId = url.searchParams.get("actorId");
+    if (actorId) assertOwnedBy(c.workers, actorId, params.id, { allowSelf: true });
     const row = c.workers.findById(params.id);
     if (!row) { writeJson(res, 404, { error: "not found" }); return; }
     writeJson(res, 200, row);
   });
 
-  r.del(/^\/workers\/(?<id>[^/]+)$/, ({ params, res }) => {
+  r.del(/^\/workers\/(?<id>[^/]+)$/, ({ params, url, res }) => {
+    const actorId = url.searchParams.get("actorId");
+    if (actorId) assertOwnedBy(c.workers, actorId, params.id);
     const supervisorWithFind = c.supervisor as ReturnType<typeof import("../../infra/src/supervision/ChildProcessSupervisor.ts").createChildProcessSupervisor>;
     const result = killWorker(
       {
@@ -232,6 +238,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
     const target = c.workers.findById(params.id);
     if (!target) { writeJson(res, 404, { error: "worker not found" }); return; }
+    // Scope check before any side effect — a denied foreign message must not
+    // resume a dead worker or clear its settle window.
+    if (fromParent) assertOwnedBy(c.workers, fromParent, params.id);
     await resumeIfDead(c, target);
 
     if (fromParent) {

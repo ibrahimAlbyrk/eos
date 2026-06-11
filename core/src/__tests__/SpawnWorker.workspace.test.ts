@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { spawnWorker, type SpawnWorkerDeps, type SpawnWorkerSpec } from "../use-cases/SpawnWorker.ts";
-import { ConflictError, NotFoundError } from "../errors/index.ts";
+import { ConflictError, NotFoundError, PermissionDeniedError } from "../errors/index.ts";
 
 const TS = 123456789;
 
@@ -75,6 +75,20 @@ describe("spawnWorker — workspaceOf attach + worktree_dir precompute", () => {
   it("rejects a missing target with NotFound", async () => {
     const { deps } = buildDeps(undefined);
     await assert.rejects(spawnWorker(deps, { prompt: "p", workspaceOf: "w-gone" }), NotFoundError);
+  });
+
+  it("denies an orchestrator attaching to another orchestrator's worker", async () => {
+    const { deps } = buildDeps({ ...TARGET, parent_id: "orch-other" });
+    await assert.rejects(
+      spawnWorker(deps, { prompt: "p", workspaceOf: "w-owner", parentId: "orch-1" }),
+      PermissionDeniedError,
+    );
+  });
+
+  it("allows an orchestrator attaching to its own worker", async () => {
+    const { deps, inserted } = buildDeps({ ...TARGET, parent_id: "orch-1" });
+    await spawnWorker(deps, { prompt: "p", workspaceOf: "w-owner", parentId: "orch-1" });
+    assert.equal(inserted[0].workspaceOwnerId, "w-owner");
   });
 
   it("precomputes worktree_dir for a fresh worktree spawn", async () => {

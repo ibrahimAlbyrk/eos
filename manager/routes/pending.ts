@@ -8,8 +8,12 @@ import { PendingDecisionRequestSchema } from "../../contracts/src/http.ts";
 import { resolvePending } from "../../core/src/use-cases/ResolvePending.ts";
 
 export function registerPendingRoutes(r: Router, c: Container): void {
-  r.get("/pending", ({ res }) => {
-    writeJson(res, 200, c.pending.listUnresolved());
+  r.get("/pending", ({ url, res }) => {
+    const rows = c.pending.listUnresolved();
+    const parentId = url.searchParams.get("parentId");
+    writeJson(res, 200, parentId
+      ? rows.filter((p) => c.workers.findById(p.workerId)?.parent_id === parentId)
+      : rows);
   });
 
   r.post(/^\/pending\/(?<id>[^/]+)\/decision$/, async ({ params, req, res }) => {
