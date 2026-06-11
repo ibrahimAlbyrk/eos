@@ -30,12 +30,13 @@ export function CommitsViewer() {
 function CommitsViewerInner({ cwd }) {
   const ui = useUi();
   const [commits, setCommits] = useState(null);
-  const [expanded, setExpanded] = useState(() => new Set());
+  // Commits are expanded by default; the set tracks what the user collapsed.
+  const [collapsed, setCollapsed] = useState(() => new Set());
   const [details, setDetails] = useState(() => new Map());
 
   useEffect(() => {
     setCommits(null);
-    setExpanded(new Set());
+    setCollapsed(new Set());
     setDetails(new Map());
     let cancelled = false;
     const fetchOnce = async () => {
@@ -47,18 +48,24 @@ function CommitsViewerInner({ cwd }) {
     return () => { cancelled = true; clearInterval(t); };
   }, [cwd]);
 
+  // Load the detail of every open commit that has none yet — covers the
+  // initial list and re-expanding after a collapse.
+  useEffect(() => {
+    for (const c of commits ?? []) {
+      if (collapsed.has(c.sha) || details.has(c.sha)) continue;
+      setDetails((prev) => new Map(prev).set(c.sha, { loading: true }));
+      api.getCommitDetail(cwd, c.sha)
+        .then((data) => setDetails((prev) => new Map(prev).set(c.sha, { loading: false, data })))
+        .catch((e) => setDetails((prev) => new Map(prev).set(c.sha, { loading: false, error: e.message })));
+    }
+  }, [commits, collapsed, details, cwd]);
+
   const toggle = (sha) => {
-    setExpanded((prev) => {
+    setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(sha)) next.delete(sha); else next.add(sha);
       return next;
     });
-    if (!details.has(sha)) {
-      setDetails((prev) => new Map(prev).set(sha, { loading: true }));
-      api.getCommitDetail(cwd, sha)
-        .then((data) => setDetails((prev) => new Map(prev).set(sha, { loading: false, data })))
-        .catch((e) => setDetails((prev) => new Map(prev).set(sha, { loading: false, error: e.message })));
-    }
   };
 
   return (
@@ -81,7 +88,7 @@ function CommitsViewerInner({ cwd }) {
         {commits === null && <div className="dv-empty">Loading...</div>}
         {commits !== null && commits.length === 0 && <div className="dv-empty">Nothing to push</div>}
         {commits !== null && commits.map((c) => (
-          <div className={"cv-commit" + (expanded.has(c.sha) ? " open" : "")} key={c.sha}>
+          <div className={"cv-commit" + (collapsed.has(c.sha) ? "" : " open")} key={c.sha}>
             <button className="cv-row" onClick={() => toggle(c.sha)}>
               <svg className="cv-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="m6 4 4 4-4 4" />
@@ -90,7 +97,7 @@ function CommitsViewerInner({ cwd }) {
               <span className="cv-subject" title={c.subject}>{c.subject}</span>
               <span className="cv-meta">{c.author} · {ago(c.ts)}</span>
             </button>
-            {expanded.has(c.sha) && (
+            {!collapsed.has(c.sha) && (
               <CommitDetail
                 detail={details.get(c.sha)}
                 onOpenFile={(f) => ui.openFileViewer(cwd + "/" + f.path)}
