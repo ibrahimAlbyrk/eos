@@ -73,10 +73,9 @@ export const EFFORTS = [
   { id: "low",       label: "Low" },
   { id: "medium",    label: "Medium" },
   { id: "high",      label: "High" },
-  { id: "xhigh",    label: "Extra high" },
+  { id: "xhigh",    label: "Extra" },
   { id: "max",       label: "Max" },
   { id: "ultracode", label: "Ultracode" },
-  { id: "auto",      label: "Auto" },
 ];
 
 export const EFFORT_LABELS = Object.fromEntries(EFFORTS.map((e) => [e.id, e.label]));
@@ -85,8 +84,8 @@ const EFFORT_API_LEVELS = ["low", "medium", "high", "xhigh", "max"];
 
 // Picker choices for a model: API levels gated by the catalog capability
 // (null = unknown → show all; [] = no effort support → hide the section).
-// ultracode/auto are Claude-Code session features, not API levels, so they
-// survive whenever the model supports effort at all.
+// ultracode is a Claude-Code session feature, not an API level, so it
+// survives whenever the model supports effort at all.
 export function effortChoicesFor(raw) {
   const efforts = resolveModel(raw)?.efforts ?? null;
   if (!efforts) return EFFORTS;

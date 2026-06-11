@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { contextUsage } from "../../../lib/contextWindow.js";
-import { modelName, modelCtx, EFFORT_LABELS } from "../../../lib/models.js";
+import { modelName, modelCtx, EFFORT_LABELS, effortChoicesFor } from "../../../lib/models.js";
 import { AcceptPopover } from "../popovers/AcceptPopover.jsx";
 import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { ModelPopover } from "../popovers/ModelPopover.jsx";
+import { EffortPopover } from "../popovers/EffortPopover.jsx";
 import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
@@ -118,18 +119,28 @@ export function ComposerControls({ live, onAttach, historyNav }) {
       <div className="right">
         <div className="model-wrap" style={{ position: "relative" }}>
           <button
-            className="model-pill"
+            className={"model-pill" + (ui.openPopover === "model" ? " open" : "")}
             id="modelPill"
             onClick={(e) => toggle("model", e)}
             data-popover-trigger="model"
           >
             <span>{modelInfo.name}</span>
-            {modelInfo.ctx && <span className="ctx">{modelInfo.ctx}</span>}
-            <span className="sub">·</span>
-            <span className="effort">{EFFORT_LABELS[effort] ?? "High"}</span>
+            {modelInfo.ctx && <span className="ctx">({modelInfo.ctx} context)</span>}
           </button>
           <ModelPopover live={live} />
         </div>
+        {effortChoicesFor(model).length > 0 && (
+          <div className="effort-wrap" style={{ position: "relative" }}>
+            <button
+              className={"effort-pill" + (effort === "ultracode" ? " ultra" : "") + (ui.openPopover === "effort" ? " open" : "")}
+              onClick={(e) => toggle("effort", e)}
+              data-popover-trigger="effort"
+            >
+              {EFFORT_LABELS[effort] ?? "Extra"}
+            </button>
+            <EffortPopover live={live} />
+          </div>
+        )}
         <div className="ctx-ring-wrap">
           <button
             className="ctx-ring-btn"

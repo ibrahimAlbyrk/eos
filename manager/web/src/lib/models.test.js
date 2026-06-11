@@ -106,6 +106,6 @@ describe("effort capability", () => {
     expect(effortChoicesFor("haiku")).toEqual([]);
     const opusIds = effortChoicesFor("opus").map((e) => e.id);
     expect(opusIds).not.toContain("xhigh");
-    expect(opusIds).toEqual(["low", "medium", "high", "max", "ultracode", "auto"]);
+    expect(opusIds).toEqual(["low", "medium", "high", "max", "ultracode"]);
   });
 });
