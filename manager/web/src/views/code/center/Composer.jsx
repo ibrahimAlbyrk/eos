@@ -41,6 +41,35 @@ function QueuedPill({ text, onDismiss }) {
   );
 }
 
+// Bounded backlog box: past the CSS max-height the pills scroll; the gradient
+// masks soften an edge only when more pills continue past it, and an enqueue
+// keeps the newest pill (bottom — next in dispatch order is the top) in view.
+function QueuedList({ items, onDismiss }) {
+  const ref = useRef(null);
+
+  const syncFades = () => {
+    const el = ref.current;
+    if (!el) return;
+    el.classList.toggle("qfade-top", el.scrollTop > 2);
+    el.classList.toggle("qfade-bot", el.scrollTop + el.clientHeight < el.scrollHeight - 2);
+  };
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight; // smooth via CSS scroll-behavior
+    syncFades();
+  }, [items.length]);
+
+  return (
+    <div className="queued-list" ref={ref} onScroll={syncFades}>
+      {items.map((q) => (
+        <QueuedPill key={q.id} text={q.text} onDismiss={() => onDismiss(q.id)} />
+      ))}
+    </div>
+  );
+}
+
 export function Composer({ live }) {
   const ui = useUi();
   const [menuIndex, setMenuIndex] = useState(0);
@@ -660,15 +689,10 @@ export function Composer({ live }) {
     <div className="composer-wrap">
       <div className="composer-inner">
         {queuedList.length > 0 && (
-          <div className="queued-list">
-            {queuedList.map((q) => (
-              <QueuedPill
-                key={q.id}
-                text={q.text}
-                onDismiss={() => outbox.dismissPill(selected.id, q.id)}
-              />
-            ))}
-          </div>
+          <QueuedList
+            items={queuedList}
+            onDismiss={(itemId) => outbox.dismissPill(selected.id, itemId)}
+          />
         )}
         {ui.pendingQuestion && selected && !ui.dismissedQuestions?.has(ui.pendingQuestion.toolUseId) && (
           <QuestionBanner

@@ -2572,11 +2572,47 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .c-row2 .submit:hover { color: var(--fg); }
 
 /* ── queued message pills (shown above input when agent is busy) ── */
+/* Mask fades animate via registered props (no-op where unsupported). */
+@property --qfade-top { syntax: "<length>"; inherits: false; initial-value: 0px; }
+@property --qfade-bot { syntax: "<length>"; inherits: false; initial-value: 0px; }
+
 .queued-list {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
+  /* Bounded backlog area (~6 pills); past that it scrolls. Top/bottom padding
+     keeps each pill's floating ✕ (offset -6px) inside the scroll clip. */
+  max-height: 224px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  padding: 6px 10px 6px 0;
+  /* Soft edges only toward more content — QueuedList toggles the classes. */
+  --qfade-top: 0px;
+  --qfade-bot: 0px;
+  transition: --qfade-top 180ms ease, --qfade-bot 180ms ease;
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--qfade-top),
+    #000 calc(100% - var(--qfade-bot)),
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    #000 var(--qfade-top),
+    #000 calc(100% - var(--qfade-bot)),
+    transparent 100%
+  );
+}
+.queued-list.qfade-top { --qfade-top: 30px; }
+.queued-list.qfade-bot { --qfade-bot: 30px; }
+.queued-list::-webkit-scrollbar { width: 4px; }
+.queued-list::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border: none;
+  border-radius: 4px;
 }
 .queued-pill {
   position: relative;
