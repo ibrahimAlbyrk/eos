@@ -3,6 +3,7 @@
 // failure so /metrics + log shippers can act on it.
 
 import type { ServerResponse } from "node:http";
+import { gzip } from "node:zlib";
 import {
   DomainError,
   NotFoundError,
@@ -16,9 +17,28 @@ import type { Logger } from "../../core/src/ports/Logger.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import { BodyTooLargeError } from "./bodyReader.ts";
 
+// Below this size gzip overhead beats the savings; above it, large payloads
+// (whole-tree diffs, file contents) shrink ~5-10x. Compression is async so a
+// multi-MB body never blocks the event loop.
+const GZIP_MIN_BYTES = 8 * 1024;
+
 export function writeJson(res: ServerResponse, status: number, body: unknown): void {
+  const json = JSON.stringify(body);
+  const accept = String(res.req?.headers["accept-encoding"] ?? "");
+  if (Buffer.byteLength(json, "utf8") >= GZIP_MIN_BYTES && /\bgzip\b/.test(accept)) {
+    gzip(json, (err, buf) => {
+      if (err) {
+        res.writeHead(status, { "content-type": "application/json" });
+        res.end(json);
+        return;
+      }
+      res.writeHead(status, { "content-type": "application/json", "content-encoding": "gzip" });
+      res.end(buf);
+    });
+    return;
+  }
   res.writeHead(status, { "content-type": "application/json" });
-  res.end(JSON.stringify(body));
+  res.end(json);
 }
 
 export function handleError(

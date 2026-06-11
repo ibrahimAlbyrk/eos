@@ -11,6 +11,7 @@ import { isSafeAbsPath, listRootDir, searchProject } from "./fs-shared.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 
 const PASTE_MAX_BYTES = 20 * 1024 * 1024;
+const TEXT_MAX_BYTES = 8 * 1024 * 1024;
 
 function readRawBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -79,9 +80,17 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
         writeJson(res, 200, { path: qPath, binary: true, size: buf.length });
         return;
       }
-      const content = buf.toString("utf8");
-      const lines = content.split("\n").length;
-      writeJson(res, 200, { path: qPath, content, lines });
+      if (buf.length > TEXT_MAX_BYTES) {
+        // Don't ship a JSON body this big to the editor — the viewer degrades
+        // to a size note + external open.
+        writeJson(res, 200, { path: qPath, large: true, size: buf.length });
+        return;
+      }
+      // Count newlines on the buffer — content.split("\n") would allocate an
+      // array of every line just to read its length.
+      let lines = 1;
+      for (let i = buf.indexOf(10); i !== -1; i = buf.indexOf(10, i + 1)) lines++;
+      writeJson(res, 200, { path: qPath, content: buf.toString("utf8"), lines, size: buf.length });
     } catch (e) {
       writeJson(res, 404, { error: errMsg(e) });
     }

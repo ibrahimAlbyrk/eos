@@ -431,10 +431,16 @@ export type FsRevealRequest = z.infer<typeof FsRevealRequestSchema>;
 export const FsReadQuerySchema = z.object({ path: z.string().min(1) });
 export type FsReadQuery = z.infer<typeof FsReadQuerySchema>;
 
+// Three shapes share this schema: text (content+lines), binary sniffed
+// (binary+size, no content), and large text (large+size, no content — too big
+// to ship as JSON; the viewer degrades to a size note + external open).
 export const FsReadResponseSchema = z.object({
   path: z.string(),
-  content: z.string(),
-  lines: z.number().int().nonnegative(),
+  content: z.string().optional(),
+  lines: z.number().int().nonnegative().optional(),
+  binary: z.boolean().optional(),
+  large: z.boolean().optional(),
+  size: z.number().int().nonnegative().optional(),
 });
 export type FsReadResponse = z.infer<typeof FsReadResponseSchema>;
 
@@ -524,6 +530,12 @@ export const ChangedFileSchema = z.object({
   insertions: z.number().int().nonnegative().nullable(),
   deletions: z.number().int().nonnegative().nullable(),
   untracked: z.boolean(),
+  // Embedded per-file patch (?patches=1) — same shape as FileDiffResponse.
+  // Absent when not requested, for untracked files, or past the payload
+  // budget; consumers fall back to GET /changes/file.
+  patch: z.string().optional(),
+  binary: z.boolean().optional(),
+  truncated: z.boolean().optional(),
 });
 export type ChangedFile = z.infer<typeof ChangedFileSchema>;
 
