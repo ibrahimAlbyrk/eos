@@ -1,7 +1,11 @@
+import { useMemo } from "react";
 import { api } from "../../../api/client.js";
 import { ImageLightbox } from "../ImageLightbox.jsx";
 import { labelTitle } from "../../../lib/attachmentTokens.js";
 import { segment, URL_RE } from "../../../lib/richText.jsx";
+import { findSlashTokens } from "../../../lib/slashTokens.js";
+import { useSlashItems } from "../../../hooks/useSlashItems.js";
+import { SlashPill } from "./SlashPill.jsx";
 
 const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
 
@@ -39,7 +43,7 @@ function escapeRegExp(s) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function buildRules(labels) {
+function buildRules(labels, slashMap) {
   const rules = [
     {
       match: URL_RE,
@@ -55,10 +59,18 @@ function buildRules(labels) {
       render: (lbl, key) => <span key={key} className="att-hl">{lbl}</span>,
     });
   }
+  if (slashMap.size) {
+    rules.push({
+      scan: (t) => findSlashTokens(t, slashMap),
+      render: (tok, key) => <SlashPill key={key} text={tok} cmd={slashMap.get(tok.slice(1))} />,
+    });
+  }
   return rules;
 }
 
 export function MessageUser({ text, cwd }) {
+  const slashItems = useSlashItems(cwd);
+  const slashMap = useMemo(() => new Map(slashItems.map((c) => [c.name, c])), [slashItems]);
   const { display, attachments } = parseAttachments(text);
   const shortened = shortenPaths(display, cwd);
   const labels = attachments.map((a) => a.label).filter(Boolean);
@@ -96,7 +108,7 @@ export function MessageUser({ text, cwd }) {
           ))}
         </div>
       )}
-      {shortened && <div className="b">{segment(shortened, buildRules(labels))}</div>}
+      {shortened && <div className="b">{segment(shortened, buildRules(labels, slashMap))}</div>}
     </div>
   );
 }

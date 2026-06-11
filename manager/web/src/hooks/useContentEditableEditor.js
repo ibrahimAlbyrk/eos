@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { findPlaceholders } from "../lib/placeholders.js";
-import { isTriggerBoundary } from "../lib/triggerContext.js";
+import { findSlashTokens } from "../lib/slashTokens.js";
 
 export function getCursorOffset(el) {
   const sel = window.getSelection();
@@ -82,18 +82,12 @@ function esc(s) {
 }
 
 function slashRegions(cmdMap) {
-  return (text) => {
-    const regions = [];
-    for (let i = 0; i < text.length; i++) {
-      if (text[i] !== "/" || !isTriggerBoundary(text, i)) continue;
-      let end = i + 1;
-      while (end < text.length && text[end] !== " " && text[end] !== "\n") end++;
-      if (cmdMap.has(text.slice(i + 1, end))) {
-        regions.push({ start: i, end, cls: "cmd-hl" });
-      }
-    }
-    return regions;
-  };
+  return (text) => findSlashTokens(text, cmdMap).map(({ start, end, name }) => ({
+    start,
+    end,
+    cls: "cmd-pill",
+    attrs: { "data-cmd": name, "data-popover-trigger": "slashinfo" },
+  }));
 }
 
 function placeholderRegions(text) {
@@ -114,6 +108,13 @@ function literalRegions(tokens) {
   };
 }
 
+function attrsHtml(attrs) {
+  if (!attrs) return "";
+  return Object.entries(attrs)
+    .map(([k, v]) => ` ${k}="${esc(v).replace(/"/g, "&quot;")}"`)
+    .join("");
+}
+
 function colorize(text, scanners) {
   const regions = scanners.flatMap((scan) => scan(text));
   if (regions.length === 0) return null;
@@ -124,7 +125,7 @@ function colorize(text, scanners) {
   for (const r of regions) {
     if (r.start < last) continue;
     if (r.start > last) html += esc(text.slice(last, r.start));
-    html += `<span class="${r.cls}">${esc(text.slice(r.start, r.end))}</span>`;
+    html += `<span class="${r.cls}"${attrsHtml(r.attrs)}>${esc(text.slice(r.start, r.end))}</span>`;
     last = r.end;
   }
   if (last === 0) return null;

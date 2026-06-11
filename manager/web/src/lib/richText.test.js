@@ -55,6 +55,18 @@ describe("segment", () => {
       "hello world",
     ]);
   });
+
+  it("supports scan rules alongside regex rules", () => {
+    const scanRule = {
+      scan: (t) => (t.startsWith("/cmd") ? [{ start: 0, end: 4 }] : []),
+      render: (tok) => ({ kind: "pill", tok }),
+    };
+    expect(segment("/cmd see https://x.com", [linkRule, scanRule])).toEqual([
+      { kind: "pill", tok: "/cmd" },
+      " see ",
+      { kind: "link", url: "https://x.com" },
+    ]);
+  });
 });
 
 describe("URL_RE", () => {

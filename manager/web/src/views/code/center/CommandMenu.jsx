@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react";
+import { CommandInfo } from "./CommandInfo.jsx";
 
 function HighlightedName({ name, query }) {
   if (!query) return <span>{name}</span>;
@@ -60,8 +61,7 @@ export function CommandMenu({ commands, selectedIndex, onSelect, query }) {
       </div>
       {(selected?.description || selected?.source) && (
         <div className="cmd-tooltip" ref={tooltipRef} style={tooltipStyle}>
-          {selected.description}
-          {selected.source && <span className="cmd-source"> ({selected.source})</span>}
+          <CommandInfo cmd={selected} />
         </div>
       )}
     </div>
