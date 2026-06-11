@@ -6,6 +6,10 @@ import { fileKind } from "../../../lib/fileKind.js";
 import { EditView } from "./EditView.jsx";
 import { getFileViewer } from "./fileViewers.jsx";
 
+// Above this size the editor opens read-only with the lightweight extension
+// set — editing affordances (history, autocomplete) cost too much on huge docs.
+const HEAVY_TEXT_CHARS = 2 * 1024 * 1024;
+
 export function FileViewer() {
   const ui = useUi();
   const open = !!ui.fileViewer;
@@ -53,8 +57,8 @@ function FileViewerInner({ path }) {
     api.readFile(path)
       .then((data) => {
         if (cancelled) return;
-        if (data.binary) {
-          setBinaryMeta({ size: data.size });
+        if (data.binary || data.large) {
+          setBinaryMeta({ size: data.size, large: Boolean(data.large) });
           return;
         }
         setContent(data.content);
@@ -195,7 +199,7 @@ function FileViewerInner({ path }) {
       )}
       <div className="fv-body">
         {viewer ? (
-          <viewer.Body path={path} frameGen={frameGen} size={binaryMeta?.size} />
+          <viewer.Body path={path} frameGen={frameGen} size={binaryMeta?.size} large={binaryMeta?.large} />
         ) : (
           <>
             {error && <div className="fv-error">{error}</div>}
@@ -208,6 +212,7 @@ function FileViewerInner({ path }) {
                 currentMatch={safeIdx}
                 matches={findMatches}
                 filePath={path}
+                readOnly={content.length > HEAVY_TEXT_CHARS}
               />
             )}
           </>

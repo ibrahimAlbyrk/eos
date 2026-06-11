@@ -65,11 +65,12 @@ function formatBytes(n) {
   return `${v >= 10 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
 }
 
-function BinaryBody({ path, size }) {
+function BinaryBody({ path, size, large }) {
+  const label = large ? "Large file" : "Binary file";
   return (
     <div className="fv-binary">
       <span className="fv-binary-name">{path.split("/").pop()}</span>
-      <span>{size != null ? `Binary file — ${formatBytes(size)}` : "Binary file"}</span>
+      <span>{size != null ? `${label} — ${formatBytes(size)}` : label}</span>
       <button className="fv-btn" onClick={() => api.openFile(path)}>Open with default app</button>
     </div>
   );

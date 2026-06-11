@@ -23,7 +23,7 @@ const findDecoField = StateField.define({
 const findMark = Decoration.mark({ class: "fv-match" });
 const findMarkCurrent = Decoration.mark({ class: "fv-match current" });
 
-export function EditView({ editContent, setEditContent, findQuery, currentMatch, matches, filePath }) {
+export function EditView({ editContent, setEditContent, findQuery, currentMatch, matches, filePath, readOnly = false }) {
   const hostRef = useRef(null);
   const viewRef = useRef(null);
   const docRef = useRef(editContent);
@@ -35,40 +35,52 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
 
   useEffect(() => {
     const doc = contentRef.current;
-    const unit = detectIndentUnit(doc, filePath);
     const lang = cmLanguageFor(filePath);
+    // Heavy docs open read-only with the minimal set: viewport rendering and
+    // syntax stay, editing affordances (history, autocomplete, brackets) go.
+    let extensions;
+    if (readOnly) {
+      extensions = [
+        lineNumbers(),
+        EditorState.readOnly.of(true),
+        fvSyntaxHighlight,
+        findDecoField,
+        keymap.of(defaultKeymap),
+        ...(lang ? [lang] : []),
+      ];
+    } else {
+      const unit = detectIndentUnit(doc, filePath);
+      extensions = [
+        lineNumbers(),
+        highlightActiveLineGutter(),
+        highlightActiveLine(),
+        history(),
+        bracketMatching(),
+        closeBrackets(),
+        autocompletion(),
+        indentOnInput(),
+        indentUnit.of(unit),
+        EditorState.tabSize.of(unit === "\t" ? 4 : unit.length),
+        fvSyntaxHighlight,
+        findDecoField,
+        keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
+        ...(lang ? [lang] : []),
+        EditorView.updateListener.of((u) => {
+          if (!u.docChanged) return;
+          const text = u.state.doc.toString();
+          docRef.current = text;
+          setEditContentRef.current(text);
+        }),
+      ];
+    }
     const view = new EditorView({
-      state: EditorState.create({
-        doc,
-        extensions: [
-          lineNumbers(),
-          highlightActiveLineGutter(),
-          highlightActiveLine(),
-          history(),
-          bracketMatching(),
-          closeBrackets(),
-          autocompletion(),
-          indentOnInput(),
-          indentUnit.of(unit),
-          EditorState.tabSize.of(unit === "\t" ? 4 : unit.length),
-          fvSyntaxHighlight,
-          findDecoField,
-          keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
-          ...(lang ? [lang] : []),
-          EditorView.updateListener.of((u) => {
-            if (!u.docChanged) return;
-            const text = u.state.doc.toString();
-            docRef.current = text;
-            setEditContentRef.current(text);
-          }),
-        ],
-      }),
+      state: EditorState.create({ doc, extensions }),
       parent: hostRef.current,
     });
     docRef.current = doc;
     viewRef.current = view;
     return () => { view.destroy(); viewRef.current = null; };
-  }, [filePath]);
+  }, [filePath, readOnly]);
 
   // External resets (e.g. Cancel) — doc edits flow through updateListener, so
   // docRef only diverges from editContent when the change came from outside.
@@ -99,5 +111,6 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
     view.dispatch({ effects });
   }, [findQuery, currentMatch, matches]);
 
-  return <div className="fv-editor" ref={hostRef} />;
+  const isMd = /\.(md|mdx|markdown)$/i.test(filePath ?? "");
+  return <div className={"fv-editor" + (isMd ? " fv-editor--md" : "")} ref={hostRef} />;
 }
