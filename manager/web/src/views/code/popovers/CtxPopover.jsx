@@ -1,7 +1,7 @@
 import { useUi } from "../../../state/ui.jsx";
 import { fmtCost, fmtTokens } from "../../../lib/format.js";
 
-export function CtxPopover({ used, total, pct, costUsd }) {
+export function CtxPopover({ used, total, pct, costUsd, totalCostUsd }) {
   const ui = useUi();
   if (ui.openPopover !== "ctx") return null;
   return (
@@ -16,9 +16,15 @@ export function CtxPopover({ used, total, pct, costUsd }) {
         <div className="cp-context-bar"><i style={{ width: pct + "%" }}></i></div>
       </div>
       <div className="cp-divider"></div>
-      <div className="cp-row cp-foot" title="Estimated API-equivalent cost for this agent. If you use a Max/Pro subscription, no actual money is charged.">
-        <span className="cp-label">Session cost</span>
-        <span className="cp-value">{fmtCost(costUsd)}</span>
+      <div className="cp-row cp-foot cp-costs">
+        <span className="cp-cost" title="Estimated API-equivalent cost for this agent. If you use a Max/Pro subscription, no actual money is charged.">
+          <span className="cp-label">Session cost</span>
+          <span className="cp-cost-val">{fmtCost(costUsd)}</span>
+        </span>
+        <span className="cp-cost" title="Estimated API-equivalent cost across all agents. If you use a Max/Pro subscription, no actual money is charged.">
+          <span className="cp-label">Total cost</span>
+          <span className="cp-cost-val">{fmtCost(totalCostUsd)}</span>
+        </span>
       </div>
     </div>
   );

@@ -3033,6 +3033,13 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   cursor: default;
 }
 .ctx-popover .cp-foot:hover { background: transparent; }
+.ctx-popover .cp-costs { justify-content: space-between; }
+.ctx-popover .cp-costs .cp-cost { display: inline-flex; align-items: center; gap: 8px; }
+.ctx-popover .cp-cost-val {
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
 .ctx-popover .cp-daemon {
   color: var(--ok);
   display: inline-flex; align-items: center; gap: 6px;
