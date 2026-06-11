@@ -10,14 +10,18 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { deriveActivity } from "../../../lib/agentActivity.js";
-import { buildBlocks, applyRewinds, applyClears, parsePayload, sortBlocksByTs } from "../../../lib/messageParser.js";
+import { buildBlocks, applyRewinds, applyClears, sortBlocksByTs } from "../../../lib/messageParser.js";
+import { normRewindText } from "../../../lib/rewindMatch.js";
 import { deriveVerdict, deriveChildVerdicts } from "../../../lib/verdict.js";
 import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
 import { loadScrollPos, saveScrollPos, clearScrollPos } from "../../../lib/scrollMemory.js";
+import { captureAnchor, resolveAnchorTop } from "../../../lib/scrollAnchor.js";
 import { usePageFind } from "../../../hooks/usePageFind.js";
 import { useWorkerEvents } from "../../../hooks/useWorkerEvents.js";
 import { useStickToBottom } from "../../../hooks/useStickToBottom.js";
+import { useRewind } from "../../../hooks/useRewind.js";
 import { defaultGroupOpen } from "../../../settings/toolExpansion.js";
+import { ScrollHoldContext } from "./scrollHoldContext.js";
 import { FindBar } from "./FindBar.jsx";
 import { MessageUser } from "./MessageUser.jsx";
 import { MessageReport } from "./MessageReport.jsx";
@@ -31,9 +35,13 @@ import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
 import { TerminalCard } from "./TerminalCard.jsx";
 import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceRuns } from "../../../state/terminalStore.js";
+import * as outbox from "../../../state/outboxStore.js";
 
 const SCROLL_THRESHOLD = 40;
 const BUTTON_THRESHOLD = 300;
+// How many older pages the initial restore may pull while hunting for a saved
+// anchor that lives above the newest-page event window.
+const MAX_RESTORE_PAGES = 3;
 
 export function Messages({ live }) {
   const ui = useUi();
@@ -42,8 +50,10 @@ export function Messages({ live }) {
   // Persist the user's position per agent; pinned clears the entry so the
   // default stick-to-bottom resumes. Skipped until the initial scroll lands —
   // content-swap clamp events during an agent switch must not save.
-  const persistAway = useCallback((top) => {
-    if (initialScrollDone.current && ui.selectedId) saveScrollPos(ui.selectedId, top);
+  const persistAway = useCallback(() => {
+    if (!initialScrollDone.current || !ui.selectedId) return;
+    const anchor = captureAnchor(wrapRef.current, contentRef.current);
+    if (anchor) saveScrollPos(ui.selectedId, anchor);
   }, [ui.selectedId]);
   const persistPinned = useCallback(() => {
     if (initialScrollDone.current && ui.selectedId) clearScrollPos(ui.selectedId);
@@ -71,30 +81,18 @@ export function Messages({ live }) {
     stick.scrollToBottom();
   }, [stick.scrollToBottom, ui.selectedId]);
 
+  const restorePagesRef = useRef(0);
   useEffect(() => {
     initialScrollDone.current = false;
+    restorePagesRef.current = 0;
     stick.reset();
   }, [ui.selectedId, stick.reset]);
 
+  // Durable rows settle outbox items (clientMsgId echo, text fallback,
+  // delivery_failed) — the matching logic lives in the store.
   const reconcileFromNewest = useCallback((workerId, rows) => {
-    const texts = new Set();
-    const ids = new Set();
-    const failures = [];
-    for (const e of rows) {
-      const p = parsePayload(e.payload);
-      if (e.type === "user_message") {
-        if (p.text) texts.add(p.text);
-        // clientMsgIds echoed by the worker — the authoritative settle signal.
-        for (const cid of p.clientMsgIds ?? []) ids.add(cid);
-      }
-      // A failed delivery never yields a user_message — the failure event
-      // itself must release the optimistic copy.
-      if (e.type === "lifecycle" && p.phase === "delivery_failed" && p.text) {
-        failures.push({ text: p.text, ts: e.ts });
-      }
-    }
-    ui.reconcileOptimisticMessages(workerId, { ids, texts, failures });
-  }, [ui.reconcileOptimisticMessages]);
+    outbox.reconcileEvents(workerId, rows);
+  }, []);
 
   // `eventsFor` = which agent the current `events` belong to — during a
   // switch, blocks still render the previous agent's rows, and the initial
@@ -177,6 +175,11 @@ export function Messages({ live }) {
   const [termTick, setTermTick] = useState(0);
   useEffect(() => subscribeTerminal(() => setTermTick((t) => t + 1)), []);
 
+  // Outbox bubbles (sending/dispatching) overlay the durable blocks the same
+  // way — they live in a module store, not React state.
+  const [outboxTick, setOutboxTick] = useState(0);
+  useEffect(() => outbox.subscribe(() => setOutboxTick((t) => t + 1)), []);
+
   // Selecting an agent retires the no-selection workspace cards — the next
   // "new session" view starts clean. Still-running commands get killed.
   useEffect(() => {
@@ -190,8 +193,11 @@ export function Messages({ live }) {
     const w = live.workers.find((x) => x.id === ui.selectedId);
     const bootPromptOffset = w?.parent_id && w?.prompt ? 1 : 0;
     const base = buildBlocks(applyRewinds(applyClears(events), { bootPromptOffset }));
-    const opt = ui.optimisticMsgs.get(ui.selectedId) ?? [];
-    for (const m of opt) {
+    // Queued items render as pills above the input bar, not here; the bubble
+    // states (sending/dispatching) join the sort so a drained message lands
+    // exactly where its durable event will (see outboxStore.js).
+    for (const m of outbox.itemsFor(ui.selectedId)) {
+      if (m.state === "queued") continue;
       base.push({ kind: "user", text: m.text, ts: m.ts, optimistic: true });
     }
     // Overlay live terminal runs whose durable `terminal` event hasn't landed.
@@ -204,11 +210,26 @@ export function Messages({ live }) {
         truncated: false, done: r.done, ts: r.ts,
       });
     }
-    // Conversation position is ts, not append order: optimistic bubbles carry
-    // their send time and late-emitted user messages carry sentAt — the stable
-    // sort puts both above output they precede and leaves everything else as-is.
+    // Conversation position is ts (creation domain), not append order — see
+    // sortBlocksByTs for the clock-domain rationale.
     return sortBlocksByTs(base);
-  }, [events, ui.optimisticMsgs, ui.selectedId, live.workers, termTick]);
+  }, [events, ui.selectedId, live.workers, termTick, outboxTick]);
+
+  const rewindToMessage = useRewind(ui.selectedId);
+  // Duplicate user texts must map to the n-th identical transcript target —
+  // each bubble's occurrence index among same-text bubbles, oldest first.
+  const rewindOccurrence = useMemo(() => {
+    const counts = new Map();
+    const m = new Map();
+    for (const b of blocks) {
+      if (b.kind !== "user" || b.optimistic) continue;
+      const k = normRewindText(b.text);
+      const n = counts.get(k) ?? 0;
+      m.set(b, n);
+      counts.set(k, n + 1);
+    }
+    return m;
+  }, [blocks]);
 
   // Drop a live run once its durable event is in the window — the durable
   // block has taken over rendering.
@@ -265,17 +286,35 @@ export function Messages({ live }) {
   // Layout effect: the initial scroll must land before paint, otherwise the
   // content flashes at the top and visibly jumps to the restored position.
   // Subsequent appends need no handling here — the hook's ResizeObserver
-  // glides the view while pinned.
+  // glides the view while pinned. A saved anchor that sits above the
+  // newest-page window pulls older pages (bounded) — the effect re-runs as
+  // rows land and retries the resolve; an anchor that never resolves (cleared
+  // or rewound transcript, or beyond the budget) drops its stale entry and
+  // falls back to the default bottom pin.
   useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el || blocks.length === 0) return;
     if (initialScrollDone.current) return;
     if (eventsFor !== ui.selectedId) return;
-    initialScrollDone.current = true;
     const saved = loadScrollPos(ui.selectedId);
-    if (saved != null) stick.write(saved);
-    else stick.write(Infinity, { pin: true });
-  }, [blocks]);
+    if (saved != null) {
+      const top = resolveAnchorTop(el, contentRef.current, saved);
+      if (top != null) {
+        initialScrollDone.current = true;
+        stick.write(top);
+        return;
+      }
+      if (hasOlder && !loadingOlder && restorePagesRef.current < MAX_RESTORE_PAGES) {
+        restorePagesRef.current++;
+        loadOlder();
+        return;
+      }
+      if (loadingOlder) return;
+      clearScrollPos(ui.selectedId);
+    }
+    initialScrollDone.current = true;
+    stick.write(Infinity, { pin: true });
+  }, [blocks, hasOlder, loadingOlder]);
 
   // Scroll position can change without a scroll event (content fill, agent
   // switch) — re-sync the scrim after every commit; clean it off on unmount.
@@ -286,6 +325,7 @@ export function Messages({ live }) {
   }, []);
 
   return (
+    <ScrollHoldContext.Provider value={stick.hold}>
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
       <div className={ui.selectedId ? "messages" : "messages messages-empty"} ref={contentRef}>
@@ -306,11 +346,17 @@ export function Messages({ live }) {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
           const animate = (b.kind === "assistant" || b.kind === "thinking") && baselineKeys != null && !baselineKeys.has(key);
-          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, animate, parentWorker);
-          if (isLast && interrupted && b.kind !== "user") {
-            return <div key={key} className="msg-interrupted-wrap">{block}</div>;
-          }
-          return block;
+          const onRewind = b.kind === "user" && !b.optimistic
+            ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
+            : null;
+          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, animate, parentWorker, onRewind, agentBusy);
+          if (!block) return null;
+          // The wrapper carries the block's scroll-anchor identity
+          // (lib/scrollAnchor.js) so every block kind is anchorable without
+          // threading a prop through each component. Unstyled: .messages gap
+          // and inner layout are unaffected by the extra div.
+          const wrapClass = isLast && interrupted && b.kind !== "user" ? "msg-interrupted-wrap" : undefined;
+          return <div key={key} data-bkey={key} className={wrapClass}>{block}</div>;
         })}
         {showAnchor && (
           <ProcessingLine
@@ -327,6 +373,7 @@ export function Messages({ live }) {
         </button>
       )}
     </div>
+    </ScrollHoldContext.Provider>
   );
 }
 
@@ -340,9 +387,9 @@ function blockKey(b, i) {
   }
 }
 
-function renderBlock(b, key, cwd, ui, workers, animate, parent) {
+function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewindDisabled) {
   switch (b.kind) {
-    case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right"><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
+    case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled}><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} /></MessageRow>;

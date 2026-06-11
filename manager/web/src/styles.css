@@ -83,8 +83,8 @@ kbd {
   --shell-gap: 6px;
   --panel-radius: 12px;
   /* transcript rhythm: .messages flex gap owns ALL inter-block spacing —
-     block roots carry no outer margins. Must stay ≥ --msg-actions-h so the
-     hover copy/timestamp row fits inside the gap. */
+     block roots carry no outer margins. Must stay ≥ --msg-actions-h + its
+     4px top offset so the hover copy/timestamp row fits inside the gap. */
   --block-gap: 26px;
   --msg-actions-h: 18px;
   --bg: #1a1a1a;
@@ -297,7 +297,9 @@ html.native .sb-section > .sb-iconbtn { margin-left: auto; }
   grid-template-rows: 100%;
   height: 100vh;
   width: 100vw;
-  transition: grid-template-columns 280ms ease;
+  /* No grid-template-columns transition: animating a layout property reflows
+     the whole app every frame for its duration — panels must open instantly;
+     motion lives on the island content (compositor-only transform/opacity). */
 }
 .app.side-collapsed {
   grid-template-columns: 0 1fr 0fr;
@@ -766,9 +768,22 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   overflow: clip;
   opacity: 0;
   pointer-events: none;
-  transition: opacity 200ms ease 80ms;
+  transform: translateX(14px);
+  /* Closed/buried panels stay MOUNTED (panel stack keeps their state) but must
+     cost zero layout/paint — content-visibility:hidden takes the whole subtree
+     out of rendering, so a huge buried diff can't jank other panels' opens. */
+  content-visibility: hidden;
   grid-column: 3;
   grid-row: 1;
+}
+/* Open = top of the panel stack. Enter motion is compositor-only (opacity +
+   transform); close snaps instantly (no transition on the base state). */
+.file-viewer.fv-open, .diff-viewer.dv-open, .commits-viewer.cv-open, .agent-viewer.av-open {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+  content-visibility: visible;
+  transition: opacity 150ms ease, transform 180ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
 /* top header strip — just session breadcrumb, nothing more */
@@ -984,7 +999,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   display: flex;
   align-items: center;
   gap: 8px;
-  height: var(--msg-actions-h);
+  /* 4px visual gap to the message lives INSIDE the box as padding so there
+     is no unhoverable dead zone between message and actions row. */
+  padding-top: 4px;
+  height: calc(var(--msg-actions-h) + 4px);
   opacity: 0;
   transition: opacity 120ms;
 }
@@ -997,6 +1015,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   color: var(--fg-faint);
 }
 .msg-action-btn:hover { color: var(--fg); background: var(--surface-2); }
+.msg-action-btn.is-busy { opacity: 0.45; pointer-events: none; }
+.msg-action-btn.is-err { color: var(--err); }
 .msg-time {
   font-size: var(--text-xs);
   color: var(--fg-faint);
@@ -2425,6 +2445,18 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   pointer-events: none;
 }
 .composer-editor .cmd-hl { color: var(--accent); }
+/* slash-command pill — one block so the composer and the sent bubble match */
+.composer-editor .cmd-pill,
+.msg-user .cmd-pill {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.composer-editor .cmd-pill { cursor: pointer; }
+.composer-editor .cmd-pill:hover {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
 .composer-editor .att-hl,
 .msg-user .att-hl {
   color: var(--accent);
@@ -2632,7 +2664,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   color: var(--fg);
   border-radius: 5px;
 }
-.c-row3 .model-pill:hover {
+.c-row3 .model-pill:hover,
+.c-row3 .model-pill.open {
   background: rgba(var(--tint), 0.05);
   backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
@@ -2640,9 +2673,25 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
     inset 0 1px 1px rgba(var(--ink), 0.20),
     inset 0 0 0 1px rgba(var(--tint), 0.09);
 }
-.c-row3 .model-pill .sub { color: var(--fg-faint); }
-.c-row3 .model-pill .ctx { color: var(--fg-dim); font-family: var(--font-mono); font-size: var(--text-xs); }
-.c-row3 .model-pill .effort { color: var(--fg-dim); }
+.c-row3 .model-pill .ctx { color: var(--fg-dim); }
+.c-row3 .effort-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  font-size: var(--text-sm);
+  color: var(--fg);
+  border-radius: 5px;
+}
+.c-row3 .effort-pill:hover,
+.c-row3 .effort-pill.open {
+  background: rgba(var(--tint), 0.05);
+  backdrop-filter: blur(var(--blur-sm));
+  -webkit-backdrop-filter: blur(var(--blur-sm));
+  box-shadow:
+    inset 0 1px 1px rgba(var(--ink), 0.20),
+    inset 0 0 0 1px rgba(var(--tint), 0.09);
+}
+.c-row3 .effort-pill.ultra { color: var(--violet); }
 /* separate ring button next to model pill */
 .ctx-ring-wrap { position: relative; display: inline-flex; }
 .ctx-ring-btn {
@@ -3240,6 +3289,67 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
           mask-composite: exclude;
 }
 
+/* slash-pill info popover — same plane as the autocomplete menu.
+   Must come after .glass-pop: both are single-class, so source order is
+   what lets position:absolute win over the base's position:relative. */
+.slash-info {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  z-index: 300;
+  min-width: 240px;
+  max-width: 420px;
+  padding: 10px 14px;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--fg);
+}
+.slash-info-name {
+  display: block;
+  color: var(--fg-dim);
+  margin-bottom: 4px;
+}
+/* clamp like the reference — long skill descriptions trail off with … */
+.slash-info-body {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.slash-info-hint {
+  color: var(--fg-faint);
+  margin-top: 4px;
+}
+/* bubble pill hover card — CSS-only reveal anchored above the pill */
+.cmd-pill-wrap { position: relative; }
+.slash-hovercard {
+  display: block;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  max-width: 320px;
+  padding: 10px 14px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--fg);
+  text-align: left;
+  white-space: normal;
+  z-index: 50;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: opacity 0.12s ease 0.18s, visibility 0s linear 0.18s;
+}
+.cmd-pill-wrap:hover .slash-hovercard {
+  opacity: 1;
+  visibility: visible;
+}
+/* not enough room above (would clip at the scroll container top) → flip below */
+.slash-hovercard.below {
+  bottom: auto;
+  top: calc(100% + 8px);
+}
+
 /* ============== Agent right-click context menu ============== */
 .ctx-menu {
   position: fixed;
@@ -3406,14 +3516,14 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   position: absolute;
   bottom: calc(100% + 6px);
   right: 0;
-  width: 320px;
-  padding: 4px;
+  width: 228px;
+  padding: 8px;
   display: none;
   z-index: 60;
 }
 .model-popover.open { display: block; }
 .mp-head {
-  padding: 8px 12px 4px;
+  padding: 8px 10px 6px;
   font-size: var(--text-xs);
   text-transform: uppercase;
   letter-spacing: 0.10em;
@@ -3428,60 +3538,214 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   align-items: center;
   gap: 9px;
   width: 100%;
-  padding: 7px 11px;
+  padding: 8px 10px;
   border-radius: 6px;
   cursor: pointer;
   position: relative;
   z-index: 1;
   text-align: left;
 }
-.mp-row:hover { background: rgba(var(--tint), 0.05); }
-.mp-row.on {
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
-}
-.mp-row.on .mp-name { color: var(--accent); }
+.mp-row.active { background: rgba(var(--tint), 0.06); }
 .mp-row .mp-name {
-  font-family: var(--font-mono);
+  font-family: var(--font-ui);
   font-size: var(--text-sm);
   color: var(--fg);
   font-weight: 500;
 }
-.mp-row .mp-tag {
+.mp-row .mp-check {
+  margin-left: auto;
+  color: var(--fg);
+  flex-shrink: 0;
+}
+.mp-row .mp-num {
   margin-left: auto;
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   color: var(--fg-faint);
 }
-.mp-row.on .mp-tag { color: var(--accent); }
-.mp-divider {
-  height: 1px;
-  background: rgba(var(--tint), 0.06);
-  margin: 4px 8px;
+.mp-row .mp-check + .mp-num { margin-left: 0; }
+.model-popover:focus { outline: none; }
+
+/* ============== Effort popover (slider) ============== */
+.effort-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  width: 228px;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 60;
 }
-.mp-effort {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr;
-  gap: 4px;
-  padding: 4px 8px 8px;
-  position: relative;
-  z-index: 1;
+.effort-popover.open { display: flex; }
+.effort-popover:focus { outline: none; }
+.effort-panel { padding: 14px 16px 16px; }
+.effort-info { padding: 10px 12px; }
+.ei-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg);
+  margin-bottom: 4px;
 }
-.mp-effort-btn {
-  padding: 6px 4px;
-  text-align: center;
-  background: rgba(var(--tint), 0.03);
-  border: 1px solid rgba(var(--tint), 0.05);
-  border-radius: 5px;
-  font-size: var(--text-xs);
+.ei-body {
+  font-size: var(--text-sm);
   color: var(--fg-dim);
+  line-height: 1.45;
+}
+.ep-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.ep-title { font-size: var(--text-base); font-weight: 600; color: var(--fg); }
+.ep-value { font-size: var(--text-base); font-weight: 600; color: var(--fg); }
+.ep-value.ultra { color: var(--violet); }
+.ep-info-btn {
+  margin-left: auto;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--fg-faint);
   cursor: pointer;
 }
-.mp-effort-btn:hover { background: rgba(var(--tint), 0.06); color: var(--fg); }
-.mp-effort-btn.on {
-  background: color-mix(in srgb, var(--accent) 13%, transparent);
-  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
-  color: var(--accent);
-  font-weight: 500;
+.ep-info-btn:hover { color: var(--fg); background: rgba(var(--tint), 0.06); }
+.ep-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--text-xs);
+  color: var(--fg-dim);
+  margin-bottom: 8px;
+}
+.ep-slider {
+  position: relative;
+  height: 30px;
+  cursor: pointer;
+  touch-action: none;
+}
+.ep-slider.drag { cursor: ew-resize; }
+.ep-track {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 22px;
+  border-radius: 8px;
+  transform: translateY(-50%);
+  background: rgba(var(--ink), 0.25);
+  overflow: hidden;
+  pointer-events: none;
+}
+.ep-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  background: rgba(var(--tint), 0.10);
+  border-radius: 8px 0 0 8px;
+  transition: width 180ms ease;
+}
+.ep-dot {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: rgba(var(--tint), 0.30);
+  transform: translate(-50%, -50%);
+}
+.ep-dot.ultra { background: var(--violet); }
+/* Vertical capsule riding over the track. */
+.ep-thumb {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 22px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fg) 72%, var(--bg));
+  transform: translate(-50%, -50%);
+  transition: left 180ms ease, background 160ms ease, box-shadow 160ms ease;
+  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  z-index: 1;
+}
+.ep-thumb.ultra {
+  background: #ece6ff;
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.5),
+    0 0 14px rgba(167, 139, 250, 0.35);
+}
+.ep-slider.dragging .ep-thumb { transition: background 160ms ease, box-shadow 160ms ease; }
+.ep-slider.dragging .ep-fill { transition: none; }
+/* Ultracode: the bar keeps its size and background; the user-designed noise
+   grid (UltraGridCanvas) just fades in on top. The canvas mounts on enter
+   and outlives the state by the fade window on leave. */
+.ep-grid {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  transition: opacity 300ms ease;
+  pointer-events: none;
+}
+/* Enter is instant — the canvas's own left→right birth sweep owns the
+   appearance; the base transition only plays on leave. */
+.ep-track.ultra .ep-grid { opacity: 1; transition: none; }
+
+/* Directional blur-roll label (RollingLabel.jsx) */
+/* Loose clip window: wide horizontally (the box snaps to the incoming
+   text's width, a wider outgoing label must overflow rightward) and tall
+   vertically so the words stay visible well below/above the line while
+   they disperse. */
+.rolling-label {
+  position: relative;
+  display: inline-block;
+  clip-path: inset(-65% -100px);
+  vertical-align: bottom;
+}
+.rolling-label .rl-out {
+  position: absolute;
+  left: 0;
+  top: 0;
+  white-space: nowrap;
+}
+.rl-out.rl-up { animation: rl-out-up 320ms ease both; }
+.rl-out.rl-down { animation: rl-out-down 320ms ease both; }
+.rl-in.rl-up { display: inline-block; animation: rl-in-up 320ms ease both; }
+.rl-in.rl-down { display: inline-block; animation: rl-in-down 320ms ease both; }
+/* Cloud dissolve: the outgoing word drifts off while growing, its letters
+   spreading and blurring apart, staying visible deep into the timeline; the
+   incoming word condenses from the same cloud state, already visible early
+   in the window. */
+@keyframes rl-out-up {
+  0% { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); letter-spacing: 0; }
+  85% { opacity: 0; }
+  100% { transform: translateY(-48%) scale(1.10); opacity: 0; filter: blur(5px); letter-spacing: 0.03em; }
+}
+@keyframes rl-out-down {
+  0% { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); letter-spacing: 0; }
+  85% { opacity: 0; }
+  100% { transform: translateY(48%) scale(1.10); opacity: 0; filter: blur(5px); letter-spacing: 0.03em; }
+}
+@keyframes rl-in-up {
+  0% { transform: translateY(48%) scale(1.10); opacity: 0; filter: blur(5px); letter-spacing: 0.03em; }
+  15% { opacity: 0.25; }
+}
+@keyframes rl-in-down {
+  0% { transform: translateY(-48%) scale(1.10); opacity: 0; filter: blur(5px); letter-spacing: 0.03em; }
+  15% { opacity: 0.25; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rl-out,
+  .rl-in { animation: none; }
+  .rl-out { display: none; }
+  .ep-thumb { transition: none; }
 }
 
 /* ============== Spawn agent modal (centered, larger) ============== */
@@ -4418,11 +4682,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* ============================================================================
    FILE VIEWER — right panel split view
    ============================================================================ */
-.file-viewer.fv-open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 .fv-row1 {
   display: flex;
   align-items: center;
@@ -4685,6 +4944,13 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 
 /* Editor (edit mode) */
 .fv-editor { height: 100%; }
+/* Markdown source — MarkEdit-like bright palette; element-scoped vars beat the
+   theme blocks, so dark-only via :not(light). Light theme keeps github-light. */
+html:not([data-theme="light"]) .fv-editor--md {
+  --hl-fg: #e8edf3;
+  --hl-heading: #4ec3f0;
+  --hl-comment: #8b95a3;
+}
 .fv-editor .cm-editor { height: 100%; background: transparent; }
 .fv-editor .cm-editor.cm-focused { outline: none; }
 .fv-editor .cm-scroller {
@@ -4815,16 +5081,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* ============================================================================
    DIFF VIEWER — right panel listing working-tree changes, per-file accordion
    ============================================================================ */
-.diff-viewer.dv-open {
-  opacity: 1;
-  pointer-events: auto;
-}
-
 /* COMMITS VIEWER — right panel listing committed-but-unpushed commits */
-.commits-viewer.cv-open {
-  opacity: 1;
-  pointer-events: auto;
-}
 .cv-list {
   flex: 1;
   overflow-y: auto;
@@ -5046,6 +5303,13 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border-top: 1px solid var(--border);
   padding-top: 4px;
 }
+/* content-visibility skips layout/paint of offscreen hunks — a huge expanded
+   diff costs only its on-screen window. The intrinsic-size estimate comes
+   inline from the row count (auto keeps the real size once rendered). */
+.dv-hunk-block {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
+}
 .dv-hunk {
   font-family: var(--font-mono);
   font-size: var(--text-xs);
@@ -5061,22 +5325,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border-top: 1px solid var(--border);
 }
 .dv-patch-err { color: var(--err); }
-.dv-more {
-  display: block;
-  width: 100%;
-  padding: 7px 14px;
-  font-size: var(--text-xs);
-  color: var(--accent);
-  background: rgba(var(--tint), 0.03);
-  border: 0;
-  border-top: 1px solid var(--border);
-  cursor: pointer;
-  text-align: center;
-}
-.dv-more:hover { background: rgba(var(--tint), 0.06); color: var(--accent-hover); }
 .diff-viewer .ed-num { width: 42px; }
 
-/* Standalone code-highlight spans (lib/codeHighlight.jsx) — same palette as
+/* Standalone code-highlight spans (lib/highlightTokens.js) — same palette as
    the CodeMirror editor (--hl-* tokens, theme-aware). */
 .hlc-keyword { color: var(--hl-keyword); }
 .hlc-string { color: var(--hl-string); }
@@ -5092,7 +5343,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* ============================================================================
    AGENT VIEWER — floating right panel for subagent details
    ============================================================================ */
-.agent-viewer.av-open { opacity: 1; pointer-events: auto; }
 
 .av-header {
   display: flex;

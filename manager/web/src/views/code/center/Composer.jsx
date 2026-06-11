@@ -2,8 +2,9 @@ import { useEffect, useRef, useState, useMemo } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { startRun } from "../../../state/terminalStore.js";
+import * as outbox from "../../../state/outboxStore.js";
 import { useCommands } from "../../../hooks/useCommands.js";
-import { useTemplates } from "../../../hooks/useTemplates.js";
+import { useSlashItems } from "../../../hooks/useSlashItems.js";
 import { useContentEditableEditor, getCursorOffset, getSelectionOffsets, setSelectionOffsets, scrollSelectionIntoView } from "../../../hooks/useContentEditableEditor.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
 import { findPlaceholders, nextPlaceholder, prevPlaceholder } from "../../../lib/placeholders.js";
@@ -23,14 +24,9 @@ import { CommandMenu } from "./CommandMenu.jsx";
 import { FileMenu } from "./FileMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
 import { PermissionBanner } from "./PermissionBanner.jsx";
+import { SlashInfoPopover } from "../popovers/SlashInfoPopover.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
 import { TryBanner } from "./TryBanner.jsx";
-
-// Native Claude TUI commands the agent executes itself — sent as a plain
-// message ("/clear" pasted + CR runs the command); listed for discoverability.
-const BUILTIN_COMMANDS = [
-  { name: "clear", description: "Clear conversation history (agent context + chat)", source: "builtin" },
-];
 
 function QueuedPill({ text, onDismiss }) {
   return (
@@ -61,26 +57,16 @@ export function Composer({ live }) {
 
   const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
 
-  // Daemon-side message queue for the selected agent — pills render from this
-  // (the daemon is the only queue; this is just its mirror). Refetched on
-  // selection change, on the agent's SSE signal, and after a queued send.
-  const [serverQueue, setServerQueue] = useState({ for: null, messages: [] });
-  const refetchQueue = async (workerId) => {
-    if (!workerId) { setServerQueue({ for: null, messages: [] }); return; }
-    const body = await api.getWorkerQueue(workerId);
-    setServerQueue({ for: workerId, messages: body?.messages ?? [] });
-  };
-  useEffect(() => { refetchQueue(selected?.id ?? null); }, [selected?.id]);
+  // Pills render from the outbox (state/outboxStore.js — the single owner of
+  // the send lifecycle), which mirrors the daemon queue. Synced on selection
+  // change and on the agent's SSE signal; the store dedupes in-flight fetches.
+  const [, setOutboxTick] = useState(0);
+  useEffect(() => outbox.subscribe(() => setOutboxTick((t) => t + 1)), []);
+  useEffect(() => { if (selected?.id) outbox.syncQueue(selected.id); }, [selected?.id]);
   useEffect(() => {
     if (!selected?.id || live.eventSignal.workerId !== selected.id) return;
-    refetchQueue(selected.id);
+    outbox.syncQueue(selected.id);
   }, [live.eventSignal.tick]);
-
-  const dismissQueued = async (queueId) => {
-    if (!selected?.id) return;
-    await api.dismissQueuedMessage(selected.id, queueId);
-    refetchQueue(selected.id);
-  };
 
   // Global Escape exits git/terminal mode regardless of focus — registered into
   // the selection provider's Escape chain (popover/viewers first, interrupt last).
@@ -101,14 +87,11 @@ export function Composer({ live }) {
   const commands = useCommands(cwd);
   const cmdMap = useMemo(() => new Map(commands.map((c) => [c.name, c])), [commands]);
 
-  // Templates join the slash menu next to commands (same name allowed — the
-  // tooltip's "(template)" / "(skill)" source tag disambiguates).
-  const templates = useTemplates();
-  const slashItems = useMemo(() => [
-    ...BUILTIN_COMMANDS,
-    ...commands,
-    ...templates.map((t) => ({ name: t.name, description: t.description, source: "template", template: t })),
-  ], [commands, templates]);
+  const slashItems = useSlashItems(cwd);
+  // Pill highlighting + click-info lookup span the full slash universe
+  // (builtins/templates included), unlike cmdMap (daemon commands only,
+  // drives argument hints and token deletion).
+  const slashMap = useMemo(() => new Map(slashItems.map((c) => [c.name, c])), [slashItems]);
 
   const uploadFailedRef = useRef(() => {});
   const {
@@ -128,7 +111,7 @@ export function Composer({ live }) {
     editorRef,
     setTextAndSync,
     handleInput,
-  } = useContentEditableEditor(cmdMap, insertedPathsRef, ui.selectedId, attachmentItems);
+  } = useContentEditableEditor(slashMap, insertedPathsRef, ui.selectedId, attachmentItems);
 
   const stripLabel = (label) => {
     const idx = text.indexOf(label);
@@ -421,7 +404,7 @@ export function Composer({ live }) {
         });
         if (r?.ok && r.body?.id) {
           ui.setSelectedId(r.body.id);
-          ui.addOptimisticUserMessage(r.body.id, displayText, agentText);
+          outbox.addDispatched(r.body.id, { text: displayText, agentText });
         } else if (!r?.ok) {
           alert(r?.body?.error ?? "git agent spawn failed");
         }
@@ -446,29 +429,27 @@ export function Composer({ live }) {
       });
       if (r?.ok && r.body?.id) {
         ui.setSelectedId(r.body.id);
-        ui.addOptimisticUserMessage(r.body.id, displayText, agentText);
+        outbox.addDispatched(r.body.id, { text: displayText, agentText });
       }
       return;
     }
 
     if (selected) {
-      // No busy branch here anymore: the daemon decides queue-vs-dispatch
-      // against authoritative state (the old client-side check read a stale
-      // workers snapshot). clientMsgId makes the send idempotent end-to-end.
+      // The daemon still decides queue-vs-dispatch against authoritative
+      // state; the local WORKING check only picks the optimistic shape (pill
+      // vs bubble) for the first RTT — settleSend corrects it from the
+      // response. clientMsgId makes the send idempotent end-to-end.
       const clientMsgId = crypto.randomUUID();
-      const optId = ui.addOptimisticUserMessage(selected.id, displayText, agentText, clientMsgId);
+      const busy = selected.state === "WORKING";
+      const itemId = outbox.beginSend(selected.id, { text: displayText, agentText, clientMsgId, busy });
       try {
         const r = await live.sendToAgent(selected.id, agentText, { clientMsgId, queueWhenBusy: true });
-        if (r?.body?.queued) {
-          // Held in the daemon queue — the pill (server state) takes over.
-          ui.removeOptimisticMessage(selected.id, optId);
-          refetchQueue(selected.id);
-        } else if (!r?.ok) {
-          ui.removeOptimisticMessage(selected.id, optId);
+        outbox.settleSend(selected.id, itemId, r);
+        if (!r?.ok && !r?.body?.queued) {
           console.error("send rejected:", r?.body?.error ?? `status ${r?.status ?? "?"}`);
         }
       } catch (e) {
-        ui.removeOptimisticMessage(selected.id, optId);
+        outbox.settleSend(selected.id, itemId, { ok: false });
         console.error("send failed:", e);
       }
       return;
@@ -480,7 +461,7 @@ export function Composer({ live }) {
     if (r?.ok && r.body?.id) {
       const realId = r.body.id;
       ui.setSelectedId(realId);
-      ui.addOptimisticUserMessage(realId, displayText, agentText);
+      outbox.addDispatched(realId, { text: displayText, agentText });
     }
   };
 
@@ -627,8 +608,53 @@ export function Composer({ live }) {
     }
   };
 
+  // Pill info popover annotates the text — any edit dismisses it. [text] only:
+  // adding openPopover to the deps would close the popover the moment it opens.
+  useEffect(() => {
+    if (ui.openPopover === "slashinfo") ui.closeAllPops();
+  }, [text]);
+
+  // Pills are innerHTML spans, not React children — delegate clicks and
+  // hover-intent (150ms enter delay so a pointer pass doesn't flash the card).
+  const pillHoverTimer = useRef(null);
+  useEffect(() => () => clearTimeout(pillHoverTimer.current), []);
+
+  const openPillInfo = (pill) => {
+    if (!pill.isConnected) return;
+    const cmd = slashMap.get(pill.dataset.cmd);
+    const wrap = pill.closest(".c-row2-wrap");
+    if (!cmd || !wrap) return;
+    const x = pill.getBoundingClientRect().left - wrap.getBoundingClientRect().left;
+    ui.openPop("slashinfo", { x: Math.max(0, Math.min(x, wrap.clientWidth - 300)), y: 0, data: { cmd } });
+  };
+
+  const pillAt = (e) => {
+    const pill = e.target.closest?.("[data-cmd]");
+    return pill && editorRef.current?.contains(pill) ? pill : null;
+  };
+
+  const onEditorClick = (e) => {
+    const el = editorRef.current;
+    if (el) setCursorPos(getCursorOffset(el));
+    const pill = pillAt(e);
+    if (pill) openPillInfo(pill);
+  };
+
+  const onEditorPointerOver = (e) => {
+    const pill = pillAt(e);
+    if (!pill) return;
+    clearTimeout(pillHoverTimer.current);
+    pillHoverTimer.current = setTimeout(() => openPillInfo(pill), 150);
+  };
+
+  const onEditorPointerOut = (e) => {
+    if (!pillAt(e)) return;
+    clearTimeout(pillHoverTimer.current);
+    if (ui.openPopover === "slashinfo") ui.closeAllPops();
+  };
+
   const agentBusy = selected && (selected.state === "SPAWNING" || selected.state === "WORKING");
-  const queuedList = selected && serverQueue.for === selected.id ? serverQueue.messages : [];
+  const queuedList = selected ? outbox.itemsFor(selected.id).filter((i) => i.state === "queued") : [];
 
   return (
     <div className="composer-wrap">
@@ -639,7 +665,7 @@ export function Composer({ live }) {
               <QueuedPill
                 key={q.id}
                 text={q.text}
-                onDismiss={() => dismissQueued(q.id)}
+                onDismiss={() => outbox.dismissPill(selected.id, q.id)}
               />
             ))}
           </div>
@@ -685,6 +711,7 @@ export function Composer({ live }) {
               query={atCtx?.query ?? ""}
             />
           )}
+          <SlashInfoPopover />
           <div className={ui.composer.termMode ? "c-row2 term-mode" : ui.composer.gitMode ? "c-row2 git-mode" : "c-row2"}>
             {attachmentItems.length > 0 && (
               <AttachmentChips attachments={attachmentItems} onRemove={removeAttachmentToken} />
@@ -701,7 +728,9 @@ export function Composer({ live }) {
               onInput={(e) => { recallRef.current = false; handleInput(e); }}
               onKeyDown={onKey}
               onPaste={handlePaste}
-              onClick={() => { const el = editorRef.current; if (el) setCursorPos(getCursorOffset(el)); }}
+              onClick={onEditorClick}
+              onPointerOver={onEditorPointerOver}
+              onPointerOut={onEditorPointerOut}
               onKeyUp={() => { const el = editorRef.current; if (el) setCursorPos(getCursorOffset(el)); }}
             />
             <button className="submit" title="Send" onClick={send}>
