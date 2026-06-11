@@ -374,3 +374,40 @@ describe("parseJsonlLine — non-array msg.content", () => {
     assert.deepEqual(ev, []);
   });
 });
+
+describe("parseJsonlLine — tsTranscript (entry creation time)", () => {
+  const ISO = "2026-06-11T10:00:00.500Z";
+  const MS = Date.parse(ISO);
+
+  it("stamps assistant text/thinking/tool_use with the line's timestamp", () => {
+    const ev = collect(JSON.stringify({
+      timestamp: ISO,
+      message: { role: "assistant", content: [
+        { type: "text", text: "a" },
+        { type: "thinking", thinking: "t" },
+        { type: "tool_use", id: "T1", name: "Read", input: {} },
+      ]},
+    }));
+    assert.equal(ev.length, 3);
+    for (const e of ev) assert.equal((e.payload as { tsTranscript?: number }).tsTranscript, MS);
+  });
+
+  it("stamps user_text (string and block content)", () => {
+    const a = collect(JSON.stringify({ timestamp: ISO, message: { role: "user", content: "hi" } }));
+    const b = collect(JSON.stringify({ timestamp: ISO, message: { role: "user", content: [{ type: "text", text: "hi" }] } }));
+    assert.equal((a[0].payload as { tsTranscript?: number }).tsTranscript, MS);
+    assert.equal((b[0].payload as { tsTranscript?: number }).tsTranscript, MS);
+  });
+
+  it("omits the field when timestamp is absent or unparseable", () => {
+    const a = collect(JSON.stringify({ message: { role: "user", content: "hi" } }));
+    const b = collect(JSON.stringify({ timestamp: "not-a-date", message: { role: "user", content: "hi" } }));
+    assert.equal("tsTranscript" in (a[0].payload as object), false);
+    assert.equal("tsTranscript" in (b[0].payload as object), false);
+  });
+
+  it("accepts epoch-number timestamps", () => {
+    const ev = collect(JSON.stringify({ timestamp: 1234, message: { role: "user", content: "hi" } }));
+    assert.equal((ev[0].payload as { tsTranscript?: number }).tsTranscript, 1234);
+  });
+});

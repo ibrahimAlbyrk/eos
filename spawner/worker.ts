@@ -177,10 +177,15 @@ const pipeline = new DeliveryPipeline({
 // moment so it is durably ordered after the previous turn's trailing output.
 const pendingMessages = new PendingMessageRegistry();
 
-function emitMessageEvent(p: PendingMessage): void {
-  // sentAt (dispatch wall-clock) rides through so the chat can order a
-  // late-emitted bubble (unverified resolution, drain) at its send position.
+function emitMessageEvent(p: PendingMessage, anchorTs?: number): void {
+  // anchorTs = the consuming transcript entry's creation time — the same clock
+  // domain as the surrounding assistant blocks, so the chat sorts the bubble
+  // exactly where Claude consumed it (after the previous turn's trailing
+  // output, before the output it caused). sentAt (dispatch wall-clock) stays
+  // as the fallback for emissions with no sighting (unverified resolution,
+  // interrupt/exit flush).
   const sentAt = p.record.sentAt != null ? { sentAt: p.record.sentAt } : {};
+  const anchor = anchorTs != null ? { anchorTs } : {};
   switch (p.record.as) {
     case "orchestrator_message":
       evt.emit("orchestrator_message", {
@@ -188,6 +193,7 @@ function emitMessageEvent(p: PendingMessage): void {
         fromParent: p.record.fromParent,
         parentName: p.record.parentName ?? p.record.fromParent,
         ...sentAt,
+        ...anchor,
       });
       return;
     case "worker_report":
@@ -198,6 +204,7 @@ function emitMessageEvent(p: PendingMessage): void {
         fromWorker: p.record.fromWorker,
         workerName: p.record.workerName ?? p.record.fromWorker,
         ...sentAt,
+        ...anchor,
       });
       return;
     case "user_message":
@@ -209,6 +216,7 @@ function emitMessageEvent(p: PendingMessage): void {
           ? { clientMsgIds: p.record.clientMsgIds }
           : {}),
         ...sentAt,
+        ...anchor,
       });
   }
 }
@@ -372,8 +380,9 @@ function startTail(sessionId: string, startAtEof = false): TailHandle {
       // user_text itself is still never forwarded.
       if (t === "jsonl" && (p as { kind?: string }).kind === "user_text") {
         const text = (p as { text?: string }).text ?? "";
+        const anchorTs = (p as { tsTranscript?: number }).tsTranscript;
         pipeline.notifyUserText(text, Date.now());
-        for (const m of pendingMessages.consumeMatching(text)) emitMessageEvent(m);
+        for (const m of pendingMessages.consumeMatching(text)) emitMessageEvent(m, anchorTs);
         return;
       }
       // A tool_result while a menu is being driven is the AUQ answer landing —

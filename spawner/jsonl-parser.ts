@@ -40,6 +40,11 @@ export interface JsonlPayload {
   toolUseId?: string;
   isError?: boolean;
   patch?: PatchHunk[];
+  // The transcript entry's own `timestamp` (epoch ms) = entry CREATION time.
+  // The CLI batch-flushes lines at step boundaries, so daemon receipt time
+  // lags creation by 150ms–2.5s — this field is the only ordering domain in
+  // which transcript blocks and sighting-anchored chat events compare safely.
+  tsTranscript?: number;
 }
 
 export type EmitFn =
@@ -67,6 +72,9 @@ export function parseJsonlLine(
   let e: Record<string, unknown>;
   try { e = JSON.parse(line); } catch { return; }
 
+  const ts = transcriptTs(e.timestamp);
+  const stamp = ts != null ? { tsTranscript: ts } : {};
+
   const msg = e.message as Record<string, unknown> | undefined;
 
   if (msg?.role === "assistant") {
@@ -92,7 +100,7 @@ export function parseJsonlLine(
     for (const block of assistantBlocks) {
       if (block.type === "text") {
         if (typeof block.text !== "string") continue;
-        emit("jsonl", { kind: "assistant_text", text: block.text });
+        emit("jsonl", { kind: "assistant_text", text: block.text, ...stamp });
       } else if (block.type === "tool_use") {
         if (typeof block.id !== "string" || typeof block.name !== "string") continue;
         const toolEvt: Record<string, unknown> = {
@@ -100,6 +108,7 @@ export function parseJsonlLine(
           id: block.id,
           name: block.name,
           input: (block.input as Record<string, unknown>) ?? {},
+          ...stamp,
         };
         if (block.name === "Agent" && msg.model) {
           toolEvt.parentModel = msg.model;
@@ -110,7 +119,7 @@ export function parseJsonlLine(
         // Signature-only thinking blocks (thinking:"") are common with
         // interleaved thinking — rendering them yields a bare "thinking" line.
         if (typeof thinkText !== "string" || thinkText.trim() === "") continue;
-        emit("jsonl", { kind: "thinking", text: thinkText });
+        emit("jsonl", { kind: "thinking", text: thinkText, ...stamp });
       }
     }
     return;
@@ -120,7 +129,7 @@ export function parseJsonlLine(
     // Plain typed messages carry content as a bare string; structured ones use
     // text blocks. Both become user_text (the delivery pipeline's turn-ACK).
     if (typeof msg.content === "string") {
-      if (msg.content.trim() !== "") emit("jsonl", { kind: "user_text", text: msg.content });
+      if (msg.content.trim() !== "") emit("jsonl", { kind: "user_text", text: msg.content, ...stamp });
       return;
     }
     const userBlocks = Array.isArray(msg.content) ? msg.content as Array<Record<string, unknown>> : [];
@@ -137,7 +146,7 @@ export function parseJsonlLine(
           emit("jsonl", { kind: "skill_body", toolUseId: sourceToolUseId, text: block.text });
           continue;
         }
-        emit("jsonl", { kind: "user_text", text: block.text });
+        emit("jsonl", { kind: "user_text", text: block.text, ...stamp });
       } else if (block.type === "tool_result") {
         if (typeof block.tool_use_id !== "string") continue;
         const text = toolResultText(block.content);
@@ -191,6 +200,15 @@ export function parseJsonlLine(
     const c = e.content as Array<{ text?: string }> | undefined;
     emit("jsonl", { kind: "tool_result", isError: !!e.isError, text: String(c?.[0]?.text ?? "") });
   }
+}
+
+// Transcript timestamps are ISO strings; tolerate epoch numbers from older
+// formats. undefined (not 0) when absent so consumers can fall back cleanly.
+function transcriptTs(v: unknown): number | undefined {
+  if (typeof v === "number") return v;
+  if (typeof v !== "string") return undefined;
+  const t = Date.parse(v);
+  return Number.isNaN(t) ? undefined : t;
 }
 
 // Slims the transcript's structuredPatch down to the fields the UI diff needs.
