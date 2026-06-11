@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { fmtTimeAgo } from "./format.js";
+import { fmtTimeAgo, statusFromState } from "./format.js";
 
 const MIN = 60_000;
 const HOUR = 3_600_000;
@@ -38,5 +38,21 @@ describe("fmtTimeAgo", () => {
 
   it("treats future ts as just now", () => {
     expect(fmtTimeAgo(now + 5000, now)).toBe("just now");
+  });
+});
+
+describe("statusFromState", () => {
+  it("presents SUSPENDED as idle", () => {
+    expect(statusFromState("SUSPENDED")).toEqual({ dot: "wait", label: "idle" });
+  });
+
+  it("presents SPAWNING as running and DRAFT as idle", () => {
+    expect(statusFromState("SPAWNING")).toEqual({ dot: "run", label: "running" });
+    expect(statusFromState("DRAFT")).toEqual({ dot: "wait", label: "idle" });
+  });
+
+  it("falls back to lowercased state", () => {
+    expect(statusFromState("KILLING")).toEqual({ dot: "queue", label: "killing" });
+    expect(statusFromState(undefined)).toEqual({ dot: "wait", label: "idle" });
   });
 });
