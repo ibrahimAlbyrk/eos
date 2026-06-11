@@ -1,5 +1,8 @@
 // Per-agent scroll position persistence. An entry exists only when the user
-// scrolled away from the bottom; no entry = default stick-to-bottom.
+// scrolled away from the bottom; no entry = default stick-to-bottom. The
+// position is an anchor {key, offset} (see lib/scrollAnchor.js), not absolute
+// scrollTop — px values break when the loaded event window or layout differs
+// on return. Legacy numeric entries read as null and age out via the cap.
 
 const KEY = "cm:scrollPos";
 const MAX_ENTRIES = 50;
@@ -20,15 +23,15 @@ function persist(storage, map) {
 export function loadScrollPos(id, storage = globalThis.localStorage) {
   if (!id || !storage) return null;
   const v = load(storage)[id];
-  return typeof v === "number" ? v : null;
+  return v && typeof v.key === "string" && Number.isFinite(v.offset) ? v : null;
 }
 
-export function saveScrollPos(id, top, storage = globalThis.localStorage) {
-  if (!id || !storage) return;
+export function saveScrollPos(id, anchor, storage = globalThis.localStorage) {
+  if (!id || !storage || !anchor) return;
   const map = load(storage);
   // Re-insert so the key moves to the end; pruning drops the oldest first.
   delete map[id];
-  map[id] = top;
+  map[id] = anchor;
   const keys = Object.keys(map);
   for (let i = 0; i < keys.length - MAX_ENTRIES; i++) delete map[keys[i]];
   persist(storage, map);

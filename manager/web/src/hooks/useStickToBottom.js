@@ -188,10 +188,23 @@ export function useStickToBottom({
     prevTopRef.current = scrollerRef.current?.scrollTop ?? 0;
   }, [stopFollow]);
 
+  // User intent like wheel-up, but from a disclosure toggle: the content is
+  // about to grow under the user's click, so stop following and unpin —
+  // otherwise the follow glide drags the expanded detail past the viewport.
+  const hold = useCallback(() => {
+    const el = scrollerRef.current;
+    if (!el || !pinnedRef.current) return;
+    if (el.scrollHeight - el.clientHeight <= 1) return;
+    pinnedRef.current = false;
+    stopFollow();
+    cbRef.current.onUserAway?.(el.scrollTop);
+    updateBtn();
+  }, [stopFollow, updateBtn]);
+
   const isPinned = useCallback(() => pinnedRef.current, []);
 
   return useMemo(
-    () => ({ scrollerRef, contentRef, isPinned, scrollToBottom, write, reset, showJumpBtn }),
-    [isPinned, scrollToBottom, write, reset, showJumpBtn],
+    () => ({ scrollerRef, contentRef, isPinned, scrollToBottom, write, reset, hold, showJumpBtn }),
+    [isPinned, scrollToBottom, write, reset, hold, showJumpBtn],
   );
 }

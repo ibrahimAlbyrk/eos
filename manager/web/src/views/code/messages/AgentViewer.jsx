@@ -2,6 +2,7 @@ import { useLayoutEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { useStickToBottom } from "../../../hooks/useStickToBottom.js";
 import { MarkdownView } from "./MarkdownView.jsx";
+import { ScrollHoldContext } from "./scrollHoldContext.js";
 import { ToolItem } from "./ToolItem.jsx";
 import { verbFor } from "../../../lib/messageParser.js";
 
@@ -42,6 +43,7 @@ function AgentViewerInner({ block }) {
         </button>
       </div>
 
+      <ScrollHoldContext.Provider value={stick.hold}>
       <div className="av-scroll" ref={stick.scrollerRef}>
         <div ref={stick.contentRef}>
           {block.prompt && (
@@ -67,6 +69,7 @@ function AgentViewerInner({ block }) {
           )}
         </div>
       </div>
+      </ScrollHoldContext.Provider>
     </>
   );
 }
