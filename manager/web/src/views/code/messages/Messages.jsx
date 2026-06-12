@@ -143,7 +143,9 @@ export function Messages({ live }) {
     if (!sentinelEl || !wrapRef.current) return;
     const io = new IntersectionObserver(
       (entries) => { if (entries.some((e) => e.isIntersecting)) triggerLoadOlderRef.current(); },
-      { root: wrapRef.current, rootMargin: "200px 0px 0px 0px" },
+      // ~2 viewports of look-ahead: with the store's read-ahead prefetch the
+      // page is usually already in memory by the time the sentinel trips.
+      { root: wrapRef.current, rootMargin: "1600px 0px 0px 0px" },
     );
     io.observe(sentinelEl);
     return () => io.disconnect();
@@ -200,10 +202,21 @@ export function Messages({ live }) {
     }
   }, [ui.selectedId]);
 
+  const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
+  // A primitive on purpose: live.workers churns on every state ping, but the
+  // parse only cares whether the boot prompt renders as a task card.
+  const bootPromptOffset = selectedWorker?.parent_id && selectedWorker?.prompt ? 1 : 0;
+
+  // Parse is the expensive half (full-transcript scan) — it re-runs only when
+  // durable rows change. Overlays join in the second memo so terminal chunks
+  // and outbox ticks re-sort without re-parsing everything.
+  const baseBlocks = useMemo(
+    () => buildBlocks(applyRewinds(applyClears(events), { bootPromptOffset })),
+    [events, bootPromptOffset],
+  );
+
   const blocks = useMemo(() => {
-    const w = live.workers.find((x) => x.id === ui.selectedId);
-    const bootPromptOffset = w?.parent_id && w?.prompt ? 1 : 0;
-    const base = buildBlocks(applyRewinds(applyClears(events), { bootPromptOffset }));
+    const base = baseBlocks.slice();
     // Queued items render as pills above the input bar, not here; the bubble
     // states (sending/dispatching) join the sort so a drained message lands
     // exactly where its durable event will (see outboxStore.js).
@@ -224,7 +237,7 @@ export function Messages({ live }) {
     // Conversation position is ts (creation domain), not append order — see
     // sortBlocksByTs for the clock-domain rationale.
     return sortBlocksByTs(base);
-  }, [events, ui.selectedId, live.workers, termTick, outboxTick]);
+  }, [baseBlocks, ui.selectedId, termTick, outboxTick]);
 
   const rewindToMessage = useRewind(ui.selectedId);
   // Duplicate user texts must map to the n-th identical transcript target —
@@ -277,7 +290,6 @@ export function Messages({ live }) {
   // expandedTools/settings in deps: expanding a tool mounts new text the ranges must cover.
   const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools, ui.settings]);
 
-  const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
   const parentWorker = selectedWorker?.parent_id
     ? live.workers.find((w) => w.id === selectedWorker.parent_id)
     : null;
@@ -342,7 +354,7 @@ export function Messages({ live }) {
       <div className={ui.selectedId ? "messages" : "messages messages-empty"} ref={contentRef}>
         {ui.selectedId && hasOlder && (
           <div className="load-older" ref={setSentinelEl}>
-            {loadingOlder ? "loading earlier messages…" : ""}
+            {loadingOlder && <span className="load-older-skel" aria-label="loading earlier messages" />}
           </div>
         )}
         {selectedWorker?.parent_id && selectedWorker.prompt && (
