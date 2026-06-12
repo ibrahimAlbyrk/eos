@@ -96,6 +96,17 @@ export const MIGRATIONS: Migration[] = [
     CREATE UNIQUE INDEX IF NOT EXISTS idx_qm_worker_client ON queued_messages(worker_id, client_msg_id);
     CREATE INDEX IF NOT EXISTS idx_qm_worker_dispatched ON queued_messages(worker_id, dispatched_at);
   `},
+  // Fresh-worktree rows are born 0 and flip to 1 when the worker's
+  // claude_spawning event confirms the tree exists on disk; reading the
+  // precomputed worktree_dir before that misattributes the source repo's
+  // diff to the worker (`git -C` walks up from a not-yet-worktree dir).
+  { id: "030_workers_add_workspace_ready", sql: "ALTER TABLE workers ADD COLUMN workspace_ready INTEGER DEFAULT 0" },
+  // Pre-existing rows are past their boot window — treat as materialized.
+  { id: "031_backfill_workspace_ready", sql: "UPDATE workers SET workspace_ready = 1" },
+  // beforeId/afterId pagination filters on (worker_id, id); the (worker_id, ts)
+  // index can't serve the id condition, so deltas degrade to rowid range scans
+  // across all workers as the table grows.
+  { id: "032_idx_events_worker_id", sql: "CREATE INDEX IF NOT EXISTS idx_events_worker_id ON events(worker_id, id)" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

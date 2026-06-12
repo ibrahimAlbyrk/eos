@@ -25,6 +25,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtUpdateModel;
   private readonly stmtSetWorktreeDir;
   private readonly stmtSetForkBaseSha;
+  private readonly stmtSetWorkspaceReady;
   private readonly stmtSetSessionId;
   private readonly stmtClearRuntime;
   private readonly stmtReactivate;
@@ -35,8 +36,8 @@ export class SqliteWorkerRepo implements WorkerRepo {
   constructor(db: DatabaseSync) {
     this.db = db;
     this.stmtInsert = db.prepare(`
-      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role, with_gateway, turn_started_at, worktree_dir, workspace_owner_id)
-      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role, with_gateway, turn_started_at, worktree_dir, workspace_owner_id, workspace_ready)
+      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     this.stmtFindById = db.prepare("SELECT * FROM workers WHERE id = ?");
     this.stmtListAll = db.prepare("SELECT * FROM workers ORDER BY started_at DESC");
@@ -63,6 +64,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtUpdateModel = db.prepare("UPDATE workers SET model = ?, effort = ? WHERE id = ?");
     this.stmtSetWorktreeDir = db.prepare("UPDATE workers SET worktree_dir = ? WHERE id = ?");
     this.stmtSetForkBaseSha = db.prepare("UPDATE workers SET fork_base_sha = ? WHERE id = ?");
+    this.stmtSetWorkspaceReady = db.prepare("UPDATE workers SET workspace_ready = 1 WHERE id = ?");
     this.stmtSetSessionId = db.prepare("UPDATE workers SET session_id = ? WHERE id = ?");
     this.stmtClearRuntime = db.prepare("UPDATE workers SET pid = NULL, port = NULL WHERE id = ?");
     this.stmtReactivate = db.prepare("UPDATE workers SET pid = ?, port = ?, ended_at = NULL, exit_code = NULL WHERE id = ?");
@@ -93,6 +95,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
       input.startedAt,
       input.worktreeDir ?? null,
       input.workspaceOwnerId ?? null,
+      input.workspaceReady ? 1 : 0,
     );
   }
 
@@ -151,6 +154,10 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   setForkBaseSha(id: string, sha: string): void {
     this.stmtSetForkBaseSha.run(sha, id);
+  }
+
+  setWorkspaceReady(id: string): void {
+    this.stmtSetWorkspaceReady.run(id);
   }
 
   setSessionId(id: string, sessionId: string): void {

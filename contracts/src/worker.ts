@@ -54,6 +54,13 @@ export const WorkerRowSchema = z.object({
   // (workspaceOf): it shares that workspace rather than owning one, so the
   // worktree is only removed when no row references its branch anymore.
   workspace_owner_id: z.string().nullable().optional(),
+  // 0 until the worker reports its workspace materialized on disk (the
+  // claude_spawning lifecycle event, emitted after worktree creation +
+  // hydration). worktree_dir is precomputed at insert for delete safety, but
+  // reading it before the tree exists is wrong: `git -C` against a
+  // half-created worktree walks UP to the source repo and misattributes the
+  // user's checkout diff to this worker. Git reads gate on this flag.
+  workspace_ready: z.number().nullable().optional(),
 });
 
 export const PermissionModeSchema = z.enum([

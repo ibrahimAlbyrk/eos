@@ -234,6 +234,10 @@ export async function spawnWorker(
     withGateway: !!resolved.withGateway,
     worktreeDir: worktreeDir ?? null,
     workspaceOwnerId: resolved.workspaceOf ?? null,
+    // Fresh worktree: the precomputed dir materializes during worker boot —
+    // born not-ready, flipped by the claude_spawning enrichment. Plain-cwd
+    // and attach spawns point at a tree that already exists.
+    workspaceReady: !resolved.worktreeFrom || !!resolved.workspaceOf,
   });
 
   // A prompt-bearing spawn IS the start of a turn. The row is born busy

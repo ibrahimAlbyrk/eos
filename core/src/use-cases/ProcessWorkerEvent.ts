@@ -108,6 +108,9 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
       if (typeof p?.forkBaseSha === "string" && p.forkBaseSha.length > 0) {
         deps.workers.setForkBaseSha(input.workerId, p.forkBaseSha);
       }
+      // claude_spawning fires after setupWorktree (creation + hydration done),
+      // so the workspace is materialized — unlock agent-scoped git reads.
+      deps.workers.setWorkspaceReady(input.workerId);
     } else if (phase === "session_captured") {
       // Enrichment only: persist the claude session id so the conversation can
       // be resumed (`claude --resume`) after the process dies. Emitted on both

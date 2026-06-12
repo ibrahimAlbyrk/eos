@@ -27,6 +27,11 @@ export interface InsertWorkerInput {
   // workspaceOf target when attaching. Lifecycle enrichment stays as self-heal.
   worktreeDir: string | null;
   workspaceOwnerId: string | null;
+  // False only for fresh-worktree spawns: the precomputed worktree_dir does
+  // not exist on disk yet. Flipped by setWorkspaceReady when the worker's
+  // claude_spawning event confirms creation. Plain-cwd and attach spawns are
+  // born ready (their tree already exists).
+  workspaceReady: boolean;
 }
 
 export interface UsageDelta {
@@ -59,6 +64,8 @@ export interface WorkerRepo {
   // Persist the fork commit captured at worktree creation — the stable diff
   // base (never re-derived from the source checkout's moving HEAD).
   setForkBaseSha(id: string, sha: string): void;
+  // Mark the workspace materialized on disk — gates agent-scoped git reads.
+  setWorkspaceReady(id: string): void;
   // Persist the claude session id the worker reports on capture/swap — the
   // key for resuming the conversation after the process dies.
   setSessionId(id: string, sessionId: string): void;

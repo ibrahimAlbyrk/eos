@@ -14,6 +14,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
   worktreeDirCalls: Array<{ id: string; dir: string }>;
   forkBaseShaCalls: Array<{ id: string; sha: string }>;
   sessionIdCalls: Array<{ id: string; sessionId: string }>;
+  workspaceReadyCalls: string[];
 } {
   const events: AppendedEvent[] = [];
   const row = { state: initialState };
@@ -21,6 +22,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
   const worktreeDirCalls: Array<{ id: string; dir: string }> = [];
   const forkBaseShaCalls: Array<{ id: string; sha: string }> = [];
   const sessionIdCalls: Array<{ id: string; sessionId: string }> = [];
+  const workspaceReadyCalls: string[] = [];
   // Mutable so markSettling (driven by the Stop hook) actually opens the window
   // a subsequent jsonl event then observes — mirrors TurnSettleService.
   let settling = opts.settling ?? false;
@@ -33,6 +35,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
     setWorktreeDir: (id: string, dir: string) => { worktreeDirCalls.push({ id, dir }); },
     setForkBaseSha: (id: string, sha: string) => { forkBaseShaCalls.push({ id, sha }); },
     setSessionId: (id: string, sessionId: string) => { sessionIdCalls.push({ id, sessionId }); },
+    setWorkspaceReady: (id: string) => { workspaceReadyCalls.push(id); },
   } as unknown as ProcessWorkerEventDeps["workers"];
 
   const eventsRepo = {
@@ -59,7 +62,7 @@ function buildDeps(initialState: WorkerState, opts: { settling?: boolean } = {})
     markSettling: () => { settling = true; },
   } as unknown as ProcessWorkerEventDeps;
 
-  return { deps, events, row, toolCalls, worktreeDirCalls, forkBaseShaCalls, sessionIdCalls };
+  return { deps, events, row, toolCalls, worktreeDirCalls, forkBaseShaCalls, sessionIdCalls, workspaceReadyCalls };
 }
 
 const stateEvents = (events: AppendedEvent[]): Array<{ state?: string; reason?: string }> =>
@@ -105,6 +108,25 @@ describe("ProcessWorkerEvent.lifecycle — claude_spawning worktree_dir enrichme
     processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning", worktreeDir: "/x" } });
     processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning", worktreeDir: "/x", forkBaseSha: "" } });
     assert.deepEqual(forkBaseShaCalls, []);
+  });
+
+  it("marks the workspace ready — claude_spawning means setupWorktree completed", () => {
+    const { deps, workspaceReadyCalls } = buildDeps("SPAWNING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning", worktreeDir: "/x", forkBaseSha: "abc" } });
+    assert.deepEqual(workspaceReadyCalls, ["w1"]);
+  });
+
+  it("marks ready even without a worktreeDir (plain-cwd worker)", () => {
+    const { deps, workspaceReadyCalls } = buildDeps("SPAWNING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "claude_spawning" } });
+    assert.deepEqual(workspaceReadyCalls, ["w1"]);
+  });
+
+  it("does not mark ready on other lifecycle phases", () => {
+    const { deps, workspaceReadyCalls } = buildDeps("WORKING");
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "session_captured", sessionId: "s" } });
+    processWorkerEvent(deps, { workerId: "w1", type: "lifecycle", payload: { phase: "delivery_failed" } });
+    assert.deepEqual(workspaceReadyCalls, []);
   });
 });
 

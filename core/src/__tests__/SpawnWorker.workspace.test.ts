@@ -10,6 +10,7 @@ interface InsertedRow {
   worktreeFrom: string | null;
   worktreeDir: string | null;
   workspaceOwnerId: string | null;
+  workspaceReady: boolean;
 }
 
 function buildDeps(target?: Record<string, unknown>): {
@@ -58,6 +59,8 @@ describe("spawnWorker — workspaceOf attach + worktree_dir precompute", () => {
     assert.equal(inserted[0].branch, "eos-owner-x");
     assert.equal(inserted[0].worktreeDir, TARGET.worktree_dir);
     assert.equal(inserted[0].workspaceOwnerId, "w-owner");
+    // The shared tree already exists on disk — attach rows are born ready.
+    assert.equal(inserted[0].workspaceReady, true);
     assert.equal(argSpecs[0].worktreeDir, TARGET.worktree_dir);
     assert.equal(argSpecs[0].workspaceOf, "w-owner");
   });
@@ -97,6 +100,9 @@ describe("spawnWorker — workspaceOf attach + worktree_dir precompute", () => {
     const branch = `eos-test-w-new-${TS.toString(36)}`;
     assert.equal(inserted[0].worktreeDir, `/repo/.eos/worktrees/${branch}`);
     assert.equal(inserted[0].workspaceOwnerId, null);
+    // The precomputed dir does NOT exist yet — git reads must stay gated
+    // until the worker's claude_spawning event flips the flag.
+    assert.equal(inserted[0].workspaceReady, false);
     assert.equal(argSpecs[0].worktreeDir, `/repo/.eos/worktrees/${branch}`);
     assert.equal(argSpecs[0].workspaceOf, undefined);
   });
@@ -106,5 +112,6 @@ describe("spawnWorker — workspaceOf attach + worktree_dir precompute", () => {
     await spawnWorker(deps, { prompt: "p", cwd: "/some/dir" });
     assert.equal(inserted[0].worktreeDir, null);
     assert.equal(inserted[0].workspaceOwnerId, null);
+    assert.equal(inserted[0].workspaceReady, true);
   });
 });

@@ -13,6 +13,7 @@ function input(id: string, parentId: string | null, startedAt: number): InsertWo
     pid: null, port: 7400, startedAt, parentId, model: "opus", effort: null,
     isOrchestrator: false, backendKind: "claude-cli", backendProfile: null,
     agentRole: null, withGateway: true, worktreeDir: null, workspaceOwnerId: null,
+    workspaceReady: true,
   };
 }
 
@@ -34,5 +35,19 @@ describe("SqliteWorkerRepo listByParent", () => {
     assert.deepEqual(repo.listByParent("orch-2").map((w) => w.id), ["w-c"]);
     assert.deepEqual(repo.listByParent("orch-none").map((w) => w.id), []);
     assert.equal(repo.listAll().length, 4);
+  });
+});
+
+describe("SqliteWorkerRepo workspace_ready", () => {
+  it("persists 0 for a not-ready insert and flips via setWorkspaceReady", () => {
+    repo.insert({ ...input("w-wt", null, 100), worktreeFrom: "/repo", branch: "eos-x", worktreeDir: "/repo/.eos/worktrees/eos-x", workspaceReady: false });
+    assert.equal(repo.findById("w-wt")?.workspace_ready, 0);
+    repo.setWorkspaceReady("w-wt");
+    assert.equal(repo.findById("w-wt")?.workspace_ready, 1);
+  });
+
+  it("persists 1 for a ready insert (plain cwd / attach)", () => {
+    repo.insert(input("w-cwd", null, 100));
+    assert.equal(repo.findById("w-cwd")?.workspace_ready, 1);
   });
 });
