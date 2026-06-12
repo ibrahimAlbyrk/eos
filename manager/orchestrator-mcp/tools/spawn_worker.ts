@@ -38,7 +38,7 @@ export const spawnWorkerTool: McpToolModule = {
           };
           if (effort) body.effort = effort;
           if (workspaceOf) body.workspaceOf = workspaceOf;
-          else if (session.isGitRepo) body.worktreeFrom = session.cwd;
+          else if (session.isGitRepo()) body.worktreeFrom = session.cwd;
           else body.cwd = session.cwd;
           return await session.api("POST", "/workers", body);
         }),

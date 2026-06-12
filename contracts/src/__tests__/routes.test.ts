@@ -14,7 +14,7 @@ const EXPECTED_KEYS = [
   "fsCheckout", "fsWrite", "fsPaste", "workerName", "workerOpen", "workerPermission",
   "workerModel", "workerDiff", "workerChanges", "workerFileDiff",
   "workerInterrupt", "workerResume", "workerKeystroke",
-  "workerQuestion", "workerQuestionNotify", "workerQuestionAnswer",
+  "workerQuestion", "workerQuestionPoll", "workerQuestionAnswer",
   "workerNotify", "workerReport", "workerRewindTargets", "workerRewind",
   "workerTerminal", "terminal", "terminalKill",
   "workerTryPreview", "workerTryState", "workerTry", "workerTryKeep", "workerTryDiscard",
