@@ -2,32 +2,42 @@ import { useCallback, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import { makeLabel, buildAttachmentSuffix } from "../lib/attachmentTokens.js";
 
-// Inline composer attachments: each item is rendered as a {kind #N} token in
+function baseName(p) {
+  const t = p.endsWith("/") ? p.slice(0, -1) : p;
+  return t.split("/").pop() || t;
+}
+
+// Inline composer attachments: each item is rendered as a [name…] token in
 // the editor and a preview chip. `pathsRef` outlives clear() so a send that is
 // still awaiting uploads can resolve labels after the UI was reset.
 export function useAttachments({ onUploadFailed } = {}) {
   const [items, setItems] = useState([]);
-  const countersRef = useRef({});
+  const usedLabelsRef = useRef(new Set());
   const pathsRef = useRef(new Map());
+  const kindsRef = useRef(new Map());
   const pendingRef = useRef(new Map());
   const onUploadFailedRef = useRef(onUploadFailed);
   onUploadFailedRef.current = onUploadFailed;
 
-  const nextLabel = useCallback((kind) => {
-    const n = (countersRef.current[kind] ?? 0) + 1;
-    countersRef.current[kind] = n;
-    return makeLabel(kind, n);
+  const nextLabel = useCallback((name, kind) => {
+    for (let n = 1; ; n++) {
+      const label = makeLabel(name, n);
+      if (usedLabelsRef.current.has(label)) continue;
+      usedLabelsRef.current.add(label);
+      kindsRef.current.set(label, kind);
+      return label;
+    }
   }, []);
 
   const addPath = useCallback((kind, path) => {
-    const label = nextLabel(kind);
+    const label = nextLabel(baseName(path), kind);
     pathsRef.current.set(label, path);
     setItems((prev) => [...prev, { label, kind, path, status: "ready" }]);
     return label;
   }, [nextLabel]);
 
   const addUpload = useCallback((kind, file) => {
-    const label = nextLabel(kind);
+    const label = nextLabel(file.name || kind, kind);
     setItems((prev) => [...prev, { label, kind, path: null, status: "uploading" }]);
     const job = api.uploadPaste(file)
       .then((res) => {
@@ -51,9 +61,9 @@ export function useAttachments({ onUploadFailed } = {}) {
     setItems((prev) => prev.filter((it) => it.label !== label));
   }, []);
 
-  // Counters survive clear(): labels key the global pathsRef and other agents'
-  // stashed drafts may still hold older labels — resetting would mint duplicate
-  // labels that overwrite their paths.
+  // usedLabels survives clear(): labels key the global pathsRef and other
+  // agents' stashed drafts may still hold older labels — resetting would mint
+  // duplicate labels that overwrite their paths.
   const clear = useCallback(() => {
     setItems([]);
   }, []);
@@ -63,6 +73,7 @@ export function useAttachments({ onUploadFailed } = {}) {
   // another agent's list) — reconcile from pathsRef/pendingRef: finished →
   // ready, still in flight → keep, failed → drop.
   const restore = useCallback((list) => {
+    for (const it of list) usedLabelsRef.current.add(it.label);
     setItems(list.flatMap((it) => {
       if (it.status !== "uploading") return [it];
       const path = pathsRef.current.get(it.label);
@@ -77,7 +88,7 @@ export function useAttachments({ onUploadFailed } = {}) {
   // claude still sees the absolute paths and auto-attaches them.
   const resolveForSend = useCallback(async (labels) => {
     await Promise.allSettled([...pendingRef.current.values()]);
-    return buildAttachmentSuffix(labels, pathsRef.current);
+    return buildAttachmentSuffix(labels, pathsRef.current, kindsRef.current);
   }, []);
 
   return { items, addPath, addUpload, remove, clear, restore, resolveForSend };

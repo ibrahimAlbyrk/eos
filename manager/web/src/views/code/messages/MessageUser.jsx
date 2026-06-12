@@ -19,6 +19,12 @@ function parseAttachments(text) {
     .map((line) => line.replace(/^- /, "").trim())
     .filter(Boolean)
     .map((raw) => {
+      const bracket = raw.match(/^(\[[^\]]+\])(?:\s+\((image|file|folder)\))?:\s*(.+)$/);
+      if (bracket) {
+        const ext = bracket[3].split(".").pop()?.toLowerCase() ?? "";
+        return { label: bracket[1], type: bracket[2] ?? (IMAGE_EXTS.has(ext) ? "image" : "file"), path: bracket[3] };
+      }
+      // legacy "{image #1}" labels from messages sent before name-based tokens
       const labeled = raw.match(/^(\{(image|file|folder) #\d+\}):\s*(.+)$/);
       if (labeled) return { label: labeled[1], type: labeled[2], path: labeled[3] };
       const m = raw.match(/^(folder|file|image):\s*(.+)$/);

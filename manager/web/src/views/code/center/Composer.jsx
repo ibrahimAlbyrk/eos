@@ -16,6 +16,8 @@ import { findLabelAt } from "../../../lib/attachmentTokens.js";
 import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
 import { composerMode, modeFlags } from "../../../lib/composerModes.js";
+import { attachmentKind } from "../../../lib/attachmentKind.js";
+import { hasPasteboardBridge, readPasteboardPaths, onNativeDrop, onDragState } from "../../../lib/nativeBridge.js";
 import { gitAgentName, gitTaskLabel } from "../../../lib/gitAgentName.js";
 import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
 import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
@@ -26,7 +28,7 @@ import { AttachmentChips } from "./AttachmentChips.jsx";
 import { PermissionBanner } from "./PermissionBanner.jsx";
 import { SlashInfoPopover } from "../popovers/SlashInfoPopover.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
-import { TryBanner } from "./TryBanner.jsx";
+import { TryDeck } from "./TryBanner.jsx";
 
 function QueuedPill({ text, onDismiss }) {
   return (
@@ -257,20 +259,39 @@ export function Composer({ live }) {
     return () => clearTimeout(t);
   }, [escArmed]);
 
-  const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
+  const uploadFiles = (files, pos) => {
+    // A Finder folder surfaces as a typeless empty File — uploading it fails
+    // and flashes the chip, so drop those entries silently.
+    const real = files.filter((f) => f.type || f.size);
+    if (!real.length) return;
+    const labels = real.map((file) => {
+      const kind = file.type.startsWith("image/") ? "image" : attachmentKind(file.name);
+      return addUpload(kind, file);
+    });
+    insertLabels(labels, pos);
+  };
 
   const handlePaste = (e) => {
     const files = Array.from(e.clipboardData.files);
-    if (files.length > 0) {
+    const hasFiles = files.length > 0 || e.clipboardData.types.includes("Files");
+    if (hasFiles) {
       e.preventDefault();
       const el = editorRef.current;
       const pos = el ? getCursorOffset(el) : text.length;
-      const labels = files.map((file) => {
-        const ext = file.name?.split(".").pop()?.toLowerCase() ?? "";
-        const kind = IMAGE_EXTS.has(ext) || file.type.startsWith("image/") ? "image" : "file";
-        return addUpload(kind, file);
-      });
-      insertLabels(labels, pos);
+      if (hasPasteboardBridge()) {
+        // Finder copy → reference the on-disk paths (folders included); raw
+        // clipboard data (screenshots) has no path → fall back to upload.
+        readPasteboardPaths().then((entries) => {
+          if (entries?.length) {
+            const labels = entries.map((en) => addPath(attachmentKind(en.path, en.isDir), en.path));
+            insertLabels(labels, pos);
+          } else {
+            uploadFiles(files, pos);
+          }
+        });
+        return;
+      }
+      uploadFiles(files, pos);
       return;
     }
     e.preventDefault();
@@ -283,6 +304,20 @@ export function Composer({ live }) {
     insertLabels(labels, cursorPos);
     editorRef.current?.focus();
   };
+
+  // Finder drags intercepted by the native layer (EosWebView) — paths arrive
+  // via the bridge globals; subscribe once, latest handler through a ref.
+  const [dropActive, setDropActive] = useState(false);
+  const nativeDropRef = useRef(() => {});
+  nativeDropRef.current = (entries) => {
+    if (!entries?.length) return;
+    addAttachments(entries.map((en) => ({ type: attachmentKind(en.path, en.isDir), path: en.path })));
+  };
+  useEffect(() => {
+    const offDrop = onNativeDrop((entries) => nativeDropRef.current(entries));
+    const offDrag = onDragState(setDropActive);
+    return () => { offDrop(); offDrag(); };
+  }, []);
 
   const findCommandAt = (pos) => {
     for (let i = 0; i < text.length; i++) {
@@ -711,7 +746,7 @@ export function Composer({ live }) {
           onAlwaysAllow={live.alwaysAllowPending}
           onDeny={live.denyPending}
         />
-        <TryBanner live={live} selected={selected} />
+        <TryDeck live={live} selected={selected} />
         {selected ? (
           <ComposerDiffRow live={live} />
         ) : (
@@ -736,7 +771,11 @@ export function Composer({ live }) {
             />
           )}
           <SlashInfoPopover />
-          <div className={ui.composer.termMode ? "c-row2 term-mode" : ui.composer.gitMode ? "c-row2 git-mode" : "c-row2"}>
+          <div className={[
+            "c-row2",
+            ui.composer.termMode ? "term-mode" : ui.composer.gitMode ? "git-mode" : "",
+            dropActive ? "drop-active" : "",
+          ].filter(Boolean).join(" ")}>
             {attachmentItems.length > 0 && (
               <AttachmentChips attachments={attachmentItems} onRemove={removeAttachmentToken} />
             )}

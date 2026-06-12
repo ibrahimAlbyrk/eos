@@ -260,6 +260,17 @@ describe("buildBlocks standalone tools", () => {
     expect(blocks.map((b) => b.kind)).toEqual(["tool", "tool", "tool"]);
     expect(blocks[1].tool.name).toBe("AskUserQuestion");
   });
+
+  it("keeps a hook-only Agent (transcript not yet flushed) out of toolGroups", () => {
+    const events = [
+      { type: "tool_running", ts: 100, payload: { toolName: "Bash", toolUseId: "B1", input: {} } },
+      { type: "tool_running", ts: 101, payload: { toolName: "Agent", toolUseId: "A1", input: {} } },
+      { type: "tool_running", ts: 102, payload: { toolName: "Bash", toolUseId: "B2", input: {} } },
+    ];
+    const blocks = buildBlocks(events);
+    expect(blocks.map((b) => b.kind)).toEqual(["tool", "tool", "tool"]);
+    expect(blocks[1].tool.name).toBe("Agent");
+  });
 });
 
 describe("buildBlocks worker-tool lane", () => {

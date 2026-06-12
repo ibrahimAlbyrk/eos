@@ -81,6 +81,64 @@ final class TrafficLightPositioner {
     }
 }
 
+// WKWebView never exposes absolute file paths to JS (clipboardData/dataTransfer
+// carry blob copies; a folder surfaces as an unreadable typeless File), so the
+// composer's Finder paste/drop support is fed from here.
+private func pasteboardFileEntries(_ pb: NSPasteboard) -> [[String: Any]] {
+    let opts: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+    guard let urls = pb.readObjects(forClasses: [NSURL.self], options: opts) as? [URL] else { return [] }
+    return urls.map { url in
+        var isDir: ObjCBool = false
+        FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
+        return ["path": url.path, "isDir": isDir.boolValue]
+    }
+}
+
+// Intercepts Finder drags at the AppKit layer (the DOM never sees the paths)
+// and hands them to the web composer via the nativeBridge.js window globals.
+// Non-file drags fall through to WKWebView's own handling untouched.
+final class EosWebView: WKWebView {
+    private var fileDrag = false
+
+    private func isFileDrag(_ info: NSDraggingInfo) -> Bool {
+        info.draggingPasteboard.canReadObject(
+            forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true])
+    }
+
+    override func draggingEntered(_ info: NSDraggingInfo) -> NSDragOperation {
+        fileDrag = isFileDrag(info)
+        guard fileDrag else { return super.draggingEntered(info) }
+        evaluateJavaScript("window.__eosDragState?.(true)")
+        return .copy
+    }
+
+    override func draggingUpdated(_ info: NSDraggingInfo) -> NSDragOperation {
+        fileDrag ? .copy : super.draggingUpdated(info)
+    }
+
+    override func draggingExited(_ info: NSDraggingInfo?) {
+        guard fileDrag else { return super.draggingExited(info) }
+        fileDrag = false
+        evaluateJavaScript("window.__eosDragState?.(false)")
+    }
+
+    override func prepareForDragOperation(_ info: NSDraggingInfo) -> Bool {
+        fileDrag ? true : super.prepareForDragOperation(info)
+    }
+
+    override func performDragOperation(_ info: NSDraggingInfo) -> Bool {
+        guard fileDrag else { return super.performDragOperation(info) }
+        fileDrag = false
+        evaluateJavaScript("window.__eosDragState?.(false)")
+        let entries = pasteboardFileEntries(info.draggingPasteboard)
+        guard !entries.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: entries),
+              let json = String(data: data, encoding: .utf8) else { return false }
+        evaluateJavaScript("window.__eosNativeDrop?.(\(json))")
+        return true
+    }
+}
+
 // Key events the page doesn't preventDefault (WASD in a game iframe, keys
 // with nothing focused) travel back up the responder chain and hit NSWindow's
 // default noResponder(for:), which calls NSBeep — swallow keyDown there.
@@ -91,7 +149,7 @@ final class QuietWindow: NSWindow {
     }
 }
 
-class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate, WKScriptMessageHandler, UNUserNotificationCenterDelegate, URLSessionDataDelegate {
+class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate, WKScriptMessageHandler, WKScriptMessageHandlerWithReply, UNUserNotificationCenterDelegate, URLSessionDataDelegate {
     var window: NSWindow!
     var webView: WKWebView!
     // Empty toolbar + .unified style = tall titlebar; AppKit centers and insets
@@ -158,12 +216,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         cfg.userContentController.add(self, name: "titlebarDrag")
         cfg.userContentController.add(self, name: "themeChanged")
         cfg.userContentController.add(self, name: "themeSnapshot")
+        cfg.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "pasteboardPaths")
 
         // Last resolved theme (posted by theme.js) so the window/webview bg
         // matches before the page paints — no dark flash in light mode.
         let theme = initialTheme()
 
-        webView = WKWebView(frame: .zero, configuration: cfg)
+        webView = EosWebView(frame: .zero, configuration: cfg)
         webView.navigationDelegate = self
         webView.wantsLayer = true
         webView.layer?.backgroundColor = themeBackground(theme).cgColor
@@ -429,6 +488,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     @objc func reloadPage(_: Any?) { webView.reload() }
+
+    // Cmd+V path lookup: the web paste handler awaits this when the clipboard
+    // carries files, so Finder copies paste as path references (folders too).
+    func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage,
+                               replyHandler: @escaping (Any?, String?) -> Void) {
+        guard message.name == "pasteboardPaths" else { replyHandler(nil, nil); return }
+        replyHandler(pasteboardFileEntries(NSPasteboard.general), nil)
+    }
 
     func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage) {
         if message.name == "themeSnapshot" {

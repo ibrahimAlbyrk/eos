@@ -5,8 +5,11 @@ import { isWorkerToolName, WORKER_TOOL_SPECS } from "./workerTools.js";
 export { parsePayload };
 
 // Tools that never merge into a toolGroup — always rendered as standalone blocks.
-// (Agent is already standalone via its own agentRun block.)
+// "Agent" is here for the live hook-only window: the transcript tool_use (which
+// renders the agentRun block) flushes at step boundaries, so mid-turn the Agent
+// only exists as a tool_running event and would otherwise group as generic.
 export const STANDALONE_TOOLS = new Set([
+  "Agent",
   "AskUserQuestion",
   "Skill",
   "EnterPlanMode",

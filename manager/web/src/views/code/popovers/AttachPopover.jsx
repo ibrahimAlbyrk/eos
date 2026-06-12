@@ -1,5 +1,6 @@
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
+import { attachmentKind } from "../../../lib/attachmentKind.js";
 
 export function AttachPopover({ onAttach }) {
   const ui = useUi();
@@ -10,11 +11,7 @@ export function AttachPopover({ onAttach }) {
     try {
       const res = await api.pickFiles();
       if (res.cancelled || !res.paths?.length) return;
-      onAttach(res.paths.map((p) => {
-        const ext = p.split(".").pop()?.toLowerCase() ?? "";
-        const isImage = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"].includes(ext);
-        return { type: isImage ? "image" : "file", path: p };
-      }));
+      onAttach(res.paths.map((p) => ({ type: attachmentKind(p), path: p })));
     } catch (e) {
       console.error("pickFiles failed:", e);
     }
