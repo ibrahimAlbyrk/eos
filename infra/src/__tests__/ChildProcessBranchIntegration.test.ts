@@ -1,7 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, renameSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -25,7 +25,14 @@ const REF = (): { repoRoot: string; worktreeDir: string | null; branch: string; 
 });
 
 function integration() {
-  return createChildProcessBranchIntegration({ triesDir, now: () => 1_000 });
+  let t = 1_000;
+  return createChildProcessBranchIntegration({ triesDir, now: () => t++ });
+}
+
+function addWorktree(name: string): string {
+  const wt = join(repo, ".eos", "worktrees", name);
+  git(repo, ["worktree", "add", "-q", wt, "-b", name]);
+  return wt;
 }
 
 beforeEach(() => {
@@ -69,13 +76,13 @@ test("apply lands worktree edits as unstaged changes; keep finalizes", async () 
   assert.equal(staged, "");
   assert.ok(!existsSync(join(repo, ".git", "MERGE_HEAD")));
 
-  const active = await bi.activeTry(repo);
-  assert.ok(active);
-  assert.equal(active.workerId, "w-1");
+  const active = await bi.activeTries(repo);
+  assert.equal(active.length, 1);
+  assert.equal(active[0]!.workerId, "w-1");
 
-  const kept = await bi.keep(repo);
+  const kept = await bi.keep(repo, "w-1");
   assert.equal(kept.ok, true);
-  assert.equal(await bi.activeTry(repo), null);
+  assert.equal((await bi.activeTries(repo)).length, 0);
   // Edits remain after keep.
   assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 EDITED\nline2\nline3\n");
 });
@@ -86,13 +93,13 @@ test("discard restores the exact pre-try state including created files", async (
 
   const bi = integration();
   assert.equal((await bi.apply(REF())).ok, true);
-  const discarded = await bi.discard(repo);
+  const discarded = await bi.discard(repo, "w-1");
   assert.equal(discarded.ok, true);
 
   assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1\nline2\nline3\n");
   assert.ok(!existsSync(join(repo, "new.txt")));
   assert.equal(git(repo, ["status", "--porcelain"]).trim(), "");
-  assert.equal(await bi.activeTry(repo), null);
+  assert.equal((await bi.activeTries(repo)).length, 0);
 });
 
 test("discard refuses per-file when the user edited a touched file mid-try", async () => {
@@ -104,24 +111,107 @@ test("discard refuses per-file when the user edited a touched file mid-try", asy
   // User edits the applied file during the try.
   writeFileSync(join(repo, "a.txt"), "line1 EDITED BY USER\nline2\nline3\n");
 
-  const discarded = await bi.discard(repo);
+  const discarded = await bi.discard(repo, "w-1");
   assert.equal(discarded.ok, false);
   assert.ok(!discarded.ok && discarded.reason === "user-edited");
   assert.ok(!discarded.ok && discarded.files?.includes("a.txt"));
   // Nothing reverted.
   assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 EDITED BY USER\nline2\nline3\n");
   // Try still active — user can resolve and retry.
-  assert.ok(await bi.activeTry(repo));
+  assert.equal((await bi.activeTries(repo)).length, 1);
 });
 
-test("second apply on the same repo returns active-try", async () => {
+test("re-apply by the same worker returns active-try", async () => {
   writeFileSync(join(worktree, "a.txt"), "line1 EDITED\nline2\nline3\n");
   const bi = integration();
   assert.equal((await bi.apply(REF())).ok, true);
 
-  const second = await bi.apply({ ...REF(), workerId: "w-2" });
-  assert.equal(second.ok, false);
-  assert.ok(!second.ok && second.reason === "active-try");
+  const again = await bi.apply(REF());
+  assert.equal(again.ok, false);
+  assert.ok(!again.ok && again.reason === "active-try");
+});
+
+test("disjoint tries from two workers stack and resolve in any order", async () => {
+  writeFileSync(join(worktree, "a.txt"), "line1 W1\nline2\nline3\n");
+  const wt2 = addWorktree("eos-test-w2");
+  writeFileSync(join(wt2, "b.txt"), "b W2\n");
+
+  const bi = integration();
+  assert.equal((await bi.apply(REF())).ok, true);
+  const r2 = await bi.apply({ repoRoot: repo, worktreeDir: wt2, branch: "eos-test-w2", workerId: "w-2" });
+  assert.equal(r2.ok, true);
+
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 W1\nline2\nline3\n");
+  assert.equal(readFileSync(join(repo, "b.txt"), "utf8"), "b W2\n");
+  const active = await bi.activeTries(repo);
+  assert.deepEqual(active.map((t) => t.workerId), ["w-1", "w-2"]);
+
+  // Discard the BOTTOM layer first — disjoint, so order-free.
+  assert.equal((await bi.discard(repo, "w-1")).ok, true);
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1\nline2\nline3\n");
+  assert.equal(readFileSync(join(repo, "b.txt"), "utf8"), "b W2\n");
+
+  assert.equal((await bi.discard(repo, "w-2")).ok, true);
+  assert.equal(git(repo, ["status", "--porcelain"]).trim(), "");
+});
+
+test("overlapping clean-merging tries stack; lower discard is blocked until the overlay resolves", async () => {
+  writeFileSync(join(worktree, "a.txt"), "line1 W1\nline2\nline3\n");
+  const wt2 = addWorktree("eos-test-w2");
+  writeFileSync(join(wt2, "a.txt"), "line1\nline2\nline3 W2\n");
+
+  const bi = integration();
+  assert.equal((await bi.apply(REF())).ok, true);
+  const r2 = await bi.apply({ repoRoot: repo, worktreeDir: wt2, branch: "eos-test-w2", workerId: "w-2" });
+  assert.equal(r2.ok, true);
+  // Both layers landed in the same file.
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 W1\nline2\nline3 W2\n");
+
+  const blocked = await bi.discard(repo, "w-1");
+  assert.equal(blocked.ok, false);
+  assert.ok(!blocked.ok && blocked.reason === "blocked-by-overlay");
+  assert.ok(!blocked.ok && blocked.detail === "w-2");
+  assert.ok(!blocked.ok && blocked.files?.includes("a.txt"));
+
+  // Resolve top, then bottom.
+  assert.equal((await bi.discard(repo, "w-2")).ok, true);
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 W1\nline2\nline3\n");
+  assert.equal((await bi.discard(repo, "w-1")).ok, true);
+  assert.equal(git(repo, ["status", "--porcelain"]).trim(), "");
+});
+
+test("keep is tree-neutral for any layer; the overlay above stays discardable", async () => {
+  writeFileSync(join(worktree, "a.txt"), "line1 W1\nline2\nline3\n");
+  const wt2 = addWorktree("eos-test-w2");
+  writeFileSync(join(wt2, "a.txt"), "line1\nline2\nline3 W2\n");
+
+  const bi = integration();
+  assert.equal((await bi.apply(REF())).ok, true);
+  assert.equal((await bi.apply({ repoRoot: repo, worktreeDir: wt2, branch: "eos-test-w2", workerId: "w-2" })).ok, true);
+
+  // Keep the BOTTOM layer while an overlapping layer sits on top.
+  assert.equal((await bi.keep(repo, "w-1")).ok, true);
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 W1\nline2\nline3 W2\n");
+  assert.equal(await bi.wasKept({ repoRoot: repo, workerId: "w-1" }), true);
+
+  assert.equal((await bi.discard(repo, "w-2")).ok, true);
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 W1\nline2\nline3\n");
+});
+
+test("a second try conflicting with an active layer returns conflicts-with-try", async () => {
+  writeFileSync(join(worktree, "a.txt"), "line1 W1\nline2\nline3\n");
+  const wt2 = addWorktree("eos-test-w2");
+  writeFileSync(join(wt2, "a.txt"), "line1 W2\nline2\nline3\n");
+
+  const bi = integration();
+  assert.equal((await bi.apply(REF())).ok, true);
+  const r2 = await bi.apply({ repoRoot: repo, worktreeDir: wt2, branch: "eos-test-w2", workerId: "w-2" });
+  assert.equal(r2.ok, false);
+  assert.ok(!r2.ok && r2.reason === "conflicts-with-try");
+  assert.ok(!r2.ok && r2.detail?.includes("w-1"));
+  // Nothing changed in the checkout; the first layer is intact.
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 W1\nline2\nline3\n");
+  assert.equal((await bi.activeTries(repo)).length, 1);
 });
 
 test("apply refuses when a touched file is dirty in the user checkout", async () => {
@@ -213,31 +303,58 @@ test("wasKept: set by keep, never by discard, survives new tries", async () => {
   assert.equal(await bi.wasKept({ repoRoot: repo, workerId: "w-1" }), false);
 
   assert.equal((await bi.apply(REF())).ok, true);
-  assert.equal((await bi.keep(repo)).ok, true);
+  assert.equal((await bi.keep(repo, "w-1")).ok, true);
   assert.equal(await bi.wasKept({ repoRoot: repo, workerId: "w-1" }), true);
   assert.equal(await bi.wasKept({ repoRoot: repo, workerId: "w-other" }), false);
 
   // A different worker's apply+discard must not clear w-1's marker.
-  const wt2 = join(repo, ".eos", "worktrees", "eos-test-w2");
-  git(repo, ["worktree", "add", "-q", wt2, "-b", "eos-test-w2"]);
+  const wt2 = addWorktree("eos-test-w2");
   writeFileSync(join(wt2, "b.txt"), "b CHANGED\n");
   const r2 = await bi.apply({ repoRoot: repo, worktreeDir: wt2, branch: "eos-test-w2", workerId: "w-2" });
   assert.equal(r2.ok, true);
-  assert.equal((await bi.discard(repo)).ok, true);
+  assert.equal((await bi.discard(repo, "w-2")).ok, true);
   assert.equal(await bi.wasKept({ repoRoot: repo, workerId: "w-2" }), false);
   assert.equal(await bi.wasKept({ repoRoot: repo, workerId: "w-1" }), true);
 });
 
-test("cleanupSnapshot deletes the ref but preserves active try state", async () => {
+test("cleanupSnapshot keeps an active layer's ref pinned, deletes inactive refs", async () => {
   writeFileSync(join(worktree, "a.txt"), "line1 EDITED\nline2\nline3\n");
   const bi = integration();
   assert.equal((await bi.apply(REF())).ok, true);
 
+  // Active layer: the ref stays so later applies can rebuild the stack;
+  // state + patch survive — discard still works after worker deletion.
   await bi.cleanupSnapshot({ repoRoot: repo, workerId: "w-1" });
-  const refs = git(repo, ["for-each-ref", "refs/eos/snapshots"]).trim();
-  assert.equal(refs, "");
-  // State + patch survive — discard still works after worker deletion.
-  const discarded = await bi.discard(repo);
+  assert.ok(git(repo, ["for-each-ref", "refs/eos/snapshots"]).includes("w-1"));
+
+  const discarded = await bi.discard(repo, "w-1");
   assert.equal(discarded.ok, true);
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1\nline2\nline3\n");
+  assert.equal(git(repo, ["for-each-ref", "refs/eos/snapshots"]).trim(), "");
+
+  // No active layer → cleanup deletes the ref.
+  writeFileSync(join(worktree, "a.txt"), "line1 AGAIN\nline2\nline3\n");
+  assert.equal((await bi.preview(REF())).supported, true); // re-pins the snapshot ref
+  await bi.cleanupSnapshot({ repoRoot: repo, workerId: "w-1" });
+  assert.equal(git(repo, ["for-each-ref", "refs/eos/snapshots"]).trim(), "");
+});
+
+test("legacy single-try layout (try.json + try.patch) migrates to the stack", async () => {
+  writeFileSync(join(worktree, "a.txt"), "line1 EDITED\nline2\nline3\n");
+  const bi = integration();
+  assert.equal((await bi.apply(REF())).ok, true);
+
+  // Rewrite the on-disk state into the pre-stack layout.
+  const dir = join(triesDir, readdirSync(triesDir)[0]!);
+  const tries = JSON.parse(readFileSync(join(dir, "tries.json"), "utf8"));
+  writeFileSync(join(dir, "try.json"), JSON.stringify(tries[0]));
+  rmSync(join(dir, "tries.json"));
+  renameSync(join(dir, "w-1.patch"), join(dir, "try.patch"));
+
+  const bi2 = integration();
+  const active = await bi2.activeTries(repo);
+  assert.equal(active.length, 1);
+  assert.equal(active[0]!.workerId, "w-1");
+  assert.equal((await bi2.discard(repo, "w-1")).ok, true);
   assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1\nline2\nline3\n");
 });

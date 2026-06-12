@@ -53,7 +53,7 @@ function DiffViewerInner({ workerId, live }) {
 
   const worker = live.workers.find((w) => w.id === workerId);
   const isolated = Boolean(worker?.worktree_from && worker?.branch);
-  const { tryState, activeTry, kept, applyTry } = useTryState(workerId, isolated, live);
+  const { tryState, appliedHere, kept, applyTry } = useTryState(workerId, isolated, live);
 
   // Stable identity so memoized FileCards don't re-render on sibling updates.
   const toggle = useCallback((file) => {
@@ -110,13 +110,13 @@ function DiffViewerInner({ workerId, live }) {
             <span className="lbl">{verdict.verdict}</span>
           </span>
         )}
-        {isolated && (activeTry || kept) && (
+        {isolated && (appliedHere || kept) && (
           <span className="git-chip applied-chip" title={kept ? "These changes were applied to your checkout and kept" : "These changes are currently applied in your checkout (Keep/Discard in the banner)"}>
             <span className="lbl">applied</span>
           </span>
         )}
         <span className="dv-grow" />
-        {isolated && !activeTry && !kept && tryState.phase === "idle" && (
+        {isolated && !appliedHere && !kept && tryState.phase === "idle" && (
           <button className="dv-act dv-act-apply" title="Apply these changes as unstaged edits in your checkout (Keep/Discard after testing)" onClick={applyTry}>
             Apply
           </button>
@@ -124,12 +124,12 @@ function DiffViewerInner({ workerId, live }) {
         {isolated && tryState.phase === "applying" && (
           <button className="dv-act dv-act-apply" disabled>Applying…</button>
         )}
-        {isolated && !activeTry && tryState.phase === "conflicts" && (
+        {isolated && !appliedHere && tryState.phase === "conflicts" && (
           <button className="dv-act dv-act-conflict" title={`${tryState.count} file(s) would conflict — nothing was touched`} onClick={resolveWithGitAgent}>
             Resolve with git agent
           </button>
         )}
-        {isolated && !activeTry && tryState.phase === "error" && (
+        {isolated && !appliedHere && tryState.phase === "error" && (
           <button className="dv-act dv-act-err" title="Click to retry" onClick={applyTry}>
             {tryState.msg}
           </button>

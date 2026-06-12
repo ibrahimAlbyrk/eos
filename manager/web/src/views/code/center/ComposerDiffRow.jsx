@@ -106,7 +106,7 @@ function ChildIntegrationRow({ child, ui, live }) {
   const gitDir = child.worktree_dir ?? child.cwd ?? child.worktree_from;
   const { status: gs } = useGitStatus(child.id, { gitDir, live });
   const diff = gs?.diff ?? null;
-  const tryState = gs?.tryState ?? { activeTry: null, kept: false };
+  const tryState = gs?.tryState ?? { activeTries: [], kept: false };
 
   // Verdict from the child's OWN transcript (same selector as its own view —
   // covers a user-clicked /verify that produced no parent report); the
@@ -114,7 +114,7 @@ function ChildIntegrationRow({ child, ui, live }) {
   const derived = useWorkerVerdict(child.id, live);
   const reported = ui.verdict?.children?.[child.id] ?? null;
   const verdict = derived && derived.verdict !== "unverified" ? derived : reported;
-  const applied = Boolean(tryState.kept || tryState.activeTry?.workerId === child.id);
+  const applied = Boolean(tryState.kept || (tryState.activeTries ?? []).some((t) => t.workerId === child.id));
   if (!hasUnintegratedWork(diff)) return null;
 
   // Top-only: a buried diff panel's badge must hoist on click, not close it.

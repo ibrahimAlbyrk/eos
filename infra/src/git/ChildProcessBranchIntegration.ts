@@ -5,13 +5,20 @@
 // stays valid even if HEAD moves during the try — guarded by per-file hash
 // verification against the recorded post-apply hashes.
 //
+// Tries stack (tries.json, bottom first). A new layer's patch is the diff
+// between the stack's virtual tree (HEAD + every active snapshot merged in
+// order via synthetic commits) and that tree merged with the new snapshot, so
+// concurrent tries from different workers compose. Keep is tree-neutral and
+// order-free; discard is refused while a layer above touches the same files
+// (reverse-applying under an overlay would corrupt the upper layer's content).
+//
 // realpath note: same dance as ChildProcessWorktreeManager — repoRoot arrives
 // via expandPath (no realpath) while git reports realpath'd paths; canonicalize
 // before deriving anything.
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { realpathSync, existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, unlinkSync } from "node:fs";
+import { realpathSync, existsSync, mkdirSync, readFileSync, writeFileSync, rmSync, unlinkSync, renameSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type {
@@ -46,8 +53,8 @@ function realpathOr(p: string): string {
   try { return realpathSync(p); } catch { return p; }
 }
 
-function repoKey(realRoot: string): string {
-  return realRoot.replace(/[^a-zA-Z0-9_-]/g, "-");
+function fsKey(s: string): string {
+  return s.replace(/[^a-zA-Z0-9_-]/g, "-");
 }
 
 function snapshotRef(workerId: string): string {
@@ -58,6 +65,8 @@ interface TryStateFile {
   workerId: string;
   branch: string;
   baseHead: string;
+  /** Pinned snapshot commit — lets the stack rebuild even if the ref is gone. */
+  snapshotSha?: string;
   lockfileChanged: boolean;
   createdAt: number;
   files: Array<{ path: string; hash: string | null }>;
@@ -81,24 +90,43 @@ export function createChildProcessBranchIntegration(input: BranchIntegrationInpu
     return next;
   }
 
-  const stateDirFor = (realRoot: string): string => join(triesDir, repoKey(realRoot));
-  const statePathFor = (realRoot: string): string => join(stateDirFor(realRoot), "try.json");
-  const patchPathFor = (realRoot: string): string => join(stateDirFor(realRoot), "try.patch");
+  const stateDirFor = (realRoot: string): string => join(triesDir, fsKey(realRoot));
+  const triesPathFor = (realRoot: string): string => join(stateDirFor(realRoot), "tries.json");
+  const patchPathFor = (realRoot: string, workerId: string): string =>
+    join(stateDirFor(realRoot), `${fsKey(workerId)}.patch`);
   const keptPathFor = (realRoot: string): string => join(stateDirFor(realRoot), "kept.json");
 
-  function loadState(realRoot: string): TryStateFile | null {
+  // Legacy single-try layout (try.json + try.patch) → one-element stack.
+  function migrateLegacy(realRoot: string): void {
+    const legacyState = join(stateDirFor(realRoot), "try.json");
+    if (!existsSync(legacyState) || existsSync(triesPathFor(realRoot))) return;
     try {
-      return JSON.parse(readFileSync(statePathFor(realRoot), "utf8")) as TryStateFile;
+      const legacy = JSON.parse(readFileSync(legacyState, "utf8")) as TryStateFile;
+      const legacyPatch = join(stateDirFor(realRoot), "try.patch");
+      if (existsSync(legacyPatch)) renameSync(legacyPatch, patchPathFor(realRoot, legacy.workerId));
+      writeFileSync(triesPathFor(realRoot), JSON.stringify([legacy], null, 2));
+      rmSync(legacyState, { force: true });
+    } catch {}
+  }
+
+  function loadTries(realRoot: string): TryStateFile[] {
+    migrateLegacy(realRoot);
+    try {
+      const parsed = JSON.parse(readFileSync(triesPathFor(realRoot), "utf8")) as TryStateFile[];
+      return Array.isArray(parsed) ? parsed : [];
     } catch {
-      return null;
+      return [];
     }
   }
 
-  // Remove only the active-try files — kept.json (per-worker integration
-  // markers) survives every clear.
-  function clearTryFiles(realRoot: string): void {
-    try { rmSync(statePathFor(realRoot), { force: true }); } catch {}
-    try { rmSync(patchPathFor(realRoot), { force: true }); } catch {}
+  // kept.json (per-worker integration markers) survives every save/clear.
+  function saveTries(realRoot: string, tries: TryStateFile[]): void {
+    if (tries.length === 0) {
+      try { rmSync(triesPathFor(realRoot), { force: true }); } catch {}
+      return;
+    }
+    mkdirSync(stateDirFor(realRoot), { recursive: true });
+    writeFileSync(triesPathFor(realRoot), JSON.stringify(tries, null, 2));
   }
 
   function loadKept(realRoot: string): Record<string, number> {
@@ -169,8 +197,8 @@ export function createChildProcessBranchIntegration(input: BranchIntegrationInpu
     mergedTree: string | null;
   }
 
-  async function computeMerge(realRoot: string, snapSha: string): Promise<MergeComputation> {
-    const r = await git(realRoot, ["merge-tree", "--write-tree", "--name-only", "HEAD", snapSha]);
+  async function computeMerge(realRoot: string, baseCommit: string, snapSha: string): Promise<MergeComputation> {
+    const r = await git(realRoot, ["merge-tree", "--write-tree", "--name-only", baseCommit, snapSha]);
     if (r.code !== 0 && r.code !== 1) return { supported: false, conflicts: [], mergedTree: null };
     const lines = r.stdout.trim().split("\n");
     const mergedTree = lines[0]?.trim() || null;
@@ -186,8 +214,39 @@ export function createChildProcessBranchIntegration(input: BranchIntegrationInpu
     return { supported: true, conflicts, mergedTree };
   }
 
-  async function touchedFiles(realRoot: string, mergedTree: string): Promise<string[]> {
-    const r = await git(realRoot, ["diff", "--name-only", "HEAD", mergedTree]);
+  interface StackBase { commit: string; tree: string }
+
+  /** Virtual tree of HEAD + every active layer, merged in stack order. Each
+   *  step is wrapped in a synthetic merge commit (parents: base + snapshot) so
+   *  the next merge-tree finds a sane merge base. Ref-only — nothing in the
+   *  checkout moves. */
+  async function rebuildStack(realRoot: string, tries: TryStateFile[]): Promise<StackBase | { error: string }> {
+    const head = await git(realRoot, ["rev-parse", "HEAD"]);
+    const headTree = await git(realRoot, ["rev-parse", "HEAD^{tree}"]);
+    if (head.code !== 0 || headTree.code !== 0) return { error: "rev-parse HEAD failed" };
+    let base: StackBase = { commit: head.stdout.trim(), tree: headTree.stdout.trim() };
+
+    for (const t of tries) {
+      let snap = (await git(realRoot, ["rev-parse", "--verify", "--quiet", snapshotRef(t.workerId)])).stdout.trim();
+      if (!snap && t.snapshotSha) {
+        const ok = await git(realRoot, ["cat-file", "-e", `${t.snapshotSha}^{commit}`]);
+        if (ok.code === 0) snap = t.snapshotSha;
+      }
+      if (!snap) return { error: `snapshot for active try ${t.workerId} is gone — keep or discard it first` };
+
+      const m = await computeMerge(realRoot, base.commit, snap);
+      if (!m.supported || !m.mergedTree || m.conflicts.length > 0) {
+        return { error: `active try ${t.workerId} no longer merges cleanly against HEAD — keep or discard it first` };
+      }
+      const wrap = await git(realRoot, ["commit-tree", m.mergedTree, "-p", base.commit, "-p", snap, "-m", "eos try stack"]);
+      if (wrap.code !== 0) return { error: "stack commit-tree failed" };
+      base = { commit: wrap.stdout.trim(), tree: m.mergedTree };
+    }
+    return base;
+  }
+
+  async function touchedFiles(realRoot: string, fromTree: string, toTree: string): Promise<string[]> {
+    const r = await git(realRoot, ["diff", "--name-only", fromTree, toTree]);
     if (r.code !== 0) return [];
     return r.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
   }
@@ -202,13 +261,20 @@ export function createChildProcessBranchIntegration(input: BranchIntegrationInpu
     return r.code === 0 ? r.stdout.trim() : null;
   }
 
+  /** Topmost layer's recorded post-apply hash per path — the expected current
+   *  content of any file an active layer touches. */
+  function expectedHashes(tries: TryStateFile[]): Map<string, string | null> {
+    const map = new Map<string, string | null>();
+    for (const t of tries) for (const f of t.files) map.set(f.path, f.hash);
+    return map;
+  }
+
   return {
     async preview(ref: TryRef): Promise<TryPreview> {
       const realRoot = realpathOr(ref.repoRoot);
-      const active = loadState(realRoot);
+      const activeTries = loadTries(realRoot).map(toActiveTry);
       const empty = (supported: boolean): TryPreview => ({
-        supported, ahead: 0, behind: 0, conflicts: [], files: [], lockfileChanged: false,
-        activeTry: active ? toActiveTry(active) : null,
+        supported, ahead: 0, behind: 0, conflicts: [], files: [], lockfileChanged: false, activeTries,
       });
 
       const snapSha = await snapshot(ref, realRoot);
@@ -219,10 +285,10 @@ export function createChildProcessBranchIntegration(input: BranchIntegrationInpu
       const behind = Number.parseInt(behindStr ?? "0", 10) || 0;
       const ahead = Number.parseInt(aheadStr ?? "0", 10) || 0;
 
-      const merge = await computeMerge(realRoot, snapSha);
+      const merge = await computeMerge(realRoot, "HEAD", snapSha);
       if (!merge.supported || !merge.mergedTree) return { ...empty(merge.supported), ahead, behind };
 
-      const files = await touchedFiles(realRoot, merge.mergedTree);
+      const files = await touchedFiles(realRoot, "HEAD", merge.mergedTree);
       return {
         supported: true,
         ahead,
@@ -230,73 +296,117 @@ export function createChildProcessBranchIntegration(input: BranchIntegrationInpu
         conflicts: merge.conflicts,
         files,
         lockfileChanged: hasLockfile(files),
-        activeTry: active ? toActiveTry(active) : null,
+        activeTries,
       };
     },
 
     apply(ref: TryRef): Promise<TryApplyResult> {
       const realRoot = realpathOr(ref.repoRoot);
       return withLock(realRoot, async (): Promise<TryApplyResult> => {
-        const active = loadState(realRoot);
-        if (active) return { ok: false, reason: "active-try", detail: active.workerId };
+        const tries = loadTries(realRoot);
+        if (tries.some((t) => t.workerId === ref.workerId)) return { ok: false, reason: "active-try", detail: ref.workerId };
 
         const snapSha = await snapshot(ref, realRoot);
         if (!snapSha) return { ok: false, reason: "git-error", detail: "snapshot failed" };
 
-        const merge = await computeMerge(realRoot, snapSha);
-        if (!merge.supported) return { ok: false, reason: "unsupported", detail: "git >= 2.38 required (merge-tree --write-tree)" };
-        if (merge.conflicts.length > 0) return { ok: false, reason: "conflicts", files: merge.conflicts };
-        if (!merge.mergedTree) return { ok: false, reason: "git-error", detail: "merge-tree produced no tree" };
+        // Classify conflicts against plain HEAD first — those need the git
+        // agent; conflicts that only appear against the stack need a layer
+        // resolved instead.
+        const headMerge = await computeMerge(realRoot, "HEAD", snapSha);
+        if (!headMerge.supported) return { ok: false, reason: "unsupported", detail: "git >= 2.38 required (merge-tree --write-tree)" };
+        if (headMerge.conflicts.length > 0) return { ok: false, reason: "conflicts", files: headMerge.conflicts };
+        if (!headMerge.mergedTree) return { ok: false, reason: "git-error", detail: "merge-tree produced no tree" };
 
-        const files = await touchedFiles(realRoot, merge.mergedTree);
+        const base = await rebuildStack(realRoot, tries);
+        if ("error" in base) return { ok: false, reason: "git-error", detail: base.error };
+
+        let mergedTree = headMerge.mergedTree;
+        if (tries.length > 0) {
+          const m = await computeMerge(realRoot, base.commit, snapSha);
+          if (!m.supported || !m.mergedTree) return { ok: false, reason: "git-error", detail: "stack merge-tree failed" };
+          if (m.conflicts.length > 0) {
+            const owners = tries
+              .filter((t) => t.files.some((f) => m.conflicts.includes(f.path)))
+              .map((t) => t.workerId);
+            return { ok: false, reason: "conflicts-with-try", files: m.conflicts, detail: owners.join(",") || tries[tries.length - 1]!.workerId };
+          }
+          mergedTree = m.mergedTree;
+        }
+
+        const files = await touchedFiles(realRoot, base.tree, mergedTree);
         if (files.length === 0) return { ok: false, reason: "nothing-to-apply" };
 
-        // Precondition: only the touched files must be clean (tracked-modified
-        // OR untracked — `??` rows count). The rest of the tree may be dirty.
-        const status = await git(realRoot, ["status", "--porcelain", "--", ...files]);
-        const dirty = status.stdout.split("\n").map((l) => l.slice(3).trim()).filter(Boolean);
+        // Precondition: every touched file must hold its EXPECTED content —
+        // the topmost active layer's post-apply hash if a layer touches it,
+        // otherwise clean per porcelain (`??` rows count). The rest of the
+        // tree may be dirty.
+        const expected = expectedHashes(tries);
+        const dirty: string[] = [];
+        const unlayered: string[] = [];
+        for (const f of files) {
+          if (expected.has(f)) {
+            if ((await hashOf(realRoot, f)) !== expected.get(f)) dirty.push(f);
+          } else {
+            unlayered.push(f);
+          }
+        }
+        if (unlayered.length > 0) {
+          const status = await git(realRoot, ["status", "--porcelain", "--", ...unlayered]);
+          dirty.push(...status.stdout.split("\n").map((l) => l.slice(3).trim()).filter(Boolean));
+        }
         if (dirty.length > 0) return { ok: false, reason: "dirty-files", files: dirty };
 
         const baseHead = await git(realRoot, ["rev-parse", "HEAD"]);
         if (baseHead.code !== 0) return { ok: false, reason: "git-error", detail: baseHead.stderr };
 
-        const patch = await git(realRoot, ["diff", "--binary", "HEAD", merge.mergedTree]);
+        const patch = await git(realRoot, ["diff", "--binary", base.tree, mergedTree]);
         if (patch.code !== 0) return { ok: false, reason: "git-error", detail: "patch generation failed" };
 
         mkdirSync(stateDirFor(realRoot), { recursive: true });
-        const patchPath = patchPathFor(realRoot);
+        const patchPath = patchPathFor(realRoot, ref.workerId);
         writeFileSync(patchPath, patch.stdout);
 
         // git apply verifies every hunk before writing — a failure here leaves
         // the tree untouched.
         const applied = await git(realRoot, ["apply", "--whitespace=nowarn", patchPath]);
         if (applied.code !== 0) {
-          clearTryFiles(realRoot);
+          try { rmSync(patchPath, { force: true }); } catch {}
           return { ok: false, reason: "git-error", detail: applied.stderr.trim() };
         }
 
         const fileHashes: TryStateFile["files"] = [];
         for (const f of files) fileHashes.push({ path: f, hash: await hashOf(realRoot, f) });
 
-        const state: TryStateFile = {
+        tries.push({
           workerId: ref.workerId,
           branch: ref.branch,
           baseHead: baseHead.stdout.trim(),
+          snapshotSha: snapSha,
           lockfileChanged: hasLockfile(files),
           createdAt: now(),
           files: fileHashes,
-        };
-        writeFileSync(statePathFor(realRoot), JSON.stringify(state, null, 2));
+        });
+        saveTries(realRoot, tries);
 
-        return { ok: true, files, lockfileChanged: state.lockfileChanged };
+        return { ok: true, files, lockfileChanged: hasLockfile(files) };
       });
     },
 
-    discard(repoRoot: string): Promise<TryDiscardResult> {
+    discard(repoRoot: string, workerId: string): Promise<TryDiscardResult> {
       const realRoot = realpathOr(repoRoot);
       return withLock(realRoot, async (): Promise<TryDiscardResult> => {
-        const state = loadState(realRoot);
-        if (!state) return { ok: false, reason: "no-active-try" };
+        const tries = loadTries(realRoot);
+        const idx = tries.findIndex((t) => t.workerId === workerId);
+        if (idx < 0) return { ok: false, reason: "no-active-try" };
+        const state = tries[idx]!;
+
+        // A layer above sharing a file would be corrupted by this reverse
+        // patch — that layer must be resolved first.
+        const mine = new Set(state.files.map((f) => f.path));
+        for (const above of tries.slice(idx + 1)) {
+          const overlap = above.files.map((f) => f.path).filter((p) => mine.has(p));
+          if (overlap.length > 0) return { ok: false, reason: "blocked-by-overlay", files: overlap, detail: above.workerId };
+        }
 
         // Per-file integrity: every touched file must still match its
         // post-apply hash (null = deleted by the patch, must still be absent).
@@ -307,37 +417,42 @@ export function createChildProcessBranchIntegration(input: BranchIntegrationInpu
         }
         if (edited.length > 0) return { ok: false, reason: "user-edited", files: edited };
 
-        const reversed = await git(realRoot, ["apply", "-R", "--whitespace=nowarn", patchPathFor(realRoot)]);
+        const patchPath = patchPathFor(realRoot, workerId);
+        const reversed = await git(realRoot, ["apply", "-R", "--whitespace=nowarn", patchPath]);
         if (reversed.code !== 0) return { ok: false, reason: "git-error", detail: reversed.stderr.trim() };
 
-        await git(realRoot, ["update-ref", "-d", snapshotRef(state.workerId)]);
-        clearTryFiles(realRoot);
+        await git(realRoot, ["update-ref", "-d", snapshotRef(workerId)]);
+        try { rmSync(patchPath, { force: true }); } catch {}
+        tries.splice(idx, 1);
+        saveTries(realRoot, tries);
         return { ok: true };
       });
     },
 
-    keep(repoRoot: string): Promise<{ ok: boolean; reason?: string }> {
+    keep(repoRoot: string, workerId: string): Promise<{ ok: boolean; reason?: string }> {
       const realRoot = realpathOr(repoRoot);
       return withLock(realRoot, async () => {
-        const state = loadState(realRoot);
-        if (!state) return { ok: false, reason: "no-active-try" };
-        await git(realRoot, ["update-ref", "-d", snapshotRef(state.workerId)]);
+        const tries = loadTries(realRoot);
+        const idx = tries.findIndex((t) => t.workerId === workerId);
+        if (idx < 0) return { ok: false, reason: "no-active-try" };
+        await git(realRoot, ["update-ref", "-d", snapshotRef(workerId)]);
         // Integration marker: Apply never re-offers this worker's work.
         // Discard intentionally never writes this.
         const kept = loadKept(realRoot);
-        kept[state.workerId] = now();
+        kept[workerId] = now();
         try {
           mkdirSync(stateDirFor(realRoot), { recursive: true });
           writeFileSync(keptPathFor(realRoot), JSON.stringify(kept));
         } catch {}
-        clearTryFiles(realRoot);
+        try { rmSync(patchPathFor(realRoot, workerId), { force: true }); } catch {}
+        tries.splice(idx, 1);
+        saveTries(realRoot, tries);
         return { ok: true };
       });
     },
 
-    async activeTry(repoRoot: string): Promise<ActiveTry | null> {
-      const state = loadState(realpathOr(repoRoot));
-      return state ? toActiveTry(state) : null;
+    async activeTries(repoRoot: string): Promise<ActiveTry[]> {
+      return loadTries(realpathOr(repoRoot)).map(toActiveTry);
     },
 
     async wasKept(input: { repoRoot: string; workerId: string }): Promise<boolean> {
@@ -345,7 +460,11 @@ export function createChildProcessBranchIntegration(input: BranchIntegrationInpu
     },
 
     async cleanupSnapshot(input: { repoRoot: string; workerId: string }): Promise<void> {
-      await git(realpathOr(input.repoRoot), ["update-ref", "-d", snapshotRef(input.workerId)]);
+      const realRoot = realpathOr(input.repoRoot);
+      // An active layer's snapshot stays pinned: later applies rebuild the
+      // stack from it. keep/discard delete it at resolution.
+      if (loadTries(realRoot).some((t) => t.workerId === input.workerId)) return;
+      await git(realRoot, ["update-ref", "-d", snapshotRef(input.workerId)]);
     },
   };
 }

@@ -18,7 +18,7 @@ const BRANCHES = {
   remoteUrl: "https://example.com/r", ahead: 3, behind: 1, stash: 2, conflicts: 0,
 };
 const PUSH = { pushable: true, kind: "fast-forward", hasUncommitted: false };
-const TRY = { activeTry: null, kept: true };
+const TRY = { activeTries: [], kept: true };
 
 let nextId = 0;
 const freshId = () => `w${nextId++}`;
