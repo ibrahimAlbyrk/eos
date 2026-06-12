@@ -75,7 +75,17 @@ export function usePageFind(contentRef, wrapRef, deps) {
   const scrollToRange = useCallback((range) => {
     const wrap = wrapRef.current;
     if (!wrap) return;
-    const rect = range.getBoundingClientRect();
+    let rect = range.getBoundingClientRect();
+    // A match inside a content-visibility-skipped block has no layout (zero
+    // rect). Bring the block itself into view first — that renders its
+    // contents — then the range measures true.
+    if (rect.width === 0 && rect.height === 0) {
+      const host = range.startContainer instanceof Element
+        ? range.startContainer
+        : range.startContainer.parentElement;
+      host?.closest("[data-bkey]")?.scrollIntoView({ block: "center" });
+      rect = range.getBoundingClientRect();
+    }
     const wrapRect = wrap.getBoundingClientRect();
     const top = wrap.scrollTop + (rect.top - wrapRect.top) - wrap.clientHeight / 2;
     // Plain scrollTo (not the programmatic-scroll guard): moving away from the
