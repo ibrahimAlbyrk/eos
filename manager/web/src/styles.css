@@ -2802,6 +2802,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   stroke: var(--accent);
   stroke-width: 1.6;
   stroke-linecap: round;
+  transition: stroke 0.25s ease;
 }
 
 /* ============================================================================

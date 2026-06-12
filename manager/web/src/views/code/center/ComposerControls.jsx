@@ -36,6 +36,8 @@ export function ComposerControls({ live, onAttach, historyNav }) {
   const C = 2 * Math.PI * r;
   const filled = (pct / 100) * C;
   const dashArray = `${filled.toFixed(2)} ${(C - filled).toFixed(2)}`;
+  const warn = Math.max(0, Math.min(1, (pct - 50) / 30));
+  const ringColor = `color-mix(in srgb, var(--accent), #e8b94a ${Math.round(warn * 100)}%)`;
 
   const toggle = (id, e) => {
     e.stopPropagation();
@@ -152,7 +154,7 @@ export function ComposerControls({ live, onAttach, historyNav }) {
             <svg viewBox="0 0 18 18" aria-hidden="true">
               <circle className="ring-track" cx="9" cy="9" r="7" />
               {pct > 0 && (
-                <circle className="ring-fill" cx="9" cy="9" r="7" strokeDasharray={dashArray} />
+                <circle className="ring-fill" cx="9" cy="9" r="7" strokeDasharray={dashArray} style={{ stroke: ringColor }} />
               )}
             </svg>
           </button>
