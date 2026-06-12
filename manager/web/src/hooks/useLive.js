@@ -17,17 +17,6 @@ import { cancelQueued } from "../state/outboxStore.js";
 const POLL_MS = 4000;
 const SSE_DEBOUNCE_MS = 80;
 
-function extractLastUsage(events) {
-  if (!Array.isArray(events)) return null;
-  for (let i = events.length - 1; i >= 0; i--) {
-    const ev = events[i];
-    if (ev.type !== "usage") continue;
-    const p = typeof ev.payload === "string" ? JSON.parse(ev.payload) : ev.payload;
-    if (p && (p.in != null || p.out != null)) return p;
-  }
-  return null;
-}
-
 export function useLive() {
   const [workers, setWorkers] = useState([]);
   const [health, setHealth] = useState(true);
@@ -35,8 +24,6 @@ export function useLive() {
   const [uiConfig, setUiConfig] = useState(null);
   const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null });
   const now = useClockTick();
-  const [lastUsage, setLastUsage] = useState(null);
-  const lastUsageWorker = useRef(null);
   const [interruptedId, _setInterruptedId] = useState(() => localStorage.getItem("cm:interruptedId"));
   const setInterruptedId = useCallback((id) => {
     _setInterruptedId(id);
@@ -202,28 +189,6 @@ export function useLive() {
     return r;
   }, [scheduleRefetch]);
 
-  const lastUsageRef = useRef(null);
-  const updateLastUsage = useCallback(async (workerId) => {
-    if (!workerId) { setLastUsage(null); lastUsageRef.current = null; return; }
-    if (lastUsageWorker.current === workerId && lastUsageRef.current) return;
-    try {
-      const events = await api.getWorkerEvents(workerId, { order: "desc", limit: 50 });
-      lastUsageWorker.current = workerId;
-      const usage = extractLastUsage(events);
-      lastUsageRef.current = usage;
-      setLastUsage(usage);
-    } catch { /* ignore */ }
-  }, []);
-
-  const refreshLastUsage = useCallback(async (workerId) => {
-    if (!workerId) return;
-    try {
-      const events = await api.getWorkerEvents(workerId, { order: "desc", limit: 50 });
-      lastUsageWorker.current = workerId;
-      setLastUsage(extractLastUsage(events));
-    } catch { /* ignore */ }
-  }, []);
-
   const {
     pendingPermissions,
     setPendingPermissions,
@@ -256,9 +221,6 @@ export function useLive() {
     setPermissionMode,
     setModel,
     refreshRecents,
-    lastUsage,
-    updateLastUsage,
-    refreshLastUsage,
     interruptedId,
     pendingPermissions,
     approvePending,

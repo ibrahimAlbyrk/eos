@@ -28,6 +28,10 @@ export const WorkerRowSchema = z.object({
   tokens_cache_create: z.number().nullable().optional(),
   tokens_cache_create_1h: z.number().nullable().optional(),
   cost_usd: z.number().nullable().optional(),
+  // Context footprint of the last turn (in + cacheRead + cacheCreate +
+  // cacheCreate1h), stamped by the daemon on every usage event. The web
+  // context ring reads this directly.
+  last_context_tokens: z.number().nullable().optional(),
   is_orchestrator: z.number().nullable().optional(),
   tool_calls: z.number().nullable().optional(),
   permission_mode: z.string().nullable().optional(),

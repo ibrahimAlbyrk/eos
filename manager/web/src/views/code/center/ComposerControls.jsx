@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { contextUsage } from "../../../lib/contextWindow.js";
 import { modelName, modelCtx, EFFORT_LABELS, effortChoicesFor } from "../../../lib/models.js";
@@ -26,18 +25,15 @@ export function ComposerControls({ live, onAttach, historyNav }) {
   const effort = selected?.effort ?? ui.composer.effort;
   const modelInfo = { name: modelName(model) || model || "—", ctx: modelCtx(model) || "" };
 
-  useEffect(() => { live.updateLastUsage(selected?.id ?? null); }, [selected?.id]);
-  useEffect(() => {
-    if (selected) live.refreshLastUsage(selected.id);
-  }, [selected?.tokens_in, selected?.tokens_out]);
-
-  const { used, total, pct } = contextUsage(selected, model, live.lastUsage);
+  const { used, total, pct } = contextUsage(selected, model);
   const r = 7;
   const C = 2 * Math.PI * r;
   const filled = (pct / 100) * C;
   const dashArray = `${filled.toFixed(2)} ${(C - filled).toFixed(2)}`;
   const warn = Math.max(0, Math.min(1, (pct - 50) / 30));
-  const ringColor = `color-mix(in srgb, var(--accent), #e8b94a ${Math.round(warn * 100)}%)`;
+  // oklch keeps chroma while the hue rotates blue→teal→green→yellow; srgb
+  // mixing of complementary blue+yellow washes out to gray in the middle.
+  const ringColor = `color-mix(in oklch, var(--accent), #f0b429 ${Math.round(warn * 100)}%)`;
 
   const toggle = (id, e) => {
     e.stopPropagation();

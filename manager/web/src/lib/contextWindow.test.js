@@ -2,16 +2,23 @@ import { describe, it, expect } from "vitest";
 import { contextUsage, maxForModel } from "./contextWindow.js";
 import { modelCtxTokens } from "./models.js";
 
-describe("contextUsage zero baseline", () => {
-  it("fresh worker (no lastUsage, tokens_in undefined) yields used:0 pct:0", () => {
-    const r = contextUsage({ model: "sonnet" }, "sonnet", null);
+describe("contextUsage", () => {
+  it("fresh worker (last_context_tokens unset) yields used:0 pct:0", () => {
+    const r = contextUsage({ model: "sonnet" }, "sonnet");
     expect(r.used).toBe(0);
     expect(r.pct).toBe(0);
     expect(r.total).toBe(modelCtxTokens("sonnet"));
   });
 
-  it("explicit tokens_in:0 with undefined lastUsage yields used:0 pct:0", () => {
-    const r = contextUsage({ tokens_in: 0 }, "sonnet", undefined);
+  it("reads last_context_tokens from the worker row", () => {
+    const total = modelCtxTokens("sonnet");
+    const r = contextUsage({ last_context_tokens: 134000 }, "sonnet");
+    expect(r.used).toBe(134000);
+    expect(r.pct).toBe(Math.round((134000 / total) * 100));
+  });
+
+  it("ignores cumulative tokens_in — it is not a context measure", () => {
+    const r = contextUsage({ tokens_in: 56, last_context_tokens: null }, "sonnet");
     expect(r.used).toBe(0);
     expect(r.pct).toBe(0);
   });

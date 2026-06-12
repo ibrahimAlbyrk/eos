@@ -10,13 +10,13 @@ export function maxForModel(model) {
   return modelCtxTokens(model) ?? FALLBACK_MAX;
 }
 
-export function contextUsage(worker, model, lastUsage) {
-  // Context window = last turn's input tokens (Claude re-reads the full
-  // context each turn). Falls back to cumulative tokens_in if no usage
-  // event is available yet.
-  const used = lastUsage
-    ? (lastUsage.in ?? 0) + (lastUsage.cacheRead ?? 0)
-    : (worker?.tokens_in ?? 0);
+export function contextUsage(worker, model) {
+  // Context window = last turn's full prompt footprint, daemon-stamped on the
+  // worker row (in + cacheRead + cacheCreate; cache-cold turns report the
+  // whole context as cacheCreate, not cacheRead). No event-scan fallback —
+  // a busy turn's hook/jsonl tail used to push usage events out of any
+  // fixed fetch window and collapse the ring to a garbage value.
+  const used = worker?.last_context_tokens ?? 0;
   const total = maxForModel(model ?? worker?.model);
   const pct = Math.min(100, Math.round((used / total) * 100));
   return { used, total, pct };

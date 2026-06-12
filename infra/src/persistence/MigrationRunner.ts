@@ -107,6 +107,25 @@ export const MIGRATIONS: Migration[] = [
   // index can't serve the id condition, so deltas degrade to rowid range scans
   // across all workers as the table grows.
   { id: "032_idx_events_worker_id", sql: "CREATE INDEX IF NOT EXISTS idx_events_worker_id ON events(worker_id, id)" },
+  // Context footprint of the worker's last turn, stamped by addUsage on every
+  // usage event. The web context ring reads this column directly — the old
+  // scan-recent-events approach broke whenever a busy turn's hook/jsonl tail
+  // pushed all usage events out of the fetched window.
+  { id: "033_workers_last_context_tokens", sql: "ALTER TABLE workers ADD COLUMN last_context_tokens INTEGER" },
+  // Backfill from each worker's newest usage event. Sum all four token kinds:
+  // cache-cold turns (model switch, expired cache TTL) report the whole
+  // context as cacheCreate*, not cacheRead.
+  { id: "034_backfill_last_context_tokens", sql: `
+    UPDATE workers SET last_context_tokens = (
+      SELECT COALESCE(json_extract(e.payload,'$.in'),0)
+           + COALESCE(json_extract(e.payload,'$.cacheRead'),0)
+           + COALESCE(json_extract(e.payload,'$.cacheCreate'),0)
+           + COALESCE(json_extract(e.payload,'$.cacheCreate1h'),0)
+      FROM events e
+      WHERE e.worker_id = workers.id AND e.type = 'usage'
+      ORDER BY e.id DESC LIMIT 1
+    )
+  ` },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

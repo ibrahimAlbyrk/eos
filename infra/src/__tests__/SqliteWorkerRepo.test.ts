@@ -38,6 +38,18 @@ describe("SqliteWorkerRepo listByParent", () => {
   });
 });
 
+describe("SqliteWorkerRepo addUsage last_context_tokens", () => {
+  it("stamps the turn's full context footprint, overwriting (not accumulating)", () => {
+    repo.insert(input("w-u", null, 100));
+    repo.addUsage("w-u", { in: 1, out: 50, cacheRead: 133997, cacheCreate: 0, cacheCreate1h: 154, costUsd: 0.01 });
+    assert.equal(repo.findById("w-u")?.last_context_tokens, 134152);
+    // Cache-cold turn (model switch): whole context lands in cacheCreate1h.
+    repo.addUsage("w-u", { in: 10, out: 389, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 126299, costUsd: 0.25 });
+    assert.equal(repo.findById("w-u")?.last_context_tokens, 126309);
+    assert.equal(repo.findById("w-u")?.tokens_in, 11);
+  });
+});
+
 describe("SqliteWorkerRepo workspace_ready", () => {
   it("persists 0 for a not-ready insert and flips via setWorkspaceReady", () => {
     repo.insert({ ...input("w-wt", null, 100), worktreeFrom: "/repo", branch: "eos-x", worktreeDir: "/repo/.eos/worktrees/eos-x", workspaceReady: false });
