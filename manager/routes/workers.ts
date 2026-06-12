@@ -15,12 +15,12 @@ import {
   SetModelRequestSchema,
   QuestionRequestSchema,
   QuestionAnswerRequestSchema,
-  QuestionNotifyRequestSchema,
   NotifyRequestSchema,
   WorkerActionRequestSchema,
   RewindRequestSchema,
   FileDiffQuerySchema,
   TerminalRunRequestSchema,
+  TryTargetRequestSchema,
   WorkspaceTerminalRunRequestSchema,
   OpenInRequestSchema,
   type OpenInRequest,
@@ -53,6 +53,18 @@ function gitDirOf(w: WorkerRow | null): string | null {
   return w ? (w.worktree_dir ?? w.cwd ?? w.worktree_from ?? null) : null;
 }
 
+// Read-side variant for git queries (/diff, /changes, /push-state): a fresh
+// worktree row is complete at insert (precomputed worktree_dir) but the tree
+// materializes during worker boot. Reading the dir before workspace_ready
+// flips is actively wrong — `git -C` against a missing dir fails to zeros,
+// against a dir without .git walks UP and reports the SOURCE repo's diff as
+// this worker's, and against a mid-checkout tree reports mass deletions.
+// Fail closed to the existing 200+empty convention instead.
+function readableGitDirOf(w: WorkerRow | null): string | null {
+  if (w?.worktree_from && w.worktree_dir && !w.workspace_ready) return null;
+  return gitDirOf(w);
+}
+
 // Diff base for worktree workers: the fork point, so commits the agent made
 // after forking still show in /diff and /changes (an agent that commits must
 // never look "clean"). Prefer the SHA stamped at worktree creation — the
@@ -79,7 +91,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     // Mode inheritance: explicit body.permissionMode wins; otherwise resolve
     // from parent so children adopt the orchestrator's current mode.
     // Git agents run shell-heavy git ops; the prompt file carries the safety
-    // rules (destructive ops require AskUserQuestion), so they default to
+    // rules (destructive ops require chat confirmation), so they default to
     // bypassPermissions + persistent for a conversational session.
     const isGitAgent = body.role === "git";
     const claudePermissionMode = body.permissionMode
@@ -186,7 +198,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       },
       params.id,
     );
-    c.pendingQuestions.rejectByWorker(params.id, new Error("worker killed"));
+    c.pendingQuestions.cancelByWorker(params.id);
     writeJson(res, 200, { killed: result.killed, removed: result.removed, was_state: result.wasState });
   });
 
@@ -331,63 +343,57 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, 200, result);
   });
 
-  // Fire-and-forget notification that an AskUserQuestion is pending — surfaces the
-  // web banner. The PermissionRequest hook has no tool_use_id, so synthesize one;
-  // the banner keys off it and the web UI echoes it back to dismiss.
-  r.post(/^\/workers\/(?<id>[^/]+)\/question-notify$/, async ({ params, req, res }) => {
-    const body = validate(QuestionNotifyRequestSchema, await readBody(req));
-    const toolUseId = body.toolUseId || c.ids.newPendingId();
-    c.events.append(params.id, c.clock.now(), "question_pending", {
-      toolUseId,
-      questions: body.questions,
-    });
-    c.bus.publish("worker:change", { workerId: params.id });
-    writeJson(res, 200, { ok: true });
-  });
-
-  // Worker's hook blocks here until user answers in web UI. The PermissionRequest
-  // hook input has no tool_use_id, so synthesize one when absent — the banner and
-  // the answer round-trip key off it, and a unique id keeps concurrent subagent
-  // questions from superseding each other.
+  // ask_user registration — the orchestrator's MCP tool posts the questions,
+  // gets a questionId back immediately, and polls the GET below until the
+  // operator answers in the web banner. No tool_use_id exists on this path,
+  // so synthesize one when absent — the banner and the answer round-trip key
+  // off it, and a unique id keeps concurrent questions from superseding each
+  // other.
   r.post(/^\/workers\/(?<id>[^/]+)\/question$/, async ({ params, req, res }) => {
     const body = validate(QuestionRequestSchema, await readBody(req));
     const toolUseId = body.toolUseId || c.ids.newPendingId();
 
+    const { questionId } = c.pendingQuestions.register(params.id, toolUseId);
     c.events.append(params.id, c.clock.now(), "question_pending", {
       toolUseId,
       questions: body.questions,
     });
     c.bus.publish("worker:change", { workerId: params.id });
-
-    const { promise } = c.pendingQuestions.register(params.id, toolUseId);
-    const answers = await promise;
-    writeJson(res, 200, { answers });
+    // The asker is blocked inside its tool call and cannot notify_user itself;
+    // fire the background tap here (native app delivers only when backgrounded).
+    c.bus.publish("notification:fire", {
+      title: "Input needed",
+      body: body.questions[0]?.question ?? "A question is waiting in the dashboard.",
+      workerId: params.id,
+      ts: c.clock.now(),
+    });
+    writeJson(res, 200, { questionId, toolUseId });
   });
 
-  // Web UI posts answers here. When structured `selections` are present, the
-  // worker drives Claude's native menu with verified keystrokes (answer-driver) —
-  // this replaces the old web-side interrupt+message path whose Esc cancelled the
-  // menu and made the agent receive a "rejected" result. The call always records
-  // question_answered so the banner dismisses durably.
+  // Poll — always 200; the tool routes on `status` ("gone" = daemon restarted,
+  // worker killed, or superseded — the registry is in-memory by design).
+  r.get(/^\/workers\/(?<id>[^/]+)\/question\/(?<questionId>[^/]+)$/, ({ params, res }) => {
+    const state = c.pendingQuestions.poll(params.questionId);
+    writeJson(res, 200, state.status === "answered"
+      ? { status: state.status, answers: state.answers }
+      : { status: state.status });
+  });
+
+  // Web UI posts the operator's answers (or a dismissal) here. The polling
+  // ask_user tool picks the terminal state up on its next poll; the
+  // question_answered event dismisses the banner durably either way.
   r.post(/^\/workers\/(?<id>[^/]+)\/question-answer$/, async ({ params, req, res }) => {
     const body = validate(QuestionAnswerRequestSchema, await readBody(req));
-    let outcome = "dismissed";
-    const worker = c.workers.findById(params.id);
-    if (worker?.port && c.supervisor.has(params.id)) {
-      // Always resolve the worker's menu hold: with selections the worker drives
-      // the native menu, without them it cancels the menu. Either way the worker
-      // stops holding messages — leaving the menu unresolved wedges delivery.
-      // Resolving resumes the turn, so clear the settle window too.
-      c.turnSettle.clear(params.id);
-      const driven = await c.httpWorkerClient.answerQuestion(worker.port, body.selections ?? []);
-      outcome = driven.outcome ?? (driven.ok ? "answered" : "failed");
-    }
+    const settled = body.dismissed
+      ? c.pendingQuestions.dismissByToolUseId(params.id, body.toolUseId)
+      : c.pendingQuestions.resolveByToolUseId(params.id, body.toolUseId, body.answers ?? {});
     c.events.append(params.id, c.clock.now(), "question_answered", {
       toolUseId: body.toolUseId,
-      answers: body.answers,
+      answers: body.answers ?? {},
+      ...(body.dismissed ? { dismissed: true } : {}),
     });
     c.bus.publish("worker:change", { workerId: params.id });
-    writeJson(res, 200, { ok: true, outcome });
+    writeJson(res, 200, { ok: true, outcome: settled ? (body.dismissed ? "dismissed" : "answered") : "gone" });
   });
 
   // Orchestrator-initiated user notification. Fire-and-forget: published on
@@ -570,7 +576,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     // races with a kill doesn't fire a 404 in the network log. Frontend
     // already treats zero stats as "nothing to show".
     const w = c.workers.findById(params.id);
-    const cwd = gitDirOf(w);
+    const cwd = readableGitDirOf(w);
     if (!cwd) { writeJson(res, 200, { insertions: 0, deletions: 0, files: 0 }); return; }
     const stat = await c.git.diffShortStat(cwd, await diffBaseOf(c, w));
     writeJson(res, 200, stat);
@@ -582,7 +588,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   // Push on local-only worktrees); `hasUncommitted` is the real clean-tree gate.
   r.get(/^\/workers\/(?<id>[^/]+)\/push-state$/, async ({ params, res }) => {
     const w = c.workers.findById(params.id);
-    const dir = gitDirOf(w);
+    const dir = readableGitDirOf(w);
     if (!dir) {
       writeJson(res, 200, {
         branch: null, remote: null, hasUpstream: false,
@@ -610,7 +616,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   r.get(/^\/workers\/(?<id>[^/]+)\/changes$/, async ({ params, url, res }) => {
     // Same 200+empty convention as /diff above.
     const w = c.workers.findById(params.id);
-    const dir = gitDirOf(w);
+    const dir = readableGitDirOf(w);
     if (!dir) { writeJson(res, 200, { files: [], insertions: 0, deletions: 0 }); return; }
     const base = await diffBaseOf(c, w);
     // ?patches=1 embeds per-file patches split from ONE whole-tree diff —
@@ -643,7 +649,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const w = c.workers.findById(id);
     if (!w) return { status: 404, error: "worker not found" };
     if (!w.worktree_from || !w.branch) return { status: 409, error: "worker has no worktree branch" };
-    if (!w.worktree_dir) return { status: 409, error: "worktree not registered yet — retry shortly" };
+    // workspace_ready, not just worktree_dir: the dir is precomputed at insert
+    // and exists in the row long before the tree exists on disk.
+    if (!w.worktree_dir || !w.workspace_ready) return { status: 409, error: "worktree not registered yet — retry shortly" };
     return { status: 200, ref: { repoRoot: w.worktree_from, worktreeDir: w.worktree_dir, branch: w.branch, workerId: id } };
   };
 
@@ -657,9 +665,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const w = c.workers.findById(params.id);
     if (!w) { writeJson(res, 404, { error: "worker not found" }); return; }
     const repoRoot = w.worktree_from ?? w.cwd;
-    if (!repoRoot) { writeJson(res, 200, { activeTry: null, kept: false }); return; }
+    if (!repoRoot) { writeJson(res, 200, { activeTries: [], kept: false }); return; }
     writeJson(res, 200, {
-      activeTry: await c.branchIntegration.activeTry(repoRoot),
+      activeTries: await c.branchIntegration.activeTries(repoRoot),
       kept: await c.branchIntegration.wasKept({ repoRoot, workerId: params.id }),
     });
   });
@@ -680,13 +688,16 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, 409, { ok: false, reason: result.reason, files: result.files, detail: result.detail });
   });
 
+  // Keep/Discard target a specific layer via the body's workerId (the card's
+  // owner — possibly a deleted worker); :id only resolves the repo.
   r.post(/^\/workers\/(?<id>[^/]+)\/try\/keep$/, async ({ params, req, res }) => {
     if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const body = validate(TryTargetRequestSchema, await readBody(req));
     const w = c.workers.findById(params.id);
     const repoRoot = w?.worktree_from ?? w?.cwd;
     if (!repoRoot) { writeJson(res, 404, { error: "worker not found" }); return; }
-    const active = await c.branchIntegration.activeTry(repoRoot);
-    const result = await c.branchIntegration.keep(repoRoot);
+    const active = (await c.branchIntegration.activeTries(repoRoot)).find((t) => t.workerId === body.workerId);
+    const result = await c.branchIntegration.keep(repoRoot, body.workerId);
     if (result.ok && active) {
       c.events.append(active.workerId, c.clock.now(), "try_kept", { branch: active.branch, files: active.files });
       c.bus.publish("worker:change", { workerId: active.workerId });
@@ -696,11 +707,12 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
   r.post(/^\/workers\/(?<id>[^/]+)\/try\/discard$/, async ({ params, req, res }) => {
     if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const body = validate(TryTargetRequestSchema, await readBody(req));
     const w = c.workers.findById(params.id);
     const repoRoot = w?.worktree_from ?? w?.cwd;
     if (!repoRoot) { writeJson(res, 404, { error: "worker not found" }); return; }
-    const active = await c.branchIntegration.activeTry(repoRoot);
-    const result = await c.branchIntegration.discard(repoRoot);
+    const active = (await c.branchIntegration.activeTries(repoRoot)).find((t) => t.workerId === body.workerId);
+    const result = await c.branchIntegration.discard(repoRoot, body.workerId);
     if (result.ok && active) {
       c.events.append(active.workerId, c.clock.now(), "try_discarded", { branch: active.branch, files: active.files });
       c.bus.publish("worker:change", { workerId: active.workerId });
@@ -772,7 +784,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       return;
     }
     const w = c.workers.findById(params.id);
-    const dir = gitDirOf(w);
+    const dir = readableGitDirOf(w);
     if (!dir) { writeJson(res, 200, { path: q.path, patch: "", binary: false, truncated: false }); return; }
     writeJson(res, 200, await c.git.fileDiff(dir, q.path, q.oldPath, await diffBaseOf(c, w)));
   });

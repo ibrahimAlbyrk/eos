@@ -49,41 +49,33 @@ export function QuestionBanner({ questions, workerId, toolUseId, onClose }) {
     if (submitting) return;
     setSubmitting(true);
     try {
-      // Build, per question: a structured selection the worker turns into verified
-      // native-menu keystrokes, plus a human-readable answer string for the record.
+      // One human-readable answer string per question, keyed the same way the
+      // orchestrator's ask_user tool reads them back (question text).
       const answers = {};
-      const sels = questions.map((qObj, qi) => {
+      for (const [qi, qObj] of questions.entries()) {
         const s = selections.get(qi) ?? new Set();
         const opts = qObj?.options ?? [];
         const oIdx = opts.length;
         const oText = (otherTexts.get(qi) ?? "").trim();
-        const isOther = s.has(oIdx);
-        const picks = [...s].filter((i) => i < oIdx).sort((a, b) => a - b);
-        const labels = picks.map((i) => opts[i]?.label).filter(Boolean);
-        const answer = isOther && oText ? oText : labels.join(", ");
-        answers[qObj.question ?? qObj.header] = answer;
-        return {
-          multiSelect: !!qObj.multiSelect,
-          optionCount: opts.length,
-          picks,
-          ...(isOther && oText ? { freeText: oText } : {}),
-        };
-      });
-      await api.answerQuestion(workerId, toolUseId, answers, sels);
+        const labels = [...s].filter((i) => i < oIdx).sort((a, b) => a - b)
+          .map((i) => opts[i]?.label).filter(Boolean);
+        if (s.has(oIdx) && oText) labels.push(oText);
+        answers[qObj.question ?? qObj.header] = labels.join(", ");
+      }
+      await api.answerQuestion(workerId, toolUseId, answers);
     } finally {
       setSubmitting(false);
       onClose();
     }
   }, [questions, selections, otherTexts, workerId, toolUseId, submitting, onClose]);
 
-  // Skip/close: tell the worker to cancel the open native menu (empty selections)
-  // so it stops holding messages, then dismiss the banner. Without the server
-  // round-trip the worker's menu hold never releases and the agent goes silent.
+  // Skip/close: a dismissal is a terminal state — the polling ask_user tool
+  // returns "dismissed" so the orchestrator unblocks instead of waiting forever.
   const dismiss = useCallback(async () => {
     if (submitting) return;
     setSubmitting(true);
     try {
-      await api.answerQuestion(workerId, toolUseId, {}, []);
+      await api.answerQuestion(workerId, toolUseId, {}, true);
     } finally {
       setSubmitting(false);
       onClose();

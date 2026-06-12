@@ -341,15 +341,13 @@ export function buildContainer() {
   };
 
   const turnSettle = new TurnSettleService(systemClock);
-  const pendingQuestions = new PendingQuestionService(systemClock, randomIdGenerator);
+  const pendingQuestions = new PendingQuestionService(randomIdGenerator);
   const terminalRuns = new TerminalRunService({ bus, events, clock: systemClock, log });
   const promptTemplates = new PromptTemplateService(config.paths.promptsDir);
   const userTemplates = new UserTemplateService(join(config.daemon.home, "templates"));
   const userSettings = new UserSettingsService(join(config.daemon.home, "settings.json"));
   const modelCatalog = new ModelCatalogService(join(config.daemon.home, "models.json"), systemClock);
 
-  // Reaper — reject pending questions whose TTL has elapsed.
-  setInterval(() => pendingQuestions.sweepExpired(systemClock.now()), 30_000).unref();
 
   // The claude-cli AgentBackend — wraps the existing supervisor + port allocator
   // + worker client + argv builders behind the backend-agnostic port. SpawnWorker

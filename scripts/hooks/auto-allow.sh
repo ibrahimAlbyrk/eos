@@ -1,31 +1,19 @@
 #!/bin/bash
 # Eos PermissionRequest hook.
 #
-# Daemon-aware: forwards to /policy/decide. AskUserQuestion: fire-and-forget
-# POST to /workers/:id/question-notify to surface the web banner, then returns
-# no decision so Claude renders its native menu. Standalone: auto-allows everything.
+# Daemon-aware: forwards to /policy/decide. AskUserQuestion: denied outright —
+# its native menu has no answer surface in Eos (the orchestrator asks the
+# operator via mcp__orchestrator__ask_user instead). Standalone: auto-allows
+# everything else.
 set -uo pipefail
 
 input=$(cat)
 tool_name=$(printf '%s' "$input" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
 
-# AskUserQuestion: surface the question as a web banner (fire-and-forget) and
-# return no decision so Claude renders its native menu. The web UI answers by
-# simulating keystrokes into that menu — Claude's PermissionRequest updatedInput
-# channel cannot pre-fill AskUserQuestion answers, so we must NOT block here.
+# Keep the message in sync with BLOCKED_BUILTIN_TOOL_MESSAGE in
+# contracts/src/tool-scope.ts (PreToolUse + step-0 enforce the same deny).
 if [ "$tool_name" = "AskUserQuestion" ]; then
-  if [ -n "${EOS_SPAWNED:-}" ] && \
-     [ -n "${EOS_DAEMON_URL:-}" ] && \
-     [ -n "${EOS_WORKER_ID:-}" ]; then
-    q_body=$(printf '%s' "$input" | jq -c 'select(.tool_input.questions | type == "array") | {questions: .tool_input.questions, toolUseId: .tool_use_id}' 2>/dev/null || echo "")
-    if [ -n "$q_body" ]; then
-      curl -sS --max-time 5 -X POST \
-        -H 'content-type: application/json' \
-        -d "$q_body" \
-        "${EOS_DAEMON_URL}/workers/${EOS_WORKER_ID}/question-notify" >/dev/null 2>&1 || true
-    fi
-  fi
-  echo '{}'
+  echo '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"AskUserQuestion is disabled in Eos — its native menu has no answer surface here. Orchestrator: ask the operator via mcp__orchestrator__ask_user. Worker: proceed on your best judgment or report `needs input: <ask>` to your parent."}}}'
   exit 0
 fi
 

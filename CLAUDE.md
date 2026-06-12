@@ -22,7 +22,7 @@ manager/services/ — Extracted stateful services (TurnSettleService, PendingQue
 manager/routes/   — Split by concern: workers, orchestrators, policy, fs-picker, fs-read, fs-git, etc.
 manager/shared/   — Centralized config (env→file→default, deeply frozen), daemon HTTP client, path utils.
 manager/web/      — React 18 + Vite. Tabbed multi-view shell: App picks the active view via views/registry.js; views/ (code/, workflows/), search/ ⌘K command-palette registry, state/ providers, api/client.js (typed HTTP + dedup), hooks/useLive.js (SSE+poll).
-scripts/hooks/    — auto-allow.sh (the PermissionRequest gateway hook). ask-question.sh exists but is NOT wired (dead).
+scripts/hooks/    — auto-allow.sh (the PermissionRequest gateway hook).
 app/              — Native macOS WKWebView wrapper. build.sh → Eos.app.
 ```
 
@@ -83,7 +83,7 @@ HTTP surface: all endpoints defined in `contracts/src/http.ts` ROUTES table.
 
 Claude prefers its interactive prompt over `--permission-prompt-tool` MCP when a `PermissionRequest` hook exists — so the gateway *is* the hook. `scripts/hooks/auto-allow.sh` (wired per-worker in `spawner/settings.ts`) checks `EOS_SPAWNED`, then **branches on tool name**:
 
-- `AskUserQuestion` → **fire-and-forget** `POST /workers/:id/question-notify` (surfaces the web QuestionBanner), then returns `{}` so Claude renders its native TUI menu. The hook does NOT block, and `updatedInput` does NOT pre-fill answers (empirically Claude ignores it and reports "user did not answer"). Answers come back as keystrokes (single-select: the option number) or, for multi-select/free-text, an interrupt + plain message.
+- `AskUserQuestion` → **hard deny** (no daemon round-trip). The tool is disabled platform-wide; the deny message redirects to `mcp__orchestrator__ask_user` / `needs input:`. Same deny is enforced in `worker.ts` PreToolUse (the only gate under native bypassPermissions, where PermissionRequest never fires) and `PolicyGatewayService` step 0 — single source: `BLOCKED_BUILTIN_TOOLS` in `contracts/src/tool-scope.ts`.
 - every other tool → `POST /policy/decide`, returns the decision verbatim.
 
 The hook only accepts `"allow"`/`"deny"` behavior values; anything else falls through to standalone default. Output shape (empirically verified — `updatedInput` is a **sibling** of `decision`, NOT nested inside it):
@@ -98,7 +98,7 @@ The hook only accepts `"allow"`/`"deny"` behavior values; anything else falls th
 }
 ```
 
-`settings.ts` also wires PreToolUse/PostToolUse HTTP hooks that emit `tool_running`/`tool_done` events (live tool indicators, no state change). Web UI renders a **PermissionBanner** (Deny / Always allow / Allow once ⌘↵; "Always allow" appends a rule to `policy.yaml` via `POST /api/policy/rule`) and a **QuestionBanner** for AskUserQuestion.
+`settings.ts` also wires PreToolUse/PostToolUse HTTP hooks that emit `tool_running`/`tool_done` events (live tool indicators, no state change). Web UI renders a **PermissionBanner** (Deny / Always allow / Allow once ⌘↵; "Always allow" appends a rule to `policy.yaml` via `POST /api/policy/rule`) and a **QuestionBanner** for the orchestrator's `ask_user` questions.
 
 ### Per-worker permission mode
 
@@ -124,9 +124,9 @@ Pre-boot PTY writes get eaten by the un-mounted TUI → silently lost prompt. `w
 
 hook and jsonl ride independent fire-and-forget channels, so trailing transcript JSONL of a finished turn can arrive **after** the Stop hook and falsely re-animate a just-idled worker. `TurnSettleService`: the Stop-hook handler `markSettling` before transitioning to IDLE; while settling (4000ms) heartbeat/jsonl/PostToolUse WORKING-transitions are suppressed and IDLE won't heal (trailing tool_use is still counted). A genuine new turn (user/orchestrator message, interrupt, worker report) MUST call `c.turnSettle.clear(id)` first or the window starves it — see `clear()` in `manager/routes/{workers,orchestrators}.ts`.
 
-### AskUserQuestion pipeline
+### ask_user pipeline (AskUserQuestion is disabled)
 
-**Fire-and-forget**, distinct from the permission flow. `auto-allow.sh` POSTs `/workers/:id/question-notify` (daemon appends `question_pending` + publishes `worker:change`, then returns immediately) and lets Claude's native TUI menu render. The web UI shows a **QuestionBanner**; answers go back as raw keystrokes via `POST /workers/:id/keystroke` (single-select: option number, no CR) or, for multi-select/free-text, `POST /workers/:id/interrupt` then a normal `/message`. `POST /workers/:id/question-answer` records `question_answered` to dismiss the banner durably. NOTE: a BLOCKING variant still exists in code (`POST /workers/:id/question` → `PendingQuestionService` long-poll, plus `worker.ts onQuestionHook`) but is **currently dead/unwired** — `ingest.ts` routes no path to it. It is the natural in-process human-prompt channel to resurrect for non-PTY backends (see `docs/adr/0001-backend-agnostic-agent-platform.md`). `scripts/hooks/ask-question.sh` is also dead — the live logic is in `auto-allow.sh`.
+The builtin `AskUserQuestion` is hard-denied everywhere (see Permission flow above) — its old keystroke answer machinery (answer-driver, `/answer` ingest, `selections`) is deleted; don't reintroduce it. The human-question channel is the orchestrator-only MCP tool `mcp__orchestrator__ask_user` (`manager/orchestrator-mcp/tools/ask_user.ts`), register-then-poll over plain HTTP: `POST /workers/:id/question` registers in `PendingQuestionService` (state-based, in-memory, **no TTL** — a question may wait days; `MCP_TOOL_TIMEOUT` is lifted in the worker PTY env for this) and returns `{questionId}`; the tool polls `GET /workers/:id/question/:questionId` every 2.5s until `answered`/`dismissed`/`gone` (gone = daemon restart, supersede, or worker kill — never an error HTTP code). `question_pending` also fires a `notification:fire` ("Input needed") because the blocked orchestrator can't notify_user itself. The web QuestionBanner answers via `POST /workers/:id/question-answer {toolUseId, answers}` or `{toolUseId, dismissed:true}`; `question_answered` dismisses the banner durably and the poller returns the answers as the tool result.
 
 ### PTY write: verified delivery pipeline (delivery.ts)
 
@@ -154,7 +154,7 @@ Dashboard sends carry `clientMsgId` (uuid) + `queueWhenBusy: true`. Idempotency:
 
 ### Policy long-poll timeouts
 
-`/policy/decide` blocks until a human decides. There is **no** `ttlMs` auto-deny timer (removed). `policy.ttlMs` now only seeds the pending row's `expiresAt`, which `sweepExpired()` consults lazily on worker exit to mark stranded `ask` pendings expired — it never denies a live worker mid-wait. The only hard ceiling is the abort timeout (3600s), shared by the hook curl and the gateway (`EOS_POLICY_TIMEOUT_MS`) — keep them coordinated if changed. (The worker-side question long-poll that also used this ceiling is currently dead code; see the AskUserQuestion pipeline note.)
+`/policy/decide` blocks until a human decides. There is **no** `ttlMs` auto-deny timer (removed). `policy.ttlMs` now only seeds the pending row's `expiresAt`, which `sweepExpired()` consults lazily on worker exit to mark stranded `ask` pendings expired — it never denies a live worker mid-wait. The only hard ceiling is the abort timeout (3600s), shared by the hook curl and the gateway (`EOS_POLICY_TIMEOUT_MS`) — keep them coordinated if changed.
 
 ### Temp dir prefix
 

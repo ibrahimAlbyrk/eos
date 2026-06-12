@@ -148,8 +148,12 @@ export const api = {
   async sendKeystroke(id, keys) {
     return postJson(ROUTES.workerKeystroke(id), { keys });
   },
-  async answerQuestion(id, toolUseId, answers, selections) {
-    return postJson(ROUTES.workerQuestionAnswer(id), { toolUseId, answers, selections });
+  async answerQuestion(id, toolUseId, answers, dismissed = false) {
+    return postJson(ROUTES.workerQuestionAnswer(id), {
+      toolUseId,
+      answers,
+      ...(dismissed ? { dismissed: true } : {}),
+    });
   },
   async getRewindTargets(id) {
     return getJson(ROUTES.workerRewindTargets(id));
@@ -379,19 +383,21 @@ export const api = {
   async getTryState(id) {
     try {
       const r = await getJson(ROUTES.workerTryState(id));
-      return r.ok ? r.body : { activeTry: null, kept: false };
+      return r.ok ? r.body : { activeTries: [], kept: false };
     } catch {
-      return { activeTry: null, kept: false };
+      return { activeTries: [], kept: false };
     }
   },
   async tryApply(id) {
     return postJson(ROUTES.workerTry(id), {}, uiTokenHeader());
   },
-  async tryKeep(id) {
-    return postJson(ROUTES.workerTryKeep(id), {}, uiTokenHeader());
+  // Keep/Discard act on a specific stack layer: `id` resolves the repo,
+  // `ownerId` is the layer's worker (may already be deleted).
+  async tryKeep(id, ownerId) {
+    return postJson(ROUTES.workerTryKeep(id), { workerId: ownerId }, uiTokenHeader());
   },
-  async tryDiscard(id) {
-    return postJson(ROUTES.workerTryDiscard(id), {}, uiTokenHeader());
+  async tryDiscard(id, ownerId) {
+    return postJson(ROUTES.workerTryDiscard(id), { workerId: ownerId }, uiTokenHeader());
   },
 
   // SSE — returns the EventSource so the caller can attach listeners. The

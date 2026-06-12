@@ -1,35 +1,56 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { QuestionRequestSchema, QuestionNotifyRequestSchema } from "../http.ts";
+import { QuestionRequestSchema, QuestionAnswerRequestSchema } from "../http.ts";
 
-// Regression: the PermissionRequest hook payload has no tool_use_id, so the
-// worker hook posts toolUseId null/absent. A strict z.string() rejected that
-// with 400, so no question_pending event was appended and the banner never
-// appeared. Both question endpoints must accept a missing/null id (the daemon
-// synthesizes one).
-for (const [name, schema] of [
-  ["QuestionRequestSchema", QuestionRequestSchema],
-  ["QuestionNotifyRequestSchema", QuestionNotifyRequestSchema],
-] as const) {
-  describe(`${name} toolUseId tolerance`, () => {
-    it("accepts a body with no toolUseId", () => {
-      const r = schema.safeParse({ questions: [{ question: "Q" }] });
-      assert.ok(r.success, "missing toolUseId should pass");
-    });
+const q = (over: Record<string, unknown> = {}): Record<string, unknown> => ({
+  question: "Which approach?",
+  options: [{ label: "A" }, { label: "B", description: "the safer one" }],
+  ...over,
+});
 
-    it("accepts a null toolUseId (what jq emits for an absent field)", () => {
-      const r = schema.safeParse({ questions: [{ question: "Q" }], toolUseId: null });
-      assert.ok(r.success, "null toolUseId should pass");
-    });
-
-    it("still accepts a real string toolUseId", () => {
-      const r = schema.safeParse({ questions: [{ question: "Q" }], toolUseId: "toolu_123" });
-      assert.ok(r.success);
-    });
-
-    it("still requires questions to be an array", () => {
-      const r = schema.safeParse({ toolUseId: "toolu_123" });
-      assert.ok(!r.success, "missing questions must fail");
-    });
+describe("QuestionRequestSchema", () => {
+  // The ask_user MCP tool has no Claude tool_use_id — the daemon synthesizes
+  // one. The schema must accept a missing/null id.
+  it("accepts a body with no toolUseId", () => {
+    assert.ok(QuestionRequestSchema.safeParse({ questions: [q()] }).success);
   });
-}
+
+  it("accepts a null toolUseId", () => {
+    assert.ok(QuestionRequestSchema.safeParse({ questions: [q()], toolUseId: null }).success);
+  });
+
+  it("accepts header + multiSelect", () => {
+    const r = QuestionRequestSchema.safeParse({
+      questions: [q({ header: "Approach", multiSelect: true })],
+    });
+    assert.ok(r.success);
+  });
+
+  it("rejects a question without options", () => {
+    assert.ok(!QuestionRequestSchema.safeParse({ questions: [{ question: "Q" }] }).success);
+  });
+
+  it("rejects an empty questions array", () => {
+    assert.ok(!QuestionRequestSchema.safeParse({ questions: [] }).success);
+  });
+
+  it("rejects more than 4 questions", () => {
+    assert.ok(!QuestionRequestSchema.safeParse({ questions: [q(), q(), q(), q(), q()] }).success);
+  });
+});
+
+describe("QuestionAnswerRequestSchema", () => {
+  it("accepts answers without a dismissed flag", () => {
+    const r = QuestionAnswerRequestSchema.safeParse({ toolUseId: "tu1", answers: { Q: "A" } });
+    assert.ok(r.success);
+  });
+
+  it("accepts a dismissal without answers", () => {
+    const r = QuestionAnswerRequestSchema.safeParse({ toolUseId: "tu1", dismissed: true });
+    assert.ok(r.success);
+  });
+
+  it("requires toolUseId", () => {
+    assert.ok(!QuestionAnswerRequestSchema.safeParse({ answers: { Q: "A" } }).success);
+  });
+});

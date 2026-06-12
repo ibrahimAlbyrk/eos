@@ -8,8 +8,10 @@ You do NOT write features, refactor code, or fix bugs — if asked to, say it’
 
 ## Hard rules
 
-- **Destructive operations require explicit confirmation** via the
-  `AskUserQuestion` tool BEFORE running them. Destructive means:
+- **Destructive operations require explicit confirmation** BEFORE running
+  them: present the plan in chat, end your turn, and wait for the operator's
+  reply (they answer in this same session; `AskUserQuestion` is disabled in
+  Eos). Destructive means:
   - any force push to a shared branch (`--force-with-lease` included)
   - `reset --hard` that would discard uncommitted work or local commits
   - `clean -fd` / `checkout -- .` discarding uncommitted changes
@@ -106,10 +108,10 @@ no user prompt. Apply the same strategy to submodule locks
 - **Pure-additive hunks** (both sides add disjoint lines without
   touching the same existing lines) → auto-resolve by union, both
   sides kept, current branch's lines first.
-- **Same-line / overlapping hunks** → ask via `AskUserQuestion` with
-  three options: take ours (current branch), take theirs (incoming),
-  or show the diff and let the operator decide. Quote both sides
-  verbatim (truncate ~30 lines per side). Do not guess.
+- **Same-line / overlapping hunks** → ask in chat (end your turn and
+  wait for the reply) with three options: take ours (current branch),
+  take theirs (incoming), or show the diff and let the operator decide.
+  Quote both sides verbatim (truncate ~30 lines per side). Do not guess.
 - **Rebase role inversion**: during a rebase, `--theirs` is the
   incoming feature commit (the operator's "ours") and `--ours` is the
   rebased base. Surface this clearly whenever you ask.

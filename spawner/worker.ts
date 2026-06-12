@@ -10,7 +10,7 @@ import { rmSync, readFileSync } from "node:fs";
 import { spawn as ptySpawn } from "@homebridge/node-pty-prebuilt-multiarch";
 
 import { WORKER_EXIT } from "../contracts/src/util.ts";
-import { isEosControlTool } from "../contracts/src/tool-scope.ts";
+import { isEosControlTool, isBlockedBuiltinTool, BLOCKED_BUILTIN_TOOL_MESSAGE } from "../contracts/src/tool-scope.ts";
 import { parseWorkerOptions } from "./options.ts";
 import { createDaemonEventClient } from "./events.ts";
 import { setupWorktree, teardownWorktree } from "./worktree.ts";
@@ -28,7 +28,6 @@ import {
 import { createReadinessGate } from "./readiness-gate.ts";
 import { resolveParentAgentToolUseId } from "./subagent-meta.ts";
 import { RewindDriver, type RewindMode } from "./rewind.ts";
-import { AnswerDriver, type AnswerSpec } from "./answer-driver.ts";
 import { PendingMessageRegistry, type PendingMessage } from "./message-registry.ts";
 
 // Timing defaults. Each is overridable by a CLI flag (see options.ts);
@@ -47,10 +46,6 @@ const DEFAULT_READINESS_FALLBACK_MS = 2500;
 const DEFAULT_READINESS_SETTLE_MS = 250;
 // Grace between SIGTERM and SIGKILL of the claude PTY child during cleanup.
 const PTY_SIGKILL_DELAY_MS = 1500;
-// Long-poll timeout for the question hook → daemon round-trip. Must stay
-// coordinated with the daemon policy ttlMs and gateway abort timeout.
-const POLICY_LONG_POLL_TIMEOUT_MS =
-  Number.parseInt(process.env.EOS_POLICY_TIMEOUT_MS ?? "", 10) || 3_600_000;
 
 const opts = parseWorkerOptions();
 const name = opts.name ?? "w" + Math.random().toString(36).slice(2, 7);
@@ -134,6 +129,9 @@ const pty = ptySpawn(claudeBin, claudeArgs.args, {
   env: {
     ...cleanEnv,
     TERM: "xterm-256color",
+    // ask_user blocks its MCP call until the operator answers — possibly days.
+    // Lift the CLI's per-tool-call ceiling out of the way (ms, ~24.8 days).
+    MCP_TOOL_TIMEOUT: "2147483647",
     ...(opts.daemonUrl && opts.workerId
       ? {
           EOS_SPAWNED: "1",
@@ -281,18 +279,6 @@ class HoldBuffer {
 
 const rewindHold = new HoldBuffer(() => rewindDriver.active);
 
-// AnswerDriver — answers Claude's native AskUserQuestion menu with verified
-// keystrokes (replaces the old web-side interrupt+message path whose Esc made
-// the agent see a "rejected" result). Mutually exclusive with delivery: while a
-// menu is open, messages are held so no paste/CR/Esc lands on it.
-let lastToolResultTs = 0;
-const answerDriver = new AnswerDriver({
-  write: (s) => pty.write(s),
-  lastToolResultTs: () => lastToolResultTs,
-  log: (m) => console.log(`[${name}][answer] ${m}`),
-});
-const answerHold = new HoldBuffer(() => answerDriver.menuOpen);
-
 // Lifecycle ----------------------------------------------------------------
 
 const shutdown = createShutdownScheduler({
@@ -350,18 +336,16 @@ pty.onData((data: string) => {
   readiness.feed(data);
   pipeline.feedOutput(data);
   rewindDriver.feed(data);
-  answerDriver.feed(data);
 });
 
 // Ingest server (message + hook) ------------------------------------------
 
 function dispatchToPty(text: string): void {
   // Each gate parks the write until it releases. Boot is special — its flush
-  // (onBootReady) also writes the initial prompt. An open rewind panel / AUQ
-  // menu owns the PTY: a paste/CR would feed it and an Esc would cancel it.
+  // (onBootReady) also writes the initial prompt. An open rewind panel owns
+  // the PTY: a paste/CR would feed it and an Esc would cancel it.
   if (!bootCompleted) { bootBuffer.push(text); return; }
   if (rewindHold.active) { rewindHold.hold(text); return; }
-  if (answerHold.active) { answerHold.hold(text); return; }
   deliver(text);
 }
 
@@ -384,20 +368,6 @@ function startTail(sessionId: string, startAtEof = false): TailHandle {
         pipeline.notifyUserText(text, Date.now());
         for (const m of pendingMessages.consumeMatching(text)) emitMessageEvent(m, anchorTs);
         return;
-      }
-      // A tool_result while a menu is being driven is the AUQ answer landing —
-      // the AnswerDriver waits on this timestamp to confirm delivery.
-      if (t === "jsonl" && (p as { kind?: string }).kind === "tool_result") {
-        lastToolResultTs = Date.now();
-        // Self-heal: a tool_result after a menu opened means the question
-        // resolved (answered out-of-band or cancelled). Release held messages
-        // even when no /answer drove the close, so the menu hold can never
-        // permanently wedge delivery. Skip while answer() is driving — it owns
-        // the close()+flush itself.
-        if (answerDriver.menuOpen && !answerDriver.active) {
-          answerDriver.close();
-          flushAnswerBuffer();
-        }
       }
       evt.emit(t, p);
     },
@@ -442,8 +412,6 @@ function watchForClearedSession(oldSessionId: string, clearTs: number): void {
   }, CLEAR_SWAP_POLL_MS);
 }
 
-function flushAnswerBuffer(): void { answerHold.flush(dispatchToPty); }
-
 const ingest = startIngestServer(opts.port, {
   onMessage(text, record): void {
     shutdown.cancel();
@@ -457,26 +425,6 @@ const ingest = startIngestServer(opts.port, {
       for (const m of pendingMessages.register(text, record)) emitMessageEvent(m);
     }
     dispatchToPty(text);
-  },
-  async onAnswer(selections): Promise<{ ok: boolean; outcome: string }> {
-    shutdown.cancel();
-    state.lastJsonlActivityTs = Date.now();
-    try {
-      // Selections present ⇒ drive the native menu with verified keystrokes.
-      // Empty ⇒ the user skipped/dismissed: cancel the menu so the agent unblocks.
-      let outcome: string;
-      if (Array.isArray(selections) && selections.length > 0) {
-        outcome = await answerDriver.answer(selections as AnswerSpec[]);
-      } else {
-        answerDriver.cancel();
-        outcome = "dismissed";
-      }
-      return { ok: outcome !== "no_menu", outcome };
-    } finally {
-      // Always release: a turn re-opens once the menu is resolved; messages held
-      // during it flush after, in arrival order — even if the drive threw.
-      flushAnswerBuffer();
-    }
   },
   onKeystroke(keys): void {
     // A stray keystroke mid-choreography would derail the panel navigation.
@@ -500,27 +448,6 @@ const ingest = startIngestServer(opts.port, {
     // Messages that arrived mid-choreography were held back — flush them now.
     rewindHold.flush(deliver);
     return result;
-  },
-  async onQuestionHook(body) {
-    if (!opts.daemonUrl || !opts.workerId) return null;
-    const toolInput = body.tool_input as Record<string, unknown> | undefined;
-    const questions = toolInput?.questions;
-    if (!Array.isArray(questions) || questions.length === 0) return null;
-
-    const url = `${opts.daemonUrl}/workers/${opts.workerId}/question`;
-    try {
-      const r = await fetch(url, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ questions, toolUseId: body.tool_use_id }),
-        signal: AbortSignal.timeout(POLICY_LONG_POLL_TIMEOUT_MS),
-      });
-      if (!r.ok) return null;
-      const data = await r.json() as { answers?: Record<string, string> };
-      return data.answers ? { answers: data.answers } : null;
-    } catch {
-      return null;
-    }
   },
   onInterrupt(): { ok: boolean } {
     pty.write("\x1b");
@@ -570,14 +497,17 @@ const ingest = startIngestServer(opts.port, {
     }
     let hookOutput: Record<string, unknown> | undefined;
     if (eventName === "PreToolUse") {
-      // Subagents may not drive the Eos control plane. The deny must live
-      // here: under native bypassPermissions PermissionRequest never fires,
-      // while PreToolUse fires in every mode and its HTTP response is
-      // honored as hook output. Synthetic tool_done because a blocked
-      // subagent inner tool gets no PostToolUse and would stay "running".
+      // Denies that must live HERE: under native bypassPermissions
+      // PermissionRequest never fires, while PreToolUse fires in every mode
+      // and its HTTP response is honored as hook output. Two cases: blocked
+      // builtins (AskUserQuestion — no answer surface in Eos) and subagents
+      // driving the Eos control plane. Synthetic tool_done because a blocked
+      // tool gets no PostToolUse and would stay "running".
       const toolName = typeof body.tool_name === "string" ? body.tool_name : "unknown";
-      if (agentId && isEosControlTool(toolName)) {
-        const reason = `${toolName} is main-agent only — subagents cannot use Eos control tools. Return your findings; the main agent acts on them.`;
+      if (isBlockedBuiltinTool(toolName) || (agentId && isEosControlTool(toolName))) {
+        const reason = isBlockedBuiltinTool(toolName)
+          ? BLOCKED_BUILTIN_TOOL_MESSAGE
+          : `${toolName} is main-agent only — subagents cannot use Eos control tools. Return your findings; the main agent acts on them.`;
         const attribution = parentAgentToolUseId ? { parentAgentToolUseId } : {};
         evt.emit("tool_running", { toolName, toolUseId: body.tool_use_id ?? null, input: body.tool_input ?? {}, ...attribution });
         evt.emit("tool_done", { toolName, toolUseId: body.tool_use_id ?? null, result: reason, isError: true, ...attribution });

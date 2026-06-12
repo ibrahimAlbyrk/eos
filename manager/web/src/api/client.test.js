@@ -23,4 +23,18 @@ describe("api.answerQuestion wire contract", () => {
     expect(opts.method).toBe("POST");
     expect(JSON.parse(opts.body)).toEqual({ toolUseId: "tu-1", answers: { Q: "opt" } });
   });
+
+  it("adds dismissed: true when the operator skips", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.answerQuestion("w1", "tu-1", {}, true);
+
+    const [, opts] = fetchMock.mock.calls[0];
+    expect(JSON.parse(opts.body)).toEqual({ toolUseId: "tu-1", answers: {}, dismissed: true });
+  });
 });

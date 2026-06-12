@@ -19,7 +19,7 @@ CURRENT_BRANCH: resolve with `git rev-parse --abbrev-ref HEAD`; reject "HEAD" (d
 - Run `git fetch origin --recurse-submodules=no` once at the start so `TARGET_BRANCH` is up-to-date if it's a remote-tracking ref. Do not auto-pull.
 - Apply the conflict policy strictly:
   - **Pure-additive conflicts** (both sides add disjoint lines without overlapping any existing line) → auto-resolve by union (both sides in original order, current branch first) and continue.
-  - **Same-line / overlapping changes** → always ask the user via `AskUserQuestion` with three options: "Take ours (current branch)", "Take theirs (target/incoming)", "Show diff and let me decide". Do not guess.
+  - **Same-line / overlapping changes** → always ask the user in chat (end your turn and wait for their reply; `AskUserQuestion` is disabled in Eos) with three options: "Take ours (current branch)", "Take theirs (target/incoming)", "Show diff and let me decide". Do not guess.
   - During rebase, remember the role inversion: `--theirs` in `git checkout --theirs <file>` is the incoming feature commit (= the user's "ours"); `--ours` is the rebased base. Surface this clearly when asking.
 - Never use `--no-verify`, `--force` without `--lease`, or `git reset --hard` outside explicit user-driven recovery. Never push.
 - If the repo has submodules: after a successful rebase, run `git submodule status` and detect entries marked `+` (worktree HEAD ≠ recorded pointer). For each, run `git submodule update --init -- <path>` with the same lock-delete-and-retry strategy applied to that submodule's `.git/modules/<path>/index.lock`. Report any that still diverge.

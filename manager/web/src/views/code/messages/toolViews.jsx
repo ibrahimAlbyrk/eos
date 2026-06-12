@@ -10,7 +10,7 @@
 
 import {
   ReadDetail, EditDetail, WriteDetail, BashDetail, AskUserQuestionDetail,
-  SkillDetail, NotifyDetail, MessageDetail, GenericDetail,
+  AskUserDetail, SkillDetail, NotifyDetail, MessageDetail, GenericDetail,
 } from "./ToolDetail.jsx";
 import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
 import { skillFilePath } from "../../../lib/skillBody.js";
@@ -101,6 +101,12 @@ register("Skill", {
   runningLabel: (t) => ({ verb: "Using", file: `${t.input?.skill ?? "skill"} skill` }),
   filePath: (t) => skillFilePath(t.skillPath),
   Detail: SkillDetail,
+});
+
+register("mcp__orchestrator__ask_user", {
+  label: () => ({ verb: "Asked", file: "user" }),
+  runningLabel: () => ({ verb: "Asking", file: "user" }),
+  Detail: AskUserDetail,
 });
 
 register("mcp__orchestrator__notify_user", {

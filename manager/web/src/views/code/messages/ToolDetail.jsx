@@ -207,6 +207,40 @@ export function AskUserQuestionDetail({ tool }) {
   );
 }
 
+// ask_user (orchestrator MCP) — input mirrors AskUserQuestion's shape, but the
+// result is the tool's own JSON ({answers: {question: label}}) or, when the
+// operator dismissed / the question went stale, a plain sentence.
+export function AskUserDetail({ tool }) {
+  const questions = tool.input?.questions ?? [];
+  const text = tool.result?.text ?? "";
+  let answers = null;
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed === "object" && parsed.answers) answers = parsed.answers;
+  } catch { /* non-JSON result (dismissed / gone) rendered below the questions */ }
+
+  return (
+    <div className="tool-detail tool-qa">
+      {questions.map((q, i) => {
+        const a = answers ? answers[q.question] ?? answers[q.header] : null;
+        return (
+          <div className="tool-qa-item" key={i}>
+            <div className="tool-qa-q">{q.question}</div>
+            <div className="tool-qa-a">
+              {a != null
+                ? <><span className="tool-qa-arrow">→</span> {a}</>
+                : !text && <span className="tool-qa-pending">Waiting...</span>}
+            </div>
+          </div>
+        );
+      })}
+      {!answers && text && (
+        <div className="tool-qa-a"><span className="tool-qa-pending">{text}</span></div>
+      )}
+    </div>
+  );
+}
+
 export function SkillDetail({ tool }) {
   const ui = useUi();
   const [copied, setCopied] = useState(false);

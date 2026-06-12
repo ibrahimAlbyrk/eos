@@ -665,47 +665,59 @@ export const ReportResponseSchema = z.object({
 });
 export type ReportResponse = z.infer<typeof ReportResponseSchema>;
 
-// ---- POST /workers/:id/question-notify -------------------------------------
-
-export const QuestionNotifyRequestSchema = z.object({
-  questions: z.array(UnknownRecordSchema),
-  toolUseId: z.string().nullish(),
-});
-export type QuestionNotifyRequest = z.infer<typeof QuestionNotifyRequestSchema>;
-
-export const QuestionNotifyResponseSchema = z.object({ ok: z.boolean() });
-export type QuestionNotifyResponse = z.infer<typeof QuestionNotifyResponseSchema>;
-
 // ---- POST /workers/:id/question --------------------------------------------
+//
+// The orchestrator's ask_user MCP tool registers a question for the operator,
+// then polls GET /workers/:id/question/:questionId until a terminal state.
+// Same question shape as the (disabled) builtin AskUserQuestion so the web
+// QuestionBanner renders it unchanged.
 
-// The PermissionRequest hook payload carries no tool_use_id (only PreToolUse
-// does), so the hook posts null/absent. The daemon synthesizes a stable id
-// when it is missing, which the web UI echoes back on answer.
+export const QuestionOptionSchema = z.object({
+  label: z.string().min(1),
+  description: z.string().optional(),
+});
+export type QuestionOption = z.infer<typeof QuestionOptionSchema>;
+
+export const QuestionSchema = z.object({
+  question: z.string().min(1),
+  header: z.string().optional(),
+  multiSelect: z.boolean().optional(),
+  options: z.array(QuestionOptionSchema).min(1).max(8),
+});
+export type Question = z.infer<typeof QuestionSchema>;
+
+// The caller has no Claude tool_use_id, so the daemon synthesizes one when
+// absent; the web UI echoes it back on answer.
 export const QuestionRequestSchema = z.object({
-  questions: z.array(UnknownRecordSchema),
+  questions: z.array(QuestionSchema).min(1).max(4),
   toolUseId: z.string().nullish(),
 });
 export type QuestionRequest = z.infer<typeof QuestionRequestSchema>;
 
-// ---- POST /workers/:id/question-answer -------------------------------------
-
-// One answered question, structured so the worker can drive Claude's native
-// AskUserQuestion menu with verified keystrokes (see spawner/answer-driver.ts).
-// `picks` are 0-based indices into the REAL options (excludes the auto-appended
-// "Type something."/"Chat about this" rows).
-export const AnswerSpecSchema = z.object({
-  multiSelect: z.boolean(),
-  optionCount: z.number().int().nonnegative(),
-  picks: z.array(z.number().int().nonnegative()),
-  freeText: z.string().optional(),
+export const QuestionRegisterResponseSchema = z.object({
+  questionId: z.string(),
+  toolUseId: z.string(),
 });
-export type AnswerSpec = z.infer<typeof AnswerSpecSchema>;
+export type QuestionRegisterResponse = z.infer<typeof QuestionRegisterResponseSchema>;
+
+// ---- GET /workers/:id/question/:questionId -----------------------------------
+
+// "gone" = the daemon no longer tracks the question (restart, worker killed,
+// or superseded). Always 200 — the poller routes on `status`, not HTTP code.
+export const QuestionPollResponseSchema = z.object({
+  status: z.enum(["pending", "answered", "dismissed", "gone"]),
+  answers: z.record(z.string(), z.string()).optional(),
+});
+export type QuestionPollResponse = z.infer<typeof QuestionPollResponseSchema>;
+
+// ---- POST /workers/:id/question-answer -------------------------------------
 
 export const QuestionAnswerRequestSchema = z.object({
   toolUseId: z.string(),
-  answers: z.record(z.string(), z.string()),
-  // Absent ⇒ banner-dismissal only (legacy / skip); present ⇒ also drive the menu.
-  selections: z.array(AnswerSpecSchema).optional(),
+  answers: z.record(z.string(), z.string()).optional(),
+  // True ⇒ the operator closed the banner without answering; the polling tool
+  // returns "dismissed" so the orchestrator unblocks instead of waiting forever.
+  dismissed: z.boolean().optional(),
 });
 export type QuestionAnswerRequest = z.infer<typeof QuestionAnswerRequestSchema>;
 
@@ -774,9 +786,10 @@ export type RewindResponse = z.infer<typeof RewindResponseSchema>;
 // ---- /workers/:id/try* -------------------------------------------------------
 // Unstaged Try: the daemon applies the worker branch's merged result into the
 // user's checkout as working-tree-only edits (no index, no merge state), with
-// Keep/Discard. One active try per repo; state survives daemon restarts and
-// worker deletion. Mutating try endpoints require the per-boot UI token header
-// (x-eos-ui-token) so agents holding the daemon URL cannot self-apply.
+// Keep/Discard. Tries STACK — several workers' tries can be active per repo at
+// once; state survives daemon restarts and worker deletion. Mutating try
+// endpoints require the per-boot UI token header (x-eos-ui-token) so agents
+// holding the daemon URL cannot self-apply.
 
 export const ActiveTrySchema = z.object({
   workerId: z.string(),
@@ -796,7 +809,8 @@ export const TryPreviewResponseSchema = z.object({
   conflicts: z.array(z.string()),
   files: z.array(z.string()),
   lockfileChanged: z.boolean(),
-  activeTry: ActiveTrySchema.nullable(),
+  // Bottom (oldest) first.
+  activeTries: z.array(ActiveTrySchema),
 });
 export type TryPreviewResponse = z.infer<typeof TryPreviewResponseSchema>;
 
@@ -809,10 +823,18 @@ export const TryApplyResponseSchema = z.object({
 });
 export type TryApplyResponse = z.infer<typeof TryApplyResponseSchema>;
 
+// Keep/Discard target a specific layer of the stack — the card's owner, not
+// necessarily the worker in the URL (the owner may already be deleted; the
+// URL worker only resolves the repo).
+export const TryTargetRequestSchema = z.object({ workerId: z.string() });
+export type TryTargetRequest = z.infer<typeof TryTargetRequestSchema>;
+
 export const TryDiscardResponseSchema = z.object({
   ok: z.boolean(),
+  // user-edited | blocked-by-overlay | no-active-try | git-error
   reason: z.string().optional(),
-  // On user-edited: the files whose post-apply hash no longer matches.
+  // user-edited: files whose post-apply hash no longer matches;
+  // blocked-by-overlay: the overlapping files (detail = the upper layer's workerId).
   files: z.array(z.string()).optional(),
   detail: z.string().optional(),
 });
@@ -825,7 +847,8 @@ export const TryKeepResponseSchema = z.object({
 export type TryKeepResponse = z.infer<typeof TryKeepResponseSchema>;
 
 export const TryStateResponseSchema = z.object({
-  activeTry: ActiveTrySchema.nullable(),
+  // All active layers in the repo, bottom (oldest) first.
+  activeTries: z.array(ActiveTrySchema),
   // This worker's try was kept earlier — the UI never re-offers Apply for it.
   kept: z.boolean(),
 });
@@ -926,7 +949,7 @@ export const ROUTES = {
   workerResume: (id: string): string => `/workers/${id}/resume`,
   workerKeystroke: (id: string): string => `/workers/${id}/keystroke`,
   workerQuestion: (id: string): string => `/workers/${id}/question`,
-  workerQuestionNotify: (id: string): string => `/workers/${id}/question-notify`,
+  workerQuestionPoll: (id: string, questionId: string): string => `/workers/${id}/question/${questionId}`,
   workerQuestionAnswer: (id: string): string => `/workers/${id}/question-answer`,
   workerNotify: (id: string): string => `/workers/${id}/notify`,
   workerReport: (id: string): string => `/workers/${id}/report`,

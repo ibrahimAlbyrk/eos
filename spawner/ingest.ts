@@ -7,19 +7,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { errMsg } from "../contracts/src/util.ts";
 import type { MessageRecord } from "./message-registry.ts";
 
-export interface QuestionAnswer {
-  answers: Record<string, string>;
-}
-
 export interface IngestHandlers {
   onMessage(text: string, record?: MessageRecord): void;
-  onAnswer(selections: unknown[]): Promise<{ ok: boolean; outcome: string }>;
   onKeystroke(keys: string): void;
   onInterrupt(): { ok: boolean; reason?: string };
   /** Optional return value is sent back as the hook's HTTP response body —
    * Claude honors it as hook output (e.g. a PreToolUse permission deny). */
   onHook(eventName: string, body: Record<string, unknown>): Record<string, unknown> | undefined;
-  onQuestionHook(body: Record<string, unknown>): Promise<QuestionAnswer | null>;
   onRewindTargets(): unknown;
   onRewind(body: { uuid?: string; mode?: string }): Promise<unknown>;
 }
@@ -124,22 +118,6 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
           res.writeHead(500, { "content-type": "application/json" });
           res.end(JSON.stringify({ error: errMsg(e) }));
         }
-        return;
-      }
-      if (url.pathname === "/answer") {
-        let body: { selections?: unknown[] } = {};
-        try { body = JSON.parse(raw); } catch {}
-        const selections = Array.isArray(body.selections) ? body.selections : [];
-        handlers.onAnswer(selections).then(
-          (result) => {
-            res.writeHead(200, { "content-type": "application/json" });
-            res.end(JSON.stringify(result));
-          },
-          (e) => {
-            res.writeHead(500, { "content-type": "application/json" });
-            res.end(JSON.stringify({ ok: false, error: errMsg(e) }));
-          },
-        );
         return;
       }
       if (url.pathname === "/interrupt") {

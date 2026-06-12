@@ -1,12 +1,23 @@
-import type { Clock } from "../../core/src/ports/Clock.ts";
+// In-memory registry for questions the orchestrator's ask_user MCP tool poses
+// to the operator. State-based (register → poll), not promise-based: the tool
+// polls over short HTTP GETs, so an answer may arrive days later without any
+// long-lived socket. There is deliberately NO expiry — a question waits until
+// it is answered, dismissed, or its worker dies. Entries are tiny and
+// human-scale, so terminal states are kept (a poll retry after a lost response
+// must still see the answer) until cancelByWorker or daemon restart clears them.
+
 import type { IdGenerator } from "../../core/src/ports/IdGenerator.ts";
 
-interface PendingEntry {
+export type QuestionState =
+  | { status: "pending" }
+  | { status: "answered"; answers: Record<string, string> }
+  | { status: "dismissed" }
+  | { status: "gone" };
+
+interface QuestionEntry {
   workerId: string;
   toolUseId: string;
-  expiresAt: number;
-  resolve: (_answers: Record<string, string>) => void;
-  reject: (_reason: Error) => void;
+  state: QuestionState;
 }
 
 function keyFor(workerId: string, toolUseId: string): string {
@@ -14,76 +25,52 @@ function keyFor(workerId: string, toolUseId: string): string {
 }
 
 export class PendingQuestionService {
-  private pending = new Map<string, PendingEntry>();
+  private entries = new Map<string, QuestionEntry>();
   private byKey = new Map<string, string>();
-  private clock: Clock;
   private ids: IdGenerator;
-  private ttlMs: number;
 
-  constructor(clock: Clock, ids: IdGenerator, ttlMs: number = 3600000) {
-    this.clock = clock;
+  constructor(ids: IdGenerator) {
     this.ids = ids;
-    this.ttlMs = ttlMs;
   }
 
-  register(workerId: string, toolUseId: string): { questionId: string; promise: Promise<Record<string, string>> } {
+  register(workerId: string, toolUseId: string): { questionId: string } {
     // Only a re-register of the SAME (worker, toolUseId) supersedes the prior
-    // one; a different toolUseId (e.g. a concurrent subagent) coexists.
+    // one; a different toolUseId coexists (concurrent questions).
     const key = keyFor(workerId, toolUseId);
     const prior = this.byKey.get(key);
-    if (prior) this.reject(prior, new Error("question superseded"));
+    if (prior) this.entries.delete(prior);
 
     const questionId = this.ids.newPendingId();
-    const promise = new Promise<Record<string, string>>((resolve, reject) => {
-      this.pending.set(questionId, {
-        workerId,
-        toolUseId,
-        expiresAt: this.clock.now() + this.ttlMs,
-        resolve,
-        reject,
-      });
-    });
+    this.entries.set(questionId, { workerId, toolUseId, state: { status: "pending" } });
     this.byKey.set(key, questionId);
-    return { questionId, promise };
+    return { questionId };
   }
 
-  resolve(questionId: string, answers: Record<string, string>): boolean {
-    const entry = this.pending.get(questionId);
-    if (!entry) return false;
-    this.pending.delete(questionId);
-    this.byKey.delete(keyFor(entry.workerId, entry.toolUseId));
-    entry.resolve(answers);
-    return true;
+  poll(questionId: string): QuestionState {
+    return this.entries.get(questionId)?.state ?? { status: "gone" };
   }
 
   resolveByToolUseId(workerId: string, toolUseId: string, answers: Record<string, string>): boolean {
+    return this.settle(workerId, toolUseId, { status: "answered", answers });
+  }
+
+  dismissByToolUseId(workerId: string, toolUseId: string): boolean {
+    return this.settle(workerId, toolUseId, { status: "dismissed" });
+  }
+
+  cancelByWorker(workerId: string): void {
+    for (const [questionId, entry] of this.entries) {
+      if (entry.workerId !== workerId) continue;
+      this.entries.delete(questionId);
+      this.byKey.delete(keyFor(entry.workerId, entry.toolUseId));
+    }
+  }
+
+  private settle(workerId: string, toolUseId: string, state: QuestionState): boolean {
     const questionId = this.byKey.get(keyFor(workerId, toolUseId));
-    if (!questionId) return false;
-    return this.resolve(questionId, answers);
-  }
-
-  reject(questionId: string, reason: Error): boolean {
-    const entry = this.pending.get(questionId);
-    if (!entry) return false;
-    this.pending.delete(questionId);
-    this.byKey.delete(keyFor(entry.workerId, entry.toolUseId));
-    entry.reject(reason);
+    const entry = questionId ? this.entries.get(questionId) : undefined;
+    if (!entry || entry.state.status !== "pending") return false;
+    entry.state = state;
     return true;
-  }
-
-  rejectByWorker(workerId: string, reason: Error): void {
-    for (const [questionId, entry] of this.pending) {
-      if (entry.workerId === workerId) this.reject(questionId, reason);
-    }
-  }
-
-  sweepExpired(now: number): void {
-    for (const [questionId, entry] of this.pending) {
-      if (now > entry.expiresAt) {
-        this.pending.delete(questionId);
-        this.byKey.delete(keyFor(entry.workerId, entry.toolUseId));
-        entry.reject(new Error("question expired"));
-      }
-    }
   }
 }

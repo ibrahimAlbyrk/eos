@@ -13,7 +13,7 @@ import type { Decision } from "../../../contracts/src/policy.ts";
 import type { Policy } from "../domain/policy.ts";
 import { ruleMatches, evaluatePolicy } from "../domain/policy.ts";
 import { MODE_SPECS, classifyTool } from "../domain/permission-mode.ts";
-import { isEosControlTool } from "../domain/tool-scope.ts";
+import { isEosControlTool, isBlockedBuiltinTool, BLOCKED_BUILTIN_TOOL_MESSAGE } from "../domain/tool-scope.ts";
 import type { PendingRepo } from "../ports/PendingRepo.ts";
 import type { EventBus } from "../ports/EventBus.ts";
 import type { EventRepo } from "../ports/EventRepo.ts";
@@ -121,9 +121,13 @@ export class PolicyGatewayService implements PolicyGateway {
     input: Record<string, unknown>,
     agentId: string | null,
   ): Decision {
-    // Structural invariant ahead of user rules: a policy.yaml allow or a
-    // permissive mode (bypassPermissions) must not let a subagent drive the
-    // control plane. Absent agent_id (main loop) falls through unchanged.
+    // Structural invariants ahead of user rules — a policy.yaml allow or a
+    // permissive mode (bypassPermissions) must not override them.
+    if (isBlockedBuiltinTool(toolName)) {
+      return { behavior: "deny", message: BLOCKED_BUILTIN_TOOL_MESSAGE };
+    }
+    // A subagent may not drive the control plane. Absent agent_id (main loop)
+    // falls through unchanged.
     if (agentId && isEosControlTool(toolName)) {
       return {
         behavior: "deny",
