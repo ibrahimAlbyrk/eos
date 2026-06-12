@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useUi, UiProvider, useAttentionSync } from "./state/ui.jsx";
 import { useLive } from "./hooks/useLive.js";
+import { useUiFreshness } from "./hooks/useUiFreshness.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { CommandPalette } from "./components/search/CommandPalette.jsx";
 import { SettingsModal } from "./components/settings/SettingsModal.jsx";
@@ -16,6 +17,10 @@ function Shell() {
   // Attention bookkeeping runs here, not in a view, so the sidebar dot
   // state stays correct while other tabs are active.
   useAttentionSync(live.workers, ui.selectedId);
+
+  // Reload once if dist was rebuilt under this page (vite watch / missed
+  // ui:reload) — stale bundles otherwise run until the app is relaunched.
+  useUiFreshness();
 
   // Panel-level attention for the collapsed-sidebar expand button pip.
   const hasAttention = ui.anyNeedsAttention(live.workers);
