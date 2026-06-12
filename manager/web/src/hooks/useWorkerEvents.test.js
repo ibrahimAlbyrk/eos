@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
-import { mergeEvents } from "./useWorkerEvents.js";
+import { describe, it, expect, vi } from "vitest";
+import { mergeEvents, filterOwnRows, windowReducer } from "./useWorkerEvents.js";
 
 const ev = (id, ts, type = "jsonl") => ({ id, ts, type });
+const row = (id, workerId, ts = id * 10) => ({ id, worker_id: workerId, ts, type: "jsonl" });
 
 describe("mergeEvents", () => {
   it("returns incoming when current is empty", () => {
@@ -42,5 +43,52 @@ describe("mergeEvents", () => {
     const current = [ev(1, 10), ev(2, 20)];
     const delta = [ev(3, 30), ev(4, 40)];
     expect(mergeEvents(current, delta).map((e) => e.id)).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe("filterOwnRows", () => {
+  it("passes rows belonging to the requested worker through unchanged", () => {
+    const rows = [row(1, "w-a"), row(2, "w-a")];
+    expect(filterOwnRows("w-a", rows)).toEqual(rows);
+  });
+
+  it("drops foreign rows and warns", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const rows = [row(1, "w-a"), row(2, "w-b"), row(3, "w-a")];
+    expect(filterOwnRows("w-a", rows).map((r) => r.id)).toEqual([1, 3]);
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+  });
+});
+
+describe("windowReducer", () => {
+  const winA = { for: "w-a", events: [row(1, "w-a"), row(2, "w-a")], hasOlder: true };
+
+  it("reset clears the window (null and per-worker forms)", () => {
+    expect(windowReducer(winA, { type: "reset" })).toEqual({ for: null, events: [], hasOlder: false });
+    expect(windowReducer(winA, { type: "reset", workerId: "w-b" })).toEqual({ for: "w-b", events: [], hasOlder: false });
+  });
+
+  it("newest for another worker REPLACES the window — old rows cannot survive a switch", () => {
+    const next = windowReducer(winA, { type: "newest", workerId: "w-b", rows: [row(9, "w-b")] });
+    expect(next.for).toBe("w-b");
+    expect(next.events.map((e) => e.id)).toEqual([9]);
+  });
+
+  it("newest for the same worker merges and keeps hasOlder", () => {
+    const next = windowReducer(winA, { type: "newest", workerId: "w-a", rows: [row(3, "w-a")] });
+    expect(next.events.map((e) => e.id)).toEqual([1, 2, 3]);
+    expect(next.hasOlder).toBe(true);
+  });
+
+  it("delta and older for a mismatched worker are no-ops (late responses after a switch)", () => {
+    expect(windowReducer(winA, { type: "delta", workerId: "w-b", rows: [row(9, "w-b")] })).toBe(winA);
+    expect(windowReducer(winA, { type: "older", workerId: "w-b", rows: [row(0, "w-b")] })).toBe(winA);
+  });
+
+  it("older for the owner merges and re-decides hasOlder from page fullness", () => {
+    const next = windowReducer(winA, { type: "older", workerId: "w-a", rows: [row(0, "w-a")] });
+    expect(next.events.map((e) => e.id)).toEqual([0, 1, 2]);
+    expect(next.hasOlder).toBe(false);
   });
 });

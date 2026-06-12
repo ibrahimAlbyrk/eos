@@ -43,6 +43,10 @@ const BUTTON_THRESHOLD = 300;
 // anchor that lives above the newest-page event window.
 const MAX_RESTORE_PAGES = 3;
 
+// Stable identity for the gated "not this agent's rows" case so downstream
+// memos don't churn while a switch is in flight.
+const NO_EVENTS = [];
+
 export function Messages({ live }) {
   const ui = useUi();
   const initialScrollDone = useRef(false);
@@ -94,14 +98,21 @@ export function Messages({ live }) {
     outbox.reconcileEvents(workerId, rows);
   }, []);
 
-  // `eventsFor` = which agent the current `events` belong to — during a
-  // switch, blocks still render the previous agent's rows, and the initial
-  // scroll must wait for the new agent's content before restoring a saved
-  // position.
-  const { events, eventsFor, hasOlder, loadingOlder, loadOlder, fetchDelta } = useWorkerEvents(
+  // `eventsFor` = which agent the current window belongs to. Ownership gate:
+  // a window still holding another agent's rows (mid-switch, or any future
+  // regression upstream) renders as empty — never as the wrong transcript.
+  // The initial scroll likewise waits for the new agent's content before
+  // restoring a saved position.
+  const {
+    events: windowEvents, eventsFor, hasOlder: windowHasOlder,
+    loadingOlder, loadOlder, fetchDelta,
+  } = useWorkerEvents(
     ui.selectedId,
     { restartKey: live.workers.length, onNewest: reconcileFromNewest },
   );
+  const owned = eventsFor === ui.selectedId;
+  const events = owned ? windowEvents : NO_EVENTS;
+  const hasOlder = owned && windowHasOlder;
 
   useEffect(() => {
     if (live.eventSignal.workerId !== ui.selectedId) return;

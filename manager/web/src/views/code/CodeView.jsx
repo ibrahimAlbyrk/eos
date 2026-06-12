@@ -101,7 +101,10 @@ export function CodeView({ live }) {
       main={
         <>
           <CenterHeader live={live} />
-          <Messages live={live} />
+          {/* Keyed per selection: the transcript's React state (event window,
+              scroll, find, baselines) dies with the old agent — cross-agent
+              carry-over is unrepresentable, not just guarded against. */}
+          <Messages key={ui.selectedId ?? "empty"} live={live} />
           <Composer live={live} />
         </>
       }

@@ -3,8 +3,13 @@
 // of replacing it, so history loaded via loadOlder survives poll/SSE refetches.
 // Without this, every refetch would shrink the view back to the newest page
 // and the top of long transcripts would be unreachable (the original bug).
+//
+// Ownership invariant: every window write goes through windowReducer and
+// carries the workerId its rows were fetched for — rows can only merge into a
+// window owned by the same agent, so one agent's transcript can never bleed
+// into another's (the cross-agent thinking-leak class of bug).
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { api } from "../api/client.js";
 
 const POLL_MS = 5000;
@@ -22,12 +27,48 @@ export function mergeEvents(current, incoming) {
   return [...byId.values()].sort((a, b) => (a.ts - b.ts) || (a.id - b.id));
 }
 
+// The server already filters by worker_id; this client-side boundary turns a
+// regression anywhere in that chain into a dropped row plus a console warning
+// instead of a silent cross-agent transcript leak.
+export function filterOwnRows(workerId, rows) {
+  const own = rows.filter((r) => r.worker_id === workerId);
+  if (own.length !== rows.length) {
+    console.warn(`[useWorkerEvents] dropped ${rows.length - own.length} foreign event row(s) fetched for ${workerId}`);
+  }
+  return own;
+}
+
+// All window writes funnel through here; an action whose workerId doesn't
+// match the window's owner can only replace ("newest") or no-op — never mix.
+// hasOlder is decided by the FIRST page for a worker and by loadOlder results
+// only — newest refetches always return a full page on long transcripts and
+// must not resurrect an exhausted cursor.
+export function windowReducer(state, action) {
+  const { type, workerId, rows } = action;
+  switch (type) {
+    case "reset":
+      return { for: workerId ?? null, events: [], hasOlder: false };
+    case "newest":
+      return state.for === workerId
+        ? { ...state, events: mergeEvents(state.events, rows) }
+        : { for: workerId, events: mergeEvents([], rows), hasOlder: rows.length === PAGE_SIZE };
+    case "delta":
+      return state.for === workerId
+        ? { ...state, events: mergeEvents(state.events, rows) }
+        : state;
+    case "older":
+      return state.for === workerId
+        ? { ...state, events: mergeEvents(state.events, rows), hasOlder: rows.length === PAGE_SIZE }
+        : state;
+    default:
+      return state;
+  }
+}
+
+const INITIAL_WINDOW = { for: null, events: [], hasOlder: false };
+
 export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
-  // Single state object: events + which worker they belong to + whether an
-  // older page may exist. hasOlder is decided by the FIRST page for a worker
-  // and by loadOlder results only — newest refetches always return a full
-  // page on long transcripts and must not resurrect an exhausted cursor.
-  const [state, setState] = useState({ for: null, events: [], hasOlder: false });
+  const [state, dispatch] = useReducer(windowReducer, INITIAL_WINDOW);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -38,7 +79,7 @@ export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
 
   useEffect(() => {
     if (!workerId) {
-      setState({ for: null, events: [], hasOlder: false });
+      dispatch({ type: "reset" });
       fetchRef.current = null;
       return;
     }
@@ -47,14 +88,20 @@ export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
     const fetchNewest = async () => {
       try {
         const rows = await api.getWorkerEvents(workerId, { limit: PAGE_SIZE, order: "desc", signal: ac.signal });
-        if (cancelled || !Array.isArray(rows)) return;
-        setState((s) => s.for === workerId
-          ? { ...s, events: mergeEvents(s.events, rows) }
-          : { for: workerId, events: mergeEvents([], rows), hasOlder: rows.length === PAGE_SIZE });
-        onNewestRef.current?.(workerId, rows);
+        if (cancelled) return;
+        if (!Array.isArray(rows)) {
+          // A non-array body is an error, not a no-op: leaving the previous
+          // window in place would keep another agent's transcript renderable
+          // under this selection until a poll finally succeeds.
+          dispatch({ type: "reset", workerId });
+          return;
+        }
+        const own = filterOwnRows(workerId, rows);
+        dispatch({ type: "newest", workerId, rows: own });
+        onNewestRef.current?.(workerId, own);
       } catch (e) {
         if (e?.name === "AbortError" || cancelled) return;
-        setState({ for: workerId, events: [], hasOlder: false });
+        dispatch({ type: "reset", workerId });
       }
     };
     fetchRef.current = fetchNewest;
@@ -67,7 +114,9 @@ export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
 
   // SSE fast path: pull only the rows appended after the highest loaded id.
   // Falls back to the newest-page fetch until a first page exists. Best-effort —
-  // a missed delta is healed by the poll's newest-page merge.
+  // a missed delta is healed by the poll's newest-page merge. No abort signal
+  // on purpose: the api client's in-flight dedup coalesces SSE bursts, and a
+  // late response for a switched-away agent is a reducer no-op.
   const fetchDelta = useCallback(async () => {
     const s = stateRef.current;
     if (!workerId || s.for !== workerId || s.events.length === 0) {
@@ -79,8 +128,9 @@ export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
     try {
       const rows = await api.getWorkerEvents(workerId, { afterId: maxId, limit: PAGE_SIZE });
       if (!Array.isArray(rows) || rows.length === 0) return;
-      setState((cur) => cur.for !== workerId ? cur : { ...cur, events: mergeEvents(cur.events, rows) });
-      onNewestRef.current?.(workerId, rows);
+      const own = filterOwnRows(workerId, rows);
+      dispatch({ type: "delta", workerId, rows: own });
+      onNewestRef.current?.(workerId, own);
     } catch { /* transient; poll heals */ }
   }, [workerId]);
 
@@ -94,11 +144,7 @@ export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
     try {
       const rows = await api.getWorkerEvents(workerId, { limit: PAGE_SIZE, order: "desc", beforeId: oldestId });
       if (!Array.isArray(rows)) return;
-      setState((cur) => cur.for !== workerId ? cur : {
-        ...cur,
-        events: mergeEvents(cur.events, rows),
-        hasOlder: rows.length === PAGE_SIZE,
-      });
+      dispatch({ type: "older", workerId, rows: filterOwnRows(workerId, rows) });
     } catch {
       // transient; sentinel re-triggers on next intersection
     } finally {
