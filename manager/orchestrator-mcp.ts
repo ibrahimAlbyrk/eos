@@ -16,5 +16,5 @@ for (const t of toolModules) t.register(server, session);
 
 await server.connect(new StdioServerTransport());
 process.stderr.write(
-  `[orchestrator-mcp] ready on stdio (id=${session.selfId}, cwd=${session.cwd}, git=${session.isGitRepo})\n`,
+  `[orchestrator-mcp] ready on stdio (id=${session.selfId}, cwd=${session.cwd}, git=${session.isGitRepo()})\n`,
 );

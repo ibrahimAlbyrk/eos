@@ -17,6 +17,10 @@ export interface SyncStatus {
 }
 
 export interface GitInfo {
+  /** True when cwd is inside a git working tree — including a freshly-init'd
+   *  repo with no commits yet (unborn HEAD), where branch listing and HEAD
+   *  resolution both come back empty. Never derive repo-ness from those. */
+  isRepo(cwd: string): Promise<boolean>;
   listBranches(cwd: string): Promise<string[]>;
   currentBranch(cwd: string): Promise<string | null>;
   /** With `base`, diffs base..working-tree (committed-after-fork + uncommitted);

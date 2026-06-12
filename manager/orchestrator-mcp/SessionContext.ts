@@ -10,7 +10,10 @@ export interface OrchestratorSession {
   readonly selfId: string;
   readonly daemonUrl: string;
   readonly cwd: string;
-  readonly isGitRepo: boolean;
+  /** Probed per call, never cached — the orchestrator may outlive a
+   *  `git init` in its cwd, and a boot-time snapshot would freeze every
+   *  future spawn_worker into non-isolated cwd mode. */
+  isGitRepo(): boolean;
   api(method: string, path: string, body?: unknown): Promise<unknown>;
 }
 
@@ -26,7 +29,7 @@ export async function resolveSession(): Promise<OrchestratorSession> {
     process.stderr.write(`[orchestrator-mcp] FATAL: self (${selfId}) has no cwd in daemon\n`);
     process.exit(1);
   }
-  const gitCheck = spawnSync("git", ["rev-parse", "--git-dir"], { cwd, encoding: "utf8" });
-  const isGitRepo = gitCheck.status === 0;
+  const isGitRepo = (): boolean =>
+    spawnSync("git", ["rev-parse", "--git-dir"], { cwd, encoding: "utf8" }).status === 0;
   return { selfId, daemonUrl, cwd, isGitRepo, api };
 }

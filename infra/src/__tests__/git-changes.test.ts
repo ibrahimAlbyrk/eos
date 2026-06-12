@@ -410,3 +410,38 @@ describe("attachPatches", () => {
     assert.equal(files[1].truncated, undefined);
   });
 });
+
+describe("unborn repo (git init, no commits yet)", () => {
+  let repo: string;
+  let plainDir: string;
+
+  before(() => {
+    repo = realpathSync(mkdtempSync(join(tmpdir(), "eos-unborn-")));
+    spawnSync("git", ["-C", repo, "init", "-b", "main"], { encoding: "utf8" });
+    writeFileSync(join(repo, "fresh.txt"), "hello\n");
+    plainDir = realpathSync(mkdtempSync(join(tmpdir(), "eos-nogit-")));
+  });
+
+  after(() => {
+    try { rmSync(repo, { recursive: true, force: true }); } catch {}
+    try { rmSync(plainDir, { recursive: true, force: true }); } catch {}
+  });
+
+  it("isRepo is true even though branch listing and HEAD are empty", async () => {
+    assert.equal(await gitInfo.isRepo(repo), true);
+    assert.deepEqual(await gitInfo.listBranches(repo), []);
+  });
+
+  it("isRepo is false for a plain directory", async () => {
+    assert.equal(await gitInfo.isRepo(plainDir), false);
+  });
+
+  it("currentBranch resolves the unborn branch name", async () => {
+    assert.equal(await gitInfo.currentBranch(repo), "main");
+  });
+
+  it("diffShortStat still counts untracked files when HEAD doesn't resolve", async () => {
+    const stat = await gitInfo.diffShortStat(repo);
+    assert.equal(stat.files, 1);
+  });
+});

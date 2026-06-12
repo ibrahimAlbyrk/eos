@@ -52,6 +52,14 @@ function parseShortStat(line: string): DiffStat {
 }
 
 export const childProcessGitInfo: GitInfo = {
+  async isRepo(cwd: string): Promise<boolean> {
+    try {
+      return (await runGit(cwd, ["rev-parse", "--is-inside-work-tree"])).trim() === "true";
+    } catch {
+      return false;
+    }
+  },
+
   async listBranches(cwd: string): Promise<string[]> {
     try {
       const out = await runGit(cwd, ["branch", "--format=%(refname:short)"]);
@@ -62,10 +70,13 @@ export const childProcessGitInfo: GitInfo = {
   },
 
   async currentBranch(cwd: string): Promise<string | null> {
+    // `--show-current` (not `rev-parse --abbrev-ref HEAD`): resolves the
+    // branch name even on an unborn HEAD (fresh init, no commits), and
+    // prints empty on detached HEAD — same null semantics as before.
     try {
-      const out = await runGit(cwd, ["rev-parse", "--abbrev-ref", "HEAD"]);
+      const out = await runGit(cwd, ["branch", "--show-current"]);
       const name = out.trim();
-      return name && name !== "HEAD" ? name : null;
+      return name || null;
     } catch {
       return null;
     }
@@ -89,28 +100,29 @@ export const childProcessGitInfo: GitInfo = {
   },
 
   async diffShortStat(cwd: string, base?: string): Promise<DiffStat> {
+    const stat: DiffStat = { files: 0, insertions: 0, deletions: 0 };
+    // Against HEAD: staged + unstaged vs the last commit. Against a base
+    // (worktree fork point): also includes commits made after the fork —
+    // a worktree agent that commits must not look "clean" in the UI.
+    // Independent try blocks: on an unborn HEAD (fresh init, no commits) the
+    // diff fails, but untracked files must still count below.
     try {
-      // Against HEAD: staged + unstaged vs the last commit. Against a base
-      // (worktree fork point): also includes commits made after the fork —
-      // a worktree agent that commits must not look "clean" in the UI.
       const out = await runGit(cwd, ["diff", "--shortstat", ...SUBMODULE_IGNORE, base ?? "HEAD"]);
-      const stat = parseShortStat(out.trim());
-      // `git diff` never reports untracked files — an agent whose only change
-      // is a NEW file must not look clean either. Count them into `files`
-      // (line counts unknown); --exclude-standard keeps gitignored noise out.
-      // Managed worktrees live INSIDE the repo at .eos/ — never count
-      // them as user changes (same filter as the changes listing).
-      try {
-        const untracked = await runGit(cwd, ["ls-files", "--others", "--exclude-standard"]);
-        stat.files += untracked
-          .split("\n")
-          .filter((l) => l && !l.startsWith(".eos/") && l !== ".eos")
-          .length;
-      } catch {}
-      return stat;
-    } catch {
-      return { files: 0, insertions: 0, deletions: 0 };
-    }
+      Object.assign(stat, parseShortStat(out.trim()));
+    } catch {}
+    // `git diff` never reports untracked files — an agent whose only change
+    // is a NEW file must not look clean either. Count them into `files`
+    // (line counts unknown); --exclude-standard keeps gitignored noise out.
+    // Managed worktrees live INSIDE the repo at .eos/ — never count
+    // them as user changes (same filter as the changes listing).
+    try {
+      const untracked = await runGit(cwd, ["ls-files", "--others", "--exclude-standard"]);
+      stat.files += untracked
+        .split("\n")
+        .filter((l) => l && !l.startsWith(".eos/") && l !== ".eos")
+        .length;
+    } catch {}
+    return stat;
   },
 
   async mergeBase(cwd: string, otherRepoRoot: string): Promise<string | null> {
