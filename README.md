@@ -1,134 +1,238 @@
+<!-- header banner: auto dark/light -->
 <picture>
-  <source media="(prefers-color-scheme: dark)"  srcset="assets/banner-dark.svg">
-  <source media="(prefers-color-scheme: light)" srcset="assets/banner-light.svg">
-  <img alt="Eos — one operator, one orchestrator, many workers" src="assets/banner-dark.svg">
+  <source media="(prefers-color-scheme: dark)"  srcset="assets/eos-banner-aurora-dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="assets/eos-banner-aurora-light.svg">
+  <img alt="Eos — an atelier for Claude Code" src="assets/eos-banner-aurora-dark.svg" width="100%">
 </picture>
 
+<!-- badges -->
 <div align="center">
 
-<br/>
-
-[![status](https://img.shields.io/badge/status-alpha-d97e7e?style=for-the-badge&labelColor=1a1815)](#)
-[![runtime](https://img.shields.io/badge/runtime-node%20%C2%B7%20bun-e08964?style=for-the-badge&labelColor=1a1815)](#)
-[![ui](https://img.shields.io/badge/ui-react%2018%20%C2%B7%20vite-8eb09a?style=for-the-badge&labelColor=1a1815)](#)
-[![pty](https://img.shields.io/badge/pty-only-c4a0d4?style=for-the-badge&labelColor=1a1815)](#)
-[![license](https://img.shields.io/badge/license-MIT-e8c574?style=for-the-badge&labelColor=1a1815)](./LICENSE)
+![status](https://img.shields.io/badge/status-alpha-6ea4e8?style=for-the-badge&labelColor=1a1a1a)
+![runtime](https://img.shields.io/badge/runtime-node%20%C2%B7%20bun-c8a2ff?style=for-the-badge&labelColor=1a1a1a)
+![ui](https://img.shields.io/badge/ui-react%2018%20%C2%B7%20vite-67c084?style=for-the-badge&labelColor=1a1a1a)
+![pty](https://img.shields.io/badge/pty-only-e8a838?style=for-the-badge&labelColor=1a1a1a)
+![never -p](https://img.shields.io/badge/never-%E2%88%92p-d97670?style=for-the-badge&labelColor=1a1a1a)
+[![license](https://img.shields.io/badge/license-MIT-8a8a8a?style=for-the-badge&labelColor=1a1a1a)](./LICENSE)
 
 </div>
 
 <br/>
 
-> *Command a fleet of background Claude Code workers from a single seat —
-> isolated worktrees, supervised live, billed against the subscription you already have.*
+> *Command a fleet of background Claude Code workers from a single seat — each in its own git
+> worktree, supervised live, billed against the Max / Pro subscription you already have.*
 
 <br/>
+
+<!-- divider -->
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
 ## `I` &nbsp;·&nbsp; Why this exists
 
-The interactive `claude` CLI bills against your **Max / Pro subscription**.
-The Agent SDK and `claude -p` will draw from a separate credit pool starting
-**June 15, 2026**. `Eos` is built around a single hard constraint:
+The interactive `claude` CLI bills against your **Max / Pro subscription**. The Agent SDK and
+`claude -p` draw from a **separate, metered credit pool**. Eos is built around one hard constraint:
 
-> Every Claude session is driven through an interactive PTY.
-> The `-p` flag is never used. Anywhere.
+> **Every Claude session is driven through an interactive PTY. The `-p` flag is never used — anywhere.**
 
-The result is an orchestration layer that lets one human give a single
-instruction — *"add tests to the auth module, refactor the session helper,
-and update the changelog"* — and have it dispatched as three parallel
-workers, each in its own git worktree, each on its own branch, supervised
-live, all paid for by the subscription you already have.
+That single rule is what makes the rest possible: you give one instruction —
+*"add tests to the auth module, refactor the session helper, and update the changelog"* —
+and Eos dispatches it as three parallel workers, each in its own git worktree, each on its own
+branch, supervised live, **all paid for by the subscription you already have.**
 
 <br/>
+
+<!-- divider -->
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
 ## `II` &nbsp;·&nbsp; How it works
 
-A single daemon supervises a singleton **orchestrator** (persistent Claude
-session) which dispatches **workers** via an MCP tool. Each worker owns its
-own PTY-driven `claude` process inside an isolated git worktree. Everything
-streams back to a SQLite event store, then out over SSE to the dashboards.
+A single **daemon** supervises one or more persistent **orchestrators** (long-lived Claude
+sessions). An orchestrator decomposes your instruction and spawns **workers** through an MCP tool.
+Each worker drives its own PTY `claude` process inside an isolated git worktree, and may consult its
+peers or spawn sub-workers of its own. Every tool call any session makes is brokered by the
+**permission gateway**. State and a full event log land in SQLite (WAL), then stream out over SSE to
+every interface in ~100 ms.
 
 ```
-┌──────────────────────────────────────────────────────────────────────┐
-│                                                                      │
-│   user ─── one instruction ───►   Web · CLI · chat                   │
-│                                       │                              │
-│                                       ▼                              │
-│                              ┌──────────────────┐                    │
-│                              │   daemon  :7400  │                    │
-│                              │   http · sse     │                    │
-│                              └────────┬─────────┘                    │
-│                                       │  spawns                      │
-│                                       ▼                              │
-│                              ┌──────────────────┐                    │
-│                              │   orchestrator   │   persistent       │
-│                              │   (claude · PTY) │   claude session   │
-│                              └────────┬─────────┘                    │
-│                                       │  mcp__orchestrator__spawn    │
-│                ┌──────────────────────┼──────────────────────┐       │
-│                ▼                      ▼                      ▼       │
-│        ┌──────────────┐       ┌──────────────┐       ┌──────────────┐│
-│        │  worker  w1  │       │  worker  w2  │       │  worker  w3  ││
-│        │  worktree A  │       │  worktree B  │       │  cwd  scratch││
-│        │  claude · PTY│       │  claude · PTY│       │  claude · PTY││
-│        └──────┬───────┘       └──────┬───────┘       └──────┬───────┘│
-│               │                      │                      │        │
-│               └──────────────────────┼──────────────────────┘        │
-│                                      ▼                               │
-│                              ┌──────────────────┐                    │
-│                              │  SQLite  ·  WAL  │   events           │
-│                              │                  │   workers          │
-│                              │                  │   pending perms    │
-│                              └────────┬─────────┘                    │
-│                                       │  sse · debounced 80 ms       │
-│                                       ▼                              │
-│                                Web · CLI                             │
-│                                                                      │
-└──────────────────────────────────────────────────────────────────────┘
+            you ─ "add tests, refactor the session helper, update the changelog"
+                                       │
+                     Web UI   ·   eos CLI   ·   macOS app
+                                       │  http
+                          ╭─────────────────────────╮       ╭─────────────────────────╮
+                          │      daemon · :7400     │ ────▶ │       SQLite · WAL      │
+                          │   http · sse · events   │       │      events · state     │
+                          ╰────────────┬────────────╯       ╰─────────────────────────╯
+                                       │  spawns a persistent PTY session
+                          ╭─────────────────────────╮
+                          │       orchestrator      │   decomposes one instruction
+                          │       claude · PTY      │   into many workers
+                          ╰────────────┬────────────╯
+                                       │  spawn_worker (MCP)
+                ╭──────────────────────┼──────────────────────╮
+                ▼                      ▼                      ▼
+         ╭─────────────╮        ╭─────────────╮        ╭─────────────╮
+         │  worker w1  │        │  worker w2  │        │  worker w3  │
+         │  worktree A │        │  worktree B │        │  worktree C │
+         │  claude·PTY │        │  claude·PTY │        │  claude·PTY │
+         ╰──────┬──────╯        ╰──────┬──────╯        ╰──────┬──────╯
+                │        peers may consult one another        │
+                ╰────────────── every tool call ──────────────╯
+                                       │
+                          ╭─────────────────────────╮
+                          │      gateway · Bun      │   allow · deny ·
+                          │    permission broker    │   ask (human) · rewrite
+                          ╰────────────┬────────────╯
+                                       │  approvals + live events  (SSE)
+                     Web UI   ·   eos CLI   ·   macOS app
 ```
 
 <br/>
+
+<!-- divider -->
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
 ## `III` &nbsp;·&nbsp; Features
 
-**Parallel orchestration.** &nbsp; A persistent orchestrator decomposes one
-instruction into many. Workers run concurrently, each in its own git
-worktree on its own branch. Per-worker model selection — `opus`, `sonnet`,
-or `haiku`.
+**Parallel orchestration.** &nbsp; A persistent orchestrator turns one instruction into many. Workers
+run concurrently, each in its own git worktree on its own branch, and can spawn sub-workers. Pick the
+model (`opus` · `sonnet` · `haiku`) and reasoning effort per worker.
 
-**Live observation.** &nbsp; SSE-driven dashboard with ~100 ms event latency.
-JSONL transcripts parsed into structured tool calls, tool results, and
-assistant text. Per-worker logs at `~/.eos/logs/<id>.log`.
+**Peer collaboration.** &nbsp; Workers launched to collaborate can consult one another directly —
+`ask_peer` / `respond_to_peer` / `list_peers` — without routing every question back through the
+orchestrator.
 
-**Human-in-the-loop policy.** &nbsp; YAML rules: `allow`, `deny`, `ask`
-(long-poll for human approval), or `rewrite` (regex transform of tool
-input). Pending requests surface in every interface. Full audit log at
-`~/.eos/audit.jsonl`.
+**Live observation.** &nbsp; An SSE-driven dashboard streams each session at ~100 ms latency. JSONL
+transcripts are parsed into structured tool calls, results, thinking, and reports — with live tool
+indicators, a thinking timer, a task tray, and a background-activity monitor. Per-worker logs at
+`~/.eos/logs/<id>.log`.
 
-**Cost accounting.** &nbsp; Token usage tracked per worker, priced against
-the current Anthropic rates for input, output, cache-read, and cache-create
-— settled cleanly against your Max / Pro plan.
+**In-app Git.** &nbsp; Manage branches (create · rename · delete · checkout · fetch), deterministic
+**push** and fast-forward **pull** that don't spend an agent turn, diff and commit viewers, a
+hunk-level **conflict resolver**, PR creation via `gh`, and a **Try** stack that applies a worker's
+uncommitted changes into your own tree.
 
-**Two interfaces, one daemon.** &nbsp; `eos` CLI for scripted
-use · React 18 web UI served by the daemon at `/web/`.
+**Human-in-the-loop policy.** &nbsp; YAML rules decide every tool call: `allow`, `deny`, `ask`
+(long-poll for a human, no timeout), or `rewrite` (transform the tool input). Per-worker permission
+modes (`acceptEdits` · Full Access), inline approval banners, and a full audit log.
+
+**Assembled prompts (DPI).** &nbsp; System prompts are composed per-spawn from a central prompt
+library, selected by role and session context — never hardcoded. Project memory and reusable prompt
+templates (with tab-stops) are first-class.
+
+**Three ways in, one daemon.** &nbsp; A React 18 web UI, the `eos` CLI, and a native macOS app
+(WKWebView) — plus a ⌘K command palette and session resume that survives daemon restarts. Token
+usage is tracked and priced per worker (display-only).
 
 <br/>
 
-## `IV` &nbsp;·&nbsp; Who it's for
+<!-- divider -->
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
-|  Built for                                                                  |  Not for                                                          |
-| :-------------------------------------------------------------------------- | :---------------------------------------------------------------- |
-|  Solo engineers with a Claude Max / Pro plan who want real parallelism.     |  Teams looking for a hosted, multi-user platform.                 |
-|  Operators comfortable with daemons, PTYs, git worktrees, and YAML policy.  |  Anyone trying to escape an interactive billing model.            |
-|  Primarily macOS, secondarily Linux.                                        |  Pipelines that need headless, `-p`-style invocation.             |
+## `IV` &nbsp;·&nbsp; Quickstart
+
+**Requirements** &nbsp;·&nbsp; macOS (primary; Linux secondary) &nbsp;·&nbsp; **Node 22+** &nbsp;·&nbsp;
+**Bun** (runs the permission gateway) &nbsp;·&nbsp; **git** &nbsp;·&nbsp; the **`claude` CLI**, signed
+in to a Max / Pro plan.
+
+```bash
+git clone https://github.com/ibrahimAlbyrk/claude-manager
+cd claude-manager
+
+npm run bootstrap                  # install all 8 package dirs in dependency order (NOT a workspace)
+bash scripts/bootstrap.sh --link   # symlink ~/.local/bin/eos  (needs ~/.local/bin on PATH)
+```
+
+```bash
+eos start                          # start the daemon and open the web UI
+eos orchestrator new               # spawn a persistent orchestrator
+eos chat "add tests to the auth module and update the changelog"
+```
+
+After editing code, one command reconciles everything that changed — dependencies, the web bundle,
+the macOS app, and the running daemon:
+
+```bash
+eos build            # converge deps → web dist → macOS app → daemon, each only if stale
+eos build --dry-run  # show what would rebuild, and why
+eos build --check    # lint + run every test suite first
+```
 
 <br/>
 
-## `V` &nbsp;·&nbsp; Roadmap
+<!-- divider -->
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
+
+## `V` &nbsp;·&nbsp; The `eos` CLI
+
+One daemon, one binary. `eos help` lists everything.
+
+| Command | What it does |
+| :------ | :----------- |
+| `start` / `stop` / `restart` | Run, halt, or restart the daemon (`restart --db` also wipes state). |
+| `build` | Converge the deploy: deps → web → macOS app → daemon. |
+| `status` / `doctor` | Reachability check · environment & state sanity checks. |
+| `orchestrator new` | Spawn a persistent orchestrator (`--cwd` · `--model`). |
+| `chat <message>` | Send an instruction to an orchestrator. |
+| `spawn` | Launch a single worker directly (`--worktree-from` · `--prompt` · `--model`). |
+| `ls` · `show <id>` · `logs <id> -f` | List workers · inspect one · tail its log. |
+| `kill <id>` | Terminate a worker. |
+| `perm ok\|no <id>` | Approve or deny a pending permission request. |
+| `config print\|init` · `prompts validate` | Dump merged config · validate the prompt library. |
+| `hooks` | Install the permission-gateway hook into `~/.claude/`. |
+
+<br/>
+
+<!-- divider -->
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
+
+## `VI` &nbsp;·&nbsp; Project layout
+
+A clean-architecture monorepo — `contracts` → `core` → `infra` → entrypoints, with the dependency
+direction enforced at lint time. Each directory installs on its own; it is **not** an npm workspace.
+
+```
+contracts/   Zod schemas + types — the single source of truth for every IPC shape
+core/        pure domain · ports · use-cases · services (zero Node imports)
+infra/       adapters for core ports — SQLite, child_process, chokidar, …
+gateway/     MCP permission broker (runs on Bun)
+spawner/     worker.ts — PTY lifecycle, verified message delivery, JSONL ingest (Node only)
+manager/     daemon · CLI · orchestrator/worker MCP · routes · prompt library
+manager/web/ React 18 + Vite dashboard, served by the daemon
+app/         native macOS WKWebView wrapper → Eos.app
+```
+
+User data lives in **`~/.eos`** — `state.db` (SQLite/WAL), `policy.yaml`, `config.json`,
+`templates/`, `logs/`, and automatic startup `backups/`. It is treated as non-regenerable and is
+never destroyed by tooling.
+
+<br/>
+
+<!-- divider -->
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
+
+## `VII` &nbsp;·&nbsp; Who it's for
+
+| Built for | Not for |
+| :-------- | :------ |
+| Solo engineers on a Claude Max / Pro plan who want real parallelism. | Teams wanting a hosted, multi-user platform. |
+| Operators comfortable with daemons, PTYs, git worktrees, and YAML policy. | Anyone trying to escape an interactive billing model. |
+| Primarily macOS, secondarily Linux. | Pipelines that need headless, `-p`-style invocation. |
+
+<br/>
+
+<!-- divider -->
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
+
+## `VIII` &nbsp;·&nbsp; Status & roadmap
+
+**Alpha**, single-author, in active daily use. The orchestration core, live dashboard, in-app git,
+policy gateway, and macOS app are solid; the **Workflows** tab is still a stub.
 
 - Linux-first testing and packaging.
+- A visual Workflows UI — author, run, and monitor multi-agent pipelines.
 - Worker capability hints (read-only vs. mutating) for smarter policy defaults.
 - Cross-machine orchestration over the same daemon API.
-- Richer cost / latency analytics in the web dashboard.
+- Richer cost / latency analytics.
 
 <br/>
 
@@ -136,7 +240,7 @@ use · React 18 web UI served by the daemon at `/web/`.
 
 <div align="center">
 <sub>
-<code>Eos</code> &nbsp;·&nbsp; <a href="./LICENSE">MIT</a> &nbsp;·&nbsp; © 2026 İbrahim Albayrak<br/>
+<b>Eos</b> &nbsp;·&nbsp; repo <code>claude-manager</code> &nbsp;·&nbsp; <a href="./LICENSE">MIT</a> &nbsp;·&nbsp; © 2026 İbrahim Albayrak<br/>
 <i>An atelier for Claude Code.</i>
 </sub>
 </div>

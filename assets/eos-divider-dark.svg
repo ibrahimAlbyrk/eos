@@ -1,0 +1,40 @@
+<svg viewBox="0 0 1280 46" width="1280" height="46" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="divider">
+  
+  <defs>
+  <radialGradient id="starFill" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="98">
+    <stop offset="0" stop-color="#ffffff"></stop>
+    <stop offset="0.2" stop-color="#e8f1ff"></stop>
+    <stop offset="0.5" stop-color="#a9cdf6"></stop>
+    <stop offset="0.8" stop-color="#5f93dd"></stop>
+    <stop offset="1" stop-color="#3f6fb5"></stop>
+  </radialGradient>
+  <radialGradient id="halo" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="168">
+    <stop offset="0" stop-color="#6ea4e8" stop-opacity="0.5"></stop>
+    <stop offset="0.45" stop-color="#6ea4e8" stop-opacity="0.13"></stop>
+    <stop offset="1" stop-color="#6ea4e8" stop-opacity="0"></stop>
+  </radialGradient>
+  <radialGradient id="core" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="30">
+    <stop offset="0" stop-color="#ffffff" stop-opacity="1"></stop>
+    <stop offset="0.5" stop-color="#6ea4e8" stop-opacity="0.55"></stop>
+    <stop offset="1" stop-color="#6ea4e8" stop-opacity="0"></stop>
+  </radialGradient>
+  <radialGradient id="dawn" cx="50%" cy="2%" r="72%">
+    <stop offset="0" stop-color="#6ea4e8" stop-opacity="0.13"></stop>
+    <stop offset="1" stop-color="#6ea4e8" stop-opacity="0"></stop>
+  </radialGradient>
+  <filter id="bloom" x="-80%" y="-80%" width="260%" height="260%">
+    <feGaussianBlur stdDeviation="7"></feGaussianBlur>
+  </filter>
+  <pattern id="grid" width="46" height="46" patternUnits="userSpaceOnUse">
+    <path d="M46 0H0V46" fill="none" stroke="#ffffff" stroke-width="1" opacity="0.035"></path>
+  </pattern>
+  <g id="spokes" fill="url(#starFill)"><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(0)"></rect><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(45)"></rect><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(90)"></rect><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(135)"></rect><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(180)"></rect><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(225)"></rect><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(270)"></rect><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(315)"></rect></g>
+  </defs>
+  <line x1="40" y1="23" x2="570" y2="23" stroke="#2c2c2c" stroke-width="1"></line>
+  <line x1="710" y1="23" x2="1240" y2="23" stroke="#2c2c2c" stroke-width="1"></line>
+  <g transform="translate(640,23) scale(0.16)">
+    <circle class="halo" r="168" fill="url(#halo)"></circle>
+    <use href="#spokes"></use>
+    <circle class="core" r="26" fill="url(#core)"></circle>
+  </g>
+</svg>
