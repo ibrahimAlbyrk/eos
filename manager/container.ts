@@ -376,7 +376,7 @@ export function buildContainer() {
         workerId: id,
         model: spec.model ?? "opus",
         effort: spec.effort ?? null,
-        permissionMode: spec.claudePermissionMode ?? "default",
+        permissionMode: spec.claudePermissionMode ?? "acceptEdits",
         cwd: spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null,
         worktreeDir: spec.worktreeDir ?? null,
         branch: spec.branch ?? null,

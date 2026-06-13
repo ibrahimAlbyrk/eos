@@ -8,19 +8,15 @@ import { EffortPopover } from "../popovers/EffortPopover.jsx";
 import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
-
-const MODE_LABELS = {
-  default: "Default",
-  acceptEdits: "Accept edits",
-  plan: "Plan only",
-  bypassPermissions: "Bypass all",
-};
+import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
 
 export function ComposerControls({ live, onAttach, historyNav }) {
   const ui = useUi();
   const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
 
   const mode = selected?.permission_mode ?? ui.composer.permissionMode;
+  const modeMeta = MODE_BY_ID[mode] ?? MODE_BY_ID.acceptEdits;
+  const ModeIcon = modeMeta.Icon;
   const model = selected?.model ?? ui.composer.model;
   const effort = selected?.effort ?? ui.composer.effort;
   const modelInfo = { name: modelName(model) || model || "—", ctx: modelCtx(model) || "" };
@@ -50,7 +46,8 @@ export function ComposerControls({ live, onAttach, historyNav }) {
             onClick={(e) => toggle("accept", e)}
             data-popover-trigger="accept"
           >
-            {MODE_LABELS[mode] ?? "Accept edits"}
+            <ModeIcon className="mode-ic" />
+            {modeMeta.label}
           </button>
           <AcceptPopover live={live} />
         </div>

@@ -65,10 +65,25 @@ describe("classifyTool planFile", () => {
   });
 });
 
-describe("MODE_SPECS planFile verdicts", () => {
-  it("plan mode allows planFile but denies fileEdit", () => {
-    assert.equal(MODE_SPECS.plan.decide("planFile"), "allow");
-    assert.equal(MODE_SPECS.plan.decide("fileEdit"), "deny");
+describe("MODE_SPECS verdict table", () => {
+  it("exposes exactly the two supported modes", () => {
+    assert.deepEqual(Object.keys(MODE_SPECS).sort(), ["acceptEdits", "bypassPermissions"]);
+  });
+
+  it("acceptEdits allows reads/mcp/planFile/fileEdit, asks for the rest", () => {
+    const m = MODE_SPECS.acceptEdits;
+    assert.equal(m.decide("planFile"), "allow");
+    assert.equal(m.decide("fileEdit"), "allow");
+    assert.equal(m.decide("shell"), "ask");
+    assert.equal(m.decide("network"), "ask");
+    assert.equal(m.decide("other"), "ask");
+  });
+
+  it("bypassPermissions allows everything", () => {
+    const m = MODE_SPECS.bypassPermissions;
+    for (const cat of ["fileEdit", "planFile", "shell", "read", "mcp", "network", "other"] as const) {
+      assert.equal(m.decide(cat), "allow", cat);
+    }
   });
 
   it("every mode allows planFile", () => {

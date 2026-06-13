@@ -21,7 +21,7 @@ function buildService(opts: { mode?: PermissionMode; policy?: Partial<Policy> } 
     bus: { publish() {}, subscribe: () => () => {} },
     clock: { now: () => 1000 },
     ids: { newPendingId: () => "p1" },
-    modeResolver: { resolveFor: () => opts.mode ?? "default" },
+    modeResolver: { resolveFor: () => opts.mode ?? "acceptEdits" },
     getPolicy: () => policy,
   } as unknown as PolicyGatewayServiceDeps;
   return { svc: new PolicyGatewayService(deps), policyEvents };

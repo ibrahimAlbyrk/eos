@@ -111,7 +111,7 @@ describe("assembleSystemPrompt (§8 worked examples)", () => {
     workerId: null,
     model: "opus",
     effort: null,
-    permissionMode: "default",
+    permissionMode: "acceptEdits",
     cwd: "/x",
     worktreeDir: null,
     branch: null,

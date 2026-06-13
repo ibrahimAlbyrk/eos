@@ -41,7 +41,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         name,
         fixedId: id,
         persistent: true,
-        claudePermissionMode: body.permissionMode ?? "default",
+        claudePermissionMode: body.permissionMode ?? "acceptEdits",
         model: body.model ?? "opus",
         effort: body.effort ?? "xhigh",
         isOrchestrator: true,

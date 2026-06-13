@@ -171,6 +171,13 @@ export const MIGRATIONS: Migration[] = [
           AND json_extract(e.payload,'$.name') = 'TaskCreate'
       )
   ` },
+  // Collapse the permission-mode model from 4 modes to 2 (acceptEdits +
+  // bypassPermissions). Legacy rows holding the removed "default"/"plan" modes
+  // are rewritten to the safe default so resolution + UI selection stay valid.
+  { id: "038_collapse_permission_modes", sql: `
+    UPDATE workers SET permission_mode = 'acceptEdits'
+    WHERE permission_mode IN ('default','plan')
+  ` },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

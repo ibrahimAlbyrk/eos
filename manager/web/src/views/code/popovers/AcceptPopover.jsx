@@ -1,11 +1,5 @@
 import { useUi } from "../../../state/ui.jsx";
-
-const MODES = [
-  { id: "default",           label: "Default",       desc: "Ask before every edit and shell command" },
-  { id: "acceptEdits",       label: "Accept edits",  desc: "Auto-approve file edits, ask for shell" },
-  { id: "plan",              label: "Plan only",     desc: "Worker plans changes, doesn't execute" },
-  { id: "bypassPermissions", label: "Bypass all",    desc: "Auto-approve everything, including shell", warn: true },
-];
+import { PERMISSION_MODES } from "../../../lib/permissionModes.jsx";
 
 export function AcceptPopover({ live }) {
   const ui = useUi();
@@ -22,7 +16,7 @@ export function AcceptPopover({ live }) {
   return (
     <div className="accept-popover glass-pop open" id="acceptPopover" data-popover="accept">
       <div className="ap-head">Permission mode</div>
-      {MODES.map((m) => (
+      {PERMISSION_MODES.map((m) => (
         <button
           key={m.id}
           className={"ap-option" + (current === m.id ? " on" : "")}
@@ -31,7 +25,8 @@ export function AcceptPopover({ live }) {
           <span className="ap-radio"></span>
           <div className="ap-text">
             <div className="ap-label">
-              {m.label}{m.warn && <span className="warn">⚠</span>}
+              <m.Icon className="ap-ic" />
+              {m.label}
             </div>
             <div className="ap-desc">{m.desc}</div>
           </div>

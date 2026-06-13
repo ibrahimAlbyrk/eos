@@ -2720,6 +2720,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   color: var(--fg);
   border-radius: 5px;
 }
+.c-row3 .mode-pill .mode-ic { flex-shrink: 0; width: 13px; height: 13px; color: var(--fg-dim); }
 .c-row3 .mode-pill:hover {
   background: rgba(var(--tint), 0.05);
   backdrop-filter: blur(var(--blur-sm));
@@ -3843,18 +3844,22 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .ap-text { min-width: 0; }
 .ap-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: var(--text-sm);
   color: var(--fg);
   font-weight: 500;
   line-height: 1.3;
 }
+.ap-ic { flex-shrink: 0; color: var(--fg-dim); }
+.ap-option.on .ap-ic { color: var(--accent); }
 .ap-desc {
   font-size: var(--text-xs);
   color: var(--fg-dim);
   margin-top: 2px;
   line-height: 1.4;
 }
-.ap-label .warn { color: var(--warn); margin-left: 4px; font-size: var(--text-xs); }
 
 /* ============== Plus button popover (small spawn quick options) ============== */
 .plus-popover {

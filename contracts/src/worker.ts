@@ -72,9 +72,7 @@ export const WorkerRowSchema = z.object({
 });
 
 export const PermissionModeSchema = z.enum([
-  "default",
   "acceptEdits",
-  "plan",
   "bypassPermissions",
 ]);
 export type PermissionMode = z.infer<typeof PermissionModeSchema>;

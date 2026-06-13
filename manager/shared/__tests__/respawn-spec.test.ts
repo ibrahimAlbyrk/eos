@@ -19,11 +19,11 @@ function row(overrides: Partial<WorkerRow>): WorkerRow {
 
 describe("buildRespawnSpec", () => {
   it("orchestrator: persistent + role preserved (prompt assembled daemon-side)", () => {
-    const spec = buildRespawnSpec(row({ is_orchestrator: 1, permission_mode: "default" }), deps);
+    const spec = buildRespawnSpec(row({ is_orchestrator: 1, permission_mode: "acceptEdits" }), deps);
     assert.equal(spec.systemPromptFile, undefined); // DPI assembles it at spawn
     assert.equal(spec.persistent, true);
     assert.equal(spec.isOrchestrator, true);
-    assert.equal(spec.claudePermissionMode, "default");
+    assert.equal(spec.claudePermissionMode, "acceptEdits");
     assert.equal(spec.prompt, "");
   });
 
@@ -41,7 +41,7 @@ describe("buildRespawnSpec", () => {
   });
 
   it("plain worker: not persistent, explicit with_gateway respected", () => {
-    const spec = buildRespawnSpec(row({ with_gateway: 0, permission_mode: "default" }), deps);
+    const spec = buildRespawnSpec(row({ with_gateway: 0, permission_mode: "acceptEdits" }), deps);
     assert.equal(spec.persistent, false);
     assert.equal(spec.withGateway, false);
   });

@@ -75,29 +75,14 @@ export function classifyTool(
 // Per-mode verdict table. Read + MCP + planFile are always allowed across
 // modes — MCP because it's orchestration plumbing, read because it never
 // mutates, planFile because writing the plan artifact IS the planning work.
-// `plan` denies anything that could touch the world; `acceptEdits` waves
-// through file writes; `bypassPermissions` opens the floodgates.
+// `acceptEdits` waves through file writes but still asks for shell/network;
+// `bypassPermissions` (shown as "Full Access" in the UI) opens the floodgates.
 export const MODE_SPECS: Record<PermissionMode, ModeSpec> = {
-  default: {
-    mode: "default",
-    decide(category) {
-      if (category === "mcp" || category === "read" || category === "planFile") return "allow";
-      return "ask";
-    },
-  },
   acceptEdits: {
     mode: "acceptEdits",
     decide(category) {
       if (category === "mcp" || category === "read" || category === "planFile") return "allow";
       if (category === "fileEdit") return "allow";
-      return "ask";
-    },
-  },
-  plan: {
-    mode: "plan",
-    decide(category) {
-      if (category === "mcp" || category === "read" || category === "planFile") return "allow";
-      if (category === "fileEdit" || category === "shell" || category === "network") return "deny";
       return "ask";
     },
   },
