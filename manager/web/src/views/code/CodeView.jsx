@@ -12,6 +12,7 @@ import { FileViewer } from "./messages/FileViewer.jsx";
 import { AgentViewer } from "./messages/AgentViewer.jsx";
 import { DiffViewer } from "./messages/DiffViewer.jsx";
 import { CommitsViewer } from "./messages/CommitsViewer.jsx";
+import { ConflictResolver } from "./messages/ConflictResolver.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
 
@@ -92,6 +93,7 @@ export function CodeView({ live }) {
     ui.topPanelType === "agent" ? "agent-open" : "",
     ui.topPanelType === "diff" ? "diff-open" : "",
     ui.topPanelType === "commits" ? "commits-open" : "",
+    ui.topPanelType === "conflict" ? "conflict-open" : "",
   ].filter(Boolean).join(" ");
 
   return (
@@ -114,6 +116,7 @@ export function CodeView({ live }) {
           <AgentViewer />
           <DiffViewer live={live} />
           <CommitsViewer />
+          <ConflictResolver live={live} />
         </>
       }
     >

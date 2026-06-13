@@ -37,6 +37,7 @@ import { childProcessGitInfo } from "../infra/src/git/ChildProcessGitInfo.ts";
 import { childProcessWorktreeManager } from "../infra/src/git/ChildProcessWorktreeManager.ts";
 import { createChildProcessBranchIntegration } from "../infra/src/git/ChildProcessBranchIntegration.ts";
 import { childProcessBranchPush } from "../infra/src/git/ChildProcessBranchPush.ts";
+import { childProcessConflictResolution } from "../infra/src/git/ChildProcessConflictResolution.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
 import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
@@ -204,6 +205,7 @@ export function buildContainer() {
   const git = childProcessGitInfo;
   const worktrees = childProcessWorktreeManager;
   const branchPush = childProcessBranchPush;
+  const conflicts = childProcessConflictResolution;
   const branchIntegration = createChildProcessBranchIntegration({
     triesDir: join(config.daemon.home, "tries"),
     now: () => systemClock.now(),
@@ -467,6 +469,7 @@ export function buildContainer() {
     worktrees,
     branchIntegration,
     branchPush,
+    conflicts,
     uiToken,
     recents,
     buildArgs,

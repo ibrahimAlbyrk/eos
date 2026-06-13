@@ -5,8 +5,11 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import type { GitInfo, DiffStat, SyncStatus } from "../../../core/src/ports/GitInfo.ts";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import type { GitInfo, DiffStat, SyncStatus, ConflictEntry } from "../../../core/src/ports/GitInfo.ts";
 import type { PushState } from "../../../core/src/domain/push-plan.ts";
+import { isUnmergedCode } from "../../../core/src/domain/conflict.ts";
 import type { ChangedFile, CommitDetail, CommitFile, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
 import { PATCH_MAX_BYTES, mergeChanges, mergeChangesWithBase, parseNameStatusZ, parseNumstatZ, parsePorcelainZ, truncatePatch } from "./changes-parse.ts";
 
@@ -281,15 +284,42 @@ export const childProcessGitInfo: GitInfo = {
       const out = await runGit(cwd, ["status", "--porcelain", ...SUBMODULE_IGNORE]);
       let n = 0;
       for (const line of out.split("\n")) {
-        const xy = line.slice(0, 2);
-        // Conflict combos per git docs: DD AU UD UA DU AA UU.
-        if (xy === "DD" || xy === "AU" || xy === "UD" || xy === "UA" || xy === "DU" || xy === "AA" || xy === "UU") {
-          n++;
-        }
+        if (isUnmergedCode(line.slice(0, 2))) n++;
       }
       return n;
     } catch {
       return 0;
+    }
+  },
+
+  async conflictList(cwd: string): Promise<ConflictEntry[]> {
+    try {
+      const out = await runGit(cwd, ["status", "--porcelain=v1", "-z", ...SUBMODULE_IGNORE]);
+      return parsePorcelainZ(out)
+        .filter((e) => isUnmergedCode(e.x + e.y) && !e.path.startsWith(".eos/"))
+        .map((e) => ({ path: e.path, xy: e.x + e.y }));
+    } catch {
+      return [];
+    }
+  },
+
+  async conflictFileContent(cwd: string, path: string): Promise<string> {
+    // The working-tree file carries the <<< === >>> markers git wrote — read it
+    // off disk (the index has no stage-0 entry for an unmerged path).
+    try {
+      return await readFile(join(cwd, path), "utf8");
+    } catch {
+      return "";
+    }
+  },
+
+  async stageContent(cwd: string, path: string, stage: 1 | 2 | 3): Promise<string | null> {
+    // `git show :N:path` — 1=base, 2=ours, 3=theirs. Fails (→ null) when that
+    // stage is absent, e.g. a side that deleted the file.
+    try {
+      return await runGit(cwd, ["show", `:${stage}:${path}`]);
+    } catch {
+      return null;
     }
   },
 

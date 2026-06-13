@@ -18,5 +18,6 @@ export * from "./DaemonClient.ts";
 export * from "./PolicyGateway.ts";
 export * from "./ModelCatalog.ts";
 export * from "./GitInfo.ts";
+export * from "./ConflictResolution.ts";
 export * from "./RecentsRepo.ts";
 export * from "./PromptSource.ts";

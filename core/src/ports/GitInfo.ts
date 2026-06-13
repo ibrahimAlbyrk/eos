@@ -16,6 +16,13 @@ export interface SyncStatus {
   behind: number;
 }
 
+// One unmerged file in the working tree. `xy` is the raw porcelain code
+// (UU/AA/DU/UD/AU/UA/DD) — the use-case classifies it into a semantic kind.
+export interface ConflictEntry {
+  path: string;
+  xy: string;
+}
+
 export interface GitInfo {
   /** True when cwd is inside a git working tree — including a freshly-init'd
    *  repo with no commits yet (unborn HEAD), where branch listing and HEAD
@@ -31,6 +38,16 @@ export interface GitInfo {
   syncStatus(cwd: string): Promise<SyncStatus | null>;
   stashCount(cwd: string): Promise<number>;
   conflictCount(cwd: string): Promise<number>;
+  /** Unmerged files in the working tree (porcelain XY in the unmerged set).
+   *  Empty when the tree has no conflicts. conflictCount === conflictList.length
+   *  by construction (both gate on the same unmerged-code set). */
+  conflictList(cwd: string): Promise<ConflictEntry[]>;
+  /** Working-tree content of a conflicted file, WITH the `<<<<<<< === >>>>>>>`
+   *  markers git wrote. Empty string when unreadable. */
+  conflictFileContent(cwd: string, path: string): Promise<string>;
+  /** One merge stage of a path via `git show :N:path` (1=base, 2=ours,
+   *  3=theirs). Null when that stage is absent (a side deleted/never had it). */
+  stageContent(cwd: string, path: string, stage: 1 | 2 | 3): Promise<string | null>;
   changedFiles(cwd: string, base?: string): Promise<ChangedFile[]>;
   fileDiff(cwd: string, path: string, oldPath?: string, base?: string): Promise<FileDiffResponse>;
   /** One whole-tree unified diff (base/HEAD vs working tree) — feeds the

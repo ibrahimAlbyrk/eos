@@ -47,6 +47,8 @@ export function SelectionProvider({ children }) {
   const diffViewer = panelData("diff");
   // {cwd} — right panel listing committed-but-unpushed commits (@{u}..HEAD).
   const commitsViewer = panelData("commits");
+  // {workerId} — right panel resolving the worktree's merge conflicts.
+  const conflictViewer = panelData("conflict");
   const [renamingId, setRenamingId] = useState(null);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   // {workerId, verdict, command, ts} — derived by Messages from the loaded
@@ -149,6 +151,8 @@ export function SelectionProvider({ children }) {
   const closeDiffViewer = useCallback(() => setPanelStack((s) => closePanel(s, "diff")), []);
   const openCommitsViewer = useCallback((cwd) => setPanelStack((s) => openPanel(s, "commits", { cwd })), []);
   const closeCommitsViewer = useCallback(() => setPanelStack((s) => closePanel(s, "commits")), []);
+  const openConflictResolver = useCallback((workerId) => setPanelStack((s) => openPanel(s, "conflict", { workerId })), []);
+  const closeConflictResolver = useCallback(() => setPanelStack((s) => closePanel(s, "conflict")), []);
   const syncAgentViewer = useCallback((block) => {
     setPanelStack((s) => updatePanelData(s, "agent", (prev) => prev.toolUseId === block.toolUseId ? block : prev));
   }, []);
@@ -167,6 +171,7 @@ export function SelectionProvider({ children }) {
     agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     diffViewer, openDiffViewer, closeDiffViewer,
     commitsViewer, openCommitsViewer, closeCommitsViewer,
+    conflictViewer, openConflictResolver, closeConflictResolver,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
@@ -180,6 +185,7 @@ export function SelectionProvider({ children }) {
     openAgentViewer, closeAgentViewer, syncAgentViewer,
     openDiffViewer, closeDiffViewer,
     openCommitsViewer, closeCommitsViewer,
+    openConflictResolver, closeConflictResolver,
     registerEscapeIdle,
     registerEscapeGitMode,
   ]);

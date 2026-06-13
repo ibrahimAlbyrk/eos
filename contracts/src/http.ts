@@ -563,6 +563,97 @@ export const FileDiffResponseSchema = z.object({
 });
 export type FileDiffResponse = z.infer<typeof FileDiffResponseSchema>;
 
+// ---- /workers/:id/conflicts --------------------------------------------------
+// Fork-style merge-conflict resolution. The conflicted WORKING TREE is the
+// source of truth: a `git merge`/`rebase`/`cherry-pick` left stage 1/2/3 index
+// entries plus in-file markers. For content conflicts we parse the markers into
+// hunks the UI resolves per-hunk (ours / theirs / hand-edited), then assemble +
+// `git add`. Add/delete conflicts have no markers — they resolve as a whole-file
+// keep/remove choice. Stage-only: the existing Commit button concludes the merge.
+
+// Semantic conflict kind, derived from the porcelain XY code. `content` (UU/AA)
+// is hunk-resolvable; the delete/add kinds are a binary keep-or-remove choice.
+export const ConflictKindSchema = z.enum([
+  "content",        // UU both modified, AA both added — in-file markers present
+  "ours-deleted",   // DU deleted by us, modified by them
+  "theirs-deleted", // UD modified by us, deleted by them
+  "ours-added",     // AU added by us, absent on theirs
+  "theirs-added",   // UA added by them, absent on ours
+  "both-deleted",   // DD both deleted
+]);
+export type ConflictKind = z.infer<typeof ConflictKindSchema>;
+
+export const ConflictFileSchema = z.object({
+  path: z.string(),
+  xy: z.string(),               // raw porcelain code (UU/AA/DU/UD/AU/UA/DD)
+  kind: ConflictKindSchema,
+});
+export type ConflictFile = z.infer<typeof ConflictFileSchema>;
+
+export const ConflictListResponseSchema = z.object({
+  files: z.array(ConflictFileSchema),
+});
+export type ConflictListResponse = z.infer<typeof ConflictListResponseSchema>;
+
+// One region of a parsed conflicted file. `context` lines are shared (kept
+// verbatim); a `conflict` segment carries the two sides (+ base when the file
+// was written with diff3/zdiff3 style) and a stable id the resolve request
+// references.
+export const ConflictSegmentSchema = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("context"), lines: z.array(z.string()) }),
+  z.object({
+    kind: z.literal("conflict"),
+    id: z.number().int().nonnegative(),
+    ours: z.array(z.string()),
+    base: z.array(z.string()).nullable(),
+    theirs: z.array(z.string()),
+  }),
+]);
+export type ConflictSegment = z.infer<typeof ConflictSegmentSchema>;
+
+export const ConflictDocumentResponseSchema = z.object({
+  path: z.string(),
+  kind: ConflictKindSchema,
+  // "merge" = <<< === >>> only; "diff3" = base also present; "none" = add/delete
+  // conflict (no markers); "unparseable" = markers malformed → UI falls back.
+  style: z.enum(["merge", "diff3", "none", "unparseable"]),
+  segments: z.array(ConflictSegmentSchema),
+  // Number of conflict segments (content) — 0 for add/delete kinds.
+  conflictCount: z.number().int().nonnegative(),
+  // Cheap content hash; echoed on resolve to reject a stale apply if the file
+  // changed underneath (optimistic concurrency).
+  fingerprint: z.string(),
+});
+export type ConflictDocumentResponse = z.infer<typeof ConflictDocumentResponseSchema>;
+
+// Per-hunk resolution: pick a side, or supply hand-edited replacement lines.
+export const HunkResolutionSchema = z.union([
+  z.object({ id: z.number().int().nonnegative(), choice: z.enum(["ours", "theirs"]) }),
+  z.object({ id: z.number().int().nonnegative(), manual: z.array(z.string()) }),
+]);
+export type HunkResolution = z.infer<typeof HunkResolutionSchema>;
+
+// Two shapes share one endpoint: content files send `resolutions` + the
+// `fingerprint` they were chosen against; add/delete files send a whole-file
+// `side`.
+export const ResolveConflictRequestSchema = z.object({
+  path: z.string().min(1),
+  resolutions: z.array(HunkResolutionSchema).optional(),
+  fingerprint: z.string().optional(),
+  side: z.enum(["ours", "theirs"]).optional(),
+});
+export type ResolveConflictRequest = z.infer<typeof ResolveConflictRequestSchema>;
+
+export const ResolveConflictResponseSchema = z.object({
+  ok: z.boolean(),
+  staged: z.boolean(),                          // file fully resolved + git add'd
+  unresolved: z.array(z.number().int().nonnegative()), // hunk ids still open
+  remaining: z.number().int().nonnegative(),    // conflicted files left in the tree
+  // "stale" | "incomplete" | "not-conflicted" | "git-error" when ok=false.
+  reason: z.string().optional(),
+});
+export type ResolveConflictResponse = z.infer<typeof ResolveConflictResponseSchema>;
+
 // ---- GET /commands ---------------------------------------------------------
 
 export const CommandsQuerySchema = z.object({ cwd: z.string().optional() });
@@ -848,10 +939,16 @@ export const TryKeepResponseSchema = z.object({
 export type TryKeepResponse = z.infer<typeof TryKeepResponseSchema>;
 
 export const TryStateResponseSchema = z.object({
-  // All active layers in the repo, bottom (oldest) first.
+  // Provisional layers (the Keep/Discard deck), bottom (oldest) first. Kept
+  // layers are excluded — they no longer carry deck actions.
   activeTries: z.array(ActiveTrySchema),
-  // This worker's try was kept earlier — the UI never re-offers Apply for it.
+  // This worker's layer was kept (accepted into the checkout). Still syncable.
   kept: z.boolean(),
+  // The worktree advanced past what is currently applied/kept — Apply re-syncs
+  // only the new delta. False when nothing is new (or the worker never applied).
+  syncable: z.boolean(),
+  // Files a re-sync would change (drives the "Sync changes (N)" label).
+  syncFiles: z.array(z.string()),
 });
 export type TryStateResponse = z.infer<typeof TryStateResponseSchema>;
 
@@ -988,6 +1085,9 @@ export const ROUTES = {
   workerDiff: (id: string): string => `/workers/${id}/diff`,
   workerChanges: (id: string): string => `/workers/${id}/changes`,
   workerFileDiff: (id: string): string => `/workers/${id}/changes/file`,
+  workerConflicts: (id: string): string => `/workers/${id}/conflicts`,
+  workerConflictFile: (id: string): string => `/workers/${id}/conflicts/file`,
+  workerConflictResolve: (id: string): string => `/workers/${id}/conflicts/resolve`,
   workerInterrupt: (id: string): string => `/workers/${id}/interrupt`,
   workerResume: (id: string): string => `/workers/${id}/resume`,
   workerKeystroke: (id: string): string => `/workers/${id}/keystroke`,

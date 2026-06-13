@@ -13,6 +13,7 @@ const EXPECTED_KEYS = [
   "fsRaw", "pdfjs",
   "fsCheckout", "fsWrite", "fsPaste", "workerName", "workerOpen", "workerPermission",
   "workerModel", "workerDiff", "workerChanges", "workerFileDiff",
+  "workerConflicts", "workerConflictFile", "workerConflictResolve",
   "workerInterrupt", "workerResume", "workerKeystroke",
   "workerQuestion", "workerQuestionPoll", "workerQuestionAnswer",
   "workerNotify", "workerReport", "workerRewindTargets", "workerRewind",

@@ -305,7 +305,11 @@ export function ComposerDiffRow({ live }) {
         </span>
       )}
       {conflicts > 0 && (
-        <span className="git-chip conflict-chip">
+        <button
+          className={"git-chip conflict-chip conflict-chip-btn" + (ui.topPanelType === "conflict" ? " on" : "")}
+          title="Resolve merge conflicts"
+          onClick={() => (ui.topPanelType === "conflict" ? ui.closeConflictResolver() : ui.openConflictResolver(ui.selectedId))}
+        >
           <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M7 1.5L13 12H1L7 1.5z" />
             <line x1="7" y1="5.5" x2="7" y2="8.5" />
@@ -313,7 +317,7 @@ export function ComposerDiffRow({ live }) {
           </svg>
           <span className="num">{conflicts}</span>
           <span className="lbl">{conflicts === 1 ? "conflict" : "conflicts"}</span>
-        </span>
+        </button>
       )}
       {dirty && (
         <button

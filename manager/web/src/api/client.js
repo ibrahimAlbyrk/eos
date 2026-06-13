@@ -364,6 +364,25 @@ export const api = {
     return r.body;
   },
 
+  // Merge-conflict resolution. List + per-file document are reads; resolve
+  // writes a file + `git add`, so it carries the UI token like /try.
+  async getWorkerConflicts(id) {
+    try {
+      const r = await getJson(ROUTES.workerConflicts(id));
+      return r.ok ? r.body : { files: [] };
+    } catch {
+      return { files: [] };
+    }
+  },
+  async getWorkerConflictFile(id, path) {
+    const r = await getJson(`${ROUTES.workerConflictFile(id)}?path=${encodeURIComponent(path)}`);
+    if (!r.ok) throw new Error(`conflictFile → ${r.status}`);
+    return r.body;
+  },
+  async resolveWorkerConflict(id, body) {
+    return postJson(ROUTES.workerConflictResolve(id), body, uiTokenHeader());
+  },
+
   // Terminal (composer `!` mode) — UI-token gated like the try routes so
   // agents holding the daemon URL get no policy-free exec path. The worker
   // variant persists a durable event; the workspace variant (no agent
@@ -381,11 +400,12 @@ export const api = {
   // Try (unstaged apply) — state is a read; apply/keep/discard mutate the
   // user's checkout and carry the UI token.
   async getTryState(id) {
+    const fallback = { activeTries: [], kept: false, syncable: false, syncFiles: [] };
     try {
       const r = await getJson(ROUTES.workerTryState(id));
-      return r.ok ? r.body : { activeTries: [], kept: false };
+      return r.ok ? r.body : fallback;
     } catch {
-      return { activeTries: [], kept: false };
+      return fallback;
     }
   },
   async tryApply(id) {

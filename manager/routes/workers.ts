@@ -23,6 +23,7 @@ import {
   TryTargetRequestSchema,
   WorkspaceTerminalRunRequestSchema,
   OpenInRequestSchema,
+  ResolveConflictRequestSchema,
   type OpenInRequest,
 } from "../../contracts/src/http.ts";
 import type { WorkerRow } from "../../contracts/src/worker.ts";
@@ -42,6 +43,9 @@ import { resumeWorkerVia, resumeIfDead } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
 import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
+import { listConflicts } from "../../core/src/use-cases/ListConflicts.ts";
+import { getConflictDocument } from "../../core/src/use-cases/GetConflictDocument.ts";
+import { resolveConflictFile } from "../../core/src/use-cases/ResolveConflictFile.ts";
 import { decidePushPlan, isActionablePushPlan } from "../../core/src/domain/push-plan.ts";
 import { resolveSpawnIsolation } from "../../core/src/domain/worktree-policy.ts";
 import { attachPatches, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES } from "../../infra/src/git/changes-parse.ts";
@@ -104,6 +108,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       ...body,
       cwd: expandPath(iso.cwd),
       worktreeFrom: expandPath(iso.worktreeFrom),
+      carryUncommitted: c.userSettings.read()["git.carryUncommitted"] === true,
       claudePermissionMode,
       ...(isGitAgent ? {
         persistent: true,
@@ -639,6 +644,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   const uiTokenOk = (req: { headers: Record<string, string | string[] | undefined> }): boolean =>
     req.headers["x-eos-ui-token"] === c.uiToken;
 
+  // Reject absolute paths and `..` traversal — every git path the UI sends is
+  // repo-relative (same guard as the /changes/file route below).
+  const repoRelative = (p: string): boolean => !!p && !p.startsWith("/") && !p.split("/").includes("..");
+
   const tryRefOf = (id: string): { ref?: { repoRoot: string; worktreeDir: string | null; branch: string; workerId: string }; status: number; error?: string } => {
     const w = c.workers.findById(id);
     if (!w) return { status: 404, error: "worker not found" };
@@ -659,10 +668,17 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const w = c.workers.findById(params.id);
     if (!w) { writeJson(res, 404, { error: "worker not found" }); return; }
     const repoRoot = w.worktree_from ?? w.cwd;
-    if (!repoRoot) { writeJson(res, 200, { activeTries: [], kept: false }); return; }
+    if (!repoRoot) { writeJson(res, 200, { activeTries: [], kept: false, syncable: false, syncFiles: [] }); return; }
+    // syncStatus needs the live worktree — only computed once it exists on disk
+    // (same readiness gate as the apply routes); otherwise there is no anchor.
+    const sync = (w.worktree_from && w.branch && w.worktree_dir && w.workspace_ready)
+      ? await c.branchIntegration.syncStatus({ repoRoot: w.worktree_from, worktreeDir: w.worktree_dir, branch: w.branch, workerId: params.id })
+      : { syncable: false, files: [] };
     writeJson(res, 200, {
       activeTries: await c.branchIntegration.activeTries(repoRoot),
       kept: await c.branchIntegration.wasKept({ repoRoot, workerId: params.id }),
+      syncable: sync.syncable,
+      syncFiles: sync.files,
     });
   });
 
@@ -766,6 +782,41 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     } catch (e) {
       writeJson(res, 500, { error: errMsg(e) });
     }
+  });
+
+  // ---- Merge-conflict resolution (Fork-style) -------------------------------
+  // Reads share the /changes 200+empty + readableGitDirOf gating. Resolve
+  // writes a file + `git add`, so it is UI-token gated like /try and /terminal:
+  // an agent holding EOS_DAEMON_URL must not get a policy-free write path.
+
+  r.get(/^\/workers\/(?<id>[^/]+)\/conflicts$/, async ({ params, res }) => {
+    const dir = readableGitDirOf(c.workers.findById(params.id));
+    if (!dir) { writeJson(res, 200, { files: [] }); return; }
+    writeJson(res, 200, await listConflicts({ git: c.git }, dir));
+  });
+
+  r.get(/^\/workers\/(?<id>[^/]+)\/conflicts\/file$/, async ({ params, url, res }) => {
+    const path = url.searchParams.get("path") ?? "";
+    if (!repoRelative(path)) { writeJson(res, 400, { error: "path must be repo-relative" }); return; }
+    const dir = readableGitDirOf(c.workers.findById(params.id));
+    if (!dir) { writeJson(res, 404, { error: "worker has no working directory" }); return; }
+    const doc = await getConflictDocument({ git: c.git }, dir, path);
+    if (!doc) { writeJson(res, 404, { error: "not conflicted" }); return; }
+    writeJson(res, 200, doc);
+  });
+
+  r.post(/^\/workers\/(?<id>[^/]+)\/conflicts\/resolve$/, async ({ params, req, res }) => {
+    if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const body = validate(ResolveConflictRequestSchema, await readBody(req));
+    if (!repoRelative(body.path)) { writeJson(res, 400, { error: "path must be repo-relative" }); return; }
+    const dir = readableGitDirOf(c.workers.findById(params.id));
+    if (!dir) { writeJson(res, 404, { error: "worker has no working directory" }); return; }
+    const result = await resolveConflictFile({ git: c.git, conflicts: c.conflicts }, dir, body);
+    if (result.ok) {
+      c.events.append(params.id, c.clock.now(), "conflict_resolved", { path: body.path, remaining: result.remaining });
+      c.bus.publish("worker:change", { workerId: params.id });
+    }
+    writeJson(res, result.ok ? 200 : 409, result);
   });
 
   r.get(/^\/workers\/(?<id>[^/]+)\/changes\/file$/, async ({ params, url, res }) => {
