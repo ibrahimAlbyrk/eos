@@ -898,8 +898,11 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    `auto` in contain-intrinsic-size keeps the remembered size once a block has
    rendered — estimates only apply to never-rendered history (WKWebView has no
    native scroll anchoring to absorb the correction, hence the remembered-size
-   reliance). Popovers/find/sticky all live outside [data-bkey] wrappers. */
-.messages > [data-bkey] {
+   reliance). Popovers/find/sticky all live outside [data-bkey] wrappers.
+   Opt-in via `.cv` only: content-visibility implies paint containment, which
+   clips overflow — so MessageRow text blocks (whose hover action row sits in the
+   gap below the wrapper) are deliberately left uncontained. */
+.messages > [data-bkey].cv {
   content-visibility: auto;
   contain-intrinsic-size: auto 64px;
 }

@@ -376,10 +376,16 @@ export function Messages({ live }) {
           if (!block) return null;
           // The wrapper carries the block's scroll-anchor identity
           // (lib/scrollAnchor.js) so every block kind is anchorable without
-          // threading a prop through each component. Unstyled: .messages gap
-          // and inner layout are unaffected by the extra div.
-          const wrapClass = isLast && interrupted && b.kind !== "user" ? "msg-interrupted-wrap" : undefined;
-          return <div key={key} data-bkey={key} className={wrapClass}>{block}</div>;
+          // threading a prop through each component.
+          // `cv` opts a block into content-visibility (perf). MessageRow text
+          // blocks are excluded: paint containment (implied by content-visibility)
+          // would clip their hover action row, which overflows into the gap
+          // below the wrapper. See styles.css.
+          const cls = [
+            isLast && interrupted && b.kind !== "user" ? "msg-interrupted-wrap" : null,
+            MESSAGE_ROW_KINDS.has(b.kind) ? null : "cv",
+          ].filter(Boolean).join(" ") || undefined;
+          return <div key={key} data-bkey={key} className={cls}>{block}</div>;
         })}
         {showAnchor && (
           <ProcessingLine
@@ -409,6 +415,11 @@ function blockKey(b, i) {
     default:          return b.kind + "-" + (b.ts ?? i);
   }
 }
+
+// Block kinds rendered via MessageRow — they carry a hover action row
+// (copy/rewind/timestamp) absolutely positioned in the gap below the wrapper.
+// Such blocks must NOT get content-visibility, whose paint containment clips it.
+const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request", "assistant"]);
 
 function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewindDisabled) {
   switch (b.kind) {
