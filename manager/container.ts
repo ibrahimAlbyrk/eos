@@ -38,6 +38,8 @@ import { childProcessWorktreeManager } from "../infra/src/git/ChildProcessWorktr
 import { createChildProcessBranchIntegration } from "../infra/src/git/ChildProcessBranchIntegration.ts";
 import { childProcessBranchPush } from "../infra/src/git/ChildProcessBranchPush.ts";
 import { childProcessConflictResolution } from "../infra/src/git/ChildProcessConflictResolution.ts";
+import { childProcessBranchAdmin } from "../infra/src/git/ChildProcessBranchAdmin.ts";
+import { childProcessRemoteSync } from "../infra/src/git/ChildProcessRemoteSync.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
 import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
@@ -206,6 +208,8 @@ export function buildContainer() {
   const worktrees = childProcessWorktreeManager;
   const branchPush = childProcessBranchPush;
   const conflicts = childProcessConflictResolution;
+  const branchAdmin = childProcessBranchAdmin;
+  const remoteSync = childProcessRemoteSync;
   const branchIntegration = createChildProcessBranchIntegration({
     triesDir: join(config.daemon.home, "tries"),
     now: () => systemClock.now(),
@@ -287,6 +291,9 @@ export function buildContainer() {
   const mcpCatalog = new FileMcpServerCatalog();
   const mcpConfigPathFor = (id: string): string => join(config.daemon.home, `mcp-${id}.json`);
   const systemPromptPathFor = (id: string): string => join(config.daemon.home, `system-prompt-${id}.md`);
+  // The orchestrator's rendered swarm playbook (disclosed on demand). Per-spawn so
+  // edits apply on the next spawn; cleaned up alongside the system prompt on exit.
+  const playbookPathFor = (id: string): string => join(config.daemon.home, `playbook-swarm-${id}.md`);
 
   const buildMcpBuiltins = (input: {
     id: string;
@@ -341,7 +348,7 @@ export function buildContainer() {
   };
 
   const cleanupMcpConfig = (id: string): void => {
-    for (const p of [mcpConfigPathFor(id), systemPromptPathFor(id)]) {
+    for (const p of [mcpConfigPathFor(id), systemPromptPathFor(id), playbookPathFor(id)]) {
       try {
         if (existsSync(p)) unlinkSync(p);
       } catch {}
@@ -367,6 +374,24 @@ export function buildContainer() {
   // backend calls this once per spawn; cleanupMcpConfig removes the file on exit.
   const assembleSystemPromptFile = (spec: SpawnWorkerSpec, id: string): string | null => {
     const role = spec.isOrchestrator ? "orchestrator" : spec.role === "git" ? "git" : "worker";
+    // Orchestrators get the swarm playbook rendered to a per-spawn file; its path
+    // is handed to the decompose fragment via SWARM_PLAYBOOK_PATH. Render before
+    // assembly so the path is known; a malformed/missing playbook is non-fatal
+    // (skip → empty var → the fragment's {{#if}} omits the pointer).
+    let playbookPath: string | null = null;
+    let playbookText = "";
+    if (role === "orchestrator") {
+      try {
+        promptRegistry.reload(); // fresh read so playbook edits apply next spawn (assembleSystemPrompt reloads again below)
+        const rendered = prompts.render("playbook/swarm");
+        if (rendered.trim()) {
+          playbookText = rendered;
+          playbookPath = playbookPathFor(id);
+        }
+      } catch (e) {
+        log.warn(`swarm playbook render skipped: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
     const { text } = assembleSystemPrompt(
       { registry: promptRegistry, prompts },
       {
@@ -383,11 +408,13 @@ export function buildContainer() {
         repoRoot: spec.worktreeFrom ?? null,
         isAttached: !!spec.workspaceOf,
         hasMcp: false,
+        swarmPlaybookPath: playbookPath,
       },
     );
     if (!text.trim()) return null;
     const path = systemPromptPathFor(id);
     writeFileSync(path, text);
+    if (playbookPath) writeFileSync(playbookPath, playbookText);
     return path;
   };
   const userTemplates = new UserTemplateService(join(config.daemon.home, "templates"));
@@ -470,6 +497,8 @@ export function buildContainer() {
     branchIntegration,
     branchPush,
     conflicts,
+    branchAdmin,
+    remoteSync,
     uiToken,
     recents,
     buildArgs,

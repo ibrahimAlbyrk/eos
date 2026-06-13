@@ -59,6 +59,22 @@ describe("DPI assembles per-role system prompts", () => {
     assert.doesNotMatch(r.text, /\{\{/); // no unresolved {{*_TOOL}} left
   });
 
+  it("orchestrator with a playbook path → decompose fragment points at it (else omitted)", async () => {
+    const path = "/home/.eos/playbook-swarm-orch.md";
+    const withPath = await assembleSystemPrompt(deps(), {
+      ...baseCtx,
+      role: "orchestrator",
+      parentId: null,
+      swarmPlaybookPath: path,
+    });
+    assert.match(withPath.text, /read the swarm playbook at/);
+    assert.ok(withPath.text.includes(path)); // SWARM_PLAYBOOK_PATH interpolated
+    assert.doesNotMatch(withPath.text, /\{\{/); // no leftover token
+
+    const without = await assembleSystemPrompt(deps(), { ...baseCtx, role: "orchestrator", parentId: null });
+    assert.doesNotMatch(without.text, /read the swarm playbook at/); // {{#if}} omits the pointer
+  });
+
   it("git agent → only role/git/* fragments", async () => {
     const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "git" });
     assert.ok(r.activeFragmentIds.every((id) => id.startsWith("role/git/")));

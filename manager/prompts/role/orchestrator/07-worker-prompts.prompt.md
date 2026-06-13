@@ -35,6 +35,7 @@ Report: <task-specific delta only — the standard report wrapper is automatic>
 - **Read-first** (task hinges on matching an existing pattern): `Read first: the single-delete handler in manager/routes/workers.ts.`
 - **Honor** (a non-obvious prior decision binds the design): `Honor: deletes touch only undispatched rows — dispatched rows are the dedup ledger.`
 - **Known failure mode** (a similar past task failed a specific way): `Past endpoint adds forgot the ROUTES entry and the client 404s — add it.`
+- **Ownership** (parallel fan-out only — keeps isolated branches mergeable): inline the shared contract verbatim, then fence the scope: `Owns: <paths>. Do not edit: <paths another worker owns> — need a change there? report it, don't make it.` See the swarm playbook for the full fan-out arc.
 
 ### bad → good
 

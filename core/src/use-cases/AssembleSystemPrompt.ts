@@ -32,6 +32,12 @@ export interface SessionSpawnContext {
   repoRoot: string | null;
   isAttached: boolean;
   hasMcp: boolean;
+  // Absolute path to this orchestrator's rendered swarm playbook, exposed as
+  // SWARM_PLAYBOOK_PATH so the decompose fragment can point at it. The daemon
+  // renders the playbook to a per-spawn file (the orchestrator's cwd is the
+  // user's project, not the Eos install, so it can't read the library source).
+  // Absent/null for workers and when rendering was skipped → empty var.
+  swarmPlaybookPath?: string | null;
 }
 
 export interface AssembleDeps {
@@ -92,5 +98,6 @@ function sessionVars(ctx: SessionSpawnContext): VariableScope {
     ROLE: ctx.role,
     EFFORT: ctx.effort ?? "",
     PERMISSION_MODE: ctx.permissionMode,
+    SWARM_PLAYBOOK_PATH: ctx.swarmPlaybookPath ?? "",
   };
 }
