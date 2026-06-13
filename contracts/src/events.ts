@@ -66,6 +66,7 @@ export const WorkerEventTypeSchema = z.enum([
   "try_kept",
   "try_discarded",
   "git_push",
+  "git_pull",
   "conflict_resolved",
   "terminal",
 ]);

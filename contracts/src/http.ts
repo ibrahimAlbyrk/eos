@@ -14,7 +14,13 @@ import { SessionFactsSchema } from "./prompt.ts";
 
 export const SpawnWorkerRequestSchema = z
   .object({
-    prompt: z.string().min(1),
+    prompt: z.string().min(1).optional(),
+    // Render a library prompt template (manager/prompts/) server-side into the
+    // boot prompt instead of passing literal text — keeps directives in the
+    // prompt system, never hardcoded in clients. Exactly one of prompt|promptTemplate.
+    promptTemplate: z
+      .object({ id: z.string().min(1), vars: z.record(z.string()).optional() })
+      .optional(),
     cwd: z.string().optional(),
     worktreeFrom: z.string().optional(),
     branch: z.string().optional(),
@@ -31,6 +37,9 @@ export const SpawnWorkerRequestSchema = z
   })
   .refine((b) => !!(b.cwd || b.worktreeFrom || b.workspaceOf), {
     message: "cwd, worktreeFrom or workspaceOf required",
+  })
+  .refine((b) => !!(b.prompt || b.promptTemplate), {
+    message: "prompt or promptTemplate required",
   });
 export type SpawnWorkerRequest = z.infer<typeof SpawnWorkerRequestSchema>;
 
@@ -168,6 +177,37 @@ export const PushResultSchema = z.object({
 });
 export type PushResult = z.infer<typeof PushResultSchema>;
 
+// ---- Pull (deterministic, fast-forward only) -------------------------------
+// The mirror of push: the daemon fast-forwards the branch to its upstream when
+// the branch is strictly behind. A diverged branch is NEVER auto-merged here —
+// that is the "Sync with remote" git-agent's job. `outcome` is the discriminant
+// the UI maps to a label.
+
+export const PullOutcomeSchema = z.enum([
+  "pulled",        // fast-forwarded to upstream
+  "up-to-date",    // nothing to pull
+  "diverged",      // local + remote both moved → can't fast-forward (use git agent)
+  "detached",      // detached HEAD → no branch to pull
+  "no-upstream",   // no upstream tracking ref configured
+  "conflict",      // local changes would be overwritten — commit/stash first
+  "failed",        // any other git failure
+]);
+export type PullOutcome = z.infer<typeof PullOutcomeSchema>;
+
+export const PullResultSchema = z.object({
+  outcome: PullOutcomeSchema,
+  ok: z.boolean(),
+  branch: z.string().nullable(),
+  ahead: z.number().int().nonnegative(),
+  behind: z.number().int().nonnegative(),
+  message: z.string(),
+  detail: z.string().optional(),
+});
+export type PullResult = z.infer<typeof PullResultSchema>;
+
+export const PullPlanKindSchema = z.enum(["fast-forward", "noop", "diverged", "blocked"]);
+export type PullPlanKind = z.infer<typeof PullPlanKindSchema>;
+
 // ---- GET /workers/:id/push-state -------------------------------------------
 // Read-only twin of POST /push: the SAME decidePushPlan verdict the push action
 // runs, surfaced so the UI's Push-button visibility shares one source of truth
@@ -194,6 +234,11 @@ export const PushStateResponseSchema = z.object({
   kind: PushPlanKindSchema,
   pushable: z.boolean(),
   hasUncommitted: z.boolean(),
+  // The pull twin, computed from the same sync state, so the Pull button shares
+  // one source of truth with the deterministic /pull action. `pullable` = a
+  // fast-forward is available (strictly behind).
+  pullable: z.boolean(),
+  pullKind: PullPlanKindSchema,
 });
 export type PushStateResponse = z.infer<typeof PushStateResponseSchema>;
 
@@ -362,6 +407,11 @@ export const BranchesResponseSchema = z.object({
   behind: z.number().int().nonnegative().nullable(),
   stash: z.number().int().nonnegative(),
   conflicts: z.number().int().nonnegative(),
+  // Only populated when the caller opts in with ?remotes=1 (the branch picker).
+  // `remoteBranches` are full tracking refs (e.g. "origin/main"); `remotes` are
+  // the remote names used to strip a prefix for DWIM checkout.
+  remoteBranches: z.array(z.string()).optional(),
+  remotes: z.array(z.string()).optional(),
 });
 export type BranchesResponse = z.infer<typeof BranchesResponseSchema>;
 
@@ -411,11 +461,93 @@ export type CommitDetail = z.infer<typeof CommitDetailSchema>;
 export const FsCheckoutRequestSchema = z.object({
   cwd: z.string().min(1),
   branch: z.string().min(1),
+  stash: z.boolean().optional(),   // stash local changes first, then switch
 });
 export type FsCheckoutRequest = z.infer<typeof FsCheckoutRequestSchema>;
 
-export const FsCheckoutResponseSchema = z.object({ ok: z.boolean() });
+export const FsCheckoutResponseSchema = z.object({
+  ok: z.boolean(),
+  // Blocked by uncommitted changes — the UI offers "Stash & switch" instead of
+  // dumping the raw git error.
+  dirty: z.boolean().optional(),
+  error: z.string().optional(),
+});
 export type FsCheckoutResponse = z.infer<typeof FsCheckoutResponseSchema>;
+
+// ---- Branch admin (create / rename / delete) -------------------------------
+// Deterministic local-ref operations on a repo dir (cwd). UI-token gated — a
+// confused agent holding EOS_DAEMON_URL must not mutate the user's branches.
+
+export const BranchCreateRequestSchema = z.object({
+  cwd: z.string().min(1),
+  name: z.string().min(1),
+  startPoint: z.string().optional(),   // defaults to current HEAD
+  checkout: z.boolean().optional(),    // create & switch (default true)
+});
+export type BranchCreateRequest = z.infer<typeof BranchCreateRequestSchema>;
+
+export const BranchRenameRequestSchema = z.object({
+  cwd: z.string().min(1),
+  from: z.string().min(1),
+  to: z.string().min(1),
+});
+export type BranchRenameRequest = z.infer<typeof BranchRenameRequestSchema>;
+
+// Shared response for create/rename — the resulting branch name on success.
+export const BranchOpResponseSchema = z.object({
+  ok: z.boolean(),
+  branch: z.string().optional(),
+  error: z.string().optional(),
+});
+export type BranchOpResponse = z.infer<typeof BranchOpResponseSchema>;
+
+export const BranchDeleteRequestSchema = z.object({
+  cwd: z.string().min(1),
+  name: z.string().min(1),
+  force: z.boolean().optional(),       // -D instead of -d (loses unmerged commits)
+});
+export type BranchDeleteRequest = z.infer<typeof BranchDeleteRequestSchema>;
+
+export const BranchDeleteResponseSchema = z.object({
+  ok: z.boolean(),
+  deleted: z.boolean().optional(),
+  notMerged: z.boolean().optional(),   // -d refused (not fully merged) → offer force
+  error: z.string().optional(),
+});
+export type BranchDeleteResponse = z.infer<typeof BranchDeleteResponseSchema>;
+
+// ---- POST /fs/fetch ----------------------------------------------------------
+// Update remote-tracking refs (and prune deleted ones). No working-tree change.
+
+export const FetchRequestSchema = z.object({
+  cwd: z.string().min(1),
+  prune: z.boolean().optional(),       // default true
+});
+export type FetchRequest = z.infer<typeof FetchRequestSchema>;
+
+export const FetchResponseSchema = z.object({
+  ok: z.boolean(),
+  summary: z.string().optional(),
+  error: z.string().optional(),
+});
+export type FetchResponse = z.infer<typeof FetchResponseSchema>;
+
+// ---- POST /fs/remote-branch/delete -------------------------------------------
+// Delete a branch on the remote (git push <remote> --delete <branch>). The most
+// destructive branch op — UI-token gated and confirmed in the UI.
+
+export const RemoteBranchDeleteRequestSchema = z.object({
+  cwd: z.string().min(1),
+  remote: z.string().min(1),
+  branch: z.string().min(1),           // short name, no remote/ prefix
+});
+export type RemoteBranchDeleteRequest = z.infer<typeof RemoteBranchDeleteRequestSchema>;
+
+export const RemoteBranchDeleteResponseSchema = z.object({
+  ok: z.boolean(),
+  error: z.string().optional(),
+});
+export type RemoteBranchDeleteResponse = z.infer<typeof RemoteBranchDeleteResponseSchema>;
 
 // ---- GET /fs/recents -------------------------------------------------------
 
@@ -1050,6 +1182,7 @@ export const ROUTES = {
   workerAction: (id: string): string => `/workers/${id}/action`,
   workerPush: (id: string): string => `/workers/${id}/push`,
   workerPushState: (id: string): string => `/workers/${id}/push-state`,
+  workerPull: (id: string): string => `/workers/${id}/pull`,
   orchestrators: "/orchestrators",
   orchestratorMessage: (id: string): string => `/orchestrators/${id}/message`,
   policyDecide: "/policy/decide",
@@ -1076,6 +1209,11 @@ export const ROUTES = {
   fsRaw: "/fs/raw",
   pdfjs: "/pdfjs",
   fsCheckout: "/fs/checkout",
+  fsBranchCreate: "/fs/branch/create",
+  fsBranchRename: "/fs/branch/rename",
+  fsBranchDelete: "/fs/branch/delete",
+  fsFetch: "/fs/fetch",
+  fsRemoteBranchDelete: "/fs/remote-branch/delete",
   fsWrite: "/fs/write",
   fsPaste: "/fs/paste",
   workerName: (id: string): string => `/workers/${id}/name`,
