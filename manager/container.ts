@@ -358,15 +358,15 @@ export function buildContainer() {
   );
   // Tool-name variables are static globals: constant per daemon, available to
   // every render (role fragments interpolate {{SPAWN_WORKER_TOOL}} etc.).
-  const prompts = new PromptService(promptRegistry, [], TOOL_NAME_VARS);
+  const prompts = new PromptService(promptRegistry, TOOL_NAME_VARS);
   // DPI assembly: build the worker's appended system prompt from the fragments
   // that match the spawn facts, write it per-worker, return the path (null → no
   // append, matching a top-level worker with no role fragment). The claude-cli
   // backend calls this once per spawn; cleanupMcpConfig removes the file on exit.
-  const assembleSystemPromptFile = async (spec: SpawnWorkerSpec, id: string): Promise<string | null> => {
+  const assembleSystemPromptFile = (spec: SpawnWorkerSpec, id: string): string | null => {
     const role = spec.isOrchestrator ? "orchestrator" : spec.role === "git" ? "git" : "worker";
-    const { text } = await assembleSystemPrompt(
-      { factProviders: [], registry: promptRegistry, prompts },
+    const { text } = assembleSystemPrompt(
+      { registry: promptRegistry, prompts },
       {
         role,
         parentId: spec.parentId ?? null,

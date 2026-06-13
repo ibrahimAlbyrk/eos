@@ -13,19 +13,18 @@ import { TOOL_NAME_VARS } from "./prompt-tool-names.ts";
 
 const noopLog = { debug() {}, info() {}, warn() {}, error() {}, child() { return noopLog; } };
 
-export async function renderToolDescriptions(
+export function renderToolDescriptions(
   promptsDir: string,
   names: readonly string[],
-): Promise<Record<string, string>> {
+): Record<string, string> {
   const svc = new PromptService(
     new PromptRegistry(new FilePromptSource([promptsDir]), noopLog as never),
-    [],
     TOOL_NAME_VARS,
   );
   const out: Record<string, string> = {};
   for (const name of names) {
     try {
-      out[name] = (await svc.render(`tool/${name}`)).trim();
+      out[name] = svc.render(`tool/${name}`).trim();
     } catch (e) {
       // Missing/broken description must not crash the MCP server — fall back to
       // the bare name (a degraded but functional tool) and log to stderr (stdout

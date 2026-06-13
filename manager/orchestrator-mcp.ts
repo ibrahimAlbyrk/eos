@@ -15,7 +15,7 @@ const session = await resolveSession();
 
 // Descriptions are pulled from the prompt library (prompts/tool/<name>) and
 // injected at registration; the tool modules carry no inline description.
-const descriptions = await renderToolDescriptions(join(import.meta.dirname, "prompts"), toolModules.map((t) => t.name));
+const descriptions = renderToolDescriptions(join(import.meta.dirname, "prompts"), toolModules.map((t) => t.name));
 const server = new McpServer({ name: "orchestrator", version: "0.0.1" });
 const registrar = withToolDescriptions(server, descriptions);
 for (const t of toolModules) t.register(registrar, session);

@@ -40,7 +40,7 @@ export interface ClaudeCliBackendDeps {
   /** DPI: assemble the worker's appended system prompt from the fragment library
    * + spawn facts, write it, return the path (null → no append). Absent → the
    * spec's own systemPromptFile is used unchanged (legacy/tests). */
-  assembleSystemPromptFile?(spec: SpawnWorkerSpec, id: string): Promise<string | null>;
+  assembleSystemPromptFile?(spec: SpawnWorkerSpec, id: string): string | null;
 }
 
 export function createClaudeCliBackend(deps: ClaudeCliBackendDeps): AgentBackend {
@@ -65,7 +65,7 @@ export function createClaudeCliBackend(deps: ClaudeCliBackendDeps): AgentBackend
       // resume) funnels through here, so the appended system prompt is built in
       // exactly one place from the fragment library + the resolved spawn facts.
       const systemPromptFile = deps.assembleSystemPromptFile
-        ? (await deps.assembleSystemPromptFile(raw, spec.workerId)) ?? undefined
+        ? (deps.assembleSystemPromptFile(raw, spec.workerId) ?? undefined)
         : raw.systemPromptFile;
       const finalSpec: SpawnWorkerSpec = { ...raw, systemPromptFile };
       const port = await deps.ports.allocate();

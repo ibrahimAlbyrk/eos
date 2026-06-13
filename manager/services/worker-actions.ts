@@ -27,12 +27,9 @@ export interface ResolvedAction {
   display: string;
 }
 
-export async function resolveWorkerAction(
-  prompts: PromptService,
-  action: WorkerAction,
-): Promise<ResolvedAction> {
+export function resolveWorkerAction(prompts: PromptService, action: WorkerAction): ResolvedAction {
   const spec = ACTIONS[action];
   if (!spec) throw new Error(`unknown action: ${action}`);
-  const prompt = (await prompts.render(spec.prompt, spec.vars)).trim();
+  const prompt = prompts.render(spec.prompt, spec.vars).trim();
   return { prompt, display: spec.display };
 }

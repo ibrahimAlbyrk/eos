@@ -312,7 +312,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   // shows only the short display label (the full prompt never reaches the UI).
   r.post(/^\/workers\/(?<id>[^/]+)\/action$/, async ({ params, req, res }) => {
     const body = validate(WorkerActionRequestSchema, await readBody(req));
-    const { prompt, display } = await resolveWorkerAction(c.prompts, body.action);
+    const { prompt, display } = resolveWorkerAction(c.prompts, body.action);
     const target = c.workers.findById(params.id);
     if (!target) { writeJson(res, 404, { error: "worker not found" }); return; }
     await resumeIfDead(c, target);

@@ -8,7 +8,7 @@ import { PromptService } from "../../../core/src/services/PromptService.ts";
 import { assembleSystemPrompt } from "../../../core/src/use-cases/AssembleSystemPrompt.ts";
 import { TOOL_NAME_VARS } from "../../prompt-tool-names.ts";
 import type { Logger } from "../../../core/src/ports/Logger.ts";
-import type { SessionSpawnContext } from "../../../core/src/ports/FactProvider.ts";
+import type { SessionSpawnContext } from "../../../core/src/use-cases/AssembleSystemPrompt.ts";
 
 const noopLogger: Logger = {
   debug() {},
@@ -24,7 +24,7 @@ const promptsDir = join(import.meta.dirname, "..", "..", "prompts");
 
 function deps() {
   const registry = new PromptRegistry(new FilePromptSource([promptsDir]), noopLogger);
-  return { factProviders: [], registry, prompts: new PromptService(registry, [], TOOL_NAME_VARS) };
+  return { registry, prompts: new PromptService(registry, TOOL_NAME_VARS) };
 }
 
 const baseCtx: SessionSpawnContext = {

@@ -15,6 +15,7 @@ import { restartCommand } from "./restart.ts";
 import { buildCommand } from "./build.ts";
 import { configCommand } from "./config.ts";
 import { doctorCommand } from "./doctor.ts";
+import { promptsCommand } from "./prompts.ts";
 import { createHelpCommand } from "./help.ts";
 
 const COMMANDS: Command[] = [
@@ -35,6 +36,7 @@ const COMMANDS: Command[] = [
   permCommand,
   configCommand,
   doctorCommand,
+  promptsCommand,
 ];
 
 const helpCommand = createHelpCommand(() => COMMANDS);

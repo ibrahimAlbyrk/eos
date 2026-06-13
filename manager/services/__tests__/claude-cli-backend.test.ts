@@ -26,7 +26,7 @@ describe("ClaudeCliBackend — DPI assembly chokepoint", () => {
   it("assembles the prompt and threads the path into buildArgs", async () => {
     let calledWith: { spec: SpawnWorkerSpec; id: string } | null = null;
     const { deps, getArgsSpec } = fakeDeps({
-      assembleSystemPromptFile: async (spec, id) => {
+      assembleSystemPromptFile: (spec, id) => {
         calledWith = { spec, id };
         return "/eos/system-prompt-w1.md";
       },
