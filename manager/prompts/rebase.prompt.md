@@ -1,6 +1,8 @@
 ---
 description: Rebase the current branch onto a target branch with lock handling, conflict policy, and submodule pointer alignment
-argument-hint: [target branch]
+argument-hint: "[target branch]"
+variables:
+  - TARGET
 ---
 
 # Purpose
@@ -9,7 +11,7 @@ Rebase the current branch onto `TARGET_BRANCH` by following the `Instructions` a
 
 ## Variables
 
-TARGET_BRANCH: $1
+TARGET_BRANCH: {{TARGET}}
 CURRENT_BRANCH: resolve with `git rev-parse --abbrev-ref HEAD`; reject "HEAD" (detached)
 
 ## Instructions

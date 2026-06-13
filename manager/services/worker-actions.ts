@@ -1,23 +1,25 @@
 // Worker action registry — maps the predefined UI actions (composer git
-// buttons) to a prompt template, its variable values, and the short display
-// label the chat renders instead of the full prompt. Adding an action is one
-// row here (+ a template file if it doesn't share an existing one).
+// buttons) to a prompt id, its variable values, and the short display label the
+// chat renders instead of the full prompt. Adding an action is one row here
+// (+ a prompt file if it doesn't share an existing one). Prompts resolve
+// through the centralized PromptService (Layer 1).
 
 import type { WorkerAction } from "../../contracts/src/http.ts";
-import type { PromptTemplateService } from "./PromptTemplateService.ts";
+import type { VariableScope } from "../../core/src/domain/prompt.ts";
+import type { PromptService } from "../../core/src/services/PromptService.ts";
 
 interface ActionSpec {
-  template: string;
+  prompt: string;
   display: string;
-  args: string[];
+  vars: VariableScope;
 }
 
 const ACTIONS: Record<WorkerAction, ActionSpec> = {
-  "commit":      { template: "commit.md",    display: "/commit",          args: ["false"] },
-  "commit-push": { template: "commit.md",    display: "/commit and push", args: ["true"] },
-  "pr":          { template: "create-pr.md", display: "/create-pr",       args: ["false"] },
-  "draft-pr":    { template: "create-pr.md", display: "/create-pr draft", args: ["true"] },
-  "verify":      { template: "verify.md",    display: "/verify",          args: [] },
+  "commit":      { prompt: "commit",    display: "/commit",          vars: { PUSH: "false" } },
+  "commit-push": { prompt: "commit",    display: "/commit and push", vars: { PUSH: "true" } },
+  "pr":          { prompt: "create-pr", display: "/create-pr",       vars: { DRAFT: "false" } },
+  "draft-pr":    { prompt: "create-pr", display: "/create-pr draft", vars: { DRAFT: "true" } },
+  "verify":      { prompt: "verify",    display: "/verify",          vars: {} },
 };
 
 export interface ResolvedAction {
@@ -25,11 +27,12 @@ export interface ResolvedAction {
   display: string;
 }
 
-export function resolveWorkerAction(
-  templates: PromptTemplateService,
+export async function resolveWorkerAction(
+  prompts: PromptService,
   action: WorkerAction,
-): ResolvedAction {
+): Promise<ResolvedAction> {
   const spec = ACTIONS[action];
   if (!spec) throw new Error(`unknown action: ${action}`);
-  return { prompt: templates.render(spec.template, spec.args), display: spec.display };
+  const prompt = (await prompts.render(spec.prompt, spec.vars)).trim();
+  return { prompt, display: spec.display };
 }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { McpToolModule } from "../tool-registry.ts";
-import { safeText } from "../tool-registry.ts";
+import { safeText } from "../../shared/mcp-tool.ts";
 
 // Register-then-poll: a single long-lived HTTP wait would hit undici's
 // headersTimeout and the CLI's MCP tool ceiling; short GETs every few seconds
@@ -22,8 +22,6 @@ export const askUserTool: McpToolModule = {
     server.registerTool(
       "ask_user",
       {
-        description:
-          "Ask the operator a question and BLOCK until they answer in the dashboard. This is the replacement for the builtin AskUserQuestion tool, which is disabled in Eos.\n\nUse it only when the answer changes what you do next and you cannot resolve it from the request, prior reports, or sensible defaults: choosing between expensive-to-undo decompositions, a missing requirement, a destructive-action confirmation. Do NOT use it for progress updates (chat reply), completion/blocked taps (notify_user), or anything you can decide yourself.\n\nThe call returns the chosen labels (or free text) per question. The operator can also dismiss without answering — proceed on your best judgment then. There is no timeout; the answer may arrive much later, and your turn stays open until it does.",
         inputSchema: {
           questions: z
             .array(

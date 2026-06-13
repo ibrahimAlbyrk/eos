@@ -1,6 +1,8 @@
 ---
 description: Create a pull request for the current branch
-argument-hint: [draft: true|false]
+argument-hint: "[draft: true|false]"
+variables:
+  - DRAFT
 ---
 
 # Purpose
@@ -9,7 +11,7 @@ Create a pull request for the current branch by following the `Instructions` and
 
 ## Variables
 
-DRAFT: $1
+DRAFT: {{DRAFT}}
 
 ## Instructions
 

@@ -1,6 +1,8 @@
 ---
 description: Analyze working-tree changes and create atomic conventional commits
-argument-hint: [push: true|false]
+argument-hint: "[push: true|false]"
+variables:
+  - PUSH
 ---
 
 # Purpose
@@ -9,7 +11,7 @@ Analyze staged/unstaged changes and create atomic commits by following the `Inst
 
 ## Variables
 
-PUSH_TO_REMOTE: $1
+PUSH_TO_REMOTE: {{PUSH}}
 
 ## Instructions
 
