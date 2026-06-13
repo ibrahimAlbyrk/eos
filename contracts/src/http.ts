@@ -8,6 +8,7 @@ import { z } from "zod";
 import { UnknownRecordSchema } from "./shared.ts";
 import { WorkerRowSchema, PendingPermissionRowSchema, PermissionModeSchema } from "./worker.ts";
 import { DecisionSchema, ExternalDecisionSchema } from "./policy.ts";
+import { SessionFactsSchema } from "./prompt.ts";
 
 // ---- POST /workers ---------------------------------------------------------
 
@@ -898,6 +899,48 @@ export type ErrorResponse = z.infer<typeof ErrorResponseSchema>;
 // compile time. The string literals on the daemon side (route matchers) and
 // on the client side (fetch URLs) both reference these constants.
 
+// ---- /api/prompts -----------------------------------------------------------
+// Prompt catalog + DPI assembly preview (introspection / debug). Lets you
+// inspect exactly what the assembler produces for a given spawn scenario before
+// the live spawn path is cut over to it.
+
+export const PromptDescriptorSchema = z.object({
+  id: z.string(),
+  description: z.string().nullable(),
+  layer: z.string().nullable(),
+  priority: z.number().nullable(),
+  conditional: z.boolean(),
+  variables: z.array(z.string()),
+});
+export type PromptDescriptor = z.infer<typeof PromptDescriptorSchema>;
+
+export const PromptCatalogResponseSchema = z.object({
+  prompts: z.array(PromptDescriptorSchema),
+});
+
+export const PromptPreviewRequestSchema = z.object({
+  role: z.enum(["orchestrator", "worker", "git"]).default("worker"),
+  parentId: z.string().nullable().default(null),
+  name: z.string().default("preview"),
+  workerId: z.string().nullable().default(null),
+  model: z.string().default("opus"),
+  effort: z.string().nullable().default(null),
+  permissionMode: z.string().default("default"),
+  cwd: z.string().nullable().default(null),
+  worktreeDir: z.string().nullable().default(null),
+  branch: z.string().nullable().default(null),
+  repoRoot: z.string().nullable().default(null),
+  isAttached: z.boolean().default(false),
+  hasMcp: z.boolean().default(false),
+});
+export type PromptPreviewRequest = z.infer<typeof PromptPreviewRequestSchema>;
+
+export const PromptPreviewResponseSchema = z.object({
+  text: z.string(),
+  facts: SessionFactsSchema,
+  activeFragmentIds: z.array(z.string()),
+});
+
 export const ROUTES = {
   health: "/health",
   stream: "/stream",
@@ -966,6 +1009,8 @@ export const ROUTES = {
   commands: "/commands",
   templates: "/api/templates",
   template: (name: string): string => `/api/templates/${name}`,
+  prompts: "/api/prompts",
+  promptPreview: "/api/prompts/preview",
   settings: "/api/settings",
   web: "/web/",
 } as const;
