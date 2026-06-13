@@ -9,6 +9,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { GitInfo, DiffStat, SyncStatus, ConflictEntry } from "../../../core/src/ports/GitInfo.ts";
 import type { PushState } from "../../../core/src/domain/push-plan.ts";
+import type { PullState } from "../../../core/src/domain/pull-plan.ts";
 import { isUnmergedCode } from "../../../core/src/domain/conflict.ts";
 import type { ChangedFile, CommitDetail, CommitFile, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
 import { PATCH_MAX_BYTES, mergeChanges, mergeChangesWithBase, parseNameStatusZ, parseNumstatZ, parsePorcelainZ, truncatePatch } from "./changes-parse.ts";
@@ -72,6 +73,25 @@ export const childProcessGitInfo: GitInfo = {
     }
   },
 
+  async remoteBranches(cwd: string): Promise<string[]> {
+    try {
+      const out = await runGit(cwd, ["branch", "-r", "--format=%(refname:short)"]);
+      // Drop the symbolic "<remote>/HEAD" pointer — it's not a checkout target.
+      return out.split("\n").map((s) => s.trim()).filter((b) => b && !b.endsWith("/HEAD"));
+    } catch {
+      return [];
+    }
+  },
+
+  async remotes(cwd: string): Promise<string[]> {
+    try {
+      const out = await runGit(cwd, ["remote"]);
+      return out.split("\n").map((s) => s.trim()).filter(Boolean);
+    } catch {
+      return [];
+    }
+  },
+
   async currentBranch(cwd: string): Promise<string | null> {
     // `--show-current` (not `rev-parse --abbrev-ref HEAD`): resolves the
     // branch name even on an unborn HEAD (fresh init, no commits), and
@@ -87,6 +107,12 @@ export const childProcessGitInfo: GitInfo = {
 
   async checkout(cwd: string, branch: string): Promise<void> {
     await runGit(cwd, ["checkout", branch]);
+  },
+
+  async stashPush(cwd: string): Promise<void> {
+    // `git stash push` exits 0 even with nothing to stash ("No local changes
+    // to save"), so this is safe to call unconditionally before a switch.
+    await runGit(cwd, ["stash", "push"]);
   },
 
   async remoteUrl(cwd: string): Promise<string | null> {
@@ -194,6 +220,13 @@ export const childProcessGitInfo: GitInfo = {
     }
 
     return { branch, remote, hasUpstream, ahead, behind };
+  },
+
+  async pullState(cwd: string): Promise<PullState> {
+    // Same branch + upstream + ahead/behind probe as pushState — project it to
+    // the pull decision's input (no remote-target fallback needed for pull).
+    const s = await childProcessGitInfo.pushState(cwd);
+    return { branch: s.branch, hasUpstream: s.hasUpstream, ahead: s.ahead, behind: s.behind };
   },
 
   async hasUncommittedChanges(cwd: string): Promise<boolean> {
