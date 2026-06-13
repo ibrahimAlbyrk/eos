@@ -2,6 +2,7 @@ import Cocoa
 import ObjectiveC
 import WebKit
 import UserNotifications
+import QuartzCore
 
 private let DAEMON = "http://127.0.0.1:7400"
 private let WINDOW_CORNER_RADIUS: CGFloat = 10
@@ -157,6 +158,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     // Detached during fullscreen so the reveal strip shows only the buttons.
     private let titlebarToolbar = NSToolbar()
     private var trafficLights: TrafficLightPositioner!
+    private var splashWindow: NSWindow?
     private var sseSession: URLSession?
     private var sseTask: URLSessionDataTask?
     private var sseBuffer = Data()
@@ -297,7 +299,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
 
     private func ensureDaemon() {
         checkHealth { [weak self] ok in
-            ok ? self?.loadWeb() : self?.spawnDaemon()
+            ok ? self?.launchAfterHealthy() : self?.spawnDaemon()
         }
     }
 
@@ -331,7 +333,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { [weak self] in
             self?.checkHealth { ok in
-                ok ? self?.loadWeb() : self?.poll(n - 1)
+                ok ? self?.launchAfterHealthy() : self?.poll(n - 1)
             }
         }
     }
@@ -361,6 +363,271 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
             self?.webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
             self?.connectSSE()
         }
+    }
+
+    // MARK: - Auto-update (launch splash)
+
+    // Called once the daemon is confirmed healthy, before the web UI loads. If
+    // the daemon already knows a newer build is available (from its periodic
+    // check), apply it now and show a splash so the app opens already-updated —
+    // the "reopen ⇒ update" path. No update ⇒ load the web UI as before with no
+    // delay (this reads the cached status, never a blocking git fetch).
+    private func launchAfterHealthy() {
+        updateAvailable { [weak self] available in
+            guard let self = self else { return }
+            if available { self.runLaunchUpdate() } else { self.loadWeb() }
+        }
+    }
+
+    private func updateAvailable(_ done: @escaping (Bool) -> Void) {
+        guard let url = URL(string: "\(DAEMON)/api/updates/status") else { done(false); return }
+        var req = URLRequest(url: url); req.timeoutInterval = 4
+        URLSession.shared.dataTask(with: req) { data, _, _ in
+            var available = false
+            if let data = data,
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                available = (obj["available"] as? Bool) ?? false
+            }
+            DispatchQueue.main.async { done(available) }
+        }.resume()
+    }
+
+    private func runLaunchUpdate() {
+        showSplashWindow()
+        let preBundle = bundleStamp()
+        healthStamp { [weak self] preDaemon in
+            guard let self = self else { return }
+            self.applyUpdate { started in
+                guard started else { self.finishSplashThenLoadWeb(); return }   // refused → open old
+                // The build SIGTERMs + respawns the daemon with a new source
+                // stamp; wait for that, then reload — or relaunch if the app
+                // binary itself changed (web/daemon-only updates reload in place).
+                self.waitForNewDaemon(preDaemon: preDaemon, attempts: 240) { ok in
+                    if ok && self.bundleStamp() != preBundle { self.relaunchSelf() }
+                    else { self.finishSplashThenLoadWeb() }
+                }
+            }
+        }
+    }
+
+    private func applyUpdate(_ done: @escaping (Bool) -> Void) {
+        guard let url = URL(string: "\(DAEMON)/api/updates/apply") else { done(false); return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 12
+        req.setValue("application/json", forHTTPHeaderField: "content-type")
+        if let token = uiToken() { req.setValue(token, forHTTPHeaderField: "x-eos-ui-token") }
+        req.httpBody = "{\"relaunchApp\":false}".data(using: .utf8)
+        URLSession.shared.dataTask(with: req) { data, _, _ in
+            var started = false
+            if let data = data,
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                started = (obj["started"] as? Bool) ?? false
+            }
+            DispatchQueue.main.async { done(started) }
+        }.resume()
+    }
+
+    // Poll /health every second until it reports a DIFFERENT source stamp than
+    // before the apply (= the rebuilt daemon is up). The daemon is briefly down
+    // mid-restart; those failed polls just retry until the attempt budget runs
+    // out (~4 min, enough for a full deps+web+app+daemon build).
+    private func waitForNewDaemon(preDaemon: String?, attempts: Int, _ done: @escaping (Bool) -> Void) {
+        guard attempts > 0 else { done(false); return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+            guard let self = self else { return }
+            self.healthStamp { stamp in
+                if let stamp = stamp, !stamp.isEmpty, stamp != (preDaemon ?? "") { done(true) }
+                else { self.waitForNewDaemon(preDaemon: preDaemon, attempts: attempts - 1, done) }
+            }
+        }
+    }
+
+    private func healthStamp(_ done: @escaping (String?) -> Void) {
+        guard let url = URL(string: "\(DAEMON)/health") else { done(nil); return }
+        var req = URLRequest(url: url); req.timeoutInterval = 4
+        URLSession.shared.dataTask(with: req) { data, r, _ in
+            var stamp: String? = nil
+            if (r as? HTTPURLResponse)?.statusCode == 200, let data = data,
+               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                stamp = obj["sourceStamp"] as? String
+            }
+            DispatchQueue.main.async { done(stamp) }
+        }.resume()
+    }
+
+    private func bundleStamp() -> String {
+        let p = Bundle.main.bundlePath + "/Contents/Resources/.eos-stamp"
+        return (try? String(contentsOfFile: p, encoding: .utf8))?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    }
+
+    private func uiToken() -> String? {
+        let p = ("~/.eos/ui-token" as NSString).expandingTildeInPath
+        guard let raw = try? String(contentsOfFile: p, encoding: .utf8) else { return nil }
+        let t = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        return (!t.isEmpty && t.range(of: "^[0-9a-f]+$", options: .regularExpression) != nil) ? t : nil
+    }
+
+    private func relaunchSelf() {
+        // Detach a tiny shell that waits for this process to quit, then reopens
+        // the (now rebuilt) bundle so the new native binary is the one running.
+        let path = Bundle.main.bundlePath
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/sh")
+        p.arguments = ["-c", "sleep 0.6; open \"\(path)\""]
+        try? p.run()
+        NSApp.terminate(nil)
+    }
+
+    // Minimal launch splash as a SEPARATE borderless window — a small floating
+    // glass panel (logo, "Eos", an indeterminate bar). On macOS 26 it uses the
+    // real Liquid Glass (NSGlassEffectView: transparent, refractive, correct
+    // rounded corners + shadow); older systems fall back to a vibrancy view
+    // rounded with a mask image. The main window stays hidden until
+    // finishSplashThenLoadWeb() dismisses the panel.
+    private func showSplashWindow() {
+        if splashWindow != nil { return }
+        window.orderOut(nil)   // separate panel only — hide the main window
+
+        let size = NSSize(width: 280, height: 200)
+        let radius: CGFloat = 30
+
+        // Content: logo (gently floating), "Eos", a thin indeterminate bar.
+        let content = NSView(frame: NSRect(origin: .zero, size: size))
+        content.autoresizingMask = [.width, .height]
+
+        let img = NSImageView()
+        img.image = NSImage(contentsOfFile: repoRoot() + "/manager/web/public/logo.png")
+        img.imageScaling = .scaleProportionallyUpOrDown
+        img.wantsLayer = true
+        img.layer?.cornerRadius = 16
+        img.layer?.masksToBounds = true
+        img.translatesAutoresizingMaskIntoConstraints = false
+        img.widthAnchor.constraint(equalToConstant: 64).isActive = true
+        img.heightAnchor.constraint(equalToConstant: 64).isActive = true
+        let floaty = CABasicAnimation(keyPath: "transform.translation.y")
+        floaty.fromValue = 0
+        floaty.toValue = -5
+        floaty.duration = 1.6
+        floaty.autoreverses = true
+        floaty.repeatCount = .infinity
+        floaty.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        img.layer?.add(floaty, forKey: "floaty")
+
+        let name = NSTextField(labelWithAttributedString: NSAttributedString(
+            string: "Eos",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 16, weight: .semibold),
+                .foregroundColor: NSColor.white,
+                .kern: 2.5,
+            ]))
+
+        let bar = NSView()
+        bar.wantsLayer = true
+        bar.translatesAutoresizingMaskIntoConstraints = false
+        bar.widthAnchor.constraint(equalToConstant: 168).isActive = true
+        bar.heightAnchor.constraint(equalToConstant: 3).isActive = true
+        bar.layer?.backgroundColor = NSColor(calibratedWhite: 1, alpha: 0.18).cgColor
+        bar.layer?.cornerRadius = 1.5
+        bar.layer?.masksToBounds = true
+        let hl = CAGradientLayer()
+        hl.colors = [NSColor.clear.cgColor,
+                     NSColor(srgbRed: 0.42, green: 0.62, blue: 1, alpha: 1).cgColor,
+                     NSColor.clear.cgColor]
+        hl.startPoint = NSPoint(x: 0, y: 0.5)
+        hl.endPoint = NSPoint(x: 1, y: 0.5)
+        hl.frame = CGRect(x: 0, y: 0, width: 84, height: 3)
+        bar.layer?.addSublayer(hl)
+        let sweep = CABasicAnimation(keyPath: "transform.translation.x")
+        sweep.fromValue = -90
+        sweep.toValue = 174
+        sweep.duration = 1.25
+        sweep.repeatCount = .infinity
+        sweep.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+        hl.add(sweep, forKey: "sweep")
+
+        let stack = NSStackView(views: [img, name, bar])
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = 18
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        content.addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.centerXAnchor.constraint(equalTo: content.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: content.centerYAnchor),
+        ])
+
+        let panel = NSWindow(contentRect: NSRect(origin: .zero, size: size),
+                             styleMask: [.borderless], backing: .buffered, defer: false)
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
+        panel.hasShadow = true
+        panel.level = .floating
+        panel.isMovableByWindowBackground = true
+        panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+        if #available(macOS 26.0, *) {
+            // Real Liquid Glass — transparent + refractive, correct rounded corners
+            // and shadow. A faint dark tint keeps the white text legible.
+            let glass = NSGlassEffectView(frame: NSRect(origin: .zero, size: size))
+            glass.cornerRadius = radius
+            glass.tintColor = NSColor(calibratedWhite: 0, alpha: 0.10)
+            glass.contentView = content
+            panel.contentView = glass
+        } else {
+            // < macOS 26: vibrancy rounded with a mask IMAGE — layer.cornerRadius
+            // alone leaves the window shadow square. Dark appearance for glass.
+            panel.appearance = NSAppearance(named: .darkAqua)
+            let glass = NSVisualEffectView(frame: NSRect(origin: .zero, size: size))
+            glass.material = .popover
+            glass.blendingMode = .behindWindow
+            glass.state = .active
+            glass.maskImage = roundedMaskImage(radius: radius)
+            glass.addSubview(content)
+            panel.contentView = glass
+        }
+
+        panel.center()
+        panel.makeKeyAndOrderFront(nil)
+        panel.invalidateShadow()
+        NSApp.activate(ignoringOtherApps: true)
+        splashWindow = panel
+    }
+
+    private func roundedMaskImage(radius: CGFloat) -> NSImage {
+        let d = radius * 2 + 2
+        let image = NSImage(size: NSSize(width: d, height: d), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius + 1, left: radius + 1, bottom: radius + 1, right: radius + 1)
+        image.resizingMode = .stretch
+        return image
+    }
+
+    // Grow + fade the panel out (it "expands" away), then reveal the main window
+    // with the freshly loaded UI — the minimal panel hands off to the real app.
+    private func finishSplashThenLoadWeb() {
+        guard let panel = splashWindow else {
+            window.makeKeyAndOrderFront(nil); loadWeb(); return
+        }
+        splashWindow = nil
+        let start = panel.frame
+        let grown = NSRect(x: start.midX - start.width * 0.66,
+                           y: start.midY - start.height * 0.66,
+                           width: start.width * 1.32, height: start.height * 1.32)
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.5
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            panel.animator().setFrame(grown, display: true)
+            panel.animator().alphaValue = 0
+        }, completionHandler: { [weak self] in
+            panel.orderOut(nil)
+            self?.window.makeKeyAndOrderFront(nil)
+            self?.loadWeb()
+        })
     }
 
     private func repoRoot() -> String {
