@@ -4,6 +4,7 @@
 
 import type { ChangedFile, CommitDetail, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
 import type { PushState } from "../domain/push-plan.ts";
+import type { PullState } from "../domain/pull-plan.ts";
 
 export interface DiffStat {
   insertions: number;
@@ -29,11 +30,19 @@ export interface GitInfo {
    *  resolution both come back empty. Never derive repo-ness from those. */
   isRepo(cwd: string): Promise<boolean>;
   listBranches(cwd: string): Promise<string[]>;
+  /** Remote-tracking branches as full refs (e.g. "origin/main"); the symbolic
+   *  "<remote>/HEAD" pointer is excluded. Empty on error / no remotes. */
+  remoteBranches(cwd: string): Promise<string[]>;
+  /** Configured remote names (e.g. ["origin"]). Empty on error / no remotes. */
+  remotes(cwd: string): Promise<string[]>;
   currentBranch(cwd: string): Promise<string | null>;
   /** With `base`, diffs base..working-tree (committed-after-fork + uncommitted);
    *  without, HEAD..working-tree (uncommitted only). */
   diffShortStat(cwd: string, base?: string): Promise<DiffStat>;
   checkout(cwd: string, branch: string): Promise<void>;
+  /** `git stash push` — set aside tracked working-tree changes so a blocked
+   *  checkout can proceed. Resolves even when there's nothing to stash. */
+  stashPush(cwd: string): Promise<void>;
   remoteUrl(cwd: string): Promise<string | null>;
   syncStatus(cwd: string): Promise<SyncStatus | null>;
   stashCount(cwd: string): Promise<number>;
@@ -68,6 +77,9 @@ export interface GitInfo {
   /** Branch + remote + upstream presence + ahead/behind, bundled — the input to
    *  the pure push decision. Collapses to a benign all-null/zero state on error. */
   pushState(cwd: string): Promise<PushState>;
+  /** Branch + upstream presence + ahead/behind — the input to the pure pull
+   *  decision (decidePullPlan). Collapses to a benign null/zero state on error. */
+  pullState(cwd: string): Promise<PullState>;
   /** True when the working tree has uncommitted changes (`git status --porcelain`
    *  non-empty). Working-tree-only — unlike diffShortStat(base) it never counts
    *  committed-after-fork work, so it's a correct "commit before pushing" gate. */
