@@ -126,6 +126,51 @@ export const MIGRATIONS: Migration[] = [
       ORDER BY e.id DESC LIMIT 1
     )
   ` },
+  // JSON snapshot of the agent's task list, stamped from each TodoWrite tool
+  // call (the worker's jsonl tool_use events). The web TaskTray reads this
+  // column directly — no event-scan.
+  { id: "035_workers_add_tasks", sql: "ALTER TABLE workers ADD COLUMN tasks TEXT" },
+  // Backfill from each worker's newest TodoWrite tool_use event so a running
+  // agent's existing list shows immediately (not only after its next update).
+  { id: "036_backfill_tasks", sql: `
+    UPDATE workers SET tasks = (
+      SELECT json_extract(e.payload,'$.input.todos')
+      FROM events e
+      WHERE e.worker_id = workers.id
+        AND e.type = 'jsonl'
+        AND json_extract(e.payload,'$.kind') = 'tool_use'
+        AND json_extract(e.payload,'$.name') = 'TodoWrite'
+      ORDER BY e.id DESC LIMIT 1
+    )
+  ` },
+  // Backfill the incremental TaskCreate system: build the list from every
+  // TaskCreate event in creation order, all as pending (status changes via
+  // TaskUpdate are not replayed here — the next live update corrects them).
+  // Only for workers TodoWrite didn't already fill.
+  { id: "037_backfill_taskcreate", sql: `
+    UPDATE workers SET tasks = (
+      SELECT json_group_array(json_object(
+        'content', json_extract(payload,'$.input.subject'),
+        'status', 'pending',
+        'activeForm', json_extract(payload,'$.input.activeForm')
+      ))
+      FROM (
+        SELECT payload FROM events
+        WHERE worker_id = workers.id
+          AND type = 'jsonl'
+          AND json_extract(payload,'$.kind') = 'tool_use'
+          AND json_extract(payload,'$.name') = 'TaskCreate'
+        ORDER BY id
+      )
+    )
+    WHERE tasks IS NULL
+      AND EXISTS (
+        SELECT 1 FROM events e
+        WHERE e.worker_id = workers.id
+          AND e.type = 'jsonl'
+          AND json_extract(e.payload,'$.name') = 'TaskCreate'
+      )
+  ` },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

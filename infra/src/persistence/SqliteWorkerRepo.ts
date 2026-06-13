@@ -27,6 +27,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtSetForkBaseSha;
   private readonly stmtSetWorkspaceReady;
   private readonly stmtSetSessionId;
+  private readonly stmtSetTasks;
   private readonly stmtClearRuntime;
   private readonly stmtReactivate;
   private readonly stmtDelete;
@@ -67,6 +68,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtSetForkBaseSha = db.prepare("UPDATE workers SET fork_base_sha = ? WHERE id = ?");
     this.stmtSetWorkspaceReady = db.prepare("UPDATE workers SET workspace_ready = 1 WHERE id = ?");
     this.stmtSetSessionId = db.prepare("UPDATE workers SET session_id = ? WHERE id = ?");
+    this.stmtSetTasks = db.prepare("UPDATE workers SET tasks = ? WHERE id = ?");
     this.stmtClearRuntime = db.prepare("UPDATE workers SET pid = NULL, port = NULL WHERE id = ?");
     this.stmtReactivate = db.prepare("UPDATE workers SET pid = ?, port = ?, ended_at = NULL, exit_code = NULL WHERE id = ?");
     this.stmtDelete = db.prepare("DELETE FROM workers WHERE id = ?");
@@ -166,6 +168,10 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   setSessionId(id: string, sessionId: string): void {
     this.stmtSetSessionId.run(sessionId, id);
+  }
+
+  setTasks(id: string, tasksJson: string | null): void {
+    this.stmtSetTasks.run(tasksJson, id);
   }
 
   clearRuntime(id: string): void {

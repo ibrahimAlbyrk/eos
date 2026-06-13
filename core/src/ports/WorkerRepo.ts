@@ -69,6 +69,10 @@ export interface WorkerRepo {
   // Persist the claude session id the worker reports on capture/swap — the
   // key for resuming the conversation after the process dies.
   setSessionId(id: string, sessionId: string): void;
+  // Persist the agent's task-list snapshot (Claude's TodoWrite) as a JSON
+  // string, or null to clear it (/clear). Stamped from the canonical tool_call
+  // reducer; the web TaskTray reads workers.tasks straight off the row.
+  setTasks(id: string, tasksJson: string | null): void;
   // Null out pid/port when the process is known dead (suspend) — a stale pid
   // could be reused by an unrelated process and get signalled on delete.
   clearRuntime(id: string): void;
