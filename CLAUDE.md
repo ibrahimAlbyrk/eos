@@ -17,7 +17,7 @@ infra/            — Adapter implementations for core/ ports (SQLite, child_pro
 infra/util/       — Cross-cutting infra utilities (safeStringify).
 gateway/          — MCP permission server. Strategy: DaemonProxyPolicy (fail-closed) vs StandalonePolicy (defense-in-depth).
 spawner/          — worker.ts composition root + submodules (options, delivery, tail, jsonl-parser, session, worktree, readiness-gate, ingest, claude-args, settings, events).
-manager/          — daemon.ts (composition root + container + routes), cli.ts (Command pattern), orchestrator-mcp.ts, worker-mcp.ts, {orchestrator,worker}-prompt.md (externalized system prompts).
+manager/          — daemon.ts (composition root + container + routes), cli.ts (Command pattern), orchestrator-mcp.ts, worker-mcp.ts, prompts/ (centralized prompt library — DPI role/env fragments + action templates + MCP tool descriptions), prompt-tool-names.ts + tool-descriptions.ts (prompt-system glue).
 manager/services/ — Extracted stateful services (TurnSettleService, PendingQuestionService).
 manager/routes/   — Split by concern: workers, orchestrators, policy, fs-picker, fs-read, fs-git, etc.
 manager/shared/   — Centralized config (env→file→default, deeply frozen), daemon HTTP client, path utils.
@@ -174,7 +174,16 @@ Per-worker cost/elapsed budget enforcement was removed (`LimitsEnforcer`, the `l
 
 ### Orchestrator = worker with flags
 
-Same worker.ts code. Distinguished by `--persistent` (no auto-shutdown), `--mcp-config` (orchestrator MCP tools), and an orchestrator system-prompt file. The real claude flag is `--append-system-prompt-file` (`claude-args.ts`); worker.ts's internal `--system-prompt-file` arg maps to it. Orchestrators default to `default` permission mode (NOT bypassPermissions — must opt in). System prompts are externalized markdown (`manager/{orchestrator,worker}-prompt.md`); the **worker** prompt is applied only when `parentId` is set, so editing `worker-prompt.md` affects only orchestrator-dispatched workers. Workers report back via `worker-mcp/tools/send_message_to_parent.ts`.
+Same worker.ts code. Distinguished by `--persistent` (no auto-shutdown), `--mcp-config` (orchestrator MCP tools), and its assembled system prompt. The real claude flag is `--append-system-prompt-file` (`claude-args.ts`); worker.ts's internal `--system-prompt-file` arg maps to it. Orchestrators default to `default` permission mode (NOT bypassPermissions — must opt in). The appended system prompt is **assembled per-spawn by DPI keyed on the role** (see Prompt system + DPI below) — there are no static `*-prompt.md` files anymore. Workers report back via `worker-mcp/tools/send_message_to_parent.ts`.
+
+### Prompt system + DPI (system prompts are assembled, not static)
+
+Full design: `docs/design/prompt-system-and-dpi.md`. Two daemon-side layers over the centralized library at `manager/prompts/` (`*.prompt.md` = YAML frontmatter + body).
+
+- **Layer 1 — Prompt System**: `PromptService.render(id, locals?, vars?)` (SYNCHRONOUS) over a tiny `{{VAR}}` / `{{#if}}` / `{{#unless}}` engine. Precedence local > session vars > static globals; missing var → empty. `parseTemplate` is STRICT — a malformed token / unbalanced block THROWS (registry catches + skips). Variables are a flat UPPER_SNAKE name list in frontmatter. **Never hardcode a tool name in a prompt** — use `{{*_TOOL}}`, sourced from each tool module's `.name` via `manager/prompt-tool-names.ts`.
+- **Layer 2 — DPI**: at the single spawn chokepoint `ClaudeCliBackend.start()`, `assembleSystemPrompt` (core use-case) derives session **facts** from the spawn context, selects fragments whose declarative `when` matches, orders by layer-rank→priority, renders each, composes the appended prompt; the container's `assembleSystemPromptFile` writes it per-worker (`~/.eos/system-prompt-<id>.md`, cleaned alongside the mcp config). Covers worker + orchestrator + resume.
+- **Conditioning rule (critical)**: the prompt is fixed at launch, so a `when` may gate ONLY on session-IMMUTABLE facts — `role`, `isSubagent`, `isWorktree`, `isAttached`. NEVER gate on mutable facts (git can be added mid-session; model/effort/permission change at runtime) — those stay always-on. There are no FactProvider/VariableProvider seams (trimmed); facts come straight from the spawn ctx via `deriveFacts`.
+- **Layout**: role prompts are split by concern under `prompts/role/<role>/NN-*.prompt.md`; the worktree env block is `prompts/env/worktree{,-shared}.prompt.md` (gated on `isWorktree`/`isAttached`, layer `custom` so it follows the role body); MCP tool descriptions are `prompts/tool/<name>.prompt.md` (rendered + injected at MCP startup via `manager/tool-descriptions.ts`'s `withToolDescriptions` Proxy — never inline in the tool module); action templates (`commit`, `create-pr`, …) are plain Layer-1 prompts. Prompt-content edits apply on the next spawn (read fresh, no restart); `~/.eos/prompts/` overrides built-ins. `eos prompts validate` checks the whole library (frontmatter, templates, vars, DPI conditions).
 
 ## Style notes
 
@@ -191,7 +200,8 @@ Adding new things:
 - **HTTP endpoint**: schema in `contracts/src/http.ts` (+ ROUTES entry) → route in `manager/routes/` → register in `manager/daemon.ts`
 - **Event type**: add to enum in `contracts/src/events.ts`. HANDLERS in `core/src/use-cases/ProcessWorkerEvent.ts` is **partial** — add a handler only if a worker-pushed event must drive state (log-only events need none). Daemon-synthesized events (e.g. question_pending, worker_report, orchestrator_message, state_reject) are appended directly via `c.events.append(...)` in their route — there is no central dispatcher for those.
 - **CLI command**: `manager/cli/commands/<name>.ts` implementing `Command` → register in `registry.ts`
-- **MCP tool**: `manager/orchestrator-mcp/tools/` or `manager/worker-mcp/tools/` implementing `McpToolModule` → add to `tool-registry.ts`
+- **MCP tool**: `manager/orchestrator-mcp/tools/` or `manager/worker-mcp/tools/` implementing `McpToolModule` → add to `tool-registry.ts`. Its description is NOT inline — author `manager/prompts/tool/<name>.prompt.md` (injected at MCP startup); add a `{{*_TOOL}}` var to `prompt-tool-names.ts` if other prompts reference the tool by name.
+- **Prompt / DPI fragment**: drop a `*.prompt.md` under `manager/prompts/` (role/env/tool/action); add a `dpi:` block (`layer`, `priority`, `when`) to make it a DPI fragment; declare interpolated `{{VARS}}` (UPPER_SNAKE) in frontmatter; gate `when` only on immutable facts; `eos prompts validate`. See "Prompt system + DPI" above.
 - **Web view (tab)**: 4 touch-points — workspace Component `views/<name>/<Name>View.jsx` wrapping `<AppLayout>`; descriptor `views/<name>/meta.jsx` (`{id, label, Icon}`); register the descriptor in `views/tabs.js` TABS; map id→Component in `views/registry.js`. tabs.js (descriptors) and registry.js (Components) are split to avoid an import cycle (TabBar renders inside every view). Add a ⌘K palette result source as a plain `{id, label, getResults}` provider in `search/index.js` — the palette itself never changes.
 - **Infra concern**: port in `core/src/ports/` → impl in `infra/src/<concern>/` → wire in `manager/container.ts`
 - **Shared schema**: reusable Zod primitives go in `contracts/src/shared.ts` (e.g. `UnknownRecordSchema`)
