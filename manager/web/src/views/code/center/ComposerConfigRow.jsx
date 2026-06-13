@@ -3,7 +3,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { basename } from "../../../lib/path.js";
 import { FolderDropdown } from "../popovers/FolderDropdown.jsx";
-import { BranchDropdown } from "../popovers/BranchDropdown.jsx";
+import { BranchManager } from "../popovers/BranchManager.jsx";
 
 export function ComposerConfigRow({ live }) {
   const ui = useUi();
@@ -92,7 +92,7 @@ export function ComposerConfigRow({ live }) {
             </svg>
             <span className="cb-chip-val--branch">{branchLabel}</span>
           </button>
-          <BranchDropdown live={live} cwd={cwd} />
+          <BranchManager live={live} cwd={cwd} />
         </div>
       </div>}
     </div>

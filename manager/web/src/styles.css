@@ -4672,6 +4672,141 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   outline: none;
 }
 
+/* ============== Branch manager (rich branch panel) ============== */
+.branch-mgr { width: 256px; min-width: 256px; max-width: 256px; }
+.bm-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 4px 6px 8px;
+  position: relative;
+  z-index: 1;
+}
+.bm-title { font-size: var(--text-sm); font-weight: 600; color: var(--fg); }
+.bm-grow { flex: 1; }
+.bm-iconbtn {
+  width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 5px;
+  color: var(--fg-dim);
+  cursor: pointer;
+}
+.bm-iconbtn:hover { background: rgba(var(--tint), 0.07); color: var(--fg); }
+.bm-iconbtn:disabled { opacity: 0.5; cursor: default; }
+
+.bm-section {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px 4px;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  font-family: var(--font-mono);
+  color: var(--fg-faint);
+}
+.bm-section-btn { cursor: pointer; }
+.bm-section-btn:hover { color: var(--fg-dim); }
+.bm-caret { margin-left: auto; transition: transform 0.15s ease; transform: rotate(-90deg); }
+.bm-caret.open { transform: rotate(0deg); }
+
+.bm-empty { padding: 10px 12px; color: var(--fg-faint); font-size: var(--text-sm); }
+
+.bm-remote-row { gap: 8px; color: var(--fg-dim); }
+.bm-remote-row svg { color: var(--fg-faint); flex-shrink: 0; }
+.bm-remote-row .cb-branch-name { flex: 1; }
+
+.bm-error {
+  margin: 0 6px 6px;
+  padding: 6px 9px;
+  border-radius: 6px;
+  font-size: var(--text-sm);
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 12%, transparent);
+}
+
+.bm-danger-btn {
+  padding: 4px 11px;
+  border-radius: 6px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: #fff;
+  background: var(--err);
+  cursor: pointer;
+}
+.bm-danger-btn:hover { background: color-mix(in srgb, var(--err) 85%, #fff); }
+.bm-danger-btn:disabled { opacity: 0.55; cursor: default; }
+.bm-primary-btn {
+  padding: 4px 11px;
+  border-radius: 6px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--solid-btn-fg);
+  background: var(--solid-btn-bg);
+  border: 1px solid var(--solid-btn-bg);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.bm-primary-btn:hover { background: var(--solid-btn-bg-hover); border-color: var(--solid-btn-bg-hover); }
+.bm-primary-btn:disabled { opacity: 0.55; cursor: default; }
+
+/* Branch confirm dialog — a real centered modal (portal), not a bar crammed
+   into the narrow branch panel. Backdrop has NO backdrop-filter so the dialog's
+   own glass blur isn't nested (WebKit renders nested blur flat). */
+.branch-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(var(--ink), 0.42);
+}
+.branch-confirm {
+  width: 360px;
+  max-width: calc(100vw - 48px);
+  padding: 18px 18px 14px;
+  border-radius: 12px;
+}
+.branch-confirm .bc-msg {
+  margin: 0 0 16px;
+  font-size: var(--text-base);
+  line-height: 1.5;
+  color: var(--fg);
+  position: relative;
+  z-index: 1;
+}
+.branch-confirm .bc-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.bm-create { margin: 0 6px 6px; display: flex; align-items: center; gap: 8px; }
+.bm-create input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border-radius: 6px;
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+  color: var(--fg);
+  background: rgba(var(--tint), 0.05);
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  outline: none;
+}
+.bm-create-hint { font-size: var(--text-xs); color: var(--fg-faint); white-space: nowrap; }
+.bm-rename-row { margin: 2px 4px; }
+
+@keyframes git-spin { to { transform: rotate(360deg); } }
+.git-spin { animation: git-spin 0.7s linear infinite; transform-origin: 50% 50%; }
+
+/* Branch context menu: a touch wider than the agent ctx-menu for longer labels. */
+.ctx-menu.branch-ctx { width: 196px; }
+
 /* Sidebar variant: opens DOWNWARD instead of upward */
 .spawn-popover.spawn-popover--sidebar {
   bottom: auto;

@@ -142,6 +142,11 @@ export const api = {
   async pushWorker(id) {
     return postJson(ROUTES.workerPush(id));
   },
+  // Deterministic pull (fast-forward only) — gated like other working-tree
+  // mutations. Returns the postJson envelope; caller reads `.body` (PullResult).
+  async pullWorker(id) {
+    return postJson(ROUTES.workerPull(id), {}, uiTokenHeader());
+  },
   async interruptWorker(id) {
     return postJson(ROUTES.workerInterrupt(id));
   },
@@ -226,14 +231,33 @@ export const api = {
   async openFile(path) {
     return postJson(ROUTES.fsOpen, { path });
   },
-  async listBranches(cwd) {
-    const r = await fetch(`${DAEMON}${ROUTES.fsBranches}?cwd=${encodeURIComponent(cwd)}`);
+  async listBranches(cwd, { remotes = false } = {}) {
+    const q = `?cwd=${encodeURIComponent(cwd)}${remotes ? "&remotes=1" : ""}`;
+    const r = await fetch(`${DAEMON}${ROUTES.fsBranches}${q}`);
     return r.ok
       ? r.json()
       : { branches: [], current: null, isGit: false, remoteUrl: null, ahead: null, behind: null, stash: 0, conflicts: 0 };
   },
-  async checkout(cwd, branch) {
-    return postJson(ROUTES.fsCheckout, { cwd, branch });
+  // Branch admin + remote sync — all mutate the user's repo, so they carry the
+  // UI token (checkout now does too, since the daemon gates it). Each returns
+  // the postJson envelope; callers read `.body` for the { ok, error, ... } result.
+  async checkout(cwd, branch, { stash = false } = {}) {
+    return postJson(ROUTES.fsCheckout, { cwd, branch, stash }, uiTokenHeader());
+  },
+  async createBranch(cwd, name, { startPoint, checkout = true } = {}) {
+    return postJson(ROUTES.fsBranchCreate, { cwd, name, startPoint, checkout }, uiTokenHeader());
+  },
+  async renameBranch(cwd, from, to) {
+    return postJson(ROUTES.fsBranchRename, { cwd, from, to }, uiTokenHeader());
+  },
+  async deleteBranch(cwd, name, { force = false } = {}) {
+    return postJson(ROUTES.fsBranchDelete, { cwd, name, force }, uiTokenHeader());
+  },
+  async deleteRemoteBranch(cwd, remote, branch) {
+    return postJson(ROUTES.fsRemoteBranchDelete, { cwd, remote, branch }, uiTokenHeader());
+  },
+  async fetchRemote(cwd, { prune = true } = {}) {
+    return postJson(ROUTES.fsFetch, { cwd, prune }, uiTokenHeader());
   },
   async getUnpushedCommits(cwd) {
     try {
@@ -337,6 +361,7 @@ export const api = {
     const fallback = {
       branch: null, remote: null, hasUpstream: false,
       ahead: 0, behind: 0, kind: "blocked", pushable: false, hasUncommitted: false,
+      pullable: false, pullKind: "blocked",
     };
     try {
       const r = await getJson(ROUTES.workerPushState(id), { signal });
