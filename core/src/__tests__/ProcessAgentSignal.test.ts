@@ -19,12 +19,18 @@ function buildDeps(
   row: { state: WorkerState; model: string | null };
   toolCalls: { count: number };
   deltas: UsageDelta[];
+  tasks: Array<string | null>;
   logs: Array<{ level: string; msg: string }>;
 } {
   const events: AppendedEvent[] = [];
-  const row = { state: initialState, model: opts.model === undefined ? "opus" : opts.model };
+  const row: { state: WorkerState; model: string | null; tasks: string | null } = {
+    state: initialState,
+    model: opts.model === undefined ? "opus" : opts.model,
+    tasks: null,
+  };
   const toolCalls = { count: 0 };
   const deltas: UsageDelta[] = [];
+  const tasks: Array<string | null> = [];
   const logs: Array<{ level: string; msg: string }> = [];
   let settling = opts.settling ?? false;
 
@@ -34,6 +40,7 @@ function buildDeps(
     setTurnStartedAt: () => {},
     incrementToolCalls: () => { toolCalls.count++; },
     setWorktreeDir: () => {},
+    setTasks: (_id: string, t: string | null) => { row.tasks = t; tasks.push(t); },
     addUsage: (_id: string, d: UsageDelta) => { deltas.push(d); },
   } as unknown as ProcessWorkerEventDeps["workers"];
 
@@ -61,7 +68,7 @@ function buildDeps(
     markSettling: () => { settling = true; },
   } as unknown as ProcessWorkerEventDeps;
 
-  return { deps, events, row, toolCalls, deltas, logs };
+  return { deps, events, row, toolCalls, deltas, tasks, logs };
 }
 
 const states = (events: AppendedEvent[]): Array<{ state?: string; from?: string; reason?: string }> =>
@@ -227,5 +234,53 @@ describe("ProcessAgentSignal — usage (mirror legacy cost handler)", () => {
     const { deps, logs } = buildDeps("WORKING", { price: { in: 1, out: 1, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 }, model: null });
     processAgentSignal(deps, "w1", { type: "usage", usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: {} } });
     assert.equal(logs.filter((l) => l.level === "warn").length, 1);
+  });
+});
+
+describe("ProcessAgentSignal — task list folding", () => {
+  const toolCall = (name: string, input: unknown): AgentEvent =>
+    message({ type: "tool_call", callId: "t1", name, input });
+  const latest = (tasks: Array<string | null>) => JSON.parse(tasks[tasks.length - 1] as string);
+
+  it("stamps a TodoWrite snapshot", () => {
+    const { deps, tasks } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", toolCall("TodoWrite", { todos: [
+      { content: "Run tests", status: "completed", activeForm: "Running tests" },
+      { content: "Ship it", status: "in_progress" },
+    ] }));
+    assert.deepEqual(latest(tasks), [
+      { content: "Run tests", status: "completed", activeForm: "Running tests" },
+      { content: "Ship it", status: "in_progress" },
+    ]);
+  });
+
+  it("folds TaskCreate ×N into a growing pending list", () => {
+    const { deps, tasks } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", toolCall("TaskCreate", { subject: "First", activeForm: "Doing first" }));
+    processAgentSignal(deps, "w1", toolCall("TaskCreate", { subject: "Second" }));
+    assert.deepEqual(latest(tasks), [
+      { content: "First", status: "pending", activeForm: "Doing first" },
+      { content: "Second", status: "pending" },
+    ]);
+  });
+
+  it("applies a TaskUpdate status change by taskId across calls", () => {
+    const { deps, tasks } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", toolCall("TaskCreate", { subject: "A" }));
+    processAgentSignal(deps, "w1", toolCall("TaskCreate", { subject: "B" }));
+    processAgentSignal(deps, "w1", toolCall("TaskUpdate", { taskId: "2", status: "completed" }));
+    assert.deepEqual(latest(tasks).map((t: { status: string }) => t.status), ["pending", "completed"]);
+  });
+
+  it("does not touch tasks for a non-task tool_call", () => {
+    const { deps, tasks } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", toolCall("Bash", { command: "ls" }));
+    assert.equal(tasks.length, 0);
+  });
+
+  it("nulls the task list on /clear (session cleared)", () => {
+    const { deps, tasks } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", { type: "session", phase: "cleared" });
+    assert.deepEqual(tasks, [null]);
   });
 });

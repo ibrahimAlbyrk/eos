@@ -14,6 +14,7 @@ import type { Logger } from "../ports/Logger.ts";
 import { transitionState } from "./TransitionState.ts";
 import { logEvent } from "./LogEvent.ts";
 import { computeCostUsd } from "../domain/value-objects.ts";
+import { applyTaskTool, parseStoredTasks } from "../domain/tasks.ts";
 import { reduceAgentSignal } from "./ProcessAgentSignal.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 
@@ -93,6 +94,11 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
     }
     if (kind === "tool_use") {
       deps.workers.incrementToolCalls(input.workerId);
+      // Parity with the canonical reducer: fold a task-list tool call.
+      const p = input.payload as { name?: string; input?: unknown };
+      const prev = parseStoredTasks(deps.workers.findById(input.workerId)?.tasks);
+      const next = applyTaskTool(prev, p.name ?? "", p.input);
+      if (next !== null) deps.workers.setTasks(input.workerId, JSON.stringify(next));
     }
   },
   lifecycle(deps, input) {

@@ -13,6 +13,7 @@ import type { ProcessWorkerEventDeps } from "./ProcessWorkerEvent.ts";
 import { transitionState } from "./TransitionState.ts";
 import { logEvent } from "./LogEvent.ts";
 import { computeCostUsd } from "../domain/value-objects.ts";
+import { applyTaskTool, parseStoredTasks } from "../domain/tasks.ts";
 
 // SPAWNING always heals on activity (boot); IDLE heals only when NOT settling —
 // an IDLE reached via a just-ended turn must stay put (trailing transcript).
@@ -27,6 +28,11 @@ function handleBlock(deps: ProcessWorkerEventDeps, workerId: string, block: Cont
     // Mirror legacy jsonl:tool_use — count unconditionally (even when the
     // WORKING re-flip is suppressed by the settle window), heal if recoverable.
     deps.workers.incrementToolCalls(workerId);
+    // Fold a task-list tool call (TodoWrite / TaskCreate / TaskUpdate) into the
+    // worker's task snapshot; no-op for any other tool.
+    const prev = parseStoredTasks(deps.workers.findById(workerId)?.tasks);
+    const next = applyTaskTool(prev, block.name, block.input);
+    if (next !== null) deps.workers.setTasks(workerId, JSON.stringify(next));
     if (canRecover(deps, workerId)) {
       transitionState(deps, { workerId, next: "WORKING", reason: "agent:tool_call" });
     }
@@ -87,6 +93,8 @@ export function reduceAgentSignal(
       } else if (event.phase === "cleared") {
         // /clear: the agent is alive with a fresh context — settle + IDLE, not
         // ENDING (which is terminal and would reject every later transition).
+        // The old task list belongs to the wiped context — drop it.
+        deps.workers.setTasks(workerId, null);
         deps.markSettling?.(workerId);
         transitionState(deps, { workerId, next: "IDLE", reason: "agent:session_cleared" });
       }
