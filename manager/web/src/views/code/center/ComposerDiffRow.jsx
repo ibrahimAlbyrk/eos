@@ -6,7 +6,7 @@ import { VerifyButton } from "../VerifyButton.jsx";
 import { PushButton } from "./PushButton.jsx";
 import { useWorkerVerdict } from "../../../hooks/useWorkerVerdict.js";
 import { useGitStatus } from "../../../hooks/useGitStatus.js";
-import { hasUnintegratedWork, isRowRelevant } from "../../../lib/workState.js";
+import { hasUnintegratedWork } from "../../../lib/workState.js";
 
 const PR_OPTIONS = [
   { id: "pr", label: "Create PR", icon: "pr" },
@@ -221,12 +221,6 @@ export function ComposerDiffRow({ live }) {
   // after-fork work, so it's NOT a clean-tree signal for worktrees — gate on
   // hasUncommitted instead. "set-upstream" ⇒ local-only branch → "Publish".
   const showPushOnly = pushable && !hasUncommitted;
-  // The orchestrator's own row earns its composer slot only when it has
-  // something to say — on a clean, synced checkout the field stays hidden
-  // (the hub strip above is independent and may still render).
-  const showOwnRow = !isOrchestrator ||
-    isRowRelevant({ diff, ahead, behind, stash, conflicts, verdict: showVerdict ? verdict : null });
-  if (!showOwnRow && childWorkers.length === 0) return null;
 
   return (
     <>
@@ -237,7 +231,6 @@ export function ComposerDiffRow({ live }) {
         ))}
       </div>
     )}
-    {showOwnRow && (
     <div className="c-row-diff" id="composerDiffRow">
       <span className="diff-repo-label">
         <b>{folder}</b>
@@ -369,7 +362,6 @@ export function ComposerDiffRow({ live }) {
         onAction={handlePrAction}
       />
     </div>
-    )}
     </>
   );
 }
