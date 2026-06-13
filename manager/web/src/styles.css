@@ -2203,8 +2203,11 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .conflict-chip svg { opacity: 0.95; }
 .conflict-chip .lbl { opacity: 0.8; }
 .conflict-chip-btn { cursor: pointer; font: inherit; }
-.conflict-chip-btn:hover { filter: brightness(1.12); }
-.conflict-chip-btn.on { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 50%, transparent); }
+/* match diff-badge-btn: hover/open lightens BOTH the fill and the outline */
+.conflict-chip-btn:hover, .conflict-chip-btn.on {
+  background: color-mix(in srgb, var(--err) 22%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 45%, transparent);
+}
 
 /* "Create PR" affordance — chip-style button matching cb-chip aesthetic */
 .pr-wrap { position: relative; display: inline-flex; }
@@ -2875,68 +2878,111 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    QUESTION BANNER — AskUserQuestion interactive form
    ============================================================================ */
 .q-banner { margin-bottom: 6px; }
+/* liquid-glass pane — same recipe as .glass-pop / .side-island. Denser glass
+   (0.5) than a floating menu so long option text stays readable over the
+   transcript behind it. Content layers (.q-header/.q-options/.q-actions) ride
+   z-index:1 above the rim ::after. */
 .q-card {
-  background: var(--surface-2); border: 1px solid var(--border-strong); border-radius: 10px;
+  position: relative;
+  background: rgba(var(--glass), 0.5);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.18);
   padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;
+  animation: q-rise 180ms ease-out;
 }
-.q-header { display: flex; align-items: center; gap: 8px; font-size: var(--text-base); }
+.q-card::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  border-radius: inherit; padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(var(--rim), 0.36),
+    rgba(var(--rim), 0.07) 38%,
+    rgba(var(--rim), 0.07) 62%,
+    rgba(var(--rim), 0.22)) border-box;
+  -webkit-mask:
+    linear-gradient(#000, #000) content-box,
+    linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+}
+@keyframes q-rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.q-header { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; font-size: var(--text-base); }
+.q-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: var(--accent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 60%, transparent);
+  animation: q-dot-pulse 2.4s ease-in-out infinite;
+}
+@keyframes q-dot-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
 .q-step {
-  font-size: var(--text-xs); font-weight: 600; color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent);
-  border: 1px solid color-mix(in srgb, var(--ok) 25%, transparent); padding: 2px 8px; border-radius: 10px;
+  font-size: var(--text-xs); font-weight: 600; color: var(--accent); background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); padding: 2px 8px; border-radius: 10px;
   white-space: nowrap; flex-shrink: 0;
 }
 .q-chip {
   font-size: var(--text-xs); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em;
-  color: var(--fg-dim); background: var(--surface-3); border: 1px solid var(--border-strong);
+  color: var(--fg-dim); background: rgba(var(--tint), 0.06); border: 1px solid rgba(var(--tint), 0.10);
   padding: 2px 7px; border-radius: 4px; white-space: nowrap; flex-shrink: 0;
 }
 .q-question { flex: 1; color: var(--fg); font-weight: 500; }
 .q-close {
   width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
-  border-radius: 4px; color: var(--fg-dim); flex-shrink: 0;
+  border-radius: 5px; color: var(--fg-dim); flex-shrink: 0;
 }
-.q-close:hover { background: var(--surface-3); color: var(--fg-mid); }
+.q-close:hover { background: rgba(var(--tint), 0.08); color: var(--fg-mid); }
 
-.q-options {
-  display: flex; flex-direction: column;
-  border: 1px solid var(--surface-3); border-radius: 8px; overflow: hidden;
-}
+/* discrete glass tiles — one per option, gap between */
+.q-options { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 6px; }
 .q-option {
   display: flex; align-items: flex-start; gap: 10px;
-  padding: 10px 12px; cursor: pointer; transition: background 0.1s;
-  border-bottom: 1px solid var(--border);
+  padding: 10px 12px; cursor: pointer;
+  background: rgba(var(--tint), 0.02);
+  border: 1px solid rgba(var(--tint), 0.08); border-radius: 9px;
+  transition: background 0.12s, border-color 0.12s;
 }
-.q-option:last-child { border-bottom: none; }
-.q-option:hover { background: var(--surface-3); }
-.q-option.q-selected { background: color-mix(in srgb, var(--violet) 6%, transparent); }
+.q-option:hover { background: rgba(var(--tint), 0.05); border-color: rgba(var(--tint), 0.12); }
+.q-option.q-selected {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
 .q-indicator { flex-shrink: 0; margin-top: 1px; }
 .q-opt-body { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .q-opt-label { font-size: var(--text-base); color: var(--fg); font-weight: 500; }
 .q-opt-desc { font-size: var(--text-sm); color: var(--fg-dim); line-height: 1.4; }
 .q-num-badge {
   font-size: var(--text-xs); font-family: var(--font-mono);
-  color: var(--fg-dim); background: var(--surface-3); border: 1px solid var(--border-strong);
+  color: var(--fg-dim); background: rgba(var(--tint), 0.06); border: 1px solid rgba(var(--tint), 0.10);
   min-width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
-  border-radius: 4px; flex-shrink: 0; margin-top: 1px;
+  border-radius: 5px; flex-shrink: 0; margin-top: 1px;
 }
-.q-selected .q-num-badge { color: var(--violet); border-color: color-mix(in srgb, var(--violet) 30%, transparent); background: color-mix(in srgb, var(--violet) 10%, transparent); }
+.q-selected .q-num-badge { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
 .q-other-input {
   width: 100%; margin-top: 6px; padding: 6px 10px;
-  background: var(--bg); border: 1px solid var(--border-strong); border-radius: 6px;
+  background: rgba(var(--ink), 0.18); border: 1px solid rgba(var(--tint), 0.12); border-radius: 7px;
   font-size: var(--text-sm); color: var(--fg-mid);
+  transition: border-color 0.12s, box-shadow 0.12s;
 }
 .q-other-input::placeholder { color: var(--fg-faint); }
-.q-other-input:focus { border-color: var(--fg-faint); outline: none; }
+.q-other-input:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
 
-.q-actions { display: flex; align-items: center; justify-content: space-between; }
+.q-actions { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; }
 .q-left { display: flex; gap: 8px; }
 .q-right { display: flex; gap: 8px; align-items: center; }
 .q-btn {
-  padding: 5px 14px; border-radius: 6px; font-size: var(--text-sm); cursor: pointer;
-  border: 1px solid var(--border-strong); background: var(--surface-3); color: var(--fg-mid);
+  padding: 5px 14px; border-radius: 7px; font-size: var(--text-sm); cursor: pointer;
+  border: 1px solid rgba(var(--tint), 0.12); background: transparent; color: var(--fg-mid);
+  transition: background 0.12s, color 0.12s;
 }
-.q-btn:hover { background: var(--surface-3); }
+.q-btn:hover { background: rgba(var(--tint), 0.06); color: var(--fg); }
 .q-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .q-back { color: var(--fg-mid); }
 .q-skip { color: var(--fg-dim); }
@@ -2947,6 +2993,11 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .q-next.q-primary:hover { background: var(--solid-btn-bg-hover); border-color: var(--solid-btn-bg-hover); }
 .q-next.q-primary:disabled { background: var(--fg-faint); border-color: var(--fg-faint); color: var(--surface-3); }
 .q-shortcut { font-size: var(--text-xs); opacity: 0.6; }
+
+@media (prefers-reduced-motion: reduce) {
+  .q-card { animation: none; }
+  .q-dot { animation: none; }
+}
 
 .ctx-popover {
   position: absolute;

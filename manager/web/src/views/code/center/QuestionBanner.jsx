@@ -123,6 +123,7 @@ export function QuestionBanner({ questions, workerId, toolUseId, onClose }) {
     <div className="q-banner">
       <div className="q-card">
         <div className="q-header">
+          <span className="q-dot" aria-hidden="true" />
           <span className="q-step">{currentIndex + 1}/{total}</span>
           {q.header && <span className="q-chip">{q.header}</span>}
           <span className="q-question">{q.question}</span>
@@ -205,8 +206,8 @@ function RadioOffIcon() {
 function RadioOnIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <circle cx="8" cy="8" r="6" style={{ stroke: "var(--violet)" }} strokeWidth="1.5" />
-      <circle cx="8" cy="8" r="3.5" style={{ fill: "var(--violet)" }} />
+      <circle cx="8" cy="8" r="6" style={{ stroke: "var(--accent)" }} strokeWidth="1.5" />
+      <circle cx="8" cy="8" r="3.5" style={{ fill: "var(--accent)" }} />
     </svg>
   );
 }
@@ -220,7 +221,7 @@ function UncheckedIcon() {
 function CheckIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
-      <rect x="2" y="2" width="12" height="12" rx="2" style={{ fill: "var(--violet)" }} />
+      <rect x="2" y="2" width="12" height="12" rx="2" style={{ fill: "var(--accent)" }} />
       <path d="M5 8l2.5 2.5L11 6" style={{ stroke: "var(--bg)" }} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
