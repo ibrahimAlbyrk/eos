@@ -53,6 +53,10 @@ export interface SpawnWorkerSpec {
    * uncommitted work instead of clean HEAD (settings: git.carryUncommitted).
    * Derived from user settings in the spawn route; ignored for attach mode. */
   carryUncommitted?: boolean;
+  /** Opt this worker into peer collaboration — registers the peer MCP tools
+   * and injects the peer-collaboration prompt fragment. Set by the orchestrator
+   * at spawn; immutable for the session. */
+  collaborate?: boolean;
 }
 
 export interface SpawnWorkerDeps {
@@ -236,6 +240,7 @@ export async function spawnWorker(
     backendProfile: null,
     agentRole: resolved.role ?? null,
     withGateway: !!resolved.withGateway,
+    collaborate: !!resolved.collaborate,
     worktreeDir: worktreeDir ?? null,
     workspaceOwnerId: resolved.workspaceOf ?? null,
     // Fresh worktree: the precomputed dir materializes during worker boot —

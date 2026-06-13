@@ -32,6 +32,7 @@ export interface SessionSpawnContext {
   repoRoot: string | null;
   isAttached: boolean;
   hasMcp: boolean;
+  canCollaborate: boolean;
 }
 
 export interface AssembleDeps {
@@ -76,6 +77,7 @@ function deriveFacts(ctx: SessionSpawnContext): SessionFacts {
     os: "",
     shell: "",
     hasMcp: ctx.hasMcp,
+    canCollaborate: ctx.canCollaborate,
   });
 }
 

@@ -34,6 +34,10 @@ export const SpawnWorkerRequestSchema = z
     // Spawn INTO an existing worker's worktree (shared workspace) instead of
     // creating a fresh one. Takes precedence over cwd/worktreeFrom.
     workspaceOf: z.string().optional(),
+    // Opt this worker into peer collaboration: it gains the peer MCP tools
+    // (list_peers / ask_peer / respond_to_peer) and a prompt section teaching
+    // them. Its peers are the orchestrator's other collaborate-enabled workers.
+    collaborate: z.boolean().optional(),
   })
   .refine((b) => !!(b.cwd || b.worktreeFrom || b.workspaceOf), {
     message: "cwd, worktreeFrom or workspaceOf required",
@@ -108,6 +112,10 @@ export const MessageRecordSchema = z.union([
   z.object({ as: z.literal("user_message"), displayText: z.string().optional(), clientMsgIds: z.array(z.string()).optional(), sentAt: z.number().optional() }),
   z.object({ as: z.literal("orchestrator_message"), fromParent: z.string(), parentName: z.string().optional(), sentAt: z.number().optional() }),
   z.object({ as: z.literal("worker_report"), fromWorker: z.string(), workerName: z.string().optional(), displayText: z.string().optional(), sentAt: z.number().optional() }),
+  // A peer worker's consultation, delivered into this worker's PTY by the
+  // PeerRequestPump. displayText is the bare question; the chat labels it
+  // "Peer request from <fromName>".
+  z.object({ as: z.literal("peer_request"), fromWorker: z.string(), fromName: z.string().optional(), displayText: z.string().optional(), sentAt: z.number().optional() }),
 ]);
 export type MessageRecord = z.infer<typeof MessageRecordSchema>;
 
@@ -842,6 +850,39 @@ export type TemplateUpdateRequest = z.infer<typeof TemplateUpdateRequestSchema>;
 export const TemplateMutationResponseSchema = z.object({ ok: z.boolean() });
 export type TemplateMutationResponse = z.infer<typeof TemplateMutationResponseSchema>;
 
+// ---- Project memory (~/.claude/projects/<encoded-cwd>/memory/*.md) -----------
+// Claude Code's own file-based memory for a project: one markdown file per
+// memory (YAML frontmatter name/description/metadata.type + body) plus a
+// MEMORY.md index. Resolved per-worker to its project root, so all agents in a
+// project share one store. The web lists / creates / deletes these entries.
+
+export const MemoryNameSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(/^[a-z0-9][a-z0-9-_]*$/, "lowercase letters, digits, dashes and underscores only");
+
+export const MemoryTypeSchema = z.enum(["user", "feedback", "project", "reference"]);
+export type MemoryType = z.infer<typeof MemoryTypeSchema>;
+
+export const MemoryEntrySchema = z.object({
+  name: MemoryNameSchema,
+  description: z.string(),
+  type: MemoryTypeSchema,
+  path: z.string(),
+  updatedAt: z.number(),
+});
+export type MemoryEntry = z.infer<typeof MemoryEntrySchema>;
+
+export const MemoryListResponseSchema = z.object({
+  dir: z.string().nullable(),
+  entries: z.array(MemoryEntrySchema),
+});
+export type MemoryListResponse = z.infer<typeof MemoryListResponseSchema>;
+
+export const MemoryMutationResponseSchema = z.object({ ok: z.boolean() });
+export type MemoryMutationResponse = z.infer<typeof MemoryMutationResponseSchema>;
+
 // ---- /api/settings -----------------------------------------------------------
 // User UI settings (~/.eos/settings.json), a flat key→value map. The
 // daemon only persists; the web settings registry owns key semantics and
@@ -944,6 +985,72 @@ export const QuestionAnswerRequestSchema = z.object({
   dismissed: z.boolean().optional(),
 });
 export type QuestionAnswerRequest = z.infer<typeof QuestionAnswerRequestSchema>;
+
+// ---- Peer consultation (worker ↔ worker) -----------------------------------
+//
+// A collaborate-enabled worker's ask_peer MCP tool registers a question for a
+// sibling peer, then polls until a terminal state — the same register-poll
+// shape as ask_user, but the answer producer is the peer's agent (via
+// respond_to_peer), not the human. The daemon's PeerRequestPump delivers the
+// question into the peer's PTY when it next reaches IDLE.
+
+// GET /workers/:id/peers — the collaborate-enabled siblings :id may consult.
+export const PeerListItemSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  state: z.string(),
+  // First line of the peer's directive (≤160 chars) — a specialty hint so the
+  // asker can pick the right peer by what it owns.
+  summary: z.string(),
+});
+export type PeerListItem = z.infer<typeof PeerListItemSchema>;
+export const PeerListResponseSchema = z.array(PeerListItemSchema);
+
+// POST /workers/:id/peer-request — :id is the TARGET peer. fromWorker is the
+// asker's declared id (selfId from EOS_WORKER_ID); scoped by assertPeers.
+export const PeerRequestRegisterRequestSchema = z.object({
+  fromWorker: z.string().min(1),
+  question: z.string().min(1),
+});
+export type PeerRequestRegisterRequest = z.infer<typeof PeerRequestRegisterRequestSchema>;
+
+// Either the request was registered ({requestId}) or rejected before
+// registration ({declined, reason}) — e.g. it would create a circular wait,
+// or the peer is no longer alive.
+export const PeerRequestRegisterResponseSchema = z.object({
+  requestId: z.string().optional(),
+  declined: z.boolean().optional(),
+  reason: z.string().optional(),
+});
+export type PeerRequestRegisterResponse = z.infer<typeof PeerRequestRegisterResponseSchema>;
+
+// GET /workers/:id/peer-request/:requestId — the asker polls. queued/delivered
+// both surface as "pending"; "gone" = no longer tracked (peer died, asker
+// interrupted, daemon restarted). Always 200 — route on status, not HTTP code.
+export const PeerRequestPollResponseSchema = z.object({
+  status: z.enum(["pending", "answered", "declined", "gone"]),
+  answer: z.string().optional(),
+  reason: z.string().optional(),
+});
+export type PeerRequestPollResponse = z.infer<typeof PeerRequestPollResponseSchema>;
+
+// POST /workers/:id/peer-response — :id is the responding peer (selfId). The
+// daemon resolves the single delivered-pending request addressed to it (at
+// most one in-flight per peer), so no requestId is needed.
+export const PeerResponseRequestSchema = z.object({
+  answer: z.string().min(1),
+});
+export type PeerResponseRequest = z.infer<typeof PeerResponseRequestSchema>;
+
+export const PeerResponseResultSchema = z.object({
+  ok: z.boolean(),
+  outcome: z.enum(["answered", "none"]),
+  // The asker the answer went to (present on "answered") — so the responder's
+  // chat can label the tool "Replied to <asker>" with a clickable link.
+  toWorker: z.string().optional(),
+  toName: z.string().nullable().optional(),
+});
+export type PeerResponseResult = z.infer<typeof PeerResponseResultSchema>;
 
 // ---- POST /workers/:id/notify ----------------------------------------------
 //
@@ -1161,6 +1268,7 @@ export const PromptPreviewRequestSchema = z.object({
   repoRoot: z.string().nullable().default(null),
   isAttached: z.boolean().default(false),
   hasMcp: z.boolean().default(false),
+  canCollaborate: z.boolean().default(false),
 });
 export type PromptPreviewRequest = z.infer<typeof PromptPreviewRequestSchema>;
 
@@ -1226,12 +1334,18 @@ export const ROUTES = {
   workerConflicts: (id: string): string => `/workers/${id}/conflicts`,
   workerConflictFile: (id: string): string => `/workers/${id}/conflicts/file`,
   workerConflictResolve: (id: string): string => `/workers/${id}/conflicts/resolve`,
+  workerMemory: (id: string): string => `/workers/${id}/memory`,
+  workerMemoryItem: (id: string, name: string): string => `/workers/${id}/memory/${name}`,
   workerInterrupt: (id: string): string => `/workers/${id}/interrupt`,
   workerResume: (id: string): string => `/workers/${id}/resume`,
   workerKeystroke: (id: string): string => `/workers/${id}/keystroke`,
   workerQuestion: (id: string): string => `/workers/${id}/question`,
   workerQuestionPoll: (id: string, questionId: string): string => `/workers/${id}/question/${questionId}`,
   workerQuestionAnswer: (id: string): string => `/workers/${id}/question-answer`,
+  workerPeers: (id: string): string => `/workers/${id}/peers`,
+  workerPeerRequest: (id: string): string => `/workers/${id}/peer-request`,
+  workerPeerRequestPoll: (id: string, requestId: string): string => `/workers/${id}/peer-request/${requestId}`,
+  workerPeerResponse: (id: string): string => `/workers/${id}/peer-response`,
   workerNotify: (id: string): string => `/workers/${id}/notify`,
   workerReport: (id: string): string => `/workers/${id}/report`,
   workerRewindTargets: (id: string): string => `/workers/${id}/rewind-targets`,

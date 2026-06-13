@@ -12,7 +12,7 @@ function input(id: string, parentId: string | null, startedAt: number): InsertWo
     id, prompt: "p", cwd: "/tmp", worktreeFrom: null, branch: null, name: null,
     pid: null, port: 7400, startedAt, parentId, model: "opus", effort: null,
     isOrchestrator: false, backendKind: "claude-cli", backendProfile: null,
-    agentRole: null, withGateway: true, worktreeDir: null, workspaceOwnerId: null,
+    agentRole: null, withGateway: true, collaborate: false, worktreeDir: null, workspaceOwnerId: null,
     workspaceReady: true,
   };
 }

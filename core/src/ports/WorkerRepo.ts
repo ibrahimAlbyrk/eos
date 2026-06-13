@@ -22,6 +22,7 @@ export interface InsertWorkerInput {
   backendProfile: string | null;
   agentRole: string | null;
   withGateway: boolean;
+  collaborate: boolean;
   // Known at insert for worktree spawns: precomputed for a fresh worktree
   // (daemon derives the dir before the worker creates it) or copied from the
   // workspaceOf target when attaching. Lifecycle enrichment stays as self-heal.

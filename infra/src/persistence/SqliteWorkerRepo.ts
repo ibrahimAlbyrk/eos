@@ -37,8 +37,8 @@ export class SqliteWorkerRepo implements WorkerRepo {
   constructor(db: DatabaseSync) {
     this.db = db;
     this.stmtInsert = db.prepare(`
-      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role, with_gateway, turn_started_at, worktree_dir, workspace_owner_id, workspace_ready)
-      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role, with_gateway, collaborate, turn_started_at, worktree_dir, workspace_owner_id, workspace_ready)
+      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     this.stmtFindById = db.prepare("SELECT * FROM workers WHERE id = ?");
     this.stmtListAll = db.prepare("SELECT * FROM workers ORDER BY started_at DESC");
@@ -95,6 +95,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
       input.backendProfile ?? null,
       input.agentRole ?? null,
       input.withGateway ? 1 : 0,
+      input.collaborate ? 1 : 0,
       input.startedAt,
       input.worktreeDir ?? null,
       input.workspaceOwnerId ?? null,

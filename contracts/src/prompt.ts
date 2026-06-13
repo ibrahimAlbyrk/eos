@@ -98,6 +98,9 @@ export const SessionFactsSchema = z
     os: z.string(),
     shell: z.string(),
     hasMcp: z.boolean(),
+    // Worker was spawned with collaborate=true → gate the peer-collaboration
+    // fragment on it. Session-immutable (set once at spawn).
+    canCollaborate: z.boolean(),
   })
   .passthrough();
 export type SessionFacts = z.infer<typeof SessionFactsSchema>;

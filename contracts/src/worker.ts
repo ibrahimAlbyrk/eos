@@ -4,6 +4,7 @@
 
 import { z } from "zod";
 import { WorkerStateSchema } from "./events.ts";
+import { BackgroundActivityEntrySchema } from "./background-activity.ts";
 
 export const WorkerRowSchema = z.object({
   id: z.string(),
@@ -36,6 +37,12 @@ export const WorkerRowSchema = z.object({
   // daemon on every TodoWrite tool call and nulled on /clear. A JSON string of
   // Task[] (see task.ts); the web parses it. Null/absent → no task list yet.
   tasks: z.string().nullable().optional(),
+  // Live background processes the agent has spawned (Monitor tool / `Bash
+  // run_in_background`), surfaced by the corner activity widget. NOT a DB
+  // column — route-enriched from the in-memory BackgroundActivityService
+  // (they die with the worker process, so persisting would resurrect dead
+  // entries on restart). Absent on rows that weren't HTTP-enriched.
+  backgroundActivity: z.array(BackgroundActivityEntrySchema).optional(),
   is_orchestrator: z.number().nullable().optional(),
   tool_calls: z.number().nullable().optional(),
   permission_mode: z.string().nullable().optional(),
@@ -58,6 +65,9 @@ export const WorkerRowSchema = z.object({
   // commit, making a clean worktree look dirty.
   fork_base_sha: z.string().nullable().optional(),
   with_gateway: z.number().nullable().optional(),
+  // 1 when spawned with collaborate=true: this worker has the peer MCP tools
+  // and can consult / be consulted by its collaborate-enabled siblings.
+  collaborate: z.number().nullable().optional(),
   // Set when this agent was spawned INTO another worker's worktree
   // (workspaceOf): it shares that workspace rather than owning one, so the
   // worktree is only removed when no row references its branch anymore.

@@ -60,6 +60,10 @@ export const WorkerEventTypeSchema = z.enum([
   "orchestrator_message",
   "question_pending",
   "question_answered",
+  // Peer consultation: peer_consult marks the asker's timeline when it consults
+  // a peer; peer_request is the question delivered into the target peer's chat.
+  "peer_consult",
+  "peer_request",
   "conversation_rewound",
   "conversation_cleared",
   "try_applied",

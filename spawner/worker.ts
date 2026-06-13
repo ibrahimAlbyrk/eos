@@ -201,6 +201,17 @@ function emitMessageEvent(p: PendingMessage, anchorTs?: number): void {
         ...anchor,
       });
       return;
+    case "peer_request":
+      // displayText = the bare question, without the "[Peer request from x]…"
+      // framing the peer's PTY received — what this peer's chat renders.
+      evt.emit("peer_request", {
+        text: p.record.displayText ?? p.text,
+        fromWorker: p.record.fromWorker,
+        fromName: p.record.fromName ?? p.record.fromWorker,
+        ...sentAt,
+        ...anchor,
+      });
+      return;
     case "user_message":
       // clientMsgIds ride through so the web reconciles its optimistic
       // bubbles by id (text-prefix stays the fallback for unkeyed sends).

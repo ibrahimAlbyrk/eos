@@ -180,12 +180,9 @@ export function teardownWorktree({ ctx, name, emit }: TeardownInput): void {
   }
 }
 
-/**
- * Path encoding rule for Claude's transcript directory. Replace every char
- * not in [a-zA-Z0-9_-] with a single dash. Comment lives here because the
- * three earlier realpathSync sites collectively enforce the invariant that
- * encodeCwd's input is canonical.
- */
-export function encodeCwd(p: string): string {
-  return p.replace(/[^a-zA-Z0-9_-]/g, "-");
-}
+// encodeCwd moved to core (single source of truth for Claude's project-dir
+// encoding — now shared with the memory feature). Re-exported here so the
+// existing transcript-path call sites (tail.ts, subagent-meta.ts) keep their
+// import. The three earlier realpathSync sites enforce that its input is
+// canonical before encoding.
+export { encodeCwd } from "../core/src/domain/claude-paths.ts";

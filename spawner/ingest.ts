@@ -24,9 +24,9 @@ export interface IngestServer {
 
 // Best-effort, like the rest of the body parsing: a malformed record must not
 // block message delivery — it just degrades to "no chat event from this worker".
-function parseRecord(raw: unknown): MessageRecord | undefined {
+export function parseRecord(raw: unknown): MessageRecord | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const r = raw as { as?: unknown; displayText?: unknown; clientMsgIds?: unknown; fromParent?: unknown; parentName?: unknown; fromWorker?: unknown; workerName?: unknown; sentAt?: unknown };
+  const r = raw as { as?: unknown; displayText?: unknown; clientMsgIds?: unknown; fromParent?: unknown; parentName?: unknown; fromWorker?: unknown; workerName?: unknown; fromName?: unknown; sentAt?: unknown };
   const sentAt = typeof r.sentAt === "number" ? { sentAt: r.sentAt } : {};
   if (r.as === "user_message") {
     const clientMsgIds = Array.isArray(r.clientMsgIds)
@@ -52,6 +52,15 @@ function parseRecord(raw: unknown): MessageRecord | undefined {
       as: "worker_report",
       fromWorker: r.fromWorker,
       ...(typeof r.workerName === "string" ? { workerName: r.workerName } : {}),
+      ...(typeof r.displayText === "string" ? { displayText: r.displayText } : {}),
+      ...sentAt,
+    };
+  }
+  if (r.as === "peer_request" && typeof r.fromWorker === "string") {
+    return {
+      as: "peer_request",
+      fromWorker: r.fromWorker,
+      ...(typeof r.fromName === "string" ? { fromName: r.fromName } : {}),
       ...(typeof r.displayText === "string" ? { displayText: r.displayText } : {}),
       ...sentAt,
     };

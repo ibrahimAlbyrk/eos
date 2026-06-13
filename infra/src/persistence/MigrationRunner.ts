@@ -178,6 +178,7 @@ export const MIGRATIONS: Migration[] = [
     UPDATE workers SET permission_mode = 'acceptEdits'
     WHERE permission_mode IN ('default','plan')
   ` },
+  { id: "039_workers_add_collaborate", sql: "ALTER TABLE workers ADD COLUMN collaborate INTEGER" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

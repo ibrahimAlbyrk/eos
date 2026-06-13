@@ -118,6 +118,7 @@ describe("assembleSystemPrompt (§8 worked examples)", () => {
     repoRoot: null,
     isAttached: false,
     hasMcp: false,
+    canCollaborate: false,
   };
 
   it("(a) non-worktree orchestrator → core + role/orchestrator only", () => {
