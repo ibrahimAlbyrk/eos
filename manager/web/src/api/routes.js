@@ -78,6 +78,10 @@ export const ROUTES = {
   templates: "/api/templates",
   template: (name) => `/api/templates/${name}`,
   settings: "/api/settings",
+  updateStatus: "/api/updates/status",
+  updateCheck: "/api/updates/check",
+  updateApply: "/api/updates/apply",
+  updateDefer: "/api/updates/defer",
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
 };

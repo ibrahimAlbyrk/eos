@@ -360,6 +360,20 @@ export const api = {
     return putJson(ROUTES.settings, { settings: patch });
   },
 
+  // Auto-update — status is an open read; apply is uiToken-gated (an agent must
+  // not self-update the host). Returns the postJson envelope; the banner reads
+  // `.body.started` via useLive.
+  async updateStatus() {
+    const r = await getJson(ROUTES.updateStatus);
+    return r.ok ? r.body : null;
+  },
+  async applyUpdate(relaunchApp = true) {
+    return postJson(ROUTES.updateApply, { relaunchApp }, uiTokenHeader());
+  },
+  async deferUpdate() {
+    return postJson(ROUTES.updateDefer);
+  },
+
   async getWorkerDiff(id, { signal } = {}) {
     try {
       const r = await getJson(ROUTES.workerDiff(id), { signal });

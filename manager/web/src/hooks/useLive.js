@@ -22,6 +22,7 @@ export function useLive() {
   const [health, setHealth] = useState(true);
   const [recents, setRecents] = useState([]);
   const [uiConfig, setUiConfig] = useState(null);
+  const [update, setUpdate] = useState(null);
   const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null });
   const now = useClockTick();
   const [interruptedId, _setInterruptedId] = useState(() => localStorage.getItem("cm:interruptedId"));
@@ -68,6 +69,9 @@ export function useLive() {
         setHealth(true);
       } catch { setHealth(false); }
     })();
+    // Update status rides its own fetch — a missing/old daemon endpoint must
+    // never fail the main load.
+    api.updateStatus().then((u) => u && setUpdate(u)).catch(() => {});
   }, []);
 
   // poll fallback
@@ -86,6 +90,8 @@ export function useLive() {
           // eos build rebuilt the web dist — reload in place so the running
           // app picks up the new assets without a quit/reopen.
           if (data.reason === "ui:reload") { window.location.reload(); return; }
+          // A newer build appeared — refresh the banner status (not a worker delta).
+          if (data.reason === "update:available") { api.updateStatus().then((u) => u && setUpdate(u)).catch(() => {}); return; }
           // Terminal chunks are high-frequency live data, not state deltas —
           // route them to the terminal store and skip the refetch entirely.
           if (data.reason === "terminal:chunk") { applyChunk(data.payload ?? {}); return; }
@@ -189,6 +195,18 @@ export function useLive() {
     return r;
   }, [scheduleRefetch]);
 
+  const applyUpdate = useCallback(async () => {
+    const r = await api.applyUpdate(true);
+    // Refused (disabled/not-available) → refresh so the banner reflects it; on
+    // success the build's ui:reload reloads the whole page shortly.
+    if (!r.ok || r.body?.started === false) api.updateStatus().then((u) => u && setUpdate(u)).catch(() => {});
+    return r.body ?? { started: r.ok };
+  }, []);
+  const deferUpdate = useCallback(async () => {
+    setUpdate((u) => (u ? { ...u, deferred: true } : u));
+    await api.deferUpdate();
+  }, []);
+
   const {
     pendingPermissions,
     setPendingPermissions,
@@ -226,6 +244,9 @@ export function useLive() {
     approvePending,
     alwaysAllowPending,
     denyPending,
+    update,
+    applyUpdate,
+    deferUpdate,
     eventSignal,
   };
 }

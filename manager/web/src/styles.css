@@ -2954,6 +2954,70 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .perm-shortcut { font-size: var(--text-xs); opacity: 0.6; }
 
 /* ============================================================================
+   UPDATE BANNER — a newer build is available on the dedicated server
+   ============================================================================ */
+.update-banner { margin-bottom: 6px; }
+/* Liquid-glass pane, same recipe as .q-card (blur + rim ::after), accented in
+   --accent (blue) to read as a positive system affordance, not a warning. */
+.update-card {
+  position: relative;
+  background: rgba(var(--glass), 0.5);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.18);
+  padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;
+  animation: q-rise 180ms ease-out;
+}
+.update-card::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  border-radius: inherit; padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(var(--rim), 0.36),
+    rgba(var(--rim), 0.07) 38%,
+    rgba(var(--rim), 0.07) 62%,
+    rgba(var(--rim), 0.22)) border-box;
+  -webkit-mask:
+    linear-gradient(#000, #000) content-box,
+    linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+}
+.update-header { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; font-size: var(--text-base); }
+.update-dot {
+  width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+.update-title { flex: 1; color: var(--fg); font-weight: 500; }
+.update-count {
+  font-size: var(--text-xs); color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent);
+  padding: 2px 8px; border-radius: 4px; white-space: nowrap; font-weight: 500;
+}
+.update-notes {
+  position: relative; z-index: 1; margin: 0; padding: 0; list-style: none;
+  display: flex; flex-direction: column; gap: 4px;
+  font-size: var(--text-sm); color: var(--fg-mid);
+}
+.update-notes li { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.update-notes code {
+  font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim); margin-right: 6px;
+}
+.update-actions { position: relative; z-index: 1; display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.update-btn {
+  padding: 5px 14px; border-radius: 6px; font-size: var(--text-sm); cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--surface-3); color: var(--fg-mid);
+}
+.update-btn:hover { color: var(--fg); }
+.update-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.update-now {
+  color: var(--solid-btn-fg); background: var(--solid-btn-bg); border-color: var(--solid-btn-bg); font-weight: 500;
+}
+.update-now:hover { background: var(--solid-btn-bg-hover); border-color: var(--solid-btn-bg-hover); }
+
+/* ============================================================================
    QUESTION BANNER — AskUserQuestion interactive form
    ============================================================================ */
 .q-banner { margin-bottom: 6px; }

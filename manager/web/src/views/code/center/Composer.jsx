@@ -26,6 +26,7 @@ import { CommandMenu } from "./CommandMenu.jsx";
 import { FileMenu } from "./FileMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
 import { PermissionBanner } from "./PermissionBanner.jsx";
+import { UpdateBanner } from "./UpdateBanner.jsx";
 import { SlashInfoPopover } from "../popovers/SlashInfoPopover.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
 import { TryDeck } from "./TryBanner.jsx";
@@ -724,6 +725,7 @@ export function Composer({ live }) {
   return (
     <div className="composer-wrap">
       <div className="composer-inner">
+        <UpdateBanner update={live.update} onApply={live.applyUpdate} onDefer={live.deferUpdate} />
         <TaskTray selected={selected} />
         {queuedList.length > 0 && (
           <QueuedList
