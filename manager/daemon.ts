@@ -168,6 +168,17 @@ c.bus.subscribe("worker:change", (msg) => {
   drainFor(p.workerId);
 });
 
+// Peer death-detection — when a worker exits for ANY reason (crash, normal
+// close, kill), unblock every peer waiting on it: its inbound requests go
+// "gone" so the asker's ask_peer returns a clear "peer unavailable" instead of
+// hanging forever, and its outbound requests are dropped. onExit publishes this
+// for all exit paths; the kill/interrupt/clear routes also cancel eagerly, this
+// is the backstop for an unexpected crash/exit (the case the asker can't see).
+c.bus.subscribe("worker:exit", (msg) => {
+  const p = msg.payload as { workerId?: string };
+  if (p?.workerId) c.pendingPeerRequests.cancelByWorker(p.workerId);
+});
+
 function makeHandler(router: Router) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     c.metrics.requests++;

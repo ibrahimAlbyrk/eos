@@ -58,10 +58,10 @@ export const askPeerTool: McpToolModule = {
             }
             if (state.status === "answered") return state.answer ?? "";
             if (state.status === "declined") {
-              return `The peer did not answer: ${state.reason ?? "no reason given"}. Proceed on your best judgment.`;
+              return `The peer did not answer: ${state.reason ?? "no reason given"}. Proceed on your best judgment, or — if you are truly blocked without it — finish with a 'needs input:'/'failed:' report explaining what you needed.`;
             }
             if (state.status === "gone") {
-              return "The peer is no longer available (it was stopped, or the daemon restarted). Proceed on your best judgment, or consult a different peer.";
+              return "The peer you consulted is no longer available — it was stopped, crashed, or exited before answering, so no answer will come. Proceed without its input if you can, or finish with a 'needs input:'/'failed:' report saying you were blocked on it.";
             }
           }
         }),
