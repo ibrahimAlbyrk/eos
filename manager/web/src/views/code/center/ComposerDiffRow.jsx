@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { basename } from "../../../lib/path.js";
-import { VerifyButton } from "../VerifyButton.jsx";
 import { PushButton } from "./PushButton.jsx";
 import { PullButton } from "./PullButton.jsx";
 import { useWorkerVerdict } from "../../../hooks/useWorkerVerdict.js";
@@ -181,7 +180,6 @@ export function ComposerDiffRow({ live }) {
   const conflicts = gs?.conflicts ?? 0;
   const pushable = gs?.pushable ?? false;
   const pushKind = gs?.pushKind ?? "noop";
-  const hasUncommitted = gs?.hasUncommitted ?? false;
   const pullable = gs?.pullable ?? false;
 
   // Once there's nothing left to push, the sync chip unmounts — clear any push
@@ -244,11 +242,11 @@ export function ComposerDiffRow({ live }) {
 
   const showSync = ahead > 0 || behind > 0;
   const dirty = hasUnintegratedWork(diff);
-  // Push shows iff the deterministic plan would actually push AND the working
-  // tree is clean (commit first). `dirty` (fork-base diff) counts committed-
-  // after-fork work, so it's NOT a clean-tree signal for worktrees — gate on
-  // hasUncommitted instead. "set-upstream" ⇒ local-only branch → "Publish".
-  const showPushOnly = pushable && !hasUncommitted;
+  // Push shows whenever the deterministic plan would actually push — i.e. there
+  // are commits ahead (or a local-only branch to publish) — regardless of any
+  // uncommitted working-tree changes. The Commit split-button covers those
+  // separately. "set-upstream" ⇒ local-only branch → "Publish".
+  const showPush = pushable;
 
   return (
     <>
@@ -356,13 +354,6 @@ export function ComposerDiffRow({ live }) {
           )}
         </button>
       )}
-      {dirty && !isOrchestrator && (
-        <VerifyButton
-          workerId={ui.selectedId}
-          workerState={selected.state}
-          className="pr-create-btn pr-solo"
-        />
-      )}
       {dirty && (
         <SplitButton
           options={COMMIT_OPTIONS}
@@ -373,7 +364,7 @@ export function ComposerDiffRow({ live }) {
           title={conflicts > 0 ? "Resolve conflicts first" : undefined}
         />
       )}
-      {showPushOnly && (
+      {showPush && (
         <PushButton
           workerId={ui.selectedId}
           label={pushKind === "set-upstream" ? "Publish" : "Push"}

@@ -2149,19 +2149,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   white-space: nowrap;
 }
 
-/* Verify button feedback: spinner while the agent runs its checks */
-.verify-spin {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 1.5px solid currentColor;
-  border-top-color: transparent;
-  animation: verify-spin 0.7s linear infinite;
-  flex-shrink: 0;
-}
+/* shared by .tc-spin (terminal command spinner) */
 @keyframes verify-spin { to { transform: rotate(360deg); } }
-.verify-busy { opacity: 0.75; cursor: default; display: inline-flex; align-items: center; gap: 6px; }
-.verify-failed { color: var(--err) !important; }
 
 /* verification verdict (advisory) — default state is no chip (unverified) */
 .verdict-chip { border: 1px solid transparent; }
