@@ -32,6 +32,10 @@ export const WorkerRowSchema = z.object({
   // cacheCreate1h), stamped by the daemon on every usage event. The web
   // context ring reads this directly.
   last_context_tokens: z.number().nullable().optional(),
+  // JSON snapshot of the agent's task list (Claude's TodoWrite), stamped by the
+  // daemon on every TodoWrite tool call and nulled on /clear. A JSON string of
+  // Task[] (see task.ts); the web parses it. Null/absent → no task list yet.
+  tasks: z.string().nullable().optional(),
   is_orchestrator: z.number().nullable().optional(),
   tool_calls: z.number().nullable().optional(),
   permission_mode: z.string().nullable().optional(),
