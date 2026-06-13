@@ -1,15 +1,20 @@
 ---
-description: "Orchestrator — swarm playbook (disclosed on demand for multi-worker builds)"
+description: "Orchestrator — swarm playbook (coding + research swarms)"
 variables:
   - ASK_USER_TOOL
   - GET_WORKER_TOOL
+  - LIST_PENDING_PERMISSIONS_TOOL
   - MESSAGE_WORKER_TOOL
   - SPAWN_WORKER_TOOL
+dpi:
+  layer: role
+  priority: 140
+  when: { fact: role, eq: orchestrator }
 ---
 
 # Swarm playbook
 
-You opened this because the task is a multi-part build. The default is still one worker — fan out only when the win is real and the seams are clean. This is the discipline for that case. Workers run in **isolated git worktrees and cannot see each other's branches**, so coordination is your job, done up front, not theirs.
+This is your discipline for substantial multi-agent work — multi-part builds and research swarms. The default is still one worker; fan out only when the win is real and the seams are clean. When you do, workers run in **isolated git worktrees and cannot see each other's branches**, so coordination is your job, done up front, not theirs.
 
 ## 1. Single or swarm
 
@@ -74,3 +79,18 @@ contract gate  →  fan-out (in rounds, disjoint ownership)  →  fan-in (integr
 ```
 
 Most tasks never need this whole arc. Use only the steps the task earns: a 2-worker independent split needs §2's inline contract and §3's ownership, and may skip §4 if the two outputs don't combine. A 6-worker feature build needs all of it.
+
+## Research swarms
+
+When the task is investigation, not code — "research X", "compare A vs B vs C", "what's the state of Y" — take this branch instead of the code arc above. The goal is epistemic coverage: diverge across angles, then converge.
+
+1. **One findings directory.** Designate a single findings directory for the run and pass its exact path to every worker; each writes its dimension file there and you Read them back. The prompt scopes each worker to research, so it touches nothing else — it just writes its findings file.
+
+2. **Decompose into 4-8 dimensions** — distinct angles on the topic (technical, commercial, regulatory, stakeholder, time-horizon, the counter-case…) with deliberate partial overlap so findings cross-check. Keep it modest and dispatch in rounds of ~3-4: each worker is a full process, not a cheap search call.
+
+3. **One worker per dimension.** Each prompt (your normal worker-prompt format) carries the dimension's scope, the shared dir path, and: "research with web search; write verbatim evidence with source URLs to `<dir>/dim<NN>.md`; report `result:` with that path and a two-line headline." Evidence lives in files; the report is just status.
+   - Research leans on WebSearch/WebFetch, which **ask** under the default permission mode. A worker that goes quiet may be blocked on a network permission — `{{LIST_PENDING_PERMISSIONS_TOOL}}` shows it; tell the operator to approve (Always allow writes a rule) or to set those workers to Full Access.
+
+4. **Cross-verify, then converge.** As the round reports, Read every `<dir>/dim<NN>.md` and tier each finding: confirmed across ≥2 dimensions → high; one solid source → medium; thin or single → low; disagreement → conflict. Surface conflicts, never average them away; if one matters, spawn a focused worker to resolve it.
+
+5. **Synthesize for the operator** — the high-confidence picture, the open conflicts, the gaps, with sources. Keep the raw evidence in the files.
