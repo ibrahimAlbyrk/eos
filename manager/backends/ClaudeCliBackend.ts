@@ -37,6 +37,10 @@ export interface ClaudeCliBackendDeps {
   buildArgs(input: { id: string; port: number; spec: SpawnWorkerSpec; model: string }): string[];
   buildEnv(input: { id: string; spec: SpawnWorkerSpec }): Record<string, string>;
   logFileFor(id: string): string;
+  /** DPI: assemble the worker's appended system prompt from the fragment library
+   * + spawn facts, write it, return the path (null → no append). Absent → the
+   * spec's own systemPromptFile is used unchanged (legacy/tests). */
+  assembleSystemPromptFile?(spec: SpawnWorkerSpec, id: string): Promise<string | null>;
 }
 
 export function createClaudeCliBackend(deps: ClaudeCliBackendDeps): AgentBackend {
@@ -57,9 +61,16 @@ export function createClaudeCliBackend(deps: ClaudeCliBackendDeps): AgentBackend
       // The claude-cli-specific spawn spec (worktree/branch/gateway/mcp) rides in
       // backendOptions.spec; buildArgs/buildEnv consume it unchanged.
       const raw = (spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec;
+      // DPI assembly chokepoint — every claude-cli spawn (worker, orchestrator,
+      // resume) funnels through here, so the appended system prompt is built in
+      // exactly one place from the fragment library + the resolved spawn facts.
+      const systemPromptFile = deps.assembleSystemPromptFile
+        ? (await deps.assembleSystemPromptFile(raw, spec.workerId)) ?? undefined
+        : raw.systemPromptFile;
+      const finalSpec: SpawnWorkerSpec = { ...raw, systemPromptFile };
       const port = await deps.ports.allocate();
-      const args = deps.buildArgs({ id: spec.workerId, port, spec: raw, model: spec.model });
-      const env = deps.buildEnv({ id: spec.workerId, spec: raw });
+      const args = deps.buildArgs({ id: spec.workerId, port, spec: finalSpec, model: spec.model });
+      const env = deps.buildEnv({ id: spec.workerId, spec: finalSpec });
       const proc = deps.supervisor.spawn(spec.workerId, {
         args,
         env,

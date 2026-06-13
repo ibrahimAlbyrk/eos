@@ -4,13 +4,6 @@ import { buildRespawnSpec, type RespawnSpecDeps } from "../respawn-spec.ts";
 import type { WorkerRow } from "../../../contracts/src/worker.ts";
 
 const deps: RespawnSpecDeps = {
-  config: {
-    paths: {
-      orchestratorPromptFile: "/p/orch.md",
-      workerPromptFile: "/p/worker.md",
-      gitAgentPromptFile: "/p/git.md",
-    },
-  },
   modeResolver: { resolveFor: () => "acceptEdits" },
 };
 
@@ -25,33 +18,30 @@ function row(overrides: Partial<WorkerRow>): WorkerRow {
 }
 
 describe("buildRespawnSpec", () => {
-  it("orchestrator: orchestrator prompt file + persistent", () => {
+  it("orchestrator: persistent + role preserved (prompt assembled daemon-side)", () => {
     const spec = buildRespawnSpec(row({ is_orchestrator: 1, permission_mode: "default" }), deps);
-    assert.equal(spec.systemPromptFile, "/p/orch.md");
+    assert.equal(spec.systemPromptFile, undefined); // DPI assembles it at spawn
     assert.equal(spec.persistent, true);
     assert.equal(spec.isOrchestrator, true);
     assert.equal(spec.claudePermissionMode, "default");
     assert.equal(spec.prompt, "");
   });
 
-  it("git agent: git prompt file + persistent", () => {
+  it("git agent: persistent + role=git", () => {
     const spec = buildRespawnSpec(row({ agent_role: "git", permission_mode: "bypassPermissions" }), deps);
-    assert.equal(spec.systemPromptFile, "/p/git.md");
     assert.equal(spec.persistent, true);
     assert.equal(spec.role, "git");
   });
 
-  it("orchestrator-dispatched child: worker prompt file + gateway heuristic + mode fallback", () => {
+  it("orchestrator-dispatched child: gateway heuristic + mode fallback", () => {
     const spec = buildRespawnSpec(row({ parent_id: "o-1", with_gateway: null, permission_mode: null }), deps);
-    assert.equal(spec.systemPromptFile, "/p/worker.md");
     assert.equal(spec.persistent, true);
     assert.equal(spec.withGateway, true);
     assert.equal(spec.claudePermissionMode, "acceptEdits");
   });
 
-  it("plain worker: no prompt file, not persistent, explicit with_gateway respected", () => {
+  it("plain worker: not persistent, explicit with_gateway respected", () => {
     const spec = buildRespawnSpec(row({ with_gateway: 0, permission_mode: "default" }), deps);
-    assert.equal(spec.systemPromptFile, undefined);
     assert.equal(spec.persistent, false);
     assert.equal(spec.withGateway, false);
   });

@@ -49,10 +49,14 @@ import type { ModelCatalog } from "../core/src/ports/ModelCatalog.ts";
 import { PolicyGatewayService } from "../core/src/services/PolicyGatewayService.ts";
 import { SqlBackedModeResolver } from "../core/src/services/SqlBackedModeResolver.ts";
 import { SqlBackedBackendResolver } from "../core/src/services/SqlBackedBackendResolver.ts";
+import { PromptRegistry } from "../core/src/services/PromptRegistry.ts";
+import { PromptService } from "../core/src/services/PromptService.ts";
+import { assembleSystemPrompt } from "../core/src/use-cases/AssembleSystemPrompt.ts";
+import { TOOL_NAME_VARS } from "./prompt-tool-names.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
 import { StartupBackupService } from "./services/StartupBackupService.ts";
-import { PromptTemplateService } from "./services/PromptTemplateService.ts";
+import { FilePromptSource } from "../infra/src/prompt/FilePromptSource.ts";
 import { UserTemplateService } from "./services/UserTemplateService.ts";
 import { UserSettingsService } from "./services/UserSettingsService.ts";
 import { ModelCatalogService } from "./services/ModelCatalogService.ts";
@@ -280,6 +284,7 @@ export function buildContainer() {
   // at spawn (buildArgs) and removed by KillWorker via postKillCleanup.
   const mcpCatalog = new FileMcpServerCatalog();
   const mcpConfigPathFor = (id: string): string => join(config.daemon.home, `mcp-${id}.json`);
+  const systemPromptPathFor = (id: string): string => join(config.daemon.home, `system-prompt-${id}.md`);
 
   const buildMcpBuiltins = (input: {
     id: string;
@@ -334,16 +339,55 @@ export function buildContainer() {
   };
 
   const cleanupMcpConfig = (id: string): void => {
-    try {
-      const p = mcpConfigPathFor(id);
-      if (existsSync(p)) unlinkSync(p);
-    } catch {}
+    for (const p of [mcpConfigPathFor(id), systemPromptPathFor(id)]) {
+      try {
+        if (existsSync(p)) unlinkSync(p);
+      } catch {}
+    }
   };
 
   const turnSettle = new TurnSettleService(systemClock);
   const pendingQuestions = new PendingQuestionService(randomIdGenerator);
   const terminalRuns = new TerminalRunService({ bus, events, clock: systemClock, log });
-  const promptTemplates = new PromptTemplateService(config.paths.promptsDir);
+  // Centralized prompt system (Layer 1) + DPI (Layer 2). Built-in library lives
+  // in config.paths.promptsDir; ~/.eos/prompts overrides/extends it. Reads fresh
+  // per reload so prompt edits apply on the next spawn without a daemon restart.
+  const promptRegistry = new PromptRegistry(
+    new FilePromptSource([config.paths.promptsDir, join(config.daemon.home, "prompts")]),
+    log,
+  );
+  // Tool-name variables are static globals: constant per daemon, available to
+  // every render (role fragments interpolate {{SPAWN_WORKER_TOOL}} etc.).
+  const prompts = new PromptService(promptRegistry, [], TOOL_NAME_VARS);
+  // DPI assembly: build the worker's appended system prompt from the fragments
+  // that match the spawn facts, write it per-worker, return the path (null → no
+  // append, matching a top-level worker with no role fragment). The claude-cli
+  // backend calls this once per spawn; cleanupMcpConfig removes the file on exit.
+  const assembleSystemPromptFile = async (spec: SpawnWorkerSpec, id: string): Promise<string | null> => {
+    const role = spec.isOrchestrator ? "orchestrator" : spec.role === "git" ? "git" : "worker";
+    const { text } = await assembleSystemPrompt(
+      { factProviders: [], registry: promptRegistry, prompts },
+      {
+        role,
+        parentId: spec.parentId ?? null,
+        name: spec.name ?? id,
+        workerId: id,
+        model: spec.model ?? "opus",
+        effort: spec.effort ?? null,
+        permissionMode: spec.claudePermissionMode ?? "default",
+        cwd: spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null,
+        worktreeDir: spec.worktreeDir ?? null,
+        branch: spec.branch ?? null,
+        repoRoot: spec.worktreeFrom ?? null,
+        isAttached: !!spec.workspaceOf,
+        hasMcp: false,
+      },
+    );
+    if (!text.trim()) return null;
+    const path = systemPromptPathFor(id);
+    writeFileSync(path, text);
+    return path;
+  };
   const userTemplates = new UserTemplateService(join(config.daemon.home, "templates"));
   const userSettings = new UserSettingsService(join(config.daemon.home, "settings.json"));
   const modelCatalog = new ModelCatalogService(join(config.daemon.home, "models.json"), systemClock);
@@ -359,6 +403,7 @@ export function buildContainer() {
     buildArgs,
     buildEnv,
     logFileFor,
+    assembleSystemPromptFile,
   });
 
   // anthropic-api backend — in-process, ToolRuntime-driven. Text-only for now
@@ -435,7 +480,8 @@ export function buildContainer() {
     turnSettle,
     pendingQuestions,
     terminalRuns,
-    promptTemplates,
+    prompts,
+    promptRegistry,
     userTemplates,
     userSettings,
     modelCatalog,

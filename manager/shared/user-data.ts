@@ -8,6 +8,7 @@ export const USER_DATA_ENTRIES = [
   "state.db-wal",
   "state.db-shm",
   "templates",
+  "prompts",
   "policy.yaml",
   "config.json",
 ] as const;

@@ -10,7 +10,7 @@ import { UnreachableError } from "../../core/src/errors/index.ts";
 import { buildRespawnSpec } from "../shared/respawn-spec.ts";
 
 export function resumeWorkerVia(c: Container, row: WorkerRow): Promise<{ id: string; port: number }> {
-  const spec = buildRespawnSpec(row, { config: c.config, modeResolver: c.modeResolver });
+  const spec = buildRespawnSpec(row, { modeResolver: c.modeResolver });
   return resumeWorker(
     {
       workers: c.workers, events: c.events, bus: c.bus, clock: c.clock, log: c.log,

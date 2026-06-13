@@ -16,7 +16,6 @@ import { createDaemonEventClient } from "./events.ts";
 import { setupWorktree, teardownWorktree } from "./worktree.ts";
 import { buildClaudeSettings } from "./settings.ts";
 import { buildClaudeArgs } from "./claude-args.ts";
-import { buildSystemPromptFile } from "./prompt-context.ts";
 import { DeliveryPipeline } from "./delivery.ts";
 import { startJsonlTail, findClearedSessionJsonl, type TailHandle } from "./tail.ts";
 import { startIngestServer } from "./ingest.ts";
@@ -62,14 +61,10 @@ const wt = setupWorktree({
 }, (m) => console.log(`[${name}] ${m}`));
 
 const settings = buildClaudeSettings(name, opts.port);
-const systemPromptFile = buildSystemPromptFile({
-  staticPromptFile: opts.systemPromptFile,
-  wt,
-  tmpDir: settings.tmpDir,
-  name,
-  workerId: opts.workerId,
-});
-const claudeArgs = buildClaudeArgs({ ...opts, systemPromptFile }, settings.tmpDir, settings.settingsPath, {
+// The system prompt is fully assembled daemon-side (DPI) and handed over as
+// opts.systemPromptFile — the worker no longer reads a static file or appends a
+// worktree env section here.
+const claudeArgs = buildClaudeArgs(opts, settings.tmpDir, settings.settingsPath, {
   daemonUrl: opts.daemonUrl,
   workerId: opts.workerId,
 });

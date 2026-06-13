@@ -33,10 +33,7 @@ export interface DaemonConfig {
     claudeBin: string;       // path to `claude` CLI (or just "claude" for PATH lookup)
     bunBin: string;          // path to `bun` (used by gateway MCP)
     workerScript: string;    // <repoRoot>/spawner/worker.ts
-    orchestratorPromptFile: string;  // <repoRoot>/manager/orchestrator-prompt.md
-    workerPromptFile: string;        // <repoRoot>/manager/worker-prompt.md
-    gitAgentPromptFile: string;      // <repoRoot>/manager/git-agent-prompt.md
-    promptsDir: string;              // <repoRoot>/manager/prompts — reusable prompt templates
+    promptsDir: string;      // <repoRoot>/manager/prompts — DPI fragment + action-template library
   };
   worker: {
     portRangeStart: number;
@@ -137,9 +134,6 @@ function defaults(): DaemonConfig {
       claudeBin: envStr("EOS_CLAUDE_BIN", "claude"),
       bunBin: envStr("EOS_BUN_BIN", "bun"),
       workerScript: join(repoRoot, "spawner", "worker.ts"),
-      orchestratorPromptFile: envStr("EOS_ORCHESTRATOR_PROMPT_FILE", join(repoRoot, "manager", "orchestrator-prompt.md")),
-      workerPromptFile: envStr("EOS_WORKER_PROMPT_FILE", join(repoRoot, "manager", "worker-prompt.md")),
-      gitAgentPromptFile: envStr("EOS_GIT_AGENT_PROMPT_FILE", join(repoRoot, "manager", "git-agent-prompt.md")),
       promptsDir: envStr("EOS_PROMPTS_DIR", join(repoRoot, "manager", "prompts")),
     },
     worker: {
@@ -194,9 +188,6 @@ const DaemonConfigOverrideSchema = z.object({
     repoRoot: z.string(),
     claudeBin: z.string(),
     bunBin: z.string(),
-    orchestratorPromptFile: z.string(),
-    workerPromptFile: z.string(),
-    gitAgentPromptFile: z.string(),
   }).partial().optional(),
   worker: z.object({
     portRangeStart: z.number().int().positive(),
