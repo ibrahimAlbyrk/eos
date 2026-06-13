@@ -68,8 +68,8 @@ function uiTokenHeader() {
     : {};
 }
 
-async function del(path) {
-  const r = await fetch(`${DAEMON}${path}`, { method: "DELETE" });
+async function del(path, extraHeaders) {
+  const r = await fetch(`${DAEMON}${path}`, { method: "DELETE", headers: extraHeaders });
   let parsed = null;
   try { parsed = await r.json(); } catch {}
   return { ok: r.ok, status: r.status, body: parsed };
@@ -162,6 +162,19 @@ export const api = {
   },
   async getRewindTargets(id) {
     return getJson(ROUTES.workerRewindTargets(id));
+  },
+
+  // Project memory (Claude's file-based memory for the worker's project).
+  // listMemory throws on error + returns { dir, entries }; create/delete return
+  // the fetch envelope (caller reads .ok / .body.error). Mutations carry the
+  // UI token — agents must not silently rewrite the user's accumulated memory.
+  async listMemory(id) {
+    const r = await getJson(ROUTES.workerMemory(id));
+    if (!r.ok) throw new Error(r.body?.error || `listMemory → ${r.status}`);
+    return r.body;
+  },
+  async deleteMemory(id, name) {
+    return del(ROUTES.workerMemoryItem(id, name), uiTokenHeader());
   },
   async rewindWorker(id, uuid, mode = "conversation") {
     return postJson(ROUTES.workerRewind(id), { uuid, mode });

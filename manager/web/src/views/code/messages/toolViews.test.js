@@ -46,4 +46,32 @@ describe("getToolView", () => {
     expect(bash.label({ name: "Bash", input: { command: "git push origin dev" }, result: { isError: false } }).verb).toBe("Pushed");
     expect(bash.label({ name: "Bash", input: { command: "ls -la" } })).toEqual({ verb: "Ran", file: "ls -la" });
   });
+
+  it("gives the peer tools bespoke views matching the worker-MCP design", () => {
+    const ask = getToolView("mcp__worker__ask_peer");
+    expect(ask.Detail).not.toBe(GenericDetail);
+    expect(ask.label({ input: { peerId: "w-7" } })).toEqual({ verb: "Asked", file: "w-7" });
+    expect(ask.runningLabel({ input: { peerId: "w-7" } })).toEqual({ verb: "Asking", file: "w-7" });
+    // agentRef resolves the peer by id (AgentLink fills the name from workers)
+    expect(ask.agentRef({ input: { peerId: "w-7" } })).toEqual({ id: "w-7", name: null });
+    expect(ask.agentRef({ input: {} })).toBe(null);
+
+    const respond = getToolView("mcp__worker__respond_to_peer");
+    expect(respond.Detail).not.toBe(GenericDetail);
+    // No asker known → generic "peer".
+    expect(respond.label({})).toEqual({ verb: "Replied to", file: "peer" });
+    expect(respond.agentRef({})).toBe(null);
+    // Parser-linked asker (works for existing messages) wins.
+    const linked = { peerTo: { id: "w-a", name: "peer-alice" } };
+    expect(respond.label(linked)).toEqual({ verb: "Replied to", file: "peer-alice" });
+    expect(respond.agentRef(linked)).toEqual({ id: "w-a", name: "peer-alice" });
+    // Falls back to the daemon's JSON result when not linked.
+    const answered = { result: { text: JSON.stringify({ delivered: true, toWorker: "w-b", toName: "peer-bob" }) } };
+    expect(respond.label(answered)).toEqual({ verb: "Replied to", file: "peer-bob" });
+    expect(respond.agentRef(answered)).toEqual({ id: "w-b", name: "peer-bob" });
+
+    const list = getToolView("mcp__worker__list_peers");
+    expect(list.Detail).not.toBe(GenericDetail);
+    expect(list.label({})).toEqual({ verb: "Listed", file: "peers" });
+  });
 });

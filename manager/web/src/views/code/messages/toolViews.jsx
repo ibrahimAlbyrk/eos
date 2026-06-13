@@ -11,6 +11,7 @@
 import {
   ReadDetail, EditDetail, WriteDetail, BashDetail, AskUserQuestionDetail,
   AskUserDetail, SkillDetail, NotifyDetail, MessageDetail, GenericDetail,
+  PeerAskDetail, PeerRespondDetail, PeerListDetail,
 } from "./ToolDetail.jsx";
 import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
 import { skillFilePath } from "../../../lib/skillBody.js";
@@ -119,6 +120,44 @@ register("mcp__worker__send_message_to_parent", {
   label: () => ({ verb: "Sent report to", file: "orchestrator" }),
   agentRef: (t, ctx) => (ctx?.parent ? { id: ctx.parent.id, name: ctx.parent.name } : null),
   Detail: MessageDetail,
+});
+
+register("mcp__worker__list_peers", {
+  label: () => ({ verb: "Listed", file: "peers" }),
+  runningLabel: () => ({ verb: "Listing", file: "peers" }),
+  Detail: PeerListDetail,
+});
+
+register("mcp__worker__ask_peer", {
+  label: (t) => ({ verb: "Asked", file: t.input?.peerId ?? "peer" }),
+  runningLabel: (t) => ({ verb: "Asking", file: t.input?.peerId ?? "peer" }),
+  // Resolve the peer's name (and make it click-to-select) from the live worker
+  // list; label.file (the peerId) is the fallback when it can't be resolved.
+  agentRef: (t) => (t.input?.peerId ? { id: t.input.peerId, name: null } : null),
+  Detail: PeerAskDetail,
+});
+
+// respond_to_peer's input has no asker. Prefer the asker the parser linked from
+// the turn's peer_request event (tool.peerTo — works for existing messages too);
+// fall back to the daemon's JSON result (covers the case where that event isn't
+// in the loaded window).
+function peerReplyResult(t) {
+  const text = t.result?.text ?? "";
+  if (!text.startsWith("{")) return null;
+  try {
+    const r = JSON.parse(text);
+    return r.toWorker ? { id: r.toWorker, name: r.toName ?? null } : null;
+  } catch {
+    return null;
+  }
+}
+const peerReplyTo = (t) => t.peerTo ?? peerReplyResult(t);
+
+register("mcp__worker__respond_to_peer", {
+  label: (t) => ({ verb: "Replied to", file: peerReplyTo(t)?.name ?? "peer" }),
+  runningLabel: (t) => ({ verb: "Replying to", file: peerReplyTo(t)?.name ?? "peer" }),
+  agentRef: (t) => peerReplyTo(t),
+  Detail: PeerRespondDetail,
 });
 
 function editStats(tool) {

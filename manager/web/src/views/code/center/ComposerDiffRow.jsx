@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { basename } from "../../../lib/path.js";
@@ -104,11 +104,19 @@ function SplitButton({ options, mode, onSelectMode, onAction, disabled, title })
 // without changing the selection. Dirty is the ONLY reason a row exists;
 // verdict/applied chips decorate existing work, they never resurrect a clean
 // child's row.
-function ChildIntegrationRow({ child, ui, live }) {
+function ChildIntegrationRow({ child, ui, live, onDirty }) {
   const gitDir = child.worktree_dir ?? child.cwd ?? child.worktree_from;
   const { status: gs } = useGitStatus(child.id, { gitDir, live });
   const diff = gs?.diff ?? null;
   const tryState = gs?.tryState ?? { activeTries: [], kept: false };
+  const dirty = hasUnintegratedWork(diff);
+
+  // Report this child's dirty state up so the parent can gate "Merge all" on the
+  // count of children that actually have changes (not just having a worktree).
+  useEffect(() => {
+    onDirty(child.id, dirty);
+    return () => onDirty(child.id, false);
+  }, [child.id, dirty, onDirty]);
 
   // Verdict from the child's OWN transcript (same selector as its own view —
   // covers a user-clicked /verify that produced no parent report); the
@@ -117,7 +125,7 @@ function ChildIntegrationRow({ child, ui, live }) {
   const reported = ui.verdict?.children?.[child.id] ?? null;
   const verdict = derived && derived.verdict !== "unverified" ? derived : reported;
   const applied = Boolean(tryState.kept || (tryState.activeTries ?? []).some((t) => t.workerId === child.id));
-  if (!hasUnintegratedWork(diff)) return null;
+  if (!dirty) return null;
 
   // Top-only: a buried diff panel's badge must hoist on click, not close it.
   const viewing = ui.topPanelType === "diff" && ui.diffViewer?.workerId === child.id;
@@ -160,6 +168,17 @@ export function ComposerDiffRow({ live }) {
   const [commitMode, setCommitMode] = useState("commit");
   const [pushFx, setPushFx] = useState(""); // "" | "sync-leaving" | "sync-exit"
   const [integrating, setIntegrating] = useState(false);
+  const [dirtyChildIds, setDirtyChildIds] = useState(() => new Set());
+
+  const reportChildDirty = useCallback((id, dirty) => {
+    setDirtyChildIds((prev) => {
+      if (dirty === prev.has(id)) return prev;
+      const next = new Set(prev);
+      if (dirty) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }, []);
 
   const syncChipRef = useRef(null);
 
@@ -200,6 +219,9 @@ export function ComposerDiffRow({ live }) {
   const childWorkers = isOrchestrator
     ? live.workers.filter((w) => w.parent_id === selected.id && w.worktree_from && w.branch)
     : [];
+  // Children that actually have changes — intersect with the live child list so a
+  // just-unmounted row can't leave a stale id inflating the count.
+  const dirtyChildren = childWorkers.filter((w) => dirtyChildIds.has(w.id));
 
   const handlePrAction = (id) => {
     if (id === "manual") {
@@ -224,7 +246,7 @@ export function ComposerDiffRow({ live }) {
   // rendered server-side — only the branch list is passed as data, never prose.
   const handleIntegrate = async () => {
     if (integrating) return;
-    const branches = childWorkers.map((w) => w.branch).filter(Boolean);
+    const branches = dirtyChildren.map((w) => w.branch).filter(Boolean);
     if (branches.length < 2) return;
     setIntegrating(true);
     try {
@@ -253,13 +275,13 @@ export function ComposerDiffRow({ live }) {
     {childWorkers.length > 0 && (
       <div className="child-int-panel">
         {childWorkers.map((w) => (
-          <ChildIntegrationRow key={w.id} child={w} ui={ui} live={live} />
+          <ChildIntegrationRow key={w.id} child={w} ui={ui} live={live} onDirty={reportChildDirty} />
         ))}
       </div>
     )}
     <div className="c-row-diff" id="composerDiffRow">
       <span className="diff-repo-label">
-        <b>{folder}</b>
+        <b title={folder}>{folder}</b>
         {branch && (
           <>
             <span className="diff-sep">·</span>
@@ -281,7 +303,7 @@ export function ComposerDiffRow({ live }) {
           <span className="lbl">{verdict.verdict}</span>
         </span>
       )}
-      <span className="diff-grow"></span>
+      <div className="diff-actions">
       {showSync && (
         <button
           ref={syncChipRef}
@@ -377,14 +399,14 @@ export function ComposerDiffRow({ live }) {
       {pullable && (
         <PullButton workerId={ui.selectedId} onSettled={refresh} />
       )}
-      {isOrchestrator && childWorkers.length >= 2 && (
+      {isOrchestrator && dirtyChildren.length >= 2 && (
         <button
           className="pr-create-btn pr-solo"
           disabled={integrating}
           title="Merge these worktree branches into one verified result — spawns a git agent in a fresh worktree (originals untouched)"
           onClick={handleIntegrate}
         >
-          <span>{integrating ? "Merging…" : `Merge all (${childWorkers.length})`}</span>
+          <span>{integrating ? "Merging…" : `Merge all (${dirtyChildren.length})`}</span>
         </button>
       )}
       <SplitButton
@@ -393,6 +415,7 @@ export function ComposerDiffRow({ live }) {
         onSelectMode={setPrMode}
         onAction={handlePrAction}
       />
+      </div>
     </div>
     </>
   );

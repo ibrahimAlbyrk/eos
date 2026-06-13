@@ -381,6 +381,66 @@ export function MessageDetail({ tool }) {
   );
 }
 
+// ask_peer (worker MCP) — a consultation: the question asked + the peer's
+// answer (the tool result). Same Q→A chrome as ask_user.
+export function PeerAskDetail({ tool }) {
+  if (tool.result?.isError) {
+    return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  }
+  const question = tool.input?.question ?? "";
+  const answer = (tool.result?.text ?? "").trim();
+  return (
+    <div className="tool-detail tool-qa">
+      <div className="tool-qa-item">
+        <div className="tool-qa-q">{question}</div>
+        <div className="tool-qa-a">
+          {answer
+            ? <><span className="tool-qa-arrow">→</span> {answer}</>
+            : <span className="tool-qa-pending">Waiting…</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// respond_to_peer (worker MCP) — the answer this worker gave a peer, in the
+// same report-detail body as send_message_to_parent.
+export function PeerRespondDetail({ tool }) {
+  const answer = tool.input?.answer ?? "";
+  return (
+    <div className="report-detail" style={{ marginLeft: 0 }}>
+      <div className="report-detail-text">{answer}</div>
+    </div>
+  );
+}
+
+// list_peers (worker MCP) — the consultable peer roster (name · state, with the
+// specialty summary), same plain-text rows as the worker-management tools.
+export function PeerListDetail({ tool }) {
+  if (tool.result?.isError) {
+    return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  }
+  let peers = null;
+  try {
+    const parsed = JSON.parse(tool.result?.text ?? "");
+    if (Array.isArray(parsed)) peers = parsed;
+  } catch { /* running or non-JSON — nothing to show yet */ }
+  if (!peers) return null;
+  const body = peers.length === 0
+    ? "No peers available."
+    : peers
+        .map((p) => {
+          const head = [p.name, p.state].filter(Boolean).join(" · ");
+          return p.summary ? `${head}\n${p.summary}` : head;
+        })
+        .join("\n\n");
+  return (
+    <div className="report-detail" style={{ marginLeft: 0 }}>
+      <div className="report-detail-text">{body}</div>
+    </div>
+  );
+}
+
 function highlightLine(line) {
   if (/^#{1,6}\s/.test(line)) {
     return <span className="hl-heading">{line}</span>;

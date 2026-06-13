@@ -172,6 +172,9 @@ export function buildBlocks(events) {
   let lastAsst = null;
   let pendingTools = [];
   let pendingLane = null;
+  // The most recent incoming peer question — respond_to_peer (whose input has
+  // no asker) is linked to it so its header can name who it answered.
+  let lastPeerReq = null;
 
   const flushTools = () => {
     if (pendingTools.length === 0) return;
@@ -191,6 +194,7 @@ export function buildBlocks(events) {
   };
 
   const pushTool = (tool) => {
+    if (tool.name === "mcp__worker__respond_to_peer" && !tool.peerTo && lastPeerReq) tool.peerTo = lastPeerReq;
     const lane = laneOf(tool.name);
     if (lane === null) {
       flushTools();
@@ -236,6 +240,20 @@ export function buildBlocks(events) {
         text: payload.text ?? "",
         fromParent: payload.fromParent ?? null,
         parentName: payload.parentName ?? null,
+        ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
+      });
+      continue;
+    }
+    if (ev.type === "peer_request") {
+      flushTools();
+      lastAsst = null;
+      const payload = parsePayload(ev.payload);
+      lastPeerReq = { id: payload.fromWorker ?? null, name: payload.fromName ?? null };
+      out.push({
+        kind: "peer-request",
+        text: payload.text ?? "",
+        fromWorker: payload.fromWorker ?? null,
+        fromName: payload.fromName ?? null,
         ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
       });
       continue;

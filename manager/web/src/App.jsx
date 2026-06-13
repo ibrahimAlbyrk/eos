@@ -5,6 +5,7 @@ import { useUiFreshness } from "./hooks/useUiFreshness.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { CommandPalette } from "./components/search/CommandPalette.jsx";
 import { SettingsModal } from "./components/settings/SettingsModal.jsx";
+import { MonitorWidget } from "./components/monitor/MonitorWidget.jsx";
 import { NativeToggleZone } from "./components/layout/NativeToggleZone.jsx";
 import { SideHandle } from "./components/layout/SideHandle.jsx";
 import { SidebarPopup } from "./components/layout/SidebarPopup.jsx";
@@ -46,6 +47,7 @@ function Shell() {
       <NativeToggleZone popup={popup} hasAttention={hasAttention} />
       <SideHandle popup={popup} hasAttention={hasAttention} />
       <CommandPalette live={live} />
+      <MonitorWidget live={live} />
       <SettingsModal />
     </>
   );

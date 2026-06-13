@@ -2,9 +2,9 @@ import { useState } from "react";
 import { AgentLink } from "./AgentLink.jsx";
 import { DisclosureRow } from "./DisclosureRow.jsx";
 
-export function MessageReport({ text, agentId, agentName, workers, direction }) {
+export function MessageReport({ text, agentId, agentName, workers, direction, label }) {
   const [open, setOpen] = useState(false);
-  const prefix = direction === "out" ? "Message from" : "Report from";
+  const prefix = label ?? (direction === "out" ? "Message from" : "Report from");
   const fallback = direction === "out" ? "orchestrator" : "worker";
 
   return (

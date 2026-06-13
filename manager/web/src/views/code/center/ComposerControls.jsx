@@ -47,7 +47,7 @@ export function ComposerControls({ live, onAttach, historyNav }) {
             data-popover-trigger="accept"
           >
             <ModeIcon className="mode-ic" />
-            {modeMeta.label}
+            <span className="mode-label">{modeMeta.label}</span>
           </button>
           <AcceptPopover live={live} />
         </div>
@@ -90,6 +90,20 @@ export function ComposerControls({ live, onAttach, historyNav }) {
             live={live}
             cwd={selected ? (selected.cwd ?? selected.worktree_from) : (ui.composer.cwd ?? live.recents[0] ?? null)}
           />
+        </div>
+        <div className="mem-wrap" style={{ position: "relative" }}>
+          <button
+            className="iconbtn"
+            title={ui.selectedId ? "Project memory" : "Select an agent to view its project memory"}
+            disabled={!ui.selectedId}
+            onClick={() => { if (ui.selectedId) ui.openMemoryViewer(ui.selectedId); }}
+          >
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <ellipse cx="8" cy="4" rx="5" ry="2" />
+              <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4" />
+              <path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
+            </svg>
+          </button>
         </div>
         <div className="tpl-wrap" style={{ position: "relative" }}>
           <button

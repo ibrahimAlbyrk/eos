@@ -415,6 +415,7 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
     case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled}><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
+    case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} /></MessageRow>;
     case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} />;
     case "toolGroup": {

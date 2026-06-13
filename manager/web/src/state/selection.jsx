@@ -49,6 +49,8 @@ export function SelectionProvider({ children }) {
   const commitsViewer = panelData("commits");
   // {workerId} — right panel resolving the worktree's merge conflicts.
   const conflictViewer = panelData("conflict");
+  // {workerId} — right panel browsing the project's Claude file-based memory.
+  const memoryViewer = panelData("memory");
   const [renamingId, setRenamingId] = useState(null);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   // {workerId, verdict, command, ts} — derived by Messages from the loaded
@@ -153,6 +155,8 @@ export function SelectionProvider({ children }) {
   const closeCommitsViewer = useCallback(() => setPanelStack((s) => closePanel(s, "commits")), []);
   const openConflictResolver = useCallback((workerId) => setPanelStack((s) => openPanel(s, "conflict", { workerId })), []);
   const closeConflictResolver = useCallback(() => setPanelStack((s) => closePanel(s, "conflict")), []);
+  const openMemoryViewer = useCallback((workerId) => setPanelStack((s) => openPanel(s, "memory", { workerId })), []);
+  const closeMemoryViewer = useCallback(() => setPanelStack((s) => closePanel(s, "memory")), []);
   const syncAgentViewer = useCallback((block) => {
     setPanelStack((s) => updatePanelData(s, "agent", (prev) => prev.toolUseId === block.toolUseId ? block : prev));
   }, []);
@@ -172,6 +176,7 @@ export function SelectionProvider({ children }) {
     diffViewer, openDiffViewer, closeDiffViewer,
     commitsViewer, openCommitsViewer, closeCommitsViewer,
     conflictViewer, openConflictResolver, closeConflictResolver,
+    memoryViewer, openMemoryViewer, closeMemoryViewer,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
@@ -186,6 +191,7 @@ export function SelectionProvider({ children }) {
     openDiffViewer, closeDiffViewer,
     openCommitsViewer, closeCommitsViewer,
     openConflictResolver, closeConflictResolver,
+    openMemoryViewer, closeMemoryViewer,
     registerEscapeIdle,
     registerEscapeGitMode,
   ]);
