@@ -126,17 +126,49 @@ usage is tracked and priced per worker (display-only).
 
 ## `IV` &nbsp;·&nbsp; Quickstart
 
-**Requirements** &nbsp;·&nbsp; macOS (primary; Linux secondary) &nbsp;·&nbsp; **Node 22+** &nbsp;·&nbsp;
-**Bun** (runs the permission gateway) &nbsp;·&nbsp; **git** &nbsp;·&nbsp; the **`claude` CLI**, signed
-in to a Max / Pro plan.
+One command — installs the toolchain (Node · Bun · Xcode CLT · `claude`), clones the source to
+`~/eos`, builds, and launches the macOS app:
 
 ```bash
-git clone https://github.com/ibrahimAlbyrk/claude-manager
-cd claude-manager
+curl -fsSL https://raw.githubusercontent.com/ibrahimAlbyrk/eos/main/install.sh | bash
+```
 
+Sign in once with `claude`, and you're set. Rebuild anytime with **`eos build`**.
+
+<details>
+<summary><b>What it does · options · manual install</b></summary>
+
+<br/>
+
+The installer is idempotent (safe to re-run): it auto-installs anything missing, clones to `~/eos`,
+installs all 8 package dirs, links `eos`, fixes your `PATH`, then runs `eos build`.
+
+| Override | Default | Purpose |
+| :------- | :------ | :------ |
+| `EOS_DIR` / `--dir DIR` | `~/eos` | where the source is cloned (the compiled app points back at it) |
+| `EOS_BRANCH` / `--branch B` | `main` | branch to track |
+| `--no-build` | — | set up only; run `eos build` yourself afterwards |
+
+Pass flags through the pipe with `-s --`:
+
+```bash
+curl -fsSL …/install.sh | bash -s -- --no-build
+```
+
+**Requirements** (the installer provides these) &nbsp;·&nbsp; macOS (primary; Linux secondary — no app
+build) &nbsp;·&nbsp; **Node 22+** &nbsp;·&nbsp; **Bun** (permission gateway) &nbsp;·&nbsp; **git**
+&nbsp;·&nbsp; the **`claude` CLI**, signed in to a Max / Pro plan &nbsp;·&nbsp; a writable `/Applications`.
+
+**Manual, from a clone:**
+
+```bash
+git clone https://github.com/ibrahimAlbyrk/eos ~/eos && cd ~/eos
 npm run bootstrap                  # install all 8 package dirs in dependency order (NOT a workspace)
 bash scripts/bootstrap.sh --link   # symlink ~/.local/bin/eos  (needs ~/.local/bin on PATH)
+eos build                          # compile web + macOS app, start the daemon
 ```
+
+</details>
 
 <br/>
 
@@ -221,7 +253,7 @@ policy gateway, and macOS app are solid; the **Workflows** tab is still a stub.
 
 <div align="center">
 <sub>
-<b>Eos</b> &nbsp;·&nbsp; repo <code>claude-manager</code> &nbsp;·&nbsp; <a href="./LICENSE">MIT</a> &nbsp;·&nbsp; © 2026 İbrahim Albayrak<br/>
+<b>Eos</b> &nbsp;·&nbsp; repo <code>eos</code> &nbsp;·&nbsp; <a href="./LICENSE">MIT</a> &nbsp;·&nbsp; © 2026 İbrahim Albayrak<br/>
 <i>An atelier for Claude Code.</i>
 </sub>
 </div>
