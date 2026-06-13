@@ -29,6 +29,7 @@ import { PermissionBanner } from "./PermissionBanner.jsx";
 import { SlashInfoPopover } from "../popovers/SlashInfoPopover.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
 import { TryDeck } from "./TryBanner.jsx";
+import { TaskTray } from "./TaskTray.jsx";
 
 function QueuedPill({ text, onDismiss }) {
   return (
@@ -723,6 +724,7 @@ export function Composer({ live }) {
   return (
     <div className="composer-wrap">
       <div className="composer-inner">
+        <TaskTray selected={selected} />
         {queuedList.length > 0 && (
           <QueuedList
             items={queuedList}
