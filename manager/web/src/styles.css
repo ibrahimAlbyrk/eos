@@ -2008,6 +2008,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* Size container: the git bar + footer respond to the composer's OWN width
+     (which the right panel drives), not the viewport — see the @container rules. */
+  container-type: inline-size;
 }
 
 /* row 1 — repo / branch bar (separate pill) */
@@ -2076,14 +2079,14 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .c-row-diff[hidden] { display: none; }
 .diff-grow { flex: 1; }
-/* Chips and action buttons keep their natural size; the repo/branch label is
-   the sole shrink sink, so a narrow panel ellipsizes the label instead of
-   distorting the buttons or overflowing the row. */
-.c-row-diff > :not(.diff-repo-label):not(.diff-grow) { flex-shrink: 0; }
+/* The repo/branch label gives up width first (truncates with an ellipsis); the
+   action group keeps its size and wraps its buttons as a unit only after the
+   label is exhausted — so the row never overflows or distorts no matter how many
+   buttons are present (flex-shrink:100 makes the label the first to yield). */
 .diff-repo-label {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: var(--text-sm); color: var(--fg-dim);
-  min-width: 0;
+  min-width: 0; flex-shrink: 100;
 }
 .diff-repo-label b {
   font-weight: 600; color: var(--fg);
@@ -2093,6 +2096,44 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .diff-repo-label .diff-branch {
   color: var(--fg-dim);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0;
+}
+.c-row-diff > .git-chip { flex-shrink: 0; }
+.diff-actions {
+  margin-left: auto;
+  display: flex; align-items: center; justify-content: flex-end;
+  flex-wrap: nowrap; gap: 10px;
+  min-width: 0;
+}
+.diff-actions > * { flex-shrink: 0; }
+/* The action buttons collapse to icon-only when the composer is narrow, so the
+   git bar stays a SINGLE line instead of wrapping. Labels return when there's
+   room; the full action lives in each button's tooltip. */
+.split-ic { display: none; align-items: center; }
+.split-ic svg { display: block; }
+@container (max-width: 480px) {
+  .diff-actions { gap: 6px; }
+  .diff-actions .pr-create-btn { padding: 4px 8px; }
+  .diff-actions .btn-label { display: none; }
+  .diff-actions .split-ic { display: inline-flex; }
+  .diff-actions .git-chip .lbl { display: none; }
+}
+/* Narrower still: drop the read-only status badges (change counts, stash) — the
+   action buttons matter more and those numbers live in the Changes/Commits
+   panels. Sync stays (the push droplet flies from it); conflicts stay (a state
+   you must act on). */
+@container (max-width: 380px) {
+  .diff-actions .diff-badge,
+  .diff-actions .stash-chip { display: none; }
+}
+/* Tightest (wide panel on a small window): fold the split dropdown carets too —
+   the main action stays one tap away, the menu returns when there's room. */
+@container (max-width: 260px) {
+  .diff-actions { gap: 5px; }
+  .diff-actions .pr-wrap .pr-dropdown-toggle { display: none; }
+  .diff-actions .pr-wrap .pr-create-btn {
+    border-radius: 6px;
+    border-right: 1px solid rgba(var(--tint), 0.08);
+  }
 }
 .diff-badge {
   display: inline-flex; align-items: center; gap: 7px;
@@ -2717,11 +2758,27 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   gap: 8px;
   padding: 2px 4px;
   height: 26px;
+  flex-wrap: nowrap;
 }
 .c-row3 .left, .c-row3 .right {
   display: flex; align-items: center; gap: 5px;
 }
 .c-row3 .grow { flex: 1; }
+/* Footer stays a single line at any width: pills never wrap their text. The left
+   cluster keeps its size; the right cluster yields by ellipsizing the model NAME
+   (its full value lives in the picker) before the row could ever overflow. The
+   @container rules below also shed the least-important bits as it narrows. */
+.c-row3 .left { flex-shrink: 0; }
+.c-row3 .right { flex-shrink: 1; min-width: 0; }
+.c-row3 .iconbtn,
+.c-row3 .mode-pill,
+.c-row3 .effort-pill,
+.c-row3 .ctx-ring-wrap { flex-shrink: 0; }
+.c-row3 .mode-pill,
+.c-row3 .model-pill,
+.c-row3 .effort-pill { white-space: nowrap; }
+.c-row3 .model-pill { flex-shrink: 1; min-width: 0; }
+.c-row3 .model-pill > span:first-child { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .c-row3 .mode-pill {
   display: inline-flex; align-items: center; gap: 5px;
   padding: 3px 8px;
@@ -2789,6 +2846,22 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
     inset 0 0 0 1px rgba(var(--tint), 0.09);
 }
 .c-row3 .effort-pill.ultra { color: var(--violet); }
+
+/* Keep the footer on one line as the composer narrows by dropping the least
+   important things in order: the context suffix (the ring still shows it) →
+   the mode label (icon still shows the mode) → the rarely-used icons. */
+@container (max-width: 440px) {
+  .c-row3 .model-pill .ctx { display: none; }
+}
+@container (max-width: 380px) {
+  .c-row3 .mode-label { display: none; }
+  .c-row3 .mode-pill { padding: 3px 6px; gap: 0; }
+}
+@container (max-width: 320px) {
+  .c-row3 { gap: 5px; }
+  .c-row3 .left, .c-row3 .right { gap: 3px; }
+  .c-row3 .tpl-wrap, .c-row3 .mem-wrap { display: none; }
+}
 /* separate ring button next to model pill */
 .ctx-ring-wrap { position: relative; display: inline-flex; }
 .ctx-ring-btn {

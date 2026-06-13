@@ -172,12 +172,12 @@ export function PushButton({ workerId, label, ahead, sourceRef, onSourceFx, onSe
 
   return (
     <span className={"push-fx" + (phase !== "idle" ? " is-" + phase : "")}>
-      <button ref={btnRef} className="pr-create-btn pr-solo push-fx-btn" onClick={run} aria-busy={phase !== "idle"}>
+      <button ref={btnRef} className="pr-create-btn pr-solo push-fx-btn" title={label} onClick={run} aria-busy={phase !== "idle"}>
         <span className="push-fx-face push-fx-label">
-          <PushIcon /><span>{label}</span>
+          <PushIcon /><span className="btn-label">{label}</span>
         </span>
         <span className="push-fx-face push-fx-check">
-          <CheckIcon /><span>Pushed</span>
+          <CheckIcon /><span className="btn-label">Pushed</span>
         </span>
       </button>
       {ring && (

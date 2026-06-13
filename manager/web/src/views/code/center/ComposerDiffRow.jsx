@@ -86,8 +86,9 @@ function SplitButton({ options, mode, onSelectMode, onAction, disabled, title })
           ))}
         </div>
       )}
-      <button className="pr-create-btn" disabled={disabled} title={title} onClick={() => onAction(active.id)}>
-        <span>{active.label}</span>
+      <button className="pr-create-btn" disabled={disabled} title={title ?? active.label} onClick={() => onAction(active.id)}>
+        <span className="split-ic"><OptionIcon type={active.icon} /></span>
+        <span className="btn-label">{active.label}</span>
       </button>
       <button className="pr-dropdown-toggle" disabled={disabled} onClick={() => setOpen(!open)}>
         <svg width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.7">
@@ -406,7 +407,8 @@ export function ComposerDiffRow({ live }) {
           title="Merge these worktree branches into one verified result — spawns a git agent in a fresh worktree (originals untouched)"
           onClick={handleIntegrate}
         >
-          <span>{integrating ? "Merging…" : `Merge all (${dirtyChildren.length})`}</span>
+          <span className="split-ic"><OptionIcon type="merge" /></span>
+          <span className="btn-label">{integrating ? "Merging…" : `Merge all (${dirtyChildren.length})`}</span>
         </button>
       )}
       <SplitButton

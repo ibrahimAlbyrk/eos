@@ -124,12 +124,12 @@ export function PullButton({ workerId, label = "Pull", onSettled }) {
 
   return (
     <span className={"push-fx" + (phase !== "idle" ? " is-" + phase : "")}>
-      <button ref={btnRef} className="pr-create-btn pr-solo push-fx-btn" onClick={run} aria-busy={phase !== "idle"}>
+      <button ref={btnRef} className="pr-create-btn pr-solo push-fx-btn" title={label} onClick={run} aria-busy={phase !== "idle"}>
         <span className="push-fx-face push-fx-label">
-          <PullIcon /><span>{label}</span>
+          <PullIcon /><span className="btn-label">{label}</span>
         </span>
         <span className="push-fx-face push-fx-check">
-          <CheckIcon /><span>Pulled</span>
+          <CheckIcon /><span className="btn-label">Pulled</span>
         </span>
       </button>
       {ring && (
