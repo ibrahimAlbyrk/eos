@@ -8,12 +8,8 @@
 <!-- badges -->
 <div align="center">
 
-![status](https://img.shields.io/badge/status-alpha-6ea4e8?style=for-the-badge&labelColor=1a1a1a)
-![runtime](https://img.shields.io/badge/runtime-node%20%C2%B7%20bun-c8a2ff?style=for-the-badge&labelColor=1a1a1a)
-![ui](https://img.shields.io/badge/ui-react%2018%20%C2%B7%20vite-67c084?style=for-the-badge&labelColor=1a1a1a)
-![pty](https://img.shields.io/badge/pty-only-e8a838?style=for-the-badge&labelColor=1a1a1a)
-![never -p](https://img.shields.io/badge/never-%E2%88%92p-d97670?style=for-the-badge&labelColor=1a1a1a)
-[![license](https://img.shields.io/badge/license-MIT-8a8a8a?style=for-the-badge&labelColor=1a1a1a)](./LICENSE)
+![runtime](https://img.shields.io/badge/runtime-node%20%C2%B7%20bun-6ea4e8?style=for-the-badge&labelColor=1a1a1a)
+![ui](https://img.shields.io/badge/ui-react%2018%20%C2%B7%20vite-6ea4e8?style=for-the-badge&labelColor=1a1a1a)
 
 </div>
 
@@ -140,21 +136,6 @@ cd claude-manager
 
 npm run bootstrap                  # install all 8 package dirs in dependency order (NOT a workspace)
 bash scripts/bootstrap.sh --link   # symlink ~/.local/bin/eos  (needs ~/.local/bin on PATH)
-```
-
-```bash
-eos start                          # start the daemon and open the web UI
-eos orchestrator new               # spawn a persistent orchestrator
-eos chat "add tests to the auth module and update the changelog"
-```
-
-After editing code, one command reconciles everything that changed — dependencies, the web bundle,
-the macOS app, and the running daemon:
-
-```bash
-eos build            # converge deps → web dist → macOS app → daemon, each only if stale
-eos build --dry-run  # show what would rebuild, and why
-eos build --check    # lint + run every test suite first
 ```
 
 <br/>
