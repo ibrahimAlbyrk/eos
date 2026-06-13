@@ -15,6 +15,13 @@ export function isSafeAbsPath(p: unknown): p is string {
   return typeof p === "string" && p.startsWith("/") && !p.includes("\0");
 }
 
+// UI-origin token gate. Mutating /fs git routes (branch admin, fetch, pull,
+// checkout) require the per-boot x-eos-ui-token so an agent holding
+// EOS_DAEMON_URL cannot mutate the user's repo through the daemon API.
+export function uiTokenOk(req: { headers: Record<string, string | string[] | undefined> }, expected: string): boolean {
+  return req.headers["x-eos-ui-token"] === expected;
+}
+
 export function sortEntries(a: FsEntry, b: FsEntry): number {
   if (a.type !== b.type) return a.type === "directory" ? -1 : 1;
   return a.name.localeCompare(b.name);

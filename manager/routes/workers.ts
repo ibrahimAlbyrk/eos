@@ -43,10 +43,12 @@ import { resumeWorkerVia, resumeIfDead } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
 import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
+import { pullBranch } from "../../core/src/use-cases/PullBranch.ts";
 import { listConflicts } from "../../core/src/use-cases/ListConflicts.ts";
 import { getConflictDocument } from "../../core/src/use-cases/GetConflictDocument.ts";
 import { resolveConflictFile } from "../../core/src/use-cases/ResolveConflictFile.ts";
 import { decidePushPlan, isActionablePushPlan } from "../../core/src/domain/push-plan.ts";
+import { decidePullPlan, isActionablePullPlan } from "../../core/src/domain/pull-plan.ts";
 import { resolveSpawnIsolation } from "../../core/src/domain/worktree-policy.ts";
 import { attachPatches, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES } from "../../infra/src/git/changes-parse.ts";
 
@@ -91,6 +93,19 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   r.post("/workers", async ({ req, res }) => {
     const raw = await readBody(req);
     const body = validate(SpawnWorkerRequestSchema, raw);
+    // Resolve a prompt-template reference (promptTemplate) into the boot prompt
+    // through the prompt system — directives live in manager/prompts/, never
+    // hardcoded in clients. A literal `prompt` (when given) wins.
+    let bootPrompt = body.prompt;
+    if (!bootPrompt && body.promptTemplate) {
+      try {
+        bootPrompt = c.prompts.render(body.promptTemplate.id, body.promptTemplate.vars ?? {}).trim();
+      } catch (e) {
+        writeJson(res, 400, { error: `promptTemplate render failed: ${errMsg(e)}` });
+        return;
+      }
+    }
+    if (!bootPrompt) { writeJson(res, 400, { error: "resolved prompt is empty" }); return; }
     // Normalize tilde paths upstream so use-cases see absolute paths only.
     // Mode inheritance: explicit body.permissionMode wins; otherwise resolve
     // from parent so children adopt the orchestrator's current mode.
@@ -104,8 +119,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const iso = resolveSpawnIsolation(body, {
       worktreesDisabled: c.userSettings.read()["git.spawnWithoutWorktree"] === true,
     });
+    const { promptTemplate: _promptTemplate, ...bodyRest } = body;
     const spec = {
-      ...body,
+      ...bodyRest,
+      prompt: bootPrompt,
       cwd: expandPath(iso.cwd),
       worktreeFrom: expandPath(iso.worktreeFrom),
       carryUncommitted: c.userSettings.read()["git.carryUncommitted"] === true,
@@ -141,8 +158,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       },
       spec,
     );
-    if (isGitAgent && body.prompt) {
-      c.events.append(result.id, c.clock.now(), "user_message", { text: body.prompt });
+    if (isGitAgent) {
+      c.events.append(result.id, c.clock.now(), "user_message", { text: bootPrompt });
       c.bus.publish("worker:change", { workerId: result.id });
     }
     const isolation = spec.worktreeFrom || body.workspaceOf ? "worktree" : "cwd";
@@ -592,6 +609,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       writeJson(res, 200, {
         branch: null, remote: null, hasUpstream: false,
         ahead: 0, behind: 0, kind: "blocked", pushable: false, hasUncommitted: false,
+        pullable: false, pullKind: "blocked",
       });
       return;
     }
@@ -600,6 +618,11 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       c.git.hasUncommittedChanges(dir),
     ]);
     const plan = decidePushPlan(state);
+    // Pull twin from the same probe — no extra git call (pushState already
+    // carries branch + upstream + ahead/behind, which is the pull input).
+    const pullPlan = decidePullPlan({
+      branch: state.branch, hasUpstream: state.hasUpstream, ahead: state.ahead, behind: state.behind,
+    });
     writeJson(res, 200, {
       branch: state.branch,
       remote: state.remote,
@@ -609,6 +632,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       kind: plan.kind,
       pushable: isActionablePushPlan(plan),
       hasUncommitted,
+      pullable: isActionablePullPlan(pullPlan),
+      pullKind: pullPlan.kind,
     });
   });
 
@@ -657,6 +682,22 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     if (!w.worktree_dir || !w.workspace_ready) return { status: 409, error: "worktree not registered yet — retry shortly" };
     return { status: 200, ref: { repoRoot: w.worktree_from, worktreeDir: w.worktree_dir, branch: w.branch, workerId: id } };
   };
+
+  // Deterministic pull — the worker-scoped twin of POST /push. Fast-forwards the
+  // branch to its upstream when strictly behind; a diverged branch is reported,
+  // never auto-merged (that is the git agent's job). UI-token gated because it
+  // mutates the working tree; records a git_pull event for the chat history.
+  r.post(/^\/workers\/(?<id>[^/]+)\/pull$/, async ({ params, req, res }) => {
+    if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const w = c.workers.findById(params.id);
+    if (!w) { writeJson(res, 404, { error: "worker not found" }); return; }
+    const dir = gitDirOf(w);
+    if (!dir) { writeJson(res, 400, { error: "worker has no working directory" }); return; }
+    const result = await pullBranch({ git: c.git, remoteSync: c.remoteSync }, dir);
+    c.events.append(params.id, c.clock.now(), "git_pull", result);
+    c.bus.publish("worker:change", { workerId: params.id });
+    writeJson(res, 200, result);
+  });
 
   r.get(/^\/workers\/(?<id>[^/]+)\/try\/preview$/, async ({ params, res }) => {
     const t = tryRefOf(params.id);
