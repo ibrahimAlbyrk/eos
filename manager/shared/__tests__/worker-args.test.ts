@@ -32,6 +32,7 @@ const PARSE_OPTIONS = {
   "worktree-dir": { type: "string" },
   "worktree-attach": { type: "boolean", default: false },
   branch: { type: "string" },
+  "carry-uncommitted": { type: "boolean", default: false },
   "with-gateway": { type: "boolean", default: false },
   port: { type: "string", default: "7421" },
   "daemon-url": { type: "string" },
@@ -130,5 +131,29 @@ describe("buildWorkerArgs", () => {
 
     assert.ok(args.includes("--hydrate-env"));
     assert.equal(args.indexOf("--worktree-attach"), -1);
+  });
+
+  it("emits a bare --carry-uncommitted for a fresh worktree spec when enabled", () => {
+    const args = buildWorkerArgs(
+      baseInput({ prompt: "p", worktreeFrom: "/repo", branch: "eos-x", worktreeDir: "/repo/.eos/worktrees/eos-x", carryUncommitted: true }),
+    );
+
+    assert.ok(args.includes("--carry-uncommitted"));
+    assert.equal(args.indexOf("--carry-uncommitted=true"), -1);
+
+    const { values } = parseArgs({ args: postScriptSlice(args), options: PARSE_OPTIONS, strict: true });
+    assert.equal(values["carry-uncommitted"], true);
+  });
+
+  it("skips --carry-uncommitted for attach specs and when disabled", () => {
+    const attach = buildWorkerArgs(
+      baseInput({ prompt: "p", worktreeFrom: "/repo", branch: "eos-x", worktreeDir: "/repo/.eos/worktrees/eos-x", workspaceOf: "w-owner", carryUncommitted: true }),
+    );
+    assert.equal(attach.indexOf("--carry-uncommitted"), -1);
+
+    const disabled = buildWorkerArgs(
+      baseInput({ prompt: "p", worktreeFrom: "/repo", branch: "eos-x", worktreeDir: "/repo/.eos/worktrees/eos-x" }),
+    );
+    assert.equal(disabled.indexOf("--carry-uncommitted"), -1);
   });
 });

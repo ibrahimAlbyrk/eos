@@ -58,6 +58,7 @@ const wt = setupWorktree({
   worktreeDir: opts.worktreeDir,
   attach: opts.worktreeAttach,
   hydrateEnv: opts.hydrateEnv,
+  carryUncommitted: opts.carryUncommitted,
 }, (m) => console.log(`[${name}] ${m}`));
 
 const settings = buildClaudeSettings(name, opts.port);

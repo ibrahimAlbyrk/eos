@@ -48,6 +48,7 @@ export function buildWorkerArgs(input: BuildWorkerArgsInput): string[] {
   if (spec.worktreeDir) args.push(flagToken("--worktree-dir", spec.worktreeDir));
   if (spec.workspaceOf) args.push("--worktree-attach");
   if (spec.worktreeFrom && !spec.workspaceOf && input.worker.hydrateEnvFiles) args.push("--hydrate-env");
+  if (spec.worktreeFrom && !spec.workspaceOf && spec.carryUncommitted) args.push("--carry-uncommitted");
   if (spec.branch) args.push(flagToken("--branch", spec.branch));
   if (spec.name) args.push(flagToken("--name", spec.name));
   if (spec.parentId) args.push(flagToken("--parent-id", spec.parentId));

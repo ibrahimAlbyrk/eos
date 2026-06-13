@@ -174,6 +174,13 @@ export const SETTINGS_SECTIONS = [
             control: { type: "toggle" },
             defaultValue: false,
           },
+          {
+            key: "git.carryUncommitted",
+            label: "Carry uncommitted changes into new worktrees",
+            description: "When a worker gets an isolated worktree, seed it with the source checkout's uncommitted work (modified, staged, and untracked files) so the agent starts from your work-in-progress. Off = the worktree forks clean from the last commit.",
+            control: { type: "toggle" },
+            defaultValue: false,
+          },
         ],
       },
       {

@@ -4,7 +4,8 @@
 // JSONL tail watches the wrong directory and never fires.
 
 import { spawnSync } from "node:child_process";
-import { mkdirSync, realpathSync } from "node:fs";
+import { mkdirSync, realpathSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { hydrateWorktree, type HydrationItem } from "./hydrate.ts";
 
@@ -20,9 +21,43 @@ export interface WorktreeContext {
   attached: boolean;
 }
 
-function git(args: string[], cwd?: string): { code: number; stdout: string; stderr: string } {
-  const r = spawnSync("git", args, { cwd, encoding: "utf8" });
+function git(args: string[], cwd?: string, env?: Record<string, string>): { code: number; stdout: string; stderr: string } {
+  const r = spawnSync("git", args, { cwd, encoding: "utf8", env: env ? { ...process.env, ...env } : undefined });
   return { code: r.status ?? -1, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+}
+
+/**
+ * Capture the source checkout's uncommitted work (modified + staged +
+ * untracked, gitignore-respecting) as a commit object WITHOUT touching the
+ * repo's real index or working tree — a temp GIT_INDEX_FILE absorbs every
+ * staging side effect. The worktree is then forked from this commit, so it
+ * carries the work-in-progress content while still booting clean (the changes
+ * are the fork base, not uncommitted edits). Returns null when the tree is
+ * clean or any step fails, so the caller falls back to a plain HEAD fork.
+ * Mirrors the proven idiom in ChildProcessBranchIntegration.snapshot — kept
+ * separate because that one is async/execFile in infra while the spawner shells
+ * out synchronously and never depends on infra.
+ */
+function snapshotDirtyState(repoRoot: string): string | null {
+  if (!git(["status", "--porcelain"], repoRoot).stdout.trim()) return null;
+  const tmpIndex = join(tmpdir(), `eos-carry-${process.pid}-${Date.now().toString(36)}`);
+  const idxEnv = { GIT_INDEX_FILE: tmpIndex };
+  try {
+    if (git(["read-tree", "HEAD"], repoRoot, idxEnv).code !== 0) return null;
+    if (git(["add", "-A"], repoRoot, idxEnv).code !== 0) return null;
+    const tree = git(["write-tree"], repoRoot, idxEnv).stdout.trim();
+    const head = git(["rev-parse", "HEAD"], repoRoot).stdout.trim();
+    if (!tree || !head) return null;
+    // Fixed identity so commit-tree never fails on a repo with no user.name set.
+    const commit = git(
+      ["commit-tree", tree, "-p", head, "-m", "eos: carry uncommitted changes"],
+      repoRoot,
+      { GIT_AUTHOR_NAME: "eos", GIT_AUTHOR_EMAIL: "eos@local", GIT_COMMITTER_NAME: "eos", GIT_COMMITTER_EMAIL: "eos@local" },
+    );
+    return commit.code === 0 ? commit.stdout.trim() || null : null;
+  } finally {
+    try { unlinkSync(tmpIndex); } catch {}
+  }
 }
 
 export interface WorktreeSpec {
@@ -35,6 +70,9 @@ export interface WorktreeSpec {
   worktreeDir: string | undefined;
   attach: boolean;
   hydrateEnv: boolean;
+  // Fork the new worktree from a snapshot of the source's uncommitted work
+  // (settings: git.carryUncommitted) instead of a clean HEAD checkout.
+  carryUncommitted: boolean;
 }
 
 /**
@@ -76,11 +114,16 @@ export function setupWorktree(spec: WorktreeSpec, log: (m: string) => void): Wor
     // complete at insert; honor it verbatim when present.
     const wtPath = spec.worktreeDir ?? join(repoRoot, ".eos", "worktrees", branch);
     mkdirSync(dirname(wtPath), { recursive: true });
-    const add = git(["worktree", "add", wtPath, "-b", branch], repoRoot);
+    // Carry the source's uncommitted work into the worktree by forking from a
+    // snapshot commit of its dirty state. A clean source (or snapshot failure)
+    // yields null → plain HEAD fork, byte-identical to the prior behavior.
+    const startPoint = spec.carryUncommitted ? snapshotDirtyState(repoRoot) : null;
+    const add = git(["worktree", "add", wtPath, "-b", branch, ...(startPoint ? [startPoint] : [])], repoRoot);
     if (add.code !== 0) {
       console.error(`[${spec.name}] worktree add failed: ${add.stderr.trim()}`);
       process.exit(1);
     }
+    if (startPoint) log(`carried uncommitted changes into worktree (base ${startPoint.slice(0, 8)})`);
     const worktreeDir = realpathSync(wtPath);
     // Stamp the fork commit now — the stable diff base for this worktree's
     // lifetime. Re-deriving it later via merge-base against the source

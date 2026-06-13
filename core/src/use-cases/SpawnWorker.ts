@@ -49,6 +49,10 @@ export interface SpawnWorkerSpec {
    * via deps.resolveWorktreeDir or copied from the workspaceOf target —
    * never set by spawn routes. */
   worktreeDir?: string;
+  /** Fork a fresh worktree from a snapshot of the source checkout's
+   * uncommitted work instead of clean HEAD (settings: git.carryUncommitted).
+   * Derived from user settings in the spawn route; ignored for attach mode. */
+  carryUncommitted?: boolean;
 }
 
 export interface SpawnWorkerDeps {
