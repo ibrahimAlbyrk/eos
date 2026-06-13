@@ -2,7 +2,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)"  srcset="assets/eos-banner-aurora-dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="assets/eos-banner-aurora-light.svg">
-  <img alt="Eos — an atelier for Claude Code" src="assets/eos-banner-aurora-dark.svg" width="100%">
+  <img alt="Eos — orchestrate Claude Code agent swarms from a single seat" src="assets/eos-banner-aurora-dark.svg" width="100%">
 </picture>
 
 <!-- badges -->
@@ -15,15 +15,67 @@
 
 <br/>
 
-> *Command a fleet of background Claude Code workers from a single seat — each in its own git
-> worktree, supervised live, billed against the Max / Pro subscription you already have.*
+> *One operator, an entire swarm. Eos orchestrates Claude Code agents in any structure — deep
+> hierarchies, collaborating peers, wide parallel fleets — each in its own git worktree, supervised
+> live, all billed against the Max / Pro subscription you already have.*
 
 <br/>
 
 <!-- divider -->
 <picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
-## `I` &nbsp;·&nbsp; Why this exists
+## `I` &nbsp;·&nbsp; Quickstart
+
+One command — installs the toolchain (Node · Bun · Xcode CLT · `claude`), clones the source to
+`~/eos`, builds, and launches the macOS app:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/ibrahimAlbyrk/eos/main/install.sh | bash
+```
+
+Sign in once with `claude`, and you're set. Rebuild anytime with **`eos build`**.
+
+<details>
+<summary><b>What it does · options · manual install</b></summary>
+
+<br/>
+
+The installer is idempotent (safe to re-run): it auto-installs anything missing, clones to `~/eos`,
+installs all 8 package dirs, links `eos`, fixes your `PATH`, then runs `eos build`.
+
+| Override | Default | Purpose |
+| :------- | :------ | :------ |
+| `EOS_DIR` / `--dir DIR` | `~/eos` | where the source is cloned (the compiled app points back at it) |
+| `EOS_BRANCH` / `--branch B` | `main` | branch to track |
+| `--no-build` | — | set up only; run `eos build` yourself afterwards |
+
+Pass flags through the pipe with `-s --`:
+
+```bash
+curl -fsSL …/install.sh | bash -s -- --no-build
+```
+
+**Requirements** (the installer provides these) &nbsp;·&nbsp; macOS (primary; Linux secondary — no app
+build) &nbsp;·&nbsp; **Node 22+** &nbsp;·&nbsp; **Bun** (permission gateway) &nbsp;·&nbsp; **git**
+&nbsp;·&nbsp; the **`claude` CLI**, signed in to a Max / Pro plan &nbsp;·&nbsp; a writable `/Applications`.
+
+**Manual, from a clone:**
+
+```bash
+git clone https://github.com/ibrahimAlbyrk/eos ~/eos && cd ~/eos
+npm run bootstrap                  # install all 8 package dirs in dependency order (NOT a workspace)
+bash scripts/bootstrap.sh --link   # symlink ~/.local/bin/eos  (needs ~/.local/bin on PATH)
+eos build                          # compile web + macOS app, start the daemon
+```
+
+</details>
+
+<br/>
+
+<!-- divider -->
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
+
+## `II` &nbsp;·&nbsp; Why this exists
 
 The interactive `claude` CLI bills against your **Max / Pro subscription**. The Agent SDK and
 `claude -p` draw from a **separate, metered credit pool**. Eos is built around one hard constraint:
@@ -40,7 +92,7 @@ branch, supervised live, **all paid for by the subscription you already have.**
 <!-- divider -->
 <picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
-## `II` &nbsp;·&nbsp; How it works
+## `III` &nbsp;·&nbsp; How it works
 
 A single **daemon** supervises one or more persistent **orchestrators** (long-lived Claude
 sessions). An orchestrator decomposes your instruction and spawns **workers** through an MCP tool.
@@ -87,7 +139,7 @@ every interface in ~100 ms.
 <!-- divider -->
 <picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
-## `III` &nbsp;·&nbsp; Features
+## `IV` &nbsp;·&nbsp; Features
 
 **Parallel orchestration.** &nbsp; A persistent orchestrator turns one instruction into many. Workers
 run concurrently, each in its own git worktree on its own branch, and can spawn sub-workers. Pick the
@@ -124,7 +176,7 @@ usage is tracked and priced per worker (display-only).
 <!-- divider -->
 <picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
-## `IV` &nbsp;·&nbsp; Examples
+## `V` &nbsp;·&nbsp; Examples
 
 Both were produced **one-shot — a single prompt, no follow-ups.** Eos planned the work, spun up the
 agents, and delivered.
@@ -132,72 +184,21 @@ agents, and delivered.
 **Witherreach — a complete game design document.** &nbsp; One prompt asked Eos to invent an original
 survival-RPG and write its entire GDD: spawn domain-expert agents (narrative · survival · RPG/combat ·
 tech/co-op · market) whose sole job is to supply authoritative knowledge, then let the research and
-writing agents consult them. Out came **Witherreach** — a dark-fantasy survival-RPG where the
+writing agents consult them. In all, **12 agents** ran the document from start to finish — communicating with one another and coordinating the whole process. Out came **Witherreach** — a dark-fantasy survival-RPG where the
 corruption killing the world is also your only source of power — **21 chapters, a ~64,000-word design
-bible**, plus the expert briefs the writers leaned on.
+bible.**
 
 > *The entire prompt (translated): "I'm going to make a survival-RPG but I have no concept — you come
 > up with the idea and write the document. Write the GDD and run the whole process. Create specialised
 > agents, each an expert in a different field, whose job is to supply the needed information; the
 > research and writing agents can consult them. Produce an advanced, high-quality document this way."*
 
-→ [`examples/witherreach-gdd/`](examples/witherreach-gdd) — start with [`WITHERREACH-GDD.md`](examples/witherreach-gdd/WITHERREACH-GDD.md), or browse the 21 chapters and the consulted [`expert-briefs/`](examples/witherreach-gdd/expert-briefs).
+→ Read [`examples/WITHERREACH-GDD.md`](examples/WITHERREACH-GDD.md) — the full ~64,000-word design bible.
 
 **An Age of Empires-style RTS — playable.** &nbsp; A single prompt produced a working Age of
-Empires-style real-time strategy game, built and shipped in one pass.
+Empires-style real-time strategy game, built and shipped in one pass by **39 agents working in parallel**.
 
 → **[▶ Play it](https://playmore.world/#game/9eb83f07-85d0-46ff-900f-30aaa446a5ae)**
-
-<br/>
-
-<!-- divider -->
-<picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
-
-## `V` &nbsp;·&nbsp; Quickstart
-
-One command — installs the toolchain (Node · Bun · Xcode CLT · `claude`), clones the source to
-`~/eos`, builds, and launches the macOS app:
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/ibrahimAlbyrk/eos/main/install.sh | bash
-```
-
-Sign in once with `claude`, and you're set. Rebuild anytime with **`eos build`**.
-
-<details>
-<summary><b>What it does · options · manual install</b></summary>
-
-<br/>
-
-The installer is idempotent (safe to re-run): it auto-installs anything missing, clones to `~/eos`,
-installs all 8 package dirs, links `eos`, fixes your `PATH`, then runs `eos build`.
-
-| Override | Default | Purpose |
-| :------- | :------ | :------ |
-| `EOS_DIR` / `--dir DIR` | `~/eos` | where the source is cloned (the compiled app points back at it) |
-| `EOS_BRANCH` / `--branch B` | `main` | branch to track |
-| `--no-build` | — | set up only; run `eos build` yourself afterwards |
-
-Pass flags through the pipe with `-s --`:
-
-```bash
-curl -fsSL …/install.sh | bash -s -- --no-build
-```
-
-**Requirements** (the installer provides these) &nbsp;·&nbsp; macOS (primary; Linux secondary — no app
-build) &nbsp;·&nbsp; **Node 22+** &nbsp;·&nbsp; **Bun** (permission gateway) &nbsp;·&nbsp; **git**
-&nbsp;·&nbsp; the **`claude` CLI**, signed in to a Max / Pro plan &nbsp;·&nbsp; a writable `/Applications`.
-
-**Manual, from a clone:**
-
-```bash
-git clone https://github.com/ibrahimAlbyrk/eos ~/eos && cd ~/eos
-npm run bootstrap                  # install all 8 package dirs in dependency order (NOT a workspace)
-bash scripts/bootstrap.sh --link   # symlink ~/.local/bin/eos  (needs ~/.local/bin on PATH)
-eos build                          # compile web + macOS app, start the daemon
-```
-
-</details>
 
 <br/>
 
