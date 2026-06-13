@@ -3,12 +3,12 @@ import { api } from "../api/client.js";
 
 const REFRESH_DEBOUNCE_MS = 800;
 
-// Try lifecycle for the Changes panel. Tries stack per repo — Apply hides
-// only while THIS worker has an active layer (the deck's Keep/Discard owns
-// it) and FOREVER once this worker's try was KEPT; other workers' layers
-// never block this worker's Apply button. try_applied/kept/discarded stamp
-// worker ids in the SSE feed, so the debounced activity effect keeps the
-// Apply button in step with the deck.
+// Try lifecycle for the Changes panel. Apply is idempotent: the first click
+// applies the worker's changes, later clicks RE-SYNC only the new delta (after
+// the worker fixed a bug in its worktree). So the button is gated on `syncable`
+// — does the worktree have changes not yet in the checkout — not on whether the
+// work was ever applied/kept. try_applied/kept/discarded stamp worker ids in
+// the SSE feed, so the debounced activity effect keeps the button in step.
 export function useTryState(workerId, isolated, live) {
   const [tryState, setTryState] = useState({ phase: "idle" });
   const [tryInfo, setTryInfo] = useState(null);
@@ -45,8 +45,8 @@ export function useTryState(workerId, isolated, live) {
         ? `your checkout has local edits in ${(b.files ?? []).slice(0, 3).join(", ")}${(b.files?.length ?? 0) > 3 ? "…" : ""}`
         : b.reason === "conflicts-with-try"
           ? "conflicts with another active try — keep/discard it first"
-          : b.reason === "active-try"
-            ? "already applied in your checkout"
+          : b.reason === "blocked-by-overlay"
+            ? "a try on top touches these files — keep/discard it first"
             : b.reason === "nothing-to-apply"
               ? "nothing to apply"
               : b.reason === "unsupported"
@@ -62,6 +62,9 @@ export function useTryState(workerId, isolated, live) {
     // This worker's own layer is live in the user's checkout.
     appliedHere: activeTries.some((t) => t.workerId === workerId),
     kept: Boolean(tryInfo?.kept),
+    // The worktree advanced past what is applied/kept — Apply re-syncs the delta.
+    syncable: Boolean(tryInfo?.syncable),
+    syncFiles: tryInfo?.syncFiles ?? [],
     applyTry,
   };
 }

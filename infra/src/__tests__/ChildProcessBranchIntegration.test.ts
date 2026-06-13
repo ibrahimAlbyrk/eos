@@ -121,14 +121,102 @@ test("discard refuses per-file when the user edited a touched file mid-try", asy
   assert.equal((await bi.activeTries(repo)).length, 1);
 });
 
-test("re-apply by the same worker returns active-try", async () => {
+test("re-apply re-syncs only the worker's new worktree delta", async () => {
+  writeFileSync(join(worktree, "a.txt"), "line1 EDITED\nline2\nline3\n");
+  writeFileSync(join(worktree, "new.txt"), "fresh\n");
+  const bi = integration();
+  const first = await bi.apply(REF());
+  assert.equal(first.ok, true);
+  assert.ok(first.ok && first.files.includes("a.txt") && first.files.includes("new.txt"));
+
+  // Worker keeps working: edits an already-applied file AND adds another.
+  writeFileSync(join(worktree, "a.txt"), "line1 FIXED\nline2\nline3\n");
+  writeFileSync(join(worktree, "new2.txt"), "second\n");
+
+  const again = await bi.apply(REF());
+  assert.equal(again.ok, true);
+  // Only the delta is reported — new.txt was unchanged this round.
+  assert.ok(again.ok && again.files.includes("a.txt"));
+  assert.ok(again.ok && again.files.includes("new2.txt"));
+  assert.ok(again.ok && !again.files.includes("new.txt"));
+  // Checkout now matches the latest worktree state.
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 FIXED\nline2\nline3\n");
+  assert.equal(readFileSync(join(repo, "new2.txt"), "utf8"), "second\n");
+  // Still one layer (re-sync updated it in place, did not stack).
+  assert.equal((await bi.activeTries(repo)).length, 1);
+
+  // Discard reverses the WHOLE layer back to the pre-try state.
+  assert.equal((await bi.discard(repo, "w-1")).ok, true);
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1\nline2\nline3\n");
+  assert.ok(!existsSync(join(repo, "new.txt")));
+  assert.ok(!existsSync(join(repo, "new2.txt")));
+  assert.equal(git(repo, ["status", "--porcelain"]).trim(), "");
+});
+
+test("re-apply with no new worktree changes returns nothing-to-apply", async () => {
+  writeFileSync(join(worktree, "a.txt"), "line1 EDITED\nline2\nline3\n");
+  const bi = integration();
+  assert.equal((await bi.apply(REF())).ok, true);
+  const again = await bi.apply(REF());
+  assert.equal(again.ok, false);
+  assert.ok(!again.ok && again.reason === "nothing-to-apply");
+});
+
+test("re-apply refuses to clobber a file the user edited after applying", async () => {
   writeFileSync(join(worktree, "a.txt"), "line1 EDITED\nline2\nline3\n");
   const bi = integration();
   assert.equal((await bi.apply(REF())).ok, true);
 
+  // User edits the applied file, then the worker also advances it.
+  writeFileSync(join(repo, "a.txt"), "line1 USER EDIT\nline2\nline3\n");
+  writeFileSync(join(worktree, "a.txt"), "line1 WORKER FIX\nline2\nline3\n");
+
   const again = await bi.apply(REF());
   assert.equal(again.ok, false);
-  assert.ok(!again.ok && again.reason === "active-try");
+  assert.ok(!again.ok && again.reason === "dirty-files");
+  assert.ok(!again.ok && again.files?.includes("a.txt"));
+  // Nothing clobbered.
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 USER EDIT\nline2\nline3\n");
+});
+
+test("sync after keep pulls the worker's new changes (kept layer stays syncable)", async () => {
+  writeFileSync(join(worktree, "a.txt"), "line1 EDITED\nline2\nline3\n");
+  const bi = integration();
+  assert.equal((await bi.apply(REF())).ok, true);
+  assert.equal((await bi.keep(repo, "w-1")).ok, true);
+  // Kept: out of the deck, but the marker persists.
+  assert.equal((await bi.activeTries(repo)).length, 0);
+  assert.equal(await bi.wasKept({ repoRoot: repo, workerId: "w-1" }), true);
+  // Nothing new yet.
+  assert.deepEqual(await bi.syncStatus(REF()), { syncable: false, files: [] });
+
+  // Worker fixes a bug after the keep.
+  writeFileSync(join(worktree, "a.txt"), "line1 BUGFIX\nline2\nline3\n");
+  const s = await bi.syncStatus(REF());
+  assert.equal(s.syncable, true);
+  assert.ok(s.files.includes("a.txt"));
+
+  // Re-sync brings the fix in; the layer returns to the deck (provisional).
+  const resync = await bi.apply(REF());
+  assert.equal(resync.ok, true);
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 BUGFIX\nline2\nline3\n");
+  assert.equal((await bi.activeTries(repo)).length, 1);
+  assert.equal(await bi.wasKept({ repoRoot: repo, workerId: "w-1" }), false);
+});
+
+test("cleanupSnapshot finalizes a kept layer (drops it, deletes the ref)", async () => {
+  writeFileSync(join(worktree, "a.txt"), "line1 EDITED\nline2\nline3\n");
+  const bi = integration();
+  assert.equal((await bi.apply(REF())).ok, true);
+  assert.equal((await bi.keep(repo, "w-1")).ok, true);
+  // Kept layer keeps its ref pinned (so it can still be synced)…
+  assert.ok(git(repo, ["for-each-ref", "refs/eos/snapshots"]).includes("w-1"));
+
+  // …until the worker is deleted: the edits stay in the checkout, tracking ends.
+  await bi.cleanupSnapshot({ repoRoot: repo, workerId: "w-1" });
+  assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1 EDITED\nline2\nline3\n");
+  assert.equal(git(repo, ["for-each-ref", "refs/eos/snapshots"]).trim(), "");
+  assert.equal(await bi.wasKept({ repoRoot: repo, workerId: "w-1" }), false);
 });
 
 test("disjoint tries from two workers stack and resolve in any order", async () => {
@@ -332,9 +420,11 @@ test("cleanupSnapshot keeps an active layer's ref pinned, deletes inactive refs"
   assert.equal(readFileSync(join(repo, "a.txt"), "utf8"), "line1\nline2\nline3\n");
   assert.equal(git(repo, ["for-each-ref", "refs/eos/snapshots"]).trim(), "");
 
-  // No active layer → cleanup deletes the ref.
+  // No active layer: preview is side-effect free (no longer pins), and cleanup
+  // is a safe no-op on an already-absent ref.
   writeFileSync(join(worktree, "a.txt"), "line1 AGAIN\nline2\nline3\n");
-  assert.equal((await bi.preview(REF())).supported, true); // re-pins the snapshot ref
+  assert.equal((await bi.preview(REF())).supported, true);
+  assert.equal(git(repo, ["for-each-ref", "refs/eos/snapshots"]).trim(), "");
   await bi.cleanupSnapshot({ repoRoot: repo, workerId: "w-1" });
   assert.equal(git(repo, ["for-each-ref", "refs/eos/snapshots"]).trim(), "");
 });

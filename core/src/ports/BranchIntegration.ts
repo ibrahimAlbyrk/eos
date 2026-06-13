@@ -51,9 +51,9 @@ export type TryApplyResult =
   | {
       ok: false;
       reason:
-        | "active-try" // this worker already has an active layer
         | "conflicts" // vs the user's HEAD
         | "conflicts-with-try" // clean vs HEAD, conflicts vs an active layer (detail = its workerId)
+        | "blocked-by-overlay" // a re-sync would corrupt a layer above (detail = its workerId)
         | "dirty-files"
         | "nothing-to-apply"
         | "unsupported"
@@ -77,23 +77,31 @@ export type TryDiscardResult =
 
 export interface BranchIntegration {
   preview(ref: TryRef): Promise<TryPreview>;
-  /** Apply the merged result as unstaged edits on top of the current stack. */
+  /** Idempotent: bring the checkout in step with the worktree's current state.
+   *  First call applies the full merged result as unstaged edits; later calls
+   *  re-sync, applying only the delta the worker produced since the last apply
+   *  (so a bug-fix lands without re-touching everything). Works whether the
+   *  worker's layer is still provisional or already kept. */
   apply(ref: TryRef): Promise<TryApplyResult>;
-  /** Reverse-apply the recorded patch of this worker's layer. Refuses when the
-   *  user edited a touched file mid-try, or when a layer above overlaps —
-   *  nothing is reverted in either case. */
+  /** Reverse-apply the recorded (cumulative) patch of this worker's layer.
+   *  Refuses when the user edited a touched file mid-try, or when a layer above
+   *  overlaps — nothing is reverted in either case. */
   discard(repoRoot: string, workerId: string): Promise<TryDiscardResult>;
-  /** Drop this worker's layer; its edits become the user's own working-tree
-   *  changes. Tree-neutral, so valid for any layer in any order. Records a
-   *  per-worker kept marker so the UI never re-offers Apply for work the user
-   *  already integrated. */
+  /** Accept this worker's layer: it drops out of the Keep/Discard deck but
+   *  stays in the stack (its edits keep counting as the checkout's expected
+   *  content) so the worktree can still be re-synced. Tree-neutral. */
   keep(repoRoot: string, workerId: string): Promise<{ ok: boolean; reason?: string }>;
-  /** Active layers, bottom (oldest) first. */
+  /** Provisional layers only (the deck), bottom (oldest) first. */
   activeTries(repoRoot: string): Promise<ActiveTry[]>;
-  /** True once this worker's try was kept (survives restarts; discard never
-   *  sets it). */
+  /** True while this worker's layer is kept. */
   wasKept(input: { repoRoot: string; workerId: string }): Promise<boolean>;
-  /** Delete the worker's snapshot ref (kill cleanup). Never touches an active
-   *  try's patch/state — discard must survive worker deletion. */
+  /** Whether the worktree advanced past what is currently applied/kept, plus
+   *  the files a re-sync would change. Both empty/false when the worker has no
+   *  layer yet (the UI offers a first Apply) or nothing is new. Side-effect
+   *  free — safe to poll. */
+  syncStatus(ref: TryRef): Promise<{ syncable: boolean; files: string[] }>;
+  /** Kill cleanup. A provisional layer is preserved (its ref stays pinned) so
+   *  discard survives worker deletion; a kept layer is finalized (dropped, its
+   *  edits remain as the user's own changes); otherwise just deletes the ref. */
   cleanupSnapshot(input: { repoRoot: string; workerId: string }): Promise<void>;
 }

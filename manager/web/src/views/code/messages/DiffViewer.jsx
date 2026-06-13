@@ -53,7 +53,10 @@ function DiffViewerInner({ workerId, live }) {
 
   const worker = live.workers.find((w) => w.id === workerId);
   const isolated = Boolean(worker?.worktree_from && worker?.branch);
-  const { tryState, appliedHere, kept, applyTry } = useTryState(workerId, isolated, live);
+  const { tryState, appliedHere, kept, syncable, syncFiles, applyTry } = useTryState(workerId, isolated, live);
+  // Already in the checkout (provisional layer or kept). Apply then becomes a
+  // re-sync that pulls only the worker's new worktree progress.
+  const applied = appliedHere || kept;
 
   // Stable identity so memoized FileCards don't re-render on sibling updates.
   const toggle = useCallback((file) => {
@@ -116,20 +119,26 @@ function DiffViewerInner({ workerId, live }) {
           </span>
         )}
         <span className="dv-grow" />
-        {isolated && !appliedHere && !kept && tryState.phase === "idle" && (
-          <button className="dv-act dv-act-apply" title="Apply these changes as unstaged edits in your checkout (Keep/Discard after testing)" onClick={applyTry}>
-            Apply
+        {isolated && tryState.phase === "idle" && (!applied || syncable) && (
+          <button
+            className="dv-act dv-act-apply"
+            title={applied
+              ? "Pull the worker's new changes into your checkout (only the delta since you last applied)"
+              : "Apply these changes as unstaged edits in your checkout (Keep/Discard after testing)"}
+            onClick={applyTry}
+          >
+            {applied ? `Sync changes${syncFiles.length ? ` (${syncFiles.length})` : ""}` : "Apply"}
           </button>
         )}
         {isolated && tryState.phase === "applying" && (
-          <button className="dv-act dv-act-apply" disabled>Applying…</button>
+          <button className="dv-act dv-act-apply" disabled>{applied ? "Syncing…" : "Applying…"}</button>
         )}
-        {isolated && !appliedHere && tryState.phase === "conflicts" && (
+        {isolated && tryState.phase === "conflicts" && (
           <button className="dv-act dv-act-conflict" title={`${tryState.count} file(s) would conflict — nothing was touched`} onClick={resolveWithGitAgent}>
             Resolve with git agent
           </button>
         )}
-        {isolated && !appliedHere && tryState.phase === "error" && (
+        {isolated && tryState.phase === "error" && (
           <button className="dv-act dv-act-err" title="Click to retry" onClick={applyTry}>
             {tryState.msg}
           </button>
