@@ -268,14 +268,19 @@ never destroyed by tooling.
 
 ## `IX` &nbsp;·&nbsp; Status & roadmap
 
-**Alpha**, single-author, in active daily use. The orchestration core, live dashboard, in-app git,
-policy gateway, and macOS app are solid; the **Workflows** tab is still a stub.
+**Alpha** — single-author, in daily use, moving fast. Solid today: multi-orchestrator control,
+worker↔worker collaboration (agent swarms), the live SSE dashboard, in-app git
+(branches · push / pull · PR · conflict resolver · Try stack), the policy gateway, per-spawn prompt
+assembly (DPI), session resume, a one-line installer with in-app self-update, and the native macOS
+app. The **Workflows** tab is still a placeholder, and rough edges remain.
 
-- Linux-first testing and packaging.
-- A visual Workflows UI — author, run, and monitor multi-agent pipelines.
-- Worker capability hints (read-only vs. mutating) for smarter policy defaults.
-- Cross-machine orchestration over the same daemon API.
-- Richer cost / latency analytics.
+**Next:**
+
+- **Deterministic agent workflows** — create, edit, and manage reusable multi-agent pipelines
+  (the Workflows tab, today a stub), plus a way for agents to invoke those workflows themselves.
+- **Plugin system** — drop-in extensions that add system prompts and MCP tools for orchestrators and workers.
+- **In-app project explorer** — browse and open any file in the repo, not just diffs and tool output.
+- **Linux & Windows** — first-class support on both, alongside the macOS app.
 
 <br/>
 
