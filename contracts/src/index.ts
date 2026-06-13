@@ -1,4 +1,5 @@
 export * from "./shared.ts";
+export * from "./prompt.ts";
 export * from "./events.ts";
 export * from "./canonical.ts";
 export * from "./backend.ts";

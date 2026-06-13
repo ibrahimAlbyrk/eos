@@ -7,3 +7,4 @@ export * from "./ProcessWorkerEvent.ts";
 export * from "./ResolvePending.ts";
 export * from "./SetWorkerPermissionMode.ts";
 export * from "./SetWorkerModel.ts";
+export * from "./AssembleSystemPrompt.ts";
