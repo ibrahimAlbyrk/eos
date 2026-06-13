@@ -124,7 +124,36 @@ usage is tracked and priced per worker (display-only).
 <!-- divider -->
 <picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
-## `IV` &nbsp;·&nbsp; Quickstart
+## `IV` &nbsp;·&nbsp; Examples
+
+Both were produced **one-shot — a single prompt, no follow-ups.** Eos planned the work, spun up the
+agents, and delivered.
+
+**Witherreach — a complete game design document.** &nbsp; One prompt asked Eos to invent an original
+survival-RPG and write its entire GDD: spawn domain-expert agents (narrative · survival · RPG/combat ·
+tech/co-op · market) whose sole job is to supply authoritative knowledge, then let the research and
+writing agents consult them. Out came **Witherreach** — a dark-fantasy survival-RPG where the
+corruption killing the world is also your only source of power — **21 chapters, a ~64,000-word design
+bible**, plus the expert briefs the writers leaned on.
+
+> *The entire prompt (translated): "I'm going to make a survival-RPG but I have no concept — you come
+> up with the idea and write the document. Write the GDD and run the whole process. Create specialised
+> agents, each an expert in a different field, whose job is to supply the needed information; the
+> research and writing agents can consult them. Produce an advanced, high-quality document this way."*
+
+→ [`examples/witherreach-gdd/`](examples/witherreach-gdd) — start with [`WITHERREACH-GDD.md`](examples/witherreach-gdd/WITHERREACH-GDD.md), or browse the 21 chapters and the consulted [`expert-briefs/`](examples/witherreach-gdd/expert-briefs).
+
+**An Age of Empires-style RTS — playable.** &nbsp; A single prompt produced a working Age of
+Empires-style real-time strategy game, built and shipped in one pass.
+
+→ **[▶ Play it](https://playmore.world/#game/9eb83f07-85d0-46ff-900f-30aaa446a5ae)**
+
+<br/>
+
+<!-- divider -->
+<picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
+
+## `V` &nbsp;·&nbsp; Quickstart
 
 One command — installs the toolchain (Node · Bun · Xcode CLT · `claude`), clones the source to
 `~/eos`, builds, and launches the macOS app:
@@ -175,7 +204,7 @@ eos build                          # compile web + macOS app, start the daemon
 <!-- divider -->
 <picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
-## `V` &nbsp;·&nbsp; The `eos` CLI
+## `VI` &nbsp;·&nbsp; The `eos` CLI
 
 One daemon, one binary. `eos help` lists everything.
 
@@ -198,7 +227,7 @@ One daemon, one binary. `eos help` lists everything.
 <!-- divider -->
 <picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
-## `VI` &nbsp;·&nbsp; Project layout
+## `VII` &nbsp;·&nbsp; Project layout
 
 A clean-architecture monorepo — `contracts` → `core` → `infra` → entrypoints, with the dependency
 direction enforced at lint time. Each directory installs on its own; it is **not** an npm workspace.
@@ -223,7 +252,7 @@ never destroyed by tooling.
 <!-- divider -->
 <picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
-## `VII` &nbsp;·&nbsp; Who it's for
+## `VIII` &nbsp;·&nbsp; Who it's for
 
 | Built for | Not for |
 | :-------- | :------ |
@@ -236,7 +265,7 @@ never destroyed by tooling.
 <!-- divider -->
 <picture><source media="(prefers-color-scheme: dark)" srcset="assets/eos-divider-dark.svg"><img src="assets/eos-divider-light.svg" width="100%"></picture>
 
-## `VIII` &nbsp;·&nbsp; Status & roadmap
+## `IX` &nbsp;·&nbsp; Status & roadmap
 
 **Alpha**, single-author, in active daily use. The orchestration core, live dashboard, in-app git,
 policy gateway, and macOS app are solid; the **Workflows** tab is still a stub.
