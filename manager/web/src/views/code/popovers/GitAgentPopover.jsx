@@ -4,7 +4,7 @@ import { api } from "../../../api/client.js";
 import { gitAgentName } from "../../../lib/gitAgentName.js";
 import { addDispatched } from "../../../state/outboxStore.js";
 
-const EMPTY = { isGit: true, current: null, branches: [], ahead: 0, behind: 0, conflicts: 0 };
+const EMPTY = { isGit: true, current: null, branches: [], remoteUrl: null, ahead: 0, behind: 0, conflicts: 0 };
 
 function BranchIcon() {
   return (
@@ -71,6 +71,18 @@ function PencilIcon() {
   return (
     <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
       <path d="m11.5 2.5 2 2L5 13l-2.7.7L3 11l8.5-8.5z" />
+    </svg>
+  );
+}
+
+function PrIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="4" cy="4" r="1.5" />
+      <circle cx="4" cy="12" r="1.5" />
+      <circle cx="12" cy="12" r="1.5" />
+      <path d="M4 5.5v5M12 10.5V7a3 3 0 0 0-3-3H7" />
+      <path d="m8.5 2.5-1.5 1.5 1.5 1.5" />
     </svg>
   );
 }
@@ -213,6 +225,18 @@ export function GitAgentPopover({ live, cwd }) {
               <SyncIcon />
               Sync with remote
             </button>
+          )}
+          {info.remoteUrl && (
+            <>
+              <button className="menu-item" onClick={() => spawn(`Open a pull request for the current branch (${current}). Make sure the branch is committed and pushed first, then write the title and body yourself.`, "pr")}>
+                <PrIcon />
+                Create PR
+              </button>
+              <button className="menu-item" onClick={() => spawn(`Open a draft pull request for the current branch (${current}). Make sure the branch is committed and pushed first, then write the title and body yourself.`, "draft pr")}>
+                <PrIcon />
+                Create draft PR
+              </button>
+            </>
           )}
           <div className="gap-sep"></div>
           <button className="menu-item" onClick={startCustom}>
