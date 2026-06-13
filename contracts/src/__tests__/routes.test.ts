@@ -24,6 +24,7 @@ const EXPECTED_KEYS = [
   "workerTryPreview", "workerTryState", "workerTry", "workerTryKeep", "workerTryDiscard",
   "commands", "web",
   "templates", "template", "prompts", "promptPreview", "settings",
+  "updateStatus", "updateCheck", "updateApply", "updateDefer",
 ] as const;
 
 describe("ROUTES completeness", () => {

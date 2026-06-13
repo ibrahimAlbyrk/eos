@@ -68,6 +68,9 @@ export async function deliverUi(
   opts: { webApplied: boolean; appApplied?: boolean },
 ): Promise<RelaunchPlan> {
   if (ctx.noApp) return { action: "none", reason: "--no-app" };
+  // The caller drives its own reload (auto-update launch splash) — don't quit
+  // or reload the app from here, just leave the freshly restarted daemon.
+  if (ctx.noRelaunch) return { action: "none", reason: "--no-relaunch (caller drives reload)" };
 
   const pid = findAppPid();
   const running = pid !== null;

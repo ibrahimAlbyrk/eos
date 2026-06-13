@@ -14,6 +14,9 @@ export interface BuildCtx {
   dryRun: boolean;
   noApp: boolean;
   open: boolean;
+  /** Skip the app reload/relaunch epilogue — the caller (auto-update's native
+   *  launch splash) drives its own reload after the daemon comes back. */
+  noRelaunch: boolean;
   log(line: string): void;
 }
 

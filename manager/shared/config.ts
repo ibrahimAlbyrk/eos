@@ -65,6 +65,12 @@ export interface DaemonConfig {
     orchestrator: { backend: string };
     worker: { backend: string };
   };
+  // Auto-update: the daemon polls the configured git remote and offers a newer
+  // build to the app (banner + native launch splash). See UpdateService.
+  updates: {
+    enabled: boolean;
+    checkIntervalMs: number;
+  };
 }
 
 const DEFAULT_AGENT_MCP: AgentMcpConfig = {
@@ -158,6 +164,10 @@ function defaults(): DaemonConfig {
       orchestrator: { backend: "claude-cli-opus" },
       worker: { backend: "claude-cli-opus" },
     },
+    updates: {
+      enabled: envStr("EOS_UPDATES_ENABLED", "1") !== "0",
+      checkIntervalMs: envNum("EOS_UPDATES_CHECK_INTERVAL_MS", 30 * 60 * 1000),
+    },
   };
 }
 
@@ -210,6 +220,10 @@ const DaemonConfigOverrideSchema = z.object({
   defaults: z.object({
     orchestrator: z.object({ backend: z.string() }).partial(),
     worker: z.object({ backend: z.string() }).partial(),
+  }).partial().optional(),
+  updates: z.object({
+    enabled: z.boolean(),
+    checkIntervalMs: z.number().int().positive(),
   }).partial().optional(),
 }).passthrough();
 

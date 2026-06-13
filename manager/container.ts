@@ -40,6 +40,8 @@ import { childProcessBranchPush } from "../infra/src/git/ChildProcessBranchPush.
 import { childProcessConflictResolution } from "../infra/src/git/ChildProcessConflictResolution.ts";
 import { childProcessBranchAdmin } from "../infra/src/git/ChildProcessBranchAdmin.ts";
 import { childProcessRemoteSync } from "../infra/src/git/ChildProcessRemoteSync.ts";
+import { gitUpdateSource } from "../infra/src/updates/GitUpdateSource.ts";
+import { createDetachedBuildApplier } from "../infra/src/updates/DetachedBuildApplier.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
 import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
@@ -64,6 +66,7 @@ import { FileProjectMemoryStore } from "../infra/src/persistence/FileProjectMemo
 import { UserTemplateService } from "./services/UserTemplateService.ts";
 import { UserSettingsService } from "./services/UserSettingsService.ts";
 import { ModelCatalogService } from "./services/ModelCatalogService.ts";
+import { UpdateService } from "./services/UpdateService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
 import { BackgroundActivityService } from "./services/BackgroundActivityService.ts";
 import { PendingPeerRequestService } from "./services/PendingPeerRequestService.ts";
@@ -412,6 +415,20 @@ export function buildContainer() {
   const userSettings = new UserSettingsService(join(config.daemon.home, "settings.json"));
   const modelCatalog = new ModelCatalogService(join(config.daemon.home, "models.json"), systemClock);
 
+  // Auto-update — polls the configured git remote and offers a newer build to
+  // the app (banner + native launch splash). Apply is a detached git pull +
+  // eos build that outlives the daemon restart it triggers.
+  const updates = new UpdateService({
+    source: gitUpdateSource,
+    applier: createDetachedBuildApplier({ logDir: config.daemon.logDir }),
+    bus,
+    clock: systemClock,
+    repoRoot: config.paths.repoRoot,
+    enabled: config.updates.enabled,
+    log,
+  });
+  updates.start(config.updates.checkIntervalMs);
+
 
   // The claude-cli AgentBackend — wraps the existing supervisor + port allocator
   // + worker client + argv builders behind the backend-agnostic port. SpawnWorker
@@ -512,6 +529,7 @@ export function buildContainer() {
     claudeHome,
     userSettings,
     modelCatalog,
+    updates,
     cleanupMcpConfig,
     reloadPolicy(): void {
       policy = loadPolicy({

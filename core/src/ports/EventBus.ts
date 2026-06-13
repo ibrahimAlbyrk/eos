@@ -16,7 +16,8 @@ export type EventBusTopic =
   | "notification:fire"
   | "terminal:chunk"
   | "terminal:done"
-  | "ui:reload";
+  | "ui:reload"
+  | "update:available";
 
 export interface EventBusMessage<T = unknown> {
   topic: EventBusTopic;

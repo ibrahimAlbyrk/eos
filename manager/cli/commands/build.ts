@@ -5,8 +5,8 @@ import { runBuild } from "../../builder/engine.ts";
 import { buildSteps } from "../../builder/registry.ts";
 import { run } from "../../builder/proc.ts";
 
-const USAGE = "eos build [--dry-run] [--force] [--check] [--no-app] [--open]";
-const FLAGS = new Set(["--dry-run", "--force", "--check", "--no-app", "--open"]);
+const USAGE = "eos build [--dry-run] [--force] [--check] [--no-app] [--no-relaunch] [--open]";
+const FLAGS = new Set(["--dry-run", "--force", "--check", "--no-app", "--no-relaunch", "--open"]);
 
 export const buildCommand: Command = {
   name: "build",
@@ -52,6 +52,7 @@ export const buildCommand: Command = {
         force: args.includes("--force"),
         dryRun: args.includes("--dry-run"),
         noApp: args.includes("--no-app"),
+        noRelaunch: args.includes("--no-relaunch"),
         open: args.includes("--open"),
         log: (line) => console.log(line),
       },

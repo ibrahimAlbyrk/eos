@@ -1278,6 +1278,54 @@ export const PromptPreviewResponseSchema = z.object({
   activeFragmentIds: z.array(z.string()),
 });
 
+// ---- Auto-update (git-based; see manager/services/UpdateService.ts) ---------
+
+export const UpdateRevisionSchema = z.object({
+  sha: z.string(),
+  subject: z.string(),
+});
+export type UpdateRevision = z.infer<typeof UpdateRevisionSchema>;
+
+export const UpdateStatusSchema = z.object({
+  enabled: z.boolean(),
+  // behind > 0 AND a clean tree — the only state that shows the banner / arms
+  // the launch splash. A dirty checkout (a dev working copy) is never offered.
+  available: z.boolean(),
+  // The banner was dismissed with "later" — session-scoped, hides the banner
+  // until the next daemon run; the launch splash keys on `available`, not this.
+  deferred: z.boolean(),
+  dirty: z.boolean(),
+  behind: z.number().int().nonnegative(),
+  branch: z.string(),
+  currentSha: z.string(),
+  latestSha: z.string(),
+  // Commits that would be pulled, newest first.
+  notes: z.array(UpdateRevisionSchema),
+  checkedAt: z.number().nullable(),
+});
+export type UpdateStatus = z.infer<typeof UpdateStatusSchema>;
+
+export const UpdateApplyRequestSchema = z.object({
+  // true (banner): let `eos build` reload/relaunch the running app. false
+  // (native launch splash): the app drives its own reload, so the build must
+  // not quit it mid-update — `eos build --no-relaunch`.
+  relaunchApp: z.boolean().default(true),
+});
+export type UpdateApplyRequest = z.infer<typeof UpdateApplyRequestSchema>;
+
+export const UpdateApplyResponseSchema = z.object({
+  started: z.boolean(),
+  // started=false → disabled | not-available.
+  reason: z.string().optional(),
+});
+export type UpdateApplyResponse = z.infer<typeof UpdateApplyResponseSchema>;
+
+export const UpdateDeferResponseSchema = z.object({
+  ok: z.literal(true),
+  deferred: z.boolean(),
+});
+export type UpdateDeferResponse = z.infer<typeof UpdateDeferResponseSchema>;
+
 export const ROUTES = {
   health: "/health",
   stream: "/stream",
@@ -1364,5 +1412,9 @@ export const ROUTES = {
   prompts: "/api/prompts",
   promptPreview: "/api/prompts/preview",
   settings: "/api/settings",
+  updateStatus: "/api/updates/status",
+  updateCheck: "/api/updates/check",
+  updateApply: "/api/updates/apply",
+  updateDefer: "/api/updates/defer",
   web: "/web/",
 } as const;

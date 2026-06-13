@@ -20,6 +20,7 @@ function makeCtx(overrides: Partial<BuildCtx> = {}): BuildCtx {
     dryRun: false,
     // noApp keeps the relaunch epilogue inert so tests never touch pgrep/osascript.
     noApp: true,
+    noRelaunch: false,
     open: false,
     log: () => {},
     ...overrides,
