@@ -13,6 +13,9 @@ import { listPendingPermissionsTool } from "./orchestrator-mcp/tools/list_pendin
 import { notifyUserTool } from "./orchestrator-mcp/tools/notify_user.ts";
 import { askUserTool } from "./orchestrator-mcp/tools/ask_user.ts";
 import { sendMessageToParentTool } from "./worker-mcp/tools/send_message_to_parent.ts";
+import { listPeersTool } from "./worker-mcp/tools/list_peers.ts";
+import { askPeerTool } from "./worker-mcp/tools/ask_peer.ts";
+import { respondToPeerTool } from "./worker-mcp/tools/respond_to_peer.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerTool.name,
@@ -24,4 +27,7 @@ export const TOOL_NAME_VARS: VariableScope = {
   NOTIFY_USER_TOOL: notifyUserTool.name,
   ASK_USER_TOOL: askUserTool.name,
   SEND_MESSAGE_TO_PARENT_TOOL: sendMessageToParentTool.name,
+  LIST_PEERS_TOOL: listPeersTool.name,
+  ASK_PEER_TOOL: askPeerTool.name,
+  RESPOND_TO_PEER_TOOL: respondToPeerTool.name,
 };

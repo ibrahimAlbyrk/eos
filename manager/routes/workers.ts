@@ -15,6 +15,8 @@ import {
   SetModelRequestSchema,
   QuestionRequestSchema,
   QuestionAnswerRequestSchema,
+  PeerRequestRegisterRequestSchema,
+  PeerResponseRequestSchema,
   NotifyRequestSchema,
   WorkerActionRequestSchema,
   RewindRequestSchema,
@@ -37,6 +39,7 @@ import { processWorkerEvent } from "../../core/src/use-cases/ProcessWorkerEvent.
 import { toCanonicalEvents } from "../../spawner/canonical-map.ts";
 import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermissionMode.ts";
 import { assertOwnedBy } from "../../core/src/services/WorkerOwnership.ts";
+import { assertPeers, listPeersOf, isConsultable } from "../../core/src/services/Peers.ts";
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
 import { resumeWorkerVia, resumeIfDead } from "./resume-helpers.ts";
@@ -83,11 +86,27 @@ async function diffBaseOf(c: Container, w: WorkerRow | null): Promise<string | u
   return (await c.git.mergeBase(w.worktree_dir, w.worktree_from)) ?? undefined;
 }
 
+// Surface a worker's live background processes (Monitor / `Bash
+// run_in_background`) on its row for the corner activity widget — but only
+// while the worker is alive, since those processes die with it. Runtime view
+// state from the in-memory service; never persisted.
+function withBackgroundActivity(c: Container, rows: WorkerRow[]): WorkerRow[] {
+  return rows.map((w) => {
+    // Only while the agent is actively working — a turn-scoped indicator. On
+    // IDLE the turn is over; Monitor/bg-bash run async and their real finish
+    // isn't observable, so we stop surfacing them instead of leaving them stuck.
+    const alive = w.state === "WORKING" || w.state === "SPAWNING";
+    const bg = alive ? c.backgroundActivity.forWorker(w.id) : [];
+    return bg.length ? { ...w, backgroundActivity: bg } : w;
+  });
+}
+
 
 export function registerWorkerRoutes(r: Router, c: Container): void {
   r.get("/workers", ({ url, res }) => {
     const parentId = url.searchParams.get("parentId");
-    writeJson(res, 200, parentId ? c.workers.listByParent(parentId) : c.workers.listAll());
+    const rows = parentId ? c.workers.listByParent(parentId) : c.workers.listAll();
+    writeJson(res, 200, withBackgroundActivity(c, rows));
   });
 
   r.post("/workers", async ({ req, res }) => {
@@ -215,6 +234,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       params.id,
     );
     c.pendingQuestions.cancelByWorker(params.id);
+    c.pendingPeerRequests.cancelByWorker(params.id);
+    c.backgroundActivity.clearWorker(params.id);
     writeJson(res, 200, { killed: result.killed, removed: result.removed, was_state: result.wasState });
   });
 
@@ -243,6 +264,24 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       },
       { workerId: params.id, type: body.type, payload: body.payload },
     );
+    // Corner activity widget: track Monitor / `Bash run_in_background` starts
+    // (tool_running) and their shell-id replies (tool_done). Manager-side view
+    // state, deliberately kept out of ProcessWorkerEvent (core) — OCP.
+    if (body.type === "tool_running") {
+      const p = body.payload as { toolName?: string; toolUseId?: string | null; input?: Record<string, unknown> } | undefined;
+      if (p?.toolName) c.backgroundActivity.onToolRunning(params.id, p.toolName, p.toolUseId ?? null, p.input ?? {});
+    } else if (body.type === "tool_done") {
+      const p = body.payload as { toolName?: string; toolUseId?: string | null; result?: string } | undefined;
+      if (p?.toolName) c.backgroundActivity.onToolDone(params.id, p.toolName, p.toolUseId ?? null, p.result ?? "");
+    } else if (body.type === "hook") {
+      // Turn/session ended → clear this worker's background activity. Monitor /
+      // `Bash run_in_background` are async: their real finish isn't observable
+      // (tool_done fires ~200ms after start, at arm time, not completion), so we
+      // drop them when the turn that started them ends — a turn-scoped indicator
+      // instead of a stuck entry.
+      const ev = (body.payload as { event?: string } | undefined)?.event;
+      if (ev === "Stop" || ev === "SessionEnd") c.backgroundActivity.clearWorker(params.id);
+    }
     // /clear marker: mirror of conversation_rewound — the web hides everything
     // before it. Synthesized here because the signal arrives as a plain hook.
     const hp = body.payload as { event?: string; body?: { reason?: string; session_id?: string } } | undefined;
@@ -251,6 +290,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       // conversation must not drain into the fresh context at the next IDLE.
       const clearedQueued = c.messageQueue.clearPending(params.id);
       if (clearedQueued > 0) c.log.info("/clear cleared queued messages", { workerId: params.id, count: clearedQueued });
+      // A fresh context drops any peer consultations this worker had outstanding.
+      c.pendingPeerRequests.cancelByWorker(params.id);
       const rowId = c.events.append(params.id, c.clock.now(), "conversation_cleared", {
         prevSessionId: hp.body?.session_id ?? null,
       });
@@ -412,6 +453,70 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, 200, { ok: true, outcome: settled ? (body.dismissed ? "dismissed" : "answered") : "gone" });
   });
 
+  // ---- Peer consultation (worker ↔ worker) ---------------------------------
+
+  // list_peers — the collaborate-enabled, still-alive siblings :id may consult.
+  r.get(/^\/workers\/(?<id>[^/]+)\/peers$/, ({ params, res }) => {
+    const peers = listPeersOf(c.workers, params.id).map((w) => ({
+      id: w.id,
+      name: w.name ?? null,
+      state: w.state,
+      summary: (w.prompt ?? "").split("\n")[0].slice(0, 160),
+    }));
+    writeJson(res, 200, peers);
+  });
+
+  // ask_peer registration — :id is the TARGET peer; fromWorker is the asker. The
+  // PeerRequestPump delivers the question into the target's PTY at its next IDLE
+  // and the asker polls the GET below until answered/declined/gone.
+  r.post(/^\/workers\/(?<id>[^/]+)\/peer-request$/, async ({ params, req, res }) => {
+    const body = validate(PeerRequestRegisterRequestSchema, await readBody(req));
+    // Scope: asker and target must be collaboration peers (siblings, both opted in).
+    assertPeers(c.workers, body.fromWorker, params.id);
+    const target = c.workers.findById(params.id);
+    if (!target || !isConsultable(target)) {
+      writeJson(res, 200, { declined: true, reason: `peer ${target?.name ?? params.id} is not available to consult right now` });
+      return;
+    }
+    // A worker blocked in ask_peer is mid-turn (never IDLE), so a circular wait
+    // would deadlock the pump's auto-decline. Reject it at registration.
+    if (c.pendingPeerRequests.wouldDeadlock(body.fromWorker, params.id)) {
+      writeJson(res, 200, { declined: true, reason: `consulting ${target.name ?? params.id} would create a circular wait — answer from what you already have, or restructure` });
+      return;
+    }
+    const { requestId } = c.pendingPeerRequests.register(body.fromWorker, params.id, body.question);
+    // Durable "consulting <peer>" marker on the asker's timeline (the ask_peer
+    // tool call also renders, but resolves only when the answer returns).
+    c.events.append(body.fromWorker, c.clock.now(), "peer_consult", {
+      requestId, toWorker: params.id, toName: target.name ?? null, question: body.question,
+    });
+    // Nudge the pump — if the target is sitting IDLE it delivers now; otherwise
+    // the request waits for the target's next IDLE. pumpPeerFor self-guards on
+    // state, so the synthetic change is safe.
+    c.bus.publish("worker:change", { workerId: params.id });
+    writeJson(res, 200, { requestId });
+  });
+
+  // Poll — always 200; the asker's ask_peer tool routes on `status` (queued and
+  // delivered both surface as "pending"; "gone" = peer died / asker interrupted
+  // / daemon restarted).
+  r.get(/^\/workers\/(?<id>[^/]+)\/peer-request\/(?<requestId>[^/]+)$/, ({ params, res }) => {
+    writeJson(res, 200, c.pendingPeerRequests.poll(params.requestId));
+  });
+
+  // respond_to_peer — :id is the responder; it resolves the single delivered
+  // request addressed to it (at most one in-flight), so no requestId is needed.
+  r.post(/^\/workers\/(?<id>[^/]+)\/peer-response$/, async ({ params, req, res }) => {
+    const body = validate(PeerResponseRequestSchema, await readBody(req));
+    const resolved = c.pendingPeerRequests.resolveDelivered(params.id, body.answer);
+    const asker = resolved ? c.workers.findById(resolved.from) : null;
+    writeJson(res, 200, {
+      ok: true,
+      outcome: resolved ? "answered" : "none",
+      ...(resolved ? { toWorker: resolved.from, toName: asker?.name ?? null } : {}),
+    });
+  });
+
   // Orchestrator-initiated user notification. Fire-and-forget: published on
   // the bus as `notification:fire`; the native app delivers it only while
   // backgrounded (app/main.swift checks NSApp.isActive).
@@ -479,6 +584,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     // the drain would fire the queued messages the interrupt meant to stop.
     const clearedQueued = c.messageQueue.clearPending(params.id);
     if (clearedQueued > 0) c.log.info("interrupt cleared queued messages", { workerId: params.id, count: clearedQueued });
+    // Esc abandons this worker's outstanding peer consultations too — its
+    // blocked ask_peer (if any) unblocks "gone"; in-flight asks to it decline.
+    c.pendingPeerRequests.cancelByWorker(params.id);
     c.turnSettle.mark(params.id);
     c.httpWorkerClient.sendInterrupt(worker.port).catch(() => {});
     transitionState(

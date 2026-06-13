@@ -25,9 +25,12 @@ export const spawnWorkerTool: McpToolModule = {
           workspaceOf: z.string().optional().describe(
             "Spawn this worker INSIDE an existing worker's isolated worktree instead of a fresh one. Use it to review, continue, or fix that worker's work with direct file access — never read another worker's worktree via your own shell. Pass the id of a worker you spawned (attaching to another orchestrator's worker is rejected). Only allowed while that worker is idle (fails with a conflict while it is busy); for plain follow-ups prefer message_worker to the same worker.",
           ),
+          collaborate: z.boolean().optional().describe(
+            "Give this worker the peer tools (list_peers / ask_peer / respond_to_peer) so it can consult — and be consulted by — the other collaborate workers you spawn under you (its siblings). Enable it on BOTH sides of a runtime information dependency: e.g. domain-expert 'providers' plus the 'consumer' that queries them as it works. Leave it OFF for independent parallel work. See the peer-collaboration section of your instructions for when this pays off and how to set it up.",
+          ),
         },
       },
-      async ({ prompt, name, model, effort, workspaceOf }) =>
+      async ({ prompt, name, model, effort, workspaceOf, collaborate }) =>
         safeText(async () => {
           const body: Record<string, unknown> = {
             prompt, name, model,
@@ -35,6 +38,7 @@ export const spawnWorkerTool: McpToolModule = {
             parentId: session.selfId,
           };
           if (effort) body.effort = effort;
+          if (collaborate) body.collaborate = true;
           if (workspaceOf) body.workspaceOf = workspaceOf;
           else if (session.isGitRepo()) body.worktreeFrom = session.cwd;
           else body.cwd = session.cwd;

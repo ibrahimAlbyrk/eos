@@ -41,6 +41,7 @@ const baseCtx: SessionSpawnContext = {
   repoRoot: null,
   isAttached: false,
   hasMcp: false,
+  canCollaborate: false,
 };
 
 // Verifies the DPI assembler selects + composes the right per-role system
@@ -112,5 +113,14 @@ describe("DPI assembles per-role system prompts", () => {
     assert.ok(r.activeFragmentIds.includes("env/worktree-shared"));
     assert.ok(!r.activeFragmentIds.includes("env/worktree"));
     assert.match(r.text, /shared worktree \(attached\)/);
+  });
+
+  it("collaborate worker → peer-collaboration fragment present; off → absent", async () => {
+    const off = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker" });
+    assert.ok(!off.activeFragmentIds.includes("role/worker/04-collaboration"));
+    const on = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker", canCollaborate: true });
+    assert.ok(on.activeFragmentIds.includes("role/worker/04-collaboration"));
+    assert.match(on.text, /Working with peers/);
+    assert.doesNotMatch(on.text, /\{\{/); // peer tool-name vars resolved
   });
 });

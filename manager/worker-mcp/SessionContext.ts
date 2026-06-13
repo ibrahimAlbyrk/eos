@@ -3,6 +3,10 @@ import { daemonApi } from "../shared/http.ts";
 export interface WorkerSession {
   readonly selfId: string;
   readonly daemonUrl: string;
+  // Spawned with collaborate=true → the peer tools are registered. Set by the
+  // daemon as EOS_COLLABORATE on the worker MCP child's env (container.ts), so
+  // it's known synchronously at boot with no daemon round-trip.
+  readonly collaborate: boolean;
   api(method: string, path: string, body?: unknown): Promise<unknown>;
 }
 
@@ -13,7 +17,8 @@ export function resolveSession(): WorkerSession {
     process.stderr.write("[worker-mcp] FATAL: EOS_WORKER_ID not set\n");
     process.exit(1);
   }
+  const collaborate = process.env.EOS_COLLABORATE === "1";
   const api = (method: string, path: string, body?: unknown): Promise<unknown> =>
     daemonApi(daemonUrl, method, path, body);
-  return { selfId, daemonUrl, api };
+  return { selfId, daemonUrl, collaborate, api };
 }

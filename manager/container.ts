@@ -60,10 +60,13 @@ import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
 import { StartupBackupService } from "./services/StartupBackupService.ts";
 import { FilePromptSource } from "../infra/src/prompt/FilePromptSource.ts";
+import { FileProjectMemoryStore } from "../infra/src/persistence/FileProjectMemoryStore.ts";
 import { UserTemplateService } from "./services/UserTemplateService.ts";
 import { UserSettingsService } from "./services/UserSettingsService.ts";
 import { ModelCatalogService } from "./services/ModelCatalogService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
+import { BackgroundActivityService } from "./services/BackgroundActivityService.ts";
+import { PendingPeerRequestService } from "./services/PendingPeerRequestService.ts";
 import { TerminalRunService } from "./services/TerminalRunService.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
@@ -182,7 +185,8 @@ export function buildContainer() {
   // Policy gateway service --------------------------------------------------
   // Plan-mode workers must still write their plan artifact — fileEdits under
   // this dir classify as planFile and bypass the mode verdict.
-  const plansDir = join(expandPath(process.env.CLAUDE_CONFIG_DIR ?? "~/.claude")!, "plans");
+  const claudeHome = expandPath(process.env.CLAUDE_CONFIG_DIR ?? "~/.claude")!;
+  const plansDir = join(claudeHome, "plans");
   const policyGateway = new PolicyGatewayService({
     pending, events, bus, clock: systemClock, ids: randomIdGenerator,
     modeResolver,
@@ -246,6 +250,7 @@ export function buildContainer() {
       isOrchestrator: !!spec.isOrchestrator,
       withGateway: !!spec.withGateway,
       parentId: spec.parentId,
+      collaborate: !!spec.collaborate,
     });
     const wiredSpec: SpawnWorkerSpec = wire.path
       ? { ...spec, mcpConfig: wire.path, mcpStrict: wire.strict, permissionPromptTool: wire.permissionPromptTool ?? spec.permissionPromptTool }
@@ -297,16 +302,17 @@ export function buildContainer() {
     isOrchestrator: boolean;
     withGateway: boolean;
     parentId: string | undefined;
+    collaborate: boolean;
   }): { builtins: Record<string, unknown>; permissionPromptTool: string | undefined } => {
     const baseEnv = {
       ...process.env,
       EOS_DAEMON_URL: `http://127.0.0.1:${config.daemon.port}`,
       EOS_WORKER_ID: input.id,
     };
-    const node = (script: string) => ({
+    const node = (script: string, extraEnv?: Record<string, string>) => ({
       command: "node",
       args: ["--no-warnings", "--experimental-strip-types", join(config.paths.repoRoot, "manager", script)],
-      env: baseEnv,
+      env: extraEnv ? { ...baseEnv, ...extraEnv } : baseEnv,
       alwaysLoad: true,
     });
     // Key set = EOS_BUILTIN_MCP_SERVERS — the subagent caller-scope deny
@@ -320,7 +326,10 @@ export function buildContainer() {
         env: baseEnv,
       };
     }
-    if (input.parentId) builtins.worker = node("worker-mcp.ts");
+    // EOS_COLLABORATE gates the peer MCP tools (list_peers / ask_peer /
+    // respond_to_peer) inside the worker MCP server — read synchronously at its
+    // boot, so no daemon round-trip / row-insert race.
+    if (input.parentId) builtins.worker = node("worker-mcp.ts", { EOS_COLLABORATE: input.collaborate ? "1" : "" });
     return { builtins, permissionPromptTool: input.withGateway ? "mcp__gateway__decide" : undefined };
   };
 
@@ -330,6 +339,7 @@ export function buildContainer() {
     isOrchestrator: boolean;
     withGateway: boolean;
     parentId: string | undefined;
+    collaborate: boolean;
   }): { path: string | null; strict: boolean; permissionPromptTool: string | undefined } => {
     const agentCfg = input.isOrchestrator ? config.mcp.orchestrator : config.mcp.worker;
     const { builtins, permissionPromptTool } = buildMcpBuiltins(input);
@@ -354,6 +364,8 @@ export function buildContainer() {
 
   const turnSettle = new TurnSettleService(systemClock);
   const pendingQuestions = new PendingQuestionService(randomIdGenerator);
+  const backgroundActivity = new BackgroundActivityService(systemClock);
+  const pendingPeerRequests = new PendingPeerRequestService(randomIdGenerator);
   const terminalRuns = new TerminalRunService({ bus, events, clock: systemClock, log });
   // Centralized prompt system (Layer 1) + DPI (Layer 2). Built-in library lives
   // in config.paths.promptsDir; ~/.eos/prompts overrides/extends it. Reads fresh
@@ -387,6 +399,7 @@ export function buildContainer() {
         repoRoot: spec.worktreeFrom ?? null,
         isAttached: !!spec.workspaceOf,
         hasMcp: false,
+        canCollaborate: !!spec.collaborate,
       },
     );
     if (!text.trim()) return null;
@@ -395,6 +408,7 @@ export function buildContainer() {
     return path;
   };
   const userTemplates = new UserTemplateService(join(config.daemon.home, "templates"));
+  const projectMemory = new FileProjectMemoryStore();
   const userSettings = new UserSettingsService(join(config.daemon.home, "settings.json"));
   const modelCatalog = new ModelCatalogService(join(config.daemon.home, "models.json"), systemClock);
 
@@ -488,10 +502,14 @@ export function buildContainer() {
     backendResolver,
     turnSettle,
     pendingQuestions,
+    backgroundActivity,
+    pendingPeerRequests,
     terminalRuns,
     prompts,
     promptRegistry,
     userTemplates,
+    projectMemory,
+    claudeHome,
     userSettings,
     modelCatalog,
     cleanupMcpConfig,

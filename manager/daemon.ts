@@ -21,6 +21,7 @@ import { mintRequestId } from "./middleware/requestId.ts";
 import { handleError, writeJson } from "./middleware/errorHandler.ts";
 import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
 import { drainQueuedMessages } from "../core/src/use-cases/DrainQueuedMessages.ts";
+import { transitionState } from "../core/src/use-cases/TransitionState.ts";
 import { dispatchDeps } from "./routes/dispatch-deps.ts";
 
 import { registerHealthRoutes } from "./routes/health.ts";
@@ -34,6 +35,7 @@ import { registerFsReadRoutes } from "./routes/fs-read.ts";
 import { registerFsGitRoutes } from "./routes/fs-git.ts";
 import { registerCommandRoutes } from "./routes/commands.ts";
 import { registerTemplateRoutes } from "./routes/templates.ts";
+import { registerMemoryRoutes } from "./routes/memory.ts";
 import { registerPromptRoutes } from "./routes/prompts.ts";
 import { registerSettingsRoutes } from "./routes/settings.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
@@ -66,6 +68,7 @@ registerFsReadRoutes(router, c);
 registerFsGitRoutes(router, c);
 registerCommandRoutes(router, c);
 registerTemplateRoutes(router, c);
+registerMemoryRoutes(router, c);
 registerPromptRoutes(router, c);
 registerSettingsRoutes(router, c);
 registerWorkerRoutes(router, c);
@@ -109,9 +112,58 @@ const drainFor = (workerId: string): void => {
     }
   });
 };
+// Peer-request pump — a collaborate worker's queued consultations are delivered
+// into the target peer's PTY when it next reaches IDLE, one at a time. A
+// delivered-but-unanswered request is auto-declined when the peer ends that
+// turn, so the asker (blocked in ask_peer) always unblocks within one turn.
+// Mirrors the queue drain: an in-flight guard plus an explicit WORKING
+// transition stop a stale IDLE event from re-delivering or wrongly declining
+// the just-delivered request.
+const peerPumping = new Set<string>();
+const pumpPeerFor = (workerId: string): boolean => {
+  if (peerPumping.has(workerId)) return true;
+  const w = c.workers.findById(workerId);
+  if (!w || w.state !== "IDLE") return false;
+  // Still-delivered at IDLE = the peer ended its turn without responding.
+  c.pendingPeerRequests.declineDelivered(workerId, "peer ended its turn without responding");
+  const next = c.pendingPeerRequests.nextQueuedFor(workerId);
+  if (!next) return false;
+  if (!w.port || !c.supervisor.has(workerId)) return false;
+  peerPumping.add(workerId);
+  c.pendingPeerRequests.markDelivered(next.requestId);
+  c.turnSettle.clear(workerId); // genuine new turn — clear the settle window first
+  const asker = c.workers.findById(next.from);
+  const fromName = asker?.name ?? next.from;
+  const formatted =
+    `[Peer request from ${fromName} (${next.from})]\n${next.question}\n\n` +
+    `Answer this from your area, then call respond_to_peer with your answer — that is the only thing that reaches ${fromName}; plain text in this turn does not.`;
+  void c.httpWorkerClient
+    .sendMessage(w.port, formatted, {
+      as: "peer_request", fromWorker: next.from, fromName: asker?.name ?? undefined,
+      displayText: next.question, sentAt: c.clock.now(),
+    })
+    .then(() => {
+      transitionState(
+        { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },
+        { workerId, next: "WORKING", reason: "peer_request" },
+      );
+    })
+    .catch((e) => {
+      c.pendingPeerRequests.declineDelivered(workerId, "delivery to peer failed");
+      c.log.warn("peer request delivery failed", { workerId, error: e instanceof Error ? e.message : String(e) });
+    })
+    .finally(() => peerPumping.delete(workerId));
+  return true;
+};
+
 c.bus.subscribe("worker:change", (msg) => {
   const p = msg.payload as { workerId?: string; state?: string; queued?: boolean };
   if (!p?.workerId) return;
+  // pumpPeerFor reads the worker's real state itself (self-guards on IDLE), so
+  // it fires on a real IDLE transition AND on the route's plain nudge after a
+  // peer-request registers. A delivery starts a turn (→ WORKING); let the
+  // dashboard queue drain wait for the next IDLE so they never share a turn.
+  if (pumpPeerFor(p.workerId)) return;
   if (p.state !== "IDLE" && p.queued !== true) return;
   drainFor(p.workerId);
 });
