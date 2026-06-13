@@ -74,7 +74,9 @@ export const PromptFrontmatterSchema = z
     id: z.string().optional(),
     description: z.string().optional(),
     variables: z.array(VariableNameSchema).default([]),
-    dpi: DpiMetaSchema.optional(),
+    // Opaque to Layer 1 — the parser/registry never depend on the DPI schema.
+    // Layer 2 (toFragment) validates this block against DpiMetaSchema lazily.
+    dpi: z.unknown().optional(),
   })
   .passthrough();
 export type PromptFrontmatter = z.infer<typeof PromptFrontmatterSchema>;

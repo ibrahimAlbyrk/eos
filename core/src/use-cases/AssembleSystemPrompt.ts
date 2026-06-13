@@ -1,24 +1,40 @@
-// AssembleSystemPrompt — the DPI pipeline (Layer 2). At session start: derive a
-// base FactSet from the spawn context, let providers add world-derived facts
-// (git, environment), select + order the matching fragments, render each through
-// Layer 1 (session values exposed as UPPER_SNAKE variables), and compose the
-// final system prompt. Runs once per spawn — the prompt is fixed at launch via
-// --append-system-prompt-file.
+// AssembleSystemPrompt — the DPI pipeline (Layer 2). At session start: derive the
+// FactSet from the spawn context, select + order the matching fragments, render
+// each through Layer 1 (session values exposed as UPPER_SNAKE variables), and
+// compose the final system prompt. Runs once per spawn — the prompt is fixed at
+// launch via --append-system-prompt-file.
 //
-// Two namespaces, deliberately separate: FACTS (camelCase: role, isGitRepo, …)
-// drive `when` conditions; VARIABLES (UPPER_SNAKE: BRANCH, AGENT_NAME, …) are
-// interpolated into bodies.
+// Synchronous: facts are derived directly from the spawn context (the only facts
+// ever conditioned on are session-IMMUTABLE — role/isSubagent/isWorktree/
+// isAttached). Two namespaces: FACTS (camelCase, drive `when`) vs VARIABLES
+// (UPPER_SNAKE, interpolated into bodies).
 
 import { SessionFactsSchema } from "../../../contracts/src/prompt.ts";
 import type { SessionFacts } from "../../../contracts/src/prompt.ts";
-import type { FactProvider, SessionSpawnContext } from "../ports/FactProvider.ts";
+import type { VariableScope } from "../domain/prompt.ts";
 import type { PromptRegistry } from "../services/PromptRegistry.ts";
 import type { PromptService } from "../services/PromptService.ts";
 import { composePrompt } from "../services/prompt-compose.ts";
 import { selectFragments } from "../services/fragment-select.ts";
 
+// What the daemon already knows about a spawn — the assembler's only input.
+export interface SessionSpawnContext {
+  role: "orchestrator" | "worker" | "git";
+  parentId: string | null;
+  name: string;
+  workerId: string | null;
+  model: string;
+  effort: string | null;
+  permissionMode: string;
+  cwd: string | null;
+  worktreeDir: string | null;
+  branch: string | null;
+  repoRoot: string | null;
+  isAttached: boolean;
+  hasMcp: boolean;
+}
+
 export interface AssembleDeps {
-  factProviders: FactProvider[];
   registry: PromptRegistry;
   prompts: PromptService;
 }
@@ -29,19 +45,13 @@ export interface AssembleResult {
   activeFragmentIds: string[];
 }
 
-export async function assembleSystemPrompt(
-  deps: AssembleDeps,
-  ctx: SessionSpawnContext,
-): Promise<AssembleResult> {
+export function assembleSystemPrompt(deps: AssembleDeps, ctx: SessionSpawnContext): AssembleResult {
   deps.registry.reload(); // fresh read so prompt edits apply on the next spawn
-  const facts = await gatherFacts(deps.factProviders, ctx);
+  const facts = deriveFacts(ctx);
   const vars = sessionVars(ctx);
 
   const selected = selectFragments(deps.registry.fragments(), facts);
-  const rendered: string[] = [];
-  for (const fragment of selected) {
-    rendered.push(await deps.prompts.render(fragment.prompt.id, {}, { vars, cwd: ctx.cwd }));
-  }
+  const rendered = selected.map((f) => deps.prompts.render(f.prompt.id, {}, vars));
 
   return {
     text: composePrompt(rendered),
@@ -50,11 +60,11 @@ export async function assembleSystemPrompt(
   };
 }
 
-async function gatherFacts(providers: FactProvider[], ctx: SessionSpawnContext): Promise<SessionFacts> {
-  // Base derived from what the daemon already knows. Providers override the
-  // world-derived facts (isGitRepo, os, shell); whatever a provider omits keeps
-  // its conservative base value (fail-safe — unknown never invents git prose).
-  const merged: Record<string, unknown> = {
+// Facts derived from the spawn context. Mutable world facts (isGitRepo/os/shell)
+// are NOT populated — they're deliberately never conditioned on (the prompt is
+// fixed at launch, so gating on a value that can change mid-session is unsound).
+function deriveFacts(ctx: SessionSpawnContext): SessionFacts {
+  return SessionFactsSchema.parse({
     role: ctx.role,
     isSubagent: ctx.parentId !== null,
     isGitRepo: false,
@@ -66,16 +76,11 @@ async function gatherFacts(providers: FactProvider[], ctx: SessionSpawnContext):
     os: "",
     shell: "",
     hasMcp: ctx.hasMcp,
-  };
-  for (const provider of providers) {
-    Object.assign(merged, await provider.gather(ctx));
-  }
-  return SessionFactsSchema.parse(merged);
+  });
 }
 
-// The session's interpolation variables — UPPER_SNAKE, sourced from the spawn
-// context. Fragments reference these (e.g. {{BRANCH}}, {{AGENT_NAME}}).
-function sessionVars(ctx: SessionSpawnContext): Record<string, unknown> {
+// The session's interpolation variables — UPPER_SNAKE, from the spawn context.
+function sessionVars(ctx: SessionSpawnContext): VariableScope {
   return {
     AGENT_NAME: ctx.name,
     WORKER_ID: ctx.workerId ?? "",

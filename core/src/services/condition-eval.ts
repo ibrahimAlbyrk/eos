@@ -1,9 +1,11 @@
 // Evaluate a DPI condition tree against the FactSet — the Specification pattern
 // realized as data, interpreted here. Leaf form names one fact + one operator;
-// the first operator present wins. A bare leaf (just `fact`) means "is truthy".
+// operator presence is detected by own-property (so `eq: null` / `eq: false` are
+// matchable), first present wins. A bare leaf (just `fact`) means "is truthy".
 // The operator set is closed on purpose (see contracts/src/prompt.ts).
 
 import type { Condition, ConditionLeaf } from "../../../contracts/src/prompt.ts";
+import { isTruthy } from "../domain/prompt.ts";
 
 export function evaluateCondition(cond: Condition, facts: Record<string, unknown>): boolean {
   if ("all" in cond) return cond.all.every((c) => evaluateCondition(c, facts));
@@ -14,17 +16,11 @@ export function evaluateCondition(cond: Condition, facts: Record<string, unknown
 
 function evaluateLeaf(leaf: ConditionLeaf, facts: Record<string, unknown>): boolean {
   const v = facts[leaf.fact];
-  if (leaf.eq !== undefined) return v === leaf.eq;
-  if (leaf.ne !== undefined) return v !== leaf.ne;
-  if (leaf.in !== undefined) return leaf.in.includes(v);
-  if (leaf.nin !== undefined) return !leaf.nin.includes(v);
-  if (leaf.exists !== undefined) return (v !== undefined && v !== null) === leaf.exists;
-  if (leaf.truthy !== undefined) return truthy(v) === leaf.truthy;
-  return truthy(v);
-}
-
-function truthy(v: unknown): boolean {
-  if (v == null || v === false || v === "" || v === 0) return false;
-  if (Array.isArray(v)) return v.length > 0;
-  return true;
+  if (Object.hasOwn(leaf, "eq")) return v === leaf.eq;
+  if (Object.hasOwn(leaf, "ne")) return v !== leaf.ne;
+  if (Object.hasOwn(leaf, "in")) return Array.isArray(leaf.in) && leaf.in.includes(v);
+  if (Object.hasOwn(leaf, "nin")) return Array.isArray(leaf.nin) && !leaf.nin.includes(v);
+  if (Object.hasOwn(leaf, "exists")) return (v !== undefined && v !== null) === leaf.exists;
+  if (Object.hasOwn(leaf, "truthy")) return isTruthy(v) === leaf.truthy;
+  return isTruthy(v);
 }

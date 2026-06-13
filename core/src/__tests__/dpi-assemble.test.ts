@@ -5,9 +5,10 @@ import { evaluateCondition } from "../services/condition-eval.ts";
 import { PromptRegistry } from "../services/PromptRegistry.ts";
 import { PromptService } from "../services/PromptService.ts";
 import { assembleSystemPrompt } from "../use-cases/AssembleSystemPrompt.ts";
+import { selectFragments } from "../services/fragment-select.ts";
 import type { Logger } from "../ports/Logger.ts";
 import type { PromptSource } from "../ports/PromptSource.ts";
-import type { FactProvider, SessionSpawnContext } from "../ports/FactProvider.ts";
+import type { SessionSpawnContext } from "../use-cases/AssembleSystemPrompt.ts";
 import type { RawPrompt } from "../domain/prompt.ts";
 
 const noopLogger: Logger = {
@@ -20,6 +21,29 @@ const noopLogger: Logger = {
   },
 };
 const src = (p: RawPrompt[]): PromptSource => ({ list: () => p });
+
+describe("evaluateCondition robustness", () => {
+  it("matches eq: null and eq: false via own-property detection", () => {
+    assert.equal(evaluateCondition({ fact: "x", eq: null }, { x: null }), true);
+    assert.equal(evaluateCondition({ fact: "y", eq: false }, { y: false }), true);
+  });
+  it("vacuous all([]) = true, any([]) = false", () => {
+    assert.equal(evaluateCondition({ all: [] }, {}), true);
+    assert.equal(evaluateCondition({ any: [] }, {}), false);
+  });
+});
+
+describe("selectFragments edge cases", () => {
+  it("a fragment cannot override itself (no empty-prompt footgun)", () => {
+    const reg = new PromptRegistry(
+      src([{ id: "self", body: "S", frontmatter: { dpi: { layer: "core", priority: 0, overrides: ["self"] } } }]),
+      noopLogger,
+    );
+    const out = selectFragments(reg.fragments(), { role: "worker" } as never);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].prompt.id, "self");
+  });
+});
 
 describe("evaluateCondition", () => {
   const f = { role: "worker", isGitRepo: true, model: "opus", effort: null };
@@ -51,14 +75,9 @@ describe("assembleSystemPrompt (§8 worked examples)", () => {
   const fragments: RawPrompt[] = [
     { id: "core/identity", body: "You are Eos.", frontmatter: { dpi: { layer: "core", priority: 0 } } },
     {
-      id: "env/git-status",
-      body: "branch={{MODEL}}",
-      frontmatter: { dpi: { layer: "environment", priority: 20, when: { fact: "isGitRepo", eq: true } } },
-    },
-    {
       id: "env/worktree",
-      body: "isolated worktree",
-      frontmatter: { dpi: { layer: "environment", priority: 30, when: { fact: "isWorktree", eq: true } } },
+      body: "worktree {{MODEL}}",
+      frontmatter: { variables: ["MODEL"], dpi: { layer: "environment", priority: 30, when: { fact: "isWorktree", eq: true } } },
     },
     {
       id: "env/worktree-shared",
@@ -101,35 +120,19 @@ describe("assembleSystemPrompt (§8 worked examples)", () => {
     hasMcp: false,
   };
 
-  it("(a) non-git orchestrator → core + role/orchestrator only, zero git prose", async () => {
-    const { registry, prompts } = build();
-    const r = await assembleSystemPrompt(
-      { factProviders: [], registry, prompts },
-      { ...baseCtx, role: "orchestrator" },
-    );
+  it("(a) non-worktree orchestrator → core + role/orchestrator only", () => {
+    const r = assembleSystemPrompt(build(), { ...baseCtx, role: "orchestrator" });
     assert.deepEqual(r.activeFragmentIds, ["core/identity", "role/orchestrator"]);
-    assert.doesNotMatch(r.text, /branch=/);
-    assert.equal(r.facts.isGitRepo, false);
   });
 
-  it("(b) git worker → core, git-status, worktree, role/worker (provider sets git facts)", async () => {
-    const { registry, prompts } = build();
-    const gitFacts: FactProvider = { gather: () => ({ isGitRepo: true, isWorktree: true }) };
-    const r = await assembleSystemPrompt(
-      { factProviders: [gitFacts], registry, prompts },
-      { ...baseCtx, role: "worker" },
-    );
-    assert.deepEqual(r.activeFragmentIds, ["core/identity", "env/git-status", "env/worktree", "role/worker"]);
-    assert.match(r.text, /branch=opus/); // {{model}} interpolated from facts
+  it("(b) worker in a worktree → core, env/worktree, role/worker; session var interpolated", () => {
+    const r = assembleSystemPrompt(build(), { ...baseCtx, role: "worker", worktreeDir: "/wt" });
+    assert.deepEqual(r.activeFragmentIds, ["core/identity", "env/worktree", "role/worker"]);
+    assert.match(r.text, /worktree opus/); // {{MODEL}} from sessionVars(ctx)
   });
 
-  it("(c) attached worker → worktree-shared overrides worktree", async () => {
-    const { registry, prompts } = build();
-    const facts: FactProvider = { gather: () => ({ isGitRepo: true, isWorktree: true, isAttached: true }) };
-    const r = await assembleSystemPrompt(
-      { factProviders: [facts], registry, prompts },
-      { ...baseCtx, role: "worker", isAttached: true },
-    );
+  it("(c) attached worker → worktree-shared overrides worktree", () => {
+    const r = assembleSystemPrompt(build(), { ...baseCtx, role: "worker", worktreeDir: "/wt", isAttached: true });
     assert.ok(r.activeFragmentIds.includes("env/worktree-shared"));
     assert.ok(!r.activeFragmentIds.includes("env/worktree"));
   });

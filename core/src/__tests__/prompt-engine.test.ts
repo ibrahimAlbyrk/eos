@@ -1,7 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { isTruthy, parseTemplate, renderTemplate } from "../services/template-engine.ts";
+import { parseTemplate, renderTemplate } from "../services/template-engine.ts";
+import { isTruthy } from "../domain/prompt.ts";
 import { resolveVariables } from "../services/variable-resolve.ts";
 import { parsePrompt } from "../services/prompt-parse.ts";
 import { PromptRegistry } from "../services/PromptRegistry.ts";
@@ -9,7 +10,6 @@ import { PromptService } from "../services/PromptService.ts";
 import { NotFoundError } from "../errors/index.ts";
 import type { Logger } from "../ports/Logger.ts";
 import type { PromptSource } from "../ports/PromptSource.ts";
-import type { VariableProvider } from "../ports/VariableProvider.ts";
 import type { RawPrompt } from "../domain/prompt.ts";
 
 const noopLogger: Logger = {
@@ -52,6 +52,21 @@ describe("parseTemplate", () => {
   it("collects referenced roots (dotted path → root name)", () => {
     const { referenced } = parseTemplate("{{GIT.BRANCH}} {{#if READY}}ok{{/if}}");
     assert.deepEqual(referenced.sort(), ["GIT", "READY"]);
+  });
+});
+
+describe("parseTemplate validation (fail loud, never silently corrupt)", () => {
+  it("throws on a mismatched closer ({{#if}}…{{/unless}})", () => {
+    assert.throws(() => parseTemplate("{{#if A}}x{{/unless}}"), /no matching/);
+  });
+  it("throws on an unclosed block", () => {
+    assert.throws(() => parseTemplate("{{#if A}}x"), /unclosed/);
+  });
+  it("throws on a closer with no opener", () => {
+    assert.throws(() => parseTemplate("x{{/if}}"));
+  });
+  it("throws on a malformed token (literal braces in prose)", () => {
+    assert.throws(() => parseTemplate('{{ "k": {{V}} }}'));
   });
 });
 
@@ -151,66 +166,30 @@ describe("PromptRegistry", () => {
   });
 });
 
-describe("PromptService", () => {
-  it("renders with locals — the action-template call shape", async () => {
+describe("PromptService (synchronous; locals > session vars > static globals)", () => {
+  it("renders with locals — the action-template call shape", () => {
     const reg = new PromptRegistry(
       source([{ id: "commit", body: "PUSH: {{PUSH}}", frontmatter: { variables: ["PUSH"] } }]),
       noopLogger,
     );
-    const svc = new PromptService(reg);
-    assert.equal(await svc.render("commit", { PUSH: "true" }), "PUSH: true");
+    assert.equal(new PromptService(reg).render("commit", { PUSH: "true" }), "PUSH: true");
   });
 
-  it("auto-fills from static globals when no local is given", async () => {
+  it("auto-fills from static globals when no local/var is given", () => {
     const reg = new PromptRegistry(
       source([{ id: "h", body: "OS={{OS}}", frontmatter: { variables: ["OS"] } }]),
       noopLogger,
     );
-    const svc = new PromptService(reg, [], { OS: "darwin" });
-    assert.equal(await svc.render("h"), "OS=darwin");
+    assert.equal(new PromptService(reg, { OS: "darwin" }).render("h"), "OS=darwin");
   });
 
-  it("auto-fills from session vars (ctx.vars)", async () => {
+  it("auto-fills from session vars, with locals overriding them", () => {
     const reg = new PromptRegistry(
       source([{ id: "b", body: "{{BRANCH}}", frontmatter: { variables: ["BRANCH"] } }]),
       noopLogger,
     );
     const svc = new PromptService(reg);
-    assert.equal(await svc.render("b", {}, { vars: { BRANCH: "feature" } }), "feature");
-  });
-
-  it("invokes a provider only when its key is referenced (lazy)", async () => {
-    let gitCalls = 0;
-    const gitProvider: VariableProvider = {
-      keys: ["BRANCH"],
-      provide() {
-        gitCalls++;
-        return { BRANCH: "main" };
-      },
-    };
-    const reg = new PromptRegistry(
-      source([
-        { id: "uses-git", body: "on {{BRANCH}}", frontmatter: { variables: ["BRANCH"] } },
-        { id: "no-git", body: "hello", frontmatter: {} },
-      ]),
-      noopLogger,
-    );
-    const svc = new PromptService(reg, [gitProvider]);
-
-    assert.equal(await svc.render("no-git"), "hello");
-    assert.equal(gitCalls, 0); // not invoked — no key referenced
-
-    assert.equal(await svc.render("uses-git"), "on main");
-    assert.equal(gitCalls, 1); // invoked once
-  });
-
-  it("lets locals override session/provider values", async () => {
-    const gitProvider: VariableProvider = { keys: ["BRANCH"], provide: () => ({ BRANCH: "main" }) };
-    const reg = new PromptRegistry(
-      source([{ id: "b", body: "{{BRANCH}}", frontmatter: { variables: ["BRANCH"] } }]),
-      noopLogger,
-    );
-    const svc = new PromptService(reg, [gitProvider]);
-    assert.equal(await svc.render("b", { BRANCH: "local" }, { vars: { BRANCH: "session" } }), "local");
+    assert.equal(svc.render("b", {}, { BRANCH: "feature" }), "feature"); // session var
+    assert.equal(svc.render("b", { BRANCH: "local" }, { BRANCH: "session" }), "local"); // local wins
   });
 });

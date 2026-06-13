@@ -2,6 +2,7 @@
 // PromptSource port (infra parses YAML → frontmatter object); ParsedPrompt is
 // the validated + compiled form the registry hands to the renderer.
 
+import { DpiMetaSchema } from "../../../contracts/src/prompt.ts";
 import type { DpiMeta, PromptFrontmatter } from "../../../contracts/src/prompt.ts";
 
 export type VariableValue = string | number | boolean | string[] | null | undefined;
@@ -42,6 +43,19 @@ export interface Fragment {
   dpi: DpiMeta;
 }
 
+// Layer 2 boundary: a parsed prompt becomes a Fragment only if its opaque `dpi`
+// block validates against DpiMetaSchema. Invalid/absent dpi → not a fragment
+// (the prompt is still a usable Layer-1 template).
 export function toFragment(p: ParsedPrompt): Fragment | null {
-  return p.frontmatter.dpi ? { prompt: p, dpi: p.frontmatter.dpi } : null;
+  if (p.frontmatter.dpi === undefined || p.frontmatter.dpi === null) return null;
+  const parsed = DpiMetaSchema.safeParse(p.frontmatter.dpi);
+  return parsed.success ? { prompt: p, dpi: parsed.data } : null;
+}
+
+// Shared truthiness rule for the template engine (Layer 1) and the condition
+// evaluator (Layer 2): false, 0, "", null, undefined, and [] are falsy.
+export function isTruthy(v: unknown): boolean {
+  if (v == null || v === false || v === "" || v === 0) return false;
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
 }

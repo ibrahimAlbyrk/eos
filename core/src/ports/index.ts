@@ -20,5 +20,3 @@ export * from "./ModelCatalog.ts";
 export * from "./GitInfo.ts";
 export * from "./RecentsRepo.ts";
 export * from "./PromptSource.ts";
-export * from "./VariableProvider.ts";
-export * from "./FactProvider.ts";
