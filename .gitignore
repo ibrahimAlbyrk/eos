@@ -50,7 +50,7 @@ tmp/
 temp/
 *.tmp
 
-# Runtime state (claude-manager writes here, lives under $HOME but ignore if symlinked in)
+# Runtime state (eos writes here, lives under $HOME but ignore if symlinked in)
 .eos/
 
 # vendored pdf.js viewer ships a build/ dir — keep it
