@@ -304,6 +304,20 @@ export function buildBlocks(events) {
       });
       continue;
     }
+    if (ev.type === "git_pull") {
+      flushTools();
+      lastAsst = null;
+      const payload = parsePayload(ev.payload);
+      out.push({
+        kind: "pull",
+        outcome: payload.outcome ?? "failed",
+        ok: payload.ok ?? false,
+        message: payload.message ?? "",
+        branch: payload.branch ?? null,
+        ts: ev.ts,
+      });
+      continue;
+    }
     if (ev.type === "worktree") {
       const payload = parsePayload(ev.payload);
       // Worker exited with uncommitted work — the worktree was preserved.

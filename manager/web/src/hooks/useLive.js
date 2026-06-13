@@ -125,8 +125,8 @@ export function useLive() {
 
   // workspaceOf attaches the git agent INSIDE an existing worker's worktree
   // (tree-level ops, direct file access); cwd is the checkout path otherwise.
-  const spawnGitAgent = useCallback(async ({ cwd, prompt, name, workspaceOf } = {}) => {
-    const r = await api.spawnWorker({ role: "git", cwd, prompt, name: name ?? "git", workspaceOf });
+  const spawnGitAgent = useCallback(async ({ cwd, prompt, name, workspaceOf, worktreeFrom, promptTemplate } = {}) => {
+    const r = await api.spawnWorker({ role: "git", cwd, prompt, name: name ?? "git", workspaceOf, worktreeFrom, promptTemplate });
     // Same sync refresh as spawnOrchestrator — keeps the new id visible
     // before the caller selects it.
     try {

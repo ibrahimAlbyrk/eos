@@ -45,6 +45,8 @@ function buildSnapshot(diff, branches, push, tryState) {
     pushable: push?.pushable ?? false,
     pushKind: push?.kind ?? "noop",
     hasUncommitted: push?.hasUncommitted ?? false,
+    pullable: push?.pullable ?? false,
+    pullKind: push?.pullKind ?? "noop",
     tryState: tryState ?? { activeTries: [], kept: false },
   };
 }

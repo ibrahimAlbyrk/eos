@@ -4,9 +4,12 @@ import { api } from "../../../api/client.js";
 import { basename } from "../../../lib/path.js";
 import { VerifyButton } from "../VerifyButton.jsx";
 import { PushButton } from "./PushButton.jsx";
+import { PullButton } from "./PullButton.jsx";
 import { useWorkerVerdict } from "../../../hooks/useWorkerVerdict.js";
 import { useGitStatus } from "../../../hooks/useGitStatus.js";
 import { hasUnintegratedWork } from "../../../lib/workState.js";
+import { truncateBranch } from "../../../lib/branchDisplay.js";
+import { gitAgentName } from "../../../lib/gitAgentName.js";
 
 const PR_OPTIONS = [
   { id: "pr", label: "Create PR", icon: "pr" },
@@ -157,6 +160,7 @@ export function ComposerDiffRow({ live }) {
   const [prMode, setPrMode] = useState("pr");
   const [commitMode, setCommitMode] = useState("commit");
   const [pushFx, setPushFx] = useState(""); // "" | "sync-leaving" | "sync-exit"
+  const [integrating, setIntegrating] = useState(false);
 
   const syncChipRef = useRef(null);
 
@@ -178,6 +182,7 @@ export function ComposerDiffRow({ live }) {
   const pushable = gs?.pushable ?? false;
   const pushKind = gs?.pushKind ?? "noop";
   const hasUncommitted = gs?.hasUncommitted ?? false;
+  const pullable = gs?.pullable ?? false;
 
   // Once there's nothing left to push, the sync chip unmounts — clear any push
   // FX class so a future chip doesn't mount pre-hidden.
@@ -214,6 +219,29 @@ export function ComposerDiffRow({ live }) {
     api.sendWorkerAction(ui.selectedId, id);
   };
 
+  // Fan-in: spawn a git agent in a fresh worktree that merges the orchestrator's
+  // child branches into one verified result (children left intact), then select
+  // it so the operator watches. Same path as the conflict-resolution git agent.
+  // The directive lives in the prompt system (manager/prompts/integrate.prompt.md),
+  // rendered server-side — only the branch list is passed as data, never prose.
+  const handleIntegrate = async () => {
+    if (integrating) return;
+    const branches = childWorkers.map((w) => w.branch).filter(Boolean);
+    if (branches.length < 2) return;
+    setIntegrating(true);
+    try {
+      const r = await live.spawnGitAgent({
+        worktreeFrom: selected.cwd ?? selected.worktree_from,
+        promptTemplate: { id: "integrate", vars: { BRANCHES: branches.join(", ") } },
+        name: gitAgentName(selected.cwd ?? selected.worktree_from, branch, "merge"),
+      });
+      if (r?.ok && r.body?.id) ui.setSelectedId(r.body.id);
+      else if (!r?.ok) alert(r?.body?.error ?? "integration failed to start");
+    } finally {
+      setIntegrating(false);
+    }
+  };
+
   const showSync = ahead > 0 || behind > 0;
   const dirty = hasUnintegratedWork(diff);
   // Push shows iff the deterministic plan would actually push AND the working
@@ -237,7 +265,7 @@ export function ComposerDiffRow({ live }) {
         {branch && (
           <>
             <span className="diff-sep">·</span>
-            <span className="diff-branch">{branch}</span>
+            <span className="diff-branch" title={branch}>{truncateBranch(branch)}</span>
           </>
         )}
       </span>
@@ -354,6 +382,19 @@ export function ComposerDiffRow({ live }) {
           onSourceFx={setPushFx}
           onSettled={refresh}
         />
+      )}
+      {pullable && (
+        <PullButton workerId={ui.selectedId} onSettled={refresh} />
+      )}
+      {isOrchestrator && childWorkers.length >= 2 && (
+        <button
+          className="pr-create-btn pr-solo"
+          disabled={integrating}
+          title="Merge these worktree branches into one verified result — spawns a git agent in a fresh worktree (originals untouched)"
+          onClick={handleIntegrate}
+        >
+          <span>{integrating ? "Merging…" : `Merge all (${childWorkers.length})`}</span>
+        </button>
       )}
       <SplitButton
         options={PR_OPTIONS}
