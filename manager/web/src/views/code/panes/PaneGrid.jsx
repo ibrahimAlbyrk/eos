@@ -1,6 +1,7 @@
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
 import { nameOf } from "../../../lib/agentName.js";
+import { useInputNeeded } from "../../../hooks/useInputNeeded.js";
 import { Messages } from "../messages/Messages.jsx";
 
 // Split view: lay out the active panes as a grid of live transcripts. Each pane
@@ -46,8 +47,16 @@ export function PaneGrid({ live }) {
 }
 
 function Pane({ index, agentId, worker, live, focused, attention, canClose, onFocus, onClose }) {
+  // Blocked-on-input cue for non-focused panes: an open ask_user question
+  // (per-agent store) or a pending permission (live.pendingPermissions). The
+  // focused pane needs none — its banner is in the shared composer.
+  const questionNeeded = useInputNeeded(agentId);
+  const permNeeded = !!worker && (live.pendingPermissions ?? []).some((p) => p.worker_id === agentId);
+  const needsInput = !focused && !!worker && (questionNeeded || permNeeded);
   const status = worker ? statusFromState(worker.state) : null;
-  const cls = ["pane", focused ? "is-focused" : "", attention ? "pane--attention" : ""]
+  // needs-input takes precedence over the attention pulse (more urgent) — both
+  // pulse the edge, in warn vs accent.
+  const cls = ["pane", focused ? "is-focused" : "", needsInput ? "pane--needs-input" : attention ? "pane--attention" : ""]
     .filter(Boolean)
     .join(" ");
 
@@ -64,9 +73,11 @@ function Pane({ index, agentId, worker, live, focused, attention, canClose, onFo
         <span className="pane-name" title={worker ? nameOf(worker) : undefined}>
           {worker ? nameOf(worker) : "Empty — pick an agent in the sidebar"}
         </span>
-        {worker && (attention
-          ? <span className="ag-notify" aria-label="finished with new output" title="finished with new output" />
-          : <span className="pane-status">{status.label}</span>)}
+        {worker && (needsInput
+          ? <span className="pane-input-label" title="Needs your input — click the pane to answer">needs input</span>
+          : attention
+            ? <span className="ag-notify" aria-label="finished with new output" title="finished with new output" />
+            : <span className="pane-status">{status.label}</span>)}
         {canClose && (
           <button
             className="pane-close"

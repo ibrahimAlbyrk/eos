@@ -35,6 +35,7 @@ import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
 import { TerminalCard } from "./TerminalCard.jsx";
 import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceRuns } from "../../../state/terminalStore.js";
+import { setInputNeeded } from "../../../state/inputNeededStore.js";
 import * as outbox from "../../../state/outboxStore.js";
 
 const SCROLL_THRESHOLD = 40;
@@ -178,6 +179,15 @@ export function Messages({ live, agentId, isActive = true }) {
     // Sequential answering: surface only the first open question as the active banner.
     ui.setPendingQuestion(pendingQuestions[0] ?? null);
   }, [pendingQuestions, isActive]);
+
+  // Per-agent "needs input" signal for split-pane badges — published un-gated by
+  // isActive (a non-focused pane has no banner, so its badge is the only cue).
+  // Dismissed questions don't count; cleared on switch/unmount.
+  useEffect(() => {
+    const open = pendingQuestions.some((q) => !ui.dismissedQuestions?.has(q.toolUseId));
+    setInputNeeded(selectedId, open);
+    return () => setInputNeeded(selectedId, false);
+  }, [pendingQuestions, selectedId, ui.dismissedQuestions]);
 
   // Publish verification verdicts for the chip consumers (diff row/viewer).
   // Orchestrators get no self-verdict — their transcript merely ECHOES worker

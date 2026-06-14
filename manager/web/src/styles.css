@@ -926,7 +926,11 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background: var(--surface-2, var(--bg));
+  /* Match the single-view center (--bg), NOT --surface-2: the transcript's own
+     cards (subagent .agent-card et al) are --surface-2 with no border, so a
+     --surface-2 pane made them blend in. On --bg they pop exactly as they do
+     in single view; border + shadow still frame the pane against the gap. */
+  background: var(--bg);
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
@@ -991,6 +995,39 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   color: var(--fg-faint);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
+}
+
+/* Non-focused pane blocked on input (open question / pending permission):
+   "needs input" label in warn, and the edge pulses — same effect as the blue
+   attention pulse, but in the warn color. Click the pane to focus it and answer
+   in the composer banner. */
+.pane-input-label {
+  flex-shrink: 0;
+  color: var(--warn);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  white-space: nowrap;
+}
+@keyframes pane-needs-input-pulse {
+  0%, 100% {
+    border-color: var(--border);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px color-mix(in srgb, var(--warn) 13%, transparent);
+  }
+  50% {
+    border-color: color-mix(in srgb, var(--warn) 55%, var(--border));
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--warn);
+  }
+}
+.pane.pane--needs-input {
+  animation: pane-needs-input-pulse 1.3s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane.pane--needs-input {
+    animation: none;
+    border-color: color-mix(in srgb, var(--warn) 45%, var(--border));
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px color-mix(in srgb, var(--warn) 13%, transparent);
+  }
 }
 .pane-close {
   flex-shrink: 0;
