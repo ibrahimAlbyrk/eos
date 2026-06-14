@@ -104,3 +104,30 @@ describe("killWorker — worktree cleanup", () => {
     }
   });
 });
+
+describe("killWorker — result identity (durable name for the transcript)", () => {
+  it("returns the worker id and name so a killed-worker tool row stays named", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const { deps } = buildDeps({ w1: { name: "refactor-auth", state: "WORKING" } });
+      const res = killWorker(deps, "w1");
+      assert.equal(res.id, "w1");
+      assert.equal(res.name, "refactor-auth");
+      assert.equal(res.wasState, "WORKING");
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  it("returns name null when the worker had no name", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const { deps } = buildDeps({ w1: {} });
+      const res = killWorker(deps, "w1");
+      assert.equal(res.id, "w1");
+      assert.equal(res.name, null);
+    } finally {
+      mock.timers.reset();
+    }
+  });
+});

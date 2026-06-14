@@ -236,7 +236,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     c.pendingQuestions.cancelByWorker(params.id);
     c.pendingPeerRequests.cancelByWorker(params.id);
     c.backgroundActivity.clearWorker(params.id);
-    writeJson(res, 200, { killed: result.killed, removed: result.removed, was_state: result.wasState });
+    writeJson(res, 200, { killed: result.killed, removed: result.removed, was_state: result.wasState, id: result.id, name: result.name });
   });
 
   r.get(/^\/workers\/(?<id>[^/]+)\/events$/, ({ params, url, res }) => {
@@ -333,7 +333,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         { workerId: params.id, next: "WORKING", reason: "orchestrator_message" },
       );
       c.bus.publish("worker:change", { workerId: params.id });
-      writeJson(res, 200, { ok: true });
+      writeJson(res, 200, { ok: true, id: params.id, name: worker.name ?? null });
       return;
     }
 

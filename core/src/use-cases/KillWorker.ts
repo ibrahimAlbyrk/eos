@@ -33,6 +33,8 @@ export interface KillWorkerResult {
   killed: Array<{ pid: number; via: string }>;
   removed: true;
   wasState: string;
+  id: string;
+  name: string | null;
 }
 
 export function killWorker(deps: KillWorkerDeps, id: string): KillWorkerResult {
@@ -97,5 +99,5 @@ export function killWorker(deps: KillWorkerDeps, id: string): KillWorkerResult {
   deps.postKillCleanup?.(id);
   deps.bus.publish("worker:removed", { workerId: id });
 
-  return { killed, removed: true, wasState: w.state };
+  return { killed, removed: true, wasState: w.state, id, name: w.name ?? null };
 }
