@@ -906,15 +906,20 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    ============================================================================ */
 .pane-grid {
   flex: 1;
+  min-width: 0;
   min-height: 0;
   display: grid;
   gap: var(--shell-gap);
   padding: 0 var(--shell-gap) var(--shell-gap) var(--shell-gap);
 }
-.pane-grid.count-1 { grid-template-columns: 1fr;     grid-template-rows: 1fr;     grid-template-areas: "a"; }
-.pane-grid.count-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr;     grid-template-areas: "a b"; }
-.pane-grid.count-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; grid-template-areas: "a b" "a c"; }
-.pane-grid.count-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; grid-template-areas: "a b" "c d"; }
+/* minmax(0, 1fr) — a bare 1fr is minmax(auto, 1fr): the auto min lets a track
+   grow to its content's min-content width (wide code/paths in a transcript),
+   blowing the grid past the center and forcing a horizontal scrollbar. The 0
+   min lets tracks shrink so panes narrow cleanly instead. */
+.pane-grid.count-1 { grid-template-columns: minmax(0, 1fr);                 grid-template-rows: minmax(0, 1fr);                 grid-template-areas: "a"; }
+.pane-grid.count-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);                 grid-template-areas: "a b"; }
+.pane-grid.count-3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "a b" "a c"; }
+.pane-grid.count-4 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "a b" "c d"; }
 
 .pane {
   display: flex;
@@ -932,6 +937,31 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .pane.is-focused {
   border-color: var(--border-strong);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--accent-soft);
+}
+
+/* A non-focused pane whose agent finished a turn with unseen output: gently
+   pulse the edge so it catches the eye while you're looking elsewhere. Focusing
+   the pane marks it viewed (PaneGrid drops the class). Only ever applies to
+   non-focused panes, so it can't collide with .is-focused. */
+@keyframes pane-attention-pulse {
+  0%, 100% {
+    border-color: var(--border);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--accent-soft);
+  }
+  50% {
+    border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--accent);
+  }
+}
+.pane.pane--attention {
+  animation: pane-attention-pulse 1.8s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pane.pane--attention {
+    animation: none;
+    border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--accent-soft);
+  }
 }
 
 .pane-head {
@@ -1235,6 +1265,11 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   font-size: var(--text-base);
   line-height: 1.65;
   color: var(--fg);
+  /* Break long unbreakable tokens (paths, slash-lists, URLs) so they wrap
+     instead of overflowing — in a narrow split pane an un-wrapped token forces
+     a horizontal scrollbar on .messages-wrap. Inherited, so inline <code> wraps
+     too; <pre> stays white-space:pre and keeps its own overflow-x:auto. */
+  overflow-wrap: anywhere;
 }
 .msg-asst > *:last-child { margin-bottom: 0; }
 .msg-asst p { margin: 0 0 10px; }
@@ -2134,6 +2169,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   /* Size container: the git bar + footer respond to the composer's OWN width
      (which the right panel drives), not the viewport — see the @container rules. */
   container-type: inline-size;
+  /* Above the .composer-wrap::before fade (z-index:1) so the floating glass
+     .child-int-panel, which rises into the fade strip, isn't veiled by it. */
+  position: relative;
+  z-index: 2;
 }
 
 /* row 1 — repo / branch bar (separate pill) */
@@ -2298,19 +2337,92 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border: 1px solid rgba(var(--tint), 0.1);
 }
 
-/* orchestrator hub: per-child integration panel ABOVE the repo/diff row —
-   same glass-card language as .c-row-diff so it reads as its own area */
+/* orchestrator hub: per-child integration panel. FLOATS as liquid glass above
+   the git bar (anchored to .diff-stack) instead of taking layout height, so the
+   transcript reaches all the way down to the git bar and the panel overlays it. */
+.diff-stack { position: relative; }
 .child-int-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 5px;
+  border-radius: 13px;
+  /* liquid glass: translucent fill + frosted backdrop, lift shadow, and a glass
+     rim drawn with inset shadows (scroll-safe, unlike a masked ::after rim). */
+  background: rgba(var(--glass), 0.4);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  box-shadow:
+    0 8px 28px rgba(0, 0, 0, 0.32),
+    0 2px 6px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(var(--rim), 0.22),
+    inset 0 0 0 1px rgba(var(--rim), 0.1);
+}
+/* no dirty children → keep mounted (rows must keep reporting) but hide the shell */
+.child-int-panel.is-empty { display: none; }
+
+/* collapsed → shrink to an ambient pill on the right, just above the git bar,
+   so it stops overlaying the transcript (same affordance as the TaskTray). */
+.child-int-panel.collapsed {
+  left: auto;
+  right: 0;
+  width: max-content;
+  max-width: 100%;
+}
+.child-int-panel.collapsed .child-int-list { display: none; }
+
+/* header (expanded) / pill (collapsed) — one toggle, click flips hubOpen */
+.cint-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--fg-dim);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: color 120ms ease, background 120ms ease;
+}
+.cint-toggle:hover { color: var(--fg); background: rgba(var(--tint), 0.05); }
+.cint-ic { flex-shrink: 0; opacity: 0.75; }
+.cint-label { font-weight: 500; letter-spacing: 0.02em; flex-shrink: 0; }
+.cint-count {
+  flex-shrink: 0;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: rgba(var(--tint), 0.08);
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+/* total changes across all dirty worktrees — pushed right, green +/red − */
+.cint-diff {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ok);
+  white-space: nowrap;
+}
+.cint-diff .neg { color: var(--err); margin-left: 4px; }
+.cint-chev { flex-shrink: 0; opacity: 0.6; }
+
+/* row list — scrolls under the pinned header if the fleet is large */
+.child-int-list {
   display: flex;
   flex-direction: column;
   gap: 1px;
-  padding: 4px;
-  background: rgba(var(--tint), 0.02);
-  border: 1px solid rgba(var(--tint), 0.035);
-  border-radius: 10px;
+  min-width: 0;
+  max-height: 42vh;
+  overflow-y: auto;
 }
-/* every child row may self-hide (clean + no verdict) — drop the empty shell */
-.child-int-panel:empty { display: none; }
 .child-int-row {
   display: flex;
   align-items: center;
@@ -3848,7 +3960,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* Notification dot — replaces .ag-status when an unselected agent has new
    activity the user hasn't viewed. Accent blue with a soft glow and a
    gentle 1.6s pulse to draw the eye without being aggressive. */
-.agents-row .ag-notify {
+.agents-row .ag-notify, .pane-head .ag-notify {
   width: 7px; height: 7px;
   border-radius: 50%;
   background: var(--accent);
