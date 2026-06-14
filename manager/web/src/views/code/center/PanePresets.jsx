@@ -1,17 +1,22 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { usePanePresets } from "../../../hooks/usePanePresets.js";
-import { savePreset, removePreset } from "../../../state/panePresetsStore.js";
+import { savePreset, removePreset, renamePreset, movePreset } from "../../../state/panePresetsStore.js";
 import { leafCount } from "../../../lib/paneLayout.js";
+import { RenameInput } from "../../../components/RenameInput.jsx";
 
-// Header popover for named split layouts. Trigger + popover mirror the
-// HeaderAgentMenu pattern (data-popover-trigger / data-popover so CodeView's
-// outside-click handler closes it). Save captures the current panes; clicking a
-// preset restores it via PaneProvider.setLayout.
+const PRESET_MIME = "application/x-eos-preset";
+
+// Header popover for named split layouts (structure only). Presets apply on click
+// (re-homing current agents), rename on double-click, and reorder by drag — a
+// line marks the drop position (no reflow, so no flicker).
 export function PanePresets() {
   const ui = useUi();
   const presets = usePanePresets();
   const [name, setName] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [overId, setOverId] = useState(null);
+  const clickTimer = useRef(null);
   const open = ui.openPopover === "pane-presets";
 
   const toggle = () => (open ? ui.closeAllPops() : ui.openPop("pane-presets"));
@@ -25,6 +30,17 @@ export function PanePresets() {
   const apply = (p) => {
     ui.applyStructure(p.tree);
     ui.closeAllPops();
+  };
+
+  // Click applies, double-click renames — disambiguated with a short timer so the
+  // two clicks of a rename don't apply (and close) the popover first.
+  const onItemClick = (p) => {
+    clearTimeout(clickTimer.current);
+    clickTimer.current = setTimeout(() => apply(p), 220);
+  };
+  const onItemDouble = (p) => {
+    clearTimeout(clickTimer.current);
+    setEditingId(p.id);
   };
 
   return (
@@ -58,21 +74,54 @@ export function PanePresets() {
             <div className="pp-empty">No saved layouts</div>
           ) : (
             <div className="pp-list">
-              {presets.map((p) => (
-                <div key={p.id} className="pp-item" onClick={() => apply(p)} title={`Restore "${p.name}"`}>
-                  <span className="pp-name">{p.name}</span>
-                  <span className="pp-count">{leafCount(p.tree)}</span>
-                  <button
-                    className="pp-del"
-                    title="Delete layout"
-                    onClick={(e) => { e.stopPropagation(); removePreset(p.id); }}
+              {presets.map((p) => {
+                const editing = editingId === p.id;
+                return (
+                  <div
+                    key={p.id}
+                    className={"pp-item" + (overId === p.id ? " pp-over" : "")}
+                    title={editing ? undefined : "Click to restore · double-click to rename · drag to reorder"}
+                    draggable={!editing}
+                    onClick={editing ? undefined : () => onItemClick(p)}
+                    onDoubleClick={editing ? undefined : () => onItemDouble(p)}
+                    onDragStart={(e) => { e.dataTransfer.setData(PRESET_MIME, p.id); e.dataTransfer.effectAllowed = "move"; }}
+                    onDragOver={(e) => {
+                      if (!e.dataTransfer.types.includes(PRESET_MIME)) return;
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = "move";
+                      if (overId !== p.id) setOverId(p.id);
+                    }}
+                    onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOverId((o) => (o === p.id ? null : o)); }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      const from = e.dataTransfer.getData(PRESET_MIME);
+                      if (from) movePreset(from, p.id);
+                      setOverId(null);
+                    }}
+                    onDragEnd={() => setOverId(null)}
                   >
-                    <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-                      <path d="M4 4l8 8M12 4l-8 8" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
+                    {editing ? (
+                      <RenameInput
+                        currentName={p.name}
+                        onSave={(n) => { renamePreset(p.id, n); setEditingId(null); }}
+                        onCancel={() => setEditingId(null)}
+                      />
+                    ) : (
+                      <span className="pp-name">{p.name}</span>
+                    )}
+                    <span className="pp-count">{leafCount(p.tree)}</span>
+                    <button
+                      className="pp-del"
+                      title="Delete layout"
+                      onClick={(e) => { e.stopPropagation(); removePreset(p.id); }}
+                    >
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                        <path d="M4 4l8 8M12 4l-8 8" />
+                      </svg>
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

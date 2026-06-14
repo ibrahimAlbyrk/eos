@@ -42,6 +42,26 @@ export function removePreset(id) {
   persist();
 }
 
+export function renamePreset(id, name) {
+  const trimmed = (name ?? "").trim();
+  if (!trimmed) return;
+  presets = presets.map((p) => (p.id === id ? { ...p, name: trimmed } : p));
+  persist();
+}
+
+// Reorder: move `fromId` to `toId`'s position (drag-and-drop within the list).
+export function movePreset(fromId, toId) {
+  if (fromId === toId) return;
+  const from = presets.findIndex((p) => p.id === fromId);
+  const to = presets.findIndex((p) => p.id === toId);
+  if (from < 0 || to < 0) return;
+  const next = presets.slice();
+  const [moved] = next.splice(from, 1);
+  next.splice(to, 0, moved);
+  presets = next;
+  persist();
+}
+
 export function subscribe(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);
