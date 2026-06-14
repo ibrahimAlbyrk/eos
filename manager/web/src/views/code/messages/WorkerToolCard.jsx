@@ -103,12 +103,23 @@ function parseResultJson(tool) {
   try { return JSON.parse(text); } catch { return null; }
 }
 
-function workerIdentity(tool, workers) {
-  const res = parseResultJson(tool);
-  const fromRes = res && !Array.isArray(res) ? res : null;
-  const id = tool.input?.id ?? fromRes?.id ?? null;
+// Pull the acted-on worker's {id, name} from a tool's result JSON. Durable —
+// stays correct after the worker leaves the live list (kill/message carry it at
+// the top level; get_worker nests it under `worker`).
+function resultRef(res) {
+  if (!res || Array.isArray(res)) return null;
+  const w = res.worker && typeof res.worker === "object" ? res.worker : res;
+  return { id: w.id ?? null, name: w.name ?? null };
+}
+
+// Resolve the worker a tool acted on. The result snapshot (resultRef) is the
+// durable name source once a killed worker drops out of the live list; the live
+// list only supplies the current name (renames) and click-to-select.
+export function workerIdentity(tool, workers) {
+  const ref = resultRef(parseResultJson(tool));
+  const id = tool.input?.id ?? ref?.id ?? null;
   const live = id ? (workers ?? []).find((w) => w.id === id) : null;
-  const name = tool.input?.name ?? live?.name ?? fromRes?.name ?? id ?? "worker";
+  const name = tool.input?.name ?? live?.name ?? ref?.name ?? id ?? "worker";
   return { id, name };
 }
 

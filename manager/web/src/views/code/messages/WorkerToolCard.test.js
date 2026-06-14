@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { workerToolDetailText } from "./WorkerToolCard.jsx";
+import { workerToolDetailText, workerIdentity } from "./WorkerToolCard.jsx";
 
 const result = (v) => ({ result: { text: JSON.stringify(v) } });
 
@@ -66,5 +66,50 @@ describe("workerToolDetailText", () => {
   it("returns the error text when the call failed", () => {
     const tool = { name: "mcp__orchestrator__get_worker", result: { isError: true, text: "worker not found" } };
     expect(workerToolDetailText(tool)).toBe("worker not found");
+  });
+});
+
+describe("workerIdentity", () => {
+  // The reported bug: a killed worker drops out of the live list, so the header
+  // name must come from the tool's durable result snapshot — never the raw id.
+  it("resolves kill_worker name from the result after the worker is gone", () => {
+    const tool = {
+      name: "mcp__orchestrator__kill_worker",
+      input: { id: "w-dead" },
+      ...result({ killed: [], removed: true, was_state: "WORKING", id: "w-dead", name: "refactor-auth" }),
+    };
+    expect(workerIdentity(tool, [])).toEqual({ id: "w-dead", name: "refactor-auth" });
+  });
+
+  it("resolves message_worker name from the result after the worker is gone", () => {
+    const tool = {
+      name: "mcp__orchestrator__message_worker",
+      input: { id: "w-dead", text: "do more" },
+      ...result({ ok: true, id: "w-dead", name: "add-tests" }),
+    };
+    expect(workerIdentity(tool, [])).toEqual({ id: "w-dead", name: "add-tests" });
+  });
+
+  it("resolves get_worker name from the nested worker in the result", () => {
+    const tool = {
+      name: "mcp__orchestrator__get_worker",
+      input: { id: "w-dead" },
+      ...result({ worker: { id: "w-dead", name: "fix-bug", state: "DONE" }, events: [] }),
+    };
+    expect(workerIdentity(tool, [])).toEqual({ id: "w-dead", name: "fix-bug" });
+  });
+
+  it("prefers the live name (picks up renames) while the worker still exists", () => {
+    const tool = {
+      name: "mcp__orchestrator__kill_worker",
+      input: { id: "w1" },
+      ...result({ id: "w1", name: "stale-name" }),
+    };
+    expect(workerIdentity(tool, [{ id: "w1", name: "current-name" }]).name).toBe("current-name");
+  });
+
+  it("falls back to the id only when no input, live, or result name exists", () => {
+    const tool = { name: "mcp__orchestrator__kill_worker", input: { id: "w-x" }, ...result({ killed: [], removed: true }) };
+    expect(workerIdentity(tool, [])).toEqual({ id: "w-x", name: "w-x" });
   });
 });
