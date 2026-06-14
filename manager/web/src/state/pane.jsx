@@ -134,6 +134,25 @@ export function PaneProvider({ children }) {
     }
   }, [setSelectedId]);
 
+  // Cmd-click in the sidebar toggles an agent as a split pane: remove its pane
+  // if already shown (never the last one), else append a new pane for it and
+  // focus it (capped at MAX_PANES). The shown set IS the multi-selection — the
+  // sidebar's in-pane markers reflect it.
+  const togglePaneForAgent = useCallback((agentId) => {
+    if (!agentId) return;
+    const cur = agentsRef.current;
+    const idx = cur.indexOf(agentId);
+    if (idx >= 0) {
+      if (cur.length > 1) closePane(idx);
+      return;
+    }
+    if (cur.length >= MAX_PANES) return;
+    const newIndex = cur.length;
+    setAgents((a) => [...a, agentId]);
+    setFocusedIndex(newIndex);
+    setSelectedId(agentId);
+  }, [closePane, setSelectedId]);
+
   // Drop agents that no longer exist from the non-focused panes (the focused
   // slot is owned by selectedId, which CodeView already cleans). Called with the
   // live worker set, which this provider can't see itself.
@@ -145,8 +164,8 @@ export function PaneProvider({ children }) {
     paneCount: count,
     paneAgents: agents,
     focusedPane: Math.min(focusedIndex, count - 1),
-    setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane,
-  }), [count, agents, focusedIndex, setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane]);
+    setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane, togglePaneForAgent,
+  }), [count, agents, focusedIndex, setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane, togglePaneForAgent]);
 
   return <PaneContext.Provider value={value}>{children}</PaneContext.Provider>;
 }
