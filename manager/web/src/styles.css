@@ -230,10 +230,11 @@ html.native .native-toggle {
 }
 html.native .native-toggle:hover { background: rgba(var(--tint), 0.06); color: var(--fg); }
 
-/* sidebar: thin island frame matches the right-panel gap; empty/top areas drag the window */
+/* sidebar: thin island frame matches the right-panel gap. Only the top chrome
+   island (traffic-lights strip) drags the window — the body/empty areas don't. */
 html.native .side {
   padding: var(--shell-gap);
-  --app-region: drag;
+  --app-region: no-drag;
   -webkit-user-select: none;
 }
 /* interactive content opts out of the drag region */
@@ -1100,7 +1101,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   padding: 7px 8px 7px 11px;
   border-bottom: 1px solid var(--border);
   font-size: var(--text-sm);
-  --app-region: drag;
+  --app-region: no-drag;
   -webkit-user-select: none;
 }
 .pane-head .ag-dot { flex-shrink: 0; }
