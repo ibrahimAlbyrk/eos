@@ -154,6 +154,11 @@ transcripts are parsed into structured tool calls, results, thinking, and report
 indicators, a thinking timer, a task tray, and a background-activity monitor. Per-worker logs at
 `~/.eos/logs/<id>.log`.
 
+**Split-screen.** &nbsp; Watch up to four agents at once instead of switching between them — the
+dashboard tiles their live transcripts (2 side by side · 3 as one-plus-two · 4 as a 2×2 grid). Click
+any pane to focus it; the shared header, composer, and side panel follow the focused pane, so you
+steer one conversation without ever losing sight of the rest.
+
 **In-app Git.** &nbsp; Manage branches (create · rename · delete · checkout · fetch), deterministic
 **push** and fast-forward **pull** that don't spend an agent turn, diff and commit viewers, a
 hunk-level **conflict resolver**, PR creation via `gh`, and a **Try** stack that applies a worker's
