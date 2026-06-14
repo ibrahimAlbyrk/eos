@@ -49,7 +49,7 @@ function collectRanges(root, query) {
   return ranges;
 }
 
-export function usePageFind(contentRef, wrapRef, deps) {
+export function usePageFind(contentRef, wrapRef, deps, enabled = true) {
   const [open, setOpen] = useState(false);
   const [query, setQueryRaw] = useState("");
   const [idx, setIdx] = useState(0);
@@ -59,7 +59,10 @@ export function usePageFind(contentRef, wrapRef, deps) {
   const paintedRef = useRef(0);
   const inputRef = useRef(null);
 
+  // Only the active transcript pane owns ⌘F. Parked keep-alive panes stay
+  // mounted, so without this gate every pane would grab the shortcut at once.
   useEffect(() => {
+    if (!enabled) return;
     const onKey = (e) => {
       const meta = e.metaKey || e.ctrlKey;
       if (!meta || e.altKey || e.shiftKey) return;
@@ -70,7 +73,7 @@ export function usePageFind(contentRef, wrapRef, deps) {
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
+  }, [enabled]);
 
   const scrollToRange = useCallback((range) => {
     const wrap = wrapRef.current;
@@ -94,6 +97,9 @@ export function usePageFind(contentRef, wrapRef, deps) {
   }, [wrapRef]);
 
   useEffect(() => {
+    // CSS.highlights is a global registry — a parked pane must not touch it or it
+    // would wipe the active pane's matches.
+    if (!enabled) return;
     if (!open || !query) {
       rangesRef.current = [];
       setMatchCount(0);
@@ -121,7 +127,7 @@ export function usePageFind(contentRef, wrapRef, deps) {
       lastScrollKeyRef.current = key;
       if (ranges[cur]) scrollToRange(ranges[cur]);
     }
-  }, [open, query, idx, contentRef, scrollToRange, ...deps]);
+  }, [enabled, open, query, idx, contentRef, scrollToRange, ...deps]);
 
   useEffect(() => clearHighlights, []);
 

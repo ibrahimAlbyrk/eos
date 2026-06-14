@@ -872,6 +872,32 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   opacity: 0;
 }
 
+/* Keep-alive transcript panes (TranscriptHost): one <Messages> per recently
+   viewed agent stays mounted and stacked in this area; only the active one is
+   shown. Parked panes use content-visibility:hidden — layout/paint skipped while
+   scroll position + remembered block sizes are preserved — so switching back is
+   instant with no remount, no markdown re-parse, no scroll reset. This is the
+   same park mechanism the right-panel viewers use (see .file-viewer et al). */
+.tx-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+.tx-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  content-visibility: hidden;
+  pointer-events: none;
+}
+.tx-pane.on {
+  content-visibility: visible;
+  pointer-events: auto;
+  z-index: 1;
+}
+
 /* messages scroll area */
 .messages-wrap {
   flex: 1;
@@ -1363,6 +1389,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   background: var(--surface);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
+}
+/* Only a freshly-arrived card animates; remount/agent-switch must not replay it
+   (Messages gates `fresh` off the same blur-in baseline as assistant text). */
+.terminal-card.fresh {
   animation: msg-blur-in 0.22s ease forwards;
 }
 .tc-head {

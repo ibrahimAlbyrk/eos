@@ -5,7 +5,7 @@ import { api } from "../../../api/client.js";
 // terminal store while the command runs; the durable block renders from the
 // single `terminal` event the daemon appends on completion. Workspace runs
 // (no agent selected) stay live-only — they have no durable event.
-export function TerminalCard({ block }) {
+export function TerminalCard({ block, fresh = false }) {
   const running = block.live && !block.done;
   const outRef = useRef(null);
 
@@ -16,7 +16,7 @@ export function TerminalCard({ block }) {
 
   const ok = (block.exitCode ?? 0) === 0;
   return (
-    <div className="terminal-card mono">
+    <div className={"terminal-card mono" + (fresh ? " fresh" : "")}>
       <div className="tc-head">
         <span className="tc-prompt" aria-hidden>❯</span>
         <span className="tc-cmd">{block.command}</span>

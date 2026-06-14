@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { useAgentSwitchHotkeys } from "../../hooks/useAgentSwitchHotkeys.js";
 import { useDeleteAgentHotkey } from "../../hooks/useDeleteAgentHotkey.js";
@@ -7,7 +7,7 @@ import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { CenterHeader } from "./center/CenterHeader.jsx";
 import { Composer } from "./center/Composer.jsx";
-import { Messages } from "./messages/Messages.jsx";
+import { TranscriptHost } from "./messages/TranscriptHost.jsx";
 import { FileViewer } from "./messages/FileViewer.jsx";
 import { AgentViewer } from "./messages/AgentViewer.jsx";
 import { DiffViewer } from "./messages/DiffViewer.jsx";
@@ -16,10 +16,6 @@ import { ConflictResolver } from "./messages/ConflictResolver.jsx";
 import { MemoryViewer } from "./messages/MemoryViewer.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
-
-// Latched once workers first load so returning to the Code tab does not replay
-// the initial fade-in.
-let everReady = false;
 
 export function CodeView({ live }) {
   const ui = useUi();
@@ -80,16 +76,9 @@ export function CodeView({ live }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [ui.openPopover, ui]);
 
-  const [ready, setReady] = useState(everReady);
-  useEffect(() => {
-    if (ready || live.workers.length === 0) return;
-    requestAnimationFrame(() => requestAnimationFrame(() => { everReady = true; setReady(true); }));
-  }, [ready, live.workers.length]);
-
   // Grid sizing follows the VISIBLE (top) panel — buried panels stay mounted
   // but must not claim the column.
   const gridClass = [
-    ready ? "ready" : "",
     ui.topPanelType === "file" ? "file-open" : "",
     ui.topPanelType === "agent" ? "agent-open" : "",
     ui.topPanelType === "diff" ? "diff-open" : "",
@@ -105,10 +94,11 @@ export function CodeView({ live }) {
       main={
         <>
           <CenterHeader live={live} />
-          {/* Keyed per selection: the transcript's React state (event window,
-              scroll, find, baselines) dies with the old agent — cross-agent
-              carry-over is unrepresentable, not just guarded against. */}
-          <Messages key={ui.selectedId ?? "empty"} live={live} />
+          {/* Keep-alive multiplexer: one <Messages> per recently-viewed agent
+              stays mounted and parked, so switching back is instant (no remount,
+              no re-parse, no scroll reset). Per-agent isolation is preserved —
+              each agent keeps its own keyed instance inside the host. */}
+          <TranscriptHost live={live} activeId={ui.selectedId} />
           <Composer live={live} />
         </>
       }

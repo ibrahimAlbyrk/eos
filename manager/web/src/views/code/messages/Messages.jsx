@@ -47,28 +47,39 @@ const MAX_RESTORE_PAGES = 3;
 // memos don't churn while a switch is in flight.
 const NO_EVENTS = [];
 
-export function Messages({ live }) {
+export function Messages({ live, agentId, isActive = true }) {
   const ui = useUi();
+  // This pane renders exactly ONE agent. The host passes agentId explicitly so
+  // several panes can stay mounted at once (keep-alive); a lone <Messages> with
+  // no host falls back to the global selection. isActive marks the visible pane —
+  // only it drives shared UI state (question banner, verdict, agent viewer,
+  // header scrim, ⌘F). Parked panes keep fetching/rendering but stay silent.
+  const selectedId = agentId !== undefined ? agentId : ui.selectedId;
   const initialScrollDone = useRef(false);
+  const lastTopRef = useRef(0);
 
   // Persist the user's position per agent; pinned clears the entry so the
   // default stick-to-bottom resumes. Skipped until the initial scroll lands —
   // content-swap clamp events during an agent switch must not save.
   const persistAway = useCallback(() => {
-    if (!initialScrollDone.current || !ui.selectedId) return;
+    if (!initialScrollDone.current || !selectedId) return;
     const anchor = captureAnchor(wrapRef.current, contentRef.current);
-    if (anchor) saveScrollPos(ui.selectedId, anchor);
-  }, [ui.selectedId]);
+    if (anchor) saveScrollPos(selectedId, anchor);
+  }, [selectedId]);
   const persistPinned = useCallback(() => {
-    if (initialScrollDone.current && ui.selectedId) clearScrollPos(ui.selectedId);
-  }, [ui.selectedId]);
+    if (initialScrollDone.current && selectedId) clearScrollPos(selectedId);
+  }, [selectedId]);
 
   // The header's fade-out scrim (.head::after) paints over the first ~2 lines
   // of content — hide it while the view sits at the very top so the start of
   // the transcript is never veiled.
   const syncHeadScrim = useCallback((el) => {
-    el?.closest(".center")?.classList.toggle("msgs-at-top", el.scrollTop <= 4);
-  }, []);
+    if (!isActive || !el) return;
+    // Remember the live offset so a parked→active flip can restore it if the
+    // platform dropped scrollTop while the pane was content-hidden.
+    lastTopRef.current = el.scrollTop;
+    el.closest(".center")?.classList.toggle("msgs-at-top", el.scrollTop <= 4);
+  }, [isActive]);
 
   const stick = useStickToBottom({
     threshold: SCROLL_THRESHOLD,
@@ -81,16 +92,16 @@ export function Messages({ live }) {
   const contentRef = stick.contentRef;
 
   const scrollToBottom = useCallback(() => {
-    if (ui.selectedId) clearScrollPos(ui.selectedId);
+    if (selectedId) clearScrollPos(selectedId);
     stick.scrollToBottom();
-  }, [stick.scrollToBottom, ui.selectedId]);
+  }, [stick.scrollToBottom, selectedId]);
 
   const restorePagesRef = useRef(0);
   useEffect(() => {
     initialScrollDone.current = false;
     restorePagesRef.current = 0;
     stick.reset();
-  }, [ui.selectedId, stick.reset]);
+  }, [selectedId, stick.reset]);
 
   // Durable rows settle outbox items (clientMsgId echo, text fallback,
   // delivery_failed) — the matching logic lives in the store.
@@ -107,15 +118,15 @@ export function Messages({ live }) {
     events: windowEvents, eventsFor, hasOlder: windowHasOlder,
     loadingOlder, loadOlder, fetchDelta,
   } = useWorkerEvents(
-    ui.selectedId,
+    selectedId,
     { restartKey: live.workers.length, onNewest: reconcileFromNewest },
   );
-  const owned = eventsFor === ui.selectedId;
+  const owned = eventsFor === selectedId;
   const events = owned ? windowEvents : NO_EVENTS;
   const hasOlder = owned && windowHasOlder;
 
   useEffect(() => {
-    if (live.eventSignal.workerId !== ui.selectedId) return;
+    if (live.eventSignal.workerId !== selectedId) return;
     fetchDelta();
   }, [live.eventSignal.tick]);
 
@@ -163,9 +174,10 @@ export function Messages({ live }) {
   const pendingQuestions = useMemo(() => derivePendingQuestions(events), [events]);
 
   useEffect(() => {
+    if (!isActive) return;
     // Sequential answering: surface only the first open question as the active banner.
     ui.setPendingQuestion(pendingQuestions[0] ?? null);
-  }, [pendingQuestions]);
+  }, [pendingQuestions, isActive]);
 
   // Publish verification verdicts for the chip consumers (diff row/viewer).
   // Orchestrators get no self-verdict — their transcript merely ECHOES worker
@@ -174,14 +186,14 @@ export function Messages({ live }) {
   const verdict = useMemo(() => deriveVerdict(events), [events]);
   const childVerdicts = useMemo(() => deriveChildVerdicts(events), [events]);
   useEffect(() => {
-    if (eventsFor !== ui.selectedId) return;
-    const isOrch = Boolean(live.workers.find((w) => w.id === ui.selectedId)?.is_orchestrator);
+    if (!isActive || eventsFor !== selectedId) return;
+    const isOrch = Boolean(live.workers.find((w) => w.id === selectedId)?.is_orchestrator);
     ui.setVerdict({
-      workerId: ui.selectedId,
+      workerId: selectedId,
       ...(isOrch ? { verdict: "unverified", command: null, ts: null } : verdict),
       children: childVerdicts,
     });
-  }, [verdict, childVerdicts, ui.selectedId, live.workers, eventsFor]);
+  }, [verdict, childVerdicts, selectedId, live.workers, eventsFor, isActive]);
 
   // Live terminal runs (composer `!` mode) stream outside the event store —
   // a tick subscription re-renders on every chunk.
@@ -196,13 +208,13 @@ export function Messages({ live }) {
   // Selecting an agent retires the no-selection workspace cards — the next
   // "new session" view starts clean. Still-running commands get killed.
   useEffect(() => {
-    if (!ui.selectedId) return;
+    if (!isActive || !selectedId) return;
     for (const r of clearWorkspaceRuns()) {
       if (!r.done) api.killTerminal(r.runId);
     }
-  }, [ui.selectedId]);
+  }, [selectedId, isActive]);
 
-  const selectedWorker = live.workers.find((w) => w.id === ui.selectedId);
+  const selectedWorker = live.workers.find((w) => w.id === selectedId);
   // A primitive on purpose: live.workers churns on every state ping, but the
   // parse only cares whether the boot prompt renders as a task card.
   const bootPromptOffset = selectedWorker?.parent_id && selectedWorker?.prompt ? 1 : 0;
@@ -220,13 +232,13 @@ export function Messages({ live }) {
     // Queued items render as pills above the input bar, not here; the bubble
     // states (sending/dispatching) join the sort so a drained message lands
     // exactly where its durable event will (see outboxStore.js).
-    for (const m of outbox.itemsFor(ui.selectedId)) {
+    for (const m of outbox.itemsFor(selectedId)) {
       if (m.state === "queued") continue;
       base.push({ kind: "user", text: m.text, ts: m.ts, optimistic: true });
     }
     // Overlay live terminal runs whose durable `terminal` event hasn't landed.
     const durableRuns = new Set(base.filter((b) => b.kind === "terminal" && b.runId).map((b) => b.runId));
-    for (const r of liveRunsFor(ui.selectedId)) {
+    for (const r of liveRunsFor(selectedId)) {
       if (durableRuns.has(r.runId)) continue;
       base.push({
         kind: "terminal", live: true, runId: r.runId, command: r.command,
@@ -237,9 +249,9 @@ export function Messages({ live }) {
     // Conversation position is ts (creation domain), not append order — see
     // sortBlocksByTs for the clock-domain rationale.
     return sortBlocksByTs(base);
-  }, [baseBlocks, ui.selectedId, termTick, outboxTick]);
+  }, [baseBlocks, selectedId, termTick, outboxTick]);
 
-  const rewindToMessage = useRewind(ui.selectedId);
+  const rewindToMessage = useRewind(selectedId);
   // Duplicate user texts must map to the n-th identical transcript target —
   // each bubble's occurrence index among same-text bubbles, oldest first.
   const rewindOccurrence = useMemo(() => {
@@ -263,32 +275,40 @@ export function Messages({ live }) {
       if (b.kind === "terminal" && !b.live && b.runId) durable.add(b.runId);
     }
     if (durable.size === 0) return;
-    for (const r of liveRunsFor(ui.selectedId)) {
+    for (const r of liveRunsFor(selectedId)) {
       if (durable.has(r.runId)) removeRun(r.runId);
     }
-  }, [blocks, ui.selectedId]);
+  }, [blocks, selectedId]);
 
   useEffect(() => {
-    if (!ui.agentViewer) return;
+    if (!isActive || !ui.agentViewer) return;
     const match = blocks.find(b => b.kind === "agentRun" && b.toolUseId === ui.agentViewer.toolUseId);
     if (match) ui.syncAgentViewer(match);
     // ui.agentViewer dep: re-sync when the agent panel returns to the top of
     // the panel stack (its block may have gone stale while buried).
-  }, [blocks, ui.agentViewer]);
+  }, [blocks, ui.agentViewer, isActive]);
 
   // Blur-in baseline: blocks already present when an agent's transcript first
   // renders stay static; only blocks arriving afterwards animate. Re-baselined
   // on every agent switch so revisiting history never re-animates it.
   const baselineRef = useRef({ id: null, keys: null });
-  if (baselineRef.current.id !== ui.selectedId) baselineRef.current = { id: ui.selectedId, keys: null };
+  if (baselineRef.current.id !== selectedId) baselineRef.current = { id: selectedId, keys: null };
   useEffect(() => {
-    if (baselineRef.current.keys || eventsFor !== ui.selectedId || blocks.length === 0) return;
+    if (baselineRef.current.keys || eventsFor !== selectedId || blocks.length === 0) return;
+    // Wait for the initial scroll/restore to settle before snapshotting. Restore
+    // can page in older history (loadOlder) AFTER the newest page lands —
+    // snapshotting too early leaves those older blocks out of the baseline, so on
+    // a first visit they blur-in as if freshly arrived. Settling first means
+    // every block loaded during entry counts as baseline (static); only output
+    // arriving AFTER entry animates. (initialScrollDone flips in the layout
+    // effect, which runs before this passive effect in the same commit.)
+    if (!initialScrollDone.current) return;
     baselineRef.current.keys = new Set(blocks.map((b, i) => blockKey(b, i)));
-  }, [blocks, ui.selectedId, eventsFor]);
+  }, [blocks, selectedId, eventsFor]);
   const baselineKeys = baselineRef.current.keys;
 
   // expandedTools/settings in deps: expanding a tool mounts new text the ranges must cover.
-  const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools, ui.settings]);
+  const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools, ui.settings], isActive);
 
   const parentWorker = selectedWorker?.parent_id
     ? live.workers.find((w) => w.id === selectedWorker.parent_id)
@@ -318,8 +338,8 @@ export function Messages({ live }) {
     const el = wrapRef.current;
     if (!el || blocks.length === 0) return;
     if (initialScrollDone.current) return;
-    if (eventsFor !== ui.selectedId) return;
-    const saved = loadScrollPos(ui.selectedId);
+    if (eventsFor !== selectedId) return;
+    const saved = loadScrollPos(selectedId);
     if (saved != null) {
       const top = resolveAnchorTop(el, contentRef.current, saved);
       if (top != null) {
@@ -333,11 +353,28 @@ export function Messages({ live }) {
         return;
       }
       if (loadingOlder) return;
-      clearScrollPos(ui.selectedId);
+      clearScrollPos(selectedId);
     }
     initialScrollDone.current = true;
     stick.write(Infinity, { pin: true });
   }, [blocks, hasOlder, loadingOlder]);
+
+  // Parked→active flip: parking collapses the scroller (content-visibility:hidden)
+  // so on re-show scrollTop has been reset to 0. Restore the position
+  // SYNCHRONOUSLY, before paint — otherwise the ResizeObserver glides from the top
+  // back down, which is the "slides down on every switch" artifact. Pinned panes
+  // jump to the CURRENT bottom (content may have grown while parked); others to
+  // the exact saved offset. write() is an instant own-write, never a glide.
+  useLayoutEffect(() => {
+    if (!isActive || !initialScrollDone.current) return;
+    const el = wrapRef.current;
+    if (!el) return;
+    if (stick.isPinned()) {
+      stick.write(Infinity, { pin: true });
+    } else if (Math.abs(el.scrollTop - lastTopRef.current) > 1) {
+      stick.write(lastTopRef.current, { pin: "keep" });
+    }
+  }, [isActive]);
 
   // Scroll position can change without a scroll event (content fill, agent
   // switch) — re-sync the scrim after every commit; clean it off on unmount.
@@ -351,8 +388,8 @@ export function Messages({ live }) {
     <ScrollHoldContext.Provider value={stick.hold}>
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
-      <div className={ui.selectedId ? "messages" : "messages messages-empty"} ref={contentRef}>
-        {ui.selectedId && hasOlder && (
+      <div className={selectedId ? "messages" : "messages messages-empty"} ref={contentRef}>
+        {selectedId && hasOlder && (
           <div className="load-older" ref={setSentinelEl}>
             {loadingOlder && <span className="load-older-skel" aria-label="loading earlier messages" />}
           </div>
@@ -368,7 +405,7 @@ export function Messages({ live }) {
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
-          const animate = (b.kind === "assistant" || b.kind === "thinking") && baselineKeys != null && !baselineKeys.has(key);
+          const animate = (b.kind === "assistant" || b.kind === "thinking" || b.kind === "terminal") && baselineKeys != null && !baselineKeys.has(key);
           const onRewind = b.kind === "user" && !b.optimistic
             ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
             : null;
@@ -437,7 +474,7 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
         open={open} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
     }
     case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} parent={parent} />;
-    case "terminal":  return <TerminalCard key={key} block={b} />;
+    case "terminal":  return <TerminalCard key={key} block={b} fresh={animate} />;
     case "agentRun":  return <AgentBlock key={key} block={b} />;
     case "deliveryFailed":
       return (
