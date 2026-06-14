@@ -10,14 +10,14 @@ export function usePaneFocusHotkeys() {
   useEffect(() => {
     const onKey = (e) => {
       if (!e.metaKey || !e.ctrlKey || e.altKey || e.shiftKey) return;
-      const m = /^Digit([1-4])$/.exec(e.code);
+      const m = /^Digit([1-9])$/.exec(e.code);
       if (!m) return;
       const n = parseInt(m[1], 10);
       if (n > ui.paneCount) return;
       e.preventDefault();
-      ui.focusPane(n - 1);
+      ui.focusLeafByIndex(n - 1);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [ui.paneCount, ui.focusPane]);
+  }, [ui.paneCount, ui.focusLeafByIndex]);
 }

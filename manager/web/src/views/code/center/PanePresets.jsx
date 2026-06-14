@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { usePanePresets } from "../../../hooks/usePanePresets.js";
 import { savePreset, removePreset } from "../../../state/panePresetsStore.js";
+import { leafCount } from "../../../lib/paneLayout.js";
 
 // Header popover for named split layouts. Trigger + popover mirror the
 // HeaderAgentMenu pattern (data-popover-trigger / data-popover so CodeView's
@@ -17,12 +18,12 @@ export function PanePresets() {
 
   const save = () => {
     if (!name.trim()) return;
-    savePreset(name, ui.paneAgents, ui.focusedPane);
+    savePreset(name, ui.tree);
     setName("");
   };
 
   const apply = (p) => {
-    ui.setLayout(p.agents, p.focused);
+    ui.setLayout(p.tree);
     ui.closeAllPops();
   };
 
@@ -60,7 +61,7 @@ export function PanePresets() {
               {presets.map((p) => (
                 <div key={p.id} className="pp-item" onClick={() => apply(p)} title={`Restore "${p.name}"`}>
                   <span className="pp-name">{p.name}</span>
-                  <span className="pp-count">{p.agents.length}</span>
+                  <span className="pp-count">{leafCount(p.tree)}</span>
                   <button
                     className="pp-del"
                     title="Delete layout"

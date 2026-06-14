@@ -904,25 +904,28 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    Panes reuse the solid right-island recipe (.file-viewer et al) so they read as
    the same surface; gaps let the center bg show through, like the islands do.
    ============================================================================ */
+/* BSP split view: panes are absolutely positioned from the layout tree's
+   computed %-rects (lib/paneLayout), one divider per split. Decoupling panes
+   from the tree's DOM nesting keeps a survivor mounted across a split/close. */
 .pane-grid {
   flex: 1;
   min-width: 0;
   min-height: 0;
-  display: grid;
-  gap: var(--shell-gap);
-  padding: 0 var(--shell-gap) var(--shell-gap) var(--shell-gap);
-  position: relative; /* anchor for the absolute resize dividers */
+  position: relative;
 }
-/* minmax(0, 1fr) — a bare 1fr is minmax(auto, 1fr): the auto min lets a track
-   grow to its content's min-content width (wide code/paths in a transcript),
-   blowing the grid past the center and forcing a horizontal scrollbar. The 0
-   min lets tracks shrink so panes narrow cleanly instead. */
-.pane-grid.count-1 { grid-template-columns: minmax(0, 1fr);                 grid-template-rows: minmax(0, 1fr);                 grid-template-areas: "a"; }
-.pane-grid.count-2 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);                 grid-template-areas: "a b"; }
-.pane-grid.count-3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "a b" "a c"; }
-.pane-grid.count-4 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "a b" "c d"; }
-
+/* Single-pane view = the keep-alive multiplexer, but a drag-to-split drop target
+   too (so the first split can be made by drag). Relative for the drop preview. */
+.single-pane {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+.pane-slot { position: absolute; }
 .pane {
+  position: absolute;
+  inset: 3px; /* gap to neighbours (6px between) + a thin frame to the center */
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -936,7 +939,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border-radius: var(--panel-radius);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
   overflow: clip;
-  grid-area: a;
   transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 .pane.is-focused {
@@ -944,23 +946,32 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--accent-soft);
 }
 
-/* Drop target while dragging an agent over a pane. Extra specificity (+ the
-   parent selector) so it wins over the attention/needs-input pulse rules and
-   stops their animation for the duration of the hover. */
-.pane-grid .pane.drag-over {
-  animation: none;
-  border-color: var(--accent);
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+/* Drag-to-split preview: a translucent overlay showing where the dropped agent
+   will land — a half for an edge split, the whole pane for a center replace.
+   pointer-events:none so dragover keeps hitting the pane underneath. */
+.pane-drop-preview {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  background: var(--accent-soft);
+  border: 1.5px solid var(--accent);
+  border-radius: 6px;
 }
+.pane-drop-preview--replace { inset: 0; }
+.pane-drop-preview--left   { left: 0; top: 0; bottom: 0; width: 50%; }
+.pane-drop-preview--right  { right: 0; top: 0; bottom: 0; width: 50%; }
+.pane-drop-preview--top    { left: 0; right: 0; top: 0; height: 50%; }
+.pane-drop-preview--bottom { left: 0; right: 0; bottom: 0; height: 50%; }
 
-/* Resizable split dividers — invisible grab strips over the gaps; a 2px line
-   lights up on hover/drag. Pointer-capture drag lives in PaneGrid. */
+/* Per-split resize dividers — invisible grab strips at each split boundary;
+   position/extent come from computeDividers (inline). A 2px line lights up on
+   hover/drag. Pointer-capture drag lives in PaneGrid. */
 .pane-divider {
   position: absolute;
   z-index: 5;
   touch-action: none;
 }
-.pane-divider--v { top: 0; bottom: 0; width: 14px; transform: translateX(-50%); cursor: ew-resize; }
+.pane-divider--v { width: 14px; transform: translateX(-50%); cursor: ew-resize; }
 .pane-divider--h { height: 14px; transform: translateY(-50%); cursor: ns-resize; }
 .pane-divider::after {
   content: "";
@@ -1153,25 +1164,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* In split mode the head's fade scrim would veil the top of the pane islands
    (each pane has its own header) — drop it. */
 .app.split .head::after { content: none; }
-
-/* Split layout switcher — lives in the header's .right slot. */
-.pane-switch {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  --app-region: no-drag;
-}
-.pane-switch__btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 5px;
-  color: var(--fg-faint);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.pane-switch__btn:hover { background: rgba(var(--tint), 0.06); color: var(--fg-dim); }
-.pane-switch__btn.is-active { background: rgba(var(--tint), 0.08); color: var(--fg); }
 
 /* Sidebar row: agent shown in a non-focused split pane (the focused one keeps
    the stronger ".on"). A quiet left accent rail. */
@@ -2483,9 +2475,11 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 
 /* orchestrator hub: per-child integration panel. FLOATS as liquid glass above
-   the git bar (anchored to .diff-stack) instead of taking layout height, so the
-   transcript reaches all the way down to the git bar and the panel overlays it. */
-.diff-stack { position: relative; }
+   the git bar instead of taking layout height, so the transcript reaches down to
+   the git bar and the panel overlays it. Anchored to .integration-wrap — which
+   also encloses the Try banner — so when a try is active the panel floats ABOVE
+   the Keep/Discard banner instead of landing on top of it. */
+.integration-wrap { position: relative; display: flex; flex-direction: column; gap: 6px; }
 .child-int-panel {
   position: absolute;
   left: 0;

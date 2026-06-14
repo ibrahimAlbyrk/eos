@@ -8,8 +8,7 @@ import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { CenterHeader } from "./center/CenterHeader.jsx";
 import { Composer } from "./center/Composer.jsx";
-import { TranscriptHost } from "./messages/TranscriptHost.jsx";
-import { PaneGrid } from "./panes/PaneGrid.jsx";
+import { PaneGrid, SinglePane } from "./panes/PaneGrid.jsx";
 import { FileViewer } from "./messages/FileViewer.jsx";
 import { AgentViewer } from "./messages/AgentViewer.jsx";
 import { DiffViewer } from "./messages/DiffViewer.jsx";
@@ -114,7 +113,7 @@ export function CodeView({ live }) {
               shared header + composer below track the focused pane. */}
           {ui.paneCount > 1
             ? <PaneGrid live={live} />
-            : <TranscriptHost live={live} activeId={ui.selectedId} />}
+            : <SinglePane live={live} />}
           <Composer live={live} />
         </>
       }

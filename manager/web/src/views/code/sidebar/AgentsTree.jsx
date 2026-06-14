@@ -71,7 +71,7 @@ function TreeNode({ node, onRename, variant = "full" }) {
         className={rowCls.join(" ")}
         onClick={onClick}
         onContextMenu={onCtx}
-        draggable={ui.paneCount > 1 && !isRenaming}
+        draggable={!isRenaming}
         onDragStart={(e) => {
           e.dataTransfer.setData("application/x-eos-agent", node.id);
           e.dataTransfer.effectAllowed = "move";

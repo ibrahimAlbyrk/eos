@@ -776,12 +776,14 @@ export function Composer({ live }) {
           onAlwaysAllow={live.alwaysAllowPending}
           onDeny={live.denyPending}
         />
-        <TryDeck live={live} selected={selected} />
-        {selected ? (
-          <ComposerDiffRow live={live} />
-        ) : (
-          <ComposerConfigRow live={live} />
-        )}
+        <div className="integration-wrap">
+          <TryDeck live={live} selected={selected} />
+          {selected ? (
+            <ComposerDiffRow live={live} />
+          ) : (
+            <ComposerConfigRow live={live} />
+          )}
+        </div>
 
         <div className="c-row2-wrap">
           {showMenu && (

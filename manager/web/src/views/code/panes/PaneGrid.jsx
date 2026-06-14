@@ -1,150 +1,169 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
 import { nameOf } from "../../../lib/agentName.js";
 import { useInputNeeded } from "../../../hooks/useInputNeeded.js";
+import { computeRects, computeDividers, dropZoneFromPoint, MAX_PANES } from "../../../lib/paneLayout.js";
 import { Messages } from "../messages/Messages.jsx";
+import { TranscriptHost } from "../messages/TranscriptHost.jsx";
 
-// Split view: lay out the active panes as a grid of live transcripts. Each pane
-// renders ONE agent via the same <Messages> the keep-alive host uses (agentId +
-// isActive). Only the focused pane is isActive, so only it drives the shared UI
-// (question banner, verdict, ⌘F, agent viewer) — the others stay visible but
-// silent. Focus follows a pointer-down anywhere in the pane; the header + the
-// shared composer below track the focused pane's agent (= global selectedId).
+const sameZone = (a, b) => !!a && !!b && a.kind === b.kind && a.edge === b.edge;
 
-// grid-template-areas slot per pane index (see .pane-grid.count-N in styles.css).
-const AREAS = ["a", "b", "c", "d"];
+// Shared drag-to-split behavior: tracks the live drop zone under the cursor and
+// fires onDropZone on drop. Used by every pane AND the single-pane view so the
+// edge-split + preview works identically whether you're at 1 pane or 9.
+function useDropSplit(canSplit, onDropZone) {
+  const [zone, setZone] = useState(null);
+  const hasAgentDrag = (e) => e.dataTransfer.types.includes("application/x-eos-agent");
+  const zoneAt = (e) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const z = dropZoneFromPoint((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+    return canSplit ? z : { kind: "replace" }; // at the cap only replace is allowed
+  };
+  const handlers = {
+    onDragOver: (e) => {
+      if (!hasAgentDrag(e)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      const z = zoneAt(e);
+      setZone((prev) => (sameZone(prev, z) ? prev : z));
+    },
+    // contains(relatedTarget): ignore leaves into our own children (the preview
+    // would otherwise flicker as the pointer crosses the transcript).
+    onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setZone(null); },
+    onDrop: (e) => {
+      const z = zone ?? zoneAt(e);
+      setZone(null);
+      const id = e.dataTransfer.getData("application/x-eos-agent");
+      if (id) { e.preventDefault(); onDropZone(z, id); }
+    },
+  };
+  return { zone, handlers };
+}
 
+function DropPreview({ zone }) {
+  return <div className={"pane-drop-preview pane-drop-preview--" + (zone.kind === "split" ? zone.edge : "replace")} />;
+}
+
+// Split view: a BSP tree (ui.tree) rendered as a FLAT set of absolutely-
+// positioned panes (computeRects) + one divider per split (computeDividers).
+// Panes are keyed by leaf id, decoupled from the tree's nesting, so a structural
+// edit (split/close) never remounts a surviving pane — only its rect moves
+// (keep-alive). Each pane renders ONE agent via the shared <Messages>; only the
+// focused pane is isActive and drives the shared UI.
 export function PaneGrid({ live }) {
   const ui = useUi();
-  const count = ui.paneCount;
-  // Own enable switch, independent of the sidebar activity indicators (default
-  // on). Uses needsAttentionRaw so toggling sidebar indicators off doesn't also
-  // silence pane pulses.
-  const pulseOn = ui.settings?.["notifications.paneAttention"] !== false;
-
-  // Resizable splits — local geometry (not part of the agent model), persisted.
-  // col drives the vertical split (all layouts); row the horizontal (count >= 3).
-  // minmax(0, …) kept so a wide transcript line can't force a horizontal scrollbar.
   const gridRef = useRef(null);
-  const [col, setCol] = useState(() => loadRatio("cm:paneCol"));
-  const [row, setRow] = useState(() => loadRatio("cm:paneRow"));
-  useEffect(() => { localStorage.setItem("cm:paneCol", String(col)); }, [col]);
-  useEffect(() => { localStorage.setItem("cm:paneRow", String(row)); }, [row]);
-  const gridStyle = {
-    gridTemplateColumns: `minmax(0, ${col}fr) minmax(0, ${1 - col}fr)`,
-    ...(count >= 3 ? { gridTemplateRows: `minmax(0, ${row}fr) minmax(0, ${1 - row}fr)` } : null),
-  };
+  const pulseOn = ui.settings?.["notifications.paneAttention"] !== false;
+  const rects = computeRects(ui.tree);
+  const dividers = computeDividers(ui.tree);
+  const canClose = rects.length > 1;
+  const canSplit = rects.length < MAX_PANES;
 
   return (
-    <div className={`pane-grid count-${count}`} style={gridStyle} ref={gridRef}>
-      {ui.paneAgents.map((id, i) => {
-        const worker = id ? live.workers.find((w) => w.id === id) ?? null : null;
-        const focused = i === ui.focusedPane;
+    <div className="pane-grid" ref={gridRef}>
+      {rects.map(({ id, agentId, rect }) => {
+        const worker = agentId ? live.workers.find((w) => w.id === agentId) ?? null : null;
+        const focused = id === ui.focusedLeafId;
         return (
-          <Pane
-            key={i}
-            index={i}
-            agentId={id}
-            worker={worker}
-            live={live}
-            focused={focused}
-            // A non-focused pane whose agent finished a turn with unseen output
-            // pulses to draw the eye; focusing it marks it viewed (clears).
-            attention={pulseOn && !focused && !!worker && ui.needsAttentionRaw(worker)}
-            canClose={count > 1}
-            onFocus={() => ui.focusPane(i)}
-            onClose={() => ui.closePane(i)}
-            onDropAgent={(agentId) => ui.dropAgentOnPane(i, agentId)}
-          />
+          <div
+            key={id}
+            className="pane-slot"
+            style={{ left: `${rect.left}%`, top: `${rect.top}%`, width: `${rect.width}%`, height: `${rect.height}%` }}
+          >
+            <Pane
+              agentId={agentId}
+              worker={worker}
+              live={live}
+              focused={focused}
+              attention={pulseOn && !focused && !!worker && ui.needsAttentionRaw(worker)}
+              canClose={canClose}
+              canSplit={canSplit}
+              onFocus={() => ui.focusLeaf(id)}
+              onClose={() => ui.closeLeaf(id)}
+              onDropZone={(zone, aid) => {
+                if (zone.kind === "split") ui.splitWithAgent(id, zone.dir, zone.side, aid);
+                else ui.dropReplace(id, aid);
+              }}
+            />
+          </div>
         );
       })}
-      <PaneDividers count={count} col={col} row={row} setCol={setCol} setRow={setRow} gridRef={gridRef} />
+      {dividers.map((d) => (
+        <Divider key={d.id} d={d} gridRef={gridRef} onRatio={(r) => ui.setRatioFor(d.id, r)} />
+      ))}
     </div>
   );
 }
 
-function loadRatio(key) {
-  const v = parseFloat(localStorage.getItem(key) ?? "0.5");
-  return Number.isFinite(v) && v >= 0.2 && v <= 0.8 ? v : 0.5;
-}
-
-// Absolute drag handles overlaid on the grid gaps. Pointer-capture drag (the
-// EffortPopover idiom): pointerdown captures, pointermove updates the ratio while
-// the button is held (capture auto-releases on up); double-click resets to 0.5.
-function PaneDividers({ count, col, row, setCol, setRow, gridRef }) {
-  const start = (e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); };
-  const drag = (axis) => (e) => {
-    if (!(e.buttons & 1)) return;
-    const rect = gridRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const raw = axis === "col" ? (e.clientX - rect.left) / rect.width : (e.clientY - rect.top) / rect.height;
-    const r = Math.min(0.8, Math.max(0.2, raw));
-    (axis === "col" ? setCol : setRow)(r);
-  };
+// Single pane: keeps the keep-alive transcript multiplexer (instant switch-back),
+// but is also a drag-to-split drop target so the first split can be made by drag.
+export function SinglePane({ live }) {
+  const ui = useUi();
+  const leafId = ui.focusedLeafId;
+  const { zone, handlers } = useDropSplit(true, (z, aid) => {
+    if (z.kind === "split") ui.splitWithAgent(leafId, z.dir, z.side, aid);
+    else ui.dropReplace(leafId, aid);
+  });
   return (
-    <>
-      <div
-        className="pane-divider pane-divider--v"
-        style={{ left: `${col * 100}%` }}
-        onPointerDown={start}
-        onPointerMove={drag("col")}
-        onDoubleClick={() => setCol(0.5)}
-      />
-      {count >= 3 && (
-        <div
-          className="pane-divider pane-divider--h"
-          // count-3: the divider only splits the right column (a spans both rows).
-          style={{ top: `${row * 100}%`, left: count === 3 ? `${col * 100}%` : 0, right: 0 }}
-          onPointerDown={start}
-          onPointerMove={drag("row")}
-          onDoubleClick={() => setRow(0.5)}
-        />
-      )}
-    </>
+    <div className="single-pane" {...handlers}>
+      {zone && <DropPreview zone={zone} />}
+      <TranscriptHost live={live} activeId={ui.selectedId} />
+    </div>
   );
 }
 
-function Pane({ index, agentId, worker, live, focused, attention, canClose, onFocus, onClose, onDropAgent }) {
+// Per-split resize handle. Pointer-capture drag (EffortPopover idiom): the ratio
+// is computed within the SPLIT's own rect, so dragging only resizes that split's
+// two children. Double-click resets to 0.5.
+function Divider({ d, gridRef, onRatio }) {
+  const start = (e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); };
+  const move = (e) => {
+    if (!(e.buttons & 1)) return;
+    const g = gridRef.current?.getBoundingClientRect();
+    if (!g) return;
+    const r = d.dir === "row"
+      ? ((e.clientX - g.left) / g.width * 100 - d.rect.left) / d.rect.width
+      : ((e.clientY - g.top) / g.height * 100 - d.rect.top) / d.rect.height;
+    onRatio(r);
+  };
+  const style = d.dir === "row"
+    ? { left: `${d.pos}%`, top: `${d.rect.top}%`, height: `${d.rect.height}%` }
+    : { top: `${d.pos}%`, left: `${d.rect.left}%`, width: `${d.rect.width}%` };
+  return (
+    <div
+      className={`pane-divider pane-divider--${d.dir === "row" ? "v" : "h"}`}
+      style={style}
+      onPointerDown={start}
+      onPointerMove={move}
+      onDoubleClick={() => onRatio(0.5)}
+    />
+  );
+}
+
+function Pane({ agentId, worker, live, focused, attention, canClose, canSplit, onFocus, onClose, onDropZone }) {
   // Blocked-on-input cue for non-focused panes: an open ask_user question
   // (per-agent store) or a pending permission (live.pendingPermissions). The
   // focused pane needs none — its banner is in the shared composer.
   const questionNeeded = useInputNeeded(agentId);
-  const [dragOver, setDragOver] = useState(false);
+  const { zone, handlers } = useDropSplit(canSplit, onDropZone);
   const permNeeded = !!worker && (live.pendingPermissions ?? []).some((p) => p.worker_id === agentId);
   const needsInput = !focused && !!worker && (questionNeeded || permNeeded);
   const status = worker ? statusFromState(worker.state) : null;
-  // needs-input takes precedence over the attention pulse (more urgent) — both
-  // pulse the edge, in warn vs accent. drag-over overrides both (it's a momentary
-  // drop cue; .pane-grid .pane.drag-over wins on specificity).
-  const cls = ["pane", focused ? "is-focused" : "", needsInput ? "pane--needs-input" : attention ? "pane--attention" : "", dragOver ? "drag-over" : ""]
+  // needs-input takes precedence over the attention pulse (more urgent).
+  const cls = ["pane", focused ? "is-focused" : "", needsInput ? "pane--needs-input" : attention ? "pane--attention" : ""]
     .filter(Boolean)
     .join(" ");
-
-  const hasAgentDrag = (e) => e.dataTransfer.types.includes("application/x-eos-agent");
 
   return (
     <div
       className={cls}
-      style={{ gridArea: AREAS[index] }}
       // Capture so a click that also hits a transcript link/button still focuses
       // the pane first. mousedown (not click) makes focus feel immediate.
       onMouseDownCapture={focused ? undefined : onFocus}
-      onDragOver={(e) => {
-        if (!hasAgentDrag(e)) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        if (!dragOver) setDragOver(true);
-      }}
-      // contains(relatedTarget): ignore leaves into the pane's own children
-      // (otherwise the highlight flickers as the pointer crosses the transcript).
-      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(false); }}
-      onDrop={(e) => {
-        setDragOver(false);
-        const id = e.dataTransfer.getData("application/x-eos-agent");
-        if (id) { e.preventDefault(); onDropAgent(id); }
-      }}
+      {...handlers}
     >
+      {zone && <DropPreview zone={zone} />}
       <div className="pane-head">
         {status && <span className={`ag-dot ${status.dot}`} />}
         <span className="pane-name" title={worker ? nameOf(worker) : undefined}>

@@ -1,14 +1,16 @@
-// Named split-layout presets — client-side only (localStorage), like
-// cm:paneAgents. Each captures pane count + agents + focused pane; resize ratios
-// stay a separate global preference. Agents that no longer exist restore as
+// Named split-layout presets — client-side only (localStorage). Each captures a
+// whole BSP layout tree (lib/paneLayout). Agents that no longer exist restore as
 // empty panes (PaneProvider.prunePanes / selectedId cleanup handle it).
+
+import { isValidTree } from "../lib/paneLayout.js";
 
 const KEY = "cm:panePresets";
 
 function load() {
   try {
     const a = JSON.parse(localStorage.getItem(KEY) ?? "[]");
-    return Array.isArray(a) ? a : [];
+    // Drop legacy / malformed entries (e.g. the old agents-array shape).
+    return Array.isArray(a) ? a.filter((p) => p && p.id && p.name && isValidTree(p.tree)) : [];
   } catch {
     return [];
   }
@@ -26,15 +28,10 @@ export function listPresets() {
   return presets;
 }
 
-export function savePreset(name, agents, focused) {
+export function savePreset(name, tree) {
   const trimmed = (name ?? "").trim();
-  if (!trimmed) return;
-  presets = [...presets, {
-    id: crypto.randomUUID(),
-    name: trimmed,
-    agents: [...agents].map((x) => x ?? null),
-    focused: focused ?? 0,
-  }];
+  if (!trimmed || !isValidTree(tree)) return;
+  presets = [...presets, { id: crypto.randomUUID(), name: trimmed, tree }];
   persist();
 }
 

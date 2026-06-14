@@ -1,183 +1,159 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSelection } from "./selection.jsx";
 import {
-  MAX_PANES, clampCount, resizePanes, focusAfterResize,
-  removePane, focusAfterRemove, pruneDeadPanes,
-} from "../lib/paneModel.js";
+  MAX_PANES, leaf, leaves, leafCount, findLeaf, leafOfAgent, isValidTree,
+  splitLeaf, removeLeaf, setRatio, setLeafAgent, replaceDeadAgents,
+} from "../lib/paneLayout.js";
 
-// Split-view pane model. The center can show up to MAX_PANES agent transcripts
-// side by side. paneAgents[i] is the agent id shown in pane i (null = empty);
-// its length IS the pane count. The FOCUSED pane always mirrors the global
-// selectedId (selection.jsx) — that single mirror is why every existing
-// selection call site (sidebar click, Cmd+1..9, breadcrumb, spawn, native nav)
-// drives the focused pane without knowing panes exist. Header, composer and the
-// right panel follow selectedId, so they follow the focused pane for free.
-//
-// All list/focus transforms are the pure, unit-tested helpers in lib/paneModel.
+// Split-view layout as a BSP tree (lib/paneLayout): leaves are panes (one agent
+// each), splits divide a region in two. The provider owns the tree + the focused
+// leaf and exposes a DERIVED flat view (paneAgents/paneCount/focusedPane) so the
+// rest of the app stays unaware of the tree. The FOCUSED leaf's agent mirrors the
+// global selectedId — that single mirror is why every existing selection path
+// (sidebar click, Cmd+1..9, breadcrumb, spawn, native nav) drives the focused
+// pane without knowing panes exist.
 
 export { MAX_PANES };
 
 const PaneContext = createContext(null);
 
-function loadAgents() {
+function loadTree() {
   try {
-    const arr = JSON.parse(localStorage.getItem("cm:paneAgents") ?? "null");
-    if (Array.isArray(arr) && arr.length >= 1 && arr.length <= MAX_PANES) {
-      return arr.map((x) => (typeof x === "string" ? x : null));
-    }
+    const t = JSON.parse(localStorage.getItem("cm:paneTree") ?? "null");
+    if (isValidTree(t)) return t;
   } catch {
-    // fall through to the single-pane default
+    // fall through to a single pane
   }
-  // Single pane mirroring the persisted selection — N=1 is the pre-split
-  // behavior, so a fresh user starts exactly as before.
-  return [localStorage.getItem("cm:selectedId")];
+  return leaf(localStorage.getItem("cm:selectedId"));
 }
 
-function loadFocused(len) {
-  const fi = parseInt(localStorage.getItem("cm:paneFocused") ?? "0", 10);
-  return Number.isInteger(fi) && fi >= 0 && fi < len ? fi : 0;
+function loadFocusedLeaf(tree) {
+  const id = localStorage.getItem("cm:paneFocusedLeaf");
+  return id && findLeaf(tree, id) ? id : leaves(tree)[0].id;
 }
 
 export function PaneProvider({ children }) {
   const { selectedId, setSelectedId } = useSelection();
-  const [agents, setAgents] = useState(loadAgents);
-  const [focusedIndex, setFocusedIndex] = useState(() => loadFocused(loadAgents().length));
+  const [tree, setTree] = useState(loadTree);
+  const [focusedLeafId, setFocusedLeafId] = useState(() => loadFocusedLeaf(loadTree()));
 
-  // Synchronous mirrors so the imperative actions can read the live value
-  // without an impure functional updater — same pattern selection.jsx uses.
-  const agentsRef = useRef(agents);
-  agentsRef.current = agents;
-  const focusedRef = useRef(focusedIndex);
-  focusedRef.current = focusedIndex;
+  // Synchronous mirrors so the imperative actions read the live value without an
+  // impure functional updater — same pattern selection.jsx uses.
+  const treeRef = useRef(tree);
+  treeRef.current = tree;
+  const focusedRef = useRef(focusedLeafId);
+  focusedRef.current = focusedLeafId;
 
-  const count = agents.length;
+  const leafList = useMemo(() => leaves(tree), [tree]);
+  const paneAgents = useMemo(() => leafList.map((l) => l.agentId), [leafList]);
+  const paneCount = leafList.length;
+  const focusedPane = Math.max(0, leafList.findIndex((l) => l.id === focusedLeafId));
 
-  useEffect(() => { localStorage.setItem("cm:paneAgents", JSON.stringify(agents)); }, [agents]);
-  useEffect(() => { localStorage.setItem("cm:paneFocused", String(focusedIndex)); }, [focusedIndex]);
+  useEffect(() => { localStorage.setItem("cm:paneTree", JSON.stringify(tree)); }, [tree]);
+  useEffect(() => { localStorage.setItem("cm:paneFocusedLeaf", focusedLeafId); }, [focusedLeafId]);
 
-  // The focused slot mirrors the global selection. selectedId changes through
-  // many existing paths; mirroring here keeps every one of them pane-agnostic.
-  // Guarded so the no-op write after focusPane()/setSelectedId() can't loop.
+  // The focused leaf's agent mirrors the global selection. Guarded (setLeafAgent
+  // returns the same tree when unchanged) so the no-op write after a focus/select
+  // action can't loop.
   useEffect(() => {
-    setAgents((a) => {
-      if (a[focusedIndex] === selectedId) return a;
-      const next = a.slice();
-      next[focusedIndex] = selectedId;
-      return next;
-    });
-  }, [selectedId, focusedIndex]);
+    setTree((t) => setLeafAgent(t, focusedLeafId, selectedId));
+  }, [selectedId, focusedLeafId]);
 
-  const focusPane = useCallback((i) => {
-    if (i === focusedRef.current) return;
-    setFocusedIndex(i);
-    setSelectedId(agentsRef.current[i] ?? null);
+  const focusLeaf = useCallback((id) => {
+    const l = findLeaf(treeRef.current, id);
+    if (!l) return;
+    setFocusedLeafId(id);
+    setSelectedId(l.agentId ?? null);
   }, [setSelectedId]);
 
-  // Pick an agent from the agent list (sidebar click, Cmd+1..9). In split mode,
-  // if it's already shown in a different pane, focus that pane instead of
-  // duplicating it into the focused one. New-session (null) and single-pane
-  // fall through to a plain selection (= today's behavior).
-  const selectAgent = useCallback((id) => {
-    if (id != null && agentsRef.current.length > 1) {
-      const idx = agentsRef.current.indexOf(id);
-      if (idx >= 0 && idx !== focusedRef.current) {
-        focusPane(idx);
-        return;
-      }
-    }
-    setSelectedId(id);
-  }, [focusPane, setSelectedId]);
+  const focusLeafByIndex = useCallback((i) => {
+    const l = leaves(treeRef.current)[i];
+    if (l) focusLeaf(l.id);
+  }, [focusLeaf]);
 
-  // Drag & drop an agent onto a pane. If it's already shown in another pane,
-  // swap the two (no duplicate, nothing lost); otherwise place it in the target
-  // (its previous agent falls back to the sidebar). Focuses the target either way.
-  const dropAgentOnPane = useCallback((index, agentId) => {
-    if (!agentId) return;
-    const src = agentsRef.current.indexOf(agentId);
-    setAgents((a) => {
-      const next = a.slice();
-      if (src >= 0 && src !== index) {
-        next[src] = a[index];
-        next[index] = agentId;
-      } else {
-        next[index] = agentId;
-      }
-      return next;
-    });
-    setFocusedIndex(index);
-    setSelectedId(agentId);
+  // Drop an agent onto a pane edge → split that leaf, new pane on `side`.
+  const splitWithAgent = useCallback((leafId, dir, side, agentId) => {
+    const { tree: next, newId } = splitLeaf(treeRef.current, leafId, dir, side, agentId);
+    if (!newId) return;
+    setTree(next);
+    setFocusedLeafId(newId);
+    setSelectedId(agentId ?? null);
   }, [setSelectedId]);
 
-  const setPaneCount = useCallback((n) => {
-    const next = clampCount(n);
-    const oldLen = agentsRef.current.length;
-    if (next === oldLen) return;
-    const resized = resizePanes(agentsRef.current, next);
-    setAgents(resized);
-    const fi = focusAfterResize(focusedRef.current, oldLen, next);
-    if (fi !== focusedRef.current) {
-      setFocusedIndex(fi);
-      // Grow focuses the new empty pane (selection clears → the next sidebar
-      // pick lands here, not over the pane you were already viewing).
-      setSelectedId(resized[fi] ?? null);
+  // Drop onto a pane center → replace its agent.
+  const dropReplace = useCallback((leafId, agentId) => {
+    setTree((t) => setLeafAgent(t, leafId, agentId));
+    setFocusedLeafId(leafId);
+    setSelectedId(agentId ?? null);
+  }, [setSelectedId]);
+
+  const closeLeaf = useCallback((id) => {
+    if (leafCount(treeRef.current) <= 1) return;
+    const next = removeLeaf(treeRef.current, id);
+    setTree(next);
+    if (focusedRef.current === id) {
+      const fb = leaves(next)[0];
+      setFocusedLeafId(fb.id);
+      setSelectedId(fb.agentId ?? null);
     }
   }, [setSelectedId]);
 
-  const closePane = useCallback((i) => {
-    if (agentsRef.current.length <= 1) return;
-    const next = removePane(agentsRef.current, i);
-    setAgents(next);
-    const fi = focusAfterRemove(focusedRef.current, i, next.length);
-    if (fi !== focusedRef.current || i === focusedRef.current) {
-      setFocusedIndex(fi);
-      setSelectedId(next[fi] ?? null);
-    }
-  }, [setSelectedId]);
-
-  // Cmd-click in the sidebar toggles an agent as a split pane: remove its pane
-  // if already shown (never the last one), else append a new pane for it and
-  // focus it (capped at MAX_PANES). The shown set IS the multi-selection — the
-  // sidebar's in-pane markers reflect it.
-  const togglePaneForAgent = useCallback((agentId) => {
-    if (!agentId) return;
-    const cur = agentsRef.current;
-    const idx = cur.indexOf(agentId);
-    if (idx >= 0) {
-      if (cur.length > 1) closePane(idx);
-      return;
-    }
-    if (cur.length >= MAX_PANES) return;
-    const newIndex = cur.length;
-    setAgents((a) => [...a, agentId]);
-    setFocusedIndex(newIndex);
-    setSelectedId(agentId);
-  }, [closePane, setSelectedId]);
-
-  // Apply a whole layout at once (a saved preset): replace pane agents + focus in
-  // one shot. Clamped to MAX_PANES; dead agents are cleaned by prunePanes / the
-  // selectedId cleanup once workers load.
-  const setLayout = useCallback((nextAgents, nextFocused) => {
-    let agents = (Array.isArray(nextAgents) ? nextAgents : []).slice(0, MAX_PANES).map((x) => x ?? null);
-    if (agents.length === 0) agents = [null];
-    const focused = Math.min(Math.max(0, nextFocused ?? 0), agents.length - 1);
-    setAgents(agents);
-    setFocusedIndex(focused);
-    setSelectedId(agents[focused] ?? null);
-  }, [setSelectedId]);
-
-  // Drop agents that no longer exist from the non-focused panes (the focused
-  // slot is owned by selectedId, which CodeView already cleans). Called with the
-  // live worker set, which this provider can't see itself.
-  const prunePanes = useCallback((isAlive) => {
-    setAgents((a) => pruneDeadPanes(a, focusedRef.current, isAlive));
+  const setRatioFor = useCallback((splitId, ratio) => {
+    setTree((t) => setRatio(t, splitId, ratio));
   }, []);
 
+  // Pick an agent from the list (sidebar click, Cmd+1..9). If it's already shown
+  // in a different pane, focus that pane instead of duplicating it; otherwise the
+  // mirror writes it into the focused pane.
+  const selectAgent = useCallback((id) => {
+    if (id != null) {
+      const l = leafOfAgent(treeRef.current, id);
+      if (l && l.id !== focusedRef.current) { focusLeaf(l.id); return; }
+    }
+    setSelectedId(id);
+  }, [focusLeaf, setSelectedId]);
+
+  // Cmd-click toggles an agent as a pane: remove it if shown (never the last),
+  // else split the focused pane to add it (capped in splitLeaf).
+  const togglePaneForAgent = useCallback((id) => {
+    if (!id) return;
+    const l = leafOfAgent(treeRef.current, id);
+    if (l) {
+      if (leafCount(treeRef.current) > 1) closeLeaf(l.id);
+      return;
+    }
+    splitWithAgent(focusedRef.current, "row", "after", id);
+  }, [closeLeaf, splitWithAgent]);
+
+  // Drop dead agents from the panes, keeping the focused one (cleaned via
+  // selectedId in CodeView). Called with the live worker set.
+  const prunePanes = useCallback((isAlive) => {
+    const focusedAgent = findLeaf(treeRef.current, focusedRef.current)?.agentId ?? null;
+    setTree((t) => replaceDeadAgents(t, isAlive, focusedAgent));
+  }, []);
+
+  // Apply a whole layout (a saved preset's tree) and focus its first pane.
+  const setLayout = useCallback((nextTree) => {
+    if (!isValidTree(nextTree)) return;
+    setTree(nextTree);
+    const fb = leaves(nextTree)[0];
+    setFocusedLeafId(fb.id);
+    setSelectedId(fb.agentId ?? null);
+  }, [setSelectedId]);
+
   const value = useMemo(() => ({
-    paneCount: count,
-    paneAgents: agents,
-    focusedPane: Math.min(focusedIndex, count - 1),
-    setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane, togglePaneForAgent, setLayout,
-  }), [count, agents, focusedIndex, setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane, togglePaneForAgent, setLayout]);
+    tree,
+    focusedLeafId,
+    paneCount,
+    paneAgents,
+    focusedPane,
+    focusLeaf, focusLeafByIndex, splitWithAgent, dropReplace, closeLeaf,
+    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, setLayout,
+  }), [
+    tree, focusedLeafId, paneCount, paneAgents, focusedPane,
+    focusLeaf, focusLeafByIndex, splitWithAgent, dropReplace, closeLeaf,
+    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, setLayout,
+  ]);
 
   return <PaneContext.Provider value={value}>{children}</PaneContext.Provider>;
 }
