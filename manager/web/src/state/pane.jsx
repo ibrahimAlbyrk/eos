@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useSelection } from "./selection.jsx";
 import {
   MAX_PANES, leaf, leaves, leafCount, findLeaf, leafOfAgent, isValidTree,
-  splitLeaf, removeLeaf, setRatio, setLeafAgent, replaceDeadAgents, fillAgents,
+  splitLeaf, removeLeaf, setRatio, setLeafAgent, removeDeadLeaves, fillAgents,
 } from "../lib/paneLayout.js";
 
 // Split-view layout as a BSP tree (lib/paneLayout): leaves are panes (one agent
@@ -125,12 +125,23 @@ export function PaneProvider({ children }) {
     splitWithAgent(focusedRef.current, "row", "after", id);
   }, [closeLeaf, splitWithAgent]);
 
-  // Drop dead agents from the panes, keeping the focused one (cleaned via
-  // selectedId in CodeView). Called with the live worker set.
+  // A killed agent's pane is removed (split collapses to the sibling), not left
+  // empty. If the focused pane was the one removed, focus the nearest survivor.
+  // The last pane can't be removed → it's emptied instead. Called with the live
+  // worker set on every change.
   const prunePanes = useCallback((isAlive) => {
-    const focusedAgent = findLeaf(treeRef.current, focusedRef.current)?.agentId ?? null;
-    setTree((t) => replaceDeadAgents(t, isAlive, focusedAgent));
-  }, []);
+    const cur = treeRef.current;
+    const next = removeDeadLeaves(cur, isAlive);
+    if (next === cur) return;
+    const prevIdx = leaves(cur).findIndex((l) => l.id === focusedRef.current);
+    setTree(next);
+    if (!findLeaf(next, focusedRef.current)) {
+      const list = leaves(next);
+      const fb = list[Math.min(Math.max(prevIdx, 0), list.length - 1)] ?? list[0];
+      setFocusedLeafId(fb.id);
+      setSelectedId(fb.agentId ?? null);
+    }
+  }, [setSelectedId]);
 
   // Apply a complete layout (with agents) as-is — e.g. "Open children".
   const setLayout = useCallback((nextTree) => {

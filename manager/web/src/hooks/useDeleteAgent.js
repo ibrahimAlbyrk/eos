@@ -11,12 +11,14 @@ import { subtreeIds } from "../lib/tree.js";
 // with no history lands on the new-session screen. Shared by the Cmd+W hotkey
 // and the context/header menus so all entry points behave identically.
 export function useDeleteAgent(live) {
-  const { selectedId, setSelectedId, takePreviousSelection, closeAllPops, removeCollapsedNodes } = useUi();
+  const { selectedId, setSelectedId, takePreviousSelection, closeAllPops, removeCollapsedNodes, paneCount } = useUi();
   return useCallback(async (agentId) => {
     if (!agentId) return undefined;
     // Switch selection off the doomed agent *before* the DELETE so any in-flight
-    // events / diff fetch for it doesn't race the row removal.
-    if (selectedId === agentId) {
+    // events / diff fetch for it doesn't race the row removal. In split view the
+    // pane layer (prunePanes) instead removes the doomed pane and focuses a
+    // survivor, so skip the re-target there and let it own the transition.
+    if (selectedId === agentId && paneCount <= 1) {
       const exists = (id) => live.workers.some((w) => w.id === id);
       const parentId = live.workers.find((w) => w.id === agentId)?.parent_id;
       const fallback = takePreviousSelection(exists)
@@ -50,5 +52,5 @@ export function useDeleteAgent(live) {
       console.error("kill threw:", e);
       return undefined;
     }
-  }, [selectedId, setSelectedId, takePreviousSelection, closeAllPops, removeCollapsedNodes, live]);
+  }, [selectedId, setSelectedId, takePreviousSelection, closeAllPops, removeCollapsedNodes, live, paneCount]);
 }

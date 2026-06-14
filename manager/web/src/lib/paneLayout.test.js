@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   leaf, isLeaf, isValidTree, leaves, leafCount, findLeaf, leafOfAgent,
-  setLeafAgent, splitLeaf, removeLeaf, setRatio, replaceDeadAgents,
+  setLeafAgent, splitLeaf, removeLeaf, setRatio, removeDeadLeaves,
   computeRects, computeDividers, dropZoneFromPoint, fanoutLayout,
   stripAgents, fillAgents, MAX_PANES,
 } from "./paneLayout.js";
@@ -79,16 +79,36 @@ describe("setRatio / setLeafAgent", () => {
   });
 });
 
-describe("replaceDeadAgents", () => {
-  it("nulls dead agents but keeps the protected one", () => {
+describe("removeDeadLeaves", () => {
+  it("removes a dead leaf, collapsing the split to its sibling", () => {
     const root = leaf("a");
     const { tree } = splitLeaf(root, root.id, "row", "after", "b");
-    const alive = (id) => id === "a"; // b is dead
-    const next = replaceDeadAgents(tree, alive, null);
+    const next = removeDeadLeaves(tree, (id) => id === "a"); // b is dead
+    expect(isLeaf(next)).toBe(true);
+    expect(next.agentId).toBe("a");
+  });
+  it("empties (never removes) the last leaf when its agent dies", () => {
+    const next = removeDeadLeaves(leaf("a"), () => false);
+    expect(isLeaf(next)).toBe(true);
+    expect(next.agentId).toBe(null);
+  });
+  it("keeps deliberately-empty and alive leaves", () => {
+    const root = leaf("a");
+    const { tree } = splitLeaf(root, root.id, "row", "after", null); // [a, empty]
+    const next = removeDeadLeaves(tree, (id) => id === "a");
     expect(leaves(next).map((l) => l.agentId)).toEqual(["a", null]);
-    // protected dead agent is kept
-    const kept = replaceDeadAgents(tree, () => false, "a");
-    expect(leafOfAgent(kept, "a")).toBeTruthy();
+  });
+  it("removes several dead leaves", () => {
+    const root = leaf("a");
+    let t = splitLeaf(root, root.id, "row", "after", "b").tree; // [a, b]
+    t = splitLeaf(t, leaves(t)[1].id, "col", "after", "c").tree; // [a, b, c]
+    const next = removeDeadLeaves(t, (id) => id === "a"); // b, c dead
+    expect(leaves(next).map((l) => l.agentId)).toEqual(["a"]);
+  });
+  it("returns the same reference when nothing died", () => {
+    const root = leaf("a");
+    const { tree } = splitLeaf(root, root.id, "row", "after", "b");
+    expect(removeDeadLeaves(tree, () => true)).toBe(tree);
   });
 });
 

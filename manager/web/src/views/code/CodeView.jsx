@@ -54,8 +54,11 @@ export function CodeView({ live }) {
     if (!ui.selectedId) return;
     if (live.workers.length === 0) return;
     const exists = live.workers.some((w) => w.id === ui.selectedId);
-    if (!exists) ui.setSelectedId(null);
-  }, [ui.selectedId, live.workers, ui.setSelectedId]);
+    // Single pane only: empty it when its agent dies. In split, prunePanes owns
+    // death — it removes the dead pane and focuses a survivor (so we must not
+    // null selectedId here and turn the focused pane empty before it runs).
+    if (!exists && ui.paneCount <= 1) ui.setSelectedId(null);
+  }, [ui.selectedId, live.workers, ui.setSelectedId, ui.paneCount]);
 
   // Drop dead agents from the non-focused split panes (the focused pane rides
   // the selectedId cleanup above). Same guard: an empty list can't tell "not

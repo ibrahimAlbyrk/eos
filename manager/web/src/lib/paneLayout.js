@@ -103,19 +103,18 @@ export function setRatio(tree, splitId, ratio) {
   return walk(tree);
 }
 
-// Null out leaf agents that no longer exist, except `protectedId` (the focused
-// agent, cleaned via selectedId elsewhere). Same reference when unchanged.
-export function replaceDeadAgents(tree, isAlive, protectedId) {
-  const walk = (n) => {
-    if (isLeaf(n)) {
-      if (n.agentId == null || n.agentId === protectedId || isAlive(n.agentId)) return n;
-      return { ...n, agentId: null };
+// Remove every leaf whose agent has died (isAlive false), collapsing each split
+// to its sibling — but keep deliberately-empty (null) leaves, and never drop
+// below one pane (the last dying leaf is emptied instead). Reuses removeLeaf /
+// setLeafAgent so surviving splits keep their ratios. Same ref when unchanged.
+export function removeDeadLeaves(tree, isAlive) {
+  let t = tree;
+  for (const l of leaves(tree)) {
+    if (l.agentId != null && !isAlive(l.agentId)) {
+      t = leafCount(t) > 1 ? removeLeaf(t, l.id) : setLeafAgent(t, l.id, null);
     }
-    const a = walk(n.a);
-    const b = walk(n.b);
-    return a === n.a && b === n.b ? n : { ...n, a, b };
-  };
-  return walk(tree);
+  }
+  return t;
 }
 
 // A row of equal-width columns, as nested binary row-splits: the first takes
