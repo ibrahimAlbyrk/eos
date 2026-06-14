@@ -76,7 +76,6 @@ export function BashDetail({ tool }) {
 
   return (
     <div className="tool-detail bash-detail">
-      <FailureBanner tool={tool} />
       <div className="bash-label">Bash</div>
       <div className="bash-cmd">
         <span className="bash-prompt">$</span>
@@ -87,6 +86,7 @@ export function BashDetail({ tool }) {
           {output ? output.slice(0, 4000) : tool.running ? "Running…" : "(Bash completed with no output)"}
         </div>
       )}
+      <FailureBanner tool={tool} />
     </div>
   );
 }
@@ -126,7 +126,6 @@ function FailureBanner({ tool }) {
   const isDenied = /^denied|permission mode|denied by policy/i.test(text);
   return (
     <div className={"tool-failure-banner" + (isDenied ? " denied" : "")}>
-      <span className="tfb-label">{isDenied ? "Denied" : "Failed"}</span>
       <span className="tfb-msg">{text || (isDenied ? "Permission denied" : "Tool call failed")}</span>
     </div>
   );
