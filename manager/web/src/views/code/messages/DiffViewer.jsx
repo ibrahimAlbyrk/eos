@@ -3,10 +3,11 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { parsePatch } from "../../../lib/patch.js";
 import { highlightAsync } from "../../../lib/asyncHighlight.js";
-import { gitAgentName } from "../../../lib/gitAgentName.js";
+import { spawnMergeGitAgent } from "../../../lib/spawnMergeGitAgent.js";
 import { useWorkerVerdict } from "../../../hooks/useWorkerVerdict.js";
 import { useWorkerChanges } from "../../../hooks/useWorkerChanges.js";
 import { useTryState } from "../../../hooks/useTryState.js";
+import { TryApplyButton } from "./TryApplyButton.jsx";
 
 // Initial row budget per file; further rows stream in as the sentinel below
 // the rendered window scrolls into reach — no all-at-once "Show all" commit.
@@ -86,17 +87,6 @@ function DiffViewerInner({ workerId, live }) {
     if (gitDir) ui.openFileViewer(gitDir + "/" + f.path);
   }, [gitDir, ui.openFileViewer]);
 
-  const resolveWithGitAgent = async () => {
-    if (!worker?.worktree_from || !worker?.branch) return;
-    const prompt = `Merge branch ${worker.branch} into the current branch. Context: ${worker.branch} is a live Eos agent worktree branch — never check it out or delete it. Resolve any conflicts preserving both sides' intent.`;
-    const r = await live.spawnGitAgent({
-      cwd: worker.worktree_from,
-      prompt,
-      name: gitAgentName(worker.worktree_from, worker.branch, `merge ${worker.branch}`),
-    });
-    if (r?.ok && r.body?.id) ui.setSelectedId(r.body.id);
-  };
-
   return (
     <>
       <div className="dv-head">
@@ -119,29 +109,15 @@ function DiffViewerInner({ workerId, live }) {
           </span>
         )}
         <span className="dv-grow" />
-        {isolated && tryState.phase === "idle" && (!applied || syncable) && (
-          <button
-            className="dv-act dv-act-apply"
-            title={applied
-              ? "Pull the worker's new changes into your checkout (only the delta since you last applied)"
-              : "Apply these changes as unstaged edits in your checkout (Keep/Discard after testing)"}
-            onClick={applyTry}
-          >
-            {applied ? `Sync changes${syncFiles.length ? ` (${syncFiles.length})` : ""}` : "Apply"}
-          </button>
-        )}
-        {isolated && tryState.phase === "applying" && (
-          <button className="dv-act dv-act-apply" disabled>{applied ? "Syncing…" : "Applying…"}</button>
-        )}
-        {isolated && tryState.phase === "conflicts" && (
-          <button className="dv-act dv-act-conflict" title={`${tryState.count} file(s) would conflict — nothing was touched`} onClick={resolveWithGitAgent}>
-            Resolve with git agent
-          </button>
-        )}
-        {isolated && tryState.phase === "error" && (
-          <button className="dv-act dv-act-err" title="Click to retry" onClick={applyTry}>
-            {tryState.msg}
-          </button>
+        {isolated && (
+          <TryApplyButton
+            tryState={tryState}
+            applied={applied}
+            syncable={syncable}
+            syncFiles={syncFiles}
+            onApply={applyTry}
+            onResolveConflicts={() => spawnMergeGitAgent(worker, live, ui)}
+          />
         )}
         {gitDir && (
           <button
