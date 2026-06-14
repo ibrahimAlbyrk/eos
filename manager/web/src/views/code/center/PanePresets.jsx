@@ -23,7 +23,7 @@ export function PanePresets() {
   };
 
   const apply = (p) => {
-    ui.setLayout(p.tree);
+    ui.applyStructure(p.tree);
     ui.closeAllPops();
   };
 

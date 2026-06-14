@@ -2,7 +2,8 @@ import { describe, it, expect } from "vitest";
 import {
   leaf, isLeaf, isValidTree, leaves, leafCount, findLeaf, leafOfAgent,
   setLeafAgent, splitLeaf, removeLeaf, setRatio, replaceDeadAgents,
-  computeRects, computeDividers, dropZoneFromPoint, MAX_PANES,
+  computeRects, computeDividers, dropZoneFromPoint, fanoutLayout,
+  stripAgents, fillAgents, MAX_PANES,
 } from "./paneLayout.js";
 
 describe("leaf / leaves / count", () => {
@@ -135,6 +136,75 @@ describe("dropZoneFromPoint", () => {
   });
   it("just inside the center band stays replace", () => {
     expect(dropZoneFromPoint(0.35, 0.5)).toEqual({ kind: "replace" });
+  });
+});
+
+describe("fanoutLayout", () => {
+  it("no children → a lone orchestrator leaf", () => {
+    expect(isLeaf(fanoutLayout("O", []))).toBe(true);
+  });
+  it("orchestrator left, children right, in order", () => {
+    const t = fanoutLayout("O", ["a", "b", "c"]);
+    expect(t.t).toBe("split");
+    expect(t.dir).toBe("row");
+    expect(isLeaf(t.a) && t.a.agentId).toBe("O"); // orchestrator left
+    expect(leaves(t).map((l) => l.agentId)).toEqual(["O", "a", "b", "c"]);
+  });
+  it("2 children stack on the right (top/bottom)", () => {
+    const t = fanoutLayout("O", ["a", "b"]);
+    expect(t.b.dir).toBe("col"); // right region split horizontally → stacked
+    expect(isValidTree(t)).toBe(true);
+  });
+  it("4 children form a 2×2 on the right, orchestrator narrower (40%)", () => {
+    const t = fanoutLayout("O", ["a", "b", "c", "d"]);
+    const rects = computeRects(t);
+    // orchestrator takes the left 40%
+    expect(rects.find((r) => r.agentId === "O").rect).toMatchObject({ left: 0, width: 40, height: 100 });
+    // children occupy the right 60% as four 30%×50% tiles
+    const kids = rects.filter((r) => r.agentId !== "O");
+    expect(kids).toHaveLength(4);
+    for (const k of kids) {
+      expect(k.rect.left).toBeGreaterThanOrEqual(40);
+      expect(k.rect.width).toBeCloseTo(30);
+      expect(k.rect.height).toBeCloseTo(50);
+    }
+  });
+  it("6 children form a 3-over-3 grid on the right", () => {
+    const t = fanoutLayout("O", ["a", "b", "c", "d", "e", "f"]);
+    const kids = computeRects(t).filter((r) => r.agentId !== "O");
+    expect(kids).toHaveLength(6);
+    for (const k of kids) {
+      expect(k.rect.width).toBeCloseTo(20); // 60% right / 3 cols
+      expect(k.rect.height).toBeCloseTo(50); // 2 rows
+    }
+    expect(kids.filter((k) => k.rect.top === 0)).toHaveLength(3); // top row
+    expect(kids.filter((k) => k.rect.top === 50)).toHaveLength(3); // bottom row
+  });
+  it("caps the fanout at 7 panes total", () => {
+    const many = Array.from({ length: 20 }, (_, i) => "c" + i);
+    expect(leafCount(fanoutLayout("O", many))).toBe(7);
+  });
+});
+
+describe("stripAgents / fillAgents", () => {
+  const struct = stripAgents(fanoutLayout("O", ["x", "y"])); // structure with 3 leaves
+
+  it("stripAgents nulls every leaf, keeps the structure", () => {
+    expect(leaves(struct).every((l) => l.agentId === null)).toBe(true);
+    expect(struct.dir).toBe("row");
+    expect(leafCount(struct)).toBe(3);
+  });
+  it("fills leaves in order", () => {
+    expect(leaves(fillAgents(struct, ["a", "b", "c"])).map((l) => l.agentId)).toEqual(["a", "b", "c"]);
+  });
+  it("drops extra agents (more agents than panes)", () => {
+    expect(leaves(fillAgents(struct, ["a", "b", "c", "d"])).map((l) => l.agentId)).toEqual(["a", "b", "c"]);
+  });
+  it("pads with empty panes (fewer agents than panes)", () => {
+    expect(leaves(fillAgents(struct, ["a"])).map((l) => l.agentId)).toEqual(["a", null, null]);
+  });
+  it("regenerates fresh node ids", () => {
+    expect(fillAgents(struct, ["a", "b", "c"]).id).not.toBe(struct.id);
   });
 });
 

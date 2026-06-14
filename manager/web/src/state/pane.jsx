@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useSelection } from "./selection.jsx";
 import {
   MAX_PANES, leaf, leaves, leafCount, findLeaf, leafOfAgent, isValidTree,
-  splitLeaf, removeLeaf, setRatio, setLeafAgent, replaceDeadAgents,
+  splitLeaf, removeLeaf, setRatio, setLeafAgent, replaceDeadAgents, fillAgents,
 } from "../lib/paneLayout.js";
 
 // Split-view layout as a BSP tree (lib/paneLayout): leaves are panes (one agent
@@ -132,11 +132,25 @@ export function PaneProvider({ children }) {
     setTree((t) => replaceDeadAgents(t, isAlive, focusedAgent));
   }, []);
 
-  // Apply a whole layout (a saved preset's tree) and focus its first pane.
+  // Apply a complete layout (with agents) as-is — e.g. "Open children".
   const setLayout = useCallback((nextTree) => {
     if (!isValidTree(nextTree)) return;
     setTree(nextTree);
     const fb = leaves(nextTree)[0];
+    setFocusedLeafId(fb.id);
+    setSelectedId(fb.agentId ?? null);
+  }, [setSelectedId]);
+
+  // Apply a structure-only layout (a saved preset): re-home the CURRENT agents
+  // into its leaves in order — extra agents close, extra leaves open empty. Keeps
+  // focus on the same agent if it survived.
+  const applyStructure = useCallback((structureTree) => {
+    if (!isValidTree(structureTree)) return;
+    const cur = treeRef.current;
+    const prevAgent = findLeaf(cur, focusedRef.current)?.agentId ?? null;
+    const next = fillAgents(structureTree, leaves(cur).map((l) => l.agentId));
+    setTree(next);
+    const fb = leaves(next).find((l) => l.agentId === prevAgent) ?? leaves(next)[0];
     setFocusedLeafId(fb.id);
     setSelectedId(fb.agentId ?? null);
   }, [setSelectedId]);
@@ -148,11 +162,11 @@ export function PaneProvider({ children }) {
     paneAgents,
     focusedPane,
     focusLeaf, focusLeafByIndex, splitWithAgent, dropReplace, closeLeaf,
-    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, setLayout,
+    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, setLayout, applyStructure,
   }), [
     tree, focusedLeafId, paneCount, paneAgents, focusedPane,
     focusLeaf, focusLeafByIndex, splitWithAgent, dropReplace, closeLeaf,
-    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, setLayout,
+    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, setLayout, applyStructure,
   ]);
 
   return <PaneContext.Provider value={value}>{children}</PaneContext.Provider>;

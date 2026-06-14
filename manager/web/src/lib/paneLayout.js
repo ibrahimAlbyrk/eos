@@ -20,6 +20,7 @@ let _seq = 0;
 const nid = () => `p${_seq++}_${Math.random().toString(36).slice(2, 8)}`;
 
 export const leaf = (agentId = null) => ({ t: "leaf", id: nid(), agentId });
+const mkSplit = (dir, a, b, ratio = 0.5) => ({ t: "split", id: nid(), dir, ratio, a, b });
 export const isLeaf = (n) => n && n.t === "leaf";
 
 export function isValidTree(n) {
@@ -114,6 +115,51 @@ export function replaceDeadAgents(tree, isAlive, protectedId) {
     const b = walk(n.b);
     return a === n.a && b === n.b ? n : { ...n, a, b };
   };
+  return walk(tree);
+}
+
+// A row of equal-width columns, as nested binary row-splits: the first takes
+// 1/N, the rest share the remainder equally → every column ends up 1/N.
+function rowOf(ids) {
+  if (ids.length === 1) return leaf(ids[0]);
+  return mkSplit("row", leaf(ids[0]), rowOf(ids.slice(1)), 1 / ids.length);
+}
+
+// Tile ids into up to two equal rows of ceil(N/2) columns each, top row first:
+// 2 → stacked, 3 → 2-over-1, 4 → 2×2, 6 → 3-over-3.
+function gridOf(ids) {
+  if (ids.length <= 1) return rowOf(ids);
+  const cols = Math.ceil(ids.length / 2);
+  return mkSplit("col", rowOf(ids.slice(0, cols)), rowOf(ids.slice(cols)), 0.5);
+}
+
+// "Open children": the orchestrator on the left (a narrower 40% so the children
+// get more room), its children tiled on the right to best-fit the count — two
+// equal rows of ceil(N/2) (2 → stacked, 4 → 2×2, 6 → 3-over-3). Capped at
+// FANOUT_MAX panes total.
+const FANOUT_MAX = 7; // orchestrator + up to 6 children
+const FANOUT_RATIO = 0.4; // orchestrator's share of the width; the rest is the children grid
+
+export function fanoutLayout(parentId, childIds) {
+  const kids = childIds.slice(0, FANOUT_MAX - 1);
+  if (kids.length === 0) return leaf(parentId);
+  return mkSplit("row", leaf(parentId), gridOf(kids), FANOUT_RATIO);
+}
+
+// A layout preset is structure only (no agents): strip every leaf's agent.
+export function stripAgents(tree) {
+  if (isLeaf(tree)) return { ...tree, agentId: null };
+  return { ...tree, a: stripAgents(tree.a), b: stripAgents(tree.b) };
+}
+
+// Apply a structure to a set of agents: clone it with FRESH node ids and fill the
+// leaves (DFS order) with `agents` — extra agents are dropped, extra leaves stay
+// empty. This is how presets re-home the current agents into a saved split shape.
+export function fillAgents(tree, agents) {
+  let i = 0;
+  const walk = (n) => (isLeaf(n)
+    ? leaf(agents[i++] ?? null)
+    : mkSplit(n.dir, walk(n.a), walk(n.b), n.ratio));
   return walk(tree);
 }
 

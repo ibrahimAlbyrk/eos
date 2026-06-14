@@ -2,7 +2,7 @@
 // whole BSP layout tree (lib/paneLayout). Agents that no longer exist restore as
 // empty panes (PaneProvider.prunePanes / selectedId cleanup handle it).
 
-import { isValidTree } from "../lib/paneLayout.js";
+import { isValidTree, stripAgents } from "../lib/paneLayout.js";
 
 const KEY = "cm:panePresets";
 
@@ -31,7 +31,9 @@ export function listPresets() {
 export function savePreset(name, tree) {
   const trimmed = (name ?? "").trim();
   if (!trimmed || !isValidTree(tree)) return;
-  presets = [...presets, { id: crypto.randomUUID(), name: trimmed, tree }];
+  // Structure only — a preset re-homes the CURRENT agents on apply, so it must
+  // not carry the agents that happened to be open when it was saved.
+  presets = [...presets, { id: crypto.randomUUID(), name: trimmed, tree: stripAgents(tree) }];
   persist();
 }
 
