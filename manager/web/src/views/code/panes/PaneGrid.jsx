@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
 import { nameOf } from "../../../lib/agentName.js";
@@ -17,12 +17,27 @@ const AREAS = ["a", "b", "c", "d"];
 
 export function PaneGrid({ live }) {
   const ui = useUi();
+  const count = ui.paneCount;
   // Own enable switch, independent of the sidebar activity indicators (default
   // on). Uses needsAttentionRaw so toggling sidebar indicators off doesn't also
   // silence pane pulses.
   const pulseOn = ui.settings?.["notifications.paneAttention"] !== false;
+
+  // Resizable splits — local geometry (not part of the agent model), persisted.
+  // col drives the vertical split (all layouts); row the horizontal (count >= 3).
+  // minmax(0, …) kept so a wide transcript line can't force a horizontal scrollbar.
+  const gridRef = useRef(null);
+  const [col, setCol] = useState(() => loadRatio("cm:paneCol"));
+  const [row, setRow] = useState(() => loadRatio("cm:paneRow"));
+  useEffect(() => { localStorage.setItem("cm:paneCol", String(col)); }, [col]);
+  useEffect(() => { localStorage.setItem("cm:paneRow", String(row)); }, [row]);
+  const gridStyle = {
+    gridTemplateColumns: `minmax(0, ${col}fr) minmax(0, ${1 - col}fr)`,
+    ...(count >= 3 ? { gridTemplateRows: `minmax(0, ${row}fr) minmax(0, ${1 - row}fr)` } : null),
+  };
+
   return (
-    <div className={`pane-grid count-${ui.paneCount}`}>
+    <div className={`pane-grid count-${count}`} style={gridStyle} ref={gridRef}>
       {ui.paneAgents.map((id, i) => {
         const worker = id ? live.workers.find((w) => w.id === id) ?? null : null;
         const focused = i === ui.focusedPane;
@@ -37,14 +52,56 @@ export function PaneGrid({ live }) {
             // A non-focused pane whose agent finished a turn with unseen output
             // pulses to draw the eye; focusing it marks it viewed (clears).
             attention={pulseOn && !focused && !!worker && ui.needsAttentionRaw(worker)}
-            canClose={ui.paneCount > 1}
+            canClose={count > 1}
             onFocus={() => ui.focusPane(i)}
             onClose={() => ui.closePane(i)}
             onDropAgent={(agentId) => ui.dropAgentOnPane(i, agentId)}
           />
         );
       })}
+      <PaneDividers count={count} col={col} row={row} setCol={setCol} setRow={setRow} gridRef={gridRef} />
     </div>
+  );
+}
+
+function loadRatio(key) {
+  const v = parseFloat(localStorage.getItem(key) ?? "0.5");
+  return Number.isFinite(v) && v >= 0.2 && v <= 0.8 ? v : 0.5;
+}
+
+// Absolute drag handles overlaid on the grid gaps. Pointer-capture drag (the
+// EffortPopover idiom): pointerdown captures, pointermove updates the ratio while
+// the button is held (capture auto-releases on up); double-click resets to 0.5.
+function PaneDividers({ count, col, row, setCol, setRow, gridRef }) {
+  const start = (e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); };
+  const drag = (axis) => (e) => {
+    if (!(e.buttons & 1)) return;
+    const rect = gridRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const raw = axis === "col" ? (e.clientX - rect.left) / rect.width : (e.clientY - rect.top) / rect.height;
+    const r = Math.min(0.8, Math.max(0.2, raw));
+    (axis === "col" ? setCol : setRow)(r);
+  };
+  return (
+    <>
+      <div
+        className="pane-divider pane-divider--v"
+        style={{ left: `${col * 100}%` }}
+        onPointerDown={start}
+        onPointerMove={drag("col")}
+        onDoubleClick={() => setCol(0.5)}
+      />
+      {count >= 3 && (
+        <div
+          className="pane-divider pane-divider--h"
+          // count-3: the divider only splits the right column (a spans both rows).
+          style={{ top: `${row * 100}%`, left: count === 3 ? `${col * 100}%` : 0, right: 0 }}
+          onPointerDown={start}
+          onPointerMove={drag("row")}
+          onDoubleClick={() => setRow(0.5)}
+        />
+      )}
+    </>
   );
 }
 

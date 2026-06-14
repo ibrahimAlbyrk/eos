@@ -911,6 +911,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   display: grid;
   gap: var(--shell-gap);
   padding: 0 var(--shell-gap) var(--shell-gap) var(--shell-gap);
+  position: relative; /* anchor for the absolute resize dividers */
 }
 /* minmax(0, 1fr) — a bare 1fr is minmax(auto, 1fr): the auto min lets a track
    grow to its content's min-content width (wide code/paths in a transcript),
@@ -951,6 +952,26 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border-color: var(--accent);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
 }
+
+/* Resizable split dividers — invisible grab strips over the gaps; a 2px line
+   lights up on hover/drag. Pointer-capture drag lives in PaneGrid. */
+.pane-divider {
+  position: absolute;
+  z-index: 5;
+  touch-action: none;
+}
+.pane-divider--v { top: 0; bottom: 0; width: 14px; transform: translateX(-50%); cursor: ew-resize; }
+.pane-divider--h { height: 14px; transform: translateY(-50%); cursor: ns-resize; }
+.pane-divider::after {
+  content: "";
+  position: absolute;
+  background: transparent;
+  border-radius: 2px;
+  transition: background 120ms;
+}
+.pane-divider--v::after { left: 50%; top: 8px; bottom: 8px; width: 2px; transform: translateX(-50%); }
+.pane-divider--h::after { top: 50%; left: 8px; right: 8px; height: 2px; transform: translateY(-50%); }
+.pane-divider:hover::after, .pane-divider:active::after { background: var(--accent); }
 
 /* A non-focused pane whose agent finished a turn with unseen output: gently
    pulse the edge so it catches the eye while you're looking elsewhere. Focusing
