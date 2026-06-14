@@ -311,8 +311,9 @@ app. The **Workflows** tab is still a placeholder, and rough edges remain.
 
 - **Deterministic agent workflows** — create, edit, and manage reusable multi-agent pipelines
   (the Workflows tab, today a stub), plus a way for agents to invoke those workflows themselves.
-- **Plugin system** — drop-in extensions that add system prompts and MCP tools for orchestrators and workers.
 - **In-app project explorer** — browse and open any file in the repo, not just diffs and tool output.
+- **More CLI & API providers** — drive other agent backends beyond Claude Code: Deepseek, Kimi,
+  Codex, and local LLMs, each behind the same orchestration layer.
 - **Linux & Windows** — first-class support on both, alongside the macOS app.
 
 <br/>
