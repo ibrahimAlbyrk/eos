@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { useAgentSwitchHotkeys } from "../../hooks/useAgentSwitchHotkeys.js";
+import { usePaneFocusHotkeys } from "../../hooks/usePaneFocusHotkeys.js";
 import { useDeleteAgentHotkey } from "../../hooks/useDeleteAgentHotkey.js";
 import { useGitModeHotkey } from "../../hooks/useGitModeHotkey.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
@@ -23,6 +24,9 @@ export function CodeView({ live }) {
 
   // Cmd+1..9 → select Nth visible agent in the sidebar.
   useAgentSwitchHotkeys(live);
+
+  // Cmd+Ctrl+1..4 → focus the Nth split pane.
+  usePaneFocusHotkeys();
 
   // Cmd+W → delete the selected agent (falls back to the previous selection).
   useDeleteAgentHotkey(live);

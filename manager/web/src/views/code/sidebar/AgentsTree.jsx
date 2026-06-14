@@ -43,7 +43,7 @@ function TreeNode({ node, onRename, variant = "full" }) {
   const renameActive = variant === "popup" || !ui.sideCollapsed;
   const isRenaming = renameActive && ui.renamingId === node.id;
 
-  const onClick = () => ui.setSelectedId(node.id);
+  const onClick = () => ui.selectAgent(node.id);
   const onCtx = (e) => {
     e.preventDefault();
     ui.openPop("ctx-menu", {

@@ -15,31 +15,45 @@ const AREAS = ["a", "b", "c", "d"];
 
 export function PaneGrid({ live }) {
   const ui = useUi();
+  // Own enable switch, independent of the sidebar activity indicators (default
+  // on). Uses needsAttentionRaw so toggling sidebar indicators off doesn't also
+  // silence pane pulses.
+  const pulseOn = ui.settings?.["notifications.paneAttention"] !== false;
   return (
     <div className={`pane-grid count-${ui.paneCount}`}>
-      {ui.paneAgents.map((id, i) => (
-        <Pane
-          key={i}
-          index={i}
-          agentId={id}
-          live={live}
-          focused={i === ui.focusedPane}
-          canClose={ui.paneCount > 1}
-          onFocus={() => ui.focusPane(i)}
-          onClose={() => ui.closePane(i)}
-        />
-      ))}
+      {ui.paneAgents.map((id, i) => {
+        const worker = id ? live.workers.find((w) => w.id === id) ?? null : null;
+        const focused = i === ui.focusedPane;
+        return (
+          <Pane
+            key={i}
+            index={i}
+            agentId={id}
+            worker={worker}
+            live={live}
+            focused={focused}
+            // A non-focused pane whose agent finished a turn with unseen output
+            // pulses to draw the eye; focusing it marks it viewed (clears).
+            attention={pulseOn && !focused && !!worker && ui.needsAttentionRaw(worker)}
+            canClose={ui.paneCount > 1}
+            onFocus={() => ui.focusPane(i)}
+            onClose={() => ui.closePane(i)}
+          />
+        );
+      })}
     </div>
   );
 }
 
-function Pane({ index, agentId, live, focused, canClose, onFocus, onClose }) {
-  const worker = agentId ? live.workers.find((w) => w.id === agentId) : null;
+function Pane({ index, agentId, worker, live, focused, attention, canClose, onFocus, onClose }) {
   const status = worker ? statusFromState(worker.state) : null;
+  const cls = ["pane", focused ? "is-focused" : "", attention ? "pane--attention" : ""]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <div
-      className={"pane" + (focused ? " is-focused" : "")}
+      className={cls}
       style={{ gridArea: AREAS[index] }}
       // Capture so a click that also hits a transcript link/button still focuses
       // the pane first. mousedown (not click) makes focus feel immediate.
@@ -50,7 +64,9 @@ function Pane({ index, agentId, live, focused, canClose, onFocus, onClose }) {
         <span className="pane-name" title={worker ? nameOf(worker) : undefined}>
           {worker ? nameOf(worker) : "Empty — pick an agent in the sidebar"}
         </span>
-        {worker && <span className="pane-status">{status.label}</span>}
+        {worker && (attention
+          ? <span className="ag-notify" aria-label="finished with new output" title="finished with new output" />
+          : <span className="pane-status">{status.label}</span>)}
         {canClose && (
           <button
             className="pane-close"

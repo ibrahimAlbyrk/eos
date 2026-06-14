@@ -73,6 +73,21 @@ export function PaneProvider({ children }) {
     setSelectedId(agentsRef.current[i] ?? null);
   }, [setSelectedId]);
 
+  // Pick an agent from the agent list (sidebar click, Cmd+1..9). In split mode,
+  // if it's already shown in a different pane, focus that pane instead of
+  // duplicating it into the focused one. New-session (null) and single-pane
+  // fall through to a plain selection (= today's behavior).
+  const selectAgent = useCallback((id) => {
+    if (id != null && agentsRef.current.length > 1) {
+      const idx = agentsRef.current.indexOf(id);
+      if (idx >= 0 && idx !== focusedRef.current) {
+        focusPane(idx);
+        return;
+      }
+    }
+    setSelectedId(id);
+  }, [focusPane, setSelectedId]);
+
   const setPaneCount = useCallback((n) => {
     const next = clampCount(n);
     const oldLen = agentsRef.current.length;
@@ -110,8 +125,8 @@ export function PaneProvider({ children }) {
     paneCount: count,
     paneAgents: agents,
     focusedPane: Math.min(focusedIndex, count - 1),
-    setPaneCount, focusPane, closePane, prunePanes,
-  }), [count, agents, focusedIndex, setPaneCount, focusPane, closePane, prunePanes]);
+    setPaneCount, focusPane, selectAgent, closePane, prunePanes,
+  }), [count, agents, focusedIndex, setPaneCount, focusPane, selectAgent, closePane, prunePanes]);
 
   return <PaneContext.Provider value={value}>{children}</PaneContext.Provider>;
 }

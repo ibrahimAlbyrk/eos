@@ -43,11 +43,19 @@ export function AttentionProvider({ children }) {
     });
   }, []);
 
-  const needsAttention = useCallback((worker) => {
-    if (!enabled) return false;
+  // Un-gated by the sidebar-attention setting: the same "stopped with unseen
+  // output" policy, for consumers with their own enable switch (split panes).
+  // Bookkeeping (syncWorkers) runs regardless of any setting, so the viewed
+  // signatures are always current here.
+  const needsAttentionRaw = useCallback((worker) => {
     if (!worker || !worker.id) return false;
     return policyNeedsAttention(viewedSigs.get(worker.id), worker);
-  }, [enabled, viewedSigs]);
+  }, [viewedSigs]);
+
+  const needsAttention = useCallback((worker) => {
+    if (!enabled) return false;
+    return needsAttentionRaw(worker);
+  }, [enabled, needsAttentionRaw]);
 
   // Panel-level signal: OR of every agent's attention. Drives the collapsed
   // sidebar's expand-button pip ("any dot you'd see if the panel were open").
@@ -57,8 +65,8 @@ export function AttentionProvider({ children }) {
   );
 
   const value = useMemo(() => ({
-    needsAttention, syncWorkers, anyNeedsAttention,
-  }), [needsAttention, syncWorkers, anyNeedsAttention]);
+    needsAttention, needsAttentionRaw, syncWorkers, anyNeedsAttention,
+  }), [needsAttention, needsAttentionRaw, syncWorkers, anyNeedsAttention]);
 
   return <AttentionContext.Provider value={value}>{children}</AttentionContext.Provider>;
 }

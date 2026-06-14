@@ -13,9 +13,9 @@ export function useAgentSwitchHotkeys(live) {
       const id = agentIdAtIndex(live.workers, ui.collapsedNodes, n - 1);
       if (!id) return;
       e.preventDefault();
-      ui.setSelectedId(id);
+      ui.selectAgent(id);
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [live.workers, ui.collapsedNodes, ui.setSelectedId]);
+  }, [live.workers, ui.collapsedNodes, ui.selectAgent]);
 }

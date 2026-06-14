@@ -102,6 +102,14 @@ export const SETTINGS_SECTIONS = [
             control: { type: "toggle" },
             defaultValue: true,
           },
+          {
+            key: "notifications.paneAttention",
+            label: "Split pane attention pulse",
+            description:
+              "Pulse a split-view pane's edge (and show a dot in its header) when its agent finishes with new output while you're focused on another pane. Independent of the sidebar indicators above.",
+            control: { type: "toggle" },
+            defaultValue: true,
+          },
         ],
       },
     ],
