@@ -5,6 +5,7 @@ import { nameOf } from "../../../lib/agentName.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { PaneLayoutSwitcher } from "./PaneLayoutSwitcher.jsx";
+import { PanePresets } from "./PanePresets.jsx";
 
 export function CenterHeader({ live }) {
   const ui = useUi();
@@ -73,6 +74,7 @@ export function CenterHeader({ live }) {
       </div>
       <div className="right">
         <PaneLayoutSwitcher />
+        <PanePresets />
       </div>
     </div>
   );

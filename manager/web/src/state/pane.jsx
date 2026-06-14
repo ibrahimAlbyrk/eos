@@ -153,6 +153,18 @@ export function PaneProvider({ children }) {
     setSelectedId(agentId);
   }, [closePane, setSelectedId]);
 
+  // Apply a whole layout at once (a saved preset): replace pane agents + focus in
+  // one shot. Clamped to MAX_PANES; dead agents are cleaned by prunePanes / the
+  // selectedId cleanup once workers load.
+  const setLayout = useCallback((nextAgents, nextFocused) => {
+    let agents = (Array.isArray(nextAgents) ? nextAgents : []).slice(0, MAX_PANES).map((x) => x ?? null);
+    if (agents.length === 0) agents = [null];
+    const focused = Math.min(Math.max(0, nextFocused ?? 0), agents.length - 1);
+    setAgents(agents);
+    setFocusedIndex(focused);
+    setSelectedId(agents[focused] ?? null);
+  }, [setSelectedId]);
+
   // Drop agents that no longer exist from the non-focused panes (the focused
   // slot is owned by selectedId, which CodeView already cleans). Called with the
   // live worker set, which this provider can't see itself.
@@ -164,8 +176,8 @@ export function PaneProvider({ children }) {
     paneCount: count,
     paneAgents: agents,
     focusedPane: Math.min(focusedIndex, count - 1),
-    setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane, togglePaneForAgent,
-  }), [count, agents, focusedIndex, setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane, togglePaneForAgent]);
+    setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane, togglePaneForAgent, setLayout,
+  }), [count, agents, focusedIndex, setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane, togglePaneForAgent, setLayout]);
 
   return <PaneContext.Provider value={value}>{children}</PaneContext.Provider>;
 }

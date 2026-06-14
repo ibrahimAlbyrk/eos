@@ -973,6 +973,84 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .pane-divider--h::after { top: 50%; left: 8px; right: 8px; height: 2px; transform: translateY(-50%); }
 .pane-divider:hover::after, .pane-divider:active::after { background: var(--accent); }
 
+/* Saved-layout presets — header trigger + popover (reuses .glass-pop surface). */
+.pane-presets-wrap { position: relative; display: inline-flex; --app-region: no-drag; }
+.pane-presets-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pane-presets-btn:hover { background: rgba(var(--tint), 0.06); color: var(--fg-dim); }
+
+/* Specificity bump (parent selector) so position:absolute wins over .glass-pop's
+   position:relative, which is defined later in the file. Without it the popover
+   stays in flow and stretches the header. */
+.pane-presets-wrap .pane-presets-pop {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: 240px;
+  padding: 8px;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.pp-save { display: flex; gap: 6px; align-items: center; }
+.pp-input {
+  flex: 1;
+  min-width: 0;
+  background: rgba(var(--tint), 0.04);
+  border: 1px solid rgba(var(--tint), 0.10);
+  border-radius: 5px;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  padding: 5px 8px;
+  outline: none;
+}
+.pp-input:focus { border-color: var(--accent); }
+.pp-save-btn {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--on-accent);
+  border: 1px solid transparent;
+}
+.pp-save-btn:disabled { opacity: 0.4; }
+.pp-empty { color: var(--fg-faint); font-size: var(--text-sm); padding: 6px 4px; text-align: center; }
+.pp-list { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; }
+.pp-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.pp-item:hover { background: rgba(var(--tint), 0.06); }
+.pp-name { flex: 1; min-width: 0; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-count { flex-shrink: 0; color: var(--fg-faint); font-family: var(--font-mono); font-size: var(--text-xs); }
+.pp-del {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pp-del:hover { background: rgba(var(--tint), 0.08); color: var(--err); }
+
 /* A non-focused pane whose agent finished a turn with unseen output: gently
    pulse the edge so it catches the eye while you're looking elsewhere. Focusing
    the pane marks it viewed (PaneGrid drops the class). Only ever applies to
