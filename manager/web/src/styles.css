@@ -2943,6 +2943,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   flex-shrink: 0;
 }
 .c-row2 .submit:hover { color: var(--fg); }
+/* Broadcast button (split mode) — shares .submit's box; hovers to accent and
+   sits just left of the primary send so the two read apart. */
+.c-row2 .broadcast-btn { margin-right: 2px; }
+.c-row2 .broadcast-btn:hover { color: var(--accent); }
 
 /* ── queued message pills (shown above input when agent is busy) ── */
 /* Mask fades animate via registered props (no-op where unsupported). */

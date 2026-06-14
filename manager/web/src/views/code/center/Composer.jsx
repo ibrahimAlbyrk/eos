@@ -411,6 +411,53 @@ export function Composer({ live }) {
     return null;
   };
 
+  // Shared text-prep for a normal (non-term) send: resolve @paths + pending
+  // attachments, clear the input, return display/agent text. Single-send and
+  // broadcast both use it so they stay identical.
+  const prepareMessage = async () => {
+    const t = text.trim();
+    let agentText = t;
+    for (const [display, absPath] of insertedPathsRef.current) {
+      agentText = agentText.replaceAll("@" + display, absPath);
+    }
+    const msgLabels = attachmentItems.map((it) => it.label);
+    setTextAndSync("", 0);
+    insertedPathsRef.current.clear();
+    clearAttachments();
+    const suffix = await resolveForSend(msgLabels);
+    return { displayText: t + suffix, agentText: agentText + suffix };
+  };
+
+  // Optimistic send of one prepared message to one agent. The daemon decides
+  // queue-vs-dispatch; settleSend reconciles the optimistic bubble/pill.
+  const dispatchTo = async (worker, displayText, agentText) => {
+    const clientMsgId = crypto.randomUUID();
+    const busy = worker.state === "WORKING";
+    const itemId = outbox.beginSend(worker.id, { text: displayText, agentText, clientMsgId, busy });
+    try {
+      const r = await live.sendToAgent(worker.id, agentText, { clientMsgId, queueWhenBusy: true });
+      outbox.settleSend(worker.id, itemId, r);
+      if (!r?.ok && !r?.body?.queued) {
+        console.error("send rejected:", r?.body?.error ?? `status ${r?.status ?? "?"}`);
+      }
+    } catch (e) {
+      outbox.settleSend(worker.id, itemId, { ok: false });
+      console.error("send failed:", e);
+    }
+  };
+
+  // Broadcast the current message to every agent shown in a split pane.
+  const sendBroadcast = async () => {
+    const t = text.trim();
+    if (!t || ui.composer.gitMode || ui.composer.termMode) return;
+    const ids = [...new Set((ui.paneAgents ?? []).filter(Boolean))];
+    const targets = ids.map((id) => live.workers.find((w) => w.id === id)).filter(Boolean);
+    if (targets.length === 0) return;
+    history.push({ text: t, mode: composerMode(ui.composer) });
+    const { displayText, agentText } = await prepareMessage();
+    for (const w of targets) dispatchTo(w, displayText, agentText);
+  };
+
   const send = async () => {
     const t = text.trim();
     if (!t) return;
@@ -440,20 +487,7 @@ export function Composer({ live }) {
       return;
     }
 
-    let displayText = t;
-    let agentText = t;
-    for (const [display, absPath] of insertedPathsRef.current) {
-      agentText = agentText.replaceAll("@" + display, absPath);
-    }
-
-    const msgLabels = attachmentItems.map((it) => it.label);
-    setTextAndSync("", 0);
-    insertedPathsRef.current.clear();
-    clearAttachments();
-
-    const suffix = await resolveForSend(msgLabels);
-    displayText += suffix;
-    agentText += suffix;
+    let { displayText, agentText } = await prepareMessage();
 
     if (ui.composer.gitMode) {
       // A worktree worker is selected → the git task is about ITS tree, so
@@ -501,23 +535,7 @@ export function Composer({ live }) {
     }
 
     if (selected) {
-      // The daemon still decides queue-vs-dispatch against authoritative
-      // state; the local WORKING check only picks the optimistic shape (pill
-      // vs bubble) for the first RTT — settleSend corrects it from the
-      // response. clientMsgId makes the send idempotent end-to-end.
-      const clientMsgId = crypto.randomUUID();
-      const busy = selected.state === "WORKING";
-      const itemId = outbox.beginSend(selected.id, { text: displayText, agentText, clientMsgId, busy });
-      try {
-        const r = await live.sendToAgent(selected.id, agentText, { clientMsgId, queueWhenBusy: true });
-        outbox.settleSend(selected.id, itemId, r);
-        if (!r?.ok && !r?.body?.queued) {
-          console.error("send rejected:", r?.body?.error ?? `status ${r?.status ?? "?"}`);
-        }
-      } catch (e) {
-        outbox.settleSend(selected.id, itemId, { ok: false });
-        console.error("send failed:", e);
-      }
+      await dispatchTo(selected, displayText, agentText);
       return;
     }
 
@@ -538,6 +556,14 @@ export function Composer({ live }) {
   };
 
   const onKey = (e) => {
+    // Cmd+Enter → broadcast to all split panes (normal mode only; an open
+    // question banner keeps Cmd+Enter for answering).
+    if (e.key === "Enter" && e.metaKey && !e.shiftKey && !ui.pendingQuestion
+        && ui.paneCount > 1 && !ui.composer.gitMode && !ui.composer.termMode) {
+      e.preventDefault();
+      sendBroadcast();
+      return;
+    }
     if (showMenu) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -800,6 +826,14 @@ export function Composer({ live }) {
               onPointerOut={onEditorPointerOut}
               onKeyUp={() => { const el = editorRef.current; if (el) setCursorPos(getCursorOffset(el)); }}
             />
+            {ui.paneCount > 1 && !ui.composer.gitMode && !ui.composer.termMode && (
+              <button className="submit broadcast-btn" title={`Send to all ${ui.paneCount} panes`} onClick={sendBroadcast}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="8" cy="8" r="1.6" fill="currentColor" stroke="none" />
+                  <path d="M4.6 4.6a4.8 4.8 0 0 0 0 6.8M11.4 4.6a4.8 4.8 0 0 1 0 6.8" />
+                </svg>
+              </button>
+            )}
             <button className="submit" title="Send" onClick={send}>
               <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 4v5H4m3-3l-3 3 3 3" />
