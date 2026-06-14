@@ -175,6 +175,10 @@ export function buildBlocks(events) {
   // The most recent incoming peer question — respond_to_peer (whose input has
   // no asker) is linked to it so its header can name who it answered.
   let lastPeerReq = null;
+  // The ask_peer tool awaiting its peer_consult link — that event (carrying the
+  // peer's durable name) lands just after the tool starts, so we attach it back
+  // onto the tool. Mirrors lastPeerReq for the asker side.
+  let lastAskPeer = null;
 
   const flushTools = () => {
     if (pendingTools.length === 0) return;
@@ -195,6 +199,7 @@ export function buildBlocks(events) {
 
   const pushTool = (tool) => {
     if (tool.name === "mcp__worker__respond_to_peer" && !tool.peerTo && lastPeerReq) tool.peerTo = lastPeerReq;
+    if (tool.name === "mcp__worker__ask_peer") lastAskPeer = tool;
     const lane = laneOf(tool.name);
     if (lane === null) {
       flushTools();
@@ -256,6 +261,17 @@ export function buildBlocks(events) {
         fromName: payload.fromName ?? null,
         ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
       });
+      continue;
+    }
+    if (ev.type === "peer_consult") {
+      // Asker-side consult marker — link the consulted peer's durable name onto
+      // the ask_peer tool that triggered it (its tool_running precedes this), so
+      // the header keeps the name after the peer is killed. Transparent to the
+      // tool stream: no flush, no timeline item (the ask_peer tool renders it).
+      const payload = parsePayload(ev.payload);
+      if (lastAskPeer && !lastAskPeer.peerTo && lastAskPeer.input?.peerId === payload.toWorker) {
+        lastAskPeer.peerTo = { id: payload.toWorker ?? null, name: payload.toName ?? null };
+      }
       continue;
     }
     if (ev.type === "tool_running") {

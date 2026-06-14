@@ -102,6 +102,33 @@ describe("buildBlocks skill_body attachment", () => {
   });
 });
 
+describe("ask_peer peer name linking", () => {
+  const askPeer = (toolUseId, peerId, ts) => ({
+    type: "tool_running", ts,
+    payload: { toolName: "mcp__worker__ask_peer", toolUseId, input: { peerId, question: "help?" } },
+  });
+  const peerConsult = (toWorker, toName, ts) => ({
+    type: "peer_consult", ts, payload: { requestId: "r1", toWorker, toName, question: "help?" },
+  });
+
+  // The reported bug: a killed peer drops out of the live list, so the ask_peer
+  // header must carry the peer name the parser linked from the peer_consult event.
+  it("links the consulted peer's durable name onto the ask_peer tool", () => {
+    const blocks = buildBlocks([askPeer("ap1", "w2", 100), peerConsult("w2", "domain-expert", 101)]);
+    expect(mainTool(blocks, "ap1").peerTo).toEqual({ id: "w2", name: "domain-expert" });
+  });
+
+  it("leaves peerTo unset without a peer_consult event (falls back to live)", () => {
+    const blocks = buildBlocks([askPeer("ap1", "w2", 100)]);
+    expect(mainTool(blocks, "ap1").peerTo).toBeUndefined();
+  });
+
+  it("does not mislink a consult addressed to a different peer", () => {
+    const blocks = buildBlocks([askPeer("ap1", "w2", 100), peerConsult("w9", "other", 101)]);
+    expect(mainTool(blocks, "ap1").peerTo).toBeUndefined();
+  });
+});
+
 describe("buildBlocks main-agent tool_done fallback", () => {
   it("clears a stuck-running tool when its tool_result jsonl is missing but tool_done fired", () => {
     const events = [

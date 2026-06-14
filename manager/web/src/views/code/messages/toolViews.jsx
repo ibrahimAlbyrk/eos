@@ -129,11 +129,11 @@ register("mcp__worker__list_peers", {
 });
 
 register("mcp__worker__ask_peer", {
-  label: (t) => ({ verb: "Asked", file: t.input?.peerId ?? "peer" }),
-  runningLabel: (t) => ({ verb: "Asking", file: t.input?.peerId ?? "peer" }),
-  // Resolve the peer's name (and make it click-to-select) from the live worker
-  // list; label.file (the peerId) is the fallback when it can't be resolved.
-  agentRef: (t) => (t.input?.peerId ? { id: t.input.peerId, name: null } : null),
+  label: (t) => ({ verb: "Asked", file: t.peerTo?.name ?? t.input?.peerId ?? "peer" }),
+  runningLabel: (t) => ({ verb: "Asking", file: t.peerTo?.name ?? t.input?.peerId ?? "peer" }),
+  // Prefer the durable peer name the parser linked from the peer_consult event
+  // (still correct after the peer is killed); fall back to live resolution by id.
+  agentRef: (t) => t.peerTo ?? (t.input?.peerId ? { id: t.input.peerId, name: null } : null),
   Detail: PeerAskDetail,
 });
 
