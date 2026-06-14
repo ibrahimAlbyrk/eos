@@ -1170,6 +1170,22 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* In split mode the head's fade scrim would veil the top of the pane islands
    (each pane has its own header) — drop it. */
 .app.split .head::after { content: none; }
+/* Likewise the shared composer's fade scrim sits above the pane grid and would
+   veil the bottom outline of every pane. Drop it, and instead fade each pane's
+   OWN transcript into its bg at the bottom edge: the ::after is clipped by the
+   pane (border stays crisp) and sits below the scroll-to-bottom pill (z-index:2,
+   so it stays visible). Mirrors the single-view composer scrim. */
+.app.split .composer-wrap::before { content: none; }
+.app.split .pane::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 14px;
+  bottom: 0;
+  height: 48px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+}
 
 /* Sidebar row: agent shown in a non-focused split pane (the focused one keeps
    the stronger ".on"). A quiet left accent rail. */
