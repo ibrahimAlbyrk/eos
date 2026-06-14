@@ -4,6 +4,7 @@ import { breadcrumbFor } from "../../../lib/breadcrumb.js";
 import { nameOf } from "../../../lib/agentName.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
+import { PaneLayoutSwitcher } from "./PaneLayoutSwitcher.jsx";
 
 export function CenterHeader({ live }) {
   const ui = useUi();
@@ -70,7 +71,9 @@ export function CenterHeader({ live }) {
           </span>
         )}
       </div>
-      <div className="right"></div>
+      <div className="right">
+        <PaneLayoutSwitcher />
+      </div>
     </div>
   );
 }

@@ -33,6 +33,9 @@ function TreeNode({ node, onRename, variant = "full" }) {
   const isSelected = ui.selectedId === node.id;
   const rowCls = ["agents-row"];
   if (isSelected) rowCls.push("on");
+  // Shown in another (non-focused) split pane — a quieter marker than the
+  // focused selection's "on".
+  else if (ui.paneCount > 1 && ui.paneAgents.includes(node.id)) rowCls.push("in-pane");
   // Only the visible instance owns the rename input. When collapsed the docked
   // sidebar stays mounted (hidden via opacity/transform, still focusable), so
   // without this gate it would mount a second RenameInput sharing renamingId —

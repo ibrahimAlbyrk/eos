@@ -8,6 +8,7 @@ import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { CenterHeader } from "./center/CenterHeader.jsx";
 import { Composer } from "./center/Composer.jsx";
 import { TranscriptHost } from "./messages/TranscriptHost.jsx";
+import { PaneGrid } from "./panes/PaneGrid.jsx";
 import { FileViewer } from "./messages/FileViewer.jsx";
 import { AgentViewer } from "./messages/AgentViewer.jsx";
 import { DiffViewer } from "./messages/DiffViewer.jsx";
@@ -53,6 +54,15 @@ export function CodeView({ live }) {
     if (!exists) ui.setSelectedId(null);
   }, [ui.selectedId, live.workers, ui.setSelectedId]);
 
+  // Drop dead agents from the non-focused split panes (the focused pane rides
+  // the selectedId cleanup above). Same guard: an empty list can't tell "not
+  // loaded yet" from "no workers".
+  useEffect(() => {
+    if (live.workers.length === 0) return;
+    const alive = new Set(live.workers.map((w) => w.id));
+    ui.prunePanes((id) => alive.has(id));
+  }, [live.workers, ui.prunePanes]);
+
   useEffect(() => {
     ui.registerEscapeIdle(() => {
       const w = live.workers.find((x) => x.id === ui.selectedId);
@@ -79,6 +89,7 @@ export function CodeView({ live }) {
   // Grid sizing follows the VISIBLE (top) panel — buried panels stay mounted
   // but must not claim the column.
   const gridClass = [
+    ui.paneCount > 1 ? "split" : "",
     ui.topPanelType === "file" ? "file-open" : "",
     ui.topPanelType === "agent" ? "agent-open" : "",
     ui.topPanelType === "diff" ? "diff-open" : "",
@@ -94,11 +105,12 @@ export function CodeView({ live }) {
       main={
         <>
           <CenterHeader live={live} />
-          {/* Keep-alive multiplexer: one <Messages> per recently-viewed agent
-              stays mounted and parked, so switching back is instant (no remount,
-              no re-parse, no scroll reset). Per-agent isolation is preserved —
-              each agent keeps its own keyed instance inside the host. */}
-          <TranscriptHost live={live} activeId={ui.selectedId} />
+          {/* Single pane keeps the keep-alive multiplexer (instant switch-back).
+              Split view (2-4 panes) lays the transcripts out side by side; the
+              shared header + composer below track the focused pane. */}
+          {ui.paneCount > 1
+            ? <PaneGrid live={live} />
+            : <TranscriptHost live={live} activeId={ui.selectedId} />}
           <Composer live={live} />
         </>
       }

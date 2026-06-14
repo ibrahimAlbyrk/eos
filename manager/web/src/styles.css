@@ -898,6 +898,110 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   z-index: 1;
 }
 
+/* ============================================================================
+   SPLIT VIEW  ·  2-4 agent transcripts side by side (PaneGrid). The sidebar and
+   the composer stay shared; the FOCUSED pane drives both (= global selectedId).
+   Panes reuse the solid right-island recipe (.file-viewer et al) so they read as
+   the same surface; gaps let the center bg show through, like the islands do.
+   ============================================================================ */
+.pane-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  gap: var(--shell-gap);
+  padding: 0 var(--shell-gap) var(--shell-gap) var(--shell-gap);
+}
+.pane-grid.count-1 { grid-template-columns: 1fr;     grid-template-rows: 1fr;     grid-template-areas: "a"; }
+.pane-grid.count-2 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr;     grid-template-areas: "a b"; }
+.pane-grid.count-3 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; grid-template-areas: "a b" "a c"; }
+.pane-grid.count-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; grid-template-areas: "a b" "c d"; }
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--surface-2, var(--bg));
+  border: 1px solid var(--border);
+  border-radius: var(--panel-radius);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+  overflow: clip;
+  grid-area: a;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.pane.is-focused {
+  border-color: var(--border-strong);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--accent-soft);
+}
+
+.pane-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-shrink: 0;
+  padding: 7px 8px 7px 11px;
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-sm);
+  --app-region: drag;
+  -webkit-user-select: none;
+}
+.pane-head .ag-dot { flex-shrink: 0; }
+.pane-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg-dim);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pane.is-focused .pane-name { color: var(--fg); }
+.pane-status {
+  flex-shrink: 0;
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.pane-close {
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  --app-region: no-drag;
+}
+.pane-close:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
+
+/* In split mode the head's fade scrim would veil the top of the pane islands
+   (each pane has its own header) — drop it. */
+.app.split .head::after { content: none; }
+
+/* Split layout switcher — lives in the header's .right slot. */
+.pane-switch {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  --app-region: no-drag;
+}
+.pane-switch__btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pane-switch__btn:hover { background: rgba(var(--tint), 0.06); color: var(--fg-dim); }
+.pane-switch__btn.is-active { background: rgba(var(--tint), 0.08); color: var(--fg); }
+
+/* Sidebar row: agent shown in a non-focused split pane (the focused one keeps
+   the stronger ".on"). A quiet left accent rail. */
+.agents-row.in-pane { box-shadow: inset 2px 0 0 var(--accent-soft); }
+
 /* messages scroll area */
 .messages-wrap {
   flex: 1;
@@ -1530,30 +1634,16 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   filter: saturate(0.6);
 }
 .tool-failure-banner {
-  display: flex;
-  align-items: center;
-  gap: 8px;
   margin: 6px 12px 4px;
   padding: 6px 10px;
   border-radius: 4px;
   background: color-mix(in srgb, var(--warn) 10%, transparent);
-  border-left: 2px solid var(--warn);
   font-size: var(--text-sm);
   color: var(--fg-dim);
 }
 .tool-failure-banner.denied {
   background: color-mix(in srgb, var(--err) 10%, transparent);
-  border-left-color: var(--err);
 }
-.tfb-label {
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  font-size: var(--text-xs);
-  color: var(--warn);
-  flex-shrink: 0;
-}
-.tool-failure-banner.denied .tfb-label { color: var(--err); }
 .tfb-msg { white-space: pre-wrap; word-break: break-word; }
 
 /* Generic detail — parameters then output, unified in one card */
@@ -3465,7 +3555,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 
 /* ── expanded card ── */
 .tt-card {
-  width: 290px;
+  width: max-content;
+  min-width: 290px;
+  max-width: min(560px, 92cqi);
   padding: 3px;
   transform-origin: bottom left;
   animation: tt-card-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
@@ -3498,10 +3590,18 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* timeline list — nodes hang off a vertical spine in the rail column.
    --tt-rail-x = item left padding (4px) + node column (16px) / 2.
    --tt-node-r = where each connector stops short of the node center, so the
-   thread ends right at the node's ring instead of crossing its interior. */
+   thread ends right at the node's ring instead of crossing its interior.
+   --tt-node-y = node CENTER measured from the row's top (row padding + half a
+   text line). The node is pinned to the FIRST text line, not vertically
+   centred, so this offset is constant no matter how many lines a label wraps
+   to — that constant is what lets one connector span correctly between rows of
+   unequal height (see ::after). */
 .tt-list {
   --tt-rail-x: 12px;
   --tt-node-r: 6px;
+  --tt-row-pad: 6px;
+  --tt-line-h: calc(var(--text-sm) * 1.45);
+  --tt-node-y: calc(var(--tt-row-pad) + var(--tt-line-h) / 2);
   list-style: none;
   margin: 0;
   padding: 2px 8px 6px;
@@ -3513,9 +3613,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .tt-item {
   position: relative;
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 11px;
-  padding: 6px 4px;
+  padding: var(--tt-row-pad) 4px;
   min-height: 30px;
   animation: tt-item-in 220ms ease both;
 }
@@ -3529,15 +3629,17 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    the travelled fill is a background IMAGE revealed by growing its background-
    size from height 0 → 100%. Because background-size is animatable, a completing
    task fills its segment downward in one smooth front instead of snapping.
-   (Equal row heights — single-line tasks — keep the segment ending on the next
-   node.) */
+   Row-height-independent: the node sits a CONSTANT --tt-node-y below each row's
+   top (not at 50%), so top = node-y + r and height = 100% - 2r run the segment
+   from this node's edge to exactly the next node's edge even when adjacent rows
+   wrap to different line counts. */
 .tt-item::after {
   content: "";
   position: absolute;
   left: var(--tt-rail-x);
   transform: translateX(-50%);
   width: 2px;
-  top: calc(50% + var(--tt-node-r));
+  top: calc(var(--tt-node-y) + var(--tt-node-r));
   height: calc(100% - var(--tt-node-r) * 2);
   background-color: rgba(var(--tint), 0.14);
   background-repeat: no-repeat;
@@ -3568,8 +3670,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   position: relative;
   z-index: 1;
   width: 16px;
+  height: var(--tt-line-h);
   flex-shrink: 0;
   display: flex;
+  align-items: center;
   justify-content: center;
 }
 .tt-ic { width: 15px; height: 15px; display: block; overflow: visible; }
@@ -3613,7 +3717,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   line-height: 1.45;
   color: var(--fg-mid);
   min-width: 0;
-  align-self: center;
+  align-self: flex-start;
   transition: color 160ms ease;
 }
 .tt-item.in_progress .tt-item-label { color: var(--fg); font-weight: 500; }
