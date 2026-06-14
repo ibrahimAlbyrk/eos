@@ -1,5 +1,6 @@
 import { useUi } from "../../../state/ui.jsx";
 import { useDeleteAgent } from "../../../hooks/useDeleteAgent.js";
+import { fanoutLayout } from "../../../lib/paneLayout.js";
 
 export function AgentContextMenu({ live }) {
   const ui = useUi();
@@ -8,8 +9,18 @@ export function AgentContextMenu({ live }) {
   const { x, y } = ui.popoverPos;
   const { agentId } = ui.popoverData;
 
+  const agent = live.workers.find((w) => w.id === agentId) ?? null;
+  const childIds = live.workers.filter((w) => w.parent_id === agentId).map((w) => w.id);
+  const canFanout = !!agent?.is_orchestrator && childIds.length > 0;
+
   const rename = () => {
     ui.setRenamingId(agentId);
+    ui.closeAllPops();
+  };
+
+  // Open the orchestrator on the left with its children tiled on the right.
+  const openChildren = () => {
+    ui.setLayout(fanoutLayout(agentId, childIds));
     ui.closeAllPops();
   };
 
@@ -21,7 +32,7 @@ export function AgentContextMenu({ live }) {
 
   // Clamp to viewport
   const left = Math.min(x, window.innerWidth - 220);
-  const top = Math.min(y, window.innerHeight - 145);
+  const top = Math.min(y, window.innerHeight - (canFanout ? 190 : 145));
 
   return (
     <div
@@ -30,6 +41,19 @@ export function AgentContextMenu({ live }) {
       data-popover="ctx-menu"
       style={{ display: "block", left, top }}
     >
+      {canFanout && (
+        <>
+          <button className="menu-item" onClick={openChildren}>
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+              <rect x="2" y="2" width="5.5" height="12" rx="1" />
+              <rect x="9.5" y="2" width="4.5" height="5.5" rx="1" />
+              <rect x="9.5" y="8.5" width="4.5" height="5.5" rx="1" />
+            </svg>
+            Open children
+          </button>
+          <div className="menu-sep"></div>
+        </>
+      )}
       <button className="menu-item" onClick={rename}>
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M11.5 1.5l3 3L5 14H2v-3z" />
