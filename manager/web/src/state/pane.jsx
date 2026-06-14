@@ -88,6 +88,26 @@ export function PaneProvider({ children }) {
     setSelectedId(id);
   }, [focusPane, setSelectedId]);
 
+  // Drag & drop an agent onto a pane. If it's already shown in another pane,
+  // swap the two (no duplicate, nothing lost); otherwise place it in the target
+  // (its previous agent falls back to the sidebar). Focuses the target either way.
+  const dropAgentOnPane = useCallback((index, agentId) => {
+    if (!agentId) return;
+    const src = agentsRef.current.indexOf(agentId);
+    setAgents((a) => {
+      const next = a.slice();
+      if (src >= 0 && src !== index) {
+        next[src] = a[index];
+        next[index] = agentId;
+      } else {
+        next[index] = agentId;
+      }
+      return next;
+    });
+    setFocusedIndex(index);
+    setSelectedId(agentId);
+  }, [setSelectedId]);
+
   const setPaneCount = useCallback((n) => {
     const next = clampCount(n);
     const oldLen = agentsRef.current.length;
@@ -125,8 +145,8 @@ export function PaneProvider({ children }) {
     paneCount: count,
     paneAgents: agents,
     focusedPane: Math.min(focusedIndex, count - 1),
-    setPaneCount, focusPane, selectAgent, closePane, prunePanes,
-  }), [count, agents, focusedIndex, setPaneCount, focusPane, selectAgent, closePane, prunePanes]);
+    setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane,
+  }), [count, agents, focusedIndex, setPaneCount, focusPane, selectAgent, closePane, prunePanes, dropAgentOnPane]);
 
   return <PaneContext.Provider value={value}>{children}</PaneContext.Provider>;
 }

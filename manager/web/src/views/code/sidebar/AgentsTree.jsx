@@ -63,7 +63,16 @@ function TreeNode({ node, onRename, variant = "full" }) {
 
   return (
     <div className={cls.join(" ")}>
-      <div className={rowCls.join(" ")} onClick={onClick} onContextMenu={onCtx}>
+      <div
+        className={rowCls.join(" ")}
+        onClick={onClick}
+        onContextMenu={onCtx}
+        draggable={ui.paneCount > 1 && !isRenaming}
+        onDragStart={(e) => {
+          e.dataTransfer.setData("application/x-eos-agent", node.id);
+          e.dataTransfer.effectAllowed = "move";
+        }}
+      >
         {hasChildren ? (
           <button
             className="tree-chev"

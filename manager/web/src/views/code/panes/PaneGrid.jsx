@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
 import { nameOf } from "../../../lib/agentName.js";
@@ -39,6 +40,7 @@ export function PaneGrid({ live }) {
             canClose={ui.paneCount > 1}
             onFocus={() => ui.focusPane(i)}
             onClose={() => ui.closePane(i)}
+            onDropAgent={(agentId) => ui.dropAgentOnPane(i, agentId)}
           />
         );
       })}
@@ -46,19 +48,23 @@ export function PaneGrid({ live }) {
   );
 }
 
-function Pane({ index, agentId, worker, live, focused, attention, canClose, onFocus, onClose }) {
+function Pane({ index, agentId, worker, live, focused, attention, canClose, onFocus, onClose, onDropAgent }) {
   // Blocked-on-input cue for non-focused panes: an open ask_user question
   // (per-agent store) or a pending permission (live.pendingPermissions). The
   // focused pane needs none — its banner is in the shared composer.
   const questionNeeded = useInputNeeded(agentId);
+  const [dragOver, setDragOver] = useState(false);
   const permNeeded = !!worker && (live.pendingPermissions ?? []).some((p) => p.worker_id === agentId);
   const needsInput = !focused && !!worker && (questionNeeded || permNeeded);
   const status = worker ? statusFromState(worker.state) : null;
   // needs-input takes precedence over the attention pulse (more urgent) — both
-  // pulse the edge, in warn vs accent.
-  const cls = ["pane", focused ? "is-focused" : "", needsInput ? "pane--needs-input" : attention ? "pane--attention" : ""]
+  // pulse the edge, in warn vs accent. drag-over overrides both (it's a momentary
+  // drop cue; .pane-grid .pane.drag-over wins on specificity).
+  const cls = ["pane", focused ? "is-focused" : "", needsInput ? "pane--needs-input" : attention ? "pane--attention" : "", dragOver ? "drag-over" : ""]
     .filter(Boolean)
     .join(" ");
+
+  const hasAgentDrag = (e) => e.dataTransfer.types.includes("application/x-eos-agent");
 
   return (
     <div
@@ -67,6 +73,20 @@ function Pane({ index, agentId, worker, live, focused, attention, canClose, onFo
       // Capture so a click that also hits a transcript link/button still focuses
       // the pane first. mousedown (not click) makes focus feel immediate.
       onMouseDownCapture={focused ? undefined : onFocus}
+      onDragOver={(e) => {
+        if (!hasAgentDrag(e)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (!dragOver) setDragOver(true);
+      }}
+      // contains(relatedTarget): ignore leaves into the pane's own children
+      // (otherwise the highlight flickers as the pointer crosses the transcript).
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDragOver(false); }}
+      onDrop={(e) => {
+        setDragOver(false);
+        const id = e.dataTransfer.getData("application/x-eos-agent");
+        if (id) { e.preventDefault(); onDropAgent(id); }
+      }}
     >
       <div className="pane-head">
         {status && <span className={`ag-dot ${status.dot}`} />}
