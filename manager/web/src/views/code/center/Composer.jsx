@@ -752,7 +752,6 @@ export function Composer({ live }) {
     <div className="composer-wrap">
       <div className="composer-inner">
         <UpdateBanner update={live.update} onApply={live.applyUpdate} onDefer={live.deferUpdate} />
-        <TaskTray selected={selected} />
         {queuedList.length > 0 && (
           <QueuedList
             items={queuedList}
@@ -777,6 +776,7 @@ export function Composer({ live }) {
           onDeny={live.denyPending}
         />
         <div className="integration-wrap">
+          <TaskTray selected={selected} />
           <TryDeck live={live} selected={selected} />
           {selected ? (
             <ComposerDiffRow live={live} />

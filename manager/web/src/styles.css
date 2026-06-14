@@ -1048,6 +1048,11 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   font-size: var(--text-sm);
 }
 .pp-item:hover { background: rgba(var(--tint), 0.06); }
+/* Reorder drop indicator: a line at the top of the hovered item (no layout
+   change → no reflow/flicker). The source card stays put; its ghost follows the
+   cursor. */
+.pp-item.pp-over { box-shadow: inset 0 2px 0 var(--accent); }
+.pp-item .ag-rename-input { flex: 1; min-width: 0; width: auto; }
 .pp-name { flex: 1; min-width: 0; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pp-count { flex-shrink: 0; color: var(--fg-faint); font-family: var(--font-mono); font-size: var(--text-xs); }
 .pp-del {
@@ -3714,17 +3719,24 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 
 /* ============================================================================
-   TASK TRAY — docked into the composer card stack (a right-aligned row that
-   sits just above the input, NOT a floating panel). Collapsed: ambient capsule
-   (progress ring + active task, blur-roll label). Expanded: the capsule grows
-   upward into a connected card whose tasks hang off a vertical timeline spine
-   that fills as the agent advances. Shares the composer's own card language
-   (subtle tint + masked hairline), so it reads as part of the input area.
+   TASK TRAY — FLOATS as liquid glass above the integration row (left-aligned),
+   the same affordance as the worktree hub on the right, so it overlays the
+   transcript instead of taking layout height: the chat reaches down to the git
+   bar and the tray floats over it. Collapsed: ambient capsule (progress ring +
+   active task, blur-roll label). Expanded: the capsule grows upward into a
+   connected card whose tasks hang off a vertical timeline spine that fills as
+   the agent advances. Shares the composer's own card language (subtle tint +
+   masked hairline). Anchored to .integration-wrap — the same relative box the
+   worktree hub uses — so both float at one level: tray left, worktree right.
    ============================================================================ */
 .task-tray-row {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
   display: flex;
   justify-content: flex-start;
-  width: 100%;
+  width: max-content;
+  max-width: 100%;
 }
 .task-tray {
   display: flex;
@@ -3733,12 +3745,16 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   transform-origin: bottom left;
 }
 
-/* composer-card surface shared by capsule + expanded card — same recipe as
-   .c-row-diff so the widget belongs to the composer, not floats over it. */
+/* liquid-glass surface shared by capsule + expanded card — now that the tray
+   floats over the transcript it needs a frosted fill + lift (same recipe as the
+   worktree hub), or the chat text behind it would bleed through and be unreadable. */
 .tt-surface {
   position: relative;
-  background: rgba(var(--tint), 0.022);
+  background: rgba(var(--glass), 0.4);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.22);
 }
 .tt-surface::after {
   content: "";
@@ -3764,7 +3780,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   transition: background 140ms ease;
   animation: tt-pill-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
-.tt-pill:hover { background: rgba(var(--tint), 0.045); }
+.tt-pill:hover { background: rgba(var(--glass), 0.5); }
 @keyframes tt-pill-in {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: none; }
