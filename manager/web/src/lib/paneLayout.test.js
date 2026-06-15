@@ -3,7 +3,7 @@ import {
   leaf, isLeaf, isValidTree, leaves, leafCount, findLeaf, leafOfAgent,
   setLeafAgent, splitLeaf, removeLeaf, setRatio, removeDeadLeaves,
   computeRects, computeDividers, dropZoneFromPoint, fanoutLayout,
-  stripAgents, fillAgents, defaultPanePresets, MAX_PANES,
+  stripAgents, fillAgents, reuseLeafIds, defaultPanePresets, MAX_PANES,
 } from "./paneLayout.js";
 
 describe("leaf / leaves / count", () => {
@@ -225,6 +225,36 @@ describe("stripAgents / fillAgents", () => {
   });
   it("regenerates fresh node ids", () => {
     expect(fillAgents(struct, ["a", "b", "c"]).id).not.toBe(struct.id);
+  });
+});
+
+describe("reuseLeafIds", () => {
+  it("reuses the old leaf id for a surviving agent (keep-alive)", () => {
+    const oldTree = fanoutLayout("O", ["a", "b"]);
+    const oldA = leafOfAgent(oldTree, "a").id;
+    // rebuild from scratch (fanoutLayout mints fresh ids), then re-key
+    const rebuilt = fanoutLayout("O", ["a", "b", "c"]);
+    expect(leafOfAgent(rebuilt, "a").id).not.toBe(oldA); // fresh before re-key
+    const next = reuseLeafIds(rebuilt, oldTree);
+    expect(leafOfAgent(next, "a").id).toBe(oldA); // stable after re-key
+    expect(leafOfAgent(next, "O").id).toBe(leafOfAgent(oldTree, "O").id);
+  });
+  it("mints a fresh id for a newcomer agent", () => {
+    const oldTree = fanoutLayout("O", ["a"]);
+    const next = reuseLeafIds(fanoutLayout("O", ["a", "b"]), oldTree);
+    const oldIds = new Set(leaves(oldTree).map((l) => l.id));
+    expect(oldIds.has(leafOfAgent(next, "b").id)).toBe(false);
+  });
+  it("drops a removed agent's id (no stale pane)", () => {
+    const oldTree = fanoutLayout("O", ["a", "b"]);
+    const next = reuseLeafIds(fanoutLayout("O", ["a"]), oldTree);
+    expect(leaves(next).map((l) => l.agentId)).toEqual(["O", "a"]);
+  });
+  it("preserves the rebuilt structure (only ids change)", () => {
+    const oldTree = fanoutLayout("O", ["a", "b", "c", "d"]);
+    const next = reuseLeafIds(fanoutLayout("O", ["a", "b", "c", "d"]), oldTree);
+    expect(leaves(next).map((l) => l.agentId)).toEqual(["O", "a", "b", "c", "d"]);
+    expect(isValidTree(next)).toBe(true);
   });
 });
 

@@ -180,6 +180,26 @@ export function fillAgents(tree, agents) {
   return walk(tree);
 }
 
+// Re-key a freshly-built tree so a leaf whose agent already had a pane keeps that
+// pane's leaf id. Panes are keyed by leaf id (computeRects), so reusing ids gives
+// keep-alive: a follow-mode rebuild that adds/removes a child never remounts the
+// surviving children — only the new pane mounts and the removed one unmounts.
+// Each old id is reused at most once (guards an agent that somehow appears twice).
+export function reuseLeafIds(newTree, oldTree) {
+  const idByAgent = new Map();
+  for (const l of leaves(oldTree)) if (l.agentId != null) idByAgent.set(l.agentId, l.id);
+  const used = new Set();
+  const walk = (n) => {
+    if (isLeaf(n)) {
+      const reuse = n.agentId != null ? idByAgent.get(n.agentId) : undefined;
+      if (reuse && !used.has(reuse)) { used.add(reuse); return { ...n, id: reuse }; }
+      return n;
+    }
+    return { ...n, a: walk(n.a), b: walk(n.b) };
+  };
+  return walk(newTree);
+}
+
 // Geometry: the tree → flat %-rectangles, one per leaf (and one divider per
 // split). The renderer positions panes absolutely from these, so a structural
 // edit never remounts a surviving leaf (keep-alive) — only its rect moves.
