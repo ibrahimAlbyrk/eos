@@ -162,6 +162,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     private var sseSession: URLSession?
     private var sseTask: URLSessionDataTask?
     private var sseBuffer = Data()
+    // loadWeb() runs on every (re)load — retry, relaunch, update. The token
+    // user-script must be added only once; re-adding accumulates duplicate
+    // WKUserScripts. (removeAllUserScripts is NOT an option — it would also drop
+    // the setup-time context-menu and titlebar-drag scripts.)
+    private var tokenScriptInjected = false
 
     func applicationDidFinishLaunching(_: Notification) {
         setupNotifications()
@@ -343,14 +348,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         // at startup; injecting it here (post-health, so a freshly spawned
         // daemon has written it) lets the web layer call checkout-mutating
         // endpoints. Agents only hold the daemon URL — not this token.
-        let tokenPath = ("~/.eos/ui-token" as NSString).expandingTildeInPath
-        if let token = try? String(contentsOfFile: tokenPath, encoding: .utf8) {
-            let t = token.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !t.isEmpty, t.range(of: "^[0-9a-f]+$", options: .regularExpression) != nil {
-                webView.configuration.userContentController.addUserScript(
-                    WKUserScript(source: "window.__EOS_UI_TOKEN = '\(t)';",
-                                 injectionTime: .atDocumentStart, forMainFrameOnly: true)
-                )
+        if !tokenScriptInjected {
+            let tokenPath = ("~/.eos/ui-token" as NSString).expandingTildeInPath
+            if let token = try? String(contentsOfFile: tokenPath, encoding: .utf8) {
+                let t = token.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !t.isEmpty, t.range(of: "^[0-9a-f]+$", options: .regularExpression) != nil {
+                    webView.configuration.userContentController.addUserScript(
+                        WKUserScript(source: "window.__EOS_UI_TOKEN = '\(t)';",
+                                     injectionTime: .atDocumentStart, forMainFrameOnly: true)
+                    )
+                    tokenScriptInjected = true
+                }
             }
         }
         // Clear only HTTP caches so a rebuilt dist/ loads fresh — wiping
