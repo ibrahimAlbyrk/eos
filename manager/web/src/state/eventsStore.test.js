@@ -7,7 +7,7 @@ vi.mock("../api/client.js", () => ({
 import { api } from "../api/client.js";
 import {
   PAGE_SIZE, mergeEvents, filterOwnRows,
-  attach, fetchDelta, getSnapshot, loadOlder, subscribe,
+  attach, fetchDelta, getSnapshot, loadOlder, subscribe, setFollowing,
 } from "./eventsStore.js";
 
 const ev = (id, ts, type = "jsonl") => ({ id, ts, type });
@@ -240,6 +240,46 @@ describe("eventsStore", () => {
     }
     expect(getSnapshot(ids[0]).eventsFor).toBeNull(); // evicted
     expect(getSnapshot(ids[6]).eventsFor).toBe(ids[6]); // recent ones cached
+  });
+
+  it("an attached, following window is capped to MAX_ATTACHED_EVENTS as the tail streams", async () => {
+    const id = freshId();
+    const all = rows(id, 1, PAGE_SIZE); // full first page → hasOlder
+    api.getWorkerEvents.mockImplementation(pageServer(all));
+    const detach = attach(id); // following defaults true
+    await tick();
+    expect(getSnapshot(id).events).toHaveLength(PAGE_SIZE);
+    // Stream well past the attached cap in PAGE_SIZE deltas.
+    let nextRowId = PAGE_SIZE + 1;
+    for (let i = 0; i < 6; i++) {
+      for (let k = 0; k < PAGE_SIZE; k++) all.push(row(nextRowId++, id));
+      fetchDelta(id);
+      await tick();
+    }
+    const snap = getSnapshot(id);
+    expect(snap.events).toHaveLength(4 * PAGE_SIZE); // MAX_ATTACHED_EVENTS
+    expect(snap.hasOlder).toBe(true); // trimming re-opens the older cursor
+    expect(snap.events[snap.events.length - 1].id).toBe(nextRowId - 1); // newest kept
+    detach();
+  });
+
+  it("a scrolled-up (not following) window is bounded only by the looser HARD_MAX", async () => {
+    const id = freshId();
+    const all = rows(id, 1, PAGE_SIZE);
+    api.getWorkerEvents.mockImplementation(pageServer(all));
+    const detach = attach(id);
+    await tick();
+    setFollowing(id, false); // user scrolled up to read history
+    let nextRowId = PAGE_SIZE + 1;
+    for (let i = 0; i < 6; i++) {
+      for (let k = 0; k < PAGE_SIZE; k++) all.push(row(nextRowId++, id));
+      fetchDelta(id);
+      await tick();
+    }
+    // 7*PAGE_SIZE (3500) is above MAX_ATTACHED (2000) but below HARD_MAX (6000)
+    // → kept untrimmed so loadOlder's prepends aren't immediately undone.
+    expect(getSnapshot(id).events).toHaveLength(7 * PAGE_SIZE);
+    detach();
   });
 
   it("notifies subscribers on window changes and stops after unsubscribe", async () => {

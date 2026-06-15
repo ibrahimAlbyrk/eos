@@ -20,6 +20,14 @@ const POLL_MS = 5000;
 // its newest MAX_DETACHED_EVENTS rows (a trim re-opens hasOlder).
 const MAX_CACHED_WORKERS = 5;
 const MAX_DETACHED_EVENTS = 3 * PAGE_SIZE;
+// Live-window bounds. While a pane follows the tail, keep only the newest
+// MAX_ATTACHED_EVENTS materialized — without this an actively-watched,
+// long-running agent grows the window (and the rendered DOM) without limit,
+// the web UI's unbounded-memory leak. HARD_MAX_EVENTS bounds the scrolled-up
+// case too (fast stream while reading history). Dropped history re-pages on
+// scroll-up via the existing hasOlder/loadOlder path.
+const MAX_ATTACHED_EVENTS = 4 * PAGE_SIZE;
+const HARD_MAX_EVENTS = 12 * PAGE_SIZE;
 const PREFETCH_IDLE_MS = 200;
 
 // WKWebView has no requestIdleCallback; a short timeout approximates "after
@@ -71,6 +79,9 @@ function entryOf(workerId) {
       // transcripts and must not resurrect an exhausted cursor.
       hasOlder: false,
       loaded: false,
+      // following = the view is pinned to the tail; gates live-window trimming
+      // (see capWindow). Defaults true so an unwired pane is still bounded.
+      following: true,
       loadingOlder: false,
       prefetched: null,
       prefetching: false,
@@ -113,6 +124,7 @@ function applyNewest(e, rows) {
     e.loaded = true;
   } else {
     e.events = mergeEvents(e.events, rows);
+    capWindow(e);
   }
   publish(e);
 }
@@ -218,6 +230,7 @@ export function fetchDelta(workerId) {
       if (!Array.isArray(rows) || rows.length === 0) return;
       const own = filterOwnRows(workerId, rows);
       e.events = mergeEvents(e.events, own);
+      capWindow(e);
       publish(e);
       for (const cb of e.newestListeners) cb(workerId, own);
     } catch {
@@ -246,6 +259,19 @@ function stopPoll(e) {
   e.pollAbort = null;
 }
 
+// Live-window bound (attached panes). Mirrors trimDetached but runs while the
+// pane is live: cap to MAX_ATTACHED_EVENTS while following the tail, else the
+// looser HARD_MAX safety net (so a fast stream while the user reads history
+// can't grow unbounded either). Trimming the oldest re-opens the cursor so
+// loadOlder re-pages the dropped history; the parked prefetch is invalidated.
+function capWindow(e) {
+  const cap = e.following ? MAX_ATTACHED_EVENTS : HARD_MAX_EVENTS;
+  if (e.events.length <= cap) return;
+  e.events = e.events.slice(e.events.length - cap);
+  e.hasOlder = true;
+  e.prefetched = null;
+}
+
 // Detached windows are kept but bounded: trim to the newest rows (the part a
 // switch-back renders first); deeper history re-pages on demand, and a trim
 // re-opens the cursor. The parked prefetch page is dropped — it re-arms on
@@ -264,6 +290,18 @@ function evictDetached() {
   for (let i = 0; i <= detached.length - 1 - MAX_CACHED_WORKERS; i++) {
     entries.delete(detached[i].workerId); // Map order = recency; oldest first
   }
+}
+
+// The view reports whether it is following the tail (pinned to bottom). While
+// following, the live window is trimmed to MAX_ATTACHED_EVENTS; when the user
+// scrolls up to read history we stop trimming (only HARD_MAX applies) so
+// loadOlder's prepends aren't immediately undone. Returning to the bottom
+// re-caps right away.
+export function setFollowing(workerId, following) {
+  const e = entries.get(workerId);
+  if (!e || e.following === following) return;
+  e.following = following;
+  if (following) { capWindow(e); publish(e); }
 }
 
 // Lifecycle: polling and prefetch run only while at least one component is

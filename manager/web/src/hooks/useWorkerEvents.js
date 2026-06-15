@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import {
   attach, fetchDelta as storeFetchDelta, getSnapshot, loadOlder as storeLoadOlder,
-  refetchNewest as storeRefetchNewest, subscribe,
+  refetchNewest as storeRefetchNewest, setFollowing as storeSetFollowing, subscribe,
 } from "../state/eventsStore.js";
 
 const noopSubscribe = () => () => {};
@@ -41,6 +41,10 @@ export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
   const loadOlder = useCallback(() => storeLoadOlder(workerId), [workerId]);
   const fetchDelta = useCallback(() => storeFetchDelta(workerId), [workerId]);
   const refetchNewest = useCallback(() => storeRefetchNewest(workerId), [workerId]);
+  const setFollowing = useCallback(
+    (following) => { if (workerId) storeSetFollowing(workerId, following); },
+    [workerId],
+  );
 
   return {
     events: snap.events,
@@ -50,5 +54,6 @@ export function useWorkerEvents(workerId, { restartKey, onNewest } = {}) {
     loadOlder,
     refetchNewest,
     fetchDelta,
+    setFollowing,
   };
 }

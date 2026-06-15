@@ -117,7 +117,7 @@ export function Messages({ live, agentId, isActive = true }) {
   // restoring a saved position.
   const {
     events: windowEvents, eventsFor, hasOlder: windowHasOlder,
-    loadingOlder, loadOlder, fetchDelta,
+    loadingOlder, loadOlder, fetchDelta, setFollowing,
   } = useWorkerEvents(
     selectedId,
     { restartKey: live.workers.length, onNewest: reconcileFromNewest },
@@ -130,6 +130,14 @@ export function Messages({ live, agentId, isActive = true }) {
     if (live.eventSignal.workerId !== selectedId) return;
     fetchDelta();
   }, [live.eventSignal.tick]);
+
+  // Tell the store whether we're following the tail (pinned to bottom) so it
+  // only trims the live window when the user is at the bottom — never while
+  // they scroll up reading history (which would fight loadOlder). showJumpBtn
+  // is shown exactly when scrolled away from the bottom.
+  useEffect(() => {
+    setFollowing(!stick.showJumpBtn);
+  }, [stick.showJumpBtn, setFollowing]);
 
   // "Load older" sentinel at the top of the list. Before each load, anchor the
   // current scroll geometry; once older rows land, shift scrollTop by the
