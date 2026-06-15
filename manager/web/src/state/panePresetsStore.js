@@ -2,13 +2,24 @@
 // whole BSP layout tree (lib/paneLayout). Agents that no longer exist restore as
 // empty panes (PaneProvider.prunePanes / selectedId cleanup handle it).
 
-import { isValidTree, stripAgents } from "../lib/paneLayout.js";
+import { isValidTree, stripAgents, defaultPanePresets } from "../lib/paneLayout.js";
 
 const KEY = "cm:panePresets";
 
+// First run only (key never written): seed the built-in starter layouts. Once the
+// key exists — even as "[]" after the user deletes them all — it's never re-seeded.
+function seed() {
+  const seeded = defaultPanePresets().map((p) => ({ id: crypto.randomUUID(), name: p.name, tree: p.tree }));
+  try { localStorage.setItem(KEY, JSON.stringify(seeded)); } catch { /* storage unavailable */ }
+  return seeded;
+}
+
 function load() {
+  let raw = null;
+  try { raw = localStorage.getItem(KEY); } catch { return []; }
+  if (raw == null) return seed();
   try {
-    const a = JSON.parse(localStorage.getItem(KEY) ?? "[]");
+    const a = JSON.parse(raw);
     // Drop legacy / malformed entries (e.g. the old agents-array shape).
     return Array.isArray(a) ? a.filter((p) => p && p.id && p.name && isValidTree(p.tree)) : [];
   } catch {

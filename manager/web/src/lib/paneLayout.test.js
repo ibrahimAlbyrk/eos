@@ -3,7 +3,7 @@ import {
   leaf, isLeaf, isValidTree, leaves, leafCount, findLeaf, leafOfAgent,
   setLeafAgent, splitLeaf, removeLeaf, setRatio, removeDeadLeaves,
   computeRects, computeDividers, dropZoneFromPoint, fanoutLayout,
-  stripAgents, fillAgents, MAX_PANES,
+  stripAgents, fillAgents, defaultPanePresets, MAX_PANES,
 } from "./paneLayout.js";
 
 describe("leaf / leaves / count", () => {
@@ -225,6 +225,51 @@ describe("stripAgents / fillAgents", () => {
   });
   it("regenerates fresh node ids", () => {
     expect(fillAgents(struct, ["a", "b", "c"]).id).not.toBe(struct.id);
+  });
+});
+
+describe("defaultPanePresets", () => {
+  const byName = Object.fromEntries(defaultPanePresets().map((p) => [p.name, p.tree]));
+
+  it("seeds the five named starter layouts, structure only (no agents)", () => {
+    expect(Object.keys(byName)).toEqual(["Single", "Double", "Triple", "Multi Tasking", "Agent Swarm"]);
+    for (const tree of Object.values(byName)) {
+      expect(isValidTree(tree)).toBe(true);
+      expect(leaves(tree).every((l) => l.agentId === null)).toBe(true);
+      expect(leafCount(tree)).toBeLessThanOrEqual(MAX_PANES);
+    }
+  });
+
+  it("has the requested pane counts", () => {
+    expect(leafCount(byName["Single"])).toBe(1);
+    expect(leafCount(byName["Double"])).toBe(2);
+    expect(leafCount(byName["Triple"])).toBe(3);
+    expect(leafCount(byName["Multi Tasking"])).toBe(8);
+    expect(leafCount(byName["Agent Swarm"])).toBe(7);
+  });
+
+  it("Triple is three equal columns", () => {
+    const rects = computeRects(byName["Triple"]);
+    expect(rects).toHaveLength(3);
+    for (const r of rects) expect(r.rect.width).toBeCloseTo(100 / 3);
+  });
+
+  it("Multi Tasking is a 4-over-4 grid", () => {
+    const rects = computeRects(byName["Multi Tasking"]);
+    expect(rects.filter((r) => r.rect.top === 0)).toHaveLength(4);
+    expect(rects.filter((r) => r.rect.top === 50)).toHaveLength(4);
+    for (const r of rects) { expect(r.rect.width).toBeCloseTo(25); expect(r.rect.height).toBeCloseTo(50); }
+  });
+
+  it("Agent Swarm is a left pane (40%) + a 3-over-3 grid on the right", () => {
+    const rects = computeRects(byName["Agent Swarm"]);
+    const left = rects.find((r) => r.rect.left === 0 && r.rect.width === 40 && r.rect.height === 100);
+    expect(left).toBeTruthy();
+    const grid = rects.filter((r) => r !== left);
+    expect(grid).toHaveLength(6);
+    expect(grid.filter((r) => r.rect.top === 0)).toHaveLength(3);
+    expect(grid.filter((r) => r.rect.top === 50)).toHaveLength(3);
+    for (const r of grid) expect(r.rect.width).toBeCloseTo(20);
   });
 });
 

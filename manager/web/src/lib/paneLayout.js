@@ -145,6 +145,24 @@ export function fanoutLayout(parentId, childIds) {
   return mkSplit("row", leaf(parentId), gridOf(kids), FANOUT_RATIO);
 }
 
+// Built-in starter layouts seeded on first run (structure only — empty leaves; an
+// applied preset re-homes the current agents via fillAgents). Names are user-facing.
+//   Single        — one pane
+//   Double        — two side by side
+//   Triple        — three equal columns
+//   Multi Tasking — 4-over-4 grid (eight panes)
+//   Agent Swarm   — one pane on the left (40%) + a 3-over-3 grid on the right
+export function defaultPanePresets() {
+  const empties = (n) => Array.from({ length: n }, () => null);
+  return [
+    { name: "Single", tree: leaf() },
+    { name: "Double", tree: rowOf(empties(2)) },
+    { name: "Triple", tree: rowOf(empties(3)) },
+    { name: "Multi Tasking", tree: gridOf(empties(8)) },
+    { name: "Agent Swarm", tree: fanoutLayout(null, empties(6)) },
+  ];
+}
+
 // A layout preset is structure only (no agents): strip every leaf's agent.
 export function stripAgents(tree) {
   if (isLeaf(tree)) return { ...tree, agentId: null };
