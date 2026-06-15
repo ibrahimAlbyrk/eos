@@ -1319,6 +1319,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .pane-split-btn:hover { background: rgba(var(--tint), 0.06); color: var(--fg-dim); }
 .pane-split-btn:disabled { opacity: 0.4; cursor: default; }
 .pane-split-btn:disabled:hover { background: transparent; color: var(--fg-faint); }
+/* "Follow" toggle ON — accent so the live-tracking state reads at a glance. */
+.pane-split-btn.is-active { background: var(--accent-soft); color: var(--accent); }
+.pane-split-btn.is-active:hover { background: var(--accent-soft); color: var(--accent-hover); }
 
 /* In split mode the head's fade scrim would veil the top of the pane islands
    (each pane has its own header) — drop it. */
@@ -3114,6 +3117,29 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border-radius: 4px;
   padding: 1px 2px;
 }
+/* markdown list markers — one block so the composer and the sent bubble match.
+   The literal "-"/"*"/digit stays in the text (offset round-trip untouched);
+   font-size:0 collapses the source glyph while ::before overlays a bullet whose
+   shape follows the nesting depth. Leading spaces (normal size) keep the indent. */
+.composer-editor .md-bullet,
+.msg-user .md-bullet {
+  font-size: 0;
+  --md-glyph: "\2022"; /* • */
+}
+.composer-editor .md-bullet.md-d1,
+.msg-user .md-bullet.md-d1 { --md-glyph: "\25E6"; } /* ◦ */
+.composer-editor .md-bullet.md-d2, .msg-user .md-bullet.md-d2,
+.composer-editor .md-bullet.md-d3, .msg-user .md-bullet.md-d3,
+.composer-editor .md-bullet.md-d4, .msg-user .md-bullet.md-d4,
+.composer-editor .md-bullet.md-d5, .msg-user .md-bullet.md-d5 { --md-glyph: "\25AA"; } /* ▪ */
+.composer-editor .md-bullet::before,
+.msg-user .md-bullet::before {
+  content: var(--md-glyph);
+  font-size: var(--text-base);
+  color: var(--accent);
+}
+.composer-editor .md-num,
+.msg-user .md-num { color: var(--accent); }
 /* file menu items (reuses .cmd-menu / .cmd-names container) */
 .file-item {
   display: flex;

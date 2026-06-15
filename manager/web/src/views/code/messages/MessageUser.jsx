@@ -4,6 +4,7 @@ import { ImageLightbox } from "../ImageLightbox.jsx";
 import { labelTitle } from "../../../lib/attachmentTokens.js";
 import { segment, URL_RE } from "../../../lib/richText.jsx";
 import { findSlashTokens } from "../../../lib/slashTokens.js";
+import { listMarkers } from "../../../lib/markdownBlocks.js";
 import { useSlashItems } from "../../../hooks/useSlashItems.js";
 import { SlashPill } from "./SlashPill.jsx";
 
@@ -51,6 +52,12 @@ function escapeRegExp(s) {
 
 function buildRules(labels, slashMap) {
   const rules = [
+    {
+      scan: (t) => listMarkers(t),
+      render: (mark, key, data) => (
+        <span key={key} className={data?.ordered ? "md-num" : `md-bullet md-d${Math.min(data?.depth ?? 0, 5)}`}>{mark}</span>
+      ),
+    },
     {
       match: URL_RE,
       render: (url, key) => (
