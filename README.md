@@ -233,6 +233,10 @@ Empires-style real-time strategy game, built and shipped in one pass by **39 age
 
 → **[▶ Play it](https://playmore.world/#game/9eb83f07-85d0-46ff-900f-30aaa446a5ae)**
 
+**DOOM-TS — a browser DOOM, single-player + online multiplayer.** &nbsp; A sustained, multi-turn session had Eos build a complete from-scratch DOOM-style raycaster FPS in TypeScript — engine, AI, 9 weapons, **6 original levels** — then take it online: authoritative netcode with client-side prediction + lag compensation, **co-op** and **PvP deathmatch**, and an in-browser room browser, with single-player still playable **offline** — and deploy it to a live server.
+
+→ **[▶ Play it](https://185.249.197.74.sslip.io/)** &nbsp;·&nbsp; [source + screenshots](https://github.com/ibrahimAlbyrk/doom-ts)
+
 <br/>
 
 <!-- divider -->
