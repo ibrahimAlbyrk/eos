@@ -2,6 +2,7 @@
 // place so the worker entrypoint never touches process.argv directly.
 
 import { parseArgs } from "node:util";
+import { readFileSync } from "node:fs";
 
 export interface WorkerOptions {
   cwd: string | undefined;
@@ -37,6 +38,28 @@ export interface WorkerOptions {
   ptyWriteDelayMs: number | undefined;
   readinessFallbackMs: number | undefined;
   readinessSettleMs: number | undefined;
+}
+
+// True when this worker will have an Eos tool-providing MCP server
+// (orchestrator or worker) — the kind that signals readiness on connect. Such
+// agents must NOT let claude auto-submit the boot prompt before that server is
+// up (it would race spawn_worker etc.), so the prompt is withheld from argv and
+// released by worker.ts on the mcp-ready signal. Reads the resolved mcp.json
+// (daemon-written --mcp-config); the synthetic path (no --mcp-config) carries a
+// worker server only when parentId is set. A plain worker — user MCP servers
+// only, no orchestrator/worker key — returns false and keeps the argv path.
+export function expectsMcpReady(opts: WorkerOptions): boolean {
+  if (!opts.workerId) return false;
+  if (opts.mcpConfig) {
+    try {
+      const cfg = JSON.parse(readFileSync(opts.mcpConfig, "utf8")) as { mcpServers?: Record<string, unknown> };
+      const servers = cfg.mcpServers ?? {};
+      return !!(servers.orchestrator || servers.worker);
+    } catch {
+      return false;
+    }
+  }
+  return !!opts.parentId;
 }
 
 function parseIntFlag(v: string | undefined): number | undefined {

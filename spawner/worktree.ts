@@ -147,10 +147,11 @@ export function setupWorktree(spec: WorktreeSpec, log: (m: string) => void): Wor
 /**
  * On shutdown, summarize worktree changes to the worker's stdout and emit a
  * `worktree` lifecycle event so the daemon can show the outcome in the UI.
- * Removal is daemon-owned (delete route + startup prune) — removing a clean
- * worktree here would race agents attached to the same workspace and break
- * resuming this worker into its intact workspace. Attached workers skip the
- * summary entirely: the workspace is the owner's to report on.
+ * Removal is daemon-owned (delete route enqueues a durable removal that a
+ * reaper drains; startup prune is a secondary net) — removing a clean worktree
+ * here would race agents attached to the same workspace and break resuming this
+ * worker into its intact workspace. Attached workers skip the summary entirely:
+ * the workspace is the owner's to report on.
  */
 export interface TeardownInput {
   ctx: WorktreeContext;

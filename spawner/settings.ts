@@ -29,6 +29,11 @@ export function buildClaudeSettings(name: string, port: number): BuiltSettings {
         // readiness gate mistakes it for the composer and the initial prompt
         // is pasted into the dialog and lost.
         enableAllProjectMcpServers: true,
+        // Eager-load every MCP tool schema. Inherited claude.ai connectors
+        // (Gmail/Calendar/Drive/Notion/…) push the tool-def size over Claude
+        // Code's tool-search threshold, which otherwise defers schemas — even
+        // mcp__orchestrator__spawn_worker — behind a ToolSearch round-trip.
+        toolSearchEnabled: false,
         permissions: {
           defaultMode: "default",
           ask: ["Bash", "Edit", "Write", "WebFetch", "Glob", "Grep"],

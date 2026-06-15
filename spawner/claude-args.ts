@@ -6,7 +6,7 @@
 
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import type { WorkerOptions } from "./options.ts";
+import { expectsMcpReady, type WorkerOptions } from "./options.ts";
 
 export interface ClaudeArgsResult {
   args: string[];
@@ -79,5 +79,19 @@ export function buildClaudeArgs(
   if (opts.resumeSessionId) args.push("--resume", opts.resumeSessionId);
   args.push("--model", opts.model);
   if (opts.effort) args.push("--effort", opts.effort);
+  // Boot prompt as a positional argument: claude consumes it on TUI mount and
+  // auto-submits it itself (verified — multi-line/special chars preserved as a
+  // single user message), so it is never pasted into a not-yet-ready composer —
+  // the boot-paste wedge this replaces. "--" ends option parsing so a prompt
+  // beginning with "-" can't be mistaken for a flag. Must stay LAST.
+  //
+  // EXCEPTION — an agent with an Eos tool MCP (orchestrator/worker): the argv
+  // auto-submit fires on mount BEFORE that server finishes connecting, so the
+  // first turn can't see spawn_worker etc. (the MCP-init race). For those the
+  // prompt is withheld here and delivered by worker.ts once the server signals
+  // ready (the mcp-ready gate), through the verified paste pipeline.
+  if (opts.prompt && opts.prompt.trim().length > 0 && !expectsMcpReady(opts)) {
+    args.push("--", opts.prompt);
+  }
   return { args, syntheticMcpPath };
 }

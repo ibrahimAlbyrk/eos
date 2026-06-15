@@ -6,12 +6,14 @@
 // delivery), tail.ts (JSONL chokidar), ingest.ts (local HTTP), session.ts
 // (state + heartbeat + shutdown scheduling).
 
-import { rmSync, readFileSync } from "node:fs";
+import { rmSync, readFileSync, existsSync, unlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { spawn as ptySpawn } from "@homebridge/node-pty-prebuilt-multiarch";
 
-import { WORKER_EXIT } from "../contracts/src/util.ts";
+import { WORKER_EXIT, mcpReadyFlagName } from "../contracts/src/util.ts";
 import { isEosControlTool, isBlockedBuiltinTool, BLOCKED_BUILTIN_TOOL_MESSAGE } from "../contracts/src/tool-scope.ts";
-import { parseWorkerOptions } from "./options.ts";
+import { parseWorkerOptions, expectsMcpReady } from "./options.ts";
 import { createDaemonEventClient } from "./events.ts";
 import { setupWorktree, teardownWorktree } from "./worktree.ts";
 import { buildClaudeSettings } from "./settings.ts";
@@ -25,6 +27,7 @@ import {
   createShutdownScheduler,
 } from "./session.ts";
 import { createReadinessGate } from "./readiness-gate.ts";
+import { createTerminalResponder } from "./terminal-responder.ts";
 import { resolveParentAgentToolUseId } from "./subagent-meta.ts";
 import { RewindDriver, type RewindMode } from "./rewind.ts";
 import { PendingMessageRegistry, type PendingMessage } from "./message-registry.ts";
@@ -36,18 +39,37 @@ const DEFAULT_HEARTBEAT_QUIET_MS = 6000;
 const DEFAULT_SHUTDOWN_GRACE_MS = 2500;
 const DEFAULT_PTY_WRITE_DELAY_MS = 300;
 
-// Readiness gate: we wait for the composer box-border '╭' to appear in the PTY
-// stream (proof the TUI can accept pasted input) plus a short quiescence window
-// before writing the prompt, so the CR is never swallowed. If the marker never
-// shows we fall back after this bound — same blind delay as the old fixed wait.
-const COMPOSER_READY_MARKER = "╭";
+// Readiness gate: wait until the TUI can accept pasted input, then a short
+// quiescence window (initial render settled) before flushing any buffered
+// steering paste. The signal is the bracketed-paste-enable control sequence
+// (DECSET 2004, "\x1b[?2004h") — a STANDARD sequence every paste-aware TUI
+// emits, not the cosmetic box-border glyph '╭' (theme/version/locale/width
+// dependent). It appears early in boot, so the quiescence window is what
+// actually waits for the composer to finish rendering. If it never shows we
+// fall back after this bound. (The boot prompt no longer rides this gate — it
+// goes in via an argv positional; see claude-args.ts.)
+const COMPOSER_READY_MARKER = "\x1b[?2004h";
 const DEFAULT_READINESS_FALLBACK_MS = 2500;
 const DEFAULT_READINESS_SETTLE_MS = 250;
+// mcp-ready gate: agents with an Eos tool MCP withhold the boot prompt until
+// that server writes its ready flag (polled here). The fallback delivers the
+// prompt anyway so a broken/slow MCP can never wedge boot — generous so it
+// never preempts a working-but-slow connect (many inherited connectors).
+const MCP_READY_POLL_MS = 100;
+const MCP_READY_FALLBACK_MS = 15000;
 // Grace between SIGTERM and SIGKILL of the claude PTY child during cleanup.
 const PTY_SIGKILL_DELAY_MS = 1500;
 
 const opts = parseWorkerOptions();
 const name = opts.name ?? "w" + Math.random().toString(36).slice(2, 7);
+
+// MCP-init race guard (see claude-args.ts / contracts mcpReadyFlagName): when an
+// Eos tool MCP is present the boot prompt is withheld from argv and released
+// only after that server signals ready via this flag file. Clear any stale flag
+// up front so the poll reacts only to THIS session's signal.
+const expectsMcp = expectsMcpReady(opts);
+const mcpReadyFlagPath = opts.workerId ? join(tmpdir(), mcpReadyFlagName(opts.workerId)) : null;
+if (mcpReadyFlagPath) { try { unlinkSync(mcpReadyFlagPath); } catch {} }
 
 const evt = createDaemonEventClient(opts.daemonUrl, opts.workerId);
 const wt = setupWorktree({
@@ -74,6 +96,11 @@ console.log(`[${name}] cwd=${wt.cwd} port=${opts.port} settings=${settings.setti
 
 const state = newSessionState();
 let tailHandle: TailHandle | null = null;
+// subagent agent_id → parent Agent tool_use id. Bounded (insertion-order
+// eviction) so a persistent agent that spawns many distinct subagents over a
+// long session can't grow it unboundedly. swapSession still .clear()s it on
+// /clear — that is session-scoped correctness, separate from this size bound.
+const AGENT_TOOLUSE_CACHE_MAX = 256;
 const agentToolUseIdCache = new Map<string, string>();
 
 // Resume: the session id is known up front — seed it and tail from EOF so the
@@ -304,42 +331,98 @@ const heartbeat = startHeartbeat({
 
 // Boot gate + prompt delivery ---------------------------------------------
 
-// Pre-boot writes get eaten by the TUI, so we buffer them until the readiness
-// gate confirms the composer can accept input, then flush + write the prompt.
+// Steering messages that arrive before the TUI mounts get eaten, so we buffer
+// them until boot is released (composer ready + mcp ready), then flush. The boot
+// prompt rides the argv positional (claude-args.ts, auto-submitted on mount) for
+// a plain agent; for one with an Eos tool MCP it is withheld from argv and pasted
+// here once that server connects (the mcp-ready gate) — see tryReleaseBoot.
 let bootBuffer: string[] = [];
 let bootCompleted = false;
+let composerReady = false;
+let composerFellBack = false;
+// Nothing to wait for when there is no Eos tool MCP — the prompt rode in via
+// argv and the composer is the only gate.
+let mcpReady = !expectsMcp;
+let mcpPollTimer: ReturnType<typeof setInterval> | null = null;
+let mcpFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 
-function onBootReady(reason: "marker" | "fallback"): void {
-  const hadBufferedMsg = bootBuffer.length > 0;
+function clearMcpReadyTimers(): void {
+  if (mcpPollTimer) { clearInterval(mcpPollTimer); mcpPollTimer = null; }
+  if (mcpFallbackTimer) { clearTimeout(mcpFallbackTimer); mcpFallbackTimer = null; }
+}
+
+// The boot prompt is released once the composer can accept input AND (for an
+// agent with an Eos tool MCP) that server has signaled ready. Two delivery
+// modes: expectsMcp → the prompt was withheld from argv, so PASTE it through the
+// verified pipeline now (tools are registered → no spawn_worker race); else →
+// claude already auto-submitted the argv positional, so just seed turn liveness.
+// Either way early steering flushes after, in arrival order.
+function tryReleaseBoot(): void {
+  if (bootCompleted) return;
+  if (!composerReady || !mcpReady) return;
   bootCompleted = true;
-  for (const t of bootBuffer) deliver(t);
-  bootBuffer = [];
+  clearMcpReadyTimers();
 
-  // A user message that arrived during boot supersedes the initial prompt.
-  if (opts.prompt && opts.prompt.trim().length > 0 && !hadBufferedMsg) {
-    if (reason === "fallback") evt.emit("lifecycle", { phase: "ready_timeout" });
-    console.log(`\n[${name}] writing prompt`);
+  if (opts.prompt.trim().length > 0) {
+    if (composerFellBack) evt.emit("lifecycle", { phase: "ready_timeout" });
     evt.emit("lifecycle", { phase: "prompt_sent" });
+    // A turn is now active (paste about to land, or argv already submitted):
+    // seed heartbeat liveness and mark the turn open so a steering message
+    // arriving now is treated as a mid-turn steer (ACK skipped — no duplicate).
     const now = Date.now();
     state.lastUserMsgTs = now;
     state.lastJsonlActivityTs = now;
-    deliver(opts.prompt);
+    if (expectsMcp) deliver(opts.prompt);
+    else claudeTurnOpen = true;
   } else {
     evt.emit("lifecycle", { phase: "ready_no_prompt" });
     if (state.lastUserMsgTs === 0) {
       evt.emit("state", { state: "IDLE" });
     }
   }
+
+  // Early steering messages (arrived before boot release) flush now.
+  for (const t of bootBuffer) deliver(t);
+  bootBuffer = [];
+}
+
+function onComposerReady(reason: "marker" | "fallback"): void {
+  composerReady = true;
+  if (reason === "fallback") composerFellBack = true;
+  tryReleaseBoot();
+}
+
+function markMcpReady(via: "signal" | "timeout"): void {
+  if (mcpReady) return;
+  mcpReady = true;
+  clearMcpReadyTimers();
+  evt.emit("lifecycle", { phase: via === "timeout" ? "mcp_ready_timeout" : "mcp_ready" });
+  tryReleaseBoot();
+}
+
+// Poll for the flag the Eos tool MCP writes on connect (the spawner can't see
+// claude's MCP handshake; the file is the cross-process signal), with a bounded
+// fallback so a never-signaling server still boots.
+if (expectsMcp && mcpReadyFlagPath) {
+  mcpPollTimer = setInterval(() => {
+    if (existsSync(mcpReadyFlagPath)) markMcpReady("signal");
+  }, MCP_READY_POLL_MS);
+  mcpFallbackTimer = setTimeout(() => markMcpReady("timeout"), MCP_READY_FALLBACK_MS);
 }
 
 const readiness = createReadinessGate({
   marker: COMPOSER_READY_MARKER,
   fallbackMs: opts.readinessFallbackMs ?? DEFAULT_READINESS_FALLBACK_MS,
   settleMs: opts.readinessSettleMs ?? DEFAULT_READINESS_SETTLE_MS,
-  onReady: onBootReady,
+  onReady: onComposerReady,
 });
+// Act as the terminal for claude's boot capability queries so its handshake
+// completes deterministically (replies written raw, like keystrokes — these are
+// terminal protocol bytes, not user messages).
+const terminalResponder = createTerminalResponder();
 pty.onData((data: string) => {
   process.stdout.write(data);
+  for (const reply of terminalResponder.feed(data)) pty.write(reply);
   readiness.feed(data);
   pipeline.feedOutput(data);
   rewindDriver.feed(data);
@@ -471,6 +554,9 @@ const ingest = startIngestServer(opts.port, {
   },
   onHook(eventName, body): Record<string, unknown> | undefined {
     state.events.push({ event: eventName, t: Date.now() });
+    // Debug-only timeline (printed at exit); nothing reads it for state. Bound
+    // it so a long-lived persistent agent's hook stream can't grow it forever.
+    if (state.events.length > 500) state.events.shift();
     if (!state.sessionId && typeof body.session_id === "string") {
       state.sessionId = body.session_id;
       console.log(`[${name}] captured session=${state.sessionId} via ${eventName}`);
@@ -500,7 +586,13 @@ const ingest = startIngestServer(opts.port, {
       parentAgentToolUseId =
         agentToolUseIdCache.get(agentId) ??
         resolveParentAgentToolUseId(wt.cwd, state.sessionId, agentId);
-      if (parentAgentToolUseId) agentToolUseIdCache.set(agentId, parentAgentToolUseId);
+      if (parentAgentToolUseId) {
+        agentToolUseIdCache.set(agentId, parentAgentToolUseId);
+        if (agentToolUseIdCache.size > AGENT_TOOLUSE_CACHE_MAX) {
+          const oldest = agentToolUseIdCache.keys().next().value;
+          if (oldest !== undefined) agentToolUseIdCache.delete(oldest);
+        }
+      }
     }
     let hookOutput: Record<string, unknown> | undefined;
     if (eventName === "PreToolUse") {
@@ -604,16 +696,18 @@ function cleanup(code: number): void {
   heartbeat.stop();
   shutdown.cancel();
   readiness.cancel();
+  clearMcpReadyTimers();
+  if (mcpReadyFlagPath) { try { unlinkSync(mcpReadyFlagPath); } catch {} }
   if (clearSwapTimer) { clearInterval(clearSwapTimer); clearSwapTimer = null; }
   if (tailHandle) { tailHandle.drainNow(); tailHandle.close(); tailHandle = null; }
   // Delivered-but-unsighted messages must not vanish with the process.
   for (const m of pendingMessages.drainAll()) emitMessageEvent(m);
-  // Make absolutely sure the claude PTY child is signalled — process.exit
-  // alone closes the master FD but a timing race can leave orphan claude
-  // processes.
+  // Signal the claude PTY child to stop. SIGTERM first (lets it exit cleanly),
+  // then a GUARANTEED SIGKILL after the event drain, BEFORE process.exit. The
+  // old code armed an unref'd SIGKILL timer and then exited as soon as the drain
+  // resolved (usually tens of ms) — abandoning the timer and orphaning a
+  // ~200-330MB claude that ignored SIGTERM / the master-FD-close SIGHUP.
   try { pty.kill("SIGTERM"); } catch {}
-  const killTimer = setTimeout(() => { try { pty.kill("SIGKILL"); } catch {} }, PTY_SIGKILL_DELAY_MS);
-  killTimer.unref();
   ingest.close();
   try { rmSync(settings.tmpDir, { recursive: true, force: true }); } catch {}
 
@@ -628,9 +722,18 @@ function cleanup(code: number): void {
     emit: (t, p) => evt.emit(t, p),
   });
 
-  // Give the queued events (trailing jsonl, pty_exit, worktree teardown) a
-  // bounded chance to reach the daemon before the process dies.
-  void evt.drain(800).finally(() => process.exit(code));
+  // Hard ceiling: exit even if the drain wedges, so the process can never hang.
+  // Still SIGKILL the child first — the orphan guarantee must hold on this path
+  // too, not just the drain.finally path below.
+  const hardExit = setTimeout(() => { try { pty.kill("SIGKILL"); } catch {} process.exit(code); }, PTY_SIGKILL_DELAY_MS + 800);
+  hardExit.unref();
+  // Give queued events (trailing jsonl, pty_exit, worktree teardown) a bounded
+  // chance to reach the daemon, THEN guarantee the claude child is dead (SIGKILL
+  // can't be ignored), THEN exit.
+  void evt.drain(800).catch(() => {}).finally(() => {
+    try { pty.kill("SIGKILL"); } catch {}
+    process.exit(code);
+  });
 }
 
 function extractToolResponse(raw: unknown): string {
