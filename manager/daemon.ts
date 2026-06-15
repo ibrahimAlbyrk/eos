@@ -180,7 +180,16 @@ c.bus.subscribe("worker:change", (msg) => {
 // is the backstop for an unexpected crash/exit (the case the asker can't see).
 c.bus.subscribe("worker:exit", (msg) => {
   const p = msg.payload as { workerId?: string };
-  if (p?.workerId) c.pendingPeerRequests.cancelByWorker(p.workerId);
+  if (!p?.workerId) return;
+  c.pendingPeerRequests.cancelByWorker(p.workerId);
+  // Reclaim the rest of this worker's in-memory service state. The DELETE route
+  // does the same, but natural/crash exits (SIGHUP=129, mid-turn crash) never
+  // pass through DELETE, so their entries would otherwise leak until restart.
+  // All idempotent; turnSettle.clear is safe — a dead worker has no turn to starve.
+  c.pendingQuestions.cancelByWorker(p.workerId);
+  c.backgroundActivity.clearWorker(p.workerId);
+  c.turnSettle.clear(p.workerId);
+  c.events.forgetPruneCounter(p.workerId);
 });
 
 function makeHandler(router: Router) {

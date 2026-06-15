@@ -29,6 +29,7 @@ import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
 import { SqliteEventRepo } from "../infra/src/persistence/SqliteEventRepo.ts";
 import { SqliteMessageQueueRepo } from "../infra/src/persistence/SqliteMessageQueueRepo.ts";
 import { SqlitePendingRepo } from "../infra/src/persistence/SqlitePendingRepo.ts";
+import { SqliteWorktreeRemovalQueue } from "../infra/src/persistence/SqliteWorktreeRemovalQueue.ts";
 import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
 import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
 import { createDarwinFsHelpers, type FsHelpers } from "../infra/src/filesystem/DarwinFsHelpers.ts";
@@ -48,6 +49,7 @@ import { createDetachedBuildApplier } from "../infra/src/updates/DetachedBuildAp
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
 import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
+import { reapWorktreeRemovals } from "../core/src/use-cases/ReapWorktreeRemovals.ts";
 import { reconcileWorkersOnBoot } from "../core/src/use-cases/ReconcileWorkersOnBoot.ts";
 import { resolveMcpServers } from "../core/src/domain/mcp-resolution.ts";
 import type { EosBuiltinMcpServer } from "../core/src/domain/tool-scope.ts";
@@ -101,12 +103,17 @@ export function buildContainer() {
 
   // Repos -------------------------------------------------------------------
   const workers = new SqliteWorkerRepo(db);
-  const events = new SqliteEventRepo(db);
+  const events = new SqliteEventRepo(db, config.events.maxPerWorker);
   const pending = new SqlitePendingRepo(db);
   const messageQueue = new SqliteMessageQueueRepo(db);
+  const worktreeRemovals = new SqliteWorktreeRemovalQueue(db);
   // Dispatched ledger rows only feed the idempotency window + forensics —
   // a day is plenty; pending rows are never pruned.
   messageQueue.prune(systemClock.now() - 24 * 60 * 60 * 1000);
+  // Bound the events table once at boot — the per-append throttle handles
+  // steady state, this catches rows accumulated across prior daemon sessions.
+  const prunedEvents = events.pruneAll(config.events.maxPerWorker);
+  if (prunedEvents > 0) log.info("pruned events at startup", { rows: prunedEvents, keepPerWorker: config.events.maxPerWorker });
 
   // Stale-pending sweep — daemon may have died while requests were waiting.
   const swept = pending.sweepExpired(systemClock.now(), "daemon restart sweep");
@@ -238,6 +245,24 @@ export function buildContainer() {
     triesDir: join(config.daemon.home, "tries"),
     now: () => systemClock.now(),
   });
+
+  // Durable worktree reaper — drains the removal queue KillWorker writes to.
+  // Runs once at boot (reclaims trees stranded by a crash/SIGKILL in a prior
+  // session's grace window) and on a short interval (steady-state teardown).
+  // The in-flight guard stops the boot tick and an interval tick from double-
+  // processing; remove() is idempotent so even an overlap is harmless.
+  const WORKTREE_REAP_INTERVAL_MS = 3000;
+  let reaping = false;
+  const reapWorktreesTick = (): void => {
+    if (reaping) return;
+    reaping = true;
+    void reapWorktreeRemovals({ queue: worktreeRemovals, workers, worktrees, branchIntegration, clock: systemClock, log })
+      .catch((e) => log.warn("worktree reap failed", { error: e instanceof Error ? e.message : String(e) }))
+      .finally(() => { reaping = false; });
+  };
+  reapWorktreesTick();
+  setInterval(reapWorktreesTick, WORKTREE_REAP_INTERVAL_MS).unref();
+
   const recents = new JsonRecentsRepo(join(config.daemon.home, "recents.json"));
 
   // UI-origin token. Required as the x-eos-ui-token header on every
@@ -383,9 +408,9 @@ export function buildContainer() {
   };
 
   const turnSettle = new TurnSettleService(systemClock);
-  const pendingQuestions = new PendingQuestionService(randomIdGenerator);
+  const pendingQuestions = new PendingQuestionService(randomIdGenerator, systemClock);
   const backgroundActivity = new BackgroundActivityService(systemClock);
-  const pendingPeerRequests = new PendingPeerRequestService(randomIdGenerator);
+  const pendingPeerRequests = new PendingPeerRequestService(randomIdGenerator, systemClock);
   const terminalRuns = new TerminalRunService({ bus, events, clock: systemClock, log });
   // Centralized prompt system (Layer 1) + DPI (Layer 2). Built-in library lives
   // in config.paths.promptsDir; ~/.eos/prompts overrides/extends it. Reads fresh
@@ -509,6 +534,7 @@ export function buildContainer() {
     events,
     pending,
     messageQueue,
+    worktreeRemovals,
     supervisor,
     portAllocator,
     httpWorkerClient,

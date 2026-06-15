@@ -18,7 +18,9 @@ export const startCommand: Command = {
       } catch {}
       const child = spawn(
         "node",
-        ["--no-warnings", "--experimental-strip-types", join(ctx.repoRoot, "manager", "daemon.ts")],
+        // Match spawnDaemonDetached: 1024MB runaway guard, generous over the
+        // ~80MB baseline so it never OOMs under normal load.
+        ["--max-old-space-size=1024", "--no-warnings", "--experimental-strip-types", join(ctx.repoRoot, "manager", "daemon.ts")],
         { stdio: "inherit" },
       );
       child.on("exit", (c) => process.exit(c ?? 0));

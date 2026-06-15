@@ -10,7 +10,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-const ORPHAN_PATTERN = "manager/daemon.ts|spawner/worker.ts|orchestrator-mcp.ts|worker-mcp.ts|claude --settings";
+const ORPHAN_PATTERN = "manager/daemon.ts|spawner/worker.ts|orchestrator-mcp.ts|worker-mcp.ts|gateway/server.ts|claude --settings";
 
 export async function stopDaemonAndOrphans(pidFile: string): Promise<void> {
   if (existsSync(pidFile)) {
@@ -35,7 +35,10 @@ export async function stopDaemonAndOrphans(pidFile: string): Promise<void> {
 export function spawnDaemonDetached(repoRoot: string): void {
   const child = spawn(
     "node",
-    ["--no-warnings", "--experimental-strip-types", join(repoRoot, "manager", "daemon.ts")],
+    // --max-old-space-size: runaway guard. The daemon measures ~80MB; 1024 is a
+    // generous ceiling that won't OOM under normal load but caps a pathological
+    // leak before it eats host memory.
+    ["--max-old-space-size=1024", "--no-warnings", "--experimental-strip-types", join(repoRoot, "manager", "daemon.ts")],
     { stdio: ["ignore", "ignore", "ignore"], detached: true },
   );
   child.unref();

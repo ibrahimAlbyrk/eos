@@ -29,6 +29,10 @@ export interface BuildWorkerArgsInput {
 export function buildWorkerArgs(input: BuildWorkerArgsInput): string[] {
   const { id, port, model, spec } = input;
   const args = [
+    // Runaway guard, not a baseline reducer — a worker node process measures
+    // ~20-40MB; this caps a pathological leak far below host memory. The heavy
+    // RAM (the claude binary) lives in a separate process, unaffected.
+    "--max-old-space-size=512",
     "--experimental-strip-types",
     "--no-warnings",
     input.workerScript,
