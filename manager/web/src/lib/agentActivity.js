@@ -5,8 +5,12 @@
 // orchestrator directive, worker report, AUQ answer, action).
 const BUSY_STATES = new Set(["SPAWNING", "WORKING"]);
 
+export function isRunning(worker) {
+  return !!worker && BUSY_STATES.has(worker.state);
+}
+
 export function deriveActivity(worker, now) {
-  const busy = !!worker && BUSY_STATES.has(worker.state);
+  const busy = isRunning(worker);
   const start = worker?.turn_started_at;
   return { busy, elapsedMs: busy && start ? Math.max(0, now - start) : null };
 }

@@ -2909,7 +2909,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   padding: 0;
   min-height: 18px;
   max-height: 200px;
-  overflow-y: auto;
+  overflow: hidden auto;
   color: var(--fg);
   outline: none;
   white-space: pre-wrap;

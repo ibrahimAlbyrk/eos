@@ -653,6 +653,7 @@ export function Composer({ live }) {
       if (isDouble && text !== "") {
         e.preventDefault();
         e.stopPropagation();
+        history.push({ text, mode: composerMode(ui.composer) });
         setTextAndSync("", 0);
         insertedPathsRef.current.clear();
       } else if (text !== "") {

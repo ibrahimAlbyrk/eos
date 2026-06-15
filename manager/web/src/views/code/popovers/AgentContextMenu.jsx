@@ -1,6 +1,7 @@
 import { useUi } from "../../../state/ui.jsx";
 import { useDeleteAgent } from "../../../hooks/useDeleteAgent.js";
 import { fanoutLayout } from "../../../lib/paneLayout.js";
+import { isRunning } from "../../../lib/agentActivity.js";
 
 export function AgentContextMenu({ live }) {
   const ui = useUi();
@@ -10,8 +11,12 @@ export function AgentContextMenu({ live }) {
   const { agentId } = ui.popoverData;
 
   const agent = live.workers.find((w) => w.id === agentId) ?? null;
-  const childIds = live.workers.filter((w) => w.parent_id === agentId).map((w) => w.id);
-  const canFanout = !!agent?.is_orchestrator && childIds.length > 0;
+  const children = live.workers.filter((w) => w.parent_id === agentId);
+  // Fan out only the running (SPAWNING/WORKING) children; fall back to all
+  // children when none are running so the layout is never empty.
+  const running = children.filter(isRunning);
+  const childIds = (running.length > 0 ? running : children).map((w) => w.id);
+  const canFanout = !!agent?.is_orchestrator && children.length > 0;
 
   const rename = () => {
     ui.setRenamingId(agentId);
