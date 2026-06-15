@@ -206,30 +206,16 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         bus: c.bus,
         supervisor: c.supervisor,
         log: c.log,
+        clock: c.clock,
         findOrphanPids: (safeName) => supervisorWithFind.findPidsByPattern(`eos-${safeName}-`),
         postKillCleanup: (id) => {
           c.cleanupMcpConfig(id);
         },
-        cleanupWorktree: (ref) => {
-          // Shared-workspace guard: an attached agent (workspaceOf) — or the
-          // owner, when the attached agent is the one being deleted — may
-          // still live in this worktree. Remove only when no remaining row
-          // references the branch. (This fires 2s post-kill, so the deleted
-          // worker's own row is already gone from listAll.)
-          const shared = c.workers.listAll().some(
-            (w) => w.branch === ref.branch && w.worktree_from === ref.repoRoot,
-          );
-          if (shared) {
-            c.log.info("worktree kept — shared with another worker", { worker: params.id, branch: ref.branch });
-          } else {
-            void c.worktrees.remove(ref).catch((e) => c.log.warn("worktree cleanup failed", { worker: params.id, error: errMsg(e) }));
-          }
-          // Drop the try snapshot ref too. An active try's patch/state live
-          // outside the worktree and are deliberately preserved — discard
-          // must survive worker deletion.
-          void c.branchIntegration.cleanupSnapshot({ repoRoot: ref.repoRoot, workerId: params.id })
-            .catch((e) => c.log.warn("snapshot cleanup failed", { worker: params.id, error: errMsg(e) }));
-        },
+        // Worktree + try-snapshot teardown is recorded durably and drained by
+        // the reaper (ReapWorktreeRemovals): the shared-workspace guard and the
+        // git removal run there, once this row is gone. Survives a daemon
+        // restart in the grace window — the old in-memory closure did not.
+        worktreeRemovals: c.worktreeRemovals,
       },
       params.id,
     );

@@ -2,15 +2,16 @@ import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
 import { killWorker, type KillWorkerDeps } from "../use-cases/KillWorker.ts";
 import type { WorkerRow } from "../../../contracts/src/worker.ts";
+import type { WorktreeRemovalEntry } from "../ports/WorktreeRemovalQueue.ts";
 
-type WtRef = { repoRoot: string; worktreeDir: string | null; branch: string };
+const NOW = 1_000_000;
 
 function buildDeps(rows: Record<string, Partial<WorkerRow>>, children: Record<string, string[]> = {}): {
   deps: KillWorkerDeps;
-  cleanupCalls: WtRef[];
+  enqueued: WorktreeRemovalEntry[];
   deleted: string[];
 } {
-  const cleanupCalls: WtRef[] = [];
+  const enqueued: WorktreeRemovalEntry[] = [];
   const deleted: string[] = [];
 
   const workers = {
@@ -30,78 +31,59 @@ function buildDeps(rows: Record<string, Partial<WorkerRow>>, children: Record<st
       killPid: () => {},
     } as unknown as KillWorkerDeps["supervisor"],
     log: { info: () => {}, warn: () => {}, error: () => {}, child: () => deps.log } as unknown as KillWorkerDeps["log"],
+    clock: { now: () => NOW } as unknown as KillWorkerDeps["clock"],
+    worktreeRemovals: {
+      enqueue: (e: WorktreeRemovalEntry) => { enqueued.push(e); },
+      list: () => [],
+      delete: () => {},
+    } as unknown as KillWorkerDeps["worktreeRemovals"],
     findOrphanPids: () => [],
     postKillCleanup: () => {},
-    cleanupWorktree: (ref: WtRef) => { cleanupCalls.push(ref); },
     killGracePeriodMs: 2000,
   } as unknown as KillWorkerDeps;
 
-  return { deps, cleanupCalls, deleted };
+  return { deps, enqueued, deleted };
 }
 
 describe("killWorker — worktree cleanup", () => {
-  it("fires cleanupWorktree once, AFTER the grace window, with the captured ref", () => {
-    mock.timers.enable({ apis: ["setTimeout"] });
-    try {
-      const { deps, cleanupCalls } = buildDeps({
-        w1: { worktree_from: "/repo", worktree_dir: "/repo/.eos/worktrees/eos-w1-x", branch: "eos-w1-x" },
-      });
-      killWorker(deps, "w1");
-      // Deferred: nothing until the grace elapses (the PTY child is still dying).
-      assert.equal(cleanupCalls.length, 0);
-      mock.timers.tick(2000);
-      assert.deepEqual(cleanupCalls, [
-        { repoRoot: "/repo", worktreeDir: "/repo/.eos/worktrees/eos-w1-x", branch: "eos-w1-x" },
-      ]);
-    } finally {
-      mock.timers.reset();
-    }
+  it("enqueues a durable removal (synchronously) with the captured ref + scheduledAt = now + grace", () => {
+    const { deps, enqueued } = buildDeps({
+      w1: { worktree_from: "/repo", worktree_dir: "/repo/.eos/worktrees/eos-w1-x", branch: "eos-w1-x" },
+    });
+    killWorker(deps, "w1");
+    assert.deepEqual(enqueued, [
+      { id: "w1", workerId: "w1", repoRoot: "/repo", worktreeDir: "/repo/.eos/worktrees/eos-w1-x", branch: "eos-w1-x", scheduledAt: NOW + 2000 },
+    ]);
   });
 
   it("skips a plain-cwd worker (no worktree_from / branch)", () => {
-    mock.timers.enable({ apis: ["setTimeout"] });
-    try {
-      const { deps, cleanupCalls, deleted } = buildDeps({ w1: { cwd: "/some/dir" } });
-      killWorker(deps, "w1");
-      mock.timers.tick(2000);
-      assert.equal(cleanupCalls.length, 0);
-      assert.deepEqual(deleted, ["w1"]);
-    } finally {
-      mock.timers.reset();
-    }
+    const { deps, enqueued, deleted } = buildDeps({ w1: { cwd: "/some/dir" } });
+    killWorker(deps, "w1");
+    assert.equal(enqueued.length, 0);
+    assert.deepEqual(deleted, ["w1"]);
   });
 
-  it("derives a null worktreeDir when not yet persisted", () => {
-    mock.timers.enable({ apis: ["setTimeout"] });
-    try {
-      const { deps, cleanupCalls } = buildDeps({
-        w1: { worktree_from: "/repo", branch: "eos-w1-x" }, // worktree_dir absent
-      });
-      killWorker(deps, "w1");
-      mock.timers.tick(2000);
-      assert.deepEqual(cleanupCalls, [{ repoRoot: "/repo", worktreeDir: null, branch: "eos-w1-x" }]);
-    } finally {
-      mock.timers.reset();
-    }
+  it("enqueues a null worktreeDir when not yet persisted", () => {
+    const { deps, enqueued } = buildDeps({
+      w1: { worktree_from: "/repo", branch: "eos-w1-x" }, // worktree_dir absent
+    });
+    killWorker(deps, "w1");
+    assert.deepEqual(enqueued, [
+      { id: "w1", workerId: "w1", repoRoot: "/repo", worktreeDir: null, branch: "eos-w1-x", scheduledAt: NOW + 2000 },
+    ]);
   });
 
-  it("cleans the whole subtree — parent + worktree child (depth-first recursion)", () => {
-    mock.timers.enable({ apis: ["setTimeout"] });
-    try {
-      const { deps, cleanupCalls } = buildDeps(
-        {
-          parent: { worktree_from: "/repo", branch: "eos-parent-a" },
-          child: { worktree_from: "/repo", branch: "eos-child-b" },
-        },
-        { parent: ["child"] },
-      );
-      killWorker(deps, "parent");
-      mock.timers.tick(2000);
-      const branches = cleanupCalls.map((r) => r.branch).sort();
-      assert.deepEqual(branches, ["eos-child-b", "eos-parent-a"]);
-    } finally {
-      mock.timers.reset();
-    }
+  it("enqueues the whole subtree — parent + worktree child (depth-first recursion)", () => {
+    const { deps, enqueued } = buildDeps(
+      {
+        parent: { worktree_from: "/repo", branch: "eos-parent-a" },
+        child: { worktree_from: "/repo", branch: "eos-child-b" },
+      },
+      { parent: ["child"] },
+    );
+    killWorker(deps, "parent");
+    const branches = enqueued.map((e) => e.branch).sort();
+    assert.deepEqual(branches, ["eos-child-b", "eos-parent-a"]);
   });
 });
 

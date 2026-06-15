@@ -179,6 +179,22 @@ export const MIGRATIONS: Migration[] = [
     WHERE permission_mode IN ('default','plan')
   ` },
   { id: "039_workers_add_collaborate", sql: "ALTER TABLE workers ADD COLUMN collaborate INTEGER" },
+  // Durable worktree-removal queue. Worktree teardown used to be an in-memory
+  // setTimeout fired AFTER the worker row was already deleted — a daemon
+  // crash/SIGKILL (eos restart/build pkill -9) in that window stranded the
+  // worktree with no row pointing at it. The intent is now persisted here
+  // before the row is dropped; a reaper drains it on boot + on an interval, so
+  // removal survives a restart. id = worker id (a worker is deleted once).
+  { id: "040_pending_worktree_removals", sql: `
+    CREATE TABLE IF NOT EXISTS pending_worktree_removals (
+      id TEXT PRIMARY KEY,
+      worker_id TEXT,
+      repo_root TEXT NOT NULL,
+      worktree_dir TEXT,
+      branch TEXT NOT NULL,
+      scheduled_at INTEGER NOT NULL
+    )
+  `},
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

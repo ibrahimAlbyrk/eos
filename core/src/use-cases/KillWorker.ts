@@ -9,6 +9,8 @@ import type { PendingRepo } from "../ports/PendingRepo.ts";
 import type { MessageQueueRepo } from "../ports/MessageQueueRepo.ts";
 import type { EventBus } from "../ports/EventBus.ts";
 import type { ProcessSupervisor } from "../ports/ProcessSupervisor.ts";
+import type { WorktreeRemovalQueue } from "../ports/WorktreeRemovalQueue.ts";
+import type { Clock } from "../ports/Clock.ts";
 import type { Logger } from "../ports/Logger.ts";
 import { NotFoundError } from "../errors/index.ts";
 
@@ -22,10 +24,12 @@ export interface KillWorkerDeps {
   log: Logger;
   findOrphanPids(safeName: string): number[];
   postKillCleanup?(workerId: string): void;
-  // Fire-and-forget worktree+branch removal for an explicitly deleted worker.
-  // Invoked after the kill grace (once the PTY child is dead) so it never races
-  // the live cwd or the worker's own teardown.
-  cleanupWorktree?(ref: { repoRoot: string; worktreeDir: string | null; branch: string }): void;
+  // Durable worktree-removal intent. Recorded (synchronously, before the row is
+  // deleted) so a daemon crash/SIGKILL in the grace window can't strand the
+  // tree; a reaper drains it on boot + on an interval. The shared-workspace +
+  // git-removal decisions live in the reaper (ReapWorktreeRemovals), not here.
+  worktreeRemovals: WorktreeRemovalQueue;
+  clock: Clock;
   killGracePeriodMs?: number;
 }
 
@@ -83,14 +87,28 @@ export function killWorker(deps: KillWorkerDeps, id: string): KillWorkerResult {
   const safeName = String(w.name || id).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   for (const pid of deps.findOrphanPids(safeName)) tryKill(pid, "pgrep");
 
-  // Best-effort SIGKILL on every pid we touched, after a short grace, in
-  // case any one of them ignored SIGTERM. The worktree removal piggybacks on
-  // this same grace: by now the PTY child is dead and its cwd is freed, so the
-  // force-remove can't race the worker's own teardown or a live working dir.
+  const grace = deps.killGracePeriodMs ?? 2000;
+  // Best-effort SIGKILL on every pid we touched, after a short grace, in case
+  // any one of them ignored SIGTERM. Stays an in-memory timer — moot after a
+  // restart anyway (the children died with the daemon).
   setTimeout(() => {
     for (const k of killed) deps.supervisor.killPid(k.pid, "SIGKILL");
-    if (wtRef) deps.cleanupWorktree?.(wtRef);
-  }, deps.killGracePeriodMs ?? 2000);
+  }, grace);
+
+  // Durable worktree teardown: record the intent BEFORE deleting the row, so a
+  // crash between the two leaves a queue entry (whose worker row still exists →
+  // the reaper's shared check keeps the tree) instead of a silent orphan. The
+  // grace defers the reaper until the PTY child's cwd is freed.
+  if (wtRef) {
+    deps.worktreeRemovals.enqueue({
+      id,
+      workerId: id,
+      repoRoot: wtRef.repoRoot,
+      worktreeDir: wtRef.worktreeDir,
+      branch: wtRef.branch,
+      scheduledAt: deps.clock.now() + grace,
+    });
+  }
 
   deps.workers.delete(id);
   deps.events.deleteByWorker(id);
