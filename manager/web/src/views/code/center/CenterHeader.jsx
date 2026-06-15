@@ -5,6 +5,7 @@ import { nameOf } from "../../../lib/agentName.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { PanePresets } from "./PanePresets.jsx";
+import { SplitEmptyButton } from "./SplitEmptyButton.jsx";
 
 export function CenterHeader({ live }) {
   const ui = useUi();
@@ -72,6 +73,7 @@ export function CenterHeader({ live }) {
         )}
       </div>
       <div className="right">
+        <SplitEmptyButton />
         <PanePresets />
       </div>
     </div>

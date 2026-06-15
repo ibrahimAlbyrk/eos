@@ -3,9 +3,10 @@ import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
 import { nameOf } from "../../../lib/agentName.js";
 import { useInputNeeded } from "../../../hooks/useInputNeeded.js";
-import { computeRects, computeDividers, dropZoneFromPoint, MAX_PANES } from "../../../lib/paneLayout.js";
+import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, MAX_PANES } from "../../../lib/paneLayout.js";
 import { Messages } from "../messages/Messages.jsx";
 import { TranscriptHost } from "../messages/TranscriptHost.jsx";
+import { AgentPickerOverlay } from "./AgentPickerOverlay.jsx";
 
 const sameZone = (a, b) => !!a && !!b && a.kind === b.kind && a.edge === b.edge;
 
@@ -59,6 +60,9 @@ export function PaneGrid({ live }) {
   const dividers = computeDividers(ui.tree);
   const canClose = rects.length > 1;
   const canSplit = rects.length < MAX_PANES;
+  // Agents already shown in some pane — the empty-pane picker dims these and
+  // focuses their existing pane instead of duplicating them.
+  const shownAgentIds = new Set(rects.map((r) => r.agentId).filter(Boolean));
 
   return (
     <div className="pane-grid" ref={gridRef}>
@@ -76,11 +80,19 @@ export function PaneGrid({ live }) {
               worker={worker}
               live={live}
               focused={focused}
+              excludeIds={shownAgentIds}
               attention={pulseOn && !focused && !!worker && ui.needsAttentionRaw(worker)}
               canClose={canClose}
               canSplit={canSplit}
               onFocus={() => ui.focusLeaf(id)}
               onClose={() => ui.closeLeaf(id)}
+              onPick={(aid) => {
+                // Dedup: if the agent is already in another pane, focus that pane
+                // instead of duplicating it; otherwise fill this empty pane.
+                const existing = leafOfAgent(ui.tree, aid);
+                if (existing && existing.id !== id) ui.focusLeaf(existing.id);
+                else ui.dropReplace(id, aid);
+              }}
               onDropZone={(zone, aid) => {
                 if (zone.kind === "split") ui.splitWithAgent(id, zone.dir, zone.side, aid);
                 else ui.dropReplace(id, aid);
@@ -141,7 +153,7 @@ function Divider({ d, gridRef, onRatio }) {
   );
 }
 
-function Pane({ agentId, worker, live, focused, attention, canClose, canSplit, onFocus, onClose, onDropZone }) {
+function Pane({ agentId, worker, live, focused, excludeIds, attention, canClose, canSplit, onFocus, onClose, onPick, onDropZone }) {
   // Blocked-on-input cue for non-focused panes: an open ask_user question
   // (per-agent store) or a pending permission (live.pendingPermissions). The
   // focused pane needs none — its banner is in the shared composer.
@@ -167,7 +179,7 @@ function Pane({ agentId, worker, live, focused, attention, canClose, canSplit, o
       <div className="pane-head">
         {status && <span className={`ag-dot ${status.dot}`} />}
         <span className="pane-name" title={worker ? nameOf(worker) : undefined}>
-          {worker ? nameOf(worker) : "Empty — pick an agent in the sidebar"}
+          {worker ? nameOf(worker) : "Empty — hover to pick an agent"}
         </span>
         {worker && (needsInput
           ? <span className="pane-input-label" title="Needs your input — click the pane to answer">needs input</span>
@@ -186,7 +198,9 @@ function Pane({ agentId, worker, live, focused, attention, canClose, canSplit, o
           </button>
         )}
       </div>
-      <Messages live={live} agentId={agentId} isActive={focused} />
+      {worker
+        ? <Messages live={live} agentId={agentId} isActive={focused} />
+        : <AgentPickerOverlay live={live} excludeIds={excludeIds} focused={focused} dragActive={!!zone} onPick={onPick} />}
     </div>
   );
 }

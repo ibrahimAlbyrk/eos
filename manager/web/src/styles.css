@@ -1167,6 +1167,159 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .pane-close:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
 
+/* ============== In-pane agent picker (empty split panes) ==============
+   Hover-triggered: a subtle resting hint sits in the empty pane body; on hover
+   the glass card rises in. Mirrors the .q-card / .q-option liquid-glass recipe
+   and the app color tokens — no new colors. */
+.pane-picker-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.pane-picker-hint {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.pane-picker-hint.is-hidden { opacity: 0; transform: scale(0.96); }
+.pane-picker-hint svg { opacity: 0.7; }
+
+/* The card — same glass recipe as .q-card (denser 0.5 glass over a pane). */
+.pane-picker {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: rgba(var(--glass), 0.5);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  border-radius: var(--panel-radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.18);
+  opacity: 0;
+  transform: translateY(8px) scale(0.985);
+  pointer-events: none;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.pane-picker.is-open { opacity: 1; transform: none; pointer-events: auto; }
+/* glass rim — identical to .q-card::after */
+.pane-picker::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(var(--rim), 0.36),
+    rgba(var(--rim), 0.07) 38%,
+    rgba(var(--rim), 0.07) 62%,
+    rgba(var(--rim), 0.22)) border-box;
+  -webkit-mask:
+    linear-gradient(#000, #000) content-box,
+    linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+}
+.pane-picker-head { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; }
+.pane-picker-title { flex: 1; color: var(--fg); font-weight: 500; font-size: var(--text-base); }
+.pane-picker-count {
+  font-size: var(--text-xs); font-family: var(--font-mono); color: var(--fg-dim);
+  background: rgba(var(--tint), 0.06); border: 1px solid rgba(var(--tint), 0.10);
+  padding: 1px 7px; border-radius: 4px;
+}
+.pane-picker-filter {
+  position: relative; z-index: 1; width: 100%;
+  padding: 6px 10px; border-radius: 7px;
+  background: rgba(var(--ink), 0.18); border: 1px solid rgba(var(--tint), 0.12);
+  color: var(--fg); font-size: var(--text-sm);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.pane-picker-filter::placeholder { color: var(--fg-faint); }
+.pane-picker-filter:focus {
+  border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+.pane-picker-list {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; gap: 4px;
+  overflow-y: auto; min-height: 0;
+}
+.pane-picker-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 8px 10px;
+  border-radius: 8px; cursor: pointer; text-align: left;
+  background: rgba(var(--tint), 0.02);
+  border: 1px solid rgba(var(--tint), 0.08);
+  transition: background 0.12s, border-color 0.12s;
+}
+.pane-picker-item:hover { background: rgba(var(--tint), 0.05); border-color: rgba(var(--tint), 0.12); }
+.pane-picker-item.is-active {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.pane-picker-item.is-shown { opacity: 0.55; }
+.pane-picker-name {
+  flex: 1; min-width: 0; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pane-picker-name.main { font-weight: 600; }
+.pane-picker-status, .pane-picker-shown {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint);
+}
+.pane-picker-shown { color: var(--fg-dim); }
+.pp-num {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: var(--text-xs);
+  color: var(--fg-dim); background: rgba(var(--tint), 0.06);
+  border: 1px solid rgba(var(--tint), 0.10);
+  min-width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 5px;
+}
+.pane-picker-item.is-active .pp-num {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.pane-picker-empty { padding: 14px; text-align: center; color: var(--fg-faint); font-size: var(--text-sm); }
+/* Status dots — self-contained copy (the global variants are scoped to
+   .agents-row); base size/color live here so the picker stands alone. */
+.pane-picker .ag-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--fg-faint); flex-shrink: 0; }
+.pane-picker .ag-dot.run { background: var(--ok); box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 55%, transparent); }
+.pane-picker .ag-dot.think { background: var(--warn); }
+.pane-picker .ag-dot.wait { background: var(--fg-faint); }
+.pane-picker .ag-dot.queue { background: transparent; border: 1px dashed var(--warn); }
+
+@media (prefers-reduced-motion: reduce) {
+  .pane-picker, .pane-picker-hint { transition: none; }
+}
+
+/* "Open empty split" header button — mirrors .pane-presets-btn (sits beside it). */
+.pane-split-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 5px;
+  color: var(--fg-faint);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pane-split-btn:hover { background: rgba(var(--tint), 0.06); color: var(--fg-dim); }
+.pane-split-btn:disabled { opacity: 0.4; cursor: default; }
+.pane-split-btn:disabled:hover { background: transparent; color: var(--fg-faint); }
+
 /* In split mode the head's fade scrim would veil the top of the pane islands
    (each pane has its own header) — drop it. */
 .app.split .head::after { content: none; }
