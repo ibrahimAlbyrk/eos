@@ -764,6 +764,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
 
     @objc func reloadPage(_: Any?) { webView.reload() }
 
+    // The Edit menu's ⌘Z/⌘⇧Z are consumed before the WebView's keydown, so they
+    // forward to the composer's own debounced undo stack (window.__eosUndo).
+    @objc func eosUndo(_: Any?) { webView.evaluateJavaScript("window.__eosUndo?.()", completionHandler: nil) }
+    @objc func eosRedo(_: Any?) { webView.evaluateJavaScript("window.__eosRedo?.()", completionHandler: nil) }
+
     // Cmd+V path lookup: the web paste handler awaits this when the clipboard
     // carries files, so Finder copies paste as path references (folders too).
     func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage,
@@ -838,8 +843,12 @@ ai.submenu = am
 
 let ei = NSMenuItem(); menu.addItem(ei)
 let em = NSMenu(title: "Edit")
-em.addItem(NSMenuItem(title: "Undo", action: Selector(("undo:")), keyEquivalent: "z"))
-em.addItem(NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "Z"))
+let undoItem = NSMenuItem(title: "Undo", action: #selector(AppDelegate.eosUndo(_:)), keyEquivalent: "z")
+undoItem.target = del
+em.addItem(undoItem)
+let redoItem = NSMenuItem(title: "Redo", action: #selector(AppDelegate.eosRedo(_:)), keyEquivalent: "Z")
+redoItem.target = del
+em.addItem(redoItem)
 em.addItem(.separator())
 em.addItem(NSMenuItem(title: "Cut",        action: #selector(NSText.cut(_:)),       keyEquivalent: "x"))
 em.addItem(NSMenuItem(title: "Copy",       action: #selector(NSText.copy(_:)),      keyEquivalent: "c"))

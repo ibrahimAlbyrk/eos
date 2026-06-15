@@ -1,6 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { findPlaceholders } from "../lib/placeholders.js";
 import { findSlashTokens } from "../lib/slashTokens.js";
+import { listMarkers } from "../lib/markdownBlocks.js";
+import { initUndo, recordCoalescing, recordDiscrete, settle, undo as undoStack, redo as redoStack, bound } from "../lib/undoStack.js";
+
+const SETTLE_MS = 300; // typing quiescence that seals an undo checkpoint
 
 export function getCursorOffset(el) {
   const sel = window.getSelection();
@@ -94,6 +98,17 @@ function placeholderRegions(text) {
   return findPlaceholders(text).map(({ start, end }) => ({ start, end, cls: "tpl-hl" }));
 }
 
+// List-marker glyphs ("-"/"*"/"1.") styled in place — the literal char stays in
+// the text (offset round-trip untouched), CSS overlays a bullet. Depth caps at
+// the highest md-d* class the stylesheet defines.
+function listRegions(text) {
+  return listMarkers(text).map(({ start, end, depth, ordered }) => ({
+    start,
+    end,
+    cls: ordered ? "md-num" : `md-bullet md-d${Math.min(depth, 5)}`,
+  }));
+}
+
 function literalRegions(tokens) {
   return (text) => {
     const regions = [];
@@ -133,15 +148,19 @@ function colorize(text, scanners) {
   return html;
 }
 
-export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, attachItems = []) {
+export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, attachItems = [], reconcileAttachments) {
   const [text, setText] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
   const editorRef = useRef(null);
   const lastHtmlRef = useRef("");
   const suppressInputRef = useRef(false);
+  const undoRef = useRef(initUndo());
+  const settleTimerRef = useRef(null);
+  useEffect(() => () => clearTimeout(settleTimerRef.current), []);
 
   const buildScanners = useCallback(() => [
     placeholderRegions,
+    listRegions,
     slashRegions(cmdMap),
     literalRegions([...insertedPathsRef.current.keys()].map((d) => ({ token: "@" + d, cls: "cmd-hl" }))),
     literalRegions(attachItems.map((it) => ({
@@ -174,7 +193,16 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
     editorRef.current?.focus();
   }, [selectedId]);
 
-  const setTextAndSync = useCallback((newText, newCursor) => {
+  const snap = useCallback((newText, newCursor) => ({
+    text: newText,
+    cursorPos: newCursor ?? newText.length,
+    insertedPaths: insertedPathsRef?.current ? [...insertedPathsRef.current] : [],
+  }), [insertedPathsRef]);
+
+  // Writes text → state + DOM (re-colored, cursor restored) WITHOUT touching the
+  // undo stack. setTextAndSync layers recording on top; undo/redo reuse it bare
+  // so applying a snapshot never records a fresh one.
+  const writeEditor = useCallback((newText, newCursor) => {
     suppressInputRef.current = true;
     setText(newText);
     setCursorPos(newCursor ?? newText.length);
@@ -187,6 +215,50 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
     queueMicrotask(() => { suppressInputRef.current = false; });
   }, [buildScanners]);
 
+  // recordMode: "discrete" (default) = one undo step; "reset" = new baseline
+  // (send-clear, agent switch) so undo never crosses messages/agents.
+  const setTextAndSync = useCallback((newText, newCursor, recordMode = "discrete") => {
+    writeEditor(newText, newCursor);
+    clearTimeout(settleTimerRef.current);
+    const s = snap(newText, newCursor);
+    undoRef.current = recordMode === "reset"
+      ? initUndo(s)
+      : bound(recordDiscrete(undoRef.current, s));
+  }, [writeEditor, snap]);
+
+  const applySnapshot = (s) => {
+    if (insertedPathsRef) insertedPathsRef.current = new Map(s.insertedPaths ?? []);
+    reconcileAttachments?.(s.text); // re-seat/drop chips to match the restored text
+    writeEditor(s.text, s.cursorPos);
+  };
+
+  const undo = () => {
+    clearTimeout(settleTimerRef.current);
+    const r = undoStack(undoRef.current);
+    undoRef.current = r.state;
+    if (r.snapshot) applySnapshot(r.snapshot);
+  };
+
+  const redo = () => {
+    clearTimeout(settleTimerRef.current);
+    const r = redoStack(undoRef.current);
+    undoRef.current = r.state;
+    if (r.snapshot) applySnapshot(r.snapshot);
+  };
+
+  // The macOS Edit menu owns ⌘Z/⌘⇧Z (app/main.swift) — a menu key-equivalent is
+  // consumed before the WebView's keydown, so the native side forwards here.
+  // Mirrors the window.__eosNativeDrop bridge; latest handler via a ref.
+  const undoFnRef = useRef(undo);
+  const redoFnRef = useRef(redo);
+  undoFnRef.current = undo;
+  redoFnRef.current = redo;
+  useEffect(() => {
+    window.__eosUndo = () => undoFnRef.current();
+    window.__eosRedo = () => redoFnRef.current();
+    return () => { delete window.__eosUndo; delete window.__eosRedo; };
+  }, []);
+
   const handleInput = () => {
     if (suppressInputRef.current) { suppressInputRef.current = false; return; }
     const el = editorRef.current;
@@ -196,6 +268,11 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
     const off = getCursorOffset(el);
     setText(raw);
     setCursorPos(off);
+    undoRef.current = bound(recordCoalescing(undoRef.current, snap(raw, off)));
+    clearTimeout(settleTimerRef.current);
+    settleTimerRef.current = setTimeout(() => {
+      undoRef.current = settle(undoRef.current);
+    }, SETTLE_MS);
   };
 
   return {
@@ -207,5 +284,7 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
     applyColoring,
     setTextAndSync,
     handleInput,
+    undo,
+    redo,
   };
 }

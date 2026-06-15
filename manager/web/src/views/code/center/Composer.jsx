@@ -6,6 +6,7 @@ import * as outbox from "../../../state/outboxStore.js";
 import { useCommands } from "../../../hooks/useCommands.js";
 import { useSlashItems } from "../../../hooks/useSlashItems.js";
 import { useContentEditableEditor, getCursorOffset, getSelectionOffsets, setSelectionOffsets, scrollSelectionIntoView } from "../../../hooks/useContentEditableEditor.js";
+import { listContinuation, listIndent } from "../../../lib/markdownBlocks.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
 import { findPlaceholders, nextPlaceholder, prevPlaceholder } from "../../../lib/placeholders.js";
 import { useAttachments } from "../../../hooks/useAttachments.js";
@@ -134,6 +135,7 @@ export function Composer({ live }) {
     remove: removeAttachmentItem,
     clear: clearAttachments,
     restore: restoreAttachments,
+    reconcileToText,
     resolveForSend,
   } = useAttachments({ onUploadFailed: (label) => uploadFailedRef.current(label) });
 
@@ -144,7 +146,9 @@ export function Composer({ live }) {
     editorRef,
     setTextAndSync,
     handleInput,
-  } = useContentEditableEditor(slashMap, insertedPathsRef, ui.selectedId, attachmentItems);
+    undo,
+    redo,
+  } = useContentEditableEditor(slashMap, insertedPathsRef, ui.selectedId, attachmentItems, reconcileToText);
 
   const stripLabel = (label) => {
     const idx = text.indexOf(label);
@@ -192,7 +196,7 @@ export function Composer({ live }) {
       insertedPathsRef.current = new Map(d?.insertedPaths ?? []);
       restoreAttachments(d?.attachments ?? []);
       recallRef.current = true; // suppress menu auto-open, same as history recall
-      setTextAndSync(d?.text ?? "", d?.cursorPos ?? 0);
+      setTextAndSync(d?.text ?? "", d?.cursorPos ?? 0, "reset"); // new agent = fresh undo baseline
       const gitMode = d?.gitMode ?? false;
       const termMode = d?.termMode ?? false;
       if (ui.composer.gitMode !== gitMode || ui.composer.termMode !== termMode) {
@@ -421,7 +425,7 @@ export function Composer({ live }) {
       agentText = agentText.replaceAll("@" + display, absPath);
     }
     const msgLabels = attachmentItems.map((it) => it.label);
-    setTextAndSync("", 0);
+    setTextAndSync("", 0, "reset"); // sent → undo must not reach back into it
     insertedPathsRef.current.clear();
     clearAttachments();
     const suffix = await resolveForSend(msgLabels);
@@ -470,7 +474,7 @@ export function Composer({ live }) {
     history.push({ text: t, mode });
 
     if (ui.composer.termMode) {
-      setTextAndSync("", 0);
+      setTextAndSync("", 0, "reset");
       // One-shot like git mode: the mode closes on send, `!` re-enters.
       ui.updateComposer({ termMode: false });
       if (selected) {
@@ -564,6 +568,20 @@ export function Composer({ live }) {
       sendBroadcast();
       return;
     }
+    // Undo / redo — the contentEditable's native history is wiped by every
+    // re-color (innerHTML rebuild), so we drive our own debounced stack.
+    if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey) && !e.altKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (e.shiftKey) redo(); else undo();
+      return;
+    }
+    if ((e.key === "y" || e.key === "Y") && (e.metaKey || e.ctrlKey) && !e.altKey && !e.shiftKey) {
+      e.preventDefault();
+      e.stopPropagation();
+      redo();
+      return;
+    }
     if (showMenu) {
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -633,6 +651,15 @@ export function Composer({ live }) {
         if (ph) selectPlaceholder(el, ph);
         return;
       }
+      // No placeholders → Tab indents / Shift+Tab outdents a markdown list line.
+      const el = editorRef.current;
+      const pos = el ? getCursorOffset(el) : cursorPos;
+      const indented = listIndent(text, pos, e.shiftKey);
+      if (indented) {
+        e.preventDefault();
+        setTextAndSync(indented.text, indented.cursorPos);
+        return;
+      }
     }
 
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
@@ -642,6 +669,11 @@ export function Composer({ live }) {
         e.preventDefault();
         recallRef.current = true;
         setTextAndSync(recalled.text);
+        // Cursor lands at the end, but a programmatic selection doesn't
+        // auto-scroll — a long recalled entry would otherwise stay pinned to
+        // the top. Cursor is always at the end here, so scroll the box down.
+        const el = editorRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
         if (current.mode !== recalled.mode) ui.updateComposer(modeFlags(recalled.mode));
         return;
       }
@@ -691,6 +723,19 @@ export function Composer({ live }) {
         e.preventDefault();
         const next = text.slice(0, cmd.start) + text.slice(cmd.end);
         setTextAndSync(next, cmd.start);
+        return;
+      }
+    }
+
+    // Shift+Enter on a list line continues the list (next marker); off a list
+    // line it falls through to the default newline.
+    if (e.key === "Enter" && e.shiftKey && !ui.composer.termMode) {
+      const el = editorRef.current;
+      const pos = el ? getCursorOffset(el) : cursorPos;
+      const cont = listContinuation(text, pos);
+      if (cont) {
+        e.preventDefault();
+        setTextAndSync(cont.text, cont.cursorPos);
         return;
       }
     }
