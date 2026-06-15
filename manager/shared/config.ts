@@ -47,6 +47,12 @@ export interface DaemonConfig {
     // opt-in is set.
     hydrateEnvFiles: boolean;
   };
+  // Per-worker event retention. The events table is append-only and otherwise
+  // grows without bound (a persistent orchestrator never gets its rows culled);
+  // each worker keeps only its newest maxPerWorker rows, older ones pruned.
+  events: {
+    maxPerWorker: number;
+  };
   permissions: {
     defaultTtlMs: number;
   };
@@ -151,6 +157,9 @@ function defaults(): DaemonConfig {
       ptyWriteDelayMs: envNum("EOS_PTY_WRITE_DELAY_MS", 300),
       hydrateEnvFiles: envStr("EOS_HYDRATE_ENV_FILES", "") === "1",
     },
+    events: {
+      maxPerWorker: envNum("EOS_EVENTS_MAX_PER_WORKER", 20000),
+    },
     permissions: {
       defaultTtlMs: envNum("EOS_PERMISSION_TTL_MS", 0),
     },
@@ -207,6 +216,11 @@ const DaemonConfigOverrideSchema = z.object({
     shutdownGraceMs: z.number().int().positive(),
     ptyWriteDelayMs: z.number().int().nonnegative(),
     hydrateEnvFiles: z.boolean(),
+  }).partial().optional(),
+  events: z.object({
+    // nonnegative, not positive: 0 is the documented "disable pruning" value
+    // (matches the env path + SqliteEventRepo's <= 0 guard).
+    maxPerWorker: z.number().int().nonnegative(),
   }).partial().optional(),
   permissions: z.object({
     defaultTtlMs: z.number().int().positive(),
