@@ -125,18 +125,18 @@ function rowOf(ids) {
 }
 
 // Tile ids into up to two equal rows of ceil(N/2) columns each, top row first:
-// 2 → stacked, 3 → 2-over-1, 4 → 2×2, 6 → 3-over-3.
+// 1-2 → a single side-by-side row, 3 → 2-over-1, 4 → 2×2, 6 → 3-over-3.
 function gridOf(ids) {
-  if (ids.length <= 1) return rowOf(ids);
+  if (ids.length <= 2) return rowOf(ids);
   const cols = Math.ceil(ids.length / 2);
   return mkSplit("col", rowOf(ids.slice(0, cols)), rowOf(ids.slice(cols)), 0.5);
 }
 
 // "Open children": the orchestrator on the left (a narrower 40% so the children
 // get more room), its children tiled on the right to best-fit the count — two
-// equal rows of ceil(N/2) (2 → stacked, 4 → 2×2, 6 → 3-over-3). Capped at
+// equal rows of ceil(N/2) (2 → side by side, 4 → 2×2, 6 → 3-over-3). Capped at
 // FANOUT_MAX panes total.
-const FANOUT_MAX = 7; // orchestrator + up to 6 children
+export const FANOUT_MAX = 7; // orchestrator + up to 6 children
 const FANOUT_RATIO = 0.4; // orchestrator's share of the width; the rest is the children grid
 
 export function fanoutLayout(parentId, childIds) {

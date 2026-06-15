@@ -77,12 +77,25 @@ export function CodeView({ live }) {
 
   // Drop dead agents from the non-focused split panes (the focused pane rides
   // the selectedId cleanup above). Same guard: an empty list can't tell "not
-  // loaded yet" from "no workers".
+  // loaded yet" from "no workers". Skipped in follow-mode — reconcileFollow
+  // rebuilds from the live set and already owns which children show.
   useEffect(() => {
+    if (ui.followMode) return;
     if (live.workers.length === 0) return;
     const alive = new Set(live.workers.map((w) => w.id));
     ui.prunePanes((id) => alive.has(id));
-  }, [live.workers, ui.prunePanes]);
+  }, [live.workers, ui.prunePanes, ui.followMode]);
+
+  // Follow-mode: keep the split mirroring the active orchestrator's children as
+  // workers spawn / change state / are killed, and re-fanout when the selection
+  // moves to a different orchestrator (selectedId dep). reconcileFollow is
+  // idempotent, so the frequent SSE-driven workers refetch is cheap when nothing
+  // relevant changed.
+  useEffect(() => {
+    if (!ui.followMode) return;
+    if (live.workers.length === 0) return;
+    ui.reconcileFollow(live.workers);
+  }, [live.workers, ui.followMode, ui.selectedId, ui.reconcileFollow]);
 
   useEffect(() => {
     ui.registerEscapeIdle(() => {

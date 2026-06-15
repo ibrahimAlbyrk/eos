@@ -170,9 +170,12 @@ describe("fanoutLayout", () => {
     expect(isLeaf(t.a) && t.a.agentId).toBe("O"); // orchestrator left
     expect(leaves(t).map((l) => l.agentId)).toEqual(["O", "a", "b", "c"]);
   });
-  it("2 children stack on the right (top/bottom)", () => {
+  it("2 children sit side by side on the right (left/right)", () => {
     const t = fanoutLayout("O", ["a", "b"]);
-    expect(t.b.dir).toBe("col"); // right region split horizontally → stacked
+    expect(t.b.dir).toBe("row"); // right region split vertically → side by side
+    const kids = computeRects(t).filter((r) => r.agentId !== "O");
+    expect(kids).toHaveLength(2);
+    for (const k of kids) { expect(k.rect.height).toBeCloseTo(100); expect(k.rect.width).toBeCloseTo(30); }
     expect(isValidTree(t)).toBe(true);
   });
   it("4 children form a 2×2 on the right, orchestrator narrower (40%)", () => {
