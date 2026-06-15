@@ -80,6 +80,13 @@ export function PaneProvider({ children }) {
     setSelectedId(agentId ?? null);
   }, [setSelectedId]);
 
+  // "Open empty split" (header button + Cmd+Ctrl+T) — split the focused pane into
+  // a fresh empty pane (no agent). The new pane surfaces the hover agent picker.
+  const openEmptySplit = useCallback(() => {
+    if (leafCount(treeRef.current) >= MAX_PANES) return;
+    splitWithAgent(focusedRef.current, "row", "after", null);
+  }, [splitWithAgent]);
+
   // Drop onto a pane center → replace its agent.
   const dropReplace = useCallback((leafId, agentId) => {
     setTree((t) => setLeafAgent(t, leafId, agentId));
@@ -185,11 +192,11 @@ export function PaneProvider({ children }) {
     paneCount,
     paneAgents,
     focusedPane,
-    focusLeaf, focusLeafByIndex, splitWithAgent, dropReplace, closeLeaf,
+    focusLeaf, focusLeafByIndex, splitWithAgent, openEmptySplit, dropReplace, closeLeaf,
     setRatioFor, selectAgent, togglePaneForAgent, prunePanes, resetToEmpty, setLayout, applyStructure,
   }), [
     tree, focusedLeafId, paneCount, paneAgents, focusedPane,
-    focusLeaf, focusLeafByIndex, splitWithAgent, dropReplace, closeLeaf,
+    focusLeaf, focusLeafByIndex, splitWithAgent, openEmptySplit, dropReplace, closeLeaf,
     setRatioFor, selectAgent, togglePaneForAgent, prunePanes, resetToEmpty, setLayout, applyStructure,
   ]);
 

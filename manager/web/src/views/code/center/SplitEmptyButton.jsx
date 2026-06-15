@@ -2,22 +2,17 @@ import { useUi } from "../../../state/ui.jsx";
 import { leafCount, MAX_PANES } from "../../../lib/paneLayout.js";
 
 // "Open empty split" — sits beside PanePresets in the header (the pane-layout
-// control cluster). Splits the focused pane into a fresh EMPTY pane (no agent),
-// reusing the existing splitWithAgent action with a null agent. The new empty
-// pane then surfaces the hover agent picker.
+// control cluster). Opens a fresh EMPTY pane (no agent) via the shared
+// ui.openEmptySplit action (also bound to Cmd+Ctrl+T). The new empty pane then
+// surfaces the hover agent picker.
 export function SplitEmptyButton() {
   const ui = useUi();
   const canSplit = leafCount(ui.tree) < MAX_PANES;
 
-  const openEmptySplit = () => {
-    if (!canSplit) return;
-    ui.splitWithAgent(ui.focusedLeafId, "row", "after", null);
-  };
-
   return (
     <button
       className="pane-split-btn"
-      onClick={openEmptySplit}
+      onClick={ui.openEmptySplit}
       disabled={!canSplit}
       title="Open empty split"
       aria-label="Open empty split"

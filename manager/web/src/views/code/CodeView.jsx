@@ -4,6 +4,7 @@ import { useAgentSwitchHotkeys } from "../../hooks/useAgentSwitchHotkeys.js";
 import { usePaneFocusHotkeys } from "../../hooks/usePaneFocusHotkeys.js";
 import { useDeleteAgentHotkey } from "../../hooks/useDeleteAgentHotkey.js";
 import { useGitModeHotkey } from "../../hooks/useGitModeHotkey.js";
+import { useOpenEmptySplitHotkey } from "../../hooks/useOpenEmptySplitHotkey.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { CenterHeader } from "./center/CenterHeader.jsx";
@@ -32,6 +33,9 @@ export function CodeView({ live }) {
 
   // Cmd+G → toggle the composer's git custom-task mode.
   useGitModeHotkey();
+
+  // Cmd+Ctrl+T → open an empty split pane (mirrors the header split button).
+  useOpenEmptySplitHotkey();
 
   // Cmd+T → new empty session (mirrors the + button).
   useEffect(() => {
