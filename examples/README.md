@@ -29,3 +29,19 @@ A single prompt produced a working Age of Empires-style real-time strategy game,
 one pass by **39 agents working in parallel**.
 
 - ▶ **Play:** https://playmore.world/#game/9eb83f07-85d0-46ff-900f-30aaa446a5ae
+
+## DOOM-TS — a browser DOOM, single-player and online multiplayer
+
+Over a sustained, multi-turn session, Eos orchestrated a large fleet of agents to build a complete,
+from-scratch **DOOM-style raycaster FPS in TypeScript** — and then took it online — running the whole
+arc end to end. Parallel **research** agents, a frozen-contract **scaffold**, then fan-out
+implementation of the engine (Canvas 2D raycaster, monster AI, 9 weapons, combat, items, audio, HUD,
+**6 original levels**); a **peer-collaboration** level-design pass (specialist designers feeding a
+senior designer); and a full **online multiplayer** layer — authoritative Colyseus netcode with
+client-side prediction + lag compensation, **co-op** (friendly-fire off) and **PvP deathmatch**, and
+an in-browser **room browser** — all while keeping single-player fully playable **offline**. Eos also
+**deployed it to a live server** (systemd auto-restart + automatic-HTTPS) and packaged a
+self-contained itch.io build.
+
+- ▶ **Play (live):** https://185.249.197.74.sslip.io/
+- **Source + screenshots:** https://github.com/ibrahimAlbyrk/doom-ts
