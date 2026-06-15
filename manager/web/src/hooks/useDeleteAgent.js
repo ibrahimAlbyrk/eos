@@ -2,6 +2,9 @@ import { useCallback } from "react";
 import { useUi } from "../state/ui.jsx";
 import { deleteDraft } from "../state/composerDrafts.js";
 import { purgeAgent } from "../state/outboxStore.js";
+import { purge as purgeDiff } from "../state/diffStore.js";
+import { purge as purgeConflict } from "../state/conflictStore.js";
+import { purge as purgeGitStatus } from "../state/gitStatusStore.js";
 import { clearScrollPos } from "../lib/scrollMemory.js";
 import { subtreeIds } from "../lib/tree.js";
 
@@ -40,6 +43,9 @@ export function useDeleteAgent(live) {
         for (const id of doomedIds) {
           clearScrollPos(id);
           purgeAgent(id);
+          purgeDiff(id);
+          purgeConflict(id);
+          purgeGitStatus(id);
         }
       }
       if (!r?.ok) {

@@ -104,3 +104,13 @@ export function notifyActivity(workerId) {
   clearTimeout(e.timer);
   e.timer = setTimeout(() => revalidate(workerId), REFRESH_DEBOUNCE_MS);
 }
+
+// Drop a deleted agent's cached changes + patches (can be hundreds of KB of
+// patch text). entryOf re-creates a fresh entry lazily if a live agent ever
+// re-subscribes; the debounce timer is cleared so it can't fire post-delete.
+export function purge(workerId) {
+  const e = entries.get(workerId);
+  if (!e) return;
+  clearTimeout(e.timer);
+  entries.delete(workerId);
+}

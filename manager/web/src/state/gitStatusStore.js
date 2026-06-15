@@ -51,6 +51,13 @@ function buildSnapshot(diff, branches, push, tryState) {
   };
 }
 
+// Drop a deleted agent's cached git snapshot. entryOf re-creates a fresh entry
+// lazily if a live agent re-subscribes. (No debounce timer here, unlike
+// diff/conflict stores.)
+export function purge(workerId) {
+  entries.delete(workerId);
+}
+
 export function revalidate(workerId, gitDir) {
   const e = entryOf(workerId);
   if (e.inflight) return e.inflight;
