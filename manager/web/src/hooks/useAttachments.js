@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 import { api } from "../api/client.js";
-import { makeLabel, buildAttachmentSuffix } from "../lib/attachmentTokens.js";
+import { makeLabel, buildAttachmentSuffix, reconcileAttachmentItems } from "../lib/attachmentTokens.js";
 
 function baseName(p) {
   const t = p.endsWith("/") ? p.slice(0, -1) : p;
@@ -83,6 +83,21 @@ export function useAttachments({ onUploadFailed } = {}) {
     }));
   }, []);
 
+  // Undo/redo restored `text`: re-seat a chip for every known label the text
+  // contains but `items` lacks (paths/kinds survive remove/clear, so a removed
+  // chip can come back), and drop chips whose label the text no longer holds.
+  // Upload state is reconciled like restore(): resolved → ready, in flight →
+  // kept, gone → skipped. Called only on undo/redo, so normal typing that
+  // happens to match an old label never resurrects a chip.
+  const reconcileToText = useCallback((text) => {
+    setItems((prev) => reconcileAttachmentItems(prev, text, {
+      usedLabels: usedLabelsRef.current,
+      paths: pathsRef.current,
+      kinds: kindsRef.current,
+      pending: pendingRef.current,
+    }));
+  }, []);
+
   // Returns the "attachments:" mapping suffix for the given labels — kept as
   // a suffix (not inline substitution) so the UI can keep showing tokens while
   // claude still sees the absolute paths and auto-attaches them.
@@ -91,5 +106,5 @@ export function useAttachments({ onUploadFailed } = {}) {
     return buildAttachmentSuffix(labels, pathsRef.current, kindsRef.current);
   }, []);
 
-  return { items, addPath, addUpload, remove, clear, restore, resolveForSend };
+  return { items, addPath, addUpload, remove, clear, restore, reconcileToText, resolveForSend };
 }

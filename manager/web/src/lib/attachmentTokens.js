@@ -39,6 +39,25 @@ export function findLabelAt(text, pos, labels) {
   return null;
 }
 
+// Reconcile chip items to the labels a (restored) text contains: keep items
+// whose label survives, re-seat known labels the text regained (status from the
+// resolved path / in-flight job, else skip), drop the rest. Returns `prev`
+// unchanged when nothing moves so a setItems caller can no-op. Pure → testable.
+export function reconcileAttachmentItems(prev, text, { usedLabels, paths, kinds, pending }) {
+  const kept = prev.filter((it) => text.includes(it.label));
+  const present = new Set(kept.map((it) => it.label));
+  const added = [];
+  for (const label of usedLabels) {
+    if (present.has(label) || !text.includes(label)) continue;
+    const kind = kinds.get(label) ?? "file";
+    const path = paths.get(label);
+    if (path) added.push({ label, kind, path, status: "ready" });
+    else if (pending.has(label)) added.push({ label, kind, path: null, status: "uploading" });
+  }
+  if (!added.length && kept.length === prev.length) return prev;
+  return [...kept, ...added];
+}
+
 // The "(kind)" annotation lets the message bubble pick the right chip icon
 // when re-parsing the sent text (a path alone can't distinguish folders).
 export function buildAttachmentSuffix(labels, paths, kinds) {

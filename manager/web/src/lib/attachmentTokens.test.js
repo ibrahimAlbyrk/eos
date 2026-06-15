@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { makeLabel, labelTitle, findLabelRegions, findLabelAt, buildAttachmentSuffix } from "./attachmentTokens.js";
+import { makeLabel, labelTitle, findLabelRegions, findLabelAt, buildAttachmentSuffix, reconcileAttachmentItems } from "./attachmentTokens.js";
 
 describe("makeLabel", () => {
   it("brackets the name, truncating past 24 chars with an ellipsis", () => {
@@ -74,5 +74,47 @@ describe("buildAttachmentSuffix", () => {
     const paths = new Map([["[a.png]", null]]);
     expect(buildAttachmentSuffix(["[a.png]"], paths)).toBe("");
     expect(buildAttachmentSuffix([], paths)).toBe("");
+  });
+});
+
+describe("reconcileAttachmentItems", () => {
+  // refs as seen by useAttachments: every minted label survives remove/clear.
+  const refs = {
+    usedLabels: new Set(["[a.txt]", "[b.png]"]),
+    paths: new Map([["[a.txt]", "/tmp/a.txt"], ["[b.png]", "/tmp/b.png"]]),
+    kinds: new Map([["[a.txt]", "file"], ["[b.png]", "image"]]),
+    pending: new Map(),
+  };
+
+  it("re-seats a removed chip when undo brings its label back", () => {
+    const next = reconcileAttachmentItems([], "see [a.txt] please", refs);
+    expect(next).toEqual([{ label: "[a.txt]", kind: "file", path: "/tmp/a.txt", status: "ready" }]);
+  });
+
+  it("drops a chip whose label the restored text no longer holds", () => {
+    const prev = [{ label: "[a.txt]", kind: "file", path: "/tmp/a.txt", status: "ready" }];
+    expect(reconcileAttachmentItems(prev, "nothing here", refs)).toEqual([]);
+  });
+
+  it("keeps surviving chips and appends regained ones", () => {
+    const prev = [{ label: "[a.txt]", kind: "file", path: "/tmp/a.txt", status: "ready" }];
+    const next = reconcileAttachmentItems(prev, "[a.txt] and [b.png]", refs);
+    expect(next.map((it) => it.label)).toEqual(["[a.txt]", "[b.png]"]);
+  });
+
+  it("returns the same array reference when nothing changes (setItems no-op)", () => {
+    const prev = [{ label: "[a.txt]", kind: "file", path: "/tmp/a.txt", status: "ready" }];
+    expect(reconcileAttachmentItems(prev, "[a.txt] only", refs)).toBe(prev);
+  });
+
+  it("re-seats an in-flight upload as uploading, skips a label with neither path nor job", () => {
+    const r = {
+      usedLabels: new Set(["[up.png]", "[dead.txt]"]),
+      paths: new Map(),
+      kinds: new Map([["[up.png]", "image"]]),
+      pending: new Map([["[up.png]", Promise.resolve()]]),
+    };
+    const next = reconcileAttachmentItems([], "[up.png] [dead.txt]", r);
+    expect(next).toEqual([{ label: "[up.png]", kind: "image", path: null, status: "uploading" }]);
   });
 });
