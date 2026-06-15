@@ -1,6 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import type { IdGenerator } from "../../../core/src/ports/IdGenerator.ts";
+import type { Clock } from "../../../core/src/ports/Clock.ts";
 import { PendingQuestionService } from "../PendingQuestionService.ts";
 
 class FakeIdGenerator implements IdGenerator {
@@ -19,11 +20,20 @@ class FakeIdGenerator implements IdGenerator {
   }
 }
 
+class FakeClock implements Clock {
+  t = 0;
+  now(): number { return this.t; }
+}
+
+const GRACE_MS = 5 * 60 * 1000;
+
 describe("PendingQuestionService", () => {
   let svc: PendingQuestionService;
+  let clock: FakeClock;
 
   beforeEach(() => {
-    svc = new PendingQuestionService(new FakeIdGenerator());
+    clock = new FakeClock();
+    svc = new PendingQuestionService(new FakeIdGenerator(), clock);
   });
 
   it("register returns a deterministic questionId; poll sees pending", () => {
@@ -89,6 +99,21 @@ describe("PendingQuestionService", () => {
 
     assert.equal(svc.resolveByToolUseId("w1", "tuA", { only: "new" }), true);
     assert.deepEqual(svc.poll(second.questionId), { status: "answered", answers: { only: "new" } });
+  });
+
+  it("a terminal entry is pruned after the grace window; a pending one is not", () => {
+    const answered = svc.register("w1", "tuA");
+    const stillPending = svc.register("w1", "tuB");
+    svc.resolveByToolUseId("w1", "tuA", { a: "1" });
+
+    // Within grace: a late poll still reads the answer (lost-response safety).
+    clock.t = GRACE_MS - 1;
+    assert.equal(svc.poll(answered.questionId).status, "answered");
+
+    // Past grace: the terminal entry is reclaimed, the pending one survives.
+    clock.t = GRACE_MS + 1;
+    assert.deepEqual(svc.poll(answered.questionId), { status: "gone" });
+    assert.deepEqual(svc.poll(stillPending.questionId), { status: "pending" });
   });
 
   it("cancelByWorker drops every entry for that worker, terminal or not", () => {

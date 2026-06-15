@@ -1,6 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import type { IdGenerator } from "../../../core/src/ports/IdGenerator.ts";
+import type { Clock } from "../../../core/src/ports/Clock.ts";
 import { PendingPeerRequestService } from "../PendingPeerRequestService.ts";
 
 class FakeIdGenerator implements IdGenerator {
@@ -11,11 +12,20 @@ class FakeIdGenerator implements IdGenerator {
   newRequestId(): string { return `req-${++this.counter}`; }
 }
 
+class FakeClock implements Clock {
+  t = 0;
+  now(): number { return this.t; }
+}
+
+const GRACE_MS = 5 * 60 * 1000;
+
 describe("PendingPeerRequestService", () => {
   let svc: PendingPeerRequestService;
+  let clock: FakeClock;
 
   beforeEach(() => {
-    svc = new PendingPeerRequestService(new FakeIdGenerator());
+    clock = new FakeClock();
+    svc = new PendingPeerRequestService(new FakeIdGenerator(), clock);
   });
 
   it("register → poll pending; unknown id → gone", () => {
@@ -32,6 +42,29 @@ describe("PendingPeerRequestService", () => {
     const resolved = svc.resolveDelivered("B", "the answer");
     assert.deepEqual(resolved, { requestId, from: "A" });
     assert.deepEqual(svc.poll(requestId), { status: "answered", answer: "the answer" });
+  });
+
+  it("a terminal answer survives repeated polls (lost-response retry safety)", () => {
+    const { requestId } = svc.register("A", "B", "q?");
+    svc.markDelivered(requestId);
+    svc.resolveDelivered("B", "the answer");
+    // ask_peer retries on a transient GET failure; the answer must persist.
+    assert.deepEqual(svc.poll(requestId), { status: "answered", answer: "the answer" });
+    assert.deepEqual(svc.poll(requestId), { status: "answered", answer: "the answer" });
+  });
+
+  it("a terminal entry is pruned after the grace window; a pending one is not", () => {
+    const answered = svc.register("A", "B", "q?").requestId;
+    const pending = svc.register("C", "B", "still waiting").requestId;
+    svc.markDelivered(answered);
+    svc.resolveDelivered("B", "done");
+
+    clock.t = GRACE_MS - 1; // within grace: still readable
+    assert.equal(svc.poll(answered).status, "answered");
+
+    clock.t = GRACE_MS + 1; // past grace: reclaimed; pending untouched
+    assert.deepEqual(svc.poll(answered), { status: "gone" });
+    assert.deepEqual(svc.poll(pending), { status: "pending" });
   });
 
   it("declineDelivered settles a delivered request; no-op when already answered", () => {

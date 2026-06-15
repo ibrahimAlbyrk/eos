@@ -3,15 +3,25 @@
 // is the target peer's agent (via respond_to_peer), not a human — so a request
 // also carries a delivery lifecycle: queued (registered, not yet in the peer's
 // PTY) → delivered (the PeerRequestPump put it in the peer's PTY for a turn) →
-// answered/declined/gone (terminal). No TTL; the asker blocks in its tool call
-// (MCP_TOOL_TIMEOUT is lifted platform-wide) until a terminal state, the peer
-// dies, or the daemon restarts (lost map → poll returns "gone").
+// answered/declined/gone (terminal). A pending request has no TTL; the asker
+// blocks in its tool call (MCP_TOOL_TIMEOUT is lifted platform-wide) until a
+// terminal state, the peer dies, or the daemon restarts (lost map → "gone").
+// A TERMINAL request is kept for a short grace window (not deleted on read) so a
+// retried poll after a lost response still sees the answer — ask_peer's poll
+// loop swallows transient GET failures and retries — then pruned so settled
+// consultations can't pile up on a persistent orchestrator. Mirrors
+// PendingQuestionService exactly.
 //
 // Invariant: at most ONE delivered request per target at a time — the pump only
 // delivers the next queued one once the current resolves or auto-declines. That
 // is what lets respond_to_peer omit a requestId (no ambiguity about which).
 
 import type { IdGenerator } from "../../core/src/ports/IdGenerator.ts";
+import type { Clock } from "../../core/src/ports/Clock.ts";
+
+// Comfortably longer than the ask_peer poll interval (2.5s) so the asker always
+// reads its answer before the entry is reclaimed.
+const TERMINAL_GRACE_MS = 5 * 60 * 1000;
 
 export type PeerRequestState =
   | { status: "queued" }
@@ -34,6 +44,9 @@ interface PeerRequestEntry {
   to: string;
   question: string;
   state: PeerRequestState;
+  // Set when the entry reaches a terminal state; null while queued/delivered.
+  // Only terminal entries are eligible for grace-window pruning.
+  settledAt: number | null;
 }
 
 function isPending(s: PeerRequestState): boolean {
@@ -43,18 +56,22 @@ function isPending(s: PeerRequestState): boolean {
 export class PendingPeerRequestService {
   private entries = new Map<string, PeerRequestEntry>();
   private ids: IdGenerator;
+  private clock: Clock;
 
-  constructor(ids: IdGenerator) {
+  constructor(ids: IdGenerator, clock: Clock) {
     this.ids = ids;
+    this.clock = clock;
   }
 
   register(from: string, to: string, question: string): { requestId: string } {
+    this.sweepStaleTerminal();
     const requestId = this.ids.newRequestId();
-    this.entries.set(requestId, { requestId, from, to, question, state: { status: "queued" } });
+    this.entries.set(requestId, { requestId, from, to, question, state: { status: "queued" }, settledAt: null });
     return { requestId };
   }
 
   poll(requestId: string): PeerRequestPoll {
+    this.sweepStaleTerminal();
     const e = this.entries.get(requestId);
     if (!e) return { status: "gone" };
     switch (e.state.status) {
@@ -91,6 +108,7 @@ export class PendingPeerRequestService {
     for (const e of this.entries.values()) {
       if (e.to === to && e.state.status === "delivered") {
         e.state = { status: "answered", answer };
+        e.settledAt = this.clock.now();
         return { requestId: e.requestId, from: e.from };
       }
     }
@@ -104,6 +122,7 @@ export class PendingPeerRequestService {
     for (const e of this.entries.values()) {
       if (e.to === to && e.state.status === "delivered") {
         e.state = { status: "declined", reason };
+        e.settledAt = this.clock.now();
         return true;
       }
     }
@@ -119,7 +138,18 @@ export class PendingPeerRequestService {
         this.entries.delete(requestId);
       } else if (e.to === workerId && isPending(e.state)) {
         e.state = { status: "gone" };
+        e.settledAt = this.clock.now();
       }
+    }
+  }
+
+  // Reclaim terminal (answered/declined/gone) entries older than the grace
+  // window. Pending entries (settledAt === null) are NEVER touched — a request
+  // may wait indefinitely for the peer to answer.
+  private sweepStaleTerminal(): void {
+    const cutoff = this.clock.now() - TERMINAL_GRACE_MS;
+    for (const [requestId, e] of this.entries) {
+      if (e.settledAt !== null && e.settledAt < cutoff) this.entries.delete(requestId);
     }
   }
 
