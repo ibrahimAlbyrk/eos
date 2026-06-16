@@ -143,6 +143,19 @@ export function PaneProvider({ children }) {
     }
   }, [setSelectedId]);
 
+  // Last agent gone → clean new-session state (no selection, one empty pane),
+  // whatever the current layout was. No-op when already a single empty pane, so
+  // a repeat tick can't churn it.
+  const resetToEmpty = useCallback(() => {
+    const ls = leaves(treeRef.current);
+    if (!(ls.length === 1 && ls[0].agentId == null)) {
+      const fresh = leaf(null);
+      setTree(fresh);
+      setFocusedLeafId(fresh.id);
+    }
+    setSelectedId(null);
+  }, [setSelectedId]);
+
   // Apply a complete layout (with agents) as-is — e.g. "Open children".
   const setLayout = useCallback((nextTree) => {
     if (!isValidTree(nextTree)) return;
@@ -173,11 +186,11 @@ export function PaneProvider({ children }) {
     paneAgents,
     focusedPane,
     focusLeaf, focusLeafByIndex, splitWithAgent, dropReplace, closeLeaf,
-    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, setLayout, applyStructure,
+    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, resetToEmpty, setLayout, applyStructure,
   }), [
     tree, focusedLeafId, paneCount, paneAgents, focusedPane,
     focusLeaf, focusLeafByIndex, splitWithAgent, dropReplace, closeLeaf,
-    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, setLayout, applyStructure,
+    setRatioFor, selectAgent, togglePaneForAgent, prunePanes, resetToEmpty, setLayout, applyStructure,
   ]);
 
   return <PaneContext.Provider value={value}>{children}</PaneContext.Provider>;

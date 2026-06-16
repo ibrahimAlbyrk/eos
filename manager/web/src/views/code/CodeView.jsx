@@ -45,6 +45,17 @@ export function CodeView({ live }) {
     return () => window.removeEventListener("keydown", onKey, true);
   }, [ui.setSelectedId]);
 
+  // Last agent removed → reset to the clean new-session state, in ANY layout.
+  // `live.loaded` so an empty list during the initial fetch isn't mistaken for
+  // "all deleted". Both cleanup effects below bail when the list is empty, so
+  // this is the single owner of that transition (single-pane delete already
+  // self-heals via useDeleteAgent; this covers the split case whose multi-pane
+  // path defers to prunePanes — which can't run once the list is empty).
+  useEffect(() => {
+    if (!live.loaded || live.workers.length > 0) return;
+    ui.resetToEmpty();
+  }, [live.loaded, live.workers.length, ui.resetToEmpty]);
+
   // Clear selection if the selected worker no longer exists. Leaving
   // selectedId null is intentional (user pressed +, or first launch) and
   // must not auto-fallback to another orchestrator. Skip when workers is
