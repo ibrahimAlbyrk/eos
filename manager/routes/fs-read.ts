@@ -1,13 +1,15 @@
-import { readFileSync, writeFileSync, mkdtempSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdtempSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import type { IncomingMessage } from "node:http";
 
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
-import { isSafeAbsPath, listRootDir, searchProject } from "./fs-shared.ts";
+import { validate } from "../middleware/validate.ts";
+import { isSafeAbsPath, resolveWithinRoot, searchProject, uiTokenOk } from "./fs-shared.ts";
+import { FsWriteRequestSchema } from "../../contracts/src/http.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 
 const PASTE_MAX_BYTES = 20 * 1024 * 1024;
@@ -96,25 +98,46 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
     }
   });
 
-  r.get("/fs/list", ({ url, res }) => {
+  r.get("/fs/list", async ({ url, res }) => {
     const cwd = url.searchParams.get("cwd");
     if (!isSafeAbsPath(cwd)) { writeJson(res, 400, { error: "cwd required" }); return; }
     const query = (url.searchParams.get("query") ?? "").trim().toLowerCase();
     const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 200);
-    try {
-      const entries = query ? searchProject(cwd, query, limit) : listRootDir(cwd);
-      writeJson(res, 200, { entries });
-    } catch (e) {
-      writeJson(res, 500, { error: errMsg(e) });
+    // query → repo-wide fuzzy search (thin entries); no query → one-level tree
+    // listing with metadata (isSymlink), routed through the FileSystem port.
+    if (query) {
+      writeJson(res, 200, { entries: searchProject(cwd, query, limit) });
+      return;
     }
+    const hidden = url.searchParams.get("includeHidden");
+    const entries = await c.files.listDir(cwd, { root: cwd, includeHidden: hidden === "true" || hidden === "1" });
+    writeJson(res, 200, { entries });
   });
 
+  r.get("/fs/stat", async ({ url, res }) => {
+    const qPath = url.searchParams.get("path");
+    if (!isSafeAbsPath(qPath)) { writeJson(res, 400, { error: "absolute path required" }); return; }
+    writeJson(res, 200, await c.files.stat(qPath));
+  });
+
+  // UI-token gated (closes a prior gap — an agent must not write the user's
+  // files via the daemon). root (optional) sandboxes the write for the Files
+  // explorer; legacy callers omit it and fall back to a safe-abs-path check.
   r.post("/fs/write", async ({ req, res }) => {
-    const body = await readBody(req) as { path?: string; content?: string };
-    if (!isSafeAbsPath(body.path)) { writeJson(res, 400, { error: "absolute path required" }); return; }
-    if (typeof body.content !== "string") { writeJson(res, 400, { error: "content required" }); return; }
+    const body = validate(FsWriteRequestSchema, await readBody(req));
+    if (!uiTokenOk(req, c.uiToken)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    let target: string;
+    if (body.root !== undefined) {
+      const resolved = resolveWithinRoot(body.root, body.path);
+      if (!resolved) { writeJson(res, 400, { error: "path escapes root" }); return; }
+      target = resolved;
+    } else {
+      if (!isSafeAbsPath(body.path)) { writeJson(res, 400, { error: "absolute path required" }); return; }
+      target = body.path;
+    }
     try {
-      writeFileSync(body.path, body.content, "utf8");
+      if (body.mkdirp) mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, body.content, "utf8");
       writeJson(res, 200, { ok: true });
     } catch (e) {
       writeJson(res, 500, { error: errMsg(e) });

@@ -12,25 +12,15 @@ import {
   FetchRequestSchema,
   RemoteBranchDeleteRequestSchema,
 } from "../../contracts/src/http.ts";
-import { isSafeAbsPath, uiTokenOk } from "./fs-shared.ts";
+import { guardMutation, isSafeAbsPath } from "./fs-shared.ts";
 import { createBranch } from "../../core/src/use-cases/CreateBranch.ts";
 import { renameBranch } from "../../core/src/use-cases/RenameBranch.ts";
 import { checkoutBranch } from "../../core/src/use-cases/CheckoutBranch.ts";
 
 export function registerFsGitRoutes(r: Router, c: Container): void {
   // Mutating git routes operate on an arbitrary cwd, so they require both a safe
-  // absolute path and the UI token — an agent holding EOS_DAEMON_URL must not be
-  // able to mutate the user's repo through the daemon API.
-  const guardMutation = (
-    req: { headers: Record<string, string | string[] | undefined> },
-    res: Parameters<typeof writeJson>[0],
-    cwd: unknown,
-  ): boolean => {
-    if (!isSafeAbsPath(cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return false; }
-    if (!uiTokenOk(req, c.uiToken)) { writeJson(res, 403, { error: "ui token required" }); return false; }
-    return true;
-  };
-
+  // absolute path and the UI token (guardMutation, shared with fs-mutate) — an
+  // agent holding EOS_DAEMON_URL must not mutate the user's repo via the daemon.
   r.get("/fs/branches", async ({ url, res }) => {
     const q = validate(BranchesQuerySchema, {
       cwd: url.searchParams.get("cwd") ?? undefined,
@@ -87,7 +77,7 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
   // the UI can offer "Stash & switch" instead of a raw git error dump.
   r.post("/fs/checkout", async ({ req, res }) => {
     const body = validate(FsCheckoutRequestSchema, await readBody(req));
-    if (!guardMutation(req, res, body.cwd)) return;
+    if (!guardMutation(req, res, body.cwd, c.uiToken)) return;
     writeJson(res, 200, await checkoutBranch({ git: c.git }, body.cwd, body.branch, { stash: body.stash }));
   });
 
@@ -97,31 +87,31 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
 
   r.post("/fs/branch/create", async ({ req, res }) => {
     const body = validate(BranchCreateRequestSchema, await readBody(req));
-    if (!guardMutation(req, res, body.cwd)) return;
+    if (!guardMutation(req, res, body.cwd, c.uiToken)) return;
     writeJson(res, 200, await createBranch({ branchAdmin: c.branchAdmin }, body.cwd, body));
   });
 
   r.post("/fs/branch/rename", async ({ req, res }) => {
     const body = validate(BranchRenameRequestSchema, await readBody(req));
-    if (!guardMutation(req, res, body.cwd)) return;
+    if (!guardMutation(req, res, body.cwd, c.uiToken)) return;
     writeJson(res, 200, await renameBranch({ branchAdmin: c.branchAdmin }, body.cwd, body));
   });
 
   r.post("/fs/branch/delete", async ({ req, res }) => {
     const body = validate(BranchDeleteRequestSchema, await readBody(req));
-    if (!guardMutation(req, res, body.cwd)) return;
+    if (!guardMutation(req, res, body.cwd, c.uiToken)) return;
     writeJson(res, 200, await c.branchAdmin.remove(body.cwd, body.name, { force: body.force ?? false }));
   });
 
   r.post("/fs/fetch", async ({ req, res }) => {
     const body = validate(FetchRequestSchema, await readBody(req));
-    if (!guardMutation(req, res, body.cwd)) return;
+    if (!guardMutation(req, res, body.cwd, c.uiToken)) return;
     writeJson(res, 200, await c.remoteSync.fetch(body.cwd, { prune: body.prune ?? true }));
   });
 
   r.post("/fs/remote-branch/delete", async ({ req, res }) => {
     const body = validate(RemoteBranchDeleteRequestSchema, await readBody(req));
-    if (!guardMutation(req, res, body.cwd)) return;
+    if (!guardMutation(req, res, body.cwd, c.uiToken)) return;
     writeJson(res, 200, await c.remoteSync.deleteRemoteBranch(body.cwd, body.remote, body.branch));
   });
 

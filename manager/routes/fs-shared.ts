@@ -1,6 +1,8 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, realpathSync } from "node:fs";
 import { execSync } from "node:child_process";
-import { join, basename } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { IGNORED_ENTRIES } from "../../core/src/domain/fsIgnore.ts";
+import { writeJson } from "../middleware/errorHandler.ts";
 
 export interface FsEntry {
   name: string;
@@ -9,7 +11,9 @@ export interface FsEntry {
   type: "file" | "directory";
 }
 
-export const IGNORED = new Set([".git", "node_modules", ".DS_Store", "__pycache__", ".next", ".nuxt", "dist", "build", ".cache"]);
+// Single source lives in core/domain/fsIgnore. Re-exported here so existing
+// route imports keep working.
+export const IGNORED = IGNORED_ENTRIES;
 
 export function isSafeAbsPath(p: unknown): p is string {
   return typeof p === "string" && p.startsWith("/") && !p.includes("\0");
@@ -108,4 +112,62 @@ function walkFiles(base: string, dir: string, maxDepth: number): string[] {
     }
   } catch {}
   return results;
+}
+
+// realpath the deepest existing ancestor of `abs` and re-append the missing
+// tail. Lets resolveWithinRoot validate to-be-created paths (create/mkdir),
+// while still resolving symlinks in the existing portion.
+function realpathNearest(abs: string): string {
+  let cur = abs;
+  const tail: string[] = [];
+  for (;;) {
+    try {
+      const real = realpathSync(cur);
+      return tail.length ? resolve(real, ...tail) : real;
+    } catch {
+      const parent = dirname(cur);
+      if (parent === cur) return abs; // hit filesystem root, nothing resolved
+      tail.unshift(basename(cur));
+      cur = parent;
+    }
+  }
+}
+
+// Sandbox guard: returns the resolved absolute target IFF it stays inside
+// `root`, else null. realpaths BOTH sides so a symlink inside root that points
+// out is caught (plain ".." normalization can't see that) — this is why
+// isSafeAbsPath alone is insufficient for the explorer's destructive ops.
+export function resolveWithinRoot(root: unknown, target: unknown): string | null {
+  if (typeof root !== "string" || typeof target !== "string") return null;
+  if (root.includes("\0") || target.includes("\0")) return null;
+  let realRoot: string;
+  try {
+    realRoot = realpathSync(resolve(root));
+  } catch {
+    return null;
+  }
+  const real = realpathNearest(resolve(realRoot, target));
+  const rel = relative(realRoot, real);
+  if (rel === "") return real; // target === root
+  if (rel === ".." || rel.startsWith(".." + sep) || isAbsolute(rel)) return null; // escaped
+  return real;
+}
+
+// UI-origin mutation gate, shared by fs-git and fs-mutate: the path must be a
+// safe absolute path AND the request must carry the per-boot x-eos-ui-token.
+export function guardMutation(
+  req: { headers: Record<string, string | string[] | undefined> },
+  res: Parameters<typeof writeJson>[0],
+  cwd: unknown,
+  uiToken: string,
+): boolean {
+  if (!isSafeAbsPath(cwd)) {
+    writeJson(res, 400, { error: "cwd must be absolute" });
+    return false;
+  }
+  if (!uiTokenOk(req, uiToken)) {
+    writeJson(res, 403, { error: "ui token required" });
+    return false;
+  }
+  return true;
 }

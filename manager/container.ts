@@ -33,6 +33,9 @@ import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
 import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
 import { createDarwinFsHelpers, type FsHelpers } from "../infra/src/filesystem/DarwinFsHelpers.ts";
 import { noopFsHelpers } from "../infra/src/filesystem/NoopFsHelpers.ts";
+import { createNodeFileSystem } from "../infra/src/filesystem/NodeFileSystem.ts";
+import { NodeFileWatcher } from "../infra/src/filesystem/NodeFileWatcher.ts";
+import { FsWatchRegistry } from "./services/FsWatchRegistry.ts";
 import { childProcessGitInfo } from "../infra/src/git/ChildProcessGitInfo.ts";
 import { childProcessWorktreeManager } from "../infra/src/git/ChildProcessWorktreeManager.ts";
 import { createChildProcessBranchIntegration } from "../infra/src/git/ChildProcessBranchIntegration.ts";
@@ -209,6 +212,20 @@ export function buildContainer() {
         iconCacheDir: join(config.daemon.home, "icon-cache"),
       })
     : noopFsHelpers;
+
+  // Files explorer: generic file ops + a chokidar directory watcher whose
+  // change batches are published on the bus → SSE → web (the Files tab
+  // re-lists only the affected dir). FsWatchRegistry ties watches to SSE
+  // clients so a dropped tab releases them.
+  const files = createNodeFileSystem({
+    trashDir: join(config.daemon.home, ".eos-trash"),
+    platform: process.platform,
+  });
+  const fileWatcher = new NodeFileWatcher({
+    clock: systemClock,
+    sink: (changes) => bus.publish("fs:change", { changes }),
+  });
+  const fsWatchRegistry = new FsWatchRegistry({ watcher: fileWatcher });
 
   // Git info + recents -----------------------------------------------------
   const git = childProcessGitInfo;
@@ -500,6 +517,9 @@ export function buildContainer() {
     modeResolver,
     metrics,
     fs,
+    files,
+    fileWatcher,
+    fsWatchRegistry,
     git,
     worktrees,
     branchIntegration,

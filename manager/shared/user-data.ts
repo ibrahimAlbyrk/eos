@@ -11,4 +11,7 @@ export const USER_DATA_ENTRIES = [
   "prompts",
   "policy.yaml",
   "config.json",
+  // Files-explorer trash fallback (used only when the macOS Finder Trash is
+  // unavailable, or on non-darwin). Usually absent → skipped by backups.
+  ".eos-trash",
 ] as const;
