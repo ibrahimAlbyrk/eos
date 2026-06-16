@@ -277,8 +277,8 @@ infra/       adapters for core ports — SQLite, child_process, chokidar, …
 gateway/     MCP permission broker (runs on Bun)
 spawner/     worker.ts — PTY lifecycle, verified message delivery, JSONL ingest (Node only)
 manager/     daemon · CLI · orchestrator/worker MCP · routes · prompt library
-manager/web/ React 18 + Vite dashboard, served by the daemon
-app/         native macOS WKWebView wrapper → Eos.app
+app/         native macOS app — main.swift WKWebView shell → Eos.app
+app/ui/      React 18 + Vite dashboard, bundled into Eos.app (loaded via eos://app/)
 ```
 
 User data lives in **`~/.eos`** — `state.db` (SQLite/WAL), `policy.yaml`, `config.json`,

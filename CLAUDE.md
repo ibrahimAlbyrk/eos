@@ -21,9 +21,9 @@ manager/          — daemon.ts (composition root + container + routes), cli.ts 
 manager/services/ — Extracted stateful services (TurnSettleService, PendingQuestionService).
 manager/routes/   — Split by concern: workers, orchestrators, policy, fs-picker, fs-read, fs-git, etc.
 manager/shared/   — Centralized config (env→file→default, deeply frozen), daemon HTTP client, path utils.
-manager/web/      — React 18 + Vite. Tabbed multi-view shell: App picks the active view via views/registry.js; views/ (code/, workflows/), search/ ⌘K command-palette registry, state/ providers, api/client.js (typed HTTP + dedup), hooks/useLive.js (SSE+poll).
 scripts/hooks/    — auto-allow.sh (the PermissionRequest gateway hook).
-app/              — Native macOS WKWebView wrapper. build.sh → Eos.app.
+app/              — Native macOS app. main.swift = WKWebView shell (loads the UI from the eos://app/ bundle origin via a custom scheme handler, not the daemon); build.sh → Eos.app.
+app/ui/           — React 18 + Vite, the app's frontend (built dist/ is bundled into Eos.app). Tabbed multi-view shell: App picks the active view via views/registry.js; views/ (code/, workflows/), search/ ⌘K command-palette registry, state/ providers, api/client.js (typed HTTP + dedup), hooks/useLive.js (SSE+poll).
 ```
 
 Each package has its own `package.json` + `node_modules`. **NOT a workspace** — install per directory. Cross-package imports use relative paths.
@@ -32,7 +32,7 @@ Each package has its own `package.json` + `node_modules`. **NOT a workspace** �
 
 One-time setup (NOT a workspace — installs all 8 package dirs in dependency order):
 ```bash
-npm run bootstrap                 # install every package dir (contracts→core→infra→gateway→spawner→manager→manager/web→root)
+npm run bootstrap                 # install every package dir (contracts→core→infra→gateway→spawner→manager→app/ui→root)
 bash scripts/bootstrap.sh --link  # also symlink ~/.local/bin/eos
 ```
 
@@ -40,16 +40,16 @@ bash scripts/bootstrap.sh --link  # also symlink ~/.local/bin/eos
 npm run lint                      # repo root — enforces dependency direction (per-glob allowlist)
 cd manager && npm test            # tsx --test across manager/{shared,services}, core, spawner
 cd contracts && npm test          # contracts/ + infra/ suites are NOT aggregated — run each separately
-cd manager/web && npm test        # web suite (vitest); also separate from the above
-cd manager/web && npm run build   # production build → dist/
-cd manager/web && npm run dev     # vite build --watch
+cd app/ui && npm test             # web suite (vitest); also separate from the above
+cd app/ui && npm run build        # production build → dist/ (bundled into Eos.app by app/build.sh)
+cd app/ui && npm run dev          # vite build --watch
 bash app/build.sh                 # native macOS app → /Applications/Eos.app
 ```
 
 Run a single test (node:test elsewhere, vitest filter on web):
 ```bash
 cd manager && npx tsx --test --test-name-pattern="config" shared/__tests__/config.test.ts
-cd manager/web && npx vitest run match
+cd app/ui && npx vitest run match
 ```
 
 Deploy after code changes — one command, converges only what changed (content-hash stamps; exit 0 ⇒ everything running is current):
@@ -60,7 +60,7 @@ eos build --check     # lint + all test suites before deploying
 ```
 Stamps live inside the artifacts (`node_modules/.eos-stamp`, `dist/.eos-stamp`, app bundle Resources) and the daemon self-stamps `/health.sourceStamp` at boot — no side manifest; deleting an artifact just makes it dirty again. Input sets are defined once in `manager/builder/inputs.ts`; the backend set deliberately excludes `*.md` prompts, `scripts/hooks/`, and `manager/cli/` because those take effect without a restart.
 
-UI delivery: a web-dist rebuild reaches the running app **in place** via `POST /api/ui-reload` → SSE `ui:reload` → `location.reload()` (subscriber count is the delivery proof; 0 ⇒ fall back to relaunch). A real quit+reopen happens only when the app bundle itself changed, and is verified: quit waits for LaunchServices deregistration (`lsappinfo`, not just pgrep — LS lags process exit ~40ms and `open` in that window fails with -600), then `open` is retried up to 3× and must yield a pid that survives 1.5s. `app/build.sh` refreshes the LS registration (`lsregister -f`) after each install.
+UI delivery: the built UI (`app/ui/dist`) is **bundled into** `Eos.app/Contents/Resources/ui` by `app/build.sh`, and the WKWebView loads it from the `eos://app/` custom-scheme origin (`BundledUISchemeHandler` in `main.swift`) — the daemon no longer serves it over HTTP (there is no `/web/` route). A UI change therefore makes the **app bundle** stale (`appSpec` in `manager/builder/inputs.ts` folds in the web inputs), so `eos build` rebuilds + relaunches the app rather than reloading a page in place. The quit+reopen is verified: quit waits for LaunchServices deregistration (`lsappinfo`, not just pgrep — LS lags process exit ~40ms and `open` in that window fails with -600), then `open` is retried up to 3× and must yield a pid that survives 1.5s. `app/build.sh` refreshes the LS registration (`lsregister -f`) after each install. Because the WebView runs on `eos://app/` while the API stays on `http://127.0.0.1:7400`, the API server sets reflect-origin CORS (loopback-only, mutations still gated by `x-eos-ui-token`) in `daemon.ts`'s `makeHandler` — never on the raw server. The `ui:reload` SSE event still exists but is no longer the UI-delivery path.
 
 Manual daemon restart (kill orphans, keep DB):
 ```bash
