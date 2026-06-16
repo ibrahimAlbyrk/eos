@@ -56,6 +56,11 @@ export function PaneProvider({ children }) {
   const [followMode, setFollowMode] = useState(() => localStorage.getItem("cm:followMode") === "1");
   const followRef = useRef(followMode);
   followRef.current = followMode;
+  // The anchor we last reconciled. When it changes (follow (re)engaged, or the
+  // selection moves to a different orchestrator) the next reconcile REPOPULATES,
+  // showing idle children again. On same-anchor ticks idle children only STAY
+  // (kept) — they don't re-join — so a recycled-out idle pane can't grow back.
+  const lastAnchorRef = useRef(null);
   useEffect(() => { localStorage.setItem("cm:followMode", followMode ? "1" : "0"); }, [followMode]);
 
   const leafList = useMemo(() => leaves(tree), [tree]);
@@ -236,6 +241,10 @@ export function PaneProvider({ children }) {
 
     const byId = new Map(workers.map((w) => [w.id, w]));
     const anchorId = followAnchorId(workers, sel);
+    // Repopulate (show idle children too) only when the anchor changes; on
+    // same-anchor ticks idle children recycled out of a slot must NOT re-enter.
+    const includeIdle = anchorId !== lastAnchorRef.current;
+    lastAnchorRef.current = anchorId;
     if (!anchorId) {
       // A selected child that was just killed (sel set but gone) → reselect the
       // orchestrator still tiled, don't collapse the fanout onto a dead pane.
@@ -255,7 +264,7 @@ export function PaneProvider({ children }) {
       .map((l) => l.agentId)
       .filter((id) => id != null && id !== anchorId);
     // Pin the selected child so a background spawn can't evict the pane you're in.
-    const desired = selectFollowChildren(workers, anchorId, curChildren, FANOUT_MAX - 1, sel);
+    const desired = selectFollowChildren(workers, anchorId, curChildren, FANOUT_MAX - 1, sel, includeIdle);
     // A direct child that's no longer eligible (closed) isn't tiled → show it alone.
     if (sel !== anchorId && !desired.includes(sel)) { goDormant(sel); return; }
 
@@ -274,8 +283,16 @@ export function PaneProvider({ children }) {
     setFocusedLeafId(focusOn.id);
   }, [setSelectedId]);
 
-  const toggleFollow = useCallback(() => setFollowMode((v) => !v), []);
-  const setFollow = useCallback((on) => setFollowMode(!!on), []);
+  // Re-engaging follow forces the next reconcile to repopulate (idle children
+  // shown again), ignoring the stale lastAnchor from the previous follow session.
+  const toggleFollow = useCallback(() => {
+    if (!followRef.current) lastAnchorRef.current = null;
+    setFollowMode((v) => !v);
+  }, []);
+  const setFollow = useCallback((on) => {
+    if (on) lastAnchorRef.current = null;
+    setFollowMode(!!on);
+  }, []);
 
   const value = useMemo(() => ({
     tree,

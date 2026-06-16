@@ -38,7 +38,7 @@ const ELIGIBLE = new Set(["SPAWNING", "WORKING", "IDLE"]);
 //     eligible, so a background spawn can't evict it from under you.
 // A pure-state flip that recycles nothing yields the SAME list as currentChildIds,
 // which lets the reconciler no-op (no rebuild, no remount).
-export function selectFollowChildren(workers, orchId, currentChildIds, capacity, pinnedId) {
+export function selectFollowChildren(workers, orchId, currentChildIds, capacity, pinnedId, includeIdle = true) {
   if (!orchId || capacity <= 0) return [];
   const byId = new Map(workers.map((w) => [w.id, w]));
   const isEligible = (w) => !!w && w.parent_id === orchId && ELIGIBLE.has(w.state);
@@ -48,8 +48,14 @@ export function selectFollowChildren(workers, orchId, currentChildIds, capacity,
 
   const kept = currentChildIds.filter((id) => eligibleIds.has(id));
   const keptSet = new Set(kept);
+  // Idle children JOIN the fanout only on a (re)populate (includeIdle) — when the
+  // anchor changes or follow is (re)engaged. On steady-state ticks includeIdle is
+  // false, so an idle child the user already recycled OUT of a slot does NOT
+  // re-enter as a newcomer and re-grow the grid (it's still a live IDLE worker, so
+  // without this it would reappear every tick). Running children always join.
   const newcomers = eligible
     .filter((w) => !keptSet.has(w.id))
+    .filter((w) => includeIdle || isRunning(w))
     .sort((a, b) => (isRunning(a) ? 0 : 1) - (isRunning(b) ? 0 : 1)
       || (a.started_at ?? 0) - (b.started_at ?? 0))
     .map((w) => w.id);

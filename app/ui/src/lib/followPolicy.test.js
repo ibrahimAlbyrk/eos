@@ -88,6 +88,34 @@ describe("selectFollowChildren", () => {
     expect(selectFollowChildren(ws, "O", ["a", "b"], CAP, "b")).toEqual(["c", "b"]);
   });
 
+  it("includeIdle=false: a running newcomer still recycles an idle slot", () => {
+    const ws = [orch("O"), kid("a", "O", "IDLE"), kid("b", "O", "IDLE"), kid("c", "O", "WORKING")];
+    expect(selectFollowChildren(ws, "O", ["a", "b"], CAP, null, false)).toEqual(["a", "c"]);
+  });
+
+  it("includeIdle=false: an off-screen idle child does NOT re-enter (no grid re-grow)", () => {
+    // a + c shown; b is alive-IDLE but off-screen (recycled out earlier) → must stay out,
+    // else the recycled idle pane reappears every tick and the grid grows back.
+    const ws = [orch("O"), kid("a", "O", "IDLE"), kid("b", "O", "IDLE"), kid("c", "O", "WORKING")];
+    expect(selectFollowChildren(ws, "O", ["a", "c"], CAP, null, false)).toEqual(["a", "c"]);
+  });
+
+  it("includeIdle=true: an off-screen idle child re-enters (anchor change / repopulate)", () => {
+    const ws = [orch("O"), kid("a", "O", "IDLE"), kid("b", "O", "IDLE"), kid("c", "O", "WORKING")];
+    expect(selectFollowChildren(ws, "O", ["a", "c"], CAP, null, true)).toEqual(["a", "c", "b"]);
+  });
+
+  it("includeIdle=false: two running newcomers recycle two idle slots — no growth", () => {
+    const ws = [
+      orch("O"),
+      kid("a", "O", "IDLE", 0), kid("b", "O", "IDLE", 1),
+      kid("c", "O", "WORKING", 2), kid("d", "O", "WORKING", 3),
+    ];
+    const out = selectFollowChildren(ws, "O", ["a", "b"], CAP, null, false);
+    expect(out).toHaveLength(2);
+    expect([...out].sort()).toEqual(["c", "d"]);
+  });
+
   it("over capacity, running beats idle for the slots", () => {
     const ws = [
       orch("O"),
