@@ -13,12 +13,17 @@ import { usePendingPermissions } from "./usePendingPermissions.js";
 import { applyCatalog } from "../lib/models.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
 import { cancelQueued } from "../state/outboxStore.js";
+import { explorer } from "../state/explorerStore.js";
 
 const POLL_MS = 4000;
 const SSE_DEBOUNCE_MS = 80;
 
 export function useLive() {
   const [workers, setWorkers] = useState([]);
+  // True once the first /workers fetch has resolved. Lets consumers tell an
+  // empty list that means "no workers" from one that just means "still loading"
+  // — the difference that decides whether deleting the last agent should reset.
+  const [loaded, setLoaded] = useState(false);
   const [health, setHealth] = useState(true);
   const [recents, setRecents] = useState([]);
   const [uiConfig, setUiConfig] = useState(null);
@@ -43,6 +48,7 @@ export function useLive() {
         if (Array.isArray(pend)) setPendingPermissionsRef.current?.(pend);
         if (Array.isArray(list)) {
           setWorkers(list);
+          setLoaded(true);
           const iid = localStorage.getItem("cm:interruptedId");
           if (iid) {
             const w = list.find((x) => x.id === iid);
@@ -62,7 +68,7 @@ export function useLive() {
           api.listRecents(),
           api.uiConfig(),
         ]);
-        if (Array.isArray(list)) setWorkers(list);
+        if (Array.isArray(list)) { setWorkers(list); setLoaded(true); }
         setRecents(rec?.paths ?? []);
         applyCatalog(cfg?.modelCatalog);
         setUiConfig(cfg);
@@ -83,7 +89,7 @@ export function useLive() {
   // SSE
   useEffect(() => {
     const s = createReconnectingStream({
-      onOpen: () => setHealth(true),
+      onOpen: () => { setHealth(true); explorer.resubscribeWatches(); },
       onChange: (e) => {
         try {
           const data = JSON.parse(e.data);
@@ -92,6 +98,9 @@ export function useLive() {
           if (data.reason === "ui:reload") { window.location.reload(); return; }
           // A newer build appeared — refresh the banner status (not a worker delta).
           if (data.reason === "update:available") { api.updateStatus().then((u) => u && setUpdate(u)).catch(() => {}); return; }
+          // Filesystem changes (Files tab) — surgically reconcile the affected
+          // dir in the explorer store; not a worker delta, so skip the refetch.
+          if (data.reason === "fs:change") { explorer.reconcileFsChange(data.payload ?? {}); return; }
           // Terminal chunks are high-frequency live data, not state deltas —
           // route them to the terminal store and skip the refetch entirely.
           if (data.reason === "terminal:chunk") { applyChunk(data.payload ?? {}); return; }
@@ -226,6 +235,7 @@ export function useLive() {
   return {
     workers: effectiveWorkers,
     orchestrators,
+    loaded,
     health,
     recents,
     uiConfig,

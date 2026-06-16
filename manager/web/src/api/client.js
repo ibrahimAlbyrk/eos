@@ -21,6 +21,13 @@ const RAW_ORIGIN = (() => {
 })();
 const JSON_HEADERS = { "content-type": "application/json" };
 
+// Stable per-tab id. Sent on the /stream URL and on /fs/watch so the daemon
+// ties this tab's directory watches to its SSE connection — a dropped tab
+// releases them (FsWatchRegistry), even without an explicit unwatch.
+const CLIENT_ID = (() => {
+  try { return crypto.randomUUID(); } catch { return `c-${Math.random().toString(36).slice(2)}-${Date.now()}`; }
+})();
+
 // Path-style URL (segments encoded, slashes literal) so relative subresources
 // of served HTML resolve against the file's directory.
 function encodeRawPath(p) {
@@ -89,6 +96,7 @@ async function putJson(path, body) {
 export const api = {
   daemon: DAEMON,
   routes: ROUTES,
+  clientId: CLIENT_ID,
 
   // Health + status
   async health() {
@@ -296,11 +304,43 @@ export const api = {
     if (!r.ok) throw new Error(`readFile → ${r.status}`);
     return r.body;
   },
-  async writeFile(path, content) {
-    return postJson(ROUTES.fsWrite, { path, content });
+  // UI-token gated (the daemon now requires it). `root`/`mkdirp` sandbox + create
+  // parents for the Files explorer; legacy callers pass neither.
+  async writeFile(path, content, { root, mkdirp } = {}) {
+    return postJson(ROUTES.fsWrite, { path, content, root, mkdirp }, uiTokenHeader());
   },
   async revealFile(path) {
     return postJson(ROUTES.fsReveal, { path });
+  },
+
+  // Files explorer — per-entry detail + mutations. Mutations carry the UI token
+  // (an agent holding the daemon URL must not touch the user's files) and a
+  // `root` the daemon sandboxes every path within.
+  async statPath(path) {
+    const r = await getJson(`${ROUTES.fsStat}?path=${encodeURIComponent(path)}`);
+    if (!r.ok) throw new Error(`stat → ${r.status}`);
+    return r.body;
+  },
+  async createEntry(root, path, type, content) {
+    return postJson(ROUTES.fsCreate, { root, path, type, content }, uiTokenHeader());
+  },
+  async renameEntry(root, path, newName) {
+    return postJson(ROUTES.fsRename, { root, path, newName }, uiTokenHeader());
+  },
+  async moveEntries(root, paths, destDir, { overwrite = false } = {}) {
+    return postJson(ROUTES.fsMove, { root, paths, destDir, overwrite }, uiTokenHeader());
+  },
+  async trashEntries(root, paths) {
+    return postJson(ROUTES.fsTrash, { root, paths }, uiTokenHeader());
+  },
+  async watchDir(root, dir) {
+    return postJson(ROUTES.fsWatch, { root, dir, clientId: CLIENT_ID }, uiTokenHeader());
+  },
+  async unwatchDir(root, dir) {
+    return postJson(ROUTES.fsUnwatch, { root, dir, clientId: CLIENT_ID }, uiTokenHeader());
+  },
+  async unwatchAll() {
+    return postJson(ROUTES.fsUnwatch, { clientId: CLIENT_ID, all: true }, uiTokenHeader());
   },
 
   // Per-agent settings
@@ -317,10 +357,11 @@ export const api = {
   async setWorkerModel(id, model, effort) {
     return putJson(ROUTES.workerModel(id), { model, effort });
   },
-  async listFiles(cwd, query = "") {
+  async listFiles(cwd, query = "", { includeHidden = false } = {}) {
     const params = new URLSearchParams();
     if (cwd) params.set("cwd", cwd);
     if (query) params.set("query", query);
+    if (includeHidden) params.set("includeHidden", "1");
     const r = await getJson(`${ROUTES.fsList}?${params.toString()}`);
     if (!r.ok) throw new Error(`listFiles → ${r.status}`);
     return r.body;
@@ -475,6 +516,6 @@ export const api = {
   // SSE — returns the EventSource so the caller can attach listeners. The
   // reconnect logic in store/sse.js wraps this.
   newEventStream() {
-    return new EventSource(`${DAEMON}${ROUTES.stream}`);
+    return new EventSource(`${DAEMON}${ROUTES.stream}?clientId=${encodeURIComponent(CLIENT_ID)}`);
   },
 };
