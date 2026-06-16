@@ -1,7 +1,11 @@
-// Local HTTP server for two ingress paths: user messages from the daemon
-// and Claude's HTTP-type hooks (SessionStart/Stop/PostToolUse/SessionEnd/
-// Notification). Body parsing is best-effort — malformed JSON is treated
-// as an empty object so the hook delivery still works.
+// Local HTTP server for the worker's ingress paths: user/orchestrator messages
+// and keystrokes from the daemon, plus Claude's HTTP-type hooks (SessionStart/
+// Stop/PostToolUse/SessionEnd/Notification). Each request is parsed into a typed
+// WorkerInput (parseWorkerInput — pure + unit-tested) and routed by kind through
+// one dispatcher, instead of a per-path if-ladder. Body parsing is strict where
+// the daemon owns the payload (/message, /keystroke → malformed JSON is a 500)
+// and best-effort where Claude's hooks need it (/event, /rewind → malformed JSON
+// degrades to an empty object so delivery still works).
 
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { errMsg } from "../contracts/src/util.ts";
@@ -21,6 +25,22 @@ export interface IngestHandlers {
 export interface IngestServer {
   close(): void;
 }
+
+// The typed shape of every daemon→worker / hook→worker ingress, discriminated by
+// kind. The HTTP layer parses a request into this; one dispatcher routes on it.
+// Transport (pipeline vs raw write) and chat-event emission stay in the worker's
+// handlers — this union is only the ingress contract.
+export type WorkerInput =
+  | { kind: "message"; text: string; record?: MessageRecord }
+  | { kind: "keystroke"; keys: string }
+  | { kind: "interrupt" }
+  | { kind: "rewindTargets" }
+  | { kind: "rewind"; body: { uuid?: string; mode?: string } }
+  | { kind: "hook"; eventName: string; body: Record<string, unknown> };
+
+export type ParseResult =
+  | { ok: true; input: WorkerInput }
+  | { ok: false; status: number; error: string };
 
 // Best-effort, like the rest of the body parsing: a malformed record must not
 // block message delivery — it just degrades to "no chat event from this worker".
@@ -68,6 +88,80 @@ export function parseRecord(raw: unknown): MessageRecord | undefined {
   return undefined;
 }
 
+// Pure ingress parser. Mirrors the original per-path validation EXACTLY:
+//  /message, /keystroke        strict: malformed JSON → 500, missing field → 400
+//  /interrupt, /rewind-targets no body
+//  /rewind, /event (default)   tolerant: malformed JSON degrades to an empty body
+export function parseWorkerInput(pathname: string, search: URLSearchParams, raw: string): ParseResult {
+  if (pathname === "/message") {
+    let body: { text?: string; record?: unknown };
+    try { body = JSON.parse(raw); } catch (e) { return { ok: false, status: 500, error: errMsg(e) }; }
+    if (!body.text) return { ok: false, status: 400, error: "text required" };
+    return { ok: true, input: { kind: "message", text: body.text, record: parseRecord(body.record) } };
+  }
+  if (pathname === "/keystroke") {
+    let body: { keys?: string };
+    try { body = JSON.parse(raw); } catch (e) { return { ok: false, status: 500, error: errMsg(e) }; }
+    if (!body.keys) return { ok: false, status: 400, error: "keys required" };
+    return { ok: true, input: { kind: "keystroke", keys: body.keys } };
+  }
+  if (pathname === "/interrupt") return { ok: true, input: { kind: "interrupt" } };
+  if (pathname === "/rewind-targets") return { ok: true, input: { kind: "rewindTargets" } };
+  if (pathname === "/rewind") {
+    let body: { uuid?: string; mode?: string } = {};
+    try { body = JSON.parse(raw); } catch { /* tolerate — empty body */ }
+    return { ok: true, input: { kind: "rewind", body } };
+  }
+  // default: /event?event=<name>
+  let body: Record<string, unknown> = {};
+  try { body = JSON.parse(raw); } catch { /* tolerate — empty body */ }
+  return { ok: true, input: { kind: "hook", eventName: search.get("event") ?? "Unknown", body } };
+}
+
+function sendJson(res: ServerResponse, status: number, body: unknown): void {
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+
+// Route a parsed input to its handler and write the HTTP response. /message and
+// /keystroke wrap the handler call in try/catch → 500, preserving the original
+// behavior; /rewind is the only async path.
+function dispatch(input: WorkerInput, handlers: IngestHandlers, res: ServerResponse): void {
+  switch (input.kind) {
+    case "message":
+      try {
+        handlers.onMessage(input.text, input.record);
+        sendJson(res, 200, { ok: true });
+      } catch (e) {
+        sendJson(res, 500, { error: errMsg(e) });
+      }
+      return;
+    case "keystroke":
+      try {
+        handlers.onKeystroke(input.keys);
+        sendJson(res, 200, { ok: true });
+      } catch (e) {
+        sendJson(res, 500, { error: errMsg(e) });
+      }
+      return;
+    case "interrupt":
+      sendJson(res, 200, handlers.onInterrupt());
+      return;
+    case "rewindTargets":
+      sendJson(res, 200, handlers.onRewindTargets());
+      return;
+    case "rewind":
+      handlers.onRewind(input.body).then(
+        (result) => sendJson(res, 200, result),
+        (e) => sendJson(res, 500, { ok: false, error: errMsg(e) }),
+      );
+      return;
+    case "hook":
+      sendJson(res, 200, handlers.onHook(input.eventName, input.body) ?? { continue: true });
+      return;
+  }
+}
+
 export function startIngestServer(port: number, handlers: IngestHandlers): IngestServer {
   const server = createServer((req: IncomingMessage, res: ServerResponse) => {
     if (req.method !== "POST") {
@@ -85,8 +179,7 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
       if (size > 1_048_576) {
         if (!rejected) {
           rejected = true;
-          res.writeHead(413, { "content-type": "application/json" });
-          res.end(JSON.stringify({ error: "body too large" }));
+          sendJson(res, 413, { error: "body too large" });
           req.destroy();
         }
         return;
@@ -95,74 +188,12 @@ export function startIngestServer(port: number, handlers: IngestHandlers): Inges
     });
     req.on("end", () => {
       if (rejected) return;
-      if (url.pathname === "/message") {
-        try {
-          const body = JSON.parse(raw) as { text?: string; record?: unknown };
-          if (!body.text) {
-            res.writeHead(400, { "content-type": "application/json" });
-            res.end(JSON.stringify({ error: "text required" }));
-            return;
-          }
-          handlers.onMessage(body.text, parseRecord(body.record));
-          res.writeHead(200, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: true }));
-        } catch (e) {
-          res.writeHead(500, { "content-type": "application/json" });
-          res.end(JSON.stringify({ error: errMsg(e) }));
-        }
+      const parsed = parseWorkerInput(url.pathname, url.searchParams, raw);
+      if (!parsed.ok) {
+        sendJson(res, parsed.status, { error: parsed.error });
         return;
       }
-      if (url.pathname === "/keystroke") {
-        try {
-          const body = JSON.parse(raw) as { keys?: string };
-          if (!body.keys) {
-            res.writeHead(400, { "content-type": "application/json" });
-            res.end(JSON.stringify({ error: "keys required" }));
-            return;
-          }
-          handlers.onKeystroke(body.keys);
-          res.writeHead(200, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: true }));
-        } catch (e) {
-          res.writeHead(500, { "content-type": "application/json" });
-          res.end(JSON.stringify({ error: errMsg(e) }));
-        }
-        return;
-      }
-      if (url.pathname === "/interrupt") {
-        const result = handlers.onInterrupt();
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify(result));
-        return;
-      }
-      if (url.pathname === "/rewind-targets") {
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify(handlers.onRewindTargets()));
-        return;
-      }
-      if (url.pathname === "/rewind") {
-        let body: { uuid?: string; mode?: string } = {};
-        try { body = JSON.parse(raw); } catch {}
-        handlers.onRewind(body).then(
-          (result) => {
-            res.writeHead(200, { "content-type": "application/json" });
-            res.end(JSON.stringify(result));
-          },
-          (e) => {
-            res.writeHead(500, { "content-type": "application/json" });
-            res.end(JSON.stringify({ ok: false, error: errMsg(e) }));
-          },
-        );
-        return;
-      }
-      // /event?event=<name>
-      const eventName = url.searchParams.get("event") ?? "Unknown";
-      let body: Record<string, unknown> = {};
-      try { body = JSON.parse(raw); } catch {}
-      const hookOutput = handlers.onHook(eventName, body);
-
-      res.writeHead(200, { "content-type": "application/json" });
-      res.end(JSON.stringify(hookOutput ?? { continue: true }));
+      dispatch(parsed.input, handlers, res);
     });
   });
   server.on("error", (err: Error) => {
