@@ -1,4 +1,6 @@
 import type { Command } from "./Command.ts";
+import { commandRequest } from "../../../contracts/src/commands/types.ts";
+import { killWorkerCommand } from "../../../contracts/src/commands/defs.ts";
 
 export const killCommand: Command = {
   name: "kill",
@@ -7,8 +9,8 @@ export const killCommand: Command = {
   async run(args, ctx): Promise<void> {
     const id = args[0];
     if (!id) { console.error("usage: kill <id>"); process.exit(1); }
-    const res = (await ctx.api("DELETE", `/workers/${id}`)) as { killing?: boolean; error?: string };
-    if (res.killing) console.log(`killing ${id}`);
-    else console.log(JSON.stringify(res));
+    const req = commandRequest(killWorkerCommand, { id }, {});
+    const res = (await ctx.api(req.method, req.path, req.body)) as { removed?: boolean };
+    console.log(res.removed ? `killed ${id}` : JSON.stringify(res));
   },
 };

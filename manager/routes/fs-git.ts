@@ -16,6 +16,7 @@ import { guardMutation, isSafeAbsPath } from "./fs-shared.ts";
 import { createBranch } from "../../core/src/use-cases/CreateBranch.ts";
 import { renameBranch } from "../../core/src/use-cases/RenameBranch.ts";
 import { checkoutBranch } from "../../core/src/use-cases/CheckoutBranch.ts";
+import { orderBranches } from "../../core/src/domain/branch-order.ts";
 
 export function registerFsGitRoutes(r: Router, c: Container): void {
   // Mutating git routes operate on an arbitrary cwd, so they require both a safe
@@ -27,9 +28,10 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
     });
     if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
     // ?remotes=1 (the branch picker) additionally lists remote-tracking branches
-    // + remote names; the status row omits it to keep the hot path cheap.
+    // + remote names, and orders locals by checkout recency (reflog); the status
+    // row omits all of it to keep the hot path cheap.
     const wantRemotes = url.searchParams.get("remotes") === "1";
-    const [isGit, branches, current, remoteUrl, sync, stash, conflicts, remoteBranches, remotes] = await Promise.all([
+    const [isGit, branches, current, remoteUrl, sync, stash, conflicts, remoteBranches, remotes, usage] = await Promise.all([
       c.git.isRepo(q.cwd),
       c.git.listBranches(q.cwd),
       c.git.currentBranch(q.cwd),
@@ -39,9 +41,11 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
       c.git.conflictCount(q.cwd),
       wantRemotes ? c.git.remoteBranches(q.cwd) : Promise.resolve(undefined),
       wantRemotes ? c.git.remotes(q.cwd) : Promise.resolve(undefined),
+      wantRemotes ? c.git.recentCheckouts(q.cwd) : Promise.resolve(undefined),
     ]);
     writeJson(res, 200, {
-      branches, current, isGit, remoteUrl,
+      branches: usage ? orderBranches(branches, usage, current) : branches,
+      current, isGit, remoteUrl,
       ahead: sync?.ahead ?? null,
       behind: sync?.behind ?? null,
       stash,

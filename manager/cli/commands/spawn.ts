@@ -2,6 +2,8 @@ import { parseArgs } from "node:util";
 import { join } from "node:path";
 
 import type { Command } from "./Command.ts";
+import { commandRequest } from "../../../contracts/src/commands/types.ts";
+import { spawnWorkerCommand } from "../../../contracts/src/commands/defs.ts";
 
 export const spawnCommand: Command = {
   name: "spawn",
@@ -29,7 +31,7 @@ export const spawnCommand: Command = {
       console.error("error: --cwd or --worktree-from required");
       process.exit(1);
     }
-    const res = (await ctx.api("POST", "/workers", {
+    const req = commandRequest(spawnWorkerCommand, {}, {
       prompt: values.prompt,
       cwd: values.cwd,
       worktreeFrom: values["worktree-from"],
@@ -37,7 +39,8 @@ export const spawnCommand: Command = {
       name: values.name,
       withGateway: values["with-gateway"],
       model: values.model,
-    })) as { id: string; port: number };
+    });
+    const res = (await ctx.api(req.method, req.path, req.body)) as { id: string; port: number };
     console.log(`spawned: ${res.id}  port=${res.port}`);
     console.log(`logs: ${join(ctx.logDir, res.id + ".log")}`);
   },

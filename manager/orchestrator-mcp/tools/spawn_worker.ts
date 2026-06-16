@@ -2,6 +2,9 @@ import { z } from "zod";
 import { EFFORT_LEVELS } from "../../../contracts/src/shared.ts";
 import type { McpToolModule } from "../tool-registry.ts";
 import { safeText } from "../../shared/mcp-tool.ts";
+import { commandRequest } from "../../../contracts/src/commands/types.ts";
+import { spawnWorkerCommand } from "../../../contracts/src/commands/defs.ts";
+import type { SpawnWorkerRequest } from "../../../contracts/src/http.ts";
 
 export const spawnWorkerTool: McpToolModule = {
   name: "spawn_worker",
@@ -32,17 +35,18 @@ export const spawnWorkerTool: McpToolModule = {
       },
       async ({ prompt, name, model, effort, workspaceOf, collaborate }) =>
         safeText(async () => {
-          const body: Record<string, unknown> = {
+          const data: SpawnWorkerRequest = {
             prompt, name, model,
             withGateway: true,
             parentId: session.selfId,
           };
-          if (effort) body.effort = effort;
-          if (collaborate) body.collaborate = true;
-          if (workspaceOf) body.workspaceOf = workspaceOf;
-          else if (session.isGitRepo()) body.worktreeFrom = session.cwd;
-          else body.cwd = session.cwd;
-          return await session.api("POST", "/workers", body);
+          if (effort) data.effort = effort;
+          if (collaborate) data.collaborate = true;
+          if (workspaceOf) data.workspaceOf = workspaceOf;
+          else if (session.isGitRepo()) data.worktreeFrom = session.cwd;
+          else data.cwd = session.cwd;
+          const req = commandRequest(spawnWorkerCommand, {}, data);
+          return await session.api(req.method, req.path, req.body);
         }),
     );
   },

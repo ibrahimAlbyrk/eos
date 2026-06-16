@@ -42,9 +42,8 @@ import { registerSettingsRoutes } from "./routes/settings.ts";
 import { registerUpdateRoutes } from "./routes/updates.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
-import { registerUiReloadRoutes } from "./routes/ui-reload.ts";
-import { registerWebRoutes } from "./routes/web.ts";
 import { registerFsRawRoutes } from "./routes/fs-raw.ts";
+import { registerCommandCatalog } from "./commands/register.ts";
 
 const c = buildContainer();
 
@@ -59,11 +58,9 @@ const sourceStamp = computeBackendStamp(
 const router = new Router();
 registerHealthRoutes(router, { pid: process.pid, startedAt: Date.now(), sourceStamp });
 registerStreamRoutes(router, c);
-// FS + UI routes registered before /workers etc. so the `/web/*` regex
-// doesn't accidentally shadow anything. Order matters: first match wins.
-registerWebRoutes(router, c);
+// FS + UI routes registered before /workers etc. Order matters: first match
+// wins.
 registerUiConfigRoutes(router, c);
-registerUiReloadRoutes(router, c);
 registerMetricsRoutes(router, c);
 registerFsPickerRoutes(router, c);
 registerFsReadRoutes(router, c);
@@ -75,6 +72,9 @@ registerMemoryRoutes(router, c);
 registerPromptRoutes(router, c);
 registerSettingsRoutes(router, c);
 registerUpdateRoutes(router, c);
+// Unified command catalog (worker.spawn, worker.kill, …) — registered before
+// the hand-written worker routes so a migrated path resolves here first.
+registerCommandCatalog(router, c);
 registerWorkerRoutes(router, c);
 registerOrchestratorRoutes(router, c);
 registerPolicyRoutes(router, c);
@@ -192,11 +192,43 @@ c.bus.subscribe("worker:exit", (msg) => {
   c.events.forgetPruneCounter(p.workerId);
 });
 
-function makeHandler(router: Router) {
+// Git watch set — keep the GitWatcher's watched dirs in sync with the live
+// worker rows. The reconciler debounces, so the worker:change firehose during a
+// turn is cheap; worker:change is what re-attaches a fresh worktree once its
+// workspace_ready flips (its precomputed dir wasn't a repo at spawn time).
+for (const topic of ["worker:spawn", "worker:change", "worker:exit", "worker:removed"] as const) {
+  c.bus.subscribe(topic, () => c.gitWatchReconciler.schedule());
+}
+
+function makeHandler(router: Router, opts: { cors?: boolean } = {}) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     c.metrics.requests++;
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
     const method = req.method ?? "GET";
+
+    // The bundled app UI loads from the eos:// custom-scheme origin, so its
+    // fetch/EventSource calls to this loopback API are cross-origin. Reflect
+    // the Origin (loopback-only server, mutations still gated by
+    // x-eos-ui-token) and answer preflight. Never applied to the raw server —
+    // its untrusted content must stay origin-isolated.
+    if (opts.cors) {
+      const origin = req.headers.origin;
+      if (origin) {
+        res.setHeader("access-control-allow-origin", origin);
+        res.setHeader("vary", "Origin");
+      }
+      res.setHeader("access-control-allow-methods", "GET, POST, PUT, DELETE, OPTIONS");
+      // x-filename: the /fs/paste upload (image paste) sends it; without it the
+      // cross-origin preflight from eos://app/ blocks the POST and paste fails.
+      res.setHeader("access-control-allow-headers", "content-type, x-eos-ui-token, x-filename");
+      res.setHeader("access-control-max-age", "86400");
+      if (method === "OPTIONS") {
+        res.writeHead(204);
+        res.end();
+        return;
+      }
+    }
+
     const requestId = mintRequestId(req, res, c.ids);
 
     try {
@@ -226,7 +258,7 @@ function makeHandler(router: Router) {
   };
 }
 
-const server = createServer(makeHandler(router));
+const server = createServer(makeHandler(router, { cors: true }));
 
 // Raw-content origin: arbitrary disk bytes + the vendored pdf.js viewer on a
 // separate port. Viewer iframes run untrusted HTML with `allow-same-origin`,

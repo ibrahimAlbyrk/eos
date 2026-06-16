@@ -24,6 +24,7 @@ import { createAnthropicModelClient } from "../infra/src/backends/AnthropicModel
 import { createOpenAIModelClient } from "../infra/src/backends/OpenAIModelClient.ts";
 import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts";
 import type { AgentEvent } from "../contracts/src/canonical.ts";
+import type { WorkerRow } from "../contracts/src/worker.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
 import { SqliteEventRepo } from "../infra/src/persistence/SqliteEventRepo.ts";
@@ -37,12 +38,15 @@ import { noopFsHelpers } from "../infra/src/filesystem/NoopFsHelpers.ts";
 import { createNodeFileSystem } from "../infra/src/filesystem/NodeFileSystem.ts";
 import { NodeFileWatcher } from "../infra/src/filesystem/NodeFileWatcher.ts";
 import { FsWatchRegistry } from "./services/FsWatchRegistry.ts";
+import { GitWatchReconciler } from "./services/GitWatchReconciler.ts";
 import { childProcessGitInfo } from "../infra/src/git/ChildProcessGitInfo.ts";
+import { ChokidarGitWatcher } from "../infra/src/git/ChokidarGitWatcher.ts";
 import { childProcessWorktreeManager } from "../infra/src/git/ChildProcessWorktreeManager.ts";
 import { createChildProcessBranchIntegration } from "../infra/src/git/ChildProcessBranchIntegration.ts";
 import { childProcessBranchPush } from "../infra/src/git/ChildProcessBranchPush.ts";
 import { childProcessConflictResolution } from "../infra/src/git/ChildProcessConflictResolution.ts";
 import { childProcessBranchAdmin } from "../infra/src/git/ChildProcessBranchAdmin.ts";
+import { childProcessWorkingTreeRestore } from "../infra/src/git/ChildProcessWorkingTreeRestore.ts";
 import { childProcessRemoteSync } from "../infra/src/git/ChildProcessRemoteSync.ts";
 import { gitUpdateSource } from "../infra/src/updates/GitUpdateSource.ts";
 import { createDetachedBuildApplier } from "../infra/src/updates/DetachedBuildApplier.ts";
@@ -79,6 +83,18 @@ import { TerminalRunService } from "./services/TerminalRunService.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
 export { randomOrchestratorName } from "./shared/names.ts";
+
+// The working dir the web keys git state on (mirrors ComposerDiffRow):
+// worktree_dir for an isolated worker — but only once its workspace exists on
+// disk, since the precomputed dir resolves UP to the source repo before that
+// (same workspace_ready gate the git-read routes use; never fall back to the
+// source repo for a not-yet-ready worktree, that would mis-key the event) —
+// else cwd, else the source repo. Kept in lockstep with the web so a git:change
+// event lands on the matching dir-keyed store entry.
+function gitWorkingDirOf(w: WorkerRow): string | null {
+  if (w.worktree_dir) return w.workspace_ready ? w.worktree_dir : null;
+  return w.cwd ?? w.worktree_from ?? null;
+}
 
 export function buildContainer() {
   let config: DaemonConfig = loadConfig();
@@ -240,11 +256,31 @@ export function buildContainer() {
   const branchPush = childProcessBranchPush;
   const conflicts = childProcessConflictResolution;
   const branchAdmin = childProcessBranchAdmin;
+  const workingTreeRestore = childProcessWorkingTreeRestore;
   const remoteSync = childProcessRemoteSync;
   const branchIntegration = createChildProcessBranchIntegration({
     triesDir: join(config.daemon.home, "tries"),
     now: () => systemClock.now(),
   });
+
+  // Git state watcher — observes each live worker's .git internals + working
+  // tree and publishes coalesced "git:change {dir, kinds}" events (→ SSE → the
+  // web's dir-keyed git stores). This is what makes the composer git row update
+  // instantly for EVERY mutation source — agent PTY, composer "!" terminal,
+  // external shell, a sibling sharing the checkout — not just turns that happen
+  // to emit a worker:change. The reconciler keeps the watch set in sync with the
+  // live worker rows (debounced); events are keyed by the same working dir the
+  // web keys on (gitWorkingDirOf).
+  const gitWatcher = new ChokidarGitWatcher({
+    clock: systemClock,
+    sink: (ev) => bus.publish("git:change", ev),
+    resolveDirs: (cwd) => git.gitDirs(cwd),
+  });
+  const gitWatchReconciler = new GitWatchReconciler({
+    watcher: gitWatcher,
+    desiredDirs: () => workers.listAll().map(gitWorkingDirOf).filter((d): d is string => !!d),
+  });
+  gitWatchReconciler.reconcile(); // boot: watch the workers reconciled above
 
   // Durable worktree reaper — drains the removal queue KillWorker writes to.
   // Runs once at boot (reclaims trees stranded by a crash/SIGKILL in a prior
@@ -547,11 +583,14 @@ export function buildContainer() {
     fileWatcher,
     fsWatchRegistry,
     git,
+    gitWatcher,
+    gitWatchReconciler,
     worktrees,
     branchIntegration,
     branchPush,
     conflicts,
     branchAdmin,
+    workingTreeRestore,
     remoteSync,
     uiToken,
     recents,

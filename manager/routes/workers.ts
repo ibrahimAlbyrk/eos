@@ -6,7 +6,6 @@ import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 
 import {
-  SpawnWorkerRequestSchema,
   EventsQuerySchema,
   MessageRequestSchema,
   ReportRequestSchema,
@@ -26,12 +25,11 @@ import {
   WorkspaceTerminalRunRequestSchema,
   OpenInRequestSchema,
   ResolveConflictRequestSchema,
+  WorkerChangesDiscardRequestSchema,
   type OpenInRequest,
 } from "../../contracts/src/http.ts";
 import type { WorkerRow } from "../../contracts/src/worker.ts";
 
-import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
-import { killWorker } from "../../core/src/use-cases/KillWorker.ts";
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
 import { transitionState } from "../../core/src/use-cases/TransitionState.ts";
 import { errMsg } from "../../contracts/src/util.ts";
@@ -50,9 +48,9 @@ import { pullBranch } from "../../core/src/use-cases/PullBranch.ts";
 import { listConflicts } from "../../core/src/use-cases/ListConflicts.ts";
 import { getConflictDocument } from "../../core/src/use-cases/GetConflictDocument.ts";
 import { resolveConflictFile } from "../../core/src/use-cases/ResolveConflictFile.ts";
+import { discardFileChange } from "../../core/src/use-cases/DiscardFileChange.ts";
 import { decidePushPlan, isActionablePushPlan } from "../../core/src/domain/push-plan.ts";
 import { decidePullPlan, isActionablePullPlan } from "../../core/src/domain/pull-plan.ts";
-import { resolveSpawnIsolation } from "../../core/src/domain/worktree-policy.ts";
 import { attachPatches, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES } from "../../infra/src/git/changes-parse.ts";
 
 // Where the agent actually edits: the worktree dir when spawned with a
@@ -109,81 +107,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, 200, withBackgroundActivity(c, rows));
   });
 
-  r.post("/workers", async ({ req, res }) => {
-    const raw = await readBody(req);
-    const body = validate(SpawnWorkerRequestSchema, raw);
-    // Resolve a prompt-template reference (promptTemplate) into the boot prompt
-    // through the prompt system — directives live in manager/prompts/, never
-    // hardcoded in clients. A literal `prompt` (when given) wins.
-    let bootPrompt = body.prompt;
-    if (!bootPrompt && body.promptTemplate) {
-      try {
-        bootPrompt = c.prompts.render(body.promptTemplate.id, body.promptTemplate.vars ?? {}).trim();
-      } catch (e) {
-        writeJson(res, 400, { error: `promptTemplate render failed: ${errMsg(e)}` });
-        return;
-      }
-    }
-    if (!bootPrompt) { writeJson(res, 400, { error: "resolved prompt is empty" }); return; }
-    // Normalize tilde paths upstream so use-cases see absolute paths only.
-    // Mode inheritance: explicit body.permissionMode wins; otherwise resolve
-    // from parent so children adopt the orchestrator's current mode.
-    // Git agents run shell-heavy git ops; the prompt file carries the safety
-    // rules (destructive ops require chat confirmation), so they default to
-    // bypassPermissions + persistent for a conversational session.
-    const isGitAgent = body.role === "git";
-    const claudePermissionMode = body.permissionMode
-      ?? (isGitAgent ? "bypassPermissions" : undefined)
-      ?? (body.parentId ? c.modeResolver.resolveFor(body.parentId) : undefined);
-    const iso = resolveSpawnIsolation(body, {
-      worktreesDisabled: c.userSettings.read()["git.spawnWithoutWorktree"] === true,
-    });
-    const { promptTemplate: _promptTemplate, ...bodyRest } = body;
-    const spec = {
-      ...bodyRest,
-      prompt: bootPrompt,
-      cwd: expandPath(iso.cwd),
-      worktreeFrom: expandPath(iso.worktreeFrom),
-      carryUncommitted: c.userSettings.read()["git.carryUncommitted"] === true,
-      claudePermissionMode,
-      ...(isGitAgent ? {
-        persistent: true,
-        model: body.model ?? "sonnet",
-        effort: body.effort ?? "medium",
-      } : {}),
-    };
-    // Backend selection: resolve the effective backend (defaults to claude-cli)
-    // and pick the adapter. claude-cli keeps today's behavior exactly.
-    const rb = c.backendResolver.resolveForNewWorker({ parentId: body.parentId ?? null, isOrchestrator: false });
-    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
-    const result = await spawnWorker(
-      {
-        workers: c.workers,
-        events: c.events,
-        bus: c.bus,
-        supervisor: c.supervisor,
-        ports: c.portAllocator,
-        clock: c.clock,
-        ids: c.ids,
-        log: c.log,
-        buildArgs: c.buildArgs,
-        buildEnv: c.buildEnv,
-        resolveWorktreeDir: c.resolveWorktreeDir,
-        logFileFor: c.logFileFor,
-        backend,
-        onAgentEvent: c.onAgentEvent,
-        recents: c.recents,
-        caps: c.modelCatalog,
-      },
-      spec,
-    );
-    if (isGitAgent) {
-      c.events.append(result.id, c.clock.now(), "user_message", { text: bootPrompt });
-      c.bus.publish("worker:change", { workerId: result.id });
-    }
-    const isolation = spec.worktreeFrom || body.workspaceOf ? "worktree" : "cwd";
-    writeJson(res, 201, { ...result, isolation });
-  });
+  // worker.spawn (POST /workers) is served by the command catalog —
+  // manager/commands/handlers/spawn-worker.ts.
 
   r.get(/^\/workers\/(?<id>[^/]+)$/, ({ params, url, res }) => {
     const actorId = url.searchParams.get("actorId");
@@ -193,37 +118,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, 200, row);
   });
 
-  r.del(/^\/workers\/(?<id>[^/]+)$/, ({ params, url, res }) => {
-    const actorId = url.searchParams.get("actorId");
-    if (actorId) assertOwnedBy(c.workers, actorId, params.id);
-    const supervisorWithFind = c.supervisor as ReturnType<typeof import("../../infra/src/supervision/ChildProcessSupervisor.ts").createChildProcessSupervisor>;
-    const result = killWorker(
-      {
-        workers: c.workers,
-        events: c.events,
-        pending: c.pending,
-        messageQueue: c.messageQueue,
-        bus: c.bus,
-        supervisor: c.supervisor,
-        log: c.log,
-        clock: c.clock,
-        findOrphanPids: (safeName) => supervisorWithFind.findPidsByPattern(`eos-${safeName}-`),
-        postKillCleanup: (id) => {
-          c.cleanupMcpConfig(id);
-        },
-        // Worktree + try-snapshot teardown is recorded durably and drained by
-        // the reaper (ReapWorktreeRemovals): the shared-workspace guard and the
-        // git removal run there, once this row is gone. Survives a daemon
-        // restart in the grace window — the old in-memory closure did not.
-        worktreeRemovals: c.worktreeRemovals,
-      },
-      params.id,
-    );
-    c.pendingQuestions.cancelByWorker(params.id);
-    c.pendingPeerRequests.cancelByWorker(params.id);
-    c.backgroundActivity.clearWorker(params.id);
-    writeJson(res, 200, { killed: result.killed, removed: result.removed, was_state: result.wasState, id: result.id, name: result.name });
-  });
+  // worker.kill (DELETE /workers/:id) is served by the command catalog —
+  // manager/commands/handlers/kill-worker.ts.
 
   r.get(/^\/workers\/(?<id>[^/]+)\/events$/, ({ params, url, res }) => {
     const q = validate(EventsQuerySchema, {
@@ -967,5 +863,25 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const dir = readableGitDirOf(w);
     if (!dir) { writeJson(res, 200, { path: q.path, patch: "", binary: false, truncated: false }); return; }
     writeJson(res, 200, await c.git.fileDiff(dir, q.path, q.oldPath, await diffBaseOf(c, w)));
+  });
+
+  // Discard ONE changed file back to the diff base — the inverse of GET /changes
+  // (fork point for worktree workers, else HEAD). Destructive (reverts the user's
+  // working tree), so UI-token gated like /conflicts/resolve: an agent holding
+  // EOS_DAEMON_URL must not get a policy-free write path. The use-case re-derives
+  // status from the same base the panel shows, so a stale path is a clean no-op.
+  r.post(/^\/workers\/(?<id>[^/]+)\/changes\/discard$/, async ({ params, req, res }) => {
+    if (!uiTokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    const body = validate(WorkerChangesDiscardRequestSchema, await readBody(req));
+    if (!repoRelative(body.path)) { writeJson(res, 400, { error: "path must be repo-relative" }); return; }
+    const w = c.workers.findById(params.id);
+    const dir = readableGitDirOf(w);
+    if (!dir) { writeJson(res, 404, { error: "worker has no working directory" }); return; }
+    const result = await discardFileChange(
+      { git: c.git, restore: c.workingTreeRestore },
+      { cwd: dir, path: body.path, base: await diffBaseOf(c, w) },
+    );
+    if (result.ok) c.bus.publish("worker:change", { workerId: params.id });
+    writeJson(res, result.ok ? 200 : 409, result);
   });
 }

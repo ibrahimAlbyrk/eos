@@ -130,7 +130,7 @@ export default [
   // exhaustive-deps is advisory (warn) and the source uses explicit
   // disable comments where a stale-closure is intentional.
   {
-    files: ["manager/web/src/**/*.{js,jsx}"],
+    files: ["app/ui/src/**/*.{js,jsx}"],
     plugins: { "react-hooks": reactHooks },
     rules: {
       "react-hooks/rules-of-hooks": "error",
