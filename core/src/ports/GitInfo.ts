@@ -24,11 +24,25 @@ export interface ConflictEntry {
   xy: string;
 }
 
+// The git directories backing a working tree — what a watcher must observe.
+// In a normal checkout gitDir === commonDir; in a linked worktree gitDir is the
+// per-worktree dir (HEAD/index/merge state) while commonDir is the shared .git
+// (refs/, packed-refs, stash). All absolute.
+export interface GitDirs {
+  toplevel: string;
+  gitDir: string;
+  commonDir: string;
+}
+
 export interface GitInfo {
   /** True when cwd is inside a git working tree — including a freshly-init'd
    *  repo with no commits yet (unborn HEAD), where branch listing and HEAD
    *  resolution both come back empty. Never derive repo-ness from those. */
   isRepo(cwd: string): Promise<boolean>;
+  /** Resolve cwd's git directories (working-tree root + per-worktree git dir +
+   *  shared common dir) so a watcher can observe the right paths. Null when cwd
+   *  is not inside a work tree. */
+  gitDirs(cwd: string): Promise<GitDirs | null>;
   listBranches(cwd: string): Promise<string[]>;
   /** Remote-tracking branches as full refs (e.g. "origin/main"); the symbolic
    *  "<remote>/HEAD" pointer is excluded. Empty on error / no remotes. */
@@ -36,6 +50,12 @@ export interface GitInfo {
   /** Configured remote names (e.g. ["origin"]). Empty on error / no remotes. */
   remotes(cwd: string): Promise<string[]>;
   currentBranch(cwd: string): Promise<string | null>;
+  /** Local branch names ordered most-recently-checked-out first (de-duplicated),
+   *  parsed from the HEAD reflog: each `checkout: moving from X to Y` contributes
+   *  its target Y. Captures switches from anywhere — terminal, IDE, Eos — not just
+   *  this app, and needs no persistent state. Empty on error or an empty reflog
+   *  (e.g. a freshly-created worktree). Feeds the branch picker's recency order. */
+  recentCheckouts(cwd: string): Promise<string[]>;
   /** With `base`, diffs base..working-tree (committed-after-fork + uncommitted);
    *  without, HEAD..working-tree (uncommitted only). */
   diffShortStat(cwd: string, base?: string): Promise<DiffStat>;
