@@ -111,9 +111,8 @@ describe("exclude predicates", () => {
     }
   });
 
-  it("managerExclude drops web/vendor/cli/bin/scripts subtrees", () => {
+  it("managerExclude drops vendor/cli/bin/scripts subtrees", () => {
     for (const rel of [
-      "web/src/main.jsx",
       "vendor/pdfjs/build/pdf.js",
       "cli/commands/build.ts",
       "bin/eos",

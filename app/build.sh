@@ -21,7 +21,7 @@ swiftc -O \
 cp "$SCRIPT_DIR/Info.plist" "$APP_BUNDLE/Contents/"
 /usr/libexec/PlistBuddy -c "Add :EosRepoRoot string $REPO_ROOT" "$APP_BUNDLE/Contents/Info.plist"
 
-LOGO="$REPO_ROOT/manager/web/public/logo.png"
+LOGO="$REPO_ROOT/app/ui/public/logo.png"
 if [ -f "$LOGO" ]; then
   echo "generating icon…"
   ICONSET="$BUILD_DIR/AppIcon.iconset"
@@ -34,6 +34,16 @@ if [ -f "$LOGO" ]; then
   iconutil -c icns "$ICONSET" -o "$APP_BUNDLE/Contents/Resources/AppIcon.icns"
   rm -rf "$ICONSET"
 fi
+
+# Bundle the built UI into the app. The WKWebView loads it from the eos://app/
+# origin via the scheme handler in main.swift, so the daemon no longer serves
+# it over HTTP.
+WEB_DIST="$REPO_ROOT/app/ui/dist"
+if [ ! -f "$WEB_DIST/index.html" ]; then
+  echo "error: $WEB_DIST/index.html missing — run \`npm run build\` in app/ui first"
+  exit 1
+fi
+cp -r "$WEB_DIST" "$APP_BUNDLE/Contents/Resources/ui"
 
 INSTALLED="/Applications/$APP_NAME.app"
 if [ -d "$INSTALLED" ]; then

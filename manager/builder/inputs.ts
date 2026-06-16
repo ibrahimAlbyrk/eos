@@ -23,7 +23,7 @@ export const DEPS_DIRS = [
   "gateway",
   "spawner",
   "manager",
-  "manager/web",
+  "app/ui",
   ".",
 ] as const;
 
@@ -44,7 +44,7 @@ export const baseExclude: ExcludeFn = (rel) => {
   return /\.test\.[^.]+$/.test(name) || name.endsWith(".md") || /^tsconfig[^/]*\.json$/.test(name);
 };
 
-const MANAGER_EXCLUDED_DIRS = new Set(["web", "vendor", "cli", "bin", "scripts"]);
+const MANAGER_EXCLUDED_DIRS = new Set(["vendor", "cli", "bin", "scripts"]);
 
 export const managerExclude: ExcludeFn = (rel) => {
   if (MANAGER_EXCLUDED_DIRS.has(rel.split("/")[0])) return true;
@@ -63,7 +63,7 @@ export function depsSpec(repoRoot: string, dir: string): StampSpec {
 }
 
 export function webSpec(repoRoot: string): StampSpec {
-  const webRoot = join(repoRoot, "manager", "web");
+  const webRoot = join(repoRoot, "app", "ui");
   return {
     trees: [
       { root: join(webRoot, "src"), prefix: "src", exclude: baseExclude },
@@ -78,14 +78,20 @@ export function webSpec(repoRoot: string): StampSpec {
 }
 
 export function appSpec(repoRoot: string): StampSpec {
+  // app/build.sh bundles the web build output into Resources/ui, so the app
+  // bundle is stale whenever the UI sources change — fold the web inputs in
+  // alongside the native shell (the icon source logo.png is covered by the
+  // web public tree).
+  const web = webSpec(repoRoot);
   return {
+    trees: web.trees,
     files: [
       { path: join(repoRoot, "app", "main.swift"), label: "app/main.swift" },
       { path: join(repoRoot, "app", "Info.plist"), label: "app/Info.plist" },
       { path: join(repoRoot, "app", "build.sh"), label: "app/build.sh" },
-      // Icon source — build.sh regenerates the .icns from it.
-      { path: join(repoRoot, "manager", "web", "public", "logo.png"), label: "logo.png" },
+      ...web.files,
     ],
+    extra: { node: process.version },
   };
 }
 

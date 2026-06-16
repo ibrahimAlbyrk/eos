@@ -11,7 +11,7 @@ done
 ROOT="$(cd -P "$(dirname "$src")/.." && pwd)"
 
 # Order matters: core/infra use file: deps on contracts/core.
-PACKAGES=(contracts core infra gateway spawner manager manager/web .)
+PACKAGES=(contracts core infra gateway spawner manager app/ui .)
 
 for pkg in "${PACKAGES[@]}"; do
   echo "==> installing $pkg"

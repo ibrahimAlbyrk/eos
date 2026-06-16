@@ -81,7 +81,7 @@ export async function runBuild(ctx: BuildCtx, steps: BuildStep[]): Promise<boole
       ctx.log(`  ↳ ${step.verb.done} in ${((Date.now() - t0) / 1000).toFixed(1)}s`);
     }
 
-    const plan = await deliverUi(ctx, { webApplied: applied.has("web"), appApplied: applied.has("app") });
+    const plan = await deliverUi(ctx, { appApplied: applied.has("app") });
     if (plan.action === "none") {
       ctx.log(`✓ app ${plan.reason}`);
     } else if (ctx.dryRun) {

@@ -1,7 +1,7 @@
 // Eos.app process control + the staleness predicate. A closed app can never
-// be stale — main.swift clears HTTP caches and reloads /web/ with
-// reloadIgnoringLocalCacheData on every launch — so only a RUNNING instance
-// that started before the newest artifact stamp needs a relaunch.
+// be stale — main.swift loads the bundled UI fresh from eos://app/ on every
+// launch — so only a RUNNING instance that started before the newest artifact
+// stamp needs a relaunch.
 
 import { spawnSync } from "node:child_process";
 

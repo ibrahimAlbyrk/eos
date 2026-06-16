@@ -813,6 +813,23 @@ export const FileDiffResponseSchema = z.object({
 });
 export type FileDiffResponse = z.infer<typeof FileDiffResponseSchema>;
 
+// ---- POST /workers/:id/changes/discard ---------------------------------------
+// Revert ONE changed file to the diff base (fork point for worktree workers,
+// else HEAD) — the inverse of what GET /changes shows. The daemon re-derives the
+// file's status from changedFiles, so the client sends only the path. Untracked
+// files are removed; tracked files (incl. renames) are restored. Destructive +
+// UI-token gated.
+export const WorkerChangesDiscardRequestSchema = z.object({
+  path: z.string().min(1),
+});
+export type WorkerChangesDiscardRequest = z.infer<typeof WorkerChangesDiscardRequestSchema>;
+
+export const WorkerChangesDiscardResponseSchema = z.object({
+  ok: z.boolean(),
+  error: z.string().optional(),
+});
+export type WorkerChangesDiscardResponse = z.infer<typeof WorkerChangesDiscardResponseSchema>;
+
 // ---- /workers/:id/conflicts --------------------------------------------------
 // Fork-style merge-conflict resolution. The conflicted WORKING TREE is the
 // source of truth: a `git merge`/`rebase`/`cherry-pick` left stage 1/2/3 index
@@ -1319,18 +1336,6 @@ export const HealthResponseSchema = z.object({
 });
 export type HealthResponse = z.infer<typeof HealthResponseSchema>;
 
-// ---- POST /api/ui-reload -----------------------------------------------------
-// Broadcasts ui:reload over SSE so connected pages refresh in place — lets a
-// web-dist rebuild reach the running app without a quit/reopen. subscribers
-// is the SSE client count at broadcast time: 0 means nobody took the signal
-// and the caller (eos build) must fall back to relaunching the app.
-
-export const UiReloadResponseSchema = z.object({
-  ok: z.literal(true),
-  subscribers: z.number().int(),
-});
-export type UiReloadResponse = z.infer<typeof UiReloadResponseSchema>;
-
 // ---- error envelope --------------------------------------------------------
 
 export const ErrorResponseSchema = z.object({
@@ -1457,7 +1462,6 @@ export const ROUTES = {
   pendingDecision: (id: string): string => `/pending/${id}/decision`,
   metrics: "/metrics",
   uiConfig: "/api/ui-config",
-  uiReload: "/api/ui-reload",
   pickDirectory: "/pick-directory",
   pickFile: "/pick-file",
   fsDefaultApp: "/fs/default-app",
@@ -1496,6 +1500,7 @@ export const ROUTES = {
   workerDiff: (id: string): string => `/workers/${id}/diff`,
   workerChanges: (id: string): string => `/workers/${id}/changes`,
   workerFileDiff: (id: string): string => `/workers/${id}/changes/file`,
+  workerChangesDiscard: (id: string): string => `/workers/${id}/changes/discard`,
   workerConflicts: (id: string): string => `/workers/${id}/conflicts`,
   workerConflictFile: (id: string): string => `/workers/${id}/conflicts/file`,
   workerConflictResolve: (id: string): string => `/workers/${id}/conflicts/resolve`,
@@ -1533,5 +1538,4 @@ export const ROUTES = {
   updateCheck: "/api/updates/check",
   updateApply: "/api/updates/apply",
   updateDefer: "/api/updates/defer",
-  web: "/web/",
 } as const;

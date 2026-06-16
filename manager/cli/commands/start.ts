@@ -6,7 +6,7 @@ import { spawnDaemonDetached, waitHealthy } from "../daemon-lifecycle.ts";
 
 export const startCommand: Command = {
   name: "start",
-  description: "Start the daemon and open the web UI (-f for foreground)",
+  description: "Start the daemon and open the Eos app (-f for foreground)",
   usage: "eos start [-f|--foreground]",
   async run(args, ctx): Promise<void> {
     const foreground = args.includes("-f") || args.includes("--foreground");
@@ -45,14 +45,16 @@ export const startCommand: Command = {
       }
     }
 
-    const webUrl = `${ctx.daemonUrl}/web/`;
-    console.log(`eos → ${webUrl}`);
-    const opener = process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
-    try {
-      const op = spawn(opener, [webUrl], { stdio: "ignore", detached: true });
-      op.unref();
-    } catch {
-      console.log("open the URL above in your browser.");
+    // The UI ships as the native Eos.app (WKWebView) — there is no browser web
+    // UI to open anymore. Bring the app to the foreground on macOS.
+    console.log(`eos daemon running at ${ctx.daemonUrl}`);
+    if (process.platform === "darwin") {
+      try {
+        const op = spawn("open", ["-b", "com.ibrahimalbyrk.eos"], { stdio: "ignore", detached: true });
+        op.unref();
+      } catch {
+        console.log("open Eos.app to use the UI.");
+      }
     }
   },
 };

@@ -12,7 +12,7 @@ import { runOrThrow } from "../proc.ts";
 import { readStampFile, writeStampFile } from "../stamps.ts";
 
 export function webDistStampPath(repoRoot: string): string {
-  return join(repoRoot, "manager", "web", "dist", ".eos-stamp");
+  return join(repoRoot, "app", "ui", "dist", ".eos-stamp");
 }
 
 export const webStep: BuildStep = {
@@ -22,7 +22,7 @@ export const webStep: BuildStep = {
   desiredStamp: (ctx) => computeStamp(webSpec(ctx.repoRoot)),
   currentStamp: (ctx) => readStampFile(webDistStampPath(ctx.repoRoot)),
   async apply(ctx): Promise<void> {
-    const webDir = join(ctx.repoRoot, "manager", "web");
+    const webDir = join(ctx.repoRoot, "app", "ui");
     await runOrThrow("npm", ["run", "build"], { cwd: webDir });
     if (!existsSync(join(webDir, "dist", "index.html"))) {
       throw new Error("vite build produced no dist/index.html — web UI is broken until a rebuild succeeds");

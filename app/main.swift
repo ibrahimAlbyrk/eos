@@ -150,6 +150,66 @@ final class QuietWindow: NSWindow {
     }
 }
 
+// Serves the bundled web UI (Contents/Resources/ui) under the eos://app/
+// origin. A custom scheme — not file:// — because WKWebView gives file://
+// pages an opaque origin with unreliable localStorage, and the UI persists
+// input history / active view / scroll positions there.
+final class BundledUISchemeHandler: NSObject, WKURLSchemeHandler {
+    private let root: URL
+
+    init(root: URL) {
+        self.root = root.standardizedFileURL
+        super.init()
+    }
+
+    func webView(_: WKWebView, start task: WKURLSchemeTask) {
+        guard let url = task.request.url else {
+            task.didFailWithError(URLError(.badURL)); return
+        }
+        var rel = url.path
+        if rel.isEmpty || rel == "/" { rel = "/index.html" }
+        let fileURL = root.appendingPathComponent(rel).standardizedFileURL
+
+        guard fileURL.path == root.path || fileURL.path.hasPrefix(root.path + "/"),
+              let data = try? Data(contentsOf: fileURL) else {
+            let resp = HTTPURLResponse(url: url, statusCode: 404, httpVersion: "HTTP/1.1",
+                                       headerFields: ["Content-Type": "text/plain; charset=utf-8"])!
+            task.didReceive(resp)
+            task.didReceive(Data("not found".utf8))
+            task.didFinish()
+            return
+        }
+        let resp = HTTPURLResponse(url: url, statusCode: 200, httpVersion: "HTTP/1.1",
+                                   headerFields: [
+                                       "Content-Type": Self.mime(fileURL.pathExtension),
+                                       "Content-Length": String(data.count),
+                                   ])!
+        task.didReceive(resp)
+        task.didReceive(data)
+        task.didFinish()
+    }
+
+    func webView(_: WKWebView, stop _: WKURLSchemeTask) {}
+
+    private static func mime(_ ext: String) -> String {
+        switch ext.lowercased() {
+        case "html": return "text/html; charset=utf-8"
+        case "js", "mjs": return "text/javascript; charset=utf-8"
+        case "css": return "text/css; charset=utf-8"
+        case "json", "map": return "application/json; charset=utf-8"
+        case "svg": return "image/svg+xml"
+        case "png": return "image/png"
+        case "jpg", "jpeg": return "image/jpeg"
+        case "gif": return "image/gif"
+        case "webp": return "image/webp"
+        case "woff2": return "font/woff2"
+        case "woff": return "font/woff"
+        case "ico": return "image/x-icon"
+        default: return "application/octet-stream"
+        }
+    }
+}
+
 class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWindowDelegate, WKScriptMessageHandler, WKScriptMessageHandlerWithReply, UNUserNotificationCenterDelegate, URLSessionDataDelegate {
     var window: NSWindow!
     var webView: WKWebView!
@@ -177,6 +237,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     private func setupWindow() {
         let cfg = WKWebViewConfiguration()
         cfg.preferences.setValue(true, forKey: "developerExtrasEnabled")
+
+        // The web UI ships inside the app bundle (Contents/Resources/ui) and is
+        // served from the eos://app/ origin by BundledUISchemeHandler — the
+        // daemon no longer serves it over HTTP.
+        if let uiRoot = Bundle.main.resourceURL?.appendingPathComponent("ui") {
+            cfg.setURLSchemeHandler(BundledUISchemeHandler(root: uiRoot), forURLScheme: "eos")
+        }
+
+        // The UI loads from eos://app/, so its API/SSE calls to the loopback
+        // daemon are cross-origin; tell the web layer where the daemon lives
+        // (it can no longer derive it from location.origin).
+        cfg.userContentController.addUserScript(
+            WKUserScript(source: "window.__EOS_DAEMON_URL = '\(DAEMON)';",
+                         injectionTime: .atDocumentStart, forMainFrameOnly: true)
+        )
 
         cfg.userContentController.addUserScript(
             WKUserScript(source: """
@@ -367,7 +442,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         WKWebsiteDataStore.default().removeData(
             ofTypes: [WKWebsiteDataTypeDiskCache, WKWebsiteDataTypeMemoryCache],
             modifiedSince: .distantPast) { [weak self] in
-            guard let url = URL(string: "\(DAEMON)/web/") else { return }
+            guard let url = URL(string: "eos://app/index.html") else { return }
             self?.webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
             self?.connectSSE()
         }
@@ -506,7 +581,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         content.autoresizingMask = [.width, .height]
 
         let img = NSImageView()
-        img.image = NSImage(contentsOfFile: repoRoot() + "/manager/web/public/logo.png")
+        img.image = NSImage(contentsOfFile: repoRoot() + "/app/ui/public/logo.png")
         img.imageScaling = .scaleProportionallyUpOrDown
         img.wantsLayer = true
         img.layer?.cornerRadius = 16
