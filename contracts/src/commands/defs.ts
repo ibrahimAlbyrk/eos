@@ -56,9 +56,34 @@ export const killWorkerCommand: CommandDef<KillWorkerAddr, NoBody, KillWorkerRes
   meta: { summary: "Terminate a worker (SIGTERM + DB row removal)", mutates: true, scope: "worker" },
 };
 
+// ---- worker.interrupt ------------------------------------------------------
+
+// Reusable addr for any worker-scoped command addressed only by its id.
+export const WorkerIdAddrSchema = z.object({ id: z.string().min(1) });
+export type WorkerIdAddr = z.infer<typeof WorkerIdAddrSchema>;
+
+// Either the success shape or the standard {error} body (404 gone / 409 not
+// running). The handler returns the exact body, so the contract stays honest.
+export const InterruptWorkerResponseSchema = z.union([
+  z.object({ ok: z.literal(true) }),
+  z.object({ error: z.string() }),
+]);
+export type InterruptWorkerResponse = z.infer<typeof InterruptWorkerResponseSchema>;
+
+export const interruptWorkerCommand: CommandDef<WorkerIdAddr, NoBody, InterruptWorkerResponse> = {
+  name: "worker.interrupt",
+  method: "POST",
+  pattern: /^\/workers\/(?<id>[^/]+)\/interrupt$/,
+  buildPath: ({ id }) => `/workers/${encodeURIComponent(id)}/interrupt`,
+  addr: WorkerIdAddrSchema,
+  data: NoBodySchema,
+  output: InterruptWorkerResponseSchema,
+  meta: { summary: "Interrupt a worker's current turn (Esc)", mutates: true, scope: "worker" },
+};
+
 // ---- registry --------------------------------------------------------------
 
-export const COMMANDS = [spawnWorkerCommand, killWorkerCommand] as const;
+export const COMMANDS = [spawnWorkerCommand, killWorkerCommand, interruptWorkerCommand] as const;
 
 export const commandByName: ReadonlyMap<string, CommandDef<unknown, unknown, unknown>> = new Map(
   COMMANDS.map((c) => [c.name, c as unknown as CommandDef<unknown, unknown, unknown>]),

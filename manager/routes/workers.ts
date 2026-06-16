@@ -453,26 +453,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, 200, result);
   });
 
-  r.post(/^\/workers\/(?<id>[^/]+)\/interrupt$/, ({ params, res }) => {
-    const worker = c.workers.findById(params.id);
-    if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
-    if (!c.supervisor.has(params.id)) { writeJson(res, 409, { error: "worker not running" }); return; }
-    // Esc cancels what the user queued — clear BEFORE the IDLE transition or
-    // the drain would fire the queued messages the interrupt meant to stop.
-    const clearedQueued = c.messageQueue.clearPending(params.id);
-    if (clearedQueued > 0) c.log.info("interrupt cleared queued messages", { workerId: params.id, count: clearedQueued });
-    // Esc abandons this worker's outstanding peer consultations too — its
-    // blocked ask_peer (if any) unblocks "gone"; in-flight asks to it decline.
-    c.pendingPeerRequests.cancelByWorker(params.id);
-    c.turnSettle.mark(params.id);
-    c.httpWorkerClient.sendInterrupt(worker.port).catch(() => {});
-    transitionState(
-      { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },
-      { workerId: params.id, next: "IDLE", reason: "interrupt" },
-    );
-    c.bus.publish("worker:change", { workerId: params.id });
-    writeJson(res, 200, { ok: true });
-  });
+  // worker.interrupt (POST /workers/:id/interrupt) is served by the command
+  // catalog — manager/commands/handlers/interrupt-worker.ts.
 
   r.post(/^\/workers\/(?<id>[^/]+)\/report$/, async ({ params, req, res }) => {
     const body = validate(ReportRequestSchema, await readBody(req));
