@@ -40,6 +40,7 @@ import { assertOwnedBy } from "../../core/src/services/WorkerOwnership.ts";
 import { assertPeers, listPeersOf, isConsultable } from "../../core/src/services/Peers.ts";
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
+import { appendSynthesized } from "../shared/synthesized-events.ts";
 import { resumeWorkerVia, resumeIfDead } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
@@ -174,10 +175,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       if (clearedQueued > 0) c.log.info("/clear cleared queued messages", { workerId: params.id, count: clearedQueued });
       // A fresh context drops any peer consultations this worker had outstanding.
       c.pendingPeerRequests.cancelByWorker(params.id);
-      const rowId = c.events.append(params.id, c.clock.now(), "conversation_cleared", {
+      appendSynthesized(c, params.id, "conversation_cleared", {
         prevSessionId: hp.body?.session_id ?? null,
       });
-      c.bus.publish("worker:change", { workerId: params.id, rowId });
     }
     writeJson(res, 200, { ok: true });
   });
@@ -277,8 +277,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const dir = gitDirOf(w);
     if (!dir) { writeJson(res, 400, { error: "worker has no working directory" }); return; }
     const result = await pushBranch({ git: c.git, branchPush: c.branchPush }, dir);
-    c.events.append(params.id, c.clock.now(), "git_push", result);
-    c.bus.publish("worker:change", { workerId: params.id });
+    appendSynthesized(c, params.id, "git_push", result);
     writeJson(res, 200, result);
   });
 
@@ -293,11 +292,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const toolUseId = body.toolUseId || c.ids.newPendingId();
 
     const { questionId } = c.pendingQuestions.register(params.id, toolUseId);
-    c.events.append(params.id, c.clock.now(), "question_pending", {
+    appendSynthesized(c, params.id, "question_pending", {
       toolUseId,
       questions: body.questions,
     });
-    c.bus.publish("worker:change", { workerId: params.id });
     // The asker is blocked inside its tool call and cannot notify_user itself;
     // fire the background tap here (native app delivers only when backgrounded).
     c.bus.publish("notification:fire", {
@@ -326,12 +324,11 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const settled = body.dismissed
       ? c.pendingQuestions.dismissByToolUseId(params.id, body.toolUseId)
       : c.pendingQuestions.resolveByToolUseId(params.id, body.toolUseId, body.answers ?? {});
-    c.events.append(params.id, c.clock.now(), "question_answered", {
+    appendSynthesized(c, params.id, "question_answered", {
       toolUseId: body.toolUseId,
       answers: body.answers ?? {},
       ...(body.dismissed ? { dismissed: true } : {}),
     });
-    c.bus.publish("worker:change", { workerId: params.id });
     writeJson(res, 200, { ok: true, outcome: settled ? (body.dismissed ? "dismissed" : "answered") : "gone" });
   });
 
@@ -369,13 +366,12 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const { requestId } = c.pendingPeerRequests.register(body.fromWorker, params.id, body.question);
     // Durable "consulting <peer>" marker on the asker's timeline (the ask_peer
     // tool call also renders, but resolves only when the answer returns).
-    c.events.append(body.fromWorker, c.clock.now(), "peer_consult", {
+    // Nudge the pump via the target's worker:change — if the target is sitting
+    // IDLE it delivers now; otherwise the request waits for its next IDLE.
+    // pumpPeerFor self-guards on state, so the synthetic change is safe.
+    appendSynthesized(c, body.fromWorker, "peer_consult", {
       requestId, toWorker: params.id, toName: target.name ?? null, question: body.question,
-    });
-    // Nudge the pump — if the target is sitting IDLE it delivers now; otherwise
-    // the request waits for the target's next IDLE. pumpPeerFor self-guards on
-    // state, so the synthetic change is safe.
-    c.bus.publish("worker:change", { workerId: params.id });
+    }, params.id);
     writeJson(res, 200, { requestId });
   });
 
@@ -446,14 +442,13 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     if (!c.supervisor.has(params.id)) { writeJson(res, 409, { error: "worker not running" }); return; }
     const result = await c.httpWorkerClient.sendRewind(worker.port, { uuid: body.uuid, mode: body.mode });
     if (result.ok) {
-      c.events.append(params.id, c.clock.now(), "conversation_rewound", {
+      appendSynthesized(c, params.id, "conversation_rewound", {
         uuid: result.uuid,
         text: result.text,
         display: result.display,
         index: result.index,
         mode: body.mode,
       });
-      c.bus.publish("worker:change", { workerId: params.id });
     }
     writeJson(res, 200, result);
   });
@@ -516,10 +511,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       const ref = { repoRoot: worker.worktree_from, worktreeDir: worker.worktree_dir, branch: worker.branch, workerId: params.id };
       void c.branchIntegration.apply(ref).then((result) => {
         if (result.ok) {
-          c.events.append(params.id, c.clock.now(), "try_applied", {
+          appendSynthesized(c, params.id, "try_applied", {
             branch: ref.branch, files: result.files, lockfileChanged: result.lockfileChanged, auto: true,
           });
-          c.bus.publish("worker:change", { workerId: params.id });
         } else {
           c.log.warn("auto-apply skipped", { worker: params.id, reason: result.reason, detail: result.detail });
         }
@@ -684,8 +678,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const dir = gitDirOf(w);
     if (!dir) { writeJson(res, 400, { error: "worker has no working directory" }); return; }
     const result = await pullBranch({ git: c.git, remoteSync: c.remoteSync }, dir);
-    c.events.append(params.id, c.clock.now(), "git_pull", result);
-    c.bus.publish("worker:change", { workerId: params.id });
+    appendSynthesized(c, params.id, "git_pull", result);
     writeJson(res, 200, result);
   });
 
@@ -719,10 +712,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     if (!t.ref) { writeJson(res, t.status, { error: t.error }); return; }
     const result = await c.branchIntegration.apply(t.ref);
     if (result.ok) {
-      c.events.append(params.id, c.clock.now(), "try_applied", {
+      appendSynthesized(c, params.id, "try_applied", {
         branch: t.ref.branch, files: result.files, lockfileChanged: result.lockfileChanged,
       });
-      c.bus.publish("worker:change", { workerId: params.id });
       writeJson(res, 200, { ok: true, files: result.files, lockfileChanged: result.lockfileChanged });
       return;
     }
@@ -740,8 +732,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const active = (await c.branchIntegration.activeTries(repoRoot)).find((t) => t.workerId === body.workerId);
     const result = await c.branchIntegration.keep(repoRoot, body.workerId);
     if (result.ok && active) {
-      c.events.append(active.workerId, c.clock.now(), "try_kept", { branch: active.branch, files: active.files });
-      c.bus.publish("worker:change", { workerId: active.workerId });
+      appendSynthesized(c, active.workerId, "try_kept", { branch: active.branch, files: active.files });
     }
     writeJson(res, result.ok ? 200 : 409, result);
   });
@@ -755,8 +746,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const active = (await c.branchIntegration.activeTries(repoRoot)).find((t) => t.workerId === body.workerId);
     const result = await c.branchIntegration.discard(repoRoot, body.workerId);
     if (result.ok && active) {
-      c.events.append(active.workerId, c.clock.now(), "try_discarded", { branch: active.branch, files: active.files });
-      c.bus.publish("worker:change", { workerId: active.workerId });
+      appendSynthesized(c, active.workerId, "try_discarded", { branch: active.branch, files: active.files });
     }
     writeJson(res, result.ok ? 200 : 409, result);
   });
@@ -844,8 +834,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     if (!dir) { writeJson(res, 404, { error: "worker has no working directory" }); return; }
     const result = await resolveConflictFile({ git: c.git, conflicts: c.conflicts }, dir, body);
     if (result.ok) {
-      c.events.append(params.id, c.clock.now(), "conflict_resolved", { path: body.path, remaining: result.remaining });
-      c.bus.publish("worker:change", { workerId: params.id });
+      appendSynthesized(c, params.id, "conflict_resolved", { path: body.path, remaining: result.remaining });
     }
     writeJson(res, result.ok ? 200 : 409, result);
   });

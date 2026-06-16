@@ -7,6 +7,7 @@ import { resolveSpawnIsolation } from "../../../core/src/domain/worktree-policy.
 import { ValidationError } from "../../../core/src/errors/index.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
+import { appendSynthesized } from "../../shared/synthesized-events.ts";
 
 export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, SpawnWorkerResponse> = {
   def: spawnWorkerCommand,
@@ -74,8 +75,7 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       spec,
     );
     if (isGitAgent) {
-      c.events.append(result.id, c.clock.now(), "user_message", { text: bootPrompt });
-      c.bus.publish("worker:change", { workerId: result.id });
+      appendSynthesized(c, result.id, "user_message", { text: bootPrompt });
     }
     const isolation = spec.worktreeFrom || body.workspaceOf ? "worktree" : "cwd";
     return { status: 201, body: { ...result, isolation } };

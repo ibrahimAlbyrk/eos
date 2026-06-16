@@ -9,6 +9,7 @@ import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
 import { randomOrchestratorName } from "../shared/names.ts";
 import { expandPath } from "../shared/path.ts";
+import { appendSynthesized } from "../shared/synthesized-events.ts";
 import { resumeIfDead } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
 
@@ -48,8 +49,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
       },
     );
     if (body.prompt) {
-      c.events.append(id, c.clock.now(), "user_message", { text: body.prompt });
-      c.bus.publish("worker:change", { workerId: id });
+      appendSynthesized(c, id, "user_message", { text: body.prompt });
     }
     writeJson(res, 201, { ...result, name });
   });
