@@ -218,3 +218,20 @@ export const FsChangeEventSchema = z.object({
   ),
 });
 export type FsChangeEvent = z.infer<typeof FsChangeEventSchema>;
+
+// git:change — a bus-only live topic (like fs:change), NOT a per-worker timeline
+// event, so it is deliberately absent from WorkerEventTypeSchema. The GitWatcher
+// observes a repo's .git internals + working tree and publishes one coalesced
+// event per affected dir; the SSE broadcaster relays it as {reason:"git:change",
+// payload}; the web's dir-keyed git stores revalidate only the slice each `kind`
+// touches. `dir` is the working-tree root the watcher was asked to watch — the
+// same path the web keys its git state on, so events and stores line up.
+export const GitChangeKindSchema = z.enum(["head", "index", "refs", "stash", "worktree", "conflict"]);
+export type GitChangeKind = z.infer<typeof GitChangeKindSchema>;
+
+export const GitChangeEventSchema = z.object({
+  dir: z.string(),
+  kinds: z.array(GitChangeKindSchema),
+  ts: z.number(),
+});
+export type GitChangeEvent = z.infer<typeof GitChangeEventSchema>;

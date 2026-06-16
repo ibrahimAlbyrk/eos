@@ -17,7 +17,7 @@ export type EventBusTopic =
   | "terminal:chunk"
   | "terminal:done"
   | "fs:change"
-  | "ui:reload"
+  | "git:change"
   | "update:available";
 
 export interface EventBusMessage<T = unknown> {
