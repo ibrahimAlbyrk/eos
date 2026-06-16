@@ -5,6 +5,8 @@ import { usePaneFocusHotkeys } from "../../hooks/usePaneFocusHotkeys.js";
 import { useDeleteAgentHotkey } from "../../hooks/useDeleteAgentHotkey.js";
 import { useGitModeHotkey } from "../../hooks/useGitModeHotkey.js";
 import { useOpenEmptySplitHotkey } from "../../hooks/useOpenEmptySplitHotkey.js";
+import { useGlobalKeymap, useKeybinding } from "../../keymap/useKeymap.js";
+import { combo } from "../../keymap/index.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { CenterHeader } from "./center/CenterHeader.jsx";
@@ -22,6 +24,10 @@ import { RewindPanel } from "./center/RewindPanel.jsx";
 export function CodeView({ live }) {
   const ui = useUi();
 
+  // One capture-phase window listener for every keymap binding below (and any
+  // future view binding) — replaces the per-hook listeners one at a time.
+  useGlobalKeymap();
+
   // Cmd+1..9 → select Nth visible agent in the sidebar.
   useAgentSwitchHotkeys(live);
 
@@ -38,15 +44,12 @@ export function CodeView({ live }) {
   useOpenEmptySplitHotkey();
 
   // Cmd+T → new empty session (mirrors the + button).
-  useEffect(() => {
-    const onKey = (e) => {
-      if (!e.metaKey || e.ctrlKey || e.altKey || e.shiftKey) return;
-      if (e.key !== "t" && e.key !== "T") return;
+  useKeybinding({
+    match: combo("mod+t"),
+    run: (ctx, e) => {
       e.preventDefault();
       ui.setSelectedId(null);
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+    },
   }, [ui.setSelectedId]);
 
   // Last agent removed → reset to the clean new-session state, in ANY layout.
