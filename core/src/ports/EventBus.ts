@@ -16,6 +16,7 @@ export type EventBusTopic =
   | "notification:fire"
   | "terminal:chunk"
   | "terminal:done"
+  | "fs:change"
   | "ui:reload"
   | "update:available";
 

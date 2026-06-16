@@ -199,3 +199,22 @@ export const WorkerEventRowSchema = z.object({
   payload: z.string().nullable(),
 });
 export type WorkerEventRow = z.infer<typeof WorkerEventRowSchema>;
+
+// fs:change — a bus-only live topic (like terminal:chunk), NOT a per-worker
+// timeline event, so it is deliberately absent from WorkerEventTypeSchema. The
+// chokidar watcher publishes coalesced batches; the SSE broadcaster relays them
+// as {reason:"fs:change", payload}; the Files explorer re-lists the affected dir.
+export const FsChangeKindSchema = z.enum(["add", "change", "unlink", "addDir", "unlinkDir"]);
+export type FsChangeKind = z.infer<typeof FsChangeKindSchema>;
+
+export const FsChangeEventSchema = z.object({
+  changes: z.array(
+    z.object({
+      kind: FsChangeKindSchema,
+      path: z.string(),
+      dir: z.string(),
+      ts: z.number(),
+    }),
+  ),
+});
+export type FsChangeEvent = z.infer<typeof FsChangeEventSchema>;

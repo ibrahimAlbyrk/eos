@@ -591,14 +591,19 @@ export const FsListQuerySchema = z.object({
   cwd: z.string().min(1),
   query: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).default(50),
+  includeHidden: z.coerce.boolean().optional(),
 });
 export type FsListQuery = z.infer<typeof FsListQuerySchema>;
 
+// isSymlink is set by the tree listing (stat-free) and absent on fuzzy-search
+// results (the thin path-only shape) — hence optional. Per-entry size/mtime are
+// deliberately NOT here; the tree fetches them lazily via GET /fs/stat.
 export const FsEntrySchema = z.object({
   name: z.string(),
   absolutePath: z.string(),
   relativePath: z.string(),
   type: z.enum(["file", "directory"]),
+  isSymlink: z.boolean().optional(),
 });
 export type FsEntry = z.infer<typeof FsEntrySchema>;
 
@@ -614,12 +619,117 @@ export const FsImageQuerySchema = z.object({ path: z.string().min(1) });
 export type FsImageQuery = z.infer<typeof FsImageQuerySchema>;
 
 // ---- POST /fs/write --------------------------------------------------------
-
+// root (optional) sandboxes the write to a project root for the Files explorer;
+// legacy callers omit it and fall back to a plain safe-abs-path check. mkdirp
+// creates missing parent dirs (the explorer's "save into a new folder" case).
 export const FsWriteRequestSchema = z.object({
   path: z.string(),
   content: z.string(),
+  root: z.string().optional(),
+  mkdirp: z.boolean().optional(),
 });
 export type FsWriteRequest = z.infer<typeof FsWriteRequestSchema>;
+
+// ---- GET /fs/stat ----------------------------------------------------------
+// Per-entry detail (size/mtime/readonly) fetched lazily by the explorer for the
+// selected row + the editor header — kept out of the bulk listing for speed.
+export const FsStatQuerySchema = z.object({ path: z.string().min(1) });
+export type FsStatQuery = z.infer<typeof FsStatQuerySchema>;
+
+export const FsStatResponseSchema = z.object({
+  absolutePath: z.string(),
+  type: z.enum(["file", "directory"]),
+  size: z.number().int().nonnegative(),
+  mtimeMs: z.number().nonnegative(),
+  isSymlink: z.boolean(),
+  readonly: z.boolean(),
+});
+export type FsStatResponse = z.infer<typeof FsStatResponseSchema>;
+
+// ---- Files explorer mutations ----------------------------------------------
+// Every mutation carries `root` so the route can sandbox each path within it
+// (resolveWithinRoot) AND is UI-token gated — an agent holding EOS_DAEMON_URL
+// must never create/move/delete the user's files through the daemon.
+
+export const FsMutationResponseSchema = z.object({
+  ok: z.boolean(),
+  path: z.string().optional(),
+  error: z.string().optional(),
+});
+export type FsMutationResponse = z.infer<typeof FsMutationResponseSchema>;
+
+// POST /fs/create — unified create for files (with optional content) + dirs.
+export const FsCreateRequestSchema = z.object({
+  root: z.string().min(1),
+  path: z.string().min(1),
+  type: z.enum(["file", "directory"]),
+  content: z.string().optional(),
+});
+export type FsCreateRequest = z.infer<typeof FsCreateRequestSchema>;
+
+// POST /fs/rename — same-directory rename; newName must be a bare filename.
+export const FsRenameRequestSchema = z.object({
+  root: z.string().min(1),
+  path: z.string().min(1),
+  newName: z
+    .string()
+    .min(1)
+    .regex(/^[^/\0]+$/, "name cannot contain '/' or null")
+    .refine((n) => n !== "." && n !== "..", "invalid name"),
+});
+export type FsRenameRequest = z.infer<typeof FsRenameRequestSchema>;
+
+// POST /fs/move — bulk move into a destination dir (drag-and-drop). The server
+// computes each target as destDir/basename(from) and reports per-item results.
+export const FsMoveRequestSchema = z.object({
+  root: z.string().min(1),
+  paths: z.array(z.string().min(1)).min(1).max(500),
+  destDir: z.string().min(1),
+  overwrite: z.boolean().optional(),
+});
+export type FsMoveRequest = z.infer<typeof FsMoveRequestSchema>;
+
+export const FsMoveResponseSchema = z.object({
+  ok: z.boolean(),
+  results: z.array(z.object({ from: z.string(), ok: z.boolean(), error: z.string().optional() })),
+});
+export type FsMoveResponse = z.infer<typeof FsMoveResponseSchema>;
+
+// POST /fs/trash — bulk reversible delete (OS Trash). Partial success: one
+// unremovable file lands in failed[] without failing the whole batch.
+export const FsTrashRequestSchema = z.object({
+  root: z.string().min(1),
+  paths: z.array(z.string().min(1)).min(1).max(500),
+});
+export type FsTrashRequest = z.infer<typeof FsTrashRequestSchema>;
+
+export const FsTrashResponseSchema = z.object({
+  ok: z.boolean(),
+  trashed: z.array(z.string()),
+  failed: z.array(z.object({ path: z.string(), error: z.string() })),
+});
+export type FsTrashResponse = z.infer<typeof FsTrashResponseSchema>;
+
+// POST /fs/watch — subscribe a directory to the chokidar watcher; clientId ties
+// the watch to the SSE connection so a dropped tab tears it down (FsWatchRegistry).
+export const FsWatchRequestSchema = z.object({
+  root: z.string().min(1),
+  dir: z.string().min(1),
+  clientId: z.string().min(1),
+});
+export type FsWatchRequest = z.infer<typeof FsWatchRequestSchema>;
+
+// POST /fs/unwatch — drop one dir, or every dir for this client ({all:true}).
+export const FsUnwatchRequestSchema = z.object({
+  clientId: z.string().min(1),
+  root: z.string().optional(),
+  dir: z.string().optional(),
+  all: z.boolean().optional(),
+});
+export type FsUnwatchRequest = z.infer<typeof FsUnwatchRequestSchema>;
+
+export const FsWatchResponseSchema = z.object({ ok: z.boolean() });
+export type FsWatchResponse = z.infer<typeof FsWatchResponseSchema>;
 
 // ---- PUT /workers/:id/permission -------------------------------------------
 
@@ -1372,6 +1482,13 @@ export const ROUTES = {
   fsRemoteBranchDelete: "/fs/remote-branch/delete",
   fsWrite: "/fs/write",
   fsPaste: "/fs/paste",
+  fsStat: "/fs/stat",
+  fsCreate: "/fs/create",
+  fsRename: "/fs/rename",
+  fsMove: "/fs/move",
+  fsTrash: "/fs/trash",
+  fsWatch: "/fs/watch",
+  fsUnwatch: "/fs/unwatch",
   workerName: (id: string): string => `/workers/${id}/name`,
   workerOpen: (id: string): string => `/workers/${id}/open`,
   workerPermission: (id: string): string => `/workers/${id}/permission`,
