@@ -26,15 +26,18 @@ const ELIGIBLE = new Set(["SPAWNING", "WORKING", "IDLE"]);
 
 // The ordered, capped child ids that should occupy the panes. Priority-fill with
 // stable slots:
-//   - keep currently-shown children in their slot (minimal reflow), then append
-//     newcomers running-first, then by started_at;
+//   - keep currently-shown children in their slot (minimal reflow);
+//   - a running newcomer RECYCLES a shown idle slot in place (from the end, so
+//     the earliest panes stay put) instead of growing the grid — this is why a
+//     fresh worker reuses an idle pane rather than opening a new split;
+//   - only then append leftover newcomers running-first, then by started_at;
 //   - when over capacity, keep the highest-priority `capacity` (running beats
 //     idle, stable tiebreak on slot order) so a newly-running child evicts the
 //     lowest-priority idle one — never a running one;
-//   - `pinnedId` (the agent you're viewing) is always kept if eligible, so a
-//     background spawn can't evict it from under you.
-// A pure-state flip that doesn't cross the capacity boundary yields the SAME list
-// as currentChildIds, which lets the reconciler no-op (no rebuild, no remount).
+//   - `pinnedId` (the agent you're viewing) is never recycled and always kept if
+//     eligible, so a background spawn can't evict it from under you.
+// A pure-state flip that recycles nothing yields the SAME list as currentChildIds,
+// which lets the reconciler no-op (no rebuild, no remount).
 export function selectFollowChildren(workers, orchId, currentChildIds, capacity, pinnedId) {
   if (!orchId || capacity <= 0) return [];
   const byId = new Map(workers.map((w) => [w.id, w]));
@@ -51,7 +54,20 @@ export function selectFollowChildren(workers, orchId, currentChildIds, capacity,
       || (a.started_at ?? 0) - (b.started_at ?? 0))
     .map((w) => w.id);
 
-  const candidates = [...kept, ...newcomers];
+  // Recycle idle slots in place: a running newcomer takes the slot of a shown
+  // IDLE child instead of opening a new pane (no grid growth). Walk slots from
+  // the end so the earliest panes stay put; never recycle the pinned (viewed)
+  // slot, and only running newcomers recycle (idle→idle would be pointless churn).
+  const slots = [...kept];
+  const queue = [...newcomers];
+  for (let i = slots.length - 1; i >= 0 && queue.length; i--) {
+    const occupant = byId.get(slots[i]);
+    if (occupant?.state === "IDLE" && slots[i] !== pinnedId && isRunning(byId.get(queue[0]))) {
+      slots[i] = queue.shift();
+    }
+  }
+
+  const candidates = [...slots, ...queue];
   let result;
   if (candidates.length <= capacity) {
     result = candidates;

@@ -57,9 +57,35 @@ describe("selectFollowChildren", () => {
     expect(selectFollowChildren(ws, "O", [], CAP)).toEqual(["r1", "r2", "i"]);
   });
 
-  it("preserves current slots and appends a newcomer", () => {
+  it("a running newcomer recycles the last idle slot in place (no new pane)", () => {
     const ws = [orch("O"), kid("a", "O", "IDLE"), kid("b", "O", "IDLE"), kid("c", "O", "WORKING")];
-    expect(selectFollowChildren(ws, "O", ["a", "b"], CAP)).toEqual(["a", "b", "c"]);
+    // c takes b's slot (the last idle); a (earlier slot) stays put → no 3rd pane.
+    expect(selectFollowChildren(ws, "O", ["a", "b"], CAP)).toEqual(["a", "c"]);
+  });
+
+  it("recycles from the end across many idle slots — earlier panes stay put", () => {
+    const ws = [
+      orch("O"),
+      kid("a", "O", "IDLE"), kid("b", "O", "IDLE"), kid("c", "O", "IDLE"),
+      kid("n", "O", "WORKING", 9),
+    ];
+    expect(selectFollowChildren(ws, "O", ["a", "b", "c"], CAP)).toEqual(["a", "b", "n"]);
+  });
+
+  it("does not recycle a working slot — only idle slots are recycled", () => {
+    const ws = [orch("O"), kid("a", "O", "WORKING"), kid("c", "O", "WORKING", 5)];
+    expect(selectFollowChildren(ws, "O", ["a"], CAP)).toEqual(["a", "c"]);
+  });
+
+  it("an idle newcomer does not recycle a shown idle slot — it appends", () => {
+    const ws = [orch("O"), kid("a", "O", "IDLE"), kid("n", "O", "IDLE", 5)];
+    expect(selectFollowChildren(ws, "O", ["a"], CAP)).toEqual(["a", "n"]);
+  });
+
+  it("never recycles the pinned (viewed) idle slot — a background idle slot is taken instead", () => {
+    const ws = [orch("O"), kid("a", "O", "IDLE"), kid("b", "O", "IDLE"), kid("c", "O", "WORKING")];
+    // viewing "b": c must recycle "a" (the other idle), not the pinned "b".
+    expect(selectFollowChildren(ws, "O", ["a", "b"], CAP, "b")).toEqual(["c", "b"]);
   });
 
   it("over capacity, running beats idle for the slots", () => {
