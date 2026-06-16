@@ -3,14 +3,10 @@
 // is the target peer's agent (via respond_to_peer), not a human — so a request
 // also carries a delivery lifecycle: queued (registered, not yet in the peer's
 // PTY) → delivered (the PeerRequestPump put it in the peer's PTY for a turn) →
-// answered/declined/gone (terminal). A pending request has no TTL; the asker
-// blocks in its tool call (MCP_TOOL_TIMEOUT is lifted platform-wide) until a
-// terminal state, the peer dies, or the daemon restarts (lost map → "gone").
-// A TERMINAL request is kept for a short grace window (not deleted on read) so a
-// retried poll after a lost response still sees the answer — ask_peer's poll
-// loop swallows transient GET failures and retries — then pruned so settled
-// consultations can't pile up on a persistent orchestrator. Mirrors
-// PendingQuestionService exactly.
+// answered/declined/gone (terminal). The no-TTL pending + terminal-grace +
+// first-settle-wins lifecycle is the shared PendingStore; this service adds the
+// peer-specific states, the queued→delivered transition, by-target queries and
+// the deadlock guard.
 //
 // Invariant: at most ONE delivered request per target at a time — the pump only
 // delivers the next queued one once the current resolves or auto-declines. That
@@ -18,10 +14,7 @@
 
 import type { IdGenerator } from "../../core/src/ports/IdGenerator.ts";
 import type { Clock } from "../../core/src/ports/Clock.ts";
-
-// Comfortably longer than the ask_peer poll interval (2.5s) so the asker always
-// reads its answer before the entry is reclaimed.
-const TERMINAL_GRACE_MS = 5 * 60 * 1000;
+import { PendingStore } from "./PendingStore.ts";
 
 export type PeerRequestState =
   | { status: "queued" }
@@ -38,41 +31,40 @@ export type PeerRequestPoll =
   | { status: "declined"; reason: string }
   | { status: "gone" };
 
-interface PeerRequestEntry {
+interface PeerMeta {
+  from: string;
+  to: string;
+  question: string;
+}
+
+// What nextQueuedFor hands the pump. Keeps the original field names so the pump
+// call sites (daemon.ts) don't change.
+export interface QueuedPeerRequest {
   requestId: string;
   from: string;
   to: string;
   question: string;
-  state: PeerRequestState;
-  // Set when the entry reaches a terminal state; null while queued/delivered.
-  // Only terminal entries are eligible for grace-window pruning.
-  settledAt: number | null;
-}
-
-function isPending(s: PeerRequestState): boolean {
-  return s.status === "queued" || s.status === "delivered";
 }
 
 export class PendingPeerRequestService {
-  private entries = new Map<string, PeerRequestEntry>();
+  private store: PendingStore<PeerRequestState, PeerMeta>;
   private ids: IdGenerator;
-  private clock: Clock;
 
   constructor(ids: IdGenerator, clock: Clock) {
     this.ids = ids;
-    this.clock = clock;
+    this.store = new PendingStore<PeerRequestState, PeerMeta>(clock);
   }
 
   register(from: string, to: string, question: string): { requestId: string } {
-    this.sweepStaleTerminal();
+    this.store.sweep();
     const requestId = this.ids.newRequestId();
-    this.entries.set(requestId, { requestId, from, to, question, state: { status: "queued" }, settledAt: null });
+    this.store.add(requestId, { status: "queued" }, { from, to, question });
     return { requestId };
   }
 
   poll(requestId: string): PeerRequestPoll {
-    this.sweepStaleTerminal();
-    const e = this.entries.get(requestId);
+    this.store.sweep();
+    const e = this.store.get(requestId);
     if (!e) return { status: "gone" };
     switch (e.state.status) {
       case "queued":
@@ -89,27 +81,28 @@ export class PendingPeerRequestService {
 
   // Pump: the oldest queued request addressed to `to` (insertion order). Null
   // when none is waiting.
-  nextQueuedFor(to: string): PeerRequestEntry | null {
-    for (const e of this.entries.values()) {
-      if (e.to === to && e.state.status === "queued") return e;
+  nextQueuedFor(to: string): QueuedPeerRequest | null {
+    for (const e of this.store.all()) {
+      if (e.meta.to === to && e.state.status === "queued") {
+        return { requestId: e.id, from: e.meta.from, to: e.meta.to, question: e.meta.question };
+      }
     }
     return null;
   }
 
   markDelivered(requestId: string): void {
-    const e = this.entries.get(requestId);
-    if (e && e.state.status === "queued") e.state = { status: "delivered" };
+    const e = this.store.get(requestId);
+    if (e && e.state.status === "queued") this.store.transition(requestId, { status: "delivered" });
   }
 
   // respond_to_peer: resolve the single delivered request addressed to `to`.
   // Returns the resolved request's id+asker, or null if there was none (the
   // asker vanished, or the peer answered without an in-flight request).
   resolveDelivered(to: string, answer: string): { requestId: string; from: string } | null {
-    for (const e of this.entries.values()) {
-      if (e.to === to && e.state.status === "delivered") {
-        e.state = { status: "answered", answer };
-        e.settledAt = this.clock.now();
-        return { requestId: e.requestId, from: e.from };
+    for (const e of this.store.all()) {
+      if (e.meta.to === to && e.state.status === "delivered") {
+        this.store.settle(e.id, { status: "answered", answer });
+        return { requestId: e.id, from: e.meta.from };
       }
     }
     return null;
@@ -119,11 +112,9 @@ export class PendingPeerRequestService {
   // ended its turn without calling respond_to_peer. Decline so the asker
   // unblocks. No-op when the request was already answered in the same turn.
   declineDelivered(to: string, reason: string): boolean {
-    for (const e of this.entries.values()) {
-      if (e.to === to && e.state.status === "delivered") {
-        e.state = { status: "declined", reason };
-        e.settledAt = this.clock.now();
-        return true;
+    for (const e of this.store.all()) {
+      if (e.meta.to === to && e.state.status === "delivered") {
+        return this.store.settle(e.id, { status: "declined", reason });
       }
     }
     return false;
@@ -133,23 +124,12 @@ export class PendingPeerRequestService {
   // longer waiting); its inbound pending requests go "gone" so their askers
   // unblock instead of waiting on a peer that will never answer.
   cancelByWorker(workerId: string): void {
-    for (const [requestId, e] of this.entries) {
-      if (e.from === workerId) {
-        this.entries.delete(requestId);
-      } else if (e.to === workerId && isPending(e.state)) {
-        e.state = { status: "gone" };
-        e.settledAt = this.clock.now();
+    for (const e of [...this.store.all()]) {
+      if (e.meta.from === workerId) {
+        this.store.delete(e.id);
+      } else if (e.meta.to === workerId && this.store.isPending(e)) {
+        this.store.settle(e.id, { status: "gone" });
       }
-    }
-  }
-
-  // Reclaim terminal (answered/declined/gone) entries older than the grace
-  // window. Pending entries (settledAt === null) are NEVER touched — a request
-  // may wait indefinitely for the peer to answer.
-  private sweepStaleTerminal(): void {
-    const cutoff = this.clock.now() - TERMINAL_GRACE_MS;
-    for (const [requestId, e] of this.entries) {
-      if (e.settledAt !== null && e.settledAt < cutoff) this.entries.delete(requestId);
     }
   }
 
@@ -166,8 +146,8 @@ export class PendingPeerRequestService {
       if (node === from) return true;
       if (seen.has(node)) continue;
       seen.add(node);
-      for (const e of this.entries.values()) {
-        if (isPending(e.state) && e.from === node) stack.push(e.to);
+      for (const e of this.store.all()) {
+        if (this.store.isPending(e) && e.meta.from === node) stack.push(e.meta.to);
       }
     }
     return false;
