@@ -237,9 +237,12 @@ export function PaneProvider({ children }) {
     const byId = new Map(workers.map((w) => [w.id, w]));
     const anchorId = followAnchorId(workers, sel);
     if (!anchorId) {
-      // The selected child was killed → don't collapse the fanout onto a dead
-      // pane: keep following the orchestrator still tiled on the left, reselect it.
-      if (!byId.has(sel)) {
+      // A selected child that was just killed (sel set but gone) → reselect the
+      // orchestrator still tiled, don't collapse the fanout onto a dead pane.
+      // sel === null is a deliberate new session (Cmd+T / +): fall through to a
+      // single empty pane and STAY in follow, so reselecting an orchestrator
+      // re-opens its fanout (no need to re-toggle follow).
+      if (sel && !byId.has(sel)) {
         const orchLeaf = leaves(treeRef.current).find((l) => byId.get(l.agentId)?.is_orchestrator);
         if (orchLeaf) { setSelectedId(orchLeaf.agentId); return; }
       }
