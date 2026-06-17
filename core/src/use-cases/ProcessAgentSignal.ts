@@ -4,9 +4,12 @@
 // reuses the same building blocks (transitionState, the settle window,
 // computeCostUsd) so its behavior matches the legacy path exactly.
 //
-// NOT yet wired into the daemon route — the Phase 0 flip (ADR 0001) activates it
-// once every backend adapter emits canonical events. Until then it is exercised
-// only by unit tests, so introducing it changes no runtime behavior.
+// Live on two paths: (1) the daemon translates the claude-cli worker's legacy wire
+// events to canonical and drives state via reduceAgentSignal (ProcessWorkerEvent's
+// toCanonical hybrid, wired in manager/routes/workers.ts); (2) the in-process and
+// claude-sdk backends emit canonical events that container.ts's onAgentEvent sink
+// feeds straight into processAgentSignal. The remaining split is persistence + the
+// UI decoder (claude-cli still logs legacy jsonl/hook rows), not state.
 
 import type { AgentEvent, ContentBlock } from "../../../contracts/src/canonical.ts";
 import type { ProcessWorkerEventDeps } from "./ProcessWorkerEvent.ts";

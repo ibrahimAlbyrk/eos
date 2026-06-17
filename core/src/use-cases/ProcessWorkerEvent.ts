@@ -13,9 +13,7 @@ import type { ModelCatalog } from "../ports/ModelCatalog.ts";
 import type { Logger } from "../ports/Logger.ts";
 import { transitionState } from "./TransitionState.ts";
 import { logEvent } from "./LogEvent.ts";
-import { computeCostUsd } from "../domain/value-objects.ts";
-import { applyTaskTool, parseStoredTasks } from "../domain/tasks.ts";
-import { reduceAgentSignal } from "./ProcessAgentSignal.ts";
+import { processAgentSignal } from "./ProcessAgentSignal.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 
 export interface ProcessWorkerEventDeps {
@@ -62,45 +60,6 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
       });
     }
   },
-  hook(deps, input) {
-    const evt = (input.payload as { event?: string })?.event;
-    if (evt === "PostToolUse" || evt === "PostToolUseFailure") {
-      if (deps.isSettling?.(input.workerId)) return;
-      transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: `hook:${evt}` });
-    } else if (evt === "Stop") {
-      // Turn ended. Open the settle window before going IDLE so trailing
-      // transcript JSONL (which can arrive after this Stop via the unordered
-      // event channel) does not re-animate the worker back to WORKING.
-      deps.markSettling?.(input.workerId);
-      transitionState(deps, { workerId: input.workerId, next: "IDLE", reason: "hook:Stop" });
-    } else if (evt === "SessionEnd") {
-      transitionState(deps, { workerId: input.workerId, next: "ENDING", reason: "hook:SessionEnd" });
-    }
-  },
-  jsonl(deps, input) {
-    const kind = (input.payload as { kind?: string })?.kind;
-    if (kind === "assistant_text" || kind === "thinking" || kind === "tool_use") {
-      const cur = deps.workers.findById(input.workerId);
-      // SPAWNING always heals on first real JSONL (boot). IDLE heals only when
-      // the worker is NOT settling: an IDLE reached via a just-ended turn
-      // (Stop/interrupt) must stay put — the incoming JSONL is trailing
-      // transcript of that finished turn, not a new one.
-      const canRecover =
-        cur?.state === "SPAWNING" ||
-        (cur?.state === "IDLE" && !deps.isSettling?.(input.workerId));
-      if (canRecover) {
-        transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: `jsonl:${kind}` });
-      }
-    }
-    if (kind === "tool_use") {
-      deps.workers.incrementToolCalls(input.workerId);
-      // Parity with the canonical reducer: fold a task-list tool call.
-      const p = input.payload as { name?: string; input?: unknown };
-      const prev = parseStoredTasks(deps.workers.findById(input.workerId)?.tasks);
-      const next = applyTaskTool(prev, p.name ?? "", p.input);
-      if (next !== null) deps.workers.setTasks(input.workerId, JSON.stringify(next));
-    }
-  },
   lifecycle(deps, input) {
     const p = input.payload as { phase?: string; worktreeDir?: unknown; forkBaseSha?: unknown; sessionId?: unknown } | null;
     const phase = p?.phase;
@@ -131,77 +90,29 @@ const HANDLERS: Partial<Record<WorkerEventType, WorkerEventHandler>> = {
       transitionState(deps, { workerId: input.workerId, next: "IDLE", reason: "delivery_failed" });
     }
   },
-  heartbeat(deps, input) {
-    if (deps.isSettling?.(input.workerId)) return;
-    const cur = deps.workers.findById(input.workerId);
-    if (cur && (cur.state === "SPAWNING" || cur.state === "IDLE")) {
-      transitionState(deps, { workerId: input.workerId, next: "WORKING", reason: "heartbeat" });
-    }
-  },
-  tool_running() {},
-  usage(deps, input, rowId) {
-    const u = (input.payload as {
-      in?: number;
-      out?: number;
-      cacheRead?: number;
-      cacheCreate?: number;
-      cacheCreate1h?: number;
-      model?: string;
-    }) ?? {};
-    const tIn = u.in ?? 0;
-    const tOut = u.out ?? 0;
-    const cRead = u.cacheRead ?? 0;
-    const cCreate = u.cacheCreate ?? 0;
-    const cCreate1h = u.cacheCreate1h ?? 0;
-
-    const row = deps.workers.findById(input.workerId);
-    let model = u.model ?? row?.model;
-    if (!model) {
-      // Falling back to opus over-estimates cost (highest tier). Logged so the
-      // operator can find why model attribution was missing for this turn.
-      deps.log.warn("usage event missing model — falling back to opus pricing", {
-        workerId: input.workerId,
-      });
-      model = "opus";
-    }
-    let deltaCost = computeCostUsd(deps.models, model, { in: tIn, out: tOut, cacheRead: cRead, cacheCreate: cCreate, cacheCreate1h: cCreate1h });
-    if (!Number.isFinite(deltaCost) || deltaCost < 0) {
-      // Defensive: a malformed price catalog (e.g. partial override leaving
-      // undefined fields) would yield NaN. Record 0 and surface the problem
-      // instead of corrupting cumulative cost_usd.
-      deps.log.error("computed deltaCost is invalid — recording as 0", {
-        workerId: input.workerId, model, deltaCost,
-      });
-      deltaCost = 0;
-    }
-
-    deps.workers.addUsage(input.workerId, {
-      in: tIn, out: tOut, cacheRead: cRead, cacheCreate: cCreate, cacheCreate1h: cCreate1h, costUsd: deltaCost,
-    });
-    // Back-fill deltaCost into the just-inserted payload — freezes the cost at
-    // record-time prices, so later price-table changes can't rewrite history.
-    deps.events.patchPayload(rowId, { ...u, deltaCost });
-    deps.bus.publish("usage:recorded", { workerId: input.workerId, deltaCost });
-  },
 };
 
-// Claude-transport events whose state effects are re-expressed canonically when
-// a translator is injected. Everything else (state, usage, lifecycle, and the
-// daemon-synthesized events) stays on its dedicated legacy handler.
-const CANONICAL_DRIVEN = new Set<WorkerEventType>(["hook", "jsonl", "heartbeat"]);
+// Claude-transport events whose content / cost / turn / liveness signals are
+// persisted AND driven canonically (one row type: agent_event). Only the two
+// genuinely claude-cli-private events keep a legacy handler + row: `state` (a
+// direct backend-agnostic transition push) and `lifecycle` (worktree / session-id
+// enrichment + the delivery_failed heal — none of which map to a canonical event).
+const CANONICAL_PERSISTED = new Set<WorkerEventType>(["jsonl", "tool_running", "tool_done", "hook", "heartbeat", "usage"]);
 
 export function processWorkerEvent(
   deps: ProcessWorkerEventDeps,
   input: WorkerEventInput,
 ): void {
   const type = input.type as WorkerEventType;
-  const rowId = logEvent(deps, input.workerId, type, input.payload);
-  if (deps.toCanonical && CANONICAL_DRIVEN.has(type)) {
+  if (deps.toCanonical && CANONICAL_PERSISTED.has(type)) {
+    // Translate to canonical and persist as agent_event(s): processAgentSignal logs
+    // the row, drives the state machine, and computes cost (usage). No legacy row.
     for (const ev of deps.toCanonical(type, input.payload)) {
-      reduceAgentSignal(deps, input.workerId, ev);
+      processAgentSignal(deps, input.workerId, ev);
     }
     return;
   }
+  const rowId = logEvent(deps, input.workerId, type, input.payload);
   const handler = HANDLERS[type];
   if (handler) handler(deps, input, rowId);
 }

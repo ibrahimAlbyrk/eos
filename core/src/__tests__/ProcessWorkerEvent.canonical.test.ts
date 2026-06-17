@@ -93,10 +93,12 @@ describe("processWorkerEvent — canonical flip", () => {
     assert.deepEqual(states(events), []);
   });
 
-  it("kill switch: without an injected translator, the legacy path runs unchanged", () => {
-    const { deps, events, row } = buildDeps("WORKING", { legacy: true });
-    processWorkerEvent(deps, { workerId: "w1", type: "hook", payload: { event: "Stop" } });
-    assert.equal(row.state, "IDLE");
-    assert.deepEqual(states(events), [{ state: "IDLE", from: "WORKING", reason: "hook:Stop" }]);
+  it("jsonl content is persisted as a canonical agent_event row, not a legacy jsonl row", () => {
+    const { deps, events } = buildDeps("IDLE");
+    processWorkerEvent(deps, { workerId: "w1", type: "jsonl", payload: { kind: "assistant_text", text: "hi" } });
+    const agentRows = events.filter((e) => e.type === "agent_event");
+    assert.equal(agentRows.length, 1);
+    assert.equal((agentRows[0].payload as { type?: string }).type, "message");
+    assert.equal(events.some((e) => e.type === "jsonl"), false);
   });
 });
