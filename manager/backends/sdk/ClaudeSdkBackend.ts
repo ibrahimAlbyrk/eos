@@ -14,7 +14,6 @@ import type {
   AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, WorkerHandle,
 } from "../../../core/src/ports/AgentBackend.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
-import type { AuthRef } from "../../../contracts/src/backend.ts";
 import type { ToolContext } from "../../tools/types.ts";
 import { createSdkEventMapper } from "./SdkEventMapper.ts";
 import { buildBillingGuardEnv } from "./billing-env.ts";
@@ -123,8 +122,8 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
   return {
     kind: "claude-sdk",
     async start(spec: AgentLaunchSpec, cb?: AgentStartCallbacks): Promise<AgentSession> {
-      const opts = (spec.backendOptions ?? {}) as Record<string, unknown>;
-      const auth = await deps.authResolver.resolve(opts.auth as AuthRef | undefined);
+      const opts = spec.backendOptions ?? {};
+      const auth = await deps.authResolver.resolve(opts.auth);
       const env = buildBillingGuardEnv({ auth, workerId: spec.workerId, daemonUrl: deps.daemonUrl });
       const ctx = deps.makeToolContext(spec);
       const { mcpServers, allowedTools } = buildSdkToolServers(deps.toolHost, {

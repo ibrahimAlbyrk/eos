@@ -8,7 +8,9 @@
 // (claude-cli) carry a loopback port + child pid; in-process backends carry an
 // opaque ref. Replaces the bare `port` + `pid` columns at the call sites.
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
+import type { AuthRef } from "../../../contracts/src/backend.ts";
 import type { MessageRecord } from "./WorkerClient.ts";
+import type { SpawnWorkerSpec } from "../use-cases/SpawnWorker.ts";
 
 export type WorkerHandle =
   | { readonly kind: "http"; readonly port: number; readonly pid: number | null }
@@ -48,9 +50,21 @@ export interface AgentLaunchSpec {
   readonly persistent: boolean;
   readonly parentId: string | null;
   readonly isOrchestrator: boolean;
-  // Backend-specific extras the claude-cli adapter interprets (mcp config path,
-  // gateway flag, …); other backends ignore unknown keys.
-  readonly backendOptions?: Readonly<Record<string, unknown>>;
+  // Typed backend extras (replaces the former Record<string,unknown> grab-bag).
+  // Each adapter reads the fields it understands; the rest are ignored.
+  readonly backendOptions?: BackendLaunchOptions;
+}
+
+// The typed carrier for backend-specific launch extras. `spec` is the claude-cli
+// SpawnWorkerSpec (argv / worktree / gateway / mcp — and the DPI prompt-assembly
+// facts the sdk adapter reads); the others are read by the structured backends.
+export interface BackendLaunchOptions {
+  readonly spec?: SpawnWorkerSpec;
+  readonly resume?: string;
+  readonly collaborate?: boolean;
+  readonly auth?: AuthRef;
+  readonly thinking?: unknown;
+  readonly params?: Readonly<Record<string, unknown>>;
 }
 
 export interface AgentStartCallbacks {
