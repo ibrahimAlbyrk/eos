@@ -33,32 +33,36 @@ let textDeltas = 0;
 const seen = new Set<string>();
 let lastChannel = "";
 
-await new Promise<void>((res) => {
-  be.start(
-    {
-      workerId: "spike-1",
-      cwd: process.cwd(),
-      model: "claude-opus-4-8",
-      prompt: "ultrathink: prove there are infinitely many primes, briefly. Reason first.",
-      persistent: false,
-      parentId: null,
-      isOrchestrator: false,
-      backendOptions: { auth: { kind: "subscription" }, thinking: { type: "adaptive", display: "summarized" } },
+let resolveExit: () => void = () => {};
+const exited = new Promise<void>((r) => { resolveExit = r; });
+const session = await be.start(
+  {
+    workerId: "spike-1",
+    cwd: process.cwd(),
+    model: "claude-opus-4-8",
+    prompt: "ultrathink: prove there are infinitely many primes, briefly. Reason first.",
+    persistent: false,
+    parentId: null,
+    isOrchestrator: false,
+    backendOptions: { auth: { kind: "subscription" }, thinking: { type: "adaptive", display: "summarized" } },
+  },
+  {
+    onEvent: (e: AgentEvent) => {
+      seen.add(e.type);
+      if (e.type === "delta") {
+        if (e.channel === "reasoning") reasoningDeltas++;
+        else textDeltas++;
+        if (e.channel !== lastChannel) { process.stdout.write(`\n\n[${e.channel}] `); lastChannel = e.channel; }
+        process.stdout.write(e.text);
+      }
+      // One-shot probe: the session is persistent (input stays open for more
+      // turns). End it after the first turn so the script exits + prints the summary.
+      if (e.type === "turn" && e.phase === "ended") session.stop();
     },
-    {
-      onEvent: (e: AgentEvent) => {
-        seen.add(e.type);
-        if (e.type === "delta") {
-          if (e.channel === "reasoning") reasoningDeltas++;
-          else textDeltas++;
-          if (e.channel !== lastChannel) { process.stdout.write(`\n\n[${e.channel}] `); lastChannel = e.channel; }
-          process.stdout.write(e.text);
-        }
-      },
-      onExit: () => res(),
-    },
-  );
-});
+    onExit: () => resolveExit(),
+  },
+);
+await exited;
 
 console.log("\n\n=== SPIKE RESULTS ===");
 console.log("event types seen:", [...seen].join(", "));
