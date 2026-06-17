@@ -252,7 +252,11 @@ export function SkillDetail({ tool }) {
   const hasMore = lines.length > 5;
   const preview = lines.slice(0, 5);
 
-  if (!body && !skillFile) return null;
+  // No injected SKILL.md body available (the claude-sdk lane surfaces only the
+  // "Launching skill: <name>" tool result — the body is injected server-side and
+  // never reaches the stream). Fall back to the generic result/params view so
+  // expanding shows the launch result instead of rendering nothing.
+  if (!body && !skillFile) return <GenericDetail tool={tool} />;
 
   const copyContent = () => {
     navigator.clipboard.writeText(body).catch(() => {});

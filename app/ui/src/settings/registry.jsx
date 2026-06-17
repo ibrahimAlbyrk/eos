@@ -10,19 +10,7 @@
 // entry in controls.jsx CONTROLS. A section may provide `Component` instead
 // of `groups` to render fully custom content.
 
-import { MODELS } from "../lib/models.js";
-
-// Providers carry their kind ("cli" | "api") so dependent rows (API key)
-// derive visibility from the data, not from provider-name checks. API
-// providers stay disabled until their backends are wired.
-const PROVIDERS = [
-  { value: "claude-cli", label: "Claude Code CLI", kind: "cli" },
-  { value: "anthropic-api", label: "Anthropic API", kind: "api", hint: "Soon", disabled: true },
-  { value: "openai", label: "OpenAI API", kind: "api", hint: "Soon", disabled: true },
-];
-
-const isApiProvider = (s) =>
-  PROVIDERS.find((p) => p.value === s["model.provider"])?.kind === "api";
+import { MODELS, BACKENDS } from "../lib/models.js";
 
 const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -123,19 +111,20 @@ export const SETTINGS_SECTIONS = [
         title: "Provider",
         items: [
           {
-            key: "model.provider",
+            key: "model.backendProfile",
             label: "Provider",
-            description: "Runtime new agents launch on. API providers are coming soon.",
-            control: { type: "select", options: PROVIDERS },
-            defaultValue: "claude-cli",
-          },
-          {
-            key: "model.apiKey",
-            label: "API key",
-            description: "Used only for the selected provider.",
-            control: { type: "text", secret: true, placeholder: "sk-…" },
+            description: "Backend new agents launch on. Subscription profiles (claude-cli, claude-sdk) are included in your plan; metered API profiles bill per token. \"Default\" lets the server choose.",
+            control: {
+              type: "select",
+              // Getter: re-evaluated on render so the list reflects the configured
+              // profiles applyBackends() loads from /api/ui-config at runtime.
+              get options() {
+                return [{ value: "", label: "Default (server)" }].concat(
+                  BACKENDS.map((b) => ({ value: b.name, label: b.name, hint: b.costMode === "billed" ? "billed" : "included" })),
+                );
+              },
+            },
             defaultValue: "",
-            visibleWhen: isApiProvider,
           },
         ],
       },

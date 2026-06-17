@@ -93,7 +93,51 @@ export function sortBlocksByTs(blocks) {
   });
 }
 
-export function buildBlocks(events) {
+// One content decoder. claude-cli (after the canonical persistence switch) and the
+// in-process / claude-sdk lanes all persist canonical agent_event rows; expand each
+// into the legacy content shapes buildBlocks already understands (jsonl +
+// tool_running/tool_done + turn/exit barriers) so the entire rich pipeline below —
+// subagent agentSpans, skill bodies, tool lifecycle, grouping lanes — is reused
+// unchanged. Non-content rows (synthesized user_message / worker_report / peer_* /
+// terminal / git / lifecycle / state …) pass through untouched. blockId is carried
+// on text/reasoning so the live-streaming → durable handoff still reconciles.
+function normalizeEvents(events) {
+  const out = [];
+  for (const ev of events) {
+    if (ev.type !== "agent_event") { out.push(ev); continue; }
+    const e = parsePayload(ev.payload);
+    const ts = ev.ts;
+    if (e?.type === "message" && e.role === "assistant") {
+      for (const b of e.blocks ?? []) {
+        if (b.type === "text") out.push({ type: "jsonl", ts, payload: { kind: "assistant_text", text: b.text ?? "", blockId: b.blockId } });
+        else if (b.type === "reasoning") out.push({ type: "jsonl", ts, payload: { kind: "thinking", text: b.text ?? "", blockId: b.blockId } });
+        else if (b.type === "tool_call") out.push({ type: "jsonl", ts, payload: { kind: "tool_use", id: b.callId, name: b.name ?? "", input: b.input ?? {} } });
+        else if (b.type === "tool_result") out.push({ type: "jsonl", ts, payload: { kind: "tool_result", toolUseId: b.callId, isError: !!b.isError, text: b.content ?? "" } });
+        else if (b.type === "skill") out.push({ type: "jsonl", ts, payload: { kind: "skill_body", toolUseId: b.callId, text: b.text ?? "" } });
+      }
+    } else if (e?.type === "message" && e.role === "tool") {
+      for (const b of e.blocks ?? []) {
+        if (b.type === "tool_result") out.push({ type: "jsonl", ts, payload: { kind: "tool_result", toolUseId: b.callId, isError: !!b.isError, text: b.content ?? "" } });
+      }
+    } else if (e?.type === "activity") {
+      if (e.kind === "tool_started") out.push({ type: "tool_running", ts, payload: { toolName: e.toolName, toolUseId: e.callId, input: e.input ?? {}, parentAgentToolUseId: e.parentCallId ?? undefined } });
+      else if (e.kind === "tool_finished") out.push({ type: "tool_done", ts, payload: { toolName: e.toolName, toolUseId: e.callId, result: e.result ?? "", isError: !!e.isError } });
+      // alive → drop (heartbeat: no render, no lifecycle effect)
+    } else if (e?.type === "turn" && e.phase !== "started") {
+      out.push({ type: "hook", ts, payload: { event: "Stop" } }); // turn end → tool-lifecycle turn barrier; no render
+    } else if (e?.type === "session" && e.phase === "ended") {
+      out.push({ type: "exit", ts, payload: {} }); // exit barrier — closes every open tool
+    }
+    // role:"user" → rendered via the synthesized user_message event (no double);
+    // delta/usage/permission_request/question_request: no content/lifecycle here.
+  }
+  return out;
+}
+
+export function buildBlocks(rawEvents) {
+  // Expand canonical agent_event rows into the legacy content shapes, then run the
+  // one rich decoder over the normalized stream (see normalizeEvents).
+  const events = normalizeEvents(rawEvents);
   const lc = deriveToolLifecycle(events);
   const toolUseIds = new Set();
   const agentSpans = new Map();
@@ -121,22 +165,6 @@ export function buildBlocks(events) {
         agentSpans.get(p.toolUseId).background = true;
       } else {
         agentSpans.get(p.toolUseId).endTs = ev.ts;
-      }
-    }
-  }
-
-  // Canonical (agent_event) tool results keyed by callId. The claude-sdk /
-  // in-process lanes persist a tool_result as a role:"tool" message separate
-  // from the assistant's tool_call, mirroring jsonl tool_use/tool_result.
-  const canonicalToolResults = new Map();
-  for (const ev of events) {
-    if (ev.type !== "agent_event") continue;
-    const e = parsePayload(ev.payload);
-    if (e?.type === "message" && e.role === "tool") {
-      for (const b of e.blocks ?? []) {
-        if (b.type === "tool_result") {
-          canonicalToolResults.set(b.callId, { text: b.content ?? "", isError: !!b.isError });
-        }
       }
     }
   }
@@ -384,44 +412,6 @@ export function buildBlocks(events) {
       }
       continue;
     }
-    if (ev.type === "agent_event") {
-      const e = parsePayload(ev.payload);
-      // Only durable `message` events render here; delta/turn/activity/usage/
-      // session/permission_request/question_request drive liveness/state/other UI.
-      // role:"user" renders via the synthesized user_message event (no double);
-      // role:"tool" results are correlated onto their tool_call via the map above.
-      if (e?.type === "message" && e.role === "assistant") {
-        for (const b of e.blocks ?? []) {
-          if (b.type === "reasoning") {
-            if (!b.text?.trim()) continue; // signature-only blocks persist as text:""
-            flushTools();
-            lastAsst = null;
-            out.push({ kind: "thinking", text: b.text, ts: ev.ts, blockId: b.blockId });
-          } else if (b.type === "text") {
-            flushTools();
-            if (lastAsst && out[out.length - 1] === lastAsst) {
-              lastAsst.text += "\n" + (b.text ?? "");
-            } else {
-              lastAsst = { kind: "assistant", text: b.text ?? "", ts: ev.ts, blockId: b.blockId };
-              out.push(lastAsst);
-            }
-          } else if (b.type === "tool_call") {
-            lastAsst = null;
-            pushTool({
-              id: b.callId,
-              name: b.name ?? "",
-              verb: verbFor(b.name),
-              input: b.input ?? {},
-              result: canonicalToolResults.get(b.callId) ?? null,
-              running: false,
-              done: true,
-              ts: ev.ts,
-            });
-          }
-        }
-      }
-      continue;
-    }
     if (ev.type !== "jsonl") continue;
     const p = parsePayload(ev.payload);
 
@@ -430,14 +420,14 @@ export function buildBlocks(events) {
       if (lastAsst && out[out.length - 1] === lastAsst) {
         lastAsst.text += "\n" + (p.text ?? "");
       } else {
-        lastAsst = { kind: "assistant", text: p.text ?? "", ts: p.tsTranscript ?? ev.ts };
+        lastAsst = { kind: "assistant", text: p.text ?? "", ts: p.tsTranscript ?? ev.ts, ...(p.blockId ? { blockId: p.blockId } : {}) };
         out.push(lastAsst);
       }
     } else if (p.kind === "thinking") {
       if (!p.text?.trim()) continue; // signature-only blocks already persisted as text:""
       flushTools();
       lastAsst = null;
-      out.push({ kind: "thinking", text: p.text, ts: p.tsTranscript ?? ev.ts });
+      out.push({ kind: "thinking", text: p.text, ts: p.tsTranscript ?? ev.ts, ...(p.blockId ? { blockId: p.blockId } : {}) });
     } else if (p.kind === "tool_use") {
       lastAsst = null;
       if (p.name === "Agent") {

@@ -9,6 +9,9 @@ const DEFAULT_COMPOSER = {
   model: "opus",
   effort: "xhigh",
   permissionMode: "acceptEdits",
+  // Selected backend profile (config.backends key), seeded from the provider
+  // setting; "" / null → server resolves the default. Threaded into spawns.
+  backendProfile: null,
   gitMode: false,
   // `!` on an empty input flips the composer into terminal mode: Enter runs
   // the text as a daemon-side bash command instead of messaging the agent.

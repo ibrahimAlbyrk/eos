@@ -652,6 +652,9 @@ describe("buildBlocks canonical agent_event decoder (claude-sdk / in-process lan
       ae(101, { type: "message", role: "tool", blocks: [
         { type: "tool_result", callId: "c1", content: "file contents", isError: false },
       ] }),
+      // The tool_finished pulse rides alongside the result (as every lane emits) —
+      // it is what marks the tool done, in lifecycle parity with the claude-cli lane.
+      ae(101, { type: "activity", kind: "tool_finished", callId: "c1", result: "file contents" }),
     ];
     const blocks = buildBlocks(events);
     expect(blocks.map((b) => b.kind)).toEqual(["thinking", "assistant", "tool"]);
@@ -671,13 +674,18 @@ describe("buildBlocks canonical agent_event decoder (claude-sdk / in-process lan
     expect(blocks.find((b) => b.kind === "assistant").text).toBe("hi");
   });
 
-  it("does not render delta / turn / activity events as durable blocks", () => {
-    const events = [
+  it("drops delta + turn:started; a bare tool_started renders a live (running) tool", () => {
+    // delta is ephemeral (live thinking, relayed over SSE) and turn:started is a
+    // state signal — neither becomes a block. A tool_started with no durable
+    // tool_call yet renders a running tool (the live spinner) — parity with the
+    // claude-cli lane; it de-dupes against the durable tool_call when that lands.
+    expect(buildBlocks([
       ae(100, { type: "delta", channel: "reasoning", phase: "append", blockId: "u1:0", text: "tok" }),
       ae(101, { type: "turn", phase: "started" }),
-      ae(102, { type: "activity", kind: "tool_started", callId: "c1", toolName: "Read" }),
-    ];
-    expect(buildBlocks(events)).toEqual([]);
+    ])).toEqual([]);
+    const live = buildBlocks([ae(102, { type: "activity", kind: "tool_started", callId: "c1", toolName: "Read" })]);
+    expect(live.map((b) => b.kind)).toEqual(["tool"]);
+    expect(mainTool(live, "c1")).toMatchObject({ name: "Read", running: true, done: false });
   });
 
   it("ignores role:user messages (they render via the synthesized user_message event)", () => {
@@ -693,5 +701,25 @@ describe("buildBlocks canonical agent_event decoder (claude-sdk / in-process lan
     const blocks = buildBlocks(events);
     expect(blocks.map((b) => b.kind)).toEqual(["user", "assistant"]);
     expect(blocks[1].text).toBe("done");
+  });
+
+  it("groups a subagent's parented inner tools under the agentRun, not the main stream", () => {
+    // The SDK lane surfaces a subagent's inner tools as parented activity
+    // (parentCallId = the Agent tool id). They must be grouped under the agentRun,
+    // not leak into the main transcript as standalone tools.
+    const events = [
+      ae(100, { type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: "agent_1", name: "Agent", input: { description: "sub" } }] }),
+      ae(101, { type: "activity", kind: "tool_started", callId: "inner_1", toolName: "Bash", input: { command: "find ." }, parentCallId: "agent_1" }),
+      ae(102, { type: "activity", kind: "tool_finished", callId: "inner_1", result: "found" }),
+      ae(103, { type: "message", role: "tool", blocks: [{ type: "tool_result", callId: "agent_1", content: "report" }] }),
+    ];
+    const blocks = buildBlocks(events);
+    const agentRun = blocks.find((b) => b.kind === "agentRun");
+    expect(agentRun).toBeTruthy();
+    // The inner Bash is attributed under the agent — NOT a standalone tool in main.
+    expect(blocks.some((b) => b.kind === "tool" && b.tool?.name === "Bash")).toBe(false);
+    const inner = agentRun.tools.find((t) => t.id === "inner_1");
+    expect(inner).toMatchObject({ name: "Bash", input: { command: "find ." } });
+    expect(inner.result?.text).toBe("found");
   });
 });

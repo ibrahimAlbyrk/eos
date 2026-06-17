@@ -53,6 +53,13 @@ export function SettingsProvider({ children }) {
     if (defaultModel) updateComposer({ model: defaultModel });
   }, [defaultModel, updateComposer]);
 
+  // Provider setting seeds the composer's backend profile (what new agents
+  // launch on); "" → server default. Mirrors the default-model seeding above.
+  const defaultBackendProfile = settings["model.backendProfile"];
+  useEffect(() => {
+    updateComposer({ backendProfile: defaultBackendProfile || null });
+  }, [defaultBackendProfile, updateComposer]);
+
   // Apply theme whenever the setting changes; animate only user-initiated
   // switches (not the load merge or a macOS appearance flip in system mode).
   useEffect(() => {
