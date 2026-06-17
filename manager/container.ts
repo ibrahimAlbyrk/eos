@@ -25,13 +25,17 @@ import { createOpenAIModelClient } from "../infra/src/backends/OpenAIModelClient
 import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts";
 import { scrubSubscriptionEnv } from "../core/src/domain/env-allowlist.ts";
 import type { AgentEvent } from "../contracts/src/canonical.ts";
-import type { AgentBackend } from "../core/src/ports/AgentBackend.ts";
+import type { AgentBackend, AgentLaunchSpec } from "../core/src/ports/AgentBackend.ts";
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSubscriptionAuthResolver } from "../infra/src/auth/SubscriptionAuthResolver.ts";
+import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
 import { orchestratorDefs, workerDefs, peerDefs } from "./tools/registry.ts";
+import { toRuntimeTool } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
 import { daemonApi } from "./shared/http.ts";
 import { spawnSync } from "node:child_process";
+import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import type { WorkerRow } from "../contracts/src/worker.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
@@ -531,54 +535,71 @@ export function buildContainer() {
     assembleSystemPromptFile,
   });
 
-  // anthropic-api backend — in-process, ToolRuntime-driven. Text-only for now
-  // (the tool set is the documented expansion); needs ANTHROPIC_API_KEY at
-  // runtime. Selecting it is opt-in via config; claude-cli stays the default.
-  const anthropicBackend = createInProcessBackend("anthropic-api", (spec) => ({
-    model: createAnthropicModelClient({ apiKey: process.env.ANTHROPIC_API_KEY ?? "", model: spec.model }),
-    tools: new Map(),
-    gate: { async decide() { return { allow: true }; } },
-  }));
-  // OpenAI-compatible backends (OpenAI, Codex-via-API, or any compatible
-  // endpoint via OPENAI_BASE_URL). Same in-process ToolRuntime path.
-  const openaiEnv = (spec: { model: string }) => ({
-    model: createOpenAIModelClient({ apiKey: process.env.OPENAI_API_KEY ?? "", model: spec.model, baseUrl: process.env.OPENAI_BASE_URL }),
-    tools: new Map(),
-    gate: { async decide() { return { allow: true }; } },
-  });
-  const openaiBackend = createInProcessBackend("openai", openaiEnv);
-  const codexBackend = createInProcessBackend("codex", openaiEnv);
-
-  // claude-sdk (Lane A): subscription-billed, live thinking. Reuses the policy
-  // engine (canUseTool bridge), the prompt-library tool descriptions, and a
-  // loopback api for its in-process tools. Registered behind a transient flag so
-  // bring-up keeps claude-cli the default and the daemon byte-identical.
+  // Shared in-process tooling, used by BOTH the claude-sdk lane and the Eos-hosted
+  // ToolRuntime lane (anthropic-api / openai / deepseek / kimi): the daemon-loopback
+  // ToolContext, the one policy engine, and the prompt-library descriptions.
   const sdkDaemonUrl = `http://127.0.0.1:${config.daemon.port}`;
-  const sdkToolDescriptions = renderToolDescriptions(
+  const inprocToolDescriptions = renderToolDescriptions(
     config.paths.promptsDir,
     [...orchestratorDefs, ...workerDefs, ...peerDefs].map((d) => d.name),
   );
+  const sdkPolicy = {
+    async decide(i: { workerId: string; toolName: string; input: Record<string, unknown> }) {
+      const d = await policyGateway.decide(i);
+      return { behavior: d.behavior === "allow" ? ("allow" as const) : ("deny" as const), message: d.message, updatedInput: d.updatedInput };
+    },
+  };
+  const makeToolContext = (spec: AgentLaunchSpec) => ({
+    selfId: spec.workerId,
+    cwd: spec.cwd,
+    isGitRepo: () => spawnSync("git", ["rev-parse", "--git-dir"], { cwd: spec.cwd, encoding: "utf8" }).status === 0,
+    api: (method: string, path: string, body?: unknown) => daemonApi(sdkDaemonUrl, method, path, body),
+  });
+  // Orchestration tools projected onto the in-process ToolRuntime: prefixed
+  // mcp__orchestrator__/worker__ names (so classifyTool always-allows them like the
+  // PTY/SDK lanes), the executor map, and a provider-neutral JSON input schema.
+  const buildLaneTooling = (spec: AgentLaunchSpec): { items: Array<{ name: string; description: string; schema: Record<string, unknown> }>; tools: Map<string, { name: string; execute(input: Record<string, unknown>): Promise<string> }> } => {
+    const ctx = makeToolContext(spec);
+    const collaborate = (spec.backendOptions as Record<string, unknown> | undefined)?.collaborate === true;
+    const defs = spec.isOrchestrator ? orchestratorDefs : [...workerDefs, ...(collaborate ? peerDefs : [])];
+    const prefix = spec.isOrchestrator ? "orchestrator" : "worker";
+    const items = defs.map((d) => ({ name: `mcp__${prefix}__${d.name}`, description: inprocToolDescriptions[d.name] ?? d.name, schema: zodToJsonSchema(z.object(d.inputSchema)) as Record<string, unknown>, execute: toRuntimeTool(d, ctx).execute }));
+    const tools = new Map(items.map((i) => [i.name, { name: i.name, execute: i.execute }]));
+    return { items, tools };
+  };
+
+  // anthropic-api backend — in-process, ToolRuntime-driven, gated by the shared
+  // policy engine. Needs ANTHROPIC_API_KEY; opt-in via config (claude-cli default).
+  const anthropicBackend = createInProcessBackend("anthropic-api", (spec) => {
+    const { items, tools } = buildLaneTooling(spec);
+    return {
+      model: createAnthropicModelClient({ apiKey: process.env.ANTHROPIC_API_KEY ?? "", model: spec.model, tools: items.map((i) => ({ name: i.name, description: i.description, input_schema: i.schema })) }),
+      tools,
+      gate: makePolicyToolGate(spec.workerId, sdkPolicy),
+    };
+  });
+  // OpenAI-compatible backends (OpenAI, DeepSeek, Kimi/Moonshot, Codex-via-API, or
+  // any compatible endpoint via OPENAI_BASE_URL). Same gated ToolRuntime path.
+  const openaiEnv = (spec: AgentLaunchSpec) => {
+    const { items, tools } = buildLaneTooling(spec);
+    return {
+      model: createOpenAIModelClient({ apiKey: process.env.OPENAI_API_KEY ?? "", model: spec.model, baseUrl: process.env.OPENAI_BASE_URL, tools: items.map((i) => ({ name: i.name, description: i.description, parameters: i.schema })) }),
+      tools,
+      gate: makePolicyToolGate(spec.workerId, sdkPolicy),
+    };
+  };
+  const openaiBackend = createInProcessBackend("openai", openaiEnv);
+  const codexBackend = createInProcessBackend("codex", openaiEnv);
+
+  // claude-sdk (Lane A): subscription-billed, live thinking. Reuses the shared
+  // policy engine + loopback ToolContext + prompt-library descriptions. Registered
+  // behind a transient flag so bring-up keeps claude-cli the default.
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver: createSubscriptionAuthResolver(),
-    policy: {
-      async decide(i) {
-        const d = await policyGateway.decide(i);
-        return { behavior: d.behavior === "allow" ? "allow" : "deny", message: d.message, updatedInput: d.updatedInput };
-      },
-    },
-    toolHost: {
-      orchestratorDefs,
-      workerDefs,
-      peerDefs,
-      renderDescription: (name) => sdkToolDescriptions[name] ?? name,
-    },
+    policy: sdkPolicy,
+    toolHost: { orchestratorDefs, workerDefs, peerDefs, renderDescription: (name) => inprocToolDescriptions[name] ?? name },
     daemonUrl: sdkDaemonUrl,
-    makeToolContext: (spec) => ({
-      selfId: spec.workerId,
-      cwd: spec.cwd,
-      isGitRepo: () => spawnSync("git", ["rev-parse", "--git-dir"], { cwd: spec.cwd, encoding: "utf8" }).status === 0,
-      api: (method, path, body) => daemonApi(sdkDaemonUrl, method, path, body),
-    }),
+    makeToolContext,
     log,
   });
 
