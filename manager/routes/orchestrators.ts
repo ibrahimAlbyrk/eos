@@ -43,9 +43,11 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         fixedId: id,
         persistent: true,
         claudePermissionMode: body.permissionMode ?? "acceptEdits",
-        model: body.model ?? "opus",
+        // A profile-driven backend (claude-sdk / Lane B) carries its own model.
+        model: rb.kind !== "claude-cli" ? rb.model : (body.model ?? "opus"),
         effort: body.effort ?? "xhigh",
         isOrchestrator: true,
+        backendProfile: rb.profileName ?? undefined,
       },
     );
     if (body.prompt) {

@@ -36,6 +36,11 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       worktreesDisabled: c.userSettings.read()["git.spawnWithoutWorktree"] === true,
     });
     const { promptTemplate: _promptTemplate, ...bodyRest } = body;
+    // Backend selection (defaults to claude-cli): resolve BEFORE the spec so a
+    // profile-driven backend's model + profile name thread into it. claude-cli
+    // keeps today's behavior exactly (no model override, null profile).
+    const rb = c.backendResolver.resolveForNewWorker({ parentId: body.parentId ?? null, isOrchestrator: false });
+    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     const spec = {
       ...bodyRest,
       prompt: bootPrompt,
@@ -48,11 +53,11 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
         model: body.model ?? "sonnet",
         effort: body.effort ?? "medium",
       } : {}),
+      // A profile-driven backend (claude-sdk / Lane B) carries its own model;
+      // persist the resolved profile name for inheritance + re-derivation.
+      ...(rb.kind !== "claude-cli" ? { model: rb.model } : {}),
+      backendProfile: rb.profileName ?? undefined,
     };
-    // Backend selection: resolve the effective backend (defaults to claude-cli)
-    // and pick the adapter. claude-cli keeps today's behavior exactly.
-    const rb = c.backendResolver.resolveForNewWorker({ parentId: body.parentId ?? null, isOrchestrator: false });
-    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     const result = await spawnWorker(
       {
         workers: c.workers,
