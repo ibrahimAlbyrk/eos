@@ -13,6 +13,7 @@ import { expandPath } from "../shared/path.ts";
 import { appendSynthesized } from "../shared/synthesized-events.ts";
 import { resumeIfDead } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
+import { resolveSpawnBackend } from "../shared/spawn-backend.ts";
 
 export function registerOrchestratorRoutes(r: Router, c: Container): void {
   r.get("/orchestrators", ({ res }) => {
@@ -24,7 +25,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const name = (body.name ?? "").trim() || randomOrchestratorName();
     const cwd = expandPath(body.cwd);
     const id = c.ids.newOrchestratorId();
-    const rb = c.backendResolver.resolveForNewWorker({ explicitProfileName: body.backendProfile, isOrchestrator: true });
+    const rb = await resolveSpawnBackend(c, { explicitProfileName: body.backendProfile, isOrchestrator: true });
     // Billing guard: an explicitly-selected metered-API profile must opt into
     // per-token charges (costMode:"billed"); subscription kinds are exempt.
     if (body.backendProfile && meteredNeedsBilledIntent(rb)) {

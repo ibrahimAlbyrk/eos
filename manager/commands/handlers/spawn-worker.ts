@@ -9,6 +9,7 @@ import { ValidationError } from "../../../core/src/errors/index.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
 import { appendSynthesized } from "../../shared/synthesized-events.ts";
+import { resolveSpawnBackend } from "../../shared/spawn-backend.ts";
 
 export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, SpawnWorkerResponse> = {
   def: spawnWorkerCommand,
@@ -40,7 +41,7 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     // Backend selection (defaults to claude-cli): resolve BEFORE the spec so a
     // profile-driven backend's model + profile name thread into it. claude-cli
     // keeps today's behavior exactly (no model override, null profile).
-    const rb = c.backendResolver.resolveForNewWorker({ explicitProfileName: body.backendProfile, parentId: body.parentId ?? null, isOrchestrator: false });
+    const rb = await resolveSpawnBackend(c, { explicitProfileName: body.backendProfile, parentId: body.parentId ?? null, isOrchestrator: false });
     // Billing guard: an explicitly-selected metered-API profile must opt into
     // per-token charges (costMode:"billed"); subscription kinds are exempt.
     if (body.backendProfile && meteredNeedsBilledIntent(rb)) {

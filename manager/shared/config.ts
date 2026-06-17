@@ -122,6 +122,14 @@ const DEFAULT_PRICES: Record<string, ModelPrice> = {
 };
 
 const DEFAULT_BACKENDS: Record<string, BackendProfile> = {
+  // claude-sdk is the default: subscription-billed, live thinking, in-process tools.
+  // PTY (claude-cli) stays first-class and is the automatic fallback when the
+  // subscription credential is absent (resolveSpawnBackend) — never silent metered billing.
+  "claude-sdk-opus": {
+    kind: "claude-sdk", model: "claude-opus-4-8",
+    auth: { kind: "subscription" }, costMode: "included",
+    params: { thinking: { type: "adaptive", display: "summarized" } },
+  },
   "claude-cli-opus": { kind: "claude-cli", model: "opus", costMode: "included" },
   "claude-cli-sonnet": { kind: "claude-cli", model: "sonnet", costMode: "included" },
   "claude-cli-haiku": { kind: "claude-cli", model: "haiku", costMode: "included" },
@@ -170,8 +178,8 @@ function defaults(): DaemonConfig {
     },
     backends: { ...DEFAULT_BACKENDS },
     defaults: {
-      orchestrator: { backend: "claude-cli-opus" },
-      worker: { backend: "claude-cli-opus" },
+      orchestrator: { backend: "claude-sdk-opus" },
+      worker: { backend: "claude-sdk-opus" },
     },
     updates: {
       enabled: envStr("EOS_UPDATES_ENABLED", "1") !== "0",

@@ -565,7 +565,7 @@ export function buildContainer() {
   // PTY/SDK lanes), the executor map, and a provider-neutral JSON input schema.
   const buildLaneTooling = (spec: AgentLaunchSpec): { items: Array<{ name: string; description: string; schema: Record<string, unknown> }>; tools: Map<string, { name: string; execute(input: Record<string, unknown>): Promise<string> }> } => {
     const ctx = makeToolContext(spec);
-    const collaborate = (spec.backendOptions as Record<string, unknown> | undefined)?.collaborate === true;
+    const collaborate = spec.backendOptions?.collaborate === true;
     const defs = spec.isOrchestrator ? orchestratorDefs : [...workerDefs, ...(collaborate ? peerDefs : [])];
     const server = mcpServerForRole(spec.isOrchestrator);
     const items = defs.map((d) => ({ name: prefixedToolName(server, d.name), description: inprocToolDescriptions[d.name] ?? d.name, schema: toolJsonSchema(d), execute: toRuntimeTool(d, ctx).execute }));
@@ -598,8 +598,9 @@ export function buildContainer() {
 
   // claude-sdk (Lane A): subscription-billed, live thinking. Reuses the shared
   // policy engine + loopback ToolContext + prompt-library descriptions.
+  const authResolver = createSubscriptionAuthResolver();
   const claudeSdkBackend = createClaudeSdkBackend({
-    authResolver: createSubscriptionAuthResolver(),
+    authResolver,
     policy: sdkPolicy,
     toolHost: { orchestratorDefs, workerDefs, peerDefs, renderDescription: (name) => inprocToolDescriptions[name] ?? name },
     daemonUrl: sdkDaemonUrl,
@@ -685,6 +686,7 @@ export function buildContainer() {
     backends,
     onAgentEvent,
     backendResolver,
+    authResolver,
     turnSettle,
     pendingQuestions,
     backgroundActivity,
