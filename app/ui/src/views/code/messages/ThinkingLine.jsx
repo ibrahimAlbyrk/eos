@@ -1,20 +1,24 @@
-import { useRef } from "react";
+import { useMemo, useRef } from "react";
+import { escapeHtml } from "../../../lib/markdown.js";
 import { useBlurInReveal } from "../../../hooks/useBlurInReveal.js";
 
 // Inline "thinking · ..." line rendered as part of the assistant's turn.
-// No icon — the activity anchor under the latest message already signals
-// motion; an extra icon here is visual noise.
-// Blur-in mutates inside the ref span; safe because a thinking block's text
-// is immutable (one event, no merge), so React never diffs those text nodes.
-export function ThinkingLine({ text, animate = false, live = false }) {
+// No icon — the activity anchor under the latest message already signals motion.
+//
+// The text is set via innerHTML (escaped — reasoning is plain text, not markdown)
+// rather than a React-managed text node, so the blur-in word-wrap survives while
+// the text streams in token-by-token: React never reconciles inside
+// dangerouslySetInnerHTML, so applyBlurIn's DOM mutation isn't fought. The durable
+// block reuses this same instance by blockId, carrying the reveal state across the
+// live -> durable handoff with no reflash.
+export function ThinkingLine({ text, animate = false }) {
   const ref = useRef(null);
-  // Live (streaming) thinking grows token-by-token — disable the blur-in reveal
-  // (it assumes immutable text and would thrash); render the growing text plainly.
-  useBlurInReveal(ref, text, animate && !live);
+  const html = useMemo(() => (text ? escapeHtml(text) : ""), [text]);
+  useBlurInReveal(ref, html, animate);
   return (
     <div className="thinking-line">
       <span className="mono">
-        thinking{text ? <span ref={ref}>{` · ${text}`}</span> : null}
+        thinking{html ? <>{" · "}<span ref={ref} dangerouslySetInnerHTML={{ __html: html }} /></> : null}
       </span>
     </div>
   );

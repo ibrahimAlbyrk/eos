@@ -451,7 +451,14 @@ export function Messages({ live, agentId, isActive = true }) {
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
-          const animate = (b.kind === "assistant" || b.kind === "thinking" || b.kind === "terminal") && !b.live && baselineKeys != null && !baselineKeys.has(key);
+          // Live reasoning/text blocks blur-in as tokens stream (applyBlurIn only
+          // animates the appended tail). Durable blocks animate only when freshly
+          // arrived (post-baseline); the live -> durable handoff reuses the same
+          // instance by blockId, so the reveal state carries over without reflash.
+          const streamingKind = b.kind === "assistant" || b.kind === "thinking";
+          const animate = b.live
+            ? streamingKind
+            : (streamingKind || b.kind === "terminal") && baselineKeys != null && !baselineKeys.has(key);
           // Rewind is PTY (claude-cli) choreography — structured backends have no
           // equivalent, so gate it on the backend's keystroke capability.
           const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).keystroke
@@ -513,7 +520,7 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} /></MessageRow>;
-    case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} live={b.live} />;
+    case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
       // expandedTools holds toggles against the settings-driven default (XOR)

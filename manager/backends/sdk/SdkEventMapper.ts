@@ -33,12 +33,16 @@ function blockText(content: unknown): string {
 }
 
 // Map a complete assistant content block to a canonical block, stamping the SAME
-// blockId the live deltas used (msgId:index) so the UI reconciles live <-> durable.
-function durableBlocks(msgId: string, content: RawBlock[]): { blocks: ContentBlock[]; toolCalls: RawBlock[] } {
+// blockId the live deltas used (msgId:globalIndex) so the UI reconciles live <->
+// durable. globalIndex is the block's position WITHIN THE MESSAGE (startIdx + i),
+// not its position in this SDKMessage's content array — the SDK can split one
+// message into several `assistant` SDKMessages (one per block), each a length-1
+// array, so the array position would collide every split block at 0.
+function durableBlocks(msgId: string, content: RawBlock[], startIdx: number): { blocks: ContentBlock[]; toolCalls: RawBlock[] } {
   const blocks: ContentBlock[] = [];
   const toolCalls: RawBlock[] = [];
   content.forEach((b, i) => {
-    const blockId = `${msgId}:${i}`;
+    const blockId = `${msgId}:${startIdx + i}`;
     if (b.type === "text") blocks.push({ type: "text", text: b.text ?? "", blockId });
     else if (b.type === "thinking") {
       if ((b.thinking ?? "").trim()) blocks.push({ type: "reasoning", text: b.thinking ?? "", blockId });
@@ -68,6 +72,10 @@ export function createSdkEventMapper(): SdkEventMapper {
   let msgEpoch = 0;
   let currentMsgId: string | null = null;
   const blockBase = (): string => currentMsgId ?? `m${msgEpoch}`;
+  // Per-message running block count — turns each split `assistant` SDKMessage's
+  // local content index into the block's global position within the message, so
+  // durable blockIds match the streamed content_block indices. Cleared per turn.
+  const msgBlockCount = new Map<string, number>();
 
   const startTurn = (out: AgentEvent[]): void => {
     if (!turnActive) { turnActive = true; out.push({ type: "turn", phase: "started" }); }
@@ -124,13 +132,15 @@ export function createSdkEventMapper(): SdkEventMapper {
           // Same anchor the live deltas used (message id), so durable blockIds
           // match and the UI hands off live -> durable instead of double-rendering.
           const msgId = msg.message?.id ?? blockBase();
+          const startIdx = msgBlockCount.get(msgId) ?? 0;
           // Close any live blocks this message finalizes (the durable block takes over).
           content.forEach((_b, i) => {
-            const blockId = `${msgId}:${i}`;
+            const blockId = `${msgId}:${startIdx + i}`;
             const ch = openedBlocks.get(blockId);
             if (ch) { openedBlocks.delete(blockId); out.push({ type: "delta", channel: ch, phase: "stop", blockId, text: "" }); }
           });
-          const { blocks, toolCalls } = durableBlocks(msgId, content);
+          msgBlockCount.set(msgId, startIdx + content.length);
+          const { blocks, toolCalls } = durableBlocks(msgId, content, startIdx);
           if (blocks.length) out.push({ type: "message", role: "assistant", blocks });
           for (const tc of toolCalls) out.push({ type: "activity", kind: "tool_started", callId: tc.id ?? null, toolName: tc.name });
           return out;
@@ -160,6 +170,7 @@ export function createSdkEventMapper(): SdkEventMapper {
           } });
           turnActive = false;
           currentMsgId = null; // next turn's message_start re-anchors
+          msgBlockCount.clear();
           out.push({ type: "turn", phase: "ended" });
           return out;
         }

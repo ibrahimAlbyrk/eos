@@ -95,6 +95,37 @@ describe("SdkEventMapper — SDK stream -> canonical sequence", () => {
       .flatMap((e) => (e as { blocks: { blockId?: string }[] }).blocks.map((b) => b.blockId).filter(Boolean));
     assert.deepEqual(durableIds, ["msg_A:0", "msg_B:0"], "durable blocks match their live ids across messages");
   });
+
+  // The SDK surfaces ONE assistant message (same message id) as SEPARATE
+  // `assistant` SDKMessages — one per content block, each a length-1 content
+  // array. The text block streams at content_block index 1 but arrives in a
+  // length-1 durable array (array position 0). Deriving the durable index from
+  // the array position stamps it ":0" — colliding with the thinking block AND
+  // mismatching the live ":1" id, so the live text never hands off and the
+  // answer renders twice. The durable index must be the GLOBAL position.
+  it("split assistant messages (one block each) keep durable ids aligned with the stream", () => {
+    const mapper = createSdkEventMapper();
+    const script: unknown[] = [
+      { type: "system", subtype: "init", session_id: "s" },
+      { type: "stream_event", uuid: "a0", event: { type: "message_start", message: { id: "msg_A" } } },
+      { type: "stream_event", uuid: "a1", event: { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "ponder" } } },
+      { type: "stream_event", uuid: "a2", event: { type: "content_block_stop", index: 0 } },
+      { type: "assistant", uuid: "a3", message: { id: "msg_A", content: [{ type: "thinking", thinking: "ponder" }] } },
+      { type: "stream_event", uuid: "a4", event: { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "answer" } } },
+      { type: "stream_event", uuid: "a5", event: { type: "content_block_stop", index: 1 } },
+      { type: "assistant", uuid: "a6", message: { id: "msg_A", content: [{ type: "text", text: "answer" }] } },
+      { type: "result", subtype: "success", usage: {}, model: "m" },
+    ];
+    const out: AgentEvent[] = [];
+    for (const m of script) out.push(...mapper.map(m as never));
+    // Live ids the deltas used.
+    const liveIds = out.filter((e) => e.type === "delta" && e.phase === "start").map((e) => (e as { blockId: string }).blockId);
+    assert.deepEqual(liveIds, ["msg_A:0", "msg_A:1"]);
+    // Durable ids MUST match the live ids — text is msg_A:1, not msg_A:0.
+    const durableIds = out.filter((e) => e.type === "message" && e.role === "assistant")
+      .flatMap((e) => (e as { blocks: { blockId?: string }[] }).blocks.map((b) => b.blockId).filter(Boolean));
+    assert.deepEqual(durableIds, ["msg_A:0", "msg_A:1"], "split text block keeps its global index (no collision, hands off)");
+  });
 });
 
 describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => {

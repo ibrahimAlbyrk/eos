@@ -1,7 +1,7 @@
 import { Marked } from "marked";
 import DOMPurify from "dompurify";
 
-function escapeHtml(s) {
+export function escapeHtml(s) {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
