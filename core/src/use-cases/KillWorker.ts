@@ -23,6 +23,11 @@ export interface KillWorkerDeps {
   supervisor: ProcessSupervisor;
   log: Logger;
   findOrphanPids(safeName: string): number[];
+  // Stop the worker's backend session for an in-process backend (claude-sdk /
+  // anthropic-api / …) — it has no supervised PTY child to escalate, so without
+  // this its in-process query / agent loop would leak. CLI workers terminate via
+  // the supervisor branch; absent in unit tests.
+  stopBackendSession?(id: string): void;
   postKillCleanup?(workerId: string): void;
   // Durable worktree-removal intent. Recorded (synchronously, before the row is
   // deleted) so a daemon crash/SIGKILL in the grace window can't strand the
@@ -81,6 +86,11 @@ export function killWorker(deps: KillWorkerDeps, id: string): KillWorkerResult {
       killed.push({ pid: w.pid, via: "tracked-child" });
       seen.add(w.pid);
     }
+  } else {
+    // No supervised PTY child → an in-process backend session (claude-sdk /
+    // anthropic-api / …). Stop it through the backend so the in-process query /
+    // agent loop actually ends; the pid/pgrep belt below is a no-op for it.
+    deps.stopBackendSession?.(id);
   }
   tryKill(w.pid, "stored-pid");
 
