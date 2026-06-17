@@ -113,6 +113,10 @@ export const SessionEventSchema = z.object({
   type: z.literal("session"),
   phase: z.enum(["started", "ready", "ended", "cleared"]),
   outcome: z.enum(["success", "killed", "crashed"]).optional(),
+  // Backend session id (claude-sdk: the SDK init session_id) — persisted to the
+  // worker row on `ready` so the session is resumable (options.resume) after a
+  // daemon restart. Absent for backends with no resumable session.
+  sessionId: z.string().optional(),
 });
 
 export const PermissionRequestEventSchema = z.object({

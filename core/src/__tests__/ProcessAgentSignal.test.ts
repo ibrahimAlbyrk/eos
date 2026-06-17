@@ -32,6 +32,7 @@ function buildDeps(
   const deltas: UsageDelta[] = [];
   const tasks: Array<string | null> = [];
   const logs: Array<{ level: string; msg: string }> = [];
+  const sessionIds: string[] = [];
   let settling = opts.settling ?? false;
 
   const workers = {
@@ -42,6 +43,7 @@ function buildDeps(
     setWorktreeDir: () => {},
     setTasks: (_id: string, t: string | null) => { row.tasks = t; tasks.push(t); },
     addUsage: (_id: string, d: UsageDelta) => { deltas.push(d); },
+    setSessionId: (_id: string, sid: string) => { sessionIds.push(sid); },
   } as unknown as ProcessWorkerEventDeps["workers"];
 
   const eventsRepo = {
@@ -68,7 +70,7 @@ function buildDeps(
     markSettling: () => { settling = true; },
   } as unknown as ProcessWorkerEventDeps;
 
-  return { deps, events, row, toolCalls, deltas, tasks, logs };
+  return { deps, events, row, toolCalls, deltas, tasks, logs, sessionIds };
 }
 
 const states = (events: AppendedEvent[]): Array<{ state?: string; from?: string; reason?: string }> =>
@@ -298,5 +300,19 @@ describe("ProcessAgentSignal — delta events are ephemeral", () => {
     processAgentSignal(deps, "w1", { type: "delta", channel: "text", phase: "start", blockId: "u1:1", text: "" });
     assert.equal(events.length, 0);
     assert.equal(row.state, "WORKING");
+  });
+});
+
+describe("ProcessAgentSignal — session id persistence (claude-sdk resume)", () => {
+  it("persists the session id on session:ready", () => {
+    const { deps, sessionIds } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", { type: "session", phase: "ready", sessionId: "sdk-sess-1" });
+    assert.deepEqual(sessionIds, ["sdk-sess-1"]);
+  });
+
+  it("does nothing on session:ready without a session id", () => {
+    const { deps, sessionIds } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", { type: "session", phase: "ready" });
+    assert.deepEqual(sessionIds, []);
   });
 });

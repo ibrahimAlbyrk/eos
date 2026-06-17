@@ -88,7 +88,11 @@ export function reduceAgentSignal(
       return;
 
     case "session":
-      if (event.phase === "ended") {
+      if (event.phase === "ready" && event.sessionId) {
+        // Persist the backend session id (claude-sdk) so the worker is resumable
+        // after a daemon restart (boot reconcile gates SUSPENDED on session_id).
+        deps.workers.setSessionId(workerId, event.sessionId);
+      } else if (event.phase === "ended") {
         transitionState(deps, { workerId, next: "ENDING", reason: "agent:session_ended" });
       } else if (event.phase === "cleared") {
         // /clear: the agent is alive with a fresh context — settle + IDLE, not

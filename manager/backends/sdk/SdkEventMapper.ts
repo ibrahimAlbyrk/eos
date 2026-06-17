@@ -70,7 +70,7 @@ export function createSdkEventMapper(): SdkEventMapper {
 
       switch (msg.type) {
         case "system":
-          if (msg.subtype === "init") out.push({ type: "session", phase: "ready" });
+          if (msg.subtype === "init") out.push({ type: "session", phase: "ready", sessionId: msg.session_id });
           return out;
 
         case "stream_event": {
