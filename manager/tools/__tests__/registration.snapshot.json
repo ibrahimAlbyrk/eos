@@ -1,0 +1,241 @@
+{
+  "orchestrator": {
+    "spawn_worker": {
+      "type": "object",
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "description": "The directive for the worker. Follow the worker prompt template from your system prompt: directive sentence, Context (relevant files/branches), Acceptance (concrete done-check), Out of scope (if non-obvious), Report (task-specific items). Workers already know the signal protocol — do not repeat it."
+        },
+        "name": {
+          "type": "string",
+          "description": "Friendly slug for the worker (kebab-case). Should describe the outcome, not the action. Good: 'refactor-auth-tokens', 'add-billing-tests'. Bad: 'worker-1', 'fix-stuff', 'task'."
+        },
+        "model": {
+          "type": "string",
+          "description": "Claude model: 'opus' (default; ambiguous, multi-file, or debugging work), 'sonnet' (balanced — well-specified routine work), 'haiku' (fastest/cheapest — trivial writes, summaries, simple greps), 'fable' (most powerful — the very hardest problems where opus falls short). When in doubt, omit and let it default to opus."
+        },
+        "effort": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "description": "Reasoning effort for the worker. ONLY pass this when the chosen model supports effort — opus, fable, and sonnet do; haiku does NOT (omit it there). 'low' (trivial mechanical edits, summaries), 'medium' (routine well-specified work), 'high' (substantial but straightforward implementation), 'xhigh' (default — complex debugging, design, anything where wrong output is expensive), 'max' (correctness-critical, cost-insensitive). When in doubt, omit and let it default to xhigh."
+        },
+        "workspaceOf": {
+          "type": "string",
+          "description": "Spawn this worker INSIDE an existing worker's isolated worktree instead of a fresh one. Use it to review, continue, or fix that worker's work with direct file access — never read another worker's worktree via your own shell. Pass the id of a worker you spawned (attaching to another orchestrator's worker is rejected). Only allowed while that worker is idle (fails with a conflict while it is busy); for plain follow-ups prefer message_worker to the same worker."
+        },
+        "collaborate": {
+          "type": "boolean",
+          "description": "Give this worker the peer tools (list_peers / ask_peer / respond_to_peer) so it can consult — and be consulted by — the other collaborate workers you spawn under you (its siblings). Enable it on BOTH sides of a runtime information dependency: e.g. domain-expert 'providers' plus the 'consumer' that queries them as it works. Leave it OFF for independent parallel work. See the peer-collaboration section of your instructions for when this pays off and how to set it up."
+        }
+      },
+      "required": [
+        "prompt"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "list_workers": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "get_worker": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Worker id, e.g. 'w-abcd1234'"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "kill_worker": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Worker id, e.g. 'w-abcd1234'"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "message_worker": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Worker id, e.g. 'w-abcd1234'"
+        },
+        "text": {
+          "type": "string",
+          "description": "The follow-up directive. Treat this like a fresh worker prompt — be specific. The worker has its prior context but you should still state the new ask clearly."
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "list_pending_permissions": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "notify_user": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "description": "Short headline, a few words. E.g. 'Task complete'"
+        },
+        "body": {
+          "type": "string",
+          "description": "One sentence with the concrete outcome. E.g. 'Auth refactor done across 3 workers — review ready.'"
+        }
+      },
+      "required": [
+        "title",
+        "body"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "ask_user": {
+      "type": "object",
+      "properties": {
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "question": {
+                "type": "string",
+                "description": "The complete question, ending with a question mark."
+              },
+              "header": {
+                "type": "string",
+                "description": "Short chip label, max ~12 chars. E.g. 'Approach'."
+              },
+              "multiSelect": {
+                "type": "boolean",
+                "description": "Allow picking several options."
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "label": {
+                      "type": "string",
+                      "description": "Concise choice text (1-5 words)."
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "What this choice means / its trade-off."
+                    }
+                  },
+                  "required": [
+                    "label"
+                  ],
+                  "additionalProperties": false
+                },
+                "minItems": 2,
+                "maxItems": 4,
+                "description": "2-4 distinct choices. The dashboard adds a free-text 'Other' automatically."
+              }
+            },
+            "required": [
+              "question",
+              "options"
+            ],
+            "additionalProperties": false
+          },
+          "minItems": 1,
+          "maxItems": 4,
+          "description": "1-4 questions, shown to the operator as one banner."
+        }
+      },
+      "required": [
+        "questions"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "worker": {
+    "send_message_to_parent": {
+      "type": "object",
+      "properties": {
+        "text": {
+          "type": "string",
+          "description": "The report text. First line MUST be `result: ...`, `needs input: ...`, or `failed: ...`. Subsequent lines: what you did, verification, artifacts, out-of-scope notes."
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  },
+  "peer": {
+    "list_peers": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "ask_peer": {
+      "type": "object",
+      "properties": {
+        "peerId": {
+          "type": "string",
+          "description": "The id of the peer to consult (from list_peers)."
+        },
+        "question": {
+          "type": "string",
+          "description": "One focused, self-contained question. The peer cannot see your task — give it the context it needs to answer."
+        }
+      },
+      "required": [
+        "peerId",
+        "question"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "respond_to_peer": {
+      "type": "object",
+      "properties": {
+        "answer": {
+          "type": "string",
+          "description": "Your complete answer to the peer request delivered this turn. This is the only thing that reaches the asking peer — plain text in your turn does not."
+        }
+      },
+      "required": [
+        "answer"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    }
+  }
+}

@@ -6,17 +6,20 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { mcpReadyFlagName } from "../contracts/src/util.ts";
 import { resolveSession } from "./worker-mcp/SessionContext.ts";
-import { toolModules, peerToolModules } from "./worker-mcp/tool-registry.ts";
+import { workerDefs, peerDefs } from "./tools/registry.ts";
+import { toMcpModule } from "./tools/projections.ts";
+import { workerCtx } from "./tools/context.ts";
 import { renderToolDescriptions, withToolDescriptions } from "./tool-descriptions.ts";
 
 const session = resolveSession();
 
 // Peer tools (list_peers / ask_peer / respond_to_peer) are registered only for
 // a collaborate-enabled worker — so a non-collaborating worker never sees them.
-const mods = session.collaborate ? [...toolModules, ...peerToolModules] : toolModules;
+const defs = session.collaborate ? [...workerDefs, ...peerDefs] : workerDefs;
+const mods = defs.map((d) => toMcpModule(d, workerCtx));
 
 // Descriptions pulled from the prompt library (prompts/tool/<name>), injected
-// at registration; the tool modules carry no inline description.
+// at registration; the tool definitions carry no inline description.
 const descriptions = renderToolDescriptions(join(import.meta.dirname, "prompts"), mods.map((t) => t.name));
 const server = new McpServer({ name: "worker", version: "0.0.1" });
 const registrar = withToolDescriptions(server, descriptions);

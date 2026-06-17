@@ -1,11 +1,4 @@
-import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-
 import { errMsg } from "../../contracts/src/util.ts";
-
-export interface McpToolModule<S> {
-  readonly name: string;
-  register(server: McpServer, session: S): void;
-}
 
 // Helper for tools — wraps the call in a try/catch and produces the standard
 // MCP "text" content shape. Keeps each tool body focused on its logic.
