@@ -182,4 +182,35 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
     assert.equal(cfg.prices.haiku.cacheCreate, 2.5);
     assert.equal(cfg.prices.haiku.cacheCreate1h, 4);
   });
+
+  // Regression: `backends` wraps the contracts-side BackendProfileSchema in a
+  // manager-side z.record(). The 2-arg z.record(z.string(), Schema) detects its
+  // overload via `instanceof ZodType`, which fails across separate physical zod
+  // copies (manager/ vs contracts/) and silently collapsed the value type to
+  // string — so a valid object profile was rejected as "expected string" and
+  // the whole config was dropped. The 1-arg z.record(Schema) form fixes it.
+  it("backend profile override (object value) is accepted, not collapsed to string", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(
+      path.join(tmpHome, "config.json"),
+      JSON.stringify({
+        backends: {
+          "claude-sdk": {
+            kind: "claude-sdk", model: "opus",
+            auth: { kind: "subscription" }, costMode: "included",
+            params: { thinking: { type: "adaptive", display: "summarized" } },
+          },
+        },
+        defaults: { orchestrator: { backend: "claude-sdk" }, worker: { backend: "claude-sdk" } },
+      }),
+    );
+    const cfg = await freshLoad();
+    assert.equal(cfg.backends["claude-sdk"]?.kind, "claude-sdk");
+    assert.equal(cfg.backends["claude-sdk"]?.model, "opus");
+    assert.equal(cfg.defaults.orchestrator.backend, "claude-sdk");
+    assert.equal(cfg.defaults.worker.backend, "claude-sdk");
+    // Built-in claude-cli profiles still present (per-profile merge, not replace).
+    assert.ok(cfg.backends["claude-cli-opus"]);
+  });
 });

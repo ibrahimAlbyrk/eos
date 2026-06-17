@@ -592,8 +592,7 @@ export function buildContainer() {
   const codexBackend = createInProcessBackend("codex", openaiEnv);
 
   // claude-sdk (Lane A): subscription-billed, live thinking. Reuses the shared
-  // policy engine + loopback ToolContext + prompt-library descriptions. Registered
-  // behind a transient flag so bring-up keeps claude-cli the default.
+  // policy engine + loopback ToolContext + prompt-library descriptions.
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver: createSubscriptionAuthResolver(),
     policy: sdkPolicy,

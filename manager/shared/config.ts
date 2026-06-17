@@ -192,7 +192,7 @@ const AgentMcpConfigOverrideSchema = z.object({
   inheritDefaults: z.boolean(),
   include: z.array(z.string()),
   exclude: z.array(z.string()),
-  extra: z.record(z.string(), McpServerDefSchema),
+  extra: z.record(McpServerDefSchema), // 1-arg: McpServerDefSchema is contracts' zod (see backends note below)
 }).partial();
 
 const DaemonConfigOverrideSchema = z.object({
@@ -230,7 +230,11 @@ const DaemonConfigOverrideSchema = z.object({
     orchestrator: AgentMcpConfigOverrideSchema.optional(),
     worker: AgentMcpConfigOverrideSchema.optional(),
   }).partial().optional(),
-  backends: z.record(z.string(), BackendProfileSchema).optional(),
+  // Single-arg z.record(valueType): the 2-arg form detects its overload via
+  // `valueType instanceof ZodType`, which fails across separate physical zod
+  // copies (manager/ vs contracts/) and silently collapses the value type to
+  // string. BackendProfileSchema is built by contracts' zod — keep it 1-arg.
+  backends: z.record(BackendProfileSchema).optional(),
   defaults: z.object({
     orchestrator: z.object({ backend: z.string() }).partial(),
     worker: z.object({ backend: z.string() }).partial(),
