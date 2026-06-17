@@ -20,6 +20,7 @@ import { createSdkEventMapper } from "./SdkEventMapper.ts";
 import { buildBillingGuardEnv } from "./billing-env.ts";
 import { buildSdkToolServers, type SdkToolHostDeps } from "./SdkToolHost.ts";
 import { makeCanUseTool, type PolicyDecider } from "./SdkPermissionBridge.ts";
+import { BLOCKED_BUILTIN_TOOLS } from "../../../contracts/src/tool-scope.ts";
 
 const CAPS: AgentCapabilities = {
   interrupt: true,
@@ -49,6 +50,11 @@ export interface ClaudeSdkBackendDeps {
   /** Build the per-spec ToolContext (identity bound from the spec, never
    *  process.env) — supplies the loopback `api` + cwd + git probe. */
   makeToolContext(spec: AgentLaunchSpec): ToolContext;
+  /** DPI: assemble the worker's appended system-prompt text (the same fragments
+   *  the CLI lane writes to --append-system-prompt-file). Absent/null → no append.
+   *  Without it an SDK agent boots with only the stock claude_code prompt and never
+   *  learns the Eos orchestration protocol — so it has the MCP tools but ignores them. */
+  assembleAppendPrompt?(spec: AgentLaunchSpec): string | null;
   queryFn?: SdkQueryFn;
   log?: { warn(msg: string, meta?: Record<string, unknown>): void };
 }
@@ -130,17 +136,35 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const input = createPushStream();
       if (spec.prompt) input.push(spec.prompt);
 
+      // The Eos orchestration protocol lives in the appended system prompt — its
+      // absence was the dominant reason SDK tools went unused. Mirror the CLI lane.
+      const append = deps.assembleAppendPrompt?.(spec) ?? null;
+
       const options = {
         model: spec.model,
         env,
         mcpServers,
+        // allowedTools stays EMPTY (from SdkToolHost): an allow-listed tool bypasses
+        // canUseTool. Keeping Eos tools out routes EVERY call (built-ins + mcp__*)
+        // through canUseTool → PolicyGatewayService, like the PTY hook-as-gateway.
         allowedTools,
+        // Hard-remove AskUserQuestion regardless of permission mode (it has no answer
+        // surface in Eos; redirect to mcp__orchestrator__ask_user) — platform-wide deny.
+        disallowedTools: [...BLOCKED_BUILTIN_TOOLS],
         canUseTool: makeCanUseTool(spec.workerId, deps.policy),
         includePartialMessages: true,
+        // Isolate from the user's ~/.claude: no ambient MCP servers / settings-file
+        // tools leak in to drown Eos's tools (mirrors the PTY --strict-mcp-config).
+        settingSources: [] as Options["settingSources"],
+        strictMcpConfig: true,
         // display:"summarized" is required to stream thinking on Opus 4.7+ (it
         // otherwise defaults to omitted) — proven by the spike.
         thinking: (opts.thinking as Options["thinking"]) ?? ({ type: "adaptive", display: "summarized" } as Options["thinking"]),
-        ...(spec.permissionMode ? { permissionMode: spec.permissionMode as Options["permissionMode"] } : {}),
+        ...(append ? { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append } } : {}),
+        // bypassPermissions requires the explicit safety flag; else pass the mode through.
+        ...(spec.permissionMode === "bypassPermissions"
+              ? { permissionMode: "bypassPermissions" as const, allowDangerouslySkipPermissions: true }
+              : spec.permissionMode ? { permissionMode: spec.permissionMode as Options["permissionMode"] } : {}),
         ...(typeof opts.resume === "string" ? { resume: opts.resume } : {}),
       } as Options;
 

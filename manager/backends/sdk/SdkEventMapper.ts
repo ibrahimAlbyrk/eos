@@ -22,6 +22,10 @@ interface SdkMsg {
   message?: { id?: string; content?: RawBlock[] | string };
   usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
   model?: string;
+  // Set on a subagent's (Task/Agent tool) internal messages — the parent Agent
+  // tool_use id. Drives subagent attribution: inner tools surface as parented
+  // activity grouped under the agentRun, not as top-level main-stream blocks.
+  parent_tool_use_id?: string | null;
 }
 
 function blockText(content: unknown): string {
@@ -95,6 +99,10 @@ export function createSdkEventMapper(): SdkEventMapper {
         case "stream_event": {
           const ev = msg.event;
           if (!ev) return out;
+          // Subagent-internal streaming (parent_tool_use_id set) is NOT relayed live
+          // into the parent view — the subagent's tools surface as parented activity
+          // when its assistant message completes (handled in the "assistant" case).
+          if (msg.parent_tool_use_id) return out;
           startTurn(out);
           if (ev.type === "message_start") {
             // New assistant message — anchor the stable blockId for its blocks.
@@ -129,6 +137,15 @@ export function createSdkEventMapper(): SdkEventMapper {
         case "assistant": {
           startTurn(out);
           const content = Array.isArray(msg.message?.content) ? (msg.message!.content as RawBlock[]) : [];
+          // Subagent-internal assistant message: surface only its tool_use blocks as
+          // PARENTED activity so the UI groups them under the agentRun (the Agent
+          // tool); its text/reasoning are internal, summarized by the Agent's result.
+          if (msg.parent_tool_use_id) {
+            for (const b of content) {
+              if (b.type === "tool_use") out.push({ type: "activity", kind: "tool_started", callId: b.id ?? null, toolName: b.name, input: b.input ?? {}, parentCallId: msg.parent_tool_use_id });
+            }
+            return out;
+          }
           // Same anchor the live deltas used (message id), so durable blockIds
           // match and the UI hands off live -> durable instead of double-rendering.
           const msgId = msg.message?.id ?? blockBase();
@@ -153,8 +170,15 @@ export function createSdkEventMapper(): SdkEventMapper {
           const results = content.filter((b) => b.type === "tool_result");
           if (!results.length) return out;
           for (const r of results) {
-            out.push({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: r.tool_use_id ?? "", isError: !!r.is_error, content: blockText(r.content) }] });
-            out.push({ type: "activity", kind: "tool_finished", callId: r.tool_use_id ?? null });
+            // Subagent inner tool result → parented activity carrying the result, so
+            // the agentRun shows it under the agent (no durable main-stream block).
+            // Top-level results (the Agent tool's own result included) render durably.
+            if (msg.parent_tool_use_id) {
+              out.push({ type: "activity", kind: "tool_finished", callId: r.tool_use_id ?? null, result: blockText(r.content), isError: !!r.is_error, parentCallId: msg.parent_tool_use_id });
+            } else {
+              out.push({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: r.tool_use_id ?? "", isError: !!r.is_error, content: blockText(r.content) }] });
+              out.push({ type: "activity", kind: "tool_finished", callId: r.tool_use_id ?? null });
+            }
           }
           return out;
         }

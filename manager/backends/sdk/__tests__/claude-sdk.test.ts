@@ -126,6 +126,44 @@ describe("SdkEventMapper — SDK stream -> canonical sequence", () => {
       .flatMap((e) => (e as { blocks: { blockId?: string }[] }).blocks.map((b) => b.blockId).filter(Boolean));
     assert.deepEqual(durableIds, ["msg_A:0", "msg_A:1"], "split text block keeps its global index (no collision, hands off)");
   });
+
+  // A subagent (Task/Agent tool) reports its internal messages with
+  // parent_tool_use_id set. Those inner tools must surface as PARENTED activity
+  // (grouped under the agentRun by the UI), NOT as top-level durable blocks in
+  // the main stream — otherwise the subagent's tools leak into the parent's chat.
+  it("attributes subagent inner tools (parent_tool_use_id) to the agent, not the main stream", () => {
+    const mapper = createSdkEventMapper();
+    const script: unknown[] = [
+      { type: "system", subtype: "init", session_id: "s" },
+      { type: "assistant", uuid: "a0", message: { id: "msg_A", content: [{ type: "tool_use", id: "agent_1", name: "Agent", input: { description: "sub" } }] } },
+      { type: "assistant", uuid: "a1", parent_tool_use_id: "agent_1", message: { id: "msg_sub", content: [{ type: "tool_use", id: "inner_1", name: "Bash", input: { command: "find ." } }] } },
+      { type: "user", uuid: "u1", parent_tool_use_id: "agent_1", message: { content: [{ type: "tool_result", tool_use_id: "inner_1", content: "found", is_error: false }] } },
+      { type: "user", uuid: "u2", message: { content: [{ type: "tool_result", tool_use_id: "agent_1", content: "report", is_error: false }] } },
+      { type: "result", subtype: "success", usage: {}, model: "m" },
+    ];
+    const out: AgentEvent[] = [];
+    for (const m of script) out.push(...mapper.map(m as never));
+
+    // Only the top-level Agent tool is a durable tool_call block; the inner Bash is not.
+    const toolCallNames = out
+      .filter((e) => e.type === "message" && e.role === "assistant")
+      .flatMap((e) => (e as { blocks: { type: string; name?: string }[] }).blocks)
+      .filter((b) => b.type === "tool_call").map((b) => b.name);
+    assert.deepEqual(toolCallNames, ["Agent"]);
+
+    // The inner tool surfaces as parented activity carrying its input + result.
+    const innerStart = out.find((e) => e.type === "activity" && e.kind === "tool_started" && (e as { callId?: string }).callId === "inner_1") as { parentCallId?: string; input?: Record<string, unknown> } | undefined;
+    assert.equal(innerStart?.parentCallId, "agent_1");
+    assert.deepEqual(innerStart?.input, { command: "find ." });
+    const innerDone = out.find((e) => e.type === "activity" && e.kind === "tool_finished" && (e as { callId?: string }).callId === "inner_1") as { parentCallId?: string; result?: string } | undefined;
+    assert.equal(innerDone?.parentCallId, "agent_1");
+    assert.equal(innerDone?.result, "found");
+
+    // The Agent tool's OWN result IS a durable tool message (the agentRun's result).
+    const toolMsgs = out.filter((e) => e.type === "message" && e.role === "tool");
+    assert.equal(toolMsgs.length, 1);
+    assert.equal((toolMsgs[0] as { blocks: { callId?: string }[] }).blocks[0].callId, "agent_1");
+  });
 });
 
 describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => {
@@ -177,6 +215,12 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.equal(env.ENABLE_TOOL_SEARCH, "false");
     assert.equal(capturedOptions!.includePartialMessages, true);
     assert.equal(typeof capturedOptions!.canUseTool, "function");
+    // tool-surface isolation + gating (Step A)
+    assert.deepEqual(capturedOptions!.settingSources, []);
+    assert.equal(capturedOptions!.strictMcpConfig, true);
+    assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion"]);
+    assert.deepEqual(capturedOptions!.allowedTools, []); // nothing auto-approved → canUseTool gates every call
+    assert.equal(capturedOptions!.systemPrompt, undefined); // no assembleAppendPrompt dep here → no append
     assert.deepEqual(ctxSelfIds, ["w-1"]); // ctx identity bound per-spec, not process.env
   });
 
@@ -194,5 +238,43 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     await be.start(spec({ workerId: "a" }), {});
     await be.start(spec({ workerId: "b" }), {});
     assert.deepEqual(seen, ["a", "b"]);
+  });
+
+  it("sends the assembled Eos system prompt as a claude_code preset append", async () => {
+    let capturedOptions: Record<string, unknown> | null = null;
+    const queryFn: SdkQueryFn = (params) => {
+      capturedOptions = params.options as unknown as Record<string, unknown>;
+      return (async function* () { /* idle */ })();
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "oat01-x" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescription: (n) => n },
+      daemonUrl: "http://127.0.0.1:7400",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      assembleAppendPrompt: () => "EOS ORCHESTRATION PROTOCOL",
+      queryFn,
+    });
+    await be.start(spec(), {});
+    assert.deepEqual(capturedOptions!.systemPrompt, { type: "preset", preset: "claude_code", append: "EOS ORCHESTRATION PROTOCOL" });
+  });
+
+  it("bypassPermissions sets the explicit allowDangerouslySkipPermissions safety flag", async () => {
+    let capturedOptions: Record<string, unknown> | null = null;
+    const queryFn: SdkQueryFn = (params) => {
+      capturedOptions = params.options as unknown as Record<string, unknown>;
+      return (async function* () { /* idle */ })();
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "none" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescription: (n) => n },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+    });
+    await be.start(spec({ permissionMode: "bypassPermissions" }), {});
+    assert.equal(capturedOptions!.permissionMode, "bypassPermissions");
+    assert.equal(capturedOptions!.allowDangerouslySkipPermissions, true);
   });
 });

@@ -6,8 +6,13 @@
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
 import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import type { ToolDefinition, ToolContext } from "../../tools/types.ts";
+import { mcpServerForRole } from "../../tools/projections.ts";
 
-function toSdkTool(def: ToolDefinition, ctx: ToolContext, description: string) {
+// Kept here (not in tools/projections.ts) so the claude-cli MCP subprocess that
+// loads projections.ts never imports @anthropic-ai/claude-agent-sdk. Exported for
+// projection-parity.test.ts. tool() takes the same zod raw shape as the MCP +
+// runtime lanes, so ToolDefinition.inputSchema plugs in unchanged.
+export function toSdkTool(def: ToolDefinition, ctx: ToolContext, description: string) {
   return tool(def.name, description, def.inputSchema, async (args) => {
     const res = await def.handler(ctx, args as Record<string, unknown>);
     return { content: [{ type: "text" as const, text: typeof res === "string" ? res : JSON.stringify(res, null, 2) }] };
@@ -31,20 +36,22 @@ export interface SdkToolHostInput {
 // mcp__orchestrator__*/mcp__worker__* (isEosControlTool + classifyTool key on the
 // prefix). An orchestrator gets the orchestrator surface; a worker gets the worker
 // surface (+ peer tools when collaborate) — mirroring the PTY MCP entrypoints.
+//
+// allowedTools is returned EMPTY by design: it is the SDK's auto-approve list, and
+// an allow-listed tool bypasses canUseTool (and thus Eos's policy engine). Leaving
+// Eos tools out keeps them OFFERED (via mcpServers) but routes every call through
+// canUseTool → PolicyGatewayService — exactly the PTY hook-as-gateway posture.
 export function buildSdkToolServers(
   deps: SdkToolHostDeps,
   input: SdkToolHostInput,
 ): { mcpServers: Record<string, McpServerConfig>; allowedTools: string[] } {
-  const mk = (defs: readonly ToolDefinition[]) => defs.map((d) => toSdkTool(d, input.ctx, deps.renderDescription(d.name)));
-  if (input.isOrchestrator) {
-    return {
-      mcpServers: { orchestrator: createSdkMcpServer({ name: "orchestrator", version: "1.0.0", tools: mk(deps.orchestratorDefs) }) },
-      allowedTools: deps.orchestratorDefs.map((d) => `mcp__orchestrator__${d.name}`),
-    };
-  }
-  const wd = input.collaborate ? [...deps.workerDefs, ...deps.peerDefs] : deps.workerDefs;
+  const server = mcpServerForRole(input.isOrchestrator);
+  const defs = input.isOrchestrator
+    ? deps.orchestratorDefs
+    : (input.collaborate ? [...deps.workerDefs, ...deps.peerDefs] : deps.workerDefs);
+  const tools = defs.map((d) => toSdkTool(d, input.ctx, deps.renderDescription(d.name)));
   return {
-    mcpServers: { worker: createSdkMcpServer({ name: "worker", version: "1.0.0", tools: mk(wd) }) },
-    allowedTools: wd.map((d) => `mcp__worker__${d.name}`),
+    mcpServers: { [server]: createSdkMcpServer({ name: server, version: "1.0.0", tools }) },
+    allowedTools: [],
   };
 }
