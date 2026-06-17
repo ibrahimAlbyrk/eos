@@ -13,6 +13,7 @@ import { spawn as ptySpawn } from "@homebridge/node-pty-prebuilt-multiarch";
 
 import { WORKER_EXIT, mcpReadyFlagName } from "../contracts/src/util.ts";
 import { isEosControlTool, isBlockedBuiltinTool, BLOCKED_BUILTIN_TOOL_MESSAGE } from "../contracts/src/tool-scope.ts";
+import { buildSubscriptionChildEnv } from "../core/src/domain/env-allowlist.ts";
 import { parseWorkerOptions, expectsMcpReady } from "./options.ts";
 import { createDaemonEventClient } from "./events.ts";
 import { setupWorktree, teardownWorktree } from "./worktree.ts";
@@ -138,12 +139,10 @@ evt.emit("lifecycle", {
 // (no assistant_text → blank chat). Strip them so each worker boots as its own
 // top-level interactive Claude session. (The daemon itself is often launched
 // from inside a Claude Code session, so these leak in via process.env.)
-const cleanEnv: Record<string, string> = {};
-for (const [k, v] of Object.entries(process.env)) {
-  if (v === undefined) continue;
-  if (k === "CLAUDECODE" || k.startsWith("CLAUDE_CODE_")) continue;
-  cleanEnv[k] = v;
-}
+// buildSubscriptionChildEnv also strips the subscription-diverting provider keys
+// (ANTHROPIC_API_KEY / AUTH_TOKEN / BASE_URL) so a daemon-level key can never flip
+// this PTY worker onto API billing (R3).
+const cleanEnv = buildSubscriptionChildEnv(process.env);
 
 const pty = ptySpawn(claudeBin, claudeArgs.args, {
   cwd: wt.cwd,

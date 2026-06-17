@@ -23,6 +23,7 @@ import { createInProcessBackend } from "../infra/src/backends/InProcessBackend.t
 import { createAnthropicModelClient } from "../infra/src/backends/AnthropicModelClient.ts";
 import { createOpenAIModelClient } from "../infra/src/backends/OpenAIModelClient.ts";
 import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts";
+import { scrubSubscriptionEnv } from "../core/src/domain/env-allowlist.ts";
 import type { AgentEvent } from "../contracts/src/canonical.ts";
 import type { WorkerRow } from "../contracts/src/worker.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
@@ -360,7 +361,9 @@ export function buildContainer() {
     join(realpathSync(resolve(repoRoot)), ".eos", "worktrees", branch);
 
   const buildEnv: SpawnWorkerDeps["buildEnv"] = () => ({
-    ...(process.env as Record<string, string>),
+    // Scrub subscription-diverting provider keys so the claude-cli worker process
+    // (and the PTY child it spawns) never inherits an API key (R3).
+    ...scrubSubscriptionEnv(process.env),
     EOS_CLAUDE_BIN: config.paths.claudeBin,
     EOS_BUN_BIN: config.paths.bunBin,
     EOS_REPO_ROOT: config.paths.repoRoot,

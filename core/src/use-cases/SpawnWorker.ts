@@ -57,6 +57,10 @@ export interface SpawnWorkerSpec {
    * and injects the peer-collaboration prompt fragment. Set by the orchestrator
    * at spawn; immutable for the session. */
   collaborate?: boolean;
+  /** Backend profile name (config `backends` key) this worker runs on — persisted
+   * to the backend_profile column. Set by the spawn route's backend resolver;
+   * absent ⇒ the default profile (null column). */
+  backendProfile?: string;
 }
 
 export interface SpawnWorkerDeps {
@@ -237,7 +241,7 @@ export async function spawnWorker(
     effort: effort ?? null,
     isOrchestrator: !!resolved.isOrchestrator,
     backendKind: deps.backend?.kind ?? "claude-cli",
-    backendProfile: null,
+    backendProfile: resolved.backendProfile ?? null,
     agentRole: resolved.role ?? null,
     withGateway: !!resolved.withGateway,
     collaborate: !!resolved.collaborate,
