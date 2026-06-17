@@ -73,6 +73,11 @@ export const WorkerEventTypeSchema = z.enum([
   "git_pull",
   "conflict_resolved",
   "terminal",
+  // Canonical agent-event row (in-process / claude-sdk backends): the payload is
+  // the full AgentEvent (contracts/src/canonical.ts). Daemon-synthesized via
+  // processAgentSignal's logEvent; the row type is stored free-form so logging
+  // already works, but the enum lists it so consumers are type-complete.
+  "agent_event",
 ]);
 export type WorkerEventType = z.infer<typeof WorkerEventTypeSchema>;
 

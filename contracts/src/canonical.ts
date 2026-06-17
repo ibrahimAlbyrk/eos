@@ -26,6 +26,10 @@ export type BackendKind = z.infer<typeof BackendKindSchema>;
 export const TextBlockSchema = z.object({
   type: z.literal("text"),
   text: z.string(),
+  // Synthesized live-stream id (claude-sdk: `${assistantMsgUuid}:${index}`) so a
+  // durable block reconciles with its live delta buffer; absent for non-streaming
+  // backends (claude-cli).
+  blockId: z.string().optional(),
 });
 
 // Was Claude's "thinking". `redacted` covers the API's redacted_thinking; absent
@@ -34,6 +38,7 @@ export const ReasoningBlockSchema = z.object({
   type: z.literal("reasoning"),
   text: z.string(),
   redacted: z.boolean().optional(),
+  blockId: z.string().optional(), // see TextBlockSchema.blockId
 });
 
 export const ToolCallBlockSchema = z.object({
@@ -123,8 +128,23 @@ export const QuestionRequestEventSchema = z.object({
   questions: z.array(UnknownRecordSchema),
 });
 
+// Live streaming delta — interim reasoning/text tokens for backends that stream
+// (claude-sdk, in-process). NEVER persisted per-token: the daemon filters these
+// at the onAgentEvent sink and relays them on the ephemeral `agent:delta` bus
+// topic; the durable record stays the final `message` event. `blockId` matches
+// the durable block's blockId so the UI swaps the live buffer for the persisted
+// block with no flash or double-render.
+export const DeltaEventSchema = z.object({
+  type: z.literal("delta"),
+  channel: z.enum(["reasoning", "text"]),
+  phase: z.enum(["start", "append", "stop"]),
+  blockId: z.string(),
+  text: z.string().default(""),
+});
+
 export const AgentEventSchema = z.discriminatedUnion("type", [
   AgentMessageEventSchema,
+  DeltaEventSchema,
   TurnEventSchema,
   ActivityEventSchema,
   UsageEventSchema,

@@ -125,6 +125,22 @@ export function buildBlocks(events) {
     }
   }
 
+  // Canonical (agent_event) tool results keyed by callId. The claude-sdk /
+  // in-process lanes persist a tool_result as a role:"tool" message separate
+  // from the assistant's tool_call, mirroring jsonl tool_use/tool_result.
+  const canonicalToolResults = new Map();
+  for (const ev of events) {
+    if (ev.type !== "agent_event") continue;
+    const e = parsePayload(ev.payload);
+    if (e?.type === "message" && e.role === "tool") {
+      for (const b of e.blocks ?? []) {
+        if (b.type === "tool_result") {
+          canonicalToolResults.set(b.callId, { text: b.content ?? "", isError: !!b.isError });
+        }
+      }
+    }
+  }
+
   const agentToolMap = new Map();
   const attachInnerTool = (agentId, tr, evIdx, ts) => {
     if (!agentToolMap.has(agentId)) agentToolMap.set(agentId, []);
@@ -365,6 +381,44 @@ export function buildBlocks(events) {
           diffStat: payload.diffStat ?? "",
           ts: ev.ts,
         });
+      }
+      continue;
+    }
+    if (ev.type === "agent_event") {
+      const e = parsePayload(ev.payload);
+      // Only durable `message` events render here; delta/turn/activity/usage/
+      // session/permission_request/question_request drive liveness/state/other UI.
+      // role:"user" renders via the synthesized user_message event (no double);
+      // role:"tool" results are correlated onto their tool_call via the map above.
+      if (e?.type === "message" && e.role === "assistant") {
+        for (const b of e.blocks ?? []) {
+          if (b.type === "reasoning") {
+            if (!b.text?.trim()) continue; // signature-only blocks persist as text:""
+            flushTools();
+            lastAsst = null;
+            out.push({ kind: "thinking", text: b.text, ts: ev.ts, blockId: b.blockId });
+          } else if (b.type === "text") {
+            flushTools();
+            if (lastAsst && out[out.length - 1] === lastAsst) {
+              lastAsst.text += "\n" + (b.text ?? "");
+            } else {
+              lastAsst = { kind: "assistant", text: b.text ?? "", ts: ev.ts, blockId: b.blockId };
+              out.push(lastAsst);
+            }
+          } else if (b.type === "tool_call") {
+            lastAsst = null;
+            pushTool({
+              id: b.callId,
+              name: b.name ?? "",
+              verb: verbFor(b.name),
+              input: b.input ?? {},
+              result: canonicalToolResults.get(b.callId) ?? null,
+              running: false,
+              done: true,
+              ts: ev.ts,
+            });
+          }
+        }
       }
       continue;
     }

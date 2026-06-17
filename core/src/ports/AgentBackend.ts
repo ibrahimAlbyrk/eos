@@ -26,6 +26,13 @@ export interface AgentCapabilities {
    *  JSONL tail). False/absent → DispatchMessage appends it at dispatch time,
    *  which cannot be ordered against in-flight turn output. */
   readonly reportsMessageEvents?: boolean;
+  /** True when the backend streams interim reasoning/text as `delta` events
+   *  (claude-sdk, in-process). The UI gates its live thinking renderer on this
+   *  DATA, never on backend kind. claude-cli is absent — whole-block thinking. */
+  readonly streamingThinking?: boolean;
+  /** True when the session survives a daemon restart via a persisted session id
+   *  (claude-sdk: options.resume). Drives boot reconciliation resume-vs-suspend. */
+  readonly resumable?: boolean;
 }
 
 // Identity + execution context to start a session. Deliberately free of argv /

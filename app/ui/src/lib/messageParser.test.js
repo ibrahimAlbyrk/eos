@@ -636,3 +636,62 @@ describe("creation-domain ordering (tsTranscript / anchorTs)", () => {
     expect(dir[0].ts).toBe(200);
   });
 });
+
+describe("buildBlocks canonical agent_event decoder (claude-sdk / in-process lanes)", () => {
+  const ae = (ts, event) => ({ type: "agent_event", ts, payload: event });
+
+  it("renders a finished durable turn from agent_event rows alone (reload path)", () => {
+    // No live thinkingStore buffer present — only persisted canonical rows, as
+    // after a page refetch. reasoning->thinking, text->assistant, tool_call->tool.
+    const events = [
+      ae(100, { type: "message", role: "assistant", blocks: [
+        { type: "reasoning", text: "let me think", blockId: "u1:0" },
+        { type: "text", text: "the answer is 42", blockId: "u1:1" },
+        { type: "tool_call", callId: "c1", name: "Read", input: { file_path: "/x" } },
+      ] }),
+      ae(101, { type: "message", role: "tool", blocks: [
+        { type: "tool_result", callId: "c1", content: "file contents", isError: false },
+      ] }),
+    ];
+    const blocks = buildBlocks(events);
+    expect(blocks.map((b) => b.kind)).toEqual(["thinking", "assistant", "tool"]);
+    expect(blocks[0]).toMatchObject({ text: "let me think", blockId: "u1:0" });
+    expect(blocks[1]).toMatchObject({ kind: "assistant", text: "the answer is 42", blockId: "u1:1" });
+    const tool = mainTool(blocks, "c1");
+    expect(tool).toMatchObject({ name: "Read", running: false, done: true });
+    expect(tool.result).toMatchObject({ text: "file contents", isError: false });
+  });
+
+  it("skips empty/signature-only reasoning blocks", () => {
+    const blocks = buildBlocks([ae(100, { type: "message", role: "assistant", blocks: [
+      { type: "reasoning", text: "   " },
+      { type: "text", text: "hi" },
+    ] })]);
+    expect(blocks.some((b) => b.kind === "thinking")).toBe(false);
+    expect(blocks.find((b) => b.kind === "assistant").text).toBe("hi");
+  });
+
+  it("does not render delta / turn / activity events as durable blocks", () => {
+    const events = [
+      ae(100, { type: "delta", channel: "reasoning", phase: "append", blockId: "u1:0", text: "tok" }),
+      ae(101, { type: "turn", phase: "started" }),
+      ae(102, { type: "activity", kind: "tool_started", callId: "c1", toolName: "Read" }),
+    ];
+    expect(buildBlocks(events)).toEqual([]);
+  });
+
+  it("ignores role:user messages (they render via the synthesized user_message event)", () => {
+    const events = [ae(100, { type: "message", role: "user", blocks: [{ type: "text", text: "hello" }] })];
+    expect(buildBlocks(events)).toEqual([]);
+  });
+
+  it("interleaves canonical assistant blocks with other timeline blocks in event order", () => {
+    const events = [
+      { type: "user_message", ts: 90, payload: { text: "do it", anchorTs: 90 } },
+      ae(100, { type: "message", role: "assistant", blocks: [{ type: "text", text: "done", blockId: "u1:0" }] }),
+    ];
+    const blocks = buildBlocks(events);
+    expect(blocks.map((b) => b.kind)).toEqual(["user", "assistant"]);
+    expect(blocks[1].text).toBe("done");
+  });
+});
