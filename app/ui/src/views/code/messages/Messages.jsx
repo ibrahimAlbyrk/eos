@@ -11,6 +11,7 @@ import { api } from "../../../api/client.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { deriveActivity } from "../../../lib/agentActivity.js";
 import { buildBlocks, applyRewinds, applyClears, sortBlocksByTs } from "../../../lib/messageParser.js";
+import { backendCaps } from "../../../lib/backendCaps.js";
 import { normRewindText } from "../../../lib/rewindMatch.js";
 import { deriveVerdict, deriveChildVerdicts } from "../../../lib/verdict.js";
 import { derivePendingQuestions } from "../../../lib/pendingQuestions.js";
@@ -451,7 +452,9 @@ export function Messages({ live, agentId, isActive = true }) {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
           const animate = (b.kind === "assistant" || b.kind === "thinking" || b.kind === "terminal") && !b.live && baselineKeys != null && !baselineKeys.has(key);
-          const onRewind = b.kind === "user" && !b.optimistic
+          // Rewind is PTY (claude-cli) choreography — structured backends have no
+          // equivalent, so gate it on the backend's keystroke capability.
+          const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).keystroke
             ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
             : null;
           const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, animate, parentWorker, onRewind, agentBusy);
