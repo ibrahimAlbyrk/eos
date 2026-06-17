@@ -177,6 +177,7 @@ export function ComposerControls({ live, onAttach, historyNav }) {
             pct={pct}
             costUsd={selected ? (selected.cost_usd ?? 0) : null}
             totalCostUsd={live.workers.reduce((sum, w) => sum + (w.cost_usd ?? 0), 0)}
+            backendKind={selected?.backend_kind}
           />
         </div>
       </div>

@@ -11,3 +11,10 @@ const STRUCTURED = { keystroke: false, runtimeModelSwitch: false };
 export function backendCaps(kind) {
   return !kind || kind === "claude-cli" ? PTY : STRUCTURED;
 }
+
+// Subscription-billed kinds (no metered cost — claude-cli + claude-sdk default to
+// the Max/Pro plan) vs API-billed (the in-process API lanes are metered).
+const SUBSCRIPTION_KINDS = new Set(["claude-cli", "claude-sdk"]);
+export function backendBilled(kind) {
+  return !!kind && !SUBSCRIPTION_KINDS.has(kind);
+}

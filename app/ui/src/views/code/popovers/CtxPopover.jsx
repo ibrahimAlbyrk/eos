@@ -1,7 +1,8 @@
 import { useUi } from "../../../state/ui.jsx";
 import { fmtCost, fmtTokens } from "../../../lib/format.js";
+import { backendBilled } from "../../../lib/backendCaps.js";
 
-export function CtxPopover({ used, total, pct, costUsd, totalCostUsd }) {
+export function CtxPopover({ used, total, pct, costUsd, totalCostUsd, backendKind }) {
   const ui = useUi();
   if (ui.openPopover !== "ctx") return null;
   return (
@@ -18,7 +19,7 @@ export function CtxPopover({ used, total, pct, costUsd, totalCostUsd }) {
       <div className="cp-divider"></div>
       <div className="cp-row cp-foot cp-costs">
         <span className="cp-cost" title="Estimated API-equivalent cost for this agent. If you use a Max/Pro subscription, no actual money is charged.">
-          <span className="cp-label">Session cost</span>
+          <span className="cp-label">Session cost{backendKind ? ` · ${backendBilled(backendKind) ? "billed" : "included"}` : ""}</span>
           <span className="cp-cost-val">{fmtCost(costUsd)}</span>
         </span>
         <span className="cp-cost" title="Estimated API-equivalent cost across all agents. If you use a Max/Pro subscription, no actual money is charged.">
