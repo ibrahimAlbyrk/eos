@@ -25,6 +25,13 @@ import { createOpenAIModelClient } from "../infra/src/backends/OpenAIModelClient
 import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts";
 import { scrubSubscriptionEnv } from "../core/src/domain/env-allowlist.ts";
 import type { AgentEvent } from "../contracts/src/canonical.ts";
+import type { AgentBackend } from "../core/src/ports/AgentBackend.ts";
+import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
+import { createSubscriptionAuthResolver } from "../infra/src/auth/SubscriptionAuthResolver.ts";
+import { orchestratorDefs, workerDefs, peerDefs } from "./tools/registry.ts";
+import { renderToolDescriptions } from "./tool-descriptions.ts";
+import { daemonApi } from "./shared/http.ts";
+import { spawnSync } from "node:child_process";
 import type { WorkerRow } from "../contracts/src/worker.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
@@ -541,12 +548,48 @@ export function buildContainer() {
   });
   const openaiBackend = createInProcessBackend("openai", openaiEnv);
   const codexBackend = createInProcessBackend("codex", openaiEnv);
-  const backendMap = new Map([
+
+  // claude-sdk (Lane A): subscription-billed, live thinking. Reuses the policy
+  // engine (canUseTool bridge), the prompt-library tool descriptions, and a
+  // loopback api for its in-process tools. Registered behind a transient flag so
+  // bring-up keeps claude-cli the default and the daemon byte-identical.
+  const sdkDaemonUrl = `http://127.0.0.1:${config.daemon.port}`;
+  const sdkToolDescriptions = renderToolDescriptions(
+    config.paths.promptsDir,
+    [...orchestratorDefs, ...workerDefs, ...peerDefs].map((d) => d.name),
+  );
+  const claudeSdkBackend = createClaudeSdkBackend({
+    authResolver: createSubscriptionAuthResolver(),
+    policy: {
+      async decide(i) {
+        const d = await policyGateway.decide(i);
+        return { behavior: d.behavior === "allow" ? "allow" : "deny", message: d.message, updatedInput: d.updatedInput };
+      },
+    },
+    toolHost: {
+      orchestratorDefs,
+      workerDefs,
+      peerDefs,
+      renderDescription: (name) => sdkToolDescriptions[name] ?? name,
+    },
+    daemonUrl: sdkDaemonUrl,
+    makeToolContext: (spec) => ({
+      selfId: spec.workerId,
+      cwd: spec.cwd,
+      isGitRepo: () => spawnSync("git", ["rev-parse", "--git-dir"], { cwd: spec.cwd, encoding: "utf8" }).status === 0,
+      api: (method, path, body) => daemonApi(sdkDaemonUrl, method, path, body),
+    }),
+    log,
+  });
+
+  const backendMap = new Map<string, AgentBackend>([
     ["claude-cli", claudeCliBackend],
     ["anthropic-api", anthropicBackend],
     ["openai", openaiBackend],
     ["codex", codexBackend],
   ]);
+  // Bring-up gate: opt-in via EOS_ENABLE_SDK_BACKEND=1 (dropped at the GA cutover).
+  if (process.env.EOS_ENABLE_SDK_BACKEND === "1") backendMap.set("claude-sdk", claudeSdkBackend);
   const backends = {
     get(kind: string) { const b = backendMap.get(kind); if (!b) throw new Error(`unknown backend: ${kind}`); return b; },
     has(kind: string) { return backendMap.has(kind); },

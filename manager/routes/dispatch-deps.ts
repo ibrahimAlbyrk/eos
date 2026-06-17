@@ -18,7 +18,16 @@ export function dispatchDeps(
     client: c.httpWorkerClient,
     backends: c.backends,
     log: c.log,
-    isLive: (id: string) => c.supervisor.has(id),
+    isLive: (id: string) => {
+      if (c.supervisor.has(id)) return true;
+      // In-process backends (claude-sdk / anthropic-api / …) have no supervised
+      // PTY child; liveness is the backend session's own aliveness.
+      const kind = c.workers.findById(id)?.backend_kind;
+      if (kind && kind !== "claude-cli" && c.backends.has(kind)) {
+        return c.backends.get(kind).attach(id, { kind: "inproc", ref: id }).isAlive();
+      }
+      return false;
+    },
     // Cleared inside the use-case ONLY when the message actually dispatches —
     // an enqueue must leave the settle window alone (see DispatchMessageDeps).
     clearTurnSettle: (id: string) => c.turnSettle.clear(id),
