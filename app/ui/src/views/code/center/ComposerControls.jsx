@@ -9,6 +9,7 @@ import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
+import { backendCaps } from "../../../lib/backendCaps.js";
 
 export function ComposerControls({ live, onAttach, historyNav }) {
   const ui = useUi();
@@ -20,6 +21,9 @@ export function ComposerControls({ live, onAttach, historyNav }) {
   const model = selected?.model ?? ui.composer.model;
   const effort = selected?.effort ?? ui.composer.effort;
   const modelInfo = { name: modelName(model) || model || "—", ctx: modelCtx(model) || "" };
+  // A structured (non-PTY) backend fixes its model per session — lock the runtime
+  // model switch once such a worker is selected (the new-spawn composer is PTY-default).
+  const modelLocked = !!selected && !backendCaps(selected.backend_kind).runtimeModelSwitch;
 
   const { used, total, pct } = contextUsage(selected, model);
   const r = 7;
@@ -130,6 +134,8 @@ export function ComposerControls({ live, onAttach, historyNav }) {
           <button
             className={"model-pill" + (ui.openPopover === "model" ? " open" : "")}
             id="modelPill"
+            disabled={modelLocked}
+            title={modelLocked ? "Model is fixed for this backend (set at spawn)" : undefined}
             onClick={(e) => toggle("model", e)}
             data-popover-trigger="model"
           >
