@@ -45,15 +45,30 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
     }
 
     let turn;
+    const blockR = `inproc-${i}-r`;
+    const blockT = `inproc-${i}-t`;
+    let openR = false;
+    let openT = false;
     try {
-      turn = await deps.model.createTurn(messages);
+      // Prefer streaming so reasoning/text arrive as live canonical deltas (the
+      // SAME pipeline as the claude-sdk lane); fall back to one round-trip.
+      turn = deps.model.streamTurn
+        ? await deps.model.streamTurn(messages, {
+            signal: deps.signal,
+            onReasoningDelta: (t) => { deps.emit({ type: "delta", channel: "reasoning", phase: openR ? "append" : "start", blockId: blockR, text: t }); openR = true; },
+            onTextDelta: (t) => { deps.emit({ type: "delta", channel: "text", phase: openT ? "append" : "start", blockId: blockT, text: t }); openT = true; },
+          })
+        : await deps.model.createTurn(messages);
     } catch (e) {
       deps.emit({ type: "turn", phase: "error", reason: e instanceof Error ? e.message : String(e) });
       return messages;
     }
 
-    if (turn.reasoning) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "reasoning", text: turn.reasoning }] });
-    if (turn.text) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "text", text: turn.text }] });
+    // Close live blocks before their durable counterpart lands (UI drops by blockId).
+    if (openR) deps.emit({ type: "delta", channel: "reasoning", phase: "stop", blockId: blockR, text: "" });
+    if (openT) deps.emit({ type: "delta", channel: "text", phase: "stop", blockId: blockT, text: "" });
+    if (turn.reasoning) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "reasoning", text: turn.reasoning, blockId: blockR }] });
+    if (turn.text) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "text", text: turn.text, blockId: blockT }] });
     if (turn.usage) {
       deps.emit({
         type: "usage",

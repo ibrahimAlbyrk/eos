@@ -6,7 +6,7 @@
 //
 // Billing: API-key pool, opt-in; never the default.
 
-import type { ModelClient, ModelMessage, ModelTurn } from "../../../core/src/ports/ModelClient.ts";
+import type { ModelClient, ModelMessage, ModelTurn, ModelStreamCallbacks } from "../../../core/src/ports/ModelClient.ts";
 
 export interface OpenAIToolSpec {
   name: string;
@@ -52,6 +52,32 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
       }
       return parseOpenAIResponse((await resp.json()) as OpenAIResponse);
     },
+    async streamTurn(messages: ModelMessage[], cb: ModelStreamCallbacks): Promise<ModelTurn> {
+      const mapped = messages.map(toOpenAIMessage);
+      const body = {
+        model: opts.model,
+        stream: true,
+        stream_options: { include_usage: true },
+        ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
+        ...(opts.tools && opts.tools.length ? { tools: opts.tools.map((t) => ({ type: "function", function: t })) } : {}),
+        messages: opts.system ? [{ role: "system", content: opts.system }, ...mapped] : mapped,
+      };
+      let resp: Response;
+      try {
+        resp = await doFetch(`${base}/v1/chat/completions`, {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: `Bearer ${opts.apiKey}` },
+          body: JSON.stringify(body),
+        });
+      } catch (e) {
+        return { toolCalls: [], stopReason: "error", error: e instanceof Error ? e.message : String(e) };
+      }
+      if (!resp.ok || !resp.body) {
+        const t = resp.ok ? "no stream body" : await resp.text().catch(() => "");
+        return { toolCalls: [], stopReason: "error", error: `HTTP ${resp.status}: ${t.slice(0, 200)}` };
+      }
+      return parseOpenAIStream(resp.body, cb);
+    },
   };
 }
 
@@ -75,7 +101,9 @@ function toOpenAIMessage(m: ModelMessage): Record<string, unknown> {
 
 interface OpenAIResponse {
   choices?: Array<{
-    message?: { content?: string | null; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> };
+    // reasoning_content is the DeepSeek/Kimi reasoning field (OpenAI-compatible
+    // extension); maps to the canonical reasoning channel.
+    message?: { content?: string | null; reasoning_content?: string | null; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> };
     finish_reason?: string;
   }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
@@ -95,8 +123,73 @@ export function parseOpenAIResponse(data: OpenAIResponse): ModelTurn {
   const stopReason = toolCalls.length > 0 ? "tool_use" : fr === "length" ? "max_tokens" : "end_turn";
   return {
     text: typeof msg.content === "string" && msg.content ? msg.content : undefined,
+    reasoning: typeof msg.reasoning_content === "string" && msg.reasoning_content ? msg.reasoning_content : undefined,
     toolCalls,
     stopReason,
     usage: data.usage ? { inputTokens: data.usage.prompt_tokens ?? 0, outputTokens: data.usage.completion_tokens ?? 0 } : undefined,
   };
+}
+
+interface OpenAIStreamChunk {
+  choices?: Array<{
+    delta?: { content?: string | null; reasoning_content?: string | null; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> };
+    finish_reason?: string | null;
+  }>;
+  usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
+}
+
+// Drain an OpenAI-compatible SSE stream into a ModelTurn, emitting reasoning/text
+// deltas live. tool_calls stream as fragments (index + partial arguments) and are
+// buffered per index, then JSON-parsed once complete.
+export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: ModelStreamCallbacks): Promise<ModelTurn> {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+  let reasoning = "";
+  let finishReason: string | undefined;
+  let usage: ModelTurn["usage"];
+  const toolsByIndex = new Map<number, { id: string; name: string; args: string }>();
+
+  for (;;) {
+    if (cb.signal?.aborted) break;
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buffer.indexOf("\n")) >= 0) {
+      const line = buffer.slice(0, nl).trim();
+      buffer = buffer.slice(nl + 1);
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (!payload || payload === "[DONE]") continue;
+      let chunk: OpenAIStreamChunk;
+      try { chunk = JSON.parse(payload); } catch { continue; }
+      if (chunk.usage) usage = { inputTokens: chunk.usage.prompt_tokens ?? 0, outputTokens: chunk.usage.completion_tokens ?? 0 };
+      const choice = chunk.choices?.[0];
+      if (!choice) continue;
+      if (choice.finish_reason) finishReason = choice.finish_reason;
+      const d = choice.delta ?? {};
+      if (typeof d.reasoning_content === "string" && d.reasoning_content) { reasoning += d.reasoning_content; cb.onReasoningDelta?.(d.reasoning_content); }
+      if (typeof d.content === "string" && d.content) { text += d.content; cb.onTextDelta?.(d.content); }
+      for (const tc of d.tool_calls ?? []) {
+        const idx = tc.index ?? 0;
+        const cur = toolsByIndex.get(idx) ?? { id: "", name: "", args: "" };
+        if (tc.id) cur.id = tc.id;
+        if (tc.function?.name) cur.name = tc.function.name;
+        if (tc.function?.arguments) cur.args += tc.function.arguments;
+        toolsByIndex.set(idx, cur);
+      }
+    }
+  }
+
+  const toolCalls: ModelTurn["toolCalls"] = [];
+  for (const t of toolsByIndex.values()) {
+    if (!t.name) continue;
+    let input: Record<string, unknown> = {};
+    try { input = t.args ? JSON.parse(t.args) : {}; } catch { input = {}; }
+    toolCalls.push({ callId: t.id, name: t.name, input });
+  }
+  const stopReason = toolCalls.length > 0 ? "tool_use" : finishReason === "length" ? "max_tokens" : "end_turn";
+  return { text: text || undefined, reasoning: reasoning || undefined, toolCalls, stopReason, usage };
 }
