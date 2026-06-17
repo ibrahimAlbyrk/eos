@@ -56,11 +56,22 @@ export const ToolResultBlockSchema = z.object({
   content: z.string().default(""),
 });
 
+// A Skill's injected SKILL.md body — claude-cli surfaces it as its own transcript
+// entry keyed to the Skill tool_use id. Correlated onto its tool_call by callId
+// (like tool_result); `text` is the raw body, which the UI splits into path/body.
+// Absent for backends with no skill channel.
+export const SkillBlockSchema = z.object({
+  type: z.literal("skill"),
+  callId: z.string(),
+  text: z.string().default(""),
+});
+
 export const ContentBlockSchema = z.discriminatedUnion("type", [
   TextBlockSchema,
   ReasoningBlockSchema,
   ToolCallBlockSchema,
   ToolResultBlockSchema,
+  SkillBlockSchema,
 ]);
 export type ContentBlock = z.infer<typeof ContentBlockSchema>;
 
@@ -99,6 +110,14 @@ export const ActivityEventSchema = z.object({
   kind: z.enum(["tool_started", "tool_finished", "alive"]),
   callId: z.string().nullable().optional(),
   toolName: z.string().optional(),
+  // claude-cli carries tool-lifecycle detail on its tool_running/tool_done pulses —
+  // the ONLY source for a subagent's inner tools (which have no standalone
+  // tool_call/tool_result block): input + parent attribution on start, result on
+  // finish. Optional — backends whose tools surface fully as message blocks omit them.
+  input: UnknownRecordSchema.optional(),
+  parentCallId: z.string().nullable().optional(),
+  result: z.string().optional(),
+  isError: z.boolean().optional(),
 });
 
 export const UsageEventSchema = z.object({

@@ -38,6 +38,10 @@ export const SpawnWorkerRequestSchema = z
     // (list_peers / ask_peer / respond_to_peer) and a prompt section teaching
     // them. Its peers are the orchestrator's other collaborate-enabled workers.
     collaborate: z.boolean().optional(),
+    // Named backend profile (a config.backends key) to run this worker on. Absent
+    // → inherit from parent, else role default, else claude-cli. Feeds the
+    // resolver's explicit-profile branch (SqlBackedBackendResolver).
+    backendProfile: z.string().optional(),
   })
   .refine((b) => !!(b.cwd || b.worktreeFrom || b.workspaceOf), {
     message: "cwd, worktreeFrom or workspaceOf required",
@@ -66,6 +70,7 @@ export const SpawnOrchestratorRequestSchema = z.object({
   effort: z.string().optional(),
   prompt: z.string().optional(),
   permissionMode: PermissionModeSchema.optional(),
+  backendProfile: z.string().optional(),
 });
 export type SpawnOrchestratorRequest = z.infer<typeof SpawnOrchestratorRequestSchema>;
 
@@ -365,12 +370,24 @@ export const CatalogModelSchema = z.object({
 });
 export type CatalogModel = z.infer<typeof CatalogModelSchema>;
 
+// A selectable backend profile surfaced to the UI provider picker. costMode
+// labels billing ("included" = subscription-paid, "billed" = metered API).
+export const BackendChoiceSchema = z.object({
+  name: z.string(),
+  kind: z.string(),
+  model: z.string(),
+  costMode: z.enum(["billed", "included"]).optional(),
+});
+export type BackendChoice = z.infer<typeof BackendChoiceSchema>;
+
 export const UiConfigResponseSchema = z.object({
   models: z.array(z.string()),
   modelCatalog: z.array(CatalogModelSchema),
   prices: z.record(z.string(), ModelPriceSchema),
   permissions: z.object({ defaultTtlMs: z.number().int().positive() }),
   sse: z.object({ keepaliveMs: z.number().int().positive() }),
+  // Configured backend profiles (config.backends) for the provider picker.
+  backends: z.array(BackendChoiceSchema),
 });
 export type UiConfigResponse = z.infer<typeof UiConfigResponseSchema>;
 
