@@ -268,16 +268,18 @@ export function Messages({ live, agentId, isActive = true }) {
         truncated: false, done: r.done, ts: r.ts,
       });
     }
-    // Overlay live reasoning/text deltas (claude-sdk / in-process) whose durable
-    // canonical block (same blockId) hasn't landed yet: reasoning -> live thinking
-    // line, text -> live assistant. Dropped by blockId once the durable lands.
+    // Overlay live REASONING (thinking) deltas as a streaming thinking line,
+    // dropped by blockId once the durable lands. The assistant's TEXT answer is
+    // deliberately NOT overlaid live: it streams too fast for the per-token blur
+    // to register, and a live text block would suppress the durable block's
+    // blur-in (the shared blockId reuses the React instance, so its reveal state
+    // would carry over as already-revealed). Instead the durable assistant block
+    // blurs in on arrival — a clean reveal matching the thinking animation.
     const durableBlockIds = new Set(base.filter((b) => b.blockId).map((b) => b.blockId));
     for (const lb of liveThinkingFor(selectedId)) {
+      if (lb.channel === "text") continue;
       if (durableBlockIds.has(lb.blockId)) continue;
-      base.push({
-        kind: lb.channel === "text" ? "assistant" : "thinking",
-        text: lb.text, ts: lb.ts, blockId: lb.blockId, live: true,
-      });
+      base.push({ kind: "thinking", text: lb.text, ts: lb.ts, blockId: lb.blockId, live: true });
     }
     // Conversation position is ts (creation domain), not append order — see
     // sortBlocksByTs for the clock-domain rationale.
