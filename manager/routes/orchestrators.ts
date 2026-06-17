@@ -25,11 +25,9 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const name = (body.name ?? "").trim() || randomOrchestratorName();
     const cwd = expandPath(body.cwd);
     const id = c.ids.newOrchestratorId();
-    const rb = await resolveSpawnBackend(c, { explicitProfileName: body.backendProfile, isOrchestrator: true });
-    // Billing guard: an explicitly-selected metered-API profile must opt into
-    // per-token charges (costMode:"billed"); subscription kinds are exempt.
-    if (body.backendProfile && meteredNeedsBilledIntent(rb)) {
-      writeJson(res, 400, { error: `backend "${rb.profileName ?? rb.kind}" is a metered API — set its profile costMode:"billed" to opt into per-token charges` });
+    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, isOrchestrator: true });
+    if (body.backendKind && meteredNeedsBilledIntent(rb)) {
+      writeJson(res, 400, { error: `backend "${rb.kind}" is a metered API — use a subscription provider or a costMode:"billed" profile` });
       return;
     }
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
