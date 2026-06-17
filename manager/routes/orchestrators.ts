@@ -7,6 +7,7 @@ import { validate } from "../middleware/validate.ts";
 import { SpawnOrchestratorRequestSchema, MessageRequestSchema } from "../../contracts/src/http.ts";
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
+import { meteredNeedsBilledIntent } from "../../core/src/domain/backend-billing.ts";
 import { randomOrchestratorName } from "../shared/names.ts";
 import { expandPath } from "../shared/path.ts";
 import { appendSynthesized } from "../shared/synthesized-events.ts";
@@ -23,7 +24,13 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const name = (body.name ?? "").trim() || randomOrchestratorName();
     const cwd = expandPath(body.cwd);
     const id = c.ids.newOrchestratorId();
-    const rb = c.backendResolver.resolveForNewWorker({ isOrchestrator: true });
+    const rb = c.backendResolver.resolveForNewWorker({ explicitProfileName: body.backendProfile, isOrchestrator: true });
+    // Billing guard: an explicitly-selected metered-API profile must opt into
+    // per-token charges (costMode:"billed"); subscription kinds are exempt.
+    if (body.backendProfile && meteredNeedsBilledIntent(rb)) {
+      writeJson(res, 400, { error: `backend "${rb.profileName ?? rb.kind}" is a metered API — set its profile costMode:"billed" to opt into per-token charges` });
+      return;
+    }
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     const result = await spawnWorker(
       {

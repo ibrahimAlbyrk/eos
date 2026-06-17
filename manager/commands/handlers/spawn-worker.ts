@@ -4,6 +4,7 @@ import type { NoAddr } from "../../../contracts/src/commands/types.ts";
 import type { SpawnWorkerRequest, SpawnWorkerResponse } from "../../../contracts/src/http.ts";
 import { spawnWorker } from "../../../core/src/use-cases/SpawnWorker.ts";
 import { resolveSpawnIsolation } from "../../../core/src/domain/worktree-policy.ts";
+import { meteredNeedsBilledIntent } from "../../../core/src/domain/backend-billing.ts";
 import { ValidationError } from "../../../core/src/errors/index.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
@@ -39,7 +40,12 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     // Backend selection (defaults to claude-cli): resolve BEFORE the spec so a
     // profile-driven backend's model + profile name thread into it. claude-cli
     // keeps today's behavior exactly (no model override, null profile).
-    const rb = c.backendResolver.resolveForNewWorker({ parentId: body.parentId ?? null, isOrchestrator: false });
+    const rb = c.backendResolver.resolveForNewWorker({ explicitProfileName: body.backendProfile, parentId: body.parentId ?? null, isOrchestrator: false });
+    // Billing guard: an explicitly-selected metered-API profile must opt into
+    // per-token charges (costMode:"billed"); subscription kinds are exempt.
+    if (body.backendProfile && meteredNeedsBilledIntent(rb)) {
+      throw new ValidationError(`backend "${rb.profileName ?? rb.kind}" is a metered API — set its profile costMode:"billed" to opt into per-token charges`);
+    }
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     const spec = {
       ...bodyRest,

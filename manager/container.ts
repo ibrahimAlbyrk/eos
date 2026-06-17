@@ -30,12 +30,10 @@ import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSubscriptionAuthResolver } from "../infra/src/auth/SubscriptionAuthResolver.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
 import { orchestratorDefs, workerDefs, peerDefs } from "./tools/registry.ts";
-import { toRuntimeTool } from "./tools/projections.ts";
+import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
 import { daemonApi } from "./shared/http.ts";
 import { spawnSync } from "node:child_process";
-import { z } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
 import type { WorkerRow } from "../contracts/src/worker.ts";
 import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRunner.ts";
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
@@ -472,11 +470,12 @@ export function buildContainer() {
   // Tool-name variables are static globals: constant per daemon, available to
   // every render (role fragments interpolate {{SPAWN_WORKER_TOOL}} etc.).
   const prompts = new PromptService(promptRegistry, TOOL_NAME_VARS);
-  // DPI assembly: build the worker's appended system prompt from the fragments
-  // that match the spawn facts, write it per-worker, return the path (null → no
-  // append, matching a top-level worker with no role fragment). The claude-cli
-  // backend calls this once per spawn; cleanupMcpConfig removes the file on exit.
-  const assembleSystemPromptFile = (spec: SpawnWorkerSpec, id: string): string | null => {
+  // DPI assembly (shared): derive the appended system-prompt TEXT from the
+  // fragments that match the spawn facts. Both backend lanes need the same text —
+  // claude-cli writes it to a file for --append-system-prompt-file, claude-sdk
+  // passes it as systemPrompt.append — so it is built in exactly one place here.
+  // null → no append (a top-level worker with no role fragment).
+  const assembleAppendText = (spec: SpawnWorkerSpec, id: string): string | null => {
     const role = spec.isOrchestrator ? "orchestrator" : spec.role === "git" ? "git" : "worker";
     const { text } = assembleSystemPrompt(
       { registry: promptRegistry, prompts },
@@ -497,7 +496,13 @@ export function buildContainer() {
         canCollaborate: !!spec.collaborate,
       },
     );
-    if (!text.trim()) return null;
+    return text.trim() ? text : null;
+  };
+  // claude-cli projection: write the assembled text per-worker, return the path
+  // (cleanupMcpConfig removes the file on exit).
+  const assembleSystemPromptFile = (spec: SpawnWorkerSpec, id: string): string | null => {
+    const text = assembleAppendText(spec, id);
+    if (!text) return null;
     const path = systemPromptPathFor(id);
     writeFileSync(path, text);
     return path;
@@ -562,8 +567,8 @@ export function buildContainer() {
     const ctx = makeToolContext(spec);
     const collaborate = (spec.backendOptions as Record<string, unknown> | undefined)?.collaborate === true;
     const defs = spec.isOrchestrator ? orchestratorDefs : [...workerDefs, ...(collaborate ? peerDefs : [])];
-    const prefix = spec.isOrchestrator ? "orchestrator" : "worker";
-    const items = defs.map((d) => ({ name: `mcp__${prefix}__${d.name}`, description: inprocToolDescriptions[d.name] ?? d.name, schema: zodToJsonSchema(z.object(d.inputSchema)) as Record<string, unknown>, execute: toRuntimeTool(d, ctx).execute }));
+    const server = mcpServerForRole(spec.isOrchestrator);
+    const items = defs.map((d) => ({ name: prefixedToolName(server, d.name), description: inprocToolDescriptions[d.name] ?? d.name, schema: toolJsonSchema(d), execute: toRuntimeTool(d, ctx).execute }));
     const tools = new Map(items.map((i) => [i.name, { name: i.name, execute: i.execute }]));
     return { items, tools };
   };
@@ -599,6 +604,9 @@ export function buildContainer() {
     toolHost: { orchestratorDefs, workerDefs, peerDefs, renderDescription: (name) => inprocToolDescriptions[name] ?? name },
     daemonUrl: sdkDaemonUrl,
     makeToolContext,
+    // Same DPI text the CLI lane writes to --append-system-prompt-file: the SDK
+    // spec carries the SpawnWorkerSpec in backendOptions.spec (SpawnWorker.ts).
+    assembleAppendPrompt: (spec) => assembleAppendText((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId),
     log,
   });
 

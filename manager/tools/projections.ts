@@ -1,11 +1,34 @@
 // Transport projections (Adapter pattern). One ToolDefinition -> the wire shape
-// each backend needs. toSdkTool (claude-sdk in-process server) is added in the
-// SDK-backend phase, where @anthropic-ai/claude-agent-sdk is installed.
+// each backend needs, plus the SINGLE source for a tool's fully-qualified name
+// (mcp__<server>__<tool>) and input JSON Schema, so every lane agrees byte-for-byte
+// (locked by projection-parity.test.ts). toSdkTool deliberately stays in the SDK
+// backend (SdkToolHost) so this module — loaded inside the claude-cli MCP
+// subprocess — never pulls @anthropic-ai/claude-agent-sdk into that subprocess.
 
+import { z } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RuntimeTool } from "../../core/src/use-cases/ToolRuntime.ts";
 import { safeText } from "../shared/mcp-tool.ts";
 import type { ToolDefinition, ToolContext } from "./types.ts";
+
+// The MCP server a role's tools are hosted under: orchestrator tools on
+// "orchestrator", worker + peer tools on "worker" (both EOS_BUILTIN_MCP_SERVERS
+// entries, so isEosControlTool + classifyTool's mcp__* always-allow key on the
+// resulting prefix). Single source for the server name across every transport.
+export function mcpServerForRole(isOrchestrator: boolean): string {
+  return isOrchestrator ? "orchestrator" : "worker";
+}
+
+// Fully-qualified tool name every transport must expose.
+export function prefixedToolName(server: string, name: string): string {
+  return `mcp__${server}__${name}`;
+}
+
+// Canonical JSON Schema for a tool's input — the one derivation every lane uses.
+export function toolJsonSchema(def: ToolDefinition): Record<string, unknown> {
+  return zodToJsonSchema(z.object(def.inputSchema)) as Record<string, unknown>;
+}
 
 // Structurally the legacy McpToolModule<S>: { name, register(server, session) }.
 export interface McpProjection<S> {
