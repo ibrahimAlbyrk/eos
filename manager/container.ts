@@ -609,8 +609,9 @@ export function buildContainer() {
     ["openai", openaiBackend],
     ["codex", codexBackend],
   ]);
-  // Bring-up gate: opt-in via EOS_ENABLE_SDK_BACKEND=1 (dropped at the GA cutover).
-  if (process.env.EOS_ENABLE_SDK_BACKEND === "1") backendMap.set("claude-sdk", claudeSdkBackend);
+  // claude-sdk is GA — registered unconditionally; selection is driven by config
+  // (a claude-sdk profile + defaults). claude-cli stays the default until a profile points elsewhere.
+  backendMap.set("claude-sdk", claudeSdkBackend);
   const backends = {
     get(kind: string) { const b = backendMap.get(kind); if (!b) throw new Error(`unknown backend: ${kind}`); return b; },
     has(kind: string) { return backendMap.has(kind); },

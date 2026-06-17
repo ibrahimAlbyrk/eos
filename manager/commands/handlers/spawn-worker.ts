@@ -53,9 +53,10 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
         model: body.model ?? "sonnet",
         effort: body.effort ?? "medium",
       } : {}),
-      // A profile-driven backend (claude-sdk / Lane B) carries its own model;
-      // persist the resolved profile name for inheritance + re-derivation.
-      ...(rb.kind !== "claude-cli" ? { model: rb.model } : {}),
+      // Lane B (deepseek/kimi/openai) has its own model namespace and carries the
+      // profile's model; claude-sdk + claude-cli run whatever Claude model the user
+      // picked. Persist the resolved profile name for inheritance.
+      ...(rb.kind !== "claude-cli" && rb.kind !== "claude-sdk" ? { model: rb.model } : {}),
       backendProfile: rb.profileName ?? undefined,
     };
     const result = await spawnWorker(

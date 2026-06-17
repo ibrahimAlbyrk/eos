@@ -137,7 +137,9 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         allowedTools,
         canUseTool: makeCanUseTool(spec.workerId, deps.policy),
         includePartialMessages: true,
-        thinking: (opts.thinking as Options["thinking"]) ?? { type: "adaptive" },
+        // display:"summarized" is required to stream thinking on Opus 4.7+ (it
+        // otherwise defaults to omitted) — proven by the spike.
+        thinking: (opts.thinking as Options["thinking"]) ?? ({ type: "adaptive", display: "summarized" } as Options["thinking"]),
         ...(spec.permissionMode ? { permissionMode: spec.permissionMode as Options["permissionMode"] } : {}),
         ...(typeof opts.resume === "string" ? { resume: opts.resume } : {}),
       } as Options;

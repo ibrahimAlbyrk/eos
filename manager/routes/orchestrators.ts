@@ -43,8 +43,9 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         fixedId: id,
         persistent: true,
         claudePermissionMode: body.permissionMode ?? "acceptEdits",
-        // A profile-driven backend (claude-sdk / Lane B) carries its own model.
-        model: rb.kind !== "claude-cli" ? rb.model : (body.model ?? "opus"),
+        // Lane B (deepseek/kimi/openai) carries its own model; claude-sdk + claude-cli
+        // run the user-picked Claude model.
+        model: rb.kind !== "claude-cli" && rb.kind !== "claude-sdk" ? rb.model : (body.model ?? "opus"),
         effort: body.effort ?? "xhigh",
         isOrchestrator: true,
         backendProfile: rb.profileName ?? undefined,
