@@ -116,6 +116,9 @@ export function processAgentSignal(
   workerId: string,
   event: AgentEvent,
 ): void {
+  // Live deltas are ephemeral (relayed over SSE at the onAgentEvent sink): never
+  // log a row, never drive state. Defense-in-depth — the sink already filters them.
+  if (event.type === "delta") return;
   const rowId = logEvent(deps, workerId, "agent_event", event);
   if (event.type === "usage") {
     handleUsage(deps, workerId, event, rowId);

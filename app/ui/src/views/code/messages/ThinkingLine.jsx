@@ -6,9 +6,11 @@ import { useBlurInReveal } from "../../../hooks/useBlurInReveal.js";
 // motion; an extra icon here is visual noise.
 // Blur-in mutates inside the ref span; safe because a thinking block's text
 // is immutable (one event, no merge), so React never diffs those text nodes.
-export function ThinkingLine({ text, animate = false }) {
+export function ThinkingLine({ text, animate = false, live = false }) {
   const ref = useRef(null);
-  useBlurInReveal(ref, text, animate);
+  // Live (streaming) thinking grows token-by-token — disable the blur-in reveal
+  // (it assumes immutable text and would thrash); render the growing text plainly.
+  useBlurInReveal(ref, text, animate && !live);
   return (
     <div className="thinking-line">
       <span className="mono">

@@ -35,6 +35,7 @@ import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
 import { TerminalCard } from "./TerminalCard.jsx";
 import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceRuns } from "../../../state/terminalStore.js";
+import { subscribe as subscribeThinking, liveBlocksFor as liveThinkingFor, dropBlock as dropThinkingBlock } from "../../../state/thinkingStore.js";
 import { setInputNeeded } from "../../../state/inputNeededStore.js";
 import * as outbox from "../../../state/outboxStore.js";
 
@@ -217,6 +218,8 @@ export function Messages({ live, agentId, isActive = true }) {
   // a tick subscription re-renders on every chunk.
   const [termTick, setTermTick] = useState(0);
   useEffect(() => subscribeTerminal(() => setTermTick((t) => t + 1)), []);
+  const [thinkTick, setThinkTick] = useState(0);
+  useEffect(() => subscribeThinking(() => setThinkTick((t) => t + 1)), []);
 
   // Outbox bubbles (sending/dispatching) overlay the durable blocks the same
   // way — they live in a module store, not React state.
@@ -264,10 +267,21 @@ export function Messages({ live, agentId, isActive = true }) {
         truncated: false, done: r.done, ts: r.ts,
       });
     }
+    // Overlay live reasoning/text deltas (claude-sdk / in-process) whose durable
+    // canonical block (same blockId) hasn't landed yet: reasoning -> live thinking
+    // line, text -> live assistant. Dropped by blockId once the durable lands.
+    const durableBlockIds = new Set(base.filter((b) => b.blockId).map((b) => b.blockId));
+    for (const lb of liveThinkingFor(selectedId)) {
+      if (durableBlockIds.has(lb.blockId)) continue;
+      base.push({
+        kind: lb.channel === "text" ? "assistant" : "thinking",
+        text: lb.text, ts: lb.ts, blockId: lb.blockId, live: true,
+      });
+    }
     // Conversation position is ts (creation domain), not append order — see
     // sortBlocksByTs for the clock-domain rationale.
     return sortBlocksByTs(base);
-  }, [baseBlocks, selectedId, termTick, outboxTick]);
+  }, [baseBlocks, selectedId, termTick, outboxTick, thinkTick]);
 
   const rewindToMessage = useRewind(selectedId);
   // Duplicate user texts must map to the n-th identical transcript target —
@@ -295,6 +309,19 @@ export function Messages({ live, agentId, isActive = true }) {
     if (durable.size === 0) return;
     for (const r of liveRunsFor(selectedId)) {
       if (durable.has(r.runId)) removeRun(r.runId);
+    }
+  }, [blocks, selectedId]);
+
+  // Drop a live reasoning/text buffer once its durable canonical block (same
+  // blockId) is in the window — the immutable block has taken over rendering.
+  useEffect(() => {
+    const durable = new Set();
+    for (const b of blocks) {
+      if (b.blockId && !b.live) durable.add(b.blockId);
+    }
+    if (durable.size === 0) return;
+    for (const lb of liveThinkingFor(selectedId)) {
+      if (durable.has(lb.blockId)) dropThinkingBlock(selectedId, lb.blockId);
     }
   }, [blocks, selectedId]);
 
@@ -423,7 +450,7 @@ export function Messages({ live, agentId, isActive = true }) {
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
-          const animate = (b.kind === "assistant" || b.kind === "thinking" || b.kind === "terminal") && baselineKeys != null && !baselineKeys.has(key);
+          const animate = (b.kind === "assistant" || b.kind === "thinking" || b.kind === "terminal") && !b.live && baselineKeys != null && !baselineKeys.has(key);
           const onRewind = b.kind === "user" && !b.optimistic
             ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
             : null;
@@ -467,7 +494,7 @@ function blockKey(b, i) {
     case "tool":      return "t-" + (b.tool.id ?? b.ts ?? i);
     case "agentRun":  return "ag-" + (b.toolUseId ?? b.ts ?? i);
     case "terminal":  return "term-" + (b.runId ?? b.ts ?? i);
-    default:          return b.kind + "-" + (b.ts ?? i);
+    default:          return b.blockId ? b.kind + "-" + b.blockId : b.kind + "-" + (b.ts ?? i);
   }
 }
 
@@ -483,7 +510,7 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} /></MessageRow>;
-    case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} />;
+    case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} live={b.live} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
       // expandedTools holds toggles against the settings-driven default (XOR)

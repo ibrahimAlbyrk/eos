@@ -284,3 +284,19 @@ describe("ProcessAgentSignal — task list folding", () => {
     assert.deepEqual(tasks, [null]);
   });
 });
+
+describe("ProcessAgentSignal — delta events are ephemeral", () => {
+  it("never appends a row and never changes state (filtered before logging)", () => {
+    const { deps, events, row } = buildDeps("IDLE");
+    processAgentSignal(deps, "w1", { type: "delta", channel: "reasoning", phase: "append", blockId: "u1:0", text: "tok" });
+    assert.equal(events.length, 0);
+    assert.equal(row.state, "IDLE");
+  });
+
+  it("ignores a delta even mid-turn (WORKING stays WORKING, nothing logged)", () => {
+    const { deps, events, row } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", { type: "delta", channel: "text", phase: "start", blockId: "u1:1", text: "" });
+    assert.equal(events.length, 0);
+    assert.equal(row.state, "WORKING");
+  });
+});

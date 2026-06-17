@@ -16,6 +16,9 @@ export type EventBusTopic =
   | "notification:fire"
   | "terminal:chunk"
   | "terminal:done"
+  // Ephemeral live reasoning/text deltas (claude-sdk, in-process). Relayed to
+  // SSE like terminal:chunk; never persisted, never drives worker state.
+  | "agent:delta"
   | "fs:change"
   | "git:change"
   | "update:available";

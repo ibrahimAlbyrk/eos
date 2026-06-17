@@ -551,12 +551,20 @@ export function buildContainer() {
   // Route an in-process backend's canonical events into the daemon pipeline
   // (log as agent_event + drive the state machine), mirroring the HTTP ingest
   // path that out-of-process (claude-cli) workers use.
-  const onAgentEvent = (workerId: string, event: AgentEvent): void =>
+  const onAgentEvent = (workerId: string, event: AgentEvent): void => {
+    // Live deltas are ephemeral: relayed to the UI over SSE (the SseBroadcaster
+    // rebroadcasts every bus topic), never persisted as an event row and never
+    // driving worker state. The durable record stays the final `message` event.
+    if (event.type === "delta") {
+      bus.publish("agent:delta", { workerId, channel: event.channel, phase: event.phase, blockId: event.blockId, text: event.text });
+      return;
+    }
     processAgentSignal(
       { workers, events, bus, clock: systemClock, models, log, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id) },
       workerId,
       event,
     );
+  };
 
   return {
     get config() { return config; },

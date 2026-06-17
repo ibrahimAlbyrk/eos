@@ -12,6 +12,7 @@ import { useClockTick } from "./useClockTick.js";
 import { usePendingPermissions } from "./usePendingPermissions.js";
 import { applyCatalog } from "../lib/models.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
+import { applyDelta } from "../state/thinkingStore.js";
 import { cancelQueued } from "../state/outboxStore.js";
 import { explorer } from "../state/explorerStore.js";
 import { emitGitChange } from "../state/gitChangeBus.js";
@@ -107,6 +108,9 @@ export function useLive() {
           // route them to the terminal store and skip the refetch entirely.
           if (data.reason === "terminal:chunk") { applyChunk(data.payload ?? {}); return; }
           if (data.reason === "terminal:done") applyDone(data.payload ?? {});
+          // Live reasoning/text deltas (claude-sdk / in-process) — high-frequency
+          // live data, not a state delta; route to the thinking store, skip refetch.
+          if (data.reason === "agent:delta") { applyDelta(data.payload ?? {}); return; }
           scheduleRefetch();
           if (data.payload?.workerId) {
             setEventSignal(prev => ({ tick: prev.tick + 1, workerId: data.payload.workerId }));
