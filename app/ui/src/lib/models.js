@@ -13,14 +13,6 @@ const BASELINE = [
 
 export const MODELS = [...BASELINE];
 
-// Configured backend profiles (config.backends), swapped in from /api/ui-config
-// like the model catalog — the settings provider picker reads this at render.
-export const BACKENDS = [];
-export function applyBackends(list) {
-  BACKENDS.length = 0;
-  if (Array.isArray(list)) BACKENDS.push(...list);
-}
-
 const FAMILIES = [
   { key: "haiku",  tag: "fastest" },
   { key: "sonnet", tag: "balanced" },

@@ -10,7 +10,7 @@
 // entry in controls.jsx CONTROLS. A section may provide `Component` instead
 // of `groups` to render fully custom content.
 
-import { MODELS, BACKENDS } from "../lib/models.js";
+import { MODELS } from "../lib/models.js";
 
 const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -111,20 +111,17 @@ export const SETTINGS_SECTIONS = [
         title: "Provider",
         items: [
           {
-            key: "model.backendProfile",
+            key: "model.provider",
             label: "Provider",
-            description: "Backend new agents launch on. Subscription profiles (claude-cli, claude-sdk) are included in your plan; metered API profiles bill per token. \"Default\" lets the server choose.",
+            description: "Backend new agents launch on — both bill your Claude subscription. Pick the model under the input bar.",
             control: {
               type: "select",
-              // Getter: re-evaluated on render so the list reflects the configured
-              // profiles applyBackends() loads from /api/ui-config at runtime.
-              get options() {
-                return [{ value: "", label: "Default (server)" }].concat(
-                  BACKENDS.map((b) => ({ value: b.name, label: b.name, hint: b.costMode === "billed" ? "billed" : "included" })),
-                );
-              },
+              options: [
+                { value: "claude-sdk", label: "Claude SDK" },
+                { value: "claude-cli", label: "Claude CLI" },
+              ],
             },
-            defaultValue: "",
+            defaultValue: "claude-sdk",
           },
         ],
       },

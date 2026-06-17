@@ -10,7 +10,7 @@ import { api } from "../api/client.js";
 import { createReconnectingStream } from "../api/sse.js";
 import { useClockTick } from "./useClockTick.js";
 import { usePendingPermissions } from "./usePendingPermissions.js";
-import { applyCatalog, applyBackends } from "../lib/models.js";
+import { applyCatalog } from "../lib/models.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
 import { applyDelta } from "../state/thinkingStore.js";
 import { cancelQueued } from "../state/outboxStore.js";
@@ -73,7 +73,6 @@ export function useLive() {
         if (Array.isArray(list)) { setWorkers(list); setLoaded(true); }
         setRecents(rec?.paths ?? []);
         applyCatalog(cfg?.modelCatalog);
-        applyBackends(cfg?.backends);
         setUiConfig(cfg);
         setHealth(true);
       } catch { setHealth(false); }
@@ -132,8 +131,8 @@ export function useLive() {
     setRecents(r?.paths ?? []);
   }, []);
 
-  const spawnOrchestrator = useCallback(async ({ name, cwd, model, effort, prompt, permissionMode, backendProfile } = {}) => {
-    const r = await api.spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode, backendProfile });
+  const spawnOrchestrator = useCallback(async ({ name, cwd, model, effort, prompt, permissionMode, backendKind } = {}) => {
+    const r = await api.spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode, backendKind });
     // Refresh workers synchronously so the new id is visible before the
     // caller sets it as selected — otherwise App.jsx's stale-selection
     // cleanup races with the caller and immediately clears the selection.
