@@ -12,6 +12,7 @@ import type { EventBus } from "../ports/EventBus.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { Logger } from "../ports/Logger.ts";
 import type { AgentBackend } from "../ports/AgentBackend.ts";
+import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import { ConflictError, NotFoundError } from "../errors/index.ts";
 import { transitionState } from "./TransitionState.ts";
 import type { SpawnWorkerSpec } from "./SpawnWorker.ts";
@@ -25,6 +26,9 @@ export interface ResumeWorkerDeps {
   backend: AgentBackend;
   isLive(workerId: string): boolean;
   pathExists(path: string): boolean;
+  /** Routes a resumed in-process backend's canonical events into the daemon
+   *  pipeline (claude-sdk). Unused by out-of-process (claude-cli) resume. */
+  onAgentEvent?(workerId: string, event: AgentEvent): void;
 }
 
 export interface ResumeWorkerInput {
@@ -39,9 +43,9 @@ export async function resumeWorker(
 ): Promise<{ id: string; port: number }> {
   const w = deps.workers.findById(input.workerId);
   if (!w) throw new NotFoundError("worker", input.workerId);
-  if ((w.backend_kind ?? "claude-cli") !== "claude-cli") {
-    throw new ConflictError("resume is only supported for claude-cli workers");
-  }
+  // Resumability is gated by the recorded session_id below: only claude-cli
+  // (--resume) and claude-sdk (options.resume) persist one; the in-process API
+  // lanes do not, so they never reach here with a session to resume.
   if (w.state !== "SUSPENDED" && w.state !== "DONE") {
     throw new ConflictError(`worker is not resumable (state ${w.state})`);
   }
@@ -81,9 +85,9 @@ export async function resumeWorker(
         persistent: !!spec.persistent,
         parentId: spec.parentId ?? null,
         isOrchestrator: !!spec.isOrchestrator,
-        backendOptions: { spec },
+        backendOptions: { spec, resume: w.session_id },
       },
-      { onExit },
+      { onExit, onEvent: deps.onAgentEvent ? (e) => deps.onAgentEvent!(w.id, e) : undefined },
     );
   } catch (e) {
     // The process never started — the row is still exactly as resumable as

@@ -11,11 +11,20 @@ import { buildRespawnSpec } from "../shared/respawn-spec.ts";
 
 export function resumeWorkerVia(c: Container, row: WorkerRow): Promise<{ id: string; port: number }> {
   const spec = buildRespawnSpec(row, { modeResolver: c.modeResolver });
+  const kind = row.backend_kind ?? "claude-cli";
   return resumeWorker(
     {
       workers: c.workers, events: c.events, bus: c.bus, clock: c.clock, log: c.log,
-      backend: c.claudeCliBackend,
-      isLive: (id) => c.supervisor.has(id),
+      backend: c.backends.has(kind) ? c.backends.get(kind) : c.claudeCliBackend,
+      onAgentEvent: c.onAgentEvent,
+      isLive: (id) => {
+        if (c.supervisor.has(id)) return true;
+        const k = c.workers.findById(id)?.backend_kind;
+        if (k && k !== "claude-cli" && c.backends.has(k)) {
+          return c.backends.get(k).attach(id, { kind: "inproc", ref: id }).isAlive();
+        }
+        return false;
+      },
       pathExists: existsSync,
     },
     { workerId: row.id, spec },
@@ -44,5 +53,7 @@ export async function resumeIfDead(c: Container, row: WorkerRow): Promise<void> 
   if (row.state !== "SUSPENDED" && row.state !== "DONE") return;
   if (!row.session_id || c.supervisor.has(row.id)) return;
   const { port } = await resumeWorkerVia(c, row);
-  await waitForWorkerHttp(port);
+  // In-process backends (claude-sdk) have no HTTP ingest port — they're live in
+  // the daemon the moment start() returns; only out-of-process workers need the wait.
+  if (port > 0) await waitForWorkerHttp(port);
 }

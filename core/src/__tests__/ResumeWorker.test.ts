@@ -68,9 +68,12 @@ describe("resumeWorker — guards", () => {
     await assert.rejects(resumeWorker(deps, { workerId: "w1", spec: SPEC }), NotFoundError);
   });
 
-  it("rejects non-claude-cli backends", async () => {
-    const { deps } = buildDeps({ id: "w1", state: "SUSPENDED", backend_kind: "anthropic-api" });
-    await assert.rejects(resumeWorker(deps, { workerId: "w1", spec: SPEC }), ConflictError);
+  it("resumes a claude-sdk worker too (in-process, session present)", async () => {
+    // Resumability is gated by the recorded session_id, not the backend kind:
+    // claude-sdk persists one (options.resume), so it revives like claude-cli.
+    const { deps, launches } = buildDeps({ id: "w1", state: "SUSPENDED", backend_kind: "claude-sdk" });
+    await resumeWorker(deps, { workerId: "w1", spec: SPEC });
+    assert.equal(launches.length, 1);
   });
 
   it("rejects non-resumable states", async () => {
