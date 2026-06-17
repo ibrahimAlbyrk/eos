@@ -10,14 +10,16 @@ import type { AgentEvent, ContentBlock } from "../../../contracts/src/canonical.
 // --- the SDK message subset we read (structural) ---------------------------
 interface RawDelta { type: string; text?: string; thinking?: string }
 interface RawBlock { type: string; text?: string; thinking?: string; id?: string; name?: string; input?: Record<string, unknown>; tool_use_id?: string; content?: unknown; is_error?: boolean }
-interface RawStreamEvent { type: string; index?: number; delta?: RawDelta; content_block?: RawBlock }
+// message_start carries the stable Anthropic message id (msg_…); content_block_*
+// events do not, so the mapper tracks it across the message's stream.
+interface RawStreamEvent { type: string; index?: number; delta?: RawDelta; content_block?: RawBlock; message?: { id?: string } }
 interface SdkMsg {
   type: string;
   subtype?: string;
   uuid?: string;
   session_id?: string;
   event?: RawStreamEvent;
-  message?: { content?: RawBlock[] | string };
+  message?: { id?: string; content?: RawBlock[] | string };
   usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
   model?: string;
 }
@@ -31,12 +33,12 @@ function blockText(content: unknown): string {
 }
 
 // Map a complete assistant content block to a canonical block, stamping the SAME
-// blockId the live deltas used (uuid:index) so the UI reconciles live <-> durable.
-function durableBlocks(uuid: string, content: RawBlock[]): { blocks: ContentBlock[]; toolCalls: RawBlock[] } {
+// blockId the live deltas used (msgId:index) so the UI reconciles live <-> durable.
+function durableBlocks(msgId: string, content: RawBlock[]): { blocks: ContentBlock[]; toolCalls: RawBlock[] } {
   const blocks: ContentBlock[] = [];
   const toolCalls: RawBlock[] = [];
   content.forEach((b, i) => {
-    const blockId = `${uuid}:${i}`;
+    const blockId = `${msgId}:${i}`;
     if (b.type === "text") blocks.push({ type: "text", text: b.text ?? "", blockId });
     else if (b.type === "thinking") {
       if ((b.thinking ?? "").trim()) blocks.push({ type: "reasoning", text: b.thinking ?? "", blockId });
@@ -57,6 +59,15 @@ export function createSdkEventMapper(): SdkEventMapper {
   let turnActive = false;
   let sessionId: string | null = null;
   const openedBlocks = new Map<string, "reasoning" | "text">(); // blockId -> channel of open live blocks
+  // The blockId must be stable across every delta of one content block AND match
+  // the durable assistant block (UI handoff). The SDK's per-partial `uuid` is NOT
+  // stable (a fresh UUID per stream_event), so it can't anchor the id — the
+  // Anthropic message id (from message_start) is. `msgEpoch` is a defensive
+  // fallback that bumps per message so the id stays per-block-stable even if a
+  // message_start is ever missing.
+  let msgEpoch = 0;
+  let currentMsgId: string | null = null;
+  const blockBase = (): string => currentMsgId ?? `m${msgEpoch}`;
 
   const startTurn = (out: AgentEvent[]): void => {
     if (!turnActive) { turnActive = true; out.push({ type: "turn", phase: "started" }); }
@@ -77,14 +88,20 @@ export function createSdkEventMapper(): SdkEventMapper {
           const ev = msg.event;
           if (!ev) return out;
           startTurn(out);
+          if (ev.type === "message_start") {
+            // New assistant message — anchor the stable blockId for its blocks.
+            msgEpoch++;
+            currentMsgId = ev.message?.id ?? null;
+            return out;
+          }
           if (ev.type === "content_block_stop" && ev.index !== undefined) {
-            const stopId = `${msg.uuid ?? "u"}:${ev.index}`;
+            const stopId = `${blockBase()}:${ev.index}`;
             const ch = openedBlocks.get(stopId);
             if (ch) { openedBlocks.delete(stopId); out.push({ type: "delta", channel: ch, phase: "stop", blockId: stopId, text: "" }); }
             return out;
           }
           if (ev.type !== "content_block_delta" || ev.index === undefined || !ev.delta) return out;
-          const blockId = `${msg.uuid ?? "u"}:${ev.index}`;
+          const blockId = `${blockBase()}:${ev.index}`;
           const d = ev.delta;
           // Only reasoning/text stream live; input_json_delta (tool args),
           // signature_delta and citations_delta share the channel and are dropped.
@@ -104,13 +121,16 @@ export function createSdkEventMapper(): SdkEventMapper {
         case "assistant": {
           startTurn(out);
           const content = Array.isArray(msg.message?.content) ? (msg.message!.content as RawBlock[]) : [];
+          // Same anchor the live deltas used (message id), so durable blockIds
+          // match and the UI hands off live -> durable instead of double-rendering.
+          const msgId = msg.message?.id ?? blockBase();
           // Close any live blocks this message finalizes (the durable block takes over).
           content.forEach((_b, i) => {
-            const blockId = `${msg.uuid ?? "u"}:${i}`;
+            const blockId = `${msgId}:${i}`;
             const ch = openedBlocks.get(blockId);
             if (ch) { openedBlocks.delete(blockId); out.push({ type: "delta", channel: ch, phase: "stop", blockId, text: "" }); }
           });
-          const { blocks, toolCalls } = durableBlocks(msg.uuid ?? "u", content);
+          const { blocks, toolCalls } = durableBlocks(msgId, content);
           if (blocks.length) out.push({ type: "message", role: "assistant", blocks });
           for (const tc of toolCalls) out.push({ type: "activity", kind: "tool_started", callId: tc.id ?? null, toolName: tc.name });
           return out;
@@ -139,6 +159,7 @@ export function createSdkEventMapper(): SdkEventMapper {
             model: msg.model ?? null,
           } });
           turnActive = false;
+          currentMsgId = null; // next turn's message_start re-anchors
           out.push({ type: "turn", phase: "ended" });
           return out;
         }
