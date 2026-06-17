@@ -28,9 +28,9 @@ export function toCanonicalEvents(type: string, payload: unknown): AgentEvent[] 
     case "hook":
       return hookToCanonical(p);
     case "tool_running":
-      return [{ type: "activity", kind: "tool_started", toolName: str(p.toolName), callId: str(p.toolUseId) ?? null }];
+      return [{ type: "activity", kind: "tool_started", toolName: str(p.toolName), callId: str(p.toolUseId) ?? null, input: asRec(p.input), parentCallId: str(p.parentAgentToolUseId) ?? null }];
     case "tool_done":
-      return [{ type: "activity", kind: "tool_finished", toolName: str(p.toolName), callId: str(p.toolUseId) ?? null }];
+      return [{ type: "activity", kind: "tool_finished", toolName: str(p.toolName), callId: str(p.toolUseId) ?? null, result: str(p.result) ?? "", isError: p.isError === true }];
     case "heartbeat":
       return [{ type: "activity", kind: "alive" }];
     case "lifecycle":
@@ -57,6 +57,14 @@ function jsonlToCanonical(p: Rec): AgentEvent[] {
         type: "message",
         role: "tool",
         blocks: [{ type: "tool_result", callId: str(p.toolUseId) ?? "", isError: p.isError === true, content: str(p.text) ?? "" }],
+      }];
+    case "skill_body":
+      // A Skill's injected SKILL.md body, keyed to its tool_use id (jsonl-parser
+      // emits it separately). Carried as a canonical skill block correlated by callId.
+      return [{
+        type: "message",
+        role: "assistant",
+        blocks: [{ type: "skill", callId: str(p.toolUseId) ?? "", text: str(p.text) ?? "" }],
       }];
     default:
       return [];

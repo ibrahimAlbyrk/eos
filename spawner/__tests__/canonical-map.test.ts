@@ -39,6 +39,12 @@ test("jsonl tool_result → message{role:tool, tool_result}", () => {
   assert.deepEqual(out[0].blocks, [{ type: "tool_result", callId: "toolu_1", isError: true, content: "boom" }]);
 });
 
+test("jsonl skill_body → message{skill} correlated by callId", () => {
+  const out = mapValid("jsonl", { kind: "skill_body", toolUseId: "toolu_9", text: "/skills/x\nbody" });
+  assert.equal(out[0].role, "assistant");
+  assert.deepEqual(out[0].blocks, [{ type: "skill", callId: "toolu_9", text: "/skills/x\nbody" }]);
+});
+
 test("usage → usage event with split cache tiers, zeros omitted", () => {
   const out = mapValid("usage", { in: 100, out: 50, cacheRead: 10, cacheCreate: 5, cacheCreate1h: 0, model: "opus" });
   assert.deepEqual(out, [{
@@ -73,11 +79,14 @@ test("hook SessionEnd reason=clear → session cleared (not ended)", () => {
     [{ type: "session", phase: "ended" }]);
 });
 
-test("tool_running / tool_done → activity with callId", () => {
+test("tool_running / tool_done → activity carrying lifecycle detail", () => {
+  assert.deepEqual(mapValid("tool_running", { toolName: "Bash", toolUseId: "t1", input: { cmd: "ls" }, parentAgentToolUseId: "agent_1" }),
+    [{ type: "activity", kind: "tool_started", toolName: "Bash", callId: "t1", input: { cmd: "ls" }, parentCallId: "agent_1" }]);
+  // No parent / no input → empty input + null parent (a top-level tool pulse).
   assert.deepEqual(mapValid("tool_running", { toolName: "Bash", toolUseId: "t1" }),
-    [{ type: "activity", kind: "tool_started", toolName: "Bash", callId: "t1" }]);
-  assert.deepEqual(mapValid("tool_done", { toolName: "Bash", toolUseId: "t1" }),
-    [{ type: "activity", kind: "tool_finished", toolName: "Bash", callId: "t1" }]);
+    [{ type: "activity", kind: "tool_started", toolName: "Bash", callId: "t1", input: {}, parentCallId: null }]);
+  assert.deepEqual(mapValid("tool_done", { toolName: "Bash", toolUseId: "t1", result: "ok" }),
+    [{ type: "activity", kind: "tool_finished", toolName: "Bash", callId: "t1", result: "ok", isError: false }]);
 });
 
 test("heartbeat → activity alive", () => {
