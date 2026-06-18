@@ -113,3 +113,56 @@ describe("ChildProcessWorktreeManager.listWorktrees", () => {
     await wm.remove({ repoRoot: repo, worktreeDir: dir, branch }); // cleanup
   });
 });
+
+describe("ChildProcessWorktreeManager.create", () => {
+  it("creates a worktree on a new branch and returns the realpath'd dir + fork base", async () => {
+    const branch = "eos-create-1";
+    const res = await wm.create({ repoRoot: repo, branch, worktreeDir: null });
+    assert.equal(res.created, true);
+    assert.ok(res.worktreeDir && existsSync(res.worktreeDir), "worktree dir exists");
+    assert.equal(res.worktreeDir, realpathSync(join(repo, ".eos", "worktrees", branch)));
+    assert.equal(res.forkBaseSha, git(repo, "rev-parse", "HEAD").out.trim());
+    await wm.remove({ repoRoot: repo, worktreeDir: res.worktreeDir!, branch }); // cleanup
+  });
+
+  it("honors a precomputed worktreeDir", async () => {
+    const branch = "eos-create-2";
+    const dir = join(repo, ".eos", "worktrees", "custom-2");
+    const res = await wm.create({ repoRoot: repo, branch, worktreeDir: dir });
+    assert.equal(res.created, true);
+    assert.equal(res.worktreeDir, realpathSync(dir));
+    await wm.remove({ repoRoot: repo, worktreeDir: res.worktreeDir!, branch });
+  });
+
+  it("carryUncommitted forks from a snapshot of the source's dirty work", async () => {
+    const scratch = join(repo, "carry-scratch.txt");
+    writeFileSync(scratch, "uncommitted\n");
+    const branch = "eos-create-carry-3";
+    const res = await wm.create({ repoRoot: repo, branch, worktreeDir: null, carryUncommitted: true });
+    assert.equal(res.created, true);
+    assert.ok(existsSync(join(res.worktreeDir!, "carry-scratch.txt")), "dirty file carried into the worktree");
+    await wm.remove({ repoRoot: repo, worktreeDir: res.worktreeDir!, branch });
+    rmSync(scratch, { force: true }); // restore repo cleanliness for sibling tests
+  });
+
+  it("returns created:false (never throws) for a non-repo dir", async () => {
+    const notRepo = realpathSync(mkdtempSync(join(tmpdir(), "eos-norepo-")));
+    const res = await wm.create({ repoRoot: notRepo, branch: "x", worktreeDir: null });
+    assert.equal(res.created, false);
+    assert.ok(res.reason);
+    rmSync(notRepo, { recursive: true, force: true });
+  });
+
+  it("hydrates gitignored node_modules from the source into the new worktree", async () => {
+    writeFileSync(join(repo, ".gitignore"), "node_modules/\n");
+    mkdirSync(join(repo, "node_modules", "pkg"), { recursive: true });
+    writeFileSync(join(repo, "node_modules", "pkg", "index.js"), "module.exports = 1;\n");
+    const branch = "eos-create-hydrate-5";
+    const res = await wm.create({ repoRoot: repo, branch, worktreeDir: null });
+    assert.equal(res.created, true);
+    assert.ok(existsSync(join(res.worktreeDir!, "node_modules", "pkg", "index.js")), "node_modules hydrated into worktree");
+    await wm.remove({ repoRoot: repo, worktreeDir: res.worktreeDir!, branch });
+    rmSync(join(repo, "node_modules"), { recursive: true, force: true });
+    rmSync(join(repo, ".gitignore"), { force: true });
+  });
+});

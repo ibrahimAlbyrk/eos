@@ -66,3 +66,66 @@ describe("spawnWorker — backend path", () => {
     assert.equal(inserted[0].effort, "high"); // default xhigh → clamped
   });
 });
+
+// In-process backends (claude-sdk) have no boot child to create the worktree, so
+// the daemon materializes it in SpawnWorker before launch. Out-of-process
+// (claude-cli) creates its own in worker.ts, so SpawnWorker must NOT create here.
+describe("spawnWorker — in-process worktree bootstrap", () => {
+  function harness(processModel: "in-process" | "out-of-process") {
+    const inserted: Array<Record<string, unknown>> = [];
+    const createCalls: Array<Record<string, unknown>> = [];
+    let launchCwd: string | undefined;
+    let forkBase: string | undefined;
+    const log = { info() {}, warn() {}, error() {}, child() { return log; } };
+    const backend = {
+      kind: "fake",
+      descriptor: { kind: "fake", label: "F", processModel, billing: "subscription", modelSource: "request", capabilities: {}, models: { kind: "claude" }, auth: "subscription", enabled: true },
+      async start(spec: { cwd: string; workerId: string }, cb?: { onSpawn?: (h: unknown) => void }) {
+        launchCwd = spec.cwd;
+        const handle = processModel === "in-process" ? { kind: "inproc", ref: spec.workerId } : { kind: "http", port: 1, pid: 2 };
+        cb?.onSpawn?.(handle);
+        return { handle };
+      },
+      attach() { return {}; },
+    };
+    const deps = {
+      workers: { insert: (r: Record<string, unknown>) => inserted.push(r), updatePermissionMode: () => {}, setTurnStartedAt: () => {}, setForkBaseSha: (_id: string, sha: string) => { forkBase = sha; } },
+      events: { append: () => 1 },
+      bus: { publish: () => {} },
+      clock: { now: () => 1000 },
+      ids: { newWorkerId: () => "w1" },
+      log,
+      backend,
+      worktrees: { create: async (i: Record<string, unknown>) => { createCalls.push(i); return { created: true, worktreeDir: "/repo/.eos/worktrees/br", forkBaseSha: "abc123" }; } },
+      resolveWorktreeDir: (root: string, branch: string) => `${root}/.eos/worktrees/${branch}`,
+    } as unknown as SpawnWorkerDeps;
+    return { deps, inserted, createCalls, get launchCwd() { return launchCwd; }, get forkBase() { return forkBase; } };
+  }
+
+  it("materializes the worktree, launches IN it, flips workspace_ready, persists the fork base", async () => {
+    const h = harness("in-process");
+    await spawnWorker(h.deps, { prompt: "go", worktreeFrom: "/repo", hydrateEnv: true });
+    assert.equal(h.createCalls.length, 1);
+    assert.equal(h.createCalls[0].repoRoot, "/repo");
+    assert.equal(h.createCalls[0].hydrateEnv, true); // hydrate intent threaded to the port
+    // Launched in the created worktree — NOT the source repo (the bug).
+    assert.equal(h.launchCwd, "/repo/.eos/worktrees/br");
+    assert.equal(h.inserted[0].workspaceReady, true);
+    assert.equal(h.forkBase, "abc123");
+  });
+
+  it("does NOT create a worktree for an out-of-process backend (worker.ts owns that)", async () => {
+    const h = harness("out-of-process");
+    await spawnWorker(h.deps, { prompt: "go", worktreeFrom: "/repo" });
+    assert.equal(h.createCalls.length, 0);
+    assert.equal(h.inserted[0].workspaceReady, false); // born not-ready; the boot event flips it
+  });
+
+  it("does NOT create a worktree for a plain-cwd in-process spawn", async () => {
+    const h = harness("in-process");
+    await spawnWorker(h.deps, { prompt: "go", cwd: "/plain" });
+    assert.equal(h.createCalls.length, 0);
+    assert.equal(h.launchCwd, "/plain");
+    assert.equal(h.inserted[0].workspaceReady, true); // no worktreeFrom → ready
+  });
+});

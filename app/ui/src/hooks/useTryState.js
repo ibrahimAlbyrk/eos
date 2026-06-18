@@ -31,6 +31,10 @@ export function useTryState(workerId, isolated, live) {
     clearTimeout(timerRef.current);
     timerRef.current = setTimeout(refreshTry, REFRESH_DEBOUNCE_MS);
   }, [refreshTry]);
+  // The git:change effect below early-returns (no cleanup) when the signal isn't
+  // ours, so a debounce it scheduled on an earlier matching run would otherwise
+  // fire post-unmount. Clear any pending timer on unmount unconditionally.
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   useEffect(() => {
     if (live.eventSignal.workerId !== workerId) return;

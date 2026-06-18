@@ -8,7 +8,9 @@
 import type { Container } from "../container.ts";
 import type { ResolvedBackend } from "../../core/src/ports/BackendDefaults.ts";
 import type { BackendKind } from "../../contracts/src/canonical.ts";
+import type { AgentBackend } from "../../core/src/ports/AgentBackend.ts";
 import type { ResolveBackendInput } from "../../core/src/services/SqlBackedBackendResolver.ts";
+import { meteredNeedsBilledIntent } from "../../core/src/domain/backend-billing.ts";
 
 export async function resolveSpawnBackend(c: Container, input: ResolveBackendInput): Promise<ResolvedBackend> {
   // Explicit provider pick from the UI: resolve straight from the descriptor —
@@ -18,7 +20,10 @@ export async function resolveSpawnBackend(c: Container, input: ResolveBackendInp
   let rb: ResolvedBackend;
   if (input.explicitKind && c.backends.has(input.explicitKind)) {
     const d = c.backends.get(input.explicitKind).descriptor;
-    rb = { kind: d.kind as BackendKind, model: "opus", profileName: null, costMode: d.billing === "subscription" ? "included" : "billed" };
+    // Don't fabricate a "billed" opt-in for a bare metered kind pick — leave
+    // costMode unset so spawnBackendError rejects it (the opt-in must come from a
+    // costMode:"billed" profile). Subscription picks are exempt.
+    rb = { kind: d.kind as BackendKind, model: "opus", profileName: null, ...(d.billing === "subscription" ? { costMode: "included" as const } : {}) };
   } else {
     rb = c.backendResolver.resolveForNewWorker(input);
   }
@@ -38,4 +43,21 @@ export async function resolveSpawnBackend(c: Container, input: ResolveBackendInp
     }
   }
   return rb;
+}
+
+// Spawn-time backend guard shared by the worker + orchestrator routes. Returns an
+// error message to reject with, or null to allow. (1) an explicit UI pick of a
+// not-yet-enabled backend is refused (defense-in-depth — the picker only offers
+// enabled ones); (2) a metered-API backend reached by ANY path without the
+// costMode:"billed" opt-in is refused, so subscription billing is never silently
+// diverted to a per-token API. Runs on the RESOLVED backend, not body.backendKind,
+// so inherited/profile/default metered selections are covered too.
+export function spawnBackendError(backend: AgentBackend, rb: ResolvedBackend, explicit: boolean): string | null {
+  if (explicit && !backend.descriptor.enabled) {
+    return `backend "${backend.kind}" is not enabled`;
+  }
+  if (meteredNeedsBilledIntent(backend.descriptor, rb)) {
+    return `backend "${rb.kind}" is a metered API — use a subscription provider or a costMode:"billed" profile`;
+  }
+  return null;
 }

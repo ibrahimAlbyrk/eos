@@ -73,11 +73,17 @@ function classifyRefs(p: string): GitChangeKind | null {
   return p.endsWith("/refs/stash") ? "stash" : "refs";
 }
 
-// Ignore VCS internals, dependency caches, build output (shared list) AND the
-// managed worktree root .eos/ — a child worktree's churn must not re-fetch the
-// parent (.eos is gitignored and filtered from status anyway).
-function ignoreWorktreePath(p: string): boolean {
-  return p.split("/").some((seg) => seg === ".eos" || IGNORED_ENTRIES.has(seg));
+// Ignore VCS internals, dependency caches, build output (shared list) AND a
+// nested .eos/ (a child worktree's churn must not re-fetch the parent — .eos is
+// gitignored and filtered from status anyway). Scoped to paths BELOW root: an
+// eos worktree's own root contains a ".eos" segment, so a bare segment test
+// would match the watch root and chokidar v4 would suppress the whole watch.
+function makeWorktreeIgnore(root: string): (p: string) => boolean {
+  return (p) => {
+    if (p === root) return false;
+    const rel = p.startsWith(root + "/") ? p.slice(root.length + 1) : p;
+    return rel.split("/").some((seg) => seg === ".eos" || IGNORED_ENTRIES.has(seg));
+  };
 }
 
 const META_OPTS = { depth: 0, ignoreInitial: true, followSymlinks: false } as const;
@@ -144,7 +150,7 @@ export class ChokidarGitWatcher implements GitWatcher {
     const targets: Array<{ path: string; opts: object; classify: Classifier }> = [
       { path: dirs.gitDir, opts: META_OPTS, classify: classifyGitDir },
       { path: `${dirs.commonDir}/refs`, opts: REFS_OPTS, classify: classifyRefs },
-      { path: dirs.toplevel, opts: { ...REFS_OPTS, ignored: ignoreWorktreePath }, classify: () => "worktree" },
+      { path: dirs.toplevel, opts: { ...REFS_OPTS, ignored: makeWorktreeIgnore(dirs.toplevel) }, classify: () => "worktree" },
     ];
     // Shared common dir is its own watch only when distinct (linked worktree) —
     // in a normal checkout it's the same path as gitDir (already watched).

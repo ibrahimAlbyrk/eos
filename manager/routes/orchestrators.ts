@@ -7,13 +7,12 @@ import { validate } from "../middleware/validate.ts";
 import { SpawnOrchestratorRequestSchema, MessageRequestSchema } from "../../contracts/src/http.ts";
 import { spawnWorker } from "../../core/src/use-cases/SpawnWorker.ts";
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
-import { meteredNeedsBilledIntent } from "../../core/src/domain/backend-billing.ts";
 import { randomOrchestratorName } from "../shared/names.ts";
 import { expandPath } from "../shared/path.ts";
 import { appendSynthesized } from "../shared/synthesized-events.ts";
 import { resumeIfDead } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
-import { resolveSpawnBackend } from "../shared/spawn-backend.ts";
+import { resolveSpawnBackend, spawnBackendError } from "../shared/spawn-backend.ts";
 
 export function registerOrchestratorRoutes(r: Router, c: Container): void {
   r.get("/orchestrators", ({ res }) => {
@@ -27,10 +26,8 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const id = c.ids.newOrchestratorId();
     const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, isOrchestrator: true });
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
-    if (body.backendKind && meteredNeedsBilledIntent(backend.descriptor, rb)) {
-      writeJson(res, 400, { error: `backend "${rb.kind}" is a metered API — use a subscription provider or a costMode:"billed" profile` });
-      return;
-    }
+    const backendErr = spawnBackendError(backend, rb, !!body.backendKind);
+    if (backendErr) { writeJson(res, 400, { error: backendErr }); return; }
     const result = await spawnWorker(
       {
         workers: c.workers, events: c.events, bus: c.bus,
@@ -38,6 +35,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         clock: c.clock, ids: c.ids, log: c.log,
         buildArgs: c.buildArgs, buildEnv: c.buildEnv, logFileFor: c.logFileFor,
         backend,
+        worktrees: c.worktrees,
         onAgentEvent: c.onAgentEvent,
         recents: c.recents,
         caps: c.modelCatalog,

@@ -164,6 +164,37 @@ describe("SdkEventMapper — SDK stream -> canonical sequence", () => {
     assert.equal(toolMsgs.length, 1);
     assert.equal((toolMsgs[0] as { blocks: { callId?: string }[] }).blocks[0].callId, "agent_1");
   });
+
+  // A result subtype of error_* is a failed turn — surfaced as turn:error (with the
+  // subtype as the reason), not a clean turn:ended the worker would idle on as success.
+  it("surfaces a result error subtype as turn:error, not turn:ended", () => {
+    const mapper = createSdkEventMapper();
+    const script: unknown[] = [
+      { type: "system", subtype: "init", session_id: "s" },
+      { type: "assistant", uuid: "a", message: { id: "msg_A", content: [{ type: "text", text: "hi" }] } },
+      { type: "result", subtype: "error_max_turns", usage: {}, model: "m" },
+    ];
+    const out: AgentEvent[] = [];
+    for (const m of script) out.push(...mapper.map(m as never));
+    const ends = out.filter((e) => e.type === "turn" && e.phase !== "started");
+    assert.equal(ends.length, 1);
+    assert.equal((ends[0] as { phase: string }).phase, "error");
+    assert.equal((ends[0] as { reason?: string }).reason, "error_max_turns");
+  });
+
+  // Cache-creation tokens split by TTL tier: prefer the SDK's per-tier breakdown
+  // (5m + 1h are priced differently), fall back to the flat total as 5m.
+  it("maps the cache-creation TTL breakdown (5m + 1h), falling back to flat as 5m", () => {
+    const withBreakdown = createSdkEventMapper();
+    const a = withBreakdown.map({ type: "result", subtype: "success", usage: { cache_creation: { ephemeral_5m_input_tokens: 3, ephemeral_1h_input_tokens: 7 } }, model: "m" } as never);
+    const ua = a.find((e) => e.type === "usage");
+    assert.deepEqual(ua && ua.type === "usage" ? ua.usage.cacheWriteTokens : null, { "5m": 3, "1h": 7 });
+
+    const flat = createSdkEventMapper();
+    const b = flat.map({ type: "result", subtype: "success", usage: { cache_creation_input_tokens: 4 }, model: "m" } as never);
+    const ub = b.find((e) => e.type === "usage");
+    assert.deepEqual(ub && ub.type === "usage" ? ub.usage.cacheWriteTokens : null, { "5m": 4 });
+  });
 });
 
 describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => {
@@ -192,7 +223,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "oat01-x" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescription: (n) => n },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://127.0.0.1:7400",
       makeToolContext,
       queryFn,
@@ -230,7 +261,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "none" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescription: (n) => n },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => { seen.push(s.workerId); return { selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }; },
       queryFn,
@@ -249,7 +280,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "oauth", token: "oat01-x" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescription: (n) => n },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://127.0.0.1:7400",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       assembleAppendPrompt: () => "EOS ORCHESTRATION PROTOCOL",
@@ -268,7 +299,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "none" }) },
       policy: { decide: async () => ({ behavior: "allow" }) },
-      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescription: (n) => n },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
@@ -276,5 +307,65 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     await be.start(spec({ permissionMode: "bypassPermissions" }), {});
     assert.equal(capturedOptions!.permissionMode, "bypassPermissions");
     assert.equal(capturedOptions!.allowDangerouslySkipPermissions, true);
+  });
+
+  it("runs the SDK session in the worker's cwd (not the daemon's)", async () => {
+    let capturedOptions: Record<string, unknown> | null = null;
+    const queryFn: SdkQueryFn = (params) => { capturedOptions = params.options as unknown as Record<string, unknown>; return (async function* () { /* idle */ })(); };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+    });
+    await be.start(spec({ cwd: "/work/tree" }), {});
+    assert.equal(capturedOptions!.cwd, "/work/tree");
+  });
+
+  it("threads a resume session id into the SDK query options (daemon-restart revival)", async () => {
+    let capturedOptions: Record<string, unknown> | null = null;
+    const queryFn: SdkQueryFn = (params) => { capturedOptions = params.options as unknown as Record<string, unknown>; return (async function* () { /* idle */ })(); };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+    });
+    await be.start(spec({ backendOptions: { resume: "sess-prev" } }), {});
+    assert.equal(capturedOptions!.resume, "sess-prev");
+  });
+
+  it("an interrupt that ends the stream exits as an interrupt (143 + turn:aborted), not a clean 0", async () => {
+    // A controllable async iterable (not a generator) whose next() blocks until the
+    // test resolves it — so we can interrupt() while the consume loop is mid-read,
+    // then end the stream and assert the interrupt-aware exit path.
+    let resolveNext: ((r: IteratorResult<unknown>) => void) | null = null;
+    const q = {
+      interrupt: async () => {},
+      [Symbol.asyncIterator]() { return { next: () => new Promise<IteratorResult<unknown>>((res) => { resolveNext = res; }) }; },
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn: () => q as never,
+    });
+    const events: AgentEvent[] = [];
+    let exitCode: number | null = -1;
+    let resolveExit: () => void = () => {};
+    const exited = new Promise<void>((r) => { resolveExit = r; });
+    const session = await be.start(spec(), { onEvent: (e) => events.push(e), onExit: (c) => { exitCode = c; resolveExit(); } });
+    while (!resolveNext) await new Promise((r) => setTimeout(r, 1)); // wait for the loop to start reading
+    await session.interrupt();                          // interrupting = true
+    resolveNext({ done: true, value: undefined });      // stream ends mid-interrupt
+    await exited;
+    assert.equal(exitCode, 143);
+    assert.ok(events.some((e) => e.type === "turn" && e.phase === "aborted"));
   });
 });

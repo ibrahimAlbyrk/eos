@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, realpathSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { hydrateWorktree, type HydrationItem } from "./hydrate.ts";
+import { hydrateWorktree, type HydrationItem } from "../infra/src/git/hydrateWorktree.ts";
 
 export interface WorktreeContext {
   repoRoot: string | null;

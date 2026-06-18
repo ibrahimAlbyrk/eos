@@ -11,18 +11,21 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { realpathSync, existsSync, rmSync } from "node:fs";
-import { join, sep } from "node:path";
-import type { WorktreeManager, WorktreeRef, WorktreeEntry } from "../../../core/src/ports/WorktreeManager.ts";
+import { realpathSync, existsSync, rmSync, mkdirSync } from "node:fs";
+import { join, dirname, sep } from "node:path";
+import { tmpdir } from "node:os";
+import type { WorktreeManager, WorktreeRef, WorktreeEntry, WorktreeCreateInput, WorktreeCreateResult } from "../../../core/src/ports/WorktreeManager.ts";
+import { hydrateWorktree } from "./hydrateWorktree.ts";
 
 const exec = promisify(execFile);
 
 interface GitResult { code: number; stdout: string; stderr: string }
 
-async function git(repoRoot: string, args: string[]): Promise<GitResult> {
+async function git(repoRoot: string, args: string[], env?: Record<string, string>): Promise<GitResult> {
   try {
     const { stdout, stderr } = await exec("git", ["-C", repoRoot, ...args], {
       maxBuffer: 4 * 1024 * 1024,
+      ...(env ? { env: { ...process.env, ...env } } : {}),
     });
     return { code: 0, stdout: stdout ?? "", stderr: stderr ?? "" };
   } catch (e) {
@@ -35,9 +38,51 @@ function realpathOr(p: string): string {
   try { return realpathSync(p); } catch { return p; }
 }
 
+// Commit the source's dirty state (tracked + untracked) to a throwaway tree so a
+// worktree can fork from it. Mirrors spawner/worktree.ts:snapshotDirtyState. A
+// clean tree or any git hiccup yields null → plain HEAD fork (graceful).
+async function snapshotDirtyState(root: string): Promise<string | null> {
+  const status = await git(root, ["status", "--porcelain"]);
+  if (status.code !== 0 || !status.stdout.trim()) return null;
+  const tmpIndex = join(tmpdir(), `eos-carry-${process.pid}-${Date.now().toString(36)}`);
+  const idxEnv = { GIT_INDEX_FILE: tmpIndex };
+  try {
+    if ((await git(root, ["read-tree", "HEAD"], idxEnv)).code !== 0) return null;
+    if ((await git(root, ["add", "-A"], idxEnv)).code !== 0) return null;
+    const tree = (await git(root, ["write-tree"], idxEnv)).stdout.trim();
+    const head = (await git(root, ["rev-parse", "HEAD"])).stdout.trim();
+    if (!tree || !head) return null;
+    // Fixed identity so commit-tree never fails on a repo with no user.name set.
+    const commit = await git(root, ["commit-tree", tree, "-p", head, "-m", "eos: carry uncommitted changes"], {
+      GIT_AUTHOR_NAME: "eos", GIT_AUTHOR_EMAIL: "eos@local", GIT_COMMITTER_NAME: "eos", GIT_COMMITTER_EMAIL: "eos@local",
+    });
+    return commit.code === 0 ? (commit.stdout.trim() || null) : null;
+  } finally {
+    try { rmSync(tmpIndex, { force: true }); } catch {}
+  }
+}
+
 const MANAGED_SEGMENT = `${sep}.eos${sep}worktrees${sep}`;
 
 export const childProcessWorktreeManager: WorktreeManager = {
+  async create(input: WorktreeCreateInput): Promise<WorktreeCreateResult> {
+    if (!input.branch) return { created: false, reason: "no branch" };
+    const root = realpathOr(input.repoRoot);
+    if ((await git(root, ["rev-parse", "--git-dir"])).code !== 0) return { created: false, reason: "not a git repo" };
+    const dir = input.worktreeDir ?? join(root, ".eos", "worktrees", input.branch);
+    mkdirSync(dirname(dir), { recursive: true });
+    const startPoint = input.carryUncommitted ? await snapshotDirtyState(root) : null;
+    const add = await git(root, ["worktree", "add", dir, "-b", input.branch, ...(startPoint ? [startPoint] : [])]);
+    if (add.code !== 0) return { created: false, reason: add.stderr.trim() || "worktree add failed" };
+    const worktreeDir = realpathOr(dir);
+    // Hydrate gitignored deps from the source so the agent can build/test on turn
+    // one — the in-process lane's stand-in for the claude-cli worker boot. Best
+    // effort (hydrateWorktree never throws); a failed copy never aborts the spawn.
+    hydrateWorktree({ repoRoot: root, worktreeDir, includeEnvFiles: !!input.hydrateEnv, log: () => {} });
+    const head = await git(worktreeDir, ["rev-parse", "HEAD"]);
+    return { created: true, worktreeDir, forkBaseSha: head.code === 0 ? (head.stdout.trim() || null) : null };
+  },
+
   async remove(ref: WorktreeRef): Promise<{ removed: boolean; reason?: string }> {
     if (!ref.branch) return { removed: false, reason: "no branch" };
     const root = realpathOr(ref.repoRoot);

@@ -12,6 +12,7 @@ import type { IdGenerator } from "../ports/IdGenerator.ts";
 import type { Logger } from "../ports/Logger.ts";
 import type { RecentsRepo } from "../ports/RecentsRepo.ts";
 import type { AgentBackend } from "../ports/AgentBackend.ts";
+import type { WorktreeManager } from "../ports/WorktreeManager.ts";
 import type { ModelCapabilities } from "../ports/ModelCapabilities.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import { resolveEffort } from "../domain/effort.ts";
@@ -53,6 +54,10 @@ export interface SpawnWorkerSpec {
    * uncommitted work instead of clean HEAD (settings: git.carryUncommitted).
    * Derived from user settings in the spawn route; ignored for attach mode. */
   carryUncommitted?: boolean;
+  /** Hydrate gitignored .env files into a fresh worktree (node_modules is always
+   * hydrated). Mirrors the claude-cli --hydrate-env flag; only consulted by the
+   * in-process worktree bootstrap below. From config.worker.hydrateEnvFiles. */
+  hydrateEnv?: boolean;
   /** Opt this worker into peer collaboration — registers the peer MCP tools
    * and injects the peer-collaboration prompt fragment. Set by the orchestrator
    * at spawn; immutable for the session. */
@@ -93,6 +98,11 @@ export interface SpawnWorkerDeps {
    *  (events.append + reduceAgentSignal). Unused by out-of-process backends
    *  (claude-cli posts events over HTTP). Injected by the composition root. */
   onAgentEvent?(workerId: string, event: AgentEvent): void;
+  /** Write-capable worktree port. Used ONLY for in-process backends (claude-sdk):
+   *  the daemon materializes the worktree before launch since there is no boot
+   *  child to create it (claude-cli creates its own in worker.ts). Absent (unit
+   *  tests / out-of-process) → no creation here. */
+  worktrees?: WorktreeManager;
   /** Recent-folders log; updated with the resolved cwd after every spawn. */
   recents?: RecentsRepo;
   /** Capability lookup for effort normalization. Absent (unit tests,
@@ -171,6 +181,26 @@ export async function spawnWorker(
   // flag from spec.effort, so this is what actually reaches the claude CLI.
   const withBranch = { ...resolved, branch, worktreeDir, effort };
 
+  // In-process backends (claude-sdk) have no boot child to create the worktree,
+  // so the daemon materializes it HERE — before launch — so the session starts in
+  // the isolated tree, not the source repo. claude-cli creates its own in
+  // worker.ts (out-of-process). Attach mode reuses an existing tree (no create).
+  const inProcess = deps.backend?.descriptor.processModel === "in-process";
+  let inProcWorktreeDir: string | null = null;
+  let inProcForkBaseSha: string | null = null;
+  if (inProcess && deps.worktrees && resolved.worktreeFrom && branch && worktreeDir && !resolved.workspaceOf) {
+    const created = await deps.worktrees.create({
+      repoRoot: resolved.worktreeFrom,
+      branch,
+      worktreeDir,
+      carryUncommitted: resolved.carryUncommitted,
+      hydrateEnv: resolved.hydrateEnv,
+    });
+    if (!created.created) throw new Error(`worktree create failed: ${created.reason ?? "unknown"}`);
+    inProcWorktreeDir = created.worktreeDir ?? worktreeDir;
+    inProcForkBaseSha = created.forkBaseSha ?? null;
+  }
+
   // Daemon bookkeeping on child exit — shared by both spawn paths. The backend
   // path releases the port itself (it owns allocation); the legacy path releases
   // it here.
@@ -191,10 +221,11 @@ export async function spawnWorker(
     const session = await deps.backend.start(
       {
         workerId: id,
-        // Attach: the shared worktree already exists on disk. Fresh worktree:
-        // the dir is only precomputed — it materializes during worker boot,
-        // so the launch cwd stays the source repo.
-        cwd: resolved.cwd ?? (resolved.workspaceOf ? worktreeDir : undefined) ?? resolved.worktreeFrom ?? "",
+        // Attach: the shared worktree already exists on disk. In-process fresh
+        // worktree: just materialized above, so launch in it. claude-cli fresh
+        // worktree: the dir is only precomputed (materializes during worker
+        // boot), so the launch cwd stays the source repo.
+        cwd: resolved.cwd ?? inProcWorktreeDir ?? (resolved.workspaceOf ? worktreeDir : undefined) ?? resolved.worktreeFrom ?? "",
         model,
         effort,
         prompt: resolved.prompt,
@@ -248,10 +279,18 @@ export async function spawnWorker(
     worktreeDir: worktreeDir ?? null,
     workspaceOwnerId: resolved.workspaceOf ?? null,
     // Fresh worktree: the precomputed dir materializes during worker boot —
-    // born not-ready, flipped by the claude_spawning enrichment. Plain-cwd
-    // and attach spawns point at a tree that already exists.
-    workspaceReady: !resolved.worktreeFrom || !!resolved.workspaceOf,
+    // born not-ready, flipped by the claude_spawning enrichment. Plain-cwd,
+    // attach, and in-process (created above, ready now) spawns point at a tree
+    // that already exists.
+    workspaceReady: !resolved.worktreeFrom || !!resolved.workspaceOf || inProcWorktreeDir !== null,
   });
+
+  // In-process worktree: persist the fork base now (no claude_spawning enrichment
+  // event for in-process backends). The realpath'd dir already matches the
+  // precomputed worktreeDir written above, so only the fork base is new.
+  if (inProcWorktreeDir && inProcForkBaseSha) {
+    deps.workers.setForkBaseSha(id, inProcForkBaseSha);
+  }
 
   // A prompt-bearing spawn IS the start of a turn. The row is born busy
   // (SPAWNING), so TransitionState's non-busy→busy stamp never fires for the

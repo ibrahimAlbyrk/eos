@@ -96,13 +96,13 @@ export function parseWorkerInput(pathname: string, search: URLSearchParams, raw:
   if (pathname === "/message") {
     let body: { text?: string; record?: unknown };
     try { body = JSON.parse(raw); } catch (e) { return { ok: false, status: 500, error: errMsg(e) }; }
-    if (!body.text) return { ok: false, status: 400, error: "text required" };
+    if (!body || typeof body !== "object" || typeof body.text !== "string" || !body.text) return { ok: false, status: 400, error: "text required" };
     return { ok: true, input: { kind: "message", text: body.text, record: parseRecord(body.record) } };
   }
   if (pathname === "/keystroke") {
     let body: { keys?: string };
     try { body = JSON.parse(raw); } catch (e) { return { ok: false, status: 500, error: errMsg(e) }; }
-    if (!body.keys) return { ok: false, status: 400, error: "keys required" };
+    if (!body || typeof body !== "object" || typeof body.keys !== "string" || !body.keys) return { ok: false, status: 400, error: "keys required" };
     return { ok: true, input: { kind: "keystroke", keys: body.keys } };
   }
   if (pathname === "/interrupt") return { ok: true, input: { kind: "interrupt" } };

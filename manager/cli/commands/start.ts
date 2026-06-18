@@ -49,12 +49,16 @@ export const startCommand: Command = {
     // UI to open anymore. Bring the app to the foreground on macOS.
     console.log(`eos daemon running at ${ctx.daemonUrl}`);
     if (process.platform === "darwin") {
-      try {
-        const op = spawn("open", ["-b", "com.ibrahimalbyrk.eos"], { stdio: "ignore", detached: true });
-        op.unref();
-      } catch {
-        console.log("open Eos.app to use the UI.");
-      }
+      // `open -b` exits non-zero WITHOUT throwing when the bundle isn't registered
+      // with LaunchServices (e.g. before `eos build`), so spawn alone can't tell us
+      // it failed. Await the exit code and fall back to a hint instead of silently
+      // opening nothing. `open` returns immediately, so this doesn't stall.
+      const opened = await new Promise<boolean>((resolve) => {
+        const op = spawn("open", ["-b", "com.ibrahimalbyrk.eos"], { stdio: "ignore" });
+        op.on("error", () => resolve(false));
+        op.on("exit", (code) => resolve(code === 0));
+      });
+      if (!opened) console.log("Eos.app not found — run `eos build`, then open it to use the UI.");
     }
   },
 };

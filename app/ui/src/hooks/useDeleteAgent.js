@@ -6,6 +6,7 @@ import { purge as purgeDiff } from "../state/diffStore.js";
 import { purge as purgeConflict } from "../state/conflictStore.js";
 import { purge as purgeGitStatus } from "../state/gitStatusStore.js";
 import { purge as purgeTerminal } from "../state/terminalStore.js";
+import { dropWorker as dropThinking } from "../state/thinkingStore.js";
 import { clearScrollPos } from "../lib/scrollMemory.js";
 import { subtreeIds } from "../lib/tree.js";
 
@@ -48,6 +49,7 @@ export function useDeleteAgent(live) {
           purgeConflict(id);
           purgeGitStatus(id);
           purgeTerminal(id);
+          dropThinking(id);
         }
       }
       if (!r?.ok) {

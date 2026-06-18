@@ -6,7 +6,7 @@
   "description": "Repo-root for ESLint config and dev tooling. Each sub-package (contracts/, core/, infra/, gateway/, spawner/, manager/, app/ui/) has its own deps.",
   "scripts": {
     "bootstrap": "bash scripts/bootstrap.sh",
-    "lint": "eslint contracts/src/ core/src/ infra/src/ manager/cli.ts manager/cli/ manager/daemon.ts manager/container.ts manager/routes/ manager/middleware/ manager/sse/ manager/orchestrator-mcp.ts manager/orchestrator-mcp/ manager/shared/ manager/builder/ spawner/ gateway/ app/ui/src/"
+    "lint": "eslint contracts/src/ core/src/ infra/src/ manager/cli.ts manager/cli/ manager/daemon.ts manager/container.ts manager/routes/ manager/middleware/ manager/sse/ manager/orchestrator-mcp.ts manager/orchestrator-mcp/ manager/worker-mcp.ts manager/worker-mcp/ manager/backends/ manager/commands/ manager/tools/ manager/prompt-tool-names.ts manager/tool-descriptions.ts manager/shared/ manager/builder/ spawner/ gateway/ app/ui/src/"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

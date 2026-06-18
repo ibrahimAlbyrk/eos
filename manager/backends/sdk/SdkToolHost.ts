@@ -23,7 +23,10 @@ export interface SdkToolHostDeps {
   readonly orchestratorDefs: readonly ToolDefinition[];
   readonly workerDefs: readonly ToolDefinition[];
   readonly peerDefs: readonly ToolDefinition[];
-  renderDescription(name: string): string;
+  /** Render the tool-name→description map fresh from the prompt library. Called
+   *  ONCE per spawn (in buildSdkToolServers) so prompt-file edits take effect on
+   *  the next spawn with no daemon restart — matching the claude-cli MCP lane. */
+  renderDescriptions(): Record<string, string>;
 }
 
 export interface SdkToolHostInput {
@@ -49,7 +52,8 @@ export function buildSdkToolServers(
   const defs = input.isOrchestrator
     ? deps.orchestratorDefs
     : (input.collaborate ? [...deps.workerDefs, ...deps.peerDefs] : deps.workerDefs);
-  const tools = defs.map((d) => toSdkTool(d, input.ctx, deps.renderDescription(d.name)));
+  const descriptions = deps.renderDescriptions();
+  const tools = defs.map((d) => toSdkTool(d, input.ctx, descriptions[d.name] ?? d.name));
   return {
     mcpServers: { [server]: createSdkMcpServer({ name: server, version: "1.0.0", tools }) },
     allowedTools: [],

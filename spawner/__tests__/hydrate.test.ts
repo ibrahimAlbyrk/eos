@@ -5,7 +5,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, existsSync, rmSync, symlinkSync 
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { hydrateWorktree, type HydrationItem } from "../hydrate.ts";
+import { hydrateWorktree, type HydrationItem } from "../../infra/src/git/hydrateWorktree.ts";
 
 function git(args: string[], cwd: string): void {
   const r = spawnSync("git", args, { cwd, encoding: "utf8" });

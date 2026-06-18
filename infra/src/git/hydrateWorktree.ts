@@ -6,6 +6,10 @@
 // hydrating a non-ignored path would make the worktree permanently dirty and
 // break teardown's clean/preserve decision. Symlinked node_modules are skipped
 // — Node realpath-resolves them straight back into the user's checkout.
+//
+// Lives in infra/ (not spawner/) so BOTH lanes share one impl: the claude-cli
+// worker child (spawner/worktree.ts) and the daemon's ChildProcessWorktreeManager
+// (the in-process claude-sdk lane, which has no boot child to hydrate for it).
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";

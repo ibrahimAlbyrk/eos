@@ -4,12 +4,11 @@ import type { NoAddr } from "../../../contracts/src/commands/types.ts";
 import type { SpawnWorkerRequest, SpawnWorkerResponse } from "../../../contracts/src/http.ts";
 import { spawnWorker } from "../../../core/src/use-cases/SpawnWorker.ts";
 import { resolveSpawnIsolation } from "../../../core/src/domain/worktree-policy.ts";
-import { meteredNeedsBilledIntent } from "../../../core/src/domain/backend-billing.ts";
 import { ValidationError } from "../../../core/src/errors/index.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
 import { appendSynthesized } from "../../shared/synthesized-events.ts";
-import { resolveSpawnBackend } from "../../shared/spawn-backend.ts";
+import { resolveSpawnBackend, spawnBackendError } from "../../shared/spawn-backend.ts";
 
 export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, SpawnWorkerResponse> = {
   def: spawnWorkerCommand,
@@ -43,17 +42,18 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     // keeps today's behavior exactly (no model override, null profile).
     const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, parentId: body.parentId ?? null, isOrchestrator: false });
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
-    // Billing guard: a metered-API selection must opt into per-token charges
-    // (costMode:"billed"); subscription-billed providers are exempt (descriptor.billing).
-    if (body.backendKind && meteredNeedsBilledIntent(backend.descriptor, rb)) {
-      throw new ValidationError(`backend "${rb.kind}" is a metered API — use a subscription provider or a costMode:"billed" profile`);
-    }
+    // Billing/enablement guard on the RESOLVED backend (covers profile/inherit/
+    // default picks, not just explicit body.backendKind): rejects a metered API
+    // without a costMode:"billed" opt-in, or an explicit pick of a disabled backend.
+    const backendErr = spawnBackendError(backend, rb, !!body.backendKind);
+    if (backendErr) throw new ValidationError(backendErr);
     const spec = {
       ...bodyRest,
       prompt: bootPrompt,
       cwd: expandPath(iso.cwd),
       worktreeFrom: expandPath(iso.worktreeFrom),
       carryUncommitted: c.userSettings.read()["git.carryUncommitted"] === true,
+      hydrateEnv: c.config.worker.hydrateEnvFiles,
       claudePermissionMode,
       ...(isGitAgent ? {
         persistent: true,
@@ -81,13 +81,18 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
         resolveWorktreeDir: c.resolveWorktreeDir,
         logFileFor: c.logFileFor,
         backend,
+        worktrees: c.worktrees,
         onAgentEvent: c.onAgentEvent,
         recents: c.recents,
         caps: c.modelCatalog,
       },
       spec,
     );
-    if (isGitAgent) {
+    // Surface the boot prompt as a chat event when the backend can't self-report
+    // it: claude-cli echoes it back via the transcript JSONL (reportsMessageEvents),
+    // the in-process SDK lane does not. Git agents always get it (their boot prompt
+    // is a synthesized conversational message).
+    if (isGitAgent || !backend.descriptor.capabilities.reportsMessageEvents) {
       appendSynthesized(c, result.id, "user_message", { text: bootPrompt });
     }
     const isolation = spec.worktreeFrom || body.workspaceOf ? "worktree" : "cwd";

@@ -151,37 +151,48 @@ export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: Mo
   let usage: ModelTurn["usage"];
   const toolsByIndex = new Map<number, { id: string; name: string; args: string }>();
 
-  for (;;) {
-    if (cb.signal?.aborted) break;
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    let nl: number;
-    while ((nl = buffer.indexOf("\n")) >= 0) {
-      const line = buffer.slice(0, nl).trim();
-      buffer = buffer.slice(nl + 1);
-      if (!line.startsWith("data:")) continue;
-      const payload = line.slice(5).trim();
-      if (!payload || payload === "[DONE]") continue;
-      let chunk: OpenAIStreamChunk;
-      try { chunk = JSON.parse(payload); } catch { continue; }
-      if (chunk.usage) usage = { inputTokens: chunk.usage.prompt_tokens ?? 0, outputTokens: chunk.usage.completion_tokens ?? 0 };
-      const choice = chunk.choices?.[0];
-      if (!choice) continue;
-      if (choice.finish_reason) finishReason = choice.finish_reason;
-      const d = choice.delta ?? {};
-      if (typeof d.reasoning_content === "string" && d.reasoning_content) { reasoning += d.reasoning_content; cb.onReasoningDelta?.(d.reasoning_content); }
-      if (typeof d.content === "string" && d.content) { text += d.content; cb.onTextDelta?.(d.content); }
-      for (const tc of d.tool_calls ?? []) {
-        const idx = tc.index ?? 0;
-        const cur = toolsByIndex.get(idx) ?? { id: "", name: "", args: "" };
-        if (tc.id) cur.id = tc.id;
-        if (tc.function?.name) cur.name = tc.function.name;
-        if (tc.function?.arguments) cur.args += tc.function.arguments;
-        toolsByIndex.set(idx, cur);
+  // reader.cancel() cancels the underlying fetch body/socket AND releases the
+  // lock, so finally covers every exit (a cancel after full drain is harmless).
+  let aborted = false;
+  try {
+    for (;;) {
+      if (cb.signal?.aborted) { aborted = true; break; }
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, nl).trim();
+        buffer = buffer.slice(nl + 1);
+        if (!line.startsWith("data:")) continue;
+        const payload = line.slice(5).trim();
+        if (!payload || payload === "[DONE]") continue;
+        let chunk: OpenAIStreamChunk;
+        try { chunk = JSON.parse(payload); } catch { continue; }
+        if (chunk.usage) usage = { inputTokens: chunk.usage.prompt_tokens ?? 0, outputTokens: chunk.usage.completion_tokens ?? 0 };
+        const choice = chunk.choices?.[0];
+        if (!choice) continue;
+        if (choice.finish_reason) finishReason = choice.finish_reason;
+        const d = choice.delta ?? {};
+        if (typeof d.reasoning_content === "string" && d.reasoning_content) { reasoning += d.reasoning_content; cb.onReasoningDelta?.(d.reasoning_content); }
+        if (typeof d.content === "string" && d.content) { text += d.content; cb.onTextDelta?.(d.content); }
+        for (const tc of d.tool_calls ?? []) {
+          const idx = tc.index ?? 0;
+          const cur = toolsByIndex.get(idx) ?? { id: "", name: "", args: "" };
+          if (tc.id) cur.id = tc.id;
+          if (tc.function?.name) cur.name = tc.function.name;
+          if (tc.function?.arguments) cur.args += tc.function.arguments;
+          toolsByIndex.set(idx, cur);
+        }
       }
     }
+  } finally {
+    await reader.cancel().catch(() => {});
   }
+
+  // ModelTurn has no "aborted" stopReason — report a cancelled stream as the
+  // file's existing error shape (ToolRuntime ends the turn on stopReason:"error").
+  if (aborted) return { text: text || undefined, reasoning: reasoning || undefined, toolCalls: [], stopReason: "error", error: "aborted", usage };
 
   const toolCalls: ModelTurn["toolCalls"] = [];
   for (const t of toolsByIndex.values()) {

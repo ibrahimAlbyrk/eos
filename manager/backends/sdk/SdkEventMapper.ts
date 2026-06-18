@@ -20,12 +20,26 @@ interface SdkMsg {
   session_id?: string;
   event?: RawStreamEvent;
   message?: { id?: string; content?: RawBlock[] | string };
-  usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number };
+  usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number; cache_creation?: { ephemeral_5m_input_tokens?: number; ephemeral_1h_input_tokens?: number } };
   model?: string;
   // Set on a subagent's (Task/Agent tool) internal messages — the parent Agent
   // tool_use id. Drives subagent attribution: inner tools surface as parented
   // activity grouped under the agentRun, not as top-level main-stream blocks.
   parent_tool_use_id?: string | null;
+}
+
+// Cache-creation tokens split by TTL tier (the price table charges 1h higher
+// than 5m). Prefer the SDK's per-tier breakdown; fall back to the flat total as
+// 5m when only it is present (older shapes), so cost is never double-counted.
+function cacheWriteTokens(u: NonNullable<SdkMsg["usage"]>): Record<string, number> {
+  const cc = u.cache_creation;
+  if (cc && ((cc.ephemeral_5m_input_tokens ?? 0) > 0 || (cc.ephemeral_1h_input_tokens ?? 0) > 0)) {
+    return {
+      ...(cc.ephemeral_5m_input_tokens ? { "5m": cc.ephemeral_5m_input_tokens } : {}),
+      ...(cc.ephemeral_1h_input_tokens ? { "1h": cc.ephemeral_1h_input_tokens } : {}),
+    };
+  }
+  return u.cache_creation_input_tokens ? { "5m": u.cache_creation_input_tokens } : {};
 }
 
 function blockText(content: unknown): string {
@@ -189,13 +203,17 @@ export function createSdkEventMapper(): SdkEventMapper {
             inputTokens: u.input_tokens ?? 0,
             outputTokens: u.output_tokens ?? 0,
             cacheReadTokens: u.cache_read_input_tokens ?? 0,
-            cacheWriteTokens: u.cache_creation_input_tokens ? { "5m": u.cache_creation_input_tokens } : {},
+            cacheWriteTokens: cacheWriteTokens(u),
             model: msg.model ?? null,
           } });
           turnActive = false;
           currentMsgId = null; // next turn's message_start re-anchors
           msgBlockCount.clear();
-          out.push({ type: "turn", phase: "ended" });
+          // A result subtype of error_* (e.g. error_max_turns, error_during_execution)
+          // is a failed turn — surface it as turn:error so the worker doesn't idle as
+          // if it succeeded; success ends the turn normally.
+          const errored = typeof msg.subtype === "string" && msg.subtype.startsWith("error");
+          out.push(errored ? { type: "turn", phase: "error", reason: msg.subtype } : { type: "turn", phase: "ended" });
           return out;
         }
 

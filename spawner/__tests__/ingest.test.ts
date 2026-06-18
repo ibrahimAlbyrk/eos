@@ -54,9 +54,21 @@ describe("parseWorkerInput", () => {
     assert.equal(bad.ok === false && bad.status, 500);
   });
 
+  it("/message: raw `null` (valid JSON, non-object) → 400, not a throw", () => {
+    const res = parseWorkerInput("/message", q(), "null");
+    assert.equal(res.ok, false);
+    assert.equal(res.ok === false && res.status, 400);
+  });
+
   it("/keystroke: valid → typed keystroke; missing keys → 400", () => {
     assert.deepEqual(parseWorkerInput("/keystroke", q(), JSON.stringify({ keys: "\x1b" })), { ok: true, input: { kind: "keystroke", keys: "\x1b" } });
     assert.deepEqual(parseWorkerInput("/keystroke", q(), JSON.stringify({})), { ok: false, status: 400, error: "keys required" });
+  });
+
+  it("/keystroke: raw `null` (valid JSON, non-object) → 400, not a throw", () => {
+    const res = parseWorkerInput("/keystroke", q(), "null");
+    assert.equal(res.ok, false);
+    assert.equal(res.ok === false && res.status, 400);
   });
 
   it("/interrupt and /rewind-targets carry no body", () => {

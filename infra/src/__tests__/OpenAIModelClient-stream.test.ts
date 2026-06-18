@@ -46,6 +46,25 @@ describe("parseOpenAIStream — SSE reasoning/text deltas + tool-call fragments"
     assert.deepEqual(turn.usage, { inputTokens: 5, outputTokens: 3 });
   });
 
+  it("aborted stream returns error (not end_turn) and cancels the reader", async () => {
+    let cancelled = false;
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) { c.enqueue(enc.encode('data: {"choices":[{"delta":{"content":"hi"}}]}\n')); },
+      cancel() { cancelled = true; },
+    });
+    const sig = { aborted: false };
+    const text: string[] = [];
+    const turn = await parseOpenAIStream(stream, {
+      signal: sig,
+      onTextDelta: (t) => { text.push(t); sig.aborted = true; },
+    });
+    assert.equal(turn.stopReason, "error");
+    assert.equal(turn.error, "aborted");
+    assert.notEqual(turn.stopReason, "end_turn");
+    assert.equal(cancelled, true);
+  });
+
   it("buffers tool_call argument fragments across chunks", async () => {
     const turn = await parseOpenAIStream(
       sseStream([

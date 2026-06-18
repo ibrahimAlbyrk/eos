@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -82,6 +82,47 @@ describe("ChokidarGitWatcher", () => {
     } finally {
       await w.closeAll();
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("watches a worktree whose own root contains a .eos segment", { timeout: 25000 }, async () => {
+    // Eos worktrees live at <repo>/.eos/worktrees/<branch> — the watch root
+    // itself contains ".eos". A bare segment-based ignore matches the root and
+    // chokidar v4 suppresses the whole watch; the root-relative ignore must not.
+    const repo = initRepo();
+    git(repo, "worktree", "add", "-q", ".eos/worktrees/feat", "-b", "feat");
+    const wtDir = realpathSync(join(repo, ".eos", "worktrees", "feat"));
+    const events: GitChangeEvent[] = [];
+    const w = new ChokidarGitWatcher({
+      clock: systemClock,
+      sink: (ev) => events.push(ev),
+      resolveDirs: (cwd) => gitInfo.gitDirs(cwd),
+    });
+    try {
+      assert.ok(wtDir.includes("/.eos/worktrees/feat"), "worktree root must contain a .eos segment");
+      w.watch(wtDir);
+      await sleep(900); // chokidar ready + async resolveDirs
+
+      const kindsSince = (n: number): Set<string> => new Set(events.slice(n).flatMap((e) => e.kinds));
+
+      // (a) A real edit inside the .eos-rooted worktree still fires worktree.
+      let mark = events.length;
+      writeFileSync(join(wtDir, "a.txt"), "2\n");
+      assert.ok(await waitFor(() => kindsSince(mark).has("worktree")), "expected a worktree event for an edit in the .eos-rooted worktree");
+      for (const e of events) assert.equal(e.dir, wtDir);
+
+      // (b) A nested .eos/ or node_modules/ inside the worktree stays ignored.
+      mark = events.length;
+      mkdirSync(join(wtDir, "node_modules"), { recursive: true });
+      writeFileSync(join(wtDir, "node_modules", "dep.txt"), "x\n");
+      mkdirSync(join(wtDir, ".eos"), { recursive: true });
+      writeFileSync(join(wtDir, ".eos", "child.txt"), "y\n");
+      await sleep(700); // > DEBOUNCE_MS — any event would have flushed by now
+      assert.equal(kindsSince(mark).size, 0, "nested .eos/ and node_modules/ inside the worktree must be ignored");
+    } finally {
+      await w.closeAll();
+      git(repo, "worktree", "remove", "--force", ".eos/worktrees/feat");
+      rmSync(repo, { recursive: true, force: true });
     }
   });
 

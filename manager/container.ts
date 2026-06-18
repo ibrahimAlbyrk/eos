@@ -544,10 +544,11 @@ export function buildContainer() {
   // ToolRuntime lane (anthropic-api / openai / deepseek / kimi): the daemon-loopback
   // ToolContext, the one policy engine, and the prompt-library descriptions.
   const sdkDaemonUrl = `http://127.0.0.1:${config.daemon.port}`;
-  const inprocToolDescriptions = renderToolDescriptions(
-    config.paths.promptsDir,
-    [...orchestratorDefs, ...workerDefs, ...peerDefs].map((d) => d.name),
-  );
+  // Rendered fresh per spawn (not cached at construct-time) so editing a tool
+  // prompt .md takes effect on the next spawn with no daemon restart — parity with
+  // the claude-cli MCP subprocess, which re-reads the prompt library on each spawn.
+  const renderInprocToolDescriptions = (): Record<string, string> =>
+    renderToolDescriptions(config.paths.promptsDir, [...orchestratorDefs, ...workerDefs, ...peerDefs].map((d) => d.name));
   const sdkPolicy = {
     async decide(i: { workerId: string; toolName: string; input: Record<string, unknown> }) {
       const d = await policyGateway.decide(i);
@@ -568,7 +569,8 @@ export function buildContainer() {
     const collaborate = spec.backendOptions?.collaborate === true;
     const defs = spec.isOrchestrator ? orchestratorDefs : [...workerDefs, ...(collaborate ? peerDefs : [])];
     const server = mcpServerForRole(spec.isOrchestrator);
-    const items = defs.map((d) => ({ name: prefixedToolName(server, d.name), description: inprocToolDescriptions[d.name] ?? d.name, schema: toolJsonSchema(d), execute: toRuntimeTool(d, ctx).execute }));
+    const descriptions = renderInprocToolDescriptions();
+    const items = defs.map((d) => ({ name: prefixedToolName(server, d.name), description: descriptions[d.name] ?? d.name, schema: toolJsonSchema(d), execute: toRuntimeTool(d, ctx).execute }));
     const tools = new Map(items.map((i) => [i.name, { name: i.name, execute: i.execute }]));
     return { items, tools };
   };
@@ -602,7 +604,7 @@ export function buildContainer() {
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
-    toolHost: { orchestratorDefs, workerDefs, peerDefs, renderDescription: (name) => inprocToolDescriptions[name] ?? name },
+    toolHost: { orchestratorDefs, workerDefs, peerDefs, renderDescriptions: renderInprocToolDescriptions },
     daemonUrl: sdkDaemonUrl,
     makeToolContext,
     // Same DPI text the CLI lane writes to --append-system-prompt-file: the SDK

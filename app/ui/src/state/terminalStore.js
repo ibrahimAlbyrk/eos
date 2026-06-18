@@ -5,8 +5,12 @@
 
 const runs = new Map(); // runId -> {workerId, command, output, done, exitCode, note, ts}
 // Workspace runs dismissed by selecting an agent — late chunks of a just-killed
-// run must not re-materialize the card.
+// run must not re-materialize the card. Forgotten once the run's own `done`
+// lands (suppression only needs to outlive the in-flight stream); CLEARED_CAP
+// trims the oldest as a backstop for runs that never report done, so the Set
+// can't grow one UUID per dismissed run for the tab's lifetime.
 const cleared = new Set();
+const CLEARED_CAP = 200;
 const subs = new Set();
 
 function emit() {
@@ -36,6 +40,7 @@ export function applyChunk({ workerId, runId, command, data }) {
 }
 
 export function applyDone({ runId, exitCode, note }) {
+  cleared.delete(runId); // stream is over — no late chunk left to suppress
   const r = runs.get(runId);
   if (!r) return;
   r.done = true;
@@ -57,6 +62,7 @@ export function clearWorkspaceRuns() {
     dropped.push({ runId, done: r.done });
     runs.delete(runId);
     cleared.add(runId);
+    if (cleared.size > CLEARED_CAP) cleared.delete(cleared.values().next().value);
   }
   if (dropped.length > 0) emit();
   return dropped;

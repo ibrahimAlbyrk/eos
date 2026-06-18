@@ -91,6 +91,10 @@ interface Live {
   q: SdkQueryHandle | null;
   input: PushStream;
   alive: boolean;
+  // Set by interrupt() before q.interrupt(); guards the stream-completion branch
+  // so an interrupt that ends the query iterator is reported as an interrupt
+  // (143 + turn:aborted), never a spurious clean exit (code 0 → markDone).
+  interrupting: boolean;
   onExit?: (code: number | null) => void;
 }
 
@@ -105,12 +109,14 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
     async sendMessage(text: string) {
       const s = live.get(workerId);
       if (!s || !s.alive) return { ok: false, status: 410, body: { error: "session gone" } };
+      s.interrupting = false; // a new turn means the session continued past any interrupt
       s.input.push(text);
       return { ok: true, status: 200, body: { ok: true } };
     },
     async sendKeystroke() { return { ok: false }; },
     async interrupt() {
       const s = live.get(workerId);
+      if (s) s.interrupting = true;
       if (s?.q?.interrupt) { try { await s.q.interrupt(); } catch { /* best-effort */ } }
       return { ok: true };
     },
@@ -148,6 +154,10 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
 
       const options = {
         model: spec.model,
+        // Run the SDK session in the worker's resolved directory (plain cwd, or
+        // the materialized worktree). Without this the SDK defaults to the
+        // daemon's process.cwd() and the agent reads/edits the wrong tree.
+        ...(spec.cwd ? { cwd: spec.cwd } : {}),
         env,
         mcpServers,
         // allowedTools stays EMPTY (from SdkToolHost): an allow-listed tool bypasses
@@ -174,7 +184,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         ...(typeof opts.resume === "string" ? { resume: opts.resume } : {}),
       } as Options;
 
-      const rec: Live = { q: null, input, alive: true, onExit: cb?.onExit };
+      const rec: Live = { q: null, input, alive: true, interrupting: false, onExit: cb?.onExit };
       live.set(spec.workerId, rec);
       cb?.onSpawn?.({ kind: "inproc", ref: spec.workerId });
       cb?.onEvent?.({ type: "session", phase: "started" });
@@ -190,7 +200,15 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
           for await (const msg of q) {
             for (const e of mapper.map(msg as SdkMsg)) cb?.onEvent?.(e);
           }
-          if (rec.alive) { rec.alive = false; live.delete(spec.workerId); cb?.onExit?.(0); }
+          if (rec.alive) {
+            rec.alive = false;
+            live.delete(spec.workerId);
+            // The input stream stays open across interrupt(), so the loop should
+            // not end on a mere interrupt; if it did, report it as an interrupt
+            // (143) — not a clean exit the daemon would record as a normal finish.
+            if (rec.interrupting) { cb?.onEvent?.({ type: "turn", phase: "aborted", reason: "interrupted" }); cb?.onExit?.(143); }
+            else cb?.onExit?.(0);
+          }
         } catch (e) {
           deps.log?.warn("claude-sdk query failed", { workerId: spec.workerId, error: e instanceof Error ? e.message : String(e) });
           if (rec.alive) {

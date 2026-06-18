@@ -47,7 +47,7 @@ let policyCalls = 0;
 const be = createClaudeSdkBackend({
   authResolver: createSubscriptionAuthResolver(),
   policy: { decide: async (i) => { policyCalls++; console.log(`  [canUseTool→policy] ${i.toolName}`); return { behavior: "allow" }; } },
-  toolHost: { orchestratorDefs: [], workerDefs: [secretTool], peerDefs: [], renderDescription: (n) => n },
+  toolHost: { orchestratorDefs: [], workerDefs: [secretTool], peerDefs: [], renderDescriptions: () => ({}) },
   daemonUrl: "http://127.0.0.1:7400",
   makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
   // Step A: the appended Eos prompt is what makes the agent USE its tools.
