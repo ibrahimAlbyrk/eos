@@ -3,7 +3,10 @@ import { api } from "../../api/client.js";
 import { explorer, useExternalChange, useOpenPath } from "../../state/explorerStore.js";
 import { findAll, shortenHome } from "../../lib/fileUtils.jsx";
 import { fileKind } from "../../lib/fileKind.js";
+import { isMarkdownPath } from "../../lib/markdownPreview.js";
 import { EditView } from "../code/messages/EditViewLazy.jsx";
+import { MarkdownPreview } from "../code/messages/MarkdownPreview.jsx";
+import { PreviewToggle } from "../code/messages/PreviewToggle.jsx";
 import { getFileViewer } from "../code/messages/fileViewers.jsx";
 
 // Above this size the editor opens read-only with the lightweight extension set.
@@ -42,6 +45,7 @@ function EditorInner({ path }) {
   const [findQuery, setFindQuery] = useState("");
   const [findIdx, setFindIdx] = useState(0);
   const [copied, setCopied] = useState(false);
+  const [viewMode, setViewMode] = useState("source");
   const findRef = useRef(null);
 
   const baseKind = fileKind(path);
@@ -49,6 +53,8 @@ function EditorInner({ path }) {
   const kind = wantsText ? (binaryMeta ? "binary" : "text") : baseKind;
   const viewer = getFileViewer(kind);
   const isText = kind === "text";
+  const isMarkdown = isText && isMarkdownPath(path);
+  const showMarkdownPreview = isMarkdown && viewMode === "preview";
 
   useEffect(() => {
     if (!wantsText) return;
@@ -114,6 +120,11 @@ function EditorInner({ path }) {
     if (!showFind) setTimeout(() => findRef.current?.focus(), 50);
   };
 
+  const togglePreview = () => {
+    setViewMode((m) => (m === "preview" ? "source" : "preview"));
+    setShowFind(false);
+  };
+
   return (
     <div className="fx-editor">
       <div className="fv-row2 fx-ed-head">
@@ -123,7 +134,8 @@ function EditorInner({ path }) {
         </span>
         {isText && (
           <div className="fv-actions">
-            {dirty ? (
+            {isMarkdown && <PreviewToggle mode={viewMode} onToggle={togglePreview} />}
+            {!showMarkdownPreview && (dirty ? (
               <>
                 <button className="fv-btn" onClick={() => { setEditContent(content ?? ""); buffers.delete(path); }}>Revert</button>
                 <button className="fv-btn fv-btn--save" onClick={save} disabled={saving}>Save</button>
@@ -144,7 +156,7 @@ function EditorInner({ path }) {
                   )}
                 </button>
               </>
-            )}
+            ))}
           </div>
         )}
       </div>
@@ -175,15 +187,19 @@ function EditorInner({ path }) {
             {error && <div className="fv-error">{error}</div>}
             {content === null && !error && <div className="fv-loading">Loading…</div>}
             {content !== null && (
-              <EditView
-                editContent={editContent}
-                setEditContent={setEditContent}
-                findQuery={findQuery}
-                currentMatch={safeIdx}
-                matches={findMatches}
-                filePath={path}
-                readOnly={content.length > HEAVY_TEXT_CHARS}
-              />
+              showMarkdownPreview ? (
+                <MarkdownPreview content={content} />
+              ) : (
+                <EditView
+                  editContent={editContent}
+                  setEditContent={setEditContent}
+                  findQuery={findQuery}
+                  currentMatch={safeIdx}
+                  matches={findMatches}
+                  filePath={path}
+                  readOnly={content.length > HEAVY_TEXT_CHARS}
+                />
+              )
             )}
           </>
         )}

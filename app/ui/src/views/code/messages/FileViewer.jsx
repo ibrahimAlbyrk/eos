@@ -3,7 +3,10 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { findAll, shortenHome } from "../../../lib/fileUtils.jsx";
 import { fileKind } from "../../../lib/fileKind.js";
+import { isMarkdownPath } from "../../../lib/markdownPreview.js";
 import { EditView } from "./EditViewLazy.jsx";
+import { MarkdownPreview } from "./MarkdownPreview.jsx";
+import { PreviewToggle } from "./PreviewToggle.jsx";
 import { getFileViewer } from "./fileViewers.jsx";
 
 // Above this size the editor opens read-only with the lightweight extension
@@ -33,18 +36,24 @@ function FileViewerInner({ path }) {
   const [findIdx, setFindIdx] = useState(0);
   const [showOpenWith, setShowOpenWith] = useState(false);
   const [defaultApp, setDefaultApp] = useState(null);
-  const [htmlMode, setHtmlMode] = useState("preview");
+  const [viewMode, setViewMode] = useState("source");
   const [frameGen, setFrameGen] = useState(0);
   const findRef = useRef(null);
 
   const baseKind = fileKind(path);
-  const wantsText = baseKind === "text" || (baseKind === "html" && htmlMode === "source");
+  const isMarkdown = baseKind === "text" && isMarkdownPath(path);
+  const previewable = isMarkdown || baseKind === "html";
+  const inPreview = previewable && viewMode === "preview";
+  // HTML preview is a standalone iframe body (no text fetch); markdown always
+  // loads as text and the body picks EditView vs the rendered preview.
+  const wantsText = baseKind === "text" || (baseKind === "html" && !inPreview);
   const kind = wantsText ? (binaryMeta ? "binary" : "text") : baseKind;
   const viewer = getFileViewer(kind);
   const isText = kind === "text";
+  const showMarkdownPreview = isMarkdown && inPreview;
 
   useEffect(() => {
-    setHtmlMode("preview");
+    setViewMode(fileKind(path) === "html" ? "preview" : "source");
     setFrameGen(0);
     setBinaryMeta(null);
   }, [path]);
@@ -98,6 +107,12 @@ function FileViewerInner({ path }) {
     }
   };
 
+  const togglePreview = () => {
+    setViewMode((m) => (m === "preview" ? "source" : "preview"));
+    setShowFind(false);
+    setShowOpenWith(false);
+  };
+
   const shortPath = shortenHome(path);
   const dirty = isText && content !== null && editContent !== content;
 
@@ -115,21 +130,15 @@ function FileViewerInner({ path }) {
         <span className="fv-path">{shortPath}</span>
         {(isText || baseKind === "html") && (
           <div className="fv-actions">
-            {baseKind === "html" && (
-              <>
-                {htmlMode === "preview" && (
-                  <button className="fv-icon-btn" onClick={() => setFrameGen((g) => g + 1)} title="Reload">
-                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" /><path d="M13.5 1.5v3h-3" />
-                    </svg>
-                  </button>
-                )}
-                <button className="fv-btn" onClick={() => setHtmlMode((m) => (m === "preview" ? "source" : "preview"))}>
-                  {htmlMode === "preview" ? "Source" : "Preview"}
-                </button>
-              </>
+            {previewable && <PreviewToggle mode={viewMode} onToggle={togglePreview} />}
+            {baseKind === "html" && inPreview && (
+              <button className="fv-icon-btn" onClick={() => setFrameGen((g) => g + 1)} title="Reload">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" /><path d="M13.5 1.5v3h-3" />
+                </svg>
+              </button>
             )}
-            {isText && (dirty ? (
+            {isText && !showMarkdownPreview && (dirty ? (
               <>
                 <button className="fv-btn" onClick={handleCancel}>Cancel</button>
                 <button className="fv-btn fv-btn--save" onClick={handleSave} disabled={saving}>Save</button>
@@ -205,15 +214,19 @@ function FileViewerInner({ path }) {
             {error && <div className="fv-error">{error}</div>}
             {content === null && !error && <div className="fv-loading">Loading...</div>}
             {content !== null && (
-              <EditView
-                editContent={editContent}
-                setEditContent={setEditContent}
-                findQuery={findQuery}
-                currentMatch={safeIdx}
-                matches={findMatches}
-                filePath={path}
-                readOnly={content.length > HEAVY_TEXT_CHARS}
-              />
+              showMarkdownPreview ? (
+                <MarkdownPreview content={content} />
+              ) : (
+                <EditView
+                  editContent={editContent}
+                  setEditContent={setEditContent}
+                  findQuery={findQuery}
+                  currentMatch={safeIdx}
+                  matches={findMatches}
+                  filePath={path}
+                  readOnly={content.length > HEAVY_TEXT_CHARS}
+                />
+              )
             )}
           </>
         )}
