@@ -1,27 +1,41 @@
 import { describe, it, expect } from "vitest";
-import { backendCaps, backendBilled } from "./backendCaps.js";
+import { backendCaps, backendBilled, applyDescriptors, providerOptions } from "./backendCaps.js";
 
-describe("backendCaps", () => {
-  it("claude-cli / undefined / null -> full PTY caps", () => {
+const caps = (over) => ({ interrupt: true, keystroke: true, runtimeModelSwitch: true, runtimePermissionSwitch: true, ...over });
+const SAMPLE = [
+  { kind: "claude-cli", label: "Claude CLI", enabled: true, billing: "subscription", capabilities: caps() },
+  { kind: "claude-sdk", label: "Claude SDK", enabled: true, billing: "subscription", capabilities: caps({ keystroke: false, runtimeModelSwitch: false }) },
+  { kind: "openai", label: "OpenAI", enabled: false, billing: "metered", capabilities: caps({ keystroke: false, runtimeModelSwitch: false }) },
+];
+
+describe("backendCaps (descriptor-driven)", () => {
+  it("unknown / not-yet-loaded kind falls back to PTY-permissive caps", () => {
+    applyDescriptors([]);
     const pty = { keystroke: true, runtimeModelSwitch: true };
     expect(backendCaps("claude-cli")).toEqual(pty);
     expect(backendCaps(undefined)).toEqual(pty);
     expect(backendCaps(null)).toEqual(pty);
+    expect(backendBilled("openai")).toBe(false); // unknown -> not billed on a guess
   });
 
-  it("structured backends -> no keystroke, no runtime model switch", () => {
-    const structured = { keystroke: false, runtimeModelSwitch: false };
-    for (const k of ["claude-sdk", "anthropic-api", "openai", "codex", "deepseek", "kimi"]) {
-      expect(backendCaps(k)).toEqual(structured);
-    }
+  it("reads keystroke + runtimeModelSwitch from the loaded descriptor", () => {
+    applyDescriptors(SAMPLE);
+    expect(backendCaps("claude-cli")).toMatchObject({ keystroke: true, runtimeModelSwitch: true });
+    expect(backendCaps("claude-sdk")).toMatchObject({ keystroke: false, runtimeModelSwitch: false });
   });
 
-  it("backendBilled: claude-cli/claude-sdk/unset are included; API lanes are billed", () => {
+  it("backendBilled reflects the descriptor's billing class", () => {
+    applyDescriptors(SAMPLE);
     expect(backendBilled("claude-cli")).toBe(false);
     expect(backendBilled("claude-sdk")).toBe(false);
-    expect(backendBilled(undefined)).toBe(false);
-    for (const k of ["anthropic-api", "openai", "codex", "deepseek", "kimi"]) {
-      expect(backendBilled(k)).toBe(true);
-    }
+    expect(backendBilled("openai")).toBe(true);
+  });
+
+  it("providerOptions lists only enabled providers as {value,label}", () => {
+    applyDescriptors(SAMPLE);
+    expect(providerOptions()).toEqual([
+      { value: "claude-cli", label: "Claude CLI" },
+      { value: "claude-sdk", label: "Claude SDK" },
+    ]);
   });
 });

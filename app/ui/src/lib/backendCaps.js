@@ -1,20 +1,37 @@
-// UI capability gating derived from a worker's backend_kind. The daemon's
-// AgentCapabilities live on the backend adapter (not persisted per-worker), so
-// the UI gates controls on the kind: claude-cli (PTY) supports keystrokes + a
-// runtime model switch (/model slash command); the structured backends
-// (claude-sdk + the in-process API lanes) fix the model per session and have no
-// keystroke channel. Keep in sync with the adapters' AgentCapabilities.
+// The UI's backend-descriptor cache + the helpers derived from it. The daemon's
+// BackendDescriptors (the single source of truth) arrive via GET /api/ui-config
+// and applyDescriptors() loads them here; every consumer reads this DATA, never a
+// kind literal — adding a provider is daemon-side only, no UI change.
+//
+// Until ui-config arrives (a brief boot window) the map is empty and the helpers
+// fall back to PTY-permissive defaults so controls aren't wrongly disabled.
 
-const PTY = { keystroke: true, runtimeModelSwitch: true };
-const STRUCTURED = { keystroke: false, runtimeModelSwitch: false };
+const DESCRIPTORS = new Map(); // kind -> { kind, label, enabled, billing, capabilities }
 
-export function backendCaps(kind) {
-  return !kind || kind === "claude-cli" ? PTY : STRUCTURED;
+export function applyDescriptors(list) {
+  if (!Array.isArray(list)) return;
+  DESCRIPTORS.clear();
+  for (const d of list) {
+    if (d && typeof d.kind === "string") DESCRIPTORS.set(d.kind, d);
+  }
 }
 
-// Subscription-billed kinds (no metered cost — claude-cli + claude-sdk default to
-// the Max/Pro plan) vs API-billed (the in-process API lanes are metered).
-const SUBSCRIPTION_KINDS = new Set(["claude-cli", "claude-sdk"]);
+// Enabled providers for the Settings → Provider picker (value = kind, label = UI name).
+export function providerOptions() {
+  return [...DESCRIPTORS.values()]
+    .filter((d) => d.enabled)
+    .map((d) => ({ value: d.kind, label: d.label }));
+}
+
+// Capabilities the UI gates controls on (keystroke rewind, runtime model switch).
+// Unknown/not-yet-loaded kind → PTY-permissive (don't disable a control on a guess).
+const PTY_DEFAULT_CAPS = { keystroke: true, runtimeModelSwitch: true };
+export function backendCaps(kind) {
+  return (kind ? DESCRIPTORS.get(kind)?.capabilities : null) ?? PTY_DEFAULT_CAPS;
+}
+
+// True when the provider is metered (per-token API cost) rather than subscription.
+// Unknown kind → false (don't show "billed" on a guess).
 export function backendBilled(kind) {
-  return !!kind && !SUBSCRIPTION_KINDS.has(kind);
+  return (kind ? DESCRIPTORS.get(kind)?.billing : null) === "metered";
 }

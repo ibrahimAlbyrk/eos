@@ -11,6 +11,7 @@ import { createReconnectingStream } from "../api/sse.js";
 import { useClockTick } from "./useClockTick.js";
 import { usePendingPermissions } from "./usePendingPermissions.js";
 import { applyCatalog } from "../lib/models.js";
+import { applyDescriptors } from "../lib/backendCaps.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
 import { applyDelta } from "../state/thinkingStore.js";
 import { cancelQueued } from "../state/outboxStore.js";
@@ -73,6 +74,7 @@ export function useLive() {
         if (Array.isArray(list)) { setWorkers(list); setLoaded(true); }
         setRecents(rec?.paths ?? []);
         applyCatalog(cfg?.modelCatalog);
+        applyDescriptors(cfg?.backends);
         setUiConfig(cfg);
         setHealth(true);
       } catch { setHealth(false); }
