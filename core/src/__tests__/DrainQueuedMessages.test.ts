@@ -95,4 +95,19 @@ describe("drainQueuedMessages", () => {
     assert.equal(outcome, "failed");
     assert.deepEqual(queue.repo.listPending("w1").map((r) => r.text), ["retry me", "after"]);
   });
+
+  it("replays a queued worker_report as its real kind (envelope + displayText), not a plain user_message", async () => {
+    const { deps, dispatched, queue } = buildDeps();
+    queue.repo.insert({
+      workerId: "w1", clientMsgId: null,
+      text: "[worker alice (w2)] reported:\nbody", createdAt: 1000, dispatchedAt: null,
+      envelope: { kind: "worker_report", fromWorker: "w2", workerName: "alice" },
+      displayText: "body",
+    });
+    await drainQueuedMessages(deps, { workerId: "w1" });
+    assert.equal(dispatched.length, 1);
+    assert.deepEqual(dispatched[0].envelope, { kind: "worker_report", fromWorker: "w2", workerName: "alice" });
+    assert.equal(dispatched[0].displayText, "body");
+    assert.equal(dispatched[0].text, "[worker alice (w2)] reported:\nbody");
+  });
 });

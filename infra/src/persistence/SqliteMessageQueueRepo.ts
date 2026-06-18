@@ -2,6 +2,7 @@
 
 import type { DatabaseSync } from "node:sqlite";
 import type { MessageQueueRepo, MessageQueueInsert, QueuedMessage } from "../../../core/src/ports/MessageQueueRepo.ts";
+import type { DispatchEnvelope } from "../../../core/src/domain/message-envelope.ts";
 
 interface Row {
   id: number;
@@ -9,6 +10,30 @@ interface Row {
   client_msg_id: string | null;
   text: string;
   created_at: number;
+  meta: string | null;
+}
+
+// Agent-plane routing (envelope + displayText) is persisted as one JSON column
+// so a report/directive/peer message queued behind a busy parent replays as its
+// real kind, not a plain user_message. A malformed/legacy NULL row degrades to
+// a plain message — never throws the drain.
+interface QueueMeta {
+  envelope?: DispatchEnvelope;
+  displayText?: string;
+}
+
+function encodeMeta(envelope?: DispatchEnvelope, displayText?: string): string | null {
+  if (!envelope && displayText == null) return null;
+  return JSON.stringify({ envelope, displayText });
+}
+
+function decodeMeta(meta: string | null): QueueMeta {
+  if (!meta) return {};
+  try {
+    return JSON.parse(meta) as QueueMeta;
+  } catch {
+    return {};
+  }
 }
 
 export class SqliteMessageQueueRepo implements MessageQueueRepo {
@@ -27,10 +52,10 @@ export class SqliteMessageQueueRepo implements MessageQueueRepo {
     // unique index ignores NULL client_msg_id rows (audit entries), so only
     // keyed messages dedup.
     this.stmtInsert = db.prepare(
-      "INSERT INTO queued_messages (worker_id, client_msg_id, text, created_at, dispatched_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT(worker_id, client_msg_id) DO NOTHING",
+      "INSERT INTO queued_messages (worker_id, client_msg_id, text, created_at, dispatched_at, meta) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(worker_id, client_msg_id) DO NOTHING",
     );
     this.stmtListPending = db.prepare(
-      "SELECT id, worker_id, client_msg_id, text, created_at FROM queued_messages WHERE worker_id = ? AND dispatched_at IS NULL ORDER BY id ASC",
+      "SELECT id, worker_id, client_msg_id, text, created_at, meta FROM queued_messages WHERE worker_id = ? AND dispatched_at IS NULL ORDER BY id ASC",
     );
     this.stmtMarkDispatched = db.prepare("UPDATE queued_messages SET dispatched_at = ? WHERE id = ?");
     this.stmtRemoveById = db.prepare("DELETE FROM queued_messages WHERE id = ?");
@@ -48,19 +73,25 @@ export class SqliteMessageQueueRepo implements MessageQueueRepo {
   }
 
   insert(row: MessageQueueInsert): number | null {
-    const info = this.stmtInsert.run(row.workerId, row.clientMsgId, row.text, row.createdAt, row.dispatchedAt);
+    const meta = encodeMeta(row.envelope, row.displayText);
+    const info = this.stmtInsert.run(row.workerId, row.clientMsgId, row.text, row.createdAt, row.dispatchedAt, meta);
     return info.changes === 0 ? null : Number(info.lastInsertRowid);
   }
 
   listPending(workerId: string): QueuedMessage[] {
     const rows = this.stmtListPending.all(workerId) as unknown as Row[];
-    return rows.map((r) => ({
-      id: r.id,
-      workerId: r.worker_id,
-      clientMsgId: r.client_msg_id,
-      text: r.text,
-      createdAt: r.created_at,
-    }));
+    return rows.map((r) => {
+      const { envelope, displayText } = decodeMeta(r.meta);
+      return {
+        id: r.id,
+        workerId: r.worker_id,
+        clientMsgId: r.client_msg_id,
+        text: r.text,
+        createdAt: r.created_at,
+        ...(envelope ? { envelope } : {}),
+        ...(displayText != null ? { displayText } : {}),
+      };
+    });
   }
 
   markDispatched(ids: number[], ts: number): void {

@@ -31,7 +31,6 @@ import {
 import type { WorkerRow } from "../../contracts/src/worker.ts";
 
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
-import { transitionState } from "../../core/src/use-cases/TransitionState.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import { processWorkerEvent } from "../../core/src/use-cases/ProcessWorkerEvent.ts";
 import { toCanonicalEvents } from "../../spawner/canonical-map.ts";
@@ -195,27 +194,25 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     await resumeIfDead(c, target);
 
     if (fromParent) {
-      c.turnSettle.clear(params.id);
-      const worker = c.workers.findById(params.id);
-      if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
       const parent = c.workers.findById(fromParent);
       const parentName = parent?.name ?? fromParent;
       try {
-        // The worker records the orchestrator_message event itself when the
-        // directive lands in its transcript — see DispatchMessage header for
-        // why a dispatch-time append misorders against trailing turn output.
-        await c.httpWorkerClient.sendMessage(worker.port, body.text, {
-          as: "orchestrator_message", fromParent, parentName, sentAt: c.clock.now(),
+        // Backend-aware: routes through the AgentBackend the worker runs on, so a
+        // port-less in-process (claude-sdk) worker is reachable too — the old
+        // direct httpWorkerClient.sendMessage(worker.port,…) 404'd for them. The
+        // PTY worker self-reports orchestrator_message at its transcript sighting;
+        // in-process gets the daemon-side append. dispatchMessage also gives the
+        // directive the dashboard path's WORKING lift + settle-clear.
+        await dispatchMessage(dispatchDeps(c), {
+          workerId: params.id, text: body.text,
+          envelope: { kind: "orchestrator_message", fromParent, parentName },
+          origin: "orchestrator-directive",
         });
       } catch (e) {
         writeJson(res, 502, { error: "worker unreachable" }); return;
       }
-      transitionState(
-        { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },
-        { workerId: params.id, next: "WORKING", reason: "orchestrator_message" },
-      );
-      c.bus.publish("worker:change", { workerId: params.id });
-      writeJson(res, 200, { ok: true, id: params.id, name: worker.name ?? null });
+      const worker = c.workers.findById(params.id);
+      writeJson(res, 200, { ok: true, id: params.id, name: worker?.name ?? null });
       return;
     }
 
@@ -234,7 +231,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   // still-pending row (a drained row is gone from the pending list already).
   r.get(/^\/workers\/(?<id>[^/]+)\/queue$/, ({ params, res }) => {
     const rows = c.messageQueue.listPending(params.id);
-    writeJson(res, 200, { messages: rows.map((m) => ({ id: m.id, text: m.text, ts: m.createdAt })) });
+    writeJson(res, 200, { messages: rows.map((m) => ({ id: m.id, text: m.displayText ?? m.text, ts: m.createdAt })) });
   });
 
   r.del(/^\/workers\/(?<id>[^/]+)\/queue\/(?<queueId>\d+)$/, ({ params, res }) => {
@@ -465,10 +462,11 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     c.bus.publish("worker:report", { workerId: params.id, parentId: worker.parent_id });
 
     const parent = c.workers.findById(worker.parent_id);
-    if (!parent?.port || !c.supervisor.has(worker.parent_id)) {
-      writeJson(res, 200, { ok: true, delivered: false });
-      return;
-    }
+    if (!parent) { writeJson(res, 200, { ok: true, delivered: false }); return; }
+    // A report can wake a parent that suspended/finished while the worker ran
+    // (daemon restart, an idle SDK session reaped) — same transparent resume
+    // the dashboard path uses before dispatching.
+    await resumeIfDead(c, parent);
 
     const label = worker.name ?? params.id;
     // Compliance-independent merge handle: the header carries the branch and
@@ -502,18 +500,24 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       }).catch((e) => c.log.warn("auto-apply failed", { worker: params.id, error: errMsg(e) }));
     }
     try {
-      // The parent records the worker_report event itself when the report
-      // lands in its transcript — see DispatchMessage header for why a
-      // dispatch-time append misorders against the parent's in-flight turn.
-      await c.httpWorkerClient.sendMessage(parent.port, formatted, {
-        as: "worker_report", fromWorker: params.id, workerName: label, displayText: body.text, sentAt: c.clock.now(),
+      // Backend-aware delivery to the parent through its AgentBackend — a
+      // port-less in-process (claude-sdk) orchestrator is reachable too (the old
+      // direct httpWorkerClient.sendMessage(parent.port,…) silently dropped every
+      // report to one). PTY parent self-reports worker_report at its transcript
+      // sighting; in-process gets the daemon-side append. formatted = the routing
+      // wrapper the parent reads; displayText = the bare body the chat renders.
+      const result = await dispatchMessage(dispatchDeps(c), {
+        workerId: worker.parent_id,
+        text: formatted,
+        displayText: body.text,
+        envelope: { kind: "worker_report", fromWorker: params.id, workerName: label },
+        // Fan-in serialization: N workers finishing together each get their own
+        // orchestrator turn (FIFO, one per IDLE) instead of coalescing into one.
+        // A report to a busy parent holds in the queue and drains at its next IDLE.
+        queueWhenBusy: true,
+        origin: "report",
       });
-      transitionState(
-        { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },
-        { workerId: worker.parent_id, next: "WORKING", reason: "worker_report" },
-      );
-      c.bus.publish("worker:change", { workerId: worker.parent_id });
-      writeJson(res, 200, { ok: true, delivered: true });
+      writeJson(res, 200, { ok: true, delivered: result.status < 300 });
     } catch (e) {
       c.log.warn("report delivery failed", { worker: params.id, parent: worker.parent_id, error: errMsg(e) });
       writeJson(res, 200, { ok: true, delivered: false });

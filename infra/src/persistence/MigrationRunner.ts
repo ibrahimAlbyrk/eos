@@ -195,6 +195,11 @@ export const MIGRATIONS: Migration[] = [
       scheduled_at INTEGER NOT NULL
     )
   `},
+  // Agent-plane routing (envelope + displayText) for a message queued behind a
+  // busy parent. Without it a drained worker report replays as a plain
+  // user_message — losing its kind and showing the routing wrapper. NULL for
+  // legacy rows and plain dashboard sends.
+  { id: "041_queued_messages_add_meta", sql: "ALTER TABLE queued_messages ADD COLUMN meta TEXT" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

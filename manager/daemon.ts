@@ -21,8 +21,8 @@ import { mintRequestId } from "./middleware/requestId.ts";
 import { handleError, writeJson } from "./middleware/errorHandler.ts";
 import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
 import { drainQueuedMessages } from "../core/src/use-cases/DrainQueuedMessages.ts";
-import { transitionState } from "../core/src/use-cases/TransitionState.ts";
 import { dispatchDeps } from "./routes/dispatch-deps.ts";
+import { isWorkerLive } from "./routes/worker-liveness.ts";
 
 import { registerHealthRoutes } from "./routes/health.ts";
 import { registerStreamRoutes } from "./routes/stream.ts";
@@ -132,26 +132,25 @@ const pumpPeerFor = (workerId: string): boolean => {
   c.pendingPeerRequests.declineDelivered(workerId, "peer ended its turn without responding");
   const next = c.pendingPeerRequests.nextQueuedFor(workerId);
   if (!next) return false;
-  if (!w.port || !c.supervisor.has(workerId)) return false;
+  if (!isWorkerLive(c, workerId)) return false;
   peerPumping.add(workerId);
   c.pendingPeerRequests.markDelivered(next.requestId);
-  c.turnSettle.clear(workerId); // genuine new turn — clear the settle window first
   const asker = c.workers.findById(next.from);
   const fromName = asker?.name ?? next.from;
   const formatted =
     `[Peer request from ${fromName} (${next.from})]\n${next.question}\n\n` +
     `Answer this from your area, then call respond_to_peer with your answer — that is the only thing that reaches ${fromName}; plain text in this turn does not.`;
-  void c.httpWorkerClient
-    .sendMessage(w.port, formatted, {
-      as: "peer_request", fromWorker: next.from, fromName: asker?.name ?? undefined,
-      displayText: next.question, sentAt: c.clock.now(),
-    })
-    .then(() => {
-      transitionState(
-        { workers: c.workers, events: c.events, bus: c.bus, clock: c.clock },
-        { workerId, next: "WORKING", reason: "peer_request" },
-      );
-    })
+  // Backend-aware delivery + settle-clear + WORKING lift, same path as the
+  // dashboard and report flows — a port-less in-process (claude-sdk) peer is
+  // reachable too (the old httpWorkerClient.sendMessage(w.port,…) silently
+  // skipped them). PTY peer self-reports peer_request at its transcript
+  // sighting; in-process gets the daemon-side append. displayText = the bare
+  // question the chat renders (without the "[Peer request from …]" framing).
+  void dispatchMessage(dispatchDeps(c), {
+    workerId, text: formatted, displayText: next.question,
+    envelope: { kind: "peer_request", fromWorker: next.from, fromName: asker?.name ?? undefined },
+    origin: "peer-request",
+  })
     .catch((e) => {
       c.pendingPeerRequests.declineDelivered(workerId, "delivery to peer failed");
       c.log.warn("peer request delivery failed", { workerId, error: e instanceof Error ? e.message : String(e) });

@@ -60,6 +60,10 @@ export async function drainQueuedMessages(
       text: head.text,
       recordClientMsgIds: head.clientMsgId !== null ? [head.clientMsgId] : [],
       origin: "queue-drain",
+      // Replay the original kind so a queued report drains as a worker_report,
+      // not a plain user_message. Absent for plain dashboard sends.
+      ...(head.envelope ? { envelope: head.envelope } : {}),
+      ...(head.displayText != null ? { displayText: head.displayText } : {}),
     });
   } catch (e) {
     deps.log.warn("queue drain dispatch failed — row stays pending", {

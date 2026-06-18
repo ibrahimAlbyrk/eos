@@ -4,12 +4,20 @@
 // its clientMsgId, so a duplicate POST can never become a second turn.
 // Adapter is SqliteMessageQueueRepo in infra/persistence/.
 
+import type { DispatchEnvelope } from "../domain/message-envelope.ts";
+
 export interface QueuedMessage {
   id: number;
   workerId: string;
   clientMsgId: string | null;
   text: string;
   createdAt: number;
+  /** Agent-plane messages (report/directive/peer) carry their kind + routing so
+   *  the drain replays them faithfully instead of as a plain user_message. */
+  envelope?: DispatchEnvelope;
+  /** What the chat renders instead of `text` (a report's bare body vs the
+   *  routing wrapper the model reads). */
+  displayText?: string;
 }
 
 export interface MessageQueueInsert {
@@ -19,6 +27,9 @@ export interface MessageQueueInsert {
   createdAt: number;
   /** null → pending (queued); set → dispatched (ledger/claim row). */
   dispatchedAt: number | null;
+  /** Persisted only for pending rows so the drain can rebuild the dispatch. */
+  envelope?: DispatchEnvelope;
+  displayText?: string;
 }
 
 export interface MessageQueueRepo {

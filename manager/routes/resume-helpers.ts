@@ -8,6 +8,7 @@ import type { WorkerRow } from "../../contracts/src/worker.ts";
 import { resumeWorker } from "../../core/src/use-cases/ResumeWorker.ts";
 import { UnreachableError } from "../../core/src/errors/index.ts";
 import { buildRespawnSpec } from "../shared/respawn-spec.ts";
+import { isWorkerLive } from "./worker-liveness.ts";
 
 export function resumeWorkerVia(c: Container, row: WorkerRow): Promise<{ id: string; port: number }> {
   const spec = buildRespawnSpec(row, { modeResolver: c.modeResolver });
@@ -17,14 +18,7 @@ export function resumeWorkerVia(c: Container, row: WorkerRow): Promise<{ id: str
       workers: c.workers, events: c.events, bus: c.bus, clock: c.clock, log: c.log,
       backend: c.backends.has(kind) ? c.backends.get(kind) : c.claudeCliBackend,
       onAgentEvent: c.onAgentEvent,
-      isLive: (id) => {
-        if (c.supervisor.has(id)) return true;
-        const k = c.workers.findById(id)?.backend_kind;
-        if (k && c.backends.has(k) && c.backends.get(k).descriptor.processModel === "in-process") {
-          return c.backends.get(k).attach(id, { kind: "inproc", ref: id }).isAlive();
-        }
-        return false;
-      },
+      isLive: (id) => isWorkerLive(c, id),
       pathExists: existsSync,
     },
     { workerId: row.id, spec },

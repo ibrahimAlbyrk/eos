@@ -101,4 +101,34 @@ describe("SqliteMessageQueueRepo", () => {
     assert.notEqual(repo.insert(pending("old")), null);
     assert.equal(repo.insert(pending("new")), null);
   });
+
+  it("round-trips an agent-plane envelope + displayText through the meta column", () => {
+    repo.insert({
+      ...pending(null, "[worker alice (w2)] reported:\nbody"),
+      envelope: { kind: "worker_report", fromWorker: "w2", workerName: "alice" },
+      displayText: "body",
+    });
+    const [row] = repo.listPending("w1");
+    assert.deepEqual(row.envelope, { kind: "worker_report", fromWorker: "w2", workerName: "alice" });
+    assert.equal(row.displayText, "body");
+  });
+
+  it("a plain message carries no envelope/displayText (NULL meta)", () => {
+    repo.insert(pending("a", "hi"));
+    const [row] = repo.listPending("w1");
+    assert.equal(row.envelope, undefined);
+    assert.equal(row.displayText, undefined);
+  });
+
+  it("degrades gracefully on malformed meta (legacy/corrupt row) — never throws the drain", () => {
+    const db = new DatabaseSync(":memory:");
+    runMigrations(db, noopLog as never);
+    db.prepare(
+      "INSERT INTO queued_messages (worker_id, client_msg_id, text, created_at, dispatched_at, meta) VALUES ('w1', NULL, 'x', 1, NULL, 'not-json')",
+    ).run();
+    const [row] = new SqliteMessageQueueRepo(db).listPending("w1");
+    assert.equal(row.text, "x");
+    assert.equal(row.envelope, undefined);
+    assert.equal(row.displayText, undefined);
+  });
 });

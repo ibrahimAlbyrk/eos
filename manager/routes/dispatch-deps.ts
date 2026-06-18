@@ -4,6 +4,7 @@
 
 import type { Container } from "../container.ts";
 import type { DispatchMessageDeps } from "../../core/src/use-cases/DispatchMessage.ts";
+import { isWorkerLive } from "./worker-liveness.ts";
 
 export function dispatchDeps(
   c: Container,
@@ -18,16 +19,7 @@ export function dispatchDeps(
     client: c.httpWorkerClient,
     backends: c.backends,
     log: c.log,
-    isLive: (id: string) => {
-      if (c.supervisor.has(id)) return true;
-      // In-process backends (claude-sdk / anthropic-api / …) have no supervised
-      // PTY child; liveness is the backend session's own aliveness.
-      const kind = c.workers.findById(id)?.backend_kind;
-      if (kind && c.backends.has(kind) && c.backends.get(kind).descriptor.processModel === "in-process") {
-        return c.backends.get(kind).attach(id, { kind: "inproc", ref: id }).isAlive();
-      }
-      return false;
-    },
+    isLive: (id: string) => isWorkerLive(c, id),
     // Cleared inside the use-case ONLY when the message actually dispatches —
     // an enqueue must leave the settle window alone (see DispatchMessageDeps).
     clearTurnSettle: (id: string) => c.turnSettle.clear(id),

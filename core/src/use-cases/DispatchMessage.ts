@@ -16,14 +16,68 @@ import type { WorkerClient } from "../ports/WorkerClient.ts";
 import type { AgentBackendRegistry } from "../ports/AgentBackend.ts";
 import type { MessageQueueRepo } from "../ports/MessageQueueRepo.ts";
 import type { Logger } from "../ports/Logger.ts";
+import type { MessageRecord } from "../../../contracts/src/http.ts";
+import type { DispatchEnvelope } from "../domain/message-envelope.ts";
 import { NotFoundError, ConflictError, UnreachableError } from "../errors/index.ts";
 import { transitionState } from "./TransitionState.ts";
+
+export type { DispatchEnvelope };
 
 // Same-text re-dispatch inside this window (for sends without a clientMsgId)
 // appends a log-only duplicate_dispatch_suspected lifecycle event — the
 // breadcrumb that makes a future "message keeps repeating" report diagnosable
 // from the DB alone.
 const DUPLICATE_TEXT_WINDOW_MS = 10_000;
+
+// The chat-event kind is data, not a code path: agent-plane callers (worker
+// report, orchestrator directive, peer request) pass a DispatchEnvelope so they
+// reuse this one backend-aware, queue-serialized delivery instead of bespoke
+// httpWorkerClient.sendMessage calls. Absent → a plain user_message.
+function buildMessageRecord(
+  env: DispatchEnvelope | undefined,
+  sentAt: number,
+  displayText: string | undefined,
+  clientMsgIds: string[] | undefined,
+): MessageRecord {
+  const display = displayText ? { displayText } : {};
+  switch (env?.kind) {
+    case "orchestrator_message":
+      return { as: "orchestrator_message", fromParent: env.fromParent, ...(env.parentName ? { parentName: env.parentName } : {}), sentAt };
+    case "worker_report":
+      return { as: "worker_report", fromWorker: env.fromWorker, ...(env.workerName ? { workerName: env.workerName } : {}), ...display, sentAt };
+    case "peer_request":
+      return { as: "peer_request", fromWorker: env.fromWorker, ...(env.fromName ? { fromName: env.fromName } : {}), ...display, sentAt };
+    default:
+      return { as: "user_message", ...display, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}), sentAt };
+  }
+}
+
+// Daemon-side chat event for backends that do NOT self-report (in-process:
+// claude-sdk/anthropic-api). Mirrors EXACTLY the shapes the PTY worker emits at
+// its transcript sighting (spawner/worker.ts emitMessageEvent) so the web
+// renders agent-plane traffic identically across backends.
+function appendChatEvent(
+  events: EventRepo,
+  workerId: string,
+  ts: number,
+  env: DispatchEnvelope | undefined,
+  text: string,
+  clientMsgIds: string[] | undefined,
+): void {
+  switch (env?.kind) {
+    case "orchestrator_message":
+      events.append(workerId, ts, "orchestrator_message", { text, fromParent: env.fromParent, parentName: env.parentName ?? env.fromParent });
+      return;
+    case "worker_report":
+      events.append(workerId, ts, "worker_report", { text, fromWorker: env.fromWorker, workerName: env.workerName ?? env.fromWorker });
+      return;
+    case "peer_request":
+      events.append(workerId, ts, "peer_request", { text, fromWorker: env.fromWorker, fromName: env.fromName ?? env.fromWorker });
+      return;
+    default:
+      events.append(workerId, ts, "user_message", { text, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}) });
+  }
+}
 
 export interface DispatchMessageDeps {
   workers: WorkerRepo;
@@ -74,6 +128,11 @@ export interface DispatchMessageInput {
   /** Where this dispatch came from (composer/action/mcp/queue-drain) — log +
    * forensics only. */
   origin?: string;
+  /** Message kind + routing metadata. Absent → a plain user_message. Set by
+   * the agent plane (report/directive/peer) so it shares this backend-aware,
+   * queue-serialized delivery. The record (PTY self-report) and the daemon-side
+   * chat event (in-process) are both derived from it. */
+  envelope?: DispatchEnvelope;
 }
 
 export async function dispatchMessage(
@@ -116,6 +175,10 @@ export async function dispatchMessage(
       text: input.text,
       createdAt: now,
       dispatchedAt: null,
+      // Agent-plane routing rides the pending row so the drain replays a report
+      // as a worker_report (not a plain user_message showing the wrapper).
+      ...(input.envelope ? { envelope: input.envelope } : {}),
+      ...(input.displayText ? { displayText: input.displayText } : {}),
     });
     if (queueId === null) return { status: 200, body: { ok: true, deduped: true } };
     deps.log.info("message queued (worker busy)", { workerId: input.workerId, queueId, origin: input.origin });
@@ -155,12 +218,7 @@ export async function dispatchMessage(
 
   const recordClientMsgIds = input.recordClientMsgIds
     ?? (input.clientMsgId ? [input.clientMsgId] : undefined);
-  const record = {
-    as: "user_message" as const,
-    sentAt: now,
-    ...(input.displayText ? { displayText: input.displayText } : {}),
-    ...(recordClientMsgIds && recordClientMsgIds.length > 0 ? { clientMsgIds: recordClientMsgIds } : {}),
-  };
+  const record = buildMessageRecord(input.envelope, now, input.displayText, recordClientMsgIds);
 
   const rollbackClaim = (): void => {
     if (claimId !== null) deps.queue.removeById(claimId);
@@ -212,10 +270,7 @@ export async function dispatchMessage(
   }
 
   if (!selfReports) {
-    deps.events.append(input.workerId, deps.clock.now(), "user_message", {
-      text: input.displayText ?? input.text,
-      ...(recordClientMsgIds && recordClientMsgIds.length > 0 ? { clientMsgIds: recordClientMsgIds } : {}),
-    });
+    appendChatEvent(deps.events, input.workerId, deps.clock.now(), input.envelope, input.displayText ?? input.text, recordClientMsgIds);
   }
   deps.bus.publish("worker:change", { workerId: input.workerId });
 
@@ -223,7 +278,7 @@ export async function dispatchMessage(
   // starting and the worker should look WORKING right away.
   transitionState(
     { workers: deps.workers, events: deps.events, bus: deps.bus, clock: deps.clock },
-    { workerId: input.workerId, next: "WORKING", reason: "user_message" },
+    { workerId: input.workerId, next: "WORKING", reason: input.envelope?.kind ?? "user_message" },
   );
 
   return { status: result.status, body: result.body };

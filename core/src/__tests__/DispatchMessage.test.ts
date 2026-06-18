@@ -234,3 +234,96 @@ describe("dispatchMessage — daemon-side queue + idempotency", () => {
     assert.equal(clientSends.length, 2);
   });
 });
+
+describe("dispatchMessage — agent-plane envelopes (report/directive/peer)", () => {
+  const byType = (events: AppendedEvent[], type: string) => events.filter((e) => e.type === type);
+
+  it("worker_report, self-reporting parent (claude-cli): record rides, no daemon append", async () => {
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    await dispatchMessage(deps, {
+      workerId: "w1", text: "[worker alice (w2)] reported:\nbody", displayText: "body",
+      envelope: { kind: "worker_report", fromWorker: "w2", workerName: "alice" },
+    });
+    assert.deepEqual(byType(events, "worker_report"), []);
+    assert.deepEqual(sends, [{
+      text: "[worker alice (w2)] reported:\nbody",
+      record: { as: "worker_report", fromWorker: "w2", workerName: "alice", displayText: "body", sentAt: 1234 },
+    }]);
+  });
+
+  it("worker_report, non-reporting parent (in-process): daemon append of the bare body, no record", async () => {
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { deps, events } = buildDeps({ backend: fakeBackend("inproc", false, sends), backendKind: "inproc" });
+    await dispatchMessage(deps, {
+      workerId: "w1", text: "[worker alice (w2)] reported:\nbody", displayText: "body",
+      envelope: { kind: "worker_report", fromWorker: "w2", workerName: "alice" },
+    });
+    assert.deepEqual(byType(events, "worker_report"), [
+      { type: "worker_report", payload: { text: "body", fromWorker: "w2", workerName: "alice" } },
+    ]);
+    // the session still receives the routing wrapper (what the model reads)
+    assert.deepEqual(sends, [{ text: "[worker alice (w2)] reported:\nbody", record: undefined }]);
+  });
+
+  it("orchestrator_message, in-process worker: daemon append with parent routing", async () => {
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { deps, events } = buildDeps({ backend: fakeBackend("inproc", false, sends), backendKind: "inproc" });
+    await dispatchMessage(deps, {
+      workerId: "w1", text: "do the thing",
+      envelope: { kind: "orchestrator_message", fromParent: "o1", parentName: "boss" },
+    });
+    assert.deepEqual(byType(events, "orchestrator_message"), [
+      { type: "orchestrator_message", payload: { text: "do the thing", fromParent: "o1", parentName: "boss" } },
+    ]);
+  });
+
+  it("peer_request, in-process peer: daemon append of the bare question", async () => {
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { deps, events } = buildDeps({ backend: fakeBackend("inproc", false, sends), backendKind: "inproc" });
+    await dispatchMessage(deps, {
+      workerId: "w1", text: "[Peer request from bob]\nwhat is X?", displayText: "what is X?",
+      envelope: { kind: "peer_request", fromWorker: "w3", fromName: "bob" },
+    });
+    assert.deepEqual(byType(events, "peer_request"), [
+      { type: "peer_request", payload: { text: "what is X?", fromWorker: "w3", fromName: "bob" } },
+    ]);
+  });
+
+  it("envelope kind drives the state-transition reason", async () => {
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    await dispatchMessage(deps, {
+      workerId: "w1", text: "r", envelope: { kind: "worker_report", fromWorker: "w2" },
+    });
+    const state = events.find((e) => e.type === "state");
+    assert.equal((state?.payload as { reason?: string }).reason, "worker_report");
+  });
+
+  it("missing optional name falls back to the id (parity with the PTY emitter)", async () => {
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { deps, events } = buildDeps({ backend: fakeBackend("inproc", false, sends), backendKind: "inproc" });
+    await dispatchMessage(deps, {
+      workerId: "w1", text: "wrap", displayText: "body",
+      envelope: { kind: "worker_report", fromWorker: "w2" },
+    });
+    assert.deepEqual(byType(events, "worker_report"), [
+      { type: "worker_report", payload: { text: "body", fromWorker: "w2", workerName: "w2" } },
+    ]);
+  });
+
+  it("a report to a busy parent queues, persisting envelope + displayText for the drain", async () => {
+    const { deps, clientSends, queueRows } = buildDeps({ state: "WORKING" });
+    const r = await dispatchMessage(deps, {
+      workerId: "w1", text: "[worker alice (w2)] reported:\nbody", displayText: "body",
+      envelope: { kind: "worker_report", fromWorker: "w2", workerName: "alice" },
+      queueWhenBusy: true,
+    });
+    assert.equal(r.status, 202);
+    assert.equal(clientSends.length, 0);
+    assert.equal(queueRows.length, 1);
+    assert.equal(queueRows[0].dispatchedAt, null);
+    assert.deepEqual(queueRows[0].envelope, { kind: "worker_report", fromWorker: "w2", workerName: "alice" });
+    assert.equal(queueRows[0].displayText, "body");
+  });
+});
