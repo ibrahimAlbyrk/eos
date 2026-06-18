@@ -29,7 +29,7 @@ export function AgentBlock({ block }) {
   return (
     <div className="agent-block agent-block--running">
       <div className="agent-header">
-        <span className="agent-header-label">{isDone ? "Agent completed" : "Background agent started"}</span>
+        <span className="agent-header-label">{isDone ? "Agent completed" : (block.background ? "Background agent started" : "Running agent")}</span>
         <span className="agent-header-desc">{desc}</span>
         <svg className="agent-header-chev" width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
           <path d="m6 4 4 4-4 4" />

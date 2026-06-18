@@ -451,6 +451,7 @@ export function buildBlocks(rawEvents) {
           model: p.input?.model ?? p.parentModel ?? null,
           subagentType: p.input?.subagent_type ?? null,
           status: closed ? "completed" : "running",
+          background: isBackground,
           result: cleanResult,
           tools,
           ts: p.tsTranscript ?? ev.ts,

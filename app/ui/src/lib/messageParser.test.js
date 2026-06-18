@@ -261,6 +261,26 @@ describe("buildBlocks lifecycle barriers", () => {
   });
 });
 
+describe("buildBlocks foreground agentRun closes on its tool_result (SDK lane)", () => {
+  // The SDK lane synthesizes the Agent's tool_result the moment the subagent returns
+  // (parent-resume / turn end) — so the agentRun must read "completed" from that
+  // result ALONE, without waiting for a turn/exit barrier (the reported "Running
+  // agent until the turn stops" bug).
+  it("completes a foreground agent from its tool_result with no barrier", () => {
+    const events = [agentRow("AG", 100), mainToolResult("AG", 101, "the subagent summary")];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun");
+    expect(run.status).toBe("completed");
+    expect(run.result).toBe("the subagent summary");
+    expect(run.background).toBe(false);
+  });
+
+  it("flags a background agent (Async) so the running header stays 'Background agent started'", () => {
+    const events = [agentRow("AG", 100), mainToolResult("AG", 101, "Async agent launched successfully")];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun");
+    expect(run.background).toBe(true);
+  });
+});
+
 describe("buildBlocks standalone tools", () => {
   it("keeps standalone tools out of toolGroups and splits the surrounding group", () => {
     const events = [
