@@ -88,11 +88,15 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       },
       spec,
     );
-    // Surface the boot prompt as a chat event when the backend can't self-report
-    // it: claude-cli echoes it back via the transcript JSONL (reportsMessageEvents),
-    // the in-process SDK lane does not. Git agents always get it (their boot prompt
-    // is a synthesized conversational message).
-    if (isGitAgent || !backend.descriptor.capabilities.reportsMessageEvents) {
+    // The boot prompt renders exactly once. A PARENTED worker shows it as the
+    // "Task from <orchestrator>" card (web MessageTask, sourced from the
+    // worker.prompt column) — a synthesized chat event here would render it a
+    // SECOND time (left task card + right user bubble). A top-level worker (no
+    // parent, hence no task card) has no other surface, so it gets the boot
+    // prompt as a user_message. The gate is "will a task card render?" = "has a
+    // parent?", NOT the backend's reportsMessageEvents (which is about runtime
+    // dispatch echo, not the boot prompt).
+    if (!body.parentId) {
       appendSynthesized(c, result.id, "user_message", { text: bootPrompt });
     }
     const isolation = spec.worktreeFrom || body.workspaceOf ? "worktree" : "cwd";
