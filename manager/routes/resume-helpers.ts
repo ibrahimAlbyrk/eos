@@ -20,7 +20,7 @@ export function resumeWorkerVia(c: Container, row: WorkerRow): Promise<{ id: str
       isLive: (id) => {
         if (c.supervisor.has(id)) return true;
         const k = c.workers.findById(id)?.backend_kind;
-        if (k && k !== "claude-cli" && c.backends.has(k)) {
+        if (k && c.backends.has(k) && c.backends.get(k).descriptor.processModel === "in-process") {
           return c.backends.get(k).attach(id, { kind: "inproc", ref: id }).isAlive();
         }
         return false;

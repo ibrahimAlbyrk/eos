@@ -42,12 +42,12 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     // profile-driven backend's model + profile name thread into it. claude-cli
     // keeps today's behavior exactly (no model override, null profile).
     const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, parentId: body.parentId ?? null, isOrchestrator: false });
+    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     // Billing guard: a metered-API selection must opt into per-token charges
-    // (costMode:"billed"); the subscription kinds (claude-cli / claude-sdk) are exempt.
-    if (body.backendKind && meteredNeedsBilledIntent(rb)) {
+    // (costMode:"billed"); subscription-billed providers are exempt (descriptor.billing).
+    if (body.backendKind && meteredNeedsBilledIntent(backend.descriptor, rb)) {
       throw new ValidationError(`backend "${rb.kind}" is a metered API — use a subscription provider or a costMode:"billed" profile`);
     }
-    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     const spec = {
       ...bodyRest,
       prompt: bootPrompt,
@@ -60,10 +60,10 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
         model: body.model ?? "sonnet",
         effort: body.effort ?? "medium",
       } : {}),
-      // Lane B (deepseek/kimi/openai) has its own model namespace and carries the
-      // profile's model; claude-sdk + claude-cli run whatever Claude model the user
-      // picked. Persist the resolved profile name for inheritance.
-      ...(rb.kind !== "claude-cli" && rb.kind !== "claude-sdk" ? { model: rb.model } : {}),
+      // Profile-model providers (metered lanes: deepseek/kimi/openai) carry the
+      // profile's model; request-model providers (claude-sdk/claude-cli) run the
+      // Claude model the user picked. Persist the resolved profile name for inheritance.
+      ...(backend.descriptor.modelSource === "profile" ? { model: rb.model } : {}),
       backendProfile: rb.profileName ?? undefined,
     };
     const result = await spawnWorker(

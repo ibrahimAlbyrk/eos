@@ -26,11 +26,11 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const cwd = expandPath(body.cwd);
     const id = c.ids.newOrchestratorId();
     const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, isOrchestrator: true });
-    if (body.backendKind && meteredNeedsBilledIntent(rb)) {
+    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
+    if (body.backendKind && meteredNeedsBilledIntent(backend.descriptor, rb)) {
       writeJson(res, 400, { error: `backend "${rb.kind}" is a metered API — use a subscription provider or a costMode:"billed" profile` });
       return;
     }
-    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     const result = await spawnWorker(
       {
         workers: c.workers, events: c.events, bus: c.bus,
@@ -49,9 +49,9 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         fixedId: id,
         persistent: true,
         claudePermissionMode: body.permissionMode ?? "acceptEdits",
-        // Lane B (deepseek/kimi/openai) carries its own model; claude-sdk + claude-cli
-        // run the user-picked Claude model.
-        model: rb.kind !== "claude-cli" && rb.kind !== "claude-sdk" ? rb.model : (body.model ?? "opus"),
+        // Profile-model providers carry their own model; request-model providers
+        // (claude-sdk/claude-cli) run the user-picked Claude model.
+        model: backend.descriptor.modelSource === "profile" ? rb.model : (body.model ?? "opus"),
         effort: body.effort ?? "xhigh",
         isOrchestrator: true,
         backendProfile: rb.profileName ?? undefined,

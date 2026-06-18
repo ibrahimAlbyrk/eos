@@ -17,7 +17,7 @@ export const interruptWorkerHandler: CommandHandler<WorkerIdAddr, NoBody, Interr
     // session's own interrupt (SDK query / agent-loop abort). No port assumption.
     const kind = worker.backend_kind ?? "claude-cli";
     const backend = c.backends.has(kind) ? c.backends.get(kind) : c.claudeCliBackend;
-    const handle = kind === "claude-cli"
+    const handle = backend.descriptor.processModel === "out-of-process"
       ? { kind: "http" as const, port: worker.port, pid: worker.pid ?? null }
       : { kind: "inproc" as const, ref: id };
     const session = backend.attach(id, handle);

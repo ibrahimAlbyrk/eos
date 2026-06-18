@@ -23,7 +23,7 @@ export function dispatchDeps(
       // In-process backends (claude-sdk / anthropic-api / …) have no supervised
       // PTY child; liveness is the backend session's own aliveness.
       const kind = c.workers.findById(id)?.backend_kind;
-      if (kind && kind !== "claude-cli" && c.backends.has(kind)) {
+      if (kind && c.backends.has(kind) && c.backends.get(kind).descriptor.processModel === "in-process") {
         return c.backends.get(kind).attach(id, { kind: "inproc", ref: id }).isAlive();
       }
       return false;
