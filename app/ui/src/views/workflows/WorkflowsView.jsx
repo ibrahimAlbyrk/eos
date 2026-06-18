@@ -6,7 +6,7 @@ import { WorkflowsEmpty } from "./WorkflowsEmpty.jsx";
 export function WorkflowsSidebar({ variant }) {
   const body = (
     <>
-      <TabBar />
+      <TabBar variant={variant} />
       <div className="sb-head">
         <div className="sb-head__title">Workflows</div>
       </div>

@@ -10,7 +10,7 @@ import { FileTree } from "../tree/FileTree.jsx";
 export function FilesSidebar({ variant = "full" }) {
   const body = (
     <>
-      <TabBar />
+      <TabBar variant={variant} />
       <ExplorerToolbar />
       <ExplorerSearch />
       <FileTree />

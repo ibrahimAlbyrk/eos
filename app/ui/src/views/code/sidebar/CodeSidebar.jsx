@@ -13,7 +13,7 @@ export function CodeSidebar({ live, variant = "full" }) {
 
   const body = (
     <>
-      <TabBar />
+      <TabBar variant={variant} />
       <SidebarHead total={live.workers.length} variant={variant} />
       <AgentsTree roots={tree} onRename={live.renameAgent} variant={variant} />
       <SettingsFooter />
