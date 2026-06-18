@@ -11,6 +11,7 @@
 // of `groups` to render fully custom content.
 
 import { MODELS } from "../lib/models.js";
+import { providerOptions } from "../lib/backendCaps.js";
 
 const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -116,10 +117,13 @@ export const SETTINGS_SECTIONS = [
             description: "Backend new agents launch on — both bill your Claude subscription. Pick the model under the input bar.",
             control: {
               type: "select",
-              options: [
-                { value: "claude-sdk", label: "Claude SDK" },
-                { value: "claude-cli", label: "Claude CLI" },
-              ],
+              // Getter: re-evaluated each render so the list IS the daemon's enabled
+              // BackendDescriptors once ui-config loads (applyDescriptors) — no
+              // hardcoded kinds. ui-config is fetched at boot, so it's populated by
+              // the time Settings opens.
+              get options() {
+                return providerOptions();
+              },
             },
             defaultValue: "claude-sdk",
           },
