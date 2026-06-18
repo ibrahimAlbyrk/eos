@@ -56,9 +56,8 @@ function blockText(content: unknown): string {
 // not its position in this SDKMessage's content array — the SDK can split one
 // message into several `assistant` SDKMessages (one per block), each a length-1
 // array, so the array position would collide every split block at 0.
-function durableBlocks(msgId: string, content: RawBlock[], startIdx: number): { blocks: ContentBlock[]; toolCalls: RawBlock[] } {
+function durableBlocks(msgId: string, content: RawBlock[], startIdx: number): ContentBlock[] {
   const blocks: ContentBlock[] = [];
-  const toolCalls: RawBlock[] = [];
   content.forEach((b, i) => {
     const blockId = `${msgId}:${startIdx + i}`;
     if (b.type === "text") blocks.push({ type: "text", text: b.text ?? "", blockId });
@@ -66,10 +65,9 @@ function durableBlocks(msgId: string, content: RawBlock[], startIdx: number): { 
       if ((b.thinking ?? "").trim()) blocks.push({ type: "reasoning", text: b.thinking ?? "", blockId });
     } else if (b.type === "tool_use") {
       blocks.push({ type: "tool_call", callId: b.id ?? "", name: b.name ?? "", input: b.input ?? {} });
-      toolCalls.push(b);
     }
   });
-  return { blocks, toolCalls };
+  return blocks;
 }
 
 export interface SdkEventMapper {
@@ -171,27 +169,35 @@ export function createSdkEventMapper(): SdkEventMapper {
             if (ch) { openedBlocks.delete(blockId); out.push({ type: "delta", channel: ch, phase: "stop", blockId, text: "" }); }
           });
           msgBlockCount.set(msgId, startIdx + content.length);
-          const { blocks, toolCalls } = durableBlocks(msgId, content, startIdx);
+          // Top-level tools surface FULLY as the tool_call block here (and a
+          // tool_result block in the "user" case) — so, per the canonical
+          // ActivityEvent contract ("backends whose tools surface fully as message
+          // blocks omit them"), NO tool_started activity is emitted. One carrier
+          // per tool ⇒ the UI cannot render it twice. Activities stay reserved for
+          // subagent inner tools (the parent_tool_use_id branch above), which have
+          // no standalone block.
+          const blocks = durableBlocks(msgId, content, startIdx);
           if (blocks.length) out.push({ type: "message", role: "assistant", blocks });
-          for (const tc of toolCalls) out.push({ type: "activity", kind: "tool_started", callId: tc.id ?? null, toolName: tc.name });
           return out;
         }
 
         case "user": {
-          // Tool results are fed back as a user message — surface them as a tool
-          // message + tool_finished activity (plain user turns ride user_message).
+          // Tool results are fed back as a user message (a plain user turn carries
+          // no tool_result and rides user_message instead).
           const content = Array.isArray(msg.message?.content) ? (msg.message!.content as RawBlock[]) : [];
           const results = content.filter((b) => b.type === "tool_result");
           if (!results.length) return out;
           for (const r of results) {
             // Subagent inner tool result → parented activity carrying the result, so
-            // the agentRun shows it under the agent (no durable main-stream block).
-            // Top-level results (the Agent tool's own result included) render durably.
+            // the agentRun shows it under the agent (it has no durable main-stream
+            // block). A top-level result surfaces FULLY as the tool_result message
+            // block below — so, like the tool_call side, it emits NO tool_finished
+            // activity (one carrier per tool; the contract reserves activity for the
+            // block-less subagent case).
             if (msg.parent_tool_use_id) {
               out.push({ type: "activity", kind: "tool_finished", callId: r.tool_use_id ?? null, result: blockText(r.content), isError: !!r.is_error, parentCallId: msg.parent_tool_use_id });
             } else {
               out.push({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: r.tool_use_id ?? "", isError: !!r.is_error, content: blockText(r.content) }] });
-              out.push({ type: "activity", kind: "tool_finished", callId: r.tool_use_id ?? null });
             }
           }
           return out;

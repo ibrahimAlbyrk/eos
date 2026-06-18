@@ -165,6 +165,30 @@ describe("SdkEventMapper — SDK stream -> canonical sequence", () => {
     assert.equal((toolMsgs[0] as { blocks: { callId?: string }[] }).blocks[0].callId, "agent_1");
   });
 
+  // A TOP-LEVEL tool surfaces FULLY as message blocks (tool_call + tool_result),
+  // so per the canonical ActivityEvent contract the mapper emits NO activity for
+  // it — one carrier per tool means the UI can never render the tool twice.
+  // (Activities stay only for the block-less subagent inner tools — see above.)
+  it("emits no activity for a top-level tool (the message blocks are the sole carrier)", () => {
+    const mapper = createSdkEventMapper();
+    const script: unknown[] = [
+      { type: "system", subtype: "init", session_id: "s" },
+      { type: "assistant", uuid: "a0", message: { id: "msg_A", content: [{ type: "tool_use", id: "t1", name: "Read", input: { file_path: "/x" } }] } },
+      { type: "user", uuid: "u0", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: "data", is_error: false }] } },
+      { type: "result", subtype: "success", usage: {}, model: "m" },
+    ];
+    const out: AgentEvent[] = [];
+    for (const m of script) out.push(...mapper.map(m as never));
+    assert.equal(out.filter((e) => e.type === "activity").length, 0, "top-level tool emits no tool_started/tool_finished activity");
+    // The tool still surfaces fully: exactly one tool_call block + one tool_result block, both keyed on t1.
+    const callBlocks = out.filter((e) => e.type === "message" && e.role === "assistant")
+      .flatMap((e) => (e as { blocks: { type: string; callId?: string }[] }).blocks).filter((b) => b.type === "tool_call");
+    assert.deepEqual(callBlocks.map((b) => b.callId), ["t1"]);
+    const resultMsgs = out.filter((e) => e.type === "message" && e.role === "tool");
+    assert.equal(resultMsgs.length, 1);
+    assert.equal((resultMsgs[0] as { blocks: { callId?: string }[] }).blocks[0].callId, "t1");
+  });
+
   // A result subtype of error_* is a failed turn — surfaced as turn:error (with the
   // subtype as the reason), not a clean turn:ended the worker would idle on as success.
   it("surfaces a result error subtype as turn:error, not turn:ended", () => {
