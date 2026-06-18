@@ -32,6 +32,7 @@ import { SlashInfoPopover } from "../popovers/SlashInfoPopover.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
 import { TryDeck } from "./TryBanner.jsx";
 import { TaskTray } from "./TaskTray.jsx";
+import { WorktreeHub } from "./WorktreeHub.jsx";
 
 function QueuedPill({ text, onDismiss }) {
   return (
@@ -777,6 +778,10 @@ export function Composer({ live }) {
   const pillHoverTimer = useRef(null);
   useEffect(() => () => clearTimeout(pillHoverTimer.current), []);
 
+  // Worktree-fleet summary reported up by ComposerDiffRow — drives the footer
+  // mirror shown while the ambient hub is demoted by a blocking banner.
+  const [wtStatus, setWtStatus] = useState(null);
+
   const openPillInfo = (pill) => {
     if (!pill.isConnected) return;
     const cmd = slashMap.get(pill.dataset.cmd);
@@ -814,6 +819,19 @@ export function Composer({ live }) {
   const agentBusy = selected && (selected.state === "SPAWNING" || selected.state === "WORKING");
   const queuedList = selected ? outbox.itemsFor(selected.id).filter((i) => i.state === "queued") : [];
 
+  // Priority slot: exactly one blocking banner holds the band, Permission first
+  // (a mid-turn tool gate is more time-sensitive than an ask_user), then a
+  // pending question. While either is up, ambient status (tasks + worktrees)
+  // yields and mirrors into the footer.
+  const slotPermissions = (live.pendingPermissions ?? []).filter(
+    (p) => !selected || p.worker_id === selected.id
+  );
+  const hasPermission = slotPermissions.length > 0;
+  const hasQuestion = !!(
+    ui.pendingQuestion && selected && !ui.dismissedQuestions?.has(ui.pendingQuestion.toolUseId)
+  );
+  const blockingActive = hasPermission || hasQuestion;
+
   return (
     <div className="composer-wrap">
       <div className="composer-inner">
@@ -824,28 +842,32 @@ export function Composer({ live }) {
             onDismiss={(itemId) => outbox.dismissPill(selected.id, itemId)}
           />
         )}
-        {ui.pendingQuestion && selected && !ui.dismissedQuestions?.has(ui.pendingQuestion.toolUseId) && (
+        {hasPermission ? (
+          <PermissionBanner
+            permissions={slotPermissions}
+            workers={live.workers}
+            onApprove={live.approvePending}
+            onAlwaysAllow={live.alwaysAllowPending}
+            onDeny={live.denyPending}
+          />
+        ) : hasQuestion ? (
           <QuestionBanner
             questions={ui.pendingQuestion.questions}
             workerId={selected.id}
             toolUseId={ui.pendingQuestion.toolUseId}
             onClose={() => ui.dismissQuestion(ui.pendingQuestion.toolUseId)}
           />
-        )}
-        <PermissionBanner
-          permissions={(live.pendingPermissions ?? []).filter(
-            (p) => !selected || p.worker_id === selected.id
-          )}
-          workers={live.workers}
-          onApprove={live.approvePending}
-          onAlwaysAllow={live.alwaysAllowPending}
-          onDeny={live.denyPending}
-        />
+        ) : null}
         <div className="integration-wrap">
-          <TaskTray selected={selected} />
+          {/* Ambient rail: tasks (left) + worktree fleet (right) on one line,
+              docked flush above the git bar. Both yield to a blocking banner. */}
+          <div className="ambient-rail">
+            <TaskTray selected={selected} blockingActive={blockingActive} />
+            <WorktreeHub live={live} selected={selected} blockingActive={blockingActive} onStatus={setWtStatus} />
+          </div>
           <TryDeck live={live} selected={selected} />
           {selected ? (
-            <ComposerDiffRow live={live} />
+            <ComposerDiffRow live={live} wtStatus={wtStatus} />
           ) : (
             <ComposerConfigRow live={live} />
           )}
@@ -914,6 +936,8 @@ export function Composer({ live }) {
           live={live}
           onAttach={addAttachments}
           historyNav={history.nav && text === history.nav.entry.text ? history.nav : null}
+          demoted={blockingActive}
+          wtStatus={wtStatus}
         />
       </div>
     </div>

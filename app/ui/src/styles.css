@@ -2652,24 +2652,80 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border: 1px solid rgba(var(--tint), 0.1);
 }
 
-/* orchestrator hub: per-child integration panel. FLOATS as liquid glass above
-   the git bar instead of taking layout height, so the transcript reaches down to
-   the git bar and the panel overlays it. Anchored to .integration-wrap — which
-   also encloses the Try banner — so when a try is active the panel floats ABOVE
-   the Keep/Discard banner instead of landing on top of it. */
+/* orchestrator hub: per-child integration panel. The toggle is an ambient pill
+   docked IN-FLOW on the right of the band (it reserves only its own small height,
+   so it never collides with a banner or the task tray); when open, the child list
+   FLOATS up over the transcript (see .child-int-panel.open .child-int-list) so
+   expanding never pushes the git bar / input up. */
 .integration-wrap { position: relative; display: flex; flex-direction: column; gap: 6px; }
-.child-int-panel {
+.diff-stack { display: flex; flex-direction: column; gap: 6px; }
+/* ambient rail: tasks (left) + worktree fleet pill (right) share ONE line and
+   FLOAT as liquid glass just above the git bar — out of flow, so the transcript
+   reaches down behind the pills and the pills (and their expanded panels) overlay
+   it instead of pushing the composer up. Anchored to .integration-wrap; hidden
+   entirely when a blocking banner holds the slot, so it can't collide with it. */
+.ambient-rail {
   position: absolute;
   left: 0;
   right: 0;
   bottom: calc(100% + 6px);
+  z-index: 5;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  pointer-events: none;       /* the gap between pills stays click-through to the transcript */
+}
+.ambient-rail > * { pointer-events: auto; }
+.ambient-rail:empty { display: none; }
+/* Bare, NON-glass anchor — the glass lives on the .cint-toggle pill (below), not
+   here, so the floating .child-int-list has NO backdrop-filter ancestor and its
+   own blur actually works. Mirrors the task tray, where the pill and the expanded
+   card are siblings under a plain .task-tray. */
+.child-int-panel {
+  position: relative;
+  align-self: flex-end;      /* baseline-align with the task pill in the rail */
+  margin-left: auto;         /* push to the right of the ambient rail */
+  width: max-content;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  padding: 5px;
-  border-radius: 13px;
-  /* liquid glass: translucent fill + frosted backdrop, lift shadow, and a glass
-     rim drawn with inset shadows (scroll-safe, unlike a masked ::after rim). */
+  align-items: flex-end;     /* list sits above the pill, both right-aligned; list extends left */
+  gap: 6px;
+}
+/* no dirty children → keep mounted (rows must keep reporting) but hide the shell.
+   Same while a blocking banner holds the slot (demoted): rows keep polling so the
+   footer mirror and "Merge all" stay live, but the panel yields the band. */
+.child-int-panel.is-empty,
+.child-int-panel.demoted { display: none; }
+
+.child-int-panel.collapsed .child-int-list { display: none; }
+
+/* open → the child list sits in-flow above the toggle pill; the bottom-anchored
+   ambient rail grows UPWARD so it overlays the transcript instead of taking layout
+   height. The liquid-glass surface comes from .glass-pop (same as the context
+   window). relative seats the glass rim. */
+.child-int-panel.open .child-int-list {
+  position: relative;
+  width: max-content;
+  min-width: 240px;
+  max-width: min(520px, 92cqi);
+  padding: 4px;
+  /* same rise-in as the task card; origin mirrored to the right since this pill
+     is right-aligned */
+  transform-origin: bottom right;
+  animation: tt-card-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+/* header (expanded) / pill (collapsed) — one toggle, click flips hubOpen */
+.cint-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: max-content;        /* pill hugs its own content — stays put when the list opens wider */
+  padding: 6px 11px;
+  border: 0;
+  border-radius: 12px;
+  /* the pill carries the liquid glass (same recipe as the task pill) */
   background: rgba(var(--glass), 0.4);
   backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
@@ -2678,37 +2734,13 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
     0 2px 6px rgba(0, 0, 0, 0.22),
     inset 0 1px 0 rgba(var(--rim), 0.22),
     inset 0 0 0 1px rgba(var(--rim), 0.1);
-}
-/* no dirty children → keep mounted (rows must keep reporting) but hide the shell */
-.child-int-panel.is-empty { display: none; }
-
-/* collapsed → shrink to an ambient pill on the right, just above the git bar,
-   so it stops overlaying the transcript (same affordance as the TaskTray). */
-.child-int-panel.collapsed {
-  left: auto;
-  right: 0;
-  width: max-content;
-  max-width: 100%;
-}
-.child-int-panel.collapsed .child-int-list { display: none; }
-
-/* header (expanded) / pill (collapsed) — one toggle, click flips hubOpen */
-.cint-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 4px 8px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
   color: var(--fg-dim);
   font-family: var(--font-mono);
   font-size: var(--text-xs);
   cursor: pointer;
   transition: color 120ms ease, background 120ms ease;
 }
-.cint-toggle:hover { color: var(--fg); background: rgba(var(--tint), 0.05); }
+.cint-toggle:hover { color: var(--fg); background: rgba(var(--glass), 0.5); }
 .cint-ic { flex-shrink: 0; opacity: 0.75; }
 .cint-label { font-weight: 500; letter-spacing: 0.02em; flex-shrink: 0; }
 .cint-count {
@@ -2737,7 +2769,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   flex-direction: column;
   gap: 1px;
   min-width: 0;
-  max-height: 42vh;
+  /* in-flow now → cap height so a long fleet scrolls internally instead of
+     pushing the transcript up */
+  max-height: 220px;
   overflow-y: auto;
 }
 .child-int-row {
@@ -3426,6 +3460,25 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .c-row3 .effort-pill.ultra { color: var(--violet); }
 
+/* footer mirror of demoted ambient status (tasks + worktree fleet) — only shown
+   while a blocking banner has pushed those panels out of the band above. */
+.c-row3 .ambient-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  margin-left: 2px;
+  padding-left: 9px;
+  border-left: 1px solid rgba(var(--tint), 0.14);
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-variant-numeric: tabular-nums;
+}
+.c-row3 .ambient-mini .am-chip { display: inline-flex; align-items: center; gap: 4px; }
+.c-row3 .ambient-mini .am-ring { width: 13px; height: 13px; color: var(--accent); flex-shrink: 0; }
+.c-row3 .ambient-mini .am-chip svg { flex-shrink: 0; opacity: 0.85; }
+
 /* Keep the footer on one line as the composer narrows by dropping the least
    important things in order: the context suffix (the ring still shows it) →
    the mode label (icon still shows the mode) → the rarely-used icons. */
@@ -3757,6 +3810,37 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
           mask-composite: exclude;
 }
 .ctx-popover.open { display: block; }
+
+/* shared liquid-glass surface — same recipe as the .ctx-popover above (the
+   context window opened from the footer): translucent fill + medium blur + a
+   diagonal masked rim. Used by the composer's expanded ambient panels (the task
+   list + the worktree list) so they read identically to that popover. The host
+   must be positioned (these panels are absolute) for the ::after rim to seat. */
+.glass-pop {
+  background: rgba(var(--glass), 0.26);
+  backdrop-filter: blur(var(--blur-md)) saturate(150%);
+  -webkit-backdrop-filter: blur(var(--blur-md)) saturate(150%);
+  border-radius: 10px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+.glass-pop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(var(--rim), 0.36),
+    rgba(var(--rim), 0.07) 38%,
+    rgba(var(--rim), 0.07) 62%,
+    rgba(var(--rim), 0.22)) border-box;
+  -webkit-mask:
+    linear-gradient(#000, #000) content-box,
+    linear-gradient(#000, #000);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+}
 .ctx-popover .cp-row {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 14px;
@@ -3915,29 +3999,26 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 
 /* ============================================================================
-   TASK TRAY — FLOATS as liquid glass above the integration row (left-aligned),
-   the same affordance as the worktree hub on the right, so it overlays the
-   transcript instead of taking layout height: the chat reaches down to the git
-   bar and the tray floats over it. Collapsed: ambient capsule (progress ring +
-   active task, blur-roll label). Expanded: the capsule grows upward into a
-   connected card whose tasks hang off a vertical timeline spine that fills as
-   the agent advances. Shares the composer's own card language (subtle tint +
-   masked hairline). Anchored to .integration-wrap — the same relative box the
-   worktree hub uses — so both float at one level: tray left, worktree right.
+   TASK TRAY — liquid-glass capsule docked IN-FLOW at the top of the band above
+   the input (left-aligned). It reserves its own height instead of overlaying the
+   transcript, so it never collides with a banner or the worktree hub. Collapsed:
+   ambient capsule (progress ring + active task, blur-roll label). Expanded: the
+   capsule grows upward into a connected card whose tasks hang off a vertical
+   timeline spine that fills as the agent advances. Shares the composer's own card
+   language (subtle tint + masked hairline).
    ============================================================================ */
 .task-tray-row {
-  position: absolute;
-  left: 0;
-  bottom: calc(100% + 6px);
   display: flex;
   justify-content: flex-start;
   width: max-content;
   max-width: 100%;
 }
 .task-tray {
+  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: stretch;
+  align-items: flex-start;   /* card sits above the pill, both left-aligned; pill keeps its own width */
+  gap: 6px;
   transform-origin: bottom left;
 }
 
@@ -3976,7 +4057,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   transition: background 140ms ease;
   animation: tt-pill-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
-.tt-pill:hover { background: rgba(var(--glass), 0.5); }
+.tt-pill:hover,
+.tt-pill.open { background: rgba(var(--glass), 0.5); }
 @keyframes tt-pill-in {
   from { opacity: 0; transform: translateY(4px); }
   to   { opacity: 1; transform: none; }
@@ -4020,12 +4102,16 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   animation: tt-core-pulse 1.8s ease-in-out infinite;
 }
 
-/* ── expanded card ── */
+/* ── expanded list — FLOATS up over the transcript, anchored just above the
+   in-flow pill, so opening it never pushes the composer/input up ── */
 .tt-card {
+  position: relative;        /* in-flow, directly above the pill — the bottom-anchored
+                                rail grows UPWARD so it overlays the transcript without
+                                pushing the input. relative seats the glass rim. */
   width: max-content;
-  min-width: 290px;
-  max-width: min(560px, 92cqi);
-  padding: 3px;
+  min-width: 240px;
+  max-width: min(520px, 92cqi);
+  padding: 4px;
   transform-origin: bottom left;
   animation: tt-card-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
@@ -4033,27 +4119,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   from { opacity: 0; transform: translateY(8px) scale(0.97); }
   to   { opacity: 1; transform: none; }
 }
-.tt-head {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  width: 100%;
-  padding: 8px 9px 7px 11px;
-  border-radius: 8px;
-  text-align: left;
-}
-.tt-head:hover { background: rgba(var(--tint), 0.03); }
-.tt-head .tt-title {
-  font-size: var(--text-xs);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--fg-dim);
-}
-.tt-head .tt-count { margin-left: auto; }
-.tt-head .tt-chev { color: var(--fg-faint); transition: color 120ms ease; }
-.tt-head:hover .tt-chev { color: var(--fg); }
-
 /* timeline list — nodes hang off a vertical spine in the rail column.
    --tt-rail-x = item left padding (4px) + node column (16px) / 2.
    --tt-node-r = where each connector stops short of the node center, so the
@@ -4195,7 +4260,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .tt-pill, .tt-card, .tt-item { animation: none; }
+  .tt-pill, .tt-card, .tt-item, .child-int-panel.open .child-int-list { animation: none; }
   .tt-ring .tt-ring-core, .tt-ic-active .tt-core, .tt-ic-active .tt-halo { animation: none; }
   .tt-check { animation: none; stroke-dashoffset: 0; }
   .tt-item::after { transition: none; }
@@ -6353,6 +6418,22 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   white-space: pre;
 }
 .fv-markdown br { display: block; margin: 4px 0; content: ""; }
+.fv-markdown a { color: var(--accent); text-decoration: none; }
+.fv-markdown a:hover { color: var(--accent-hover); text-decoration: underline; }
+.fv-markdown ol { margin: 6px 0 10px; padding-left: 22px; }
+.fv-markdown blockquote {
+  margin: 8px 0;
+  padding: 2px 14px;
+  border-left: 3px solid var(--border-strong);
+  color: var(--fg-dim);
+}
+.fv-markdown hr { margin: 16px 0; border: 0; border-top: 1px solid var(--border); }
+.fv-markdown img { max-width: 100%; border-radius: 6px; }
+.fv-markdown table { border-collapse: collapse; margin: 8px 0 12px; font-size: var(--text-sm); }
+.fv-markdown th, .fv-markdown td { border: 1px solid var(--border); padding: 5px 10px; text-align: left; }
+.fv-markdown th { background: var(--surface-2); font-weight: 600; }
+.fv-markdown del { color: var(--fg-faint); }
+.fv-markdown pre code { padding: 0; background: none; font-size: inherit; }
 
 /* Editor (edit mode) */
 .fv-editor { height: 100%; }

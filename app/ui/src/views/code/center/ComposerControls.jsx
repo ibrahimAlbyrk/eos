@@ -10,10 +10,19 @@ import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
 import { backendCaps } from "../../../lib/backendCaps.js";
+import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
-export function ComposerControls({ live, onAttach, historyNav }) {
+export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus }) {
   const ui = useUi();
   const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
+
+  // Compact mirror of the ambient status (tasks + worktree fleet) shown only
+  // while a blocking banner has demoted those panels out of the band above.
+  const tasks = selected ? parseWorkerTasks(selected) : [];
+  const taskTotal = tasks.length;
+  const taskDone = tasks.filter((t) => t.status === "completed").length;
+  const wtCount = wtStatus?.count ?? 0;
+  const showAmbientMini = demoted && (taskTotal > 0 || wtCount > 0);
 
   const mode = selected?.permission_mode ?? ui.composer.permissionMode;
   const modeMeta = MODE_BY_ID[mode] ?? MODE_BY_ID.acceptEdits;
@@ -180,7 +189,51 @@ export function ComposerControls({ live, onAttach, historyNav }) {
             backendKind={selected?.backend_kind}
           />
         </div>
+        {showAmbientMini && (
+          <div className="ambient-mini" title="Tasks and worktree changes — shown above once no prompt is pending">
+            {taskTotal > 0 && (
+              <span className="am-chip" title={`${taskDone}/${taskTotal} tasks done`}>
+                <AmbientRing pct={taskTotal ? taskDone / taskTotal : 0} />
+                <span>{taskDone}/{taskTotal}</span>
+              </span>
+            )}
+            {wtCount > 0 && (
+              <span className="am-chip" title={`${wtCount} worktree${wtCount === 1 ? "" : "s"} with changes`}>
+                <WorktreeGlyph />
+                <span>{wtCount}</span>
+              </span>
+            )}
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+function AmbientRing({ pct }) {
+  const r = 6;
+  const C = 2 * Math.PI * r;
+  const filled = Math.max(0, Math.min(1, pct)) * C;
+  return (
+    <svg className="am-ring" viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="8" cy="8" r={r} fill="none" stroke="rgba(var(--tint), 0.18)" strokeWidth="1.8" />
+      {pct > 0 && (
+        <circle
+          cx="8" cy="8" r={r}
+          fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
+          strokeDasharray={`${filled.toFixed(2)} ${(C - filled).toFixed(2)}`}
+          transform="rotate(-90 8 8)"
+        />
+      )}
+    </svg>
+  );
+}
+
+function WorktreeGlyph() {
+  return (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
+      <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
+      <path d="M5.5 8h5M8 5.5v5" />
+    </svg>
   );
 }

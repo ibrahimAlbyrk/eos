@@ -71,13 +71,15 @@ function Chevron({ up }) {
   );
 }
 
-export function TaskTray({ selected }) {
+export function TaskTray({ selected, blockingActive }) {
   const [open, setOpen] = useState(false);
 
   const tasks = parseWorkerTasks(selected);
   const total = tasks.length;
-  // Hidden until the agent actually keeps a task list — no empty shell.
-  if (total === 0) return null;
+  // Hidden until the agent actually keeps a task list — no empty shell. Also
+  // yields the slot to a pending Permission/Question banner (the footer shows a
+  // compact mirror meanwhile), so only one thing ever occupies the band.
+  if (total === 0 || blockingActive) return null;
 
   const done = tasks.filter((t) => t.status === "completed").length;
   const active = tasks.find((t) => t.status === "in_progress");
@@ -90,17 +92,14 @@ export function TaskTray({ selected }) {
       ? (active.activeForm || active.content)
       : `${done} of ${total} done`;
 
+  // The pill stays in-flow (a stable anchor that reserves its small height); the
+  // task list floats UP over the transcript when open, so expanding never pushes
+  // the composer/input — the message area sits behind it, not above it.
   return (
     <div className="task-tray-row">
       <div className="task-tray">
-        {open ? (
-          <div className="tt-surface tt-card">
-            <button className="tt-head" onClick={() => setOpen(false)} title="Collapse">
-              <TrayRing pct={pct} active={!!active} />
-              <span className="tt-title">Tasks</span>
-              <span className="tt-count">{done}/{total}</span>
-              <Chevron />
-            </button>
+        {open && (
+          <div className="tt-card glass-pop">
             <ul className="tt-list">
               {tasks.map((t, i) => (
                 <li key={i} className={`tt-item ${t.status}`} style={{ animationDelay: `${i * 28}ms` }}>
@@ -110,16 +109,19 @@ export function TaskTray({ selected }) {
               ))}
             </ul>
           </div>
-        ) : (
-          <button className="tt-surface tt-pill" onClick={() => setOpen(true)} title="Show tasks">
-            <TrayRing pct={pct} active={!!active} />
-            <span className="tt-pill-label">
-              <RollingLabel text={pillText} index={done} />
-            </span>
-            <span className="tt-count">{done}/{total}</span>
-            <Chevron up />
-          </button>
         )}
+        <button
+          className={"tt-surface tt-pill" + (open ? " open" : "")}
+          onClick={() => setOpen((o) => !o)}
+          title={open ? "Hide tasks" : "Show tasks"}
+        >
+          <TrayRing pct={pct} active={!!active} />
+          <span className="tt-pill-label">
+            <RollingLabel text={pillText} index={done} />
+          </span>
+          <span className="tt-count">{done}/{total}</span>
+          <Chevron up={!open} />
+        </button>
       </div>
     </div>
   );
