@@ -12,6 +12,7 @@ import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { McpServerDefSchema } from "../../contracts/src/shared.ts";
 import { type BackendProfile, BackendProfileSchema } from "../../contracts/src/backend.ts";
+import { MemorySourceSchema, type MemorySourceSpec } from "../../contracts/src/memory.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
 
@@ -63,6 +64,14 @@ export interface DaemonConfig {
   mcp: {
     orchestrator: AgentMcpConfig;
     worker: AgentMcpConfig;
+  };
+  // Memory sources (CLAUDE.md, plus any AGENTS.md-style files the user declares)
+  // injected into a worker's appended system prompt for backends that don't load
+  // them natively. Keyed by source id; resolveMemorySources applies field
+  // defaults. enabled=false turns off all injection.
+  memory: {
+    enabled: boolean;
+    sources: Record<string, MemorySourceSpec>;
   };
   // Named backend profiles + per-role defaults. claude-cli everywhere by
   // default → absent config = today's behavior.
@@ -176,6 +185,22 @@ function defaults(): DaemonConfig {
       orchestrator: { ...DEFAULT_AGENT_MCP },
       worker: { ...DEFAULT_AGENT_MCP },
     },
+    memory: {
+      enabled: true,
+      sources: {
+        // The repo's only built-in source. The claude-cli binary auto-loads it
+        // (assumeNativeFor) so only non-CLI lanes inject it; add AGENTS.md or other
+        // sources by dropping entries here in ~/.eos/config.json — no code change.
+        claude: {
+          enabled: true,
+          label: "CLAUDE.md",
+          userPaths: ["~/.claude/CLAUDE.md"],
+          projectFilenames: ["CLAUDE.md"],
+          priority: 0,
+          assumeNativeFor: ["claude-cli"],
+        },
+      },
+    },
     backends: { ...DEFAULT_BACKENDS },
     defaults: {
       orchestrator: { backend: "claude-sdk-opus" },
@@ -238,6 +263,11 @@ const DaemonConfigOverrideSchema = z.object({
     orchestrator: AgentMcpConfigOverrideSchema.optional(),
     worker: AgentMcpConfigOverrideSchema.optional(),
   }).partial().optional(),
+  memory: z.object({
+    enabled: z.boolean(),
+    // 1-arg z.record: MemorySourceSchema is contracts' zod — see the backends note.
+    sources: z.record(MemorySourceSchema),
+  }).partial().optional(),
   // Single-arg z.record(valueType): the 2-arg form detects its overload via
   // `valueType instanceof ZodType`, which fails across separate physical zod
   // copies (manager/ vs contracts/) and silently collapses the value type to
@@ -277,6 +307,16 @@ function mergeConfig(base: DaemonConfig, override: unknown): DaemonConfig {
       const incMcp = incoming as Record<string, Partial<AgentMcpConfig>>;
       for (const t of ["orchestrator", "worker"] as const) {
         if (incMcp[t]) out.mcp[t] = { ...out.mcp[t], ...incMcp[t] };
+      }
+    } else if (k === "memory") {
+      // enabled flag + per-id source field-merge (adding `agents` keeps the
+      // built-in `claude`; overriding `claude.userPaths` keeps its other fields).
+      const incMem = incoming as { enabled?: boolean; sources?: Record<string, Partial<MemorySourceSpec>> };
+      if (typeof incMem.enabled === "boolean") out.memory.enabled = incMem.enabled;
+      if (incMem.sources) {
+        for (const id of Object.keys(incMem.sources)) {
+          out.memory.sources[id] = { ...(out.memory.sources[id] ?? {}), ...incMem.sources[id] };
+        }
       }
     } else if (k === "backends") {
       // Per-profile replace — a profile is atomic (kind drives everything).

@@ -148,8 +148,11 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const input = createPushStream();
       if (spec.prompt) input.push(spec.prompt);
 
-      // The Eos orchestration protocol lives in the appended system prompt — its
-      // absence was the dominant reason SDK tools went unused. Mirror the CLI lane.
+      // The Eos orchestration protocol + injected project/user memory (CLAUDE.md,
+      // …) ride in the appended system prompt. The container assembles both into
+      // this text (assembleAppendFor → DPI + selectInjectableMemory); settingSources:[]
+      // below drops the binary's own memory auto-load, so this is the SDK lane's
+      // only memory channel.
       const append = deps.assembleAppendPrompt?.(spec) ?? null;
 
       const options = {

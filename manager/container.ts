@@ -62,10 +62,14 @@ import { gitUpdateSource } from "../infra/src/updates/GitUpdateSource.ts";
 import { createDetachedBuildApplier } from "../infra/src/updates/DetachedBuildApplier.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
+import { FileMemoryProvider } from "../infra/src/memory/FileMemoryProvider.ts";
 import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
 import { reapWorktreeRemovals } from "../core/src/use-cases/ReapWorktreeRemovals.ts";
 import { reconcileWorkersOnBoot } from "../core/src/use-cases/ReconcileWorkersOnBoot.ts";
 import { resolveMcpServers } from "../core/src/domain/mcp-resolution.ts";
+import { resolveMemorySources } from "../core/src/domain/memory-sources.ts";
+import { selectInjectableMemory } from "../core/src/services/select-injectable-memory.ts";
+import { composeAppendedPrompt } from "../core/src/services/compose-appended-prompt.ts";
 import type { EosBuiltinMcpServer } from "../core/src/domain/tool-scope.ts";
 
 import type { Policy } from "../core/src/domain/policy.ts";
@@ -470,6 +474,11 @@ export function buildContainer() {
   // Tool-name variables are static globals: constant per daemon, available to
   // every render (role fragments interpolate {{SPAWN_WORKER_TOOL}} etc.).
   const prompts = new PromptService(promptRegistry, TOOL_NAME_VARS);
+  // Configured memory sources (CLAUDE.md, plus any AGENTS.md-style files declared
+  // under config.memory.sources). Read for backends that don't load a source
+  // natively (assumeNativeFor): the claude-cli binary auto-loads CLAUDE.md, the
+  // claude-sdk lane (settingSources:[]) loads nothing.
+  const memoryProvider = new FileMemoryProvider(resolveMemorySources(config.memory.sources));
   // DPI assembly (shared): derive the appended system-prompt TEXT from the
   // fragments that match the spawn facts. Both backend lanes need the same text —
   // claude-cli writes it to a file for --append-system-prompt-file, claude-sdk
@@ -498,10 +507,23 @@ export function buildContainer() {
     );
     return text.trim() ? text : null;
   };
+  // DPI text + the memory this backend kind does NOT load itself
+  // (selectInjectableMemory drops sources whose assumeNativeFor includes the kind).
+  // Shared by both lanes: claude-cli writes it to the append file, claude-sdk
+  // passes it inline. Memory disabled / no cwd → plain DPI text, verbatim.
+  const assembleAppendFor = (spec: SpawnWorkerSpec, id: string, backendKind: string): string | null => {
+    const dpi = assembleAppendText(spec, id);
+    if (!config.memory.enabled) return dpi;
+    const cwd = spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null;
+    if (!cwd) return dpi;
+    const snapshot = memoryProvider.load({ cwd, repoRoot: spec.worktreeFrom ?? null });
+    return composeAppendedPrompt(dpi, selectInjectableMemory(snapshot, backendKind));
+  };
   // claude-cli projection: write the assembled text per-worker, return the path
-  // (cleanupMcpConfig removes the file on exit).
+  // (cleanupMcpConfig removes the file on exit). "claude-cli" filters out its native
+  // CLAUDE.md (the binary loads it); only non-native sources are injected.
   const assembleSystemPromptFile = (spec: SpawnWorkerSpec, id: string): string | null => {
-    const text = assembleAppendText(spec, id);
+    const text = assembleAppendFor(spec, id, "claude-cli");
     if (!text) return null;
     const path = systemPromptPathFor(id);
     writeFileSync(path, text);
@@ -607,9 +629,11 @@ export function buildContainer() {
     toolHost: { orchestratorDefs, workerDefs, peerDefs, renderDescriptions: renderInprocToolDescriptions },
     daemonUrl: sdkDaemonUrl,
     makeToolContext,
-    // Same DPI text the CLI lane writes to --append-system-prompt-file: the SDK
-    // spec carries the SpawnWorkerSpec in backendOptions.spec (SpawnWorker.ts).
-    assembleAppendPrompt: (spec) => assembleAppendText((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId),
+    // Same DPI text the CLI lane writes to --append-system-prompt-file, plus the
+    // injected memory: the SDK spec carries the SpawnWorkerSpec in backendOptions.spec
+    // (SpawnWorker.ts). "claude-sdk" loads nothing natively → every enabled source
+    // is folded into the inline systemPrompt append.
+    assembleAppendPrompt: (spec) => assembleAppendFor((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId, "claude-sdk"),
     log,
   });
 
