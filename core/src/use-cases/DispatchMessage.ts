@@ -89,9 +89,9 @@ export async function dispatchMessage(
     throw new ConflictError("orchestrator process not running (was killed)");
   }
   const kind = w.backend_kind ?? "claude-cli";
-  const isInproc = kind !== "claude-cli";
-  if (!isInproc && !w.port) throw new ConflictError("worker has no port");
   const backend = deps.backends?.has(kind) ? deps.backends.get(kind) : undefined;
+  const isInproc = backend?.descriptor.processModel === "in-process";
+  if (!isInproc && !w.port) throw new ConflictError("worker has no port");
 
   const now = deps.clock.now();
 

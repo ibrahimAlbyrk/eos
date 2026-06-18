@@ -13,8 +13,9 @@ import type { BackendDefaults, ResolvedBackend } from "../ports/BackendDefaults.
 import type { BackendKind } from "../../../contracts/src/canonical.ts";
 
 export interface ResolveBackendInput {
-  // Explicit backend KIND from the UI provider picker; the worker's model is
-  // applied separately by the spawn route (body.model for the subscription lanes).
+  // Explicit backend KIND from the UI provider picker. Consumed by
+  // resolveSpawnBackend (manager) via the provider descriptor, NOT by this
+  // resolver — the model is applied separately by the spawn route.
   explicitKind?: string | null;
   // Explicit named profile (config power-user path).
   explicitProfileName?: string | null;
@@ -32,14 +33,8 @@ export class SqlBackedBackendResolver {
   }
 
   resolveForNewWorker(input: ResolveBackendInput): ResolvedBackend {
-    // 0. explicit kind from the UI provider picker — return the kind with a
-    // placeholder model (the route applies body.model for the subscription lanes)
-    // and the kind's default cost mode.
-    if (input.explicitKind) {
-      const k = input.explicitKind as BackendKind;
-      const subscription = k === "claude-cli" || k === "claude-sdk";
-      return { kind: k, model: "opus", profileName: null, costMode: subscription ? "included" : "billed" };
-    }
+    // explicit kind from the UI provider picker is resolved by resolveSpawnBackend
+    // (manager) straight from the provider's descriptor — no kind literals here.
     // 1. explicit named profile (config power-user)
     if (input.explicitProfileName) {
       const p = this.defaults.profile(input.explicitProfileName);

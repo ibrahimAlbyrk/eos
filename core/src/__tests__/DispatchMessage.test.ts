@@ -71,7 +71,8 @@ function fakeBackend(kind: string, reportsMessageEvents: boolean, sends: Array<{
       return { ok: true, status: 200, body: { ok: true } };
     },
   } as unknown as AgentSession;
-  return { kind, start: async () => session, attach: () => session };
+  const descriptor = { processModel: kind === "inproc" ? "in-process" : "out-of-process" } as unknown as AgentBackend["descriptor"];
+  return { kind, descriptor, start: async () => session, attach: () => session };
 }
 
 const userMessages = (events: AppendedEvent[]) => events.filter((e) => e.type === "user_message");

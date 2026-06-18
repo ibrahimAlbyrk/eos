@@ -370,12 +370,32 @@ export const CatalogModelSchema = z.object({
 });
 export type CatalogModel = z.infer<typeof CatalogModelSchema>;
 
+// The UI-facing slice of each provider's BackendDescriptor (core/ports/AgentBackend).
+// The UI gates controls + the provider picker on this DATA — never on kind literals.
+export const UiBackendDescriptorSchema = z.object({
+  kind: z.string(),
+  label: z.string(),
+  enabled: z.boolean(),
+  billing: z.enum(["subscription", "metered"]),
+  capabilities: z.object({
+    interrupt: z.boolean(),
+    keystroke: z.boolean(),
+    runtimeModelSwitch: z.boolean(),
+    runtimePermissionSwitch: z.boolean(),
+    reportsMessageEvents: z.boolean().optional(),
+    streamingThinking: z.boolean().optional(),
+    resumable: z.boolean().optional(),
+  }),
+});
+export type UiBackendDescriptor = z.infer<typeof UiBackendDescriptorSchema>;
+
 export const UiConfigResponseSchema = z.object({
   models: z.array(z.string()),
   modelCatalog: z.array(CatalogModelSchema),
   prices: z.record(z.string(), ModelPriceSchema),
   permissions: z.object({ defaultTtlMs: z.number().int().positive() }),
   sse: z.object({ keepaliveMs: z.number().int().positive() }),
+  backends: z.array(UiBackendDescriptorSchema).default([]),
 });
 export type UiConfigResponse = z.infer<typeof UiConfigResponseSchema>;
 

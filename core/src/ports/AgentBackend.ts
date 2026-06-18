@@ -37,6 +37,28 @@ export interface AgentCapabilities {
   readonly resumable?: boolean;
 }
 
+// What the UI model picker shows for a provider. claude-cli + claude-sdk share
+// the Claude /v1/models catalog; metered providers declare their own.
+export type ModelCatalogRef =
+  | { readonly kind: "claude" }
+  | { readonly kind: "static"; readonly models: readonly string[] }
+  | { readonly kind: "openai-compatible" };
+
+// Per-kind provider metadata — the SINGLE source for every fact the system used to
+// re-derive from the `kind` string. Adding a provider = registering one descriptor
+// (+ its adapter); consumers read these properties, never compare kind literals.
+export interface BackendDescriptor {
+  readonly kind: string;
+  readonly label: string;                                   // UI: "Claude SDK"
+  readonly processModel: "in-process" | "out-of-process";   // handle kind, liveness, kill/interrupt routing
+  readonly billing: "subscription" | "metered";             // cost label, billing guard, creds fallback
+  readonly modelSource: "request" | "profile";              // request = composer's model; profile = profile-fixed
+  readonly capabilities: AgentCapabilities;                 // UI gates on this, never on kind
+  readonly models: ModelCatalogRef;                         // the provider's model catalog (UI picker)
+  readonly auth: "subscription" | "apikey" | "none";        // credential it needs (drives creds-absent fallback)
+  readonly enabled: boolean;                                 // selectable now vs "soon"
+}
+
 // Identity + execution context to start a session. Deliberately free of argv /
 // env / port — those are claude-cli adapter internals.
 export interface AgentLaunchSpec {
@@ -94,6 +116,7 @@ export interface AgentSession {
 
 export interface AgentBackend {
   readonly kind: string; // "claude-cli" | "anthropic-api" | …
+  readonly descriptor: BackendDescriptor; // provider metadata (consumers branch on this, not on kind)
   // Spawn a NEW session for this spec (may allocate resources, e.g. a port).
   start(spec: AgentLaunchSpec, cb?: AgentStartCallbacks): Promise<AgentSession>;
   // Reconstruct a session for an ALREADY-running worker from its persisted
@@ -107,4 +130,5 @@ export interface AgentBackend {
 export interface AgentBackendRegistry {
   get(kind: string): AgentBackend; // throws on unknown kind
   has(kind: string): boolean;
+  descriptors(): BackendDescriptor[]; // every registered provider's metadata (UI provider list)
 }
