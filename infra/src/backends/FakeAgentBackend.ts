@@ -7,6 +7,7 @@ import type {
   AgentSession,
   AgentStartCallbacks,
   AgentCapabilities,
+  BackendDescriptor,
   WorkerHandle,
 } from "../../../core/src/ports/AgentBackend.ts";
 
@@ -23,6 +24,11 @@ const FAKE_CAPS: AgentCapabilities = {
   keystroke: true,
   runtimeModelSwitch: false,
   runtimePermissionSwitch: false,
+};
+
+const FAKE_DESCRIPTOR: BackendDescriptor = {
+  kind: "fake", label: "Fake", processModel: "in-process", billing: "subscription",
+  modelSource: "request", capabilities: FAKE_CAPS, models: { kind: "claude" }, auth: "none", enabled: false,
 };
 
 export interface FakeAgentBackend extends AgentBackend {
@@ -75,6 +81,7 @@ export function createFakeAgentBackend(): FakeAgentBackend {
 
   return {
     kind: "fake",
+    descriptor: FAKE_DESCRIPTOR,
     async start(spec, cb?: AgentStartCallbacks): Promise<AgentSession> {
       const rec = recordFor(spec.workerId);
       if (spec.prompt) rec.messages.push(spec.prompt);

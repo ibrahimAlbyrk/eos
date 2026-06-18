@@ -11,6 +11,7 @@ import type {
   AgentLaunchSpec,
   AgentStartCallbacks,
   AgentCapabilities,
+  BackendDescriptor,
   WorkerHandle,
 } from "../../core/src/ports/AgentBackend.ts";
 import type { ProcessSupervisor } from "../../core/src/ports/ProcessSupervisor.ts";
@@ -28,6 +29,12 @@ const CLI_CAPS: AgentCapabilities = {
   // The worker emits user_message/orchestrator_message itself when the text
   // lands in the transcript JSONL — transcript-anchored ordering.
   reportsMessageEvents: true,
+};
+
+const CLI_DESCRIPTOR: BackendDescriptor = {
+  kind: "claude-cli", label: "Claude CLI", processModel: "out-of-process",
+  billing: "subscription", modelSource: "request", capabilities: CLI_CAPS,
+  models: { kind: "claude" }, auth: "subscription", enabled: true,
 };
 
 export interface ClaudeCliBackendDeps {
@@ -57,6 +64,7 @@ export function createClaudeCliBackend(deps: ClaudeCliBackendDeps): AgentBackend
 
   return {
     kind: "claude-cli",
+    descriptor: CLI_DESCRIPTOR,
     async start(spec: AgentLaunchSpec, cb?: AgentStartCallbacks): Promise<AgentSession> {
       // The claude-cli-specific spawn spec (worktree/branch/gateway/mcp) rides in
       // backendOptions.spec; buildArgs/buildEnv consume it unchanged.

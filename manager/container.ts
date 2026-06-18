@@ -623,6 +623,7 @@ export function buildContainer() {
   const backends = {
     get(kind: string) { const b = backendMap.get(kind); if (!b) throw new Error(`unknown backend: ${kind}`); return b; },
     has(kind: string) { return backendMap.has(kind); },
+    descriptors() { return [...backendMap.values()].map((b) => b.descriptor); },
   };
   // Route an in-process backend's canonical events into the daemon pipeline
   // (log as agent_event + drive the state machine), mirroring the HTTP ingest

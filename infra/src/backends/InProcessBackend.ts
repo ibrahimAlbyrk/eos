@@ -15,6 +15,7 @@ import type {
   AgentLaunchSpec,
   AgentStartCallbacks,
   AgentCapabilities,
+  BackendDescriptor,
   WorkerHandle,
 } from "../../../core/src/ports/AgentBackend.ts";
 import type { ModelClient, ModelMessage } from "../../../core/src/ports/ModelClient.ts";
@@ -45,6 +46,13 @@ const CAPS: AgentCapabilities = {
   runtimePermissionSwitch: false,
 };
 
+// Per-kind in-process provider metadata. Adding a metered provider = one entry.
+const IN_PROCESS_DESCRIPTORS: Record<string, Omit<BackendDescriptor, "kind">> = {
+  "anthropic-api": { label: "Anthropic API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "claude" }, auth: "apikey", enabled: false },
+  "openai": { label: "OpenAI API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: false },
+  "codex": { label: "Codex", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: false },
+};
+
 export interface InProcessBackend extends AgentBackend {
   /** Resolves when the worker's in-flight turn (if any) has settled. For tests
    *  + graceful shutdown. */
@@ -53,6 +61,10 @@ export interface InProcessBackend extends AgentBackend {
 
 export function createInProcessBackend(kind: string, envFactory: InProcessEnvFactory): InProcessBackend {
   const live = new Map<string, LiveSession>();
+  const descriptor: BackendDescriptor = {
+    kind,
+    ...(IN_PROCESS_DESCRIPTORS[kind] ?? { label: kind, processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: false }),
+  };
 
   const kickTurn = (workerId: string, s: LiveSession, userText: string): void => {
     s.signal.aborted = false; // a new turn clears a prior interrupt
@@ -96,6 +108,7 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
 
   return {
     kind,
+    descriptor,
     async start(spec: AgentLaunchSpec, cb?: AgentStartCallbacks): Promise<AgentSession> {
       const s: LiveSession = {
         messages: [],

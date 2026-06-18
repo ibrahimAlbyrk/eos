@@ -10,6 +10,13 @@ export function registerUiConfigRoutes(r: Router, c: Container): void {
       prices: c.config.prices,
       permissions: { defaultTtlMs: c.config.permissions.defaultTtlMs },
       sse: { keepaliveMs: c.config.daemon.sseKeepaliveMs },
+      backends: c.backends.descriptors().map((d) => ({
+        kind: d.kind,
+        label: d.label,
+        enabled: d.enabled,
+        billing: d.billing,
+        capabilities: d.capabilities,
+      })),
     });
   });
 }

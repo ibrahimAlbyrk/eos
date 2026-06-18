@@ -11,7 +11,7 @@
 import { query as realQuery } from "@anthropic-ai/claude-agent-sdk";
 import type { Options } from "@anthropic-ai/claude-agent-sdk";
 import type {
-  AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, WorkerHandle,
+  AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, BackendDescriptor, WorkerHandle,
 } from "../../../core/src/ports/AgentBackend.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { ToolContext } from "../../tools/types.ts";
@@ -30,6 +30,12 @@ const CAPS: AgentCapabilities = {
   runtimePermissionSwitch: false,
   streamingThinking: true,
   resumable: true,
+};
+
+const SDK_DESCRIPTOR: BackendDescriptor = {
+  kind: "claude-sdk", label: "Claude SDK", processModel: "in-process",
+  billing: "subscription", modelSource: "request", capabilities: CAPS,
+  models: { kind: "claude" }, auth: "subscription", enabled: true,
 };
 
 type SdkMsg = Parameters<ReturnType<typeof createSdkEventMapper>["map"]>[0];
@@ -121,6 +127,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
 
   return {
     kind: "claude-sdk",
+    descriptor: SDK_DESCRIPTOR,
     async start(spec: AgentLaunchSpec, cb?: AgentStartCallbacks): Promise<AgentSession> {
       const opts = spec.backendOptions ?? {};
       const auth = await deps.authResolver.resolve(opts.auth);
