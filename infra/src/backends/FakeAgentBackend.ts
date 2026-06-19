@@ -69,6 +69,7 @@ export function createFakeAgentBackend(): FakeAgentBackend {
         rec.interrupts++;
         return { ok: true };
       },
+      async setModel() { return { ok: false, reason: "runtime model switch unsupported" }; },
       stop() {
         rec.stopped = true;
         alive.set(workerId, false);

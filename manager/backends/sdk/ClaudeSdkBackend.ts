@@ -24,9 +24,10 @@ import { BLOCKED_BUILTIN_TOOLS } from "../../../contracts/src/tool-scope.ts";
 const CAPS: AgentCapabilities = {
   interrupt: true,
   keystroke: false,
-  // query.setModel / setPermissionMode exist; advertised false until the spike
-  // verifies they take effect mid-session (flipped in the cutover phase).
-  runtimeModelSwitch: false,
+  // query.setModel takes effect mid-session in streaming-input mode (the mode we
+  // run) — wired in the session's setModel below. (effort has no live SDK lever;
+  // it's persisted by SetWorkerModel and applied on the next resume.)
+  runtimeModelSwitch: true,
   runtimePermissionSwitch: false,
   streamingThinking: true,
   resumable: true,
@@ -36,6 +37,7 @@ const SDK_DESCRIPTOR: BackendDescriptor = {
   kind: "claude-sdk", label: "Claude SDK", processModel: "in-process",
   billing: "subscription", modelSource: "request", capabilities: CAPS,
   models: { kind: "claude" }, auth: "subscription", enabled: true,
+  sessionStore: "claude-transcript",
 };
 
 type SdkMsg = Parameters<ReturnType<typeof createSdkEventMapper>["map"]>[0];
@@ -44,6 +46,7 @@ type SdkMsg = Parameters<ReturnType<typeof createSdkEventMapper>["map"]>[0];
 // seam so tests script it.
 export interface SdkQueryHandle extends AsyncIterable<unknown> {
   interrupt?(): Promise<void>;
+  setModel?(model?: string): Promise<void>;
 }
 export type SdkQueryFn = (params: { prompt: AsyncIterable<unknown>; options: Options }) => SdkQueryHandle;
 
@@ -119,6 +122,16 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       if (s) s.interrupting = true;
       if (s?.q?.interrupt) { try { await s.q.interrupt(); } catch { /* best-effort */ } }
       return { ok: true };
+    },
+    // Runtime model switch via the SDK Query control method (streaming-input
+    // only). effort is ignored here — the SDK has no /effort equivalent; it's
+    // persisted by the caller and applied at the next resume.
+    async setModel(model: string) {
+      const s = live.get(workerId);
+      if (!s || !s.alive) return { ok: false, reason: "session gone" };
+      if (!s.q?.setModel) return { ok: false, reason: "setModel unavailable" };
+      try { await s.q.setModel(model); return { ok: true }; }
+      catch (e) { return { ok: false, reason: e instanceof Error ? e.message : String(e) }; }
     },
     stop() {
       const s = live.get(workerId);

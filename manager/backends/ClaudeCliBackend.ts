@@ -35,6 +35,7 @@ const CLI_DESCRIPTOR: BackendDescriptor = {
   kind: "claude-cli", label: "Claude CLI", processModel: "out-of-process",
   billing: "subscription", modelSource: "request", capabilities: CLI_CAPS,
   models: { kind: "claude" }, auth: "subscription", enabled: true,
+  sessionStore: "claude-transcript",
 };
 
 export interface ClaudeCliBackendDeps {
@@ -58,6 +59,17 @@ export function createClaudeCliBackend(deps: ClaudeCliBackendDeps): AgentBackend
     sendMessage: (text, record) => deps.client.sendMessage(port, text, record),
     sendKeystroke: (keys) => deps.client.sendKeystroke(port, keys),
     interrupt: () => deps.client.sendInterrupt(port),
+    // The claude CLI's runtime model switch is the /model slash command (and
+    // /effort for the reasoning level) delivered over the same PTY channel.
+    setModel: async (model, effort) => {
+      const r = await deps.client.sendMessage(port, `/model ${model}`);
+      let ok = r.ok;
+      if (ok && effort) {
+        const er = await deps.client.sendMessage(port, `/effort ${effort}`);
+        ok = ok && er.ok;
+      }
+      return { ok };
+    },
     stop: (graceMs) => deps.supervisor.escalateKill(workerId, graceMs),
     isAlive: () => deps.supervisor.has(workerId),
   });

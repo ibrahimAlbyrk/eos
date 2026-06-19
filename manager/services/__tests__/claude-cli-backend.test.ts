@@ -67,3 +67,39 @@ describe("ClaudeCliBackend — DPI assembly chokepoint", () => {
     assert.equal(getArgsSpec()?.systemPromptFile, "/legacy.md");
   });
 });
+
+// Runtime model switch is the /model slash command (+ /effort) delivered over the
+// worker client — the mechanism moved out of SetWorkerModel into this adapter so
+// the use-case stays backend-agnostic.
+describe("ClaudeCliBackend — runtime model switch", () => {
+  it("setModel sends /model (and /effort) over the worker client", async () => {
+    const sent: string[] = [];
+    const backend = createClaudeCliBackend({
+      supervisor: { spawn: () => ({ pid: 42 }), has: () => true, escalateKill: () => {} } as never,
+      ports: { allocate: async () => 7777, release: () => {} } as never,
+      client: { sendMessage: async (_port: number, text: string) => { sent.push(text); return { ok: true, status: 200, body: {} }; } } as never,
+      buildArgs: () => [],
+      buildEnv: () => ({}),
+      logFileFor: () => "/tmp/x.log",
+    });
+    const session = backend.attach("w1", { kind: "http", port: 7777, pid: 42 });
+    assert.equal(session.capabilities.runtimeModelSwitch, true);
+    assert.deepEqual(await session.setModel("opus", "high"), { ok: true });
+    assert.deepEqual(sent, ["/model opus", "/effort high"]);
+  });
+
+  it("setModel omits /effort when no effort is given", async () => {
+    const sent: string[] = [];
+    const backend = createClaudeCliBackend({
+      supervisor: { spawn: () => ({ pid: 42 }), has: () => true, escalateKill: () => {} } as never,
+      ports: { allocate: async () => 7777, release: () => {} } as never,
+      client: { sendMessage: async (_port: number, text: string) => { sent.push(text); return { ok: true, status: 200, body: {} }; } } as never,
+      buildArgs: () => [],
+      buildEnv: () => ({}),
+      logFileFor: () => "/tmp/x.log",
+    });
+    const session = backend.attach("w1", { kind: "http", port: 7777, pid: 42 });
+    assert.deepEqual(await session.setModel("sonnet"), { ok: true });
+    assert.deepEqual(sent, ["/model sonnet"]);
+  });
+});

@@ -95,6 +95,9 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
       if (s) s.signal.aborted = true;
       return { ok: true };
     },
+    // No live model switch (runtimeModelSwitch:false) — the model is fixed by the
+    // env factory per session; SetWorkerModel persists the new model for next spawn.
+    async setModel() { return { ok: false, reason: "runtime model switch unsupported" }; },
     stop() {
       const s = live.get(workerId);
       if (!s) return;

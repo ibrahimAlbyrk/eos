@@ -57,6 +57,13 @@ export interface BackendDescriptor {
   readonly models: ModelCatalogRef;                         // the provider's model catalog (UI picker)
   readonly auth: "subscription" | "apikey" | "none";        // credential it needs (drives creds-absent fallback)
   readonly enabled: boolean;                                 // selectable now vs "soon"
+  // Conversation-store format. Backends sharing the SAME non-"none" store write
+  // mutually-loadable transcripts (keyed by cwd+session_id), so a running worker
+  // can hand its conversation off between them on resume — claude-cli ↔ claude-sdk
+  // both drive the bundled claude binary → "claude-transcript". "none" = no
+  // resumable store (metered in-process lanes persist no session_id) → never a
+  // backend-switch source or target. Consumed by canHandoffBackend (domain).
+  readonly sessionStore: "claude-transcript" | "none";
 }
 
 // Identity + execution context to start a session. Deliberately free of argv /
@@ -109,6 +116,11 @@ export interface AgentSession {
   sendMessage(text: string, record?: MessageRecord): Promise<{ ok: boolean; status: number; body: unknown }>;
   sendKeystroke(keys: string): Promise<{ ok: boolean }>;
   interrupt(): Promise<{ ok: boolean; reason?: string }>;
+  // Switch the model (and optional effort) for subsequent turns on the LIVE
+  // session. Only meaningful when capabilities.runtimeModelSwitch is true —
+  // callers gate on that flag; an incapable session may no-op. effort has no
+  // lever on every backend (claude-sdk: none) — persisted regardless by the caller.
+  setModel(model: string, effort?: string | null): Promise<{ ok: boolean; reason?: string }>;
   // Graceful stop → forced kill after graceMs. Idempotent.
   stop(graceMs?: number): void;
   isAlive(): boolean;

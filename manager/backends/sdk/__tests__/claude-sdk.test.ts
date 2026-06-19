@@ -432,4 +432,53 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.equal(exitCode, 143);
     assert.ok(events.some((e) => e.type === "turn" && e.phase === "aborted"));
   });
+
+  // Runtime model switch routes through the live SDK query's setModel control
+  // method (streaming-input). effort is not an SDK lever — it's dropped here and
+  // persisted by SetWorkerModel for the next resume. Mirrors the interrupt test's
+  // controllable-iterator pattern to keep the session alive mid-read.
+  it("setModel forwards to the live SDK query handle (runtime model switch)", async () => {
+    const switched: Array<string | undefined> = [];
+    let resolveNext: ((r: IteratorResult<unknown>) => void) | null = null;
+    const q = {
+      setModel: async (m?: string) => { switched.push(m); },
+      [Symbol.asyncIterator]() { return { next: () => new Promise<IteratorResult<unknown>>((res) => { resolveNext = res; }) }; },
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn: () => q as never,
+    });
+    let exitCode: number | null = -1;
+    let resolveExit: () => void = () => {};
+    const exited = new Promise<void>((r) => { resolveExit = r; });
+    const session = await be.start(spec(), { onExit: (c) => { exitCode = c; resolveExit(); } });
+    assert.equal(session.capabilities.runtimeModelSwitch, true);
+    assert.deepEqual(await session.setModel("claude-sonnet-4-6", "high"), { ok: true });
+    assert.deepEqual(switched, ["claude-sonnet-4-6"]); // model switched; effort dropped (no SDK lever)
+    while (!resolveNext) await new Promise((r) => setTimeout(r, 1)); // let the consume loop start reading
+    resolveNext({ done: true, value: undefined });                  // end the idle stream cleanly
+    await exited;
+    assert.equal(exitCode, 0);
+  });
+
+  // A switch on a dead/torn-down session degrades gracefully — no throw, ok:false.
+  it("setModel returns ok:false when the session is gone", async () => {
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "none" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn: () => (async function* () { /* idle */ })() as never,
+    });
+    const session = await be.start(spec(), {});
+    session.stop(); // tear down deterministically before the switch
+    const r = await session.setModel("claude-opus-4-8");
+    assert.equal(r.ok, false);
+    assert.equal(r.reason, "session gone");
+  });
 });
