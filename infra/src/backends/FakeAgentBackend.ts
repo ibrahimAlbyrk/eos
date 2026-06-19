@@ -29,6 +29,7 @@ const FAKE_CAPS: AgentCapabilities = {
 const FAKE_DESCRIPTOR: BackendDescriptor = {
   kind: "fake", label: "Fake", processModel: "in-process", billing: "subscription",
   modelSource: "request", capabilities: FAKE_CAPS, models: { kind: "claude" }, auth: "none", enabled: false,
+  sessionStore: "none",
 };
 
 export interface FakeAgentBackend extends AgentBackend {

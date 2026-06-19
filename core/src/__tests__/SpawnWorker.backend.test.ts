@@ -79,7 +79,7 @@ describe("spawnWorker — in-process worktree bootstrap", () => {
     const log = { info() {}, warn() {}, error() {}, child() { return log; } };
     const backend = {
       kind: "fake",
-      descriptor: { kind: "fake", label: "F", processModel, billing: "subscription", modelSource: "request", capabilities: {}, models: { kind: "claude" }, auth: "subscription", enabled: true },
+      descriptor: { kind: "fake", label: "F", processModel, billing: "subscription", modelSource: "request", capabilities: {}, models: { kind: "claude" }, auth: "subscription", enabled: true, sessionStore: "claude-transcript" },
       async start(spec: { cwd: string; workerId: string }, cb?: { onSpawn?: (h: unknown) => void }) {
         launchCwd = spec.cwd;
         const handle = processModel === "in-process" ? { kind: "inproc", ref: spec.workerId } : { kind: "http", port: 1, pid: 2 };

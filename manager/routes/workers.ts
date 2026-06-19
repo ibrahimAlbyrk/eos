@@ -12,6 +12,7 @@ import {
   SetNameRequestSchema,
   SetPermissionRequestSchema,
   SetModelRequestSchema,
+  SetBackendRequestSchema,
   QuestionRequestSchema,
   QuestionAnswerRequestSchema,
   PeerRequestRegisterRequestSchema,
@@ -40,7 +41,7 @@ import { assertPeers, listPeersOf, isConsultable } from "../../core/src/services
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
 import { appendSynthesized } from "../shared/synthesized-events.ts";
-import { resumeWorkerVia, resumeIfDead } from "./resume-helpers.ts";
+import { resumeWorkerVia, resumeIfDead, switchWorkerBackend } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
 import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
@@ -560,6 +561,12 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       },
       { workerId: params.id, model: body.model, effort: body.effort },
     );
+    writeJson(res, 200, { ok: true, ...out });
+  });
+
+  r.put(/^\/workers\/(?<id>[^/]+)\/backend$/, async ({ params, req, res }) => {
+    const body = validate(SetBackendRequestSchema, await readBody(req));
+    const out = await switchWorkerBackend(c, params.id, body.kind);
     writeJson(res, 200, { ok: true, ...out });
   });
 

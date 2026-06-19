@@ -24,6 +24,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtUpdateName;
   private readonly stmtUpdatePermissionMode;
   private readonly stmtUpdateModel;
+  private readonly stmtUpdateBackendKind;
   private readonly stmtSetWorktreeDir;
   private readonly stmtSetForkBaseSha;
   private readonly stmtSetWorkspaceReady;
@@ -65,6 +66,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtUpdateName = db.prepare("UPDATE workers SET name = ? WHERE id = ?");
     this.stmtUpdatePermissionMode = db.prepare("UPDATE workers SET permission_mode = ? WHERE id = ?");
     this.stmtUpdateModel = db.prepare("UPDATE workers SET model = ?, effort = ? WHERE id = ?");
+    this.stmtUpdateBackendKind = db.prepare("UPDATE workers SET backend_kind = ? WHERE id = ?");
     this.stmtSetWorktreeDir = db.prepare("UPDATE workers SET worktree_dir = ? WHERE id = ?");
     this.stmtSetForkBaseSha = db.prepare("UPDATE workers SET fork_base_sha = ? WHERE id = ?");
     this.stmtSetWorkspaceReady = db.prepare("UPDATE workers SET workspace_ready = 1 WHERE id = ?");
@@ -159,6 +161,10 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   updateModel(id: string, model: string, effort: string | null): void {
     this.stmtUpdateModel.run(model, effort, id);
+  }
+
+  updateBackendKind(id: string, kind: string): void {
+    this.stmtUpdateBackendKind.run(kind, id);
   }
 
   setWorktreeDir(id: string, worktreeDir: string): void {

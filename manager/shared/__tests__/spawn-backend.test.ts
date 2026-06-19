@@ -12,6 +12,7 @@ function backend(over: { kind?: string; billing?: "subscription" | "metered"; en
     descriptor: {
       kind, label: kind, processModel: "in-process", billing: over.billing ?? "subscription",
       modelSource: "request", capabilities: caps, models: { kind: "claude" }, auth: "subscription", enabled: over.enabled ?? true,
+      sessionStore: "claude-transcript",
     },
     start: async () => ({}) as never,
     attach: () => ({}) as never,

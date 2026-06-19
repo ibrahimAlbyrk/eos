@@ -70,6 +70,9 @@ export interface WorkerRepo {
   updateName(id: string, name: string | null): void;
   updatePermissionMode(id: string, mode: string): void;
   updateModel(id: string, model: string, effort: string | null): void;
+  // Switch the worker's provider (backend_kind) — persisted before a
+  // backend-switch resume so resumeWorkerVia relaunches under the new backend.
+  updateBackendKind(id: string, kind: string): void;
   // Persist the resolved (realpath'd) worktree directory once the worker
   // reports it — enrichment only; branch is written at insert.
   setWorktreeDir(id: string, worktreeDir: string): void;

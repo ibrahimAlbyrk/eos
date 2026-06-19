@@ -14,7 +14,7 @@ const EXPECTED_KEYS = [
   "fsCheckout", "fsBranchCreate", "fsBranchRename", "fsBranchDelete", "fsFetch", "fsRemoteBranchDelete",
   "fsWrite", "fsPaste", "fsStat", "fsCreate", "fsRename", "fsMove", "fsTrash", "fsWatch", "fsUnwatch",
   "workerName", "workerOpen", "workerPermission",
-  "workerModel", "workerDiff", "workerChanges", "workerFileDiff", "workerChangesDiscard",
+  "workerModel", "workerBackend", "workerDiff", "workerChanges", "workerFileDiff", "workerChangesDiscard",
   "workerConflicts", "workerConflictFile", "workerConflictResolve",
   "workerMemory", "workerMemoryItem",
   "workerInterrupt", "workerResume", "workerKeystroke",

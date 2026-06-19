@@ -792,6 +792,24 @@ export const SetModelResponseSchema = z.object({
 });
 export type SetModelResponse = z.infer<typeof SetModelResponseSchema>;
 
+// ---- PUT /workers/:id/backend ----------------------------------------------
+// Switch a running worker's provider (backend). Only valid between backends that
+// share a conversation store (claude-cli ↔ claude-sdk); the worker is stopped and
+// resumed under the new backend via its persisted session id.
+
+export const SetBackendRequestSchema = z.object({
+  kind: z.string().min(1),
+});
+export type SetBackendRequest = z.infer<typeof SetBackendRequestSchema>;
+
+export const SetBackendResponseSchema = z.object({
+  ok: z.boolean(),
+  id: z.string(),
+  kind: z.string(),
+  port: z.number(),
+});
+export type SetBackendResponse = z.infer<typeof SetBackendResponseSchema>;
+
 // ---- GET /workers/:id/diff -------------------------------------------------
 
 export const WorkerDiffResponseSchema = z.object({
@@ -1553,6 +1571,7 @@ export const ROUTES = {
   workerOpen: (id: string): string => `/workers/${id}/open`,
   workerPermission: (id: string): string => `/workers/${id}/permission`,
   workerModel: (id: string): string => `/workers/${id}/model`,
+  workerBackend: (id: string): string => `/workers/${id}/backend`,
   workerDiff: (id: string): string => `/workers/${id}/diff`,
   workerChanges: (id: string): string => `/workers/${id}/changes`,
   workerFileDiff: (id: string): string => `/workers/${id}/changes/file`,

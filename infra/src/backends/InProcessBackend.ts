@@ -48,9 +48,9 @@ const CAPS: AgentCapabilities = {
 
 // Per-kind in-process provider metadata. Adding a metered provider = one entry.
 const IN_PROCESS_DESCRIPTORS: Record<string, Omit<BackendDescriptor, "kind">> = {
-  "anthropic-api": { label: "Anthropic API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "claude" }, auth: "apikey", enabled: false },
-  "openai": { label: "OpenAI API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: false },
-  "codex": { label: "Codex", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: false },
+  "anthropic-api": { label: "Anthropic API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "claude" }, auth: "apikey", enabled: false, sessionStore: "none" },
+  "openai": { label: "OpenAI API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: false, sessionStore: "none" },
+  "codex": { label: "Codex", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: false, sessionStore: "none" },
 };
 
 export interface InProcessBackend extends AgentBackend {
@@ -63,7 +63,7 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
   const live = new Map<string, LiveSession>();
   const descriptor: BackendDescriptor = {
     kind,
-    ...(IN_PROCESS_DESCRIPTORS[kind] ?? { label: kind, processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: false }),
+    ...(IN_PROCESS_DESCRIPTORS[kind] ?? { label: kind, processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: false, sessionStore: "none" }),
   };
 
   const kickTurn = (workerId: string, s: LiveSession, userText: string): void => {
