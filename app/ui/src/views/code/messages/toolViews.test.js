@@ -74,4 +74,21 @@ describe("getToolView", () => {
     expect(list.Detail).not.toBe(GenericDetail);
     expect(list.label({})).toEqual({ verb: "Listed", file: "peers" });
   });
+
+  it("gives the worker-type tools bespoke views", () => {
+    const mint = getToolView("mcp__orchestrator__mint_worker_type");
+    expect(mint.Detail).not.toBe(GenericDetail);
+    expect(mint.label({ input: { name: "perf-profiler" } })).toEqual({ verb: "Minted worker type", file: "perf-profiler" });
+    expect(mint.runningLabel({ input: { name: "perf-profiler" } })).toEqual({ verb: "Minting worker type", file: "perf-profiler" });
+    expect(mint.label({ input: {} })).toEqual({ verb: "Minted worker type", file: "" });
+
+    const list = getToolView("mcp__orchestrator__list_worker_types");
+    expect(list.Detail).not.toBe(GenericDetail);
+    expect(list.runningLabel({})).toEqual({ verb: "Listing", file: "worker types" });
+    // count parsed from the result JSON array
+    expect(list.label({ result: { text: JSON.stringify([{ name: "a" }, { name: "b" }]) } }))
+      .toEqual({ verb: "Listed", file: "worker types (2)" });
+    // no result yet (running) → no count
+    expect(list.label({})).toEqual({ verb: "Listed", file: "worker types" });
+  });
 });

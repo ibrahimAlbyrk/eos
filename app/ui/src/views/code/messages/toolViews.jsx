@@ -12,6 +12,7 @@ import {
   ReadDetail, EditDetail, WriteDetail, BashDetail, AskUserQuestionDetail,
   AskUserDetail, SkillDetail, NotifyDetail, MessageDetail, GenericDetail,
   PeerAskDetail, PeerRespondDetail, PeerListDetail,
+  MintWorkerTypeDetail, ListWorkerTypesDetail,
 } from "./ToolDetail.jsx";
 import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
 import { skillFilePath } from "../../../lib/skillBody.js";
@@ -115,6 +116,32 @@ register("mcp__orchestrator__notify_user", {
   runningLabel: () => ({ verb: "Notifying", file: "user" }),
   Detail: NotifyDetail,
 });
+
+register("mcp__orchestrator__mint_worker_type", {
+  label: (t) => ({ verb: "Minted worker type", file: t.input?.name ?? "" }),
+  runningLabel: (t) => ({ verb: "Minting worker type", file: t.input?.name ?? "" }),
+  Detail: MintWorkerTypeDetail,
+});
+
+register("mcp__orchestrator__list_worker_types", {
+  label: (t) => {
+    const n = workerTypesCount(t);
+    return { verb: "Listed", file: n != null ? `worker types (${n})` : "worker types" };
+  },
+  runningLabel: () => ({ verb: "Listing", file: "worker types" }),
+  Detail: ListWorkerTypesDetail,
+});
+
+function workerTypesCount(t) {
+  const text = t.result?.text ?? "";
+  if (!text.startsWith("[")) return null;
+  try {
+    const a = JSON.parse(text);
+    return Array.isArray(a) ? a.length : null;
+  } catch {
+    return null;
+  }
+}
 
 register("mcp__worker__send_message_to_parent", {
   label: () => ({ verb: "Sent report to", file: "orchestrator" }),

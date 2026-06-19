@@ -329,6 +329,115 @@ export function NotifyDetail({ tool }) {
   );
 }
 
+const BODY_PREVIEW_LINES = 12;
+
+// mint_worker_type (orchestrator MCP) — the minted type's blueprint: its axis
+// defaults (chips), tool capability boundary (allow/deny globs + editRegex) and
+// instructions body. The input IS the artifact, so this renders fully while the
+// call is still running; the result is only { name }.
+export function MintWorkerTypeDetail({ tool }) {
+  const i = tool.input ?? {};
+  const cfg = [];
+  if (i.model) cfg.push(["model", i.model]);
+  if (i.effort) cfg.push(["effort", i.effort]);
+  if (i.permissionMode) cfg.push(["mode", i.permissionMode]);
+  if (i.extends) cfg.push(["extends", i.extends]);
+  const flags = [];
+  if (i.persistent) flags.push("persistent");
+  if (i.collaborate) flags.push("collaborate");
+
+  const allow = Array.isArray(i.toolsAllow) ? i.toolsAllow : [];
+  const deny = Array.isArray(i.toolsDeny) ? i.toolsDeny : [];
+  const hasScope = allow.length > 0 || deny.length > 0 || !!i.editRegex;
+
+  const bodyLines = (i.body ?? "").split("\n");
+  const bodyMore = bodyLines.length - BODY_PREVIEW_LINES;
+
+  const hasAny =
+    i.description || cfg.length > 0 || flags.length > 0 || i.whenToUse || hasScope || i.body;
+  if (!hasAny && !tool.result?.isError) return null;
+
+  return (
+    <div className="tool-detail wt-card mint-wt">
+      <FailureBanner tool={tool} />
+      {i.description && (
+        <div className="wt-sec"><div className="wt-desc">{i.description}</div></div>
+      )}
+      {(cfg.length > 0 || flags.length > 0) && (
+        <div className="wt-sec">
+          <div className="wt-chips">
+            {cfg.map(([k, v]) => (
+              <span className="wt-chip" key={k}><span className="wt-chip-k">{k}</span>{v}</span>
+            ))}
+            {flags.map((f) => (
+              <span className="wt-chip wt-chip-flag" key={f}>{f}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      {i.whenToUse && (
+        <div className="wt-sec">
+          <div className="wt-sec-label">When to use</div>
+          <div className="wt-text">{i.whenToUse}</div>
+        </div>
+      )}
+      {hasScope && (
+        <div className="wt-sec">
+          <div className="wt-sec-label">Tools</div>
+          <div className="wt-tools">
+            {allow.length > 0
+              ? allow.map((g) => <span className="wt-tool wt-tool-allow" key={"a" + g}>{g}</span>)
+              : <span className="wt-tool wt-tool-all">all tools</span>}
+            {deny.map((g) => <span className="wt-tool wt-tool-deny" key={"d" + g}>−{g}</span>)}
+          </div>
+          {i.editRegex && (
+            <div className="wt-regex"><span className="wt-regex-k">edits limited to </span>{i.editRegex}</div>
+          )}
+        </div>
+      )}
+      {i.body && (
+        <div className="wt-sec">
+          <div className="wt-sec-label">Instructions</div>
+          <div className="wt-body">{bodyLines.slice(0, BODY_PREVIEW_LINES).join("\n")}</div>
+          {bodyMore > 0 && <div className="wt-more">(+{bodyMore} more lines)</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// list_worker_types (orchestrator MCP) — the spawnable catalog: each type's name,
+// provenance badge (builtin/user/project/runtime) and routing signal (whenToUse).
+export function ListWorkerTypesDetail({ tool }) {
+  if (tool.result?.isError) {
+    return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  }
+  let types = null;
+  try {
+    const parsed = JSON.parse(tool.result?.text ?? "");
+    if (Array.isArray(parsed)) types = parsed;
+  } catch { /* running or non-JSON — nothing to show yet */ }
+  if (!types) return null;
+  if (types.length === 0) {
+    return <div className="tool-detail wt-card list-wt"><div className="wtl-empty">No worker types.</div></div>;
+  }
+  return (
+    <div className="tool-detail wt-card list-wt">
+      {types.map((t, idx) => (
+        <div className="wtl-item" key={t.name ?? idx}>
+          <div className="wtl-head">
+            <span className="wtl-name">{t.name}</span>
+            {t.source && <span className={`wtl-source wtl-source-${t.source}`}>{t.source}</span>}
+          </div>
+          {(t.whenToUse || t.description) && (
+            <div className="wtl-desc">{t.whenToUse || t.description}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const GENERIC_OUTPUT_MAX = 4000;
 
 // Fallback detail for tools without a bespoke renderer (mostly custom MCP
