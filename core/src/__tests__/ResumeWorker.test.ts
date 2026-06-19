@@ -16,7 +16,7 @@ interface RowSeed {
   backend_kind?: string | null;
 }
 
-function buildDeps(seed: RowSeed, opts: { live?: boolean; paths?: string[]; startFails?: boolean } = {}): {
+function buildDeps(seed: RowSeed, opts: { live?: boolean; paths?: string[]; startFails?: boolean; inProcess?: boolean } = {}): {
   deps: ResumeWorkerDeps;
   row: RowSeed & { ended_at?: number };
   launches: AgentLaunchSpec[];
@@ -45,10 +45,13 @@ function buildDeps(seed: RowSeed, opts: { live?: boolean; paths?: string[]; star
     log: { info: () => {}, warn: () => {}, error: () => {} },
     backend: {
       kind: "claude-cli",
+      ...(opts.inProcess ? { descriptor: { processModel: "in-process" } } : {}),
       start: async (spec: AgentLaunchSpec) => {
         if (opts.startFails) throw new Error("spawn blew up");
         launches.push(spec);
-        return { handle: { kind: "http", port: 7600, pid: 4242 } };
+        return opts.inProcess
+          ? { handle: { kind: "inproc", ref: seed.id } }
+          : { handle: { kind: "http", port: 7600, pid: 4242 } };
       },
       attach: () => { throw new Error("unused"); },
     },
@@ -120,6 +123,17 @@ describe("resumeWorker — happy path", () => {
     const { deps, row } = buildDeps({ id: "w1", state: "DONE" });
     await resumeWorker(deps, { workerId: "w1", spec: SPEC });
     assert.equal(row.state, "SPAWNING");
+  });
+
+  // claude-cli (out-of-process) stays SPAWNING until its PTY readiness gate
+  // self-reports IDLE (asserted above). An in-process backend (claude-sdk) has no
+  // such gate and no boot turn on resume, so resumeWorker must settle it to IDLE
+  // itself — otherwise a backend switch / explicit resume sits stuck in SPAWNING.
+  it("settles an in-process (claude-sdk) resume straight to IDLE", async () => {
+    const { deps, row } = buildDeps({ id: "w1", state: "SUSPENDED", backend_kind: "claude-sdk" }, { inProcess: true });
+    const result = await resumeWorker(deps, { workerId: "w1", spec: SPEC });
+    assert.equal(result.port, 0); // inproc handle → no port
+    assert.equal(row.state, "IDLE");
   });
 
   it("reverts to SUSPENDED when the launch throws", async () => {

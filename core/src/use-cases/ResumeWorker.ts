@@ -107,5 +107,14 @@ export async function resumeWorker(
   });
   deps.bus.publish("worker:spawn", { workerId: w.id, rowId });
   deps.log.info("resumed worker", { workerId: w.id, sessionId: w.session_id, port });
+
+  // In-process backends (claude-sdk) resume with no boot prompt and have no PTY
+  // readiness gate to self-report IDLE — without this they'd sit in SPAWNING
+  // until the first message drives a turn. The session is live + idle the moment
+  // start() returns (empty prompt ⇒ no turn), so settle to IDLE now. Out-of-process
+  // (claude-cli) keeps self-reporting IDLE via its readiness gate; leave it.
+  if (deps.backend.descriptor?.processModel === "in-process") {
+    transitionState(deps, { workerId: w.id, next: "IDLE", reason: "resume_ready" });
+  }
   return { id: w.id, port };
 }
