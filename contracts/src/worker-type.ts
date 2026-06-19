@@ -44,6 +44,16 @@ export const WorkerTypeSchema = z.object({
 });
 export type WorkerType = z.infer<typeof WorkerTypeSchema>;
 
+// The materialized tool surface, carried on the spec + persisted on the worker
+// row (JSON). The gate reads this per tool call — never re-resolves the type.
+// allow empty ⇒ inherit-all (no allow restriction); deny always subtracts.
+export const ToolScopeSchema = z.object({
+  allow: z.array(z.string()).default([]),
+  deny: z.array(z.string()).default([]),
+  editRegex: z.string().nullable().default(null),
+});
+export type ToolScope = z.infer<typeof ToolScopeSchema>;
+
 // Provenance — for introspection ("where did this type come from") and precedence.
 export const WORKER_TYPE_SOURCES = ["builtin", "user", "project", "runtime"] as const;
 export const WorkerTypeSourceSchema = z.enum(WORKER_TYPE_SOURCES);

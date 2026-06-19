@@ -76,6 +76,7 @@ import type { Policy } from "../core/src/domain/policy.ts";
 import type { ModelCatalog } from "../core/src/ports/ModelCatalog.ts";
 import { PolicyGatewayService } from "../core/src/services/PolicyGatewayService.ts";
 import { SqlBackedModeResolver } from "../core/src/services/SqlBackedModeResolver.ts";
+import { SqlBackedToolScopeResolver } from "../core/src/services/SqlBackedToolScopeResolver.ts";
 import { SqlBackedBackendResolver } from "../core/src/services/SqlBackedBackendResolver.ts";
 import { PromptRegistry } from "../core/src/services/PromptRegistry.ts";
 import { PromptService } from "../core/src/services/PromptService.ts";
@@ -216,6 +217,9 @@ export function buildContainer() {
 
   // Mode resolver — walks worker.parent_id chain to find the active mode.
   const modeResolver = new SqlBackedModeResolver(workers);
+  // Tool-scope resolver — flat row lookup (scope is baked at spawn, immutable),
+  // injected into the gate as the worker-type capability-boundary rung.
+  const toolScopeResolver = new SqlBackedToolScopeResolver(workers);
   // Backend selection: materialize named profiles + per-role defaults from the
   // frozen config, then a resolver that climbs parent_id for inheritance.
   const backendDefaults = {
@@ -238,6 +242,7 @@ export function buildContainer() {
   const policyGateway = new PolicyGatewayService({
     pending, events, bus, clock: systemClock, ids: randomIdGenerator,
     modeResolver,
+    toolScopeResolver,
     plansDir,
     getPolicy: () => policy,
     onDecision: (behavior) => {

@@ -4,7 +4,7 @@ import type { NoAddr } from "../../../contracts/src/commands/types.ts";
 import type { SpawnWorkerRequest, SpawnWorkerResponse } from "../../../contracts/src/http.ts";
 import { spawnWorker } from "../../../core/src/use-cases/SpawnWorker.ts";
 import { resolveSpawnIsolation } from "../../../core/src/domain/worktree-policy.ts";
-import { resolveWorkerTypeByName, applyWorkerTypeDefaults } from "../../../core/src/domain/worker-type-resolution.ts";
+import { resolveWorkerTypeByName, applyWorkerTypeDefaults, materializeToolScope, isToolScopeRestrictive } from "../../../core/src/domain/worker-type-resolution.ts";
 import { ValidationError } from "../../../core/src/errors/index.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
@@ -40,6 +40,11 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       : null;
     const requestHas = (f: string) => (body as Record<string, unknown>)[f] !== undefined;
     const td = type ? applyWorkerTypeDefaults(type, requestHas) : {};
+    // Materialize the tool surface once at spawn (baked onto the row; the gate
+    // reads it per call). An all-empty scope persists as null — equivalent to
+    // no restriction, and keeps unrestricted types (git) off the gate rung.
+    const scope = type ? materializeToolScope(type) : null;
+    const toolScope = scope && isToolScopeRestrictive(scope) ? scope : null;
     // Mode inheritance: explicit body.permissionMode wins; else the type's
     // default (git → bypassPermissions); else resolve from parent so children
     // adopt the orchestrator's current mode.
@@ -82,6 +87,8 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       // surfaced as the DPI workerType fact + the role/20 instructions fragment.
       workerType: type?.name ?? "",
       workerTypeBody: type?.body ?? "",
+      // Materialized tool scope (persisted to tool_scope; enforced by the gate).
+      toolScope: toolScope ?? undefined,
     };
     const result = await spawnWorker(
       {

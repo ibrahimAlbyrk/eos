@@ -4,7 +4,7 @@
 
 import type { EffortLevel } from "../../../contracts/src/shared.ts";
 import type { PermissionMode } from "../../../contracts/src/worker.ts";
-import type { WorkerType, WorkerTypeRecord } from "../../../contracts/src/worker-type.ts";
+import type { ToolScope, WorkerType, WorkerTypeRecord } from "../../../contracts/src/worker-type.ts";
 
 // The per-axis defaults a resolved type pre-fills onto the spawn spec. The
 // caller spreads only the fields the request left unset (applyWorkerTypeDefaults
@@ -82,4 +82,16 @@ export function applyWorkerTypeDefaults(
   if (t.collaborate !== undefined && !requestHas("collaborate")) out.collaborate = t.collaborate;
   if (t.isolation !== undefined && !requestHas("isolation")) out.isolation = t.isolation;
   return out;
+}
+
+// Materialize the tool surface (string globs) into a ToolScope value. Baked once
+// at spawn so the gate hot path never re-resolves the type.
+export function materializeToolScope(t: WorkerType): ToolScope {
+  return { allow: t.toolsAllow ?? [], deny: t.toolsDeny ?? [], editRegex: t.editRegex ?? null };
+}
+
+// True when a materialized scope actually restricts anything (worth persisting +
+// consulting). An all-empty scope is equivalent to no scope.
+export function isToolScopeRestrictive(s: ToolScope): boolean {
+  return s.allow.length > 0 || s.deny.length > 0 || s.editRegex !== null;
 }

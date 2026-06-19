@@ -2,6 +2,8 @@
 // Decision chain (Chain of Responsibility):
 //   0. Subagent caller scope — Eos control tools (domain/tool-scope.ts) are
 //      main-agent only; calls carrying agent_id are denied outright
+//   0.5 Worker-type tool scope (capability boundary) → deny OR pass-through
+//      (above policy.yaml so a broad rule can't re-grant a type-denied tool)
 //   1. Explicit policy.yaml rule match → use that decision
 //   2. Per-worker permission mode → MODE_SPECS verdict by tool category
 //   3. policy.default → final fallback
@@ -14,6 +16,7 @@ import type { Policy } from "../domain/policy.ts";
 import { ruleMatches, evaluatePolicy } from "../domain/policy.ts";
 import { MODE_SPECS, classifyTool } from "../domain/permission-mode.ts";
 import { isEosControlTool, isBlockedBuiltinTool, BLOCKED_BUILTIN_TOOL_MESSAGE } from "../domain/tool-scope.ts";
+import { matchesAny } from "../domain/tool-glob.ts";
 import type { PendingRepo } from "../ports/PendingRepo.ts";
 import type { EventBus } from "../ports/EventBus.ts";
 import type { EventRepo } from "../ports/EventRepo.ts";
@@ -21,6 +24,7 @@ import type { Clock } from "../ports/Clock.ts";
 import type { IdGenerator } from "../ports/IdGenerator.ts";
 import type { PolicyGateway } from "../ports/PolicyGateway.ts";
 import type { PermissionModeResolver } from "../ports/PermissionModeResolver.ts";
+import type { WorkerToolScopeResolver } from "../ports/WorkerToolScopeResolver.ts";
 
 export interface PolicyGatewayServiceDeps {
   pending: PendingRepo;
@@ -29,6 +33,10 @@ export interface PolicyGatewayServiceDeps {
   clock: Clock;
   ids: IdGenerator;
   modeResolver: PermissionModeResolver;
+  /** Per-worker materialized tool scope (worker type allow/deny + editRegex).
+   * The capability-boundary rung — deny-or-passthrough, above policy.yaml,
+   * never short-circuits allow. Absent ⇒ untyped, rung skipped. */
+  toolScopeResolver?: WorkerToolScopeResolver;
   /** Absolute path of the Claude plans dir (~/.claude/plans). When set,
    * fileEdits targeting it classify as planFile (allowed in every mode). */
   plansDir?: string;
@@ -133,6 +141,20 @@ export class PolicyGatewayService implements PolicyGateway {
         behavior: "deny",
         message: `${toolName} is main-agent only — subagents cannot use Eos control tools. Return your findings; the main agent acts on them.`,
       };
+    }
+    // Worker-type tool scope (capability boundary) — sits above policy.yaml so a
+    // stale/broad allow can't re-grant a tool the type denies. DENY-OR-PASSTHROUGH:
+    // it may deny, but never short-circuits allow (that would collapse the mode
+    // verdict layer). Empty allow ⇒ inherit-all; deny always subtracts.
+    const scope = this.deps.toolScopeResolver?.resolveFor(workerId);
+    if (scope) {
+      if (matchesAny(toolName, scope.deny)) {
+        return { behavior: "deny", message: `${toolName} is denied by this worker's type` };
+      }
+      if (scope.allow.length > 0 && !matchesAny(toolName, scope.allow)) {
+        return { behavior: "deny", message: `${toolName} is not in this worker type's allowed tools` };
+      }
+      // otherwise fall through to policy.yaml / mode verdict (NOT an allow).
     }
     if (policy.rules.some((rule) => ruleMatches(rule, toolName, input))) {
       return evaluatePolicy(policy, toolName, input);

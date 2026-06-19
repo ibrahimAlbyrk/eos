@@ -55,6 +55,9 @@ export const WorkerRowSchema = z.object({
   // Resolved worker-type name (built-in / file / runtime), set once at spawn.
   // Drives the DPI workerType fact + the type-body fragment on resume.
   worker_type: z.string().nullable().optional(),
+  // Materialized tool scope (JSON ToolScope) baked at spawn — the gate reads it
+  // per tool call. Null ⇒ no tool restriction (untyped or an unrestricted type).
+  tool_scope: z.string().nullable().optional(),
   // Resolved (realpath'd) worktree directory, persisted post-spawn so the
   // daemon can remove the worktree on delete even after the worker is gone.
   worktree_dir: z.string().nullable().optional(),

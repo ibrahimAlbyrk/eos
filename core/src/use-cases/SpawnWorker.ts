@@ -15,6 +15,7 @@ import type { AgentBackend } from "../ports/AgentBackend.ts";
 import type { WorktreeManager } from "../ports/WorktreeManager.ts";
 import type { ModelCapabilities } from "../ports/ModelCapabilities.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
+import type { ToolScope } from "../../../contracts/src/worker-type.ts";
 import { resolveEffort } from "../domain/effort.ts";
 import { assertOwnedBy } from "../services/WorkerOwnership.ts";
 import { ConflictError, NotFoundError } from "../errors/index.ts";
@@ -74,6 +75,10 @@ export interface SpawnWorkerSpec {
    * can build the synthetic DPI fragment. NOT persisted (re-resolved from disk
    * on resume); empty ⇒ no fragment. */
   workerTypeBody?: string;
+  /** Materialized tool scope (allow/deny globs + editRegex) baked at spawn. The
+   * use-case only persists it (tool_scope JSON); the gate enforces it per call.
+   * Absent ⇒ no tool restriction. */
+  toolScope?: ToolScope;
 }
 
 export interface SpawnWorkerDeps {
@@ -283,6 +288,7 @@ export async function spawnWorker(
     backendProfile: resolved.backendProfile ?? null,
     agentRole: resolved.role ?? null,
     workerType: resolved.workerType ?? null,
+    toolScope: resolved.toolScope ? JSON.stringify(resolved.toolScope) : null,
     withGateway: !!resolved.withGateway,
     collaborate: !!resolved.collaborate,
     worktreeDir: worktreeDir ?? null,

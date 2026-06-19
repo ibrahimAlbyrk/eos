@@ -23,6 +23,8 @@ export interface InsertWorkerInput {
   agentRole: string | null;
   // Resolved worker-type name (built-in / file / runtime), or null for untyped.
   workerType: string | null;
+  // Materialized tool scope as a JSON string (ToolScope), or null for no scope.
+  toolScope: string | null;
   withGateway: boolean;
   collaborate: boolean;
   // Known at insert for worktree spawns: precomputed for a fresh worktree

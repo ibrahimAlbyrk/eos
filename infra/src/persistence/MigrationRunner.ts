@@ -204,6 +204,9 @@ export const MIGRATIONS: Migration[] = [
   // + the type-body fragment re-resolution on resume. NULL for untyped workers
   // and all pre-migration rows.
   { id: "042_workers_add_worker_type", sql: "ALTER TABLE workers ADD COLUMN worker_type TEXT" },
+  // Materialized tool scope (JSON ToolScope: allow/deny globs + editRegex), baked
+  // at spawn. The policy gateway reads it per tool call. NULL ⇒ no restriction.
+  { id: "043_workers_add_tool_scope", sql: "ALTER TABLE workers ADD COLUMN tool_scope TEXT" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {
