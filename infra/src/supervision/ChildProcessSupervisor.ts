@@ -23,12 +23,29 @@ export function createChildProcessSupervisor(opts: ChildProcessSupervisorOptions
 
   return {
     spawn(id, spawnOpts: SpawnOptions): SupervisedProcess {
+      let child: ChildProcess;
+      try {
+        child = spawn(opts.binary, spawnOpts.args, {
+          stdio: ["ignore", "pipe", "pipe"],
+          detached: false,
+          env: spawnOpts.env,
+        });
+      } catch (e) {
+        // Under fd pressure spawn can throw synchronously (EBADF/EMFILE). Treat
+        // a failed spawn as a first-class "died at birth" outcome routed through
+        // onExit — never a raw throw that 500s the caller — so the daemon runs
+        // its normal failed-worker cleanup. Defer it so onExit lands after the
+        // caller inserts the worker row (mirrors the async "error" event below).
+        opts.logger.error("worker spawn failed", { id, error: errMsg(e) });
+        setImmediate(() => spawnOpts.onExit?.(WORKER_EXIT.KILLED));
+        return { id, pid: null };
+      }
+
+      // Open the log AFTER a successful spawn so a failed spawn cannot leak its
+      // fd, and guard the stream's "error" so a log-open EMFILE degrades to a
+      // warning instead of crashing the daemon with an unhandled "error" event.
       const out = createWriteStream(spawnOpts.logFile);
-      const child = spawn(opts.binary, spawnOpts.args, {
-        stdio: ["ignore", "pipe", "pipe"],
-        detached: false,
-        env: spawnOpts.env,
-      });
+      out.on("error", (e) => opts.logger.warn("worker log stream error", { id, error: errMsg(e) }));
       child.stdout?.pipe(out);
       child.stderr?.pipe(out);
 
