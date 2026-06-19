@@ -9,6 +9,9 @@ export const USER_DATA_ENTRIES = [
   "state.db-shm",
   "templates",
   "prompts",
+  // User-authored worker types (~/.eos/workers/*.md) — new non-regenerable
+  // user data; without this they fall outside every backup/migration safety net.
+  "workers",
   "policy.yaml",
   "config.json",
   // Files-explorer trash fallback (used only when the macOS Finder Trash is

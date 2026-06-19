@@ -21,6 +21,8 @@ export interface InsertWorkerInput {
   backendKind: string;
   backendProfile: string | null;
   agentRole: string | null;
+  // Resolved worker-type name (built-in / file / runtime), or null for untyped.
+  workerType: string | null;
   withGateway: boolean;
   collaborate: boolean;
   // Known at insert for worktree spawns: precomputed for a fresh worktree

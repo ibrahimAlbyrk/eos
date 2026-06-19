@@ -27,10 +27,13 @@ export const spawnWorkerDef: ToolDefinition = {
     collaborate: z.boolean().optional().describe(
       "Give this worker the peer tools (list_peers / ask_peer / respond_to_peer) so it can consult — and be consulted by — the other collaborate workers you spawn under you (its siblings). Enable it on BOTH sides of a runtime information dependency: e.g. domain-expert 'providers' plus the 'consumer' that queries them as it works. Leave it OFF for independent parallel work. See the peer-collaboration section of your instructions for when this pays off and how to set it up.",
     ),
+    workerType: z.string().optional().describe(
+      "Worker type to spawn (see the Worker types section of your instructions). The type pre-fills the worker's defaults (model, effort, permission mode, persistence) and frames its instructions — fields you pass explicitly still win. Match the task against each type's 'when to use'; omit for a plain general-purpose worker.",
+    ),
   },
   handler: async (ctx, args) => {
-    const { prompt, name, model, effort, workspaceOf, collaborate } = args as {
-      prompt: string; name?: string; model?: string; effort?: string; workspaceOf?: string; collaborate?: boolean;
+    const { prompt, name, model, effort, workspaceOf, collaborate, workerType } = args as {
+      prompt: string; name?: string; model?: string; effort?: string; workspaceOf?: string; collaborate?: boolean; workerType?: string;
     };
     const data: SpawnWorkerRequest = {
       prompt, name, model,
@@ -39,6 +42,7 @@ export const spawnWorkerDef: ToolDefinition = {
     };
     if (effort) data.effort = effort;
     if (collaborate) data.collaborate = true;
+    if (workerType) data.workerType = workerType;
     if (workspaceOf) data.workspaceOf = workspaceOf;
     else if (ctx.isGitRepo()) data.worktreeFrom = ctx.cwd;
     else data.cwd = ctx.cwd;

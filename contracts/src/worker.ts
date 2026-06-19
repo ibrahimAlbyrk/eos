@@ -52,6 +52,9 @@ export const WorkerRowSchema = z.object({
   backend_kind: z.string().nullable().optional(),
   backend_profile: z.string().nullable().optional(),
   agent_role: z.string().nullable().optional(),
+  // Resolved worker-type name (built-in / file / runtime), set once at spawn.
+  // Drives the DPI workerType fact + the type-body fragment on resume.
+  worker_type: z.string().nullable().optional(),
   // Resolved (realpath'd) worktree directory, persisted post-spawn so the
   // daemon can remove the worktree on delete even after the worker is gone.
   worktree_dir: z.string().nullable().optional(),

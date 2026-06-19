@@ -101,6 +101,9 @@ export const SessionFactsSchema = z
     // Worker was spawned with collaborate=true → gate the peer-collaboration
     // fragment on it. Session-immutable (set once at spawn).
     canCollaborate: z.boolean(),
+    // The worker's type name, set once at spawn → session-IMMUTABLE → legal to
+    // gate fragment selection on. "" = untyped (base worker).
+    workerType: z.string().default(""),
   })
   .passthrough();
 export type SessionFacts = z.infer<typeof SessionFactsSchema>;

@@ -85,6 +85,11 @@ import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
 import { StartupBackupService } from "./services/StartupBackupService.ts";
 import { FilePromptSource } from "../infra/src/prompt/FilePromptSource.ts";
+import { FileWorkerTypeSource, findProjectWorkerTypesDir } from "../infra/src/worker-type/FileWorkerTypeSource.ts";
+import type { WorkerTypeRecord } from "../contracts/src/worker-type.ts";
+import { parsePrompt } from "../core/src/services/prompt-parse.ts";
+import { toFragment } from "../core/src/domain/prompt.ts";
+import type { Fragment, RawPrompt } from "../core/src/domain/prompt.ts";
 import { FileProjectMemoryStore } from "../infra/src/persistence/FileProjectMemoryStore.ts";
 import { UserTemplateService } from "./services/UserTemplateService.ts";
 import { UserSettingsService } from "./services/UserSettingsService.ts";
@@ -474,6 +479,28 @@ export function buildContainer() {
   // Tool-name variables are static globals: constant per daemon, available to
   // every render (role fragments interpolate {{SPAWN_WORKER_TOOL}} etc.).
   const prompts = new PromptService(promptRegistry, TOOL_NAME_VARS);
+  // Worker-type sources: built-in (manager/worker-types) < user (~/.eos/workers)
+  // < project (nearest .eos/workers walking up from the spawn cwd). Read fresh
+  // per spawn so type edits + new files apply with no daemon restart.
+  const builtinWorkerTypesDir = config.paths.workerTypesDir;
+  const userWorkerTypesDir = join(config.daemon.home, "workers");
+  const listWorkerTypeRecords = (cwd: string | null): WorkerTypeRecord[] => {
+    const dirs = [
+      { dir: builtinWorkerTypesDir, source: "builtin" as const },
+      { dir: userWorkerTypesDir, source: "user" as const },
+    ];
+    const proj = cwd ? findProjectWorkerTypesDir(cwd) : null;
+    if (proj) dirs.push({ dir: proj, source: "project" as const });
+    return new FileWorkerTypeSource(dirs).list();
+  };
+  // Orchestrator catalog: one line per disk type — name + the routing signal.
+  const renderWorkerTypeCatalog = (records: WorkerTypeRecord[]): string =>
+    records
+      .map((r) => {
+        const hint = (r.whenToUse || r.description || "").replace(/\s+/g, " ").trim();
+        return hint ? `- ${r.name}: ${hint}` : `- ${r.name}`;
+      })
+      .join("\n");
   // Configured memory sources (CLAUDE.md, plus any AGENTS.md-style files declared
   // under config.memory.sources). Read for backends that don't load a source
   // natively (assumeNativeFor): the claude-cli binary auto-loads CLAUDE.md, the
@@ -486,6 +513,26 @@ export function buildContainer() {
   // null → no append (a top-level worker with no role fragment).
   const assembleAppendText = (spec: SpawnWorkerSpec, id: string): string | null => {
     const role = spec.isOrchestrator ? "orchestrator" : spec.role === "git" ? "git" : "worker";
+    const lookupCwd = spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null;
+    // The resolved type body becomes one synthetic role/20 fragment (built-in,
+    // user, project, and runtime bodies reach the prompt byte-identically). A
+    // whitespace-only body (e.g. the defaults-only `git` type) yields none.
+    const extra: Fragment[] = [];
+    if (spec.workerType && spec.workerTypeBody && spec.workerTypeBody.trim()) {
+      const raw: RawPrompt = {
+        id: `type/${spec.workerType}`,
+        frontmatter: { dpi: { layer: "role", priority: 20 }, variables: [] },
+        body: spec.workerTypeBody,
+      };
+      try {
+        const frag = toFragment(parsePrompt(raw));
+        if (frag) extra.push(frag);
+      } catch {
+        // A malformed type body must not break the spawn — skip the fragment.
+      }
+    }
+    const workerTypeCatalog =
+      role === "orchestrator" ? renderWorkerTypeCatalog(listWorkerTypeRecords(lookupCwd)) : "";
     const { text } = assembleSystemPrompt(
       { registry: promptRegistry, prompts },
       {
@@ -503,7 +550,10 @@ export function buildContainer() {
         isAttached: !!spec.workspaceOf,
         hasMcp: false,
         canCollaborate: !!spec.collaborate,
+        workerType: spec.workerType ?? "",
+        workerTypeCatalog,
       },
+      extra,
     );
     return text.trim() ? text : null;
   };
@@ -721,6 +771,7 @@ export function buildContainer() {
     terminalRuns,
     prompts,
     promptRegistry,
+    listWorkerTypeRecords,
     userTemplates,
     projectMemory,
     claudeHome,

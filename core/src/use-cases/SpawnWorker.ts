@@ -66,6 +66,14 @@ export interface SpawnWorkerSpec {
    * to the backend_profile column. Set by the spawn route's backend resolver;
    * absent ⇒ the default profile (null column). */
   backendProfile?: string;
+  /** Resolved worker-type name. Persisted to worker_type; surfaced as the
+   * immutable DPI `workerType` fact. "" / absent ⇒ untyped base worker. The
+   * spawn handler resolves it — the use-case only carries + persists. */
+  workerType?: string;
+  /** The resolved type's instructions body, carried so the backend chokepoint
+   * can build the synthetic DPI fragment. NOT persisted (re-resolved from disk
+   * on resume); empty ⇒ no fragment. */
+  workerTypeBody?: string;
 }
 
 export interface SpawnWorkerDeps {
@@ -274,6 +282,7 @@ export async function spawnWorker(
     backendKind: deps.backend?.kind ?? "claude-cli",
     backendProfile: resolved.backendProfile ?? null,
     agentRole: resolved.role ?? null,
+    workerType: resolved.workerType ?? null,
     withGateway: !!resolved.withGateway,
     collaborate: !!resolved.collaborate,
     worktreeDir: worktreeDir ?? null,

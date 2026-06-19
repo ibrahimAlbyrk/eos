@@ -4,6 +4,7 @@ import type { NoAddr } from "../../../contracts/src/commands/types.ts";
 import type { SpawnWorkerRequest, SpawnWorkerResponse } from "../../../contracts/src/http.ts";
 import { spawnWorker } from "../../../core/src/use-cases/SpawnWorker.ts";
 import { resolveSpawnIsolation } from "../../../core/src/domain/worktree-policy.ts";
+import { resolveWorkerTypeByName, applyWorkerTypeDefaults } from "../../../core/src/domain/worker-type-resolution.ts";
 import { ValidationError } from "../../../core/src/errors/index.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
@@ -25,22 +26,32 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       }
     }
     if (!bootPrompt) throw new ValidationError("resolved prompt is empty");
-    // Mode inheritance: explicit body.permissionMode wins; otherwise resolve
-    // from parent so children adopt the orchestrator's current mode. Git agents
-    // run shell-heavy git ops; the prompt file carries the safety rules, so they
-    // default to bypassPermissions + persistent for a conversational session.
-    const isGitAgent = body.role === "git";
-    const claudePermissionMode = body.permissionMode
-      ?? (isGitAgent ? "bypassPermissions" : undefined)
-      ?? (body.parentId ? c.modeResolver.resolveFor(body.parentId) : undefined);
     const iso = resolveSpawnIsolation(body, {
       worktreesDisabled: c.userSettings.read()["git.spawnWithoutWorktree"] === true,
     });
+    // Resolve the worker type → per-axis defaults + instructions body. `git` is
+    // now just a built-in type (manager/worker-types/git.md); legacy role:"git"
+    // requests map to workerType:"git" until callers migrate. Unknown/unset name
+    // → null → a plain base worker (graceful degrade, never throws).
+    const workerTypeName = body.workerType ?? (body.role === "git" ? "git" : "");
+    const lookupCwd = expandPath(iso.worktreeFrom ?? iso.cwd) ?? null;
+    const type = workerTypeName
+      ? resolveWorkerTypeByName(workerTypeName, c.listWorkerTypeRecords(lookupCwd))
+      : null;
+    const requestHas = (f: string) => (body as Record<string, unknown>)[f] !== undefined;
+    const td = type ? applyWorkerTypeDefaults(type, requestHas) : {};
+    // Mode inheritance: explicit body.permissionMode wins; else the type's
+    // default (git → bypassPermissions); else resolve from parent so children
+    // adopt the orchestrator's current mode.
+    const claudePermissionMode = body.permissionMode
+      ?? td.permissionMode
+      ?? (body.parentId ? c.modeResolver.resolveFor(body.parentId) : undefined);
     const { promptTemplate: _promptTemplate, ...bodyRest } = body;
     // Backend selection (defaults to claude-cli): resolve BEFORE the spec so a
-    // profile-driven backend's model + profile name thread into it. claude-cli
-    // keeps today's behavior exactly (no model override, null profile).
-    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, parentId: body.parentId ?? null, isOrchestrator: false });
+    // profile-driven backend's model + profile name thread into it. A type may
+    // default backendKind where the request left it unset. claude-cli keeps
+    // today's behavior exactly (no model override, null profile).
+    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind ?? td.backendKind, parentId: body.parentId ?? null, isOrchestrator: false });
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     // Billing/enablement guard on the RESOLVED backend (covers profile/inherit/
     // default picks, not just explicit body.backendKind): rejects a metered API
@@ -55,16 +66,22 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       carryUncommitted: c.userSettings.read()["git.carryUncommitted"] === true,
       hydrateEnv: c.config.worker.hydrateEnvFiles,
       claudePermissionMode,
-      ...(isGitAgent ? {
-        persistent: true,
-        model: body.model ?? "sonnet",
-        effort: body.effort ?? "medium",
-      } : {}),
+      // Type defaults — only the axes the request left unset (applyWorkerType-
+      // Defaults already dropped request-set fields, so these never override an
+      // explicit request value).
+      ...(td.model !== undefined ? { model: td.model } : {}),
+      ...(td.effort !== undefined ? { effort: td.effort } : {}),
+      ...(td.persistent !== undefined ? { persistent: td.persistent } : {}),
+      ...(td.collaborate !== undefined ? { collaborate: td.collaborate } : {}),
       // Profile-model providers (metered lanes: deepseek/kimi/openai) carry the
       // profile's model; request-model providers (claude-sdk/claude-cli) run the
       // Claude model the user picked. Persist the resolved profile name for inheritance.
       ...(backend.descriptor.modelSource === "profile" ? { model: rb.model } : {}),
       backendProfile: rb.profileName ?? undefined,
+      // Carry the resolved type onto the spec: persisted (worker_type column) and
+      // surfaced as the DPI workerType fact + the role/20 instructions fragment.
+      workerType: type?.name ?? "",
+      workerTypeBody: type?.body ?? "",
     };
     const result = await spawnWorker(
       {

@@ -8,10 +8,17 @@ import type { WorkerRow } from "../../contracts/src/worker.ts";
 import { resumeWorker } from "../../core/src/use-cases/ResumeWorker.ts";
 import { UnreachableError } from "../../core/src/errors/index.ts";
 import { buildRespawnSpec } from "../shared/respawn-spec.ts";
+import { resolveWorkerTypeByName } from "../../core/src/domain/worker-type-resolution.ts";
 import { isWorkerLive } from "./worker-liveness.ts";
 
 export function resumeWorkerVia(c: Container, row: WorkerRow): Promise<{ id: string; port: number }> {
-  const spec = buildRespawnSpec(row, { modeResolver: c.modeResolver });
+  const spec = buildRespawnSpec(row, {
+    modeResolver: c.modeResolver,
+    resolveWorkerType: (name) => {
+      const t = resolveWorkerTypeByName(name, c.listWorkerTypeRecords(row.worktree_dir ?? row.cwd ?? null));
+      return t ? { body: t.body, persistent: t.persistent } : null;
+    },
+  });
   const kind = row.backend_kind ?? "claude-cli";
   return resumeWorker(
     {

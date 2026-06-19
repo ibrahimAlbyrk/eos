@@ -11,7 +11,7 @@
 
 import { SessionFactsSchema } from "../../../contracts/src/prompt.ts";
 import type { SessionFacts } from "../../../contracts/src/prompt.ts";
-import type { VariableScope } from "../domain/prompt.ts";
+import type { Fragment, VariableScope } from "../domain/prompt.ts";
 import type { PromptRegistry } from "../services/PromptRegistry.ts";
 import type { PromptService } from "../services/PromptService.ts";
 import { composePrompt } from "../services/prompt-compose.ts";
@@ -33,6 +33,10 @@ export interface SessionSpawnContext {
   isAttached: boolean;
   hasMcp: boolean;
   canCollaborate: boolean;
+  // Worker type name (immutable fact) + the orchestrator-facing catalog text
+  // (interpolation variable). Both default empty for untyped/non-orchestrator.
+  workerType?: string;
+  workerTypeCatalog?: string;
 }
 
 export interface AssembleDeps {
@@ -46,13 +50,20 @@ export interface AssembleResult {
   activeFragmentIds: string[];
 }
 
-export function assembleSystemPrompt(deps: AssembleDeps, ctx: SessionSpawnContext): AssembleResult {
+export function assembleSystemPrompt(
+  deps: AssembleDeps,
+  ctx: SessionSpawnContext,
+  // Per-spawn synthetic fragments (e.g. a resolved worker-type body) injected
+  // alongside the registry's. Rendered from their own AST via renderParsed —
+  // their ids are not in the registry, so render(id) would throw on them.
+  extraFragments: Fragment[] = [],
+): AssembleResult {
   deps.registry.reload(); // fresh read so prompt edits apply on the next spawn
   const facts = deriveFacts(ctx);
   const vars = sessionVars(ctx);
 
-  const selected = selectFragments(deps.registry.fragments(), facts);
-  const rendered = selected.map((f) => deps.prompts.render(f.prompt.id, {}, vars));
+  const selected = selectFragments([...deps.registry.fragments(), ...extraFragments], facts);
+  const rendered = selected.map((f) => deps.prompts.renderParsed(f.prompt, {}, vars));
 
   return {
     text: composePrompt(rendered),
@@ -78,6 +89,7 @@ function deriveFacts(ctx: SessionSpawnContext): SessionFacts {
     shell: "",
     hasMcp: ctx.hasMcp,
     canCollaborate: ctx.canCollaborate,
+    workerType: ctx.workerType ?? "",
   });
 }
 
@@ -94,5 +106,6 @@ function sessionVars(ctx: SessionSpawnContext): VariableScope {
     ROLE: ctx.role,
     EFFORT: ctx.effort ?? "",
     PERMISSION_MODE: ctx.permissionMode,
+    WORKER_TYPE_CATALOG: ctx.workerTypeCatalog ?? "",
   };
 }

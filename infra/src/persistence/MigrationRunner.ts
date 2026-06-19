@@ -200,6 +200,10 @@ export const MIGRATIONS: Migration[] = [
   // user_message — losing its kind and showing the routing wrapper. NULL for
   // legacy rows and plain dashboard sends.
   { id: "041_queued_messages_add_meta", sql: "ALTER TABLE queued_messages ADD COLUMN meta TEXT" },
+  // Resolved worker-type name, set once at spawn. Drives the DPI workerType fact
+  // + the type-body fragment re-resolution on resume. NULL for untyped workers
+  // and all pre-migration rows.
+  { id: "042_workers_add_worker_type", sql: "ALTER TABLE workers ADD COLUMN worker_type TEXT" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

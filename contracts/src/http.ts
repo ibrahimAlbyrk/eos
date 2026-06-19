@@ -31,6 +31,9 @@ export const SpawnWorkerRequestSchema = z
     parentId: z.string().optional(),
     permissionMode: PermissionModeSchema.optional(),
     role: z.enum(["git"]).optional(),
+    // Worker type name (built-in / file / runtime). Resolves to per-axis
+    // defaults + an instructions body fragment at spawn. Absent ⇒ base worker.
+    workerType: z.string().optional(),
     // Spawn INTO an existing worker's worktree (shared workspace) instead of
     // creating a fresh one. Takes precedence over cwd/worktreeFrom.
     workspaceOf: z.string().optional(),
