@@ -120,6 +120,25 @@ describe("SqliteMessageQueueRepo", () => {
     assert.equal(row.displayText, undefined);
   });
 
+  it("listPendingUserPlane hides agent-plane rows; listPending still ships both (drain)", () => {
+    repo.insert(pending("u1", "hello")); // no plane → defaults to user
+    repo.insert({
+      ...pending(null, "[worker alice (w2)] reported:\nbody"),
+      plane: "agent",
+      envelope: { kind: "worker_report", fromWorker: "w2", workerName: "alice" },
+      displayText: "body",
+    });
+    // the drain sees everything FIFO…
+    assert.deepEqual(repo.listPending("w1").map((r) => r.text), ["hello", "[worker alice (w2)] reported:\nbody"]);
+    // …but the pill endpoint only sees the user's own message.
+    assert.deepEqual(repo.listPendingUserPlane("w1").map((r) => r.text), ["hello"]);
+  });
+
+  it("a row queued without an explicit plane is user-plane (still renders as a pill)", () => {
+    repo.insert(pending("a", "hi"));
+    assert.deepEqual(repo.listPendingUserPlane("w1").map((r) => r.text), ["hi"]);
+  });
+
   it("degrades gracefully on malformed meta (legacy/corrupt row) — never throws the drain", () => {
     const db = new DatabaseSync(":memory:");
     runMigrations(db, noopLog as never);

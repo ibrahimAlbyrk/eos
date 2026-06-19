@@ -207,6 +207,15 @@ export const MIGRATIONS: Migration[] = [
   // Materialized tool scope (JSON ToolScope: allow/deny globs + editRegex), baked
   // at spawn. The policy gateway reads it per tool call. NULL ⇒ no restriction.
   { id: "043_workers_add_tool_scope", sql: "ALTER TABLE workers ADD COLUMN tool_scope TEXT" },
+  // Visibility plane for a queued message. "user" = a human's pending message
+  // (renders as a pill); "agent" = internal agent-plane traffic (worker report/
+  // directive/peer) that still drains into the transcript at the next IDLE but
+  // must NEVER surface as a user pill. The pill endpoint reads user-plane only.
+  { id: "044_queued_messages_add_plane", sql: "ALTER TABLE queued_messages ADD COLUMN plane TEXT NOT NULL DEFAULT 'user'" },
+  // In-flight rows at upgrade: a pending row carrying routing meta IS agent-plane
+  // (only report/directive/peer persist an envelope). Reclassify so a report
+  // already queued behind a busy parent stops leaking into the pill list.
+  { id: "045_backfill_queued_messages_plane", sql: "UPDATE queued_messages SET plane = 'agent' WHERE meta IS NOT NULL" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

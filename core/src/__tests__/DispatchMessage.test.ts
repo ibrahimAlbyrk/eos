@@ -325,5 +325,15 @@ describe("dispatchMessage — agent-plane envelopes (report/directive/peer)", ()
     assert.equal(queueRows[0].dispatchedAt, null);
     assert.deepEqual(queueRows[0].envelope, { kind: "worker_report", fromWorker: "w2", workerName: "alice" });
     assert.equal(queueRows[0].displayText, "body");
+    // tagged agent-plane → the pill endpoint (listPendingUserPlane) hides it
+    // while the parent is mid-turn; it still drains into the transcript.
+    assert.equal(queueRows[0].plane, "agent");
+  });
+
+  it("a plain dashboard message queued behind a busy worker is user-plane (a pill)", async () => {
+    const { deps, queueRows } = buildDeps({ state: "WORKING" });
+    await dispatchMessage(deps, { workerId: "w1", text: "later", clientMsgId: "c1", queueWhenBusy: true });
+    assert.equal(queueRows.length, 1);
+    assert.equal(queueRows[0].plane, "user");
   });
 });

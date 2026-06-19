@@ -36,9 +36,23 @@ function decodeMeta(meta: string | null): QueueMeta {
   }
 }
 
+function toQueuedMessage(r: Row): QueuedMessage {
+  const { envelope, displayText } = decodeMeta(r.meta);
+  return {
+    id: r.id,
+    workerId: r.worker_id,
+    clientMsgId: r.client_msg_id,
+    text: r.text,
+    createdAt: r.created_at,
+    ...(envelope ? { envelope } : {}),
+    ...(displayText != null ? { displayText } : {}),
+  };
+}
+
 export class SqliteMessageQueueRepo implements MessageQueueRepo {
   private readonly stmtInsert;
   private readonly stmtListPending;
+  private readonly stmtListPendingUser;
   private readonly stmtMarkDispatched;
   private readonly stmtRemoveById;
   private readonly stmtRemovePending;
@@ -52,10 +66,13 @@ export class SqliteMessageQueueRepo implements MessageQueueRepo {
     // unique index ignores NULL client_msg_id rows (audit entries), so only
     // keyed messages dedup.
     this.stmtInsert = db.prepare(
-      "INSERT INTO queued_messages (worker_id, client_msg_id, text, created_at, dispatched_at, meta) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(worker_id, client_msg_id) DO NOTHING",
+      "INSERT INTO queued_messages (worker_id, client_msg_id, text, created_at, dispatched_at, meta, plane) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT(worker_id, client_msg_id) DO NOTHING",
     );
     this.stmtListPending = db.prepare(
       "SELECT id, worker_id, client_msg_id, text, created_at, meta FROM queued_messages WHERE worker_id = ? AND dispatched_at IS NULL ORDER BY id ASC",
+    );
+    this.stmtListPendingUser = db.prepare(
+      "SELECT id, worker_id, client_msg_id, text, created_at, meta FROM queued_messages WHERE worker_id = ? AND dispatched_at IS NULL AND plane = 'user' ORDER BY id ASC",
     );
     this.stmtMarkDispatched = db.prepare("UPDATE queued_messages SET dispatched_at = ? WHERE id = ?");
     this.stmtRemoveById = db.prepare("DELETE FROM queued_messages WHERE id = ?");
@@ -74,24 +91,16 @@ export class SqliteMessageQueueRepo implements MessageQueueRepo {
 
   insert(row: MessageQueueInsert): number | null {
     const meta = encodeMeta(row.envelope, row.displayText);
-    const info = this.stmtInsert.run(row.workerId, row.clientMsgId, row.text, row.createdAt, row.dispatchedAt, meta);
+    const info = this.stmtInsert.run(row.workerId, row.clientMsgId, row.text, row.createdAt, row.dispatchedAt, meta, row.plane ?? "user");
     return info.changes === 0 ? null : Number(info.lastInsertRowid);
   }
 
   listPending(workerId: string): QueuedMessage[] {
-    const rows = this.stmtListPending.all(workerId) as unknown as Row[];
-    return rows.map((r) => {
-      const { envelope, displayText } = decodeMeta(r.meta);
-      return {
-        id: r.id,
-        workerId: r.worker_id,
-        clientMsgId: r.client_msg_id,
-        text: r.text,
-        createdAt: r.created_at,
-        ...(envelope ? { envelope } : {}),
-        ...(displayText != null ? { displayText } : {}),
-      };
-    });
+    return (this.stmtListPending.all(workerId) as unknown as Row[]).map(toQueuedMessage);
+  }
+
+  listPendingUserPlane(workerId: string): QueuedMessage[] {
+    return (this.stmtListPendingUser.all(workerId) as unknown as Row[]).map(toQueuedMessage);
   }
 
   markDispatched(ids: number[], ts: number): void {

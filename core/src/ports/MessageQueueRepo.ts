@@ -6,6 +6,12 @@
 
 import type { DispatchEnvelope } from "../domain/message-envelope.ts";
 
+/** Which plane a queued message belongs to. "user" = a human's pending message
+ *  the dashboard renders as a pill. "agent" = internal agent-plane traffic
+ *  (worker report/directive/peer) that drains into the transcript but must never
+ *  be shown to the user as a pill. Derived from the envelope: present ⇒ agent. */
+export type MessagePlane = "user" | "agent";
+
 export interface QueuedMessage {
   id: number;
   workerId: string;
@@ -30,13 +36,20 @@ export interface MessageQueueInsert {
   /** Persisted only for pending rows so the drain can rebuild the dispatch. */
   envelope?: DispatchEnvelope;
   displayText?: string;
+  /** Visibility plane. Omitted → "user". Agent-plane callers (those passing an
+   *  envelope) set "agent" so the row drains normally but never shows as a pill. */
+  plane?: MessagePlane;
 }
 
 export interface MessageQueueRepo {
   /** Returns the new row id, or null when (workerId, clientMsgId) already
    *  exists — the duplicate signal callers treat as an idempotent no-op. */
   insert(row: MessageQueueInsert): number | null;
+  /** All pending rows (both planes), id-ASC — the drain ships everything FIFO. */
   listPending(workerId: string): QueuedMessage[];
+  /** User-plane pending only — the pill endpoint reads this so agent-plane
+   *  reports queued behind a busy parent never leak into the user's queue. */
+  listPendingUserPlane(workerId: string): QueuedMessage[];
   /** Pending → ledger (drain success). */
   markDispatched(ids: number[], ts: number): void;
   /** Claim rollback after a failed dispatch — deletes regardless of state. */

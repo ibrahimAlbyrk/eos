@@ -229,8 +229,11 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
   // Daemon-side message queue — pills render from this; dismiss deletes a
   // still-pending row (a drained row is gone from the pending list already).
+  // User-plane ONLY: agent-plane traffic (a worker report queued behind a busy
+  // parent) drains into the transcript at the next IDLE and must never surface
+  // as a pill in the user's composer.
   r.get(/^\/workers\/(?<id>[^/]+)\/queue$/, ({ params, res }) => {
-    const rows = c.messageQueue.listPending(params.id);
+    const rows = c.messageQueue.listPendingUserPlane(params.id);
     writeJson(res, 200, { messages: rows.map((m) => ({ id: m.id, text: m.displayText ?? m.text, ts: m.createdAt })) });
   });
 

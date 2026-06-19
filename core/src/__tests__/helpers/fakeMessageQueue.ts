@@ -1,17 +1,22 @@
 // In-memory MessageQueueRepo double shared by the dispatch/drain test suites.
 
-import type { MessageQueueRepo } from "../../ports/MessageQueueRepo.ts";
+import type { MessageQueueRepo, MessagePlane } from "../../ports/MessageQueueRepo.ts";
 import type { DispatchEnvelope } from "../../domain/message-envelope.ts";
 
 export interface QueueRow {
   id: number; workerId: string; clientMsgId: string | null;
   text: string; createdAt: number; dispatchedAt: number | null;
-  envelope?: DispatchEnvelope; displayText?: string;
+  envelope?: DispatchEnvelope; displayText?: string; plane?: MessagePlane;
 }
 
 export function fakeQueue(): { rows: QueueRow[]; repo: MessageQueueRepo } {
   const rows: QueueRow[] = [];
   let nextId = 1;
+  const toPublic = ({ id, workerId, clientMsgId, text, createdAt, envelope, displayText }: QueueRow) => ({
+    id, workerId, clientMsgId, text, createdAt,
+    ...(envelope ? { envelope } : {}),
+    ...(displayText != null ? { displayText } : {}),
+  });
   return {
     rows,
     repo: {
@@ -23,11 +28,10 @@ export function fakeQueue(): { rows: QueueRow[]; repo: MessageQueueRepo } {
       },
       listPending: (wid) => rows
         .filter((r) => r.workerId === wid && r.dispatchedAt === null)
-        .map(({ id, workerId, clientMsgId, text, createdAt, envelope, displayText }) => ({
-          id, workerId, clientMsgId, text, createdAt,
-          ...(envelope ? { envelope } : {}),
-          ...(displayText != null ? { displayText } : {}),
-        })),
+        .map(toPublic),
+      listPendingUserPlane: (wid) => rows
+        .filter((r) => r.workerId === wid && r.dispatchedAt === null && r.plane !== "agent")
+        .map(toPublic),
       markDispatched(ids, ts) { for (const r of rows) if (ids.includes(r.id)) r.dispatchedAt = ts; },
       removeById(id) { const i = rows.findIndex((r) => r.id === id); if (i >= 0) rows.splice(i, 1); },
       removePending(wid, id) {

@@ -175,6 +175,11 @@ export async function dispatchMessage(
       text: input.text,
       createdAt: now,
       dispatchedAt: null,
+      // An envelope means agent-plane traffic (report/directive/peer): tag the
+      // plane so the pill endpoint hides it. The row still drains into the
+      // transcript at the parent's next IDLE — it just never shows as a user
+      // pill while the parent is mid-turn.
+      plane: input.envelope ? "agent" : "user",
       // Agent-plane routing rides the pending row so the drain replays a report
       // as a worker_report (not a plain user_message showing the wrapper).
       ...(input.envelope ? { envelope: input.envelope } : {}),
