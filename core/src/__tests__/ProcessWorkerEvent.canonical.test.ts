@@ -75,10 +75,18 @@ describe("processWorkerEvent — canonical flip", () => {
     assert.deepEqual(states(events), [{ state: "IDLE", from: "WORKING", reason: "agent:turn_ended" }]);
   });
 
-  it("hook PostToolUse drives IDLE → WORKING via canonical", () => {
+  it("tool_done drives IDLE → WORKING via canonical", () => {
+    // tool_done (emitted alongside every PostToolUse hook) is the single source of
+    // tool lifecycle; the hook itself no longer maps to a tool activity.
+    const { deps, events } = buildDeps("IDLE");
+    processWorkerEvent(deps, { workerId: "w1", type: "tool_done", payload: { toolName: "Edit", toolUseId: "x", result: "ok" } });
+    assert.deepEqual(states(events), [{ state: "WORKING", from: "IDLE", reason: "agent:tool_finished" }]);
+  });
+
+  it("hook PostToolUse alone drives no state (lifecycle owned by tool_done)", () => {
     const { deps, events } = buildDeps("IDLE");
     processWorkerEvent(deps, { workerId: "w1", type: "hook", payload: { event: "PostToolUse", body: { tool_name: "Edit" } } });
-    assert.deepEqual(states(events), [{ state: "WORKING", from: "IDLE", reason: "agent:tool_finished" }]);
+    assert.deepEqual(states(events), []);
   });
 
   it("heartbeat heals SPAWNING → WORKING via canonical", () => {

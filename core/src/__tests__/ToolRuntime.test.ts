@@ -29,7 +29,7 @@ describe("ToolRuntime.runTurn", () => {
     const calls: unknown[] = [];
     await runTurn({ model: fakeModel([callTurn, endTurn]), tools: echoTool(calls), gate: allowGate, emit: (e) => events.push(e) }, [{ role: "user", content: "hi" }]);
     const tags = events.map(tag);
-    assert.deepEqual(tags, ["turn:started", "msg:tool_call", "msg:tool_result", "msg:text", "usage", "turn:ended"]);
+    assert.deepEqual(tags, ["turn:started", "msg:tool_call", "msg:tool_result", "msg:text", "usage", "context", "turn:ended"]);
     assert.deepEqual(calls, [{ x: 1 }]);
     const tr = events.find((e): e is Extract<AgentEvent, { type: "message" }> => e.type === "message" && e.blocks[0].type === "tool_result");
     const block = tr!.blocks[0];

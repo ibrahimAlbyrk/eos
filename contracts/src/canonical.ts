@@ -88,6 +88,17 @@ export const CanonicalUsageSchema = z.object({
 });
 export type CanonicalUsage = z.infer<typeof CanonicalUsageSchema>;
 
+// Context-window occupancy = the full prompt footprint of ONE request: uncached
+// input + cache reads + every cache-write tier. This is the snapshot the UI ring
+// shows (current occupancy), NOT the cumulative billing total (that's the summed
+// `usage` ledger). The two diverge on backends whose `usage` event is a per-turn
+// aggregate — see ContextEventSchema.
+export function contextTokensOf(u: CanonicalUsage): number {
+  let writes = 0;
+  for (const v of Object.values(u.cacheWriteTokens)) writes += v;
+  return u.inputTokens + u.cacheReadTokens + writes;
+}
+
 // --- the AgentEvent union (discriminated on `type`) -------------------------
 
 export const AgentMessageEventSchema = z.object({
@@ -120,9 +131,24 @@ export const ActivityEventSchema = z.object({
   isError: z.boolean().optional(),
 });
 
+// Cumulative billing usage for a unit of work (one request, or a whole turn for
+// backends that only report at turn end). The daemon SUMS these into the cost +
+// token ledger. Do NOT read this for context-window occupancy — use ContextEvent.
 export const UsageEventSchema = z.object({
   type: z.literal("usage"),
   usage: CanonicalUsageSchema,
+});
+
+// Context-window occupancy snapshot — the current prompt footprint (one request),
+// distinct from cumulative billing `usage`. The daemon SETs last_context_tokens
+// from it (latest wins, never summed). Backends emit it per assistant message /
+// API request: the last one of a turn is the live occupancy. Kept separate from
+// `usage` because a backend's billing usage can be a per-turn aggregate
+// (claude-sdk's result.usage sums every tool round-trip's tokens, incl. repeated
+// cache reads), which would balloon the ring far past the window.
+export const ContextEventSchema = z.object({
+  type: z.literal("context"),
+  tokens: z.number().nonnegative(),
 });
 
 // Session lifecycle — distinct from turn boundaries (boot / ready / exit).
@@ -171,6 +197,7 @@ export const AgentEventSchema = z.discriminatedUnion("type", [
   TurnEventSchema,
   ActivityEventSchema,
   UsageEventSchema,
+  ContextEventSchema,
   SessionEventSchema,
   PermissionRequestEventSchema,
   QuestionRequestEventSchema,

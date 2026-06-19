@@ -48,7 +48,7 @@ describe("InProcessBackend (second backend, fake model)", () => {
     assert.ok(session.isAlive());
     assert.deepEqual(calls, [{ v: 1 }]); // the tool actually ran
     const tags = events.map(tag);
-    assert.deepEqual(tags, ["session:started", "turn:started", "msg:tool_call", "msg:tool_result", "msg:text", "usage", "turn:ended"]);
+    assert.deepEqual(tags, ["session:started", "turn:started", "msg:tool_call", "msg:tool_result", "msg:text", "usage", "context", "turn:ended"]);
   });
 
   it("sendMessage drives a follow-up turn", async () => {

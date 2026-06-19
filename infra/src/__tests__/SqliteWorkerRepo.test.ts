@@ -38,15 +38,25 @@ describe("SqliteWorkerRepo listByParent", () => {
   });
 });
 
-describe("SqliteWorkerRepo addUsage last_context_tokens", () => {
-  it("stamps the turn's full context footprint, overwriting (not accumulating)", () => {
+describe("SqliteWorkerRepo billing ledger vs context occupancy", () => {
+  it("addUsage accumulates the billing ledger and never touches last_context_tokens", () => {
     repo.insert(input("w-u", null, 100));
     repo.addUsage("w-u", { in: 1, out: 50, cacheRead: 133997, cacheCreate: 0, cacheCreate1h: 154, costUsd: 0.01 });
-    assert.equal(repo.findById("w-u")?.last_context_tokens, 134152);
-    // Cache-cold turn (model switch): whole context lands in cacheCreate1h.
-    repo.addUsage("w-u", { in: 10, out: 389, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 126299, costUsd: 0.25 });
-    assert.equal(repo.findById("w-u")?.last_context_tokens, 126309);
-    assert.equal(repo.findById("w-u")?.tokens_in, 11);
+    repo.addUsage("w-u", { in: 10, out: 389, cacheRead: 5, cacheCreate: 0, cacheCreate1h: 126299, costUsd: 0.25 });
+    const w = repo.findById("w-u");
+    assert.equal(w?.tokens_in, 11);
+    assert.equal(w?.tokens_out, 439);
+    assert.equal(w?.tokens_cache_read, 134002);
+    // Occupancy is a separate snapshot — addUsage leaves it untouched.
+    assert.equal(w?.last_context_tokens ?? null, null);
+  });
+
+  it("setContextTokens overwrites the occupancy snapshot (latest wins, not summed)", () => {
+    repo.insert(input("w-c", null, 100));
+    repo.setContextTokens("w-c", 134152);
+    assert.equal(repo.findById("w-c")?.last_context_tokens, 134152);
+    repo.setContextTokens("w-c", 126309);
+    assert.equal(repo.findById("w-c")?.last_context_tokens, 126309);
   });
 });
 

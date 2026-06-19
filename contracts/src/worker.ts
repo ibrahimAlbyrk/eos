@@ -29,9 +29,11 @@ export const WorkerRowSchema = z.object({
   tokens_cache_create: z.number().nullable().optional(),
   tokens_cache_create_1h: z.number().nullable().optional(),
   cost_usd: z.number().nullable().optional(),
-  // Context footprint of the last turn (in + cacheRead + cacheCreate +
-  // cacheCreate1h), stamped by the daemon on every usage event. The web
-  // context ring reads this directly.
+  // Context-window occupancy: the prompt footprint (in + cacheRead + cacheWrite)
+  // of the LAST API request, stamped by the daemon from per-message `context`
+  // events (SET, latest wins — never the summed billing usage, which would
+  // balloon past the window on backends that report a per-turn aggregate). The
+  // web context ring reads this directly.
   last_context_tokens: z.number().nullable().optional(),
   // JSON snapshot of the agent's task list (Claude's TodoWrite), stamped by the
   // daemon on every TodoWrite tool call and nulled on /clear. A JSON string of

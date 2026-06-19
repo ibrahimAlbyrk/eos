@@ -19,6 +19,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtSetTurnStartedAt;
   private readonly stmtMarkDone;
   private readonly stmtAddUsage;
+  private readonly stmtSetContextTokens;
   private readonly stmtIncrementToolCalls;
   private readonly stmtUpdateName;
   private readonly stmtUpdatePermissionMode;
@@ -54,10 +55,10 @@ export class SqliteWorkerRepo implements WorkerRepo {
         tokens_cache_read = COALESCE(tokens_cache_read, 0) + ?,
         tokens_cache_create = COALESCE(tokens_cache_create, 0) + ?,
         tokens_cache_create_1h = COALESCE(tokens_cache_create_1h, 0) + ?,
-        cost_usd = COALESCE(cost_usd, 0) + ?,
-        last_context_tokens = ?
+        cost_usd = COALESCE(cost_usd, 0) + ?
       WHERE id = ?
     `);
+    this.stmtSetContextTokens = db.prepare("UPDATE workers SET last_context_tokens = ? WHERE id = ?");
     this.stmtIncrementToolCalls = db.prepare(
       "UPDATE workers SET tool_calls = COALESCE(tool_calls, 0) + 1 WHERE id = ?",
     );
@@ -133,10 +134,13 @@ export class SqliteWorkerRepo implements WorkerRepo {
   }
 
   addUsage(id: string, delta: UsageDelta): void {
-    // Sum all four kinds: cache-cold turns (model switch, expired cache TTL)
-    // report the whole context as cacheCreate*, not cacheRead.
-    const contextTokens = delta.in + delta.cacheRead + delta.cacheCreate + delta.cacheCreate1h;
-    this.stmtAddUsage.run(delta.in, delta.out, delta.cacheRead, delta.cacheCreate, delta.cacheCreate1h, delta.costUsd, contextTokens, id);
+    // Billing ledger only — accumulates. Context-window occupancy is stamped
+    // separately by setContextTokens (a per-request snapshot, not this sum).
+    this.stmtAddUsage.run(delta.in, delta.out, delta.cacheRead, delta.cacheCreate, delta.cacheCreate1h, delta.costUsd, id);
+  }
+
+  setContextTokens(id: string, tokens: number): void {
+    this.stmtSetContextTokens.run(tokens, id);
   }
 
   incrementToolCalls(id: string): void {

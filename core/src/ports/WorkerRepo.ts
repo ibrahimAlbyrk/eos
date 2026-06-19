@@ -54,7 +54,14 @@ export interface WorkerRepo {
   // Turn clock — stamped on every entry into the busy set (see TransitionState).
   setTurnStartedAt(id: string, ts: number): void;
   markDone(id: string, endedAt: number, exitCode: number | null): void;
+  // Accumulate the cumulative billing ledger (tokens_*/cost_usd). Does NOT touch
+  // context-window occupancy — that is a separate snapshot (setContextTokens),
+  // because a turn-aggregate usage delta is the right input for cost but wrong
+  // for the live context footprint.
   addUsage(id: string, delta: UsageDelta): void;
+  // Overwrite the context-window occupancy snapshot (last_context_tokens) the UI
+  // ring reads. SET, never summed: the latest per-request prompt footprint wins.
+  setContextTokens(id: string, tokens: number): void;
   incrementToolCalls(id: string): void;
   updateName(id: string, name: string | null): void;
   updatePermissionMode(id: string, mode: string): void;

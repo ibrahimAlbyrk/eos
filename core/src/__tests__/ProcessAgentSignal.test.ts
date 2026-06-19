@@ -21,6 +21,7 @@ function buildDeps(
   deltas: UsageDelta[];
   tasks: Array<string | null>;
   logs: Array<{ level: string; msg: string }>;
+  contextTokens: number[];
 } {
   const events: AppendedEvent[] = [];
   const row: { state: WorkerState; model: string | null; tasks: string | null } = {
@@ -30,6 +31,7 @@ function buildDeps(
   };
   const toolCalls = { count: 0 };
   const deltas: UsageDelta[] = [];
+  const contextTokens: number[] = [];
   const tasks: Array<string | null> = [];
   const logs: Array<{ level: string; msg: string }> = [];
   const sessionIds: string[] = [];
@@ -43,6 +45,7 @@ function buildDeps(
     setWorktreeDir: () => {},
     setTasks: (_id: string, t: string | null) => { row.tasks = t; tasks.push(t); },
     addUsage: (_id: string, d: UsageDelta) => { deltas.push(d); },
+    setContextTokens: (_id: string, t: number) => { contextTokens.push(t); },
     setSessionId: (_id: string, sid: string) => { sessionIds.push(sid); },
   } as unknown as ProcessWorkerEventDeps["workers"];
 
@@ -70,7 +73,7 @@ function buildDeps(
     markSettling: () => { settling = true; },
   } as unknown as ProcessWorkerEventDeps;
 
-  return { deps, events, row, toolCalls, deltas, tasks, logs, sessionIds };
+  return { deps, events, row, toolCalls, deltas, tasks, logs, sessionIds, contextTokens };
 }
 
 const states = (events: AppendedEvent[]): Array<{ state?: string; from?: string; reason?: string }> =>
@@ -197,14 +200,16 @@ describe("ProcessAgentSignal — session lifecycle", () => {
     assert.deepEqual(states(events), []);
   });
 
-  it("session cleared → IDLE (not ENDING) and opens the settle window", () => {
-    const { deps, events, row } = buildDeps("WORKING");
+  it("session cleared → IDLE (not ENDING), opens the settle window, resets the ring", () => {
+    const { deps, events, row, contextTokens } = buildDeps("WORKING");
     processAgentSignal(deps, "w1", { type: "session", phase: "cleared" });
     assert.deepEqual(states(events), [{ state: "IDLE", from: "WORKING", reason: "agent:session_cleared" }]);
     assert.equal(row.state, "IDLE");
     // Settle window open: trailing transcript of the cleared session must not
     // re-animate the worker.
     assert.equal(deps.isSettling?.("w1"), true);
+    // Wiped context → occupancy ring resets to 0.
+    assert.deepEqual(contextTokens, [0]);
   });
 
   it("session cleared while already IDLE is a no-op transition", () => {
@@ -236,6 +241,30 @@ describe("ProcessAgentSignal — usage (mirror legacy cost handler)", () => {
     const { deps, logs } = buildDeps("WORKING", { price: { in: 1, out: 1, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 }, model: null });
     processAgentSignal(deps, "w1", { type: "usage", usage: { inputTokens: 10, outputTokens: 5, cacheReadTokens: 0, cacheWriteTokens: {} } });
     assert.equal(logs.filter((l) => l.level === "warn").length, 1);
+  });
+});
+
+describe("ProcessAgentSignal — context occupancy (snapshot, not billing)", () => {
+  it("sets last_context_tokens, logs no row, drives no state", () => {
+    const { deps, events, row, contextTokens } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", { type: "context", tokens: 134152 });
+    assert.deepEqual(contextTokens, [134152]);
+    assert.equal(events.length, 0); // never logged (would be dozens of rows per turn)
+    assert.equal(row.state, "WORKING"); // no transition
+  });
+
+  it("latest snapshot wins (overwrite, never summed)", () => {
+    const { deps, contextTokens } = buildDeps("WORKING");
+    processAgentSignal(deps, "w1", { type: "context", tokens: 100 });
+    processAgentSignal(deps, "w1", { type: "context", tokens: 250 });
+    assert.deepEqual(contextTokens, [100, 250]);
+  });
+
+  it("does not heal a settling IDLE worker (no state side effects)", () => {
+    const { deps, events, row } = buildDeps("IDLE", { settling: true });
+    processAgentSignal(deps, "w1", { type: "context", tokens: 999 });
+    assert.deepEqual(states(events), []);
+    assert.equal(row.state, "IDLE");
   });
 });
 

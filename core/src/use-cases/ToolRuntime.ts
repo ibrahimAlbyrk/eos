@@ -11,6 +11,7 @@
 
 import type { ModelClient, ModelMessage } from "../ports/ModelClient.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
+import { contextTokensOf } from "../../../contracts/src/canonical.ts";
 
 export interface RuntimeTool {
   name: string;
@@ -70,10 +71,13 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
     if (turn.reasoning) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "reasoning", text: turn.reasoning, blockId: blockR }] });
     if (turn.text) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "text", text: turn.text, blockId: blockT }] });
     if (turn.usage) {
-      deps.emit({
-        type: "usage",
-        usage: { inputTokens: turn.usage.inputTokens, outputTokens: turn.usage.outputTokens, cacheReadTokens: turn.usage.cacheReadTokens ?? 0, cacheWriteTokens: {} },
-      });
+      // Each loop iteration is one API call, so this usage IS a per-request
+      // footprint: emit it as billing (summed) AND as a context snapshot (latest
+      // wins). Same split the claude-sdk/claude-cli lanes use.
+      const usage = { inputTokens: turn.usage.inputTokens, outputTokens: turn.usage.outputTokens, cacheReadTokens: turn.usage.cacheReadTokens ?? 0, cacheWriteTokens: {} };
+      deps.emit({ type: "usage", usage });
+      const tokens = contextTokensOf(usage);
+      if (tokens > 0) deps.emit({ type: "context", tokens });
     }
 
     if (turn.stopReason === "error") {

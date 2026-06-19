@@ -38,6 +38,7 @@ describe("ToolRuntime — streaming model emits canonical deltas + durable block
       "msg:reasoning#inproc-0-r",
       "msg:text#inproc-0-t",
       "usage",
+      "context",
       "turn:ended",
     ]);
   });

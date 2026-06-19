@@ -100,8 +100,10 @@ export function reduceAgentSignal(
       } else if (event.phase === "cleared") {
         // /clear: the agent is alive with a fresh context — settle + IDLE, not
         // ENDING (which is terminal and would reject every later transition).
-        // The old task list belongs to the wiped context — drop it.
+        // The old task list belongs to the wiped context — drop it; the context
+        // ring resets to 0 (the next turn restamps the fresh footprint).
         deps.workers.setTasks(workerId, null);
+        deps.workers.setContextTokens(workerId, 0);
         deps.markSettling?.(workerId);
         transitionState(deps, { workerId, next: "IDLE", reason: "agent:session_cleared" });
       }
@@ -109,7 +111,8 @@ export function reduceAgentSignal(
       // still handle boot IDLE; worktreeDir enrichment stays on the legacy path).
       return;
 
-    // usage / permission_request / question_request drive no state transition.
+    // usage / context / permission_request / question_request drive no state
+    // transition (context is handled before this reducer; see processAgentSignal).
     default:
       return;
   }
@@ -126,6 +129,15 @@ export function processAgentSignal(
   // Live deltas are ephemeral (relayed over SSE at the onAgentEvent sink): never
   // log a row, never drive state. Defense-in-depth — the sink already filters them.
   if (event.type === "delta") return;
+  // Context-occupancy snapshots fire per assistant message (one per turn would be
+  // dozens of rows): update the column + ping the UI, never log a row, never
+  // drive state. A sibling message/usage event of the same turn also pings, but
+  // the rare blockless assistant message has only this signal — so ping here too.
+  if (event.type === "context") {
+    deps.workers.setContextTokens(workerId, event.tokens);
+    deps.bus.publish("worker:change", { workerId, type: "context" });
+    return;
+  }
   const rowId = logEvent(deps, workerId, "agent_event", event);
   if (event.type === "usage") {
     handleUsage(deps, workerId, event, rowId);
