@@ -135,7 +135,7 @@ function EditorInner({ path }) {
         {isText && (
           <div className="fv-actions">
             {isMarkdown && <PreviewToggle mode={viewMode} onToggle={togglePreview} />}
-            {!showMarkdownPreview && (dirty ? (
+            {(dirty ? (
               <>
                 <button className="fv-btn" onClick={() => { setEditContent(content ?? ""); buffers.delete(path); }}>Revert</button>
                 <button className="fv-btn fv-btn--save" onClick={save} disabled={saving}>Save</button>

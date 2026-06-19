@@ -1575,8 +1575,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   word-break: break-word;
 }
 
-/* Assistant text — plain prose */
-.msg-asst {
+/* Rendered markdown prose — shared by chat messages (.msg-asst) and the
+   file-view markdown preview (.fv-preview). Single source of markdown typography. */
+.md-prose {
   font-size: var(--text-base);
   line-height: 1.65;
   color: var(--fg);
@@ -1586,27 +1587,27 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
      too; <pre> stays white-space:pre and keeps its own overflow-x:auto. */
   overflow-wrap: anywhere;
 }
-.msg-asst > *:last-child { margin-bottom: 0; }
-.msg-asst p { margin: 0 0 10px; }
-.msg-asst h1, .msg-asst h2, .msg-asst h3,
-.msg-asst h4, .msg-asst h5, .msg-asst h6 { margin: 16px 0 8px; font-weight: 600; color: var(--fg); }
-.msg-asst h1 { font-size: var(--text-2xl); }
-.msg-asst h2 { font-size: var(--text-xl); }
-.msg-asst h3 { font-size: var(--text-md); }
-.msg-asst h4, .msg-asst h5, .msg-asst h6 { font-size: var(--text-base); }
-.msg-asst ul, .msg-asst ol { margin: 4px 0 10px; padding-left: 22px; }
-.msg-asst li { margin: 2px 0; }
-.msg-asst li::marker { color: var(--fg-faint); }
-.msg-asst b, .msg-asst strong { font-weight: 600; color: var(--fg); }
-.msg-asst em { font-style: italic; }
-.msg-asst code {
+.md-prose > *:last-child { margin-bottom: 0; }
+.md-prose p { margin: 0 0 10px; }
+.md-prose h1, .md-prose h2, .md-prose h3,
+.md-prose h4, .md-prose h5, .md-prose h6 { margin: 16px 0 8px; font-weight: 600; color: var(--fg); }
+.md-prose h1 { font-size: var(--text-2xl); }
+.md-prose h2 { font-size: var(--text-xl); }
+.md-prose h3 { font-size: var(--text-md); }
+.md-prose h4, .md-prose h5, .md-prose h6 { font-size: var(--text-base); }
+.md-prose ul, .md-prose ol { margin: 4px 0 10px; padding-left: 22px; }
+.md-prose li { margin: 2px 0; }
+.md-prose li::marker { color: var(--fg-faint); }
+.md-prose b, .md-prose strong { font-weight: 600; color: var(--fg); }
+.md-prose em { font-style: italic; }
+.md-prose code {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   padding: 2px 5px;
   background: var(--surface-2);
   border-radius: 3px;
 }
-.msg-asst pre {
+.md-prose pre {
   margin: 8px 0 12px;
   padding: 10px 14px;
   font-family: var(--font-mono);
@@ -1618,20 +1619,20 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   overflow-x: auto;
   white-space: pre;
 }
-.msg-asst pre code {
+.md-prose pre code {
   padding: 0;
   background: none;
   border-radius: 0;
   font-size: inherit;
 }
-.msg-asst table {
+.md-prose table {
   width: 100%;
   border-collapse: separate;
   border-spacing: 2px;
   margin: 8px 0 12px;
   font-size: var(--text-base);
 }
-.msg-asst th {
+.md-prose th {
   padding: 6px 14px;
   font-weight: 500;
   font-size: var(--text-base);
@@ -1640,28 +1641,28 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   background: var(--surface-3);
   border-radius: 4px;
 }
-.msg-asst td {
+.md-prose td {
   padding: 6px 14px;
   color: var(--fg);
   background: var(--surface-2);
   border-radius: 4px;
 }
-.msg-asst tbody tr:hover td { background: var(--surface-3); }
-.msg-asst blockquote {
+.md-prose tbody tr:hover td { background: var(--surface-3); }
+.md-prose blockquote {
   margin: 8px 0 12px;
   padding: 6px 14px;
   border-left: 3px solid var(--border);
   color: var(--fg-dim);
 }
-.msg-asst blockquote p { margin: 0; }
-.msg-asst hr {
+.md-prose blockquote p { margin: 0; }
+.md-prose hr {
   border: none;
   border-top: 1px solid var(--border);
   margin: 12px 0;
 }
-.msg-asst a { color: var(--accent); text-decoration: none; }
-.msg-asst a:hover { text-decoration: underline; }
-.msg-asst .ic { font-size: var(--text-sm); }
+.md-prose a { color: var(--accent); text-decoration: none; }
+.md-prose a:hover { text-decoration: underline; }
+.md-prose .ic { font-size: var(--text-sm); }
 .msg-user a, .msg-user .msg-link, .msg-task-body .msg-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .msg-user a:hover, .msg-task-body .msg-link:hover { opacity: 0.8; }
 
@@ -5563,7 +5564,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border-left: 1px solid rgba(var(--tint), 0.08);
 }
 
-.cb-branch-search {
+.cb-dd-search {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -5575,8 +5576,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   position: relative;
   z-index: 1;
 }
-.cb-branch-search svg { color: var(--fg-faint); flex-shrink: 0; }
-.cb-branch-search input {
+.cb-dd-search svg { color: var(--fg-faint); flex-shrink: 0; }
+.cb-dd-search input {
   flex: 1;
   min-width: 0;
   font-size: var(--text-sm);
@@ -6484,7 +6485,12 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .fv-lc { white-space: pre-wrap; word-break: break-word; color: var(--fg); }
 
-/* Markdown rendered view */
+/* Markdown preview surface — reuses chat prose (.md-prose); owns only the
+   reading padding + image fit so the panel chrome stays out of the typography. */
+.fv-preview { padding: 20px 24px; }
+.fv-preview img { max-width: 100%; border-radius: 6px; }
+
+/* Markdown rendered view — sub-agent results (MarkdownView / AgentViewer) */
 .fv-markdown {
   padding: 20px 24px;
   font-size: var(--text-md);

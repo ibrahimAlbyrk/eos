@@ -11,7 +11,7 @@ export function MessageAssistant({ text, animate = false }) {
   return (
     <div
       ref={ref}
-      className="msg-asst"
+      className="msg-asst md-prose"
       dangerouslySetInnerHTML={{ __html: html }}
     />
   );

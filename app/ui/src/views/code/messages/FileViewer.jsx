@@ -138,7 +138,7 @@ function FileViewerInner({ path }) {
                 </svg>
               </button>
             )}
-            {isText && !showMarkdownPreview && (dirty ? (
+            {isText && (dirty ? (
               <>
                 <button className="fv-btn" onClick={handleCancel}>Cancel</button>
                 <button className="fv-btn fv-btn--save" onClick={handleSave} disabled={saving}>Save</button>
