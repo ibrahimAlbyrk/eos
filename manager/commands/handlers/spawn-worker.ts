@@ -2,9 +2,10 @@ import type { CommandHandler } from "../pipeline.ts";
 import { spawnWorkerCommand } from "../../../contracts/src/commands/defs.ts";
 import type { NoAddr } from "../../../contracts/src/commands/types.ts";
 import type { SpawnWorkerRequest, SpawnWorkerResponse } from "../../../contracts/src/http.ts";
+import type { WorkerDefinition } from "../../../contracts/src/worker-definition.ts";
 import { spawnWorker } from "../../../core/src/use-cases/SpawnWorker.ts";
 import { resolveSpawnIsolation } from "../../../core/src/domain/worktree-policy.ts";
-import { resolveWorkerTypeByName, applyWorkerTypeDefaults, materializeToolScope, isToolScopeRestrictive } from "../../../core/src/domain/worker-type-resolution.ts";
+import { resolveWorkerDefinitionByName, applyWorkerDefinitionDefaults, materializeToolScope, isToolScopeRestrictive } from "../../../core/src/domain/worker-definition-resolution.ts";
 import { ValidationError } from "../../../core/src/errors/index.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
@@ -26,48 +27,56 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       }
     }
     if (!bootPrompt) throw new ValidationError("resolved prompt is empty");
-    // Resolve the worker type → per-axis defaults + instructions body. `git` is
-    // now just a built-in type (manager/worker-types/git.md); legacy role:"git"
-    // requests map to workerType:"git" until callers migrate. Unknown/unset name
-    // → null → a plain base worker (graceful degrade, never throws). The project
-    // .eos/workers dir is found from the RAW request cwd — the isolation downgrade
-    // below doesn't change WHERE the repo's types live.
-    const workerTypeName = body.workerType ?? (body.role === "git" ? "git" : "");
+    // Resolve the available worker (`from`) → per-axis defaults + instructions
+    // body. `git` is now just a built-in definition (manager/workers/git.md);
+    // legacy role:"git" requests map to from:"git" until callers migrate.
+    // Unknown/unset name → null → a plain base worker (graceful degrade, never
+    // throws). The project .eos/workers dir is found from the RAW request cwd —
+    // the isolation downgrade below doesn't change WHERE the repo's definitions live.
+    const definitionName = body.from ?? (body.role === "git" ? "git" : "");
     const lookupCwd = expandPath(body.worktreeFrom ?? body.cwd) ?? null;
     // Disk records (builtin < user < project) + the owning orchestrator's runtime
-    // mints (highest precedence). Per-owner: a sibling orchestrator's mints never
-    // leak here (the scope guard).
+    // definitions (highest precedence). Per-owner: a sibling orchestrator's
+    // definitions never leak here (the scope guard).
     const records = [
-      ...c.listWorkerTypeRecords(lookupCwd),
-      ...(body.parentId ? c.runtimeWorkerTypes.listFor(body.parentId) : []),
+      ...c.listWorkerDefinitionRecords(lookupCwd),
+      ...(body.parentId ? c.runtimeWorkerDefinitions.listFor(body.parentId) : []),
     ];
-    const type = workerTypeName ? resolveWorkerTypeByName(workerTypeName, records) : null;
+    const def = definitionName ? resolveWorkerDefinitionByName(definitionName, records) : null;
     const requestHas = (f: string) => (body as Record<string, unknown>)[f] !== undefined;
-    const td = type ? applyWorkerTypeDefaults(type, requestHas) : {};
+    const dd = def ? applyWorkerDefinitionDefaults(def, requestHas) : {};
     // Materialize the tool surface once at spawn (baked onto the row; the gate
     // reads it per call). An all-empty scope persists as null — equivalent to
-    // no restriction, and keeps unrestricted types (git) off the gate rung.
-    const scope = type ? materializeToolScope(type) : null;
+    // no restriction, and keeps unrestricted definitions (git) off the gate rung.
+    // Inline request scope (toolsAllow/toolsDeny/editRegex) fences a one-off
+    // worker WITHOUT a reusable definition and OVERRIDES a `from` definition's
+    // scope entirely (explicit request wins).
+    const inlineScopeSrc = (body.toolsAllow || body.toolsDeny || body.editRegex)
+      ? { toolsAllow: body.toolsAllow, toolsDeny: body.toolsDeny, editRegex: body.editRegex }
+      : null;
+    const scope = inlineScopeSrc
+      ? materializeToolScope(inlineScopeSrc as WorkerDefinition)
+      : (def ? materializeToolScope(def) : null);
     const toolScope = scope && isToolScopeRestrictive(scope) ? scope : null;
-    // Isolation: the user's global worktree-disable wins; otherwise the type's
-    // declared isolation default takes effect (the request carries no explicit
-    // isolation field, so a type's preference applies whenever it set one).
+    // Isolation: the user's global worktree-disable wins; otherwise the
+    // definition's declared isolation default takes effect (the request carries
+    // no explicit isolation field, so a definition's preference applies whenever set).
     const iso = resolveSpawnIsolation(body, {
       worktreesDisabled: c.userSettings.read()["git.spawnWithoutWorktree"] === true,
-      typeIsolation: td.isolation,
+      definitionIsolation: dd.isolation,
     });
-    // Mode inheritance: explicit body.permissionMode wins; else the type's
+    // Mode inheritance: explicit body.permissionMode wins; else the definition's
     // default (git → bypassPermissions); else resolve from parent so children
     // adopt the orchestrator's current mode.
     const claudePermissionMode = body.permissionMode
-      ?? td.permissionMode
+      ?? dd.permissionMode
       ?? (body.parentId ? c.modeResolver.resolveFor(body.parentId) : undefined);
-    const { promptTemplate: _promptTemplate, ...bodyRest } = body;
+    const { promptTemplate: _promptTemplate, from: _from, toolsAllow: _toolsAllow, toolsDeny: _toolsDeny, editRegex: _editRegex, ...bodyRest } = body;
     // Backend selection (defaults to claude-cli): resolve BEFORE the spec so a
-    // profile-driven backend's model + profile name thread into it. A type may
-    // default backendKind where the request left it unset. claude-cli keeps
+    // profile-driven backend's model + profile name thread into it. A definition
+    // may default backendKind where the request left it unset. claude-cli keeps
     // today's behavior exactly (no model override, null profile).
-    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind ?? td.backendKind, parentId: body.parentId ?? null, isOrchestrator: false });
+    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind ?? dd.backendKind, parentId: body.parentId ?? null, isOrchestrator: false });
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     // Billing/enablement guard on the RESOLVED backend (covers profile/inherit/
     // default picks, not just explicit body.backendKind): rejects a metered API
@@ -82,22 +91,22 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       carryUncommitted: c.userSettings.read()["git.carryUncommitted"] === true,
       hydrateEnv: c.config.worker.hydrateEnvFiles,
       claudePermissionMode,
-      // Type defaults — only the axes the request left unset (applyWorkerType-
-      // Defaults already dropped request-set fields, so these never override an
-      // explicit request value).
-      ...(td.model !== undefined ? { model: td.model } : {}),
-      ...(td.effort !== undefined ? { effort: td.effort } : {}),
-      ...(td.persistent !== undefined ? { persistent: td.persistent } : {}),
-      ...(td.collaborate !== undefined ? { collaborate: td.collaborate } : {}),
+      // Definition defaults — only the axes the request left unset (applyWorker-
+      // DefinitionDefaults already dropped request-set fields, so these never
+      // override an explicit request value).
+      ...(dd.model !== undefined ? { model: dd.model } : {}),
+      ...(dd.effort !== undefined ? { effort: dd.effort } : {}),
+      ...(dd.persistent !== undefined ? { persistent: dd.persistent } : {}),
+      ...(dd.collaborate !== undefined ? { collaborate: dd.collaborate } : {}),
       // Profile-model providers (metered lanes: deepseek/kimi/openai) carry the
       // profile's model; request-model providers (claude-sdk/claude-cli) run the
       // Claude model the user picked. Persist the resolved profile name for inheritance.
       ...(backend.descriptor.modelSource === "profile" ? { model: rb.model } : {}),
       backendProfile: rb.profileName ?? undefined,
-      // Carry the resolved type onto the spec: persisted (worker_type column) and
-      // surfaced as the DPI workerType fact + the role/20 instructions fragment.
-      workerType: type?.name ?? "",
-      workerTypeBody: type?.body ?? "",
+      // Carry the resolved definition onto the spec: persisted (worker_definition
+      // column) and surfaced as the DPI workerDefinition fact + the role/20 fragment.
+      workerDefinition: def?.name ?? "",
+      workerDefinitionBody: def?.body ?? "",
       // Materialized tool scope (persisted to tool_scope; enforced by the gate).
       toolScope: toolScope ?? undefined,
     };

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { PolicyGatewayService, type PolicyGatewayServiceDeps } from "../services/PolicyGatewayService.ts";
 import { compileRule, type Policy } from "../domain/policy.ts";
 import type { PermissionMode } from "../domain/permission-mode.ts";
-import type { ToolScope } from "../../../contracts/src/worker-type.ts";
+import type { ToolScope } from "../../../contracts/src/worker-definition.ts";
 
 interface PolicyEvent { tool: string; decision: string }
 
@@ -31,13 +31,13 @@ function buildService(opts: { mode?: PermissionMode; policy?: Partial<Policy>; s
 
 const READONLY: ToolScope = { allow: ["Read", "Grep", "Glob"], deny: [], editRegex: null };
 
-describe("PolicyGatewayService — worker-type tool scope (rung 2.5)", () => {
+describe("PolicyGatewayService — worker-definition tool scope (rung 2.5)", () => {
   it("denies a tool outside the allowlist (read-only type denies Bash + Edit)", async () => {
     const { svc } = buildService({ scope: READONLY });
     for (const tool of ["Bash", "Edit", "Write"]) {
       const d = await svc.decide({ workerId: "w1", toolName: tool, input: {} });
       assert.equal(d.behavior, "deny", `${tool} should be denied`);
-      assert.ok("message" in d && String(d.message).includes("not in this worker type's allowed tools"));
+      assert.ok("message" in d && String(d.message).includes("not in this worker definition's allowed tools"));
     }
   });
 

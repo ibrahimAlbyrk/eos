@@ -8,15 +8,15 @@ import type { WorkerRow } from "../../contracts/src/worker.ts";
 import { resumeWorker } from "../../core/src/use-cases/ResumeWorker.ts";
 import { ConflictError, NotFoundError, UnreachableError } from "../../core/src/errors/index.ts";
 import { buildRespawnSpec } from "../shared/respawn-spec.ts";
-import { resolveWorkerTypeByName } from "../../core/src/domain/worker-type-resolution.ts";
+import { resolveWorkerDefinitionByName } from "../../core/src/domain/worker-definition-resolution.ts";
 import { planBackendSwitch } from "../../core/src/domain/backend-switch.ts";
 import { isWorkerLive } from "./worker-liveness.ts";
 
 export function resumeWorkerVia(c: Container, row: WorkerRow): Promise<{ id: string; port: number }> {
   const spec = buildRespawnSpec(row, {
     modeResolver: c.modeResolver,
-    resolveWorkerType: (name) => {
-      const t = resolveWorkerTypeByName(name, c.listWorkerTypeRecords(row.worktree_dir ?? row.cwd ?? null));
+    resolveWorkerDefinition: (name) => {
+      const t = resolveWorkerDefinitionByName(name, c.listWorkerDefinitionRecords(row.worktree_dir ?? row.cwd ?? null));
       return t ? { body: t.body, persistent: t.persistent } : null;
     },
   });

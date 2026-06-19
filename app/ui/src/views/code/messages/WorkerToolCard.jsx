@@ -19,7 +19,7 @@ const BODIES = {
   mcp__orchestrator__kill_worker: { detail: killWorkerDetail },
   mcp__orchestrator__message_worker: { detail: (t) => t.input?.text ?? "" },
   mcp__orchestrator__get_worker: { detail: getWorkerDetail },
-  mcp__orchestrator__list_workers: { rows: listWorkersRows, emptyText: "No workers." },
+  mcp__orchestrator__list_active_workers: { rows: listWorkersRows, emptyText: "No workers." },
   mcp__orchestrator__list_pending_permissions: { rows: pendingRows, emptyText: "No pending permissions." },
 };
 
@@ -130,7 +130,7 @@ function failureKind(tool) {
 }
 
 function Target({ tool, workers }) {
-  if (tool.name === "mcp__orchestrator__list_workers") {
+  if (tool.name === "mcp__orchestrator__list_active_workers") {
     const res = parseResultJson(tool);
     const count = Array.isArray(res) ? res.length : null;
     return <span className="ti-file">{count != null ? `workers (${count})` : "workers"}</span>;

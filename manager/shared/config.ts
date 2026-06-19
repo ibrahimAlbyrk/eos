@@ -35,7 +35,7 @@ export interface DaemonConfig {
     bunBin: string;          // path to `bun` (used by gateway MCP)
     workerScript: string;    // <repoRoot>/spawner/worker.ts
     promptsDir: string;      // <repoRoot>/manager/prompts — DPI fragment + action-template library
-    workerTypesDir: string;  // <repoRoot>/manager/worker-types — built-in worker-type .md library
+    workerDefinitionsDir: string;  // <repoRoot>/manager/workers — built-in worker definition .md library
   };
   worker: {
     portRangeStart: number;
@@ -165,7 +165,7 @@ function defaults(): DaemonConfig {
       bunBin: envStr("EOS_BUN_BIN", "bun"),
       workerScript: join(repoRoot, "spawner", "worker.ts"),
       promptsDir: envStr("EOS_PROMPTS_DIR", join(repoRoot, "manager", "prompts")),
-      workerTypesDir: envStr("EOS_WORKER_TYPES_DIR", join(repoRoot, "manager", "worker-types")),
+      workerDefinitionsDir: envStr("EOS_WORKER_DEFINITIONS_DIR", join(repoRoot, "manager", "workers")),
     },
     worker: {
       portRangeStart: envNum("EOS_WORKER_PORT_START", 7500),

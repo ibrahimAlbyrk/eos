@@ -2,8 +2,8 @@
 // Decision chain (Chain of Responsibility):
 //   0. Subagent caller scope — Eos control tools (domain/tool-scope.ts) are
 //      main-agent only; calls carrying agent_id are denied outright
-//   0.5 Worker-type tool scope (capability boundary) → deny OR pass-through
-//      (above policy.yaml so a broad rule can't re-grant a type-denied tool)
+//   0.5 Worker-definition tool scope (capability boundary) → deny OR pass-through
+//      (above policy.yaml so a broad rule can't re-grant a definition-denied tool)
 //   1. Explicit policy.yaml rule match → use that decision
 //   2. Per-worker permission mode → MODE_SPECS verdict by tool category
 //   3. policy.default → final fallback
@@ -33,7 +33,7 @@ export interface PolicyGatewayServiceDeps {
   clock: Clock;
   ids: IdGenerator;
   modeResolver: PermissionModeResolver;
-  /** Per-worker materialized tool scope (worker type allow/deny + editRegex).
+  /** Per-worker materialized tool scope (worker definition allow/deny + editRegex).
    * The capability-boundary rung — deny-or-passthrough, above policy.yaml,
    * never short-circuits allow. Absent ⇒ untyped, rung skipped. */
   toolScopeResolver?: WorkerToolScopeResolver;
@@ -142,8 +142,8 @@ export class PolicyGatewayService implements PolicyGateway {
         message: `${toolName} is main-agent only — subagents cannot use Eos control tools. Return your findings; the main agent acts on them.`,
       };
     }
-    // Worker-type tool scope (capability boundary) — sits above policy.yaml so a
-    // stale/broad allow can't re-grant a tool the type denies. DENY-OR-PASSTHROUGH:
+    // Worker-definition tool scope (capability boundary) — sits above policy.yaml so a
+    // stale/broad allow can't re-grant a tool the definition denies. DENY-OR-PASSTHROUGH:
     // it may deny, but never short-circuits allow (that would collapse the mode
     // verdict layer). Empty allow ⇒ inherit-all; deny always subtracts.
     const scope = this.deps.toolScopeResolver?.resolveFor(workerId);
@@ -153,10 +153,10 @@ export class PolicyGatewayService implements PolicyGateway {
       // argument is the command string.
       const arg = typeof input.command === "string" ? input.command : undefined;
       if (matchesAny(toolName, scope.deny, arg)) {
-        return { behavior: "deny", message: `${toolName} is denied by this worker's type` };
+        return { behavior: "deny", message: `${toolName} is denied by this worker's definition` };
       }
       if (scope.allow.length > 0 && !matchesAny(toolName, scope.allow, arg)) {
-        return { behavior: "deny", message: `${toolName} is not in this worker type's allowed tools` };
+        return { behavior: "deny", message: `${toolName} is not in this worker definition's allowed tools` };
       }
       // editRegex confines file edits to matching paths. Only fileEdits are
       // gated (a planFile / non-edit tool is untouched). An invalid regex is
@@ -166,7 +166,7 @@ export class PolicyGatewayService implements PolicyGateway {
         if (re && classifyTool(toolName, input, this.deps.plansDir) === "fileEdit") {
           const target = input.file_path ?? input.notebook_path;
           if (typeof target !== "string" || !re.test(target)) {
-            return { behavior: "deny", message: `edit target is outside this worker type's allowed paths` };
+            return { behavior: "deny", message: `edit target is outside this worker definition's allowed paths` };
           }
         }
       }
@@ -210,7 +210,7 @@ export class PolicyGatewayService implements PolicyGateway {
   }
 }
 
-// Compile a worker-type editRegex once per call. An invalid pattern returns null
+// Compile a worker-definition editRegex once per call. An invalid pattern returns null
 // → the editRegex check is skipped (allow/deny still apply) rather than denying
 // every edit on a typo.
 function compileEditRegex(pattern: string): RegExp | null {

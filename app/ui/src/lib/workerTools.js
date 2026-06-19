@@ -27,7 +27,7 @@ export const WORKER_TOOL_SPECS = {
     running: "Checking",
     summary: (n) => `Checked ${plural(n)}`,
   },
-  mcp__orchestrator__list_workers: {
+  mcp__orchestrator__list_active_workers: {
     verb: "Listed",
     running: "Listing",
     summary: (n) => `Listed workers${times(n)}`,

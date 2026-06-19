@@ -5,7 +5,7 @@ variables:
   - GET_WORKER_TOOL
   - KILL_WORKER_TOOL
   - LIST_PENDING_PERMISSIONS_TOOL
-  - LIST_WORKERS_TOOL
+  - LIST_ACTIVE_WORKERS_TOOL
   - MESSAGE_WORKER_TOOL
   - NOTIFY_USER_TOOL
   - SPAWN_WORKER_TOOL
@@ -21,7 +21,7 @@ dpi:
 
 - `{{SPAWN_WORKER_TOOL}}(prompt, name?, model?, effort?, workspaceOf?)` → `{ id, port, isolation }`.
 - `{{GET_WORKER_TOOL}}(id)` → `{ worker, events }` (30 most recent events).
-- `{{LIST_WORKERS_TOOL}}()` → up to 30, most recent first; each `{ id, state, branch, started_at, ended_at, prompt }`.
+- `{{LIST_ACTIVE_WORKERS_TOOL}}()` → up to 30, most recent first; each `{ id, state, branch, started_at, ended_at, prompt }`.
 - `{{MESSAGE_WORKER_TOOL}}(id, text)` → new user-turn for a worker.
 - `{{KILL_WORKER_TOOL}}(id)` → SIGTERM, graceful (Stop hook runs). Destroys the worktree.
 - `{{LIST_PENDING_PERMISSIONS_TOOL}}()` → `{ worker_id, tool, input, requested_at }[]`.

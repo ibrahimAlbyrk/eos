@@ -42,8 +42,8 @@ const baseCtx: SessionSpawnContext = {
   isAttached: false,
   hasMcp: false,
   canCollaborate: false,
-  workerType: "",
-  workerTypeCatalog: "",
+  workerDefinition: "",
+  workerDefinitionCatalog: "",
 };
 
 // Verifies the DPI assembler selects + composes the right per-role system

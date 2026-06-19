@@ -12,7 +12,7 @@ import {
   ReadDetail, EditDetail, WriteDetail, BashDetail, AskUserQuestionDetail,
   AskUserDetail, SkillDetail, NotifyDetail, MessageDetail, GenericDetail,
   PeerAskDetail, PeerRespondDetail, PeerListDetail,
-  MintWorkerTypeDetail, ListWorkerTypesDetail,
+  CreateWorkerDetail, AvailableWorkersDetail,
 } from "./ToolDetail.jsx";
 import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
 import { skillFilePath } from "../../../lib/skillBody.js";
@@ -117,22 +117,22 @@ register("mcp__orchestrator__notify_user", {
   Detail: NotifyDetail,
 });
 
-register("mcp__orchestrator__mint_worker_type", {
-  label: (t) => ({ verb: "Minted worker type", file: t.input?.name ?? "" }),
-  runningLabel: (t) => ({ verb: "Minting worker type", file: t.input?.name ?? "" }),
-  Detail: MintWorkerTypeDetail,
+register("mcp__orchestrator__create_worker", {
+  label: (t) => ({ verb: "Created worker", file: t.input?.name ?? "" }),
+  runningLabel: (t) => ({ verb: "Creating worker", file: t.input?.name ?? "" }),
+  Detail: CreateWorkerDetail,
 });
 
-register("mcp__orchestrator__list_worker_types", {
+register("mcp__orchestrator__list_available_workers", {
   label: (t) => {
-    const n = workerTypesCount(t);
-    return { verb: "Listed", file: n != null ? `worker types (${n})` : "worker types" };
+    const n = availableWorkersCount(t);
+    return { verb: "Listed", file: n != null ? `available workers (${n})` : "available workers" };
   },
-  runningLabel: () => ({ verb: "Listing", file: "worker types" }),
-  Detail: ListWorkerTypesDetail,
+  runningLabel: () => ({ verb: "Listing", file: "available workers" }),
+  Detail: AvailableWorkersDetail,
 });
 
-function workerTypesCount(t) {
+function availableWorkersCount(t) {
   const text = t.result?.text ?? "";
   if (!text.startsWith("[")) return null;
   try {

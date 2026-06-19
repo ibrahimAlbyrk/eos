@@ -9,7 +9,7 @@ import { UnknownRecordSchema } from "./shared.ts";
 import { WorkerRowSchema, PendingPermissionRowSchema, PermissionModeSchema } from "./worker.ts";
 import { DecisionSchema, ExternalDecisionSchema } from "./policy.ts";
 import { SessionFactsSchema } from "./prompt.ts";
-import { WorkerTypeSchema, WorkerTypeSourceSchema } from "./worker-type.ts";
+import { WorkerDefinitionSchema, WorkerDefinitionSourceSchema } from "./worker-definition.ts";
 
 // ---- POST /workers ---------------------------------------------------------
 
@@ -32,9 +32,16 @@ export const SpawnWorkerRequestSchema = z
     parentId: z.string().optional(),
     permissionMode: PermissionModeSchema.optional(),
     role: z.enum(["git"]).optional(),
-    // Worker type name (built-in / file / runtime). Resolves to per-axis
-    // defaults + an instructions body fragment at spawn. Absent ⇒ base worker.
-    workerType: z.string().optional(),
+    // Available worker to spawn from (built-in / file / runtime). Resolves to
+    // per-axis defaults + an instructions body fragment at spawn. Absent ⇒ base worker.
+    from: z.string().optional(),
+    // Inline tool surface for a ONE-OFF worker (no reusable definition needed).
+    // Same semantics as WorkerDefinition: allow empty/omitted ⇒ inherit-all,
+    // deny always subtracts, editRegex confines fileEdits. Inline wins over a
+    // resolved `from` definition's scope (explicit request wins).
+    toolsAllow: z.array(z.string()).optional(),
+    toolsDeny: z.array(z.string()).optional(),
+    editRegex: z.string().optional(),
     // Spawn INTO an existing worker's worktree (shared workspace) instead of
     // creating a fresh one. Takes precedence over cwd/worktreeFrom.
     workspaceOf: z.string().optional(),
@@ -1431,10 +1438,10 @@ export const PromptPreviewRequestSchema = z.object({
   isAttached: z.boolean().default(false),
   hasMcp: z.boolean().default(false),
   canCollaborate: z.boolean().default(false),
-  // Preview a typed worker's fragment selection + body placement without
+  // Preview a defined worker's fragment selection + body placement without
   // spawning (§7.3). Catalog is the orchestrator-only interpolation var.
-  workerType: z.string().default(""),
-  workerTypeCatalog: z.string().default(""),
+  workerDefinition: z.string().default(""),
+  workerDefinitionCatalog: z.string().default(""),
 });
 export type PromptPreviewRequest = z.infer<typeof PromptPreviewRequestSchema>;
 
@@ -1444,28 +1451,28 @@ export const PromptPreviewResponseSchema = z.object({
   activeFragmentIds: z.array(z.string()),
 });
 
-// ---- /worker-types ----------------------------------------------------------
-// Orchestrator-facing worker-type catalog + runtime mint. GET lists all sources
-// (disk + the owner's runtime mints) as lean catalog entries; POST mints one
-// runtime type for the calling orchestrator (owner = ?owner query param).
+// ---- /worker-definitions ----------------------------------------------------
+// Orchestrator-facing available-worker catalog + runtime create. GET lists all
+// sources (disk + the owner's runtime creates) as lean catalog entries; POST
+// creates one runtime worker definition for the calling orchestrator (owner = ?owner).
 
-// Mint request = the full WorkerType shape (minus provenance, which the store
-// stamps as "runtime"). Reuses the SSOT schema so the wire validates identically.
-export const MintWorkerTypeRequestSchema = WorkerTypeSchema;
-export type MintWorkerTypeRequest = z.infer<typeof MintWorkerTypeRequestSchema>;
+// Create request = the full WorkerDefinition shape (minus provenance, which the
+// store stamps as "runtime"). Reuses the SSOT schema so the wire validates identically.
+export const CreateWorkerRequestSchema = WorkerDefinitionSchema;
+export type CreateWorkerRequest = z.infer<typeof CreateWorkerRequestSchema>;
 
-export const MintWorkerTypeResponseSchema = z.object({ name: z.string() });
-export type MintWorkerTypeResponse = z.infer<typeof MintWorkerTypeResponseSchema>;
+export const CreateWorkerResponseSchema = z.object({ name: z.string() });
+export type CreateWorkerResponse = z.infer<typeof CreateWorkerResponseSchema>;
 
-export const WorkerTypeCatalogEntrySchema = z.object({
+export const WorkerDefinitionCatalogEntrySchema = z.object({
   name: z.string(),
   description: z.string(),
   whenToUse: z.string(),
-  source: WorkerTypeSourceSchema,
+  source: WorkerDefinitionSourceSchema,
 });
-export type WorkerTypeCatalogEntry = z.infer<typeof WorkerTypeCatalogEntrySchema>;
+export type WorkerDefinitionCatalogEntry = z.infer<typeof WorkerDefinitionCatalogEntrySchema>;
 
-export const WorkerTypeListResponseSchema = z.array(WorkerTypeCatalogEntrySchema);
+export const WorkerDefinitionListResponseSchema = z.array(WorkerDefinitionCatalogEntrySchema);
 
 // ---- Auto-update (git-based; see manager/services/UpdateService.ts) ---------
 
@@ -1608,7 +1615,7 @@ export const ROUTES = {
   template: (name: string): string => `/api/templates/${name}`,
   prompts: "/api/prompts",
   promptPreview: "/api/prompts/preview",
-  workerTypes: "/worker-types",
+  workerDefinitions: "/worker-definitions",
   settings: "/api/settings",
   updateStatus: "/api/updates/status",
   updateCheck: "/api/updates/check",

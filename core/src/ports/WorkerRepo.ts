@@ -21,8 +21,8 @@ export interface InsertWorkerInput {
   backendKind: string;
   backendProfile: string | null;
   agentRole: string | null;
-  // Resolved worker-type name (built-in / file / runtime), or null for untyped.
-  workerType: string | null;
+  // Resolved worker-definition name (built-in / file / runtime), or null for untyped.
+  workerDefinition: string | null;
   // Materialized tool scope as a JSON string (ToolScope), or null for no scope.
   toolScope: string | null;
   withGateway: boolean;

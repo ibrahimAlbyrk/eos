@@ -1,6 +1,6 @@
 ---
 name: git
-description: Conversational git agent for commits, rebases, pull requests, and recovery.
+description: Conversational git worker for commits, rebases, pull requests, and recovery.
 whenToUse: >
   Dispatch for interactive git work — staging and committing, rebasing or merging
   branches, opening pull requests, resolving conflicts, or recovering a broken

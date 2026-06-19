@@ -356,7 +356,7 @@ describe("buildBlocks worker-tool lane", () => {
 
   it("phrases noun-less worker tools with ×n", () => {
     const t = (name) => ({ name });
-    expect(buildWorkerSummary([t("mcp__orchestrator__list_workers"), t("mcp__orchestrator__list_workers")])).toBe("Listed workers ×2");
+    expect(buildWorkerSummary([t("mcp__orchestrator__list_active_workers"), t("mcp__orchestrator__list_active_workers")])).toBe("Listed workers ×2");
     expect(buildWorkerSummary([t("mcp__orchestrator__get_worker"), t("mcp__orchestrator__list_pending_permissions")]))
       .toBe("Checked 1 worker, checked pending permissions");
   });

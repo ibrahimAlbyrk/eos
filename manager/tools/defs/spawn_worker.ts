@@ -27,13 +27,23 @@ export const spawnWorkerDef: ToolDefinition = {
     collaborate: z.boolean().optional().describe(
       "Give this worker the peer tools (list_peers / ask_peer / respond_to_peer) so it can consult — and be consulted by — the other collaborate workers you spawn under you (its siblings). Enable it on BOTH sides of a runtime information dependency: e.g. domain-expert 'providers' plus the 'consumer' that queries them as it works. Leave it OFF for independent parallel work. See the peer-collaboration section of your instructions for when this pays off and how to set it up.",
     ),
-    workerType: z.string().optional().describe(
-      "Worker type to spawn (see the Worker types section of your instructions). The type pre-fills the worker's defaults (model, effort, permission mode, persistence) and frames its instructions — fields you pass explicitly still win. Match the task against each type's 'when to use'; omit for a plain general-purpose worker.",
+    from: z.string().optional().describe(
+      "Available worker to spawn from (see the Available workers section of your instructions). It pre-fills this worker's defaults (model, effort, permission mode, persistence) and frames its instructions — fields you pass explicitly still win. Match the task against each available worker's 'when to use'; omit for a plain general-purpose worker.",
+    ),
+    toolsAllow: z.array(z.string()).optional().describe(
+      "Fence THIS worker's tools for a one-off (globs, e.g. 'Read', 'mcp__*') — no need to define a reusable worker just to restrict capability. Allowlist is exhaustive: anything not listed is denied. Empty/omit ⇒ inherit all tools. Wins over a `from` definition's allowlist.",
+    ),
+    toolsDeny: z.array(z.string()).optional().describe(
+      "Subtract tools from THIS one-off worker (globs). Always subtracts, even from an allowlist. Wins over a `from` definition's denylist.",
+    ),
+    editRegex: z.string().optional().describe(
+      "Confine THIS one-off worker's file edits to paths matching this regex (e.g. 'src/.*\\\\.ts$'). Enforced at the gate. Wins over a `from` definition's editRegex.",
     ),
   },
   handler: async (ctx, args) => {
-    const { prompt, name, model, effort, workspaceOf, collaborate, workerType } = args as {
-      prompt: string; name?: string; model?: string; effort?: string; workspaceOf?: string; collaborate?: boolean; workerType?: string;
+    const { prompt, name, model, effort, workspaceOf, collaborate, from, toolsAllow, toolsDeny, editRegex } = args as {
+      prompt: string; name?: string; model?: string; effort?: string; workspaceOf?: string; collaborate?: boolean; from?: string;
+      toolsAllow?: string[]; toolsDeny?: string[]; editRegex?: string;
     };
     const data: SpawnWorkerRequest = {
       prompt, name, model,
@@ -42,7 +52,10 @@ export const spawnWorkerDef: ToolDefinition = {
     };
     if (effort) data.effort = effort;
     if (collaborate) data.collaborate = true;
-    if (workerType) data.workerType = workerType;
+    if (from) data.from = from;
+    if (toolsAllow) data.toolsAllow = toolsAllow;
+    if (toolsDeny) data.toolsDeny = toolsDeny;
+    if (editRegex) data.editRegex = editRegex;
     if (workspaceOf) data.workspaceOf = workspaceOf;
     else if (ctx.isGitRepo()) data.worktreeFrom = ctx.cwd;
     else data.cwd = ctx.cwd;

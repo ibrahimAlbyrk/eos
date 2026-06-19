@@ -5,13 +5,18 @@ variables:
   - KILL_WORKER_TOOL
   - MESSAGE_WORKER_TOOL
   - SEND_MESSAGE_TO_PARENT_TOOL
+  - LIST_AVAILABLE_WORKERS_TOOL
+  - LIST_ACTIVE_WORKERS_TOOL
+  - LIST_PENDING_PERMISSIONS_TOOL
 ---
 
 Spawn a new background Claude worker to do concrete work. In a git repository the worker runs in an ISOLATED git worktree on its own eos-* branch — NOT in your project directory; its changes stay invisible to the user's checkout until the user integrates them via the dashboard. Outside a git repo it runs directly in your cwd. The user can disable worktrees in settings — the result's `isolation` field ("worktree" or "cwd") is authoritative for where the worker actually runs; with "cwd" its edits land directly in the user's checkout, so avoid parallel workers touching the same files.
 
 When to use: every time the user requests code edits, builds, tests, refactors, investigations, or any other concrete action. You never do the work yourself; you spawn workers to do it.
 
-When NOT to use: for read-only orchestration tasks (checking worker state, listing pending permissions) — use the dedicated tools for those.
+Two ways to spawn. Omit `from` and pass inline fields for a plain one-off worker — that is the default and is never wrong. It accepts an inline tool surface (`toolsAllow` / `toolsDeny` globs + `editRegex`) to fence a one-off's capability without defining a reusable worker. Pass `from: "<name>"` to instantiate an available worker — a named, REUSABLE definition (defaults + tool surface + instructions body); it pre-fills that worker's defaults and frames its instructions, and any field you pass explicitly still wins. `{{LIST_AVAILABLE_WORKERS_TOOL}}` lists what you can spawn from.
+
+When NOT to use: for read-only orchestration tasks — use {{GET_WORKER_TOOL}} / {{LIST_ACTIVE_WORKERS_TOOL}} to check worker state, {{LIST_PENDING_PERMISSIONS_TOOL}} for pending permissions.
 
 Decomposition: spawn ONE worker per tightly-coupled unit of work. Spawn multiple in parallel when the parts are truly independent (no shared files, no sequential dependency).
 

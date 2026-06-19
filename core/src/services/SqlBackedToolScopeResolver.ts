@@ -5,7 +5,7 @@
 
 import type { WorkerRepo } from "../ports/WorkerRepo.ts";
 import type { WorkerToolScopeResolver } from "../ports/WorkerToolScopeResolver.ts";
-import { ToolScopeSchema, type ToolScope } from "../../../contracts/src/worker-type.ts";
+import { ToolScopeSchema, type ToolScope } from "../../../contracts/src/worker-definition.ts";
 
 export class SqlBackedToolScopeResolver implements WorkerToolScopeResolver {
   private readonly workers: WorkerRepo;

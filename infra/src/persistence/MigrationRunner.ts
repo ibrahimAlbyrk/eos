@@ -200,9 +200,10 @@ export const MIGRATIONS: Migration[] = [
   // user_message — losing its kind and showing the routing wrapper. NULL for
   // legacy rows and plain dashboard sends.
   { id: "041_queued_messages_add_meta", sql: "ALTER TABLE queued_messages ADD COLUMN meta TEXT" },
-  // Resolved worker-type name, set once at spawn. Drives the DPI workerType fact
-  // + the type-body fragment re-resolution on resume. NULL for untyped workers
-  // and all pre-migration rows.
+  // Resolved worker-definition name, set once at spawn. Drives the DPI
+  // workerDefinition fact + the body fragment re-resolution on resume. NULL for
+  // untyped workers and all pre-migration rows. (Column renamed to
+  // worker_definition by migration 046; this historical ADD keeps its original name.)
   { id: "042_workers_add_worker_type", sql: "ALTER TABLE workers ADD COLUMN worker_type TEXT" },
   // Materialized tool scope (JSON ToolScope: allow/deny globs + editRegex), baked
   // at spawn. The policy gateway reads it per tool call. NULL ⇒ no restriction.
@@ -216,6 +217,10 @@ export const MIGRATIONS: Migration[] = [
   // (only report/directive/peer persist an envelope). Reclassify so a report
   // already queued behind a busy parent stops leaking into the pill list.
   { id: "045_backfill_queued_messages_plane", sql: "UPDATE queued_messages SET plane = 'agent' WHERE meta IS NOT NULL" },
+  // Rename the worker-type column to worker_definition — the "worker type" concept
+  // is now "worker definition" (an available worker) end to end. RENAME COLUMN
+  // preserves existing values (definition names like "git").
+  { id: "046_workers_rename_worker_type_to_worker_definition", sql: "ALTER TABLE workers RENAME COLUMN worker_type TO worker_definition" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

@@ -23,7 +23,7 @@ export class PromptService {
 
   // Render directly from an already-parsed template's own AST instead of a
   // registry-id lookup. The DPI pipeline uses this for synthetic fragments
-  // (e.g. a worker-type body) whose id is not in the registry — render(id)
+  // (e.g. a worker-definition body) whose id is not in the registry — render(id)
   // would throw NotFoundError on them.
   renderParsed(tpl: ParsedPrompt, locals: VariableScope = {}, vars: VariableScope = {}): string {
     const globals = { ...this.globals, ...vars };

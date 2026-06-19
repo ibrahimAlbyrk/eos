@@ -1,7 +1,7 @@
 import type { ToolDefinition } from "../types.ts";
 
-export const listWorkersDef: ToolDefinition = {
-  name: "list_workers",
+export const listActiveWorkersDef: ToolDefinition = {
+  name: "list_active_workers",
   visibility: "orchestrator",
   inputSchema: {},
   handler: async (ctx) => {

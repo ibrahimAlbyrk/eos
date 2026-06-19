@@ -87,8 +87,8 @@ import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
 import { StartupBackupService } from "./services/StartupBackupService.ts";
 import { FilePromptSource } from "../infra/src/prompt/FilePromptSource.ts";
-import { FileWorkerTypeSource, findProjectWorkerTypesDir } from "../infra/src/worker-type/FileWorkerTypeSource.ts";
-import type { WorkerTypeRecord } from "../contracts/src/worker-type.ts";
+import { FileWorkerDefinitionSource, findProjectWorkerDefinitionsDir } from "../infra/src/worker-definition/FileWorkerDefinitionSource.ts";
+import type { WorkerDefinitionRecord } from "../contracts/src/worker-definition.ts";
 import { parsePrompt } from "../core/src/services/prompt-parse.ts";
 import { toFragment } from "../core/src/domain/prompt.ts";
 import type { Fragment, RawPrompt } from "../core/src/domain/prompt.ts";
@@ -98,7 +98,7 @@ import { UserSettingsService } from "./services/UserSettingsService.ts";
 import { ModelCatalogService } from "./services/ModelCatalogService.ts";
 import { UpdateService } from "./services/UpdateService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
-import { RuntimeWorkerTypeStore } from "./services/RuntimeWorkerTypeStore.ts";
+import { RuntimeWorkerDefinitionStore } from "./services/RuntimeWorkerDefinitionStore.ts";
 import { BackgroundActivityService } from "./services/BackgroundActivityService.ts";
 import { PendingPeerRequestService } from "./services/PendingPeerRequestService.ts";
 import { TerminalRunService } from "./services/TerminalRunService.ts";
@@ -220,7 +220,7 @@ export function buildContainer() {
   // Mode resolver — walks worker.parent_id chain to find the active mode.
   const modeResolver = new SqlBackedModeResolver(workers);
   // Tool-scope resolver — flat row lookup (scope is baked at spawn, immutable),
-  // injected into the gate as the worker-type capability-boundary rung.
+  // injected into the gate as the worker-definition capability-boundary rung.
   const toolScopeResolver = new SqlBackedToolScopeResolver(workers);
   // Backend selection: materialize named profiles + per-role defaults from the
   // frozen config, then a resolver that climbs parent_id for inheritance.
@@ -408,7 +408,7 @@ export function buildContainer() {
 
   const logFileFor = (id: string): string => join(config.daemon.logDir, `${id}.log`);
 
-  // Per-agent MCP config. Composes the type-specific built-in servers
+  // Per-agent MCP config. Composes the agent-specific built-in servers
   // (orchestrator / gateway / worker) with the user's inherited MCP servers
   // (filtered per config.mcp) into one mcp.json. `strict` tells the spawner
   // whether to isolate claude to this file — see core mcp-resolution. Written
@@ -497,28 +497,32 @@ export function buildContainer() {
   // Tool-name variables are static globals: constant per daemon, available to
   // every render (role fragments interpolate {{SPAWN_WORKER_TOOL}} etc.).
   const prompts = new PromptService(promptRegistry, TOOL_NAME_VARS);
-  // Worker-type sources: built-in (manager/worker-types) < user (~/.eos/workers)
+  // Worker-definition sources: built-in (manager/workers) < user (~/.eos/workers)
   // < project (nearest .eos/workers walking up from the spawn cwd). Read fresh
-  // per spawn so type edits + new files apply with no daemon restart.
-  const builtinWorkerTypesDir = config.paths.workerTypesDir;
-  const userWorkerTypesDir = join(config.daemon.home, "workers");
-  const listWorkerTypeRecords = (cwd: string | null): WorkerTypeRecord[] => {
+  // per spawn so definition edits + new files apply with no daemon restart.
+  const builtinWorkerDefinitionsDir = config.paths.workerDefinitionsDir;
+  const userWorkerDefinitionsDir = join(config.daemon.home, "workers");
+  const listWorkerDefinitionRecords = (cwd: string | null): WorkerDefinitionRecord[] => {
     const dirs = [
-      { dir: builtinWorkerTypesDir, source: "builtin" as const },
-      { dir: userWorkerTypesDir, source: "user" as const },
+      { dir: builtinWorkerDefinitionsDir, source: "builtin" as const },
+      { dir: userWorkerDefinitionsDir, source: "user" as const },
     ];
-    const proj = cwd ? findProjectWorkerTypesDir(cwd) : null;
+    const proj = cwd ? findProjectWorkerDefinitionsDir(cwd) : null;
     if (proj) dirs.push({ dir: proj, source: "project" as const });
-    return new FileWorkerTypeSource(dirs).list();
+    return new FileWorkerDefinitionSource(dirs).list();
   };
-  // Runtime (orchestrator-minted) worker types — per-owner, in-memory, session-only.
-  const runtimeWorkerTypes = new RuntimeWorkerTypeStore();
-  // Orchestrator catalog: one line per disk type — name + the routing signal.
-  const renderWorkerTypeCatalog = (records: WorkerTypeRecord[]): string =>
+  // Runtime (orchestrator-created) worker definitions — per-owner, in-memory, session-only.
+  const runtimeWorkerDefinitions = new RuntimeWorkerDefinitionStore();
+  // Orchestrator catalog: one line per disk definition — name, its SET defaults
+  // (model/effort/permission, unset axes omitted so no empty brackets), then the
+  // routing signal. Lets the orchestrator route on capability, not just description.
+  const renderWorkerDefinitionCatalog = (records: WorkerDefinitionRecord[]): string =>
     records
       .map((r) => {
+        const axes = [r.model, r.effort, r.permissionMode].filter(Boolean).join("/");
+        const head = axes ? `- ${r.name} [${axes}]` : `- ${r.name}`;
         const hint = (r.whenToUse || r.description || "").replace(/\s+/g, " ").trim();
-        return hint ? `- ${r.name}: ${hint}` : `- ${r.name}`;
+        return hint ? `${head}: ${hint}` : head;
       })
       .join("\n");
   // Configured memory sources (CLAUDE.md, plus any AGENTS.md-style files declared
@@ -534,25 +538,25 @@ export function buildContainer() {
   const assembleAppendText = (spec: SpawnWorkerSpec, id: string): string | null => {
     const role = spec.isOrchestrator ? "orchestrator" : spec.role === "git" ? "git" : "worker";
     const lookupCwd = spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null;
-    // The resolved type body becomes one synthetic role/20 fragment (built-in,
+    // The resolved definition body becomes one synthetic role/20 fragment (built-in,
     // user, project, and runtime bodies reach the prompt byte-identically). A
-    // whitespace-only body (e.g. the defaults-only `git` type) yields none.
+    // whitespace-only body (e.g. the defaults-only `git` definition) yields none.
     const extra: Fragment[] = [];
-    if (spec.workerType && spec.workerTypeBody && spec.workerTypeBody.trim()) {
+    if (spec.workerDefinition && spec.workerDefinitionBody && spec.workerDefinitionBody.trim()) {
       const raw: RawPrompt = {
-        id: `type/${spec.workerType}`,
+        id: `definition/${spec.workerDefinition}`,
         frontmatter: { dpi: { layer: "role", priority: 20 }, variables: [] },
-        body: spec.workerTypeBody,
+        body: spec.workerDefinitionBody,
       };
       try {
         const frag = toFragment(parsePrompt(raw));
         if (frag) extra.push(frag);
       } catch {
-        // A malformed type body must not break the spawn — skip the fragment.
+        // A malformed definition body must not break the spawn — skip the fragment.
       }
     }
-    const workerTypeCatalog =
-      role === "orchestrator" ? renderWorkerTypeCatalog(listWorkerTypeRecords(lookupCwd)) : "";
+    const workerDefinitionCatalog =
+      role === "orchestrator" ? renderWorkerDefinitionCatalog(listWorkerDefinitionRecords(lookupCwd)) : "";
     const { text } = assembleSystemPrompt(
       { registry: promptRegistry, prompts },
       {
@@ -570,8 +574,8 @@ export function buildContainer() {
         isAttached: !!spec.workspaceOf,
         hasMcp: false,
         canCollaborate: !!spec.collaborate,
-        workerType: spec.workerType ?? "",
-        workerTypeCatalog,
+        workerDefinition: spec.workerDefinition ?? "",
+        workerDefinitionCatalog,
       },
       extra,
     );
@@ -791,8 +795,8 @@ export function buildContainer() {
     terminalRuns,
     prompts,
     promptRegistry,
-    listWorkerTypeRecords,
-    runtimeWorkerTypes,
+    listWorkerDefinitionRecords,
+    runtimeWorkerDefinitions,
     userTemplates,
     projectMemory,
     claudeHome,

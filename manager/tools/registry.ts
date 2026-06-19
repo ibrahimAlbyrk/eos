@@ -1,6 +1,6 @@
 import type { ToolDefinition } from "./types.ts";
 import { spawnWorkerDef } from "./defs/spawn_worker.ts";
-import { listWorkersDef } from "./defs/list_workers.ts";
+import { listActiveWorkersDef } from "./defs/list_active_workers.ts";
 import { getWorkerDef } from "./defs/get_worker.ts";
 import { killWorkerDef } from "./defs/kill_worker.ts";
 import { messageWorkerDef } from "./defs/message_worker.ts";
@@ -11,22 +11,22 @@ import { sendMessageToParentDef } from "./defs/send_message_to_parent.ts";
 import { listPeersDef } from "./defs/list_peers.ts";
 import { askPeerDef } from "./defs/ask_peer.ts";
 import { respondToPeerDef } from "./defs/respond_to_peer.ts";
-import { listWorkerTypesDef } from "./defs/list_worker_types.ts";
-import { mintWorkerTypeDef } from "./defs/mint_worker_type.ts";
+import { listAvailableWorkersDef } from "./defs/list_available_workers.ts";
+import { createWorkerDef } from "./defs/create_worker.ts";
 
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
 export const orchestratorDefs: ToolDefinition[] = [
   spawnWorkerDef,
-  listWorkersDef,
+  listActiveWorkersDef,
   getWorkerDef,
   killWorkerDef,
   messageWorkerDef,
   listPendingPermissionsDef,
   notifyUserDef,
   askUserDef,
-  listWorkerTypesDef,
-  mintWorkerTypeDef,
+  listAvailableWorkersDef,
+  createWorkerDef,
 ];
 
 // Always registered on a worker.

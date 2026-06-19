@@ -15,7 +15,7 @@ import type { AgentBackend } from "../ports/AgentBackend.ts";
 import type { WorktreeManager } from "../ports/WorktreeManager.ts";
 import type { ModelCapabilities } from "../ports/ModelCapabilities.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
-import type { ToolScope } from "../../../contracts/src/worker-type.ts";
+import type { ToolScope } from "../../../contracts/src/worker-definition.ts";
 import { resolveEffort } from "../domain/effort.ts";
 import { assertOwnedBy } from "../services/WorkerOwnership.ts";
 import { ConflictError, NotFoundError } from "../errors/index.ts";
@@ -67,14 +67,14 @@ export interface SpawnWorkerSpec {
    * to the backend_profile column. Set by the spawn route's backend resolver;
    * absent ⇒ the default profile (null column). */
   backendProfile?: string;
-  /** Resolved worker-type name. Persisted to worker_type; surfaced as the
-   * immutable DPI `workerType` fact. "" / absent ⇒ untyped base worker. The
+  /** Resolved worker-definition name. Persisted to worker_definition; surfaced as the
+   * immutable DPI `workerDefinition` fact. "" / absent ⇒ untyped base worker. The
    * spawn handler resolves it — the use-case only carries + persists. */
-  workerType?: string;
+  workerDefinition?: string;
   /** The resolved type's instructions body, carried so the backend chokepoint
    * can build the synthetic DPI fragment. NOT persisted (re-resolved from disk
    * on resume); empty ⇒ no fragment. */
-  workerTypeBody?: string;
+  workerDefinitionBody?: string;
   /** Materialized tool scope (allow/deny globs + editRegex) baked at spawn. The
    * use-case only persists it (tool_scope JSON); the gate enforces it per call.
    * Absent ⇒ no tool restriction. */
@@ -287,7 +287,7 @@ export async function spawnWorker(
     backendKind: deps.backend?.kind ?? "claude-cli",
     backendProfile: resolved.backendProfile ?? null,
     agentRole: resolved.role ?? null,
-    workerType: resolved.workerType ?? null,
+    workerDefinition: resolved.workerDefinition ?? null,
     toolScope: resolved.toolScope ? JSON.stringify(resolved.toolScope) : null,
     withGateway: !!resolved.withGateway,
     collaborate: !!resolved.collaborate,

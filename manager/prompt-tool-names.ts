@@ -5,7 +5,7 @@
 
 import type { VariableScope } from "../core/src/domain/prompt.ts";
 import { spawnWorkerDef } from "./tools/defs/spawn_worker.ts";
-import { listWorkersDef } from "./tools/defs/list_workers.ts";
+import { listActiveWorkersDef } from "./tools/defs/list_active_workers.ts";
 import { getWorkerDef } from "./tools/defs/get_worker.ts";
 import { killWorkerDef } from "./tools/defs/kill_worker.ts";
 import { messageWorkerDef } from "./tools/defs/message_worker.ts";
@@ -16,12 +16,12 @@ import { sendMessageToParentDef } from "./tools/defs/send_message_to_parent.ts";
 import { listPeersDef } from "./tools/defs/list_peers.ts";
 import { askPeerDef } from "./tools/defs/ask_peer.ts";
 import { respondToPeerDef } from "./tools/defs/respond_to_peer.ts";
-import { listWorkerTypesDef } from "./tools/defs/list_worker_types.ts";
-import { mintWorkerTypeDef } from "./tools/defs/mint_worker_type.ts";
+import { listAvailableWorkersDef } from "./tools/defs/list_available_workers.ts";
+import { createWorkerDef } from "./tools/defs/create_worker.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
-  LIST_WORKERS_TOOL: listWorkersDef.name,
+  LIST_ACTIVE_WORKERS_TOOL: listActiveWorkersDef.name,
   GET_WORKER_TOOL: getWorkerDef.name,
   KILL_WORKER_TOOL: killWorkerDef.name,
   MESSAGE_WORKER_TOOL: messageWorkerDef.name,
@@ -32,6 +32,6 @@ export const TOOL_NAME_VARS: VariableScope = {
   LIST_PEERS_TOOL: listPeersDef.name,
   ASK_PEER_TOOL: askPeerDef.name,
   RESPOND_TO_PEER_TOOL: respondToPeerDef.name,
-  LIST_WORKER_TYPES_TOOL: listWorkerTypesDef.name,
-  MINT_WORKER_TYPE_TOOL: mintWorkerTypeDef.name,
+  LIST_AVAILABLE_WORKERS_TOOL: listAvailableWorkersDef.name,
+  CREATE_WORKER_TOOL: createWorkerDef.name,
 };

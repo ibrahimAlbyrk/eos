@@ -1,4 +1,4 @@
-// Tool-pattern matcher for worker-type tool scopes. Two pattern forms:
+// Tool-pattern matcher for worker-definition tool scopes. Two pattern forms:
 //
 //   • Name globs — "Bash" (exact), "mcp__*" / "mcp__github__*" (prefix), "*"
 //     (all). Matched against the tool NAME only.

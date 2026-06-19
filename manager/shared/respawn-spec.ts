@@ -13,21 +13,21 @@ import type { SpawnWorkerSpec } from "../../core/src/use-cases/SpawnWorker.ts";
 
 export interface RespawnSpecDeps {
   modeResolver: { resolveFor(id: string): string };
-  // Re-resolves a persisted worker_type from disk so a resumed worker re-gets
+  // Re-resolves a persisted worker_definition from disk so a resumed worker re-gets
   // its DPI body + persistence default. model/effort/permission are read from
   // the row (they may have changed at runtime) — only the body + persistence
-  // come from the type. Runtime-minted types are gone after a daemon restart
+  // come from the definition. Runtime-created definitions are gone after a daemon restart
   // (the O1 documented limitation); the baked row values still apply. Absent
-  // (or no match) ⇒ no type body, behavior preserved.
-  resolveWorkerType?: (name: string) => { body: string; persistent?: boolean } | null;
+  // (or no match) ⇒ no definition body, behavior preserved.
+  resolveWorkerDefinition?: (name: string) => { body: string; persistent?: boolean } | null;
 }
 
 export function buildRespawnSpec(row: WorkerRow, deps: RespawnSpecDeps): SpawnWorkerSpec {
   const isGitAgent = row.agent_role === "git";
   const isOrchestrator = !!row.is_orchestrator;
   const parentId = row.parent_id ?? undefined;
-  const workerType = row.worker_type ?? undefined;
-  const type = workerType && deps.resolveWorkerType ? deps.resolveWorkerType(workerType) : null;
+  const workerDefinition = row.worker_definition ?? undefined;
+  const def = workerDefinition && deps.resolveWorkerDefinition ? deps.resolveWorkerDefinition(workerDefinition) : null;
 
   return {
     prompt: "",
@@ -38,13 +38,13 @@ export function buildRespawnSpec(row: WorkerRow, deps: RespawnSpecDeps): SpawnWo
     effort: row.effort ?? undefined,
     isOrchestrator,
     role: row.agent_role ?? undefined,
-    persistent: isOrchestrator || isGitAgent || !!parentId || !!type?.persistent,
+    persistent: isOrchestrator || isGitAgent || !!parentId || !!def?.persistent,
     // with_gateway predates migration 026 on old rows — fall back to the
     // orchestrator-dispatched heuristic (spawn_worker defaults gateway on).
     withGateway: row.with_gateway != null ? !!row.with_gateway : !!parentId,
     claudePermissionMode:
       row.permission_mode ?? (parentId ? deps.modeResolver.resolveFor(parentId) : undefined),
-    workerType,
-    workerTypeBody: type?.body ?? undefined,
+    workerDefinition,
+    workerDefinitionBody: def?.body ?? undefined,
   };
 }

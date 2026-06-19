@@ -1,6 +1,6 @@
-// FileWorkerTypeSource — reads .eos/workers/*.md files (YAML frontmatter +
+// FileWorkerDefinitionSource — reads .eos/workers/*.md files (YAML frontmatter +
 // markdown body) from one or more directories and validates each against
-// WorkerTypeSchema. Later directories override earlier ones by NAME (project
+// WorkerDefinitionSchema. Later directories override earlier ones by NAME (project
 // shadows user shadows built-in). Reads fresh on every list() so edits apply
 // without a daemon restart. Clone of FilePromptSource.
 
@@ -8,28 +8,28 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
-  WorkerTypeSchema,
-  type WorkerTypeRecord,
-  type WorkerTypeSource as WorkerTypeProvenance,
-} from "../../../contracts/src/worker-type.ts";
-import type { WorkerTypeSource } from "../../../core/src/ports/WorkerTypeSource.ts";
+  WorkerDefinitionSchema,
+  type WorkerDefinitionRecord,
+  type WorkerDefinitionSource as WorkerDefinitionProvenance,
+} from "../../../contracts/src/worker-definition.ts";
+import type { WorkerDefinitionSource } from "../../../core/src/ports/WorkerDefinitionSource.ts";
 
 const EXT = ".md";
 
-export interface WorkerTypeDir {
+export interface WorkerDefinitionDir {
   dir: string;
-  source: WorkerTypeProvenance;
+  source: WorkerDefinitionProvenance;
 }
 
-export class FileWorkerTypeSource implements WorkerTypeSource {
-  private readonly dirs: WorkerTypeDir[];
+export class FileWorkerDefinitionSource implements WorkerDefinitionSource {
+  private readonly dirs: WorkerDefinitionDir[];
 
-  constructor(dirs: WorkerTypeDir[]) {
+  constructor(dirs: WorkerDefinitionDir[]) {
     this.dirs = dirs;
   }
 
-  list(): WorkerTypeRecord[] {
-    const byName = new Map<string, WorkerTypeRecord>();
+  list(): WorkerDefinitionRecord[] {
+    const byName = new Map<string, WorkerDefinitionRecord>();
     for (const { dir, source } of this.dirs) {
       if (!existsSync(dir)) continue;
       for (const file of walk(dir)) {
@@ -45,7 +45,7 @@ export class FileWorkerTypeSource implements WorkerTypeSource {
 
 // Nearest .eos/workers on the walk-up from the spawn cwd to the filesystem root
 // (Claude Code recursive-scan rule: nearest project dir wins). null if none.
-export function findProjectWorkerTypesDir(startCwd: string): string | null {
+export function findProjectWorkerDefinitionsDir(startCwd: string): string | null {
   let dir = resolve(startCwd);
   for (;;) {
     const candidate = join(dir, ".eos", "workers");
@@ -68,7 +68,7 @@ function walk(dir: string): string[] {
   return out;
 }
 
-function readType(file: string, source: WorkerTypeProvenance): WorkerTypeRecord | null {
+function readType(file: string, source: WorkerDefinitionProvenance): WorkerDefinitionRecord | null {
   let content: string;
   try {
     content = readFileSync(file, "utf8");
@@ -85,7 +85,7 @@ function readType(file: string, source: WorkerTypeProvenance): WorkerTypeRecord 
       return null;
     }
   }
-  const result = WorkerTypeSchema.safeParse({ ...fm, body });
+  const result = WorkerDefinitionSchema.safeParse({ ...fm, body });
   if (!result.success) return null;
   return { ...result.data, source };
 }

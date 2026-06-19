@@ -34,9 +34,27 @@
           "type": "boolean",
           "description": "Give this worker the peer tools (list_peers / ask_peer / respond_to_peer) so it can consult — and be consulted by — the other collaborate workers you spawn under you (its siblings). Enable it on BOTH sides of a runtime information dependency: e.g. domain-expert 'providers' plus the 'consumer' that queries them as it works. Leave it OFF for independent parallel work. See the peer-collaboration section of your instructions for when this pays off and how to set it up."
         },
-        "workerType": {
+        "from": {
           "type": "string",
-          "description": "Worker type to spawn (see the Worker types section of your instructions). The type pre-fills the worker's defaults (model, effort, permission mode, persistence) and frames its instructions — fields you pass explicitly still win. Match the task against each type's 'when to use'; omit for a plain general-purpose worker."
+          "description": "Available worker to spawn from (see the Available workers section of your instructions). It pre-fills this worker's defaults (model, effort, permission mode, persistence) and frames its instructions — fields you pass explicitly still win. Match the task against each available worker's 'when to use'; omit for a plain general-purpose worker."
+        },
+        "toolsAllow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Fence THIS worker's tools for a one-off (globs, e.g. 'Read', 'mcp__*') — no need to define a reusable worker just to restrict capability. Allowlist is exhaustive: anything not listed is denied. Empty/omit ⇒ inherit all tools. Wins over a `from` definition's allowlist."
+        },
+        "toolsDeny": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Subtract tools from THIS one-off worker (globs). Always subtracts, even from an allowlist. Wins over a `from` definition's denylist."
+        },
+        "editRegex": {
+          "type": "string",
+          "description": "Confine THIS one-off worker's file edits to paths matching this regex (e.g. 'src/.*\\\\.ts$'). Enforced at the gate. Wins over a `from` definition's editRegex."
         }
       },
       "required": [
@@ -45,7 +63,7 @@
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
-    "list_workers": {
+    "list_active_workers": {
       "type": "object",
       "properties": {},
       "additionalProperties": false,
@@ -184,26 +202,26 @@
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
-    "list_worker_types": {
+    "list_available_workers": {
       "type": "object",
       "properties": {},
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     },
-    "mint_worker_type": {
+    "create_worker": {
       "type": "object",
       "properties": {
         "name": {
           "type": "string",
-          "description": "Identity, kebab-case (e.g. 'perf-profiler'). Spawn with this via workerType."
+          "description": "Identity, kebab-case (e.g. 'perf-profiler'). Spawn it with spawn_worker({ from: <name> })."
         },
         "description": {
           "type": "string",
-          "description": "Human-facing label for the type."
+          "description": "Human-facing label for this worker."
         },
         "whenToUse": {
           "type": "string",
-          "description": "Routing signal: when should a task be dispatched to this type."
+          "description": "Routing signal: when should a task be dispatched to this worker."
         },
         "model": {
           "type": "string",
@@ -256,11 +274,11 @@
         },
         "extends": {
           "type": "string",
-          "description": "Base type name to inherit unset fields from."
+          "description": "Base worker name to inherit unset fields from."
         },
         "body": {
           "type": "string",
-          "description": "The type's instructions (the worker's role body). Author to good prompt design: environment map, output contract, if-then failure rules."
+          "description": "This worker's role instructions, composed ALONGSIDE the standard worker contract — do NOT restate the result:/needs input:/failed: signal protocol, report structure, or Handover. Task-specific only: environment map, output contract, if-then failure rules. (See create_worker's full guidance.)"
         }
       },
       "required": [

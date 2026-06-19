@@ -315,7 +315,7 @@ interface AgentEventEnvelope { backend: BackendKind; workerId: string; turnId: s
 
 #### `ToolRegistry` — define a tool once, project three ways
 
-Orchestration tools (`spawn_worker`, `message_worker`, `list_workers`, `get_worker`,
+Orchestration tools (`spawn_worker`, `message_worker`, `list_active_workers`, `get_worker`,
 `kill_worker`, `list_pending_permissions`, `send_message_to_parent`) are today MCP modules
 that HTTP-shim to daemon routes. Define each **once**:
 

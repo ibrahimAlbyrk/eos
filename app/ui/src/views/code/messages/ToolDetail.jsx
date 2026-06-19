@@ -331,11 +331,11 @@ export function NotifyDetail({ tool }) {
 
 const BODY_PREVIEW_LINES = 12;
 
-// mint_worker_type (orchestrator MCP) — the minted type's blueprint: its axis
+// create_worker (orchestrator MCP) — the new-worker blueprint: its axis
 // defaults (chips), tool capability boundary (allow/deny globs + editRegex) and
 // instructions body. The input IS the artifact, so this renders fully while the
 // call is still running; the result is only { name }.
-export function MintWorkerTypeDetail({ tool }) {
+export function CreateWorkerDetail({ tool }) {
   const i = tool.input ?? {};
   const cfg = [];
   if (i.model) cfg.push(["model", i.model]);
@@ -358,79 +358,79 @@ export function MintWorkerTypeDetail({ tool }) {
   if (!hasAny && !tool.result?.isError) return null;
 
   return (
-    <div className="tool-detail wt-card mint-wt">
+    <div className="tool-detail wd-card create-wd">
       <FailureBanner tool={tool} />
       {i.description && (
-        <div className="wt-sec"><div className="wt-desc">{i.description}</div></div>
+        <div className="wd-sec"><div className="wd-desc">{i.description}</div></div>
       )}
       {(cfg.length > 0 || flags.length > 0) && (
-        <div className="wt-sec">
-          <div className="wt-chips">
+        <div className="wd-sec">
+          <div className="wd-chips">
             {cfg.map(([k, v]) => (
-              <span className="wt-chip" key={k}><span className="wt-chip-k">{k}</span>{v}</span>
+              <span className="wd-chip" key={k}><span className="wd-chip-k">{k}</span>{v}</span>
             ))}
             {flags.map((f) => (
-              <span className="wt-chip wt-chip-flag" key={f}>{f}</span>
+              <span className="wd-chip wd-chip-flag" key={f}>{f}</span>
             ))}
           </div>
         </div>
       )}
       {i.whenToUse && (
-        <div className="wt-sec">
-          <div className="wt-sec-label">When to use</div>
-          <div className="wt-text">{i.whenToUse}</div>
+        <div className="wd-sec">
+          <div className="wd-sec-label">When to use</div>
+          <div className="wd-text">{i.whenToUse}</div>
         </div>
       )}
       {hasScope && (
-        <div className="wt-sec">
-          <div className="wt-sec-label">Tools</div>
-          <div className="wt-tools">
+        <div className="wd-sec">
+          <div className="wd-sec-label">Tools</div>
+          <div className="wd-tools">
             {allow.length > 0
-              ? allow.map((g) => <span className="wt-tool wt-tool-allow" key={"a" + g}>{g}</span>)
-              : <span className="wt-tool wt-tool-all">all tools</span>}
-            {deny.map((g) => <span className="wt-tool wt-tool-deny" key={"d" + g}>−{g}</span>)}
+              ? allow.map((g) => <span className="wd-tool wd-tool-allow" key={"a" + g}>{g}</span>)
+              : <span className="wd-tool wd-tool-all">all tools</span>}
+            {deny.map((g) => <span className="wd-tool wd-tool-deny" key={"d" + g}>−{g}</span>)}
           </div>
           {i.editRegex && (
-            <div className="wt-regex"><span className="wt-regex-k">edits limited to </span>{i.editRegex}</div>
+            <div className="wd-regex"><span className="wd-regex-k">edits limited to </span>{i.editRegex}</div>
           )}
         </div>
       )}
       {i.body && (
-        <div className="wt-sec">
-          <div className="wt-sec-label">Instructions</div>
-          <div className="wt-body">{bodyLines.slice(0, BODY_PREVIEW_LINES).join("\n")}</div>
-          {bodyMore > 0 && <div className="wt-more">(+{bodyMore} more lines)</div>}
+        <div className="wd-sec">
+          <div className="wd-sec-label">Instructions</div>
+          <div className="wd-body">{bodyLines.slice(0, BODY_PREVIEW_LINES).join("\n")}</div>
+          {bodyMore > 0 && <div className="wd-more">(+{bodyMore} more lines)</div>}
         </div>
       )}
     </div>
   );
 }
 
-// list_worker_types (orchestrator MCP) — the spawnable catalog: each type's name,
+// list_available_workers (orchestrator MCP) — the spawnable catalog: each available-worker name,
 // provenance badge (builtin/user/project/runtime) and routing signal (whenToUse).
-export function ListWorkerTypesDetail({ tool }) {
+export function AvailableWorkersDetail({ tool }) {
   if (tool.result?.isError) {
     return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
   }
-  let types = null;
+  let entries = null;
   try {
     const parsed = JSON.parse(tool.result?.text ?? "");
-    if (Array.isArray(parsed)) types = parsed;
+    if (Array.isArray(parsed)) entries = parsed;
   } catch { /* running or non-JSON — nothing to show yet */ }
-  if (!types) return null;
-  if (types.length === 0) {
-    return <div className="tool-detail wt-card list-wt"><div className="wtl-empty">No worker types.</div></div>;
+  if (!entries) return null;
+  if (entries.length === 0) {
+    return <div className="tool-detail wd-card list-wd"><div className="awl-empty">No available workers.</div></div>;
   }
   return (
-    <div className="tool-detail wt-card list-wt">
-      {types.map((t, idx) => (
-        <div className="wtl-item" key={t.name ?? idx}>
-          <div className="wtl-head">
-            <span className="wtl-name">{t.name}</span>
-            {t.source && <span className={`wtl-source wtl-source-${t.source}`}>{t.source}</span>}
+    <div className="tool-detail wd-card list-wd">
+      {entries.map((t, idx) => (
+        <div className="awl-item" key={t.name ?? idx}>
+          <div className="awl-head">
+            <span className="awl-name">{t.name}</span>
+            {t.source && <span className={`awl-source awl-source-${t.source}`}>{t.source}</span>}
           </div>
           {(t.whenToUse || t.description) && (
-            <div className="wtl-desc">{t.whenToUse || t.description}</div>
+            <div className="awl-desc">{t.whenToUse || t.description}</div>
           )}
         </div>
       ))}

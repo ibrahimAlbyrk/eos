@@ -33,10 +33,10 @@ export interface SessionSpawnContext {
   isAttached: boolean;
   hasMcp: boolean;
   canCollaborate: boolean;
-  // Worker type name (immutable fact) + the orchestrator-facing catalog text
+  // Worker definition name (immutable fact) + the orchestrator-facing catalog text
   // (interpolation variable). "" for untyped / non-orchestrator.
-  workerType: string;
-  workerTypeCatalog: string;
+  workerDefinition: string;
+  workerDefinitionCatalog: string;
 }
 
 export interface AssembleDeps {
@@ -53,7 +53,7 @@ export interface AssembleResult {
 export function assembleSystemPrompt(
   deps: AssembleDeps,
   ctx: SessionSpawnContext,
-  // Per-spawn synthetic fragments (e.g. a resolved worker-type body) injected
+  // Per-spawn synthetic fragments (e.g. a resolved worker-definition body) injected
   // alongside the registry's. Rendered from their own AST via renderParsed —
   // their ids are not in the registry, so render(id) would throw on them.
   extraFragments: Fragment[] = [],
@@ -89,7 +89,7 @@ function deriveFacts(ctx: SessionSpawnContext): SessionFacts {
     shell: "",
     hasMcp: ctx.hasMcp,
     canCollaborate: ctx.canCollaborate,
-    workerType: ctx.workerType ?? "",
+    workerDefinition: ctx.workerDefinition ?? "",
   });
 }
 
@@ -106,6 +106,6 @@ function sessionVars(ctx: SessionSpawnContext): VariableScope {
     ROLE: ctx.role,
     EFFORT: ctx.effort ?? "",
     PERMISSION_MODE: ctx.permissionMode,
-    WORKER_TYPE_CATALOG: ctx.workerTypeCatalog ?? "",
+    AVAILABLE_WORKERS_CATALOG: ctx.workerDefinitionCatalog ?? "",
   };
 }

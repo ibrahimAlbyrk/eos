@@ -1,8 +1,12 @@
 ---
-description: "MCP tool — list_workers"
+description: "MCP tool — list_active_workers"
+variables:
+  - LIST_AVAILABLE_WORKERS_TOOL
 ---
 
 List the workers you spawned (active and completed), most recent first, up to 30 entries. Workers belonging to other orchestrators or spawned directly by the user are not visible to you.
+
+NOT the catalog of what you could spawn — this lists instances you already spawned. For the blueprints available to spawn from, use {{LIST_AVAILABLE_WORKERS_TOOL}}.
 
 When to use: the user asks 'what's running?' or 'show me workers', or you need to find a worker by name when you don't have the id.
 
