@@ -71,6 +71,7 @@ import { resolveMemorySources } from "../core/src/domain/memory-sources.ts";
 import { selectInjectableMemory } from "../core/src/services/select-injectable-memory.ts";
 import { composeAppendedPrompt } from "../core/src/services/compose-appended-prompt.ts";
 import type { EosBuiltinMcpServer } from "../core/src/domain/tool-scope.ts";
+import { WorkerStateVO } from "../core/src/domain/value-objects.ts";
 
 import type { Policy } from "../core/src/domain/policy.ts";
 import type { ModelCatalog } from "../core/src/ports/ModelCatalog.ts";
@@ -300,10 +301,21 @@ export function buildContainer() {
     clock: systemClock,
     sink: (ev) => bus.publish("git:change", ev),
     resolveDirs: (cwd) => git.gitDirs(cwd),
+    notify: (msg, meta) => log.warn(msg, meta),
   });
   const gitWatchReconciler = new GitWatchReconciler({
     watcher: gitWatcher,
-    desiredDirs: () => workers.listAll().map(gitWorkingDirOf).filter((d): d is string => !!d),
+    // Only ACTIVE workers (SPAWNING/WORKING/IDLE) have a live process worth a
+    // live-refresh watch. SUSPENDED/terminal rows must be excluded: at boot
+    // (after a restart) running workers persist as SUSPENDED, and watching their
+    // (possibly huge) trees would exhaust fds before any work starts. Resume
+    // re-adds the watch via the bus reconcile when the row goes active again.
+    desiredDirs: () =>
+      workers
+        .listAll()
+        .filter((w) => WorkerStateVO.isActive(w.state))
+        .map(gitWorkingDirOf)
+        .filter((d): d is string => !!d),
   });
   gitWatchReconciler.reconcile(); // boot: watch the workers reconciled above
 

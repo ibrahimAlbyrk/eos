@@ -18,6 +18,8 @@
 // ref-counted across working dirs so one shared .git keeps a single OS watch.
 
 import chokidar, { type FSWatcher } from "chokidar";
+import { readdir } from "node:fs/promises";
+import type { Dirent } from "node:fs";
 import type { Clock } from "../../../core/src/ports/Clock.ts";
 import type { GitDirs } from "../../../core/src/ports/GitInfo.ts";
 import type { GitChangeKind, GitChangeSink, GitWatcher } from "../../../core/src/ports/GitWatcher.ts";
@@ -32,6 +34,9 @@ export interface ChokidarGitWatcherDeps {
   clock: Clock;
   sink: GitChangeSink;
   resolveDirs: (cwd: string) => Promise<GitDirs | null>;
+  // Surfaces degraded/failed watches (skipped working tree, watch error) — wired
+  // to the daemon log so an fd-exhausting tree is visible instead of silent.
+  notify?: (msg: string, meta?: Record<string, unknown>) => void;
 }
 
 type Classifier = (path: string) => GitChangeKind | null;
@@ -89,6 +94,40 @@ function makeWorktreeIgnore(root: string): (p: string) => boolean {
 const META_OPTS = { depth: 0, ignoreInitial: true, followSymlinks: false } as const;
 const REFS_OPTS = { ignoreInitial: true, followSymlinks: false } as const;
 
+// A recursive working-tree watch opens ~one fd per directory on macOS. A large
+// checkout (Unity Library/, Xcode DerivedData, …) can hold tens of thousands of
+// dirs and exhaust the daemon's fd table (EMFILE) — which then breaks EVERY
+// child_process spawn daemon-wide (git probes return isRepo=false, new worker
+// PTYs fail to start). Above this many watchable dirs, skip the working-tree
+// target and rely on the bounded .git/refs watches plus the per-turn
+// worker:change refresh.
+const WORKTREE_WATCH_DIR_BUDGET = 2000;
+
+// Sequential bounded walk — never holds more than one open dir handle at a time,
+// so the probe itself can't exhaust fds, and returns false the moment the budget
+// is exceeded, so a giant tree exits fast instead of being fully walked.
+async function withinDirBudget(root: string, ignore: (p: string) => boolean, budget: number): Promise<boolean> {
+  let count = 0;
+  const stack: string[] = [root];
+  while (stack.length > 0) {
+    const dir = stack.pop()!;
+    let entries: Dirent[];
+    try {
+      entries = await readdir(dir, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const e of entries) {
+      if (!e.isDirectory()) continue;
+      const full = `${dir}/${e.name}`;
+      if (ignore(full)) continue;
+      if (++count > budget) return false;
+      stack.push(full);
+    }
+  }
+  return true;
+}
+
 export class ChokidarGitWatcher implements GitWatcher {
   private repos = new Map<string, RepoWatch>();
   private targets = new Map<string, TargetWatch>();
@@ -98,11 +137,13 @@ export class ChokidarGitWatcher implements GitWatcher {
   private clock: Clock;
   private sink: GitChangeSink;
   private resolveDirs: (cwd: string) => Promise<GitDirs | null>;
+  private notify?: (msg: string, meta?: Record<string, unknown>) => void;
 
   constructor(deps: ChokidarGitWatcherDeps) {
     this.clock = deps.clock;
     this.sink = deps.sink;
     this.resolveDirs = deps.resolveDirs;
+    this.notify = deps.notify;
   }
 
   watch(dir: string): () => void {
@@ -140,20 +181,36 @@ export class ChokidarGitWatcher implements GitWatcher {
       // resolveDirs already collapses errors to null; dirs stays null here.
     }
     if (this.closed || entry.refs <= 0 || !dirs) return; // released while resolving, or not a repo
-    for (const t of this.computeTargets(dirs)) {
+    for (const t of this.metaTargets(dirs)) {
       this.addTarget(t.path, t.opts, t.classify, dir);
       entry.targets.push(t.path);
     }
+    // The working-tree watch is recursive and unbounded — gate it behind a
+    // bounded dir-count probe so one giant checkout can't exhaust the daemon's
+    // fds (see WORKTREE_WATCH_DIR_BUDGET). The probe shells out fs only; re-check
+    // the release/close guards after it awaits.
+    if (this.closed || entry.refs <= 0) return;
+    const ignore = makeWorktreeIgnore(dirs.toplevel);
+    const ok = await withinDirBudget(dirs.toplevel, ignore, WORKTREE_WATCH_DIR_BUDGET);
+    if (this.closed || entry.refs <= 0) return;
+    if (ok) {
+      this.addTarget(dirs.toplevel, { ...REFS_OPTS, ignored: ignore }, () => "worktree", dir);
+      entry.targets.push(dirs.toplevel);
+    } else {
+      this.notify?.("git working-tree watch skipped — too many dirs; refs still watched", {
+        toplevel: dirs.toplevel,
+        budget: WORKTREE_WATCH_DIR_BUDGET,
+      });
+    }
   }
 
-  private computeTargets(dirs: GitDirs): Array<{ path: string; opts: object; classify: Classifier }> {
+  // Bounded, always-on watches (cheap): the per-worktree git dir, the shared
+  // refs tree, and — only when distinct (linked worktree) — the common dir.
+  private metaTargets(dirs: GitDirs): Array<{ path: string; opts: object; classify: Classifier }> {
     const targets: Array<{ path: string; opts: object; classify: Classifier }> = [
       { path: dirs.gitDir, opts: META_OPTS, classify: classifyGitDir },
       { path: `${dirs.commonDir}/refs`, opts: REFS_OPTS, classify: classifyRefs },
-      { path: dirs.toplevel, opts: { ...REFS_OPTS, ignored: makeWorktreeIgnore(dirs.toplevel) }, classify: () => "worktree" },
     ];
-    // Shared common dir is its own watch only when distinct (linked worktree) —
-    // in a normal checkout it's the same path as gitDir (already watched).
     if (dirs.commonDir !== dirs.gitDir) {
       targets.push({ path: dirs.commonDir, opts: META_OPTS, classify: classifyCommonTop });
     }
@@ -174,8 +231,23 @@ export class ChokidarGitWatcher implements GitWatcher {
       .on("change", onFire)
       .on("unlink", onFire)
       .on("addDir", onFire)
-      .on("unlinkDir", onFire);
+      .on("unlinkDir", onFire)
+      .on("error", (err: unknown) => {
+        // A watch erroring (commonly EMFILE on a huge tree) must not silently
+        // storm — surface it and tear THIS target down so it stops consuming fds.
+        this.notify?.("git watch error", { path, error: err instanceof Error ? err.message : String(err) });
+        this.dropTarget(path);
+      });
     this.targets.set(path, tw);
+  }
+
+  // Force-close a target regardless of consumer count (error teardown). A later
+  // release() that still lists this path finds no target and no-ops.
+  private dropTarget(path: string): void {
+    const tw = this.targets.get(path);
+    if (!tw) return;
+    this.targets.delete(path);
+    tw.watcher.close().catch(() => {});
   }
 
   private onFire(targetPath: string, filePath: string): void {
