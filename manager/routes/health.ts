@@ -1,5 +1,6 @@
 import type { Router } from "./Router.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
+import { fdStats } from "../../infra/src/util/fd-stats.ts";
 
 export interface HealthInfo {
   pid: number;
@@ -9,5 +10,5 @@ export interface HealthInfo {
 }
 
 export function registerHealthRoutes(r: Router, info: HealthInfo): void {
-  r.get("/health", ({ res }) => writeJson(res, 200, { ok: true, ...info }));
+  r.get("/health", ({ res }) => writeJson(res, 200, { ok: true, ...info, fds: fdStats() }));
 }

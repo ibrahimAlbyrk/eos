@@ -144,7 +144,7 @@ evt.emit("lifecycle", {
 // this PTY worker onto API billing (R3).
 const cleanEnv = buildSubscriptionChildEnv(process.env);
 
-const pty = ptySpawn(claudeBin, claudeArgs.args, {
+const ptyOptions: Parameters<typeof ptySpawn>[2] = {
   cwd: wt.cwd,
   cols: 120,
   rows: 30,
@@ -173,7 +173,18 @@ const pty = ptySpawn(claudeBin, claudeArgs.args, {
       : {}),
     EOS_ISOLATION: wt.worktreeDir ? "worktree" : "none",
   },
-});
+};
+
+let pty: ReturnType<typeof ptySpawn>;
+try {
+  pty = ptySpawn(claudeBin, claudeArgs.args, ptyOptions);
+} catch (e) {
+  // node-pty spawns synchronously and throws if it cannot allocate a PTY (e.g.
+  // EBADF/EMFILE under fd pressure). Exit non-zero so the daemon's supervisor
+  // marks this worker failed (red) instead of the module crashing unhandled.
+  console.error(`[${name}] failed to spawn claude PTY: ${e instanceof Error ? e.message : String(e)}`);
+  process.exit(1);
+}
 
 // True from the moment we submit a message until Claude's Stop/SessionEnd (or
 // an interrupt). While open, the delivery pipeline skips turn-ACK: a mid-turn
