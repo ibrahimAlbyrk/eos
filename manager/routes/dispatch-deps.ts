@@ -4,6 +4,7 @@
 
 import type { Container } from "../container.ts";
 import type { DispatchMessageDeps } from "../../core/src/use-cases/DispatchMessage.ts";
+import { appendSynthesized } from "../shared/synthesized-events.ts";
 import { isWorkerLive } from "./worker-liveness.ts";
 
 export function dispatchDeps(
@@ -18,6 +19,16 @@ export function dispatchDeps(
     queue: c.messageQueue,
     client: c.httpWorkerClient,
     backends: c.backends,
+    slashCommands: c.slashCommands,
+    // The daemon-side seams a slash command may touch — sourced from the same
+    // services the SessionEnd(clear) hook uses, so the command and the (now
+    // idempotent) hook fallback stay in sync.
+    slashEffects: {
+      clearPendingQueue: (id: string) => c.messageQueue.clearPending(id),
+      cancelPeerRequests: (id: string) => c.pendingPeerRequests.cancelByWorker(id),
+      appendConversationCleared: (id: string, payload: Record<string, unknown>) =>
+        appendSynthesized(c, id, "conversation_cleared", payload),
+    },
     log: c.log,
     isLive: (id: string) => isWorkerLive(c, id),
     // Cleared inside the use-case ONLY when the message actually dispatches —

@@ -472,3 +472,52 @@ for any new command — that is the open/closed payoff.
   end-to-end against `FakeAgentBackend`.
 - Stretch: migrate `/model`/`/permissions`/interrupt onto the registry; fix the
   `/permissions` SDK no-op.
+
+## 8. Implementation notes — `/clear`-only first cut (built)
+
+Status: BUILT. Files: `core/src/domain/slash-command.ts`,
+`core/src/domain/commands/clear.ts`, `core/src/use-cases/DispatchMessage.ts`
+(interception), `core/src/ports/AgentBackend.ts` (`contextClear` cap +
+`clearContext()`), the four adapters (`ClaudeCliBackend`, `ClaudeSdkBackend`,
+`InProcessBackend`, `FakeAgentBackend`), `manager/container.ts` +
+`manager/routes/dispatch-deps.ts` (wiring), `manager/routes/workers.ts` (hook
+idempotency), `app/ui/src/state/outboxStore.js` (bubble drop). All four §6
+decisions implemented as recommended.
+
+Divergences from the design above, each minimal and noted:
+
+1. **SDK lane clear = query RESTART, not `messages=[]`.** The doc's
+   "SDK: messages=[] + abort reset" (§2 table, §3.2) describes only the metered
+   `InProcessBackend`, whose conversation IS an in-memory buffer. The default
+   subscription lane (`ClaudeSdkBackend`) holds context inside the SDK `query()`
+   subprocess — there is no buffer to drop, and the SDK `Query` exposes no
+   `clear()` (verified: `EXIT_REASONS` includes `"clear"`, `supportedCommands()`
+   exists, but no reset control method). So `clearContext()` there tears down the
+   current query and relaunches a fresh one with **no `resume`** (new session,
+   empty context); the superseded consume loop is silenced via an
+   `rec.input === input` guard so it reports no spurious exit. `start()` was
+   refactored into a reusable `spawn(resume?, initialPrompt?)` to share the launch.
+   Unit-tested via the `queryFn` seam.
+
+2. **Web bubble drop on `conversation_cleared`.** A slash command emits no
+   `user_message`, so the optimistic `/clear` bubble had no id-echo to settle on
+   and would linger to its 10-min TTL. Added one rule to
+   `outboxStore.reconcileEvents`: drop optimistic items with `ts <=` the latest
+   `conversation_cleared` ts — generic (any command), mirrors the chat's history
+   slice. No composer/structural change.
+
+3. **Hook idempotency = recent-event check.** `workers.ts`'s `SessionEnd(clear)`
+   handler skips its side effects when a `conversation_cleared` was appended for
+   the worker within `CLEAR_HOOK_DEDUP_MS` (30s) — the command owns the effects;
+   the hook is the self-heal fallback for a clear that did not come through the
+   command (agent self-`/clear`, attached terminal).
+
+4. **`contextClear` lives on the core `AgentCapabilities` interface only** — the
+   contracts capability schema was intentionally not extended (the web never gates
+   on it; `/clear` is always offered, and zod strips the unknown key harmlessly).
+   Revisit if a future command needs the web to gate on the capability.
+
+Not validated against a live SDK session (no billing/interactive in this env):
+the `ClaudeSdkBackend` query-restart is covered by a `queryFn`-seam unit test, but
+an end-to-end `/clear` on a real claude-sdk worker should be smoke-tested before
+relying on it in production.

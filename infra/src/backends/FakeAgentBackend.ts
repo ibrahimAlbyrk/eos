@@ -16,6 +16,7 @@ export interface FakeSessionRecord {
   messages: string[];
   keystrokes: string[];
   interrupts: number;
+  clears: number;
   stopped: boolean;
 }
 
@@ -24,6 +25,7 @@ const FAKE_CAPS: AgentCapabilities = {
   keystroke: true,
   runtimeModelSwitch: false,
   runtimePermissionSwitch: false,
+  contextClear: true,
 };
 
 const FAKE_DESCRIPTOR: BackendDescriptor = {
@@ -46,7 +48,7 @@ export function createFakeAgentBackend(): FakeAgentBackend {
   const recordFor = (workerId: string): FakeSessionRecord => {
     let rec = sessions.get(workerId);
     if (!rec) {
-      rec = { workerId, messages: [], keystrokes: [], interrupts: 0, stopped: false };
+      rec = { workerId, messages: [], keystrokes: [], interrupts: 0, clears: 0, stopped: false };
       sessions.set(workerId, rec);
     }
     return rec;
@@ -68,6 +70,11 @@ export function createFakeAgentBackend(): FakeAgentBackend {
       },
       async interrupt() {
         rec.interrupts++;
+        return { ok: true };
+      },
+      async clearContext() {
+        rec.clears++;
+        rec.messages = [];
         return { ok: true };
       },
       async setModel() { return { ok: false, reason: "runtime model switch unsupported" }; },

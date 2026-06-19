@@ -39,11 +39,14 @@ interface LiveSession {
 }
 
 // API-style backends: no keystroke channel; interrupt = abort the loop.
+// contextClear drops the in-memory message buffer (the conversation lives here,
+// not in a subprocess) — see clearContext below.
 const CAPS: AgentCapabilities = {
   interrupt: true,
   keystroke: false,
   runtimeModelSwitch: false,
   runtimePermissionSwitch: false,
+  contextClear: true,
 };
 
 // Per-kind in-process provider metadata. Adding a metered provider = one entry.
@@ -93,6 +96,15 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
     async interrupt() {
       const s = live.get(workerId);
       if (s) s.signal.aborted = true;
+      return { ok: true };
+    },
+    // /clear: the conversation is the in-memory message buffer — drop it and
+    // clear any abort so the next turn starts from an empty context.
+    async clearContext() {
+      const s = live.get(workerId);
+      if (!s) return { ok: false };
+      s.signal.aborted = true;
+      s.messages = [];
       return { ok: true };
     },
     // No live model switch (runtimeModelSwitch:false) — the model is fixed by the
