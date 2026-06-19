@@ -19,7 +19,7 @@ import { createSdkEventMapper } from "./SdkEventMapper.ts";
 import { buildBillingGuardEnv } from "./billing-env.ts";
 import { buildSdkToolServers, type SdkToolHostDeps } from "./SdkToolHost.ts";
 import { makeCanUseTool, type PolicyDecider } from "./SdkPermissionBridge.ts";
-import { BLOCKED_BUILTIN_TOOLS } from "../../../contracts/src/tool-scope.ts";
+import { disallowedBuiltinToolsFor } from "../../../contracts/src/tool-scope.ts";
 
 const CAPS: AgentCapabilities = {
   interrupt: true,
@@ -182,7 +182,9 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         allowedTools,
         // Hard-remove AskUserQuestion regardless of permission mode (it has no answer
         // surface in Eos; redirect to mcp__orchestrator__ask_user) — platform-wide deny.
-        disallowedTools: [...BLOCKED_BUILTIN_TOOLS],
+        // Orchestrators additionally lose Task (they dispatch via spawn_worker, not
+        // internal subagents); workers keep it. Keyed on the immutable isOrchestrator fact.
+        disallowedTools: disallowedBuiltinToolsFor(spec.isOrchestrator),
         canUseTool: makeCanUseTool(spec.workerId, deps.policy),
         includePartialMessages: true,
         // Isolate from the user's ~/.claude: no ambient MCP servers / settings-file

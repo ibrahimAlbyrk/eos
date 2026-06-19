@@ -7,6 +7,7 @@
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expectsMcpReady, type WorkerOptions } from "./options.ts";
+import { disallowedBuiltinToolsFor } from "../contracts/src/tool-scope.ts";
 
 export interface ClaudeArgsResult {
   args: string[];
@@ -77,6 +78,10 @@ export function buildClaudeArgs(
   if (opts.systemPromptFile) args.push("--append-system-prompt-file", opts.systemPromptFile);
   if (opts.claudePermissionMode) args.push("--permission-mode", opts.claudePermissionMode);
   if (opts.resumeSessionId) args.push("--resume", opts.resumeSessionId);
+  // Orchestrators lose Task (no internal subagents — they dispatch via
+  // spawn_worker); workers keep it. --disallowedTools is variadic <tools...>, so
+  // the unconditional --model push right below terminates the tool list.
+  if (opts.isOrchestrator) args.push("--disallowedTools", ...disallowedBuiltinToolsFor(true));
   args.push("--model", opts.model);
   if (opts.effort) args.push("--effort", opts.effort);
   // Boot prompt as a positional argument: claude consumes it on TUI mount and

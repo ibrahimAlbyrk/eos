@@ -54,4 +54,17 @@ describe("buildClaudeArgs positional boot prompt", () => {
     assert.ok(!args.includes("--"), "no -- option terminator");
     assert.ok(!args.includes("do the thing"), "prompt not present as an argv positional");
   });
+
+  it("orchestrator spawn disallows Task; worker spawn does not pass --disallowedTools", () => {
+    const orch = buildClaudeArgs(opts({ isOrchestrator: true }), "/tmp", "/tmp/s.json", ENV).args;
+    assert.ok(orch.includes("--disallowedTools"), "orchestrator argv includes --disallowedTools");
+    assert.ok(orch.includes("Task"), "orchestrator argv disallows Task");
+    // variadic <tools...> must be terminated by the next flag, not swallow it
+    assert.ok(orch.indexOf("--disallowedTools") < orch.indexOf("--model"));
+    assert.equal(orch[orch.indexOf("--model") - 1], "Task");
+
+    const worker = buildClaudeArgs(opts({ isOrchestrator: false }), "/tmp", "/tmp/s.json", ENV).args;
+    assert.ok(!worker.includes("--disallowedTools"), "worker argv has no --disallowedTools");
+    assert.ok(!worker.includes("Task"), "worker argv keeps Task");
+  });
 });

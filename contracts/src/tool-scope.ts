@@ -30,3 +30,21 @@ export const BLOCKED_BUILTIN_TOOL_MESSAGE =
 export function isBlockedBuiltinTool(toolName: string): boolean {
   return (BLOCKED_BUILTIN_TOOLS as readonly string[]).includes(toolName);
 }
+
+// Built-in tools removed for ORCHESTRATORS ONLY. An orchestrator decomposes work
+// via mcp__orchestrator__spawn_worker (real Eos workers), never via claude's
+// internal Task subagents — so Task is removed from its tool surface. Regular
+// workers KEEP Task (they legitimately spawn Explore/Plan/general-purpose
+// subagents), so this set is role-scoped and deliberately SEPARATE from the
+// platform-wide BLOCKED_BUILTIN_TOOLS — merging the two would re-ban worker
+// subagents.
+export const ORCHESTRATOR_DISALLOWED_BUILTIN_TOOLS = ["Task"] as const;
+
+// The disallowed-tools list handed to the claude binary (CLI --disallowedTools /
+// SDK disallowedTools) for a spawn, keyed on the session-immutable isOrchestrator
+// fact: the platform-wide set, plus the orchestrator-only set when applicable.
+export function disallowedBuiltinToolsFor(isOrchestrator: boolean): string[] {
+  return isOrchestrator
+    ? [...BLOCKED_BUILTIN_TOOLS, ...ORCHESTRATOR_DISALLOWED_BUILTIN_TOOLS]
+    : [...BLOCKED_BUILTIN_TOOLS];
+}

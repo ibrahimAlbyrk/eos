@@ -17,6 +17,9 @@ export interface WorkerOptions {
   hydrateEnv: boolean;
   carryUncommitted: boolean;
   withGateway: boolean;
+  // Session-immutable orchestrator marker (NOT persistent — that's "no
+  // auto-shutdown"). Drives the orchestrator-only --disallowedTools removal.
+  isOrchestrator: boolean;
   port: number;
   daemonUrl: string | undefined;
   workerId: string | undefined;
@@ -81,6 +84,7 @@ export function parseWorkerOptions(): WorkerOptions {
       "hydrate-env": { type: "boolean", default: false },
       "carry-uncommitted": { type: "boolean", default: false },
       "with-gateway": { type: "boolean", default: false },
+      orchestrator: { type: "boolean", default: false },
       port: { type: "string", default: "7421" },
       "daemon-url": { type: "string" },
       "worker-id": { type: "string" },
@@ -123,6 +127,7 @@ export function parseWorkerOptions(): WorkerOptions {
     hydrateEnv: !!values["hydrate-env"],
     carryUncommitted: !!values["carry-uncommitted"],
     withGateway: !!values["with-gateway"],
+    isOrchestrator: !!values.orchestrator,
     port: Number(values.port),
     daemonUrl: values["daemon-url"],
     workerId: values["worker-id"],

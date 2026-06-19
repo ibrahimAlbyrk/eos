@@ -57,6 +57,7 @@ export function buildWorkerArgs(input: BuildWorkerArgsInput): string[] {
   if (spec.name) args.push(flagToken("--name", spec.name));
   if (spec.parentId) args.push(flagToken("--parent-id", spec.parentId));
   if (spec.withGateway) args.push("--with-gateway");
+  if (spec.isOrchestrator) args.push("--orchestrator");
   if (spec.persistent) args.push("--persistent");
   if (spec.systemPromptFile) args.push(flagToken("--system-prompt-file", spec.systemPromptFile));
   if (spec.mcpConfig) args.push(flagToken("--mcp-config", spec.mcpConfig));

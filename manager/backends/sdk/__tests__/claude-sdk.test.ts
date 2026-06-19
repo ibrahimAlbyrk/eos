@@ -313,10 +313,33 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     // tool-surface isolation + gating (Step A)
     assert.deepEqual(capturedOptions!.settingSources, []);
     assert.equal(capturedOptions!.strictMcpConfig, true);
-    assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion"]);
+    assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion"]); // worker spec (isOrchestrator:false) → AUQ only, Task kept
     assert.deepEqual(capturedOptions!.allowedTools, []); // nothing auto-approved → canUseTool gates every call
     assert.equal(capturedOptions!.systemPrompt, undefined); // no assembleAppendPrompt dep here → no append
     assert.deepEqual(ctxSelfIds, ["w-1"]); // ctx identity bound per-spec, not process.env
+  });
+
+  it("disallowedTools: orchestrator additionally drops Task; worker keeps it", async () => {
+    let capturedOptions: Record<string, unknown> | null = null;
+    const queryFn: SdkQueryFn = (params) => {
+      capturedOptions = params.options as unknown as Record<string, unknown>;
+      return (async function* () { /* idle session */ })();
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "none" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s: AgentLaunchSpec): ToolContext => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+    });
+
+    await be.start(spec({ isOrchestrator: true }), {});
+    assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion", "Task"]);
+
+    capturedOptions = null;
+    await be.start(spec({ isOrchestrator: false }), {});
+    assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion"]);
   });
 
   it("per-spec tool context: concurrent workers never share identity", async () => {
