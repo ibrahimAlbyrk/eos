@@ -7,7 +7,7 @@ import { useGitStatus } from "../../../hooks/useGitStatus.js";
 import { useTryState } from "../../../hooks/useTryState.js";
 import { hasUnintegratedWork } from "../../../lib/workState.js";
 import { spawnMergeGitAgent } from "../../../lib/spawnMergeGitAgent.js";
-import { loadCollapsedHubs, saveCollapsedHubs } from "../../../lib/hubCollapseMemory.js";
+import { loadExpandedHubs, saveExpandedHubs } from "../../../lib/hubExpandMemory.js";
 
 // Orchestrator hub strip: one row per worktree child with unintegrated work.
 // The user reviews/tests the whole fleet from the orchestrator screen — the
@@ -103,14 +103,14 @@ export function WorktreeHub({ live, selected, blockingActive, onStatus }) {
   // id → {insertions, deletions, files} for each child that has changes (absent
   // when clean). Powers the "Merge all" gate, the hub count, and the pill total.
   const [childDiffs, setChildDiffs] = useState(() => new Map());
-  // Set of orchestrator ids the user collapsed, persisted so the choice survives
-  // Cmd+R and — since one shared composer serves every pane — keys on the agent
-  // so each pane restores its own state on focus switch.
-  const [collapsedHubs, setCollapsedHubs] = useState(() => loadCollapsedHubs());
-  useEffect(() => { saveCollapsedHubs(collapsedHubs); }, [collapsedHubs]);
+  // Set of orchestrator ids the user explicitly expanded, persisted so the choice
+  // survives Cmd+R and — since one shared composer serves every pane — keys on the
+  // agent so each pane restores its own state on focus switch. Default is collapsed.
+  const [expandedHubs, setExpandedHubs] = useState(() => loadExpandedHubs());
+  useEffect(() => { saveExpandedHubs(expandedHubs); }, [expandedHubs]);
   const toggleHub = () => {
     if (!selected) return;
-    setCollapsedHubs((prev) => {
+    setExpandedHubs((prev) => {
       const next = new Set(prev);
       if (next.has(selected.id)) next.delete(selected.id);
       else next.add(selected.id);
@@ -172,7 +172,7 @@ export function WorktreeHub({ live, selected, blockingActive, onStatus }) {
 
   if (!selected || !isOrchestrator || childWorkers.length === 0) return null;
 
-  const hubOpen = !collapsedHubs.has(selected.id);
+  const hubOpen = expandedHubs.has(selected.id);
 
   return (
     <div className={[
