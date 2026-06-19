@@ -37,7 +37,7 @@ export const startCommand: Command = {
 
     if (!alive) {
       console.log("starting daemon…");
-      spawnDaemonDetached(ctx.repoRoot);
+      spawnDaemonDetached(ctx.repoRoot, join(ctx.config.daemon.logDir, "daemon.log"));
       alive = (await waitHealthy(ctx.daemonUrl, 40)) !== null;
       if (!alive) {
         console.error("daemon failed to start — run `eos start -f` for foreground diagnostics");

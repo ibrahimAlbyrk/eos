@@ -48,7 +48,7 @@ export const daemonStep: BuildStep = {
     const agents = await countAgents(ctx.daemonUrl);
     if (agents) ctx.log(`  ${agents} agent(s) will suspend and resume`);
     await stopDaemonAndOrphans(ctx.pidFile);
-    spawnDaemonDetached(ctx.repoRoot);
+    spawnDaemonDetached(ctx.repoRoot, join(ctx.eosHome, "logs", "daemon.log"));
     const body = await waitHealthy(ctx.daemonUrl, 40);
     if (body === null) {
       throw new Error("daemon failed to start — run `eos start -f` for foreground diagnostics");

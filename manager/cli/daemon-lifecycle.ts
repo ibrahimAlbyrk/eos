@@ -3,8 +3,8 @@
 // drift between them. Extracted from restart.ts; behavior is unchanged.
 
 import { execSync, spawn } from "node:child_process";
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, openSync, readFileSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
@@ -32,15 +32,29 @@ export async function stopDaemonAndOrphans(pidFile: string): Promise<void> {
   } catch {}
 }
 
-export function spawnDaemonDetached(repoRoot: string): void {
-  const child = spawn(
-    "node",
-    // --max-old-space-size: runaway guard. The daemon measures ~80MB; 1024 is a
-    // generous ceiling that won't OOM under normal load but caps a pathological
-    // leak before it eats host memory.
-    ["--max-old-space-size=1024", "--no-warnings", "--experimental-strip-types", join(repoRoot, "manager", "daemon.ts")],
-    { stdio: ["ignore", "ignore", "ignore"], detached: true },
-  );
+export function spawnDaemonDetached(repoRoot: string, logPath?: string): void {
+  // Capture stdout/stderr to a log instead of /dev/null — the daemon's
+  // StructLogger writes there, so otherwise every line (including an EMFILE /
+  // spawn storm) is discarded and the daemon's troubles are invisible.
+  let out: number | "ignore" = "ignore";
+  if (logPath) {
+    try {
+      mkdirSync(dirname(logPath), { recursive: true });
+      out = openSync(logPath, "a");
+    } catch {
+      out = "ignore";
+    }
+  }
+  // Run under bash so we can raise the fd soft limit first: the macOS GUI default
+  // is 256, far too low for a process supervising many PTYs + git/file watches —
+  // exhausting it breaks ALL child_process spawns (git probes, new workers).
+  // --max-old-space-size: runaway guard (~80MB baseline; 1024 caps a leak).
+  const entry = join(repoRoot, "manager", "daemon.ts");
+  const cmd = `ulimit -n 10240 2>/dev/null; exec node --max-old-space-size=1024 --no-warnings --experimental-strip-types ${JSON.stringify(entry)}`;
+  const child = spawn("/bin/bash", ["-c", cmd], {
+    stdio: ["ignore", out, out],
+    detached: true,
+  });
   child.unref();
 }
 

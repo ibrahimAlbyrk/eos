@@ -393,17 +393,35 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     private func spawnDaemon() {
         let root = repoRoot()
         let p = Process()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        p.arguments = ["node", "--no-warnings", "--experimental-strip-types",
-                        "\(root)/manager/daemon.ts"]
+        // Run under bash so the daemon's fd soft limit is raised before exec: the
+        // GUI launch default is 256, too low for a process supervising many PTYs +
+        // git/file watches — exhausting it breaks every child_process spawn. Output
+        // goes to ~/.eos/logs/daemon.log (the StructLogger writes to stdout/stderr;
+        // nullDevice would discard every line, including any spawn/EMFILE storm).
+        p.executableURL = URL(fileURLWithPath: "/bin/bash")
+        let entry = "\(root)/manager/daemon.ts"
+        p.arguments = ["-c", "ulimit -n 10240 2>/dev/null; exec /usr/bin/env node --no-warnings --experimental-strip-types '\(entry)'"]
         p.standardInput  = FileHandle.nullDevice
-        p.standardOutput = FileHandle.nullDevice
-        p.standardError  = FileHandle.nullDevice
+        let logOut = daemonLogHandle()
+        p.standardOutput = logOut ?? FileHandle.nullDevice
+        p.standardError  = logOut ?? FileHandle.nullDevice
         do { try p.run() } catch {
             showAlert("Daemon could not start:\n\(error.localizedDescription)")
             return
         }
         poll(40)
+    }
+
+    private func daemonLogHandle() -> FileHandle? {
+        let dir = ("~/.eos/logs" as NSString).expandingTildeInPath
+        let path = dir + "/daemon.log"
+        try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        if !FileManager.default.fileExists(atPath: path) {
+            FileManager.default.createFile(atPath: path, contents: nil)
+        }
+        guard let h = FileHandle(forWritingAtPath: path) else { return nil }
+        h.seekToEndOfFile()
+        return h
     }
 
     private func poll(_ n: Int) {

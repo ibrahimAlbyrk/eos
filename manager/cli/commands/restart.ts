@@ -22,7 +22,7 @@ export const restartCommand: Command = {
     }
     console.log(wipeDb ? "cleaned db + pid" : "cleaned pid");
 
-    spawnDaemonDetached(ctx.repoRoot);
+    spawnDaemonDetached(ctx.repoRoot, join(ctx.config.daemon.logDir, "daemon.log"));
 
     if (await waitHealthy(ctx.daemonUrl, 20)) {
       console.log(`daemon up at ${ctx.daemonUrl}`);
