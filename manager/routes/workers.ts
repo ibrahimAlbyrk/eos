@@ -550,10 +550,13 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
   r.put(/^\/workers\/(?<id>[^/]+)\/model$/, async ({ params, req, res }) => {
     const body = validate(SetModelRequestSchema, await readBody(req));
+    const w = c.workers.findById(params.id);
+    const kind = w?.backend_kind ?? "claude-cli";
+    const backend = c.backends.has(kind) ? c.backends.get(kind) : c.claudeCliBackend;
     const out = await setWorkerModel(
       {
         workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
-        client: c.httpWorkerClient, log: c.log, caps: c.modelCatalog,
+        backend, log: c.log, caps: c.modelCatalog,
       },
       { workerId: params.id, model: body.model, effort: body.effort },
     );
