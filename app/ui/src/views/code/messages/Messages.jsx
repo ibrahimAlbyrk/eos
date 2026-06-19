@@ -90,6 +90,12 @@ export function Messages({ live, agentId, isActive = true }) {
     onUserAway: persistAway,
     onPinned: persistPinned,
     onScroll: syncHeadScrim,
+    // Keep the read position when the scroller is resized (side panel open/close,
+    // sidebar collapse, split divider): pin the viewport-top block to its offset.
+    anchor: {
+      capture: (scroller, content) => captureAnchor(scroller, content),
+      resolve: (token, scroller, content) => resolveAnchorTop(scroller, content, token),
+    },
   });
   const wrapRef = stick.scrollerRef;
   const contentRef = stick.contentRef;

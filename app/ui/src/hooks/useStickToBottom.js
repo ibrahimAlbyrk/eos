@@ -29,6 +29,7 @@ export function useStickToBottom({
   onUserAway = null,
   onPinned = null,
   onScroll = null,
+  anchor = null,
 } = {}) {
   const scrollerRef = useRef(null);
   const contentRef = useRef(null);
@@ -37,10 +38,16 @@ export function useStickToBottom({
   const ledgerRef = useRef(null);
   const rafRef = useRef(0);
   const lastFrameTsRef = useRef(0);
+  // Width-resize re-anchoring (side panel open/close, sidebar collapse, divider
+  // drag): WKWebView has no native scroll anchoring, so a reflow at a new width
+  // drifts an unpinned transcript toward the top. anchorTokenRef holds the last
+  // viewed block+offset; lastWidthRef tells a width change from normal growth.
+  const anchorTokenRef = useRef(null);
+  const lastWidthRef = useRef(0);
   const [showJumpBtn, setShowJumpBtn] = useState(false);
 
   const cbRef = useRef({});
-  cbRef.current = { onUserAway, onPinned, onScroll };
+  cbRef.current = { onUserAway, onPinned, onScroll, anchor };
 
   const reducedMotionRef = useRef(undefined);
   if (reducedMotionRef.current === undefined) {
@@ -53,6 +60,16 @@ export function useStickToBottom({
     ledgerRef.current = { top: clamped, t: performance.now() };
     el.scrollTop = clamped;
     prevTopRef.current = el.scrollTop;
+  }, []);
+
+  // Remember the block at the viewport top so a later width-driven reflow can
+  // restore it. Only while reading history (unpinned) — a pinned view re-pins to
+  // the bottom on resize and needs no anchor.
+  const captureAnchorToken = useCallback(() => {
+    const a = cbRef.current.anchor;
+    anchorTokenRef.current = a && !pinnedRef.current
+      ? a.capture(scrollerRef.current, contentRef.current)
+      : null;
   }, []);
 
   const stopFollow = useCallback(() => {
@@ -118,6 +135,7 @@ export function useStickToBottom({
       else if (distance > 1) startFollow();
       updateBtn();
       cbRef.current.onScroll?.(el);
+      captureAnchorToken();
     };
 
     const handleWheel = (e) => {
@@ -131,8 +149,25 @@ export function useStickToBottom({
 
     el.addEventListener("scroll", handleScroll, { passive: true });
     el.addEventListener("wheel", handleWheel, { passive: true });
+    lastWidthRef.current = el.clientWidth;
     const ro = new ResizeObserver(() => {
-      if (pinnedRef.current) startFollow();
+      const w = el.clientWidth;
+      // Ignore park/unpark (content-visibility:hidden toggles width to/from 0) —
+      // that path is owned by the host's parked→active restore.
+      const widthChanged = w > 0 && lastWidthRef.current > 0 && Math.abs(w - lastWidthRef.current) > 0.5;
+      lastWidthRef.current = w;
+      if (pinnedRef.current) {
+        startFollow();
+      } else if (widthChanged) {
+        // Reflow at a new width: put the previously viewed block back at its old
+        // viewport offset, synchronously (RO runs before paint → no flash).
+        const a = cbRef.current.anchor;
+        const token = anchorTokenRef.current;
+        if (a && token != null) {
+          const top = a.resolve(token, el, contentRef.current);
+          if (top != null) { stopFollow(); ownWrite(el, top); }
+        }
+      }
       updateBtn();
     });
     ro.observe(el);
@@ -143,7 +178,7 @@ export function useStickToBottom({
       ro.disconnect();
       stopFollow();
     };
-  }, [threshold, startFollow, stopFollow, updateBtn]);
+  }, [threshold, startFollow, stopFollow, updateBtn, ownWrite, captureAnchorToken]);
 
   const scrollToBottom = useCallback(({ instant = false } = {}) => {
     const el = scrollerRef.current;
@@ -176,8 +211,12 @@ export function useStickToBottom({
     } else if (pin !== "keep") {
       pinnedRef.current = Boolean(pin);
     }
+    // A programmatic restore that lands mid-history (initial restore, prepend
+    // compensation, parked→active flip) seeds the anchor so a width resize can
+    // re-pin even before the user scrolls.
+    captureAnchorToken();
     updateBtn();
-  }, [ownWrite, stopFollow, updateBtn, threshold]);
+  }, [ownWrite, stopFollow, updateBtn, threshold, captureAnchorToken]);
 
   // Content-swap reset (agent switch). Unpinned by default so the swap's
   // resize churn doesn't glide anywhere before the initial write decides.
@@ -185,6 +224,7 @@ export function useStickToBottom({
     stopFollow();
     pinnedRef.current = pinned;
     ledgerRef.current = null;
+    anchorTokenRef.current = null;
     prevTopRef.current = scrollerRef.current?.scrollTop ?? 0;
   }, [stopFollow]);
 
