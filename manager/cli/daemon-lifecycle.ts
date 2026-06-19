@@ -45,12 +45,15 @@ export function spawnDaemonDetached(repoRoot: string, logPath?: string): void {
       out = "ignore";
     }
   }
-  // Run under bash so we can raise the fd soft limit first: the macOS GUI default
-  // is 256, far too low for a process supervising many PTYs + git/file watches —
-  // exhausting it breaks ALL child_process spawns (git probes, new workers).
-  // --max-old-space-size: runaway guard (~80MB baseline; 1024 caps a leak).
+  // Run under bash to lift the fd soft limit to the hard ceiling BEFORE node
+  // starts: the macOS GUI default soft limit is 256, far too low for a process
+  // supervising many PTYs + git/file watches — exhausting it breaks ALL
+  // child_process spawns (git probes, new workers) with EBADF/EMFILE. Raise soft
+  // to hard (the real cap is kern.maxfilesperproc, ~61440) instead of a fixed
+  // number so large checkouts don't hit a low ceiling; lifting soft up to hard
+  // never fails. --max-old-space-size: runaway guard (~80MB baseline; 1024 caps a leak).
   const entry = join(repoRoot, "manager", "daemon.ts");
-  const cmd = `ulimit -n 10240 2>/dev/null; exec node --max-old-space-size=1024 --no-warnings --experimental-strip-types ${JSON.stringify(entry)}`;
+  const cmd = `ulimit -Sn "$(ulimit -Hn)" 2>/dev/null; exec node --max-old-space-size=1024 --no-warnings --experimental-strip-types ${JSON.stringify(entry)}`;
   const child = spawn("/bin/bash", ["-c", cmd], {
     stdio: ["ignore", out, out],
     detached: true,

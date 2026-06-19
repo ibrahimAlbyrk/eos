@@ -393,14 +393,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     private func spawnDaemon() {
         let root = repoRoot()
         let p = Process()
-        // Run under bash so the daemon's fd soft limit is raised before exec: the
-        // GUI launch default is 256, too low for a process supervising many PTYs +
-        // git/file watches — exhausting it breaks every child_process spawn. Output
-        // goes to ~/.eos/logs/daemon.log (the StructLogger writes to stdout/stderr;
-        // nullDevice would discard every line, including any spawn/EMFILE storm).
+        // Run under bash to lift the daemon's fd soft limit to the hard ceiling
+        // before exec: the GUI launch default soft limit is 256, too low for a
+        // process supervising many PTYs + git/file watches — exhausting it breaks
+        // every child_process spawn with EBADF/EMFILE. Raise soft to hard (the real
+        // cap is kern.maxfilesperproc) rather than a fixed number so large
+        // checkouts don't hit a low ceiling. Output goes to ~/.eos/logs/daemon.log
+        // (the StructLogger writes to stdout/stderr; nullDevice would discard every
+        // line, including any spawn/EMFILE storm).
         p.executableURL = URL(fileURLWithPath: "/bin/bash")
         let entry = "\(root)/manager/daemon.ts"
-        p.arguments = ["-c", "ulimit -n 10240 2>/dev/null; exec /usr/bin/env node --no-warnings --experimental-strip-types '\(entry)'"]
+        p.arguments = ["-c", "ulimit -Sn \"$(ulimit -Hn)\" 2>/dev/null; exec /usr/bin/env node --no-warnings --experimental-strip-types '\(entry)'"]
         p.standardInput  = FileHandle.nullDevice
         let logOut = daemonLogHandle()
         p.standardOutput = logOut ?? FileHandle.nullDevice

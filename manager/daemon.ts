@@ -45,14 +45,7 @@ import { registerMetricsRoutes } from "./routes/metrics.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
 import { registerFsRawRoutes } from "./routes/fs-raw.ts";
 import { registerCommandCatalog } from "./commands/register.ts";
-import { ensureFdLimit } from "./shared/raise-fd-limit.ts";
 import { fdStats } from "../infra/src/util/fd-stats.ts";
-
-// Raise the fd soft limit BEFORE anything opens descriptors (the DB, watchers,
-// PTYs). On an under-provisioned launch this re-exec's the daemon in place; on a
-// path that already raised it (or where the OS default is high enough) it is a
-// no-op. See manager/shared/raise-fd-limit.ts.
-ensureFdLimit();
 
 const c = buildContainer();
 

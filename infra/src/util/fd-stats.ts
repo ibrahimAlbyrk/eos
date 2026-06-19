@@ -21,14 +21,31 @@ export function openFdCount(): number | null {
 
 export function softFdLimit(): number | null {
   if (cachedLimit !== undefined) return cachedLimit;
-  try {
-    const out = execFileSync("/bin/sh", ["-c", "ulimit -n"], { encoding: "utf8" }).trim();
-    const n = Number(out);
-    cachedLimit = Number.isFinite(n) && n > 0 ? n : null;
-  } catch {
-    cachedLimit = null;
-  }
+  cachedLimit = readSoftLimit();
   return cachedLimit;
+}
+
+function readSoftLimit(): number | null {
+  try {
+    const soft = numOrNull(execFileSync("/bin/sh", ["-c", "ulimit -n"], { encoding: "utf8" }).trim());
+    // macOS caps actual open fds at kern.maxfilesperproc regardless of the (often
+    // far larger) rlimit Node sets at startup, so the real ceiling is the min of
+    // the two. On Linux the rlimit soft value is the ceiling.
+    if (process.platform === "darwin") {
+      const cap = numOrNull(execFileSync("/usr/sbin/sysctl", ["-n", "kern.maxfilesperproc"], { encoding: "utf8" }).trim());
+      if (soft != null && cap != null) return Math.min(soft, cap);
+      return soft ?? cap;
+    }
+    return soft;
+  } catch {
+    return null;
+  }
+}
+
+function numOrNull(s: string): number | null {
+  if (!s || s === "unlimited") return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 export function fdStats(): { open: number | null; limit: number | null } {
