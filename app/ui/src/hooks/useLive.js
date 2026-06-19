@@ -212,6 +212,15 @@ export function useLive() {
     return r;
   }, [scheduleRefetch]);
 
+  // Switch the worker's provider (stops + resumes under the new backend, reusing
+  // the session). The daemon enforces handoff compatibility — surface a rejection.
+  const switchBackend = useCallback(async (id, kind) => {
+    const r = await api.switchWorkerBackend(id, kind);
+    if (!r.ok) console.warn("backend switch failed", r.status, r.body);
+    scheduleRefetch();
+    return r;
+  }, [scheduleRefetch]);
+
   const applyUpdate = useCallback(async () => {
     const r = await api.applyUpdate(true);
     // Refused (disabled/not-available) → refresh so the banner reflects it; on
@@ -256,6 +265,7 @@ export function useLive() {
     renameAgent,
     setPermissionMode,
     setModel,
+    switchBackend,
     refreshRecents,
     interruptedId,
     pendingPermissions,

@@ -361,6 +361,9 @@ export const api = {
   async setWorkerModel(id, model, effort) {
     return putJson(ROUTES.workerModel(id), { model, effort });
   },
+  async switchWorkerBackend(id, kind) {
+    return putJson(ROUTES.workerBackend(id), { kind });
+  },
   async listFiles(cwd, query = "", { includeHidden = false } = {}) {
     const params = new URLSearchParams();
     if (cwd) params.set("cwd", cwd);

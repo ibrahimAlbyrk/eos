@@ -4,12 +4,13 @@ import { modelName, modelCtx, EFFORT_LABELS, effortChoicesFor } from "../../../l
 import { AcceptPopover } from "../popovers/AcceptPopover.jsx";
 import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { ModelPopover } from "../popovers/ModelPopover.jsx";
+import { BackendPopover } from "../popovers/BackendPopover.jsx";
 import { EffortPopover } from "../popovers/EffortPopover.jsx";
 import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
-import { backendCaps } from "../../../lib/backendCaps.js";
+import { backendCaps, backendLabel, providerOptions } from "../../../lib/backendCaps.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
 export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus }) {
@@ -33,6 +34,14 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
   // A structured (non-PTY) backend fixes its model per session — lock the runtime
   // model switch once such a worker is selected (the new-spawn composer is PTY-default).
   const modelLocked = !!selected && !backendCaps(selected.backend_kind).runtimeModelSwitch;
+
+  // Provider switcher: only for a selected worker, and only when there's another
+  // enabled provider to switch to. The daemon stops + resumes under the new
+  // backend (keeping the conversation) and rejects a busy worker — so gate the
+  // pill on an at-rest state to keep that rejection off the happy path.
+  const providers = providerOptions();
+  const showProvider = !!selected && providers.length > 1;
+  const providerBusy = !!selected && !["IDLE", "SUSPENDED", "DONE"].includes(selected.state);
 
   const { used, total, pct } = contextUsage(selected, model);
   const r = 7;
@@ -139,6 +148,20 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
       </div>
       <div className="grow"></div>
       <div className="right">
+        {showProvider && (
+          <div className="provider-wrap" style={{ position: "relative" }}>
+            <button
+              className={"model-pill" + (ui.openPopover === "backend" ? " open" : "")}
+              disabled={providerBusy}
+              title={providerBusy ? "Provider switch needs the worker idle" : "Switch provider — keeps the conversation"}
+              onClick={(e) => toggle("backend", e)}
+              data-popover-trigger="backend"
+            >
+              <span>{backendLabel(selected.backend_kind)}</span>
+            </button>
+            <BackendPopover live={live} />
+          </div>
+        )}
         <div className="model-wrap" style={{ position: "relative" }}>
           <button
             className={"model-pill" + (ui.openPopover === "model" ? " open" : "")}

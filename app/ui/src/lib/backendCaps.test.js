@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { backendCaps, backendBilled, applyDescriptors, providerOptions } from "./backendCaps.js";
+import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel } from "./backendCaps.js";
 
 const caps = (over) => ({ interrupt: true, keystroke: true, runtimeModelSwitch: true, runtimePermissionSwitch: true, ...over });
 const SAMPLE = [
@@ -37,5 +37,13 @@ describe("backendCaps (descriptor-driven)", () => {
       { value: "claude-cli", label: "Claude CLI" },
       { value: "claude-sdk", label: "Claude SDK" },
     ]);
+  });
+
+  it("backendLabel returns the descriptor label, falling back to the raw kind", () => {
+    applyDescriptors(SAMPLE);
+    expect(backendLabel("claude-sdk")).toBe("Claude SDK");
+    expect(backendLabel("openai")).toBe("OpenAI"); // disabled but still labelled
+    expect(backendLabel("mystery")).toBe("mystery"); // unknown -> raw kind, never blank
+    expect(backendLabel(undefined)).toBe("—");
   });
 });

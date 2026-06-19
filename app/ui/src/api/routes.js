@@ -61,6 +61,7 @@ export const ROUTES = {
   workerOpen: (id) => `/workers/${id}/open`,
   workerPermission: (id) => `/workers/${id}/permission`,
   workerModel: (id) => `/workers/${id}/model`,
+  workerBackend: (id) => `/workers/${id}/backend`,
   workerDiff: (id) => `/workers/${id}/diff`,
   workerChanges: (id) => `/workers/${id}/changes`,
   workerFileDiff: (id) => `/workers/${id}/changes/file`,

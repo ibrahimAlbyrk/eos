@@ -35,3 +35,9 @@ export function backendCaps(kind) {
 export function backendBilled(kind) {
   return (kind ? DESCRIPTORS.get(kind)?.billing : null) === "metered";
 }
+
+// Display label for a provider kind (e.g. "Claude SDK"). Unknown/not-yet-loaded
+// → the raw kind, never blank, so the provider pill always reads sensibly.
+export function backendLabel(kind) {
+  return (kind ? DESCRIPTORS.get(kind)?.label : null) ?? kind ?? "—";
+}
