@@ -148,10 +148,14 @@ export class PolicyGatewayService implements PolicyGateway {
     // verdict layer). Empty allow ⇒ inherit-all; deny always subtracts.
     const scope = this.deps.toolScopeResolver?.resolveFor(workerId);
     if (scope) {
-      if (matchesAny(toolName, scope.deny)) {
+      // Command-scoped patterns ("Bash(git push:*)") match against the tool's
+      // command argument; name globs ignore it. For Bash-family tools that
+      // argument is the command string.
+      const arg = typeof input.command === "string" ? input.command : undefined;
+      if (matchesAny(toolName, scope.deny, arg)) {
         return { behavior: "deny", message: `${toolName} is denied by this worker's type` };
       }
-      if (scope.allow.length > 0 && !matchesAny(toolName, scope.allow)) {
+      if (scope.allow.length > 0 && !matchesAny(toolName, scope.allow, arg)) {
         return { behavior: "deny", message: `${toolName} is not in this worker type's allowed tools` };
       }
       // editRegex confines file edits to matching paths. Only fileEdits are

@@ -30,4 +30,39 @@ describe("resolveSpawnIsolation", () => {
       { cwd: "/dir", worktreeFrom: undefined },
     );
   });
+
+  it("a type's cwd isolation downgrades a worktree spawn", () => {
+    assert.deepEqual(
+      resolveSpawnIsolation({ worktreeFrom: "/repo" }, { worktreesDisabled: false, typeIsolation: "cwd" }),
+      { cwd: "/repo", worktreeFrom: undefined },
+    );
+  });
+
+  it("a type's worktree isolation promotes a plain-cwd spawn", () => {
+    assert.deepEqual(
+      resolveSpawnIsolation({ cwd: "/repo" }, { worktreesDisabled: false, typeIsolation: "worktree" }),
+      { cwd: undefined, worktreeFrom: "/repo" },
+    );
+  });
+
+  it("global worktrees-disabled wins over a type's worktree preference", () => {
+    assert.deepEqual(
+      resolveSpawnIsolation({ cwd: "/repo" }, { worktreesDisabled: true, typeIsolation: "worktree" }),
+      { cwd: "/repo", worktreeFrom: undefined },
+    );
+  });
+
+  it("a type's worktree preference does not re-decide an explicit attach", () => {
+    assert.deepEqual(
+      resolveSpawnIsolation({ cwd: "/x", workspaceOf: "w-1" }, { worktreesDisabled: false, typeIsolation: "worktree" }),
+      { cwd: "/x", worktreeFrom: undefined },
+    );
+  });
+
+  it("a worktree spawn already matching the type's worktree preference is unchanged", () => {
+    assert.deepEqual(
+      resolveSpawnIsolation({ worktreeFrom: "/repo" }, { worktreesDisabled: false, typeIsolation: "worktree" }),
+      { cwd: undefined, worktreeFrom: "/repo" },
+    );
+  });
 });

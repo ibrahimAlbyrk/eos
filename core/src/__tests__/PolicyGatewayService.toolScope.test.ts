@@ -68,6 +68,34 @@ describe("PolicyGatewayService — worker-type tool scope (rung 2.5)", () => {
     assert.equal((await svc.decide({ workerId: "w1", toolName: "mcp__github__create_pr", input: {} })).behavior, "deny");
   });
 
+  it("command-scoped deny (db-migrator example): Bash(git push:*) denies git push, allows other Bash", async () => {
+    // The §3.2 db-migrator scope: Bash is broadly allowed, git push specifically denied.
+    const dbMigrator: ToolScope = {
+      allow: ["Read", "Grep", "Glob", "Edit", "Write", "Bash", "mcp__*"],
+      deny: ["Bash(git push:*)"],
+      editRegex: null,
+    };
+    const { svc } = buildService({ scope: dbMigrator });
+    // git push → denied by the command-scoped deny.
+    const pushed = await svc.decide({ workerId: "w1", toolName: "Bash", input: { command: "git push origin main" } });
+    assert.equal(pushed.behavior, "deny");
+    // other Bash → in allow, not denied → falls through to acceptEdits ask (shell).
+    void svc.decide({ workerId: "w1", toolName: "Bash", input: { command: "git status" } });
+    // Read in allow → allowed.
+    assert.equal((await svc.decide({ workerId: "w1", toolName: "Read", input: {} })).behavior, "allow");
+  });
+
+  it("command-scoped allowlist: Bash(npm:*) permits npm, denies other Bash", async () => {
+    const npmOnly: ToolScope = { allow: ["Read", "Bash(npm:*)"], deny: [], editRegex: null };
+    const { svc } = buildService({ scope: npmOnly });
+    // npm test ∈ allow → falls through → acceptEdits asks for shell.
+    const npm = buildService({ scope: npmOnly });
+    void npm.svc.decide({ workerId: "w1", toolName: "Bash", input: { command: "npm test" } });
+    assert.deepEqual(npm.policyEvents, [{ tool: "Bash", decision: "ask" }]);
+    // git status NOT in allow → denied.
+    assert.equal((await svc.decide({ workerId: "w1", toolName: "Bash", input: { command: "git status" } })).behavior, "deny");
+  });
+
   it("a broad policy.yaml allow does NOT defeat the type denylist (rung sits above policy.yaml)", async () => {
     const rule = compileRule({ tool: "Bash", action: "allow" }, 0, "test");
     assert.ok(rule);

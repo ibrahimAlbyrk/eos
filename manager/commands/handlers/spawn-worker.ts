@@ -26,15 +26,14 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       }
     }
     if (!bootPrompt) throw new ValidationError("resolved prompt is empty");
-    const iso = resolveSpawnIsolation(body, {
-      worktreesDisabled: c.userSettings.read()["git.spawnWithoutWorktree"] === true,
-    });
     // Resolve the worker type → per-axis defaults + instructions body. `git` is
     // now just a built-in type (manager/worker-types/git.md); legacy role:"git"
     // requests map to workerType:"git" until callers migrate. Unknown/unset name
-    // → null → a plain base worker (graceful degrade, never throws).
+    // → null → a plain base worker (graceful degrade, never throws). The project
+    // .eos/workers dir is found from the RAW request cwd — the isolation downgrade
+    // below doesn't change WHERE the repo's types live.
     const workerTypeName = body.workerType ?? (body.role === "git" ? "git" : "");
-    const lookupCwd = expandPath(iso.worktreeFrom ?? iso.cwd) ?? null;
+    const lookupCwd = expandPath(body.worktreeFrom ?? body.cwd) ?? null;
     // Disk records (builtin < user < project) + the owning orchestrator's runtime
     // mints (highest precedence). Per-owner: a sibling orchestrator's mints never
     // leak here (the scope guard).
@@ -50,6 +49,13 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     // no restriction, and keeps unrestricted types (git) off the gate rung.
     const scope = type ? materializeToolScope(type) : null;
     const toolScope = scope && isToolScopeRestrictive(scope) ? scope : null;
+    // Isolation: the user's global worktree-disable wins; otherwise the type's
+    // declared isolation default takes effect (the request carries no explicit
+    // isolation field, so a type's preference applies whenever it set one).
+    const iso = resolveSpawnIsolation(body, {
+      worktreesDisabled: c.userSettings.read()["git.spawnWithoutWorktree"] === true,
+      typeIsolation: td.isolation,
+    });
     // Mode inheritance: explicit body.permissionMode wins; else the type's
     // default (git → bypassPermissions); else resolve from parent so children
     // adopt the orchestrator's current mode.

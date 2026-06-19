@@ -119,6 +119,8 @@ describe("assembleSystemPrompt (§8 worked examples)", () => {
     isAttached: false,
     hasMcp: false,
     canCollaborate: false,
+    workerType: "",
+    workerTypeCatalog: "",
   };
 
   it("(a) non-worktree orchestrator → core + role/orchestrator only", () => {

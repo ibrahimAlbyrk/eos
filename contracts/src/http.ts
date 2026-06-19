@@ -1413,6 +1413,10 @@ export const PromptPreviewRequestSchema = z.object({
   isAttached: z.boolean().default(false),
   hasMcp: z.boolean().default(false),
   canCollaborate: z.boolean().default(false),
+  // Preview a typed worker's fragment selection + body placement without
+  // spawning (§7.3). Catalog is the orchestrator-only interpolation var.
+  workerType: z.string().default(""),
+  workerTypeCatalog: z.string().default(""),
 });
 export type PromptPreviewRequest = z.infer<typeof PromptPreviewRequestSchema>;
 

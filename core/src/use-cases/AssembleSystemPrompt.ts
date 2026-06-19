@@ -34,9 +34,9 @@ export interface SessionSpawnContext {
   hasMcp: boolean;
   canCollaborate: boolean;
   // Worker type name (immutable fact) + the orchestrator-facing catalog text
-  // (interpolation variable). Both default empty for untyped/non-orchestrator.
-  workerType?: string;
-  workerTypeCatalog?: string;
+  // (interpolation variable). "" for untyped / non-orchestrator.
+  workerType: string;
+  workerTypeCatalog: string;
 }
 
 export interface AssembleDeps {
