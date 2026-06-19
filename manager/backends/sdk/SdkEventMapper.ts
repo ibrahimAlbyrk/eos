@@ -5,7 +5,8 @@
 // we depend on, verified against @anthropic-ai/claude-agent-sdk 0.3.x + the
 // validated Python probes (content_block_delta -> thinking_delta/text_delta).
 
-import type { AgentEvent, ContentBlock } from "../../../contracts/src/canonical.ts";
+import type { AgentEvent, ContentBlock, CanonicalUsage } from "../../../contracts/src/canonical.ts";
+import { contextTokensOf } from "../../../contracts/src/canonical.ts";
 
 // --- the SDK message subset we read (structural) ---------------------------
 interface RawDelta { type: string; text?: string; thinking?: string }
@@ -13,14 +14,18 @@ interface RawBlock { type: string; text?: string; thinking?: string; id?: string
 // message_start carries the stable Anthropic message id (msg_…); content_block_*
 // events do not, so the mapper tracks it across the message's stream.
 interface RawStreamEvent { type: string; index?: number; delta?: RawDelta; content_block?: RawBlock; message?: { id?: string } }
+// Anthropic per-response usage. Present on the turn-final `result` (a turn
+// aggregate → billing) AND on each `assistant` message (that one request → the
+// context-window footprint). Same shape, read from two places.
+interface SdkUsage { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number; cache_creation?: { ephemeral_5m_input_tokens?: number; ephemeral_1h_input_tokens?: number } }
 interface SdkMsg {
   type: string;
   subtype?: string;
   uuid?: string;
   session_id?: string;
   event?: RawStreamEvent;
-  message?: { id?: string; content?: RawBlock[] | string };
-  usage?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number; cache_creation?: { ephemeral_5m_input_tokens?: number; ephemeral_1h_input_tokens?: number } };
+  message?: { id?: string; content?: RawBlock[] | string; usage?: SdkUsage };
+  usage?: SdkUsage;
   model?: string;
   // Set on a subagent's (Task/Agent tool) internal messages — the parent Agent
   // tool_use id. Drives subagent attribution: inner tools surface as parented
@@ -40,6 +45,16 @@ function cacheWriteTokens(u: NonNullable<SdkMsg["usage"]>): Record<string, numbe
     };
   }
   return u.cache_creation_input_tokens ? { "5m": u.cache_creation_input_tokens } : {};
+}
+
+function toCanonicalUsage(u: SdkUsage, model: string | null): CanonicalUsage {
+  return {
+    inputTokens: u.input_tokens ?? 0,
+    outputTokens: u.output_tokens ?? 0,
+    cacheReadTokens: u.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: cacheWriteTokens(u),
+    model,
+  };
 }
 
 function blockText(content: unknown): string {
@@ -178,6 +193,18 @@ export function createSdkEventMapper(): SdkEventMapper {
           // no standalone block.
           const blocks = durableBlocks(msgId, content, startIdx);
           if (blocks.length) out.push({ type: "message", role: "assistant", blocks });
+          // Context-window occupancy: this top-level assistant message carries its
+          // own API request's usage (BetaMessage.usage). Its prompt footprint
+          // (in + cacheRead + cacheWrite) IS the live context occupancy; emit it
+          // as a snapshot so the latest one of the turn wins. Subagent messages
+          // returned above (parent_tool_use_id) — their context is separate, so
+          // they never touch the parent's ring. Skip zero (a blockless split that
+          // carries no usage must not clobber the real value with 0).
+          const mu = msg.message?.usage;
+          if (mu) {
+            const tokens = contextTokensOf(toCanonicalUsage(mu, null));
+            if (tokens > 0) out.push({ type: "context", tokens });
+          }
           return out;
         }
 
@@ -204,14 +231,10 @@ export function createSdkEventMapper(): SdkEventMapper {
         }
 
         case "result": {
-          const u = msg.usage ?? {};
-          out.push({ type: "usage", usage: {
-            inputTokens: u.input_tokens ?? 0,
-            outputTokens: u.output_tokens ?? 0,
-            cacheReadTokens: u.cache_read_input_tokens ?? 0,
-            cacheWriteTokens: cacheWriteTokens(u),
-            model: msg.model ?? null,
-          } });
+          // result.usage is the TURN aggregate (summed over every API request +
+          // subagents) — correct for cumulative billing, NOT context occupancy.
+          // Occupancy rides per-message `context` events from the assistant case.
+          out.push({ type: "usage", usage: toCanonicalUsage(msg.usage ?? {}, msg.model ?? null) });
           turnActive = false;
           currentMsgId = null; // next turn's message_start re-anchors
           msgBlockCount.clear();

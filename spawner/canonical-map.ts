@@ -7,6 +7,7 @@
 // canonical type import is erased by strip-types).
 
 import type { AgentEvent } from "../contracts/src/canonical.ts";
+import { contextTokensOf } from "../contracts/src/canonical.ts";
 
 type Rec = Record<string, unknown>;
 const asRec = (v: unknown): Rec => (v && typeof v === "object" ? (v as Rec) : {});
@@ -23,8 +24,14 @@ export function toCanonicalEvents(type: string, payload: unknown): AgentEvent[] 
   switch (type) {
     case "jsonl":
       return jsonlToCanonical(p);
-    case "usage":
-      return [usageToCanonical(p)];
+    case "usage": {
+      // One PTY usage event = one assistant message = one request's footprint, so
+      // its token sum IS the context occupancy (latest of the turn wins). Emit the
+      // billing usage AND the occupancy snapshot from the same wire event.
+      const usage = usageToCanonical(p);
+      const tokens = contextTokensOf(usage.usage);
+      return tokens > 0 ? [usage, { type: "context", tokens }] : [usage];
+    }
     case "hook":
       return hookToCanonical(p);
     case "tool_running":
@@ -71,7 +78,7 @@ function jsonlToCanonical(p: Rec): AgentEvent[] {
   }
 }
 
-function usageToCanonical(p: Rec): AgentEvent {
+function usageToCanonical(p: Rec): Extract<AgentEvent, { type: "usage" }> {
   // Flatten Claude's two cache-write tiers into the open per-tier map, omitting
   // zeros so the canonical shape stays clean for backends without caching.
   const cacheWriteTokens: Record<string, number> = {};
@@ -93,14 +100,14 @@ function usageToCanonical(p: Rec): AgentEvent {
 
 function hookToCanonical(p: Rec): AgentEvent[] {
   const body = asRec(p.body);
-  const toolName = str(body.tool_name);
-  const callId = str(body.tool_use_id) ?? null;
+  // PreToolUse/PostToolUse/PostToolUseFailure are intentionally NOT mapped to tool
+  // activities. The dedicated tool_running/tool_done events (emitted alongside
+  // every tool hook, carrying input/result) are the single source of tool
+  // lifecycle. Mapping the hook too would emit a SECOND tool_started/finished per
+  // tool — one with input, one without — which the UI renders as a duplicate /
+  // empty row. The hook here only carries what tool_running/tool_done can't: the
+  // turn/session barriers.
   switch (str(p.event)) {
-    case "PreToolUse":
-      return [{ type: "activity", kind: "tool_started", toolName, callId }];
-    case "PostToolUse":
-    case "PostToolUseFailure":
-      return [{ type: "activity", kind: "tool_finished", toolName, callId }];
     case "Stop":
       return [{ type: "turn", phase: "ended", reason: "stop" }];
     case "SessionStart":
@@ -110,11 +117,8 @@ function hookToCanonical(p: Rec): AgentEvent[] {
       // fresh context. Mapping it to "ended" would trap the worker in ENDING.
       if (str(body.reason) === "clear") return [{ type: "session", phase: "cleared" }];
       return [{ type: "session", phase: "ended" }];
-    // Notification carries no state signal — mirror the legacy hook handler,
-    // which ignores it (only PostToolUse / Stop / SessionEnd drive state).
-    case "Notification":
-      return [];
     default:
+      // Notification + the tool hooks above: no barrier of their own.
       return [];
   }
 }

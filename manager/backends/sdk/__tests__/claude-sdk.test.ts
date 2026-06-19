@@ -219,6 +219,46 @@ describe("SdkEventMapper — SDK stream -> canonical sequence", () => {
     const ub = b.find((e) => e.type === "usage");
     assert.deepEqual(ub && ub.type === "usage" ? ub.usage.cacheWriteTokens : null, { "5m": 4 });
   });
+
+  // Context-window occupancy must come from each assistant message's OWN request
+  // usage (the live footprint), NOT the turn-aggregate result.usage (which sums
+  // every round-trip's tokens, incl. repeated cache reads → balloons past 1M).
+  // `usage` stays the billing aggregate; `context` is the per-request snapshot.
+  it("emits per-message context occupancy from assistant usage; result.usage stays billing-only", () => {
+    const mapper = createSdkEventMapper();
+    const script: unknown[] = [
+      { type: "system", subtype: "init", session_id: "s" },
+      // round 1: small prompt (in + cacheRead + cacheCreate = 150)
+      { type: "assistant", uuid: "a0", message: { id: "msg_A", content: [{ type: "tool_use", id: "t1", name: "Read", input: {} }], usage: { input_tokens: 100, cache_read_input_tokens: 20, cache_creation_input_tokens: 30 } } },
+      { type: "user", uuid: "u0", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: "ok" }] } },
+      // round 2: history grew (500 + 400 = 900) — THIS is the occupancy at turn end
+      { type: "assistant", uuid: "a1", message: { id: "msg_B", content: [{ type: "text", text: "done" }], usage: { input_tokens: 500, cache_read_input_tokens: 400, cache_creation_input_tokens: 0 } } },
+      // turn aggregate: input summed across both requests (wrong for the ring)
+      { type: "result", subtype: "success", usage: { input_tokens: 600, cache_read_input_tokens: 420, cache_creation_input_tokens: 30 }, model: "m" },
+    ];
+    const out: AgentEvent[] = [];
+    for (const m of script) out.push(...mapper.map(m as never));
+
+    const contexts = out.filter((e) => e.type === "context").map((e) => (e as { tokens: number }).tokens);
+    assert.deepEqual(contexts, [150, 900], "one occupancy snapshot per assistant message (latest = live footprint)");
+    const usages = out.filter((e) => e.type === "usage");
+    assert.equal(usages.length, 1, "billing usage emitted once, on result");
+    assert.equal((usages[0] as { usage: { inputTokens: number } }).usage.inputTokens, 600, "result.usage stays the turn aggregate");
+  });
+
+  // A subagent's internal assistant message (parent_tool_use_id) has its OWN usage,
+  // but that is a SEPARATE context window — it must never stamp the parent's ring.
+  it("never emits context for subagent (parent_tool_use_id) assistant messages", () => {
+    const mapper = createSdkEventMapper();
+    const script: unknown[] = [
+      { type: "system", subtype: "init", session_id: "s" },
+      { type: "assistant", uuid: "a0", parent_tool_use_id: "agent_1", message: { id: "msg_sub", content: [{ type: "tool_use", id: "inner", name: "Bash", input: {} }], usage: { input_tokens: 9999, cache_read_input_tokens: 9999 } } },
+      { type: "result", subtype: "success", usage: {}, model: "m" },
+    ];
+    const out: AgentEvent[] = [];
+    for (const m of script) out.push(...mapper.map(m as never));
+    assert.equal(out.filter((e) => e.type === "context").length, 0);
+  });
 });
 
 describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => {

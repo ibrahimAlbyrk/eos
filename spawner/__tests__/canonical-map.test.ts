@@ -45,26 +45,33 @@ test("jsonl skill_body → message{skill} correlated by callId", () => {
   assert.deepEqual(out[0].blocks, [{ type: "skill", callId: "toolu_9", text: "/skills/x\nbody" }]);
 });
 
-test("usage → usage event with split cache tiers, zeros omitted", () => {
+test("usage → billing usage + context occupancy snapshot (in + cacheRead + cacheWrite)", () => {
   const out = mapValid("usage", { in: 100, out: 50, cacheRead: 10, cacheCreate: 5, cacheCreate1h: 0, model: "opus" });
-  assert.deepEqual(out, [{
-    type: "usage",
-    usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 10, cacheWriteTokens: { "5m": 5 }, model: "opus" },
-  }]);
+  assert.deepEqual(out, [
+    { type: "usage", usage: { inputTokens: 100, outputTokens: 50, cacheReadTokens: 10, cacheWriteTokens: { "5m": 5 }, model: "opus" } },
+    { type: "context", tokens: 115 },
+  ]);
 });
 
-test("usage with both cache tiers keeps both keys", () => {
+test("usage with both cache tiers keeps both keys + context sums every tier", () => {
   const out = mapValid("usage", { in: 1, out: 1, cacheRead: 0, cacheCreate: 2, cacheCreate1h: 3, model: "sonnet" });
   assert.deepEqual(out[0].usage.cacheWriteTokens, { "5m": 2, "1h": 3 });
+  assert.deepEqual(out[1], { type: "context", tokens: 6 }); // 1 + 0 + 2 + 3
 });
 
-test("hook PreToolUse/PostToolUse → activity tool_started/finished", () => {
-  const pre = mapValid("hook", { event: "PreToolUse", body: { tool_name: "Edit", tool_use_id: "x" } });
-  assert.deepEqual(pre, [{ type: "activity", kind: "tool_started", toolName: "Edit", callId: "x" }]);
-  const post = mapValid("hook", { event: "PostToolUse", body: { tool_name: "Edit", tool_use_id: "x" } });
-  assert.equal(post[0].kind, "tool_finished");
-  const fail = mapValid("hook", { event: "PostToolUseFailure", body: { tool_name: "Edit", tool_use_id: "x" } });
-  assert.equal(fail[0].kind, "tool_finished");
+test("usage with zero footprint emits no context snapshot (no clobber)", () => {
+  const out = mapValid("usage", { in: 0, out: 0, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0, model: "opus" });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].type, "usage");
+});
+
+test("hook tool events emit NO activity — tool_running/tool_done own lifecycle", () => {
+  // Mapping the hook too would double every tool (once WITH input via
+  // tool_running, once WITHOUT via the hook) → duplicate/empty rows in the UI.
+  // The dedicated events are the single source; the hook only carries barriers.
+  assert.deepEqual(mapValid("hook", { event: "PreToolUse", body: { tool_name: "Edit", tool_use_id: "x" } }), []);
+  assert.deepEqual(mapValid("hook", { event: "PostToolUse", body: { tool_name: "Edit", tool_use_id: "x" } }), []);
+  assert.deepEqual(mapValid("hook", { event: "PostToolUseFailure", body: { tool_name: "Edit", tool_use_id: "x" } }), []);
 });
 
 test("hook Stop → turn ended; SessionEnd → session ended", () => {
