@@ -11,6 +11,8 @@ import { sendMessageToParentDef } from "./defs/send_message_to_parent.ts";
 import { listPeersDef } from "./defs/list_peers.ts";
 import { askPeerDef } from "./defs/ask_peer.ts";
 import { respondToPeerDef } from "./defs/respond_to_peer.ts";
+import { listWorkerTypesDef } from "./defs/list_worker_types.ts";
+import { mintWorkerTypeDef } from "./defs/mint_worker_type.ts";
 
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
@@ -23,6 +25,8 @@ export const orchestratorDefs: ToolDefinition[] = [
   listPendingPermissionsDef,
   notifyUserDef,
   askUserDef,
+  listWorkerTypesDef,
+  mintWorkerTypeDef,
 ];
 
 // Always registered on a worker.

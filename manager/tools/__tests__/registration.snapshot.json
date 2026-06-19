@@ -183,6 +183,92 @@
       ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "list_worker_types": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "mint_worker_type": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Identity, kebab-case (e.g. 'perf-profiler'). Spawn with this via workerType."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-facing label for the type."
+        },
+        "whenToUse": {
+          "type": "string",
+          "description": "Routing signal: when should a task be dispatched to this type."
+        },
+        "model": {
+          "type": "string",
+          "description": "Default model (opus/sonnet/haiku/fable). Omit ⇒ inherit."
+        },
+        "effort": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ],
+          "description": "Default reasoning effort. Omit ⇒ inherit."
+        },
+        "permissionMode": {
+          "type": "string",
+          "enum": [
+            "acceptEdits",
+            "bypassPermissions"
+          ],
+          "description": "Default permission mode."
+        },
+        "persistent": {
+          "type": "boolean",
+          "description": "Stay alive after a turn (conversational session)."
+        },
+        "collaborate": {
+          "type": "boolean",
+          "description": "Default the peer-mesh opt-in."
+        },
+        "toolsAllow": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tool allowlist (globs, e.g. 'Read', 'mcp__*'). Empty/omit ⇒ inherit all tools."
+        },
+        "toolsDeny": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Tool denylist (globs). Always subtracts, even from an allowlist."
+        },
+        "editRegex": {
+          "type": "string",
+          "description": "Restrict file edits to paths matching this regex (e.g. 'src/.*\\\\.ts$')."
+        },
+        "extends": {
+          "type": "string",
+          "description": "Base type name to inherit unset fields from."
+        },
+        "body": {
+          "type": "string",
+          "description": "The type's instructions (the worker's role body). Author to good prompt design: environment map, output contract, if-then failure rules."
+        }
+      },
+      "required": [
+        "name",
+        "body"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   "worker": {

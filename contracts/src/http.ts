@@ -9,6 +9,7 @@ import { UnknownRecordSchema } from "./shared.ts";
 import { WorkerRowSchema, PendingPermissionRowSchema, PermissionModeSchema } from "./worker.ts";
 import { DecisionSchema, ExternalDecisionSchema } from "./policy.ts";
 import { SessionFactsSchema } from "./prompt.ts";
+import { WorkerTypeSchema, WorkerTypeSourceSchema } from "./worker-type.ts";
 
 // ---- POST /workers ---------------------------------------------------------
 
@@ -1421,6 +1422,29 @@ export const PromptPreviewResponseSchema = z.object({
   activeFragmentIds: z.array(z.string()),
 });
 
+// ---- /worker-types ----------------------------------------------------------
+// Orchestrator-facing worker-type catalog + runtime mint. GET lists all sources
+// (disk + the owner's runtime mints) as lean catalog entries; POST mints one
+// runtime type for the calling orchestrator (owner = ?owner query param).
+
+// Mint request = the full WorkerType shape (minus provenance, which the store
+// stamps as "runtime"). Reuses the SSOT schema so the wire validates identically.
+export const MintWorkerTypeRequestSchema = WorkerTypeSchema;
+export type MintWorkerTypeRequest = z.infer<typeof MintWorkerTypeRequestSchema>;
+
+export const MintWorkerTypeResponseSchema = z.object({ name: z.string() });
+export type MintWorkerTypeResponse = z.infer<typeof MintWorkerTypeResponseSchema>;
+
+export const WorkerTypeCatalogEntrySchema = z.object({
+  name: z.string(),
+  description: z.string(),
+  whenToUse: z.string(),
+  source: WorkerTypeSourceSchema,
+});
+export type WorkerTypeCatalogEntry = z.infer<typeof WorkerTypeCatalogEntrySchema>;
+
+export const WorkerTypeListResponseSchema = z.array(WorkerTypeCatalogEntrySchema);
+
 // ---- Auto-update (git-based; see manager/services/UpdateService.ts) ---------
 
 export const UpdateRevisionSchema = z.object({
@@ -1561,6 +1585,7 @@ export const ROUTES = {
   template: (name: string): string => `/api/templates/${name}`,
   prompts: "/api/prompts",
   promptPreview: "/api/prompts/preview",
+  workerTypes: "/worker-types",
   settings: "/api/settings",
   updateStatus: "/api/updates/status",
   updateCheck: "/api/updates/check",

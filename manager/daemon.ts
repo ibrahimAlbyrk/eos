@@ -38,6 +38,7 @@ import { registerCommandRoutes } from "./routes/commands.ts";
 import { registerTemplateRoutes } from "./routes/templates.ts";
 import { registerMemoryRoutes } from "./routes/memory.ts";
 import { registerPromptRoutes } from "./routes/prompts.ts";
+import { registerWorkerTypeRoutes } from "./routes/worker-types.ts";
 import { registerSettingsRoutes } from "./routes/settings.ts";
 import { registerUpdateRoutes } from "./routes/updates.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
@@ -70,6 +71,7 @@ registerCommandRoutes(router, c);
 registerTemplateRoutes(router, c);
 registerMemoryRoutes(router, c);
 registerPromptRoutes(router, c);
+registerWorkerTypeRoutes(router, c);
 registerSettingsRoutes(router, c);
 registerUpdateRoutes(router, c);
 // Unified command catalog (worker.spawn, worker.kill, …) — registered before

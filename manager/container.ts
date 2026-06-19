@@ -97,6 +97,7 @@ import { UserSettingsService } from "./services/UserSettingsService.ts";
 import { ModelCatalogService } from "./services/ModelCatalogService.ts";
 import { UpdateService } from "./services/UpdateService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
+import { RuntimeWorkerTypeStore } from "./services/RuntimeWorkerTypeStore.ts";
 import { BackgroundActivityService } from "./services/BackgroundActivityService.ts";
 import { PendingPeerRequestService } from "./services/PendingPeerRequestService.ts";
 import { TerminalRunService } from "./services/TerminalRunService.ts";
@@ -498,6 +499,8 @@ export function buildContainer() {
     if (proj) dirs.push({ dir: proj, source: "project" as const });
     return new FileWorkerTypeSource(dirs).list();
   };
+  // Runtime (orchestrator-minted) worker types — per-owner, in-memory, session-only.
+  const runtimeWorkerTypes = new RuntimeWorkerTypeStore();
   // Orchestrator catalog: one line per disk type — name + the routing signal.
   const renderWorkerTypeCatalog = (records: WorkerTypeRecord[]): string =>
     records
@@ -777,6 +780,7 @@ export function buildContainer() {
     prompts,
     promptRegistry,
     listWorkerTypeRecords,
+    runtimeWorkerTypes,
     userTemplates,
     projectMemory,
     claudeHome,

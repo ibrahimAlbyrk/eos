@@ -35,9 +35,14 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     // → null → a plain base worker (graceful degrade, never throws).
     const workerTypeName = body.workerType ?? (body.role === "git" ? "git" : "");
     const lookupCwd = expandPath(iso.worktreeFrom ?? iso.cwd) ?? null;
-    const type = workerTypeName
-      ? resolveWorkerTypeByName(workerTypeName, c.listWorkerTypeRecords(lookupCwd))
-      : null;
+    // Disk records (builtin < user < project) + the owning orchestrator's runtime
+    // mints (highest precedence). Per-owner: a sibling orchestrator's mints never
+    // leak here (the scope guard).
+    const records = [
+      ...c.listWorkerTypeRecords(lookupCwd),
+      ...(body.parentId ? c.runtimeWorkerTypes.listFor(body.parentId) : []),
+    ];
+    const type = workerTypeName ? resolveWorkerTypeByName(workerTypeName, records) : null;
     const requestHas = (f: string) => (body as Record<string, unknown>)[f] !== undefined;
     const td = type ? applyWorkerTypeDefaults(type, requestHas) : {};
     // Materialize the tool surface once at spawn (baked onto the row; the gate

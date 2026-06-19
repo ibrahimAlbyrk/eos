@@ -154,6 +154,18 @@ export class PolicyGatewayService implements PolicyGateway {
       if (scope.allow.length > 0 && !matchesAny(toolName, scope.allow)) {
         return { behavior: "deny", message: `${toolName} is not in this worker type's allowed tools` };
       }
+      // editRegex confines file edits to matching paths. Only fileEdits are
+      // gated (a planFile / non-edit tool is untouched). An invalid regex is
+      // ignored (compileEditRegex → null) rather than bricking every edit.
+      if (scope.editRegex) {
+        const re = compileEditRegex(scope.editRegex);
+        if (re && classifyTool(toolName, input, this.deps.plansDir) === "fileEdit") {
+          const target = input.file_path ?? input.notebook_path;
+          if (typeof target !== "string" || !re.test(target)) {
+            return { behavior: "deny", message: `edit target is outside this worker type's allowed paths` };
+          }
+        }
+      }
       // otherwise fall through to policy.yaml / mode verdict (NOT an allow).
     }
     if (policy.rules.some((rule) => ruleMatches(rule, toolName, input))) {
@@ -191,5 +203,16 @@ export class PolicyGatewayService implements PolicyGateway {
       this.deps.bus.publish("pending:resolved", { id: input.id, behavior: dec.behavior });
     }
     return applied;
+  }
+}
+
+// Compile a worker-type editRegex once per call. An invalid pattern returns null
+// → the editRegex check is skipped (allow/deny still apply) rather than denying
+// every edit on a typo.
+function compileEditRegex(pattern: string): RegExp | null {
+  try {
+    return new RegExp(pattern);
+  } catch {
+    return null;
   }
 }

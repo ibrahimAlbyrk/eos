@@ -24,7 +24,7 @@ const EXPECTED_KEYS = [
   "workerTerminal", "terminal", "terminalKill",
   "workerTryPreview", "workerTryState", "workerTry", "workerTryKeep", "workerTryDiscard",
   "commands",
-  "templates", "template", "prompts", "promptPreview", "settings",
+  "templates", "template", "prompts", "promptPreview", "workerTypes", "settings",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
 ] as const;
 

@@ -81,4 +81,23 @@ describe("PolicyGatewayService — worker-type tool scope (rung 2.5)", () => {
     const { svc } = buildService({ scope: null });
     assert.equal((await svc.decide({ workerId: "w1", toolName: "Edit", input: { file_path: "/x" } })).behavior, "allow");
   });
+
+  it("editRegex confines fileEdits to matching paths (Phase 3)", async () => {
+    const scope: ToolScope = { allow: [], deny: [], editRegex: "(^|/)src/.*\\.ts$" };
+    const { svc } = buildService({ scope });
+    // In-scope edit → falls through to acceptEdits (allow).
+    assert.equal((await svc.decide({ workerId: "w1", toolName: "Edit", input: { file_path: "/repo/src/a.ts" } })).behavior, "allow");
+    // Out-of-scope edit → deny.
+    const d = await svc.decide({ workerId: "w1", toolName: "Write", input: { file_path: "/repo/app/ui/b.ts" } });
+    assert.equal(d.behavior, "deny");
+    assert.ok("message" in d && String(d.message).includes("allowed paths"));
+    // editRegex never gates non-edit tools: Read passes through to the mode verdict.
+    assert.equal((await svc.decide({ workerId: "w1", toolName: "Read", input: { file_path: "/repo/app/ui/b.ts" } })).behavior, "allow");
+  });
+
+  it("invalid editRegex is ignored (fails open on the regex axis, not bricking edits)", async () => {
+    const scope: ToolScope = { allow: [], deny: [], editRegex: "(unclosed" };
+    const { svc } = buildService({ scope });
+    assert.equal((await svc.decide({ workerId: "w1", toolName: "Edit", input: { file_path: "/x.ts" } })).behavior, "allow");
+  });
 });

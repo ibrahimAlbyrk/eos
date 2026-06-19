@@ -16,6 +16,8 @@ import { sendMessageToParentDef } from "./tools/defs/send_message_to_parent.ts";
 import { listPeersDef } from "./tools/defs/list_peers.ts";
 import { askPeerDef } from "./tools/defs/ask_peer.ts";
 import { respondToPeerDef } from "./tools/defs/respond_to_peer.ts";
+import { listWorkerTypesDef } from "./tools/defs/list_worker_types.ts";
+import { mintWorkerTypeDef } from "./tools/defs/mint_worker_type.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
@@ -30,4 +32,6 @@ export const TOOL_NAME_VARS: VariableScope = {
   LIST_PEERS_TOOL: listPeersDef.name,
   ASK_PEER_TOOL: askPeerDef.name,
   RESPOND_TO_PEER_TOOL: respondToPeerDef.name,
+  LIST_WORKER_TYPES_TOOL: listWorkerTypesDef.name,
+  MINT_WORKER_TYPE_TOOL: mintWorkerTypeDef.name,
 };
