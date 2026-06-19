@@ -1,4 +1,3 @@
-import { useState, useEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { defaultToolExpanded } from "../../../settings/toolExpansion.js";
 import { getToolView } from "./toolViews.jsx";
@@ -6,8 +5,6 @@ import { isWorkerToolName } from "../../../lib/workerTools.js";
 import { WorkerToolCard } from "./WorkerToolCard.jsx";
 import { AgentLink } from "./AgentLink.jsx";
 import { DisclosureRow } from "./DisclosureRow.jsx";
-
-const APPEAR_MS = 600;
 
 export function ToolItem({ tool, standalone, cwd, workers, parent }) {
   if (isWorkerToolName(tool.name)) return <WorkerToolCard tool={tool} workers={workers} standalone={standalone} />;
@@ -20,16 +17,10 @@ function PlainToolItem({ tool, standalone, cwd, workers, parent }) {
   const expandKey = "i:" + (tool.id ?? tool.ts);
   // expandedTools holds toggles against the settings-driven default (XOR)
   const expanded = defaultToolExpanded(tool.name, ui.settings) !== ui.expandedTools.has(expandKey);
-  const isRecent = (Date.now() - tool.ts) < 5000;
-  const [justAppeared, setJustAppeared] = useState(isRecent && !!tool.result);
-  useEffect(() => {
-    if (!justAppeared) return;
-    const t = setTimeout(() => setJustAppeared(false), APPEAR_MS);
-    return () => clearTimeout(t);
-  }, [justAppeared]);
   // tool.running is authoritative — computed once in messageParser from the
-  // tool lifecycle (results, tool_done, turn/exit barriers).
-  const isRunning = tool.running === true || justAppeared;
+  // tool lifecycle (results, tool_done, turn/exit barriers). A done tool must
+  // never shimmer as running, and live must match a refresh exactly.
+  const isRunning = tool.running === true;
   const label = isRunning ? view.runningLabel(tool) : view.label(tool);
   const filePath = view.filePath(tool);
   const agentRef = view.agentRef(tool, { workers, parent });
