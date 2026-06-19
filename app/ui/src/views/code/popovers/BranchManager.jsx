@@ -1,12 +1,13 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { revalidate } from "../../../state/gitStatusStore.js";
 import { BranchContextMenu } from "./BranchContextMenu.jsx";
 import { BranchConfirmDialog } from "./BranchConfirmDialog.jsx";
+import { SearchField } from "./SearchField.jsx";
 import {
   PlusIcon, FetchIcon, TrashIcon, PencilIcon, CopyIcon,
-  CloudIcon, CheckIcon, SearchIcon, SpinnerIcon,
+  CloudIcon, CheckIcon, SpinnerIcon,
 } from "../../../lib/gitIconKit.jsx";
 
 const EMPTY = { branches: [], remoteBranches: [], remotes: [], current: null };
@@ -28,7 +29,6 @@ export function BranchManager({ live, cwd }) {
   const [confirm, setConfirm] = useState(null);      // { kind, branch, remote? }
   const [ctx, setCtx] = useState(null);              // { x, y, label, isRemote }
   const [showRemote, setShowRemote] = useState(true);
-  const searchRef = useRef(null);
 
   const open = ui.openPopover === "branch-dd";
   const composerBranch = ui.composer.branch;
@@ -50,10 +50,6 @@ export function BranchManager({ live, cwd }) {
     if (!open || !cwd) return;
     setFilter(""); setError(""); setCreating(false); setRenaming(null); setConfirm(null);
     reload();
-    // Focus the search field so the user can type immediately (rAF: after the
-    // panel is committed + the trigger button's focus settles).
-    const raf = requestAnimationFrame(() => searchRef.current?.focus());
-    return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, cwd]);
 
@@ -305,15 +301,7 @@ export function BranchManager({ live, cwd }) {
         ))}
       </div>
 
-      <div className="cb-branch-search">
-        <SearchIcon size={11} />
-        <input
-          ref={searchRef}
-          placeholder="Search branches…"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        />
-      </div>
+      <SearchField value={filter} onChange={setFilter} placeholder="Search branches…" />
 
       {ctx && <BranchContextMenu x={ctx.x} y={ctx.y} items={ctxItems} onClose={() => setCtx(null)} />}
       {confirm && (

@@ -1,10 +1,19 @@
+import { useEffect, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { basename } from "../../../lib/path.js";
+import { SearchField } from "./SearchField.jsx";
 
 export function FolderDropdown({ live }) {
   const ui = useUi();
-  if (ui.openPopover !== "folder-dd") return null;
+  const [query, setQuery] = useState("");
+  const open = ui.openPopover === "folder-dd";
+
+  useEffect(() => {
+    if (open) setQuery("");
+  }, [open]);
+
+  if (!open) return null;
 
   const current = ui.composer.cwd;
   const setCwd = (path) => ui.updateComposer({ cwd: path });
@@ -23,16 +32,20 @@ export function FolderDropdown({ live }) {
     ui.closeAllPops();
   };
 
+  const q = query.trim().toLowerCase();
+  const recents = q ? live.recents.filter((p) => p.toLowerCase().includes(q)) : live.recents;
+  const hasRecents = live.recents.length > 0;
+
   return (
     <div className="cb-chip-dd open" id="cbFolderDD" data-popover="folder-dd">
       <div className="cb-chip-dd-scroll">
         <div className="sp-chip-dd-head">Recent</div>
-        {live.recents.length === 0 && (
+        {recents.length === 0 && (
           <div style={{ padding: "10px 12px", color: "var(--fg-faint)", fontSize: "var(--text-sm)" }}>
-            No recent folders yet
+            {hasRecents ? "No matching folders" : "No recent folders yet"}
           </div>
         )}
-        {live.recents.map((p) => (
+        {recents.map((p) => (
           <button
             key={p}
             className={"sp-chip-dd-item" + (current === p ? " on" : "")}
@@ -48,6 +61,11 @@ export function FolderDropdown({ live }) {
           </button>
         ))}
       </div>
+
+      {hasRecents && (
+        <SearchField value={query} onChange={setQuery} placeholder="Search folders…" />
+      )}
+
       <div className="sp-chip-dd-sep"></div>
       <button className="sp-chip-dd-item sp-chip-dd-item--action" onClick={openPicker}>
         <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
