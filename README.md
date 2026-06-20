@@ -126,6 +126,7 @@ You talk to a persistent **orchestrator**. It breaks your instruction into piece
 | :-- | :-- |
 | **Parallel swarms** | One instruction → many workers, each in its own worktree + branch. Pick model (`opus` · `sonnet` · `haiku` · `fable`) and effort per worker. Workers spawn sub-workers. |
 | **Dynamic workers** | Not a fixed roster. Beyond the built-ins, the orchestrator **defines new workers at runtime** — `create_worker` sets role, model, tool fences, permission mode, even `extends` inheritance — then runs them with `spawn_worker({from})`. It's how 12 bespoke domain-experts staffed the Witherreach run. |
+| **Dynamic loops** | Attach a **goal-driven loop** to a worker — it can't finish until a structured goal *verifiably* passes. Each criterion is checked by a shell command, an **LLM judge that grades real artifacts** (tests · diffs · files — not the agent's word, fail-closed), or both. A premature "done" is held and the worker re-triggered. Runs to goal-met with **no token or time budget** — just a no-progress safety net, or an optional attempt cap. |
 | **Peer collaboration** | Workers consult one another directly — `ask_peer` / `respond_to_peer` / `list_peers` — instead of routing every question back through the orchestrator. |
 | **Live dashboard** | Every session streamed at ~100 ms: tool calls, results, thinking timer, reports, a task tray, background-activity monitor. Per-worker logs at `~/.eos/logs/`. |
 | **Split-screen** | Watch up to **4 agents at once** (2-up · 1+2 · 2×2). Click a pane to focus; the header, composer, and side panel follow it — steer one without losing the rest. |
@@ -218,9 +219,9 @@ User data lives in **`~/.eos`** — `state.db`, `policy.yaml`, `config.json`, `t
 
 ## Roadmap
 
-**Alpha** — single-author, in daily use, moving fast. Solid today: multi-orchestrator control, worker↔worker swarms, the live dashboard, in-app git (push / pull · PR · conflict resolver · Try · integrate), the policy gateway, per-spawn prompt assembly, session resume, and the native macOS app.
+**Alpha** — single-author, in daily use, moving fast. Solid today: multi-orchestrator control, worker↔worker swarms, goal-driven dynamic loops (opt-in), the live dashboard, in-app git (push / pull · PR · conflict resolver · Try · integrate), the policy gateway, per-spawn prompt assembly, session resume, and the native macOS app.
 
-Next: **deterministic workflows** (the Workflows tab is still a stub) · **dynamic loops** — goal-driven iteration where the orchestrator spawns, checks the result, re-plans, and re-spawns until the goal is met, the adaptive counterpart to fixed workflows · an **in-app project explorer** · **more backends** (Deepseek · Kimi · Codex · local LLMs, same orchestration layer) · **Linux & Windows** first-class.
+Next: **deterministic workflows** (the Workflows tab is still a stub) · an **in-app project explorer** · **more backends** (Deepseek · Kimi · Codex · local LLMs, same orchestration layer) · **Linux & Windows** first-class.
 
 <br/>
 
