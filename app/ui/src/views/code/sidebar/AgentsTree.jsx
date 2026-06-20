@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
-import { nameOf } from "../../../lib/agentName.js";
+import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 
 export function AgentsTree({ roots, onRename, variant = "full" }) {
@@ -110,7 +110,7 @@ function TreeNode({ node, onRename, variant = "full" }) {
                 e.stopPropagation();
                 ui.setRenamingId(node.id);
               }}
-            >{nameOf(node)}</span>}
+            ><AgentName worker={node} /></span>}
         {!isRenaming && (ui.needsAttention(node)
           ? <span className="ag-notify" aria-label="finished with new output" title="finished with new output"></span>
           : <span className="ag-status">{status.label}</span>)}

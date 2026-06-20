@@ -13,7 +13,7 @@ describe("breadcrumbFor", () => {
   it("orchestrator selected → single-segment chain", () => {
     const r = breadcrumbFor([orch, worker], "o1");
     expect(r.project).toBe("proj");
-    expect(r.chain).toEqual([{ id: "o1", label: "dear-souls" }]);
+    expect(r.chain).toEqual([{ id: "o1", label: "dear-souls", worker: orch }]);
   });
 
   it("worker selected → root-first chain, project from the root", () => {

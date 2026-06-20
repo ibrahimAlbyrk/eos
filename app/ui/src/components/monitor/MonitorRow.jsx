@@ -1,4 +1,5 @@
 import { fmtElapsedShort } from "../../lib/format.js";
+import { AgentName } from "../../lib/agentName.js";
 
 function ScopeMini() {
   return (
@@ -38,7 +39,7 @@ export function MonitorRow({ item, now, onSelect }) {
       </span>
       <div className="mon-row-body">
         <div className="mon-row-top">
-          <span className="mon-agent">{item.workerName}</span>
+          <span className="mon-agent"><AgentName worker={{ name: item.workerName, worker_definition: item.workerDefinition, is_orchestrator: item.workerIsOrchestrator }} /></span>
           <span className="mon-elapsed" title="elapsed since started">{elapsed}</span>
         </div>
         <div className="mon-label" title={item.label}>{item.label}</div>

@@ -1,11 +1,10 @@
 import { modelShort, statusFromState } from "../../lib/format.js";
-
-function nameOf(w) {
-  return w.name || (w.is_orchestrator ? "Orchestrator" : w.id);
-}
+import { nameOf } from "../../lib/agentName.js";
 
 // Adapts live workers into searchable results. Selecting one jumps to the Code
-// tab and focuses that agent.
+// tab and focuses that agent. `title` stays a plain string (the registry joins
+// it into the fuzzy-match haystack), so the "(definition)" suffix is omitted
+// here — a node title would corrupt name matching.
 export const agentsProvider = {
   id: "agents",
   label: "Agents",

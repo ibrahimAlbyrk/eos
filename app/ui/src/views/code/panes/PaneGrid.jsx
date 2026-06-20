@@ -1,7 +1,7 @@
 import { useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
-import { nameOf } from "../../../lib/agentName.js";
+import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { useInputNeeded } from "../../../hooks/useInputNeeded.js";
 import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, MAX_PANES } from "../../../lib/paneLayout.js";
 import { Messages } from "../messages/Messages.jsx";
@@ -179,7 +179,7 @@ function Pane({ agentId, worker, live, focused, excludeIds, attention, canClose,
       <div className="pane-head">
         {status && <span className={`ag-dot ${status.dot}`} />}
         <span className="pane-name" title={worker ? nameOf(worker) : undefined}>
-          {worker ? nameOf(worker) : "Empty — hover to pick an agent"}
+          {worker ? <AgentName worker={worker} /> : "Empty — hover to pick an agent"}
         </span>
         {worker && (needsInput
           ? <span className="pane-input-label" title="Needs your input — click the pane to answer">needs input</span>

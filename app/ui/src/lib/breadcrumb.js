@@ -18,5 +18,5 @@ export function breadcrumbFor(workers, selectedId, fallbackCwd) {
   const root = chain[0] ?? null;
   const project =
     basename(root?.cwd ?? root?.worktree_from ?? fallbackCwd ?? "") || "—";
-  return { project, chain: chain.map((w) => ({ id: w.id, label: nameOf(w) })) };
+  return { project, chain: chain.map((w) => ({ id: w.id, label: nameOf(w), worker: w })) };
 }

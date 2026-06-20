@@ -12,4 +12,4 @@ When to use: the user asks 'what's running?' or 'show me workers', or you need t
 
 When NOT to use: as a polling mechanism after spawning. The dashboard already shows worker state to the user; repeated calls waste context with no new information.
 
-Returns: array of { id, name, state, branch, started_at, ended_at, prompt (first 100 chars) }. State is one of: spawning, running, idle, completed, failed, killed.
+Returns: array of { id, name, worker_definition, state, branch, started_at, ended_at, prompt (first 100 chars) }. worker_definition is the available-worker the worker was spawned from ("" when spawned inline, null for orchestrators). State is one of: spawning, running, idle, completed, failed, killed.

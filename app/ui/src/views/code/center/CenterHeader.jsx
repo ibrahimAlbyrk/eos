@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { breadcrumbFor } from "../../../lib/breadcrumb.js";
-import { nameOf } from "../../../lib/agentName.js";
+import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { PanePresets } from "./PanePresets.jsx";
@@ -47,7 +47,7 @@ export function CenterHeader({ live }) {
               <span className="sep">/</span>
               {!isLast && (
                 <button className="crumb-link" onClick={() => ui.setSelectedId(seg.id)}>
-                  {seg.label}
+                  <AgentName worker={seg.worker} />
                 </button>
               )}
               {isLast && (renaming && selected ? (
@@ -57,7 +57,7 @@ export function CenterHeader({ live }) {
                   onCancel={() => setRenaming(false)}
                 />
               ) : (
-                <span className="cur">{seg.label}</span>
+                <span className="cur"><AgentName worker={seg.worker} /></span>
               ))}
             </Fragment>
           );

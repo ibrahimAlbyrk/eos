@@ -4463,6 +4463,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .agents-row .ag-name.main { font-weight: 500; }
+/* Muted "(definition)" suffix rendered by <AgentName> next to a worker name. */
+.ag-def { color: var(--fg-faint); font-weight: 400; }
 .agents-row .ag-rename-input {
   flex: 1; min-width: 0;
   background: var(--surface-2);

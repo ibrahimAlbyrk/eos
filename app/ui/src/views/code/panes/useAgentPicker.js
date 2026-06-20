@@ -15,6 +15,7 @@ export function useAgentPicker(workers, excludeIds) {
     const list = (workers ?? []).map((w) => ({
       id: w.id,
       label: nameOf(w),
+      worker: w,
       status: statusFromState(w.state),
       isOrchestrator: !!w.is_orchestrator,
       shown: excludeIds?.has(w.id) ?? false,
