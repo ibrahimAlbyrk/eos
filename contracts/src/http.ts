@@ -626,6 +626,9 @@ export type FsReadResponse = z.infer<typeof FsReadResponseSchema>;
 export const FsListQuerySchema = z.object({
   cwd: z.string().min(1),
   query: z.string().optional(),
+  // dir → list one level of this cwd-relative subdirectory (scoped browse);
+  // takes precedence over query. Absent → root listing / repo-wide search.
+  dir: z.string().optional(),
   limit: z.coerce.number().int().positive().max(200).default(50),
   includeHidden: z.coerce.boolean().optional(),
 });
@@ -1003,10 +1006,21 @@ export const TemplateNameSchema = z
   .max(64)
   .regex(/^[a-z0-9][a-z0-9-]*$/, "lowercase letters, digits and dashes only");
 
+// A template attachment: the inline [label] token, its kind, and the file path.
+// In requests the path is the upload temp path; in responses it is the resolved
+// absolute path under the durable asset store (templates/assets/<name>/).
+export const TemplateAttachmentSchema = z.object({
+  label: z.string().min(1),
+  kind: z.enum(["image", "file", "folder"]),
+  path: z.string().min(1),
+});
+export type TemplateAttachment = z.infer<typeof TemplateAttachmentSchema>;
+
 export const TemplateSchema = z.object({
   name: TemplateNameSchema,
   description: z.string(),
   content: z.string(),
+  attachments: z.array(TemplateAttachmentSchema).default([]),
 });
 export type Template = z.infer<typeof TemplateSchema>;
 
@@ -1019,12 +1033,14 @@ export const TemplateCreateRequestSchema = z.object({
   name: TemplateNameSchema,
   description: z.string().default(""),
   content: z.string().min(1),
+  attachments: z.array(TemplateAttachmentSchema).default([]),
 });
 export type TemplateCreateRequest = z.infer<typeof TemplateCreateRequestSchema>;
 
 export const TemplateUpdateRequestSchema = z.object({
   description: z.string().default(""),
   content: z.string().min(1),
+  attachments: z.array(TemplateAttachmentSchema).default([]),
 });
 export type TemplateUpdateRequest = z.infer<typeof TemplateUpdateRequestSchema>;
 

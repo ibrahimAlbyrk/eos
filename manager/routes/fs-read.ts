@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, mkdtempSync, mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, resolve, relative, isAbsolute, sep } from "node:path";
 import type { IncomingMessage } from "node:http";
 
 import type { Router } from "./Router.ts";
@@ -101,16 +101,32 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
   r.get("/fs/list", async ({ url, res }) => {
     const cwd = url.searchParams.get("cwd");
     if (!isSafeAbsPath(cwd)) { writeJson(res, 400, { error: "cwd required" }); return; }
-    const query = (url.searchParams.get("query") ?? "").trim().toLowerCase();
     const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 200);
+    const hidden = url.searchParams.get("includeHidden");
+    const includeHidden = hidden === "true" || hidden === "1";
+    // dir → list one level of a cwd-relative subdirectory (the @-mention browse
+    // step). Lexical clamp (not realpath): keep listed paths lexically under cwd
+    // so each entry's relativePath stays cwd-relative for the inserted @token; a
+    // ".." escape is rejected, symlink following matches the plain cwd listing.
+    const dir = url.searchParams.get("dir");
+    if (dir) {
+      const abs = resolve(cwd, dir);
+      const rel = relative(cwd, abs);
+      if (rel === ".." || rel.startsWith(".." + sep) || isAbsolute(rel)) {
+        writeJson(res, 400, { error: "dir escapes cwd" });
+        return;
+      }
+      writeJson(res, 200, { entries: await c.files.listDir(abs, { root: cwd, includeHidden }) });
+      return;
+    }
+    const query = (url.searchParams.get("query") ?? "").trim().toLowerCase();
     // query → repo-wide fuzzy search (thin entries); no query → one-level tree
     // listing with metadata (isSymlink), routed through the FileSystem port.
     if (query) {
       writeJson(res, 200, { entries: searchProject(cwd, query, limit) });
       return;
     }
-    const hidden = url.searchParams.get("includeHidden");
-    const entries = await c.files.listDir(cwd, { root: cwd, includeHidden: hidden === "true" || hidden === "1" });
+    const entries = await c.files.listDir(cwd, { root: cwd, includeHidden });
     writeJson(res, 200, { entries });
   });
 
