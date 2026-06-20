@@ -16,7 +16,7 @@ function build() {
   const loop: LoopRow = {
     id: "l-1", workerId: "w-1", parentId: null, goal: GOAL, strategy: "command",
     status: "active", attempt: 0, maxAttempts: null, heldReport: null, lastReason: null,
-    progressRing: [], startedAt: 1, updatedAt: 1,
+    awaitingInput: false, progressRing: [], startedAt: 1, updatedAt: 1,
   };
   const deps = {
     workers: { findById: (id: string) => (id === "w-1" ? worker : null) },

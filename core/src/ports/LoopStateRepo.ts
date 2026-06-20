@@ -19,6 +19,9 @@ export interface LoopRow {
   // The worker's report, withheld until the goal check passes (released in P4).
   heldReport: string | null;
   lastReason: string | null;
+  // Paused on a human's answer: the worker reported needs-input, so the goal-gate
+  // skips it (no re-trigger, no attempt burned) until the orchestrator replies.
+  awaitingInput: boolean;
   // Recent attempt fingerprints — the no-progress/oscillation safety reads this.
   progressRing: LoopAttempt[];
   startedAt: number;
@@ -54,5 +57,6 @@ export interface LoopStateRepo {
   setStatus(id: string, status: LoopStatus): void;
   recordAttempt(id: string, attempt: LoopAttempt): void;
   setHeldReport(id: string, text: string | null): void;
+  setAwaitingInput(id: string, awaiting: boolean): void;
   clear(id: string): void;
 }

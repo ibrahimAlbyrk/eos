@@ -49,6 +49,10 @@ export type LoopTickOutcome = "noop" | "released" | "continued" | "exhausted";
 export async function runLoopTick(deps: RunLoopTickDeps, input: RunLoopTickInput): Promise<LoopTickOutcome> {
   const loop = deps.loops.findActiveByWorker(input.workerId);
   if (!loop) return "noop";
+  // Paused on a human's answer (the worker reported needs-input): do not tick —
+  // no re-trigger, no goal-check, no attempt burned. The loop resumes when the
+  // orchestrator's reply reaches the worker and clears awaiting_input.
+  if (loop.awaitingInput) return "noop";
 
   const ctx: GoalContext = {
     workerId: input.workerId,

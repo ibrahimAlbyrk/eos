@@ -41,6 +41,7 @@ function toLoopRow(r: Row): LoopRow {
     maxAttempts: (r.max_attempts as number | null) ?? null,
     heldReport: (r.held_report as string | null) ?? null,
     lastReason: (r.last_reason as string | null) ?? null,
+    awaitingInput: ((r.awaiting_input as number | null) ?? 0) !== 0,
     progressRing: decodeRing(r.progress_ring),
     startedAt: r.started_at as number,
     updatedAt: r.updated_at as number,
@@ -55,6 +56,7 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
   private readonly stmtSetStatus;
   private readonly stmtRecordAttempt;
   private readonly stmtSetHeldReport;
+  private readonly stmtSetAwaitingInput;
   private readonly stmtClear;
 
   constructor(db: DatabaseSync) {
@@ -73,6 +75,7 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
       "UPDATE worker_loops SET attempt = attempt + 1, progress_ring = ?, last_reason = ?, updated_at = ? WHERE id = ?",
     );
     this.stmtSetHeldReport = db.prepare("UPDATE worker_loops SET held_report = ?, updated_at = ? WHERE id = ?");
+    this.stmtSetAwaitingInput = db.prepare("UPDATE worker_loops SET awaiting_input = ?, updated_at = ? WHERE id = ?");
     this.stmtClear = db.prepare("DELETE FROM worker_loops WHERE id = ?");
   }
 
@@ -116,6 +119,10 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
 
   setHeldReport(id: string, text: string | null): void {
     this.stmtSetHeldReport.run(text, Date.now(), id);
+  }
+
+  setAwaitingInput(id: string, awaiting: boolean): void {
+    this.stmtSetAwaitingInput.run(awaiting ? 1 : 0, Date.now(), id);
   }
 
   clear(id: string): void {

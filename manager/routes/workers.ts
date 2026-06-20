@@ -107,12 +107,20 @@ function withBackgroundActivity(c: Container, rows: WorkerRow[]): WorkerRow[] {
   });
 }
 
+// The orchestrator's (or user's) message reached a worker paused on needs-input:
+// the answer arrived, so clear awaiting_input and let the goal-gate resume its
+// normal tick on the next IDLE. No-op when the worker has no active loop.
+function resumeLoopOnInput(c: Container, workerId: string): void {
+  const loop = c.loops.findActiveByWorker(workerId);
+  if (loop?.awaitingInput) c.loops.setAwaitingInput(loop.id, false);
+}
+
 // Surface a worker's active dynamic loop. Ungated on state — a loop sits IDLE
 // between iterations, so attach it whenever findActiveByWorker is non-null.
 function withLoopState(c: Container, rows: WorkerRow[]): WorkerRow[] {
   return rows.map((w) => {
     const l = c.loops.findActiveByWorker(w.id);
-    return l ? { ...w, loop: { status: l.status, attempt: l.attempt, maxAttempts: l.maxAttempts, lastReason: l.lastReason } } : w;
+    return l ? { ...w, loop: { status: l.status, attempt: l.attempt, maxAttempts: l.maxAttempts, lastReason: l.lastReason, goalSummary: l.goal.summary ?? null } } : w;
   });
 }
 
@@ -248,6 +256,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       } catch (e) {
         writeJson(res, 502, { error: "worker unreachable" }); return;
       }
+      resumeLoopOnInput(c, params.id);
       const worker = c.workers.findById(params.id);
       writeJson(res, 200, { ok: true, id: params.id, name: worker?.name ?? null });
       return;
@@ -261,6 +270,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         origin: "dashboard",
       },
     );
+    if (result.status < 300) resumeLoopOnInput(c, params.id);
     writeJson(res, result.status, result.body);
   });
 

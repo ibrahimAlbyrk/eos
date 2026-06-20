@@ -5,11 +5,13 @@ import type { LoopStateRepo, LoopRow } from "../../../core/src/ports/LoopStateRe
 
 function fakeLoops(active: LoopRow | null) {
   const heldCalls: Array<{ id: string; text: string | null }> = [];
+  const awaitingCalls: Array<{ id: string; awaiting: boolean }> = [];
   const loops = {
     findActiveByWorker: () => active,
     setHeldReport: (id: string, text: string | null) => { heldCalls.push({ id, text }); },
-  } as unknown as Pick<LoopStateRepo, "findActiveByWorker" | "setHeldReport">;
-  return { loops, heldCalls };
+    setAwaitingInput: (id: string, awaiting: boolean) => { awaitingCalls.push({ id, awaiting }); },
+  } as unknown as Pick<LoopStateRepo, "findActiveByWorker" | "setHeldReport" | "setAwaitingInput">;
+  return { loops, heldCalls, awaitingCalls };
 }
 
 const LOOP = { id: "l-1", workerId: "w-1" } as LoopRow;
@@ -21,10 +23,12 @@ describe("reportHoldGate", () => {
     assert.deepEqual(heldCalls, [{ id: "l-1", text: "result: shipped" }]);
   });
 
-  it("PASSES a needs input: report immediately even with an active loop (no hold)", () => {
-    const { loops, heldCalls } = fakeLoops(LOOP);
+  it("PASSES a needs input: report immediately even with an active loop, and pauses the loop", () => {
+    const { loops, heldCalls, awaitingCalls } = fakeLoops(LOOP);
     assert.deepEqual(reportHoldGate(loops, "w-1", "needs input: which one?"), { held: false });
     assert.equal(heldCalls.length, 0);
+    // needs-input pauses the loop so the goal-gate won't re-trigger before the answer.
+    assert.deepEqual(awaitingCalls, [{ id: "l-1", awaiting: true }]);
   });
 
   it("PASSES failed: by default; HOLDS failed: only when retryOnFailed", () => {

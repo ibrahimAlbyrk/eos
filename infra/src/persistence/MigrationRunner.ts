@@ -246,6 +246,13 @@ export const MIGRATIONS: Migration[] = [
     CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_loops_active ON worker_loops(worker_id) WHERE status = 'active';
     CREATE INDEX IF NOT EXISTS idx_worker_loops_status ON worker_loops(status);
   `},
+  // A looped worker that reports needs-input is blocked on the human's answer.
+  // awaiting_input pauses the goal-gate (no re-trigger, no attempt burned) while
+  // the loop stays status='active' — so findActiveByWorker + the unique-active
+  // index are untouched. Cleared when the orchestrator's answer reaches the worker.
+  { id: "048_worker_loops_awaiting_input", sql: `
+    ALTER TABLE worker_loops ADD COLUMN awaiting_input INTEGER NOT NULL DEFAULT 0;
+  `},
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

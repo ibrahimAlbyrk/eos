@@ -7,15 +7,20 @@ import { classifyReport, decideReportDisposition } from "../../core/src/domain/r
 import type { LoopStateRepo } from "../../core/src/ports/LoopStateRepo.ts";
 
 export function reportHoldGate(
-  loops: Pick<LoopStateRepo, "findActiveByWorker" | "setHeldReport">,
+  loops: Pick<LoopStateRepo, "findActiveByWorker" | "setHeldReport" | "setAwaitingInput">,
   workerId: string,
   text: string,
   opts: { retryOnFailed?: boolean } = {},
 ): { held: boolean } {
   const loop = loops.findActiveByWorker(workerId);
   if (!loop) return { held: false };
+  const signal = classifyReport(text);
+  // needs-input passes through to the orchestrator (a human must decide) but
+  // pauses the loop: the goal-gate would otherwise re-trigger the worker on its
+  // next IDLE, racing the human's answer. Cleared when the answer arrives.
+  if (signal === "needs-input") loops.setAwaitingInput(loop.id, true);
   const disposition = decideReportDisposition({
-    signal: classifyReport(text),
+    signal,
     loopActive: true,
     retryOnFailed: opts.retryOnFailed,
   });

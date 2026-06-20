@@ -82,6 +82,15 @@ describe("SqliteLoopStateRepo round-trip", () => {
     assert.deepEqual(row?.progressRing.map((a) => a.stateHash), ["s1", "s2"]);
   });
 
+  it("awaiting_input defaults to false and round-trips through setAwaitingInput", () => {
+    repo.insert(input("l-1", "w-1"));
+    assert.equal(repo.findById("l-1")?.awaitingInput, false);
+    repo.setAwaitingInput("l-1", true);
+    assert.equal(repo.findById("l-1")?.awaitingInput, true);
+    repo.setAwaitingInput("l-1", false);
+    assert.equal(repo.findById("l-1")?.awaitingInput, false);
+  });
+
   it("setHeldReport stores and clears the held report; clear removes the row", () => {
     repo.insert(input("l-1", "w-1"));
     repo.setHeldReport("l-1", "result: held");

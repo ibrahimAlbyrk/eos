@@ -11,7 +11,7 @@ function loopRow(over: Partial<LoopRow> = {}): LoopRow {
   return {
     id: "l-1", workerId: "w-1", parentId: null, goal: GOAL, strategy: "command",
     status: "active", attempt: 0, maxAttempts: null, heldReport: null, lastReason: null,
-    progressRing: [], startedAt: 1000, updatedAt: 1000, ...over,
+    awaitingInput: false, progressRing: [], startedAt: 1000, updatedAt: 1000, ...over,
   };
 }
 
@@ -57,6 +57,14 @@ describe("runLoopTick", () => {
     const { deps, dispatched } = buildDeps(null, verdict());
     assert.equal(await runLoopTick(deps, { workerId: "w-1" }), "noop");
     assert.equal(dispatched.length, 0);
+  });
+
+  it("awaiting input → noop: no goal-check, no dispatch, no attempt burned", async () => {
+    const { deps, dispatched, attempts, statuses } = buildDeps(loopRow({ awaitingInput: true, maxAttempts: 3 }), verdict());
+    assert.equal(await runLoopTick(deps, { workerId: "w-1" }), "noop");
+    assert.equal(dispatched.length, 0);
+    assert.equal(attempts.length, 0);
+    assert.equal(statuses.length, 0);
   });
 
   it("goal met → released + status passed, no dispatch", async () => {
