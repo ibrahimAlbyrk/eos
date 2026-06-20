@@ -248,6 +248,7 @@ export function reconcileEvents(workerId, rows) {
   const texts = new Set();
   const ids = new Set();
   const failures = [];
+  let clearedTs = 0;
   for (const e of rows) {
     const p = parsePayload(e.payload);
     if (e.type === "user_message") {
@@ -259,9 +260,15 @@ export function reconcileEvents(workerId, rows) {
     if (e.type === "lifecycle" && p.phase === "delivery_failed" && p.text) {
       failures.push({ text: p.text, ts: e.ts });
     }
+    // A /clear (conversation_cleared) wipes the conversation. A slash command
+    // emits NO user_message to echo, so its optimistic bubble has no settle
+    // path — drop anything from before the clear boundary, mirroring the chat's
+    // history slice (messageParser hides everything before conversation_cleared).
+    if (e.type === "conversation_cleared" && e.ts > clearedTs) clearedTs = e.ts;
   }
   const now = Date.now();
   const kept = list.filter((i) =>
+    (!clearedTs || i.ts > clearedTs) &&
     // Pills skip the text fallback entirely: a server-materialized pill is
     // unkeyed, and an old same-text message would drop it on every fetch
     // while syncQueue re-creates it from the still-pending row — a flicker

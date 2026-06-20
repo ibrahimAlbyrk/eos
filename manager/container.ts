@@ -67,6 +67,8 @@ import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees
 import { reapWorktreeRemovals } from "../core/src/use-cases/ReapWorktreeRemovals.ts";
 import { reconcileWorkersOnBoot } from "../core/src/use-cases/ReconcileWorkersOnBoot.ts";
 import { resolveMcpServers } from "../core/src/domain/mcp-resolution.ts";
+import { createSlashCommandRegistry } from "../core/src/domain/slash-command.ts";
+import { clearCommand } from "../core/src/domain/commands/clear.ts";
 import { resolveMemorySources } from "../core/src/domain/memory-sources.ts";
 import { selectInjectableMemory } from "../core/src/services/select-injectable-memory.ts";
 import { composeAppendedPrompt } from "../core/src/services/compose-appended-prompt.ts";
@@ -725,6 +727,10 @@ export function buildContainer() {
     has(kind: string) { return backendMap.has(kind); },
     descriptors() { return [...backendMap.values()].map((b) => b.descriptor); },
   };
+  // Slash-command allowlist — intercepted at the dispatch chokepoint. Adding a
+  // command is one entry here (the registry is open/closed); the side effects it
+  // may touch are wired in dispatch-deps from the services below.
+  const slashCommands = createSlashCommandRegistry([clearCommand]);
   // Route an in-process backend's canonical events into the daemon pipeline
   // (log as agent_event + drive the state machine), mirroring the HTTP ingest
   // path that out-of-process (claude-cli) workers use.
@@ -785,6 +791,7 @@ export function buildContainer() {
     logFileFor,
     claudeCliBackend,
     backends,
+    slashCommands,
     onAgentEvent,
     backendResolver,
     authResolver,

@@ -29,6 +29,8 @@ const CLI_CAPS: AgentCapabilities = {
   // The worker emits user_message/orchestrator_message itself when the text
   // lands in the transcript JSONL — transcript-anchored ordering.
   reportsMessageEvents: true,
+  // /clear is realized by forwarding the native slash to the TUI (clearContext).
+  contextClear: true,
 };
 
 const CLI_DESCRIPTOR: BackendDescriptor = {
@@ -59,6 +61,14 @@ export function createClaudeCliBackend(deps: ClaudeCliBackendDeps): AgentBackend
     sendMessage: (text, record) => deps.client.sendMessage(port, text, record),
     sendKeystroke: (keys) => deps.client.sendKeystroke(port, keys),
     interrupt: () => deps.client.sendInterrupt(port),
+    // Native /clear: a record-less message to the PTY (the TUI runs the command
+    // and rolls the session) — same control channel /model uses below. No record
+    // ⇒ no user_message chat event. The SessionEnd(clear) hook still fires and is
+    // an idempotent fallback for the daemon-side side effects.
+    clearContext: async () => {
+      const r = await deps.client.sendMessage(port, "/clear");
+      return { ok: r.ok };
+    },
     // The claude CLI's runtime model switch is the /model slash command (and
     // /effort for the reasoning level) delivered over the same PTY channel.
     setModel: async (model, effort) => {

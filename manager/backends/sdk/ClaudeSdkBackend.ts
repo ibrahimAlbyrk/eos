@@ -31,6 +31,9 @@ const CAPS: AgentCapabilities = {
   runtimePermissionSwitch: false,
   streamingThinking: true,
   resumable: true,
+  // /clear restarts the query with a fresh session (no resume) — the conversation
+  // lives in the SDK subprocess, so there is no buffer to drop. See clearContext.
+  contextClear: true,
 };
 
 const SDK_DESCRIPTOR: BackendDescriptor = {
@@ -99,6 +102,9 @@ interface Live {
   // (143 + turn:aborted), never a spurious clean exit (code 0 → markDone).
   interrupting: boolean;
   onExit?: (code: number | null) => void;
+  // /clear: tear down the current query and start a fresh one (new session, no
+  // resume, empty context). The session row stays alive across the swap.
+  relaunch?: () => void;
 }
 
 export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend {
@@ -121,6 +127,21 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const s = live.get(workerId);
       if (s) s.interrupting = true;
       if (s?.q?.interrupt) { try { await s.q.interrupt(); } catch { /* best-effort */ } }
+      return { ok: true };
+    },
+    // /clear: the conversation lives in the SDK subprocess, so there is no buffer
+    // to reset — restart the query with a fresh session (no resume) instead. The
+    // OLD input/query are captured and torn down AFTER relaunch swaps rec.input to
+    // the new stream, so the old consume loop sees it is no longer current
+    // (isCurrent() false) and stays silent — no spurious onExit for the session.
+    async clearContext() {
+      const s = live.get(workerId);
+      if (!s || !s.alive) return { ok: false };
+      const oldInput = s.input;
+      const oldQ = s.q;
+      s.relaunch?.();
+      oldInput.close();
+      if (oldQ?.interrupt) { try { await oldQ.interrupt(); } catch { /* best-effort */ } }
       return { ok: true };
     },
     // Runtime model switch via the SDK Query control method (streaming-input
@@ -158,9 +179,6 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         ctx,
       });
 
-      const input = createPushStream();
-      if (spec.prompt) input.push(spec.prompt);
-
       // The Eos orchestration protocol + injected project/user memory (CLAUDE.md,
       // …) ride in the appended system prompt. The container assembles both into
       // this text (assembleAppendFor → DPI + selectInjectableMemory); settingSources:[]
@@ -168,7 +186,10 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       // only memory channel.
       const append = deps.assembleAppendPrompt?.(spec) ?? null;
 
-      const options = {
+      // Options shared by the initial launch AND any /clear restart. `resume` is
+      // added per-launch — the initial honors backendOptions.resume; a clear
+      // restart never resumes (fresh session, empty context).
+      const baseOptions = {
         model: spec.model,
         // Run the SDK session in the worker's resolved directory (plain cwd, or
         // the materialized worktree). Without this the SDK defaults to the
@@ -199,44 +220,59 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         ...(spec.permissionMode === "bypassPermissions"
               ? { permissionMode: "bypassPermissions" as const, allowDangerouslySkipPermissions: true }
               : spec.permissionMode ? { permissionMode: spec.permissionMode as Options["permissionMode"] } : {}),
-        ...(typeof opts.resume === "string" ? { resume: opts.resume } : {}),
       } as Options;
 
-      const rec: Live = { q: null, input, alive: true, interrupting: false, onExit: cb?.onExit };
+      const rec: Live = { q: null, input: createPushStream(), alive: true, interrupting: false, onExit: cb?.onExit };
       live.set(spec.workerId, rec);
       cb?.onSpawn?.({ kind: "inproc", ref: spec.workerId });
       cb?.onEvent?.({ type: "session", phase: "started" });
 
-      const mapper = createSdkEventMapper();
-      const q = queryFn({ prompt: input.iterable, options });
-      rec.q = q;
+      // Launch (or, on /clear, relaunch) a query. Each launch owns its own input
+      // stream + mapper; the consume loop guards on `rec.input === input`, so a
+      // launch superseded by a clear-restart ends SILENTLY (no spurious onExit) —
+      // the new query owns the session row.
+      const spawn = (resume?: string, initialPrompt?: string): void => {
+        const input = createPushStream();
+        rec.input = input;
+        const options = { ...baseOptions, ...(resume ? { resume } : {}) } as Options;
+        const mapper = createSdkEventMapper();
+        const q = queryFn({ prompt: input.iterable, options });
+        rec.q = q;
+        if (initialPrompt) input.push(initialPrompt);
+        const isCurrent = (): boolean => rec.input === input;
+        // Consume the SDK stream in the background — the session is "started", not
+        // "settled"; turn completion is observed via the event stream (turn:ended).
+        void (async () => {
+          try {
+            for await (const msg of q) {
+              if (!isCurrent()) return; // superseded by a /clear restart → stay silent
+              for (const e of mapper.map(msg as SdkMsg)) cb?.onEvent?.(e);
+            }
+            if (!isCurrent()) return;
+            if (rec.alive) {
+              rec.alive = false;
+              live.delete(spec.workerId);
+              // The input stream stays open across interrupt(), so the loop should
+              // not end on a mere interrupt; if it did, report it as an interrupt
+              // (143) — not a clean exit the daemon would record as a normal finish.
+              if (rec.interrupting) { cb?.onEvent?.({ type: "turn", phase: "aborted", reason: "interrupted" }); cb?.onExit?.(143); }
+              else cb?.onExit?.(0);
+            }
+          } catch (e) {
+            if (!isCurrent()) return;
+            deps.log?.warn("claude-sdk query failed", { workerId: spec.workerId, error: e instanceof Error ? e.message : String(e) });
+            if (rec.alive) {
+              rec.alive = false;
+              live.delete(spec.workerId);
+              cb?.onEvent?.({ type: "session", phase: "ended", outcome: "crashed" });
+              cb?.onExit?.(1);
+            }
+          }
+        })();
+      };
 
-      // Consume the SDK stream in the background — the session is "started", not
-      // "settled"; turn completion is observed via the event stream (turn:ended).
-      void (async () => {
-        try {
-          for await (const msg of q) {
-            for (const e of mapper.map(msg as SdkMsg)) cb?.onEvent?.(e);
-          }
-          if (rec.alive) {
-            rec.alive = false;
-            live.delete(spec.workerId);
-            // The input stream stays open across interrupt(), so the loop should
-            // not end on a mere interrupt; if it did, report it as an interrupt
-            // (143) — not a clean exit the daemon would record as a normal finish.
-            if (rec.interrupting) { cb?.onEvent?.({ type: "turn", phase: "aborted", reason: "interrupted" }); cb?.onExit?.(143); }
-            else cb?.onExit?.(0);
-          }
-        } catch (e) {
-          deps.log?.warn("claude-sdk query failed", { workerId: spec.workerId, error: e instanceof Error ? e.message : String(e) });
-          if (rec.alive) {
-            rec.alive = false;
-            live.delete(spec.workerId);
-            cb?.onEvent?.({ type: "session", phase: "ended", outcome: "crashed" });
-            cb?.onExit?.(1);
-          }
-        }
-      })();
+      rec.relaunch = () => spawn(undefined, undefined);
+      spawn(typeof opts.resume === "string" ? opts.resume : undefined, spec.prompt || undefined);
 
       return session(spec.workerId);
     },

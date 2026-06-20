@@ -35,6 +35,12 @@ export interface AgentCapabilities {
   /** True when the session survives a daemon restart via a persisted session id
    *  (claude-sdk: options.resume). Drives boot reconciliation resume-vs-suspend. */
   readonly resumable?: boolean;
+  /** True when the backend can reset its live conversation/context in place (the
+   *  `/clear` slash command). claude-cli: native /clear over the PTY; claude-sdk:
+   *  restart the query with a fresh session; in-process: drop the message buffer.
+   *  Commands gate on this flag, never on kind — a backend without it never gets
+   *  clearContext() called. */
+  readonly contextClear?: boolean;
 }
 
 // What the UI model picker shows for a provider. claude-cli + claude-sdk share
@@ -116,6 +122,12 @@ export interface AgentSession {
   sendMessage(text: string, record?: MessageRecord): Promise<{ ok: boolean; status: number; body: unknown }>;
   sendKeystroke(keys: string): Promise<{ ok: boolean }>;
   interrupt(): Promise<{ ok: boolean; reason?: string }>;
+  // Reset the live conversation/context (the `/clear` slash command). Only
+  // meaningful when capabilities.contextClear is true — callers gate on that
+  // flag. CLI: forward native /clear over the PTY (the TUI rolls the session).
+  // claude-sdk: restart the query with a fresh session. in-process: drop the
+  // message buffer + clear the abort flag. An incapable session omits it.
+  clearContext?(): Promise<{ ok: boolean }>;
   // Switch the model (and optional effort) for subsequent turns on the LIVE
   // session. Only meaningful when capabilities.runtimeModelSwitch is true —
   // callers gate on that flag; an incapable session may no-op. effort has no

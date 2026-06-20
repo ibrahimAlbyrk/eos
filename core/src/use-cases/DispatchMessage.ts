@@ -18,6 +18,8 @@ import type { MessageQueueRepo } from "../ports/MessageQueueRepo.ts";
 import type { Logger } from "../ports/Logger.ts";
 import type { MessageRecord } from "../../../contracts/src/http.ts";
 import type { DispatchEnvelope } from "../domain/message-envelope.ts";
+import type { SlashCommandRegistry, SlashSideEffects } from "../domain/slash-command.ts";
+import { parseSlash } from "../domain/slash-command.ts";
 import { NotFoundError, ConflictError, UnreachableError } from "../errors/index.ts";
 import { transitionState } from "./TransitionState.ts";
 
@@ -90,6 +92,13 @@ export interface DispatchMessageDeps {
    *  worker's backend_kind (so a port-less in-process backend works too). Absent
    *  → legacy client.sendMessage by port. Phase 1 kill switch. */
   backends?: AgentBackendRegistry;
+  /** Slash-command allowlist. When present (with a resolved backend), an exact,
+   *  argument-complete, capable command short-circuits the normal turn and runs
+   *  as a control side effect. Absent → no interception (legacy/tests). */
+  slashCommands?: SlashCommandRegistry;
+  /** Daemon-side seams a slash command may touch (queue clear, peer cancel,
+   *  conversation_cleared). Required for interception to fire. */
+  slashEffects?: SlashSideEffects;
   log: Logger;
   /** When true and the worker has no live supervised child, the use-case
    * throws ConflictError instead of forwarding. Used for orchestrators —
@@ -219,6 +228,43 @@ export async function dispatchMessage(
       origin: input.origin,
     });
     deps.log.warn("duplicate dispatch suspected (same text within window)", { workerId: input.workerId, origin: input.origin });
+  }
+
+  // Slash-command interception — the chokepoint shared by the live route AND the
+  // queue drain (both call this function), so a /clear queued while WORKING is
+  // still run as a command when it drains. Placed AFTER the idempotency claim so
+  // a duplicate /clear dedups like any message, and BEFORE the record build /
+  // backend send so a command produces NO user_message chat event. An unknown,
+  // partial, or incapable command (parseSlash null / accepts false) falls through
+  // to a normal turn — the registry is an allowlist, never a swallow-all.
+  if (deps.slashCommands && deps.slashEffects && backend) {
+    const slash = parseSlash(input.text, deps.slashCommands);
+    if (slash) {
+      let session;
+      try {
+        const handle = isInproc
+          ? { kind: "inproc" as const, ref: w.id }
+          : { kind: "http" as const, port: w.port as number, pid: w.pid ?? null };
+        session = backend.attach(w.id, handle);
+      } catch (e) {
+        if (claimId !== null) deps.queue.removeById(claimId);
+        throw new UnreachableError("worker", e);
+      }
+      if (slash.command.accepts(slash.args, session.capabilities)) {
+        // A command is a genuine state change — clear the settle window so the
+        // post-clear events aren't suppressed. No WORKING lift (not a turn).
+        deps.clearTurnSettle?.(input.workerId);
+        const result = await slash.command.execute({
+          workerId: w.id,
+          args: slash.args,
+          session,
+          caps: session.capabilities,
+          services: deps.slashEffects,
+        });
+        deps.bus.publish("worker:change", { workerId: w.id });
+        return result;
+      }
+    }
   }
 
   const recordClientMsgIds = input.recordClientMsgIds

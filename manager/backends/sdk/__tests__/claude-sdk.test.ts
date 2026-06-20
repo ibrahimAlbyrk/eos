@@ -504,4 +504,54 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.equal(r.ok, false);
     assert.equal(r.reason, "session gone");
   });
+
+  // /clear on the SDK lane: the conversation lives in the SDK subprocess, so a
+  // reset means restarting the query with a FRESH session (no resume). The old
+  // query is interrupted and its consume loop, now superseded, must NOT report an
+  // exit — the new query owns the session row.
+  it("clearContext restarts the query without resume, keeps the session alive, and silences the old stream", async () => {
+    const optionsSeen: Array<Record<string, unknown>> = [];
+    const controllers: Array<{ end: () => void; interrupted: boolean; reading: boolean }> = [];
+    const queryFn: SdkQueryFn = (params) => {
+      optionsSeen.push(params.options as unknown as Record<string, unknown>);
+      let resolveNext: ((r: IteratorResult<unknown>) => void) | null = null;
+      const ctrl = {
+        interrupted: false,
+        end: () => { resolveNext?.({ done: true, value: undefined }); resolveNext = null; },
+        interrupt: async () => { ctrl.interrupted = true; ctrl.end(); },
+        get reading() { return resolveNext !== null; },
+        [Symbol.asyncIterator]() { return { next: () => new Promise<IteratorResult<unknown>>((res) => { resolveNext = res; }) }; },
+      };
+      controllers.push(ctrl);
+      return ctrl as never;
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+    });
+    let exitCode: number | null = -1;
+    const session = await be.start(spec({ backendOptions: { resume: "sess-old" } }), { onExit: (c) => { exitCode = c; } });
+    assert.equal(session.capabilities.contextClear, true);
+    assert.equal(optionsSeen[0].resume, "sess-old"); // initial launch honored resume
+    while (!controllers[0].reading) await new Promise((r) => setTimeout(r, 1));
+
+    await session.clearContext!();
+    await new Promise((r) => setTimeout(r, 5)); // give any (erroneous) onExit time to fire
+
+    assert.equal(optionsSeen.length, 2, "a second query was launched");
+    assert.equal(optionsSeen[1].resume, undefined, "the restart never resumes — fresh session");
+    assert.equal(controllers[0].interrupted, true, "old query interrupted during the swap");
+    assert.equal(exitCode, -1, "the superseded old stream reports NO exit");
+    assert.equal(session.isAlive(), true, "session stays alive across the restart");
+
+    // The NEW query is now the live one — ending IT exits the session cleanly.
+    while (!controllers[1].reading) await new Promise((r) => setTimeout(r, 1));
+    controllers[1].end();
+    await new Promise((r) => setTimeout(r, 5));
+    assert.equal(exitCode, 0);
+  });
 });

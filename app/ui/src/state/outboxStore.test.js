@@ -197,6 +197,24 @@ describe("reconcileEvents", () => {
     outbox.reconcileEvents(W, [userMsg("unrelated", undefined)]);
     expect(outbox.itemsFor(W)).toHaveLength(0);
   });
+
+  // The "/clear" optimistic bubble is keyed but never gets a user_message echo
+  // (the slash command produces no chat event), so the clear boundary must drop it.
+  it("conversation_cleared drops optimistic items from before the clear", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(1000);
+    outbox.beginSend(W, { text: "/clear", clientMsgId: "cc", busy: false });
+    outbox.reconcileEvents(W, [{ type: "conversation_cleared", ts: 2000, payload: null }]);
+    expect(outbox.itemsFor(W)).toHaveLength(0);
+  });
+
+  it("a message sent AFTER a clear survives the clear boundary", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(3000);
+    outbox.beginSend(W, { text: "fresh start", clientMsgId: "cf", busy: false });
+    outbox.reconcileEvents(W, [{ type: "conversation_cleared", ts: 2000, payload: null }]);
+    expect(outbox.itemsFor(W)).toHaveLength(1);
+  });
 });
 
 describe("cancel / purge", () => {

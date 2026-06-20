@@ -54,6 +54,11 @@ import { decidePushPlan, isActionablePushPlan } from "../../core/src/domain/push
 import { decidePullPlan, isActionablePullPlan } from "../../core/src/domain/pull-plan.ts";
 import { attachPatches, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES } from "../../infra/src/git/changes-parse.ts";
 
+// Window in which a SessionEnd(clear) hook is treated as a duplicate of a
+// conversation_cleared the /clear slash command just appended (command → hook
+// latency is sub-second; this covers it without suppressing a later real clear).
+const CLEAR_HOOK_DEDUP_MS = 30_000;
+
 // Where the agent actually edits: the worktree dir when spawned with a
 // worktree (cwd is NULL for those rows), plain cwd otherwise. worktree_from
 // only as fallback for the window before worktree_dir enrichment lands.
@@ -169,15 +174,28 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     // before it. Synthesized here because the signal arrives as a plain hook.
     const hp = body.payload as { event?: string; body?: { reason?: string; session_id?: string } } | undefined;
     if (body.type === "hook" && hp?.event === "SessionEnd" && hp?.body?.reason === "clear") {
-      // Same cancel semantics as interrupt: messages queued against the old
-      // conversation must not drain into the fresh context at the next IDLE.
-      const clearedQueued = c.messageQueue.clearPending(params.id);
-      if (clearedQueued > 0) c.log.info("/clear cleared queued messages", { workerId: params.id, count: clearedQueued });
-      // A fresh context drops any peer consultations this worker had outstanding.
-      c.pendingPeerRequests.cancelByWorker(params.id);
-      appendSynthesized(c, params.id, "conversation_cleared", {
-        prevSessionId: hp.body?.session_id ?? null,
-      });
+      // The /clear slash command (dispatch chokepoint) now owns these side effects
+      // and runs them on BOTH backends. This hook is the idempotent FALLBACK for a
+      // clear that did not come through the command (the agent self-runs /clear, an
+      // attached terminal) — skip when the command already appended the marker so
+      // the queue isn't double-cleared and no second conversation_cleared lands.
+      const recent = c.events.list({ workerId: params.id, since: 0, limit: 8, order: "desc" });
+      const alreadyHandled = recent.some(
+        (e) => e.type === "conversation_cleared" && c.clock.now() - e.ts < CLEAR_HOOK_DEDUP_MS,
+      );
+      if (alreadyHandled) {
+        c.log.info("/clear hook skipped — already handled by slash command", { workerId: params.id });
+      } else {
+        // Same cancel semantics as interrupt: messages queued against the old
+        // conversation must not drain into the fresh context at the next IDLE.
+        const clearedQueued = c.messageQueue.clearPending(params.id);
+        if (clearedQueued > 0) c.log.info("/clear cleared queued messages", { workerId: params.id, count: clearedQueued });
+        // A fresh context drops any peer consultations this worker had outstanding.
+        c.pendingPeerRequests.cancelByWorker(params.id);
+        appendSynthesized(c, params.id, "conversation_cleared", {
+          prevSessionId: hp.body?.session_id ?? null,
+        });
+      }
     }
     writeJson(res, 200, { ok: true });
   });
