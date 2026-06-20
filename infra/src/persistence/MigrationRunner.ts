@@ -221,6 +221,31 @@ export const MIGRATIONS: Migration[] = [
   // is now "worker definition" (an available worker) end to end. RENAME COLUMN
   // preserves existing values (definition names like "git").
   { id: "046_workers_rename_worker_type_to_worker_definition", sql: "ALTER TABLE workers RENAME COLUMN worker_type TO worker_definition" },
+  // Dynamic loops: a goal the orchestrator attaches to a worker (or itself) so
+  // the agent can't finish until the goal is met. goal_json holds the GoalSpec;
+  // progress_ring is the no-progress/oscillation fingerprint buffer. The partial
+  // UNIQUE index on (worker_id) WHERE status='active' enforces one active loop
+  // per target — the duplicate-active guard in attachLoop, backstopped at the DB.
+  { id: "047_worker_loops", sql: `
+    CREATE TABLE IF NOT EXISTS worker_loops (
+      id TEXT PRIMARY KEY,
+      worker_id TEXT NOT NULL,
+      parent_id TEXT,
+      goal_json TEXT NOT NULL,
+      strategy TEXT NOT NULL,
+      status TEXT NOT NULL,
+      attempt INTEGER NOT NULL DEFAULT 0,
+      max_attempts INTEGER,
+      held_report TEXT,
+      last_reason TEXT,
+      progress_ring TEXT,
+      started_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_worker_loops_worker ON worker_loops(worker_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_loops_active ON worker_loops(worker_id) WHERE status = 'active';
+    CREATE INDEX IF NOT EXISTS idx_worker_loops_status ON worker_loops(status);
+  `},
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {
