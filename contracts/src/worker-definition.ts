@@ -44,6 +44,10 @@ export const WorkerDefinitionSchema = z.object({
 });
 export type WorkerDefinition = z.infer<typeof WorkerDefinitionSchema>;
 
+// The available worker every spawn falls back to when `from` is omitted/empty.
+// A spawn ALWAYS resolves to a definition — there is no definition-less worker.
+export const DEFAULT_WORKER_DEFINITION = "general-purpose";
+
 // The materialized tool surface, carried on the spec + persisted on the worker
 // row (JSON). The gate reads this per tool call — never re-resolves the definition.
 // allow empty ⇒ inherit-all (no allow restriction); deny always subtracts.

@@ -6,12 +6,13 @@ export function nameOf(w) {
 }
 
 // The available-worker definition a worker was spawned `from`, normalized for
-// display: null for orchestrators and for workers with no definition (inline
-// spawns persist ""). To label inline workers later, change the empty fallback
-// to a synthetic name on the single line below.
+// display: null for orchestrators and for general-purpose workers. Every plain
+// worker now resolves to the general-purpose default, so the suffix is
+// suppressed for it — the label only signals an actual specialist (e.g. "(git)").
 export function definitionOf(w) {
   if (!w || w.is_orchestrator) return null;
-  return w.worker_definition || null;
+  const def = w.worker_definition || null;
+  return def === "general-purpose" ? null : def;
 }
 
 // Worker display name plus, when set, the muted "(definition)" suffix. The ONLY

@@ -2,10 +2,11 @@ import type { CommandHandler } from "../pipeline.ts";
 import { spawnWorkerCommand } from "../../../contracts/src/commands/defs.ts";
 import type { NoAddr } from "../../../contracts/src/commands/types.ts";
 import type { SpawnWorkerRequest, SpawnWorkerResponse } from "../../../contracts/src/http.ts";
+import { DEFAULT_WORKER_DEFINITION } from "../../../contracts/src/worker-definition.ts";
 import type { WorkerDefinition } from "../../../contracts/src/worker-definition.ts";
 import { spawnWorker } from "../../../core/src/use-cases/SpawnWorker.ts";
 import { resolveSpawnIsolation } from "../../../core/src/domain/worktree-policy.ts";
-import { resolveWorkerDefinitionByName, applyWorkerDefinitionDefaults, materializeToolScope, isToolScopeRestrictive } from "../../../core/src/domain/worker-definition-resolution.ts";
+import { resolveDefinitionName, resolveWorkerDefinitionByName, applyWorkerDefinitionDefaults, materializeToolScope, isToolScopeRestrictive } from "../../../core/src/domain/worker-definition-resolution.ts";
 import { ValidationError } from "../../../core/src/errors/index.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
@@ -28,12 +29,14 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     }
     if (!bootPrompt) throw new ValidationError("resolved prompt is empty");
     // Resolve the available worker (`from`) → per-axis defaults + instructions
-    // body. `git` is now just a built-in definition (manager/workers/git.md);
-    // legacy role:"git" requests map to from:"git" until callers migrate.
-    // Unknown/unset name → null → a plain base worker (graceful degrade, never
-    // throws). The project .eos/workers dir is found from the RAW request cwd —
-    // the isolation downgrade below doesn't change WHERE the repo's definitions live.
-    const definitionName = body.from ?? (body.role === "git" ? "git" : "");
+    // body. `git` is a built-in definition (manager/workers/git.md); legacy
+    // role:"git" requests map to from:"git" until callers migrate. An omitted or
+    // empty `from` resolves to the general-purpose built-in — there is NO
+    // definition-less worker. An explicit but unknown name is a hard error: a
+    // typo'd specialist must never silently degrade to general-purpose. The
+    // project .eos/workers dir is found from the RAW request cwd — the isolation
+    // downgrade below doesn't change WHERE the repo's definitions live.
+    const definitionName = resolveDefinitionName(body.from, body.role);
     const lookupCwd = expandPath(body.worktreeFrom ?? body.cwd) ?? null;
     // Disk records (builtin < user < project) + the owning orchestrator's runtime
     // definitions (highest precedence). Per-owner: a sibling orchestrator's
@@ -42,9 +45,16 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       ...c.listWorkerDefinitionRecords(lookupCwd),
       ...(body.parentId ? c.runtimeWorkerDefinitions.listFor(body.parentId) : []),
     ];
-    const def = definitionName ? resolveWorkerDefinitionByName(definitionName, records) : null;
+    const def = resolveWorkerDefinitionByName(definitionName, records);
+    if (!def) {
+      throw new ValidationError(
+        definitionName === DEFAULT_WORKER_DEFINITION
+          ? `default worker definition "${DEFAULT_WORKER_DEFINITION}" not found — check the worker-definitions dir`
+          : `unknown worker definition: ${definitionName}`,
+      );
+    }
     const requestHas = (f: string) => (body as Record<string, unknown>)[f] !== undefined;
-    const dd = def ? applyWorkerDefinitionDefaults(def, requestHas) : {};
+    const dd = applyWorkerDefinitionDefaults(def, requestHas);
     // Materialize the tool surface once at spawn (baked onto the row; the gate
     // reads it per call). An all-empty scope persists as null — equivalent to
     // no restriction, and keeps unrestricted definitions (git) off the gate rung.
@@ -56,7 +66,7 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       : null;
     const scope = inlineScopeSrc
       ? materializeToolScope(inlineScopeSrc as WorkerDefinition)
-      : (def ? materializeToolScope(def) : null);
+      : materializeToolScope(def);
     const toolScope = scope && isToolScopeRestrictive(scope) ? scope : null;
     // Isolation: the user's global worktree-disable wins; otherwise the
     // definition's declared isolation default takes effect (the request carries
@@ -105,8 +115,9 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       backendProfile: rb.profileName ?? undefined,
       // Carry the resolved definition onto the spec: persisted (worker_definition
       // column) and surfaced as the DPI workerDefinition fact + the role/20 fragment.
-      workerDefinition: def?.name ?? "",
-      workerDefinitionBody: def?.body ?? "",
+      // def is always resolved now (defaults to general-purpose; unknown ⇒ thrown above).
+      workerDefinition: def.name,
+      workerDefinitionBody: def.body,
       // Materialized tool scope (persisted to tool_scope; enforced by the gate).
       toolScope: toolScope ?? undefined,
     };

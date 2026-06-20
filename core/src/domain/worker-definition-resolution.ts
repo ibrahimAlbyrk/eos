@@ -4,6 +4,7 @@
 
 import type { EffortLevel } from "../../../contracts/src/shared.ts";
 import type { PermissionMode } from "../../../contracts/src/worker.ts";
+import { DEFAULT_WORKER_DEFINITION } from "../../../contracts/src/worker-definition.ts";
 import type { ToolScope, WorkerDefinition, WorkerDefinitionRecord } from "../../../contracts/src/worker-definition.ts";
 
 // The per-axis defaults a resolved type pre-fills onto the spawn spec. The
@@ -20,9 +21,20 @@ export interface WorkerDefinitionDefaults {
   isolation?: "worktree" | "cwd";
 }
 
+// The definition name a spawn resolves to. Explicit `from` wins (trimmed); the
+// legacy role:"git" shim maps to the git built-in; everything else — including an
+// omitted or whitespace-only `from` — falls back to the general-purpose default.
+// A spawn ALWAYS names a definition: "no `from`" means general-purpose, never
+// "no definition".
+export function resolveDefinitionName(from: string | undefined, role: string | undefined): string {
+  return from?.trim() || (role === "git" ? "git" : DEFAULT_WORKER_DEFINITION);
+}
+
 // Pick the winning definition by name. recordsByPriority is lowest→highest; the
 // LAST match wins entirely (full-override). Then resolve `extends`. Returns null
-// if no type matches — resolution NEVER throws (graceful degrade to base worker).
+// if no name matches — the spawn handler turns a null into a hard error (there is
+// no base worker; resolveDefinitionName guarantees a name, so only a genuinely
+// unknown or misconfigured definition yields null).
 export function resolveWorkerDefinitionByName(
   name: string,
   recordsByPriority: WorkerDefinitionRecord[],
