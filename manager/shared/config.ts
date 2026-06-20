@@ -87,6 +87,22 @@ export interface DaemonConfig {
     enabled: boolean;
     checkIntervalMs: number;
   };
+  // Dynamic loops. Defaults applied when a loop is attached without explicit
+  // args, plus the safety + judge knobs. NO token/wall-clock budget — the
+  // no-progress detector (noProgressWindow + stopOnNoProgress) is the only net
+  // on an unbounded loop.
+  loop: {
+    enabled: boolean;
+    // The default attempt cap when a loop is attached without an explicit limit.
+    // null = UNBOUNDED out of the box (netted only by no-progress); set a number
+    // to impose a default cap.
+    maxAttempts: number | null;
+    strategy: string;
+    noProgressWindow: number;
+    stopOnNoProgress: boolean;
+    retryOnFailed: boolean;
+    judge: { model: string; temperature: number };
+  };
 }
 
 const DEFAULT_AGENT_MCP: AgentMcpConfig = {
@@ -145,7 +161,9 @@ const DEFAULT_BACKENDS: Record<string, BackendProfile> = {
   "claude-cli-haiku": { kind: "claude-cli", model: "haiku", costMode: "included" },
 };
 
-function defaults(): DaemonConfig {
+// Exported for tests that must assert the BUILT-IN defaults independent of the
+// user's ~/.eos/config.json (loadConfig merges that file on top).
+export function defaults(): DaemonConfig {
   const repoRoot = envStr("EOS_REPO_ROOT", detectRepoRoot());
   const home = envStr("EOS_HOME", join(homedir(), ".eos"));
   return {
@@ -211,6 +229,15 @@ function defaults(): DaemonConfig {
     updates: {
       enabled: envStr("EOS_UPDATES_ENABLED", "1") !== "0",
       checkIntervalMs: envNum("EOS_UPDATES_CHECK_INTERVAL_MS", 30 * 60 * 1000),
+    },
+    loop: {
+      enabled: false,
+      maxAttempts: null,
+      strategy: "hybrid",
+      noProgressWindow: 3,
+      stopOnNoProgress: true,
+      retryOnFailed: false,
+      judge: { model: "sonnet", temperature: 0.1 },
     },
   };
 }
@@ -283,6 +310,15 @@ const DaemonConfigOverrideSchema = z.object({
     enabled: z.boolean(),
     checkIntervalMs: z.number().int().positive(),
   }).partial().optional(),
+  loop: z.object({
+    enabled: z.boolean(),
+    maxAttempts: z.number().int().nonnegative().nullable(),
+    strategy: z.string(),
+    noProgressWindow: z.number().int().positive(),
+    stopOnNoProgress: z.boolean(),
+    retryOnFailed: z.boolean(),
+    judge: z.object({ model: z.string(), temperature: z.number() }).partial(),
+  }).partial().optional(),
 }).passthrough();
 
 // Merge file-loaded overrides on top of defaults. Most sections are flat and
@@ -331,6 +367,12 @@ function mergeConfig(base: DaemonConfig, override: unknown): DaemonConfig {
         const b = incD[role]?.backend;
         if (b) out.defaults[role] = { backend: b };
       }
+    } else if (k === "loop") {
+      // Top-level field merge + nested judge field merge (overriding just
+      // judge.model keeps the temperature).
+      const { judge, ...rest } = incoming as Partial<DaemonConfig["loop"]>;
+      Object.assign(out.loop, rest);
+      if (judge) out.loop.judge = { ...out.loop.judge, ...judge };
     } else {
       Object.assign(out[k] as Record<string, unknown>, incoming as Record<string, unknown>);
     }

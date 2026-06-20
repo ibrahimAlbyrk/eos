@@ -39,11 +39,25 @@ export const spawnWorkerDef: ToolDefinition = {
     editRegex: z.string().optional().describe(
       "Confine THIS one-off worker's file edits to paths matching this regex (e.g. 'src/.*\\\\.ts$'). Enforced at the gate. Wins over a `from` definition's editRegex.",
     ),
+    loop: z.object({
+      goal: z.object({
+        summary: z.string().describe("One-line definition of done."),
+        criteria: z.array(z.object({
+          id: z.string().describe("Stable short id for this criterion."),
+          text: z.string().describe("The checkable condition in plain language."),
+          verify: z.string().optional().describe("Deterministic shell command that proves it, if any."),
+        })).min(1),
+      }),
+      strategy: z.enum(["command", "judge", "hybrid"]).optional(),
+      limit: z.number().int().positive().nullable().optional(),
+    }).optional().describe(
+      "Arm a dynamic loop on this worker AT SPAWN so it can't finish until the goal is provably met — PREFER this over spawning then attaching with dynamic_loop (a separate attach can miss a report the worker sends before the loop exists). Make goal.criteria CHECKABLE: a `verify` shell command wherever possible. strategy: command/judge/hybrid (default hybrid). limit: omit for unbounded (netted by no-progress), or a number to cap attempts.",
+    ),
   },
   handler: async (ctx, args) => {
-    const { prompt, name, model, effort, workspaceOf, collaborate, from, toolsAllow, toolsDeny, editRegex } = args as {
+    const { prompt, name, model, effort, workspaceOf, collaborate, from, toolsAllow, toolsDeny, editRegex, loop } = args as {
       prompt: string; name?: string; model?: string; effort?: string; workspaceOf?: string; collaborate?: boolean; from?: string;
-      toolsAllow?: string[]; toolsDeny?: string[]; editRegex?: string;
+      toolsAllow?: string[]; toolsDeny?: string[]; editRegex?: string; loop?: SpawnWorkerRequest["loop"];
     };
     const data: SpawnWorkerRequest = {
       prompt, name, model,
@@ -56,6 +70,7 @@ export const spawnWorkerDef: ToolDefinition = {
     if (toolsAllow) data.toolsAllow = toolsAllow;
     if (toolsDeny) data.toolsDeny = toolsDeny;
     if (editRegex) data.editRegex = editRegex;
+    if (loop) data.loop = loop;
     if (workspaceOf) data.workspaceOf = workspaceOf;
     else if (ctx.isGitRepo()) data.worktreeFrom = ctx.cwd;
     else data.cwd = ctx.cwd;

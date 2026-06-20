@@ -43,6 +43,8 @@ import { expandPath } from "../shared/path.ts";
 import { appendSynthesized } from "../shared/synthesized-events.ts";
 import { resumeWorkerVia, resumeIfDead, switchWorkerBackend } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
+import { reportHoldGate } from "./report-hold.ts";
+import { formatWorkerReport } from "../shared/worker-report.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
 import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
 import { pullBranch } from "../../core/src/use-cases/PullBranch.ts";
@@ -105,12 +107,21 @@ function withBackgroundActivity(c: Container, rows: WorkerRow[]): WorkerRow[] {
   });
 }
 
+// Surface a worker's active dynamic loop. Ungated on state — a loop sits IDLE
+// between iterations, so attach it whenever findActiveByWorker is non-null.
+function withLoopState(c: Container, rows: WorkerRow[]): WorkerRow[] {
+  return rows.map((w) => {
+    const l = c.loops.findActiveByWorker(w.id);
+    return l ? { ...w, loop: { status: l.status, attempt: l.attempt, maxAttempts: l.maxAttempts, lastReason: l.lastReason } } : w;
+  });
+}
+
 
 export function registerWorkerRoutes(r: Router, c: Container): void {
   r.get("/workers", ({ url, res }) => {
     const parentId = url.searchParams.get("parentId");
     const rows = parentId ? c.workers.listByParent(parentId) : c.workers.listAll();
-    writeJson(res, 200, withBackgroundActivity(c, rows));
+    writeJson(res, 200, withLoopState(c, withBackgroundActivity(c, rows)));
   });
 
   // worker.spawn (POST /workers) is served by the command catalog —
@@ -121,7 +132,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     if (actorId) assertOwnedBy(c.workers, actorId, params.id, { allowSelf: true });
     const row = c.workers.findById(params.id);
     if (!row) { writeJson(res, 404, { error: "not found" }); return; }
-    writeJson(res, 200, row);
+    writeJson(res, 200, withLoopState(c, [row])[0]);
   });
 
   // worker.kill (DELETE /workers/:id) is served by the command catalog —
@@ -490,6 +501,15 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
     c.bus.publish("worker:report", { workerId: params.id, parentId: worker.parent_id });
 
+    // Report-hold gate (R7): a looped worker's terminal report is held until its
+    // goal-check passes (the goal tick, after this turn ends, releases or
+    // discards it). needs-input always passes through.
+    if (reportHoldGate(c.loops, params.id, body.text, { retryOnFailed: c.config.loop.retryOnFailed }).held) {
+      c.bus.publish("loop:change", { workerId: params.id, status: "active" });
+      writeJson(res, 200, { ok: true, delivered: false, held: true });
+      return;
+    }
+
     const parent = c.workers.findById(worker.parent_id);
     if (!parent) { writeJson(res, 200, { ok: true, delivered: false }); return; }
     // A report can wake a parent that suspended/finished while the worker ran
@@ -499,14 +519,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
     const label = worker.name ?? params.id;
     // Compliance-independent merge handle: the header carries the branch and
-    // worktree even when the worker forgot its Handover line. Branch-only
-    // during the window before worktree_dir enrichment lands.
-    const where = worker.branch
-      ? worker.worktree_dir
-        ? ` (branch ${worker.branch}, worktree ${worker.worktree_dir})`
-        : ` (branch ${worker.branch})`
-      : "";
-    const formatted = `[worker ${label} (${params.id})] reported${where}:\n${body.text}`;
+    // worktree even when the worker forgot its Handover line. Shared with the
+    // loop release path so a held-then-released report is byte-identical.
+    const formatted = formatWorkerReport(worker, body.text);
 
     // Opt-in auto-apply (settings: git.autoApplyOnReport): a finished worker's
     // changes land in the user's checkout as unstaged edits, same as clicking

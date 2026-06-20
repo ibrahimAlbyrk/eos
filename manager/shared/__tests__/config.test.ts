@@ -63,6 +63,24 @@ describe("loadConfig — defaults", () => {
     assert.equal(cfg.prices.sonnet.in, 3);
     assert.equal(cfg.prices.haiku.in, 1);
   });
+  it("seeds config.loop defaults (no budget fields)", async () => {
+    // Assert the BUILT-IN defaults directly — loadConfig() would merge the live
+    // ~/.eos/config.json (where a user may have toggled loop.enabled to test).
+    const { defaults } = await import("../config.ts");
+    const cfg = defaults();
+    assert.deepEqual(cfg.loop, {
+      enabled: false,            // ships behind an explicit opt-in
+      maxAttempts: null,         // unbounded by default — netted only by no-progress
+      strategy: "hybrid",
+      noProgressWindow: 3,
+      stopOnNoProgress: true,
+      retryOnFailed: false,
+      judge: { model: "sonnet", temperature: 0.1 },
+    });
+    // budget was removed — these must never reappear
+    assert.equal("maxTokens" in cfg.loop, false);
+    assert.equal("maxWallClockMs" in cfg.loop, false);
+  });
 });
 
 describe("loadConfig — env overrides", () => {

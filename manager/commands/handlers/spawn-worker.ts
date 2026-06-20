@@ -5,6 +5,7 @@ import type { SpawnWorkerRequest, SpawnWorkerResponse } from "../../../contracts
 import { DEFAULT_WORKER_DEFINITION } from "../../../contracts/src/worker-definition.ts";
 import type { WorkerDefinition } from "../../../contracts/src/worker-definition.ts";
 import { spawnWorker } from "../../../core/src/use-cases/SpawnWorker.ts";
+import { armLoopAtSpawn } from "../../services/arm-loop-at-spawn.ts";
 import { resolveSpawnIsolation } from "../../../core/src/domain/worktree-policy.ts";
 import { resolveDefinitionName, resolveWorkerDefinitionByName, applyWorkerDefinitionDefaults, materializeToolScope, isToolScopeRestrictive } from "../../../core/src/domain/worker-definition-resolution.ts";
 import { ValidationError } from "../../../core/src/errors/index.ts";
@@ -28,6 +29,12 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       }
     }
     if (!bootPrompt) throw new ValidationError("resolved prompt is empty");
+    // Arm-at-spawn preconditions — fail fast BEFORE creating the worker so a
+    // disabled/unparented loop request never orphans a spawned worker.
+    if (body.loop) {
+      if (!c.config.loop.enabled) throw new ValidationError("dynamic loop is disabled — set config.loop.enabled");
+      if (!body.parentId) throw new ValidationError("a dynamic loop can only be armed on a worker spawned by an orchestrator");
+    }
     // Resolve the available worker (`from`) → per-axis defaults + instructions
     // body. `git` is a built-in definition (manager/workers/git.md); legacy
     // role:"git" requests map to from:"git" until callers migrate. An omitted or
@@ -81,7 +88,7 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     const claudePermissionMode = body.permissionMode
       ?? dd.permissionMode
       ?? (body.parentId ? c.modeResolver.resolveFor(body.parentId) : undefined);
-    const { promptTemplate: _promptTemplate, from: _from, toolsAllow: _toolsAllow, toolsDeny: _toolsDeny, editRegex: _editRegex, ...bodyRest } = body;
+    const { promptTemplate: _promptTemplate, from: _from, toolsAllow: _toolsAllow, toolsDeny: _toolsDeny, editRegex: _editRegex, loop: _loop, ...bodyRest } = body;
     // Backend selection (defaults to claude-cli): resolve BEFORE the spec so a
     // profile-driven backend's model + profile name thread into it. A definition
     // may default backendKind where the request left it unset. claude-cli keeps
@@ -153,6 +160,16 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     // dispatch echo, not the boot prompt).
     if (!body.parentId) {
       appendSynthesized(c, result.id, "user_message", { text: bootPrompt });
+    }
+    // Arm-at-spawn: attach the loop to the just-created worker BEFORE its first
+    // turn. SPAWNING (not IDLE) so no immediate tick — the first idle edge ticks
+    // it. The loop now precedes every IDLE edge (no dormancy race) + holds the
+    // first report (R7).
+    if (body.loop && body.parentId) {
+      armLoopAtSpawn(
+        { loops: c.loops, workers: c.workers, ids: c.ids, clock: c.clock, bus: c.bus, loopConfig: c.config.loop },
+        { parentId: body.parentId, workerId: result.id, loop: body.loop },
+      );
     }
     const isolation = spec.worktreeFrom || body.workspaceOf ? "worktree" : "cwd";
     return { status: 201, body: { ...result, isolation } };
