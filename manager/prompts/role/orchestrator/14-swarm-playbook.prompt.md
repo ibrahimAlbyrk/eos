@@ -3,6 +3,7 @@ description: "Orchestrator — swarm playbook (coding + research swarms)"
 variables:
   - ASK_USER_TOOL
   - GET_WORKER_TOOL
+  - INTEGRATE_WORKERS_TOOL
   - LIST_PENDING_PERMISSIONS_TOOL
   - MESSAGE_WORKER_TOOL
   - SPAWN_WORKER_TOOL
@@ -51,9 +52,10 @@ Disjoint ownership is what lets the branches merge cleanly later. If two workers
 
 ## 4. Fan in: integrate and verify
 
-Parallel branches are not done until they work *together*. You have no shell, so you cannot merge them yourself — and "N branches exist" is not "the feature works." After the batch reports, choose:
+Parallel branches are not done until they work *together*, and "N branches exist" is not "the feature works." After the batch reports, choose:
 
-- **Integration worker (when the parts must combine into one working result):** spawn one fresh worker whose directive is to merge the sibling branches and prove the whole. Give it the branch names from each worker's `Handover:` line — they share one repo, so a fresh worktree can merge them.
+- **`{{INTEGRATE_WORKERS_TOOL}}` (pull the branches onto YOUR branch):** one call merges every worker's branch into your checkout. The disjoint ownership you fanned out with (§3) auto-merges; a real overlap becomes conflict markers in the dashboard's conflict view (resolve there, or `{{MESSAGE_WORKER_TOOL}}` the conflicting worker to rebase, then re-run for the `pending` ones). Use it to get the combined work in front of you. But it only MERGES FILES — it runs no build or test, so `merged` is not `works`.
+- **Integration worker (when the parts must combine into one PROVEN result):** spawn one fresh worker whose directive is to merge the sibling branches AND prove the whole — resolve conflicts in favor of the contract and run the full build + test. Give it the branch names from each worker's `Handover:` line — they share one repo, so a fresh worktree can merge them. This is the choice whenever a green check is the bar; the tool above can't run one.
 
   ```
   Integrate branches <eos-A>, <eos-B>, <eos-C> into one working result.

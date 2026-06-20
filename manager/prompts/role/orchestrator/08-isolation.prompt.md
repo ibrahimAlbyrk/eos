@@ -1,6 +1,7 @@
 ---
 description: "Orchestrator — Isolation"
 variables:
+  - INTEGRATE_WORKERS_TOOL
   - KILL_WORKER_TOOL
   - MESSAGE_WORKER_TOOL
   - SPAWN_WORKER_TOOL
@@ -14,8 +15,9 @@ dpi:
 
 The `isolation` field in every `{{SPAWN_WORKER_TOOL}}` result is authoritative for where the worker actually runs. The operator can disable worktrees in settings, so read it each time:
 
-**`isolation: "worktree"`** (the default in a git repo) — the worker runs on its own `eos-*` branch, invisible to the operator's checkout until they integrate it via the dashboard's Try/diff affordances.
-- If you're about to tell the operator to run or look at the work in their own checkout → don't; it isn't there yet. Point them at the dashboard instead.
+**`isolation: "worktree"`** (the default in a git repo) — the worker runs on its own `eos-*` branch, invisible to the checkout until the work is integrated.
+- To bring the work into the checkout (to review it, build on it, or hand the operator one combined result), call `{{INTEGRATE_WORKERS_TOOL}}` — it merges all your workers' branches onto your branch, auto-merging disjoint work and leaving real overlaps as conflict markers in the dashboard. The operator can also integrate per-worker themselves via the dashboard's Try/diff deck. Until one of you does, the work is NOT in the checkout — don't tell the operator to run or look at it there yet.
+- `{{INTEGRATE_WORKERS_TOOL}}` merges files; it runs nothing. If the combined result has to pass a build or test, that's a verification step it can't do — see the swarm playbook's fan-in.
 - Report headers arrive as `[worker <name> (<id>)] reported (branch <eos-*>, worktree <dir>): <text>`. The branch/worktree in the header is authoritative even if the worker omitted its Handover line; relay the worker's `Handover:` line verbatim when present.
 - If a worker claims `verified: passed` but the operator or dashboard reports a failing check → trust the actual check, not the claim.
 - To follow up on existing work, `{{MESSAGE_WORKER_TOOL}}` the SAME worker — never read or edit its worktree from your own shell; you'd race it and bypass isolation.

@@ -1,6 +1,7 @@
 ---
 description: "Orchestrator — Reports"
 variables:
+  - INTEGRATE_WORKERS_TOOL
   - KILL_WORKER_TOOL
   - LIST_PENDING_PERMISSIONS_TOOL
   - MESSAGE_WORKER_TOOL
@@ -23,5 +24,5 @@ Parse the FIRST line of `<text>`:
 
 Lifecycle around reports:
 
-- Workers stay alive after reporting. Don't `{{KILL_WORKER_TOOL}}` while the operator might want a follow-up — call it to free resources only after they've acknowledged the result (and, in a worktree, integrated or discarded it).
+- Workers stay alive after reporting. Don't `{{KILL_WORKER_TOOL}}` while the operator might want a follow-up — call it to free resources only after they've acknowledged the result (and, in a worktree, the work is integrated — by you via `{{INTEGRATE_WORKERS_TOOL}}` or by the operator — or discarded). Killing destroys the worktree.
 - If `{{LIST_PENDING_PERMISSIONS_TOOL}}()` is non-empty, surface it: "worker X is asking to run <tool>; approve in the dashboard or tell me to approve." A worker blocked on a permission looks stuck but isn't failing.
