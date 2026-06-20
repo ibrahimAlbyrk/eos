@@ -225,6 +225,13 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         await dispatchMessage(dispatchDeps(c), {
           workerId: params.id, text: body.text,
           envelope: { kind: "orchestrator_message", fromParent, parentName },
+          // Busy worker → hold in the daemon queue and deliver at its next IDLE
+          // (fully verified delivery), exactly like worker_report. A direct
+          // mid-turn PTY steer skips ACK + retry (delivery.ts isTurnActive) and
+          // is silently lost if the CR doesn't take — and nothing redelivers it
+          // after the turn ends, because only queued rows drain at IDLE. The
+          // tool's own prompt already promises "your message will queue".
+          queueWhenBusy: true,
           origin: "orchestrator-directive",
         });
       } catch (e) {

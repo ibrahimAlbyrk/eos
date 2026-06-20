@@ -330,6 +330,25 @@ describe("dispatchMessage — agent-plane envelopes (report/directive/peer)", ()
     assert.equal(queueRows[0].plane, "agent");
   });
 
+  it("orchestrator directive to a busy worker queues (agent-plane), envelope persisted for the drain", async () => {
+    // The reported bug: a directive to a WORKING worker took the direct mid-turn
+    // PTY steer (no queueWhenBusy), which skips ACK/retry and was silently lost.
+    // It must queue like worker_report and drain at the worker's next IDLE.
+    const { deps, clientSends, queueRows } = buildDeps({ state: "WORKING" });
+    const r = await dispatchMessage(deps, {
+      workerId: "w1", text: "redirect: do X instead",
+      envelope: { kind: "orchestrator_message", fromParent: "o1", parentName: "boss" },
+      queueWhenBusy: true,
+    });
+    assert.equal(r.status, 202);
+    assert.equal(clientSends.length, 0);
+    assert.equal(queueRows.length, 1);
+    assert.equal(queueRows[0].dispatchedAt, null);
+    assert.deepEqual(queueRows[0].envelope, { kind: "orchestrator_message", fromParent: "o1", parentName: "boss" });
+    // agent-plane → never surfaces as a user pill while the worker is mid-turn
+    assert.equal(queueRows[0].plane, "agent");
+  });
+
   it("a plain dashboard message queued behind a busy worker is user-plane (a pill)", async () => {
     const { deps, queueRows } = buildDeps({ state: "WORKING" });
     await dispatchMessage(deps, { workerId: "w1", text: "later", clientMsgId: "c1", queueWhenBusy: true });
