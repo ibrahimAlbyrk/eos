@@ -68,6 +68,20 @@ describe("SqliteMessageQueueRepo", () => {
     assert.equal(repo.insert(pending("sent")), null);
   });
 
+  it("clearPendingUserPlane deletes only pending user-plane rows; agent-plane reports survive", () => {
+    repo.insert(pending("user-steer", "stale steer")); // no plane → user
+    repo.insert({
+      ...pending(null, "[worker alice (w2)] reported:\nbody"),
+      plane: "agent",
+      envelope: { kind: "worker_report", fromWorker: "w2", workerName: "alice" },
+      displayText: "body",
+    });
+    assert.equal(repo.clearPendingUserPlane("w1"), 1);
+    // the agent-plane report survives and would drain on the next IDLE
+    assert.deepEqual(repo.listPending("w1").map((r) => r.text), ["[worker alice (w2)] reported:\nbody"]);
+    assert.equal(repo.listPendingUserPlane("w1").length, 0);
+  });
+
   it("removeById deletes regardless of state (claim rollback)", () => {
     const id = repo.insert({ ...pending("a"), dispatchedAt: 200 })!;
     repo.removeById(id);

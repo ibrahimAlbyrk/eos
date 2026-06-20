@@ -47,6 +47,13 @@ export function fakeQueue(): { rows: QueueRow[]; repo: MessageQueueRepo } {
         }
         return n;
       },
+      clearPendingUserPlane(wid) {
+        let n = 0;
+        for (let i = rows.length - 1; i >= 0; i--) {
+          if (rows[i].workerId === wid && rows[i].dispatchedAt === null && rows[i].plane !== "agent") { rows.splice(i, 1); n++; }
+        }
+        return n;
+      },
       hasRecentDispatch: (wid, text, since) => rows.some(
         (r) => r.workerId === wid && r.text === text && r.dispatchedAt !== null && r.dispatchedAt > since,
       ),

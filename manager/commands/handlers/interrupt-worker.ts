@@ -23,9 +23,11 @@ export const interruptWorkerHandler: CommandHandler<WorkerIdAddr, NoBody, Interr
     const session = backend.attach(id, handle);
     if (!session.isAlive()) return { status: 409, body: { error: "worker not running" } };
     if (!session.capabilities.interrupt) return { status: 409, body: { error: "backend does not support interrupt" } };
-    // Esc cancels what the user queued — clear BEFORE the IDLE transition or the
-    // drain would fire the queued messages the interrupt meant to stop.
-    const clearedQueued = c.messageQueue.clearPending(id);
+    // Esc cancels what the USER queued — clear BEFORE the IDLE transition or the
+    // drain would fire the queued steers the interrupt meant to stop. Scoped to
+    // the user plane so agent-plane reports (loop feedback, peer requests) the
+    // system must still deliver survive and drain on the next IDLE.
+    const clearedQueued = c.messageQueue.clearPendingUserPlane(id);
     if (clearedQueued > 0) c.log.info("interrupt cleared queued messages", { workerId: id, count: clearedQueued });
     // Esc abandons this worker's outstanding peer consultations too — its blocked
     // ask_peer (if any) unblocks "gone"; in-flight asks to it decline.

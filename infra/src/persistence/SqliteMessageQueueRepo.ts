@@ -57,6 +57,7 @@ export class SqliteMessageQueueRepo implements MessageQueueRepo {
   private readonly stmtRemoveById;
   private readonly stmtRemovePending;
   private readonly stmtClearPending;
+  private readonly stmtClearPendingUser;
   private readonly stmtHasRecent;
   private readonly stmtDeleteByWorker;
   private readonly stmtPrune;
@@ -81,6 +82,9 @@ export class SqliteMessageQueueRepo implements MessageQueueRepo {
     );
     this.stmtClearPending = db.prepare(
       "DELETE FROM queued_messages WHERE worker_id = ? AND dispatched_at IS NULL",
+    );
+    this.stmtClearPendingUser = db.prepare(
+      "DELETE FROM queued_messages WHERE worker_id = ? AND plane = 'user' AND dispatched_at IS NULL",
     );
     this.stmtHasRecent = db.prepare(
       "SELECT 1 AS hit FROM queued_messages WHERE worker_id = ? AND text = ? AND dispatched_at > ? LIMIT 1",
@@ -117,6 +121,10 @@ export class SqliteMessageQueueRepo implements MessageQueueRepo {
 
   clearPending(workerId: string): number {
     return Number(this.stmtClearPending.run(workerId).changes);
+  }
+
+  clearPendingUserPlane(workerId: string): number {
+    return Number(this.stmtClearPendingUser.run(workerId).changes);
   }
 
   hasRecentDispatch(workerId: string, text: string, sinceTs: number): boolean {

@@ -59,6 +59,10 @@ export interface MessageQueueRepo {
   /** Interrupt semantics: Esc cancels everything the user queued. Deletes all
    *  pending rows for the worker (ledger rows stay); returns how many. */
   clearPending(workerId: string): number;
+  /** Interrupt semantics, scoped: Esc cancels only what the USER queued, never
+   *  the agent-plane reports the system must still deliver. Deletes pending
+   *  user-plane rows only (ledger + agent-plane rows stay); returns how many. */
+  clearPendingUserPlane(workerId: string): number;
   /** True when the same text was dispatched to this worker after sinceTs —
    *  the duplicate heuristic for sends that carry no clientMsgId. */
   hasRecentDispatch(workerId: string, text: string, sinceTs: number): boolean;
