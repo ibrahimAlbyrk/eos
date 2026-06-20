@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { api } from "../api/client.js";
 import { triggerContext } from "../lib/triggerContext.js";
+import { nameOf } from "../lib/agentName.js";
 
 export function useCompletion({ text, cursorPos, commands, cwd, selected, workers, insertedPathsRef }) {
   const [fileResults, setFileResults] = useState([]);
@@ -48,7 +49,7 @@ export function useCompletion({ text, cursorPos, commands, cwd, selected, worker
     if (!selected || selected.parent_id) return [];
     return workers
       .filter((w) => w.parent_id === selected.id)
-      .map((w) => ({ name: w.name || w.id, type: "agent", state: w.state, id: w.id }));
+      .map((w) => ({ name: nameOf(w), type: "agent", state: w.state, id: w.id }));
   }, [selected, workers]);
 
   const atResults = useMemo(() => {

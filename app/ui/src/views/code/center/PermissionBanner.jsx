@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { AgentName } from "../../../lib/agentName.js";
 
 function parseInput(raw) {
   if (!raw) return {};
@@ -31,7 +32,6 @@ export function PermissionBanner({ permissions, workers, onApprove, onAlwaysAllo
   if (!current) return null;
 
   const worker = workers.find((w) => w.id === current.worker_id);
-  const label = worker?.name ?? current.worker_id;
   const detail = input.command ?? input.file_path ?? input.path ?? input.query ?? input.regex ?? "";
   const stacked = Math.min(total - 1, 2);
 
@@ -50,7 +50,7 @@ export function PermissionBanner({ permissions, workers, onApprove, onAlwaysAllo
           <div className="perm-header">
             <span className="perm-dot" />
             <span className="perm-title">
-              Allow <strong>{label}</strong> to run <strong>{current.tool_name}</strong>?
+              Allow <strong>{worker ? <AgentName worker={worker} /> : current.worker_id}</strong> to run <strong>{current.tool_name}</strong>?
             </span>
             {total > 1 && <span className="perm-count">{total} pending</span>}
             <span className="perm-scope">project (local)</span>

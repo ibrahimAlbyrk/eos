@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../../api/client.js";
+import { AgentName } from "../../../lib/agentName.js";
 
 // Active-try deck — one card per worker whose changes are applied as unstaged
 // edits in the user's checkout, stacked newest-on-top. Keep/Discard act on the
@@ -36,7 +37,7 @@ export function TryDeck({ live, selected }) {
   // alone carries the buttons.
   const front = tries[tries.length - 1];
   const back = tries.slice(0, -1);
-  const ownerName = live.workers.find((w) => w.id === front.workerId)?.name ?? front.workerId;
+  const owner = live.workers.find((w) => w.id === front.workerId) ?? { name: front.workerId };
   const n = front.files.length;
 
   const act = async (fn) => {
@@ -77,7 +78,7 @@ export function TryDeck({ live, selected }) {
         <div className="try-banner-row">
           <span className="try-dot" />
           <span className="try-text">
-            Trying <b>{ownerName}</b>’s changes — {front.branch} · {n} file{n === 1 ? "" : "s"} in your checkout
+            Trying <b><AgentName worker={owner} /></b>’s changes — {front.branch} · {n} file{n === 1 ? "" : "s"} in your checkout
             {front.lockfileChanged && <span className="try-hint"> · lockfile changed, run npm install</span>}
           </span>
           <span className="try-grow" />

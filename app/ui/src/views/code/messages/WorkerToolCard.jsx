@@ -7,6 +7,7 @@ import { Fragment } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { defaultToolExpanded } from "../../../settings/toolExpansion.js";
 import { WORKER_TOOL_SPECS } from "../../../lib/workerTools.js";
+import { nameOf } from "../../../lib/agentName.js";
 import { AgentLink } from "./AgentLink.jsx";
 import { DisclosureRow } from "./DisclosureRow.jsx";
 
@@ -53,9 +54,10 @@ function clip(s, n = 140) {
 
 const joinDot = (parts) => parts.filter(Boolean).join(" · ");
 
-function nameOf(id, workers) {
+// Resolve a worker name from an id via the live list, using the shared nameOf.
+function liveName(id, workers) {
   const live = id ? (workers ?? []).find((w) => w.id === id) : null;
-  return live?.name ?? id ?? "worker";
+  return live ? nameOf(live) : (id ?? "worker");
 }
 
 function listWorkersRows(tool, workers) {
@@ -63,7 +65,14 @@ function listWorkersRows(tool, workers) {
   if (!Array.isArray(res)) return null;
   // Prefer the name carried in the result snapshot (correct even for workers
   // that no longer exist); fall back to live resolution for old transcripts.
-  return res.map((w) => ({ id: w.id, name: w.name || nameOf(w.id, workers), meta: w.state ?? "", sub: clip(w.prompt) }));
+  // `def` rides the snapshot so a killed worker still shows its definition.
+  return res.map((w) => ({
+    id: w.id,
+    name: w.name || liveName(w.id, workers),
+    def: w.worker_definition ?? null,
+    meta: w.state ?? "",
+    sub: clip(w.prompt),
+  }));
 }
 
 function getWorkerDetail(tool) {
@@ -86,7 +95,7 @@ function killWorkerDetail(tool) {
 function pendingRows(tool, workers) {
   const res = parseResultJson(tool);
   if (!Array.isArray(res)) return null;
-  return res.map((p) => ({ id: p.worker_id, name: nameOf(p.worker_id, workers), meta: p.tool ?? "", sub: pendingInputSummary(p.input) }));
+  return res.map((p) => ({ id: p.worker_id, name: liveName(p.worker_id, workers), meta: p.tool ?? "", sub: pendingInputSummary(p.input) }));
 }
 
 function pendingInputSummary(input) {
@@ -190,7 +199,7 @@ function RowsBody({ rows, emptyText, workers }) {
       {rows.map((r, i) => (
         <Fragment key={r.id ?? i}>
           {i > 0 && "\n\n"}
-          <AgentLink id={r.id} name={r.name} workers={workers} />
+          <AgentLink id={r.id} name={r.name} workers={workers} definition={r.def} />
           {r.meta ? ` · ${r.meta}` : ""}
           {r.sub ? `\n${r.sub}` : ""}
         </Fragment>

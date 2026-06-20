@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useAgentPicker } from "./useAgentPicker.js";
+import { AgentName } from "../../../lib/agentName.js";
 
 // Hover-triggered agent picker shown inside an EMPTY split pane. A subtle resting
 // hint invites the hover; on mouse-enter the glass card rises in, on mouse-leave
@@ -102,7 +103,7 @@ function AgentPickerItem({ item, index, showNum, active, onHover, onPick }) {
       title={item.shown ? "Already open — focuses that pane" : undefined}
     >
       <span className={"ag-dot " + item.status.dot} />
-      <span className={"pane-picker-name" + (item.isOrchestrator ? " main" : "")}>{item.label}</span>
+      <span className={"pane-picker-name" + (item.isOrchestrator ? " main" : "")}><AgentName worker={item.worker} /></span>
       {item.shown
         ? <span className="pane-picker-shown">shown</span>
         : <span className="pane-picker-status">{item.status.label}</span>}

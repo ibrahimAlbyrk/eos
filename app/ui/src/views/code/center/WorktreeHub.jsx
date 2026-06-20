@@ -8,6 +8,7 @@ import { useTryState } from "../../../hooks/useTryState.js";
 import { hasUnintegratedWork } from "../../../lib/workState.js";
 import { spawnMergeGitAgent } from "../../../lib/spawnMergeGitAgent.js";
 import { loadExpandedHubs, saveExpandedHubs } from "../../../lib/hubExpandMemory.js";
+import { AgentName } from "../../../lib/agentName.js";
 
 // Orchestrator hub strip: one row per worktree child with unintegrated work.
 // The user reviews/tests the whole fleet from the orchestrator screen — the
@@ -51,7 +52,7 @@ function ChildIntegrationRow({ child, ui, live, onDirty }) {
   const viewing = ui.topPanelType === "diff" && ui.diffViewer?.workerId === child.id;
   return (
     <div className="child-int-row">
-      <span className="cir-name" title={child.branch ?? undefined}>{child.name ?? child.id}</span>
+      <span className="cir-name" title={child.branch ?? undefined}><AgentName worker={child} /></span>
       {verdict && verdict.verdict !== "unverified" && (
         <span className={"git-chip verdict-chip verdict-" + verdict.verdict} title={verdict.command ? `verified by: ${verdict.command}` : undefined}>
           <span className="lbl">{verdict.verdict}</span>
