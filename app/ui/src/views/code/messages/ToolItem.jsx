@@ -25,6 +25,7 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
   const summary = view.summary(tool);
   const filePath = view.filePath(tool);
   const agentRef = view.agentRef(tool, ctx);
+  const headerBadge = view.headerBadge(tool, ctx);
   const failure = failureKind(tool);
   const diffStats = view.stats(tool);
 
@@ -50,6 +51,7 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
           <span className={"ti-file" + (filePath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
         )}
         {summary && <span className="ti-arg-summary">{summary}</span>}
+        {headerBadge}
         {failure && <span className={`ti-failed ti-failed-${failure}`}>{failure}</span>}
         {!failure && diffStats && (diffStats.add > 0 || diffStats.del > 0) && (
           <span className="ti-stats">

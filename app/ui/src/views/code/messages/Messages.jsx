@@ -26,6 +26,8 @@ import { ScrollHoldContext } from "./scrollHoldContext.js";
 import { FindBar } from "./FindBar.jsx";
 import { MessageUser } from "./MessageUser.jsx";
 import { MessageReport } from "./MessageReport.jsx";
+import { MessageLoop } from "./MessageLoop.jsx";
+import { LoopStatus } from "./LoopStatus.jsx";
 import { MessageAssistant } from "./MessageAssistant.jsx";
 import { ToolGroup } from "./ToolGroup.jsx";
 import { ToolItem } from "./ToolItem.jsx";
@@ -456,6 +458,7 @@ export function Messages({ live, agentId, isActive = true }) {
             workers={live.workers}
           />
         )}
+        {selectedWorker?.loop && <LoopStatus loop={selectedWorker.loop} />}
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
@@ -519,7 +522,7 @@ function blockKey(b, i) {
 // Block kinds rendered via MessageRow — they carry a hover action row
 // (copy/rewind/timestamp) absolutely positioned in the gap below the wrapper.
 // Such blocks must NOT get content-visibility, whose paint containment clips it.
-const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request", "assistant"]);
+const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request", "loop", "assistant"]);
 
 function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewindDisabled) {
   switch (b.kind) {
@@ -527,6 +530,7 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
+    case "loop":      return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageLoop text={b.text} /></MessageRow>;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} /></MessageRow>;
     case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} />;
     case "toolGroup": {

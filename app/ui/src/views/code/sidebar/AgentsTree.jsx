@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
+import { loopBadgeTitle } from "../../../lib/loopDisplay.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 
 export function AgentsTree({ roots, onRename, variant = "full" }) {
@@ -111,6 +112,9 @@ function TreeNode({ node, onRename, variant = "full" }) {
                 ui.setRenamingId(node.id);
               }}
             ><AgentName worker={node} /></span>}
+        {!isRenaming && node.loop && (
+          <span className={`ag-loop-badge st-${node.loop.status}`} title={loopBadgeTitle(node.loop)}>loop</span>
+        )}
         {!isRenaming && (ui.needsAttention(node)
           ? <span className="ag-notify" aria-label="finished with new output" title="finished with new output"></span>
           : <span className="ag-status">{status.label}</span>)}

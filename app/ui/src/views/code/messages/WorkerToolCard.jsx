@@ -8,6 +8,7 @@
 import { Fragment } from "react";
 import { nameOf } from "../../../lib/agentName.js";
 import { AgentLink } from "./AgentLink.jsx";
+import { spawnLoopDetails } from "../../../lib/loopDisplay.js";
 
 // `detail` → plain-text body. `rows` → a worker-keyed row list rendered with
 // clickable AgentLinks (and serialized to the same text for the expand gate).
@@ -141,8 +142,12 @@ export function workerIdentity(tool, workers) {
 export function WorkerToolBody({ tool, workers }) {
   const body = BODIES[tool.name];
   const failure = tool.result?.isError;
+  // Arm-at-spawn loop args (spawn_worker only) get their own detail line above
+  // the prompt — the static goal/strategy/limit the worker was born with.
+  const loopText = !failure && tool.input?.loop ? spawnLoopDetails(tool.input.loop) : "";
   return (
     <div className="report-detail" style={{ marginLeft: 0 }}>
+      {loopText && <div className="report-detail-text ti-loop-detail">{loopText}</div>}
       {!failure && body?.rows
         ? <RowsBody rows={body.rows(tool, workers)} emptyText={body.emptyText} workers={workers} />
         : <div className="report-detail-text">{workerToolDetailText(tool, workers)}</div>}

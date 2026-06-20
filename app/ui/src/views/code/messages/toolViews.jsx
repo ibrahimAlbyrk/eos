@@ -22,6 +22,7 @@ import { toolDisplayName } from "../../../lib/toolDisplayName.js";
 import { argsSummary } from "../../../lib/toolArgs.js";
 import { WORKER_TOOL_SPECS } from "../../../lib/workerTools.js";
 import { WorkerToolBody, workerIdentity, workerListCount, workerToolDetailText } from "./WorkerToolCard.jsx";
+import { spawnLoopDetails } from "../../../lib/loopDisplay.js";
 
 // Shared base that every registered (bespoke) view inherits via register().
 // Its header is a neutral "Used <displayName>"; bespoke views override what they
@@ -34,6 +35,7 @@ const BASE = {
   filePath: () => null,
   stats: () => null,
   agentRef: () => null,
+  headerBadge: () => null,
   expandable: () => true,
   Detail: GenericToolCard,
 };
@@ -211,8 +213,25 @@ register("mcp__worker__respond_to_peer", {
 // AgentLink (agentRef); the list tools show a count/label instead.
 const workerExpandable = (t, ctx) => workerToolDetailText(t, ctx?.workers).trim().length > 0;
 
+// A worker armed with a dynamic loop AT SPAWN carries the static loop args in
+// the tool input — surface a "loop" pill at the right of the agent name so the
+// arm-at-spawn is visible the instant the call lands (live loop state drives the
+// sidebar badge / transcript card separately). No loop arg → no badge.
+const spawnLoopBadge = (t) =>
+  t.input?.loop
+    ? <span className="ti-loop-badge" title={spawnLoopDetails(t.input.loop)}>loop</span>
+    : null;
+
+register("mcp__orchestrator__spawn_worker", {
+  label: () => ({ verb: WORKER_TOOL_SPECS.mcp__orchestrator__spawn_worker.verb, file: "" }),
+  runningLabel: () => ({ verb: WORKER_TOOL_SPECS.mcp__orchestrator__spawn_worker.running, file: "" }),
+  agentRef: (t, ctx) => workerIdentity(t, ctx?.workers),
+  headerBadge: spawnLoopBadge,
+  expandable: workerExpandable,
+  Detail: WorkerToolBody,
+});
+
 for (const name of [
-  "mcp__orchestrator__spawn_worker",
   "mcp__orchestrator__kill_worker",
   "mcp__orchestrator__message_worker",
   "mcp__orchestrator__get_worker",

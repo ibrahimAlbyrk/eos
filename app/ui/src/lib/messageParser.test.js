@@ -743,3 +743,16 @@ describe("buildBlocks canonical agent_event decoder (claude-sdk / in-process lan
     expect(inner.result?.text).toBe("found");
   });
 });
+
+describe("buildBlocks dynamic-loop continuation", () => {
+  it("renders a loop_continuation event as a distinct 'loop' block, not a user bubble", () => {
+    const blocks = buildBlocks([
+      { type: "loop_continuation", ts: 100, payload: { text: "[DYNAMIC LOOP — AUTOMATED GOAL-CHECK] keep working" } },
+    ]);
+    const loop = blocks.find((b) => b.kind === "loop");
+    expect(loop).toBeTruthy();
+    expect(loop.text).toContain("keep working");
+    // crucially, it is NOT a right-aligned user bubble
+    expect(blocks.some((b) => b.kind === "user")).toBe(false);
+  });
+});

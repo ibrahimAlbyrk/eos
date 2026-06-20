@@ -293,6 +293,17 @@ export function buildBlocks(rawEvents) {
       });
       continue;
     }
+    if (ev.type === "loop_continuation") {
+      flushTools();
+      lastAsst = null;
+      const payload = parsePayload(ev.payload);
+      out.push({
+        kind: "loop",
+        text: payload.text ?? "",
+        ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
+      });
+      continue;
+    }
     if (ev.type === "peer_request") {
       flushTools();
       lastAsst = null;

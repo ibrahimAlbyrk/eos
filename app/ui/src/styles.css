@@ -1558,6 +1558,56 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   word-break: break-word;
 }
 
+/* Dynamic-loop status card at the top of a looped worker's transcript. Mirrors
+   the .msg-task card chrome; status tints the border/dot. */
+.loop-status {
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.loop-status.st-passed {
+  background: color-mix(in srgb, var(--ok) 7%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 16%, transparent);
+}
+.loop-status.st-exhausted,
+.loop-status.st-stopped {
+  background: var(--surface);
+  border-color: var(--border);
+}
+.loop-status-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+}
+.loop-status-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+}
+.loop-status.st-active .loop-status-dot { animation: ag-pulse 1.4s ease-in-out infinite; }
+.loop-status.st-passed .loop-status-dot { background: var(--ok); }
+.loop-status.st-exhausted .loop-status-dot,
+.loop-status.st-stopped .loop-status-dot { background: var(--fg-faint); }
+.loop-status-label { color: var(--fg); font-weight: 600; }
+.loop-status-attempt {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+.loop-status-reason {
+  margin-top: 6px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--fg-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 /* report / directive detail */
 .report-detail {
   background: var(--surface);
@@ -1746,6 +1796,24 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   transition: transform 150ms ease;
   flex-shrink: 0;
 }
+/* "loop" pill at the far right of the agent name on a spawn_worker message —
+   arm-at-spawn feedback that the worker was born with a dynamic loop. Static
+   (accent), mirrors the sidebar .ag-loop-badge. margin-left pushes it past any
+   name/summary to the header's right edge. */
+.tool-item-header .ti-loop-badge {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+/* Loop detail line in the expanded spawn_worker body (goal · strategy · limit). */
+.ti-loop-detail { color: var(--accent); margin-bottom: 6px; }
 .ti-running { opacity: 0.7; }
 .ti-shimmer {
   background: linear-gradient(90deg, var(--fg-dim) 0%, var(--fg-dim) 45%, var(--shimmer) 50%, var(--fg-dim) 55%, var(--fg-dim) 100%);
@@ -2082,12 +2150,16 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .tool-qa-q {
   font-size: var(--text-sm);
   color: var(--fg-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .tool-qa-a {
   font-size: var(--text-base);
   color: var(--fg);
   font-weight: 500;
   padding-left: 2px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 .tool-qa-arrow { color: var(--accent); margin-right: 2px; }
 .tool-qa-pending { color: var(--fg-faint); font-weight: 400; font-style: italic; }
@@ -4544,6 +4616,28 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   font-size: var(--text-xs);
   color: var(--fg-faint);
   flex-shrink: 0;
+}
+/* Compact "loop" badge at the right of an agent name when the worker has an
+   active dynamic loop (including arm-at-spawn). Status tints the pill. */
+.agents-row .ag-loop-badge {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+.agents-row .ag-loop-badge.st-passed {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+.agents-row .ag-loop-badge.st-exhausted,
+.agents-row .ag-loop-badge.st-stopped {
+  color: var(--fg-faint);
+  background: color-mix(in srgb, var(--fg-faint) 14%, transparent);
 }
 /* Notification dot — replaces .ag-status when an unselected agent has new
    activity the user hasn't viewed. Accent blue with a soft glow and a
