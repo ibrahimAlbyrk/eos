@@ -1,24 +1,31 @@
 import { describe, it, expect } from "vitest";
 import { getToolView } from "./toolViews.jsx";
-import { GenericDetail } from "./ToolDetail.jsx";
+import { GenericToolCard } from "./ToolDetail.jsx";
+import { WorkerToolBody } from "./WorkerToolCard.jsx";
 
 describe("getToolView", () => {
-  it("falls back to the generic view for unknown tools", () => {
+  it("falls back to the generic view for unknown tools (humanized name)", () => {
     const v = getToolView("mcp__context7__query-docs");
-    expect(v.Detail).toBe(GenericDetail);
-    expect(v.label({ name: "mcp__context7__query-docs" })).toEqual({ verb: "Used", file: "mcp__context7__query-docs" });
-    expect(v.runningLabel({ name: "mcp__context7__query-docs" })).toEqual({ verb: "Running", file: "mcp__context7__query-docs" });
+    expect(v.Detail).toBe(GenericToolCard);
+    expect(v.label({ name: "mcp__context7__query-docs" })).toEqual({ verb: "Used", file: "context7 · query-docs" });
+    expect(v.runningLabel({ name: "mcp__context7__query-docs" })).toEqual({ verb: "Running", file: "context7 · query-docs" });
     expect(v.filePath({ input: {} })).toBe(null);
     expect(v.stats({ input: {} })).toBe(null);
+    expect(v.expandable({}, {})).toBe(true);
+  });
+
+  it("surfaces an args summary only on the fallback, not on bespoke views", () => {
+    expect(getToolView("mcp__x__y").summary({ input: { query: "hello" } })).toBe("hello");
+    expect(getToolView("Read").summary({ input: { file_path: "/a/b.ts" } })).toBe(null);
   });
 
   it("returns the same default view for any unregistered name", () => {
     expect(getToolView("foo").Detail).toBe(getToolView("bar").Detail);
-    expect(getToolView(undefined).Detail).toBe(GenericDetail);
+    expect(getToolView(undefined).Detail).toBe(GenericToolCard);
   });
 
   it("uses a bespoke Detail for known tools", () => {
-    expect(getToolView("Read").Detail).not.toBe(GenericDetail);
+    expect(getToolView("Read").Detail).not.toBe(GenericToolCard);
   });
 
   it("builds Read labels from the file basename", () => {
@@ -49,7 +56,7 @@ describe("getToolView", () => {
 
   it("gives the peer tools bespoke views matching the worker-MCP design", () => {
     const ask = getToolView("mcp__worker__ask_peer");
-    expect(ask.Detail).not.toBe(GenericDetail);
+    expect(ask.Detail).not.toBe(GenericToolCard);
     expect(ask.label({ input: { peerId: "w-7" } })).toEqual({ verb: "Asked", file: "w-7" });
     expect(ask.runningLabel({ input: { peerId: "w-7" } })).toEqual({ verb: "Asking", file: "w-7" });
     // agentRef resolves the peer by id (AgentLink fills the name from workers)
@@ -57,7 +64,7 @@ describe("getToolView", () => {
     expect(ask.agentRef({ input: {} })).toBe(null);
 
     const respond = getToolView("mcp__worker__respond_to_peer");
-    expect(respond.Detail).not.toBe(GenericDetail);
+    expect(respond.Detail).not.toBe(GenericToolCard);
     // No asker known → generic "peer".
     expect(respond.label({})).toEqual({ verb: "Replied to", file: "peer" });
     expect(respond.agentRef({})).toBe(null);
@@ -71,24 +78,49 @@ describe("getToolView", () => {
     expect(respond.agentRef(answered)).toEqual({ id: "w-b", name: "peer-bob" });
 
     const list = getToolView("mcp__worker__list_peers");
-    expect(list.Detail).not.toBe(GenericDetail);
+    expect(list.Detail).not.toBe(GenericToolCard);
     expect(list.label({})).toEqual({ verb: "Listed", file: "peers" });
   });
 
   it("gives the worker-definition tools bespoke views", () => {
     const create = getToolView("mcp__orchestrator__create_worker");
-    expect(create.Detail).not.toBe(GenericDetail);
+    expect(create.Detail).not.toBe(GenericToolCard);
     expect(create.label({ input: { name: "perf-profiler" } })).toEqual({ verb: "Created worker", file: "perf-profiler" });
     expect(create.runningLabel({ input: { name: "perf-profiler" } })).toEqual({ verb: "Creating worker", file: "perf-profiler" });
     expect(create.label({ input: {} })).toEqual({ verb: "Created worker", file: "" });
 
     const list = getToolView("mcp__orchestrator__list_available_workers");
-    expect(list.Detail).not.toBe(GenericDetail);
+    expect(list.Detail).not.toBe(GenericToolCard);
     expect(list.runningLabel({})).toEqual({ verb: "Listing", file: "available workers" });
     // count parsed from the result JSON array
     expect(list.label({ result: { text: JSON.stringify([{ name: "a" }, { name: "b" }]) } }))
       .toEqual({ verb: "Listed", file: "available workers (2)" });
     // no result yet (running) → no count
     expect(list.label({})).toEqual({ verb: "Listed", file: "available workers" });
+  });
+
+  it("resolves the worker-management tools through the one dispatcher", () => {
+    // spawn/kill/message/get → AgentLink target + WorkerToolBody
+    const kill = getToolView("mcp__orchestrator__kill_worker");
+    expect(kill.Detail).toBe(WorkerToolBody);
+    expect(kill.label({}).verb).toBe("Killed");
+    expect(kill.runningLabel({}).verb).toBe("Killing");
+    expect(kill.agentRef({ name: "mcp__orchestrator__kill_worker", input: { id: "w1", name: "alice" } }, { workers: [] }))
+      .toEqual({ id: "w1", name: "alice" });
+    // expand gate: detail text present → expandable; running w/ no result → not
+    const ctx = { workers: [] };
+    expect(kill.expandable({ name: "mcp__orchestrator__kill_worker", result: { text: JSON.stringify({ state: "killed", branch: "eos-x" }) } }, ctx)).toBe(true);
+    expect(kill.expandable({ name: "mcp__orchestrator__kill_worker" }, ctx)).toBe(false);
+
+    // list tools → count/label target, no agentRef
+    const listActive = getToolView("mcp__orchestrator__list_active_workers");
+    expect(listActive.Detail).toBe(WorkerToolBody);
+    expect(listActive.agentRef({}, ctx)).toBe(null);
+    expect(listActive.label({ name: "mcp__orchestrator__list_active_workers", result: { text: JSON.stringify([{ id: "a" }, { id: "b" }, { id: "c" }]) } }))
+      .toEqual({ verb: "Listed", file: "workers (3)" });
+    expect(listActive.label({ name: "mcp__orchestrator__list_active_workers" })).toEqual({ verb: "Listed", file: "workers" });
+
+    const pending = getToolView("mcp__orchestrator__list_pending_permissions");
+    expect(pending.label({ name: "mcp__orchestrator__list_pending_permissions" })).toEqual({ verb: "Checked", file: "pending permissions" });
   });
 });
