@@ -25,12 +25,13 @@ export function loopSummary(loop) {
   return `${loopStatusLabel(loop)} · attempt ${loopAttemptText(loop)}`;
 }
 
-// Tooltip for the compact sidebar badge: the summary plus the last goal-check
-// reason, when the daemon has recorded one.
+// Tooltip for the compact sidebar badge: the summary plus the goal it's driving
+// toward (or, failing that, the last goal-check reason) when present.
 export function loopBadgeTitle(loop) {
   if (!loop) return "";
   const base = `Loop: ${loopSummary(loop)}`;
-  return loop.lastReason ? `${base} — ${loop.lastReason}` : base;
+  const tail = loop.goalSummary || loop.lastReason;
+  return tail ? `${base} — ${tail}` : base;
 }
 
 // One-line detail for an arm-at-spawn loop (SpawnLoopSchema: {goal, strategy?,

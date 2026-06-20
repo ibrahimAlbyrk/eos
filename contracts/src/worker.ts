@@ -56,6 +56,9 @@ export const WorkerRowSchema = z.object({
     attempt: z.number(),
     maxAttempts: z.number().nullable(),
     lastReason: z.string().nullable(),
+    // The goal's one-line summary (from the loop's GoalSpec) so the live loop
+    // card/badge shows what the loop is driving toward, not just the last reason.
+    goalSummary: z.string().nullable(),
   }).optional(),
   is_orchestrator: z.number().nullable().optional(),
   tool_calls: z.number().nullable().optional(),

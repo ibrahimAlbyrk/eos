@@ -10,19 +10,20 @@ const baseRow = {
 
 describe("WorkerRowSchema — route-enriched loop field", () => {
   it("parses a row carrying an active loop", () => {
-    const r = WorkerRowSchema.parse({ ...baseRow, loop: { status: "active", attempt: 2, maxAttempts: 5, lastReason: "unmet: c1" } });
-    assert.deepEqual(r.loop, { status: "active", attempt: 2, maxAttempts: 5, lastReason: "unmet: c1" });
+    const r = WorkerRowSchema.parse({ ...baseRow, loop: { status: "active", attempt: 2, maxAttempts: 5, lastReason: "unmet: c1", goalSummary: "tests pass" } });
+    assert.deepEqual(r.loop, { status: "active", attempt: 2, maxAttempts: 5, lastReason: "unmet: c1", goalSummary: "tests pass" });
   });
 
-  it("loop is optional; maxAttempts + lastReason are nullable", () => {
+  it("loop is optional; maxAttempts + lastReason + goalSummary are nullable", () => {
     assert.equal(WorkerRowSchema.parse(baseRow).loop, undefined);
-    const r = WorkerRowSchema.parse({ ...baseRow, loop: { status: "exhausted", attempt: 5, maxAttempts: null, lastReason: null } });
+    const r = WorkerRowSchema.parse({ ...baseRow, loop: { status: "exhausted", attempt: 5, maxAttempts: null, lastReason: null, goalSummary: null } });
     assert.equal(r.loop?.maxAttempts, null);
     assert.equal(r.loop?.lastReason, null);
+    assert.equal(r.loop?.goalSummary, null);
   });
 
   it("rejects an invalid loop status", () => {
-    assert.throws(() => WorkerRowSchema.parse({ ...baseRow, loop: { status: "bogus", attempt: 1, maxAttempts: null, lastReason: null } }));
+    assert.throws(() => WorkerRowSchema.parse({ ...baseRow, loop: { status: "bogus", attempt: 1, maxAttempts: null, lastReason: null, goalSummary: null } }));
   });
 });
 

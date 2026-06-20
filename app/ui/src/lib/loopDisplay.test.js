@@ -18,6 +18,11 @@ describe("loopDisplay", () => {
       .toBe("Loop: passed · attempt 2/2");
   });
 
+  it("prefers the goal summary over lastReason in the badge tooltip", () => {
+    expect(loopBadgeTitle({ status: "active", attempt: 1, maxAttempts: 4, goalSummary: "tests pass", lastReason: "unmet: c1" }))
+      .toBe("Loop: active · attempt 1/4 — tests pass");
+  });
+
   it("returns empty strings for a missing loop", () => {
     expect(loopSummary(null)).toBe("");
     expect(loopBadgeTitle(undefined)).toBe("");

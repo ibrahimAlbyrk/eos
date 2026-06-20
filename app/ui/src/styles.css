@@ -1599,6 +1599,14 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   font-size: var(--text-xs);
   color: var(--fg-faint);
 }
+.loop-status-goal {
+  margin-top: 6px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--fg);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
 .loop-status-reason {
   margin-top: 6px;
   font-size: var(--text-sm);
