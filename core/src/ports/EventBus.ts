@@ -19,6 +19,10 @@ export type EventBusTopic =
   // Ephemeral live reasoning/text deltas (claude-sdk, in-process). Relayed to
   // SSE like terminal:chunk; never persisted, never drives worker state.
   | "agent:delta"
+  // Dynamic-loop lifecycle (attach / status change / attempt / held). Published
+  // from the manager (GoalLoopService + the loop/report routes); rebroadcast to
+  // SSE by the "*" subscription. Never drives worker state.
+  | "loop:change"
   | "fs:change"
   | "git:change"
   | "update:available";

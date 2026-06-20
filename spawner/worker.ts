@@ -249,6 +249,15 @@ function emitMessageEvent(p: PendingMessage, anchorTs?: number): void {
         ...anchor,
       });
       return;
+    case "loop_continuation":
+      // A dynamic-loop automated re-trigger — rendered as a "Dynamic loop" system
+      // message, never a user bubble.
+      evt.emit("loop_continuation", {
+        text: p.record.displayText ?? p.text,
+        ...sentAt,
+        ...anchor,
+      });
+      return;
     case "user_message":
       // clientMsgIds ride through so the web reconciles its optimistic
       // bubbles by id (text-prefix stays the fallback for unkeyed sends).
