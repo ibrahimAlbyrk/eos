@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { buildDiffHunks, patchToHunks, parseAskAnswers, stripCatLineNumbers } from "../../../lib/diff.jsx";
 import { skillFilePath } from "../../../lib/skillBody.js";
+import { failureKind } from "../../../lib/toolFailure.js";
+import { DisclosureRow } from "./DisclosureRow.jsx";
 
 // Per-tool expanded detail components. Routing (tool name → Detail) and the
 // header labels live in ./toolViews.jsx; this file only owns the bodies.
@@ -121,9 +123,10 @@ export function EditDetail({ tool }) {
 }
 
 function FailureBanner({ tool }) {
-  if (!tool.result?.isError) return null;
-  const text = tool.result.text ?? "";
-  const isDenied = /^denied|permission mode|denied by policy/i.test(text);
+  const kind = failureKind(tool);
+  if (!kind) return null;
+  const text = tool.result?.text ?? "";
+  const isDenied = kind === "denied";
   return (
     <div className={"tool-failure-banner" + (isDenied ? " denied" : "")}>
       <span className="tfb-msg">{text || (isDenied ? "Permission denied" : "Tool call failed")}</span>
@@ -256,7 +259,7 @@ export function SkillDetail({ tool }) {
   // "Launching skill: <name>" tool result — the body is injected server-side and
   // never reaches the stream). Fall back to the generic result/params view so
   // expanding shows the launch result instead of rendering nothing.
-  if (!body && !skillFile) return <GenericDetail tool={tool} />;
+  if (!body && !skillFile) return <GenericToolCard tool={tool} />;
 
   const copyContent = () => {
     navigator.clipboard.writeText(body).catch(() => {});
@@ -439,47 +442,115 @@ export function AvailableWorkersDetail({ tool }) {
 }
 
 const GENERIC_OUTPUT_MAX = 4000;
+const PARAM_VALUE_MAX = 300;
+const RAW_MAX = 8000;
 
-// Fallback detail for tools without a bespoke renderer (mostly custom MCP
-// tools). One card holds the parameters (top) and the tool's result (below).
-// When there is no result yet (running, or a tool that never returns output)
-// only the parameters block shows.
-export function GenericDetail({ tool }) {
+function safeJson(value) {
+  try { return JSON.stringify(value, null, 2); } catch { return String(value); }
+}
+
+// One param value as a readable string: scalars inline, objects/arrays as
+// compact JSON clamped per-row (the full value is always in the raw payload).
+function paramValue(val) {
+  if (typeof val === "string") return val;
+  if (typeof val === "number" || typeof val === "boolean") return String(val);
+  let s;
+  try { s = JSON.stringify(val); } catch { s = String(val); }
+  return s.length > PARAM_VALUE_MAX ? s.slice(0, PARAM_VALUE_MAX) + "…" : s;
+}
+
+const CheckIcon = (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m3 8.5 3 3 7-7" />
+  </svg>
+);
+const CopyIcon = (
+  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+    <rect x="5" y="5" width="9" height="9" rx="1.5" />
+    <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
+  </svg>
+);
+
+// Copy-to-clipboard button matching the file-path-bar copy affordance.
+function CopyButton({ text, title = "Copy" }) {
+  const [copied, setCopied] = useState(false);
+  const onCopy = (e) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text ?? "").catch(() => {});
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
+  };
+  return (
+    <button className="fp-copy" onClick={onCopy} title={title}>{copied ? CheckIcon : CopyIcon}</button>
+  );
+}
+
+// Collapsed full input+result payload — the debugging escape hatch for any tool
+// (clamped on display, copied in full).
+function RawPayload({ tool }) {
+  const [open, setOpen] = useState(false);
+  const json = safeJson({ input: tool.input ?? {}, result: tool.result ?? null });
+  return (
+    <div className="gd-block gd-raw">
+      <DisclosureRow expanded={open} onToggle={() => setOpen(!open)} className="gd-raw-head">
+        <span className="gd-raw-label">Raw payload</span>
+        <CopyButton text={json} title="Copy raw payload" />
+      </DisclosureRow>
+      {open && <pre className="gd-raw-json">{json.length > RAW_MAX ? json.slice(0, RAW_MAX) + "\n…" : json}</pre>}
+    </div>
+  );
+}
+
+// Fallback detail for tools without a bespoke body (most custom MCP tools, and
+// the header-only built-ins). One card holds the parameters, the result output,
+// and a collapsed raw-payload disclosure. Copy buttons sit on each section; while
+// running with no output a "Running…" line shows instead of an empty body.
+export function GenericToolCard({ tool }) {
   const params = Object.entries(tool.input ?? {}).filter(([, v]) => v !== undefined && v !== null);
   const result = tool.result;
   const output = (result?.text ?? "").trim();
   const hasOutput = result != null && !result.isError && output !== "";
-  const hasCard = params.length > 0 || hasOutput;
+  const running = tool.running === true;
+  const hasRaw = params.length > 0 || result != null;
 
-  if (!hasCard && !result?.isError) return null;
+  // Nothing to show and not failed → render nothing (matches prior behavior).
+  if (params.length === 0 && !hasOutput && !running && !result?.isError) return null;
 
   return (
     <div className="tool-detail generic-detail">
       {result?.isError && <FailureBanner tool={tool} />}
-      {hasCard && (
-        <div className="gd-card">
-          {params.length > 0 && (
-            <div className="gd-block">
-              <div className="gd-section">Parameters</div>
-              {params.map(([key, val]) => (
-                <div className="gd-row" key={key}>
-                  <span className="gd-key">{key}:</span>{" "}
-                  <span className="gd-val">{typeof val === "object" ? JSON.stringify(val) : String(val)}</span>
-                </div>
-              ))}
+      <div className="gd-card">
+        {params.length > 0 && (
+          <div className="gd-block">
+            <div className="gd-section">
+              <span>Parameters</span>
+              <CopyButton text={safeJson(tool.input ?? {})} title="Copy parameters" />
             </div>
-          )}
-          {hasOutput && (
-            <div className="gd-block">
-              <div className="gd-section">Output</div>
-              <div className="gd-output-text">{output.slice(0, GENERIC_OUTPUT_MAX)}</div>
-              {output.length > GENERIC_OUTPUT_MAX && (
-                <div className="gd-output-more">+{output.length - GENERIC_OUTPUT_MAX} more characters</div>
-              )}
+            {params.map(([key, val]) => (
+              <div className="gd-row" key={key}>
+                <span className="gd-key">{key}:</span>{" "}
+                <span className="gd-val">{paramValue(val)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        {hasOutput && (
+          <div className="gd-block">
+            <div className="gd-section">
+              <span>Output</span>
+              <CopyButton text={output} title="Copy output" />
             </div>
-          )}
-        </div>
-      )}
+            <div className="gd-output-text">{output.slice(0, GENERIC_OUTPUT_MAX)}</div>
+            {output.length > GENERIC_OUTPUT_MAX && (
+              <div className="gd-output-more">+{output.length - GENERIC_OUTPUT_MAX} more characters</div>
+            )}
+          </div>
+        )}
+        {!hasOutput && running && (
+          <div className="gd-block"><div className="gd-output-text gd-running">Running…</div></div>
+        )}
+        {hasRaw && <RawPayload tool={tool} />}
+      </div>
     </div>
   );
 }

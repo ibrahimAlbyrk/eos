@@ -1,20 +1,16 @@
-// Orchestrator worker tools render with the exact same chrome as every other
-// tool row (tool-item header + report-detail body, like send_message_to_parent)
-// — only the worker-name resolution (tool input/result JSON) is bespoke;
-// click-to-select is the shared AgentLink.
+// Body + identity helpers for the orchestrator's worker-management MCP tools.
+// These tools render through the SAME dispatcher as every other tool now: their
+// header verbs come from WORKER_TOOL_SPECS and their body is WorkerToolBody,
+// both registered in ./toolViews.jsx. This file owns only the result-JSON →
+// readable-body logic and the durable worker-name resolution; the shared chrome
+// (disclosure, failure badge) lives in ToolItem.
 
 import { Fragment } from "react";
-import { useUi } from "../../../state/ui.jsx";
-import { defaultToolExpanded } from "../../../settings/toolExpansion.js";
-import { WORKER_TOOL_SPECS } from "../../../lib/workerTools.js";
 import { nameOf } from "../../../lib/agentName.js";
 import { AgentLink } from "./AgentLink.jsx";
-import { DisclosureRow } from "./DisclosureRow.jsx";
 
-// Verb/running labels live in lib/workerTools.js (shared with the parser's
-// lane grouping); this map owns only the expanded body. `detail` → plain-text
-// body. `rows` → a worker-keyed row list rendered with clickable AgentLinks
-// (and serialized to the same text for the expand gate).
+// `detail` → plain-text body. `rows` → a worker-keyed row list rendered with
+// clickable AgentLinks (and serialized to the same text for the expand gate).
 const BODIES = {
   mcp__orchestrator__spawn_worker: { detail: (t) => t.input?.prompt ?? "" },
   mcp__orchestrator__kill_worker: { detail: killWorkerDetail },
@@ -112,6 +108,13 @@ function parseResultJson(tool) {
   try { return JSON.parse(text); } catch { return null; }
 }
 
+// Count for the list tools' header label ("workers (3)") — null while running or
+// when the result isn't yet a JSON array.
+export function workerListCount(tool) {
+  const res = parseResultJson(tool);
+  return Array.isArray(res) ? res.length : null;
+}
+
 // Pull the acted-on worker's {id, name} from a tool's result JSON. Durable —
 // stays correct after the worker leaves the live list (kill/message carry it at
 // the top level; get_worker nests it under `worker`).
@@ -132,66 +135,23 @@ export function workerIdentity(tool, workers) {
   return { id, name };
 }
 
-function failureKind(tool) {
-  if (!tool.result?.isError) return null;
-  const text = tool.result.text ?? "";
-  return /^denied|permission mode|denied by policy/i.test(text) ? "denied" : "failed";
-}
-
-function Target({ tool, workers }) {
-  if (tool.name === "mcp__orchestrator__list_active_workers") {
-    const res = parseResultJson(tool);
-    const count = Array.isArray(res) ? res.length : null;
-    return <span className="ti-file">{count != null ? `workers (${count})` : "workers"}</span>;
-  }
-  if (tool.name === "mcp__orchestrator__list_pending_permissions") {
-    return <span className="ti-file">pending permissions</span>;
-  }
-  const { id, name } = workerIdentity(tool, workers);
-  return <AgentLink id={id} name={name} workers={workers} />;
-}
-
-export function WorkerToolCard({ tool, workers, standalone }) {
-  const ui = useUi();
-  const spec = WORKER_TOOL_SPECS[tool.name];
+// Expanded body for the worker-management tools — the AgentLink rows for the
+// list tools, the plain-text result summary otherwise. Receives `workers` from
+// ToolItem (passed to every Detail) for click-to-select name resolution.
+export function WorkerToolBody({ tool, workers }) {
   const body = BODIES[tool.name];
-  // tool.running is authoritative — computed once in messageParser from the
-  // tool lifecycle (results, tool_done, turn/exit barriers).
-  const running = tool.running === true;
-  const failure = failureKind(tool);
-  const detail = workerToolDetailText(tool, workers);
-  const hasDetail = detail.trim().length > 0;
-
-  const expandKey = "i:" + (tool.id ?? tool.ts);
-  // expandedTools holds toggles against the settings-driven default (XOR)
-  const expanded = hasDetail && defaultToolExpanded(tool.name, ui.settings) !== ui.expandedTools.has(expandKey);
-
+  const failure = tool.result?.isError;
   return (
-    <div className={"tool-item" + (standalone ? " standalone" : "") + (failure ? ` ti-failed-state ti-failed-state-${failure}` : "")}>
-      <DisclosureRow
-        expanded={expanded}
-        expandable={hasDetail}
-        onToggle={() => ui.toggleToolExpanded(expandKey)}
-        className={"tool-item-header" + (running ? " ti-running" : "")}
-      >
-        <span className={"ti-verb" + (running ? " ti-shimmer" : "")}>{running ? spec.running : spec.verb}</span>
-        {" "}
-        <Target tool={tool} workers={workers} />
-        {failure && <span className={`ti-failed ti-failed-${failure}`}>{failure}</span>}
-      </DisclosureRow>
-      {expanded && (
-        <div className="report-detail" style={{ marginLeft: 0 }}>
-          {!failure && body?.rows
-            ? <RowsBody rows={body.rows(tool, workers)} emptyText={body.emptyText} workers={workers} />
-            : <div className="report-detail-text">{detail}</div>}
-        </div>
-      )}
+    <div className="report-detail" style={{ marginLeft: 0 }}>
+      {!failure && body?.rows
+        ? <RowsBody rows={body.rows(tool, workers)} emptyText={body.emptyText} workers={workers} />
+        : <div className="report-detail-text">{workerToolDetailText(tool, workers)}</div>}
     </div>
   );
 }
 
 // Same pre-wrap layout as the plain-text body, but each row's worker name is a
-// click-to-select AgentLink — identical affordance to the header Target.
+// click-to-select AgentLink — identical affordance to the header.
 function RowsBody({ rows, emptyText, workers }) {
   if (!rows || rows.length === 0) return <div className="report-detail-text">{emptyText}</div>;
   return (

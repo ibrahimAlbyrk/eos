@@ -1,36 +1,52 @@
 // Single source of truth for how a tool renders in the chat. Each descriptor
 // owns one tool's presentation: header labels (idle + running), optional header
-// decorations (clickable file path, diff stats, clickable agent ref), and the
-// expanded Detail body.
+// decorations (clickable file path, diff stats, clickable agent ref, expand
+// gate), and the expanded Detail body.
 // ToolItem reads from here instead of switching on tool.name, so adding a tool
 // means registering one entry — no edits to ToolItem/ToolDetail (Open/Closed).
+// This is the ONLY tool-render dispatcher; the worker-management tools are
+// registered here too (their bodies live in WorkerToolCard.jsx).
 //
-// Unknown tools resolve to DEFAULT, whose GenericDetail shows the tool's result
-// first and its parameters second.
+// Unknown tools resolve to FALLBACK, whose GenericToolCard shows a humanized
+// name + args hint in the header and a parameters/output/raw-payload card body.
 
 import {
   ReadDetail, EditDetail, WriteDetail, BashDetail, AskUserQuestionDetail,
-  AskUserDetail, SkillDetail, NotifyDetail, MessageDetail, GenericDetail,
+  AskUserDetail, SkillDetail, NotifyDetail, MessageDetail, GenericToolCard,
   PeerAskDetail, PeerRespondDetail, PeerListDetail,
   CreateWorkerDetail, AvailableWorkersDetail,
 } from "./ToolDetail.jsx";
 import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
 import { skillFilePath } from "../../../lib/skillBody.js";
+import { toolDisplayName } from "../../../lib/toolDisplayName.js";
+import { argsSummary } from "../../../lib/toolArgs.js";
+import { WORKER_TOOL_SPECS } from "../../../lib/workerTools.js";
+import { WorkerToolBody, workerIdentity, workerListCount, workerToolDetailText } from "./WorkerToolCard.jsx";
 
-const DEFAULT = {
-  label: (t) => ({ verb: "Used", file: t.name ?? "" }),
-  runningLabel: (t) => ({ verb: "Running", file: t.name ?? "" }),
+// Shared base that every registered (bespoke) view inherits via register().
+// Its header is a neutral "Used <displayName>"; bespoke views override what they
+// need. `summary` is null here so bespoke tools (which already encode their hint
+// in label.file) show no extra args summary — only the FALLBACK surfaces one.
+const BASE = {
+  label: (t) => ({ verb: "Used", file: toolDisplayName(t.name) }),
+  runningLabel: (t) => ({ verb: "Running", file: toolDisplayName(t.name) }),
+  summary: () => null,
   filePath: () => null,
   stats: () => null,
   agentRef: () => null,
-  Detail: GenericDetail,
+  expandable: () => true,
+  Detail: GenericToolCard,
 };
 
+// The fallback for any unregistered tool — BASE plus a generic args hint in the
+// header so an unknown tool still says *what* it acted on.
+const FALLBACK = { ...BASE, summary: (t) => argsSummary(t.input) };
+
 const VIEWS = new Map();
-const register = (name, view) => VIEWS.set(name, { ...DEFAULT, ...view });
+const register = (name, view) => VIEWS.set(name, { ...BASE, ...view });
 
 export function getToolView(name) {
-  return VIEWS.get(name ?? "") ?? DEFAULT;
+  return VIEWS.get(name ?? "") ?? FALLBACK;
 }
 
 function fileName(p) {
@@ -185,6 +201,46 @@ register("mcp__worker__respond_to_peer", {
   runningLabel: (t) => ({ verb: "Replying to", file: peerReplyTo(t)?.name ?? "peer" }),
   agentRef: (t) => peerReplyTo(t),
   Detail: PeerRespondDetail,
+});
+
+// Worker-management MCP tools — folded into this registry so every tool
+// dispatches through getToolView. Verbs come from WORKER_TOOL_SPECS (shared with
+// the parser's lane grouping); the body is WorkerToolBody. The expand gate keeps
+// the prior behavior: a row with no detail text (e.g. a still-running call) is
+// non-expandable. spawn/kill/message/get name their target via a click-to-select
+// AgentLink (agentRef); the list tools show a count/label instead.
+const workerExpandable = (t, ctx) => workerToolDetailText(t, ctx?.workers).trim().length > 0;
+
+for (const name of [
+  "mcp__orchestrator__spawn_worker",
+  "mcp__orchestrator__kill_worker",
+  "mcp__orchestrator__message_worker",
+  "mcp__orchestrator__get_worker",
+]) {
+  register(name, {
+    label: () => ({ verb: WORKER_TOOL_SPECS[name].verb, file: "" }),
+    runningLabel: () => ({ verb: WORKER_TOOL_SPECS[name].running, file: "" }),
+    agentRef: (t, ctx) => workerIdentity(t, ctx?.workers),
+    expandable: workerExpandable,
+    Detail: WorkerToolBody,
+  });
+}
+
+register("mcp__orchestrator__list_active_workers", {
+  label: (t) => {
+    const n = workerListCount(t);
+    return { verb: WORKER_TOOL_SPECS[t.name].verb, file: n != null ? `workers (${n})` : "workers" };
+  },
+  runningLabel: (t) => ({ verb: WORKER_TOOL_SPECS[t.name].running, file: "workers" }),
+  expandable: workerExpandable,
+  Detail: WorkerToolBody,
+});
+
+register("mcp__orchestrator__list_pending_permissions", {
+  label: (t) => ({ verb: WORKER_TOOL_SPECS[t.name].verb, file: "pending permissions" }),
+  runningLabel: (t) => ({ verb: WORKER_TOOL_SPECS[t.name].running, file: "pending permissions" }),
+  expandable: workerExpandable,
+  Detail: WorkerToolBody,
 });
 
 function editStats(tool) {
