@@ -24,7 +24,7 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
     assert.deepEqual(Object.keys(fp), [
       "spawn_worker", "list_active_workers", "get_worker", "kill_worker",
       "message_worker", "list_pending_permissions", "notify_user", "ask_user",
-      "list_available_workers", "create_worker",
+      "list_available_workers", "create_worker", "integrate_workers",
     ]);
   });
 

@@ -1538,6 +1538,47 @@ export const UpdateDeferResponseSchema = z.object({
 });
 export type UpdateDeferResponse = z.infer<typeof UpdateDeferResponseSchema>;
 
+// ---- Integrate workers (orchestrator fan-in) -------------------------------
+// The orchestrator merges all its workers' worktree branches into its own
+// checkout. Disjoint work auto-merges as unstaged edits; a genuine overlap is
+// materialized with conflict markers + unmerged index entries, so the existing
+// dashboard conflict resolver handles it. Reversible — nothing is committed.
+
+export const IntegrateWorkersRequestSchema = z.object({
+  // Limit to these worker ids; default = all of the orchestrator's workers.
+  ids: z.array(z.string()).optional(),
+});
+export type IntegrateWorkersRequest = z.infer<typeof IntegrateWorkersRequestSchema>;
+
+export const IntegrateOutcomeSchema = z.enum([
+  "merged",      // this worker's snapshot merged cleanly into the checkout
+  "conflicted",  // materialized with conflict markers — resolve in the dashboard
+  "pending",     // not attempted: an earlier worker holds an unresolved conflict
+  "skipped",     // busy / no worktree branch / no changes to integrate
+]);
+export type IntegrateOutcome = z.infer<typeof IntegrateOutcomeSchema>;
+
+export const IntegrateWorkerResultSchema = z.object({
+  workerId: z.string(),
+  name: z.string().nullable(),
+  branch: z.string().nullable(),
+  outcome: IntegrateOutcomeSchema,
+  files: z.array(z.string()).default([]),  // merged files, or conflicted files
+  reason: z.string().optional(),           // why skipped/pending
+});
+export type IntegrateWorkerResult = z.infer<typeof IntegrateWorkerResultSchema>;
+
+export const IntegrateWorkersResponseSchema = z.object({
+  ok: z.boolean(),
+  checkout: z.string(),
+  branch: z.string().nullable(),           // the orchestrator's current branch
+  workers: z.array(IntegrateWorkerResultSchema),
+  mergedFiles: z.array(z.string()),        // union of cleanly merged files
+  conflictedFiles: z.array(z.string()),    // files now bearing conflict markers
+  message: z.string(),                     // ready-made human summary
+});
+export type IntegrateWorkersResponse = z.infer<typeof IntegrateWorkersResponseSchema>;
+
 export const ROUTES = {
   health: "/health",
   stream: "/stream",
@@ -1553,6 +1594,7 @@ export const ROUTES = {
   workerPull: (id: string): string => `/workers/${id}/pull`,
   orchestrators: "/orchestrators",
   orchestratorMessage: (id: string): string => `/orchestrators/${id}/message`,
+  orchestratorIntegrate: (id: string): string => `/orchestrators/${id}/integrate`,
   policyDecide: "/policy/decide",
   policyRule: "/api/policy/rule",
   pending: "/pending",

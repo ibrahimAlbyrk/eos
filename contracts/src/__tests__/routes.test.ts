@@ -6,7 +6,7 @@ const EXPECTED_KEYS = [
   "health", "stream", "workers", "worker", "workerEvents", "workerMessage",
   "workerQueue", "workerQueueItem",
   "workerAction", "workerPush", "workerPushState", "workerPull",
-  "orchestrators", "orchestratorMessage", "policyDecide", "policyRule",
+  "orchestrators", "orchestratorMessage", "orchestratorIntegrate", "policyDecide", "policyRule",
   "pending", "pendingDecision", "metrics", "uiConfig",
   "pickDirectory", "pickFile", "fsDefaultApp", "fsOpen", "fsIcon",
   "fsBranches", "fsUnpushed", "fsCommit", "fsRecents", "fsReveal", "fsRead", "fsList", "fsImage",

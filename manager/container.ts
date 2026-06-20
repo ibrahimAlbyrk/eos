@@ -53,6 +53,7 @@ import { childProcessGitInfo } from "../infra/src/git/ChildProcessGitInfo.ts";
 import { ChokidarGitWatcher } from "../infra/src/git/ChokidarGitWatcher.ts";
 import { childProcessWorktreeManager } from "../infra/src/git/ChildProcessWorktreeManager.ts";
 import { createChildProcessBranchIntegration } from "../infra/src/git/ChildProcessBranchIntegration.ts";
+import { createChildProcessBranchMerge } from "../infra/src/git/ChildProcessBranchMerge.ts";
 import { childProcessBranchPush } from "../infra/src/git/ChildProcessBranchPush.ts";
 import { childProcessConflictResolution } from "../infra/src/git/ChildProcessConflictResolution.ts";
 import { childProcessBranchAdmin } from "../infra/src/git/ChildProcessBranchAdmin.ts";
@@ -290,6 +291,7 @@ export function buildContainer() {
     triesDir: join(config.daemon.home, "tries"),
     now: () => systemClock.now(),
   });
+  const branchMerge = createChildProcessBranchMerge({ now: () => systemClock.now() });
 
   // Git state watcher — observes each live worker's .git internals + working
   // tree and publishes coalesced "git:change {dir, kinds}" events (→ SSE → the
@@ -778,6 +780,7 @@ export function buildContainer() {
     gitWatchReconciler,
     worktrees,
     branchIntegration,
+    branchMerge,
     branchPush,
     conflicts,
     branchAdmin,

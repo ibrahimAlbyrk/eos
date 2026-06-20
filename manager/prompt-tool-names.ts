@@ -18,6 +18,7 @@ import { askPeerDef } from "./tools/defs/ask_peer.ts";
 import { respondToPeerDef } from "./tools/defs/respond_to_peer.ts";
 import { listAvailableWorkersDef } from "./tools/defs/list_available_workers.ts";
 import { createWorkerDef } from "./tools/defs/create_worker.ts";
+import { integrateWorkersDef } from "./tools/defs/integrate_workers.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
@@ -34,4 +35,5 @@ export const TOOL_NAME_VARS: VariableScope = {
   RESPOND_TO_PEER_TOOL: respondToPeerDef.name,
   LIST_AVAILABLE_WORKERS_TOOL: listAvailableWorkersDef.name,
   CREATE_WORKER_TOOL: createWorkerDef.name,
+  INTEGRATE_WORKERS_TOOL: integrateWorkersDef.name,
 };

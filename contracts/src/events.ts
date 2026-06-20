@@ -71,6 +71,7 @@ export const WorkerEventTypeSchema = z.enum([
   "try_discarded",
   "git_push",
   "git_pull",
+  "workers_integrated",
   "conflict_resolved",
   "terminal",
   // Canonical agent-event row (in-process / claude-sdk backends): the payload is

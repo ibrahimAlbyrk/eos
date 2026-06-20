@@ -13,6 +13,7 @@ import { askPeerDef } from "./defs/ask_peer.ts";
 import { respondToPeerDef } from "./defs/respond_to_peer.ts";
 import { listAvailableWorkersDef } from "./defs/list_available_workers.ts";
 import { createWorkerDef } from "./defs/create_worker.ts";
+import { integrateWorkersDef } from "./defs/integrate_workers.ts";
 
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
@@ -27,6 +28,7 @@ export const orchestratorDefs: ToolDefinition[] = [
   askUserDef,
   listAvailableWorkersDef,
   createWorkerDef,
+  integrateWorkersDef,
 ];
 
 // Always registered on a worker.
