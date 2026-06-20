@@ -4,6 +4,7 @@ import { ImageLightbox } from "../ImageLightbox.jsx";
 import { labelTitle, parseAttachmentMessage } from "../../../lib/attachmentTokens.js";
 import { segment, URL_RE } from "../../../lib/richText.jsx";
 import { findSlashTokens } from "../../../lib/slashTokens.js";
+import { PASTE_RE } from "../../../lib/pasteTokens.js";
 import { listMarkers } from "../../../lib/markdownBlocks.js";
 import { useSlashItems } from "../../../hooks/useSlashItems.js";
 import { SlashPill } from "./SlashPill.jsx";
@@ -35,6 +36,13 @@ function buildRules(labels, slashMap) {
       render: (url, key) => (
         <a key={key} className="msg-link" href={url} rel="noreferrer">{url}</a>
       ),
+    },
+    {
+      // Sent bubbles keep the collapsed-paste pill (displayText carries the
+      // placeholder; the full text went to the agent only) — static, since the
+      // content isn't retained here.
+      match: PASTE_RE,
+      render: (tok, key) => <span key={key} className="paste-pill">{tok}</span>,
     },
   ];
   if (labels.length) {

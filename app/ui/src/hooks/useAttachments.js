@@ -123,5 +123,17 @@ export function useAttachments({ onUploadFailed } = {}) {
     return buildAttachmentSuffix(labels, pathsRef.current, kindsRef.current);
   }, []);
 
-  return { items, addPath, addResolved, addUpload, remove, clear, restore, reconcileToText, resolveForSend };
+  // Like resolveForSend but returns structured {label, kind, path} items instead
+  // of the suffix string — for the template editor, which persists attachments as
+  // a field. Awaits in-flight uploads then reads resolved paths/kinds from the
+  // refs (so a path that settled after the last render is still seen), dropping
+  // any that never resolved.
+  const resolveItemsForSend = useCallback(async (labels) => {
+    await Promise.allSettled([...pendingRef.current.values()]);
+    return labels
+      .map((label) => ({ label, kind: kindsRef.current.get(label), path: pathsRef.current.get(label) }))
+      .filter((it) => it.path && it.kind);
+  }, []);
+
+  return { items, addPath, addResolved, addUpload, remove, clear, restore, reconcileToText, resolveForSend, resolveItemsForSend };
 }

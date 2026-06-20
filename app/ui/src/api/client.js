@@ -364,10 +364,11 @@ export const api = {
   async switchWorkerBackend(id, kind) {
     return putJson(ROUTES.workerBackend(id), { kind });
   },
-  async listFiles(cwd, query = "", { includeHidden = false } = {}) {
+  async listFiles(cwd, query = "", { includeHidden = false, dir = "" } = {}) {
     const params = new URLSearchParams();
     if (cwd) params.set("cwd", cwd);
     if (query) params.set("query", query);
+    if (dir) params.set("dir", dir);
     if (includeHidden) params.set("includeHidden", "1");
     const r = await getJson(`${ROUTES.fsList}?${params.toString()}`);
     if (!r.ok) throw new Error(`listFiles → ${r.status}`);
@@ -387,11 +388,11 @@ export const api = {
     if (!r.ok) throw new Error(`listTemplates → ${r.status}`);
     return r.body;
   },
-  async createTemplate({ name, description, content }) {
-    return postJson(ROUTES.templates, { name, description, content });
+  async createTemplate({ name, description, content, attachments }) {
+    return postJson(ROUTES.templates, { name, description, content, attachments });
   },
-  async updateTemplate(name, { description, content }) {
-    return putJson(ROUTES.template(name), { description, content });
+  async updateTemplate(name, { description, content, attachments }) {
+    return putJson(ROUTES.template(name), { description, content, attachments });
   },
   async deleteTemplate(name) {
     return del(ROUTES.template(name));

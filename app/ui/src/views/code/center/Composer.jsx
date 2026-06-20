@@ -10,15 +10,16 @@ import { listContinuation, listIndent } from "../../../lib/markdownBlocks.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
 import { findPlaceholders, nextPlaceholder, prevPlaceholder } from "../../../lib/placeholders.js";
 import { useAttachments } from "../../../hooks/useAttachments.js";
+import { useAttachmentIntake } from "../../../hooks/useAttachmentIntake.js";
 import { useComposerDraftSync } from "../../../hooks/useComposerDraftSync.js";
 import { useInputHistory } from "../../../hooks/useInputHistory.js";
 import { draftKey } from "../../../state/composerDrafts.js";
-import { findLabelAt, parseAttachmentMessage } from "../../../lib/attachmentTokens.js";
+import { findLabelAt } from "../../../lib/attachmentTokens.js";
+import { shouldCollapsePaste, makePasteLabel, pasteLineCount, pastePreview } from "../../../lib/pasteTokens.js";
 import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
+import { parentScope } from "../../../lib/mentionQuery.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
 import { composerMode, modeFlags } from "../../../lib/composerModes.js";
-import { attachmentKind } from "../../../lib/attachmentKind.js";
-import { hasPasteboardBridge, readPasteboardPaths, onNativeDrop, onDragState } from "../../../lib/nativeBridge.js";
 import { gitAgentName, gitTaskLabel } from "../../../lib/gitAgentName.js";
 import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
 import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
@@ -29,6 +30,7 @@ import { AttachmentChips } from "./AttachmentChips.jsx";
 import { PermissionBanner } from "./PermissionBanner.jsx";
 import { UpdateBanner } from "./UpdateBanner.jsx";
 import { SlashInfoPopover } from "../popovers/SlashInfoPopover.jsx";
+import { PasteInfoPopover } from "../popovers/PasteInfoPopover.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
 import { TryDeck } from "./TryBanner.jsx";
 import { TaskTray } from "./TaskTray.jsx";
@@ -82,6 +84,11 @@ export function Composer({ live }) {
   const [fileMenuIndex, setFileMenuIndex] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
   const insertedPathsRef = useRef(new Map());
+  // Collapsed long pastes: placeholder → full text. Held out-of-band (kept out
+  // of the model string and the undo-snapshot bulk) and spliced back in at send,
+  // exactly like insertedPathsRef does for @paths. seq drives the "#N" counter.
+  const pastesRef = useRef(new Map());
+  const pasteSeqRef = useRef(0);
   const history = useInputHistory();
   const lastEscRef = useRef(0);
   const [escArmed, setEscArmed] = useState(false);
@@ -129,17 +136,15 @@ export function Composer({ live }) {
   const slashMap = useMemo(() => new Map(slashItems.map((c) => [c.name, c])), [slashItems]);
 
   const uploadFailedRef = useRef(() => {});
+  const attachments = useAttachments({ onUploadFailed: (label) => uploadFailedRef.current(label) });
   const {
     items: attachmentItems,
-    addUpload,
-    addPath,
     addResolved,
-    remove: removeAttachmentItem,
     clear: clearAttachments,
     restore: restoreAttachments,
     reconcileToText,
     resolveForSend,
-  } = useAttachments({ onUploadFailed: (label) => uploadFailedRef.current(label) });
+  } = attachments;
 
   const {
     text,
@@ -150,34 +155,26 @@ export function Composer({ live }) {
     handleInput,
     undo,
     redo,
-  } = useContentEditableEditor(slashMap, insertedPathsRef, ui.selectedId, attachmentItems, reconcileToText);
+  } = useContentEditableEditor(slashMap, insertedPathsRef, ui.selectedId, attachmentItems, reconcileToText, pastesRef);
 
-  const stripLabel = (label) => {
-    const idx = text.indexOf(label);
-    if (idx === -1) return;
-    let end = idx + label.length;
-    if (text[end] === " ") end++;
-    setTextAndSync(text.slice(0, idx) + text.slice(end), idx);
-  };
-  uploadFailedRef.current = stripLabel;
+  // Attachment intake (paste/drop/picker → [label] tokens + chips), shared with
+  // the template editor. The inline token is the source of truth; this hook owns
+  // the chip lifecycle, native-drop arbitration and token-aware Backspace.
+  const intake = useAttachmentIntake({
+    attachments,
+    editor: { text, setTextAndSync, cursorPos, editorRef },
+  });
+  const { addAttachments, removeAttachmentToken, attachmentBackspace, dropActive } = intake;
+  uploadFailedRef.current = intake.stripLabel;
 
-  const insertLabels = (labels, pos) => {
-    const chunk = labels.map((l) => l + " ").join("");
-    setTextAndSync(text.slice(0, pos) + chunk + text.slice(pos), pos + chunk.length);
-  };
-
-  const removeAttachmentToken = (label) => {
-    removeAttachmentItem(label);
-    stripLabel(label);
-  };
-
-  // Token is the source of truth: if its text is gone (select-all delete,
-  // double-esc, manual edit), drop the chip too.
+  // Same rule for paste placeholders — a removed pill must not survive in the
+  // store (else it would re-expand at send though its text is gone). Ref-only
+  // mutation: coloring already excludes a placeholder absent from the text.
   useEffect(() => {
-    for (const it of attachmentItems) {
-      if (!text.includes(it.label)) removeAttachmentItem(it.label);
+    for (const ph of [...pastesRef.current.keys()]) {
+      if (!text.includes(ph)) pastesRef.current.delete(ph);
     }
-  }, [text, attachmentItems, removeAttachmentItem]);
+  }, [text]);
 
   // Stash this agent's unsent input on switch, re-seat the next agent's.
   // Text, chips and @paths swap in one effect body (one React batch) so the
@@ -190,12 +187,14 @@ export function Composer({ live }) {
       text,
       cursorPos,
       insertedPaths: [...insertedPathsRef.current],
+      pastes: [...pastesRef.current],
       attachments: attachmentItems,
       gitMode: ui.composer.gitMode,
       termMode: ui.composer.termMode,
     }),
     (d) => {
       insertedPathsRef.current = new Map(d?.insertedPaths ?? []);
+      pastesRef.current = new Map(d?.pastes ?? []);
       restoreAttachments(d?.attachments ?? []);
       recallRef.current = true; // suppress menu auto-open, same as history recall
       setTextAndSync(d?.text ?? "", d?.cursorPos ?? 0, "reset"); // new agent = fresh undo baseline
@@ -207,7 +206,7 @@ export function Composer({ live }) {
     }
   );
 
-  const { slashCtx, atCtx, filtered, atResults, activeMenu } = useCompletion({
+  const { slashCtx, atCtx, atIntent, filtered, atResults, activeMenu } = useCompletion({
     text,
     cursorPos,
     commands: slashItems,
@@ -243,6 +242,9 @@ export function Composer({ live }) {
     if (!pt) return;
     ui.updateComposer({ pendingTemplate: null });
     insertedPathsRef.current.clear();
+    // Re-seat the template's reference files as chips (no upload — paths are
+    // already durable); the inline [label] tokens ride in pt.content.
+    for (const att of pt.attachments ?? []) addResolved(att);
     applyTemplateText(pt.content, 0);
   }, [ui.composer.pendingTemplate]);
 
@@ -267,84 +269,23 @@ export function Composer({ live }) {
     return () => clearTimeout(t);
   }, [escArmed]);
 
-  const uploadFiles = (files, pos) => {
-    // A Finder folder surfaces as a typeless empty File — uploading it fails
-    // and flashes the chip, so drop those entries silently.
-    const real = files.filter((f) => f.type || f.size);
-    if (!real.length) return;
-    const labels = real.map((file) => {
-      const kind = file.type.startsWith("image/") ? "image" : attachmentKind(file.name);
-      return addUpload(kind, file);
-    });
-    insertLabels(labels, pos);
-  };
-
   const handlePaste = (e) => {
-    const plain = e.clipboardData.getData("text/plain");
-    // A copied Eos message carries the machine-readable "attachments:" suffix as
-    // plain text. Reconstruct chips + inline tokens from it instead of pasting
-    // the suffix literally — and do it BEFORE the file branch so a native ⌘C
-    // that also put the image on the clipboard re-seats by path (no re-upload).
-    const parsed = parseAttachmentMessage(plain);
-    if (parsed.attachments.length) {
-      e.preventDefault();
-      const el = editorRef.current;
-      const pos = el ? getCursorOffset(el) : text.length;
-      let display = parsed.display;
-      for (const att of parsed.attachments) {
-        if (!att.label || !att.path) continue;
-        const remap = addResolved(att);
-        if (remap) display = display.replaceAll(remap.from, remap.to);
-      }
-      setTextAndSync(text.slice(0, pos) + display + text.slice(pos), pos + display.length);
-      return;
-    }
-
-    const files = Array.from(e.clipboardData.files);
-    const hasFiles = files.length > 0 || e.clipboardData.types.includes("Files");
-    if (hasFiles) {
-      e.preventDefault();
-      const el = editorRef.current;
-      const pos = el ? getCursorOffset(el) : text.length;
-      if (hasPasteboardBridge()) {
-        // Finder copy → reference the on-disk paths (folders included); raw
-        // clipboard data (screenshots) has no path → fall back to upload.
-        readPasteboardPaths().then((entries) => {
-          if (entries?.length) {
-            const labels = entries.map((en) => addPath(attachmentKind(en.path, en.isDir), en.path));
-            insertLabels(labels, pos);
-          } else {
-            uploadFiles(files, pos);
-          }
-        });
-        return;
-      }
-      uploadFiles(files, pos);
-      return;
-    }
+    if (intake.handlePaste(e)) return; // attachment-suffix or file paste
     e.preventDefault();
+    const plain = e.clipboardData.getData("text/plain");
+    // Long paste → collapse to a "[Pasted text #N +M lines]" pill; the full
+    // text rides in pastesRef and is spliced back at send. Click/Backspace on
+    // the pill expand/delete it. Short pastes insert verbatim as before.
+    if (shouldCollapsePaste(plain)) {
+      const ph = makePasteLabel(++pasteSeqRef.current, pasteLineCount(plain));
+      pastesRef.current.set(ph, plain);
+      const el = editorRef.current;
+      const pos = el ? getCursorOffset(el) : text.length;
+      setTextAndSync(text.slice(0, pos) + ph + " " + text.slice(pos), pos + ph.length + 1);
+      return;
+    }
     document.execCommand("insertText", false, plain);
   };
-
-  const addAttachments = (atts) => {
-    const labels = atts.map((a) => addPath(a.type, a.path));
-    insertLabels(labels, cursorPos);
-    editorRef.current?.focus();
-  };
-
-  // Finder drags intercepted by the native layer (EosWebView) — paths arrive
-  // via the bridge globals; subscribe once, latest handler through a ref.
-  const [dropActive, setDropActive] = useState(false);
-  const nativeDropRef = useRef(() => {});
-  nativeDropRef.current = (entries) => {
-    if (!entries?.length) return;
-    addAttachments(entries.map((en) => ({ type: attachmentKind(en.path, en.isDir), path: en.path })));
-  };
-  useEffect(() => {
-    const offDrop = onNativeDrop((entries) => nativeDropRef.current(entries));
-    const offDrag = onDragState(setDropActive);
-    return () => { offDrop(); offDrag(); };
-  }, []);
 
   const findCommandAt = (pos) => {
     for (let i = 0; i < text.length; i++) {
@@ -383,6 +324,7 @@ export function Composer({ live }) {
       const before = text.slice(0, start);
       const newText = before + cmd.template.content + text.slice(end);
       setMenuIndex(0);
+      for (const att of cmd.template.attachments ?? []) addResolved(att);
       applyTemplateText(newText, before.length);
       return;
     }
@@ -400,8 +342,30 @@ export function Composer({ live }) {
     editorRef.current?.focus();
   };
 
+  // `@`-mention navigation: the typed @fragment IS the browse state, so descend
+  // and ascend just rewrite it and let useCompletion re-list (lib/mentionQuery).
+  const rewriteAtFragment = (fragment) => {
+    if (!atCtx) return;
+    const before = text.slice(0, atCtx.start);
+    const after = text.slice(cursorPos);
+    const inserted = "@" + fragment;
+    setTextAndSync(before + inserted + after, before.length + inserted.length);
+    setFileMenuIndex(0);
+    editorRef.current?.focus();
+  };
+  const descendInto = (entry) => rewriteAtFragment(entry.relativePath + "/");
+  const jumpToCrumb = (targetDir) => rewriteAtFragment(targetDir ? targetDir + "/" : "");
+  const ascendDir = () => {
+    if (atIntent?.mode !== "browse") return false;
+    const parent = parentScope(atIntent.dir);
+    if (parent === null) return false;
+    rewriteAtFragment(parent ? parent + "/" : "");
+    return true;
+  };
+
   const selectFile = (entry) => {
     if (!atCtx) return;
+    if (entry.type === "parent") { ascendDir(); return; }
     const before = text.slice(0, atCtx.start);
     const after = text.slice(cursorPos);
     const newDisplay = entry.type === "agent" ? entry.name : entry.relativePath;
@@ -445,9 +409,15 @@ export function Composer({ live }) {
     for (const [display, absPath] of insertedPathsRef.current) {
       agentText = agentText.replaceAll("@" + display, absPath);
     }
+    // Expand collapsed pastes for the agent; displayText keeps the pill so the
+    // chat bubble stays compact (same split as @paths: short shown, full sent).
+    for (const [ph, full] of pastesRef.current) {
+      agentText = agentText.replaceAll(ph, full);
+    }
     const msgLabels = attachmentItems.map((it) => it.label);
     setTextAndSync("", 0, "reset"); // sent → undo must not reach back into it
     insertedPathsRef.current.clear();
+    pastesRef.current.clear();
     clearAttachments();
     const suffix = await resolveForSend(msgLabels);
     return { displayText: t + suffix, agentText: agentText + suffix };
@@ -628,6 +598,7 @@ export function Composer({ live }) {
     }
 
     if (showFileMenu) {
+      const entry = atResults[fileMenuIndex];
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setFileMenuIndex((i) => (i + 1) % atResults.length);
@@ -638,12 +609,22 @@ export function Composer({ live }) {
         setFileMenuIndex((i) => (i - 1 + atResults.length) % atResults.length);
         return;
       }
-      if (e.key === "Enter" || e.key === "Tab") {
+      // Tab / → step INTO a folder (or back up via the `..` row); on a file or
+      // agent, Tab still commits. Enter always commits the highlighted entry —
+      // a folder is thus picked with Enter, descended into with Tab/→.
+      if (e.key === "Tab" || e.key === "ArrowRight") {
+        if (entry?.type === "parent") { e.preventDefault(); ascendDir(); return; }
+        if (entry?.type === "directory") { e.preventDefault(); descendInto(entry); return; }
+        if (e.key === "Tab") { e.preventDefault(); if (entry) selectFile(entry); return; }
+        // → on a file/agent: fall through to normal cursor movement.
+      } else if (e.key === "ArrowLeft") {
+        if (ascendDir()) { e.preventDefault(); return; }
+        // at the root / in search: fall through to normal cursor movement.
+      } else if (e.key === "Enter") {
         e.preventDefault();
-        if (atResults[fileMenuIndex]) selectFile(atResults[fileMenuIndex]);
+        if (entry) selectFile(entry);
         return;
-      }
-      if (e.key === "Escape") {
+      } else if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
         applyEscapeMenu();
@@ -709,6 +690,7 @@ export function Composer({ live }) {
         history.push({ text, mode: composerMode(ui.composer) });
         setTextAndSync("", 0);
         insertedPathsRef.current.clear();
+        pastesRef.current.clear();
       } else if (text !== "") {
         setEscArmed(true);
       }
@@ -724,19 +706,21 @@ export function Composer({ live }) {
       }
       const el = editorRef.current;
       const pos = el ? getCursorOffset(el) : 0;
-      const attHit = findLabelAt(text, pos, attachmentItems.map((it) => it.label));
-      if (attHit) {
-        e.preventDefault();
-        const next = text.slice(0, attHit.start) + text.slice(attHit.end);
-        setTextAndSync(next, attHit.start);
-        return;
-      }
+      if (attachmentBackspace(pos)) { e.preventDefault(); return; }
       const pathHit = findPathAt(pos);
       if (pathHit) {
         e.preventDefault();
         insertedPathsRef.current.delete(pathHit.display);
         const next = text.slice(0, pathHit.start) + text.slice(pathHit.end);
         setTextAndSync(next, pathHit.start);
+        return;
+      }
+      const pasteHit = findLabelAt(text, pos, [...pastesRef.current.keys()]);
+      if (pasteHit) {
+        e.preventDefault();
+        pastesRef.current.delete(text.slice(pasteHit.start, pasteHit.end));
+        const next = text.slice(0, pasteHit.start) + text.slice(pasteHit.end);
+        setTextAndSync(next, pasteHit.start);
         return;
       }
       const cmd = findCommandAt(pos);
@@ -770,30 +754,61 @@ export function Composer({ live }) {
   // Pill info popover annotates the text — any edit dismisses it. [text] only:
   // adding openPopover to the deps would close the popover the moment it opens.
   useEffect(() => {
-    if (ui.openPopover === "slashinfo") ui.closeAllPops();
+    if (ui.openPopover === "slashinfo" || ui.openPopover === "pasteinfo") ui.closeAllPops();
   }, [text]);
 
   // Pills are innerHTML spans, not React children — delegate clicks and
   // hover-intent (150ms enter delay so a pointer pass doesn't flash the card).
   const pillHoverTimer = useRef(null);
-  useEffect(() => () => clearTimeout(pillHoverTimer.current), []);
+  // Close-delay for the paste preview so the pointer can cross the gap onto the
+  // (hoverable) card without it vanishing — the card's mouse-enter cancels it.
+  const pasteCloseTimer = useRef(null);
+  useEffect(() => () => { clearTimeout(pillHoverTimer.current); clearTimeout(pasteCloseTimer.current); }, []);
 
   // Worktree-fleet summary reported up by ComposerDiffRow — drives the footer
   // mirror shown while the ambient hub is demoted by a blocking banner.
   const [wtStatus, setWtStatus] = useState(null);
 
+  // Anchor a composer popover above a pill: x = pill offset within .c-row2-wrap.
+  const openPopAtPill = (pill, id, data, width) => {
+    const wrap = pill.closest(".c-row2-wrap");
+    if (!wrap) return;
+    const x = pill.getBoundingClientRect().left - wrap.getBoundingClientRect().left;
+    ui.openPop(id, { x: Math.max(0, Math.min(x, wrap.clientWidth - width)), y: 0, data });
+  };
+
   const openPillInfo = (pill) => {
     if (!pill.isConnected) return;
     const cmd = slashMap.get(pill.dataset.cmd);
-    const wrap = pill.closest(".c-row2-wrap");
-    if (!cmd || !wrap) return;
-    const x = pill.getBoundingClientRect().left - wrap.getBoundingClientRect().left;
-    ui.openPop("slashinfo", { x: Math.max(0, Math.min(x, wrap.clientWidth - 300)), y: 0, data: { cmd } });
+    if (!cmd) return;
+    openPopAtPill(pill, "slashinfo", { cmd }, 300);
+  };
+
+  const openPasteInfo = (pill) => {
+    if (!pill.isConnected) return;
+    const full = pastesRef.current.get(pill.dataset.paste);
+    if (full == null) return;
+    openPopAtPill(pill, "pasteinfo", { preview: pastePreview(full), lines: pasteLineCount(full) }, 360);
   };
 
   const pillAt = (e) => {
     const pill = e.target.closest?.("[data-cmd]");
     return pill && editorRef.current?.contains(pill) ? pill : null;
+  };
+
+  const pastePillAt = (e) => {
+    const pill = e.target.closest?.("[data-paste]");
+    return pill && editorRef.current?.contains(pill) ? pill : null;
+  };
+
+  // The paste preview is hoverable; leaving the pill only ARMS a close that the
+  // card's own mouse-enter cancels (so the pointer can cross the gap pill→card).
+  const keepPasteInfo = () => clearTimeout(pasteCloseTimer.current);
+  const closePasteInfoSoon = () => {
+    clearTimeout(pasteCloseTimer.current);
+    pasteCloseTimer.current = setTimeout(() => {
+      if (ui.openPopover === "pasteinfo") ui.closeAllPops();
+    }, 220);
   };
 
   const onEditorClick = (e) => {
@@ -804,6 +819,13 @@ export function Composer({ live }) {
   };
 
   const onEditorPointerOver = (e) => {
+    const pPill = pastePillAt(e);
+    if (pPill) {
+      keepPasteInfo(); // moving card→pill must not let the armed close fire
+      clearTimeout(pillHoverTimer.current);
+      pillHoverTimer.current = setTimeout(() => openPasteInfo(pPill), 150);
+      return;
+    }
     const pill = pillAt(e);
     if (!pill) return;
     clearTimeout(pillHoverTimer.current);
@@ -811,9 +833,15 @@ export function Composer({ live }) {
   };
 
   const onEditorPointerOut = (e) => {
-    if (!pillAt(e)) return;
-    clearTimeout(pillHoverTimer.current);
-    if (ui.openPopover === "slashinfo") ui.closeAllPops();
+    if (pastePillAt(e)) {
+      clearTimeout(pillHoverTimer.current); // cancel a not-yet-shown preview
+      closePasteInfoSoon();
+      return;
+    }
+    if (pillAt(e)) {
+      clearTimeout(pillHoverTimer.current);
+      if (ui.openPopover === "slashinfo") ui.closeAllPops();
+    }
   };
 
   const agentBusy = selected && (selected.state === "SPAWNING" || selected.state === "WORKING");
@@ -887,10 +915,14 @@ export function Composer({ live }) {
               entries={atResults}
               selectedIndex={fileMenuIndex}
               onSelect={selectFile}
-              query={atCtx?.query ?? ""}
+              onDescend={descendInto}
+              onCrumb={jumpToCrumb}
+              query={atIntent?.filter ?? atCtx?.query ?? ""}
+              dir={atIntent?.mode === "browse" ? atIntent.dir : ""}
             />
           )}
           <SlashInfoPopover />
+          <PasteInfoPopover onMouseEnter={keepPasteInfo} onMouseLeave={closePasteInfoSoon} />
           <div className={[
             "c-row2",
             ui.composer.termMode ? "term-mode" : ui.composer.gitMode ? "git-mode" : "",

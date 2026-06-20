@@ -16,8 +16,9 @@ const DEFAULT_COMPOSER = {
   // `!` on an empty input flips the composer into terminal mode: Enter runs
   // the text as a daemon-side bash command instead of messaging the agent.
   termMode: false,
-  // {content, ts} queued by the template picker / ⌘K palette; the Composer
-  // consumes it (inserts text + selects the first {{placeholder}}) and clears.
+  // {content, attachments, ts} queued by the template picker / ⌘K palette; the
+  // Composer consumes it (re-seats attachment chips, inserts text + selects the
+  // first {{placeholder}}) and clears.
   pendingTemplate: null,
   // {content, ts} queued by the rewind panel — the restored prompt; the
   // Composer consumes it (replaces the input, cursor at end) and clears.

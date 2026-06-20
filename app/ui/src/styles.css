@@ -3278,6 +3278,19 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   padding: 1px 4px;
 }
 .composer-editor .att-hl-uploading { opacity: 0.55; }
+/* collapsed-paste pill — same accent surface as .cmd-pill; one block so the
+   composer and the sent bubble match. Hover in the composer reveals a preview
+   card; the pill itself is not clickable (Backspace deletes it). */
+.composer-editor .paste-pill,
+.msg-user .paste-pill {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border-radius: 5px;
+  padding: 1px 5px;
+}
+.composer-editor .paste-pill:hover {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
 .composer-editor .tpl-hl {
   color: var(--accent);
   background: var(--accent-soft);
@@ -3323,8 +3336,28 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .file-item:hover, .file-item.active { background: rgba(var(--tint), 0.06); color: var(--fg); }
 .file-icon { display: flex; align-items: center; opacity: 0.5; flex-shrink: 0; }
 .file-item.active .file-icon { opacity: 0.8; }
-.file-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.file-path { margin-left: auto; font-size: var(--text-sm); color: var(--fg-faint); opacity: 0.5; white-space: nowrap; flex-shrink: 0; padding-left: 12px; }
+.file-name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.file-name-dim { color: var(--fg-faint); }
+.file-path { font-size: var(--text-sm); color: var(--fg-faint); opacity: 0.5; white-space: nowrap; flex-shrink: 0; padding-left: 12px; }
+.file-chevron { display: flex; align-items: center; flex-shrink: 0; padding-left: 6px; opacity: 0.35; cursor: pointer; }
+.file-chevron:hover { opacity: 0.9; color: var(--fg); }
+.file-item.active .file-chevron { opacity: 0.7; }
+/* @-mention breadcrumb: current browse directory, each segment clickable. */
+.file-crumbs {
+  display: flex; align-items: center; gap: 1px;
+  padding: 6px 10px 5px; margin: 2px 2px 0;
+  font-size: var(--text-sm); color: var(--fg-faint);
+  border-bottom: 1px solid rgba(var(--rim), 0.1);
+  overflow: hidden;
+}
+.file-crumb-wrap { display: flex; align-items: center; gap: 1px; min-width: 0; }
+.file-crumb {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 5px; border-radius: 4px;
+  color: var(--fg-dim); cursor: pointer; white-space: nowrap;
+}
+.file-crumb:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
+.file-crumb-sep { display: flex; align-items: center; opacity: 0.4; flex-shrink: 0; }
 .composer-editor[data-hint]::after {
   content: attr(data-hint);
   color: var(--fg-faint);
@@ -4675,6 +4708,31 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   color: var(--fg-faint);
   margin-top: 4px;
 }
+/* collapsed-paste hover preview — same plane/surface as .slash-info */
+.paste-info {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  z-index: 300;
+  min-width: 240px;
+  max-width: 460px;
+  padding: 8px 10px;
+  color: var(--fg);
+}
+.paste-info-head {
+  color: var(--fg-dim);
+  font-size: var(--text-xs);
+  margin-bottom: 6px;
+}
+.paste-info-body {
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  white-space: pre;
+  color: var(--fg-dim);
+}
 /* bubble pill hover card — CSS-only reveal anchored above the pill */
 .cmd-pill-wrap { position: relative; }
 .slash-hovercard {
@@ -5932,10 +5990,53 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 
 /* template editor modal extras (reuses spawn-modal shell) */
-.spawn-field textarea.tpl-editor-content {
+/* Content surface: an input-styled box wrapping the reused composer-editor
+   (att-hl/tpl-hl highlights come from the .composer-editor rules) + chips. */
+.tpl-content-wrap {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(var(--tint), 0.04);
+  border: 1px solid rgba(var(--tint), 0.08);
+  border-radius: 6px;
+  padding: 8px 10px;
+  transition: border-color 120ms, background 120ms;
+}
+.tpl-content-wrap:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+  background: rgba(var(--tint), 0.05);
+}
+.tpl-content-wrap.drop-active {
+  border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+.composer-editor.tpl-content-editor {
   font-family: var(--font-mono);
   font-size: var(--text-sm);
-  min-height: 140px;
+  min-height: 120px;
+  max-height: 320px;
+  padding-right: 26px; /* clear the attach button */
+}
+.tpl-attach-btn {
+  position: absolute;
+  right: 7px;
+  bottom: 7px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(var(--tint), 0.08);
+  color: var(--fg-dim);
+  cursor: pointer;
+  transition: color 120ms, background 120ms;
+}
+.tpl-attach-btn:hover {
+  color: var(--fg);
+  background: rgba(var(--tint), 0.16);
 }
 .tpl-editor-error {
   font-size: var(--text-sm);

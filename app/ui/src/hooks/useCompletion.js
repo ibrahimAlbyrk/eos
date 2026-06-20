@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState, useMemo } from "react";
 import { api } from "../api/client.js";
 import { triggerContext } from "../lib/triggerContext.js";
+import { resolveMentionQuery } from "../lib/mentionQuery.js";
 import { nameOf } from "../lib/agentName.js";
 
 export function useCompletion({ text, cursorPos, commands, cwd, selected, workers, insertedPathsRef }) {
-  const [fileResults, setFileResults] = useState([]);
-
   const slashCtx = useMemo(() => triggerContext(text, cursorPos, "/"), [text, cursorPos]);
 
   const atCtx = useMemo(() => triggerContext(text, cursorPos, "@"), [text, cursorPos]);
@@ -18,32 +17,67 @@ export function useCompletion({ text, cursorPos, commands, cwd, selected, worker
     );
   }, [commands, slashCtx]);
 
-  const rootCacheRef = useRef({ cwd: null, entries: [] });
+  // Navigation intent from the real-case fragment after `@` (triggerContext
+  // lowercases its query, but paths must keep their case for the filesystem).
+  const atIntent = useMemo(() => {
+    if (!atCtx) return null;
+    return resolveMentionQuery(text.slice(atCtx.start + 1, cursorPos));
+  }, [atCtx, text, cursorPos]);
+
+  // Browse mode: one listing per directory, cached by (cwd, dir) and filtered
+  // in memory — so typing within a directory never refetches, and stepping
+  // back to a visited directory is instant.
+  const dirCacheRef = useRef(new Map());
+  const [browseEntries, setBrowseEntries] = useState([]);
+  const [loadedDir, setLoadedDir] = useState(null); // { cwd, dir } now in browseEntries
+  const wantDir = atIntent?.mode === "browse" ? atIntent.dir : null;
+  useEffect(() => {
+    if (wantDir === null || !cwd) return;
+    const key = cwd + "\0" + wantDir;
+    const cached = dirCacheRef.current.get(key);
+    if (cached) { setBrowseEntries(cached); setLoadedDir({ cwd, dir: wantDir }); return; }
+    let cancelled = false;
+    api.listFiles(cwd, "", { dir: wantDir }).then((r) => {
+      if (cancelled) return;
+      const entries = r.entries ?? [];
+      dirCacheRef.current.set(key, entries);
+      setBrowseEntries(entries);
+      setLoadedDir({ cwd, dir: wantDir });
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [wantDir, cwd]);
+
+  // Pre-warm the root listing so the bare `@` menu opens with no flash.
   useEffect(() => {
     if (!cwd) return;
     let cancelled = false;
     api.listFiles(cwd, "").then((r) => {
-      if (!cancelled) rootCacheRef.current = { cwd, entries: r.entries ?? [] };
+      if (!cancelled) dirCacheRef.current.set(cwd + "\0", r.entries ?? []);
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [cwd]);
 
-  const fileQuery = atCtx ? atCtx.query : null;
+  // Search mode: repo-wide fuzzy match, debounced.
+  const [searchEntries, setSearchEntries] = useState([]);
+  const searchTerm = atIntent?.mode === "search" ? atIntent.filter : null;
   useEffect(() => {
-    if (fileQuery === null || !cwd) { setFileResults([]); return; }
-    if (fileQuery === "" && rootCacheRef.current.cwd === cwd) {
-      setFileResults(rootCacheRef.current.entries);
-      return;
-    }
+    if (searchTerm === null || !cwd) { setSearchEntries([]); return; }
     let cancelled = false;
-    const delay = fileQuery === "" ? 0 : 150;
     const timer = setTimeout(() => {
-      api.listFiles(cwd, fileQuery).then((r) => {
-        if (!cancelled) setFileResults(r.entries ?? []);
+      api.listFiles(cwd, searchTerm).then((r) => {
+        if (!cancelled) setSearchEntries(r.entries ?? []);
       }).catch(() => {});
-    }, delay);
+    }, 150);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [fileQuery, cwd]);
+  }, [searchTerm, cwd]);
+
+  const fileResults = useMemo(() => {
+    if (!atIntent) return [];
+    if (atIntent.mode === "search") return searchEntries;
+    if (!loadedDir || loadedDir.cwd !== cwd || loadedDir.dir !== atIntent.dir) return [];
+    const f = atIntent.filter.toLowerCase();
+    return f ? browseEntries.filter((e) => e.name.toLowerCase().includes(f)) : browseEntries;
+  }, [atIntent, searchEntries, browseEntries, loadedDir, cwd]);
 
   const childAgents = useMemo(() => {
     if (!selected || selected.parent_id) return [];
@@ -53,13 +87,17 @@ export function useCompletion({ text, cursorPos, commands, cwd, selected, worker
   }, [selected, workers]);
 
   const atResults = useMemo(() => {
-    if (!atCtx) return [];
-    const q = atCtx.query;
-    const agents = q === ""
-      ? childAgents
-      : childAgents.filter((a) => a.name.toLowerCase().includes(q));
-    return [...agents, ...fileResults];
-  }, [atCtx, childAgents, fileResults]);
+    if (!atIntent) return [];
+    // Agents live at the top level only — hide them while browsing a subdir.
+    const agents = atIntent.dir
+      ? []
+      : atIntent.filter
+        ? childAgents.filter((a) => a.name.toLowerCase().includes(atIntent.filter.toLowerCase()))
+        : childAgents;
+    // `..` row to step back up while inside a directory.
+    const up = atIntent.mode === "browse" && atIntent.dir ? [{ type: "parent", name: ".." }] : [];
+    return [...up, ...agents, ...fileResults];
+  }, [atIntent, childAgents, fileResults]);
 
   const activeMenu = useMemo(() => {
     if (slashCtx && atCtx) {
@@ -84,6 +122,7 @@ export function useCompletion({ text, cursorPos, commands, cwd, selected, worker
   return {
     slashCtx,
     atCtx,
+    atIntent,
     filtered,
     atResults,
     activeMenu,

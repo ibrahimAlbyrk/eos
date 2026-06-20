@@ -13,7 +13,7 @@ export const templatesProvider = {
       keywords: ["template", "prompt"],
       onSelect: (ctx) => {
         ctx.setActiveView("code");
-        ctx.updateComposer({ pendingTemplate: { content: t.content, ts: Date.now() } });
+        ctx.updateComposer({ pendingTemplate: { content: t.content, attachments: t.attachments, ts: Date.now() } });
       },
     }));
   },

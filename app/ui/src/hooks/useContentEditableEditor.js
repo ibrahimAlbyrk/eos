@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useCallback } from "react";
 import { findPlaceholders } from "../lib/placeholders.js";
 import { findSlashTokens } from "../lib/slashTokens.js";
+import { findLabelRegions } from "../lib/attachmentTokens.js";
 import { listMarkers } from "../lib/markdownBlocks.js";
 import { initUndo, recordCoalescing, recordDiscrete, settle, undo as undoStack, redo as redoStack, bound } from "../lib/undoStack.js";
 
@@ -155,6 +156,18 @@ function slashRegions(cmdMap) {
   }));
 }
 
+// Collapsed-paste pills. The placeholder is literal text in the model; the
+// data-paste attr carries it back so the composer's click/hover delegation can
+// look the full text up in pastesRef (expand-to-edit, hover preview).
+function pasteRegions(pastesRef) {
+  return (text) => findLabelRegions(text, [...pastesRef.current.keys()]).map(({ start, end }) => ({
+    start,
+    end,
+    cls: "paste-pill",
+    attrs: { "data-paste": text.slice(start, end), "data-popover-trigger": "pasteinfo" },
+  }));
+}
+
 function placeholderRegions(text) {
   return findPlaceholders(text).map(({ start, end }) => ({ start, end, cls: "tpl-hl" }));
 }
@@ -209,7 +222,20 @@ function colorize(text, scanners) {
   return html;
 }
 
-export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, attachItems = [], reconcileAttachments) {
+// Native ⌘Z/⌘⇧Z are forwarded through window globals. More than one editor can
+// be mounted (composer + an open template editor); this stack routes the globals
+// to the topmost (most recently mounted) so closing the modal restores the
+// composer's undo. One shared subscription, set up lazily, never torn down.
+const undoTargets = [];
+let undoWired = false;
+function ensureUndoDispatch() {
+  if (undoWired) return;
+  undoWired = true;
+  window.__eosUndo = () => undoTargets[undoTargets.length - 1]?.undo();
+  window.__eosRedo = () => undoTargets[undoTargets.length - 1]?.redo();
+}
+
+export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, attachItems = [], reconcileAttachments, pastesRef) {
   const [text, setText] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
   const editorRef = useRef(null);
@@ -228,7 +254,8 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
       token: it.label,
       cls: it.status === "uploading" ? "att-hl att-hl-uploading" : "att-hl",
     }))),
-  ], [cmdMap, insertedPathsRef, attachItems]);
+    ...(pastesRef ? [pasteRegions(pastesRef)] : []),
+  ], [cmdMap, insertedPathsRef, attachItems, pastesRef]);
 
   const applyColoring = useCallback(() => {
     const el = editorRef.current;
@@ -264,7 +291,8 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
     text: newText,
     cursorPos: newCursor ?? newText.length,
     insertedPaths: insertedPathsRef?.current ? [...insertedPathsRef.current] : [],
-  }), [insertedPathsRef]);
+    pastes: pastesRef?.current ? [...pastesRef.current] : [],
+  }), [insertedPathsRef, pastesRef]);
 
   // Writes text → state + DOM (re-colored, cursor restored) WITHOUT touching the
   // undo stack. setTextAndSync layers recording on top; undo/redo reuse it bare
@@ -295,6 +323,7 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
 
   const applySnapshot = (s) => {
     if (insertedPathsRef) insertedPathsRef.current = new Map(s.insertedPaths ?? []);
+    if (pastesRef) pastesRef.current = new Map(s.pastes ?? []);
     reconcileAttachments?.(s.text); // re-seat/drop chips to match the restored text
     writeEditor(s.text, s.cursorPos);
   };
@@ -315,15 +344,21 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
 
   // The macOS Edit menu owns ⌘Z/⌘⇧Z (app/main.swift) — a menu key-equivalent is
   // consumed before the WebView's keydown, so the native side forwards here.
-  // Mirrors the window.__eosNativeDrop bridge; latest handler via a ref.
+  // Mirrors the window.__eosNativeDrop bridge; latest handler via a ref. When a
+  // second editor mounts (template editor over the composer) it takes the globals
+  // via the stack and hands them back on unmount — never deletes them.
   const undoFnRef = useRef(undo);
   const redoFnRef = useRef(redo);
   undoFnRef.current = undo;
   redoFnRef.current = redo;
   useEffect(() => {
-    window.__eosUndo = () => undoFnRef.current();
-    window.__eosRedo = () => redoFnRef.current();
-    return () => { delete window.__eosUndo; delete window.__eosRedo; };
+    ensureUndoDispatch();
+    const entry = { undo: () => undoFnRef.current(), redo: () => redoFnRef.current() };
+    undoTargets.push(entry);
+    return () => {
+      const i = undoTargets.indexOf(entry);
+      if (i >= 0) undoTargets.splice(i, 1);
+    };
   }, []);
 
   const handleInput = () => {

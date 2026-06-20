@@ -53,7 +53,7 @@ export function TemplatePickerPopover() {
 
   const use = (t) => {
     ui.closeAllPops();
-    ui.updateComposer({ pendingTemplate: { content: t.content, ts: Date.now() } });
+    ui.updateComposer({ pendingTemplate: { content: t.content, attachments: t.attachments, ts: Date.now() } });
   };
 
   const startEdit = (e, t) => {
