@@ -58,6 +58,9 @@ export const WorkerEventTypeSchema = z.enum([
   "state_reject",
   "worker_report",
   "orchestrator_message",
+  // A dynamic-loop automated re-trigger delivered into the looped worker's chat —
+  // rendered as a "Dynamic loop" system message, not a user bubble.
+  "loop_continuation",
   "question_pending",
   "question_answered",
   // Peer consultation: peer_consult marks the asker's timeline when it consults

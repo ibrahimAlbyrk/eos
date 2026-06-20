@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { WorkerStateSchema } from "./events.ts";
 import { BackgroundActivityEntrySchema } from "./background-activity.ts";
+import { LoopStatusSchema } from "./loop.ts";
 
 export const WorkerRowSchema = z.object({
   id: z.string(),
@@ -45,6 +46,17 @@ export const WorkerRowSchema = z.object({
   // (they die with the worker process, so persisting would resurrect dead
   // entries on restart). Absent on rows that weren't HTTP-enriched.
   backgroundActivity: z.array(BackgroundActivityEntrySchema).optional(),
+  // The worker's active dynamic loop, if any. NOT a DB column — route-enriched
+  // from the loops repo (findActiveByWorker) on the worker list/detail reads, so
+  // the dashboard can show "looping (attempt N/M)". Surfaced regardless of worker
+  // state (a loop sits IDLE between iterations). Absent when no active loop / on
+  // rows that weren't HTTP-enriched.
+  loop: z.object({
+    status: LoopStatusSchema,
+    attempt: z.number(),
+    maxAttempts: z.number().nullable(),
+    lastReason: z.string().nullable(),
+  }).optional(),
   is_orchestrator: z.number().nullable().optional(),
   tool_calls: z.number().nullable().optional(),
   permission_mode: z.string().nullable().optional(),

@@ -10,6 +10,7 @@ import { WorkerRowSchema, PendingPermissionRowSchema, PermissionModeSchema } fro
 import { DecisionSchema, ExternalDecisionSchema } from "./policy.ts";
 import { SessionFactsSchema } from "./prompt.ts";
 import { WorkerDefinitionSchema, WorkerDefinitionSourceSchema } from "./worker-definition.ts";
+import { SpawnLoopSchema } from "./loop.ts";
 
 // ---- POST /workers ---------------------------------------------------------
 
@@ -53,6 +54,9 @@ export const SpawnWorkerRequestSchema = z
     // is chosen separately (the composer's model picker). Absent → inherit from
     // parent, else role default. Feeds the resolver's explicit-kind branch.
     backendKind: z.string().optional(),
+    // Arm-at-spawn: attach a dynamic loop to the new worker before its first turn
+    // (eliminates the spawn-then-attach dormancy race + holds the first report).
+    loop: SpawnLoopSchema.optional(),
   })
   .refine((b) => !!(b.cwd || b.worktreeFrom || b.workspaceOf), {
     message: "cwd, worktreeFrom or workspaceOf required",
@@ -132,6 +136,9 @@ export const MessageRecordSchema = z.union([
   // PeerRequestPump. displayText is the bare question; the chat labels it
   // "Peer request from <fromName>".
   z.object({ as: z.literal("peer_request"), fromWorker: z.string(), fromName: z.string().optional(), displayText: z.string().optional(), sentAt: z.number().optional() }),
+  // A dynamic-loop automated re-trigger delivered into the looped worker's chat;
+  // the chat renders it as a "Dynamic loop" system message (not a user bubble).
+  z.object({ as: z.literal("loop_continuation"), displayText: z.string().optional(), sentAt: z.number().optional() }),
 ]);
 export type MessageRecord = z.infer<typeof MessageRecordSchema>;
 
@@ -1124,6 +1131,9 @@ export type ReportRequest = z.infer<typeof ReportRequestSchema>;
 export const ReportResponseSchema = z.object({
   ok: z.boolean(),
   delivered: z.boolean().optional(),
+  // R7: the report was held by an active loop's goal gate (released later when
+  // the goal-check passes, or discarded on re-trigger) — not forwarded now.
+  held: z.boolean().optional(),
 });
 export type ReportResponse = z.infer<typeof ReportResponseSchema>;
 
@@ -1595,6 +1605,8 @@ export const ROUTES = {
   orchestrators: "/orchestrators",
   orchestratorMessage: (id: string): string => `/orchestrators/${id}/message`,
   orchestratorIntegrate: (id: string): string => `/orchestrators/${id}/integrate`,
+  orchestratorLoop: (id: string): string => `/orchestrators/${id}/loop`,
+  orchestratorLoopStop: (id: string): string => `/orchestrators/${id}/loop/stop`,
   policyDecide: "/policy/decide",
   policyRule: "/api/policy/rule",
   pending: "/pending",
