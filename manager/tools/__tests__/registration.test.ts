@@ -14,6 +14,7 @@ import { messageWorkerDef } from "../defs/message_worker.ts";
 import { spawnWorkerDef } from "../defs/spawn_worker.ts";
 import { sendMessageToParentDef } from "../defs/send_message_to_parent.ts";
 import { askPeerDef } from "../defs/ask_peer.ts";
+import { dynamicLoopDef } from "../defs/dynamic_loop.ts";
 
 const snapshot = JSON.parse(readFileSync(join(import.meta.dirname, "registration.snapshot.json"), "utf8"));
 
@@ -24,7 +25,7 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
     assert.deepEqual(Object.keys(fp), [
       "spawn_worker", "list_active_workers", "get_worker", "kill_worker",
       "message_worker", "list_pending_permissions", "notify_user", "ask_user",
-      "list_available_workers", "create_worker", "integrate_workers",
+      "list_available_workers", "create_worker", "integrate_workers", "dynamic_loop",
     ]);
   });
 
@@ -96,5 +97,19 @@ describe("tool handlers issue the expected daemon calls", () => {
     const res = await askPeerDef.handler(ctx, { peerId: "p-2", question: "q" });
     assert.deepEqual(calls, [{ method: "POST", path: "/workers/p-2/peer-request", body: { fromWorker: "self-1", question: "q" } }]);
     assert.equal(res, "busy");
+  });
+
+  it("dynamic_loop attach POSTs the request to /orchestrators/:self/loop", async () => {
+    const { ctx, calls } = recording();
+    const args = { op: "attach", goal: { summary: "g", criteria: [{ id: "c1", text: "t" }] } };
+    await dynamicLoopDef.handler(ctx, args);
+    assert.deepEqual(calls, [{ method: "POST", path: "/orchestrators/self-1/loop", body: args }]);
+  });
+
+  it("dynamic_loop stop POSTs the request to /orchestrators/:self/loop/stop", async () => {
+    const { ctx, calls } = recording();
+    const args = { op: "stop", loopId: "l-9" };
+    await dynamicLoopDef.handler(ctx, args);
+    assert.deepEqual(calls, [{ method: "POST", path: "/orchestrators/self-1/loop/stop", body: args }]);
   });
 });

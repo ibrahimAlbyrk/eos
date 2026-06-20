@@ -14,6 +14,7 @@ import { respondToPeerDef } from "./defs/respond_to_peer.ts";
 import { listAvailableWorkersDef } from "./defs/list_available_workers.ts";
 import { createWorkerDef } from "./defs/create_worker.ts";
 import { integrateWorkersDef } from "./defs/integrate_workers.ts";
+import { dynamicLoopDef } from "./defs/dynamic_loop.ts";
 
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
@@ -29,6 +30,7 @@ export const orchestratorDefs: ToolDefinition[] = [
   listAvailableWorkersDef,
   createWorkerDef,
   integrateWorkersDef,
+  dynamicLoopDef,
 ];
 
 // Always registered on a worker.

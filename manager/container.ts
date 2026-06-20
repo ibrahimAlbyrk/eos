@@ -41,6 +41,13 @@ import { SqliteEventRepo } from "../infra/src/persistence/SqliteEventRepo.ts";
 import { SqliteMessageQueueRepo } from "../infra/src/persistence/SqliteMessageQueueRepo.ts";
 import { SqlitePendingRepo } from "../infra/src/persistence/SqlitePendingRepo.ts";
 import { SqliteWorktreeRemovalQueue } from "../infra/src/persistence/SqliteWorktreeRemovalQueue.ts";
+import { SqliteLoopStateRepo } from "../infra/src/persistence/SqliteLoopStateRepo.ts";
+import { DeterministicCommandStrategy } from "../infra/src/goalcheck/DeterministicCommandStrategy.ts";
+import { GitEvidenceCollector } from "../infra/src/goalcheck/GitEvidenceCollector.ts";
+import { LlmJudgeStrategy } from "../core/src/services/LlmJudgeStrategy.ts";
+import { HybridStrategy } from "../core/src/services/HybridStrategy.ts";
+import { makeStrategyFor } from "../core/src/services/goal-strategy-registry.ts";
+import { AgentBackendJudgeClient } from "./services/AgentBackendJudgeClient.ts";
 import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
 import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
 import { createDarwinFsHelpers, type FsHelpers } from "../infra/src/filesystem/DarwinFsHelpers.ts";
@@ -148,6 +155,9 @@ export function buildContainer() {
   const pending = new SqlitePendingRepo(db);
   const messageQueue = new SqliteMessageQueueRepo(db);
   const worktreeRemovals = new SqliteWorktreeRemovalQueue(db);
+  const loops = new SqliteLoopStateRepo(db);
+  // Goal-check strategies (command/judge/hybrid) are constructed later, after the
+  // appendless judge backend + git port exist (see strategyFor below).
   // Dispatched ledger rows only feed the idempotency window + forensics —
   // a day is plenty; pending rows are never pruned.
   messageQueue.prune(systemClock.now() - 24 * 60 * 60 * 1000);
@@ -715,6 +725,42 @@ export function buildContainer() {
     log,
   });
 
+  // Appendless judge backend — a claude-sdk session with NO assembleAppendPrompt
+  // and EMPTY tool defs, so the LLM judge sees ONLY the rubric (no Eos DPI
+  // protocol, no injected memory, no Eos tools). A DISTINCT instance from
+  // claudeSdkBackend above, which bakes the worker protocol in.
+  const judgeBackend = createClaudeSdkBackend({
+    authResolver,
+    policy: sdkPolicy,
+    toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+    daemonUrl: sdkDaemonUrl,
+    makeToolContext,
+    // assembleAppendPrompt OMITTED → boots with only the stock claude_code preset.
+    log,
+  });
+
+  // Goal-check strategy registry. "command" = deterministic verify commands;
+  // "judge" = the skeptical LLM judge over collected artifacts (diff + machine
+  // signals) on the appendless backend; "hybrid" = deterministic first, judge
+  // second. An unknown name throws (the gate logs it; the loop stays inert).
+  const deterministicStrategy = new DeterministicCommandStrategy(config.paths.repoRoot);
+  const judgeClient = new AgentBackendJudgeClient({
+    backend: judgeBackend,
+    auth: authResolver,
+    newId: () => randomIdGenerator.newPendingId(),
+    cwd: config.paths.repoRoot,
+    defaultModel: config.loop.judge.model,
+    log,
+  });
+  const evidenceCollector = new GitEvidenceCollector({ git, repoRoot: config.paths.repoRoot });
+  const llmJudgeStrategy = new LlmJudgeStrategy({ judge: judgeClient, evidence: evidenceCollector, renderer: prompts, temperature: config.loop.judge.temperature, log });
+  const hybridStrategy = new HybridStrategy({ deterministic: deterministicStrategy, judge: llmJudgeStrategy });
+  const strategyFor = makeStrategyFor({
+    command: deterministicStrategy,
+    judge: llmJudgeStrategy,
+    hybrid: hybridStrategy,
+  });
+
   const backendMap = new Map<string, AgentBackend>([
     ["claude-cli", claudeCliBackend],
     ["anthropic-api", anthropicBackend],
@@ -764,6 +810,9 @@ export function buildContainer() {
     pending,
     messageQueue,
     worktreeRemovals,
+    loops,
+    strategyFor,
+    judgeBackend,
     supervisor,
     portAllocator,
     httpWorkerClient,

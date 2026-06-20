@@ -55,6 +55,75 @@
         "editRegex": {
           "type": "string",
           "description": "Confine THIS one-off worker's file edits to paths matching this regex (e.g. 'src/.*\\\\.ts$'). Enforced at the gate. Wins over a `from` definition's editRegex."
+        },
+        "loop": {
+          "type": "object",
+          "properties": {
+            "goal": {
+              "type": "object",
+              "properties": {
+                "summary": {
+                  "type": "string",
+                  "description": "One-line definition of done."
+                },
+                "criteria": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string",
+                        "description": "Stable short id for this criterion."
+                      },
+                      "text": {
+                        "type": "string",
+                        "description": "The checkable condition in plain language."
+                      },
+                      "verify": {
+                        "type": "string",
+                        "description": "Deterministic shell command that proves it, if any."
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "text"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 1
+                }
+              },
+              "required": [
+                "summary",
+                "criteria"
+              ],
+              "additionalProperties": false
+            },
+            "strategy": {
+              "type": "string",
+              "enum": [
+                "command",
+                "judge",
+                "hybrid"
+              ]
+            },
+            "limit": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "exclusiveMinimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "goal"
+          ],
+          "additionalProperties": false,
+          "description": "Arm a dynamic loop on this worker AT SPAWN so it can't finish until the goal is provably met — PREFER this over spawning then attaching with dynamic_loop (a separate attach can miss a report the worker sends before the loop exists). Make goal.criteria CHECKABLE: a `verify` shell command wherever possible. strategy: command/judge/hybrid (default hybrid). limit: omit for unbounded (netted by no-progress), or a number to cap attempts."
         }
       },
       "required": [
@@ -299,6 +368,94 @@
           "description": "Limit to these worker ids. Omit to integrate ALL of your workers' branches."
         }
       },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "dynamic_loop": {
+      "type": "object",
+      "properties": {
+        "op": {
+          "type": "string",
+          "enum": [
+            "attach",
+            "stop"
+          ],
+          "description": "'attach' to arm a loop, 'stop' to end one."
+        },
+        "target": {
+          "type": "string",
+          "description": "Worker id to loop. Omit (or pass your own id) to loop yourself."
+        },
+        "goal": {
+          "type": "object",
+          "properties": {
+            "summary": {
+              "type": "string",
+              "description": "One-line headline of what 'done' means."
+            },
+            "criteria": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "Stable short id for this criterion."
+                  },
+                  "text": {
+                    "type": "string",
+                    "description": "The checkable condition in plain language."
+                  },
+                  "verify": {
+                    "type": "string",
+                    "description": "Deterministic shell command that proves it, if any."
+                  }
+                },
+                "required": [
+                  "id",
+                  "text"
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1
+            }
+          },
+          "required": [
+            "summary",
+            "criteria"
+          ],
+          "additionalProperties": false,
+          "description": "The structured goal (required for 'attach')."
+        },
+        "strategy": {
+          "type": "string",
+          "enum": [
+            "command",
+            "judge",
+            "hybrid"
+          ],
+          "description": "How the goal is checked. Defaults to 'hybrid'."
+        },
+        "limit": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "exclusiveMinimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Max attempts before the loop exhausts. null = unbounded (goal-met is the only exit)."
+        },
+        "loopId": {
+          "type": "string",
+          "description": "The loop to stop (for 'stop'); omit to stop the target's active loop."
+        }
+      },
+      "required": [
+        "op"
+      ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     }

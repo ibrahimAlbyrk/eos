@@ -23,11 +23,17 @@ import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
 import { drainQueuedMessages } from "../core/src/use-cases/DrainQueuedMessages.ts";
 import { dispatchDeps } from "./routes/dispatch-deps.ts";
 import { isWorkerLive } from "./routes/worker-liveness.ts";
+import { resumeIfDead } from "./routes/resume-helpers.ts";
+import { formatWorkerReport } from "./shared/worker-report.ts";
+import { worktreeStateHash } from "./shared/worktree-state-hash.ts";
+import { GoalLoopService } from "./services/GoalLoopService.ts";
+import { reArmLoops, stopLoopForExitedWorker } from "./services/loop-rearm.ts";
 
 import { registerHealthRoutes } from "./routes/health.ts";
 import { registerStreamRoutes } from "./routes/stream.ts";
 import { registerWorkerRoutes } from "./routes/workers.ts";
 import { registerOrchestratorRoutes } from "./routes/orchestrators.ts";
+import { registerLoopRoutes } from "./routes/loops.ts";
 import { registerPolicyRoutes } from "./routes/policy.ts";
 import { registerPendingRoutes } from "./routes/pending.ts";
 import { registerFsPickerRoutes } from "./routes/fs-picker.ts";
@@ -80,6 +86,7 @@ registerUpdateRoutes(router, c);
 registerCommandCatalog(router, c);
 registerWorkerRoutes(router, c);
 registerOrchestratorRoutes(router, c);
+registerLoopRoutes(router, c);
 registerPolicyRoutes(router, c);
 registerPendingRoutes(router, c);
 
@@ -88,6 +95,51 @@ registerPendingRoutes(router, c);
 // the enqueue signal (`queued`) that closes the enqueue/turn-end race. The
 // in-flight set keeps bus bursts from double-draining; the use-case re-checks
 // state + pending rows itself, so a spurious trigger is a no-op.
+// Dynamic-loop goal gate. Re-triggers a looped worker whose goal isn't yet met.
+// Fired ONLY from the queue-drain "empty" branch below, so peer > queue > loop
+// holds: a queued child report always drains before a self-continue. Dispatches
+// with queueWhenBusy so a peer that arrives during the async goal-check queues
+// the continuation instead of steering mid-turn.
+const goalLoop = new GoalLoopService({
+  workers: c.workers,
+  loops: c.loops,
+  messageQueue: c.messageQueue,
+  peerRequests: c.pendingPeerRequests,
+  strategyFor: c.strategyFor,
+  // origin:"loop" carries a loop envelope so the continuation renders as a
+  // "Dynamic loop" system message (not a user bubble) and is agent-plane (no pill).
+  dispatch: (input) => dispatchMessage(dispatchDeps(c), {
+    ...input,
+    queueWhenBusy: true,
+    ...(input.origin === "loop" ? { envelope: { kind: "loop" as const } } : {}),
+  }),
+  // Release a held report to the parent as a worker_report — resume a
+  // suspended parent first (a report held for minutes can outlive its parent's
+  // session), build the same wrapper the report route uses, and queue it (fan-in
+  // serialized) exactly like a direct report.
+  releaseReport: async ({ workerId, parentId, text }) => {
+    const parent = c.workers.findById(parentId);
+    if (parent) await resumeIfDead(c, parent);
+    const w = c.workers.findById(workerId);
+    return dispatchMessage(dispatchDeps(c), {
+      workerId: parentId,
+      text: w ? formatWorkerReport(w, text) : text,
+      displayText: text,
+      envelope: { kind: "worker_report", fromWorker: workerId, workerName: w?.name ?? workerId },
+      queueWhenBusy: true,
+      origin: "report",
+    });
+  },
+  stateHash: (input) => worktreeStateHash(c.git, input),
+  noProgressWindow: c.config.loop.noProgressWindow,
+  stopOnNoProgress: c.config.loop.stopOnNoProgress,
+  publishChange: (workerId, status) => c.bus.publish("loop:change", { workerId, status }),
+  renderer: c.prompts,
+  isLive: (id) => isWorkerLive(c, id),
+  clock: c.clock,
+  log: c.log,
+});
+
 const draining = new Set<string>();
 const drainFor = (workerId: string): void => {
   if (draining.has(workerId)) return;
@@ -116,7 +168,12 @@ const drainFor = (workerId: string): void => {
     // transition, and "failed" retrying here would hot-loop on a dead port.
     if (outcome === "empty" && c.messageQueue.listPending(workerId).length > 0) {
       drainFor(workerId);
+      return;
     }
+    // Queue genuinely empty at IDLE → it's the loop's turn (no-op when the
+    // worker has no active loop). "dispatched"/"not-idle"/"failed" never reach
+    // here, so a drained message or a busy worker is never preempted.
+    if (outcome === "empty") goalLoop.loopTickFor(workerId);
   });
 };
 // Peer-request pump — a collaborate worker's queued consultations are delivered
@@ -174,6 +231,17 @@ c.bus.subscribe("worker:change", (msg) => {
   drainFor(p.workerId);
 });
 
+// Dynamic-loop arm — closes the dormant-loop race: a loop attached AFTER the
+// worker already reached IDLE missed the goal-gate's IDLE edge, and nothing else
+// would ever tick it. The attach route publishes loop:change{active} AFTER
+// persisting the row; the in-process bus is synchronous, so this subscriber sees
+// the persisted loop. loopTickFor is idempotent (ticking Set + IDLE guard), so a
+// continued-republish or a concurrent IDLE drain safely no-ops.
+c.bus.subscribe("loop:change", (msg) => {
+  const p = msg.payload as { workerId?: string; status?: string };
+  if (p?.workerId && p.status === "active") goalLoop.loopTickFor(p.workerId);
+});
+
 // Peer death-detection — when a worker exits for ANY reason (crash, normal
 // close, kill), unblock every peer waiting on it: its inbound requests go
 // "gone" so the asker's ask_peer returns a clear "peer unavailable" instead of
@@ -192,6 +260,8 @@ c.bus.subscribe("worker:exit", (msg) => {
   c.backgroundActivity.clearWorker(p.workerId);
   c.turnSettle.clear(p.workerId);
   c.events.forgetPruneCounter(p.workerId);
+  // A worker that exits/dies leaves its active loop orphaned — stop it.
+  stopLoopForExitedWorker({ loops: c.loops, bus: c.bus }, p.workerId);
 });
 
 // Git watch set — keep the GitWatcher's watched dirs in sync with the live
@@ -281,6 +351,18 @@ rawServer.listen(c.config.daemon.rawPort, c.config.daemon.host, () => {
   c.log.info("raw listening", {
     url: `http://${c.config.daemon.host}:${c.config.daemon.rawPort}`,
   });
+});
+
+// Boot re-arm — revive each active loop after a restart. Fire-and-forget, after
+// both listeners are up (a resumed out-of-process worker POSTs events back) and
+// the bus subscriptions are registered (the gate is armed for later iterations).
+// Boot reconcile already ran synchronously inside buildContainer.
+void reArmLoops({
+  loops: c.loops,
+  workers: c.workers,
+  resume: (worker) => resumeIfDead(c, worker),
+  loopTickFor: (id) => goalLoop.loopTickFor(id),
+  log: c.log,
 });
 
 let shuttingDown = false;

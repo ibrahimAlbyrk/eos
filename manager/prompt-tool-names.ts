@@ -19,6 +19,7 @@ import { respondToPeerDef } from "./tools/defs/respond_to_peer.ts";
 import { listAvailableWorkersDef } from "./tools/defs/list_available_workers.ts";
 import { createWorkerDef } from "./tools/defs/create_worker.ts";
 import { integrateWorkersDef } from "./tools/defs/integrate_workers.ts";
+import { dynamicLoopDef } from "./tools/defs/dynamic_loop.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
@@ -36,4 +37,5 @@ export const TOOL_NAME_VARS: VariableScope = {
   LIST_AVAILABLE_WORKERS_TOOL: listAvailableWorkersDef.name,
   CREATE_WORKER_TOOL: createWorkerDef.name,
   INTEGRATE_WORKERS_TOOL: integrateWorkersDef.name,
+  DYNAMIC_LOOP_TOOL: dynamicLoopDef.name,
 };
