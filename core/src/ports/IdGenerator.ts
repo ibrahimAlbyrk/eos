@@ -7,4 +7,5 @@ export interface IdGenerator {
   newOrchestratorId(): string;
   newPendingId(): string;
   newRequestId(): string;
+  newLoopId(): string;
 }

@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { dispatchMessage, type DispatchMessageDeps } from "../use-cases/DispatchMessage.ts";
+import { drainQueuedMessages } from "../use-cases/DrainQueuedMessages.ts";
 import type { WorkerRow } from "../../../contracts/src/worker.ts";
 import type { AgentBackend, AgentSession } from "../ports/AgentBackend.ts";
 import type { MessageRecord } from "../ports/WorkerClient.ts";
@@ -354,5 +355,51 @@ describe("dispatchMessage — agent-plane envelopes (report/directive/peer)", ()
     await dispatchMessage(deps, { workerId: "w1", text: "later", clientMsgId: "c1", queueWhenBusy: true });
     assert.equal(queueRows.length, 1);
     assert.equal(queueRows[0].plane, "user");
+  });
+
+  it("a report dispatched directly to an IDLE parent leaves exactly ONE record, agent-plane", async () => {
+    // Direct path (no busy-hold): the unkeyed ledger row is the report's only
+    // record, so it must carry the agent plane — not default to 'user' (a phantom
+    // pill). One record, agent-plane.
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { deps, queueRows } = buildDeps({ backend: fakeBackend("inproc", false, sends), backendKind: "inproc" });
+    await dispatchMessage(deps, {
+      workerId: "w1", text: "[worker alice (w2)] reported:\nbody", displayText: "body",
+      envelope: { kind: "worker_report", fromWorker: "w2", workerName: "alice" },
+      queueWhenBusy: true, origin: "report",
+    });
+    assert.equal(queueRows.length, 1);
+    assert.equal(queueRows[0].plane, "agent");
+  });
+
+  it("a report to a BUSY orchestrator (busy-hold → drain) leaves EXACTLY ONE queued_messages record", async () => {
+    // The real duplication: ROW1 = busy-hold (agent, pending); the drain then
+    // re-dispatches it (origin=queue-drain) and the audit-ledger insert produced
+    // ROW2 — pure duplication (both NULL client_msg_id never dedup). The fix
+    // skips the ledger insert on a drain, so the drained-then-dispatched ROW1 is
+    // the sole record. Re-plane-only would leave TWO agent rows here.
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { deps, queueRows } = buildDeps({ backend: fakeBackend("inproc", false, sends), backendKind: "inproc", state: "WORKING" });
+    const envelope = { kind: "worker_report" as const, fromWorker: "w2", workerName: "alice" };
+
+    // 1) report arrives while the parent is WORKING → held (ROW1, agent, pending).
+    await dispatchMessage(deps, {
+      workerId: "w1", text: "[worker alice (w2)] reported:\nbody", displayText: "body",
+      envelope, queueWhenBusy: true, origin: "report",
+    });
+    assert.equal(queueRows.length, 1);
+    assert.equal(queueRows[0].dispatchedAt, null);
+
+    // 2) parent reaches IDLE → the daemon drains the held row.
+    (deps.workers.findById("w1") as { state: string }).state = "IDLE";
+    const outcome = await drainQueuedMessages(
+      { workers: deps.workers, queue: deps.queue, clock: deps.clock, log: deps.log, clearTurnSettle: () => {}, dispatch: (input) => dispatchMessage(deps, input) },
+      { workerId: "w1" },
+    );
+
+    assert.equal(outcome, "dispatched");
+    assert.equal(queueRows.length, 1);              // EXACTLY one record for one report
+    assert.equal(queueRows[0].plane, "agent");
+    assert.equal(queueRows[0].dispatchedAt, 1234);  // the held row, now dispatched
   });
 });

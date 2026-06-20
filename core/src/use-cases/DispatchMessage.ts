@@ -49,6 +49,8 @@ function buildMessageRecord(
       return { as: "worker_report", fromWorker: env.fromWorker, ...(env.workerName ? { workerName: env.workerName } : {}), ...display, sentAt };
     case "peer_request":
       return { as: "peer_request", fromWorker: env.fromWorker, ...(env.fromName ? { fromName: env.fromName } : {}), ...display, sentAt };
+    case "loop":
+      return { as: "loop_continuation", ...display, sentAt };
     default:
       return { as: "user_message", ...display, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}), sentAt };
   }
@@ -75,6 +77,9 @@ function appendChatEvent(
       return;
     case "peer_request":
       events.append(workerId, ts, "peer_request", { text, fromWorker: env.fromWorker, fromName: env.fromName ?? env.fromWorker });
+      return;
+    case "loop":
+      events.append(workerId, ts, "loop_continuation", { text });
       return;
     default:
       events.append(workerId, ts, "user_message", { text, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}) });
@@ -310,13 +315,24 @@ export async function dispatchMessage(
 
   // Unkeyed dispatches leave a ledger row too — it powers hasRecentDispatch
   // and doubles as the dispatch audit trail (pruned on daemon startup).
-  if (!input.clientMsgId) {
+  // Carry the plane from the envelope (same rule as the busy-hold above): an
+  // agent-plane dispatch (worker_report/directive/peer) must NOT leave a
+  // plane-blind row that defaults to 'user' — that surfaced every report as a
+  // second user-plane copy of itself (a phantom user pill).
+  //
+  // SKIP on a queue drain: the drained row IS the dispatch (DrainQueuedMessages
+  // markDispatches it right after this returns), so it already serves as the
+  // audit record + powers hasRecentDispatch. A second ledger row here is pure
+  // duplication (both NULL client_msg_id → the unique index never dedups them),
+  // which is exactly how one report became two queued_messages rows.
+  if (!input.clientMsgId && input.origin !== "queue-drain") {
     deps.queue.insert({
       workerId: input.workerId,
       clientMsgId: null,
       text: input.text,
       createdAt: now,
       dispatchedAt: now,
+      plane: input.envelope ? "agent" : "user",
     });
   }
 

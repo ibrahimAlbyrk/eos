@@ -11,4 +11,5 @@ export const randomIdGenerator: IdGenerator = {
   newOrchestratorId: (): string => "o-" + rand(6),
   newPendingId: (): string => "p-" + rand(8),
   newRequestId: (): string => "r-" + rand(8),
+  newLoopId: (): string => "l-" + rand(8),
 };
