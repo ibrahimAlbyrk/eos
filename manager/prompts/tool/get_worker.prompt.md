@@ -11,4 +11,4 @@ When to use: the user explicitly asks for an update on a specific worker, or you
 
 When NOT to use: as a polling mechanism after spawning. Workers report via {{SEND_MESSAGE_TO_PARENT_TOOL}} — wait for that signal rather than polling. Calling {{GET_WORKER_TOOL}} repeatedly wastes context with no new information.
 
-Returns: { worker: {id, state, prompt, cost_usd, ...}, events: [...] }. Events include tool calls, permission requests, and lifecycle markers; the most recent event is last in the array.
+Returns: { worker: {id, state, model, prompt, started_at, ...}, events: [...] }. Events include tool calls, permission requests, and lifecycle markers; the most recent event is last in the array.

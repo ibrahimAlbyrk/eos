@@ -10,4 +10,4 @@ When to use:
 
 An empty list is itself useful — it means none of your workers are blocked on permissions.
 
-Returns: array of { worker_id, tool, input, requested_at }. The user can approve or deny via the dashboard; alternatively the user can tell you to approve via a policy rule.
+Returns: array of `{ id, worker_id, tool_name, input, created_at, expires_at, resolved }` — one row per worker tool-call paused on an `ask` rule. `tool_name`/`input` say what is being asked; `created_at`/`expires_at` are epoch-ms (an ask can expire unanswered). There is no approve/deny tool for you — only the operator (dashboard) or a policy rule can clear these; surface them in chat, do not try to resolve them yourself.

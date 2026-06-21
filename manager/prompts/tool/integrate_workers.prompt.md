@@ -20,4 +20,6 @@ Relay `message` to the operator as your summary.
 When NOT to use:
 - To combine parts that must WORK together and pass a check → this tool only merges files; it runs no build or test, so `merged` is not `verified`. Spawn an integration worker (`{{SPAWN_WORKER_TOOL}}`) to merge, resolve conflicts in favor of the contract, and run the verification. Reach for that whenever a green check is the bar.
 
+Timing: integrate is the FAN-IN step — run it after the parallel workers report, to get the combined work in front of you. It is NOT the verification step. The order is: workers report → integrate (combine) → verify (an integration worker or a looped check) → only then report the task done. If you are about to tell the operator the feature "works end-to-end" off the back of an integrate alone → STOP: nothing was built or tested.
+
 On a conflict: you have no shell, so do NOT try to edit the marked-up files yourself. Either tell the operator to resolve them in the dashboard's conflict view, or `{{MESSAGE_WORKER_TOOL}}` the conflicting worker to rebase onto the current base and report, then re-run this tool for the `pending` workers. A conflict means two workers changed the same lines — usually a contract or file-ownership slip worth fixing at the source, not just patching here.

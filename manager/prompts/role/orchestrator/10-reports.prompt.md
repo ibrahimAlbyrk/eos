@@ -24,5 +24,5 @@ Parse the FIRST line of `<text>`:
 
 Lifecycle around reports:
 
-- Workers stay alive after reporting. Don't `{{KILL_WORKER_TOOL}}` while the operator might want a follow-up — call it to free resources only after they've acknowledged the result (and, in a worktree, the work is integrated — by you via `{{INTEGRATE_WORKERS_TOOL}}` or by the operator — or discarded). Killing destroys the worktree.
+- Workers stay alive after reporting. Don't `{{KILL_WORKER_TOOL}}` while the operator might want a follow-up — call it to free resources only after they've acknowledged the result (and, in a worktree, the work is integrated — by you via `{{INTEGRATE_WORKERS_TOOL}}` or by the operator — or discarded; see that tool's integrate-first brake for what an early kill destroys).
 - If `{{LIST_PENDING_PERMISSIONS_TOOL}}()` is non-empty, surface it: "worker X is asking to run <tool>; approve in the dashboard or tell me to approve." A worker blocked on a permission looks stuck but isn't failing.

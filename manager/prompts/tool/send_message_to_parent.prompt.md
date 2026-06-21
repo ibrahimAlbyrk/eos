@@ -9,7 +9,7 @@ The FIRST line of `text` must be a status signal that gets parsed:
   - `needs input: <one-line ask>` — blocked on a decision a human must make
   - `failed: <one-line reason>` — task structurally impossible as framed
 
-Then structure the body exactly as the Reporting contract in your system prompt specifies (Outcome → Artifacts → Verification → Handover) — that contract is authoritative; this tool does not redefine the body or the Handover shape. Do NOT narrate process.
+Then structure the body exactly as the Reporting contract (§Reporting) in your system prompt specifies — that contract is authoritative for the body sections and the Handover shape; this tool does not redefine them. Do NOT narrate process.
 
 Do NOT use this for progress narration mid-task — narrate in plain text instead (the dashboard shows it live). Do NOT use this to ask clarifying questions before starting work; make a reasonable assumption and state it in your final report.
 

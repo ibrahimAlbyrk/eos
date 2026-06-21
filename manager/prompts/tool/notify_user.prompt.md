@@ -16,5 +16,3 @@ When NOT to use:
 - Partial progress (e.g. 1 of 3 workers finished — wait until the whole task is done).
 - Routine status updates or anything you are about to say in chat anyway.
 - More than once for the same fact.
-
-Keep the title a few words; the body one sentence stating the concrete outcome.
