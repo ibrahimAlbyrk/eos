@@ -18,6 +18,17 @@ import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
 
 export interface ModelPrice { in: number; out: number; cacheRead: number; cacheCreate: number; cacheCreate1h: number; }
 
+// Per-task tunables for the micro-task subsystem (config.microTasks.tasks[id]).
+// charLimit bounds the inputs a task feeds its prompt; promptTemplate, when set,
+// overrides the catalog prompt with an inline body.
+export interface MicroTaskCfg {
+  enabled: boolean;
+  delayMs: number;
+  model: string;
+  charLimit: number;
+  promptTemplate?: string;
+}
+
 export interface DaemonConfig {
   daemon: {
     host: string;
@@ -102,6 +113,15 @@ export interface DaemonConfig {
     stopOnNoProgress: boolean;
     retryOnFailed: boolean;
     judge: { model: string; temperature: number };
+  };
+  // Daemon-side micro-tasks: small predetermined-prompt Haiku tasks triggered off
+  // the EventBus (auto-naming is the first). `enabled` gates the whole subsystem;
+  // `pauseMaxMs` is the drop-safety deadline that auto-resumes a paused run if a
+  // cancel/resume is ever lost; per-task tunables live under `tasks`.
+  microTasks: {
+    enabled: boolean;
+    pauseMaxMs: number;
+    tasks: Record<string, MicroTaskCfg>;
   };
 }
 
@@ -239,6 +259,13 @@ export function defaults(): DaemonConfig {
       retryOnFailed: false,
       judge: { model: "sonnet", temperature: 0.1 },
     },
+    microTasks: {
+      enabled: true,
+      pauseMaxMs: 10000,
+      tasks: {
+        "auto-name": { enabled: true, delayMs: 5000, model: "haiku", charLimit: 280 },
+      },
+    },
   };
 }
 
@@ -257,7 +284,7 @@ const AgentMcpConfigOverrideSchema = z.object({
   extra: z.record(McpServerDefSchema), // 1-arg: McpServerDefSchema is contracts' zod (see backends note below)
 }).partial();
 
-const DaemonConfigOverrideSchema = z.object({
+export const DaemonConfigOverrideSchema = z.object({
   daemon: z.object({
     host: z.string(),
     port: z.number().int().positive(),
@@ -319,6 +346,19 @@ const DaemonConfigOverrideSchema = z.object({
     retryOnFailed: z.boolean(),
     judge: z.object({ model: z.string(), temperature: z.number() }).partial(),
   }).partial().optional(),
+  microTasks: z.object({
+    enabled: z.boolean(),
+    pauseMaxMs: z.number().int().positive(),
+    // 1-arg z.record(valueSchema): the value schema is a local zod object, but
+    // keep the 1-arg form anyway — see the backends note above re: the 2-arg trap.
+    tasks: z.record(z.object({
+      enabled: z.boolean(),
+      delayMs: z.number().int().nonnegative(),
+      model: z.string(),
+      charLimit: z.number().int().positive(),
+      promptTemplate: z.string(),
+    }).partial()),
+  }).partial().optional(),
 }).passthrough();
 
 // Merge file-loaded overrides on top of defaults. Most sections are flat and
@@ -373,6 +413,17 @@ function mergeConfig(base: DaemonConfig, override: unknown): DaemonConfig {
       const { judge, ...rest } = incoming as Partial<DaemonConfig["loop"]>;
       Object.assign(out.loop, rest);
       if (judge) out.loop.judge = { ...out.loop.judge, ...judge };
+    } else if (k === "microTasks") {
+      // Subsystem flags + per-task field merge (overriding just auto-name.model
+      // keeps its delayMs/charLimit; a new task id supplies its own full config).
+      const incMt = incoming as { enabled?: boolean; pauseMaxMs?: number; tasks?: Record<string, Partial<MicroTaskCfg>> };
+      if (typeof incMt.enabled === "boolean") out.microTasks.enabled = incMt.enabled;
+      if (typeof incMt.pauseMaxMs === "number") out.microTasks.pauseMaxMs = incMt.pauseMaxMs;
+      if (incMt.tasks) {
+        for (const id of Object.keys(incMt.tasks)) {
+          out.microTasks.tasks[id] = { ...(out.microTasks.tasks[id] ?? {}), ...incMt.tasks[id] } as MicroTaskCfg;
+        }
+      }
     } else {
       Object.assign(out[k] as Record<string, unknown>, incoming as Record<string, unknown>);
     }
