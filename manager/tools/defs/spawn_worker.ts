@@ -10,16 +10,16 @@ export const spawnWorkerDef: ToolDefinition = {
   visibility: "orchestrator",
   inputSchema: {
     prompt: z.string().describe(
-      "The directive for the worker. Follow the worker-prompt template from your system prompt: directive sentence, Context (relevant files/branches), Acceptance (concrete done-check), Out of scope (if non-obvious), Report (task-specific items).",
+      "The worker's first user-turn (string). Follow the worker-prompt template in your system prompt (§Worker prompts: directive · Context · Acceptance · Out of scope · Report).",
     ),
     name: z.string().optional().describe(
       "Friendly slug for the worker (kebab-case). Should describe the outcome, not the action. Good: 'refactor-auth-tokens', 'add-billing-tests'. Bad: 'worker-1', 'fix-stuff', 'task'.",
     ),
     model: z.string().optional().describe(
-      "Claude model: 'opus' (default; ambiguous, multi-file, or debugging work), 'sonnet' (balanced — well-specified routine work), 'haiku' (fastest — trivial writes, summaries, simple greps). When in doubt, omit and let it default to opus.",
+      "Claude model enum: 'opus' (default) | 'sonnet' | 'haiku'. Which tier fits which work → §Model. When in doubt, omit (defaults to opus).",
     ),
     effort: z.enum(EFFORT_LEVELS).optional().describe(
-      "Reasoning effort for the worker. ONLY pass this when the chosen model supports effort — opus and sonnet do; haiku does NOT (omit it there). 'low' (trivial mechanical edits, summaries), 'medium' (routine well-specified work), 'high' (substantial but straightforward implementation), 'xhigh' (default — complex debugging, design, anything where wrong output is hard to recover from), 'max' (correctness-critical — strongest reasoning, when a wrong answer is unacceptable). When in doubt, omit and let it default to xhigh.",
+      "Reasoning effort enum. Pass ONLY for models that support it — opus and sonnet do, haiku does NOT (omit there). Which level fits which work → §Model. When in doubt, omit (defaults to xhigh).",
     ),
     workspaceOf: z.string().optional().describe(
       "Spawn this worker INSIDE an existing worker's isolated worktree instead of a fresh one, for direct file access (to review, continue, or fix that worker's work). Pass the id of a worker you spawned (attaching to another orchestrator's worker is rejected). Only allowed while that worker is idle (fails with a conflict while it is busy).",

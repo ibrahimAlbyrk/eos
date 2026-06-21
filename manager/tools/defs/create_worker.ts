@@ -18,7 +18,7 @@ export const createWorkerDef: ToolDefinition = {
     toolsDeny: z.array(z.string()).optional().describe("Tool denylist (globs). Always subtracts, even from an allowlist."),
     editRegex: z.string().optional().describe("Restrict file edits to paths matching this regex (e.g. 'src/.*\\\\.ts$')."),
     extends: z.string().optional().describe("Base worker name to inherit unset fields from."),
-    body: z.string().describe("This worker's role instructions — its durable system-prompt body. Task-specific only: environment map, cached facts, output contract, if-then failure rules. Do NOT restate the result:/needs input:/failed: signal protocol, report structure, or Handover (the worker contract already supplies those). See create_worker's full guidance."),
+    body: z.string().describe("This worker's role-instructions body (string). What to put in it / what NOT to (never restate the signal protocol / report / Handover) → create_worker's description and §Available workers."),
   },
   // Validate + store a runtime worker definition for THIS orchestrator (per-owner,
   // in-memory). Defining does NOT start anything — run it with
