@@ -48,6 +48,9 @@ import { LlmJudgeStrategy } from "../core/src/services/LlmJudgeStrategy.ts";
 import { HybridStrategy } from "../core/src/services/HybridStrategy.ts";
 import { makeStrategyFor } from "../core/src/services/goal-strategy-registry.ts";
 import { AgentBackendJudgeClient } from "./services/AgentBackendJudgeClient.ts";
+import { MicroTaskRunner } from "./services/MicroTaskRunner.ts";
+import { buildMicroTasks } from "./services/micro-tasks/registry.ts";
+import type { OneShotClient } from "../core/src/ports/OneShotClient.ts";
 import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
 import { loadPolicy } from "../infra/src/policy/YamlPolicyLoader.ts";
 import { createDarwinFsHelpers, type FsHelpers } from "../infra/src/filesystem/DarwinFsHelpers.ts";
@@ -761,6 +764,29 @@ export function buildContainer() {
     hybrid: hybridStrategy,
   });
 
+  // Micro-task subsystem — small predetermined-prompt Haiku tasks off the bus.
+  // The OneShotClient is a thin reuse of the judge one-shot engine (judgeClient),
+  // so there is ZERO new LLM infra; the per-call model comes from task config.
+  // config is read live (it's a `let` reassigned by reloadConfig), so toggling
+  // microTasks.* in ~/.eos/config.json takes effect without a code change.
+  const oneShot: OneShotClient = { complete: (p, o) => judgeClient.judge(p, o) };
+  const microTasks = new MicroTaskRunner({
+    bus,
+    oneShot,
+    prompts,
+    clock: systemClock,
+    log,
+    tasks: buildMicroTasks({
+      workers,
+      events,
+      bus,
+      cfg: () => config.microTasks.tasks["auto-name"],
+    }),
+    subsystemEnabled: () => config.microTasks.enabled,
+    configFor: (id) => config.microTasks.tasks[id],
+    pauseMaxMs: () => config.microTasks.pauseMaxMs,
+  });
+
   const backendMap = new Map<string, AgentBackend>([
     ["claude-cli", claudeCliBackend],
     ["anthropic-api", anthropicBackend],
@@ -813,6 +839,7 @@ export function buildContainer() {
     loops,
     strategyFor,
     judgeBackend,
+    microTasks,
     supervisor,
     portAllocator,
     httpWorkerClient,

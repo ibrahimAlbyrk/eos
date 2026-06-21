@@ -45,6 +45,9 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         prompt: body.prompt ?? "",
         cwd,
         name,
+        // A human-supplied name is 'user' (never auto-renamed); the random default
+        // is 'default' — the auto-name micro-task's only eligible state.
+        nameSource: body.name?.trim() ? "user" : "default",
         fixedId: id,
         persistent: true,
         claudePermissionMode: body.permissionMode ?? "acceptEdits",

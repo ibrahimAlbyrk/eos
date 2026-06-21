@@ -242,6 +242,10 @@ c.bus.subscribe("loop:change", (msg) => {
   if (p?.workerId && p.status === "active") goalLoop.loopTickFor(p.workerId);
 });
 
+// Micro-task subsystem — subscribes its triggers (auto-name fires on an
+// orchestrator's first WORKING transition). Mirrors the goal-loop bus wiring.
+c.microTasks.start();
+
 // Peer death-detection — when a worker exits for ANY reason (crash, normal
 // close, kill), unblock every peer waiting on it: its inbound requests go
 // "gone" so the asker's ask_peer returns a clear "peer unavailable" instead of
