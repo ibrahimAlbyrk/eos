@@ -68,6 +68,33 @@ describe("PolicyGatewayService — worker-definition tool scope (rung 2.5)", () 
     assert.equal((await svc.decide({ workerId: "w1", toolName: "mcp__github__create_pr", input: {} })).behavior, "deny");
   });
 
+  it("Eos control tools bypass the worker allowlist (a read-only worker can still report back + consult peers)", async () => {
+    // allow: Read/Grep/Glob — none of these are the comms tools, yet a fenced
+    // worker MUST still report to its parent and use the peer mesh.
+    const { svc } = buildService({ scope: READONLY });
+    for (const tool of [
+      "mcp__worker__send_message_to_parent",
+      "mcp__worker__ask_peer",
+      "mcp__worker__respond_to_peer",
+      "mcp__orchestrator__spawn_worker",
+    ]) {
+      assert.equal(
+        (await svc.decide({ workerId: "w1", toolName: tool, input: {} })).behavior,
+        "allow",
+        `${tool} should bypass the worker allowlist`,
+      );
+    }
+  });
+
+  it("an explicit deny cannot strand control tools, but external MCP stays denied", async () => {
+    const denyAllMcp: ToolScope = { allow: [], deny: ["mcp__*"], editRegex: null };
+    const { svc } = buildService({ scope: denyAllMcp });
+    // external MCP server → still denied by the glob.
+    assert.equal((await svc.decide({ workerId: "w1", toolName: "mcp__github__create_pr", input: {} })).behavior, "deny");
+    // Eos control plane → exempt, the report tool survives deny-all-mcp.
+    assert.equal((await svc.decide({ workerId: "w1", toolName: "mcp__worker__send_message_to_parent", input: {} })).behavior, "allow");
+  });
+
   it("command-scoped deny (db-migrator example): Bash(git push:*) denies git push, allows other Bash", async () => {
     // The §3.2 db-migrator scope: Bash is broadly allowed, git push specifically denied.
     const dbMigrator: ToolScope = {

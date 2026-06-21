@@ -146,8 +146,13 @@ export class PolicyGatewayService implements PolicyGateway {
     // stale/broad allow can't re-grant a tool the definition denies. DENY-OR-PASSTHROUGH:
     // it may deny, but never short-circuits allow (that would collapse the mode
     // verdict layer). Empty allow ⇒ inherit-all; deny always subtracts.
+    // Eos control-plane tools (report-to-parent, peer mesh, sub-spawn) are EXEMPT: they
+    // are gated by role/visibility + collaborate + caller-scope (above), never by the
+    // worker's capability allow/deny — else a worker fenced to e.g. ["Read"] could never
+    // report back. External MCP servers (mcp__github__*) are not control tools, so they
+    // stay fully governed by the allow/deny list.
     const scope = this.deps.toolScopeResolver?.resolveFor(workerId);
-    if (scope) {
+    if (scope && !isEosControlTool(toolName)) {
       // Command-scoped patterns ("Bash(git push:*)") match against the tool's
       // command argument; name globs ignore it. For Bash-family tools that
       // argument is the command string.
