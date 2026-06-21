@@ -351,6 +351,11 @@ export const api = {
   async renameWorker(id, name) {
     return putJson(ROUTES.workerName(id), { name });
   },
+  // Rename-editor lifecycle → pause/resume the auto-name micro-task. Fire-and-
+  // forget from the UI: active=true on open, active=false on cancel-without-commit.
+  async renameIntent(id, active) {
+    return putJson(ROUTES.workerRenameIntent(id), { active });
+  },
   // Breadcrumb "Open in" — UI-token gated like the terminal routes.
   async openWorkerIn(id, target) {
     return postJson(ROUTES.workerOpen(id), { target }, uiTokenHeader());

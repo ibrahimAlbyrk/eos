@@ -4,6 +4,7 @@ import { statusFromState } from "../../../lib/format.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { loopBadgeTitle } from "../../../lib/loopDisplay.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
+import { api } from "../../../api/client.js";
 
 export function AgentsTree({ roots, onRename, variant = "full" }) {
   if (roots.length === 0) {
@@ -103,13 +104,14 @@ function TreeNode({ node, onRename, variant = "full" }) {
           </span>
         )}
         {isRenaming
-          ? <RenameInput currentName={nameOf(node)} onSave={handleRename} onCancel={cancelRename} />
+          ? <RenameInput currentName={nameOf(node)} onSave={handleRename} onCancel={cancelRename} workerId={node.id} />
           : <span
               className={`ag-name ${node.is_orchestrator ? "main" : ""}`}
               onDoubleClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 ui.setRenamingId(node.id);
+                api.renameIntent(node.id, true).catch(() => {});
               }}
             ><AgentName worker={node} /></span>}
         {!isRenaming && node.loop && (

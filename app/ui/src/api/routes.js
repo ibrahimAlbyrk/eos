@@ -58,6 +58,7 @@ export const ROUTES = {
   fsWatch: "/fs/watch",
   fsUnwatch: "/fs/unwatch",
   workerName: (id) => `/workers/${id}/name`,
+  workerRenameIntent: (id) => `/workers/${id}/rename-intent`,
   workerOpen: (id) => `/workers/${id}/open`,
   workerPermission: (id) => `/workers/${id}/permission`,
   workerModel: (id) => `/workers/${id}/model`,

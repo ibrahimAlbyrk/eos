@@ -38,3 +38,27 @@ describe("api.answerQuestion wire contract", () => {
     expect(JSON.parse(opts.body)).toEqual({ toolUseId: "tu-1", answers: {}, dismissed: true });
   });
 });
+
+describe("api.renameIntent wire contract", () => {
+  it("PUTs { active: true } to the rename-intent route (editor opened → pause)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.renameIntent("w1", true);
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain(ROUTES.workerRenameIntent("w1"));
+    expect(opts.method).toBe("PUT");
+    expect(JSON.parse(opts.body)).toEqual({ active: true });
+  });
+
+  it("PUTs { active: false } (editor closed without commit → resume)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true }) });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.renameIntent("w2", false);
+
+    const [, opts] = fetchMock.mock.calls[0];
+    expect(JSON.parse(opts.body)).toEqual({ active: false });
+  });
+});

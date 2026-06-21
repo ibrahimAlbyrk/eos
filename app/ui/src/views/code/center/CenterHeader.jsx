@@ -3,6 +3,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { breadcrumbFor } from "../../../lib/breadcrumb.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
+import { api } from "../../../api/client.js";
 import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { PanePresets } from "./PanePresets.jsx";
 import { SplitEmptyButton } from "./SplitEmptyButton.jsx";
@@ -55,6 +56,7 @@ export function CenterHeader({ live }) {
                   currentName={nameOf(selected)}
                   onSave={(name) => { setRenaming(false); live.renameAgent(seg.id, name); }}
                   onCancel={() => setRenaming(false)}
+                  workerId={seg.id}
                 />
               ) : (
                 <span className="cur"><AgentName worker={seg.worker} /></span>
@@ -69,7 +71,7 @@ export function CenterHeader({ live }) {
                 <path d="m4 6 4 4 4-4" />
               </svg>
             </button>
-            <HeaderAgentMenu live={live} onRename={() => setRenaming(true)} />
+            <HeaderAgentMenu live={live} onRename={() => { setRenaming(true); if (ui.selectedId) api.renameIntent(ui.selectedId, true).catch(() => {}); }} />
           </span>
         )}
       </div>

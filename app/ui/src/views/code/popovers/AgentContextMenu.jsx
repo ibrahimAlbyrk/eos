@@ -2,6 +2,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { useDeleteAgent } from "../../../hooks/useDeleteAgent.js";
 import { fanoutLayout } from "../../../lib/paneLayout.js";
 import { isRunning } from "../../../lib/agentActivity.js";
+import { api } from "../../../api/client.js";
 
 export function AgentContextMenu({ live }) {
   const ui = useUi();
@@ -20,6 +21,7 @@ export function AgentContextMenu({ live }) {
 
   const rename = () => {
     ui.setRenamingId(agentId);
+    api.renameIntent(agentId, true).catch(() => {});
     ui.closeAllPops();
   };
 
