@@ -1403,6 +1403,14 @@ export type TryStateResponse = z.infer<typeof TryStateResponseSchema>;
 export const SetNameRequestSchema = z.object({ name: z.string().nullable() });
 export type SetNameRequest = z.infer<typeof SetNameRequestSchema>;
 
+// PUT /workers/:id/rename-intent — the UI signals the rename editor's lifecycle
+// so the auto-name micro-task can pause while a human is mid-rename. active=true
+// (editor opened) → pause the pending auto-name timer; active=false (editor
+// closed WITHOUT committing) → resume it. A commit goes through PUT /name, which
+// already cancels auto-name — never sends this.
+export const RenameIntentRequestSchema = z.object({ active: z.boolean() });
+export type RenameIntentRequest = z.infer<typeof RenameIntentRequestSchema>;
+
 // ---- GET /health -----------------------------------------------------------
 
 export const HealthResponseSchema = z.object({
@@ -1645,6 +1653,7 @@ export const ROUTES = {
   fsWatch: "/fs/watch",
   fsUnwatch: "/fs/unwatch",
   workerName: (id: string): string => `/workers/${id}/name`,
+  workerRenameIntent: (id: string): string => `/workers/${id}/rename-intent`,
   workerOpen: (id: string): string => `/workers/${id}/open`,
   workerPermission: (id: string): string => `/workers/${id}/permission`,
   workerModel: (id: string): string => `/workers/${id}/model`,

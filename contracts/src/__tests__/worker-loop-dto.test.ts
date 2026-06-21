@@ -5,7 +5,7 @@ import { SpawnWorkerRequestSchema } from "../http.ts";
 
 const baseRow = {
   id: "w-1", state: "IDLE", cwd: "/x", worktree_from: null, branch: null,
-  prompt: "p", name: null, pid: null, port: null, started_at: 1, ended_at: null, exit_code: null,
+  prompt: "p", name: null, name_source: null, pid: null, port: null, started_at: 1, ended_at: null, exit_code: null,
 };
 
 describe("WorkerRowSchema — route-enriched loop field", () => {

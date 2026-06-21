@@ -7,6 +7,13 @@ import { WorkerStateSchema } from "./events.ts";
 import { BackgroundActivityEntrySchema } from "./background-activity.ts";
 import { LoopStatusSchema } from "./loop.ts";
 
+// Provenance of a worker's name. "default" = the random default assigned at
+// creation (the ONLY value eligible for auto-naming); "user" = an explicit
+// creation name or a human rename (never auto-renamed); "auto" = set by the
+// auto-name micro-task. Legacy rows (pre-migration) are NULL ⇒ ineligible.
+export const NameSourceSchema = z.enum(["default", "auto", "user"]);
+export type NameSource = z.infer<typeof NameSourceSchema>;
+
 export const WorkerRowSchema = z.object({
   id: z.string(),
   state: WorkerStateSchema,
@@ -15,6 +22,8 @@ export const WorkerRowSchema = z.object({
   branch: z.string().nullable(),
   prompt: z.string(),
   name: z.string().nullable(),
+  // Name provenance — gates the auto-name micro-task (only 'default' is eligible).
+  name_source: NameSourceSchema.nullable(),
   pid: z.number().nullable(),
   port: z.number().nullable(),
   started_at: z.number(),

@@ -14,7 +14,7 @@ const EXPECTED_KEYS = [
   "fsRaw", "pdfjs",
   "fsCheckout", "fsBranchCreate", "fsBranchRename", "fsBranchDelete", "fsFetch", "fsRemoteBranchDelete",
   "fsWrite", "fsPaste", "fsStat", "fsCreate", "fsRename", "fsMove", "fsTrash", "fsWatch", "fsUnwatch",
-  "workerName", "workerOpen", "workerPermission",
+  "workerName", "workerRenameIntent", "workerOpen", "workerPermission",
   "workerModel", "workerBackend", "workerDiff", "workerChanges", "workerFileDiff", "workerChangesDiscard",
   "workerConflicts", "workerConflictFile", "workerConflictResolve",
   "workerMemory", "workerMemoryItem",
