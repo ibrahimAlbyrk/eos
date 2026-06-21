@@ -5,7 +5,7 @@
       "properties": {
         "prompt": {
           "type": "string",
-          "description": "The directive for the worker. Follow the worker prompt template from your system prompt: directive sentence, Context (relevant files/branches), Acceptance (concrete done-check), Out of scope (if non-obvious), Report (task-specific items). Workers already know the signal protocol — do not repeat it."
+          "description": "The directive for the worker. Follow the worker-prompt template from your system prompt: directive sentence, Context (relevant files/branches), Acceptance (concrete done-check), Out of scope (if non-obvious), Report (task-specific items)."
         },
         "name": {
           "type": "string",
@@ -13,7 +13,7 @@
         },
         "model": {
           "type": "string",
-          "description": "Claude model: 'opus' (default; ambiguous, multi-file, or debugging work), 'sonnet' (balanced — well-specified routine work), 'haiku' (fastest/cheapest — trivial writes, summaries, simple greps), 'fable' (most powerful — the very hardest problems where opus falls short). When in doubt, omit and let it default to opus."
+          "description": "Claude model: 'opus' (default; ambiguous, multi-file, or debugging work), 'sonnet' (balanced — well-specified routine work), 'haiku' (fastest — trivial writes, summaries, simple greps). When in doubt, omit and let it default to opus."
         },
         "effort": {
           "type": "string",
@@ -24,26 +24,26 @@
             "xhigh",
             "max"
           ],
-          "description": "Reasoning effort for the worker. ONLY pass this when the chosen model supports effort — opus, fable, and sonnet do; haiku does NOT (omit it there). 'low' (trivial mechanical edits, summaries), 'medium' (routine well-specified work), 'high' (substantial but straightforward implementation), 'xhigh' (default — complex debugging, design, anything where wrong output is expensive), 'max' (correctness-critical, cost-insensitive). When in doubt, omit and let it default to xhigh."
+          "description": "Reasoning effort for the worker. ONLY pass this when the chosen model supports effort — opus and sonnet do; haiku does NOT (omit it there). 'low' (trivial mechanical edits, summaries), 'medium' (routine well-specified work), 'high' (substantial but straightforward implementation), 'xhigh' (default — complex debugging, design, anything where wrong output is hard to recover from), 'max' (correctness-critical — strongest reasoning, when a wrong answer is unacceptable). When in doubt, omit and let it default to xhigh."
         },
         "workspaceOf": {
           "type": "string",
-          "description": "Spawn this worker INSIDE an existing worker's isolated worktree instead of a fresh one. Use it to review, continue, or fix that worker's work with direct file access — never read another worker's worktree via your own shell. Pass the id of a worker you spawned (attaching to another orchestrator's worker is rejected). Only allowed while that worker is idle (fails with a conflict while it is busy); for plain follow-ups prefer message_worker to the same worker."
+          "description": "Spawn this worker INSIDE an existing worker's isolated worktree instead of a fresh one, for direct file access (to review, continue, or fix that worker's work). Pass the id of a worker you spawned (attaching to another orchestrator's worker is rejected). Only allowed while that worker is idle (fails with a conflict while it is busy)."
         },
         "collaborate": {
           "type": "boolean",
-          "description": "Give this worker the peer tools (list_peers / ask_peer / respond_to_peer) so it can consult — and be consulted by — the other collaborate workers you spawn under you (its siblings). Enable it on BOTH sides of a runtime information dependency: e.g. domain-expert 'providers' plus the 'consumer' that queries them as it works. Leave it OFF for independent parallel work. See the peer-collaboration section of your instructions for when this pays off and how to set it up."
+          "description": "Give this worker the peer tools (list_peers / ask_peer / respond_to_peer) so it can consult — and be consulted by — the other collaborate workers you spawn under you (its siblings). Omit ⇒ off."
         },
         "from": {
           "type": "string",
-          "description": "Available worker to spawn from (see the Available workers section of your instructions). It pre-fills this worker's defaults (model, effort, permission mode, persistence) and frames its instructions — fields you pass explicitly still win. Match the task against each available worker's 'when to use'; omit ⇒ defaults to the general-purpose worker."
+          "description": "Available worker (definition) to spawn from. It pre-fills this worker's defaults (model, effort, permission mode, persistence) and frames its instructions — fields you pass explicitly still win. Omit ⇒ defaults to the general-purpose worker."
         },
         "toolsAllow": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Fence THIS worker's tools for a one-off (globs, e.g. 'Read', 'mcp__*') — no need to define a reusable worker just to restrict capability. Allowlist is exhaustive: anything not listed is denied. Empty/omit ⇒ inherit all tools. Wins over a `from` definition's allowlist."
+          "description": "Fence THIS worker's tools for a one-off (globs, e.g. 'Read', 'mcp__*'). Allowlist is exhaustive: anything not listed is denied. Empty/omit ⇒ inherit all tools. Wins over a `from` definition's allowlist."
         },
         "toolsDeny": {
           "type": "array",
@@ -123,7 +123,7 @@
             "goal"
           ],
           "additionalProperties": false,
-          "description": "Arm a dynamic loop on this worker AT SPAWN so it can't finish until the goal is provably met — PREFER this over spawning then attaching with dynamic_loop (a separate attach can miss a report the worker sends before the loop exists). Make goal.criteria CHECKABLE: a `verify` shell command wherever possible. strategy: command/judge/hybrid (default hybrid). limit: omit for unbounded (netted by no-progress), or a number to cap attempts."
+          "description": "Arm a dynamic loop on this worker AT SPAWN so it can't finish until the goal is provably met. strategy: command / judge / hybrid (default hybrid). limit: a positive number caps attempts; omit or null = unbounded."
         }
       },
       "required": [
@@ -175,7 +175,7 @@
         },
         "text": {
           "type": "string",
-          "description": "The follow-up directive. Treat this like a fresh worker prompt — be specific. The worker has its prior context but you should still state the new ask clearly."
+          "description": "The follow-up directive — becomes a new user-turn for the worker. State the new ask clearly and in full."
         }
       },
       "required": [
@@ -282,7 +282,7 @@
       "properties": {
         "name": {
           "type": "string",
-          "description": "Identity, kebab-case (e.g. 'perf-profiler'). Spawn it with spawn_worker({ from: <name> })."
+          "description": "Identity, kebab-case (e.g. 'perf-profiler')."
         },
         "description": {
           "type": "string",
@@ -294,7 +294,7 @@
         },
         "model": {
           "type": "string",
-          "description": "Default model (opus/sonnet/haiku/fable). Omit ⇒ inherit."
+          "description": "Default model (opus/sonnet/haiku). Omit ⇒ inherit."
         },
         "effort": {
           "type": "string",
@@ -347,7 +347,7 @@
         },
         "body": {
           "type": "string",
-          "description": "This worker's role instructions, composed ALONGSIDE the standard worker contract — do NOT restate the result:/needs input:/failed: signal protocol, report structure, or Handover. Task-specific only: environment map, output contract, if-then failure rules. (See create_worker's full guidance.)"
+          "description": "This worker's role instructions — its durable system-prompt body. Task-specific only: environment map, cached facts, output contract, if-then failure rules. Do NOT restate the result:/needs input:/failed: signal protocol, report structure, or Handover (the worker contract already supplies those). See create_worker's full guidance."
         }
       },
       "required": [
@@ -466,7 +466,7 @@
       "properties": {
         "text": {
           "type": "string",
-          "description": "The report text. First line MUST be `result: ...`, `needs input: ...`, or `failed: ...`. Subsequent lines: what you did, verification, artifacts, out-of-scope notes."
+          "description": "The report text. First line MUST be `result: ...`, `needs input: ...`, or `failed: ...` (this line is parsed). See the send_message_to_parent guidance for the structure of the lines that follow."
         }
       },
       "required": [
@@ -492,7 +492,7 @@
         },
         "question": {
           "type": "string",
-          "description": "One focused, self-contained question. The peer cannot see your task — give it the context it needs to answer."
+          "description": "One focused, self-contained question, with the context the peer needs to answer."
         }
       },
       "required": [
@@ -507,7 +507,7 @@
       "properties": {
         "answer": {
           "type": "string",
-          "description": "Your complete answer to the peer request delivered this turn. This is the only thing that reaches the asking peer — plain text in your turn does not."
+          "description": "Your complete, self-contained answer to the peer request delivered this turn."
         }
       },
       "required": [

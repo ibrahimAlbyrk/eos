@@ -6,7 +6,7 @@ export const sendMessageToParentDef: ToolDefinition = {
   visibility: "worker",
   inputSchema: {
     text: z.string().describe(
-      "The report text. First line MUST be `result: ...`, `needs input: ...`, or `failed: ...`. Subsequent lines: what you did, verification, artifacts, out-of-scope notes.",
+      "The report text. First line MUST be `result: ...`, `needs input: ...`, or `failed: ...` (this line is parsed). See the send_message_to_parent guidance for the structure of the lines that follow.",
     ),
   },
   handler: async (ctx, args) => {

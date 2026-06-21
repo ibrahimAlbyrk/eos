@@ -6,7 +6,7 @@ export const respondToPeerDef: ToolDefinition = {
   visibility: "peer",
   inputSchema: {
     answer: z.string().describe(
-      "Your complete answer to the peer request delivered this turn. This is the only thing that reaches the asking peer — plain text in your turn does not.",
+      "Your complete, self-contained answer to the peer request delivered this turn.",
     ),
   },
   handler: async (ctx, args) => {

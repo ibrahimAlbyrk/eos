@@ -7,7 +7,7 @@ export const messageWorkerDef: ToolDefinition = {
   inputSchema: {
     id: z.string().describe("Worker id, e.g. 'w-abcd1234'"),
     text: z.string().describe(
-      "The follow-up directive. Treat this like a fresh worker prompt — be specific. The worker has its prior context but you should still state the new ask clearly.",
+      "The follow-up directive — becomes a new user-turn for the worker. State the new ask clearly and in full.",
     ),
   },
   handler: async (ctx, args) => {

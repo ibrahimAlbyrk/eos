@@ -27,7 +27,7 @@ export const askPeerDef: ToolDefinition = {
   inputSchema: {
     peerId: z.string().describe("The id of the peer to consult (from list_peers)."),
     question: z.string().describe(
-      "One focused, self-contained question. The peer cannot see your task — give it the context it needs to answer.",
+      "One focused, self-contained question, with the context the peer needs to answer.",
     ),
   },
   handler: async (ctx, args) => {

@@ -10,28 +10,28 @@ export const spawnWorkerDef: ToolDefinition = {
   visibility: "orchestrator",
   inputSchema: {
     prompt: z.string().describe(
-      "The directive for the worker. Follow the worker prompt template from your system prompt: directive sentence, Context (relevant files/branches), Acceptance (concrete done-check), Out of scope (if non-obvious), Report (task-specific items). Workers already know the signal protocol — do not repeat it.",
+      "The directive for the worker. Follow the worker-prompt template from your system prompt: directive sentence, Context (relevant files/branches), Acceptance (concrete done-check), Out of scope (if non-obvious), Report (task-specific items).",
     ),
     name: z.string().optional().describe(
       "Friendly slug for the worker (kebab-case). Should describe the outcome, not the action. Good: 'refactor-auth-tokens', 'add-billing-tests'. Bad: 'worker-1', 'fix-stuff', 'task'.",
     ),
     model: z.string().optional().describe(
-      "Claude model: 'opus' (default; ambiguous, multi-file, or debugging work), 'sonnet' (balanced — well-specified routine work), 'haiku' (fastest/cheapest — trivial writes, summaries, simple greps), 'fable' (most powerful — the very hardest problems where opus falls short). When in doubt, omit and let it default to opus.",
+      "Claude model: 'opus' (default; ambiguous, multi-file, or debugging work), 'sonnet' (balanced — well-specified routine work), 'haiku' (fastest — trivial writes, summaries, simple greps). When in doubt, omit and let it default to opus.",
     ),
     effort: z.enum(EFFORT_LEVELS).optional().describe(
-      "Reasoning effort for the worker. ONLY pass this when the chosen model supports effort — opus, fable, and sonnet do; haiku does NOT (omit it there). 'low' (trivial mechanical edits, summaries), 'medium' (routine well-specified work), 'high' (substantial but straightforward implementation), 'xhigh' (default — complex debugging, design, anything where wrong output is expensive), 'max' (correctness-critical, cost-insensitive). When in doubt, omit and let it default to xhigh.",
+      "Reasoning effort for the worker. ONLY pass this when the chosen model supports effort — opus and sonnet do; haiku does NOT (omit it there). 'low' (trivial mechanical edits, summaries), 'medium' (routine well-specified work), 'high' (substantial but straightforward implementation), 'xhigh' (default — complex debugging, design, anything where wrong output is hard to recover from), 'max' (correctness-critical — strongest reasoning, when a wrong answer is unacceptable). When in doubt, omit and let it default to xhigh.",
     ),
     workspaceOf: z.string().optional().describe(
-      "Spawn this worker INSIDE an existing worker's isolated worktree instead of a fresh one. Use it to review, continue, or fix that worker's work with direct file access — never read another worker's worktree via your own shell. Pass the id of a worker you spawned (attaching to another orchestrator's worker is rejected). Only allowed while that worker is idle (fails with a conflict while it is busy); for plain follow-ups prefer message_worker to the same worker.",
+      "Spawn this worker INSIDE an existing worker's isolated worktree instead of a fresh one, for direct file access (to review, continue, or fix that worker's work). Pass the id of a worker you spawned (attaching to another orchestrator's worker is rejected). Only allowed while that worker is idle (fails with a conflict while it is busy).",
     ),
     collaborate: z.boolean().optional().describe(
-      "Give this worker the peer tools (list_peers / ask_peer / respond_to_peer) so it can consult — and be consulted by — the other collaborate workers you spawn under you (its siblings). Enable it on BOTH sides of a runtime information dependency: e.g. domain-expert 'providers' plus the 'consumer' that queries them as it works. Leave it OFF for independent parallel work. See the peer-collaboration section of your instructions for when this pays off and how to set it up.",
+      "Give this worker the peer tools (list_peers / ask_peer / respond_to_peer) so it can consult — and be consulted by — the other collaborate workers you spawn under you (its siblings). Omit ⇒ off.",
     ),
     from: z.string().optional().describe(
-      "Available worker to spawn from (see the Available workers section of your instructions). It pre-fills this worker's defaults (model, effort, permission mode, persistence) and frames its instructions — fields you pass explicitly still win. Match the task against each available worker's 'when to use'; omit ⇒ defaults to the general-purpose worker.",
+      "Available worker (definition) to spawn from. It pre-fills this worker's defaults (model, effort, permission mode, persistence) and frames its instructions — fields you pass explicitly still win. Omit ⇒ defaults to the general-purpose worker.",
     ),
     toolsAllow: z.array(z.string()).optional().describe(
-      "Fence THIS worker's tools for a one-off (globs, e.g. 'Read', 'mcp__*') — no need to define a reusable worker just to restrict capability. Allowlist is exhaustive: anything not listed is denied. Empty/omit ⇒ inherit all tools. Wins over a `from` definition's allowlist.",
+      "Fence THIS worker's tools for a one-off (globs, e.g. 'Read', 'mcp__*'). Allowlist is exhaustive: anything not listed is denied. Empty/omit ⇒ inherit all tools. Wins over a `from` definition's allowlist.",
     ),
     toolsDeny: z.array(z.string()).optional().describe(
       "Subtract tools from THIS one-off worker (globs). Always subtracts, even from an allowlist. Wins over a `from` definition's denylist.",
@@ -51,7 +51,7 @@ export const spawnWorkerDef: ToolDefinition = {
       strategy: z.enum(["command", "judge", "hybrid"]).optional(),
       limit: z.number().int().positive().nullable().optional(),
     }).optional().describe(
-      "Arm a dynamic loop on this worker AT SPAWN so it can't finish until the goal is provably met — PREFER this over spawning then attaching with dynamic_loop (a separate attach can miss a report the worker sends before the loop exists). Make goal.criteria CHECKABLE: a `verify` shell command wherever possible. strategy: command/judge/hybrid (default hybrid). limit: omit for unbounded (netted by no-progress), or a number to cap attempts.",
+      "Arm a dynamic loop on this worker AT SPAWN so it can't finish until the goal is provably met. strategy: command / judge / hybrid (default hybrid). limit: a positive number caps attempts; omit or null = unbounded.",
     ),
   },
   handler: async (ctx, args) => {
