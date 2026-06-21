@@ -253,6 +253,11 @@ export const MIGRATIONS: Migration[] = [
   { id: "048_worker_loops_awaiting_input", sql: `
     ALTER TABLE worker_loops ADD COLUMN awaiting_input INTEGER NOT NULL DEFAULT 0;
   `},
+  // Name provenance for the auto-name micro-task. Nullable, NO DEFAULT, NO
+  // BACKFILL on purpose: pre-existing rows become NULL = legacy/ineligible. The
+  // auto-name gate requires name_source = 'default', and NULL ≠ 'default', so
+  // legacy orchestrators are never auto-renamed. New rows set it at insert.
+  { id: "049_workers_add_name_source", sql: "ALTER TABLE workers ADD COLUMN name_source TEXT" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

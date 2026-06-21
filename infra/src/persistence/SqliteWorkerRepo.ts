@@ -2,7 +2,7 @@
 // cached on the instance so the hot paths don't re-parse SQL.
 
 import type { DatabaseSync } from "node:sqlite";
-import type { WorkerRow } from "../../../contracts/src/worker.ts";
+import type { WorkerRow, NameSource } from "../../../contracts/src/worker.ts";
 import type { WorkerState } from "../../../contracts/src/events.ts";
 import type { WorkerRepo, InsertWorkerInput, UsageDelta } from "../../../core/src/ports/WorkerRepo.ts";
 
@@ -22,6 +22,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtSetContextTokens;
   private readonly stmtIncrementToolCalls;
   private readonly stmtUpdateName;
+  private readonly stmtUpdateNameIfSource;
   private readonly stmtUpdatePermissionMode;
   private readonly stmtUpdateModel;
   private readonly stmtUpdateBackendKind;
@@ -39,8 +40,8 @@ export class SqliteWorkerRepo implements WorkerRepo {
   constructor(db: DatabaseSync) {
     this.db = db;
     this.stmtInsert = db.prepare(`
-      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role, worker_definition, tool_scope, with_gateway, collaborate, turn_started_at, worktree_dir, workspace_owner_id, workspace_ready)
-      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO workers (id, state, cwd, worktree_from, branch, prompt, name, name_source, pid, port, started_at, parent_id, model, effort, is_orchestrator, backend_kind, backend_profile, agent_role, worker_definition, tool_scope, with_gateway, collaborate, turn_started_at, worktree_dir, workspace_owner_id, workspace_ready)
+      VALUES (?, 'SPAWNING', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     this.stmtFindById = db.prepare("SELECT * FROM workers WHERE id = ?");
     this.stmtListAll = db.prepare("SELECT * FROM workers ORDER BY started_at DESC");
@@ -63,7 +64,8 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtIncrementToolCalls = db.prepare(
       "UPDATE workers SET tool_calls = COALESCE(tool_calls, 0) + 1 WHERE id = ?",
     );
-    this.stmtUpdateName = db.prepare("UPDATE workers SET name = ? WHERE id = ?");
+    this.stmtUpdateName = db.prepare("UPDATE workers SET name = ?, name_source = ? WHERE id = ?");
+    this.stmtUpdateNameIfSource = db.prepare("UPDATE workers SET name = ?, name_source = ? WHERE id = ? AND name_source = ?");
     this.stmtUpdatePermissionMode = db.prepare("UPDATE workers SET permission_mode = ? WHERE id = ?");
     this.stmtUpdateModel = db.prepare("UPDATE workers SET model = ?, effort = ? WHERE id = ?");
     this.stmtUpdateBackendKind = db.prepare("UPDATE workers SET backend_kind = ? WHERE id = ?");
@@ -87,6 +89,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
       input.branch,
       input.prompt,
       input.name,
+      input.nameSource,
       input.pid,
       input.port,
       input.startedAt,
@@ -151,8 +154,12 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtIncrementToolCalls.run(id);
   }
 
-  updateName(id: string, name: string | null): void {
-    this.stmtUpdateName.run(name, id);
+  updateName(id: string, name: string | null, source: NameSource): void {
+    this.stmtUpdateName.run(name, source, id);
+  }
+
+  updateNameIfSource(id: string, name: string, expected: NameSource, next: NameSource): boolean {
+    return Number(this.stmtUpdateNameIfSource.run(name, next, id, expected).changes) > 0;
   }
 
   updatePermissionMode(id: string, mode: string): void {

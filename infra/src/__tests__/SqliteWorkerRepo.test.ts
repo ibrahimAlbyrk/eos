@@ -2,7 +2,7 @@ import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import { SqliteWorkerRepo } from "../persistence/SqliteWorkerRepo.ts";
-import { runMigrations } from "../persistence/MigrationRunner.ts";
+import { runMigrations, MIGRATIONS } from "../persistence/MigrationRunner.ts";
 import type { InsertWorkerInput } from "../../../core/src/ports/WorkerRepo.ts";
 
 const noopLog = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, child: () => noopLog };
@@ -10,6 +10,7 @@ const noopLog = { debug: () => {}, info: () => {}, warn: () => {}, error: () => 
 function input(id: string, parentId: string | null, startedAt: number): InsertWorkerInput {
   return {
     id, prompt: "p", cwd: "/tmp", worktreeFrom: null, branch: null, name: null,
+    nameSource: "default",
     pid: null, port: 7400, startedAt, parentId, model: "opus", effort: null,
     isOrchestrator: false, backendKind: "claude-cli", backendProfile: null,
     agentRole: null, withGateway: true, collaborate: false, worktreeDir: null, workspaceOwnerId: null,
@@ -18,9 +19,10 @@ function input(id: string, parentId: string | null, startedAt: number): InsertWo
 }
 
 let repo: SqliteWorkerRepo;
+let db: DatabaseSync;
 
 beforeEach(() => {
-  const db = new DatabaseSync(":memory:");
+  db = new DatabaseSync(":memory:");
   runMigrations(db, noopLog as never);
   repo = new SqliteWorkerRepo(db);
 });
@@ -71,5 +73,67 @@ describe("SqliteWorkerRepo workspace_ready", () => {
   it("persists 1 for a ready insert (plain cwd / attach)", () => {
     repo.insert(input("w-cwd", null, 100));
     assert.equal(repo.findById("w-cwd")?.workspace_ready, 1);
+  });
+});
+
+describe("SqliteWorkerRepo name provenance + CAS", () => {
+  it("insert persists name_source; findById reads it back", () => {
+    repo.insert({ ...input("w-d", null, 100), name: "Foo", nameSource: "default" });
+    assert.equal(repo.findById("w-d")?.name_source, "default");
+  });
+
+  it("updateName writes both the name and its source", () => {
+    repo.insert(input("w-n", null, 100));
+    repo.updateName("w-n", "Renamed", "user");
+    const w = repo.findById("w-n");
+    assert.equal(w?.name, "Renamed");
+    assert.equal(w?.name_source, "user");
+  });
+
+  it("updateNameIfSource swaps + returns true when current source matches 'default'", () => {
+    repo.insert({ ...input("w-cas", null, 100), name: "old", nameSource: "default" });
+    const changed = repo.updateNameIfSource("w-cas", "Auto Name Orchestrator", "default", "auto");
+    assert.equal(changed, true);
+    const w = repo.findById("w-cas");
+    assert.equal(w?.name, "Auto Name Orchestrator");
+    assert.equal(w?.name_source, "auto");
+  });
+
+  it("I1 — CAS NEVER clobbers a 'user' name: no-op + returns false", () => {
+    repo.insert({ ...input("w-user", null, 100), name: "My Name", nameSource: "user" });
+    const changed = repo.updateNameIfSource("w-user", "Auto Name Orchestrator", "default", "auto");
+    assert.equal(changed, false);
+    const w = repo.findById("w-user");
+    assert.equal(w?.name, "My Name");      // untouched
+    assert.equal(w?.name_source, "user");  // untouched
+  });
+
+  it("CAS no-ops on a legacy NULL row (NULL ≠ 'default') and returns false", () => {
+    repo.insert(input("w-legacy", null, 100));
+    db.prepare("UPDATE workers SET name_source = NULL WHERE id = 'w-legacy'").run();
+    const changed = repo.updateNameIfSource("w-legacy", "Auto Name Orchestrator", "default", "auto");
+    assert.equal(changed, false);
+    assert.equal(repo.findById("w-legacy")?.name_source ?? null, null);
+  });
+});
+
+describe("migration 049 name_source — strict gate, no backfill", () => {
+  it("adds name_source as NULL for a row that pre-existed the migration", () => {
+    const fresh = new DatabaseSync(":memory:");
+    // Apply every migration BEFORE 049, recording each as done.
+    fresh.exec("CREATE TABLE IF NOT EXISTS schema_migrations (id TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)");
+    const rec = fresh.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, 0)");
+    for (const m of MIGRATIONS) {
+      if (m.id === "049_workers_add_name_source") break;
+      fresh.exec(m.sql);
+      rec.run(m.id);
+    }
+    // A legacy worker row, written before the column existed.
+    fresh.prepare("INSERT INTO workers (id, state, prompt, started_at) VALUES ('legacy', 'IDLE', 'p', 1)").run();
+
+    // Only 049 is unapplied — running it must NOT backfill the legacy row.
+    const ran = runMigrations(fresh, noopLog as never);
+    assert.equal(ran, 1);
+    assert.equal(new SqliteWorkerRepo(fresh).findById("legacy")?.name_source ?? null, null);
   });
 });
