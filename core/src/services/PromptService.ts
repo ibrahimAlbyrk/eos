@@ -5,7 +5,7 @@
 
 import type { ParsedPrompt, VariableScope } from "../domain/prompt.ts";
 import type { PromptRegistry } from "./PromptRegistry.ts";
-import { renderTemplate } from "./template-engine.ts";
+import { parseTemplate, renderTemplate } from "./template-engine.ts";
 import { resolveVariables } from "./variable-resolve.ts";
 
 export class PromptService {
@@ -29,5 +29,16 @@ export class PromptService {
     const globals = { ...this.globals, ...vars };
     const scope = resolveVariables({ referenced: tpl.referenced, locals, globals });
     return renderTemplate(tpl.nodes, scope);
+  }
+
+  // Render an ad-hoc template body that is NOT in the registry — for callers
+  // carrying their own template string (e.g. a config-supplied override). Parses
+  // on every call (no caching); prefer render(id) for catalog prompts. A
+  // malformed body throws (parseTemplate is strict) — callers fail-close on it.
+  renderInline(body: string, locals: VariableScope = {}, vars: VariableScope = {}): string {
+    const { nodes, referenced } = parseTemplate(body);
+    const globals = { ...this.globals, ...vars };
+    const scope = resolveVariables({ referenced, locals, globals });
+    return renderTemplate(nodes, scope);
   }
 }
