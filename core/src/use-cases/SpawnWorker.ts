@@ -16,6 +16,7 @@ import type { WorktreeManager } from "../ports/WorktreeManager.ts";
 import type { ModelCapabilities } from "../ports/ModelCapabilities.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import type { ToolScope } from "../../../contracts/src/worker-definition.ts";
+import type { NameSource } from "../../../contracts/src/worker.ts";
 import { resolveEffort } from "../domain/effort.ts";
 import { assertOwnedBy } from "../services/WorkerOwnership.ts";
 import { ConflictError, NotFoundError } from "../errors/index.ts";
@@ -26,6 +27,11 @@ export interface SpawnWorkerSpec {
   worktreeFrom?: string;
   branch?: string;
   name?: string;
+  /** Provenance of `name`, persisted to name_source. 'default' = the random
+   * default (auto-name eligible); 'user' = an explicit creation name / human
+   * rename; 'auto' = the auto-name micro-task. Set by the spawn route; absent →
+   * derived from whether a name was supplied. */
+  nameSource?: NameSource;
   withGateway?: boolean;
   persistent?: boolean;
   systemPromptFile?: string;
@@ -277,6 +283,9 @@ export async function spawnWorker(
     worktreeFrom: resolved.worktreeFrom ?? null,
     branch: withBranch.branch ?? null,
     name: resolved.name ?? null,
+    // Provenance: explicit from the route, else inferred — a supplied name is an
+    // explicit choice ('user'), a nameless spawn defaults ('default').
+    nameSource: resolved.nameSource ?? (resolved.name ? "user" : "default"),
     pid,
     port,
     startedAt: deps.clock.now(),

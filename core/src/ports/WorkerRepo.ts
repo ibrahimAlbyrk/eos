@@ -1,7 +1,7 @@
 // WorkerRepo — persistence port for worker rows. Adapter is SqliteWorkerRepo
 // in infra/persistence/.
 
-import type { WorkerRow } from "../../../contracts/src/worker.ts";
+import type { WorkerRow, NameSource } from "../../../contracts/src/worker.ts";
 import type { WorkerState } from "../../../contracts/src/events.ts";
 
 export interface InsertWorkerInput {
@@ -11,6 +11,9 @@ export interface InsertWorkerInput {
   worktreeFrom: string | null;
   branch: string | null;
   name: string | null;
+  // Provenance of `name`: 'default' (random default, auto-name eligible), 'user'
+  // (explicit creation name / human rename), or 'auto' (auto-name micro-task).
+  nameSource: NameSource;
   pid: number | null;
   port: number;
   startedAt: number;
@@ -67,7 +70,13 @@ export interface WorkerRepo {
   // ring reads. SET, never summed: the latest per-request prompt footprint wins.
   setContextTokens(id: string, tokens: number): void;
   incrementToolCalls(id: string): void;
-  updateName(id: string, name: string | null): void;
+  // Unconditional name write — also stamps provenance (a human rename is 'user').
+  updateName(id: string, name: string | null, source: NameSource): void;
+  // Compare-and-swap name write: sets name+next ONLY when the row's current
+  // name_source equals `expected`. Returns true iff a row changed. This is the
+  // never-clobber guard — an auto-name (expected:'default') can never overwrite a
+  // name the human already set ('user') or a legacy NULL row.
+  updateNameIfSource(id: string, name: string, expected: NameSource, next: NameSource): boolean;
   updatePermissionMode(id: string, mode: string): void;
   updateModel(id: string, model: string, effort: string | null): void;
   // Switch the worker's provider (backend_kind) — persisted before a
