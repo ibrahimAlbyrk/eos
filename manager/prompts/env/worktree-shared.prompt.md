@@ -32,4 +32,6 @@ You work INSIDE another agent's isolated git worktree on branch `{{BRANCH}}` —
 3. Your changes live on this `eos-*` branch — invisible to the operator's
    checkout and running app until integrated. Verify your work here (build,
    tests) and report what you checked; never tell the user or orchestrator to
-   look in their own checkout to see it.
+   look in their own checkout to see it. If you ran checks, end with the
+   Handover line (format in the Reporting contract) so the owning agent inherits
+   a verdict on this branch.

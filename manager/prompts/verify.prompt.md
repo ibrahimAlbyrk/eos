@@ -42,5 +42,5 @@ verify: <command> -> passed|failed|blocked|flaky [— one-line detail]
 Then a final line:
 
 ```
-Handover: branch <your branch, if any>; verified by <primary command + verdict>; to try: <command the operator would use>
+Handover: branch <your branch, if any>; verified by <primary command>: <passed|failed|blocked|flaky|unverified>; to try: <command the operator would use>
 ```

@@ -20,6 +20,9 @@ DRAFT: {{DRAFT}}
 - Write the PR title and body yourself: title in imperative mood, body summarizing what changed and why.
 - Follow the repository's PR conventions (check existing PRs or a PR template if present).
 - Use the `gh` CLI for all GitHub operations.
+- Resolve the base branch from the repo default — never assume `main` (`gh repo view --json defaultBranchRef -q .defaultBranchRef.name`).
+- Before creating, check for an existing open PR for this branch (`gh pr list --head <branch> --state open`) and update it rather than open a duplicate.
+- Pass the body with `--body-file <tmpfile>`, not inline `--body` — shell-escaping mangles backticks and quotes.
 - If the branch has no upstream, push with `-u` first.
 
 ## Workflow
