@@ -1700,4 +1700,8 @@ export const ROUTES = {
   updateCheck: "/api/updates/check",
   updateApply: "/api/updates/apply",
   updateDefer: "/api/updates/defer",
+  // Loopback + ui-token only (arm a pairing offer / read remote status). Never
+  // remote-reachable — the remote control surface is the /ws gateway.
+  remotePair: "/api/remote/pair",
+  remoteStatus: "/api/remote/status",
 } as const;

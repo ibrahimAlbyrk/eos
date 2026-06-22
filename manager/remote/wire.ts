@@ -25,15 +25,25 @@ import type { RemoteConfig } from "../../contracts/src/remote.ts";
 // Structural subset of the daemon container wire.ts needs — keeps this module
 // decoupled from the (inferred) Container type.
 export interface RemoteWiringDeps {
-  config: { remote: RemoteConfig; daemon: { home: string } };
+  config: { remote: RemoteConfig; daemon: { home: string; port: number } };
   uiToken: string;
   bus: EventBus;
   log: { info(msg: string, fields?: Record<string, unknown>): void; warn(msg: string, fields?: Record<string, unknown>): void };
 }
 
+export interface PairArmOptions {
+  lan?: string[];
+  lanSpki?: string | null;
+  relay?: { url: string; room: string } | null;
+}
+
 export interface RemoteGatewayHandle {
   stop(): void;
   pairing: PairingManager;
+  // Arm a one-time pairing offer and return the §6 QR payload. In relay mode the
+  // pairing-bearer hash is added to the relay allowlist so a NEW (unenrolled)
+  // device can join the room for the pairing window.
+  armPairing(opts: PairArmOptions): import("../../contracts/src/remote.ts").PairingQr;
 }
 
 function loadOwnerSecret(remoteDir: string): string {
@@ -66,7 +76,10 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router, server: 
   if (mode === "lan") {
     const handle = mountWsGateway(server, { ...baseDeps, room: "lan" });
     c.log.info("remote gateway armed", { mode, surface: "/ws" });
-    return { stop: handle.stop, pairing };
+    // LAN: the /ws upgrade admits the pairing bearer directly (gateway
+    // bearerAdmitted reads pairing.pairingBearerHash()), so arming is just the
+    // offer — no relay allowlist to update.
+    return { stop: handle.stop, pairing, armPairing: (opts) => pairing.arm(opts) };
   }
 
   // relay
@@ -103,5 +116,14 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router, server: 
   return {
     stop: () => { connector.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
     pairing,
+    armPairing: (opts) => {
+      const qr = pairing.arm(opts);
+      // Relay admits on the bearer-hash allowlist — add the one-time pairing
+      // bearer so an unenrolled device can join the room to pair. The durable
+      // bearer is swapped in (and the pairing hash dropped) after enrollment.
+      const hash = pairing.pairingBearerHash();
+      if (hash) connector.allowAdd(hash);
+      return qr;
+    },
   };
 }
