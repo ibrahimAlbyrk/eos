@@ -1,0 +1,72 @@
+{
+  "spec": "docs/ios-remote-protocol.md §9.2 — golden interop fixture v1",
+  "note": "Daemon (Node sodium-native + built-in crypto) reference bytes. Relay and iOS MUST reproduce these byte-for-byte. dataFrameKa.ciphertextTag is the go/no-go interop gate. Values are lowercase hex unless the name says B64U/Utf8.",
+  "inputs": {
+    "ePubC": "8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a",
+    "eSecC": "77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a",
+    "ePubS": "de9edb7d7b7dc1b4d35b61c2ece435373f8343c85b78674dadfc7e146f882b4f",
+    "eSecS": "5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb",
+    "clientNonce": "00112233445566778899aabbccddeeff",
+    "serverNonce": "ffeeddccbbaa99887766554433221100",
+    "ots": "0101010101010101010101010101010101010101010101010101010101010101",
+    "room": "AAAAAAAAAAAAAAAAAAAAAA",
+    "roomLen": 22,
+    "clientId": "000102030405060708090a0b0c0d0e0f",
+    "devId": "00000000-0000-4000-8000-000000000001",
+    "label": "fixture-device",
+    "iMacPub": "041878d9fde400a51ab57afbf02a79a02c392cbf73f322e76a808839b9d33fe5f28781f8a92ebce917377f2db932f92c9750456ac3bca45c43cfcb1f894c307839",
+    "iDevPub": "040d63f5ac2d3c757e21e7acf56a0224e29601a96d5ab536eab723a5ebc59b75e189eee49878f666134f0a44c40c19bc54e74cf8029c6479e8dba35193b83b5617",
+    "sigS": "569026af0e6ffad08c6e02c000ecbc6ad3d073b8a9d078444eae428bfd48a240d95c5fa01ed6251d1fd2c357bf3cbec111030732da7572d07f1101fe6a64f752",
+    "sigC": "df5482c0c8eab1425dcc0fb9a9b62d53489b2bd506f154b69d1536a01365d8bee42832a6b5670882b882f9bad63c320edafa5534b92515cceb0509df6672985a",
+    "resume": {
+      "ticketId": "03030303030303030303030303030303",
+      "psk": "0202020202020202020202020202020202020202020202020202020202020202"
+    },
+    "sampleStepUpBody": "{\"signal\":\"TERM\"}"
+  },
+  "kx": {
+    "kC2s": "284901a611708379d0b5b0e40d77ea207624eaab8dd0c95e693fc3ee76c73ccb",
+    "kS2c": "322b7be3b9bce4a84fe6e2dea61e8e6d0a98f3e4c60b58bad722b1c855c9db22"
+  },
+  "transcript": {
+    "th2": "1a86920b995b2f69a461d9e11b47c8cc2db8cffa892a89fba1fc862da134b6ae",
+    "th3": "25e0126396207c7b3250ec6ea91bf2a1ca6bb63b2c602c87c47e33e30ef2271e"
+  },
+  "handshakeKeys": {
+    "kHsS2c": "b3d773058c5d0a26bf7766752fb839fc24a753f881d57b1b6322f98f528072b8",
+    "kHsC2s": "7aebe9aaba3a23b7eb304edbfa3e82e699b41860d6bdd0a98c18837371bb2b69"
+  },
+  "trafficKeys": {
+    "kC2sFinal": "54df6395c8328fa8e5a3a8770b1de0c07c8ac129aca55e8435c256c55263ec6d",
+    "kS2cFinal": "58cfe8786f2198c413e0bbcc13776de92dd076b028cc8d210c8f044ac0440b6c"
+  },
+  "otsProof": "7a2f6a7ac893ea889a818cd38a009a820b14c9b1fa75183307ab608e8d903ba7",
+  "sealed": {
+    "s2Plaintext": "{\"iMac\":\"BBh42f3kAKUatXr78Cp5oCw5LL9z8yLnaoCIObnTP-Xyh4H4qS686Rc3fy25Mvksl1BFasO8pFxDz8sfiUwweDk\",\"sigS\":\"VpAmrw5v-tCMbgLAAOy8atPQc7ip0HhETq5Ci_1IokDZXF-gHtYlHR_Sw1e_PL7BEQMHMtp1ctB_EQH-amT3Ug\"}",
+    "encS": "8ac0415d8cb5ebeb9126bf0e85850b6208b05620065a38fe6a27a2fb966afe4c7765168b259675ffa602fe95265912b7ad3c38c7cfc8052f045bc432bcb6a6ee09a1a1f536313d3b1c28496f19e8f05d9eb882fecfa770ebccef90c0a7e868d514e3d111563fe7eed90c6a775d6de1e911f6bb58cb7aca0a5673f653c006931e5fa397a036624a2f9578a978627c4020e0a2b598dc6d15e07dd1f6aa721128622f31c399588ce27ad73c588bb4f893d3f412d8f5ecb3458dbc0ee2d66f2e4695aaa54e2523a5813cd51792f340258a14f92f",
+    "c3Plaintext": "{\"iDev\":\"BA1j9awtPHV-Iees9WoCJOKWAaltWrU26rcjpevFm3Xhie7kmHj2ZhNPCkTEDBm8VOdM-AKcZHno26NRk7g7Vhc\",\"devId\":\"00000000-0000-4000-8000-000000000001\",\"label\":\"fixture-device\",\"sigC\":\"31SCwMjqsUJdzA-5qbYtU0ibK9UG8VS2nRU2oBNl2L7kKDKmtWcIgriC-brWPDIO2vpVNLklFczrBQnfZnKYWg\",\"ots\":\"ei9qesiT6oiagYzTigCaggsUybH6dRgzB6tgjo2QO6c\"}",
+    "encC": "01b646f7352a2d66b77de184dfda193b49f7ee625344180a0465e7fc8b5101138def463d575394b8ba0db35d4c28d361e080ef1a3a4a67048a7233274c7d45a020465122b1e699df4b9cc857c3ffae770e594360a491e06f04d22d090d0c8bbe0ba171bdcb5ead2dedc3152d5e6377fa940f4f22cf26b8d64d4aa695a68921a9f3c48d8089a6228f388c467c96b3ae125520e4d0ffc5c8e65969f0925494e47e3ba9a4722d40e55a8679feaad97b0039b787dc455524f4fcbc6a50525e6a5d1ff1d874a6d2024aeaca13da0b9c3bc2bca00b4b487116ddbada4731402bfef2a5a5612e6ce84ccb89307b5ff689225cacf78eedbd6a0135714eb8210d122ff65f914c5217575c70d27678a58ae88ff72404aa2b45f7111870a550d47c545bf8407958a68b2fbb1ca6a98b513ca091794b27b5daa533f77904a3e8f2af6e92efa1a364d481b86e541e0d0d6c027a24"
+  },
+  "dataFrameKa": {
+    "gate": true,
+    "plaintextUtf8": "{\"t\":\"ka\",\"ts\":0}",
+    "plaintextHex": "7b2274223a226b61222c227473223a307d",
+    "plaintextLen": 17,
+    "key": "kC2sFinal",
+    "npub": "000000000000000000000000000000000000000000000000",
+    "aad": "01000000000000000000001641414141414141414141414141414141414141414141000102030405060708090a0b0c0d0e0f",
+    "ciphertextTag": "98a01cc34ccd64ce66f82f3d043d57fb11327605e537ed09ff8553014d3d471f74"
+  },
+  "resume": {
+    "note": "ticketId/psk are fixture-defined inputs. TH_with_kx = BLAKE2b(TH ‖ K_c2s ‖ K_s2c); traffic keys = KDF(key=PSK).",
+    "thResume": "b425f1731bf3900c0d684819103c9513863f28bbe56d7ed0adac6e332cfdda13",
+    "thWithKx": "857d4dbb3a4b4430268ed441fbbef1c3a24e4c048d99aa23ba99dc73172bcf17",
+    "binderC": "db797ad23b30ef73b2c03a7758aecce7323ed384f47b7db49be0335719eef164",
+    "binderS": "8dfc3dc03290f0dc00e4b9c454885944323aa60e14ac82c5735b39eedfd7889a",
+    "kC2sResume": "74e224c3880a82e9b4f8693773c1e8070972933ef4971eeb0eb95c8526143e2e",
+    "kS2cResume": "141ba570d43aef466d9be300b03299caa008f84571980b604884137a29e97fa4"
+  },
+  "stepUp": {
+    "bodyHash": "c90f3c4e42a30af250a30a9db9f22fc5eff848000a01f2c5290abac5ff1abebf"
+  }
+}
