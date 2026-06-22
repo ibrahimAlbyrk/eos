@@ -20,6 +20,7 @@ import { Router } from "./routes/Router.ts";
 import { mintRequestId } from "./middleware/requestId.ts";
 import { handleError, writeJson } from "./middleware/errorHandler.ts";
 import { isLoopbackRequest } from "./middleware/loopback-lock.ts";
+import { startRemoteGateway } from "./remote/wire.ts";
 import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
 import { drainQueuedMessages } from "../core/src/use-cases/DrainQueuedMessages.ts";
 import { dispatchDeps } from "./routes/dispatch-deps.ts";
@@ -347,6 +348,12 @@ function makeHandler(router: Router, opts: { cors?: boolean } = {}) {
 
 const server = createServer(makeHandler(router, { cors: true }));
 
+// Remote edge (iOS). Arms the /ws gateway ONLY when config.remote.mode != off —
+// default off ⇒ no-op, no remote surface. Off-box reachability stays bounded to
+// the authenticated /ws upgrade by the loopback-lock middleware above. Loads on
+// the user's next deliberate daemon start.
+const remoteGateway = startRemoteGateway(c, router, server);
+
 // Raw-content origin: arbitrary disk bytes + the vendored pdf.js viewer on a
 // separate port. Viewer iframes run untrusted HTML with `allow-same-origin`,
 // so that content must never share an origin with the uiToken-bearing app/API
@@ -386,6 +393,7 @@ function shutdown(sig: string): void {
   shuttingDown = true;
   const ids = c.supervisor.listIds();
   c.log.info("shutting down", { signal: sig, workers: ids.length });
+  try { remoteGateway?.stop(); } catch {}
   for (const id of ids) c.supervisor.escalateKill(id, 0);
   try { unlinkSync(c.config.daemon.pidFile); } catch {}
   try { c.db.close(); } catch {}

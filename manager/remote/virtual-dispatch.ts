@@ -21,41 +21,52 @@ function virtualReq(method: string, path: string, body: unknown, headers: Record
   return req;
 }
 
-interface CapturingRes {
+// Minimal ServerResponse surface the route handlers actually touch. Typed
+// explicitly so the chaining methods don't self-reference their own initializer.
+// `statusCode` is the single source of truth — handlers set it directly or via
+// writeHead; `chunks`/`contentType` capture the body.
+interface VirtualRes {
   statusCode: number;
+  headersSent: boolean;
   chunks: Buffer[];
   contentType: string;
+  setHeader(name: string, value: string): void;
+  getHeader(): undefined;
+  removeHeader(): void;
+  writeHead(status: number, headers?: Record<string, string>): VirtualRes;
+  write(chunk?: unknown): boolean;
+  end(chunk?: unknown): void;
+  on(): VirtualRes;
+  once(): VirtualRes;
+  emit(): boolean;
+  removeListener(): VirtualRes;
 }
 
-function virtualRes(): { res: ServerResponse; captured: CapturingRes } {
-  const captured: CapturingRes = { statusCode: 200, chunks: [], contentType: "" };
-  const push = (chunk?: unknown): void => {
-    if (chunk == null) return;
-    captured.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
-  };
-  const res = {
-    get statusCode(): number { return captured.statusCode; },
-    set statusCode(v: number) { captured.statusCode = v; },
+function virtualRes(): VirtualRes {
+  const res: VirtualRes = {
+    statusCode: 200,
     headersSent: false,
+    chunks: [],
+    contentType: "",
     setHeader(name: string, value: string): void {
-      if (name.toLowerCase() === "content-type") captured.contentType = value;
+      if (name.toLowerCase() === "content-type") res.contentType = value;
     },
     getHeader(): undefined { return undefined; },
     removeHeader(): void {},
-    writeHead(status: number, headers?: Record<string, string>): typeof res {
-      captured.statusCode = status;
+    writeHead(status: number, headers?: Record<string, string>): VirtualRes {
+      res.statusCode = status;
       const ct = headers?.["content-type"] ?? headers?.["Content-Type"];
-      if (ct) captured.contentType = ct;
+      if (ct) res.contentType = ct;
       return res;
     },
-    write(chunk?: unknown): boolean { push(chunk); return true; },
-    end(chunk?: unknown): void { push(chunk); },
-    on(): typeof res { return res; },
-    once(): typeof res { return res; },
+    write(chunk?: unknown): boolean { if (chunk != null) res.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))); return true; },
+    end(chunk?: unknown): void { if (chunk != null) res.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))); },
+    on(): VirtualRes { return res; },
+    once(): VirtualRes { return res; },
     emit(): boolean { return false; },
-    removeListener(): typeof res { return res; },
+    removeListener(): VirtualRes { return res; },
   };
-  return { res: res as unknown as ServerResponse, captured };
+  return res;
 }
 
 // Build the RouteDispatch the gateway injects into the ControlDispatcher.
@@ -65,17 +76,17 @@ export function makeRouteDispatch(router: Router): RouteDispatch {
     if (uiToken) headers["x-eos-ui-token"] = uiToken;
     const match = router.match(method, path);
     if (!match) return { status: 404, body: { error: "not found", path } };
-    const { res, captured } = virtualRes();
+    const res = virtualRes();
     const req = virtualReq(method, path, body, headers);
     await match.handler({
       method, path, url: new URL(`http://127.0.0.1${path}`),
-      params: match.params, req, res, requestId: "remote",
+      params: match.params, req, res: res as unknown as ServerResponse, requestId: "remote",
     });
-    const raw = Buffer.concat(captured.chunks).toString("utf8");
+    const raw = Buffer.concat(res.chunks).toString("utf8");
     let parsed: unknown = raw;
-    if (captured.contentType.includes("application/json") || /^[[{]/.test(raw.trim())) {
+    if (res.contentType.includes("application/json") || /^[[{]/.test(raw.trim())) {
       try { parsed = raw ? JSON.parse(raw) : {}; } catch { /* keep raw */ }
     }
-    return { status: captured.statusCode, body: parsed };
+    return { status: res.statusCode, body: parsed };
   };
 }
