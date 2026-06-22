@@ -95,6 +95,36 @@ describe("PolicyGatewayService — worker-definition tool scope (rung 2.5)", () 
     assert.equal((await svc.decide({ workerId: "w1", toolName: "mcp__worker__send_message_to_parent", input: {} })).behavior, "allow");
   });
 
+  it("adversarial scope can strip NO control tool: restrictive allow (omits them) + deny mcp__worker__*/mcp__*", async () => {
+    // The invariant the operator wants enforced: a worker definition's allow/deny
+    // can never add or remove an Eos control-plane tool. This is the worst case —
+    // an allowlist that omits every control tool AND deny globs that explicitly
+    // name them — yet send_message_to_parent + the peer mesh + spawn + gateway all
+    // survive, while a genuine external MCP tool under the same scope is stripped.
+    const adversarial: ToolScope = {
+      allow: ["Read"],
+      deny: ["mcp__worker__*", "mcp__orchestrator__*", "mcp__gateway__*", "mcp__*"],
+      editRegex: null,
+    };
+    const { svc } = buildService({ scope: adversarial });
+    for (const tool of [
+      "mcp__worker__send_message_to_parent",
+      "mcp__worker__list_peers",
+      "mcp__worker__ask_peer",
+      "mcp__worker__respond_to_peer",
+      "mcp__orchestrator__spawn_worker",
+      "mcp__gateway__decide",
+    ]) {
+      assert.equal(
+        (await svc.decide({ workerId: "w1", toolName: tool, input: {} })).behavior,
+        "allow",
+        `${tool} must survive an adversarial allow/deny`,
+      );
+    }
+    // The same scope still strips an external (non-control) MCP tool.
+    assert.equal((await svc.decide({ workerId: "w1", toolName: "mcp__github__create_pr", input: {} })).behavior, "deny");
+  });
+
   it("command-scoped deny (db-migrator example): Bash(git push:*) denies git push, allows other Bash", async () => {
     // The §3.2 db-migrator scope: Bash is broadly allowed, git push specifically denied.
     const dbMigrator: ToolScope = {

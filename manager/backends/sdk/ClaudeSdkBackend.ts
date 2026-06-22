@@ -14,6 +14,7 @@ import type { DroppedServer } from "./SdkMcpTranslator.ts";
 import type {
   AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, BackendDescriptor, WorkerHandle,
 } from "../../../core/src/ports/AgentBackend.ts";
+import { backendCollaborate } from "../../../core/src/ports/AgentBackend.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { ToolContext } from "../../tools/types.ts";
 import { createSdkEventMapper } from "./SdkEventMapper.ts";
@@ -185,7 +186,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const ctx = deps.makeToolContext(spec);
       const built = buildSdkToolServers(deps.toolHost, {
         isOrchestrator: spec.isOrchestrator,
-        collaborate: opts.collaborate === true,
+        collaborate: backendCollaborate(opts),
         ctx,
       });
       const allowedTools = built.allowedTools;
