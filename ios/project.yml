@@ -1,0 +1,81 @@
+name: EosRemote
+
+options:
+  bundleIdPrefix: dev.eos.remote
+  deploymentTarget:
+    iOS: "26.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    GENERATE_INFOPLIST_FILE: "YES"
+    # Per-build signing/bundle-id is the user's (design §9). Generic team picked at build time.
+    CODE_SIGN_STYLE: Automatic
+
+packages:
+  Sodium:
+    url: https://github.com/jedisct1/swift-sodium.git
+    # Pinned commit → libsodium C 1.0.20 (protocol §13.1). Must match the daemon's sodium-native build.
+    revision: cfd195c76882aa9b997560ca7cb95d72fbf5db00
+
+targets:
+  # The testable core: crypto, transport, models, data layer. Zero UIKit.
+  # Mirrors the repo's contracts→core→infra layering — the crypto gate is isolated from the UI.
+  EosRemoteKit:
+    type: framework
+    platform: iOS
+    sources:
+      - path: EosRemoteKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.eos.remote.kit
+        ENABLE_TESTABILITY: "YES"
+    dependencies:
+      - package: Sodium
+        product: Sodium
+
+  EosRemote:
+    type: application
+    platform: iOS
+    sources:
+      - path: EosRemote
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.eos.remote.app
+        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
+        INFOPLIST_KEY_NSCameraUsageDescription: "Scan the pairing QR shown by the Eos Mac app."
+        INFOPLIST_KEY_NSFaceIDUsageDescription: "Authorize remote control actions with Face ID."
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
+        TARGETED_DEVICE_FAMILY: "1,2"
+    dependencies:
+      - target: EosRemoteKit
+
+  EosRemoteKitTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: EosRemoteKitTests
+    dependencies:
+      - target: EosRemoteKit
+      - package: Sodium
+        product: Sodium
+
+schemes:
+  EosRemote:
+    build:
+      targets:
+        EosRemote: all
+        EosRemoteKit: all
+    test:
+      targets:
+        - EosRemoteKitTests
+  EosRemoteKit:
+    build:
+      targets:
+        EosRemoteKit: all
+    test:
+      targets:
+        - EosRemoteKitTests
