@@ -178,6 +178,10 @@ final class CryptoFixtureTests: XCTestCase {
         let rk = try HandshakeCrypto.resumeTrafficKeys(psk: psk, thWithKx: thWithKx)
         assertEq(rk.c2s, try vhex("resume", "kC2sResume"), "kC2sResume")
         assertEq(rk.s2c, try vhex("resume", "kS2cResume"), "kS2cResume")
+
+        // The dedicated encTicket key (3838e9d): K_resume_ticket = KDF(PSK, "eos/v1 resume ticket", TH_with_kx).
+        assertEq(try HandshakeCrypto.resumeTicketKey(psk: psk, thWithKx: thWithKx),
+                 try vhex("resume", "kResumeTicket"), "kResumeTicket")
     }
 
     func test_stepup_body_hash() throws {

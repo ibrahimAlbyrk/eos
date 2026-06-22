@@ -45,7 +45,9 @@ public final class ResumeDriver {
         let thWithKx = try HandshakeCrypto.thWithKx(thResume: thResume, kC2s: kx.tx, kS2c: kx.rx)
         let tk = try HandshakeCrypto.resumeTrafficKeys(psk: ticket.psk, thWithKx: thWithKx)
 
-        let ticketPlain = try CryptoSuite.aeadOpen(key: tk.s2c, npub: Nonce.make(epoch: 0, dir: .s2c, seq: 0),
+        // encTicket is sealed under the DEDICATED K_resume_ticket (NOT K_s2c_final), AAD=∅ (§2.3).
+        let ticketKey = try HandshakeCrypto.resumeTicketKey(psk: ticket.psk, thWithKx: thWithKx)
+        let ticketPlain = try CryptoSuite.aeadOpen(key: ticketKey, npub: Nonce.make(epoch: 0, dir: .s2c, seq: 0),
                                                    aad: Data(), ciphertext: s.encTicket)
         let newTicket = try ResumptionTicket(fromWire: ticketPlain)
 

@@ -12,6 +12,9 @@ final class AppModel: ObservableObject {
     @Published var pending: [Pending] = []
     @Published var connected = false
     @Published var lastError: String?
+    // Set when a HIGH-risk action is attempted on a resumed (read+low-risk) session: the UI must
+    // drive a fresh cold connect/step-up rather than assume the resumed session can perform it.
+    @Published var needsColdConnect = false
 
     let store = Store()
     private var connection: WSConnection?
@@ -75,6 +78,13 @@ final class AppModel: ObservableObject {
     // Obtain a fresh challenge, build the step-up field over the EXACT transmitted body bytes, send.
     private func stepUpControl(_ method: String, _ path: String, _ body: JSONValue) async {
         guard let connection, let session, let identity else { lastError = "not connected"; return }
+        // A resumed session is capped to read+low-risk: HIGH verbs would return CAP_DENIED even with
+        // the Enclave key (3838e9d). Prompt a fresh cold connect instead of attempting + failing.
+        if session.isResumed {
+            needsColdConnect = true
+            lastError = "This action needs a fresh secure connection (Face ID)."
+            return
+        }
         do {
             let bodyData = encodeOnce(body)
             let chReply = try await connection.sendControl(method: "POST", path: "/stepup/challenge",

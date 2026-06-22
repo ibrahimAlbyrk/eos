@@ -17,6 +17,7 @@ public enum HandshakeCrypto {
         static let resumeBinderS = "eos/v1 resume binderS"
         static let resumeDataC2s = "eos/v1 resume data c2s"
         static let resumeDataS2c = "eos/v1 resume data s2c"
+        static let resumeTicket = "eos/v1 resume ticket"
         static let stepup = "eos/v1 stepup"
     }
 
@@ -74,6 +75,12 @@ public enum HandshakeCrypto {
         TrafficKeys(
             c2s: try CryptoSuite.kdf(key: psk, label: Label.resumeDataC2s, transcriptHash: thWithKx),
             s2c: try CryptoSuite.kdf(key: psk, label: Label.resumeDataS2c, transcriptHash: thWithKx))
+    }
+
+    // DEDICATED key sealing the resume encTicket ONLY (§2.3) — keeps the ticket out of the
+    // K_s2c_final (key, nonce) space, so an empty AAD on encTicket is safe.
+    public static func resumeTicketKey(psk: Data, thWithKx: Data) throws -> Data {
+        try CryptoSuite.kdf(key: psk, label: Label.resumeTicket, transcriptHash: thWithKx)
     }
 
     // bodyHash for step-up signatures = unkeyed BLAKE2b over the exact transmitted body bytes (§3.4).
