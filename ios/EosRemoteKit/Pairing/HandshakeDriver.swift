@@ -24,9 +24,13 @@ public final class HandshakeDriver {
 
     // PAIR-1 / CONNECT-1: announce ephemeral pub + client nonce.
     public func buildHello() throws -> [String: String] {
-        let kp = try CryptoSuite.generateKxKeypair()
-        eph = kp
-        clientNonce = randomBytes(16)
+        try makeHello(kp: CryptoSuite.generateKxKeypair(), clientNonce: randomBytes(16))
+    }
+
+    // Deterministic hello — fixed ephemerals/nonce for the golden-fixture choreography test.
+    func makeHello(kp: CryptoSuite.KxKeypair, clientNonce: Data) -> [String: String] {
+        self.eph = kp
+        self.clientNonce = clientNonce
         return ["v": "1", "t": "hs", "step": "1",
                 "mode": mode == .connect ? "connect" : "pair",
                 "ePubC": Bytes.b64u(kp.publicKey),

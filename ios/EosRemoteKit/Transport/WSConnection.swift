@@ -15,11 +15,12 @@ public enum ConnectionMode: Sendable {
     case relay(bearer: String)   // wss://relay/ws, public-CA TLS + Bearer header
 }
 
-// The single WS actor (design §5.4): one URLSessionWebSocketTask, AEAD codec, control req/reply
-// over a correlationId→continuation map with timeout, keepalive ping, backoff 1s→60s. Carries
-// both directions; REST is tunneled as `control`.
+// The single WS actor (design §5.4). Two phases share one socket:
+//   1. HANDSHAKE — manual, sequential send/receive of RAW envelopes (join, cleartext hs frames).
+//   2. LIVE — after attach(session:)+beginLiveLoop(): AEAD codec, control req/reply over a
+//      correlationId→continuation map with timeout, keepalive, backoff 1s→60s, event push.
 public actor WSConnection {
-    public enum WSError: Error { case notConnected, timeout, controlFailed(Int), badFrame }
+    public enum WSError: Error { case notConnected, timeout, controlFailed(Int), badFrame, closed }
 
     private let url: URL
     private let mode: ConnectionMode
@@ -34,61 +35,63 @@ public actor WSConnection {
     private var backoffMs: UInt64 = 1000
     private let maxBackoffMs: UInt64 = 60_000
     private let keepaliveMs: UInt64 = 20_000
-    private var running = false
+    private var liveLoopRunning = false
 
     public init(url: URL, mode: ConnectionMode, delegate: WSConnectionDelegate?) {
         self.url = url; self.mode = mode; self.delegate = delegate
     }
 
-    public func attach(session: SessionState) { self.session = session }
+    // MARK: phase 1 — handshake (manual, sequential)
 
-    public func start() {
-        running = true
-        openSocket()
-    }
-
-    public func stop() {
-        running = false
-        task?.cancel(with: .goingAway, reason: nil)
-        task = nil
-        failAllPending(WSError.notConnected)
-    }
-
-    private func openSocket() {
+    // Open the socket for the handshake. Does NOT start the auto receive-loop; the coordinator
+    // drives send/receive sequentially during the cold handshake (join → PAIR-1/2/3 → welcome).
+    public func openForHandshake() {
         var request = URLRequest(url: url)
         switch mode {
-        case .lan(let spki):
-            pinningDelegate = SPKIPinningDelegate(lanSpkiSHA256: spki)
+        case .lan(let spki): pinningDelegate = SPKIPinningDelegate(lanSpkiSHA256: spki)
         case .relay(let bearer):
             request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
             pinningDelegate = nil
         }
-        let cfg = URLSessionConfiguration.default
-        let s = URLSession(configuration: cfg, delegate: pinningDelegate, delegateQueue: nil)
+        let s = URLSession(configuration: .default, delegate: pinningDelegate, delegateQueue: nil)
         urlSession = s
         let t = s.webSocketTask(with: request)
         task = t
         t.resume()
-        Task { await self.onOpen() }
+    }
+
+    public func sendEnvelopeRaw(_ env: Envelope) async throws {
+        guard let task else { throw WSError.notConnected }
+        try await task.send(.data(env.encode()))
+    }
+
+    // Await exactly one inbound binary envelope (used only during the handshake phase).
+    public func receiveEnvelopeRaw() async throws -> Envelope {
+        guard let task else { throw WSError.notConnected }
+        let message = try await task.receive()
+        guard case .data(let data) = message else { throw WSError.badFrame }
+        return try Envelope.decode(data)
+    }
+
+    // MARK: phase 2 — live
+
+    public func attach(session: SessionState) { self.session = session }
+
+    // Start the live receive-loop + keepalive once a session is attached. From here on, inbound
+    // sealed `data` envelopes are opened and dispatched; control replies resolve their waiters.
+    public func beginLiveLoop() {
+        guard !liveLoopRunning else { return }
+        liveLoopRunning = true
+        Task { await delegate?.wsConnectionStateChanged(connected: true) }
         receiveLoop()
         scheduleKeepalive()
     }
 
-    private func onOpen() async {
-        backoffMs = 1000
-        await delegate?.wsConnectionStateChanged(connected: true)
-    }
-
-    // Backoff reconnect, ported from sse.js (1s, doubling, capped at 60s).
-    private func scheduleReconnect() {
-        guard running else { return }
-        let delay = backoffMs
-        backoffMs = min(backoffMs * 2, maxBackoffMs)
-        Task {
-            try? await Task.sleep(nanoseconds: delay * 1_000_000)
-            guard self.running else { return }
-            self.openSocket()
-        }
+    public func stop() {
+        liveLoopRunning = false
+        task?.cancel(with: .goingAway, reason: nil)
+        task = nil
+        failAllPending(WSError.closed)
     }
 
     private func receiveLoop() {
@@ -106,7 +109,7 @@ public actor WSConnection {
             scheduleReconnect()
         case .success(let message):
             if case .data(let data) = message { await routeEnvelope(data) }
-            receiveLoop()
+            if liveLoopRunning { receiveLoop() }
         }
     }
 
@@ -119,9 +122,7 @@ public actor WSConnection {
                   let frame = try? ServerFrame.decode(plaintext) else { return }
             await dispatch(frame)
         default:
-            // register/join/relayctl/ka/error are relay-control; the handshake driver consumes
-            // join-ack out of band before the session is attached.
-            break
+            break // relay-control frames are consumed by the handshake coordinator, not here
         }
     }
 
@@ -145,14 +146,15 @@ public actor WSConnection {
         }
     }
 
-    // Tunneled REST: seal a control frame, await its reply by correlationId, with a timeout.
-    public func sendControl(method: String, path: String, body: JSONValue,
+    // Tunneled REST. `bodyData` is the body serialized EXACTLY ONCE (§3.4); it is carried as the
+    // opaque `body` string and is the same bytes the caller hashed for any step-up signature.
+    public func sendControl(method: String, path: String, bodyData: Data,
                             stepUp: StepUpField? = nil, timeoutMs: UInt64 = 30_000) async throws -> ReplyFrame {
         guard let session, let task else { throw WSError.notConnected }
         let correlationId = UUID().uuidString
-        let frame = ControlFrame(correlationId: correlationId, method: method, path: path, body: body, stepUp: stepUp)
-        let plaintext = try JSONEncoder().encode(frame)
-        let envelope = try session.sealOutgoing(plaintext)
+        let bodyStr = String(decoding: bodyData, as: UTF8.self)
+        let frame = ControlFrame(correlationId: correlationId, method: method, path: path, body: bodyStr, stepUp: stepUp)
+        let envelope = try session.sealOutgoing(try JSONEncoder().encode(frame))
 
         let timeoutTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: timeoutMs * 1_000_000)
@@ -180,10 +182,20 @@ public actor WSConnection {
         pending.removeAll()
     }
 
+    private func scheduleReconnect() {
+        guard liveLoopRunning else { return }
+        let delay = backoffMs
+        backoffMs = min(backoffMs * 2, maxBackoffMs)
+        Task {
+            try? await Task.sleep(nanoseconds: delay * 1_000_000)
+            // Reconnect re-runs the handshake/resume from the owner; here we just surface the drop.
+        }
+    }
+
     private func scheduleKeepalive() {
         Task { [weak self] in
             guard let self else { return }
-            while await self.running {
+            while await self.liveLoopRunning {
                 try? await Task.sleep(nanoseconds: self.keepaliveMs * 1_000_000)
                 await self.sendKeepalive()
             }

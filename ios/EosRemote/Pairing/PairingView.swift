@@ -35,10 +35,16 @@ struct PairingView: View {
         status = "Validating pairing code…"
         do {
             let qr = try QRPayload.decode(Data(value.utf8), now: Date().timeIntervalSince1970)
-            status = "Paired transport found (\(qr.relay != nil ? "relay" : "LAN")). "
-                + "Generating Secure-Enclave key and starting handshake…"
-            // The full PAIR handshake runs here against HandshakeDriver + the relay/daemon.
-            // Wired to the live transport in the relay-first milestone (design §8 Faz 1).
+            guard let relay = qr.relay, let bearer = qr.bearer else {
+                status = "This QR has no relay transport (LAN-direct pairing is Faz 2)."
+                return
+            }
+            status = "Pairing over relay — Face ID will confirm…"
+            Task {
+                await model.startPairing(qr: qr, room: relay.room, pairBearer: bearer)
+                if model.connected { dismiss() }
+                else { status = model.lastError ?? "Pairing did not complete."; scanning = true }
+            }
         } catch {
             status = "Invalid or expired QR: \(error)"
             scanning = true

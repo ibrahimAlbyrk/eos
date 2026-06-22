@@ -17,6 +17,13 @@ public actor Store {
 
     public enum ApplyResult: Sendable { case ok, seqGap }
 
+    // Cold-start bootstrap from READ-control GET arrays (until snapshot-on-hello lands daemon-side).
+    public func applyBootstrap(workers wkrs: [JSONValue], pending pend: [JSONValue]) {
+        workers = Dictionary(uniqueKeysWithValues: wkrs.map { let w = Worker(raw: $0); return (w.id, w) })
+        pending = Dictionary(uniqueKeysWithValues: pend.map { let p = Pending(raw: $0); return (p.id, p) })
+        notify()
+    }
+
     public func applySnapshot(_ snap: SnapshotFrame) {
         workers = Dictionary(uniqueKeysWithValues: snap.workers.map { let w = Worker(raw: $0); return (w.id, w) })
         pending = Dictionary(uniqueKeysWithValues: snap.pending.map { let p = Pending(raw: $0); return (p.id, p) })

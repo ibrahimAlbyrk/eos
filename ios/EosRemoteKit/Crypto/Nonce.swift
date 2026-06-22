@@ -1,6 +1,6 @@
 import Foundation
 
-public enum Direction: UInt8 {
+public enum Direction: UInt8, Sendable {
     case c2s = 0x00 // device → Mac
     case s2c = 0x01 // Mac → device
 }

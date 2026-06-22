@@ -1,6 +1,6 @@
 import Foundation
 
-public enum EnvelopeType: UInt8 {
+public enum EnvelopeType: UInt8, Sendable {
     case data = 0x01
     case register = 0x02
     case join = 0x03
@@ -11,7 +11,7 @@ public enum EnvelopeType: UInt8 {
 
 // Outer envelope (§4.1): relay-visible, binary, big-endian. One envelope = one WS binary message.
 //   ver(1) type(1) dir(1) epoch(1) seq(8 BE) roomLen(1) room(R) clientId(16) payload(..)
-public struct Envelope {
+public struct Envelope: Sendable {
     public static let version: UInt8 = 0x01
     public static let maxSize = 5 * 1024 * 1024
 

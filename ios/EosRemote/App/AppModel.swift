@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import UIKit
 import EosRemoteKit
 
 // The @MainActor bridge between the live store/transport (EosRemoteKit) and SwiftUI. It is the
@@ -24,15 +25,6 @@ final class AppModel: ObservableObject {
     private func refresh() async {
         workers = await store.workerList.sorted { $0.id < $1.id }
         pending = await store.pendingList.sorted { $0.id < $1.id }
-    }
-
-    // Wire a live, post-handshake session to the connection (called after pairing/connect/resume).
-    func attach(connection: WSConnection, session: SessionState, identity: DeviceIdentity) async {
-        self.connection = connection
-        self.session = session
-        self.identity = identity
-        await connection.attach(session: session)
-        await connection.start()
     }
 
     var orchestrators: [Worker] { workers.filter { $0.isOrchestrator } }
@@ -68,27 +60,71 @@ final class AppModel: ObservableObject {
                             .object(["decision": .string(allow ? "allow" : "deny")]))
     }
 
+    // Serialize the body EXACTLY ONCE → these bytes are both transmitted (as the opaque body
+    // string) and, for step-up, hashed. One serialization = nothing for the two ends to disagree on.
+    private func encodeOnce(_ body: JSONValue) -> Data {
+        (try? JSONEncoder().encode(body)) ?? Data("{}".utf8)
+    }
+
     private func control(_ method: String, _ path: String, _ body: JSONValue) async {
         guard let connection else { lastError = "not connected"; return }
-        do { _ = try await connection.sendControl(method: method, path: path, body: body) }
+        do { _ = try await connection.sendControl(method: method, path: path, bodyData: encodeOnce(body)) }
         catch { lastError = error.localizedDescription }
     }
 
-    // Obtain a fresh challenge, build the step-up field over the EXACT body bytes, then send.
+    // Obtain a fresh challenge, build the step-up field over the EXACT transmitted body bytes, send.
     private func stepUpControl(_ method: String, _ path: String, _ body: JSONValue) async {
         guard let connection, let session, let identity else { lastError = "not connected"; return }
         do {
-            let bodyBytes = try JSONEncoder().encode(body)
-            let chReply = try await connection.sendControl(method: "POST", path: "/stepup/challenge", body: .object([:]))
+            let bodyData = encodeOnce(body)
+            let chReply = try await connection.sendControl(method: "POST", path: "/stepup/challenge",
+                                                           bodyData: Data("{}".utf8))
             guard let nonceB64 = chReply.body?["challengeNonce"]?.stringValue,
                   let nonce = Bytes.fromB64u(nonceB64) else { lastError = "no challenge"; return }
             let coordinator = StepUpCoordinator(identity: identity, session: session)
             let ts = Int64(Date().timeIntervalSince1970)
-            let field = try coordinator.field(method: method, path: path, bodyBytes: bodyBytes,
+            let field = try coordinator.field(method: method, path: path, bodyBytes: bodyData,
                                               challengeNonce: nonce, ts: ts, reason: "Authorize \(method) \(path)")
-            _ = try await connection.sendControl(method: method, path: path,
-                                                 body: body, stepUp: field)
+            _ = try await connection.sendControl(method: method, path: path, bodyData: bodyData, stepUp: field)
         } catch { lastError = error.localizedDescription }
+    }
+
+    // MARK: pairing + bootstrap
+
+    // Run the cold PAIR choreography over a fresh relay connection, persist the durable bearer +
+    // ticket, then bootstrap current state via READ controls (no snapshot-on-hello yet, daemon-side).
+    func startPairing(qr: QRPayload, room: String, pairBearer: String) async {
+        do {
+            let relayURL = try relayWSURL(qr)
+            let identity = try DeviceIdentityFactory.create()
+            self.identity = identity
+            let conn = WSConnection(url: relayURL, mode: .relay(bearer: pairBearer), delegate: self)
+            let coordinator = PairingCoordinator(
+                connection: conn, qr: qr, identity: identity, room: room, pairBearer: pairBearer,
+                devId: UUID().uuidString, label: UIDevice.current.name)
+            let result = try await coordinator.run()
+            self.connection = conn
+            self.session = result.session
+            try? KeychainStore.set(KeychainStore.durableBearer, Data(result.durableBearer.utf8))
+            try? KeychainStore.set(KeychainStore.ticket, JSONEncoder().encode(result.ticket))
+            connected = true
+            await bootstrap()
+        } catch { lastError = "pairing failed: \(error)" }
+    }
+
+    // Cold-start state pull: READ-tier GETs feed a synthetic snapshot until snapshot-on-hello lands.
+    private func bootstrap() async {
+        guard let connection else { return }
+        async let w = try? connection.sendControl(method: "GET", path: "/workers", bodyData: Data("{}".utf8))
+        async let p = try? connection.sendControl(method: "GET", path: "/pending", bodyData: Data("{}".utf8))
+        let workers = (await w)?.body?.arrayValue ?? []
+        let pending = (await p)?.body?.arrayValue ?? []
+        await store.applyBootstrap(workers: workers, pending: pending)
+    }
+
+    private func relayWSURL(_ qr: QRPayload) throws -> URL {
+        guard let s = qr.relay?.url, let u = URL(string: s) else { throw PairingCoordinator.PairError.denied("no relay url") }
+        return u
     }
 }
 

@@ -7,7 +7,7 @@ import LocalAuthentication
 // cold-handshake and step-up biometric. The Simulator has NO Secure Enclave, so a DEBUG-only
 // software P-256 key stands in (#if targetEnvironment(simulator)) to make the full
 // handshake/AEAD/resume/step-up loop E2E-testable. The software path NEVER compiles into release.
-public protocol DeviceIdentity {
+public protocol DeviceIdentity: Sendable {
     // 65-byte SEC1 (0x04‖X‖Y) public key for the wire / enrollment.
     var publicKeySEC1: Data { get }
     // 64-byte raw r‖s ECDSA-P256-SHA256 signature over the raw message. May prompt biometrics.
@@ -16,7 +16,7 @@ public protocol DeviceIdentity {
 
 public enum DeviceIdentityError: Error { case unavailable, signFailed, notFound }
 
-public final class SecureEnclaveDeviceIdentity: DeviceIdentity {
+public final class SecureEnclaveDeviceIdentity: DeviceIdentity, @unchecked Sendable {
     private let key: SecureEnclave.P256.Signing.PrivateKey
 
     public init(key: SecureEnclave.P256.Signing.PrivateKey) {
@@ -55,7 +55,7 @@ public final class SecureEnclaveDeviceIdentity: DeviceIdentity {
 
 #if DEBUG
 // Software P-256 fallback for the Simulator / unit tests ONLY. No biometric gate, no Enclave.
-public final class SoftwareDeviceIdentity: DeviceIdentity {
+public final class SoftwareDeviceIdentity: DeviceIdentity, @unchecked Sendable {
     private let key: P256.Signing.PrivateKey
 
     public init(key: P256.Signing.PrivateKey = P256.Signing.PrivateKey()) {

@@ -91,10 +91,13 @@ public struct ControlFrame: Codable, Sendable {
     public var correlationId: String
     public var method: String
     public var path: String
-    public var body: JSONValue
+    // OPAQUE JSON string (contract `body: string`, §3.4): the request body serialized exactly
+    // ONCE. bodyHash signs the UTF-8 of THIS string's content; the daemon hashes the decoded
+    // string verbatim (no re-serialize), so key-order/number-format can never diverge.
+    public var body: String
     public var stepUp: StepUpField?
 
-    public init(correlationId: String, method: String, path: String, body: JSONValue, stepUp: StepUpField? = nil) {
+    public init(correlationId: String, method: String, path: String, body: String, stepUp: StepUpField? = nil) {
         self.correlationId = correlationId; self.method = method; self.path = path
         self.body = body; self.stepUp = stepUp
     }
