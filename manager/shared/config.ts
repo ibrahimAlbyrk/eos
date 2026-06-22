@@ -13,6 +13,7 @@ import { z } from "zod";
 import { McpServerDefSchema } from "../../contracts/src/shared.ts";
 import { type BackendProfile, BackendProfileSchema } from "../../contracts/src/backend.ts";
 import { MemorySourceSchema, type MemorySourceSpec } from "../../contracts/src/memory.ts";
+import { RemoteConfigSchema, type RemoteConfig, type RemoteMode } from "../../contracts/src/remote.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
 
@@ -123,6 +124,9 @@ export interface DaemonConfig {
     pauseMaxMs: number;
     tasks: Record<string, MicroTaskCfg>;
   };
+  // iOS remote-control edge (design §6). OFF by default — absent config = no
+  // remote surface. The crypto/wire contract is docs/ios-remote-protocol.md.
+  remote: RemoteConfig;
 }
 
 const DEFAULT_AGENT_MCP: AgentMcpConfig = {
@@ -266,7 +270,18 @@ export function defaults(): DaemonConfig {
         "auto-name": { enabled: true, delayMs: 5000, model: "haiku", charLimit: 280 },
       },
     },
+    remote: {
+      // OFF by default. The rate-limit + lease defaults below only take effect
+      // once an operator arms remote (mode=lan|relay) in ~/.eos/config.json.
+      mode: parseRemoteMode(envStr("EOS_REMOTE_MODE", "off")),
+      inactivityLeaseMs: envNum("EOS_REMOTE_LEASE_MS", 30 * 60 * 1000),
+      rateLimit: { perDevicePerMin: 120, globalPerMin: 600, pairingPerMin: 5 },
+    },
   };
+}
+
+function parseRemoteMode(v: string): RemoteMode {
+  return v === "lan" || v === "relay" ? v : "off";
 }
 
 const ModelPriceOverrideSchema = z.object({
@@ -359,6 +374,9 @@ export const DaemonConfigOverrideSchema = z.object({
       promptTemplate: z.string(),
     }).partial()),
   }).partial().optional(),
+  // mode optional on override (.partial) so a config.json may set just relay
+  // topology without restating mode; mergeConfig field-merges over the default.
+  remote: RemoteConfigSchema.partial().optional(),
 }).passthrough();
 
 // Merge file-loaded overrides on top of defaults. Most sections are flat and

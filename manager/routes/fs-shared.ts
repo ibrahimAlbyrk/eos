@@ -3,6 +3,7 @@ import { execSync } from "node:child_process";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { IGNORED_ENTRIES } from "../../core/src/domain/fsIgnore.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
+import { constantTimeEqual } from "../shared/constant-time.ts";
 
 export interface FsEntry {
   name: string;
@@ -23,7 +24,7 @@ export function isSafeAbsPath(p: unknown): p is string {
 // checkout) require the per-boot x-eos-ui-token so an agent holding
 // EOS_DAEMON_URL cannot mutate the user's repo through the daemon API.
 export function uiTokenOk(req: { headers: Record<string, string | string[] | undefined> }, expected: string): boolean {
-  return req.headers["x-eos-ui-token"] === expected;
+  return constantTimeEqual(req.headers["x-eos-ui-token"], expected);
 }
 
 export function sortEntries(a: FsEntry, b: FsEntry): number {

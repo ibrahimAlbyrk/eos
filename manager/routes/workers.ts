@@ -4,6 +4,7 @@ import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
+import { constantTimeEqual } from "../shared/constant-time.ts";
 
 import {
   EventsQuerySchema,
@@ -716,7 +717,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   // worktree_from alone would snapshot the wrong tree.
 
   const uiTokenOk = (req: { headers: Record<string, string | string[] | undefined> }): boolean =>
-    req.headers["x-eos-ui-token"] === c.uiToken;
+    constantTimeEqual(req.headers["x-eos-ui-token"], c.uiToken);
 
   // Reject absolute paths and `..` traversal — every git path the UI sends is
   // repo-relative (same guard as the /changes/file route below).

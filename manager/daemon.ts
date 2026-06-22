@@ -19,6 +19,7 @@ import { computeBackendStamp } from "./builder/backend-stamp.ts";
 import { Router } from "./routes/Router.ts";
 import { mintRequestId } from "./middleware/requestId.ts";
 import { handleError, writeJson } from "./middleware/errorHandler.ts";
+import { isLoopbackRequest } from "./middleware/loopback-lock.ts";
 import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
 import { drainQueuedMessages } from "../core/src/use-cases/DrainQueuedMessages.ts";
 import { dispatchDeps } from "./routes/dispatch-deps.ts";
@@ -303,6 +304,16 @@ function makeHandler(router: Router, opts: { cors?: boolean } = {}) {
         res.end();
         return;
       }
+    }
+
+    // Loopback-lock (design §2.2/§4.7). A request reaching this handler is a
+    // plain REST/SSE/raw call — the authenticated /ws upgrade is handled on the
+    // server "upgrade" event and never arrives here. Anything from a non-loopback
+    // peer means the bind was widened; reject it so the only off-box surface is
+    // the E2E-terminating WS. No-op while bound to loopback (today's default).
+    if (!isLoopbackRequest(req)) {
+      writeJson(res, 403, { error: "remote REST access is disabled; the only remote surface is the /ws gateway" });
+      return;
     }
 
     const requestId = mintRequestId(req, res, c.ids);
