@@ -26,6 +26,12 @@ export interface ResolveMcpInput {
   inherited: Record<string, unknown>;
   builtins: Record<string, unknown>;
   config: AgentMcpConfig;
+  // Lanes that cannot self-discover MCP scopes (claude-sdk runs with
+  // settingSources:[], so the binary inherits nothing on its own). false →
+  // ALWAYS materialize the filtered inherited set (strict), since the additive
+  // shortcut relies on a native discovery that lane does not have and would
+  // silently drop every inherited server. Default true = unchanged cli behavior.
+  nativeDiscovery?: boolean;
 }
 
 export interface ResolvedMcp {
@@ -58,7 +64,13 @@ function filterInherited(
 }
 
 export function resolveMcpServers(input: ResolveMcpInput): ResolvedMcp {
-  const { inherited, builtins, config } = input;
+  const { inherited, builtins, config, nativeDiscovery = true } = input;
+  if (!nativeDiscovery) {
+    const base = config.inheritDefaults
+      ? filterInherited(inherited, config.include, config.exclude)
+      : {};
+    return { servers: { ...base, ...config.extra, ...builtins }, strict: true };
+  }
   if (!isFilterActive(config)) {
     return { servers: { ...config.extra, ...builtins }, strict: false };
   }

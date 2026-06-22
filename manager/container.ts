@@ -78,6 +78,8 @@ import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees
 import { reapWorktreeRemovals } from "../core/src/use-cases/ReapWorktreeRemovals.ts";
 import { reconcileWorkersOnBoot } from "../core/src/use-cases/ReconcileWorkersOnBoot.ts";
 import { resolveMcpServers } from "../core/src/domain/mcp-resolution.ts";
+import { toSdkMcpServers } from "./backends/sdk/SdkMcpTranslator.ts";
+import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { createSlashCommandRegistry } from "../core/src/domain/slash-command.ts";
 import { clearCommand } from "../core/src/domain/commands/clear.ts";
 import { resolveMemorySources } from "../core/src/domain/memory-sources.ts";
@@ -714,12 +716,24 @@ export function buildContainer() {
   // claude-sdk (Lane A): subscription-billed, live thinking. Reuses the shared
   // policy engine + loopback ToolContext + prompt-library descriptions.
   const authResolver = createSubscriptionAuthResolver();
+  // SDK-lane emit adapter, symmetric to writeMcpConfig's JSON path: enumerate the
+  // worker's inherited servers (the SDK can't self-discover with settingSources:[],
+  // so nativeDiscovery:false materializes them), reuse the shared core precedence
+  // (builtins win), then translate to the SDK union. Wired ONTO claudeSdkBackend
+  // only; judgeBackend omits it and stays clean.
+  const resolveSdkMcpServers = (spec: AgentLaunchSpec, builtins: Record<string, McpServerConfig>) => {
+    const cfg = spec.isOrchestrator ? config.mcp.orchestrator : config.mcp.worker;
+    const inherited = spec.cwd ? mcpCatalog.listInherited(spec.cwd) : {};
+    const { servers } = resolveMcpServers({ inherited, builtins, config: cfg, nativeDiscovery: false });
+    return toSdkMcpServers(servers);
+  };
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
     toolHost: { orchestratorDefs, workerDefs, peerDefs, renderDescriptions: renderInprocToolDescriptions },
     daemonUrl: sdkDaemonUrl,
     makeToolContext,
+    resolveSdkMcpServers,
     // Same DPI text the CLI lane writes to --append-system-prompt-file, plus the
     // injected memory: the SDK spec carries the SpawnWorkerSpec in backendOptions.spec
     // (SpawnWorker.ts). "claude-sdk" loads nothing natively → every enabled source

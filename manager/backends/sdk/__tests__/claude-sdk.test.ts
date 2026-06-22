@@ -505,6 +505,76 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.equal(r.reason, "session gone");
   });
 
+  // Inherited/external MCP servers reach query().mcpServers MERGED with the Eos
+  // builtin, while strictMcpConfig:true + settingSources:[] stay untouched (we pass
+  // an explicit complete set, never re-enabling native discovery).
+  it("merges resolved inherited MCP servers into options.mcpServers alongside the Eos builtin", async () => {
+    let capturedOptions: Record<string, unknown> | null = null;
+    let resolverArgs: { builtinKeys: string[] } | null = null;
+    const queryFn: SdkQueryFn = (params) => {
+      capturedOptions = params.options as unknown as Record<string, unknown>;
+      return (async function* () { /* idle */ })();
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      resolveSdkMcpServers: (_spec, builtins) => {
+        resolverArgs = { builtinKeys: Object.keys(builtins) };
+        return { mcpServers: { ...builtins, context7: { type: "stdio", command: "c7" } } as never, dropped: [] };
+      },
+      queryFn,
+    });
+    await be.start(spec(), {});
+    // The resolver is handed the Eos in-process builtin (server name "worker").
+    assert.deepEqual(resolverArgs!.builtinKeys, ["worker"]);
+    const servers = capturedOptions!.mcpServers as Record<string, unknown>;
+    assert.deepEqual(Object.keys(servers).sort(), ["context7", "worker"]); // builtin + external
+    assert.equal(capturedOptions!.strictMcpConfig, true);
+    assert.deepEqual(capturedOptions!.settingSources, []);
+    assert.equal(typeof capturedOptions!.canUseTool, "function");
+  });
+
+  // DIP / judge isolation: WITHOUT the resolver dep the session sees ONLY its
+  // builtins — no inherited servers leak into the appendless judge backend.
+  it("without resolveSdkMcpServers, options.mcpServers holds only the builtin (judge isolation)", async () => {
+    let capturedOptions: Record<string, unknown> | null = null;
+    const queryFn: SdkQueryFn = (params) => { capturedOptions = params.options as unknown as Record<string, unknown>; return (async function* () { /* idle */ })(); };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "none" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+    });
+    await be.start(spec(), {});
+    assert.deepEqual(Object.keys(capturedOptions!.mcpServers as Record<string, unknown>), ["worker"]);
+  });
+
+  // Edge #8 (translator half): a dropped entry is logged and the session still starts.
+  it("logs dropped inherited servers via log.warn and still starts the session", async () => {
+    const warnings: Array<{ msg: string; meta?: Record<string, unknown> }> = [];
+    const queryFn: SdkQueryFn = () => (async function* () { /* idle */ })();
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "none" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      resolveSdkMcpServers: (_spec, builtins) => ({ mcpServers: builtins, dropped: [{ name: "bad", reason: "unsupported MCP server shape" }] }),
+      log: { warn: (msg, meta) => warnings.push({ msg, meta }) },
+      queryFn,
+    });
+    const session = await be.start(spec(), {});
+    assert.ok(session); // start() resolved without throwing despite the dropped entry
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].msg, "dropped inherited MCP servers");
+    assert.deepEqual(warnings[0].meta?.dropped, [{ name: "bad", reason: "unsupported MCP server shape" }]);
+  });
+
   // /clear on the SDK lane: the conversation lives in the SDK subprocess, so a
   // reset means restarting the query with a FRESH session (no resume). The old
   // query is interrupted and its consume loop, now superseded, must NOT report an

@@ -9,7 +9,8 @@
 // tests drive a scripted SDK stream (FakeSdkQuery) with no real model / no billing.
 
 import { query as realQuery } from "@anthropic-ai/claude-agent-sdk";
-import type { Options } from "@anthropic-ai/claude-agent-sdk";
+import type { Options, McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
+import type { DroppedServer } from "./SdkMcpTranslator.ts";
 import type {
   AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, BackendDescriptor, WorkerHandle,
 } from "../../../core/src/ports/AgentBackend.ts";
@@ -66,6 +67,15 @@ export interface ClaudeSdkBackendDeps {
    *  Without it an SDK agent boots with only the stock claude_code prompt and never
    *  learns the Eos orchestration protocol — so it has the MCP tools but ignores them. */
   assembleAppendPrompt?(spec: AgentLaunchSpec): string | null;
+  /** Resolve + translate the worker's inherited/external MCP servers (.mcp.json,
+   *  ~/.claude.json) into the SDK union, MERGED with the in-process Eos builtins
+   *  (builtins win on name collision). OMITTED on the judge backend → that session
+   *  sees only its (empty) builtins, no inherited leak. Mirrors the optional
+   *  assembleAppendPrompt dep — composition selects the lane, not a kind check. */
+  resolveSdkMcpServers?(
+    spec: AgentLaunchSpec,
+    builtins: Record<string, McpServerConfig>,
+  ): { mcpServers: Record<string, McpServerConfig>; dropped: DroppedServer[] };
   queryFn?: SdkQueryFn;
   log?: { warn(msg: string, meta?: Record<string, unknown>): void };
 }
@@ -173,11 +183,23 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const auth = await deps.authResolver.resolve(opts.auth);
       const env = buildBillingGuardEnv({ auth, workerId: spec.workerId, daemonUrl: deps.daemonUrl });
       const ctx = deps.makeToolContext(spec);
-      const { mcpServers, allowedTools } = buildSdkToolServers(deps.toolHost, {
+      const built = buildSdkToolServers(deps.toolHost, {
         isOrchestrator: spec.isOrchestrator,
         collaborate: opts.collaborate === true,
         ctx,
       });
+      const allowedTools = built.allowedTools;
+      // Default: just the in-process Eos builtins (judge / no resolver). With the
+      // resolver wired (worker/orchestrator lane) the inherited + external servers
+      // are merged in, Eos builtins winning collisions; dropped entries are logged.
+      let mcpServers = built.mcpServers;
+      if (deps.resolveSdkMcpServers) {
+        const r = deps.resolveSdkMcpServers(spec, built.mcpServers);
+        mcpServers = r.mcpServers;
+        if (r.dropped.length) {
+          deps.log?.warn("dropped inherited MCP servers", { workerId: spec.workerId, dropped: r.dropped });
+        }
+      }
 
       // The Eos orchestration protocol + injected project/user memory (CLAUDE.md,
       // …) ride in the appended system prompt. The container assembles both into
