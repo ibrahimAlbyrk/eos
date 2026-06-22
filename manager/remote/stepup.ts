@@ -38,18 +38,18 @@ export class ChallengeStore {
   }
 }
 
-// §3.4: hash the EXACT transmitted body bytes. NOTE — cross-impl open item: the
-// device must serialize `body` to the identical byte string the daemon hashes.
-// Until the substring-extraction approach is agreed with ios-impl/security-
-// reviewer, both sides use compact JSON.stringify of the body; the in-process
-// test exercises that contract. Flagged in the milestone report.
-export function bodyHash(body: unknown): Buffer {
-  return hash(Buffer.from(JSON.stringify(body ?? {}), "utf8"));
+// §3.4 (resolved): control.body is an OPAQUE JSON STRING on the wire, so the
+// hash is over the EXACT transmitted bytes — the device hashes the string it
+// sends, the daemon hashes the string it received, with NO re-serialization.
+// JSON string decode is exact, so escaping differences never cause a mismatch.
+export function bodyHash(bodyStr: string): Buffer {
+  return hash(Buffer.from(bodyStr, "utf8"));
 }
 
 // Reconstruct the signed message (§3.2). Separators are single 0x0A bytes.
+// `body` is the verbatim body STRING (the bytes that travel in control.body).
 export function stepUpMessage(args: {
-  sessionTH: Buffer; method: string; path: string; body: unknown;
+  sessionTH: Buffer; method: string; path: string; body: string;
   challengeNonce: string; ts: number;
 }): Buffer {
   const parts = [
@@ -73,7 +73,7 @@ export function verifyStepUp(args: {
   sessionTH: Buffer;
   method: string;
   path: string;
-  body: unknown;
+  body: string; // the verbatim control.body string
   iDevPubSec1: string;
   challenges: ChallengeStore;
   now: number;

@@ -63,19 +63,28 @@ export class ControlDispatcher {
       return this.deny(session, frame, "CAP_DENIED", "device lacks the mutate capability");
     }
 
+    // body is an opaque JSON string on the wire (§3.4). Hash the verbatim string
+    // for step-up; parse it ONLY for dispatch — never re-serialize between.
+    const bodyStr = frame.body ?? "{}";
+
     if (tier === "HIGH") {
+      // A resumed (read+lowrisk) session can never reach HIGH — gate on the cap
+      // BEFORE step-up so a held Enclave key can't lift a resumed session (§2.3).
+      if (!session.hasCap("highrisk")) return this.deny(session, frame, "CAP_DENIED", "session capability tier does not permit high-risk");
       if (!frame.stepUp) return this.deny(session, frame, "STEPUP_REQUIRED", "high-risk control requires step-up");
       const rec = this.deps.keyring.find(session.devId);
       if (!rec) return this.deny(session, frame, "AUTH_FAILED", "unknown device");
       const verdict = verifyStepUp({
-        stepUp: frame.stepUp, sessionTH: session.sessionTH, method, path, body,
+        stepUp: frame.stepUp, sessionTH: session.sessionTH, method, path, body: bodyStr,
         iDevPubSec1: rec.iDevPubSec1, challenges: session.challenges, now: this.deps.now(),
       });
       if (!verdict.ok) return this.deny(session, frame, verdict.code, "step-up verification failed");
     }
 
+    let parsedBody: unknown;
+    try { parsedBody = JSON.parse(bodyStr); } catch { return this.deny(session, frame, "INTERNAL", "control body is not valid JSON"); }
     const suppliedToken = uiToken && session.hasCap("mutate") ? this.deps.uiToken : undefined;
-    const result = await this.deps.routeDispatch({ method, path, body, uiToken: suppliedToken });
+    const result = await this.deps.routeDispatch({ method, path, body: parsedBody, uiToken: suppliedToken });
     this.audit(session, frame, result.status >= 400 ? (result.status === 403 ? "denied" : "error") : "ok");
     return { t: "reply", correlationId, status: result.status, body: result.body };
   }

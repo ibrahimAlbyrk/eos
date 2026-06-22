@@ -61,10 +61,11 @@ export class TicketStore {
     return { record: rec, client: this.toClient(rec) };
   }
 
-  // Redeem on RES-1. Consumes the presented ticket; a reused (consumed) ticket
-  // burns the whole family. Returns the live record on success so the caller can
-  // verify the binder and rotate.
-  redeem(ticketIdB64u: string, now: number): RedeemResult {
+  // Look up a presented ticket on RES-1 WITHOUT consuming it — a reused
+  // (consumed) ticket burns the whole family; an unknown/expired one is invalid.
+  // The caller verifies the binder against the returned record's PSK and only
+  // then calls markConsumed, so a bad binder never burns a live ticket.
+  peek(ticketIdB64u: string, now: number): RedeemResult {
     const rec = this.byId.get(ticketIdB64u);
     if (!rec) return { ok: false, code: "TICKET_INVALID" };
     if (rec.consumed) {
@@ -75,9 +76,11 @@ export class TicketStore {
       this.byId.delete(ticketIdB64u);
       return { ok: false, code: "TICKET_INVALID" };
     }
-    rec.consumed = true;
     return { ok: true, record: rec };
   }
+
+  // Single-use consume, after the binder has verified.
+  markConsumed(record: TicketRecord): void { record.consumed = true; }
 
   // Rotate to a fresh ticket in the same family (sliding idle, fixed absolute).
   rotate(prev: TicketRecord, now: number): { record: TicketRecord; client: ClientTicket } {

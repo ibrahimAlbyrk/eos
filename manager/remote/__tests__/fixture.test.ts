@@ -118,6 +118,9 @@ describe("golden interop fixture (§9.2)", () => {
     assert.equal(binderS.toString("hex"), vectors.resume.binderS);
     assert.equal(kdf(psk, "eos/v1 resume data c2s", thWithKx).toString("hex"), vectors.resume.kC2sResume);
     assert.equal(kdf(psk, "eos/v1 resume data s2c", thWithKx).toString("hex"), vectors.resume.kS2cResume);
+    // Dedicated resume-ticket key (§2.3) — must NOT equal the s2c traffic key.
+    assert.equal(kdf(psk, "eos/v1 resume ticket", thWithKx).toString("hex"), vectors.resume.kResumeTicket);
+    assert.notEqual(vectors.resume.kResumeTicket, vectors.resume.kS2cResume);
   });
 
   it("bodyHash vector matches (§3.4)", () => {

@@ -115,10 +115,14 @@ export interface TierMatch {
   uiToken: boolean;
 }
 
-// Classify a concrete control method+path. Fails closed to REFUSED.
+// Classify a concrete control method+path. Matches on the PATH portion only —
+// a query string (e.g. /fs/read?path=…) is stripped before matching so query
+// reads don't fail closed (§4.2); the full path+query still dispatches. Fails
+// closed to REFUSED for anything unrecognized.
 export function classifyTier(method: string, path: string): TierMatch {
+  const pathOnly = path.split("?", 1)[0];
   for (const rule of RULES) {
-    if (rule.method === method && rule.re.test(path)) {
+    if (rule.method === method && rule.re.test(pathOnly)) {
       return { tier: rule.tier, uiToken: rule.uiToken ?? false };
     }
   }

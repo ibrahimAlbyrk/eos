@@ -26,8 +26,10 @@ import {
 } from "../../contracts/src/remote.ts";
 
 // Capabilities a cold (Face-ID) session holds. "mutate" gates the local
-// ui-token supply for ✦ routes (§4.5); high-risk still needs per-action step-up.
-export const COLD_CAPS = ["read", "lowrisk", "mutate"] as const;
+// ui-token supply for ✦ routes (§4.5); "highrisk" gates the HIGH tier itself
+// (still per-action step-up on top). A resumed session gets neither, so it can
+// never reach HIGH even if the device could produce a step-up sig (§2.3, §7.3).
+export const COLD_CAPS = ["read", "lowrisk", "mutate", "highrisk"] as const;
 
 const b64u = (b: Buffer): string => b.toString("base64url");
 const unb64u = (s: string): Buffer => Buffer.from(s, "base64url");

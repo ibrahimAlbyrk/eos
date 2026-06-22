@@ -153,7 +153,7 @@ describe("mountWsGateway over a real WebSocket", () => {
       assert.ok(deps.keyring.find(dev.devId), "device enrolled via the live mount");
 
       // control round-trip (READ)
-      ws.send(dev.sealControl({ t: "control", correlationId: crypto.randomUUID(), method: "GET", path: "/workers", body: {} }, room, clientId));
+      ws.send(dev.sealControl({ t: "control", correlationId: crypto.randomUUID(), method: "GET", path: "/workers", body: "{}" }, room, clientId));
       const reply = dev.open(await q.next());
       assert.equal(reply.t, "reply");
       assert.equal(reply.status, 200);

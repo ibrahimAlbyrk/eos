@@ -71,7 +71,10 @@ export const ControlFrameSchema = z.object({
   correlationId: z.string().uuid(),
   method: z.enum(["GET", "POST", "PUT", "DELETE"]),
   path: z.string(),
-  body: z.unknown().optional(),
+  // body is an OPAQUE JSON STRING on the wire (§3.4) — NOT a nested object — so
+  // the step-up bodyHash is over the exact transmitted bytes with no
+  // re-serialization. GET ⇒ "{}". Absent ⇒ treated as "{}".
+  body: z.string().optional(),
   stepUp: StepUpSchema.optional(),
 });
 export type ControlFrame = z.infer<typeof ControlFrameSchema>;
@@ -131,6 +134,12 @@ export const ResumeFrameSchema = z.object({
   v: z.literal(1), t: z.literal("resume"),
   ticketId: z.string(), ePubC: z.string(), nC: z.string(), binder: z.string(),
 });
+// RES-2 (Mac → device): fresh ephemerals + binder + the new ticket sealed under
+// the dedicated K_resume_ticket key (§2.3).
+export const ResumeOkSchema = z.object({
+  v: z.literal(1), t: z.literal("resume-ok"),
+  ePubS: z.string(), nS: z.string(), binder: z.string(), encTicket: z.string(),
+});
 
 export type Hs1 = z.infer<typeof Hs1Schema>;
 export type Hs2 = z.infer<typeof Hs2Schema>;
@@ -138,6 +147,7 @@ export type Hs3 = z.infer<typeof Hs3Schema>;
 export type HsS2 = z.infer<typeof HsS2Schema>;
 export type HsC3 = z.infer<typeof HsC3Schema>;
 export type ResumeFrame = z.infer<typeof ResumeFrameSchema>;
+export type ResumeOk = z.infer<typeof ResumeOkSchema>;
 
 // ---- Pairing QR payload (§6) — produced by the Mac app ---------------------
 

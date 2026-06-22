@@ -89,7 +89,7 @@ class Device {
     assert.ok(pt, "device opens s2c frame");
     return JSON.parse(pt!.toString("utf8"));
   }
-  stepUpSig(sessionTH: Buffer, method: string, path: string, body: unknown, challengeNonce: string, ts: number): string {
+  stepUpSig(sessionTH: Buffer, method: string, path: string, body: string, challengeNonce: string, ts: number): string {
     return b64u(p256Sign(this.priv, stepUpMessage({ sessionTH, method, path, body, challengeNonce, ts })));
   }
 }
@@ -151,27 +151,27 @@ describe("gateway end-to-end: cold pairing + control round-trip + tiers", () => 
       }
 
       // READ → no step-up, dispatched.
-      const read = await control({ t: "control", correlationId: crypto.randomUUID(), method: "GET", path: "/workers", body: {} });
+      const read = await control({ t: "control", correlationId: crypto.randomUUID(), method: "GET", path: "/workers", body: "{}" });
       assert.equal(read.t, "reply");
       assert.equal(read.status, 200);
       assert.equal(calls.length, 1);
 
       // HIGH without step-up → STEPUP_REQUIRED, NOT dispatched.
-      const hi0 = await control({ t: "control", correlationId: crypto.randomUUID(), method: "DELETE", path: "/workers/abc", body: {} });
+      const hi0 = await control({ t: "control", correlationId: crypto.randomUUID(), method: "DELETE", path: "/workers/abc", body: "{}" });
       assert.equal(hi0.t, "error");
       assert.equal(hi0.code, "STEPUP_REQUIRED");
       assert.equal(calls.length, 1, "high-risk not dispatched without step-up");
 
       // Request a challenge.
-      const ch = await control({ t: "control", correlationId: crypto.randomUUID(), method: "POST", path: "/stepup/challenge", body: {} });
+      const ch = await control({ t: "control", correlationId: crypto.randomUUID(), method: "POST", path: "/stepup/challenge", body: "{}" });
       assert.equal(ch.t, "challenge");
       assert.ok(ch.challengeNonce);
 
       // Sign the exact action + challenge → HIGH dispatched.
       const ts = Math.floor(now / 1000);
-      const sig = dev.stepUpSig(serverCodec.sessionTH, "DELETE", "/workers/abc", {}, ch.challengeNonce, ts);
+      const sig = dev.stepUpSig(serverCodec.sessionTH, "DELETE", "/workers/abc", "{}", ch.challengeNonce, ts);
       const hi1 = await control({
-        t: "control", correlationId: crypto.randomUUID(), method: "DELETE", path: "/workers/abc", body: {},
+        t: "control", correlationId: crypto.randomUUID(), method: "DELETE", path: "/workers/abc", body: "{}",
         stepUp: { challengeNonce: ch.challengeNonce, ts, sig },
       });
       assert.equal(hi1.t, "reply");
@@ -180,13 +180,13 @@ describe("gateway end-to-end: cold pairing + control round-trip + tiers", () => 
 
       // Replaying the consumed challenge → STEPUP_INVALID.
       const replay = await control({
-        t: "control", correlationId: crypto.randomUUID(), method: "DELETE", path: "/workers/abc", body: {},
+        t: "control", correlationId: crypto.randomUUID(), method: "DELETE", path: "/workers/abc", body: "{}",
         stepUp: { challengeNonce: ch.challengeNonce, ts, sig },
       });
       assert.equal(replay.code, "STEPUP_INVALID");
 
       // REFUSED route → never dispatched.
-      const refused = await control({ t: "control", correlationId: crypto.randomUUID(), method: "POST", path: "/workers/abc/events", body: {} });
+      const refused = await control({ t: "control", correlationId: crypto.randomUUID(), method: "POST", path: "/workers/abc/events", body: "{}" });
       assert.equal(refused.t, "error");
       assert.equal(refused.code, "ROUTE_REFUSED");
       assert.equal(calls.length, 2);

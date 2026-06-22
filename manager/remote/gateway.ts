@@ -18,6 +18,7 @@ import type { EventBus } from "../../core/src/ports/EventBus.ts";
 import { parseEnvelope, encodeEnvelope, encodeJsonEnvelope, FrameType, Dir, MAX_ENVELOPE_BYTES, type Envelope } from "./envelope.ts";
 import { RemoteSessionCodec } from "./session.ts";
 import { HandshakeServer, type HandshakeContext } from "./handshake.ts";
+import { handleResume } from "./resume.ts";
 import { ChallengeStore } from "./stepup.ts";
 import { ControlDispatcher, type RouteDispatch, type DispatchSession } from "./dispatch.ts";
 import { WsBridge, type RemoteSession, type ServerFrame } from "./WsBridge.ts";
@@ -128,28 +129,53 @@ export class GatewayConnection {
   }
 
   private onHandshakeFrame(payload: Buffer): void {
-    let frame: unknown;
+    let frame: { t?: unknown };
     try { frame = JSON.parse(payload.toString("utf8")); } catch { this.fail("DECRYPT_FAIL"); return; }
+    if (frame?.t === "resume") { this.onResume(frame); return; }
+
     const result = this.hs!.handle(frame);
     if (result.kind === "error") { this.fail(result.code); return; }
     if (result.kind === "reply") {
-      this.send(encodeEnvelope({
-        type: FrameType.data, dir: Dir.s2c, epoch: 0, seq: 0n,
-        room: this.deps.room, clientId: this.clientId,
-        payload: Buffer.from(JSON.stringify(result.frame), "utf8"),
-      }));
+      this.sendCleartext(result.frame);
       return;
     }
     // Complete: switch to the live record codec and deliver the welcome.
-    this.codec = result.codec;
+    this.goLive(result.codec, result.devId);
+    this.send(this.codec!.seal({ t: "reply", correlationId: "pair", status: 200, body: result.welcome }));
+  }
+
+  private onResume(frame: unknown): void {
+    const result = handleResume(
+      { tickets: this.deps.tickets, now: this.deps.now },
+      { room: this.deps.room, clientId: this.clientId },
+      frame,
+    );
+    if (result.kind === "error") { this.fail(result.code); return; }
+    this.goLive(result.codec, result.devId);
+    // RES-2 rides cleartext like the hs frames; the new ticket inside encTicket
+    // is sealed with the dedicated K_resume_ticket key, not the traffic key.
+    this.sendCleartext(result.frame);
+  }
+
+  private goLive(codec: RemoteSessionCodec, devId: string): void {
+    this.codec = codec;
     this.session = {
       id: this.clientId.toString("hex"),
       send: (f: ServerFrame) => this.send(this.codec!.seal(f)),
       close: (reason?: string) => this.close(reason),
     };
     this.bridge.add(this.session);
-    this.send(this.codec.seal({ t: "reply", correlationId: "pair", status: 200, body: result.welcome }));
-    this.deps.log?.("remote device live", { clientId: this.session.id, devId: result.devId });
+    this.deps.log?.("remote device live", { clientId: this.session.id, devId });
+  }
+
+  // A pre-traffic-key frame (hs reply / resume-ok): the JSON rides cleartext in a
+  // type=0x01 envelope; the relay never inspects it.
+  private sendCleartext(frame: object): void {
+    this.send(encodeEnvelope({
+      type: FrameType.data, dir: Dir.s2c, epoch: 0, seq: 0n,
+      room: this.deps.room, clientId: this.clientId,
+      payload: Buffer.from(JSON.stringify(frame), "utf8"),
+    }));
   }
 
   private async onLiveFrame(env: ReturnType<typeof parseEnvelope>): Promise<void> {

@@ -24,6 +24,11 @@ describe("classifyTier (§8)", () => {
     }
   });
 
+  it("classifies on the path portion, ignoring the query string (§4.2)", () => {
+    assert.deepEqual(classifyTier("GET", "/fs/read?path=/a/b.txt"), { tier: "READ", uiToken: false });
+    assert.deepEqual(classifyTier("GET", "/workers/abc/changes/file?p=x&y=1"), { tier: "READ", uiToken: false });
+  });
+
   it("fails closed to REFUSED for unknown routes and wrong methods", () => {
     assert.equal(classifyTier("GET", "/nope/nope").tier, "REFUSED");
     assert.equal(classifyTier("POST", "/workers").tier, "HIGH"); // spawn is HIGH...

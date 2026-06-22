@@ -140,6 +140,7 @@ function build(): void {
   const binderS = keyedHash(psk, ascii("eos/v1 resume binderS"), ticketId, ePubS, serverNonce, ePubC);
   const kC2sResume = kdf(psk, "eos/v1 resume data c2s", thWithKx);
   const kS2cResume = kdf(psk, "eos/v1 resume data s2c", thWithKx);
+  const kResumeTicket = kdf(psk, "eos/v1 resume ticket", thWithKx);
 
   const bodyHash = hash(Buffer.from(sampleStepUpBody, "utf8"));
 
@@ -180,6 +181,7 @@ function build(): void {
       thResume: hex(thResume), thWithKx: hex(thWithKx),
       binderC: hex(binderC), binderS: hex(binderS),
       kC2sResume: hex(kC2sResume), kS2cResume: hex(kS2cResume),
+      kResumeTicket: hex(kResumeTicket),
     },
     stepUp: { bodyHash: hex(bodyHash) },
   };
