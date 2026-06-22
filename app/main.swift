@@ -3,6 +3,7 @@ import ObjectiveC
 import WebKit
 import UserNotifications
 import QuartzCore
+import CoreImage
 
 private let DAEMON = "http://127.0.0.1:7400"
 private let WINDOW_CORNER_RADIUS: CGFloat = 10
@@ -933,8 +934,11 @@ final class RemotePrefsWindowController: NSObject {
     private let relayURL = NSTextField()
     private let relayRoom = NSTextField()
     private let lanHost = NSTextField()
+    private let qrView = NSImageView()
+    private let pairStatus = NSTextField(labelWithString: "")
 
     private var configPath: String { ("~/.eos/config.json" as NSString).expandingTildeInPath }
+    private var uiTokenPath: String { ("~/.eos/ui-token" as NSString).expandingTildeInPath }
 
     func show() {
         if window == nil { build() }
@@ -945,7 +949,7 @@ final class RemotePrefsWindowController: NSObject {
     }
 
     private func build() {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 250),
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 560),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         w.title = "Remote Access"
         let v = NSView(frame: w.contentView!.bounds)
@@ -959,7 +963,7 @@ final class RemotePrefsWindowController: NSObject {
             ("Mode", modePopup), ("Relay URL", relayURL),
             ("Relay Room", relayRoom), ("LAN bind IP", lanHost),
         ]
-        var y: CGFloat = 200
+        var y: CGFloat = 510
         for (label, field) in rows {
             let l = NSTextField(labelWithString: label)
             l.frame = NSRect(x: 20, y: y, width: 100, height: 22)
@@ -969,18 +973,80 @@ final class RemotePrefsWindowController: NSObject {
             y -= 36
         }
         let note = NSTextField(labelWithString: "Off by default. Restart Eos to apply changes.")
-        note.frame = NSRect(x: 20, y: 50, width: 410, height: 20)
+        note.frame = NSRect(x: 20, y: 360, width: 410, height: 20)
         note.textColor = .secondaryLabelColor
         note.font = .systemFont(ofSize: 11)
         v.addSubview(note)
 
         let save = NSButton(title: "Save", target: self, action: #selector(saveTapped))
-        save.frame = NSRect(x: 350, y: 14, width: 90, height: 30)
-        save.keyEquivalent = "\r"
+        save.frame = NSRect(x: 20, y: 320, width: 90, height: 30)
         v.addSubview(save)
+
+        let pair = NSButton(title: "Pair device…", target: self, action: #selector(pairTapped))
+        pair.frame = NSRect(x: 120, y: 320, width: 130, height: 30)
+        v.addSubview(pair)
+
+        // QR area: arming returns the §6 payload; we render it for the phone to
+        // scan. The QR encodes the pairing JSON only — no daemon secret beyond the
+        // single-use ots/bearer already meant to be transferred by the scan.
+        qrView.frame = NSRect(x: 102, y: 40, width: 256, height: 256)
+        qrView.imageScaling = .scaleProportionallyUpOrDown
+        qrView.wantsLayer = true
+        v.addSubview(qrView)
+        pairStatus.frame = NSRect(x: 20, y: 300, width: 420, height: 18)
+        pairStatus.textColor = .secondaryLabelColor
+        pairStatus.font = .systemFont(ofSize: 11)
+        v.addSubview(pairStatus)
 
         w.contentView = v
         window = w
+    }
+
+    private func uiToken() -> String? {
+        guard let t = try? String(contentsOfFile: uiTokenPath, encoding: .utf8) else { return nil }
+        let trimmed = t.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    // POST the loopback pairing-arm route and render the returned QR payload.
+    @objc private func pairTapped() {
+        guard let token = uiToken() else { pairStatus.stringValue = "No ui-token found (~/.eos/ui-token)."; return }
+        guard let url = URL(string: DAEMON + "/api/remote/pair") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue(token, forHTTPHeaderField: "x-eos-ui-token")
+        req.setValue("application/json", forHTTPHeaderField: "content-type")
+        req.httpBody = Data("{}".utf8)
+        pairStatus.stringValue = "Arming pairing…"
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, _ in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                guard code == 200, let data = data else {
+                    self.pairStatus.stringValue = code == 409 ? "Remote not armed — set Mode + Save, then restart Eos." : "Pair failed (HTTP \(code))."
+                    return
+                }
+                if let img = self.makeQR(from: data) {
+                    self.qrView.image = img
+                    self.pairStatus.stringValue = "Scan with the Eos iOS app. One-time, expires soon."
+                } else {
+                    self.pairStatus.stringValue = "Could not render the QR payload."
+                }
+            }
+        }.resume()
+    }
+
+    // Render the raw pairing-payload JSON bytes as a QR image.
+    private func makeQR(from payload: Data) -> NSImage? {
+        guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(payload, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let ci = filter.outputImage else { return nil }
+        let scaled = ci.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+        let rep = NSCIImageRep(ciImage: scaled)
+        let img = NSImage(size: rep.size)
+        img.addRepresentation(rep)
+        return img
     }
 
     private func readConfig() -> [String: Any] {
