@@ -920,6 +920,120 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 }
 
+// MARK: - Remote Access preferences
+//
+// Configures the daemon's REMOTE exposure (config.remote in ~/.eos/config.json)
+// — the iOS remote-control edge. This NEVER touches the WebView, which stays on
+// loopback (DAEMON above): the LAN-IP field sets the daemon's bind for the /ws
+// gateway, not the app's webview. Changes apply on the next daemon restart.
+
+final class RemotePrefsWindowController: NSObject {
+    private var window: NSWindow?
+    private let modePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let relayURL = NSTextField()
+    private let relayRoom = NSTextField()
+    private let lanHost = NSTextField()
+
+    private var configPath: String { ("~/.eos/config.json" as NSString).expandingTildeInPath }
+
+    func show() {
+        if window == nil { build() }
+        loadFromConfig()
+        window?.center()
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func build() {
+        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 250),
+                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        w.title = "Remote Access"
+        let v = NSView(frame: w.contentView!.bounds)
+
+        modePopup.addItems(withTitles: ["off", "lan", "relay"])
+        relayURL.placeholderString = "wss://your-relay.example/"
+        relayRoom.placeholderString = "room id (b64u)"
+        lanHost.placeholderString = "0.0.0.0 (LAN bind for /ws)"
+
+        let rows: [(String, NSView)] = [
+            ("Mode", modePopup), ("Relay URL", relayURL),
+            ("Relay Room", relayRoom), ("LAN bind IP", lanHost),
+        ]
+        var y: CGFloat = 200
+        for (label, field) in rows {
+            let l = NSTextField(labelWithString: label)
+            l.frame = NSRect(x: 20, y: y, width: 100, height: 22)
+            l.alignment = .right
+            field.frame = NSRect(x: 130, y: y, width: 300, height: 24)
+            v.addSubview(l); v.addSubview(field)
+            y -= 36
+        }
+        let note = NSTextField(labelWithString: "Off by default. Restart Eos to apply changes.")
+        note.frame = NSRect(x: 20, y: 50, width: 410, height: 20)
+        note.textColor = .secondaryLabelColor
+        note.font = .systemFont(ofSize: 11)
+        v.addSubview(note)
+
+        let save = NSButton(title: "Save", target: self, action: #selector(saveTapped))
+        save.frame = NSRect(x: 350, y: 14, width: 90, height: 30)
+        save.keyEquivalent = "\r"
+        v.addSubview(save)
+
+        w.contentView = v
+        window = w
+    }
+
+    private func readConfig() -> [String: Any] {
+        guard let data = FileManager.default.contents(atPath: configPath),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        return obj
+    }
+
+    private func loadFromConfig() {
+        let cfg = readConfig()
+        let remote = cfg["remote"] as? [String: Any] ?? [:]
+        modePopup.selectItem(withTitle: (remote["mode"] as? String) ?? "off")
+        let relay = remote["relay"] as? [String: Any] ?? [:]
+        relayURL.stringValue = (relay["url"] as? String) ?? ""
+        relayRoom.stringValue = (relay["room"] as? String) ?? ""
+        let lan = remote["lan"] as? [String: Any] ?? [:]
+        lanHost.stringValue = (lan["host"] as? String) ?? ""
+    }
+
+    @objc private func saveTapped() {
+        var cfg = readConfig()
+        let mode = modePopup.titleOfSelectedItem ?? "off"
+        var remote: [String: Any] = ["mode": mode]
+        let url = relayURL.stringValue.trimmingCharacters(in: .whitespaces)
+        let room = relayRoom.stringValue.trimmingCharacters(in: .whitespaces)
+        if !url.isEmpty || !room.isEmpty { remote["relay"] = ["url": url, "room": room] }
+        let host = lanHost.stringValue.trimmingCharacters(in: .whitespaces)
+        if !host.isEmpty { remote["lan"] = ["host": host] }
+        cfg["remote"] = remote
+        // LAN mode needs the daemon to bind a routable interface for /ws; the
+        // loopback-lock keeps every other REST surface off-box. The WebView is
+        // unaffected (it always talks to 127.0.0.1).
+        if mode == "lan", !host.isEmpty {
+            var daemon = cfg["daemon"] as? [String: Any] ?? [:]
+            daemon["host"] = host
+            cfg["daemon"] = daemon
+        }
+        guard let out = try? JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys]) else { return }
+        try? out.write(to: URL(fileURLWithPath: configPath))
+        let a = NSAlert()
+        a.messageText = mode == "off" ? "Remote access disabled." : "Remote access set to \(mode)."
+        a.informativeText = "Restart Eos for the change to take effect."
+        a.runModal()
+        window?.close()
+    }
+}
+
+let remotePrefs = RemotePrefsWindowController()
+
+extension AppDelegate {
+    @objc func openRemotePreferences(_: Any?) { remotePrefs.show() }
+}
+
 // MARK: - Bootstrap
 
 let app = NSApplication.shared
@@ -932,6 +1046,10 @@ let ai = NSMenuItem(); menu.addItem(ai)
 let am = NSMenu()
 am.addItem(NSMenuItem(title: "About Eos",
                        action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: ""))
+am.addItem(.separator())
+let remoteItem = NSMenuItem(title: "Remote Access…", action: #selector(AppDelegate.openRemotePreferences(_:)), keyEquivalent: ",")
+remoteItem.target = del
+am.addItem(remoteItem)
 am.addItem(.separator())
 am.addItem(NSMenuItem(title: "Quit Eos",
                        action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
