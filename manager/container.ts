@@ -26,6 +26,7 @@ import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts"
 import { scrubSubscriptionEnv } from "../core/src/domain/env-allowlist.ts";
 import type { AgentEvent } from "../contracts/src/canonical.ts";
 import type { AgentBackend, AgentLaunchSpec } from "../core/src/ports/AgentBackend.ts";
+import { backendCollaborate } from "../core/src/ports/AgentBackend.ts";
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSubscriptionAuthResolver } from "../infra/src/auth/SubscriptionAuthResolver.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
@@ -681,7 +682,7 @@ export function buildContainer() {
   // PTY/SDK lanes), the executor map, and a provider-neutral JSON input schema.
   const buildLaneTooling = (spec: AgentLaunchSpec): { items: Array<{ name: string; description: string; schema: Record<string, unknown> }>; tools: Map<string, { name: string; execute(input: Record<string, unknown>): Promise<string> }> } => {
     const ctx = makeToolContext(spec);
-    const collaborate = spec.backendOptions?.collaborate === true;
+    const collaborate = backendCollaborate(spec.backendOptions);
     const defs = spec.isOrchestrator ? orchestratorDefs : [...workerDefs, ...(collaborate ? peerDefs : [])];
     const server = mcpServerForRole(spec.isOrchestrator);
     const descriptions = renderInprocToolDescriptions();

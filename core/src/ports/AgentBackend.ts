@@ -90,16 +90,26 @@ export interface AgentLaunchSpec {
   readonly backendOptions?: BackendLaunchOptions;
 }
 
-// The typed carrier for backend-specific launch extras. `spec` is the claude-cli
-// SpawnWorkerSpec (argv / worktree / gateway / mcp — and the DPI prompt-assembly
-// facts the sdk adapter reads); the others are read by the structured backends.
+// The typed carrier for backend-specific launch extras. `spec` is the
+// SpawnWorkerSpec — argv / worktree / gateway / mcp for the claude-cli lane, plus
+// the spawn facts the structured lanes also read (DPI prompt assembly, and the
+// collaborate peer-mesh opt-in via backendCollaborate); the rest are runtime knobs.
 export interface BackendLaunchOptions {
   readonly spec?: SpawnWorkerSpec;
   readonly resume?: string;
-  readonly collaborate?: boolean;
   readonly auth?: AuthRef;
   readonly thinking?: unknown;
   readonly params?: Readonly<Record<string, unknown>>;
+}
+
+// collaborate (the peer-mesh opt-in) is a spawn fact persisted on the
+// SpawnWorkerSpec, so every lane resolves it from the one canonical place:
+// backendOptions.spec.collaborate. The claude-cli lane reads spec.collaborate
+// directly; the structured lanes (claude-sdk, in-process) go through here.
+// Reading a separate top-level backendOptions field instead silently dropped the
+// peer tools on a collaborate=true worker.
+export function backendCollaborate(opts: BackendLaunchOptions | undefined): boolean {
+  return opts?.spec?.collaborate === true;
 }
 
 export interface AgentStartCallbacks {
