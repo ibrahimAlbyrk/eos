@@ -11,8 +11,11 @@ final class LiveE2ETests: XCTestCase {
     private var collector: FrameCollector!
 
     func test_live_pair_and_control_through_relay() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["EOS_LIVE_E2E"] == "1",
-                          "live relay E2E — set EOS_LIVE_E2E=1 with the harness up")
+        // Env vars don't propagate into the Simulator test process, so gate on a host-side sentinel
+        // file (the Simulator reads host /tmp): `touch /tmp/eos-live-e2e-go` enables this run.
+        let enabled = ProcessInfo.processInfo.environment["EOS_LIVE_E2E"] == "1"
+            || FileManager.default.fileExists(atPath: "/tmp/eos-live-e2e-go")
+        try XCTSkipUnless(enabled, "live relay E2E — touch /tmp/eos-live-e2e-go with the harness up")
         try CryptoSuite.ensureInit()
 
         let payloadPath = ProcessInfo.processInfo.environment["EOS_PAIR_FILE"] ?? "/tmp/eos-pair.json"
