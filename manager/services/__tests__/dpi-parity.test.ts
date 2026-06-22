@@ -51,12 +51,14 @@ const baseCtx: SessionSpawnContext = {
 // (role/<role>/NN-*) composed in priority order — the assembled text is
 // byte-identical to the former monolith, just stored in pieces.
 describe("DPI assembles per-role system prompts", () => {
-  it("orchestrator → only role/orchestrator/* fragments, intro first", async () => {
+  it("orchestrator → orchestrator preamble first, then only role/orchestrator/* fragments", async () => {
     const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "orchestrator", parentId: null });
     assert.ok(r.activeFragmentIds.length > 1); // split into concern fragments
-    assert.ok(r.activeFragmentIds.every((id) => id.startsWith("role/orchestrator/")));
-    assert.equal(r.activeFragmentIds[0], "role/orchestrator/01-intro");
-    assert.match(r.text, /^# Orchestrator/);
+    assert.equal(r.activeFragmentIds[0], "system-preamble-orchestrator"); // orchestrator preamble emits first
+    assert.ok(!r.activeFragmentIds.includes("system-preamble-worker")); // worker preamble must NOT leak in
+    assert.equal(r.activeFragmentIds[1], "role/orchestrator/01-intro"); // role intro is the first role fragment
+    assert.ok(r.activeFragmentIds.slice(1).every((id) => id.startsWith("role/orchestrator/")));
+    assert.match(r.text, /# Orchestrator/);
     // Tool-name variables resolve from the registry-backed globals.
     assert.match(r.text, /`spawn_worker`/);
     assert.doesNotMatch(r.text, /\{\{/); // no unresolved {{*_TOOL}} left
@@ -70,16 +72,20 @@ describe("DPI assembles per-role system prompts", () => {
     assert.doesNotMatch(r.text, /\{\{/); // all tool vars resolved
   });
 
-  it("git agent → only role/git/* fragments", async () => {
+  it("git agent → worker preamble first, then only role/git/* fragments", async () => {
     const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "git" });
-    assert.ok(r.activeFragmentIds.every((id) => id.startsWith("role/git/")));
-    assert.match(r.text, /^# Git Agent/);
+    assert.equal(r.activeFragmentIds[0], "system-preamble-worker");
+    assert.ok(!r.activeFragmentIds.includes("system-preamble-orchestrator"));
+    assert.ok(r.activeFragmentIds.slice(1).every((id) => id.startsWith("role/git/")));
+    assert.match(r.text, /# Git Agent/);
   });
 
-  it("subagent worker (no worktree) → only role/worker/*, zero worktree prose", async () => {
+  it("subagent worker (no worktree) → worker preamble first, then only role/worker/*, zero worktree prose", async () => {
     const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker" });
-    assert.ok(r.activeFragmentIds.every((id) => id.startsWith("role/worker/")));
-    assert.match(r.text, /^# Worker/);
+    assert.equal(r.activeFragmentIds[0], "system-preamble-worker");
+    assert.ok(!r.activeFragmentIds.includes("system-preamble-orchestrator"));
+    assert.ok(r.activeFragmentIds.slice(1).every((id) => id.startsWith("role/worker/")));
+    assert.match(r.text, /# Worker/);
     // Worktree isolation content is gone for a plain-cwd worker (worker/04
     // removed; env/worktree* are worktree-gated).
     assert.doesNotMatch(r.text, /isolated git worktree|Workspace isolation/);
@@ -93,10 +99,12 @@ describe("DPI assembles per-role system prompts", () => {
       branch: "eos-x",
       repoRoot: "/repo",
     });
-    // env/worktree (layer custom) sorts after every role/worker/* fragment.
+    // worker preamble (layer core) first, env/worktree (layer custom) last.
+    assert.equal(r.activeFragmentIds[0], "system-preamble-worker");
+    assert.ok(!r.activeFragmentIds.includes("system-preamble-orchestrator"));
     assert.equal(r.activeFragmentIds.at(-1), "env/worktree");
-    assert.ok(r.activeFragmentIds.slice(0, -1).every((id) => id.startsWith("role/worker/")));
-    assert.match(r.text, /^# Worker/); // role content first
+    assert.ok(r.activeFragmentIds.slice(1, -1).every((id) => id.startsWith("role/worker/")));
+    assert.match(r.text, /# Worker/); // role content present
     assert.match(r.text, /isolation: worktree/); // env block follows
     assert.match(r.text, /branch `eos-x`/); // BRANCH substituted
     assert.match(r.text, /agent: demo \(w-1\)/); // AGENT_NAME + WORKER_ID
@@ -115,6 +123,28 @@ describe("DPI assembles per-role system prompts", () => {
     assert.ok(r.activeFragmentIds.includes("env/worktree-shared"));
     assert.ok(!r.activeFragmentIds.includes("env/worktree"));
     assert.match(r.text, /shared worktree \(attached\)/);
+  });
+
+  it("exactly ONE role-specific preamble emits FIRST for every role — never both, never neither", async () => {
+    const ORCH = "system-preamble-orchestrator";
+    const WORKER = "system-preamble-worker";
+    const scenarios: Array<{ label: string; ctx: SessionSpawnContext; id: string }> = [
+      { label: "orchestrator", ctx: { ...baseCtx, role: "orchestrator", parentId: null }, id: ORCH },
+      { label: "worker (subagent)", ctx: { ...baseCtx, role: "worker" }, id: WORKER },
+      { label: "git", ctx: { ...baseCtx, role: "git" }, id: WORKER },
+      {
+        label: "worktree worker",
+        ctx: { ...baseCtx, role: "worker", worktreeDir: "/repo/.eos/wt/x", branch: "eos-x", repoRoot: "/repo" },
+        id: WORKER,
+      },
+    ];
+    for (const { label, ctx, id } of scenarios) {
+      const r = await assembleSystemPrompt(deps(), ctx);
+      // Exactly one preamble, and it is first — proves the two `when` gates are exact complements.
+      const preambles = r.activeFragmentIds.filter((x) => x === ORCH || x === WORKER);
+      assert.deepEqual(preambles, [id], `${label}: must carry exactly one preamble (${id})`);
+      assert.equal(r.activeFragmentIds[0], id, `${label}: preamble must sort first`);
+    }
   });
 
   it("collaborate worker → peer-collaboration fragment present; off → absent", async () => {
