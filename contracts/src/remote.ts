@@ -98,6 +98,47 @@ export const REMOTE_ERROR_CODES = [
 export const RemoteErrorCodeSchema = z.enum(REMOTE_ERROR_CODES);
 export type RemoteErrorCode = z.infer<typeof RemoteErrorCodeSchema>;
 
+// ---- Handshake frames (§2) — carried as cleartext JSON in a type=0x01 outer
+// envelope; the identity material inside encS/encC is AEAD-sealed. All b64u.
+
+export const HsModeSchema = z.enum(["pair", "connect"]);
+export type HsMode = z.infer<typeof HsModeSchema>;
+
+// PAIR-1 / CONNECT-1 (device → Mac).
+export const Hs1Schema = z.object({
+  v: z.literal(1), t: z.literal("hs"), step: z.literal(1), mode: HsModeSchema,
+  ePubC: z.string(), nC: z.string(),
+});
+// PAIR-2 / CONNECT-2 (Mac → device).
+export const Hs2Schema = z.object({
+  v: z.literal(1), t: z.literal("hs"), step: z.literal(2), mode: HsModeSchema,
+  ePubS: z.string(), nS: z.string(), encS: z.string(),
+});
+// PAIR-3 / CONNECT-3 (device → Mac).
+export const Hs3Schema = z.object({
+  v: z.literal(1), t: z.literal("hs"), step: z.literal(3), mode: HsModeSchema,
+  encC: z.string(),
+});
+
+// The sealed S2 (inside encS) and C3 (inside encC) plaintexts.
+export const HsS2Schema = z.object({ iMac: z.string(), sigS: z.string() });
+export const HsC3Schema = z.object({
+  iDev: z.string(), devId: z.string(), label: z.string(), sigC: z.string(), ots: z.string(),
+});
+
+// RESUME (§2.3).
+export const ResumeFrameSchema = z.object({
+  v: z.literal(1), t: z.literal("resume"),
+  ticketId: z.string(), ePubC: z.string(), nC: z.string(), binder: z.string(),
+});
+
+export type Hs1 = z.infer<typeof Hs1Schema>;
+export type Hs2 = z.infer<typeof Hs2Schema>;
+export type Hs3 = z.infer<typeof Hs3Schema>;
+export type HsS2 = z.infer<typeof HsS2Schema>;
+export type HsC3 = z.infer<typeof HsC3Schema>;
+export type ResumeFrame = z.infer<typeof ResumeFrameSchema>;
+
 // ---- Pairing QR payload (§6) — produced by the Mac app ---------------------
 
 export const PairingQrSchema = z.object({

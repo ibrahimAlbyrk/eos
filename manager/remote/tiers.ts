@@ -1,0 +1,126 @@
+// Control ↔ REST capability tiers (protocol §8). A remote control{method,path}
+// is classified here BEFORE it is dispatched into the real route handler:
+//   READ    — pure reads, no step-up
+//   LOW     — non-RCE mutations, no step-up
+//   HIGH    — RCE / externally-visible → per-action Secure-Enclave step-up (§7.3)
+//   REFUSED — never dispatched remotely (worker-ingest plane, raw server, pickers)
+// Unknown (method,path) FAILS CLOSED to REFUSED. `uiToken: true` marks the ✦
+// routes whose local x-eos-ui-token the gateway supplies only to a device that
+// holds the "mutate" capability (§4.5).
+
+import type { RemoteTier } from "../../contracts/src/remote.ts";
+
+interface TierRule {
+  method: string;
+  re: RegExp;
+  tier: RemoteTier;
+  uiToken?: boolean;
+}
+
+// :seg matches one non-slash path segment.
+function pat(path: string): RegExp {
+  const body = path.replace(/:[A-Za-z0-9_]+/g, "[^/]+");
+  return new RegExp(`^${body}$`);
+}
+const R = (method: string, path: string, tier: RemoteTier, uiToken = false): TierRule => ({ method, re: pat(path), tier, uiToken });
+
+const RULES: TierRule[] = [
+  // ---- READ ----
+  ...[
+    "/workers", "/workers/:id", "/workers/:id/events", "/workers/:id/queue",
+    "/workers/:id/diff", "/workers/:id/changes", "/workers/:id/changes/file",
+    "/workers/:id/conflicts", "/workers/:id/conflicts/file", "/workers/:id/push-state",
+    "/workers/:id/memory", "/workers/:id/peers", "/workers/:id/rewind-targets",
+    "/workers/:id/try/preview", "/workers/:id/try/state", "/orchestrators", "/pending",
+    "/health", "/fs/branches", "/fs/unpushed", "/fs/commit", "/fs/recents", "/fs/read",
+    "/fs/list", "/fs/stat", "/fs/image", "/fs/icon", "/fs/default-app", "/api/ui-config",
+    "/api/settings", "/commands", "/api/templates", "/api/prompts", "/worker-definitions",
+    "/api/updates/status",
+  ].map((p) => R("GET", p, "READ")),
+
+  // ---- LOW ----
+  R("POST", "/workers/:id/message", "LOW"),
+  R("POST", "/workers/:id/question-answer", "LOW"),
+  R("POST", "/workers/:id/interrupt", "LOW"),
+  R("POST", "/workers/:id/resume", "LOW"),
+  R("POST", "/workers/:id/notify", "LOW"),
+  R("POST", "/orchestrators/:id/message", "LOW"),
+  R("POST", "/orchestrators/:id/loop", "LOW"),
+  R("POST", "/orchestrators/:id/loop/stop", "LOW"),
+  R("DELETE", "/workers/:id/queue/:queueId", "LOW"),
+  R("PUT", "/workers/:id/name", "LOW"),
+  R("PUT", "/workers/:id/rename-intent", "LOW"),
+  R("PUT", "/workers/:id/model", "LOW"),
+  R("POST", "/workers/:id/conflicts/resolve", "LOW"),
+
+  // ---- HIGH (step-up). ✦ = ui-token-gated ----
+  R("POST", "/workers", "HIGH"),
+  R("POST", "/orchestrators", "HIGH"),
+  R("DELETE", "/workers/:id", "HIGH"),
+  R("POST", "/workers/:id/terminal", "HIGH", true),
+  R("POST", "/terminal", "HIGH", true),
+  R("POST", "/terminal/:runId/kill", "HIGH"),
+  R("POST", "/workers/:id/action", "HIGH"),
+  R("POST", "/workers/:id/push", "HIGH"),
+  R("POST", "/workers/:id/pull", "HIGH"),
+  R("POST", "/pending/:id/decision", "HIGH"),
+  R("PUT", "/workers/:id/permission", "HIGH"),
+  R("PUT", "/workers/:id/backend", "HIGH"),
+  R("POST", "/workers/:id/open", "HIGH", true),
+  R("POST", "/fs/open", "HIGH"),
+  R("POST", "/fs/reveal", "HIGH"),
+  R("POST", "/workers/:id/rewind", "HIGH"),
+  R("POST", "/workers/:id/try", "HIGH"),
+  R("POST", "/workers/:id/try/keep", "HIGH"),
+  R("POST", "/workers/:id/try/discard", "HIGH"),
+  R("POST", "/orchestrators/:id/integrate", "HIGH"),
+  R("POST", "/workers/:id/changes/discard", "HIGH", true),
+  R("DELETE", "/workers/:id/memory/:name", "HIGH", true),
+  R("POST", "/fs/write", "HIGH", true),
+  R("POST", "/fs/create", "HIGH", true),
+  R("POST", "/fs/rename", "HIGH", true),
+  R("POST", "/fs/move", "HIGH", true),
+  R("POST", "/fs/trash", "HIGH", true),
+  R("POST", "/fs/paste", "HIGH", true),
+  R("POST", "/fs/watch", "HIGH", true),
+  R("POST", "/fs/unwatch", "HIGH", true),
+  R("POST", "/fs/checkout", "HIGH", true),
+  R("POST", "/fs/branch/create", "HIGH", true),
+  R("POST", "/fs/branch/rename", "HIGH", true),
+  R("POST", "/fs/branch/delete", "HIGH", true),
+  R("POST", "/fs/fetch", "HIGH", true),
+  R("POST", "/fs/remote-branch/delete", "HIGH", true),
+  R("POST", "/api/updates/apply", "HIGH", true),
+  R("POST", "/api/policy/rule", "HIGH"),
+  R("POST", "/api/templates", "HIGH"),
+  R("PUT", "/api/templates/:name", "HIGH"),
+  R("DELETE", "/api/templates/:name", "HIGH"),
+  R("PUT", "/api/settings", "HIGH"),
+  R("POST", "/api/updates/check", "HIGH"),
+  R("POST", "/api/updates/defer", "HIGH"),
+
+  // ---- REFUSED (never remote) ----
+  ...[
+    ["POST", "/workers/:id/events"], ["POST", "/policy/decide"], ["POST", "/workers/:id/question"],
+    ["GET", "/workers/:id/question/:qId"], ["POST", "/workers/:id/peer-request"],
+    ["GET", "/workers/:id/peer-request/:rId"], ["POST", "/workers/:id/peer-response"],
+    ["POST", "/workers/:id/report"], ["POST", "/workers/:id/keystroke"],
+    ["GET", "/pick-directory"], ["GET", "/pick-file"], ["GET", "/stream"], ["GET", "/metrics"],
+    ["GET", "/fs/raw"], ["GET", "/pdfjs"],
+  ].map(([m, p]) => R(m, p, "REFUSED")),
+];
+
+export interface TierMatch {
+  tier: RemoteTier;
+  uiToken: boolean;
+}
+
+// Classify a concrete control method+path. Fails closed to REFUSED.
+export function classifyTier(method: string, path: string): TierMatch {
+  for (const rule of RULES) {
+    if (rule.method === method && rule.re.test(path)) {
+      return { tier: rule.tier, uiToken: rule.uiToken ?? false };
+    }
+  }
+  return { tier: "REFUSED", uiToken: false };
+}
