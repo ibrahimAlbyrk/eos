@@ -120,11 +120,12 @@ describe("SqliteWorkerRepo name provenance + CAS", () => {
 describe("migration 049 name_source — strict gate, no backfill", () => {
   it("adds name_source as NULL for a row that pre-existed the migration", () => {
     const fresh = new DatabaseSync(":memory:");
-    // Apply every migration BEFORE 049, recording each as done.
+    // Apply every migration EXCEPT 049, recording each as done — so 049 is the
+    // only unapplied one regardless of how many migrations follow it.
     fresh.exec("CREATE TABLE IF NOT EXISTS schema_migrations (id TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)");
     const rec = fresh.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, 0)");
     for (const m of MIGRATIONS) {
-      if (m.id === "049_workers_add_name_source") break;
+      if (m.id === "049_workers_add_name_source") continue;
       fresh.exec(m.sql);
       rec.run(m.id);
     }

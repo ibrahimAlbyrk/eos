@@ -13,6 +13,7 @@ import { buildWorkerArgs } from "./shared/worker-args.ts";
 import { errMsg } from "../contracts/src/util.ts";
 
 import { systemClock } from "../infra/src/time/SystemClock.ts";
+import { systemTimeZone } from "../infra/src/time/SystemTimeZone.ts";
 import { randomIdGenerator } from "../infra/src/id/RandomIdGenerator.ts";
 import { createLogger } from "../infra/src/observability/StructLogger.ts";
 import { createInMemoryEventBus } from "../infra/src/eventbus/InMemoryEventBus.ts";
@@ -114,7 +115,7 @@ import { UserSettingsService } from "./services/UserSettingsService.ts";
 import { ModelCatalogService } from "./services/ModelCatalogService.ts";
 import { UpdateService } from "./services/UpdateService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
-import { RuntimeWorkerDefinitionStore } from "./services/RuntimeWorkerDefinitionStore.ts";
+import { SqliteRuntimeWorkerDefinitionStore } from "../infra/src/persistence/SqliteRuntimeWorkerDefinitionStore.ts";
 import { BackgroundActivityService } from "./services/BackgroundActivityService.ts";
 import { PendingPeerRequestService } from "./services/PendingPeerRequestService.ts";
 import { TerminalRunService } from "./services/TerminalRunService.ts";
@@ -505,7 +506,7 @@ export function buildContainer() {
   const turnSettle = new TurnSettleService(systemClock);
   const pendingQuestions = new PendingQuestionService(randomIdGenerator, systemClock);
   const backgroundActivity = new BackgroundActivityService(systemClock);
-  const pendingPeerRequests = new PendingPeerRequestService(randomIdGenerator, systemClock);
+  const pendingPeerRequests = new PendingPeerRequestService(randomIdGenerator, systemClock, config.collaborate.awaitTimeoutMs);
   const terminalRuns = new TerminalRunService({ bus, events, clock: systemClock, log });
   // Centralized prompt system (Layer 1) + DPI (Layer 2). Built-in library lives
   // in config.paths.promptsDir; ~/.eos/prompts overrides/extends it. Reads fresh
@@ -531,8 +532,15 @@ export function buildContainer() {
     if (proj) dirs.push({ dir: proj, source: "project" as const });
     return new FileWorkerDefinitionSource(dirs).list();
   };
-  // Runtime (orchestrator-created) worker definitions — per-owner, in-memory, session-only.
-  const runtimeWorkerDefinitions = new RuntimeWorkerDefinitionStore();
+  // Runtime (orchestrator-created) worker definitions — per-owner, persisted in
+  // state.db so they survive a daemon restart (the resumed owner keeps its id).
+  const runtimeWorkerDefinitions = new SqliteRuntimeWorkerDefinitionStore(db);
+  // Cascade: when a worker row is permanently removed (KillWorker publishes
+  // worker:removed), drop any runtime definitions it owned so dead-orchestrator
+  // rows don't accumulate. A no-op for non-owner workers (0 rows deleted).
+  bus.subscribe("worker:removed", (msg) =>
+    runtimeWorkerDefinitions.deleteForOwner((msg.payload as { workerId: string }).workerId),
+  );
   // Orchestrator catalog: one line per disk definition — name, its SET defaults
   // (model/effort/permission, unset axes omitted so no empty brackets), then the
   // routing signal. Lets the orchestrator route on capability, not just description.
@@ -845,6 +853,7 @@ export function buildContainer() {
     bus,
     sse,
     clock: systemClock,
+    timeZone: systemTimeZone,
     ids: randomIdGenerator,
     workers,
     events,

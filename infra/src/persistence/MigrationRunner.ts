@@ -258,6 +258,22 @@ export const MIGRATIONS: Migration[] = [
   // auto-name gate requires name_source = 'default', and NULL ≠ 'default', so
   // legacy orchestrators are never auto-renamed. New rows set it at insert.
   { id: "049_workers_add_name_source", sql: "ALTER TABLE workers ADD COLUMN name_source TEXT" },
+  // Runtime (orchestrator-created) worker definitions — the create_worker store,
+  // previously in-memory and lost on every boot. Keyed by OWNER (creating
+  // orchestrator's id; stable across resume) so a resumed orchestrator's
+  // definitions reappear. The full definition JSON is stored and re-validated on
+  // read, so a future schema bump degrades gracefully. PRIMARY KEY(owner,name)
+  // makes create an UPSERT (overwrite on name clash, as the old Map.set did).
+  { id: "050_worker_definitions", sql: `
+    CREATE TABLE IF NOT EXISTS worker_definitions (
+      owner TEXT NOT NULL,
+      name TEXT NOT NULL,
+      json TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (owner, name)
+    )
+  `},
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {
