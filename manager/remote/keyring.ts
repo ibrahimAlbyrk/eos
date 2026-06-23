@@ -113,7 +113,14 @@ export class DeviceKeyring {
   // The relay-admission allowlist = SHA-256 of every enrolled relayDeviceId. The
   // relay hashes the value a device presents at join and checks membership, so it
   // stays a blind pipe and the admitted value never has to be secret (§4.2).
+  //
+  // Skip any record without a valid relayDeviceId: a leftover v1 record (keyed by a
+  // devId UUID, no relayDeviceId field) must be IGNORED, not crash sha256Hex — this
+  // runs at relay-register time, so a throw here would leave the room unregistered
+  // and every device join would get ROOM_NOT_FOUND. v1 devices simply re-pair.
   admissionHashes(): string[] {
-    return this.list().map((d) => sha256Hex(d.relayDeviceId));
+    return this.list()
+      .filter((d) => typeof d.relayDeviceId === "string" && d.relayDeviceId.length > 0)
+      .map((d) => sha256Hex(d.relayDeviceId));
   }
 }

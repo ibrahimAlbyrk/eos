@@ -1,6 +1,6 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -45,6 +45,21 @@ describe("DeviceKeyring", () => {
       assert.equal(kr.revoke(id), true);
       assert.equal(kr.findByStaticPub(deviceStaticPub), null);
       assert.equal(kr.revoke(id), false);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
+  it("ignores leftover v1 records instead of crashing admissionHashes", () => {
+    const dir = tmp();
+    try {
+      const kr = new DeviceKeyring(dir);
+      // A real v2 device + a stale v1 record (no relayDeviceId field).
+      kr.record(Buffer.alloc(32, 0xab), "phone", 1);
+      writeFileSync(join(dir, "devices", "v1-legacy.json"),
+        JSON.stringify({ devId: "v1-legacy", iDevPubSec1: "04ff", bearerHashHex: "deadbeef" }));
+      // Must not throw on sha256Hex(undefined); returns only the valid v2 entry.
+      const hashes = kr.admissionHashes();
+      assert.equal(hashes.length, 1);
+      assert.equal(hashes[0], sha256Hex(relayDeviceId(Buffer.alloc(32, 0xab))));
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
