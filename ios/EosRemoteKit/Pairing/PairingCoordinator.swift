@@ -22,16 +22,19 @@ public final class PairingCoordinator: Sendable {
     private let pairBearer: String
     private let devId: String
     private let label: String
+    private let log: @Sendable (String) -> Void
 
     public init(connection: WSConnection, qr: QRPayload, identity: DeviceIdentity,
-                room: String, pairBearer: String, devId: String, label: String) {
+                room: String, pairBearer: String, devId: String, label: String,
+                log: @escaping @Sendable (String) -> Void = { _ in }) {
         self.connection = connection; self.qr = qr; self.identity = identity
         self.roomBytes = Bytes.ascii(room); self.pairBearer = pairBearer
-        self.devId = devId; self.label = label
+        self.devId = devId; self.label = label; self.log = log
     }
 
     public func run() async throws -> PairResult {
         await connection.openForHandshake()
+        log("ws opened")
 
         // 1. join — clientId is 16 zero bytes until the relay assigns one.
         let zeroId = Data(count: 16)
@@ -40,30 +43,38 @@ public final class PairingCoordinator: Sendable {
         ])
         try await connection.sendEnvelopeRaw(Envelope(type: .join, dir: .c2s, epoch: 0, seq: 0,
                                                       room: roomBytes, clientId: zeroId, payload: joinJSON))
+        log("join sent")
         let ackEnv = try await connection.receiveEnvelopeRaw()
+        log("recv envelope type=\(ackEnv.type.rawValue) dir=\(ackEnv.dir.rawValue) payloadLen=\(ackEnv.payload.count)")
         guard ackEnv.type == .relayctl,
               let ack = try? JSONDecoder().decode(JoinAck.self, from: ackEnv.payload),
               ack.t == "joined", let clientId = Bytes.fromB64u(ack.clientId), clientId.count == 16
         else { throw PairError.badJoinAck }
+        log("join-ack ok, clientId assigned")
 
         // 2. PAIR-1 (cleartext hs in a type=0x01 envelope).
         let driver = HandshakeDriver(mode: .pair, qr: qr, identity: identity, clientId: clientId, room: roomBytes)
         let pair1 = try driver.buildHello()
         try await sendCleartextHs(pair1, clientId: clientId)
+        log("PAIR-1 sent")
 
         // PAIR-2.
         let pair2Env = try await connection.receiveEnvelopeRaw()
+        log("PAIR-2 recv type=\(pair2Env.type.rawValue) len=\(pair2Env.payload.count)")
         let s2 = try parseServerHello(pair2Env.payload)
         _ = try driver.processServerHello(s2)
+        log("PAIR-2 verified (pin + Mac sig + encS open)")
 
         // 3. PAIR-3 → derives the live session; attach BEFORE the sealed welcome arrives.
         let auth = try driver.buildClientAuth(serverHello: s2, devId: devId, label: label,
                                               reason: "Pair this device with Eos")
         await connection.attach(session: auth.session)
         try await sendCleartextHs(auth.frame, clientId: clientId)
+        log("PAIR-3 sent, session derived")
 
         // 4. welcome — SEALED (s2c seq0), recognized by correlationId=="pair".
         let welcomeEnv = try await connection.receiveEnvelopeRaw()
+        log("welcome recv type=\(welcomeEnv.type.rawValue) len=\(welcomeEnv.payload.count)")
         let plaintext = try auth.session.openIncoming(welcomeEnv)
         guard case .reply(let reply) = try ServerFrame.decode(plaintext), reply.correlationId == "pair",
               let bearer = reply.body?["bearer"]?.stringValue,

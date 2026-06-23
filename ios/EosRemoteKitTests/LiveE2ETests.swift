@@ -29,16 +29,24 @@ final class LiveE2ETests: XCTestCase {
         let conn = WSConnection(url: url, mode: .relay(bearer: bearer), delegate: collector)
         let coordinator = PairingCoordinator(
             connection: conn, qr: qr, identity: SoftwareDeviceIdentity(),
-            room: relay.room, pairBearer: bearer, devId: UUID().uuidString, label: "sim-e2e")
+            room: relay.room, pairBearer: bearer, devId: UUID().uuidString, label: "sim-e2e",
+            log: { print("LIVE E2E step: \($0)") })
 
-        // PAIR through the live relay.
-        let result = try await withThrowingTaskGroup(of: PairingCoordinator.PairResult.self) { group in
+        // PAIR through the live relay, with a HARD timeout that actually tears down the socket so a
+        // stalled handshake fails fast/diagnosably instead of blocking on a hung receive().
+        let result: PairingCoordinator.PairResult? = try await withThrowingTaskGroup(
+            of: PairingCoordinator.PairResult?.self) { group in
             group.addTask { try await coordinator.run() }
-            group.addTask { try await Task.sleep(nanoseconds: 30_000_000_000); throw XCTSkip("pair timed out (30s)") }
-            let r = try await group.next()!
-            group.cancelAll()
-            return r
+            group.addTask { try? await Task.sleep(nanoseconds: 25_000_000_000); return nil } // timeout → nil
+            defer { group.cancelAll() }
+            let first = try await group.next() ?? nil
+            await conn.stop() // cancel the WS so the other child's receive() unblocks immediately
+            return first
         }
+        guard let result else {
+            return XCTFail("PAIR timed out (25s) — no welcome. Check join-ack / PAIR-2 framing against harness logs.")
+        }
+        print("LIVE E2E paired — durableBearer len=\(result.durableBearer.count), ticket PSK bytes=\(result.ticket.psk.count)")
         XCTAssertFalse(result.durableBearer.isEmpty, "welcome must carry a durable bearer")
         XCTAssertEqual(result.ticket.psk.count, 32, "ticket PSK must be 32 bytes")
 
