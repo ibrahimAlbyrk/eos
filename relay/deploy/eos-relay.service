@@ -1,0 +1,40 @@
+# systemd unit — ALTERNATIVE to the Docker deployment (deploy.sh), for running the relay
+# as a bare host process instead of a container.
+#
+# NOTE on the live VPS: Caddy runs INSIDE a container (obsidian-caddy) on a private
+# docker bridge, so the chosen, working deployment is the Docker one (relay container on
+# the same network, reached as eos-relay:3000). This unit is the right path ONLY if the
+# relay runs on the host AND the fronting Caddy can reach host loopback — e.g. Caddy on
+# the host, or the relay bound to the docker bridge gateway with a matching reverse_proxy
+# target. For the current containerized Caddy, prefer deploy.sh.
+#
+# Install:
+#   cp eos-relay.service /etc/systemd/system/eos-relay.service
+#   systemctl daemon-reload && systemctl enable --now eos-relay
+#   systemctl status eos-relay
+
+[Unit]
+Description=eos-relay (Eos iOS remote control unicast forwarder)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/eos-relay
+# Bind loopback by default; set RELAY_HOST=0.0.0.0 only if a non-loopback front-end needs it.
+Environment=RELAY_HOST=127.0.0.1
+Environment=RELAY_PORT=3000
+Environment=RELAY_MAX_ROOM_DEVICES=32
+# Optional operator pre-pin of the room-owner hash (TOFU if unset):
+# Environment=RELAY_ROOM_OWNER_HASH=<sha256-hex>
+ExecStart=/usr/bin/node --experimental-strip-types --no-warnings server.ts
+Restart=on-failure
+RestartSec=2
+# Hardening — the relay needs no privileges, no writable fs, no network secrets.
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
