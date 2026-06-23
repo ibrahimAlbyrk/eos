@@ -12,10 +12,17 @@ declare module "sodium-native" {
     crypto_aead_xchacha20poly1305_ietf_ABYTES: number;
     crypto_aead_xchacha20poly1305_ietf_KEYBYTES: number;
     crypto_aead_xchacha20poly1305_ietf_NPUBBYTES: number;
+    crypto_scalarmult_BYTES: number;
+    crypto_scalarmult_SCALARBYTES: number;
+    crypto_box_PUBLICKEYBYTES: number;
+    crypto_box_SECRETKEYBYTES: number;
     crypto_kx_keypair(pk: Buffer, sk: Buffer): void;
     crypto_kx_client_session_keys(rx: Buffer, tx: Buffer, clientPk: Buffer, clientSk: Buffer, serverPk: Buffer): void;
     crypto_kx_server_session_keys(rx: Buffer, tx: Buffer, serverPk: Buffer, serverSk: Buffer, clientPk: Buffer): void;
     crypto_generichash(out: Buffer, input: Buffer, key?: Buffer): void;
+    crypto_scalarmult(out: Buffer, n: Buffer, p: Buffer): void;
+    crypto_scalarmult_base(out: Buffer, n: Buffer): void;
+    crypto_box_keypair(pk: Buffer, sk: Buffer): void;
     crypto_aead_xchacha20poly1305_ietf_encrypt(c: Buffer, m: Buffer, ad: Buffer | null, nsec: null, npub: Buffer, k: Buffer): number;
     crypto_aead_xchacha20poly1305_ietf_decrypt(m: Buffer, nsec: null, c: Buffer, ad: Buffer | null, npub: Buffer, k: Buffer): number;
   };

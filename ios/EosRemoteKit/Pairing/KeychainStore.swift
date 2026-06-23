@@ -1,10 +1,12 @@
 import Foundation
 import Security
 
-// Durable secret storage. The device static key blob (SE dataRepresentation), the durable
-// bearer + devId, and the resumption ticket {ticketId, PSK} live here as
-// WhenUnlockedThisDeviceOnly. Nothing here is biometric-gated: the SE key itself carries no
-// biometric ACL (§1.2), so every reconnect — warm resume AND cold connect — is Face-ID-free.
+// Durable secret storage (connection v2). The entire device credential is a single
+// X25519 static secret; alongside it sit the pinned Mac static public key and the
+// relay coordinates. Accessibility is AfterFirstUnlockThisDeviceOnly (NOT
+// WhenUnlocked) and carries NO biometric ACL, so a reconnect triggered right after
+// a reboot, or in the background, can read the key once the user has unlocked once
+// — the property that makes "open the app → connected, every time" true (§3.1).
 public enum KeychainStore {
     public enum KeychainError: Error { case status(OSStatus) }
 
@@ -19,7 +21,7 @@ public enum KeychainStore {
         SecItemDelete(base as CFDictionary)
         var add = base
         add[kSecValueData as String] = value
-        add[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        add[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         let status = SecItemAdd(add as CFDictionary, nil)
         guard status == errSecSuccess else { throw KeychainError.status(status) }
     }
@@ -45,15 +47,9 @@ public enum KeychainStore {
         ] as CFDictionary)
     }
 
-    // Well-known item keys.
-    public static let deviceKeyBlob = "device.key.blob"
-    public static let durableBearer = "device.bearer"
-    public static let devId = "device.id"
-    public static let ticket = "resumption.ticket"
-    // Relay coordinates needed to reopen the socket for a warm resume after relaunch.
+    // Well-known item keys (connection v2).
+    public static let deviceStaticSec = "device.static.sec" // 32-byte X25519 secret — the whole credential
+    public static let macStaticPub = "mac.static.pub"       // 32-byte pinned Mac static public key (from the QR)
     public static let relayURL = "relay.url"
     public static let room = "relay.room"
-    // Pinned Mac identity pubkey (b64u SEC1) from the QR — needed for a post-enrollment cold CONNECT
-    // (no QR on hand) to pin-assert the Mac in CONNECT-2.
-    public static let macPub = "mac.pub"
 }

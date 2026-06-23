@@ -10,14 +10,18 @@
 // plaintext inner frames; the session is responsible for sealing + framing.
 
 import type { EventBus, EventBusMessage } from "../../core/src/ports/EventBus.ts";
+import type { AssetFrame } from "../../contracts/src/remote.ts";
 
 // One server→client inner frame (§4.2), pre-encryption. `seq` is stamped by the
-// bridge; the session adds the AEAD/envelope layer.
+// bridge; the session adds the AEAD/envelope layer. `asset` carries binary route
+// reads out-of-band as base64 (design §4 / C6) — it is correlationId-addressed
+// like `reply`, not seq-stamped like the fan-out frames.
 export type ServerFrame =
   | { t: "event"; seq: number; reason: string; ts: number; payload: unknown }
   | { t: "patch"; seq: number; resource: string; op: "upsert" | "remove"; data: unknown }
   | { t: "snapshot"; seq: number; workers: unknown; pending: unknown }
   | { t: "reply"; correlationId: string; status: number; body: unknown }
+  | AssetFrame
   | { t: "ka"; ts: number };
 
 // A handshake-complete remote peer. The codec/transport is the session's job;

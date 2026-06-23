@@ -1,52 +1,57 @@
-// Mac static identity + per-device keyring (design §4.3). Files live under
-// ~/.eos (mode 0600). Revocation kill-switch #1 (remove the device from the
-// keyring → kills its E2E key); kill-switch #2 (drop the bearer hash at the
-// relay) lives in the RelayConnector. Pure plumbing — no handshake logic here.
+// Mac static identity + persisted device allowlist (connection v2 §3).
+//
+//   ~/.eos/remote/mac-static.key            the Mac's long-term X25519 keypair (0600)
+//   ~/.eos/remote/devices/<relayDeviceId>.json  one enrolled device (0600)
+//
+// The devices/ directory is the SINGLE SOURCE OF TRUTH for who may connect; it
+// survives daemon restart (there is no in-memory session state whose loss
+// matters — the next handshake just runs fresh, WireGuard-after-reboot). The
+// relay allowlist is a re-announced cache of this (§4.3), so it can never drift.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import { generateKeyPairSync, createPublicKey, createHash, type KeyObject } from "node:crypto";
-import { p256PubToSec1, p256PrivFromPem } from "./crypto.ts";
+import { createHash } from "node:crypto";
+import { x25519Keypair, x25519Pub, type X25519KeyPair } from "./crypto.ts";
+import { relayDeviceId } from "./identity.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 
 const SECRET_MODE = 0o600;
-
-export interface DeviceRecord {
-  devId: string;
-  label: string;
-  iDevPubSec1: string; // hex of the 65-byte SEC1 device identity public key
-  bearerHashHex: string; // sha256(durable per-device bearer), the relay allowlist entry
-  caps: string[];
-  addedAt: number;
-}
 
 export function sha256Hex(input: Buffer | string): string {
   return createHash("sha256").update(input).digest("hex");
 }
 
-// The Mac's long-term P-256 identity. Generated once, persisted as PKCS8 PEM
-// (file-0600 is acceptable for MVP per design §4.3; Keychain is a later harden).
+export interface DeviceRecord {
+  relayDeviceId: string; // b64u(BLAKE2b-256(deviceStaticPub)) — the file key + relay-admission id
+  deviceStaticPub: string; // hex of the 32-byte X25519 device static public key
+  label: string;
+  enrolledAt: number;
+}
+
+// The Mac's long-term X25519 static identity (the Noise responder static). The
+// device pins its public key from the QR; the private key never leaves the Mac.
 export class MacIdentity {
-  private readonly pemPath: string;
-  private priv!: KeyObject;
+  private readonly keyPath: string;
+  private readonly kp: X25519KeyPair;
 
   constructor(remoteDir: string) {
-    this.pemPath = join(remoteDir, "mac-identity.pem");
+    this.keyPath = join(remoteDir, "mac-static.key");
     mkdirSync(remoteDir, { recursive: true });
-    if (existsSync(this.pemPath)) {
-      this.priv = p256PrivFromPem(readFileSync(this.pemPath, "utf8"));
+    if (existsSync(this.keyPath)) {
+      const sec = Buffer.from(readFileSync(this.keyPath, "utf8").trim(), "hex");
+      this.kp = { sec, pub: x25519Pub(sec) };
     } else {
-      const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
-      writeFileSync(this.pemPath, privateKey.export({ type: "pkcs8", format: "pem" }) as string, { mode: SECRET_MODE });
-      this.priv = privateKey;
+      this.kp = x25519Keypair();
+      writeFileSync(this.keyPath, this.kp.sec.toString("hex") + "\n", { mode: SECRET_MODE });
     }
   }
 
-  privateKey(): KeyObject { return this.priv; }
-  publicSec1(): Buffer { return p256PubToSec1(createPublicKey(this.priv)); }
+  keypair(): X25519KeyPair { return this.kp; }
+  publicKey(): Buffer { return this.kp.pub; }
 }
 
-// Enrolled-device store. One JSON file per device under <remoteDir>/devices/.
+// Enrolled-device allowlist. One JSON file per device under <remoteDir>/devices/,
+// keyed by the stable relayDeviceId (derived from the device static key).
 export class DeviceKeyring {
   private readonly dir: string;
 
@@ -55,24 +60,36 @@ export class DeviceKeyring {
     mkdirSync(this.dir, { recursive: true });
   }
 
-  private fileFor(devId: string): string {
-    // devId is a UUID from the device; refuse anything that could escape the dir.
-    if (!/^[A-Za-z0-9._-]+$/.test(devId)) throw new Error(`invalid devId: ${devId}`);
-    return join(this.dir, `${devId}.json`);
+  private fileFor(relayDeviceId: string): string {
+    // relayDeviceId is b64u (A-Za-z0-9-_); refuse anything that could escape the dir.
+    if (!/^[A-Za-z0-9._-]+$/.test(relayDeviceId)) throw new Error(`invalid relayDeviceId: ${relayDeviceId}`);
+    return join(this.dir, `${relayDeviceId}.json`);
   }
 
-  enroll(rec: DeviceRecord): void {
-    writeFileSync(this.fileFor(rec.devId), JSON.stringify(rec, null, 2) + "\n", { mode: SECRET_MODE });
+  // Enroll (TOFU record) a device from its static public key (§5.2). Idempotent
+  // re-enroll just refreshes the record.
+  record(deviceStaticPub: Buffer, label: string, now: number): DeviceRecord {
+    const id = relayDeviceId(deviceStaticPub);
+    const rec: DeviceRecord = { relayDeviceId: id, deviceStaticPub: deviceStaticPub.toString("hex"), label, enrolledAt: now };
+    writeFileSync(this.fileFor(id), JSON.stringify(rec, null, 2) + "\n", { mode: SECRET_MODE });
+    return rec;
   }
 
-  find(devId: string): DeviceRecord | null {
-    const path = this.fileFor(devId);
+  // Match a presented device static key against the allowlist (§5.1). Returns the
+  // record if this exact key is enrolled, else null.
+  findByStaticPub(deviceStaticPub: Buffer): DeviceRecord | null {
+    const id = relayDeviceId(deviceStaticPub);
+    const path = this.fileFor(id);
     if (!existsSync(path)) return null;
+    let rec: DeviceRecord;
     try {
-      return JSON.parse(readFileSync(path, "utf8")) as DeviceRecord;
+      rec = JSON.parse(readFileSync(path, "utf8")) as DeviceRecord;
     } catch (e) {
-      throw new Error(`corrupt device record ${devId}: ${errMsg(e)}`);
+      throw new Error(`corrupt device record ${id}: ${errMsg(e)}`);
     }
+    // The filename is derived from the key, but verify the stored key matches the
+    // presented one byte-for-byte (defense against a tampered file).
+    return rec.deviceStaticPub === deviceStaticPub.toString("hex") ? rec : null;
   }
 
   list(): DeviceRecord[] {
@@ -84,17 +101,19 @@ export class DeviceKeyring {
     return out;
   }
 
-  // Revocation kill-switch #1: remove the device's E2E identity. Returns true if
-  // a record was removed.
-  revoke(devId: string): boolean {
-    const path = this.fileFor(devId);
+  // Revocation: remove the device's static key from the allowlist. Returns true
+  // if a record was removed.
+  revoke(relayDeviceId: string): boolean {
+    const path = this.fileFor(relayDeviceId);
     if (!existsSync(path)) return false;
     rmSync(path);
     return true;
   }
 
-  // The current relay allowlist = every enrolled device's bearer hash.
-  bearerHashAllowlist(): string[] {
-    return this.list().map((d) => d.bearerHashHex);
+  // The relay-admission allowlist = SHA-256 of every enrolled relayDeviceId. The
+  // relay hashes the value a device presents at join and checks membership, so it
+  // stays a blind pipe and the admitted value never has to be secret (§4.2).
+  admissionHashes(): string[] {
+    return this.list().map((d) => sha256Hex(d.relayDeviceId));
   }
 }

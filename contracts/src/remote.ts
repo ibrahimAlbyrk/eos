@@ -88,79 +88,50 @@ export const ClientFrameSchema = z.discriminatedUnion("t", [
 ]);
 export type ClientFrame = z.infer<typeof ClientFrameSchema>;
 
+// ---- Server→client asset frame (binary out-of-band, design §4 / C6) --------
+// A binary route read (GET /fs/raw, /fs/image, /pdfjs) cannot ride the JSON
+// `reply` frame: its bytes would be corrupted by the utf-8 round-trip the reply
+// path performs. Such a response travels as base64 in this dedicated frame
+// instead; the device base64-decodes `bytesB64` and serves the bytes to its
+// WebView with `mime`. `correlationId` matches the originating control frame and
+// `status` carries the captured HTTP status. This shape is FROZEN — the iOS
+// asset scheme handler decodes it verbatim.
+export const AssetFrameSchema = z.object({
+  t: z.literal("asset"),
+  correlationId: z.string(),
+  status: z.number().int(),
+  mime: z.string(),
+  bytesB64: z.string(),
+});
+export type AssetFrame = z.infer<typeof AssetFrameSchema>;
+
 // ---- Capability tiers + error codes (§7.2, §8) -----------------------------
 
 export const RemoteTierSchema = z.enum(["READ", "LOW", "HIGH", "REFUSED"]);
 export type RemoteTier = z.infer<typeof RemoteTierSchema>;
 
 export const REMOTE_ERROR_CODES = [
-  "BAD_VERSION", "AUTH_FAILED", "DECRYPT_FAIL", "REPLAY", "SEQ_GAP",
-  "TICKET_INVALID", "TICKET_REUSE", "STEPUP_REQUIRED", "STEPUP_INVALID",
+  "BAD_VERSION", "AUTH_FAILED", "AUTH_REJECTED", "DECRYPT_FAIL", "REPLAY", "SEQ_GAP",
   "CAP_DENIED", "ROUTE_REFUSED", "RATE_LIMITED", "INTERNAL", "FRAME_TOO_LARGE",
 ] as const;
 export const RemoteErrorCodeSchema = z.enum(REMOTE_ERROR_CODES);
 export type RemoteErrorCode = z.infer<typeof RemoteErrorCodeSchema>;
 
-// ---- Handshake frames (§2) — carried as cleartext JSON in a type=0x01 outer
-// envelope; the identity material inside encS/encC is AEAD-sealed. All b64u.
-
-export const HsModeSchema = z.enum(["pair", "connect"]);
-export type HsMode = z.infer<typeof HsModeSchema>;
-
-// PAIR-1 / CONNECT-1 (device → Mac).
-export const Hs1Schema = z.object({
-  v: z.literal(1), t: z.literal("hs"), step: z.literal(1), mode: HsModeSchema,
-  ePubC: z.string(), nC: z.string(),
-});
-// PAIR-2 / CONNECT-2 (Mac → device).
-export const Hs2Schema = z.object({
-  v: z.literal(1), t: z.literal("hs"), step: z.literal(2), mode: HsModeSchema,
-  ePubS: z.string(), nS: z.string(), encS: z.string(),
-});
-// PAIR-3 / CONNECT-3 (device → Mac).
-export const Hs3Schema = z.object({
-  v: z.literal(1), t: z.literal("hs"), step: z.literal(3), mode: HsModeSchema,
-  encC: z.string(),
-});
-
-// The sealed S2 (inside encS) and C3 (inside encC) plaintexts.
-export const HsS2Schema = z.object({ iMac: z.string(), sigS: z.string() });
-export const HsC3Schema = z.object({
-  iDev: z.string(), devId: z.string(), label: z.string(), sigC: z.string(), ots: z.string(),
-});
-
-// RESUME (§2.3).
-export const ResumeFrameSchema = z.object({
-  v: z.literal(1), t: z.literal("resume"),
-  ticketId: z.string(), ePubC: z.string(), nC: z.string(), binder: z.string(),
-});
-// RES-2 (Mac → device): fresh ephemerals + binder + the new ticket sealed under
-// the dedicated K_resume_ticket key (§2.3).
-export const ResumeOkSchema = z.object({
-  v: z.literal(1), t: z.literal("resume-ok"),
-  ePubS: z.string(), nS: z.string(), binder: z.string(), encTicket: z.string(),
-});
-
-export type Hs1 = z.infer<typeof Hs1Schema>;
-export type Hs2 = z.infer<typeof Hs2Schema>;
-export type Hs3 = z.infer<typeof Hs3Schema>;
-export type HsS2 = z.infer<typeof HsS2Schema>;
-export type HsC3 = z.infer<typeof HsC3Schema>;
-export type ResumeFrame = z.infer<typeof ResumeFrameSchema>;
-export type ResumeOk = z.infer<typeof ResumeOkSchema>;
-
-// ---- Pairing QR payload (§6) — produced by the Mac app ---------------------
+// ---- Pairing QR payload (connection v2 §5.2) — produced by the Mac app ------
+// The handshake itself is the binary Noise_IK message set (docs/ios-remote-
+// connection-v2.md), NOT JSON frames — it rides as the opaque payload of a
+// type=0x01 data envelope, so the relay never inspects it and there are no
+// per-leg JSON schemas. The QR is the one human-scanned artifact: it pins the
+// Mac static X25519 key and carries a one-time enrollment token.
 
 export const PairingQrSchema = z.object({
-  v: z.literal(1),
+  v: z.literal(2),
   typ: z.literal("eos-pair"),
-  macPub: z.string(),   // b64u of I_mac_pub, 65-byte SEC1
-  ots: z.string(),      // b64u of 32-byte one-time pairing secret
-  otsExp: z.number().int(),
+  macStatic: z.string(), // b64u of the Mac static X25519 public key (32B), pinned
+  enroll: z.string(),    // b64u one-time enrollment token (also the relay-admission value during pairing)
   lan: z.array(z.string()),
   lanSpki: z.string().nullable().optional(),
   relay: z.object({ url: z.string(), room: z.string() }).nullable().optional(),
-  bearer: z.string().nullable().optional(), // b64u of 32-byte one-time pairing bearer
-  exp: z.number().int(),
+  exp: z.number().int(), // unix seconds — enrollment window close
 });
 export type PairingQr = z.infer<typeof PairingQrSchema>;

@@ -1,7 +1,0 @@
-{
-  "note": "FIXTURE TEST KEYS — NOT Secure-Enclave keys. P-256 identity keypairs (PKCS8 PEM) + the two pinned ECDSA signatures (ieee-p1363 r‖s hex). Generated once; regenerating shifts every dependent ciphertext.",
-  "iMacPrivPem": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgQXRYTiuD1ufMltVc\nnx+zJGegM+syUlE6UzBgL1Se7dmhRANCAAQYeNn95AClGrV6+/AqeaAsOSy/c/Mi\n52qAiDm50z/l8oeB+KkuvOkXN38tuTL5LJdQRWrDvKRcQ8/LH4lMMHg5\n-----END PRIVATE KEY-----\n",
-  "iDevPrivPem": "-----BEGIN PRIVATE KEY-----\nMIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgaqLE419rXCA8MGmI\n/roHJGTPZJA+7b3IgWtWzj8VObOhRANCAAQNY/WsLTx1fiHnrPVqAiTilgGpbVq1\nNuq3I6XrxZt14Ynu5Jh49mYTTwpExAwZvFTnTPgCnGR56NujUZO4O1YX\n-----END PRIVATE KEY-----\n",
-  "sigSHex": "569026af0e6ffad08c6e02c000ecbc6ad3d073b8a9d078444eae428bfd48a240d95c5fa01ed6251d1fd2c357bf3cbec111030732da7572d07f1101fe6a64f752",
-  "sigCHex": "df5482c0c8eab1425dcc0fb9a9b62d53489b2bd506f154b69d1536a01365d8bee42832a6b5670882b882f9bad63c320edafa5534b92515cceb0509df6672985a"
-}

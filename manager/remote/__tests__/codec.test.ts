@@ -8,21 +8,21 @@ import { RemoteSessionCodec } from "../session.ts";
 import { Dir, ENVELOPE_VER, FrameType, encodeEnvelope, parseEnvelope } from "../envelope.ts";
 
 const VEC = JSON.parse(readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "docs", "vectors", "ios-remote-v1", "vectors.json"),
+  join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "docs", "vectors", "ios-remote-v2", "vectors.json"),
   "utf8",
 ));
 const fromHex = (s: string): Buffer => Buffer.from(s, "hex");
 
 describe("RemoteSessionCodec vs golden fixture", () => {
-  const kC2sFinal = fromHex(VEC.trafficKeys.kC2sFinal);
-  const kS2cFinal = fromHex(VEC.trafficKeys.kS2cFinal);
+  const kC2sFinal = fromHex(VEC.splitKeys.kC2sFinal);
+  const kS2cFinal = fromHex(VEC.splitKeys.kS2cFinal);
   const clientId = fromHex(VEC.inputs.clientId);
   const room = VEC.inputs.room;
-  const sessionTH = fromHex(VEC.transcript.th3);
+  const sessionTH = fromHex(VEC.splitKeys.sessionTH);
 
   function mkCodec(): RemoteSessionCodec {
     return new RemoteSessionCodec({
-      clientId, room, devId: VEC.inputs.devId, caps: ["read", "lowrisk"],
+      clientId, room, devId: VEC.derived.relayDeviceIdB64u, caps: ["read", "lowrisk"],
       sessionTH, keys: { kC2sFinal, kS2cFinal },
     });
   }
@@ -42,7 +42,7 @@ describe("RemoteSessionCodec vs golden fixture", () => {
   it("seal()→open() round-trips a control frame", () => {
     // Use one key for both directions in a paired codec so seal (s2c) and open
     // (c2s) interoperate within the test.
-    const k = fromHex(VEC.trafficKeys.kS2cFinal);
+    const k = fromHex(VEC.splitKeys.kS2cFinal);
     const sender = new RemoteSessionCodec({ clientId, room, devId: "d", caps: [], sessionTH, keys: { kC2sFinal: k, kS2cFinal: k } });
     const receiver = new RemoteSessionCodec({ clientId, room, devId: "d", caps: [], sessionTH, keys: { kC2sFinal: k, kS2cFinal: k } });
     const wire = sender.seal({ t: "ka", ts: 7 });

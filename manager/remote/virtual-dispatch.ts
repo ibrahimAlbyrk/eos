@@ -30,12 +30,17 @@ interface VirtualRes {
   headersSent: boolean;
   chunks: Buffer[];
   contentType: string;
+  // Resolves when the handler finishes writing — end() or destroy(). A streaming
+  // handler (createReadStream().pipe(res), as /fs/raw and /pdfjs use) returns
+  // BEFORE its bytes arrive, so the dispatch must await this, not the handler.
+  ended: Promise<void>;
   setHeader(name: string, value: string): void;
   getHeader(): undefined;
   removeHeader(): void;
   writeHead(status: number, headers?: Record<string, string>): VirtualRes;
   write(chunk?: unknown): boolean;
   end(chunk?: unknown): void;
+  destroy(): void;
   on(): VirtualRes;
   once(): VirtualRes;
   emit(): boolean;
@@ -43,11 +48,14 @@ interface VirtualRes {
 }
 
 function virtualRes(): VirtualRes {
+  let markEnded: () => void = () => {};
+  const ended = new Promise<void>((resolve) => { markEnded = resolve; });
   const res: VirtualRes = {
     statusCode: 200,
     headersSent: false,
     chunks: [],
     contentType: "",
+    ended,
     setHeader(name: string, value: string): void {
       if (name.toLowerCase() === "content-type") res.contentType = value;
     },
@@ -60,7 +68,8 @@ function virtualRes(): VirtualRes {
       return res;
     },
     write(chunk?: unknown): boolean { if (chunk != null) res.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))); return true; },
-    end(chunk?: unknown): void { if (chunk != null) res.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))); },
+    end(chunk?: unknown): void { if (chunk != null) res.chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk))); res.headersSent = true; markEnded(); },
+    destroy(): void { markEnded(); },
     on(): VirtualRes { return res; },
     once(): VirtualRes { return res; },
     emit(): boolean { return false; },
@@ -88,9 +97,20 @@ export function makeRouteDispatch(router: Router): RouteDispatch {
       method, path, url,
       params: match.params, req, res: res as unknown as ServerResponse, requestId: "remote",
     });
-    const raw = Buffer.concat(res.chunks).toString("utf8");
+    await res.ended; // streaming handlers (pipe) complete after the handler returns
+    const bytes = Buffer.concat(res.chunks);
+
+    // A non-JSON content-type marks a binary asset route (image/pdf/raw/html/js):
+    // carry the raw bytes out-of-band so the utf-8 round-trip below can't corrupt
+    // them. The caller (ControlDispatcher) base64-frames them as an `asset`.
+    const ct = res.contentType;
+    if (ct && !ct.includes("application/json")) {
+      return { status: res.statusCode, binary: { mime: ct, bytes } };
+    }
+
+    const raw = bytes.toString("utf8");
     let parsed: unknown = raw;
-    if (res.contentType.includes("application/json") || /^[[{]/.test(raw.trim())) {
+    if (ct.includes("application/json") || /^[[{]/.test(raw.trim())) {
       try { parsed = raw ? JSON.parse(raw) : {}; } catch { /* keep raw */ }
     }
     return { status: res.statusCode, body: parsed };

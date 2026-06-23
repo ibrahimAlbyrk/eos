@@ -62,8 +62,8 @@ describe("makeRouteDispatch (virtual req/res into the real Router)", () => {
   });
 });
 
-describe("generatePairing (§6 QR)", () => {
-  it("produces a schema-valid single-use offer with secrets held back", () => {
+describe("generatePairing (v2 QR)", () => {
+  it("pins the Mac static key, carries a single-use enrollment token, holds the token back", () => {
     const dir = mkdtempSync(join(tmpdir(), "eos-qr-"));
     try {
       const identity = new MacIdentity(dir);
@@ -73,15 +73,14 @@ describe("generatePairing (§6 QR)", () => {
         relay: { url: "wss://relay.example:443", room: "AAAAAAAAAAAAAAAAAAAAAA" },
       });
       assert.doesNotThrow(() => PairingQrSchema.parse(offer.qr));
-      assert.equal(offer.qr.macPub, identity.publicSec1().toString("base64url"));
-      assert.equal(offer.ots.length, 32);
-      assert.equal(offer.bearer.length, 32);
-      // The QR carries b64u of the secrets; the raw bytes stay server-side.
-      assert.equal(offer.qr.ots, offer.ots.toString("base64url"));
-      assert.equal(offer.qr.otsExp, 1000 + 120); // now+120s in unix seconds
-      // Two offers never share an ots (single-use).
+      assert.equal(offer.qr.v, 2);
+      assert.equal(offer.qr.macStatic, identity.publicKey().toString("base64url"));
+      assert.equal(offer.enrollToken.length, 32);
+      assert.equal(offer.qr.enroll, offer.enrollToken.toString("base64url"));
+      assert.equal(offer.qr.exp, 1000 + 120); // now+120s in unix seconds
+      // Two offers never share an enrollment token (single-use).
       const other = generatePairing({ identity, now: 1_000_000 });
-      assert.notEqual(offer.qr.ots, other.qr.ots);
+      assert.notEqual(offer.qr.enroll, other.qr.enroll);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

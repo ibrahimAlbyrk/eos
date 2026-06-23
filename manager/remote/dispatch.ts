@@ -1,59 +1,61 @@
-// Control-dispatch shim (design §2.1, protocol §8). A decrypted client
-// control{method,path,body} is tier-classified, step-up-enforced, ui-token-
-// gated, then dispatched into the EXISTING route handlers via an injected
-// virtual-response dispatcher (the daemon wires the real router; tests inject a
-// fake). The reply/challenge/error it returns is an inner server frame the
-// session then seals. /stepup/challenge is a virtual route handled HERE, never
-// in manager/routes/*.
+// Control-dispatch shim (protocol §8, connection v2). A decrypted client
+// control{method,path,body} is tier-classified, ui-token-gated, then dispatched
+// into the EXISTING route handlers via an injected virtual-response dispatcher.
+//
+// v2 note: there is no per-action step-up. v1's step-up was a fresh Secure-Enclave
+// P-256 signature; v2 deletes the SE/P-256 key entirely and there is no longer a
+// reduced-capability (resumed) session — every connection is a full mutual-auth
+// Noise_IK session holding all capabilities. HIGH-tier routes are therefore
+// dispatched for any authenticated session; the meaningful gate that remains is
+// REFUSED (never exposed remotely) + the ✦ ui-token gate.
 
 import { classifyTier } from "./tiers.ts";
-import { verifyStepUp, type ChallengeStore } from "./stepup.ts";
-import type { DeviceKeyring } from "./keyring.ts";
+import { MAX_ENVELOPE_BYTES } from "./envelope.ts";
 import type { RemoteAuditLog } from "./audit.ts";
-import type { ControlFrame, RemoteErrorCode } from "../../contracts/src/remote.ts";
+import type { AssetFrame, ControlFrame, RemoteErrorCode } from "../../contracts/src/remote.ts";
 
-// Dispatch into the real route layer. The daemon builds this over a virtual
-// req/res into its Router; `uiToken` is supplied only for ✦ routes the device
-// is entitled to (§4.5).
+// A dispatched route returns EITHER a JSON body (the default control plane) OR
+// raw binary bytes + mime (a non-JSON asset route — image/pdf/raw/html/js). The
+// binary arm keeps the bytes out of any utf-8 round-trip so they reach the device
+// intact (design §4 / C6).
+export type RouteDispatchResult =
+  | { status: number; body: unknown }
+  | { status: number; binary: { mime: string; bytes: Buffer } };
+
+// Dispatch into the real route layer. `uiToken` is supplied only for ✦ routes the
+// device is entitled to (it holds the "mutate" capability — §4.5).
 export interface RouteDispatch {
-  (input: { method: string; path: string; body: unknown; uiToken?: string }): Promise<{ status: number; body: unknown }>;
+  (input: { method: string; path: string; body: unknown; uiToken?: string }): Promise<RouteDispatchResult>;
 }
 
-// The post-handshake session as the dispatcher needs it.
+// Headroom reserved above the asset frame's JSON plaintext for the AEAD tag (16)
+// and the outer envelope header (13 + roomLen≤255 + clientId 16). 512 covers the
+// worst case so the sealed envelope cannot exceed the relay's §4.1 limit.
+const ASSET_FRAME_OVERHEAD = 512;
+
 export interface DispatchSession {
   devId: string;
-  sessionTH: Buffer;
-  challenges: ChallengeStore;
   hasCap(cap: string): boolean;
 }
 
 export interface DispatcherDeps {
   routeDispatch: RouteDispatch;
-  keyring: DeviceKeyring;
   audit: RemoteAuditLog;
-  uiToken: string; // local per-boot token supplied to entitled ✦ routes
+  uiToken: string;
   now: () => number;
 }
 
 export type ServerReplyFrame =
   | { t: "reply"; correlationId: string; status: number; body: unknown }
-  | { t: "challenge"; challengeNonce: string; expiresAt: number; correlationId: string }
+  | AssetFrame
   | { t: "error"; code: RemoteErrorCode; message: string; correlationId: string };
-
-const STEPUP_CHALLENGE_PATH = "/stepup/challenge";
 
 export class ControlDispatcher {
   private readonly deps: DispatcherDeps;
   constructor(deps: DispatcherDeps) { this.deps = deps; }
 
   async handle(session: DispatchSession, frame: ControlFrame): Promise<ServerReplyFrame> {
-    const { method, path, body, correlationId } = frame;
-
-    // Virtual route: issue a single-use step-up challenge (§7.3 step 1).
-    if (method === "POST" && path === STEPUP_CHALLENGE_PATH) {
-      const ch = session.challenges.issue(this.deps.now());
-      return { t: "challenge", challengeNonce: ch.challengeNonce, expiresAt: ch.expiresAt, correlationId };
-    }
+    const { method, path, correlationId } = frame;
 
     const { tier, uiToken } = classifyTier(method, path);
     if (tier === "REFUSED") return this.deny(session, frame, "ROUTE_REFUSED", "route not exposed remotely");
@@ -62,31 +64,31 @@ export class ControlDispatcher {
     if (uiToken && !session.hasCap("mutate")) {
       return this.deny(session, frame, "CAP_DENIED", "device lacks the mutate capability");
     }
-
-    // body is an opaque JSON string on the wire (§3.4). Hash the verbatim string
-    // for step-up; parse it ONLY for dispatch — never re-serialize between.
-    const bodyStr = frame.body ?? "{}";
-
-    if (tier === "HIGH") {
-      // A resumed (read+lowrisk) session can never reach HIGH — gate on the cap
-      // BEFORE step-up so a held Enclave key can't lift a resumed session (§2.3).
-      if (!session.hasCap("highrisk")) return this.deny(session, frame, "CAP_DENIED", "session capability tier does not permit high-risk");
-      if (!frame.stepUp) return this.deny(session, frame, "STEPUP_REQUIRED", "high-risk control requires step-up");
-      const rec = this.deps.keyring.find(session.devId);
-      if (!rec) return this.deny(session, frame, "AUTH_FAILED", "unknown device");
-      const verdict = verifyStepUp({
-        stepUp: frame.stepUp, sessionTH: session.sessionTH, method, path, body: bodyStr,
-        iDevPubSec1: rec.iDevPubSec1, challenges: session.challenges, now: this.deps.now(),
-      });
-      if (!verdict.ok) return this.deny(session, frame, verdict.code, "step-up verification failed");
+    if (tier === "HIGH" && !session.hasCap("highrisk")) {
+      return this.deny(session, frame, "CAP_DENIED", "session capability tier does not permit high-risk");
     }
 
+    // body is an opaque JSON string on the wire (§3.4). GET ⇒ "{}".
+    const bodyStr = frame.body ?? "{}";
     let parsedBody: unknown;
     try { parsedBody = JSON.parse(bodyStr); } catch { return this.deny(session, frame, "INTERNAL", "control body is not valid JSON"); }
     const suppliedToken = uiToken && session.hasCap("mutate") ? this.deps.uiToken : undefined;
     const result = await this.deps.routeDispatch({ method, path, body: parsedBody, uiToken: suppliedToken });
     this.audit(session, frame, result.status >= 400 ? (result.status === 403 ? "denied" : "error") : "ok");
+    if ("binary" in result) return this.assetFrame(correlationId, result.status, result.binary);
     return { t: "reply", correlationId, status: result.status, body: result.body };
+  }
+
+  // Frame a non-JSON route read as an out-of-band asset (base64). Oversize fails
+  // closed with a typed FRAME_TOO_LARGE error — the frozen asset shape is a single
+  // frame with no chunk index, so a payload that won't fit the envelope is never
+  // silently truncated.
+  private assetFrame(correlationId: string, status: number, binary: { mime: string; bytes: Buffer }): ServerReplyFrame {
+    const frame: AssetFrame = { t: "asset", correlationId, status, mime: binary.mime, bytesB64: binary.bytes.toString("base64") };
+    if (Buffer.byteLength(JSON.stringify(frame), "utf8") + ASSET_FRAME_OVERHEAD > MAX_ENVELOPE_BYTES) {
+      return { t: "error", code: "FRAME_TOO_LARGE", message: "asset exceeds relay envelope limit", correlationId };
+    }
+    return frame;
   }
 
   private deny(session: DispatchSession, frame: ControlFrame, code: RemoteErrorCode, message: string): ServerReplyFrame {

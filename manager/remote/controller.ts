@@ -22,12 +22,12 @@ import type { RemoteMode } from "../../contracts/src/remote.ts";
 
 export class RemoteController {
   private handle: RemoteGatewayHandle | null = null;
+  private readonly c: RemoteWiringDeps;
+  private readonly router: Router;
 
-  constructor(
-    private readonly c: RemoteWiringDeps,
-    private readonly router: Router,
-    server: Server,
-  ) {
+  constructor(c: RemoteWiringDeps, router: Router, server: Server) {
+    this.c = c;
+    this.router = router;
     server.on("upgrade", this.onUpgrade);
   }
 

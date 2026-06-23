@@ -30,9 +30,6 @@ final class AppModel: ObservableObject {
     // True while a socket teardown is deliberate (background/disconnect), so the delegate's
     // connected=false doesn't kick off a reconnect we don't want.
     private var intentionalStop = false
-    // Set when a HIGH-risk action is attempted on a resumed (read+low-risk) session: the UI must
-    // drive a fresh cold connect/step-up rather than assume the resumed session can perform it.
-    @Published var needsColdConnect = false
 
     // Live transcript of the currently-open worker (design §5.2, port of eventsStore+thinkingStore).
     // Durable rows page in via control GET /workers/:id/events; agent:delta overlays live
@@ -70,7 +67,8 @@ final class AppModel: ObservableObject {
     let store = Store()
     private var connection: WSConnection?
     private var session: SessionState?
-    private var identity: DeviceIdentity?
+    // The entire device credential (connection v2): one X25519 static keypair.
+    private var deviceStatic: NoiseDH.Keypair?
 
     init() {
         Task { await store.setOnChange { [weak self] in Task { @MainActor in await self?.refresh() } } }
@@ -108,13 +106,13 @@ final class AppModel: ObservableObject {
         await control("POST", "/workers/\(workerId)/question-answer", body)
     }
 
-    // High-risk verbs (kill/spawn/decision) require a step-up signature (§7.3) — SE-signed but
-    // Face-ID-free. The challenge round-trip is wired by stepUpControl().
-    func kill(_ id: String) async { await stepUpControl("DELETE", "/workers/\(id)", .object([:])) }
-    func spawnWorker(body: JSONValue) async { await stepUpControl("POST", "/workers", body) }
+    // High-risk verbs (kill/spawn/decision). v2 has no per-action step-up: every connection is a
+    // full mutual-auth Noise_IK session holding all capabilities, so these dispatch like any control.
+    func kill(_ id: String) async { await control("DELETE", "/workers/\(id)", .object([:])) }
+    func spawnWorker(body: JSONValue) async { await control("POST", "/workers", body) }
     func approve(pendingId: String, allow: Bool) async {
-        await stepUpControl("POST", "/pending/\(pendingId)/decision",
-                            .object(["decision": .string(allow ? "allow" : "deny")]))
+        await control("POST", "/pending/\(pendingId)/decision",
+                      .object(["decision": .string(allow ? "allow" : "deny")]))
     }
 
     // Serialize the body EXACTLY ONCE → these bytes are both transmitted (as the opaque body
@@ -129,194 +127,91 @@ final class AppModel: ObservableObject {
         catch { lastError = error.localizedDescription }
     }
 
-    // Obtain a fresh challenge, build the step-up field over the EXACT transmitted body bytes, send.
-    private func stepUpControl(_ method: String, _ path: String, _ body: JSONValue) async {
-        guard let connection, let session, let identity else { lastError = "not connected"; return }
-        // A resumed session is capped to read+low-risk: HIGH verbs would return CAP_DENIED even with
-        // the Enclave key (3838e9d). Prompt a fresh cold connect instead of attempting + failing.
-        if session.isResumed {
-            needsColdConnect = true
-            lastError = "This action needs a fresh secure connection."
-            return
-        }
-        do {
-            let bodyData = encodeOnce(body)
-            let chReply = try await connection.sendControl(method: "POST", path: "/stepup/challenge",
-                                                           bodyData: Data("{}".utf8))
-            guard let nonceB64 = chReply.body?["challengeNonce"]?.stringValue,
-                  let nonce = Bytes.fromB64u(nonceB64) else { lastError = "no challenge"; return }
-            let coordinator = StepUpCoordinator(identity: identity, session: session)
-            let ts = Int64(Date().timeIntervalSince1970)
-            let field = try coordinator.field(method: method, path: path, bodyBytes: bodyData,
-                                              challengeNonce: nonce, ts: ts, reason: "Authorize \(method) \(path)")
-            _ = try await connection.sendControl(method: method, path: path, bodyData: bodyData, stepUp: field)
-        } catch { lastError = error.localizedDescription }
-    }
-
     // MARK: pairing + bootstrap
 
-    // Run the cold PAIR choreography over a fresh relay connection, persist the durable bearer +
-    // ticket, then bootstrap current state via READ controls (no snapshot-on-hello yet, daemon-side).
-    func startPairing(qr: QRPayload, room: String, pairBearer: String) async {
+    // Run the one-time enrollment over a fresh relay connection (Noise_IK msg-1 carries the QR's
+    // enrollment token), persist the pinned Mac key + relay coordinates, then bootstrap. The device
+    // static key is generated + stored by DeviceStatic on first use.
+    func startPairing(qr: QRPayload, room: String, enrollToken: String) async {
         do {
             let relayURL = try relayWSURL(qr)
-            let identity = try DeviceIdentityFactory.create()
-            self.identity = identity
-            let devId = UUID().uuidString
-            let conn = WSConnection(url: relayURL, mode: .relay(bearer: pairBearer), delegate: self)
-            let coordinator = PairingCoordinator(
-                connection: conn, qr: qr, identity: identity, room: room, pairBearer: pairBearer,
-                devId: devId, label: UIDevice.current.name)
-            let result = try await coordinator.run()
+            guard let macStaticPub = Bytes.fromB64u(qr.macStatic), macStaticPub.count == 32 else {
+                lastError = "pairing failed: bad Mac key"; return
+            }
+            let device = try DeviceStatic.loadOrCreate()
+            self.deviceStatic = device
+            let conn = WSConnection(url: relayURL, mode: .relay(bearer: enrollToken), delegate: self)
+            let result = try await Connector(
+                connection: conn, mode: .enroll(token: enrollToken, label: UIDevice.current.name),
+                deviceStatic: device, macStaticPub: macStaticPub, room: room, log: stepLogger()).run()
             self.connection = conn
             self.session = result.session
-            // Persist everything a warm resume needs after relaunch: durable bearer, rotated ticket,
-            // relay coordinates, devId, and the Secure-Enclave key blob (the enrolled identity).
-            try? KeychainStore.set(KeychainStore.durableBearer, Data(result.durableBearer.utf8))
-            try? KeychainStore.set(KeychainStore.ticket, JSONEncoder().encode(result.ticket))
+            // Everything a reconnect needs: the pinned Mac static key + relay coordinates. (The device
+            // static secret is already persisted by DeviceStatic.loadOrCreate.)
+            try? KeychainStore.set(KeychainStore.macStaticPub, macStaticPub)
             try? KeychainStore.set(KeychainStore.relayURL, Data(relayURL.absoluteString.utf8))
             try? KeychainStore.set(KeychainStore.room, Data(room.utf8))
-            try? KeychainStore.set(KeychainStore.devId, Data(devId.utf8))
-            try? KeychainStore.set(KeychainStore.macPub, Data(qr.macPub.utf8))
-            if let se = identity as? SecureEnclaveDeviceIdentity {
-                try? KeychainStore.set(KeychainStore.deviceKeyBlob, se.dataRepresentation)
-            }
             needsPairing = false; resumeRetries = 0; intentionalStop = false
             connected = true
             await bootstrap()
         } catch { lastError = "pairing failed: \(error)" }
     }
 
-    // MARK: persistent connection — warm resume + lifecycle
+    // MARK: persistent connection — one path, two terminal states (§6)
 
-    // Called on launch and on every foreground. Restores the live session WITHOUT a QR whenever the
-    // device is still enrolled. All tiers are Face-ID-free (the SE key carries no biometric ACL, §1.2).
-    // Three tiers (§2.3 / §2.2):
-    //   1. WARM RESUME when the stored ticket is live.
-    //   2. COLD CONNECT (NO QR) when the ticket is missing/expired OR the daemon rejected resume
-    //      (e.g. the in-memory ticket died on a daemon restart) — the enrollment still lives in the
-    //      daemon's ~/.eos/devices, so SIGMA CONNECT re-auths by allowlist.
-    //   3. The QR scanner appears ONLY when the device was never enrolled, or cold connect is itself
-    //      rejected (the device was de-enrolled / its key rotated server-side).
-    // Transient network failure → backoff retry, never a dead disconnected screen.
+    // Called on launch and every foreground. ONE connect path used identically every time: if the
+    // device is enrolled (static key + pinned Mac key + relay coords present), run the single Noise_IK
+    // handshake. Face-ID-free, no QR unless genuinely de-enrolled.
+    //   success                  → CONNECTED
+    //   AUTH_REJECTED (the Mac)   → NEEDS_PAIRING (genuine de-enrollment; show QR)
+    //   transient (net/relay)     → bounded backoff → manual Reconnect (never an infinite loop)
     func resumeIfPossible() async {
         guard !connected, !connecting else { return }
-        // Enrollment fingerprint: every durable artifact a cold connect needs must be present.
         guard let relayURL = storedRelayURL(), let room = storedRoom(),
-              let bearerData = KeychainStore.get(KeychainStore.durableBearer),
-              KeychainStore.get(KeychainStore.deviceKeyBlob) != nil,
-              KeychainStore.get(KeychainStore.devId) != nil,
-              KeychainStore.get(KeychainStore.macPub) != nil
-        else { eosLog.info("resume: device not enrolled → show QR"); needsPairing = true; return }
-
-        let bearer = String(decoding: bearerData, as: UTF8.self)
-        // Restore the enrolled identity so resume's later step-up / cold connect can sign.
-        restoreIdentityIfNeeded()
-
-        // Tier 1 — warm resume on a live ticket.
-        if let ticketData = KeychainStore.get(KeychainStore.ticket),
-           let ticket = try? JSONDecoder().decode(ResumptionTicket.self, from: ticketData),
-           ticket.valid(now: Date().timeIntervalSince1970 * 1000) {
-            connecting = true; needsPairing = false; intentionalStop = false
-            let conn = WSConnection(url: relayURL, mode: .relay(bearer: bearer), delegate: self)
-            do {
-                let result = try await ResumeCoordinator(connection: conn, ticket: ticket,
-                                                         room: room, durableBearer: bearer,
-                                                         log: stepLogger()).run()
-                self.connection = conn
-                self.session = result.session
-                try? KeychainStore.set(KeychainStore.ticket, JSONEncoder().encode(result.newTicket)) // rotation
-                resumeRetries = 0; connected = true; connecting = false
-                eosLog.info("resume: OK")
-                await bootstrap()
-                return
-            } catch {
-                await conn.stop(); connecting = false
-                // A relay/daemon rejection (expired/unknown ticket, bad binder) → fall to cold connect;
-                // the device is still enrolled, so no QR is needed. Network blip → backoff retry.
-                if case ResumeCoordinator.ResumeError.denied(let code) = error {
-                    eosLog.info("resume: denied(\(code, privacy: .public)) → cold connect")
-                } else {
-                    eosLog.error("resume: transient \(String(describing: error), privacy: .public) → retry")
-                    lastError = diag("resume", error); scheduleResumeRetry(); return
-                }
-            }
-        } else {
-            eosLog.info("resume: no live ticket → cold connect")
-        }
-
-        // Tier 2 — cold connect (no Face ID, no QR).
-        await coldConnect(relayURL: relayURL, room: room, bearer: bearer)
-    }
-
-    // SIGMA CONNECT over a fresh relay socket using the durable bearer + the Secure-Enclave device
-    // key (no Face ID — the key has no biometric ACL). Succeeds for any device still enrolled in the
-    // daemon — including across a daemon restart that wiped the in-memory resume ticket. Only a
-    // genuine de-enrollment (the daemon no longer recognizes the device/key) drops back to the QR scanner.
-    private func coldConnect(relayURL: URL, room: String, bearer: String) async {
-        guard let identity = self.identity,
-              let devIdData = KeychainStore.get(KeychainStore.devId),
-              let macPubData = KeychainStore.get(KeychainStore.macPub)
-        else { eosLog.error("cold: SE key/devId/macPub restore failed → show QR"); needsPairing = true; return }
-        let devId = String(decoding: devIdData, as: UTF8.self)
-        let macPub = String(decoding: macPubData, as: UTF8.self)
+              let macStaticPub = KeychainStore.get(KeychainStore.macStaticPub), macStaticPub.count == 32,
+              let device = DeviceStatic.existing()
+        else { eosLog.info("connect: device not enrolled → show QR"); needsPairing = true; return }
+        self.deviceStatic = device
 
         connecting = true; needsPairing = false; intentionalStop = false
         defer { connecting = false }
-        let conn = WSConnection(url: relayURL, mode: .relay(bearer: bearer), delegate: self)
+        let conn = WSConnection(url: relayURL, mode: .relay(bearer: NoiseIdentity.relayDeviceId(device.pub)), delegate: self)
         do {
-            let result = try await ConnectCoordinator(
-                connection: conn, macPubB64u: macPub, room: room, identity: identity,
-                devId: devId, label: UIDevice.current.name, durableBearer: bearer,
-                log: stepLogger()).run()
+            let result = try await Connector(connection: conn, mode: .steady, deviceStatic: device,
+                                             macStaticPub: macStaticPub, room: room, log: stepLogger()).run()
             self.connection = conn
             self.session = result.session
-            // Cold connect rotates the durable bearer + issues a fresh ticket — persist both.
-            try? KeychainStore.set(KeychainStore.durableBearer, Data(result.durableBearer.utf8))
-            try? KeychainStore.set(KeychainStore.ticket, JSONEncoder().encode(result.ticket))
             resumeRetries = 0; connected = true
-            eosLog.info("cold: OK")
+            eosLog.info("connect: OK")
             await bootstrap()
+        } catch Connector.ConnectError.authRejected {
+            await conn.stop()
+            eosLog.error("connect: AUTH_REJECTED (de-enrolled) → show QR")
+            lastError = "This device is no longer paired. Pair again."
+            needsPairing = true
         } catch {
             await conn.stop()
-            // ONLY a daemon AUTH_FAILED (device de-enrolled / key no longer recognized) is a genuine
-            // re-pair. Relay-level denials (BEARER_DENIED on allowlist sync-lag after an `eos build`)
-            // and network drops keep the enrollment → auto-retry with backoff, never QR, never a
-            // dead "failed" banner the user must tap.
-            if case ConnectCoordinator.ConnectError.denied(let code) = error, code.contains("AUTH_FAILED") {
-                eosLog.error("cold: AUTH_FAILED (de-enrolled) → show QR")
-                lastError = diag("cold connect", error)
-                needsPairing = true
-            } else {
-                eosLog.error("cold: \(String(describing: error), privacy: .public) → retry")
-                lastError = diag("cold connect", error); scheduleResumeRetry()
-            }
+            eosLog.error("connect: transient \(String(describing: error), privacy: .public) → retry")
+            lastError = diag("connect", error); scheduleResumeRetry()
         }
     }
 
-    // A @Sendable step recorder for the coordinators — folds each step marker onto the main actor so
-    // a later failure can report the exact step it reached.
+    // A @Sendable step recorder for the connector — folds each step marker onto the main actor so a
+    // later failure can report the exact step it reached.
     private func stepLogger() -> @Sendable (String) -> Void {
         { [weak self] s in Task { @MainActor in self?.lastStep = s } }
     }
 
-    // One human-readable diagnostic line: phase + the step it died on + the wire code + retry count.
-    // Shown on the banner and Pair sheet so the failure is reportable without an attached device.
+    // One human-readable diagnostic line: phase + the step it died on + the cause + retry count.
     private func diag(_ phase: String, _ error: Error) -> String {
         let code: String
         switch error {
-        case ConnectCoordinator.ConnectError.denied(let c): code = c
-        case ResumeCoordinator.ResumeError.denied(let c): code = "denied(\(c))"
+        case Connector.ConnectError.authRejected: code = "auth rejected"
+        case Connector.ConnectError.transient(let c): code = c
         case WSConnection.WSError.timeout: code = "timeout (no daemon reply)"
         default: code = String(describing: error)
         }
         return "\(phase) failed at [\(lastStep)]: \(code) — try \(resumeRetries)/\(maxResumeRetries)"
-    }
-
-    private func restoreIdentityIfNeeded() {
-        if self.identity == nil, let blob = KeychainStore.get(KeychainStore.deviceKeyBlob) {
-            self.identity = try? SecureEnclaveDeviceIdentity.restore(dataRepresentation: blob)
-        }
     }
 
     private func storedRelayURL() -> URL? {
@@ -363,12 +258,11 @@ final class AppModel: ObservableObject {
     func disconnect() async {
         intentionalStop = true
         await connection?.stop()
-        connection = nil; session = nil; identity = nil
+        connection = nil; session = nil; deviceStatic = nil
         connected = false; connecting = false
         openId = nil; transcript = []
-        for key in [KeychainStore.durableBearer, KeychainStore.ticket, KeychainStore.relayURL,
-                    KeychainStore.room, KeychainStore.devId, KeychainStore.deviceKeyBlob,
-                    KeychainStore.macPub] {
+        for key in [KeychainStore.deviceStaticSec, KeychainStore.macStaticPub,
+                    KeychainStore.relayURL, KeychainStore.room] {
             KeychainStore.delete(key)
         }
         needsPairing = true
@@ -384,8 +278,9 @@ final class AppModel: ObservableObject {
         await store.applyBootstrap(workers: workers, pending: pending)
     }
 
+    private enum PairingError: Error { case noRelayURL }
     private func relayWSURL(_ qr: QRPayload) throws -> URL {
-        guard let s = qr.relay?.url, let u = URL(string: s) else { throw PairingCoordinator.PairError.denied("no relay url") }
+        guard let s = qr.relay?.url, let u = URL(string: s) else { throw PairingError.noRelayURL }
         return u
     }
 

@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { MacIdentity, DeviceKeyring, sha256Hex } from "../keyring.ts";
+import { relayDeviceId } from "../identity.ts";
 import { RemoteAuditLog } from "../audit.ts";
 import { WsBridge, type RemoteSession, type ServerFrame } from "../WsBridge.ts";
 import type { EventBus, EventBusSubscriber, EventBusTopic } from "../../../core/src/ports/EventBus.ts";
@@ -14,44 +15,44 @@ function tmp(): string {
 }
 
 describe("MacIdentity", () => {
-  it("generates once and reloads the same key", () => {
+  it("generates once and reloads the same X25519 static key", () => {
     const dir = tmp();
     try {
       const a = new MacIdentity(dir);
-      const pub1 = a.publicSec1();
-      assert.equal(pub1.length, 65);
-      assert.equal(pub1[0], 0x04);
+      const pub1 = a.publicKey();
+      assert.equal(pub1.length, 32);
       const b = new MacIdentity(dir); // reload from disk, no regen
-      assert.equal(b.publicSec1().toString("hex"), pub1.toString("hex"));
+      assert.equal(b.publicKey().toString("hex"), pub1.toString("hex"));
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
 
 describe("DeviceKeyring", () => {
-  it("enrolls, finds, lists, builds the bearer allowlist, and revokes", () => {
+  it("records, matches by static key, lists, builds the admission allowlist, and revokes", () => {
     const dir = tmp();
     try {
       const kr = new DeviceKeyring(dir);
-      const rec = {
-        devId: "00000000-0000-4000-8000-000000000001",
-        label: "phone", iDevPubSec1: "04" + "ab".repeat(32),
-        bearerHashHex: sha256Hex("bearer-1"), caps: ["read", "lowrisk"], addedAt: 1,
-      };
-      kr.enroll(rec);
-      assert.deepEqual(kr.find(rec.devId), rec);
+      const deviceStaticPub = Buffer.alloc(32, 0xab);
+      const id = relayDeviceId(deviceStaticPub);
+      const rec = kr.record(deviceStaticPub, "phone", 1);
+      assert.equal(rec.relayDeviceId, id);
+      assert.equal(rec.deviceStaticPub, deviceStaticPub.toString("hex"));
+      assert.deepEqual(kr.findByStaticPub(deviceStaticPub), rec);
+      // An unknown static key is not admitted.
+      assert.equal(kr.findByStaticPub(Buffer.alloc(32, 0xcd)), null);
       assert.equal(kr.list().length, 1);
-      assert.deepEqual(kr.bearerHashAllowlist(), [rec.bearerHashHex]);
-      assert.equal(kr.revoke(rec.devId), true);
-      assert.equal(kr.find(rec.devId), null);
-      assert.equal(kr.revoke(rec.devId), false);
+      assert.deepEqual(kr.admissionHashes(), [sha256Hex(id)]);
+      assert.equal(kr.revoke(id), true);
+      assert.equal(kr.findByStaticPub(deviceStaticPub), null);
+      assert.equal(kr.revoke(id), false);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it("refuses a devId that could escape the directory", () => {
+  it("refuses a relayDeviceId that could escape the directory", () => {
     const dir = tmp();
     try {
       const kr = new DeviceKeyring(dir);
-      assert.throws(() => kr.find("../escape"));
+      assert.throws(() => kr.revoke("../escape"));
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });

@@ -1,85 +1,62 @@
-// E2E crypto primitives for the iOS remote edge — protocol spec §1 (LOCKED).
+// E2E crypto primitives for the iOS remote edge (connection v2). Everything is
+// libsodium (sodium-native) so it is byte-identical to the Swift client (same C
+// library compiled twice):
+//   * X25519 raw DH (crypto_scalarmult) — the Noise_IK static/ephemeral DH.
+//   * BLAKE2b (crypto_generichash) — Noise MixHash + the HMAC/HKDF hash + the
+//     relayDeviceId derivation.
+//   * XChaCha20-Poly1305-IETF — the Noise handshake AEAD and the transport AEAD.
 //
-// Two halves, each a single identical implementation per platform (§1.1):
-//   * libsodium (sodium-native) for ephemeral DH (crypto_kx), KDF/transcript
-//     hashing (BLAKE2b via crypto_generichash), and AEAD
-//     (XChaCha20-Poly1305-IETF). Same C library on both ends → byte-identical.
-//   * Node built-in `crypto` for the P-256 ECDSA static identity (Secure Enclave
-//     forces P-256 on the device; the Mac key is P-256 too for symmetry).
-//
-// Every byte layout here is fixed by the spec and cross-checked against the
-// committed golden fixture (docs/vectors/ios-remote-v1/) — see the fixture test.
+// The Noise state machine that chains these lives in noise.ts; the transport
+// frame nonce/AAD layout is protocol §1.5/§4.1, reused unchanged. Byte layouts
+// are pinned by the golden fixture (docs/vectors/ios-remote-v2/).
 
 import sodium from "sodium-native";
-import { createSign, createVerify, createPublicKey, createPrivateKey, type KeyObject } from "node:crypto";
 
 export const KEY_BYTES = 32;
 export const NONCE_BYTES = 24; // XChaCha20-Poly1305-IETF npub
 export const TAG_BYTES = sodium.crypto_aead_xchacha20poly1305_ietf_ABYTES; // 16
 export const TH_BYTES = 32;
-export const SEC1_POINT_BYTES = 65; // 0x04 ‖ X(32) ‖ Y(32)
-export const P256_SIG_BYTES = 64; // raw r‖s (IEEE-P1363)
 
 export const Dir = { c2s: 0x00, s2c: 0x01 } as const;
 export type Dir = (typeof Dir)[keyof typeof Dir];
 
 // ---- BLAKE2b (crypto_generichash) ------------------------------------------
 
-// Unkeyed BLAKE2b-256 over the concatenation of parts. Used for transcript
-// hashes TH (§1.4).
+// Unkeyed BLAKE2b-256 over the concatenation of parts (Noise hash + HKDF hash +
+// relayDeviceId).
 export function hash(...parts: Buffer[]): Buffer {
   const out = Buffer.alloc(TH_BYTES);
   sodium.crypto_generichash(out, Buffer.concat(parts));
   return out;
 }
 
-// Keyed BLAKE2b-256 (32-byte key). Used for the KDF (§1.4), otsProof (§2.1),
-// and resume binders (§2.3).
-export function keyedHash(key: Buffer, ...parts: Buffer[]): Buffer {
-  const out = Buffer.alloc(TH_BYTES);
-  sodium.crypto_generichash(out, Buffer.concat(parts), key);
-  return out;
-}
+// ---- X25519 raw DH (Noise IK — crypto_scalarmult) --------------------------
 
-// KDF(key, label, transcriptHash) = crypto_generichash(32, in=label‖TH, key=key)
-// (§1.4). label = ASCII bytes, no NUL; transcriptHash = 32 raw bytes; order is
-// label THEN transcriptHash.
-export function kdf(key: Buffer, label: string, transcriptHash: Buffer): Buffer {
-  return keyedHash(key, Buffer.from(label, "ascii"), transcriptHash);
-}
-
-// ---- Ephemeral DH (crypto_kx, role-fixed) ----------------------------------
-
-export interface KxKeyPair {
+export interface X25519KeyPair {
   pub: Buffer; // 32
   sec: Buffer; // 32
 }
 
-export function kxKeypair(): KxKeyPair {
-  const pub = Buffer.alloc(sodium.crypto_kx_PUBLICKEYBYTES);
-  const sec = Buffer.alloc(sodium.crypto_kx_SECRETKEYBYTES);
-  sodium.crypto_kx_keypair(pub, sec);
+// Long-term / ephemeral X25519 keypair (Curve25519). crypto_box_keypair yields
+// an X25519 (pk, sk) where pk = scalarmult_base(sk) — the Noise static/ephemeral.
+export function x25519Keypair(): X25519KeyPair {
+  const pub = Buffer.alloc(sodium.crypto_box_PUBLICKEYBYTES);
+  const sec = Buffer.alloc(sodium.crypto_box_SECRETKEYBYTES);
+  sodium.crypto_box_keypair(pub, sec);
   return { pub, sec };
 }
 
-// Role-fixed session-key agreement (§1.3). Returns the two directional keys
-// regardless of side so callers name them by direction, not by rx/tx:
-//   K_c2s (device→Mac) = client tx = server rx
-//   K_s2c (Mac→device) = client rx = server tx
-export function kxSession(
-  side: "client" | "server",
-  ePub: Buffer,
-  eSec: Buffer,
-  otherEPub: Buffer,
-): { kC2s: Buffer; kS2c: Buffer } {
-  const rx = Buffer.alloc(sodium.crypto_kx_SESSIONKEYBYTES);
-  const tx = Buffer.alloc(sodium.crypto_kx_SESSIONKEYBYTES);
-  if (side === "client") {
-    sodium.crypto_kx_client_session_keys(rx, tx, ePub, eSec, otherEPub);
-    return { kC2s: tx, kS2c: rx };
-  }
-  sodium.crypto_kx_server_session_keys(rx, tx, ePub, eSec, otherEPub);
-  return { kC2s: rx, kS2c: tx };
+export function x25519Pub(sec: Buffer): Buffer {
+  const pub = Buffer.alloc(sodium.crypto_scalarmult_BYTES);
+  sodium.crypto_scalarmult_base(pub, sec);
+  return pub;
+}
+
+// Raw X25519: scalarmult(sec, pub) → 32-byte shared secret (the Noise DH()).
+export function x25519(sec: Buffer, pub: Buffer): Buffer {
+  const out = Buffer.alloc(sodium.crypto_scalarmult_BYTES);
+  sodium.crypto_scalarmult(out, sec, pub);
+  return out;
 }
 
 // ---- AEAD nonce + AAD (§1.5, §4.1) -----------------------------------------
@@ -137,51 +114,4 @@ export function aeadOpen(key: Buffer, nonce: Buffer, aad: Buffer, ciphertext: Bu
   } catch {
     return null;
   }
-}
-
-// ---- P-256 static identity (Node built-in crypto) --------------------------
-
-// SPKI DER prefix for an uncompressed P-256 public point (§1.2). Wrapping the
-// raw 65-byte SEC1 point with this yields a DER SubjectPublicKeyInfo that
-// createPublicKey accepts.
-const P256_SPKI_PREFIX = Buffer.from(
-  "3059301306072a8648ce3d020106082a8648ce3d030107034200",
-  "hex",
-);
-
-// Export a public KeyObject to the LOCKED 65-byte SEC1 uncompressed point.
-export function p256PubToSec1(pub: KeyObject): Buffer {
-  const der = pub.export({ type: "spki", format: "der" });
-  // The raw point is the trailing 65 bytes of the SPKI BIT STRING.
-  return Buffer.from(der.subarray(der.length - SEC1_POINT_BYTES));
-}
-
-// Import a raw 65-byte SEC1 point into a public KeyObject.
-export function p256PubFromSec1(point: Buffer): KeyObject {
-  if (point.length !== SEC1_POINT_BYTES || point[0] !== 0x04) {
-    throw new Error("expected 65-byte uncompressed SEC1 point");
-  }
-  const der = Buffer.concat([P256_SPKI_PREFIX, point]);
-  return createPublicKey({ key: der, format: "der", type: "spki" });
-}
-
-// ECDSA-P256-SHA256 sign → raw r‖s 64 bytes (IEEE-P1363, never DER) (§1.2).
-// The caller passes the raw message bytes (label-prefixed transcript binding);
-// ECDSA hashes with SHA-256 internally.
-export function p256Sign(priv: KeyObject, message: Buffer): Buffer {
-  const s = createSign("sha256");
-  s.update(message);
-  s.end();
-  return s.sign({ key: priv, dsaEncoding: "ieee-p1363" });
-}
-
-export function p256Verify(pub: KeyObject, message: Buffer, sig: Buffer): boolean {
-  const v = createVerify("sha256");
-  v.update(message);
-  v.end();
-  return v.verify({ key: pub, dsaEncoding: "ieee-p1363" }, sig);
-}
-
-export function p256PrivFromPem(pem: string): KeyObject {
-  return createPrivateKey(pem);
 }

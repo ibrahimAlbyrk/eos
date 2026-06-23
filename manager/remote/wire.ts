@@ -12,7 +12,6 @@ import type { IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 
 import { MacIdentity, DeviceKeyring } from "./keyring.ts";
-import { TicketStore } from "./tickets.ts";
 import { RemoteAuditLog } from "./audit.ts";
 import { PairingManager } from "./pairing.ts";
 import { makeRouteDispatch } from "./virtual-dispatch.ts";
@@ -73,12 +72,11 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
   mkdirSync(remoteDir, { recursive: true });
   const identity = new MacIdentity(remoteDir);
   const keyring = new DeviceKeyring(remoteDir);
-  const tickets = new TicketStore();
   const audit = new RemoteAuditLog(remoteDir);
   const now = (): number => Date.now();
   const pairing = new PairingManager(identity, now);
   const baseDeps: Omit<GatewayDeps, "room"> = {
-    identity, keyring, tickets, audit, uiToken: c.uiToken,
+    identity, keyring, audit, uiToken: c.uiToken,
     routeDispatch: makeRouteDispatch(router), bus: c.bus, now, pairing,
     log: (m, x) => c.log.info(`[remote] ${m}`, x ?? {}),
   };
@@ -106,13 +104,15 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
   const conns = new Map<string, GatewayConnection>();
   const connector = new RelayConnector({
     url: relayUrl, room, owner,
-    // Include the armed pairing bearer so a reconnect's re-register (which resends
-    // the whole allowlist) doesn't drop the in-flight pairing offer — otherwise a
-    // dropped relay socket mid-pairing would BEARER_DENY the joining device.
+    // §4.3: on every (re)connect the connector re-registers with the FULL allowlist
+    // read fresh here — SHA-256 of every enrolled relayDeviceId — so the relay's
+    // admission cache self-heals and can never drift from the persisted truth. The
+    // armed enrollment token is included so a dropped relay socket mid-pairing
+    // doesn't lock out the joining (not-yet-enrolled) device.
     allow: () => {
-      const hashes = keyring.bearerHashAllowlist();
-      const pair = pairing.pairingBearerHash();
-      return pair ? [...hashes, pair] : hashes;
+      const hashes = keyring.admissionHashes();
+      const enroll = pairing.enrollTokenHash();
+      return enroll ? [...hashes, enroll] : hashes;
     },
     onJoined: (clientId) => {
       const hex = clientId.toString("hex");
@@ -128,8 +128,9 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
     onError: (code, message) => c.log.warn("relay error", { code, message }),
     now, log: (m, x) => c.log.info(`[relay] ${m}`, x ?? {}),
   });
-  // Keep the relay allowlist in sync with enrollment: every completed PAIR/CONNECT hands the device
-  // a durable bearer the relay has never seen — add its hash so the device's next reopen can join.
+  // Enrollment is the only allowlist mutation (§4.3): add SHA-256(relayDeviceId)
+  // so the freshly-enrolled device's next reopen (which joins on that id) is
+  // admitted. No per-connect rotation, no allow-remove churn.
   deps.onEnrolled = (hash) => connector.allowAdd(hash);
   connector.start();
   c.log.info("remote gateway armed", { mode, relayUrl, room });
@@ -138,10 +139,9 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
     pairing,
     armPairing: (opts) => {
       const qr = pairing.arm(opts);
-      // Relay admits on the bearer-hash allowlist — add the one-time pairing
-      // bearer so an unenrolled device can join the room to pair. The durable
-      // bearer is swapped in (and the pairing hash dropped) after enrollment.
-      const hash = pairing.pairingBearerHash();
+      // Add SHA-256(enrollment token) to the relay allowlist so the not-yet-
+      // enrolled device can join the room for the pairing window (§5.2).
+      const hash = pairing.enrollTokenHash();
       if (hash) connector.allowAdd(hash);
       return qr;
     },

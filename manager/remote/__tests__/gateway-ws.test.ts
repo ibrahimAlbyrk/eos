@@ -1,6 +1,7 @@
 // End-to-end over a REAL WebSocket on the daemon-style listener: mountWsGateway
-// on an http.Server, then a ws client does bearer upgrade → join-ack → cold
-// pairing → control round-trip. Proves the live /ws mount, not just the codec.
+// on an http.Server, then a ws client does bearer upgrade → join-ack → Noise_IK
+// handshake → control round-trip. Proves the live /ws mount, the enroll vs steady
+// branch, and a reconnect with the SAME static key — not just the codec.
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -10,83 +11,72 @@ import { join } from "node:path";
 import { createServer, type Server } from "node:http";
 import { AddressInfo } from "node:net";
 import WebSocket from "ws";
-import { randomBytes, createHash, generateKeyPairSync, createPublicKey, type KeyObject } from "node:crypto";
+import { randomBytes, createHash } from "node:crypto";
 
 import { mountWsGateway, type GatewayDeps } from "../gateway.ts";
 import { MacIdentity, DeviceKeyring } from "../keyring.ts";
-import { TicketStore } from "../tickets.ts";
 import { RemoteAuditLog } from "../audit.ts";
-import {
-  hash, keyedHash, kdf, kxKeypair, kxSession, makeNonce, makeAad, aeadSeal, aeadOpen,
-  p256Sign, p256PubToSec1, Dir,
-} from "../crypto.ts";
+import { makeNonce, makeAad, aeadSeal, aeadOpen, x25519Keypair, Dir, type X25519KeyPair } from "../crypto.ts";
+import { NoiseInitiator } from "../noise.ts";
+import { relayDeviceId, buildEnrollPayload, STEADY_PAYLOAD } from "../identity.ts";
 import { ENVELOPE_VER, FrameType, encodeEnvelope, parseEnvelope } from "../envelope.ts";
 import type { EventBus, EventBusSubscriber } from "../../../core/src/ports/EventBus.ts";
 
+const HS_WIRE_VERSION = 0x02;
 const b64u = (b: Buffer): string => b.toString("base64url");
 const unb64u = (s: string): Buffer => Buffer.from(s, "base64url");
-const ascii = (s: string): Buffer => Buffer.from(s, "ascii");
-const sha256Hex = (s: string): string => createHash("sha256").update(s).digest("hex");
 
 class NullBus implements EventBus {
   publish(): void {}
   subscribe(_t: unknown, _fn: EventBusSubscriber): () => void { return () => {}; }
 }
 
-// Minimal device-side crypto for the pairing + record path.
+// Minimal Noise_IK initiator + transport codec for one device connection.
 class Device {
-  priv: KeyObject; pubSec1: Buffer; devId = "22222222-2222-4222-8222-222222222222";
-  ePubC!: Buffer; eSecC!: Buffer; nC!: Buffer; kC2s!: Buffer; kS2c!: Buffer; th3!: Buffer;
-  kC2sFinal!: Buffer; kS2cFinal!: Buffer; txSeq = 0n;
-  constructor() {
-    const { privateKey } = generateKeyPairSync("ec", { namedCurve: "prime256v1" });
-    this.priv = privateKey; this.pubSec1 = p256PubToSec1(createPublicKey(privateKey));
+  readonly staticKp: X25519KeyPair;
+  private kC2s!: Buffer;
+  private kS2c!: Buffer;
+  private txSeq = 0n;
+  constructor(staticKp?: X25519KeyPair) { this.staticKp = staticKp ?? x25519Keypair(); }
+
+  get relayDeviceId(): string { return relayDeviceId(this.staticKp.pub); }
+
+  // Returns the c2s envelope carrying Noise msg-1 (version-prefixed).
+  handshakeMsg1(macStaticPub: Buffer, payload1: Buffer, room: string, clientId: Buffer): { env: Buffer; init: NoiseInitiator } {
+    const init = new NoiseInitiator(this.staticKp, macStaticPub);
+    const msg1 = init.writeMessage1(payload1);
+    const payload = Buffer.concat([Buffer.from([HS_WIRE_VERSION]), msg1]);
+    return { env: encodeEnvelope({ type: FrameType.data, dir: Dir.c2s, epoch: 0, seq: 0n, room, clientId, payload }), init };
   }
-  pair1(): object {
-    const e = kxKeypair(); this.ePubC = e.pub; this.eSecC = e.sec; this.nC = randomBytes(16);
-    return { v: 1, t: "hs", step: 1, mode: "pair", ePubC: b64u(this.ePubC), nC: b64u(this.nC) };
+
+  // Consume the cleartext msg-2 envelope → derive transport keys.
+  readMsg2(buf: Buffer, init: NoiseInitiator): void {
+    const env = parseEnvelope(buf);
+    assert.equal(env.payload[0], HS_WIRE_VERSION);
+    const r2 = init.readMessage2(env.payload.subarray(1));
+    assert.ok(r2, "readMessage2 must succeed");
+    this.kC2s = r2!.keys.kC2sFinal;
+    this.kS2c = r2!.keys.kS2cFinal;
   }
-  pair3(p2: any, macPub: Buffer, ots: Buffer): object {
-    const ePubS = unb64u(p2.ePubS), nS = unb64u(p2.nS), encS = unb64u(p2.encS);
-    const { kC2s, kS2c } = kxSession("client", this.ePubC, this.eSecC, ePubS);
-    this.kC2s = kC2s; this.kS2c = kS2c;
-    const th2 = hash(this.ePubC, this.nC, ePubS, nS);
-    const s2 = aeadOpen(kdf(kS2c, "eos/v1 hs s2c", th2), makeNonce(0, Dir.s2c, 0n), Buffer.alloc(0), encS)!;
-    assert.equal(JSON.parse(s2.toString()).iMac, b64u(macPub));
-    this.th3 = hash(this.ePubC, this.nC, ePubS, nS, encS);
-    const kHsC2s = kdf(kC2s, "eos/v1 hs c2s", this.th3);
-    const sigC = p256Sign(this.priv, Buffer.concat([ascii("eos/v1 pair client"), this.th3]));
-    const c3 = Buffer.from(JSON.stringify({
-      iDev: b64u(this.pubSec1), devId: this.devId, label: "ws-dev",
-      sigC: b64u(sigC), ots: b64u(keyedHash(ots, this.th3)),
-    }), "utf8");
-    const encC = aeadSeal(kHsC2s, makeNonce(0, Dir.c2s, 0n), Buffer.alloc(0), c3);
-    this.kC2sFinal = kdf(kC2s, "eos/v1 data c2s", this.th3);
-    this.kS2cFinal = kdf(kS2c, "eos/v1 data s2c", this.th3);
-    return { v: 1, t: "hs", step: 3, mode: "pair", encC: b64u(encC) };
-  }
-  wrapHs(frame: object, room: string, clientId: Buffer): Buffer {
-    return encodeEnvelope({ type: FrameType.data, dir: Dir.c2s, epoch: 0, seq: 0n, room, clientId, payload: Buffer.from(JSON.stringify(frame), "utf8") });
-  }
+
   sealControl(frame: object, room: string, clientId: Buffer): Buffer {
     const seq = this.txSeq++;
     const aad = makeAad(ENVELOPE_VER, 0, Dir.c2s, seq, room, clientId);
-    const ct = aeadSeal(this.kC2sFinal, makeNonce(0, Dir.c2s, seq), aad, Buffer.from(JSON.stringify(frame), "utf8"));
+    const ct = aeadSeal(this.kC2s, makeNonce(0, Dir.c2s, seq), aad, Buffer.from(JSON.stringify(frame), "utf8"));
     return encodeEnvelope({ type: FrameType.data, dir: Dir.c2s, epoch: 0, seq, room, clientId, payload: ct });
   }
-  open(buf: Buffer): any {
+
+  openReply(buf: Buffer): any {
     const env = parseEnvelope(buf);
-    if (env.type === FrameType.relayctl || env.type === FrameType.data && this.kS2cFinal === undefined) {
-      return { __ctl: JSON.parse(env.payload.toString("utf8")), env };
-    }
     const aad = makeAad(ENVELOPE_VER, 0, Dir.s2c, env.seq, env.room, env.clientId);
-    const pt = aeadOpen(this.kS2cFinal, makeNonce(0, Dir.s2c, env.seq), aad, env.payload)!;
+    const pt = aeadOpen(this.kS2c, makeNonce(0, Dir.s2c, env.seq), aad, env.payload)!;
     return JSON.parse(pt.toString("utf8"));
   }
+
+  ctl(buf: Buffer): any { return JSON.parse(parseEnvelope(buf).payload.toString("utf8")); }
 }
 
-// Buffer EVERY inbound message so none is lost to a listener-attach race (the
-// server sends the join-ack the instant the socket opens).
+// Buffer EVERY inbound message so none is lost to a listener-attach race.
 class MsgQueue {
   private buf: Buffer[] = [];
   private waiter: ((b: Buffer) => void) | null = null;
@@ -104,7 +94,7 @@ class MsgQueue {
   }
 }
 
-describe("mountWsGateway over a real WebSocket", () => {
+describe("mountWsGateway over a real WebSocket (Noise_IK)", () => {
   it("rejects a missing/invalid bearer with 401", async () => {
     const dir = mkdtempSync(join(tmpdir(), "eos-ws-"));
     const server = createServer();
@@ -119,64 +109,75 @@ describe("mountWsGateway over a real WebSocket", () => {
     } finally { server.close(); rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it("upgrade → join-ack → cold pairing → control reply", async () => {
+  it("enroll handshake → control reply, then steady reconnect with the same key", async () => {
     const dir = mkdtempSync(join(tmpdir(), "eos-ws-"));
     const server = createServer();
     try {
-      const ots = randomBytes(32);
-      const pairBearer = randomBytes(32).toString("base64url");
-      const deps = mkDeps(dir, { ots, bearerHash: sha256Hex(pairBearer) });
+      const enrollToken = randomBytes(32).toString("base64url");
+      const deps = mkDeps(dir, enrollToken);
       const mount = mountWsGateway(server, deps);
       const port = await listen(server);
-
-      const dev = new Device();
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers: { authorization: `Bearer ${pairBearer}` } });
-      const q = new MsgQueue(ws);
-      await new Promise<void>((r) => ws.on("open", () => r()));
-
-      // join-ack
-      const ack = dev.open(await q.next());
-      assert.equal(ack.__ctl.t, "joined");
-      const clientId = unb64u(ack.__ctl.clientId);
       const room = deps.room;
+      const dev = new Device();
 
-      // PAIR-1 → PAIR-2
-      ws.send(dev.wrapHs(dev.pair1(), room, clientId));
-      const pair2 = dev.open(await q.next()).__ctl;
-      assert.equal(pair2.step, 2);
+      // ---- ENROLL: join with the enrollment token ----
+      {
+        const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers: { authorization: `Bearer ${enrollToken}` } });
+        const q = new MsgQueue(ws);
+        await new Promise<void>((r) => ws.on("open", () => r()));
+        const ack = dev.ctl(await q.next());
+        assert.equal(ack.t, "joined");
+        const clientId = unb64u(ack.clientId);
 
-      // PAIR-3 → welcome (sealed)
-      ws.send(dev.wrapHs(dev.pair3(pair2, deps.identity.publicSec1(), ots), room, clientId));
-      const welcome = dev.open(await q.next());
-      assert.equal(welcome.t, "reply");
-      assert.ok(welcome.body.bearer && welcome.body.ticket);
-      assert.ok(deps.keyring.find(dev.devId), "device enrolled via the live mount");
+        const { env, init } = dev.handshakeMsg1(deps.identity.publicKey(), buildEnrollPayload(enrollToken, "ws-dev"), room, clientId);
+        ws.send(env);
+        dev.readMsg2(await q.next(), init);
+        assert.ok(deps.keyring.findByStaticPub(dev.staticKp.pub), "device enrolled via the live mount");
 
-      // control round-trip (READ)
-      ws.send(dev.sealControl({ t: "control", correlationId: crypto.randomUUID(), method: "GET", path: "/workers", body: "{}" }, room, clientId));
-      const reply = dev.open(await q.next());
-      assert.equal(reply.t, "reply");
-      assert.equal(reply.status, 200);
-      assert.deepEqual(reply.body, { ok: true, path: "/workers" });
+        ws.send(dev.sealControl({ t: "control", correlationId: crypto.randomUUID(), method: "GET", path: "/workers", body: "{}" }, room, clientId));
+        const reply = dev.openReply(await q.next());
+        assert.equal(reply.t, "reply");
+        assert.equal(reply.status, 200);
+        assert.deepEqual(reply.body, { ok: true, path: "/workers" });
+        ws.close();
+      }
 
-      ws.close();
+      // ---- STEADY RECONNECT: join with the stable relayDeviceId, no token ----
+      {
+        const dev2 = new Device(dev.staticKp); // same static key
+        const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`, { headers: { authorization: `Bearer ${dev2.relayDeviceId}` } });
+        const q = new MsgQueue(ws);
+        await new Promise<void>((r) => ws.on("open", () => r()));
+        const ack = dev2.ctl(await q.next());
+        const clientId = unb64u(ack.clientId);
+
+        const { env, init } = dev2.handshakeMsg1(deps.identity.publicKey(), STEADY_PAYLOAD, room, clientId);
+        ws.send(env);
+        dev2.readMsg2(await q.next(), init);
+
+        ws.send(dev2.sealControl({ t: "control", correlationId: crypto.randomUUID(), method: "GET", path: "/pending", body: "{}" }, room, clientId));
+        const reply = dev2.openReply(await q.next());
+        assert.equal(reply.status, 200);
+        assert.deepEqual(reply.body, { ok: true, path: "/pending" });
+        ws.close();
+      }
+
       mount.stop();
     } finally { server.close(); rmSync(dir, { recursive: true, force: true }); }
   });
 });
 
-function mkDeps(dir: string, pairing: { ots: Buffer; bearerHash: string } | null): GatewayDeps {
+function mkDeps(dir: string, enrollToken: string | null): GatewayDeps {
   const identity = new MacIdentity(dir);
   const keyring = new DeviceKeyring(dir);
-  const tickets = new TicketStore();
   const audit = new RemoteAuditLog(dir);
   return {
-    identity, keyring, tickets, audit, uiToken: "UITOK",
+    identity, keyring, audit, uiToken: "UITOK",
     routeDispatch: async ({ path }) => ({ status: 200, body: { ok: true, path } }),
     bus: new NullBus(), room: "AAAAAAAAAAAAAAAAAAAAAA", now: () => Date.now(),
     pairing: {
-      pairingBearerHash: () => pairing?.bearerHash ?? null,
-      ots: () => pairing?.ots ?? null,
+      enrollTokenHash: () => enrollToken ? createHash("sha256").update(enrollToken).digest("hex") : null,
+      matchToken: (t: string) => enrollToken !== null && t === enrollToken,
       burn: () => {},
     },
   };

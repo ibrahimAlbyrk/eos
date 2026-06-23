@@ -38,6 +38,14 @@ const RULES: TierRule[] = [
     "/api/updates/status",
   ].map((p) => R("GET", p, "READ")),
 
+  // Path-style binary asset reads (served out-of-band as `asset` frames). /fs/raw
+  // carries a multi-segment file path after /fs/raw/; /pdfjs serves its vendored
+  // viewer tree. Pure reads ⇒ READ. (/fs/image is query-style and already READ
+  // above.) Bare /fs/raw is intentionally NOT matched — the real route requires a
+  // sub-path, so it stays fail-closed REFUSED.
+  { method: "GET", re: /^\/fs\/raw\/.+$/, tier: "READ" },
+  { method: "GET", re: /^\/pdfjs(\/.*)?$/, tier: "READ" },
+
   // ---- LOW ----
   R("POST", "/workers/:id/message", "LOW"),
   R("POST", "/workers/:id/question-answer", "LOW"),
@@ -106,7 +114,6 @@ const RULES: TierRule[] = [
     ["GET", "/workers/:id/peer-request/:rId"], ["POST", "/workers/:id/peer-response"],
     ["POST", "/workers/:id/report"], ["POST", "/workers/:id/keystroke"],
     ["GET", "/pick-directory"], ["GET", "/pick-file"], ["GET", "/stream"], ["GET", "/metrics"],
-    ["GET", "/fs/raw"], ["GET", "/pdfjs"],
   ].map(([m, p]) => R(m, p, "REFUSED")),
 ];
 
