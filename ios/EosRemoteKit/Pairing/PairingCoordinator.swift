@@ -46,6 +46,13 @@ public final class PairingCoordinator: Sendable {
         log("join sent")
         let ackEnv = try await connection.receiveEnvelopeRaw()
         log("recv envelope type=\(ackEnv.type.rawValue) dir=\(ackEnv.dir.rawValue) payloadLen=\(ackEnv.payload.count)")
+        // The relay rejects a bad/de-allowlisted bearer with a cleartext error envelope (type=0x06,
+        // §5.5) — surface its code (BEARER_DENIED / ROOM_NOT_FOUND / …) instead of a generic error.
+        if ackEnv.type == .error {
+            let code = (try? JSONDecoder().decode(RelayError.self, from: ackEnv.payload))?.code ?? "UNKNOWN"
+            log("relay rejected join: \(code)")
+            throw PairError.denied("relay \(code)")
+        }
         guard ackEnv.type == .relayctl,
               let ack = try? JSONDecoder().decode(JoinAck.self, from: ackEnv.payload),
               ack.t == "joined", let clientId = Bytes.fromB64u(ack.clientId), clientId.count == 16
@@ -111,4 +118,5 @@ public final class PairingCoordinator: Sendable {
 
     private struct JoinAck: Codable { let t: String; let room: String; let clientId: String }
     private struct Pair2: Codable { let ePubS: String; let nS: String; let encS: String }
+    private struct RelayError: Codable { let t: String; let code: String; let message: String? }
 }
