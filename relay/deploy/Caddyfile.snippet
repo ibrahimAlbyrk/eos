@@ -1,0 +1,17 @@
+# eos-relay site block — APPEND to the existing host Caddyfile, do not replace it.
+# On the target VPS that file is /opt/obsidian-sync/Caddyfile (bind-mounted read-only
+# into the obsidian-caddy container at /etc/caddy/Caddyfile).
+#
+# Hostname: silver-giraffe-71764.zap.cloud is the server's own zap.cloud name (its PTR)
+# and is the ONLY name that publicly resolves to 185.249.197.74 besides the in-use
+# obsidian.* host — so it gets a dedicated site block with real ACME TLS, rather than a
+# path prefix piggybacked on another site. (ibrahim-albyrk.zap.cloud is only the box's
+# /etc/hostname; it does NOT resolve in public DNS.)
+#
+# reverse_proxy upgrades WebSocket transparently — the relay needs zero TLS code; Caddy
+# owns ACME on 80/443. "eos-relay" resolves over the shared obsidian-sync_obsidian
+# docker network to the relay container's internal :3000 (no host port is published).
+
+silver-giraffe-71764.zap.cloud {
+	reverse_proxy eos-relay:3000
+}

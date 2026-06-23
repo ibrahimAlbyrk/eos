@@ -3,6 +3,7 @@ import ObjectiveC
 import WebKit
 import UserNotifications
 import QuartzCore
+import CoreImage
 
 private let DAEMON = "http://127.0.0.1:7400"
 private let WINDOW_CORNER_RADIUS: CGFloat = 10
@@ -920,6 +921,243 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 }
 
+// MARK: - Remote Access preferences
+//
+// Configures the daemon's REMOTE exposure (config.remote in ~/.eos/config.json)
+// — the iOS remote-control edge. This NEVER touches the WebView, which stays on
+// loopback (DAEMON above): the LAN-IP field sets the daemon's bind for the /ws
+// gateway, not the app's webview. Changes apply on the next daemon restart.
+
+final class RemotePrefsWindowController: NSObject {
+    private var window: NSWindow?
+    private let modePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let relayURL = NSTextField()
+    private let relayRoom = NSTextField()
+    private let lanHost = NSTextField()
+    private let qrView = NSImageView()
+    private let pairStatus = NSTextField(labelWithString: "")
+
+    private var configPath: String { ("~/.eos/config.json" as NSString).expandingTildeInPath }
+    private var uiTokenPath: String { ("~/.eos/ui-token" as NSString).expandingTildeInPath }
+
+    func show() {
+        if window == nil { build() }
+        loadFromConfig()
+        window?.center()
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
+    private func build() {
+        let contentSize = NSSize(width: 460, height: 560)
+        let w = NSWindow(contentRect: NSRect(origin: .zero, size: contentSize),
+                         styleMask: [.titled, .closable], backing: .buffered, defer: false)
+        w.title = "Remote Access"
+        // NSWindow defaults to isReleasedWhenClosed = true: closing it (the red
+        // button or Save) would release the window while this controller still
+        // holds a strong `window` ref — a dangling pointer that crashes (EXC_BAD_
+        // ACCESS) the NEXT time "Remote Access…" reopens it. We reuse the window,
+        // so own its lifetime via ARC instead.
+        w.isReleasedWhenClosed = false
+        let v = NSView(frame: NSRect(origin: .zero, size: contentSize))
+
+        modePopup.addItems(withTitles: ["off", "lan", "relay"])
+        relayURL.placeholderString = "wss://your-relay.example/"
+        relayRoom.placeholderString = "room id (b64u)"
+        lanHost.placeholderString = "0.0.0.0 (LAN bind for /ws)"
+
+        let rows: [(String, NSView)] = [
+            ("Mode", modePopup), ("Relay URL", relayURL),
+            ("Relay Room", relayRoom), ("LAN bind IP", lanHost),
+        ]
+        var y: CGFloat = 510
+        for (label, field) in rows {
+            let l = NSTextField(labelWithString: label)
+            l.frame = NSRect(x: 20, y: y, width: 100, height: 22)
+            l.alignment = .right
+            field.frame = NSRect(x: 130, y: y, width: 300, height: 24)
+            v.addSubview(l); v.addSubview(field)
+            y -= 36
+        }
+        let note = NSTextField(labelWithString: "Off by default. Save applies immediately — no restart.")
+        note.frame = NSRect(x: 20, y: 360, width: 410, height: 20)
+        note.textColor = .secondaryLabelColor
+        note.font = .systemFont(ofSize: 11)
+        v.addSubview(note)
+
+        let save = NSButton(title: "Save", target: self, action: #selector(saveTapped))
+        save.frame = NSRect(x: 20, y: 320, width: 90, height: 30)
+        v.addSubview(save)
+
+        let pair = NSButton(title: "Pair device…", target: self, action: #selector(pairTapped))
+        pair.frame = NSRect(x: 120, y: 320, width: 130, height: 30)
+        v.addSubview(pair)
+
+        // QR area: arming returns the §6 payload; we render it for the phone to
+        // scan. The QR encodes the pairing JSON only — no daemon secret beyond the
+        // single-use ots/bearer already meant to be transferred by the scan.
+        qrView.frame = NSRect(x: 102, y: 40, width: 256, height: 256)
+        qrView.imageScaling = .scaleProportionallyUpOrDown
+        qrView.wantsLayer = true
+        v.addSubview(qrView)
+        pairStatus.frame = NSRect(x: 20, y: 300, width: 420, height: 18)
+        pairStatus.textColor = .secondaryLabelColor
+        pairStatus.font = .systemFont(ofSize: 11)
+        v.addSubview(pairStatus)
+
+        w.contentView = v
+        window = w
+    }
+
+    private func uiToken() -> String? {
+        guard let t = try? String(contentsOfFile: uiTokenPath, encoding: .utf8) else { return nil }
+        let trimmed = t.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    // POST the loopback pairing-arm route and render the returned QR payload.
+    @objc private func pairTapped() {
+        guard let token = uiToken() else { pairStatus.stringValue = "No ui-token found (~/.eos/ui-token)."; return }
+        guard let url = URL(string: DAEMON + "/api/remote/pair") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue(token, forHTTPHeaderField: "x-eos-ui-token")
+        req.setValue("application/json", forHTTPHeaderField: "content-type")
+        req.httpBody = Data("{}".utf8)
+        pairStatus.stringValue = "Arming pairing…"
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, _ in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                guard code == 200, let data = data else {
+                    self.pairStatus.stringValue = code == 409 ? "Remote not armed — set Mode + Save first." : "Pair failed (HTTP \(code))."
+                    return
+                }
+                if let img = self.makeQR(from: data) {
+                    self.qrView.image = img
+                    self.pairStatus.stringValue = "Scan with the Eos iOS app. One-time, expires soon."
+                } else {
+                    self.pairStatus.stringValue = "Could not render the QR payload."
+                }
+            }
+        }.resume()
+    }
+
+    // Render the raw pairing-payload JSON bytes as a QR image.
+    private func makeQR(from payload: Data) -> NSImage? {
+        guard let filter = CIFilter(name: "CIQRCodeGenerator") else { return nil }
+        filter.setValue(payload, forKey: "inputMessage")
+        filter.setValue("M", forKey: "inputCorrectionLevel")
+        guard let ci = filter.outputImage else { return nil }
+        let scaled = ci.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+        let rep = NSCIImageRep(ciImage: scaled)
+        let img = NSImage(size: rep.size)
+        img.addRepresentation(rep)
+        return img
+    }
+
+    private func readConfig() -> [String: Any] {
+        guard let data = FileManager.default.contents(atPath: configPath),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
+        return obj
+    }
+
+    private func loadFromConfig() {
+        let cfg = readConfig()
+        let remote = cfg["remote"] as? [String: Any] ?? [:]
+        modePopup.selectItem(withTitle: (remote["mode"] as? String) ?? "off")
+        let relay = remote["relay"] as? [String: Any] ?? [:]
+        relayURL.stringValue = (relay["url"] as? String) ?? ""
+        relayRoom.stringValue = (relay["room"] as? String) ?? ""
+        let lan = remote["lan"] as? [String: Any] ?? [:]
+        lanHost.stringValue = (lan["host"] as? String) ?? ""
+    }
+
+    @objc private func saveTapped() {
+        var cfg = readConfig()
+        let mode = modePopup.titleOfSelectedItem ?? "off"
+        var remote: [String: Any] = ["mode": mode]
+        let url = relayURL.stringValue.trimmingCharacters(in: .whitespaces)
+        let room = relayRoom.stringValue.trimmingCharacters(in: .whitespaces)
+        if !url.isEmpty || !room.isEmpty { remote["relay"] = ["url": url, "room": room] }
+        let host = lanHost.stringValue.trimmingCharacters(in: .whitespaces)
+        if !host.isEmpty { remote["lan"] = ["host": host] }
+        cfg["remote"] = remote
+        // LAN mode needs the daemon to bind a routable interface for /ws; the
+        // loopback-lock keeps every other REST surface off-box. The WebView is
+        // unaffected (it always talks to 127.0.0.1).
+        if mode == "lan", !host.isEmpty {
+            var daemon = cfg["daemon"] as? [String: Any] ?? [:]
+            daemon["host"] = host
+            cfg["daemon"] = daemon
+        }
+        guard let out = try? JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys]) else {
+            pairStatus.stringValue = "Could not serialize config."
+            return
+        }
+        do {
+            try out.write(to: URL(fileURLWithPath: configPath))
+        } catch {
+            pairStatus.stringValue = "Could not write config: \(error.localizedDescription)"
+            return
+        }
+        armRemoteLive(mode: mode)
+    }
+
+    // Apply the saved config live — no restart. POST the loopback arm route; the
+    // daemon reloads config and arms/disarms the remote edge immediately. All
+    // response handling hops to the main thread; nil/error/non-200 surface inline
+    // (no force-unwraps, no modal that could leave the window in a bad state).
+    private func armRemoteLive(mode: String) {
+        guard let token = uiToken() else {
+            pairStatus.stringValue = "Saved. No ui-token to apply live (~/.eos/ui-token)."
+            return
+        }
+        guard let url = URL(string: DAEMON + "/api/remote/arm") else {
+            pairStatus.stringValue = "Saved. Invalid daemon URL."
+            return
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue(token, forHTTPHeaderField: "x-eos-ui-token")
+        req.setValue("application/json", forHTTPHeaderField: "content-type")
+        req.httpBody = Data("{}".utf8)
+        pairStatus.stringValue = "Applying…"
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if let err = err {
+                    self.pairStatus.stringValue = "Saved, but apply failed: \(err.localizedDescription)"
+                    return
+                }
+                let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                guard code == 200 else {
+                    self.pairStatus.stringValue = "Saved, but apply failed (HTTP \(code)). Restart Eos to apply."
+                    return
+                }
+                var armed = false
+                if let data = data,
+                   let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+                    armed = (obj["armed"] as? Bool) ?? false
+                }
+                if mode == "off" {
+                    self.pairStatus.stringValue = "Remote disabled — applied live."
+                } else if armed {
+                    self.pairStatus.stringValue = "Remote \(mode) armed — live, no restart needed."
+                } else {
+                    self.pairStatus.stringValue = "Saved \(mode), but not armed (check relay URL/room)."
+                }
+            }
+        }.resume()
+    }
+}
+
+let remotePrefs = RemotePrefsWindowController()
+
+extension AppDelegate {
+    @objc func openRemotePreferences(_: Any?) { remotePrefs.show() }
+}
+
 // MARK: - Bootstrap
 
 let app = NSApplication.shared
@@ -932,6 +1170,10 @@ let ai = NSMenuItem(); menu.addItem(ai)
 let am = NSMenu()
 am.addItem(NSMenuItem(title: "About Eos",
                        action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: ""))
+am.addItem(.separator())
+let remoteItem = NSMenuItem(title: "Remote Access…", action: #selector(AppDelegate.openRemotePreferences(_:)), keyEquivalent: ",")
+remoteItem.target = del
+am.addItem(remoteItem)
 am.addItem(.separator())
 am.addItem(NSMenuItem(title: "Quit Eos",
                        action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))

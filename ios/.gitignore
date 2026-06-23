@@ -1,0 +1,8 @@
+# Xcode / SPM build artifacts. project.yml is the source of truth; the .xcodeproj is generated.
+EosRemote.xcodeproj/
+DerivedData/
+build/
+.build/
+*.xcuserstate
+xcuserdata/
+.swiftpm/

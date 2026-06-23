@@ -19,6 +19,9 @@ import { computeBackendStamp } from "./builder/backend-stamp.ts";
 import { Router } from "./routes/Router.ts";
 import { mintRequestId } from "./middleware/requestId.ts";
 import { handleError, writeJson } from "./middleware/errorHandler.ts";
+import { isLoopbackRequest } from "./middleware/loopback-lock.ts";
+import { RemoteController } from "./remote/controller.ts";
+import { registerRemoteRoutes } from "./routes/remote.ts";
 import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
 import { drainQueuedMessages } from "../core/src/use-cases/DrainQueuedMessages.ts";
 import { dispatchDeps } from "./routes/dispatch-deps.ts";
@@ -89,6 +92,16 @@ registerOrchestratorRoutes(router, c);
 registerLoopRoutes(router, c);
 registerPolicyRoutes(router, c);
 registerPendingRoutes(router, c);
+// Remote pairing-arm + live arm/disarm control routes (loopback + ui-token). The
+// controller is created after the server binds, so the routes reach it lazily via
+// a holder. arm() reloads config from disk first so the rebuild sees the Save.
+let remoteController: RemoteController | null = null;
+registerRemoteRoutes(router, {
+  uiToken: c.uiToken,
+  getConfig: () => c.config,
+  getGateway: () => remoteController?.current() ?? null,
+  arm: () => { c.reloadConfig(); return remoteController?.reconcile() ?? { mode: "off", armed: false }; },
+});
 
 // Queue drain — queued dashboard messages dispatch when their worker reaches
 // IDLE. Triggers: every IDLE state transition (payload carries `state`), plus
@@ -305,6 +318,16 @@ function makeHandler(router: Router, opts: { cors?: boolean } = {}) {
       }
     }
 
+    // Loopback-lock (design §2.2/§4.7). A request reaching this handler is a
+    // plain REST/SSE/raw call — the authenticated /ws upgrade is handled on the
+    // server "upgrade" event and never arrives here. Anything from a non-loopback
+    // peer means the bind was widened; reject it so the only off-box surface is
+    // the E2E-terminating WS. No-op while bound to loopback (today's default).
+    if (!isLoopbackRequest(req)) {
+      writeJson(res, 403, { error: "remote REST access is disabled; the only remote surface is the /ws gateway" });
+      return;
+    }
+
     const requestId = mintRequestId(req, res, c.ids);
 
     try {
@@ -335,6 +358,15 @@ function makeHandler(router: Router, opts: { cors?: boolean } = {}) {
 }
 
 const server = createServer(makeHandler(router, { cors: true }));
+
+// Remote edge (iOS). The controller installs ONE persistent /ws upgrade listener
+// and arms the gateway live: the initial reconcile() arms ONLY when
+// config.remote.mode != off (default off ⇒ no surface, /ws 503s). Enabling later
+// via POST /api/remote/arm is restart-free — no reboot needed. Off-box
+// reachability stays bounded to the authenticated /ws upgrade by the loopback-lock
+// middleware above.
+remoteController = new RemoteController(c, router, server);
+remoteController.reconcile();
 
 // Raw-content origin: arbitrary disk bytes + the vendored pdf.js viewer on a
 // separate port. Viewer iframes run untrusted HTML with `allow-same-origin`,
@@ -375,6 +407,7 @@ function shutdown(sig: string): void {
   shuttingDown = true;
   const ids = c.supervisor.listIds();
   c.log.info("shutting down", { signal: sig, workers: ids.length });
+  try { remoteController?.disarm(); } catch {}
   for (const id of ids) c.supervisor.escalateKill(id, 0);
   try { unlinkSync(c.config.daemon.pidFile); } catch {}
   try { c.db.close(); } catch {}
