@@ -16,13 +16,14 @@ public final class ResumeDriver {
     }
 
     // RES-1.
-    public func buildResume1() throws -> [String: String] {
+    // `v` is a JSON number per §2.3 ({v:1, t:"resume", …}), hence [String: Any].
+    public func buildResume1() throws -> [String: Any] {
         let kp = try CryptoSuite.generateKxKeypair()
         eph = kp
         clientNonce = randomBytes(16)
         let binderC = try HandshakeCrypto.binderC(psk: ticket.psk, ticketId: ticket.ticketId,
                                                   ePubC: kp.publicKey, clientNonce: clientNonce)
-        return ["v": "1", "t": "resume",
+        return ["v": 1, "t": "resume",
                 "ticketId": Bytes.b64u(ticket.ticketId),
                 "ePubC": Bytes.b64u(kp.publicKey),
                 "nC": Bytes.b64u(clientNonce),

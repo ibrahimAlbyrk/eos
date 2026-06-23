@@ -18,10 +18,13 @@ public struct QRPayload: Codable, Sendable {
 
     public enum QRError: Error { case badType, expired, missingTransport }
 
-    public static func decode(_ json: Data, now: Double) throws -> QRPayload {
+    // enforceExpiry defaults true (production fails-closed on a burned/expired QR, §6). The live
+    // E2E harness sets it false so the SERVER (relay bearer + daemon ots) is the sole expiry
+    // authority — peer-turn latency can stale the QR timestamp long before the server offer dies.
+    public static func decode(_ json: Data, now: Double, enforceExpiry: Bool = true) throws -> QRPayload {
         let p = try JSONDecoder().decode(QRPayload.self, from: json)
         guard p.typ == "eos-pair", p.v == 1 else { throw QRError.badType }
-        guard p.exp > now, p.otsExp > now else { throw QRError.expired }
+        if enforceExpiry { guard p.exp > now, p.otsExp > now else { throw QRError.expired } }
         guard p.relay != nil || !p.lan.isEmpty else { throw QRError.missingTransport }
         return p
     }

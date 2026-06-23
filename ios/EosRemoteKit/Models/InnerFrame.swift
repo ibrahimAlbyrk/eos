@@ -69,6 +69,7 @@ public struct ChallengeFrame: Codable, Sendable {
     public let t: String
     public let challengeNonce: String   // b64u(16)
     public let expiresAt: Double
+    public let correlationId: String?   // present when issued as a response to POST /stepup/challenge
 }
 
 public struct ErrorFrame: Codable, Sendable {

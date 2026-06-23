@@ -23,15 +23,16 @@ public final class HandshakeDriver {
     }
 
     // PAIR-1 / CONNECT-1: announce ephemeral pub + client nonce.
-    public func buildHello() throws -> [String: String] {
+    // NOTE: `v` and `step` are JSON NUMBERS per §2.1 ({v:1, step:1}), not strings — hence [String:Any].
+    public func buildHello() throws -> [String: Any] {
         try makeHello(kp: CryptoSuite.generateKxKeypair(), clientNonce: randomBytes(16))
     }
 
     // Deterministic hello — fixed ephemerals/nonce for the golden-fixture choreography test.
-    func makeHello(kp: CryptoSuite.KxKeypair, clientNonce: Data) -> [String: String] {
+    func makeHello(kp: CryptoSuite.KxKeypair, clientNonce: Data) -> [String: Any] {
         self.eph = kp
         self.clientNonce = clientNonce
-        return ["v": "1", "t": "hs", "step": "1",
+        return ["v": 1, "t": "hs", "step": 1,
                 "mode": mode == .connect ? "connect" : "pair",
                 "ePubC": Bytes.b64u(kp.publicKey),
                 "nC": Bytes.b64u(clientNonce)]
@@ -65,7 +66,7 @@ public final class HandshakeDriver {
 
     // PAIR-3 / CONNECT-3: sign the transcript (Face ID via SE), seal the device identity. The OTS
     // proof is included only for PAIR. Produces the sealed frame AND the live SessionState.
-    public struct ClientAuthResult { public let frame: [String: String]; public let session: SessionState }
+    public struct ClientAuthResult { public let frame: [String: Any]; public let session: SessionState }
     public func buildClientAuth(serverHello s: ServerHello, devId: String, label: String, reason: String) throws -> ClientAuthResult {
         guard let eph, let kx else { throw HandshakeError.state }
         let th3 = try HandshakeCrypto.th3(ePubC: eph.publicKey, clientNonce: clientNonce,
@@ -90,9 +91,9 @@ public final class HandshakeDriver {
         let tk = try HandshakeCrypto.trafficKeys(kC2s: kx.tx, kS2c: kx.rx, th3: th3)
         let session = SessionState(kC2sFinal: tk.c2s, kS2cFinal: tk.s2c, sessionTH: th3,
                                    room: room, clientId: clientId, isResumed: false)
-        let frame = ["v": "1", "t": "hs", "step": "3",
-                     "mode": mode == .connect ? "connect" : "pair",
-                     "encC": Bytes.b64u(encC)]
+        let frame: [String: Any] = ["v": 1, "t": "hs", "step": 3,
+                                    "mode": mode == .connect ? "connect" : "pair",
+                                    "encC": Bytes.b64u(encC)]
         return ClientAuthResult(frame: frame, session: session)
     }
 

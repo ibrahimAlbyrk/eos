@@ -136,7 +136,16 @@ public actor WSConnection {
         case .snapshot(let s): await delegate?.wsDidReceive(snapshot: s)
         case .patch(let p): await delegate?.wsDidReceive(patch: p)
         case .event(let e): await delegate?.wsDidReceive(event: e)
-        case .challenge(let c): await delegate?.wsDidReceive(challenge: c)
+        case .challenge(let c):
+            // POST /stepup/challenge replies with a `challenge` frame carrying the correlationId of
+            // the awaiting control — adapt it into the ReplyFrame the caller expects (nonce in body).
+            if let cid = c.correlationId, let cont = pending.removeValue(forKey: cid) {
+                cont.resume(returning: ReplyFrame(t: "reply", correlationId: cid, status: 200,
+                    body: .object(["challengeNonce": .string(c.challengeNonce),
+                                   "expiresAt": .number(c.expiresAt)])))
+            } else {
+                await delegate?.wsDidReceive(challenge: c)
+            }
         case .error(let e):
             if let cid = e.correlationId, let cont = pending.removeValue(forKey: cid) {
                 cont.resume(throwing: WSError.controlFailed(0))

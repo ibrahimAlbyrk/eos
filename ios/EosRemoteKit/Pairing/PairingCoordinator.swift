@@ -85,7 +85,8 @@ public final class PairingCoordinator: Sendable {
     }
 
     // A cleartext hs frame rides a type=0x01 envelope; payload = the hs JSON UTF-8 (NOT sealed).
-    private func sendCleartextHs(_ obj: [String: String], clientId: Data) async throws {
+    // `v`/`step` are JSON numbers (§2.1), so the dict is [String: Any].
+    private func sendCleartextHs(_ obj: [String: Any], clientId: Data) async throws {
         let json = try JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys])
         try await connection.sendEnvelopeRaw(Envelope(type: .data, dir: .c2s, epoch: 0, seq: 0,
                                                       room: roomBytes, clientId: clientId, payload: json))

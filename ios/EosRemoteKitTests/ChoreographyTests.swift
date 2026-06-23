@@ -52,8 +52,10 @@ final class ChoreographyTests: XCTestCase {
         // PAIR-1 with the fixture's fixed ephemeral + client nonce.
         let kp = CryptoSuite.KxKeypair(publicKey: try ihex("ePubC"), secretKey: try ihex("eSecC"))
         let hello = driver.makeHello(kp: kp, clientNonce: try ihex("clientNonce"))
-        XCTAssertEqual(hello["ePubC"], Bytes.b64u(try ihex("ePubC")))
-        XCTAssertEqual(hello["nC"], Bytes.b64u(try ihex("clientNonce")))
+        XCTAssertEqual(hello["ePubC"] as? String, Bytes.b64u(try ihex("ePubC")))
+        XCTAssertEqual(hello["nC"] as? String, Bytes.b64u(try ihex("clientNonce")))
+        XCTAssertEqual(hello["v"] as? Int, 1, "v must be a JSON number")
+        XCTAssertEqual(hello["step"] as? Int, 1, "step must be a JSON number")
 
         // PAIR-2: feed the fixture's server hello → pin-assert + Mac-sig verify + encS open all pass.
         let s2 = HandshakeDriver.ServerHello(ePubS: try ihex("ePubS"),
