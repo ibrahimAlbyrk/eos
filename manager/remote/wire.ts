@@ -8,14 +8,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import type { Server } from "node:http";
+import type { IncomingMessage } from "node:http";
+import type { Duplex } from "node:stream";
 
 import { MacIdentity, DeviceKeyring } from "./keyring.ts";
 import { TicketStore } from "./tickets.ts";
 import { RemoteAuditLog } from "./audit.ts";
 import { PairingManager } from "./pairing.ts";
 import { makeRouteDispatch } from "./virtual-dispatch.ts";
-import { mountWsGateway, GatewayConnection, type GatewayDeps } from "./gateway.ts";
+import { createLanGateway, GatewayConnection, type GatewayDeps } from "./gateway.ts";
 import { WsBridge } from "./WsBridge.ts";
 import { RelayConnector } from "./RelayConnector.ts";
 import type { Router } from "../routes/Router.ts";
@@ -41,6 +42,10 @@ export interface PairArmOptions {
 export interface RemoteGatewayHandle {
   stop(): void;
   pairing: PairingManager;
+  // LAN mode only: the /ws upgrade handler. The RemoteController attaches this to
+  // its persistent server "upgrade" listener while armed; relay mode dials out and
+  // leaves this undefined (no LAN /ws surface).
+  onUpgrade?: (req: IncomingMessage, socket: Duplex, head: Buffer) => void;
   // Arm a one-time pairing offer and return the §6 QR payload. In relay mode the
   // pairing-bearer hash is added to the relay allowlist so a NEW (unenrolled)
   // device can join the room for the pairing window.
@@ -55,8 +60,12 @@ function loadOwnerSecret(remoteDir: string): string {
   return secret;
 }
 
-// Returns null when remote is off (the common case) or relay config is missing.
-export function startRemoteGateway(c: RemoteWiringDeps, router: Router, server: Server): RemoteGatewayHandle | null {
+// Build the remote gateway for the CURRENT config and return a runtime handle,
+// or null when remote is off (the common case) or relay config is missing. Pure
+// build step — it does NOT touch the HTTP server; the RemoteController owns the
+// persistent /ws upgrade listener and the LAN handle's `onUpgrade` is attached
+// there. Re-callable at runtime (arm/disarm), not only at boot.
+export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteGatewayHandle | null {
   const mode = c.config.remote.mode;
   if (mode === "off") return null;
 
@@ -75,12 +84,12 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router, server: 
   };
 
   if (mode === "lan") {
-    const handle = mountWsGateway(server, { ...baseDeps, room: "lan" });
+    const lan = createLanGateway({ ...baseDeps, room: "lan" });
     c.log.info("remote gateway armed", { mode, surface: "/ws" });
     // LAN: the /ws upgrade admits the pairing bearer directly (gateway
     // bearerAdmitted reads pairing.pairingBearerHash()), so arming is just the
     // offer — no relay allowlist to update.
-    return { stop: handle.stop, pairing, armPairing: (opts) => pairing.arm(opts) };
+    return { stop: lan.stop, onUpgrade: lan.onUpgrade, pairing, armPairing: (opts) => pairing.arm(opts) };
   }
 
   // relay

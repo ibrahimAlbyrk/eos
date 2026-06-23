@@ -217,9 +217,15 @@ export class GatewayConnection {
   }
 }
 
-// Mount the LAN-direct /ws gateway onto the daemon's HTTP server. Returns a stop
-// handle. Inert unless called (the daemon calls it only when remote mode != off).
-export function mountWsGateway(server: Server, deps: GatewayDeps): { stop: () => void } {
+// Build the LAN-direct /ws gateway WITHOUT binding it to a server. Returns the
+// upgrade handler plus a stop handle; the caller owns when/whether to attach
+// `onUpgrade` to a server's "upgrade" event. This lets the RemoteController hold
+// ONE persistent upgrade listener and swap the live gateway underneath it at
+// runtime (arm/disarm) without adding or removing server listeners.
+export function createLanGateway(deps: GatewayDeps): {
+  onUpgrade: (req: import("node:http").IncomingMessage, socket: Duplex, head: Buffer) => void;
+  stop: () => void;
+} {
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_ENVELOPE_BYTES + 1024 });
   const bridge = new WsBridge({ bus: deps.bus, now: deps.now });
   bridge.start();
@@ -248,12 +254,19 @@ export function mountWsGateway(server: Server, deps: GatewayDeps): { stop: () =>
     });
   };
 
-  server.on("upgrade", onUpgrade);
+  return { onUpgrade, stop: (): void => { bridge.stop(); wss.close(); } };
+}
+
+// Mount the LAN-direct /ws gateway onto the daemon's HTTP server. Returns a stop
+// handle. Inert unless called. Thin wrapper over createLanGateway for callers
+// that DO own the server lifetime (the gateway-ws test, direct LAN boot).
+export function mountWsGateway(server: Server, deps: GatewayDeps): { stop: () => void } {
+  const gw = createLanGateway(deps);
+  server.on("upgrade", gw.onUpgrade);
   return {
     stop: (): void => {
-      server.off("upgrade", onUpgrade);
-      bridge.stop();
-      wss.close();
+      server.off("upgrade", gw.onUpgrade);
+      gw.stop();
     },
   };
 }

@@ -8,15 +8,19 @@ import type { Router } from "./Router.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { constantTimeEqual } from "../shared/constant-time.ts";
 import type { RemoteGatewayHandle, PairArmOptions } from "../remote/wire.ts";
-import type { RemoteConfig } from "../../contracts/src/remote.ts";
+import type { RemoteConfig, RemoteMode } from "../../contracts/src/remote.ts";
 
 export interface RemoteRoutesDeps {
   uiToken: string;
-  config: { remote: RemoteConfig; daemon: { port: number } };
+  // Read live: config.remote is reassigned by container.reloadConfig(), so the
+  // routes must re-read it (not capture a boot snapshot) to see a Save take hold.
+  getConfig: () => { remote: RemoteConfig; daemon: { port: number } };
   getGateway: () => RemoteGatewayHandle | null;
+  // Arm/disarm the remote edge live for the current config (restart-free).
+  arm: () => { mode: RemoteMode; armed: boolean };
 }
 
-function buildArmOptions(config: RemoteRoutesDeps["config"]): PairArmOptions {
+function buildArmOptions(config: { remote: RemoteConfig; daemon: { port: number } }): PairArmOptions {
   const r = config.remote;
   if (r.mode === "relay" && r.relay?.url && r.relay?.room) {
     return { relay: { url: r.relay.url, room: r.relay.room }, lan: [] };
@@ -36,14 +40,23 @@ export function registerRemoteRoutes(router: Router, deps: RemoteRoutesDeps): vo
 
   router.get("/api/remote/status", ({ req, res }) => {
     if (!tokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
-    writeJson(res, 200, { mode: deps.config.remote.mode, armed: deps.getGateway() != null });
+    writeJson(res, 200, { mode: deps.getConfig().remote.mode, armed: deps.getGateway() != null });
+  });
+
+  // Arm/disarm the remote edge for the config currently on disk — restart-free.
+  // The app calls this right after writing config.remote (Save), so enabling
+  // remote goes live immediately. config.reloadConfig() must run before arm() so
+  // the rebuild reads the new config; the daemon's handler wires that in.
+  router.post("/api/remote/arm", ({ req, res }) => {
+    if (!tokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
+    writeJson(res, 200, deps.arm());
   });
 
   router.post("/api/remote/pair", ({ req, res }) => {
     if (!tokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
     const gateway = deps.getGateway();
-    if (!gateway) { writeJson(res, 409, { error: "remote not armed; set config.remote.mode and restart" }); return; }
-    const qr = gateway.armPairing(buildArmOptions(deps.config));
+    if (!gateway) { writeJson(res, 409, { error: "remote not armed; set Mode + Save" }); return; }
+    const qr = gateway.armPairing(buildArmOptions(deps.getConfig()));
     writeJson(res, 200, qr);
   });
 }

@@ -949,10 +949,17 @@ final class RemotePrefsWindowController: NSObject {
     }
 
     private func build() {
-        let w = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 460, height: 560),
+        let contentSize = NSSize(width: 460, height: 560)
+        let w = NSWindow(contentRect: NSRect(origin: .zero, size: contentSize),
                          styleMask: [.titled, .closable], backing: .buffered, defer: false)
         w.title = "Remote Access"
-        let v = NSView(frame: w.contentView!.bounds)
+        // NSWindow defaults to isReleasedWhenClosed = true: closing it (the red
+        // button or Save) would release the window while this controller still
+        // holds a strong `window` ref — a dangling pointer that crashes (EXC_BAD_
+        // ACCESS) the NEXT time "Remote Access…" reopens it. We reuse the window,
+        // so own its lifetime via ARC instead.
+        w.isReleasedWhenClosed = false
+        let v = NSView(frame: NSRect(origin: .zero, size: contentSize))
 
         modePopup.addItems(withTitles: ["off", "lan", "relay"])
         relayURL.placeholderString = "wss://your-relay.example/"
@@ -972,7 +979,7 @@ final class RemotePrefsWindowController: NSObject {
             v.addSubview(l); v.addSubview(field)
             y -= 36
         }
-        let note = NSTextField(labelWithString: "Off by default. Restart Eos to apply changes.")
+        let note = NSTextField(labelWithString: "Off by default. Save applies immediately — no restart.")
         note.frame = NSRect(x: 20, y: 360, width: 410, height: 20)
         note.textColor = .secondaryLabelColor
         note.font = .systemFont(ofSize: 11)
@@ -1023,7 +1030,7 @@ final class RemotePrefsWindowController: NSObject {
                 guard let self = self else { return }
                 let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
                 guard code == 200, let data = data else {
-                    self.pairStatus.stringValue = code == 409 ? "Remote not armed — set Mode + Save, then restart Eos." : "Pair failed (HTTP \(code))."
+                    self.pairStatus.stringValue = code == 409 ? "Remote not armed — set Mode + Save first." : "Pair failed (HTTP \(code))."
                     return
                 }
                 if let img = self.makeQR(from: data) {
@@ -1084,13 +1091,64 @@ final class RemotePrefsWindowController: NSObject {
             daemon["host"] = host
             cfg["daemon"] = daemon
         }
-        guard let out = try? JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys]) else { return }
-        try? out.write(to: URL(fileURLWithPath: configPath))
-        let a = NSAlert()
-        a.messageText = mode == "off" ? "Remote access disabled." : "Remote access set to \(mode)."
-        a.informativeText = "Restart Eos for the change to take effect."
-        a.runModal()
-        window?.close()
+        guard let out = try? JSONSerialization.data(withJSONObject: cfg, options: [.prettyPrinted, .sortedKeys]) else {
+            pairStatus.stringValue = "Could not serialize config."
+            return
+        }
+        do {
+            try out.write(to: URL(fileURLWithPath: configPath))
+        } catch {
+            pairStatus.stringValue = "Could not write config: \(error.localizedDescription)"
+            return
+        }
+        armRemoteLive(mode: mode)
+    }
+
+    // Apply the saved config live — no restart. POST the loopback arm route; the
+    // daemon reloads config and arms/disarms the remote edge immediately. All
+    // response handling hops to the main thread; nil/error/non-200 surface inline
+    // (no force-unwraps, no modal that could leave the window in a bad state).
+    private func armRemoteLive(mode: String) {
+        guard let token = uiToken() else {
+            pairStatus.stringValue = "Saved. No ui-token to apply live (~/.eos/ui-token)."
+            return
+        }
+        guard let url = URL(string: DAEMON + "/api/remote/arm") else {
+            pairStatus.stringValue = "Saved. Invalid daemon URL."
+            return
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue(token, forHTTPHeaderField: "x-eos-ui-token")
+        req.setValue("application/json", forHTTPHeaderField: "content-type")
+        req.httpBody = Data("{}".utf8)
+        pairStatus.stringValue = "Applying…"
+        URLSession.shared.dataTask(with: req) { [weak self] data, resp, err in
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                if let err = err {
+                    self.pairStatus.stringValue = "Saved, but apply failed: \(err.localizedDescription)"
+                    return
+                }
+                let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
+                guard code == 200 else {
+                    self.pairStatus.stringValue = "Saved, but apply failed (HTTP \(code)). Restart Eos to apply."
+                    return
+                }
+                var armed = false
+                if let data = data,
+                   let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+                    armed = (obj["armed"] as? Bool) ?? false
+                }
+                if mode == "off" {
+                    self.pairStatus.stringValue = "Remote disabled — applied live."
+                } else if armed {
+                    self.pairStatus.stringValue = "Remote \(mode) armed — live, no restart needed."
+                } else {
+                    self.pairStatus.stringValue = "Saved \(mode), but not armed (check relay URL/room)."
+                }
+            }
+        }.resume()
     }
 }
 

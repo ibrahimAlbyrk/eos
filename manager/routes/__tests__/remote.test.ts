@@ -16,8 +16,9 @@ function setup(gateway: RemoteGatewayHandle | null, mode: "off" | "lan" | "relay
   const router = new Router();
   registerRemoteRoutes(router, {
     uiToken: "TOK",
-    config: { remote: { mode, relay: { url: "wss://r/", room: "AAAAAAAAAAAAAAAAAAAAAA" } }, daemon: { port: 7400 } },
+    getConfig: () => ({ remote: { mode, relay: { url: "wss://r/", room: "AAAAAAAAAAAAAAAAAAAAAA" } }, daemon: { port: 7400 } }),
     getGateway: () => gateway,
+    arm: () => ({ mode, armed: gateway != null }),
   });
   return makeRouteDispatch(router);
 }
@@ -45,5 +46,17 @@ describe("remote pairing-arm routes", () => {
     assert.equal(ok.status, 200);
     assert.equal((ok.body as PairingQr).typ, "eos-pair");
     assert.equal((ok.body as PairingQr).relay?.room, "AAAAAAAAAAAAAAAAAAAAAA");
+  });
+
+  it("POST /api/remote/arm: 403 without token, returns {mode, armed} with token", async () => {
+    assert.equal((await setup(armed())({ method: "POST", path: "/api/remote/arm", body: {} })).status, 403);
+
+    const on = await setup(armed(), "relay")({ method: "POST", path: "/api/remote/arm", body: {}, uiToken: "TOK" });
+    assert.equal(on.status, 200);
+    assert.deepEqual(on.body, { mode: "relay", armed: true });
+
+    const off = await setup(null, "off")({ method: "POST", path: "/api/remote/arm", body: {}, uiToken: "TOK" });
+    assert.equal(off.status, 200);
+    assert.deepEqual(off.body, { mode: "off", armed: false });
   });
 });

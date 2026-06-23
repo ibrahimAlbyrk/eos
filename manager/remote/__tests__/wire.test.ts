@@ -23,16 +23,17 @@ describe("startRemoteGateway", () => {
     const home = mkdtempSync(join(tmpdir(), "eos-wire-"));
     const server = createServer();
     try {
-      assert.equal(startRemoteGateway(deps(home, { mode: "off" }), {} as never, server), null);
-      assert.equal(server.listenerCount("upgrade"), 0, "no /ws upgrade handler armed when off");
+      assert.equal(startRemoteGateway(deps(home, { mode: "off" }), {} as never), null);
+      // The build step never touches the server — the RemoteController owns the
+      // single persistent /ws upgrade listener.
+      assert.equal(server.listenerCount("upgrade"), 0, "build step binds no server listener");
     } finally { server.close(); rmSync(home, { recursive: true, force: true }); }
   });
 
   it("returns null when relay mode lacks url/room", () => {
     const home = mkdtempSync(join(tmpdir(), "eos-wire-"));
-    const server = createServer();
     try {
-      assert.equal(startRemoteGateway(deps(home, { mode: "relay" }), {} as never, server), null);
-    } finally { server.close(); rmSync(home, { recursive: true, force: true }); }
+      assert.equal(startRemoteGateway(deps(home, { mode: "relay" }), {} as never), null);
+    } finally { rmSync(home, { recursive: true, force: true }); }
   });
 });

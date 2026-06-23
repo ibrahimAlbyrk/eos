@@ -20,7 +20,7 @@ import { Router } from "./routes/Router.ts";
 import { mintRequestId } from "./middleware/requestId.ts";
 import { handleError, writeJson } from "./middleware/errorHandler.ts";
 import { isLoopbackRequest } from "./middleware/loopback-lock.ts";
-import { startRemoteGateway, type RemoteGatewayHandle } from "./remote/wire.ts";
+import { RemoteController } from "./remote/controller.ts";
 import { registerRemoteRoutes } from "./routes/remote.ts";
 import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
 import { drainQueuedMessages } from "../core/src/use-cases/DrainQueuedMessages.ts";
@@ -92,10 +92,16 @@ registerOrchestratorRoutes(router, c);
 registerLoopRoutes(router, c);
 registerPolicyRoutes(router, c);
 registerPendingRoutes(router, c);
-// Remote pairing-arm control routes (loopback + ui-token). The gateway handle is
-// created after the server binds, so the routes read it lazily via a holder.
-let remoteGateway: RemoteGatewayHandle | null = null;
-registerRemoteRoutes(router, { uiToken: c.uiToken, config: c.config, getGateway: () => remoteGateway });
+// Remote pairing-arm + live arm/disarm control routes (loopback + ui-token). The
+// controller is created after the server binds, so the routes reach it lazily via
+// a holder. arm() reloads config from disk first so the rebuild sees the Save.
+let remoteController: RemoteController | null = null;
+registerRemoteRoutes(router, {
+  uiToken: c.uiToken,
+  getConfig: () => c.config,
+  getGateway: () => remoteController?.current() ?? null,
+  arm: () => { c.reloadConfig(); return remoteController?.reconcile() ?? { mode: "off", armed: false }; },
+});
 
 // Queue drain — queued dashboard messages dispatch when their worker reaches
 // IDLE. Triggers: every IDLE state transition (payload carries `state`), plus
@@ -353,12 +359,14 @@ function makeHandler(router: Router, opts: { cors?: boolean } = {}) {
 
 const server = createServer(makeHandler(router, { cors: true }));
 
-// Remote edge (iOS). Arms the /ws gateway ONLY when config.remote.mode != off —
-// default off ⇒ no-op, no remote surface. Off-box reachability stays bounded to
-// the authenticated /ws upgrade by the loopback-lock middleware above. Loads on
-// the user's next deliberate daemon start. Assigns the holder the pairing-arm
-// routes read.
-remoteGateway = startRemoteGateway(c, router, server);
+// Remote edge (iOS). The controller installs ONE persistent /ws upgrade listener
+// and arms the gateway live: the initial reconcile() arms ONLY when
+// config.remote.mode != off (default off ⇒ no surface, /ws 503s). Enabling later
+// via POST /api/remote/arm is restart-free — no reboot needed. Off-box
+// reachability stays bounded to the authenticated /ws upgrade by the loopback-lock
+// middleware above.
+remoteController = new RemoteController(c, router, server);
+remoteController.reconcile();
 
 // Raw-content origin: arbitrary disk bytes + the vendored pdf.js viewer on a
 // separate port. Viewer iframes run untrusted HTML with `allow-same-origin`,
@@ -399,7 +407,7 @@ function shutdown(sig: string): void {
   shuttingDown = true;
   const ids = c.supervisor.listIds();
   c.log.info("shutting down", { signal: sig, workers: ids.length });
-  try { remoteGateway?.stop(); } catch {}
+  try { remoteController?.disarm(); } catch {}
   for (const id of ids) c.supervisor.escalateKill(id, 0);
   try { unlinkSync(c.config.daemon.pidFile); } catch {}
   try { c.db.close(); } catch {}

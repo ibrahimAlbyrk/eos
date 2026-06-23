@@ -10,7 +10,6 @@
 // Run:  npx tsx remote/scripts/relay-e2e-harness.ts
 // Stop: Ctrl-C. Payload also written to $EOS_PAIR_OUT (default /tmp/eos-pair.json).
 
-import { createServer } from "node:http";
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -55,10 +54,8 @@ function main(): void {
     uiToken: "harness", bus, log,
   };
 
-  // Relay mode ignores `server` (RelayConnector dials out); a non-listening
-  // server satisfies the signature.
-  const server = createServer();
-  const gateway = startRemoteGateway(c, harnessRouter(), server);
+  // Relay mode dials out (RelayConnector); the build step never touches a server.
+  const gateway = startRemoteGateway(c, harnessRouter());
   if (!gateway) { console.error("FAILED to arm gateway"); process.exit(1); }
 
   // Give the connector a moment to dial + register, then arm pairing + emit.
