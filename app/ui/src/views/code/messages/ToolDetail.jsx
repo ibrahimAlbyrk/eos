@@ -332,6 +332,32 @@ export function NotifyDetail({ tool }) {
   );
 }
 
+// current_datetime (worker + orchestrator MCP) — the device's wall-clock time.
+// The tool returns the full {epochMs,iso,utc,timeZone,utcOffsetMinutes,formatted}
+// object; only the ready-to-show `formatted` string is surfaced, on one line.
+export function DatetimeDetail({ tool }) {
+  if (tool.result?.isError) {
+    return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  }
+  let formatted = "";
+  try {
+    const parsed = JSON.parse(tool.result?.text ?? "");
+    if (parsed && typeof parsed === "object") formatted = parsed.formatted ?? "";
+  } catch { /* running or non-JSON — nothing to show yet */ }
+  if (!formatted) return null;
+  return (
+    <div className="tool-detail datetime-detail">
+      <div className="dt-line">
+        <svg className="dt-clock" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <circle cx="8" cy="8" r="6" />
+          <path d="M8 4.8v3.4l2.2 1.3" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+        <span className="dt-value">{formatted}</span>
+      </div>
+    </div>
+  );
+}
+
 const BODY_PREVIEW_LINES = 12;
 
 // create_worker (orchestrator MCP) — the new-worker blueprint: its axis

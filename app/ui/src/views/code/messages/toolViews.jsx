@@ -14,7 +14,7 @@ import {
   ReadDetail, EditDetail, WriteDetail, BashDetail, AskUserQuestionDetail,
   AskUserDetail, SkillDetail, NotifyDetail, MessageDetail, GenericToolCard,
   PeerAskDetail, PeerRespondDetail, PeerListDetail,
-  CreateWorkerDetail, AvailableWorkersDetail,
+  CreateWorkerDetail, AvailableWorkersDetail, DatetimeDetail,
 } from "./ToolDetail.jsx";
 import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
 import { skillFilePath } from "../../../lib/skillBody.js";
@@ -204,6 +204,16 @@ register("mcp__worker__respond_to_peer", {
   agentRef: (t) => peerReplyTo(t),
   Detail: PeerRespondDetail,
 });
+
+// current_datetime — same tool on both lanes (worker + orchestrator); one
+// single-line body surfaces the result's ready-to-show `formatted` string.
+for (const name of ["mcp__orchestrator__current_datetime", "mcp__worker__current_datetime"]) {
+  register(name, {
+    label: () => ({ verb: "Checked", file: "date & time" }),
+    runningLabel: () => ({ verb: "Checking", file: "date & time" }),
+    Detail: DatetimeDetail,
+  });
+}
 
 // Worker-management MCP tools — folded into this registry so every tool
 // dispatches through getToolView. Verbs come from WORKER_TOOL_SPECS (shared with

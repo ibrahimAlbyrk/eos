@@ -2197,6 +2197,33 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   padding-left: 18px;
 }
 
+/* current_datetime detail — clock icon + the `formatted` string on one line */
+.datetime-detail {
+  margin: 4px 0 8px;
+  padding: 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.tool-group .datetime-detail { background: var(--surface-2); }
+.dt-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  line-height: 1.55;
+}
+.dt-clock { color: var(--fg-faint); flex: none; }
+.dt-value {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
 /* worker-definition detail (create_worker + list_available_workers) */
 .wd-card {
   margin: 4px 0 8px;

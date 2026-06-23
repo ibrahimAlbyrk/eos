@@ -124,6 +124,15 @@ describe("getToolView", () => {
     expect(pending.label({ name: "mcp__orchestrator__list_pending_permissions" })).toEqual({ verb: "Checked", file: "pending permissions" });
   });
 
+  it("gives current_datetime a bespoke single-line view on both lanes", () => {
+    for (const name of ["mcp__orchestrator__current_datetime", "mcp__worker__current_datetime"]) {
+      const v = getToolView(name);
+      expect(v.Detail).not.toBe(GenericToolCard);
+      expect(v.label({})).toEqual({ verb: "Checked", file: "date & time" });
+      expect(v.runningLabel({})).toEqual({ verb: "Checking", file: "date & time" });
+    }
+  });
+
   it("renders a loop badge on spawn_worker only when armed at spawn", () => {
     const spawn = getToolView("mcp__orchestrator__spawn_worker");
     expect(spawn.Detail).toBe(WorkerToolBody);
