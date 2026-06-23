@@ -2,7 +2,7 @@ import SwiftUI
 import EosRemoteKit
 
 // Pending list (design §5.3): tool + input summary + TTL → POST /pending/:id/decision.
-// Approve = SE step-up (Face ID).
+// Approve = SE step-up (no Face ID).
 struct PendingListView: View {
     @EnvironmentObject var model: AppModel
 

@@ -3,8 +3,8 @@ import Security
 
 // Durable secret storage. The device static key blob (SE dataRepresentation), the durable
 // bearer + devId, and the resumption ticket {ticketId, PSK} live here as
-// WhenUnlockedThisDeviceOnly. The ticket has NO biometric ACL (warm resume = no Face ID, §2.3);
-// the SE key's biometric gate lives in the key's own access control, not the item's.
+// WhenUnlockedThisDeviceOnly. Nothing here is biometric-gated: the SE key itself carries no
+// biometric ACL (§1.2), so every reconnect — warm resume AND cold connect — is Face-ID-free.
 public enum KeychainStore {
     public enum KeychainError: Error { case status(OSStatus) }
 

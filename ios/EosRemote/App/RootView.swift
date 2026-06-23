@@ -63,8 +63,8 @@ struct RootView: View {
         } else if model.connecting {
             banner("Connecting…", action: nil)
         } else {
-            // Cold-connect / resume failed transiently (network or a cancelled Face ID) — retry
-            // without a QR. enterForeground() resets backoff and re-runs resume → cold connect.
+            // Cold-connect / resume failed transiently (network) — auto-retry runs in the
+            // background; tapping just resets backoff and re-runs resume → cold connect immediately.
             banner(model.lastError ?? "Disconnected — tap to reconnect") { Task { await model.enterForeground() } }
         }
     }

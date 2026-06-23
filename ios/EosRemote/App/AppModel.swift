@@ -103,8 +103,8 @@ final class AppModel: ObservableObject {
         await control("POST", "/workers/\(workerId)/question-answer", body)
     }
 
-    // High-risk verbs (kill/spawn/decision) require step-up; the UI calls these knowing a Face ID
-    // prompt may appear (§7.3). The challenge round-trip is wired by stepUpControl().
+    // High-risk verbs (kill/spawn/decision) require a step-up signature (§7.3) — SE-signed but
+    // Face-ID-free. The challenge round-trip is wired by stepUpControl().
     func kill(_ id: String) async { await stepUpControl("DELETE", "/workers/\(id)", .object([:])) }
     func spawnWorker(body: JSONValue) async { await stepUpControl("POST", "/workers", body) }
     func approve(pendingId: String, allow: Bool) async {
@@ -131,7 +131,7 @@ final class AppModel: ObservableObject {
         // the Enclave key (3838e9d). Prompt a fresh cold connect instead of attempting + failing.
         if session.isResumed {
             needsColdConnect = true
-            lastError = "This action needs a fresh secure connection (Face ID)."
+            lastError = "This action needs a fresh secure connection."
             return
         }
         do {
@@ -185,11 +185,12 @@ final class AppModel: ObservableObject {
     // MARK: persistent connection — warm resume + lifecycle
 
     // Called on launch and on every foreground. Restores the live session WITHOUT a QR whenever the
-    // device is still enrolled. Three tiers (§2.3 / §2.2):
-    //   1. WARM RESUME (no Face ID) when the stored ticket is live.
-    //   2. COLD CONNECT (Face ID, NO QR) when the ticket is missing/expired OR the daemon rejected
-    //      resume (e.g. the in-memory ticket died on an `eos build` restart) — the enrollment still
-    //      lives in the daemon's ~/.eos/devices, so SIGMA CONNECT re-auths by allowlist.
+    // device is still enrolled. All tiers are Face-ID-free (the SE key carries no biometric ACL, §1.2).
+    // Three tiers (§2.3 / §2.2):
+    //   1. WARM RESUME when the stored ticket is live.
+    //   2. COLD CONNECT (NO QR) when the ticket is missing/expired OR the daemon rejected resume
+    //      (e.g. the in-memory ticket died on a daemon restart) — the enrollment still lives in the
+    //      daemon's ~/.eos/devices, so SIGMA CONNECT re-auths by allowlist.
     //   3. The QR scanner appears ONLY when the device was never enrolled, or cold connect is itself
     //      rejected (the device was de-enrolled / its key rotated server-side).
     // Transient network failure → backoff retry, never a dead disconnected screen.
@@ -238,14 +239,14 @@ final class AppModel: ObservableObject {
             eosLog.info("resume: no live ticket → cold connect")
         }
 
-        // Tier 2 — cold connect (Face ID, no QR).
+        // Tier 2 — cold connect (no Face ID, no QR).
         await coldConnect(relayURL: relayURL, room: room, bearer: bearer)
     }
 
     // SIGMA CONNECT over a fresh relay socket using the durable bearer + the Secure-Enclave device
-    // key (Face ID). Succeeds for any device still enrolled in the daemon — including across an
-    // `eos build` restart that wiped the in-memory resume ticket. Only a genuine de-enrollment
-    // (the daemon no longer recognizes the device/key) drops back to the QR scanner.
+    // key (no Face ID — the key has no biometric ACL). Succeeds for any device still enrolled in the
+    // daemon — including across a daemon restart that wiped the in-memory resume ticket. Only a
+    // genuine de-enrollment (the daemon no longer recognizes the device/key) drops back to the QR scanner.
     private func coldConnect(relayURL: URL, room: String, bearer: String) async {
         guard let identity = self.identity,
               let devIdData = KeychainStore.get(KeychainStore.devId),
@@ -272,14 +273,15 @@ final class AppModel: ObservableObject {
         } catch {
             await conn.stop()
             // ONLY a daemon AUTH_FAILED (device de-enrolled / key no longer recognized) is a genuine
-            // re-pair. Relay-level denials (BEARER_DENIED on allowlist sync-lag after an `eos build`),
-            // network drops, and cancelled Face ID keep the enrollment → tap-to-retry banner, never QR.
+            // re-pair. Relay-level denials (BEARER_DENIED on allowlist sync-lag after an `eos build`)
+            // and network drops keep the enrollment → auto-retry with backoff, never QR, never a
+            // dead "failed" banner the user must tap.
             if case ConnectCoordinator.ConnectError.denied(let code) = error, code.contains("AUTH_FAILED") {
                 eosLog.error("cold: AUTH_FAILED (de-enrolled) → show QR")
                 needsPairing = true
             } else {
-                eosLog.error("cold: \(String(describing: error), privacy: .public) → tap to retry")
-                lastError = "Reconnect failed — tap to retry."
+                eosLog.error("cold: \(String(describing: error), privacy: .public) → retry")
+                lastError = "Reconnecting…"; scheduleResumeRetry()
             }
         }
     }

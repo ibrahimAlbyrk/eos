@@ -2,7 +2,7 @@ import Foundation
 
 // Builds the step-up field for a high-risk control (§7.3). The caller has already obtained a
 // fresh `challenge` frame (control POST /stepup/challenge → challengeNonce). Here we hash the
-// EXACT body bytes, build stepUpMsg bound to this session's sessionTH, and SE-sign (Face ID).
+// EXACT body bytes, build stepUpMsg bound to this session's sessionTH, and SE-sign (no Face ID).
 public final class StepUpCoordinator {
     private let identity: DeviceIdentity
     private let session: SessionState

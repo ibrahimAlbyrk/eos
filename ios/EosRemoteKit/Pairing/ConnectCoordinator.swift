@@ -1,9 +1,9 @@
 import Foundation
 
 // Drives the cold CONNECT choreography (§2.2) — the post-enrollment re-auth path: an already
-// enrolled device proves the SAME Secure-Enclave key over a fresh Face-ID transcript signature,
-// WITHOUT a QR. Used after relaunch when the in-memory resume ticket is gone/expired/rejected but
-// the device is still in the daemon's ~/.eos/devices allowlist (e.g. after an `eos build` restart).
+// enrolled device proves the SAME Secure-Enclave key over a fresh transcript signature (no Face ID;
+// the key has no biometric ACL), WITHOUT a QR. Used after relaunch when the in-memory resume ticket
+// is gone/expired/rejected but the device is still in the daemon's ~/.eos/devices allowlist.
 //
 // Framing mirrors PAIR exactly (join → CONNECT-1/2/3 → sealed welcome), with two differences:
 //   • join rides the DURABLE per-device bearer (already on the relay allowlist), not the QR bearer
@@ -75,7 +75,7 @@ public final class ConnectCoordinator: Sendable {
         _ = try driver.processServerHello(s2)
         log("CONNECT-2 verified (pin + Mac sig)")
 
-        // 3. CONNECT-3 — Face ID transcript signature (no ots); derive + attach the live session.
+        // 3. CONNECT-3 — SE transcript signature (no Face ID, no ots); derive + attach the live session.
         let auth = try driver.buildClientAuth(serverHello: s2, devId: devId, label: label,
                                               reason: "Reconnect to Eos")
         await connection.attach(session: auth.session)

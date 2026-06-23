@@ -2,7 +2,7 @@ import SwiftUI
 import EosRemoteKit
 
 // Pairing flow shell (design §4.3): scan the QR → decode (§6) → generate the SE device key → run
-// the PAIR handshake (Face ID) → store {bearer, devId} + first ticket. The transport choreography
+// the PAIR handshake (no Face ID) → store {bearer, devId} + first ticket. The transport choreography
 // is driven by HandshakeDriver; this view is the entry/scan/status surface.
 struct PairingView: View {
     @EnvironmentObject var model: AppModel
@@ -39,7 +39,7 @@ struct PairingView: View {
                 status = "This QR has no relay transport (LAN-direct pairing is Faz 2)."
                 return
             }
-            status = "Pairing over relay — Face ID will confirm…"
+            status = "Pairing over relay…"
             Task {
                 await model.startPairing(qr: qr, room: relay.room, pairBearer: bearer)
                 if model.connected { dismiss() }

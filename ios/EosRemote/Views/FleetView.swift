@@ -26,7 +26,7 @@ struct FleetView: View {
                 Task { await model.kill(w.id) }; killTarget = nil
             }
             Button("Cancel", role: .cancel) { killTarget = nil }
-        } message: { _ in Text("This stops the worker. Requires Face ID.") }
+        } message: { _ in Text("This stops the worker.") }
     }
 
     private func rows(_ list: [Worker]) -> some View {

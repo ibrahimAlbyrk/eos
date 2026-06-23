@@ -64,8 +64,8 @@ public final class HandshakeDriver {
         return (th2, s.encS)
     }
 
-    // PAIR-3 / CONNECT-3: sign the transcript (Face ID via SE), seal the device identity. The OTS
-    // proof is included only for PAIR. Produces the sealed frame AND the live SessionState.
+    // PAIR-3 / CONNECT-3: sign the transcript with the SE key (no Face ID), seal the device identity.
+    // The OTS proof is included only for PAIR. Produces the sealed frame AND the live SessionState.
     public struct ClientAuthResult { public let frame: [String: Any]; public let session: SessionState }
     public func buildClientAuth(serverHello s: ServerHello, devId: String, label: String, reason: String) throws -> ClientAuthResult {
         guard let eph, let kx else { throw HandshakeError.state }
