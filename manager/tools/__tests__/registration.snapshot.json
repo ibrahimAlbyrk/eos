@@ -458,6 +458,12 @@
       ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "current_datetime": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   "worker": {
@@ -474,6 +480,12 @@
       ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "current_datetime": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   "peer": {
@@ -488,7 +500,11 @@
       "properties": {
         "peerId": {
           "type": "string",
-          "description": "The id of the peer to consult (from list_peers)."
+          "description": "The id of the peer to consult (from list_peers) — for a peer you can already see."
+        },
+        "peerName": {
+          "type": "string",
+          "description": "The name of the peer to consult (the slug the orchestrator gave it, e.g. 'auth-expert'). Use this when the peer may not have spawned yet — the consult waits until a peer with this name joins. Pass peerId OR peerName, not both."
         },
         "question": {
           "type": "string",
@@ -496,7 +512,6 @@
         }
       },
       "required": [
-        "peerId",
         "question"
       ],
       "additionalProperties": false,

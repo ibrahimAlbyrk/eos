@@ -398,6 +398,7 @@ export const UiBackendDescriptorSchema = z.object({
   capabilities: z.object({
     interrupt: z.boolean(),
     keystroke: z.boolean(),
+    rewind: z.boolean(),
     runtimeModelSwitch: z.boolean(),
     runtimePermissionSwitch: z.boolean(),
     reportsMessageEvents: z.boolean().optional(),
@@ -1213,10 +1214,27 @@ export const PeerListItemSchema = z.object({
 export type PeerListItem = z.infer<typeof PeerListItemSchema>;
 export const PeerListResponseSchema = z.array(PeerListItemSchema);
 
-// POST /workers/:id/peer-request — :id is the TARGET peer. fromWorker is the
-// asker's declared id (selfId from EOS_WORKER_ID); scoped by assertPeers.
+// How a peer is addressed in a consult. Exactly one of { id, name }: an `id`
+// (from list_peers) targets a known live sibling; a `name` (the slug the
+// orchestrator gave the peer, surfaced in the consumer's directive) is the
+// order-independent handle — it resolves even before that peer has spawned, so
+// the consult can wait for it to arrive.
+export const PeerRefSchema = z
+  .object({
+    id: z.string().min(1).optional(),
+    name: z.string().min(1).optional(),
+  })
+  .refine((r) => (r.id != null) !== (r.name != null), {
+    message: "peer target must carry exactly one of { id, name }",
+  });
+export type PeerRef = z.infer<typeof PeerRefSchema>;
+
+// POST /workers/:fromWorker/peer-request — :fromWorker (path) is the ASKER's
+// declared id (selfId from EOS_WORKER_ID). `target` names the peer to consult;
+// it may resolve to a sibling that hasn't spawned yet, in which case the request
+// waits for it (registerAwaiting) instead of failing.
 export const PeerRequestRegisterRequestSchema = z.object({
-  fromWorker: z.string().min(1),
+  target: PeerRefSchema,
   question: z.string().min(1),
 });
 export type PeerRequestRegisterRequest = z.infer<typeof PeerRequestRegisterRequestSchema>;
@@ -1231,9 +1249,9 @@ export const PeerRequestRegisterResponseSchema = z.object({
 });
 export type PeerRequestRegisterResponse = z.infer<typeof PeerRequestRegisterResponseSchema>;
 
-// GET /workers/:id/peer-request/:requestId — the asker polls. queued/delivered
-// both surface as "pending"; "gone" = no longer tracked (peer died, asker
-// interrupted, daemon restarted). Always 200 — route on status, not HTTP code.
+// GET /workers/:fromWorker/peer-request/:requestId — the asker polls. awaiting/
+// queued/delivered all surface as "pending"; "gone" = no longer tracked (peer
+// died, asker interrupted, daemon restarted). Always 200 — route on status.
 export const PeerRequestPollResponseSchema = z.object({
   status: z.enum(["pending", "answered", "declined", "gone"]),
   answer: z.string().optional(),
@@ -1597,6 +1615,24 @@ export const IntegrateWorkersResponseSchema = z.object({
 });
 export type IntegrateWorkersResponse = z.infer<typeof IntegrateWorkersResponseSchema>;
 
+// ---- GET /datetime ---------------------------------------------------------
+// The current date+time on the device running the daemon (the user's Mac).
+// Single source of truth for the current_datetime MCP tool's return shape:
+// epochMs is the ambiguity-free UTC anchor; iso is local wall-clock WITH the
+// device offset; utc is the Z form; timeZone + utcOffsetMinutes (DST-correct,
+// evaluated at this instant) let a model reason about future/other zones;
+// formatted is a numeric human one-liner (no Intl needed in core).
+
+export const CurrentDateTimeResponseSchema = z.object({
+  epochMs: z.number().int(),
+  iso: z.string(),
+  utc: z.string(),
+  timeZone: z.string(),
+  utcOffsetMinutes: z.number().int(),
+  formatted: z.string(),
+});
+export type CurrentDateTimeResponse = z.infer<typeof CurrentDateTimeResponseSchema>;
+
 export const ROUTES = {
   health: "/health",
   stream: "/stream",
@@ -1620,6 +1656,7 @@ export const ROUTES = {
   pending: "/pending",
   pendingDecision: (id: string): string => `/pending/${id}/decision`,
   metrics: "/metrics",
+  datetime: "/datetime",
   uiConfig: "/api/ui-config",
   pickDirectory: "/pick-directory",
   pickFile: "/pick-file",
@@ -1674,8 +1711,8 @@ export const ROUTES = {
   workerQuestionPoll: (id: string, questionId: string): string => `/workers/${id}/question/${questionId}`,
   workerQuestionAnswer: (id: string): string => `/workers/${id}/question-answer`,
   workerPeers: (id: string): string => `/workers/${id}/peers`,
-  workerPeerRequest: (id: string): string => `/workers/${id}/peer-request`,
-  workerPeerRequestPoll: (id: string, requestId: string): string => `/workers/${id}/peer-request/${requestId}`,
+  workerPeerRequest: (fromWorker: string): string => `/workers/${fromWorker}/peer-request`,
+  workerPeerRequestPoll: (fromWorker: string, requestId: string): string => `/workers/${fromWorker}/peer-request/${requestId}`,
   workerPeerResponse: (id: string): string => `/workers/${id}/peer-response`,
   workerNotify: (id: string): string => `/workers/${id}/notify`,
   workerReport: (id: string): string => `/workers/${id}/report`,

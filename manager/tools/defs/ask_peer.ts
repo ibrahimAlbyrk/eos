@@ -4,7 +4,9 @@ import type { ToolDefinition } from "../types.ts";
 // Register-then-poll, mirroring ask_user: a single long-lived wait would hit the
 // CLI's MCP ceiling, so short GETs every few seconds block until the peer
 // answers (it may take a while — the peer has to work). The answerer is another
-// agent (via respond_to_peer), not a human.
+// agent (via respond_to_peer), not a human. Addressed by name, the consult also
+// blocks while the named peer hasn't spawned yet — it parks server-side
+// (awaiting → reads as pending here) until that peer joins, then is delivered.
 const POLL_INTERVAL_MS = 2500;
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -25,15 +27,24 @@ export const askPeerDef: ToolDefinition = {
   name: "ask_peer",
   visibility: "peer",
   inputSchema: {
-    peerId: z.string().describe("The id of the peer to consult (from list_peers)."),
+    peerId: z.string().optional().describe(
+      "The id of the peer to consult (from list_peers) — for a peer you can already see.",
+    ),
+    peerName: z.string().optional().describe(
+      "The name of the peer to consult (the slug the orchestrator gave it, e.g. 'auth-expert'). Use this when the peer may not have spawned yet — the consult waits until a peer with this name joins. Pass peerId OR peerName, not both.",
+    ),
     question: z.string().describe(
       "One focused, self-contained question, with the context the peer needs to answer.",
     ),
   },
   handler: async (ctx, args) => {
-    const { peerId, question } = args as { peerId: string; question: string };
-    const reg = (await ctx.api("POST", `/workers/${peerId}/peer-request`, {
-      fromWorker: ctx.selfId,
+    const { peerId, peerName, question } = args as { peerId?: string; peerName?: string; question: string };
+    const target = peerId != null ? { id: peerId } : peerName != null ? { name: peerName } : null;
+    if (!target) {
+      return "Pass either peerId (from list_peers) or peerName (the name the orchestrator gave the peer). Nothing was sent.";
+    }
+    const reg = (await ctx.api("POST", `/workers/${ctx.selfId}/peer-request`, {
+      target,
       question,
     })) as RegisterResult;
     if (!reg.requestId) {
@@ -46,7 +57,7 @@ export const askPeerDef: ToolDefinition = {
       try {
         state = (await ctx.api(
           "GET",
-          `/workers/${peerId}/peer-request/${reg.requestId}`,
+          `/workers/${ctx.selfId}/peer-request/${reg.requestId}`,
         )) as PollState;
       } catch {
         continue; // transient daemon hiccup — the request still stands

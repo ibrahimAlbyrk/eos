@@ -115,6 +115,13 @@ export interface DaemonConfig {
     retryOnFailed: boolean;
     judge: { model: string; temperature: number };
   };
+  // Peer collaboration (collaborate: true workers). awaitTimeoutMs: how long an
+  // ask_peer consult to a not-yet-spawned peer waits for that peer to join
+  // before it declines (so a consumer spawned before its providers blocks rather
+  // than failing, but never hangs forever on a peer that never arrives).
+  collaborate: {
+    awaitTimeoutMs: number;
+  };
   // Daemon-side micro-tasks: small predetermined-prompt Haiku tasks triggered off
   // the EventBus (auto-naming is the first). `enabled` gates the whole subsystem;
   // `pauseMaxMs` is the drop-safety deadline that auto-resumes a paused run if a
@@ -232,16 +239,18 @@ export function defaults(): DaemonConfig {
     memory: {
       enabled: true,
       sources: {
-        // The repo's only built-in source. The claude-cli binary auto-loads it
-        // (assumeNativeFor) so only non-CLI lanes inject it; add AGENTS.md or other
-        // sources by dropping entries here in ~/.eos/config.json — no code change.
+        // The repo's only built-in source. Both claude lanes auto-load it now
+        // (assumeNativeFor): claude-cli always did, and claude-sdk does too since
+        // its settingSources include "project" — so selectInjectableMemory drops it
+        // for both and never double-injects. Add AGENTS.md or other sources by
+        // dropping entries here in ~/.eos/config.json — no code change.
         claude: {
           enabled: true,
           label: "CLAUDE.md",
           userPaths: ["~/.claude/CLAUDE.md"],
           projectFilenames: ["CLAUDE.md"],
           priority: 0,
-          assumeNativeFor: ["claude-cli"],
+          assumeNativeFor: ["claude-cli", "claude-sdk"],
         },
       },
     },
@@ -262,6 +271,9 @@ export function defaults(): DaemonConfig {
       stopOnNoProgress: true,
       retryOnFailed: false,
       judge: { model: "sonnet", temperature: 0.1 },
+    },
+    collaborate: {
+      awaitTimeoutMs: envNum("EOS_COLLABORATE_AWAIT_TIMEOUT_MS", 120000),
     },
     microTasks: {
       enabled: true,
@@ -360,6 +372,9 @@ export const DaemonConfigOverrideSchema = z.object({
     stopOnNoProgress: z.boolean(),
     retryOnFailed: z.boolean(),
     judge: z.object({ model: z.string(), temperature: z.number() }).partial(),
+  }).partial().optional(),
+  collaborate: z.object({
+    awaitTimeoutMs: z.number().int().positive(),
   }).partial().optional(),
   microTasks: z.object({
     enabled: z.boolean(),

@@ -32,6 +32,7 @@ import {
   type OpenInRequest,
 } from "../../contracts/src/http.ts";
 import type { WorkerRow } from "../../contracts/src/worker.ts";
+import type { AgentBackend, WorkerHandle } from "../../core/src/ports/AgentBackend.ts";
 
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
 import { errMsg } from "../../contracts/src/util.ts";
@@ -39,7 +40,7 @@ import { processWorkerEvent } from "../../core/src/use-cases/ProcessWorkerEvent.
 import { toCanonicalEvents } from "../../spawner/canonical-map.ts";
 import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermissionMode.ts";
 import { assertOwnedBy } from "../../core/src/services/WorkerOwnership.ts";
-import { assertPeers, listPeersOf, isConsultable } from "../../core/src/services/Peers.ts";
+import { listPeersOf, resolvePeerRef } from "../../core/src/services/Peers.ts";
 import { setWorkerModel } from "../../core/src/use-cases/SetWorkerModel.ts";
 import { expandPath } from "../shared/path.ts";
 import { appendSynthesized } from "../shared/synthesized-events.ts";
@@ -128,6 +129,31 @@ function withLoopState(c: Container, rows: WorkerRow[]): WorkerRow[] {
 
 
 export function registerWorkerRoutes(r: Router, c: Container): void {
+  // Resolve the AgentBackend a worker runs on (mirrors the /model route's
+  // backend resolution): its backend_kind, falling back to the PTY backend for
+  // legacy/null rows. Lets capability-gated routes branch on the descriptor's
+  // capabilities, never on a port or a kind literal.
+  const backendOf = (w: WorkerRow): AgentBackend => {
+    const kind = w.backend_kind ?? "claude-cli";
+    return c.backends.has(kind) ? c.backends.get(kind) : c.claudeCliBackend;
+  };
+  // The handle backend.attach() reconstructs a session from — same shape
+  // DispatchMessage builds: a loopback port for out-of-process (claude-cli), an
+  // opaque ref for in-process (claude-sdk).
+  const handleOf = (w: WorkerRow, backend: AgentBackend): WorkerHandle =>
+    backend.descriptor.processModel === "in-process"
+      ? { kind: "inproc", ref: w.id }
+      : { kind: "http", port: w.port ?? 0, pid: w.pid ?? null };
+  // A SUSPENDED peer is consultable only when its backend revives into a live
+  // in-process session on demand (the claude-sdk lane): the peer-request route
+  // then resumes it before delivering, mirroring resumeIfDead on the
+  // orchestrator message route. Reads the descriptor (processModel + resumable),
+  // never a kind literal — claude-cli is out-of-process, so it stays declined.
+  const canLazyResume = (w: WorkerRow): boolean => {
+    const d = backendOf(w).descriptor;
+    return d.processModel === "in-process" && d.capabilities.resumable === true;
+  };
+
   r.get("/workers", ({ url, res }) => {
     const parentId = url.searchParams.get("parentId");
     const rows = parentId ? c.workers.listByParent(parentId) : c.workers.listAll();
@@ -385,7 +411,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
   // list_peers — the collaborate-enabled, still-alive siblings :id may consult.
   r.get(/^\/workers\/(?<id>[^/]+)\/peers$/, ({ params, res }) => {
-    const peers = listPeersOf(c.workers, params.id).map((w) => ({
+    const peers = listPeersOf(c.workers, params.id, canLazyResume).map((w) => ({
       id: w.id,
       name: w.name ?? null,
       state: w.state,
@@ -394,40 +420,63 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, 200, peers);
   });
 
-  // ask_peer registration — :id is the TARGET peer; fromWorker is the asker. The
-  // PeerRequestPump delivers the question into the target's PTY at its next IDLE
-  // and the asker polls the GET below until answered/declined/gone.
-  r.post(/^\/workers\/(?<id>[^/]+)\/peer-request$/, async ({ params, req, res }) => {
+  // ask_peer registration — :fromWorker (path) is the ASKER; body.target names the
+  // peer to consult (id or name). resolvePeerRef classifies the target:
+  //   resolved → register now (queued; the pump delivers at the target's IDLE)
+  //   absent   → the named peer hasn't spawned yet → registerAwaiting, and tryBind
+  //              binds it once it joins (or it declines at the wait deadline)
+  //   denied   → reject (self-consult, asker not in a mesh, or an ambiguous name)
+  // The asker polls the GET below until answered/declined/gone.
+  r.post(/^\/workers\/(?<fromWorker>[^/]+)\/peer-request$/, async ({ params, req, res }) => {
     const body = validate(PeerRequestRegisterRequestSchema, await readBody(req));
-    // Scope: asker and target must be collaboration peers (siblings, both opted in).
-    assertPeers(c.workers, body.fromWorker, params.id);
-    const target = c.workers.findById(params.id);
-    if (!target || !isConsultable(target)) {
-      writeJson(res, 200, { declined: true, reason: `peer ${target?.name ?? params.id} is not available to consult right now` });
+    const resolution = resolvePeerRef(c.workers, params.fromWorker, body.target, canLazyResume);
+    if (resolution.kind === "denied") {
+      writeJson(res, 200, { declined: true, reason: resolution.reason });
       return;
     }
+    if (resolution.kind === "absent") {
+      // resolvePeerRef returns "absent" only for an asker already validated as a
+      // collaboration member, so its parent_id is non-null here.
+      const asker = c.workers.findById(params.fromWorker);
+      const { requestId } = c.pendingPeerRequests.registerAwaiting(
+        params.fromWorker, asker!.parent_id!, body.target, body.question,
+      );
+      // "consulting <peer>" marker on the asker's timeline; no target pane to
+      // refresh yet, so the default (asker) worker:change applies.
+      appendSynthesized(c, params.fromWorker, "peer_consult", {
+        requestId, toWorker: null, toName: body.target.name ?? null, question: body.question, awaiting: true,
+      });
+      writeJson(res, 200, { requestId });
+      return;
+    }
+    const target = resolution.target;
     // A worker blocked in ask_peer is mid-turn (never IDLE), so a circular wait
     // would deadlock the pump's auto-decline. Reject it at registration.
-    if (c.pendingPeerRequests.wouldDeadlock(body.fromWorker, params.id)) {
-      writeJson(res, 200, { declined: true, reason: `consulting ${target.name ?? params.id} would create a circular wait — answer from what you already have, or restructure` });
+    if (c.pendingPeerRequests.wouldDeadlock(params.fromWorker, target.id)) {
+      writeJson(res, 200, { declined: true, reason: `consulting ${target.name ?? target.id} would create a circular wait — answer from what you already have, or restructure` });
       return;
     }
-    const { requestId } = c.pendingPeerRequests.register(body.fromWorker, params.id, body.question);
+    // A SUSPENDED target resolved above only because its backend can be lazily
+    // revived; revive it now (same helper the orchestrator message route uses) so
+    // the consult lands on a live IDLE session the pump can deliver to. No-op for
+    // an already-live target.
+    await resumeIfDead(c, target);
+    const { requestId } = c.pendingPeerRequests.register(params.fromWorker, target.id, body.question);
     // Durable "consulting <peer>" marker on the asker's timeline (the ask_peer
     // tool call also renders, but resolves only when the answer returns).
     // Nudge the pump via the target's worker:change — if the target is sitting
     // IDLE it delivers now; otherwise the request waits for its next IDLE.
     // pumpPeerFor self-guards on state, so the synthetic change is safe.
-    appendSynthesized(c, body.fromWorker, "peer_consult", {
-      requestId, toWorker: params.id, toName: target.name ?? null, question: body.question,
-    }, params.id);
+    appendSynthesized(c, params.fromWorker, "peer_consult", {
+      requestId, toWorker: target.id, toName: target.name ?? null, question: body.question,
+    }, target.id);
     writeJson(res, 200, { requestId });
   });
 
-  // Poll — always 200; the asker's ask_peer tool routes on `status` (queued and
-  // delivered both surface as "pending"; "gone" = peer died / asker interrupted
-  // / daemon restarted).
-  r.get(/^\/workers\/(?<id>[^/]+)\/peer-request\/(?<requestId>[^/]+)$/, ({ params, res }) => {
+  // Poll — always 200; the asker's ask_peer tool routes on `status` (awaiting,
+  // queued and delivered all surface as "pending"; "gone" = peer died / asker
+  // interrupted / daemon restarted).
+  r.get(/^\/workers\/(?<fromWorker>[^/]+)\/peer-request\/(?<requestId>[^/]+)$/, ({ params, res }) => {
     writeJson(res, 200, c.pendingPeerRequests.poll(params.requestId));
   });
 
@@ -460,6 +509,11 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
   r.post(/^\/workers\/(?<id>[^/]+)\/keystroke$/, async ({ params, req, res }) => {
     const worker = c.workers.findById(params.id);
+    // OUT OF SCOPE (flagged for follow-up): this `!worker?.port` gate has the same
+    // latent port=0 bug the rewind routes had — an in-process (claude-sdk) worker
+    // 404s here before any backend dispatch. Keystrokes are a PTY-only capability,
+    // so it's not user-visible today; route it through caps.keystroke + the session
+    // when the keystroke channel is generalized.
     if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
     if (!c.supervisor.has(params.id)) { writeJson(res, 409, { error: "worker not running" }); return; }
     const body = await readBody(req) as { keys?: string };
@@ -472,24 +526,39 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     writeJson(res, 200, { ok: true });
   });
 
+  // Rewind is a backend CAPABILITY, not a port: resolve the worker's backend and
+  // route through its AgentSession (DIP), so a port-less in-process (claude-sdk)
+  // worker degrades honestly to an empty list instead of the old `!worker?.port`
+  // 404. The panel renders an "unavailable" state when caps.rewind is false.
   r.get(/^\/workers\/(?<id>[^/]+)\/rewind-targets$/, async ({ params, res }) => {
     const worker = c.workers.findById(params.id);
-    if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
-    if (!c.supervisor.has(params.id)) { writeJson(res, 409, { error: "worker not running" }); return; }
-    const data = await c.httpWorkerClient.getRewindTargets(worker.port);
-    writeJson(res, 200, data);
+    if (!worker) { writeJson(res, 404, { error: "worker not found" }); return; }
+    const backend = backendOf(worker);
+    if (!backend.descriptor.capabilities.rewind) { writeJson(res, 200, { targets: [] }); return; }
+    const session = backend.attach(params.id, handleOf(worker, backend));
+    if (!session.getRewindTargets) { writeJson(res, 200, { targets: [] }); return; }
+    if (!session.isAlive()) { writeJson(res, 409, { error: "worker not running" }); return; }
+    writeJson(res, 200, await session.getRewindTargets());
   });
 
-  // Drives the native TUI rewind via the worker's keystroke choreography. The
-  // transcript is never truncated (Claude forks in memory), so on success we
-  // append conversation_rewound — the web chat hides the abandoned branch at
-  // that boundary and prefills the composer with the restored prompt.
+  // Drives the backend's rewind (claude-cli: the native TUI keystroke
+  // choreography). The transcript is never truncated (Claude forks in memory), so
+  // on success we append conversation_rewound — the web chat hides the abandoned
+  // branch at that boundary and prefills the composer with the restored prompt.
   r.post(/^\/workers\/(?<id>[^/]+)\/rewind$/, async ({ params, req, res }) => {
     const body = validate(RewindRequestSchema, await readBody(req));
     const worker = c.workers.findById(params.id);
-    if (!worker?.port) { writeJson(res, 404, { error: "worker not found" }); return; }
-    if (!c.supervisor.has(params.id)) { writeJson(res, 409, { error: "worker not running" }); return; }
-    const result = await c.httpWorkerClient.sendRewind(worker.port, { uuid: body.uuid, mode: body.mode });
+    if (!worker) { writeJson(res, 404, { error: "worker not found" }); return; }
+    const backend = backendOf(worker);
+    if (!backend.descriptor.capabilities.rewind) {
+      writeJson(res, 409, { ok: false, error: "rewind not supported on this backend" }); return;
+    }
+    const session = backend.attach(params.id, handleOf(worker, backend));
+    if (!session.rewind) {
+      writeJson(res, 409, { ok: false, error: "rewind not supported on this backend" }); return;
+    }
+    if (!session.isAlive()) { writeJson(res, 409, { error: "worker not running" }); return; }
+    const result = await session.rewind(body.uuid, body.mode);
     if (result.ok) {
       appendSynthesized(c, params.id, "conversation_rewound", {
         uuid: result.uuid,

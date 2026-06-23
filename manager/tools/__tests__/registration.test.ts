@@ -15,6 +15,7 @@ import { spawnWorkerDef } from "../defs/spawn_worker.ts";
 import { sendMessageToParentDef } from "../defs/send_message_to_parent.ts";
 import { askPeerDef } from "../defs/ask_peer.ts";
 import { dynamicLoopDef } from "../defs/dynamic_loop.ts";
+import { currentDatetimeDef } from "../defs/current_datetime.ts";
 
 const snapshot = JSON.parse(readFileSync(join(import.meta.dirname, "registration.snapshot.json"), "utf8"));
 
@@ -26,13 +27,14 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
       "spawn_worker", "list_active_workers", "get_worker", "kill_worker",
       "message_worker", "list_pending_permissions", "notify_user", "ask_user",
       "list_available_workers", "create_worker", "integrate_workers", "dynamic_loop",
+      "current_datetime",
     ]);
   });
 
   it("worker (always-on) tools match", () => {
     const fp = fingerprintModules(workerDefs.map((d) => toMcpModule(d, workerCtx)), FAKE_WORKER_SESSION);
     assert.deepEqual(fp, snapshot.worker);
-    assert.deepEqual(Object.keys(fp), ["send_message_to_parent"]);
+    assert.deepEqual(Object.keys(fp), ["send_message_to_parent", "current_datetime"]);
   });
 
   it("peer (collaborate-only) tools match", () => {
@@ -92,11 +94,24 @@ describe("tool handlers issue the expected daemon calls", () => {
     assert.equal(res, "Message delivered to orchestrator.");
   });
 
-  it("ask_peer addresses the peer in the path, carries fromWorker in the body, early-returns when declined", async () => {
+  it("ask_peer is asker-keyed, carries the target ref in the body, early-returns when declined", async () => {
     const { ctx, calls } = recording({}, { reason: "busy" }); // no requestId -> no poll loop
     const res = await askPeerDef.handler(ctx, { peerId: "p-2", question: "q" });
-    assert.deepEqual(calls, [{ method: "POST", path: "/workers/p-2/peer-request", body: { fromWorker: "self-1", question: "q" } }]);
+    assert.deepEqual(calls, [{ method: "POST", path: "/workers/self-1/peer-request", body: { target: { id: "p-2" }, question: "q" } }]);
     assert.equal(res, "busy");
+  });
+
+  it("ask_peer addresses a not-yet-spawned peer by name", async () => {
+    const { ctx, calls } = recording({}, { reason: "busy" });
+    await askPeerDef.handler(ctx, { peerName: "auth-expert", question: "q" });
+    assert.deepEqual(calls[0], { method: "POST", path: "/workers/self-1/peer-request", body: { target: { name: "auth-expert" }, question: "q" } });
+  });
+
+  it("ask_peer with neither peerId nor peerName makes no daemon call", async () => {
+    const { ctx, calls } = recording();
+    const res = await askPeerDef.handler(ctx, { question: "q" });
+    assert.equal(calls.length, 0);
+    assert.match(res as string, /peerId.*peerName/);
   });
 
   it("dynamic_loop attach POSTs the request to /orchestrators/:self/loop", async () => {
@@ -111,5 +126,11 @@ describe("tool handlers issue the expected daemon calls", () => {
     const args = { op: "stop", loopId: "l-9" };
     await dynamicLoopDef.handler(ctx, args);
     assert.deepEqual(calls, [{ method: "POST", path: "/orchestrators/self-1/loop/stop", body: args }]);
+  });
+
+  it("current_datetime issues exactly GET /datetime", async () => {
+    const { ctx, calls } = recording();
+    await currentDatetimeDef.handler(ctx, {});
+    assert.deepEqual(calls, [{ method: "GET", path: "/datetime", body: undefined }]);
   });
 });

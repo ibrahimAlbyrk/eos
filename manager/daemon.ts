@@ -51,6 +51,7 @@ import { registerWorkerDefinitionRoutes } from "./routes/worker-definitions.ts";
 import { registerSettingsRoutes } from "./routes/settings.ts";
 import { registerUpdateRoutes } from "./routes/updates.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
+import { registerDatetimeRoutes } from "./routes/datetime.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
 import { registerFsRawRoutes } from "./routes/fs-raw.ts";
 import { registerCommandCatalog } from "./commands/register.ts";
@@ -73,6 +74,7 @@ registerStreamRoutes(router, c);
 // wins.
 registerUiConfigRoutes(router, c);
 registerMetricsRoutes(router, c);
+registerDatetimeRoutes(router, c);
 registerFsPickerRoutes(router, c);
 registerFsReadRoutes(router, c);
 registerFsMutateRoutes(router, c);
@@ -242,6 +244,22 @@ c.bus.subscribe("worker:change", (msg) => {
   if (pumpPeerFor(p.workerId)) return;
   if (p.state !== "IDLE" && p.queued !== true) return;
   drainFor(p.workerId);
+});
+
+// Order-independent peer discovery — a newly-spawned collaborate worker may be
+// the provider an earlier consumer already asked for (ask_peer registered before
+// the provider's row existed → parked as "awaiting"). Re-resolve the awaiting
+// consults in its group: a matching one binds (→ queued) and the pump delivers
+// it at the provider's next IDLE; nudge any bound target that is already IDLE so
+// it pumps now. tryBind is idempotent and group-scoped, so this is cheap.
+c.bus.subscribe("worker:spawn", (msg) => {
+  const p = msg.payload as { workerId?: string };
+  if (!p?.workerId) return;
+  const w = c.workers.findById(p.workerId);
+  if (!w?.collaborate || !w.parent_id) return;
+  for (const targetId of c.pendingPeerRequests.tryBind(w.parent_id, c.workers)) {
+    c.bus.publish("worker:change", { workerId: targetId });
+  }
 });
 
 // Dynamic-loop arm — closes the dormant-loop race: a loop attached AFTER the

@@ -2,7 +2,24 @@ import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import type { IdGenerator } from "../../../core/src/ports/IdGenerator.ts";
 import type { Clock } from "../../../core/src/ports/Clock.ts";
+import type { WorkerRow } from "../../../contracts/src/worker.ts";
 import { PendingPeerRequestService } from "../PendingPeerRequestService.ts";
+
+function wrow(p: Partial<WorkerRow> & { id: string }): WorkerRow {
+  return {
+    id: p.id, state: p.state ?? "IDLE", cwd: null, worktree_from: null, branch: null,
+    prompt: "do", name: p.name ?? null, pid: null, port: 1, started_at: 0, ended_at: null,
+    exit_code: null, parent_id: p.parent_id ?? null, collaborate: p.collaborate ?? null,
+  } as WorkerRow;
+}
+
+function wrepo(rows: WorkerRow[]) {
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  return {
+    findById: (id: string) => byId.get(id) ?? null,
+    listByParent: (pid: string) => rows.filter((r) => r.parent_id === pid),
+  };
+}
 
 class FakeIdGenerator implements IdGenerator {
   private counter = 0;
@@ -110,5 +127,60 @@ describe("PendingPeerRequestService", () => {
     svc.register("B", "C", "");
     assert.equal(svc.wouldDeadlock("C", "A"), true);
     assert.equal(svc.wouldDeadlock("C", "D"), false);
+  });
+
+  it("an awaiting consult parks as pending and is not deliverable until bound", () => {
+    const { requestId } = svc.registerAwaiting("A", "P", { name: "prov" }, "need the schema");
+    assert.deepEqual(svc.poll(requestId), { status: "pending" });
+    assert.equal(svc.nextQueuedFor("B"), null); // no target bound yet
+  });
+
+  it("tryBind binds an awaiting consult to a newly-arrived peer (→ queued, deliverable)", () => {
+    const { requestId } = svc.registerAwaiting("A", "P", { name: "prov" }, "need the schema");
+    const workers = wrepo([
+      wrow({ id: "A", name: "consumer", parent_id: "P", collaborate: 1 }),
+      wrow({ id: "B", name: "prov", parent_id: "P", collaborate: 1, state: "IDLE" }),
+    ]);
+    assert.deepEqual(svc.tryBind("P", workers), ["B"]);
+    assert.equal(svc.nextQueuedFor("B")?.requestId, requestId);
+    assert.deepEqual(svc.poll(requestId), { status: "pending" }); // pending until answered
+  });
+
+  it("consumer-before-provider: parks, binds on the provider's arrival, then delivers + answers", () => {
+    const { requestId } = svc.registerAwaiting("C", "P", { name: "schema-owner" }, "what columns?");
+    // Provider not spawned yet — tryBind leaves it awaiting.
+    const before = wrepo([wrow({ id: "C", name: "consumer", parent_id: "P", collaborate: 1 })]);
+    assert.deepEqual(svc.tryBind("P", before), []);
+    assert.deepEqual(svc.poll(requestId), { status: "pending" });
+    // Provider arrives → bind, deliver, answer.
+    const after = wrepo([
+      wrow({ id: "C", name: "consumer", parent_id: "P", collaborate: 1 }),
+      wrow({ id: "S", name: "schema-owner", parent_id: "P", collaborate: 1, state: "IDLE" }),
+    ]);
+    assert.deepEqual(svc.tryBind("P", after), ["S"]);
+    assert.equal(svc.nextQueuedFor("S")?.requestId, requestId);
+    svc.markDelivered(requestId);
+    assert.deepEqual(svc.resolveDelivered("S", "id, name, ts"), { requestId, from: "C" });
+    assert.deepEqual(svc.poll(requestId), { status: "answered", answer: "id, name, ts" });
+  });
+
+  it("an awaiting consult declines once its wait window expires", () => {
+    const local = new PendingPeerRequestService(new FakeIdGenerator(), clock, 1000);
+    const { requestId } = local.registerAwaiting("A", "P", { name: "never" }, "q");
+    clock.t = 999;
+    assert.deepEqual(local.poll(requestId), { status: "pending" }); // within window
+    clock.t = 1000;
+    assert.equal(local.poll(requestId).status, "declined"); // deadline reached
+  });
+
+  it("tryBind declines an awaiting consult that would close a cycle at bind time", () => {
+    svc.register("B", "A", "b asks a"); // B already waits on A (B→A edge)
+    const { requestId } = svc.registerAwaiting("A", "P", { id: "B" }, "a asks b");
+    const workers = wrepo([
+      wrow({ id: "A", name: "a", parent_id: "P", collaborate: 1 }),
+      wrow({ id: "B", name: "b", parent_id: "P", collaborate: 1, state: "IDLE" }),
+    ]);
+    assert.deepEqual(svc.tryBind("P", workers), []); // binding A→B would close B→A→B, so not bound
+    assert.equal(svc.poll(requestId).status, "declined");
   });
 });
