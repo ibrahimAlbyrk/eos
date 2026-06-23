@@ -4,7 +4,7 @@ import { spawnBackendError } from "../spawn-backend.ts";
 import type { AgentBackend, AgentCapabilities } from "../../../core/src/ports/AgentBackend.ts";
 import type { ResolvedBackend } from "../../../core/src/ports/BackendDefaults.ts";
 
-const caps: AgentCapabilities = { interrupt: true, keystroke: false, runtimeModelSwitch: false, runtimePermissionSwitch: false };
+const caps: AgentCapabilities = { interrupt: true, keystroke: false, rewind: false, runtimeModelSwitch: false, runtimePermissionSwitch: false };
 function backend(over: { kind?: string; billing?: "subscription" | "metered"; enabled?: boolean }): AgentBackend {
   const kind = over.kind ?? "claude-sdk";
   return {

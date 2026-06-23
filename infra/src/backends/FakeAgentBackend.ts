@@ -23,6 +23,7 @@ export interface FakeSessionRecord {
 const FAKE_CAPS: AgentCapabilities = {
   interrupt: true,
   keystroke: true,
+  rewind: false,
   runtimeModelSwitch: false,
   runtimePermissionSwitch: false,
   contextClear: true,

@@ -6,7 +6,7 @@ import type { BackendDescriptor } from "../ports/AgentBackend.ts";
 function desc(over: Partial<BackendDescriptor> = {}): BackendDescriptor {
   return {
     kind: "claude-cli", label: "X", processModel: "out-of-process", billing: "subscription",
-    modelSource: "request", capabilities: { interrupt: true, keystroke: true, runtimeModelSwitch: true, runtimePermissionSwitch: true },
+    modelSource: "request", capabilities: { interrupt: true, keystroke: true, rewind: true, runtimeModelSwitch: true, runtimePermissionSwitch: true },
     models: { kind: "claude" }, auth: "subscription", enabled: true, sessionStore: "claude-transcript",
     ...over,
   };

@@ -66,7 +66,7 @@ function fakeBackend(kind: string, reportsMessageEvents: boolean, sends: Array<{
   const session = {
     workerId: "w1",
     handle: { kind: "http", port: 7501, pid: 42 },
-    capabilities: { interrupt: true, keystroke: true, runtimeModelSwitch: true, runtimePermissionSwitch: true, reportsMessageEvents },
+    capabilities: { interrupt: true, keystroke: true, rewind: true, runtimeModelSwitch: true, runtimePermissionSwitch: true, reportsMessageEvents },
     sendMessage: async (text: string, record?: MessageRecord) => {
       sends.push({ text, record });
       return { ok: true, status: 200, body: { ok: true } };

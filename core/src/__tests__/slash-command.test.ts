@@ -36,7 +36,7 @@ describe("parseSlash — exact-allowlist matching", () => {
 
 describe("clearCommand", () => {
   const caps = (over: Partial<AgentCapabilities> = {}): AgentCapabilities =>
-    ({ interrupt: true, keystroke: false, runtimeModelSwitch: false, runtimePermissionSwitch: false, ...over });
+    ({ interrupt: true, keystroke: false, rewind: false, runtimeModelSwitch: false, runtimePermissionSwitch: false, ...over });
 
   it("accepts only no-arg invocations on a context-clear-capable backend", () => {
     assert.equal(clearCommand.accepts("", caps({ contextClear: true })), true);
@@ -84,7 +84,7 @@ function harness(opts: { state?: string; contextClear?: boolean } = {}): Harness
   const session = {
     workerId: "w1",
     handle: { kind: "http", port: 7501, pid: 42 },
-    capabilities: { interrupt: true, keystroke: true, runtimeModelSwitch: false, runtimePermissionSwitch: false, reportsMessageEvents: true, contextClear: opts.contextClear ?? true },
+    capabilities: { interrupt: true, keystroke: true, rewind: true, runtimeModelSwitch: false, runtimePermissionSwitch: false, reportsMessageEvents: true, contextClear: opts.contextClear ?? true },
     sendMessage: async (text: string) => { sends.push(text); return { ok: true, status: 200, body: { ok: true } }; },
     clearContext: async () => { clears++; return { ok: true }; },
   } as unknown as AgentSession;

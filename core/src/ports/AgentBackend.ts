@@ -9,7 +9,7 @@
 // opaque ref. Replaces the bare `port` + `pid` columns at the call sites.
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import type { AuthRef } from "../../../contracts/src/backend.ts";
-import type { MessageRecord } from "./WorkerClient.ts";
+import type { MessageRecord, RewindResult } from "./WorkerClient.ts";
 import type { SpawnWorkerSpec } from "../use-cases/SpawnWorker.ts";
 
 export type WorkerHandle =
@@ -21,6 +21,13 @@ export type WorkerHandle =
 export interface AgentCapabilities {
   readonly interrupt: boolean;
   readonly keystroke: boolean;
+  /** True when the backend can rewind its live conversation to a prior user
+   *  message (the double-Esc panel). Decoupled from `keystroke` (ISP):
+   *  claude-cli realizes it via PTY keystroke choreography, but a future backend
+   *  could rewind through a native fork primitive with no raw keystroke channel.
+   *  claude-sdk's query() exposes no fork/rewind primitive → false. The rewind
+   *  route + UI panel gate on THIS flag, never on backend kind. */
+  readonly rewind: boolean;
   readonly runtimeModelSwitch: boolean;
   readonly runtimePermissionSwitch: boolean;
   /** True when the backend emits the user_message/orchestrator_message chat
@@ -138,6 +145,13 @@ export interface AgentSession {
   // claude-sdk: restart the query with a fresh session. in-process: drop the
   // message buffer + clear the abort flag. An incapable session omits it.
   clearContext?(): Promise<{ ok: boolean }>;
+  // Rewind the live conversation to a prior user message (the double-Esc panel).
+  // Only meaningful when capabilities.rewind is true — callers gate on that flag;
+  // an incapable session omits BOTH methods. CLI: getRewindTargets reads the
+  // transcript; rewind replays the TUI keystroke choreography over the PTY.
+  // claude-sdk: query() has no fork primitive, so the session omits them.
+  getRewindTargets?(): Promise<{ targets: unknown[] }>;
+  rewind?(uuid: string, mode: string): Promise<RewindResult>;
   // Switch the model (and optional effort) for subsequent turns on the LIVE
   // session. Only meaningful when capabilities.runtimeModelSwitch is true —
   // callers gate on that flag; an incapable session may no-op. effort has no

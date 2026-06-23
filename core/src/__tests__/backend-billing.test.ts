@@ -4,7 +4,7 @@ import { isMeteredBackend, meteredNeedsBilledIntent } from "../domain/backend-bi
 import type { ResolvedBackend } from "../ports/BackendDefaults.ts";
 import type { BackendDescriptor } from "../ports/AgentBackend.ts";
 
-const caps = { interrupt: true, keystroke: false, runtimeModelSwitch: true, runtimePermissionSwitch: true };
+const caps = { interrupt: true, keystroke: false, rewind: false, runtimeModelSwitch: true, runtimePermissionSwitch: true };
 const desc = (over: Partial<BackendDescriptor>): BackendDescriptor => ({
   kind: "claude-sdk", label: "x", processModel: "in-process", billing: "subscription",
   modelSource: "request", capabilities: caps, models: { kind: "claude" }, auth: "subscription", enabled: true, sessionStore: "claude-transcript", ...over,

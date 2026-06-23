@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
+import { backendCaps } from "../../../lib/backendCaps.js";
 
 // Double-Esc rewind panel (Claude Code parity). Lists the user prompts on the
 // agent's active transcript branch; Enter restores the conversation to before
@@ -17,9 +18,12 @@ export function RewindPanel({ live }) {
 
   const worker = live.workers.find((w) => w.id === workerId) ?? null;
   const busy = worker && (worker.state === "WORKING" || worker.state === "SPAWNING");
+  // Rewind is a backend capability — claude-cli drives the native TUI panel, but
+  // claude-sdk's query() has no fork primitive. Gate on the data, never on kind.
+  const canRewind = backendCaps(worker?.backend_kind).rewind;
 
   useEffect(() => {
-    if (!workerId) return;
+    if (!workerId || !canRewind) return;
     let cancelled = false;
     setTargets(null);
     setError(null);
@@ -35,7 +39,7 @@ export function RewindPanel({ live }) {
       }
     });
     return () => { cancelled = true; };
-  }, [workerId]);
+  }, [workerId, canRewind]);
 
   const doRewind = async (mode) => {
     if (rewinding || busy || !targets) return;
@@ -98,26 +102,36 @@ export function RewindPanel({ live }) {
           </button>
         </div>
         <div className="rw-sub">Restore the conversation to a previous message</div>
-        {busy && <div className="rw-note">Agent is busy — interrupt it before rewinding.</div>}
-        {error && <div className="rw-err">{error}</div>}
-        <div className="rw-list" ref={listRef}>
-          {targets === null && <div className="rw-empty">Loading…</div>}
-          {targets !== null && targets.length === 0 && !error && (
-            <div className="rw-empty">No messages to rewind to</div>
-          )}
-          {(targets ?? []).map((t, i) => (
-            <div
-              key={t.uuid}
-              className={i === sel ? "rw-item is-sel" : "rw-item"}
-              onMouseEnter={() => setSel(i)}
-              onClick={() => doRewind("conversation")}
-            >
-              {(t.display || t.text || "").split("\n", 1)[0]}
+        {!canRewind ? (
+          <div className="rw-list">
+            <div className="rw-empty">Rewind isn't available on this backend yet</div>
+          </div>
+        ) : (
+          <>
+            {busy && <div className="rw-note">Agent is busy — interrupt it before rewinding.</div>}
+            {error && <div className="rw-err">{error}</div>}
+            <div className="rw-list" ref={listRef}>
+              {targets === null && <div className="rw-empty">Loading…</div>}
+              {targets !== null && targets.length === 0 && !error && (
+                <div className="rw-empty">No messages to rewind to</div>
+              )}
+              {(targets ?? []).map((t, i) => (
+                <div
+                  key={t.uuid}
+                  className={i === sel ? "rw-item is-sel" : "rw-item"}
+                  onMouseEnter={() => setSel(i)}
+                  onClick={() => doRewind("conversation")}
+                >
+                  {(t.display || t.text || "").split("\n", 1)[0]}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        )}
         <div className="rw-foot">
-          {rewinding ? (
+          {!canRewind ? (
+            <span><kbd>esc</kbd> close</span>
+          ) : rewinding ? (
             <span className="rw-status">Rewinding…</span>
           ) : (
             <>

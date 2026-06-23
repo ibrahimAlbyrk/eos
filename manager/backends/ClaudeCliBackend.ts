@@ -24,6 +24,8 @@ import type { SpawnWorkerSpec } from "../../core/src/use-cases/SpawnWorker.ts";
 const CLI_CAPS: AgentCapabilities = {
   interrupt: true,
   keystroke: true,
+  // Native TUI rewind (double-Esc) driven by PTY keystroke choreography.
+  rewind: true,
   runtimeModelSwitch: true,
   runtimePermissionSwitch: true,
   // The worker emits user_message/orchestrator_message itself when the text
@@ -61,6 +63,10 @@ export function createClaudeCliBackend(deps: ClaudeCliBackendDeps): AgentBackend
     sendMessage: (text, record) => deps.client.sendMessage(port, text, record),
     sendKeystroke: (keys) => deps.client.sendKeystroke(port, keys),
     interrupt: () => deps.client.sendInterrupt(port),
+    // Rewind over the same loopback channel the route used directly before — the
+    // worker exposes /rewind-targets + /rewind; the WorkerClient hits its port.
+    getRewindTargets: () => deps.client.getRewindTargets(port),
+    rewind: (uuid, mode) => deps.client.sendRewind(port, { uuid, mode }),
     // Native /clear: a record-less message to the PTY (the TUI runs the command
     // and rolls the session) — same control channel /model uses below. No record
     // ⇒ no user_message chat event. The SessionEnd(clear) hook still fires and is

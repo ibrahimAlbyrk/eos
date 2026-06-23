@@ -44,6 +44,7 @@ interface LiveSession {
 const CAPS: AgentCapabilities = {
   interrupt: true,
   keystroke: false,
+  rewind: false,
   runtimeModelSwitch: false,
   runtimePermissionSwitch: false,
   contextClear: true,

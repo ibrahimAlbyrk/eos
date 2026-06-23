@@ -25,7 +25,7 @@ export function providerOptions() {
 
 // Capabilities the UI gates controls on (keystroke rewind, runtime model switch).
 // Unknown/not-yet-loaded kind → PTY-permissive (don't disable a control on a guess).
-const PTY_DEFAULT_CAPS = { keystroke: true, runtimeModelSwitch: true };
+const PTY_DEFAULT_CAPS = { keystroke: true, rewind: true, runtimeModelSwitch: true };
 export function backendCaps(kind) {
   return (kind ? DESCRIPTORS.get(kind)?.capabilities : null) ?? PTY_DEFAULT_CAPS;
 }
