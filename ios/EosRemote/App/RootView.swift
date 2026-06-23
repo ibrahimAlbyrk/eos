@@ -27,8 +27,11 @@ struct RootView: View {
                 }
         }
         .environmentObject(model)
-        .sheet(isPresented: $showPairing) { PairingView() }
-        .sheet(isPresented: $showSpawn) { SpawnSheet() }
+        // Sheets are hosted in a separate environment and do NOT inherit the .environmentObject
+        // applied above — inject it explicitly, or @EnvironmentObject reads inside them trap
+        // ("No ObservableObject of type AppModel found"). Device-only: the Simulator never opened these.
+        .sheet(isPresented: $showPairing) { PairingView().environmentObject(model) }
+        .sheet(isPresented: $showSpawn) { SpawnSheet().environmentObject(model) }
         .onOpenURL { url in route(url) }
         .overlay(alignment: .bottom) { connectionBanner }
     }

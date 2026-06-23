@@ -47,6 +47,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.eos.remote.app
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
         INFOPLIST_KEY_NSCameraUsageDescription: "Scan the pairing QR shown by the Eos Mac app."
         INFOPLIST_KEY_NSFaceIDUsageDescription: "Authorize remote control actions with Face ID."
