@@ -74,12 +74,18 @@ export function makeRouteDispatch(router: Router): RouteDispatch {
   return async ({ method, path, body, uiToken }) => {
     const headers: Record<string, string> = { "content-type": "application/json" };
     if (uiToken) headers["x-eos-ui-token"] = uiToken;
-    const match = router.match(method, path);
+    // Route regexes are $-anchored, so match on the PATH only — the real server
+    // (daemon.ts) matches url.pathname for the same reason. The full path+query
+    // is still handed to the handler via `url` so url.searchParams works (e.g.
+    // /workers/:id/events?limit=…&order=…). Matching the raw path+query 404s
+    // every query-bearing READ over the control shim.
+    const url = new URL(`http://127.0.0.1${path}`);
+    const match = router.match(method, url.pathname);
     if (!match) return { status: 404, body: { error: "not found", path } };
     const res = virtualRes();
     const req = virtualReq(method, path, body, headers);
     await match.handler({
-      method, path, url: new URL(`http://127.0.0.1${path}`),
+      method, path, url,
       params: match.params, req, res: res as unknown as ServerResponse, requestId: "remote",
     });
     const raw = Buffer.concat(res.chunks).toString("utf8");

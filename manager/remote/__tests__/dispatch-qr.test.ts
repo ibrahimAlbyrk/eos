@@ -16,12 +16,25 @@ describe("makeRouteDispatch (virtual req/res into the real Router)", () => {
   function router(): Router {
     const r = new Router();
     r.get("/workers", ({ res }) => writeJson(res, 200, [{ id: "w1" }]));
+    // $-anchored regex like the real /workers/:id/events route — exercises query matching.
+    r.get(/^\/workers\/(?<id>[^/]+)\/events$/, ({ res, params, url }) =>
+      writeJson(res, 200, { id: params.id, limit: url.searchParams.get("limit"), order: url.searchParams.get("order") }));
     r.post(/^\/workers\/(?<id>[^/]+)\/message$/, async ({ req, res, params }) => {
       const body = await readBody(req);
       writeJson(res, 200, { delivered: params.id, text: body.text, token: req.headers["x-eos-ui-token"] ?? null });
     });
     return r;
   }
+
+  // Regression: a query-bearing READ over the control shim (e.g. the iOS transcript
+  // pull GET /workers/:id/events?limit=…&order=…) must match the $-anchored route
+  // and expose the query via url.searchParams — not 404 on the raw path+query.
+  it("matches a $-anchored route when the path carries a query string", async () => {
+    const dispatch = makeRouteDispatch(router());
+    const r = await dispatch({ method: "GET", path: "/workers/w1/events?limit=500&order=desc", body: {} });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body, { id: "w1", limit: "500", order: "desc" });
+  });
 
   it("dispatches a GET and returns the parsed JSON body + status", async () => {
     const dispatch = makeRouteDispatch(router());
