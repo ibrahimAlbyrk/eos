@@ -26,6 +26,8 @@ import { disallowedBuiltinToolsFor } from "../../../contracts/src/tool-scope.ts"
 const CAPS: AgentCapabilities = {
   interrupt: true,
   keystroke: false,
+  // query() exposes no fork/rewind primitive — the rewind route degrades honestly.
+  rewind: false,
   // query.setModel takes effect mid-session in streaming-input mode (the mode we
   // run) — wired in the session's setModel below. (effort has no live SDK lever;
   // it's persisted by SetWorkerModel and applied on the next resume.)
@@ -231,9 +233,18 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         disallowedTools: disallowedBuiltinToolsFor(spec.isOrchestrator),
         canUseTool: makeCanUseTool(spec.workerId, deps.policy),
         includePartialMessages: true,
-        // Isolate from the user's ~/.claude: no ambient MCP servers / settings-file
-        // tools leak in to drown Eos's tools (mirrors the PTY --strict-mcp-config).
-        settingSources: [] as Options["settingSources"],
+        // Load the user/project filesystem sources so the binary discovers skills
+        // (and agents/commands/CLAUDE.md) natively, exactly like the CLI lane —
+        // settingSources:[] suppressed that and broke user/project skills. MCP is
+        // still isolated independently by strictMcpConfig below (the explicit
+        // resolveSdkMcpServers set wins; ambient .mcp.json never leaks in).
+        settingSources: ["user", "project"] as Options["settingSources"],
+        // Permission allow/ask/deny rules from those settings.json files must NOT
+        // pre-approve a tool ahead of the Eos gateway: canUseTool only fires on the
+        // prompt path, so a settings `allow` rule would bypass it. Restricting
+        // permission rules to the (empty) managed tier neutralizes that — every
+        // call still routes through canUseTool → PolicyGatewayService.
+        managedSettings: { allowManagedPermissionRulesOnly: true } as Options["managedSettings"],
         strictMcpConfig: true,
         // display:"summarized" is required to stream thinking on Opus 4.7+ (it
         // otherwise defaults to omitted) — proven by the spike.

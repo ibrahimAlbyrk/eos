@@ -311,7 +311,8 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.equal(capturedOptions!.includePartialMessages, true);
     assert.equal(typeof capturedOptions!.canUseTool, "function");
     // tool-surface isolation + gating (Step A)
-    assert.deepEqual(capturedOptions!.settingSources, []);
+    assert.deepEqual(capturedOptions!.settingSources, ["user", "project"]); // load user/project so the binary discovers skills/agents/CLAUDE.md natively
+    assert.deepEqual(capturedOptions!.managedSettings, { allowManagedPermissionRulesOnly: true }); // settings permission rules can't pre-approve ahead of the Eos gateway
     assert.equal(capturedOptions!.strictMcpConfig, true);
     assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion"]); // worker spec (isOrchestrator:false) → AUQ only, Task kept
     assert.deepEqual(capturedOptions!.allowedTools, []); // nothing auto-approved → canUseTool gates every call
@@ -506,8 +507,8 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
   });
 
   // Inherited/external MCP servers reach query().mcpServers MERGED with the Eos
-  // builtin, while strictMcpConfig:true + settingSources:[] stay untouched (we pass
-  // an explicit complete set, never re-enabling native discovery).
+  // builtin; strictMcpConfig:true keeps MCP isolated to that explicit complete set
+  // (never re-enabling native MCP discovery), independent of settingSources.
   it("merges resolved inherited MCP servers into options.mcpServers alongside the Eos builtin", async () => {
     let capturedOptions: Record<string, unknown> | null = null;
     let resolverArgs: { builtinKeys: string[] } | null = null;
@@ -533,7 +534,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     const servers = capturedOptions!.mcpServers as Record<string, unknown>;
     assert.deepEqual(Object.keys(servers).sort(), ["context7", "worker"]); // builtin + external
     assert.equal(capturedOptions!.strictMcpConfig, true);
-    assert.deepEqual(capturedOptions!.settingSources, []);
+    assert.deepEqual(capturedOptions!.settingSources, ["user", "project"]);
     assert.equal(typeof capturedOptions!.canUseTool, "function");
   });
 
