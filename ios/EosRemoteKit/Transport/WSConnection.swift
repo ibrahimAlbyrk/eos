@@ -65,12 +65,27 @@ public actor WSConnection {
         try await task.send(.data(env.encode()))
     }
 
-    // Await exactly one inbound binary envelope (used only during the handshake phase).
-    public func receiveEnvelopeRaw() async throws -> Envelope {
+    // Await exactly one inbound binary envelope (used only during the handshake phase). Bounded by a
+    // timeout: a daemon that rejects a per-device handshake over the relay closes only its local
+    // session and sends NOTHING back, so without this the coordinator would await forever and the UI
+    // would sit on "connecting" with no retry and no re-pair. Timing out converts that silence into a
+    // throw the caller treats as transient → bounded backoff → eventual re-pair (never an infinite loop).
+    public func receiveEnvelopeRaw(timeoutMs: UInt64 = 15_000) async throws -> Envelope {
         guard let task else { throw WSError.notConnected }
-        let message = try await task.receive()
-        guard case .data(let data) = message else { throw WSError.badFrame }
-        return try Envelope.decode(data)
+        return try await withThrowingTaskGroup(of: Envelope.self) { group in
+            group.addTask {
+                let message = try await task.receive()
+                guard case .data(let data) = message else { throw WSError.badFrame }
+                return try Envelope.decode(data)
+            }
+            group.addTask {
+                try await Task.sleep(nanoseconds: timeoutMs * 1_000_000)
+                throw WSError.timeout
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next() else { throw WSError.timeout }
+            return first
+        }
     }
 
     // MARK: phase 2 — live

@@ -49,6 +49,11 @@ export interface GatewayDeps {
   now: () => number;
   pairing: PairingProvider;
   log?: (msg: string, extra?: Record<string, unknown>) => void;
+  // Relay mode: a device just enrolled (PAIR) or rotated its durable bearer (CONNECT). The new
+  // bearer hash MUST be added to the relay allowlist or the device's NEXT reopen (which joins on
+  // that durable bearer) is BEARER_DENIED — the cause of the reconnect loop. LAN mode leaves this
+  // undefined (no relay allowlist; /ws admits the bearer directly).
+  onEnrolled?: (bearerHashHex: string) => void;
 }
 
 // Admission: a bearer is allowed if it is an enrolled device bearer OR the
@@ -141,6 +146,10 @@ export class GatewayConnection {
     }
     // Complete: switch to the live record codec and deliver the welcome.
     this.goLive(result.codec, result.devId);
+    // Push the device's durable bearer hash to the relay allowlist so its next reopen can join
+    // (PAIR enrolls a new bearer; CONNECT rotates to a fresh one — both are unknown to the relay
+    // until announced here). Without this the device joins fine now but is BEARER_DENIED on reopen.
+    this.deps.onEnrolled?.(result.welcome.bearerHashHex);
     this.send(this.codec!.seal({ t: "reply", correlationId: "pair", status: 200, body: result.welcome }));
   }
 

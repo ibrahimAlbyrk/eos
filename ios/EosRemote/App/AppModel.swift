@@ -22,6 +22,11 @@ final class AppModel: ObservableObject {
     @Published var needsPairing = false
     @Published var lastError: String?
     private var resumeRetries = 0
+    // Last handshake step the active coordinator reported (join-ack / RES-1 / CONNECT-3 / …). Captured
+    // so a failure can name exactly where it died — surfaced on screen since on-device log capture
+    // needs root. Updated off the main actor by the coordinator's log closure.
+    private var lastStep = ""
+    private let maxResumeRetries = 6
     // True while a socket teardown is deliberate (background/disconnect), so the delegate's
     // connected=false doesn't kick off a reconnect we don't want.
     private var intentionalStop = false
@@ -216,7 +221,8 @@ final class AppModel: ObservableObject {
             let conn = WSConnection(url: relayURL, mode: .relay(bearer: bearer), delegate: self)
             do {
                 let result = try await ResumeCoordinator(connection: conn, ticket: ticket,
-                                                         room: room, durableBearer: bearer).run()
+                                                         room: room, durableBearer: bearer,
+                                                         log: stepLogger()).run()
                 self.connection = conn
                 self.session = result.session
                 try? KeychainStore.set(KeychainStore.ticket, JSONEncoder().encode(result.newTicket)) // rotation
@@ -232,7 +238,7 @@ final class AppModel: ObservableObject {
                     eosLog.info("resume: denied(\(code, privacy: .public)) → cold connect")
                 } else {
                     eosLog.error("resume: transient \(String(describing: error), privacy: .public) → retry")
-                    lastError = "Reconnecting…"; scheduleResumeRetry(); return
+                    lastError = diag("resume", error); scheduleResumeRetry(); return
                 }
             }
         } else {
@@ -261,7 +267,8 @@ final class AppModel: ObservableObject {
         do {
             let result = try await ConnectCoordinator(
                 connection: conn, macPubB64u: macPub, room: room, identity: identity,
-                devId: devId, label: UIDevice.current.name, durableBearer: bearer).run()
+                devId: devId, label: UIDevice.current.name, durableBearer: bearer,
+                log: stepLogger()).run()
             self.connection = conn
             self.session = result.session
             // Cold connect rotates the durable bearer + issues a fresh ticket — persist both.
@@ -278,12 +285,32 @@ final class AppModel: ObservableObject {
             // dead "failed" banner the user must tap.
             if case ConnectCoordinator.ConnectError.denied(let code) = error, code.contains("AUTH_FAILED") {
                 eosLog.error("cold: AUTH_FAILED (de-enrolled) → show QR")
+                lastError = diag("cold connect", error)
                 needsPairing = true
             } else {
                 eosLog.error("cold: \(String(describing: error), privacy: .public) → retry")
-                lastError = "Reconnecting…"; scheduleResumeRetry()
+                lastError = diag("cold connect", error); scheduleResumeRetry()
             }
         }
+    }
+
+    // A @Sendable step recorder for the coordinators — folds each step marker onto the main actor so
+    // a later failure can report the exact step it reached.
+    private func stepLogger() -> @Sendable (String) -> Void {
+        { [weak self] s in Task { @MainActor in self?.lastStep = s } }
+    }
+
+    // One human-readable diagnostic line: phase + the step it died on + the wire code + retry count.
+    // Shown on the banner and Pair sheet so the failure is reportable without an attached device.
+    private func diag(_ phase: String, _ error: Error) -> String {
+        let code: String
+        switch error {
+        case ConnectCoordinator.ConnectError.denied(let c): code = c
+        case ResumeCoordinator.ResumeError.denied(let c): code = "denied(\(c))"
+        case WSConnection.WSError.timeout: code = "timeout (no daemon reply)"
+        default: code = String(describing: error)
+        }
+        return "\(phase) failed at [\(lastStep)]: \(code) — try \(resumeRetries)/\(maxResumeRetries)"
     }
 
     private func restoreIdentityIfNeeded() {
@@ -304,8 +331,16 @@ final class AppModel: ObservableObject {
     }
 
     // Backoff for transient resume failures (network flaky). Reset on success / fresh foreground.
+    // Bounded: once the budget is spent the loop CONVERGES to an actionable terminal state — the Pair
+    // sheet (also always reachable from the toolbar) — rather than cycling reconnecting↔connecting
+    // forever. A fresh foreground resets the budget and tries again, so a transient outage recovers.
     private func scheduleResumeRetry() {
-        guard resumeRetries < 6 else { return }
+        guard resumeRetries < maxResumeRetries else {
+            connecting = false
+            needsPairing = true   // RootView auto-presents the Pair sheet — a re-pair that works
+            if lastError == nil { lastError = "Couldn't reconnect. Pair again." }
+            return
+        }
         let delay = min(pow(2.0, Double(resumeRetries)), 30.0)   // 1,2,4,8,16,30s
         resumeRetries += 1
         Task { @MainActor in

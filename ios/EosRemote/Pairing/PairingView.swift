@@ -27,6 +27,13 @@ struct PairingView: View {
             .navigationTitle("Pair device")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+            // Show why reconnect fell back to pairing (exact step + wire code), since on-device log
+            // capture needs root. Reportable straight off the screen.
+            .onAppear {
+                if !model.connected, let e = model.lastError {
+                    status = "\(e)\n\nScan the QR shown in the Eos Mac app to pair again."
+                }
+            }
         }
     }
 

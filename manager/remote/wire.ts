@@ -128,6 +128,9 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
     onError: (code, message) => c.log.warn("relay error", { code, message }),
     now, log: (m, x) => c.log.info(`[relay] ${m}`, x ?? {}),
   });
+  // Keep the relay allowlist in sync with enrollment: every completed PAIR/CONNECT hands the device
+  // a durable bearer the relay has never seen — add its hash so the device's next reopen can join.
+  deps.onEnrolled = (hash) => connector.allowAdd(hash);
   connector.start();
   c.log.info("remote gateway armed", { mode, relayUrl, room });
   return {
