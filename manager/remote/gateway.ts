@@ -180,7 +180,13 @@ export class GatewayConnection {
 
   private async onLiveFrame(env: ReturnType<typeof parseEnvelope>): Promise<void> {
     const opened = this.codec!.open(env);
-    if (!opened.ok) { this.sendError(opened.code); return; }
+    if (!opened.ok) {
+      // A live frame that won't open is a real interop signal (seq/AAD/key) — log
+      // it so a failed control round-trip isn't silent.
+      this.deps.log?.("remote live-frame rejected", { code: opened.code, seq: env.seq.toString() });
+      this.sendError(opened.code);
+      return;
+    }
     const frame = opened.frame;
     if (frame.t === "ka") { return; }
     if (frame.t === "hello") { return; } // resume/snapshot handled in a later phase
@@ -190,6 +196,7 @@ export class GatewayConnection {
       challenges: this.challenges, hasCap: (c) => this.codec!.hasCap(c),
     };
     const reply = await this.dispatcher.handle(ds, frame);
+    this.deps.log?.("remote control", { method: frame.method, path: frame.path, status: reply.t === "reply" ? reply.status : reply.t });
     this.send(this.codec!.seal(reply));
   }
 
