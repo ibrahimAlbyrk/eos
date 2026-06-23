@@ -12,8 +12,10 @@ settings:
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
     GENERATE_INFOPLIST_FILE: "YES"
-    # Per-build signing/bundle-id is the user's (design §9). Generic team picked at build time.
+    # Automatic signing so a plug-in-and-Run works on the user's device. The user may swap
+    # DEVELOPMENT_TEAM (+ the bundle ids below) for their own per design §9 — identity is per-build.
     CODE_SIGN_STYLE: Automatic
+    DEVELOPMENT_TEAM: MW57K22389
 
 packages:
   Sodium:
