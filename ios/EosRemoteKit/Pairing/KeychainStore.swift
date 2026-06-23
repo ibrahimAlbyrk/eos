@@ -50,4 +50,7 @@ public enum KeychainStore {
     public static let durableBearer = "device.bearer"
     public static let devId = "device.id"
     public static let ticket = "resumption.ticket"
+    // Relay coordinates needed to reopen the socket for a warm resume after relaunch.
+    public static let relayURL = "relay.url"
+    public static let room = "relay.room"
 }

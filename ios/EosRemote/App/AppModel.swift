@@ -11,7 +11,15 @@ final class AppModel: ObservableObject {
     @Published var workers: [Worker] = []
     @Published var pending: [Pending] = []
     @Published var connected = false
+    @Published var connecting = false
+    // True when there are no usable stored credentials (never paired, or the ticket expired / was
+    // rejected) — the UI shows the Pair screen instead of a dead "disconnected" banner.
+    @Published var needsPairing = false
     @Published var lastError: String?
+    private var resumeRetries = 0
+    // True while a socket teardown is deliberate (background/disconnect), so the delegate's
+    // connected=false doesn't kick off a reconnect we don't want.
+    private var intentionalStop = false
     // Set when a HIGH-risk action is attempted on a resumed (read+low-risk) session: the UI must
     // drive a fresh cold connect/step-up rather than assume the resumed session can perform it.
     @Published var needsColdConnect = false
@@ -129,18 +137,107 @@ final class AppModel: ObservableObject {
             let relayURL = try relayWSURL(qr)
             let identity = try DeviceIdentityFactory.create()
             self.identity = identity
+            let devId = UUID().uuidString
             let conn = WSConnection(url: relayURL, mode: .relay(bearer: pairBearer), delegate: self)
             let coordinator = PairingCoordinator(
                 connection: conn, qr: qr, identity: identity, room: room, pairBearer: pairBearer,
-                devId: UUID().uuidString, label: UIDevice.current.name)
+                devId: devId, label: UIDevice.current.name)
             let result = try await coordinator.run()
             self.connection = conn
             self.session = result.session
+            // Persist everything a warm resume needs after relaunch: durable bearer, rotated ticket,
+            // relay coordinates, devId, and the Secure-Enclave key blob (the enrolled identity).
             try? KeychainStore.set(KeychainStore.durableBearer, Data(result.durableBearer.utf8))
             try? KeychainStore.set(KeychainStore.ticket, JSONEncoder().encode(result.ticket))
+            try? KeychainStore.set(KeychainStore.relayURL, Data(relayURL.absoluteString.utf8))
+            try? KeychainStore.set(KeychainStore.room, Data(room.utf8))
+            try? KeychainStore.set(KeychainStore.devId, Data(devId.utf8))
+            if let se = identity as? SecureEnclaveDeviceIdentity {
+                try? KeychainStore.set(KeychainStore.deviceKeyBlob, se.dataRepresentation)
+            }
+            needsPairing = false; resumeRetries = 0; intentionalStop = false
             connected = true
             await bootstrap()
         } catch { lastError = "pairing failed: \(error)" }
+    }
+
+    // MARK: persistent connection — warm resume + lifecycle
+
+    // Called on launch and on every foreground. If stored credentials exist and the ticket is
+    // live, silently re-establishes the session over the wire (PSK-(EC)DHE, NO Face ID) so the app
+    // opens already connected. Expired/rejected ticket → needsPairing (graceful re-pair), never a
+    // dead disconnected screen. Transient network failure → backoff retry.
+    func resumeIfPossible() async {
+        guard !connected, !connecting else { return }
+        guard let bearerData = KeychainStore.get(KeychainStore.durableBearer),
+              let ticketData = KeychainStore.get(KeychainStore.ticket),
+              let ticket = try? JSONDecoder().decode(ResumptionTicket.self, from: ticketData),
+              let relayData = KeychainStore.get(KeychainStore.relayURL),
+              let relayStr = String(data: relayData, encoding: .utf8), let relayURL = URL(string: relayStr),
+              let roomData = KeychainStore.get(KeychainStore.room),
+              let room = String(data: roomData, encoding: .utf8)
+        else { needsPairing = true; return }   // never paired
+
+        if !ticket.valid(now: Date().timeIntervalSince1970 * 1000) { needsPairing = true; return }
+
+        let bearer = String(decoding: bearerData, as: UTF8.self)
+        connecting = true; needsPairing = false; intentionalStop = false
+        defer { connecting = false }
+        // Restore the enrolled identity so a later step-up can sign; resume itself needs no signature.
+        if self.identity == nil, let blob = KeychainStore.get(KeychainStore.deviceKeyBlob) {
+            self.identity = try? SecureEnclaveDeviceIdentity.restore(dataRepresentation: blob)
+        }
+        let conn = WSConnection(url: relayURL, mode: .relay(bearer: bearer), delegate: self)
+        do {
+            let result = try await ResumeCoordinator(connection: conn, ticket: ticket,
+                                                     room: room, durableBearer: bearer).run()
+            self.connection = conn
+            self.session = result.session
+            try? KeychainStore.set(KeychainStore.ticket, JSONEncoder().encode(result.newTicket)) // rotation
+            resumeRetries = 0
+            connected = true
+            await bootstrap()
+        } catch {
+            await conn.stop()
+            // A relay/daemon rejection (expired/unknown ticket, bad binder) is not retryable → re-pair.
+            if case ResumeCoordinator.ResumeError.denied = error { needsPairing = true }
+            else { lastError = "resume failed: \(error)"; scheduleResumeRetry() }
+        }
+    }
+
+    // Backoff for transient resume failures (network flaky). Reset on success / fresh foreground.
+    private func scheduleResumeRetry() {
+        guard resumeRetries < 6 else { return }
+        let delay = min(pow(2.0, Double(resumeRetries)), 30.0)   // 1,2,4,8,16,30s
+        resumeRetries += 1
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            if !connected { await resumeIfPossible() }
+        }
+    }
+
+    func enterForeground() async { resumeRetries = 0; await resumeIfPossible() }
+
+    // Dropping the socket on background is fine — foreground re-resumes via the ticket.
+    func enterBackground() async {
+        intentionalStop = true
+        await connection?.stop()
+        connection = nil
+        connected = false
+    }
+
+    // Explicit Disconnect/Unpair: tear down the session and forget all stored credentials.
+    func disconnect() async {
+        intentionalStop = true
+        await connection?.stop()
+        connection = nil; session = nil; identity = nil
+        connected = false; connecting = false
+        openId = nil; transcript = []
+        for key in [KeychainStore.durableBearer, KeychainStore.ticket, KeychainStore.relayURL,
+                    KeychainStore.room, KeychainStore.devId, KeychainStore.deviceKeyBlob] {
+            KeychainStore.delete(key)
+        }
+        needsPairing = true
     }
 
     // Cold-start state pull: READ-tier GETs feed a synthetic snapshot until snapshot-on-hello lands.
@@ -286,6 +383,13 @@ extension AppModel: WSConnectionDelegate {
         await MainActor.run { self.lastError = "\(error.code): \(error.message ?? "")" }
     }
     nonisolated func wsConnectionStateChanged(connected: Bool) async {
-        await MainActor.run { self.connected = connected }
+        await MainActor.run {
+            self.connected = connected
+            // Unexpected drop while in the foreground → auto-reconnect via the ticket with backoff.
+            if !connected && !self.intentionalStop && !self.connecting {
+                self.resumeRetries = 0
+                self.scheduleResumeRetry()
+            }
+        }
     }
 }

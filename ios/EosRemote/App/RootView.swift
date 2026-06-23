@@ -5,6 +5,7 @@ import EosRemoteKit
 // and eos://pending/<id> route into the stack.
 struct RootView: View {
     @StateObject private var model = AppModel()
+    @Environment(\.scenePhase) private var scenePhase
     @State private var path = NavigationPath()
     @State private var showPairing = false
     @State private var showSpawn = false
@@ -19,7 +20,14 @@ struct RootView: View {
                 }
                 .toolbar {
                     ToolbarItem(placement: .topBarLeading) {
-                        Button { showPairing = true } label: { Image(systemName: "qrcode.viewfinder") }
+                        Menu {
+                            Button { showPairing = true } label: { Label("Pair / reconnect", systemImage: "qrcode.viewfinder") }
+                            if model.connected || model.connecting {
+                                Button(role: .destructive) { Task { await model.disconnect() } } label: {
+                                    Label("Disconnect", systemImage: "bolt.slash")
+                                }
+                            }
+                        } label: { Image(systemName: "qrcode.viewfinder") }
                     }
                     ToolbarItem(placement: .topBarTrailing) {
                         Button { showSpawn = true } label: { Image(systemName: "plus") }
@@ -34,15 +42,35 @@ struct RootView: View {
         .sheet(isPresented: $showSpawn) { SpawnSheet().environmentObject(model) }
         .onOpenURL { url in route(url) }
         .overlay(alignment: .bottom) { connectionBanner }
+        // Auto-resume on launch; reconnect/drop with the foreground/background transitions.
+        .task { await model.resumeIfPossible() }
+        .onChange(of: scenePhase) { _, phase in
+            switch phase {
+            case .active: Task { await model.enterForeground() }
+            case .background: Task { await model.enterBackground() }
+            default: break
+            }
+        }
+        // No usable credentials (never paired / ticket expired-or-rejected) → present Pair, don't sit dead.
+        .onChange(of: model.needsPairing) { _, needs in if needs { showPairing = true } }
     }
 
     @ViewBuilder private var connectionBanner: some View {
-        if !model.connected {
-            Text("Disconnected — reconnecting…")
-                .font(.caption).padding(8)
-                .frame(maxWidth: .infinity)
-                .background(.thinMaterial)
+        if model.connected {
+            EmptyView()
+        } else if model.needsPairing {
+            banner("Not connected — tap to pair") { showPairing = true }
+        } else if model.connecting {
+            banner("Connecting…", action: nil)
+        } else {
+            banner("Disconnected — reconnecting…", action: nil)
         }
+    }
+
+    @ViewBuilder private func banner(_ text: String, action: (() -> Void)?) -> some View {
+        let label = Text(text).font(.caption).padding(8)
+            .frame(maxWidth: .infinity).background(.thinMaterial)
+        if let action { Button(action: action) { label } } else { label }
     }
 
     private func route(_ url: URL) {
