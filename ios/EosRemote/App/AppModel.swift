@@ -1,7 +1,12 @@
 import Foundation
 import SwiftUI
 import UIKit
+import OSLog
 import EosRemoteKit
+
+// Surfaced in Console.app / `log stream --predicate 'subsystem == "dev.eos.remote"'` so the
+// resume → cold-connect → pair fallback can be diagnosed on a device that isn't Xcode-attached.
+private let eosLog = Logger(subsystem: "dev.eos.remote", category: "connect")
 
 // The @MainActor bridge between the live store/transport (EosRemoteKit) and SwiftUI. It is the
 // WSConnection delegate: server frames land here, fold into the Store actor, and surface as
@@ -39,6 +44,21 @@ final class AppModel: ObservableObject {
     private var oldestRowId = 0
     private var deltaFetching = false
     private var deltaPending = false
+
+    // Per-worker durable transcript, retained across close/reopen so reopening never reloads from
+    // scratch: openWorker restores instantly from here, then fetches ONLY rows after newestRowId.
+    private var caches: [String: TranscriptCache] = [:]
+    private struct TranscriptCache {
+        var durableBlocks: [String: Block]
+        var durableBlockIds: Set<String>
+        var newestRowId: Int
+        var oldestRowId: Int
+        var hasOlder: Bool
+    }
+
+    // Smaller first page → fast first paint; older history backfills on scroll-up via loadOlder.
+    private let initialPageSize = 120
+    private let olderPageSize = 500
 
     private struct LiveBuffer { var blockId: String; var channel: String; var text: String; var ts: Double }
 
@@ -152,6 +172,7 @@ final class AppModel: ObservableObject {
             try? KeychainStore.set(KeychainStore.relayURL, Data(relayURL.absoluteString.utf8))
             try? KeychainStore.set(KeychainStore.room, Data(room.utf8))
             try? KeychainStore.set(KeychainStore.devId, Data(devId.utf8))
+            try? KeychainStore.set(KeychainStore.macPub, Data(qr.macPub.utf8))
             if let se = identity as? SecureEnclaveDeviceIdentity {
                 try? KeychainStore.set(KeychainStore.deviceKeyBlob, se.dataRepresentation)
             }
@@ -163,46 +184,121 @@ final class AppModel: ObservableObject {
 
     // MARK: persistent connection — warm resume + lifecycle
 
-    // Called on launch and on every foreground. If stored credentials exist and the ticket is
-    // live, silently re-establishes the session over the wire (PSK-(EC)DHE, NO Face ID) so the app
-    // opens already connected. Expired/rejected ticket → needsPairing (graceful re-pair), never a
-    // dead disconnected screen. Transient network failure → backoff retry.
+    // Called on launch and on every foreground. Restores the live session WITHOUT a QR whenever the
+    // device is still enrolled. Three tiers (§2.3 / §2.2):
+    //   1. WARM RESUME (no Face ID) when the stored ticket is live.
+    //   2. COLD CONNECT (Face ID, NO QR) when the ticket is missing/expired OR the daemon rejected
+    //      resume (e.g. the in-memory ticket died on an `eos build` restart) — the enrollment still
+    //      lives in the daemon's ~/.eos/devices, so SIGMA CONNECT re-auths by allowlist.
+    //   3. The QR scanner appears ONLY when the device was never enrolled, or cold connect is itself
+    //      rejected (the device was de-enrolled / its key rotated server-side).
+    // Transient network failure → backoff retry, never a dead disconnected screen.
     func resumeIfPossible() async {
         guard !connected, !connecting else { return }
-        guard let bearerData = KeychainStore.get(KeychainStore.durableBearer),
-              let ticketData = KeychainStore.get(KeychainStore.ticket),
-              let ticket = try? JSONDecoder().decode(ResumptionTicket.self, from: ticketData),
-              let relayData = KeychainStore.get(KeychainStore.relayURL),
-              let relayStr = String(data: relayData, encoding: .utf8), let relayURL = URL(string: relayStr),
-              let roomData = KeychainStore.get(KeychainStore.room),
-              let room = String(data: roomData, encoding: .utf8)
-        else { needsPairing = true; return }   // never paired
-
-        if !ticket.valid(now: Date().timeIntervalSince1970 * 1000) { needsPairing = true; return }
+        // Enrollment fingerprint: every durable artifact a cold connect needs must be present.
+        guard let relayURL = storedRelayURL(), let room = storedRoom(),
+              let bearerData = KeychainStore.get(KeychainStore.durableBearer),
+              KeychainStore.get(KeychainStore.deviceKeyBlob) != nil,
+              KeychainStore.get(KeychainStore.devId) != nil,
+              KeychainStore.get(KeychainStore.macPub) != nil
+        else { eosLog.info("resume: device not enrolled → show QR"); needsPairing = true; return }
 
         let bearer = String(decoding: bearerData, as: UTF8.self)
+        // Restore the enrolled identity so resume's later step-up / cold connect can sign.
+        restoreIdentityIfNeeded()
+
+        // Tier 1 — warm resume on a live ticket.
+        if let ticketData = KeychainStore.get(KeychainStore.ticket),
+           let ticket = try? JSONDecoder().decode(ResumptionTicket.self, from: ticketData),
+           ticket.valid(now: Date().timeIntervalSince1970 * 1000) {
+            connecting = true; needsPairing = false; intentionalStop = false
+            let conn = WSConnection(url: relayURL, mode: .relay(bearer: bearer), delegate: self)
+            do {
+                let result = try await ResumeCoordinator(connection: conn, ticket: ticket,
+                                                         room: room, durableBearer: bearer).run()
+                self.connection = conn
+                self.session = result.session
+                try? KeychainStore.set(KeychainStore.ticket, JSONEncoder().encode(result.newTicket)) // rotation
+                resumeRetries = 0; connected = true; connecting = false
+                eosLog.info("resume: OK")
+                await bootstrap()
+                return
+            } catch {
+                await conn.stop(); connecting = false
+                // A relay/daemon rejection (expired/unknown ticket, bad binder) → fall to cold connect;
+                // the device is still enrolled, so no QR is needed. Network blip → backoff retry.
+                if case ResumeCoordinator.ResumeError.denied(let code) = error {
+                    eosLog.info("resume: denied(\(code, privacy: .public)) → cold connect")
+                } else {
+                    eosLog.error("resume: transient \(String(describing: error), privacy: .public) → retry")
+                    lastError = "Reconnecting…"; scheduleResumeRetry(); return
+                }
+            }
+        } else {
+            eosLog.info("resume: no live ticket → cold connect")
+        }
+
+        // Tier 2 — cold connect (Face ID, no QR).
+        await coldConnect(relayURL: relayURL, room: room, bearer: bearer)
+    }
+
+    // SIGMA CONNECT over a fresh relay socket using the durable bearer + the Secure-Enclave device
+    // key (Face ID). Succeeds for any device still enrolled in the daemon — including across an
+    // `eos build` restart that wiped the in-memory resume ticket. Only a genuine de-enrollment
+    // (the daemon no longer recognizes the device/key) drops back to the QR scanner.
+    private func coldConnect(relayURL: URL, room: String, bearer: String) async {
+        guard let identity = self.identity,
+              let devIdData = KeychainStore.get(KeychainStore.devId),
+              let macPubData = KeychainStore.get(KeychainStore.macPub)
+        else { eosLog.error("cold: SE key/devId/macPub restore failed → show QR"); needsPairing = true; return }
+        let devId = String(decoding: devIdData, as: UTF8.self)
+        let macPub = String(decoding: macPubData, as: UTF8.self)
+
         connecting = true; needsPairing = false; intentionalStop = false
         defer { connecting = false }
-        // Restore the enrolled identity so a later step-up can sign; resume itself needs no signature.
-        if self.identity == nil, let blob = KeychainStore.get(KeychainStore.deviceKeyBlob) {
-            self.identity = try? SecureEnclaveDeviceIdentity.restore(dataRepresentation: blob)
-        }
         let conn = WSConnection(url: relayURL, mode: .relay(bearer: bearer), delegate: self)
         do {
-            let result = try await ResumeCoordinator(connection: conn, ticket: ticket,
-                                                     room: room, durableBearer: bearer).run()
+            let result = try await ConnectCoordinator(
+                connection: conn, macPubB64u: macPub, room: room, identity: identity,
+                devId: devId, label: UIDevice.current.name, durableBearer: bearer).run()
             self.connection = conn
             self.session = result.session
-            try? KeychainStore.set(KeychainStore.ticket, JSONEncoder().encode(result.newTicket)) // rotation
-            resumeRetries = 0
-            connected = true
+            // Cold connect rotates the durable bearer + issues a fresh ticket — persist both.
+            try? KeychainStore.set(KeychainStore.durableBearer, Data(result.durableBearer.utf8))
+            try? KeychainStore.set(KeychainStore.ticket, JSONEncoder().encode(result.ticket))
+            resumeRetries = 0; connected = true
+            eosLog.info("cold: OK")
             await bootstrap()
         } catch {
             await conn.stop()
-            // A relay/daemon rejection (expired/unknown ticket, bad binder) is not retryable → re-pair.
-            if case ResumeCoordinator.ResumeError.denied = error { needsPairing = true }
-            else { lastError = "resume failed: \(error)"; scheduleResumeRetry() }
+            // ONLY a daemon AUTH_FAILED (device de-enrolled / key no longer recognized) is a genuine
+            // re-pair. Relay-level denials (BEARER_DENIED on allowlist sync-lag after an `eos build`),
+            // network drops, and cancelled Face ID keep the enrollment → tap-to-retry banner, never QR.
+            if case ConnectCoordinator.ConnectError.denied(let code) = error, code.contains("AUTH_FAILED") {
+                eosLog.error("cold: AUTH_FAILED (de-enrolled) → show QR")
+                needsPairing = true
+            } else {
+                eosLog.error("cold: \(String(describing: error), privacy: .public) → tap to retry")
+                lastError = "Reconnect failed — tap to retry."
+            }
         }
+    }
+
+    private func restoreIdentityIfNeeded() {
+        if self.identity == nil, let blob = KeychainStore.get(KeychainStore.deviceKeyBlob) {
+            self.identity = try? SecureEnclaveDeviceIdentity.restore(dataRepresentation: blob)
+        }
+    }
+
+    private func storedRelayURL() -> URL? {
+        guard let d = KeychainStore.get(KeychainStore.relayURL),
+              let s = String(data: d, encoding: .utf8) else { return nil }
+        return URL(string: s)
+    }
+
+    private func storedRoom() -> String? {
+        guard let d = KeychainStore.get(KeychainStore.room) else { return nil }
+        return String(data: d, encoding: .utf8)
     }
 
     // Backoff for transient resume failures (network flaky). Reset on success / fresh foreground.
@@ -234,7 +330,8 @@ final class AppModel: ObservableObject {
         connected = false; connecting = false
         openId = nil; transcript = []
         for key in [KeychainStore.durableBearer, KeychainStore.ticket, KeychainStore.relayURL,
-                    KeychainStore.room, KeychainStore.devId, KeychainStore.deviceKeyBlob] {
+                    KeychainStore.room, KeychainStore.devId, KeychainStore.deviceKeyBlob,
+                    KeychainStore.macPub] {
             KeychainStore.delete(key)
         }
         needsPairing = true
@@ -257,21 +354,32 @@ final class AppModel: ObservableObject {
 
     // MARK: live transcript
 
-    // Open a worker's transcript: clear prior state and page in the newest events. Live deltas +
-    // worker:change nudges then keep it current until closeWorker.
+    // Open a worker's transcript. On reopen, restore the cached durable blocks for an INSTANT paint,
+    // then fetch only the rows appended since (afterId = newestRowId). First-ever open pages in the
+    // newest events. Live deltas + worker:change nudges keep it current until closeWorker.
     func openWorker(_ id: String) async {
         openId = id
-        durableBlocks = [:]; durableBlockIds = []; liveBuffers = [:]
-        newestRowId = 0; oldestRowId = 0; hasOlder = false
-        transcript = []
-        await fetchNewest()
+        liveBuffers = [:]
+        if let c = caches[id] {
+            durableBlocks = c.durableBlocks; durableBlockIds = c.durableBlockIds
+            newestRowId = c.newestRowId; oldestRowId = c.oldestRowId; hasOlder = c.hasOlder
+            recompute()                 // instant render from cache — no reload-from-scratch
+            await fetchDelta()          // append only the new rows
+        } else {
+            durableBlocks = [:]; durableBlockIds = []
+            newestRowId = 0; oldestRowId = 0; hasOlder = false
+            transcript = []
+            await fetchNewest()
+        }
     }
 
+    // Snapshot the durable transcript into the cache so the next open is instant; keep the cache.
     func closeWorker(_ id: String) {
         guard openId == id else { return }
+        caches[id] = TranscriptCache(durableBlocks: durableBlocks, durableBlockIds: durableBlockIds,
+                                     newestRowId: newestRowId, oldestRowId: oldestRowId, hasOlder: hasOlder)
         openId = nil
-        durableBlocks = [:]; durableBlockIds = []; liveBuffers = [:]
-        transcript = []
+        liveBuffers = [:]
     }
 
     // Scroll-to-top backward paging.
@@ -279,8 +387,9 @@ final class AppModel: ObservableObject {
         guard let id = openId, hasOlder, oldestRowId > 0, !loadingOlder else { return }
         loadingOlder = true
         defer { loadingOlder = false }
-        guard let rows = await fetchEvents("order=desc&beforeId=\(oldestRowId)&limit=500"), openId == id else { return }
-        hasOlder = rows.count >= 500
+        guard let rows = await fetchEvents("order=desc&beforeId=\(oldestRowId)&limit=\(olderPageSize)"),
+              openId == id else { return }
+        hasOlder = rows.count >= olderPageSize
         ingest(rows, workerId: id)
     }
 
@@ -292,8 +401,9 @@ final class AppModel: ObservableObject {
     }
 
     private func fetchNewest() async {
-        guard let id = openId, let rows = await fetchEvents("limit=500&order=desc"), openId == id else { return }
-        hasOlder = rows.count >= 500
+        guard let id = openId,
+              let rows = await fetchEvents("limit=\(initialPageSize)&order=desc"), openId == id else { return }
+        hasOlder = rows.count >= initialPageSize
         ingest(rows, workerId: id)
     }
 

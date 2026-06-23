@@ -7,7 +7,10 @@ struct WorkerDetailView: View {
     @EnvironmentObject var model: AppModel
     let workerId: String
     @State private var draft = ""
+    // True while the newest message is on screen — gates tail-follow so reading history isn't yanked.
+    @State private var atBottom = true
 
+    private let bottomID = "__transcript_bottom__"
     private var worker: Worker? { model.workers.first { $0.id == workerId } }
 
     var body: some View {
@@ -22,13 +25,21 @@ struct WorkerDetailView: View {
                                 .onAppear { Task { await model.loadOlder() } }
                         }
                         ForEach(model.transcript) { BlockView(block: $0).id($0.id) }
+                        // Tail anchor: tracks whether the user is parked at the newest message.
+                        Color.clear.frame(height: 1).id(bottomID)
+                            .onAppear { atBottom = true }
+                            .onDisappear { atBottom = false }
                     }
                     .padding(.horizontal)
                 }
-                // Auto-scroll only when the NEWEST block changes (a fresh message), not when older
-                // history prepends on scroll-up.
-                .onChange(of: model.transcript.last?.id) { _, id in
-                    if let id { withAnimation { proxy.scrollTo(id, anchor: .bottom) } }
+                // A fresh tail message follows the bottom only if the user is already there.
+                .onChange(of: model.transcript.last?.id) { _, _ in
+                    if atBottom { withAnimation { proxy.scrollTo(bottomID, anchor: .bottom) } }
+                }
+                .task(id: workerId) {
+                    atBottom = true
+                    await model.openWorker(workerId)
+                    await landAtBottom(proxy)   // anchor at newest once the list has laid out
                 }
             }
             composer
@@ -40,8 +51,19 @@ struct WorkerDetailView: View {
                 Button { Task { await model.interrupt(workerId) } } label: { Image(systemName: "stop.circle") }
             }
         }
-        .task(id: workerId) { await model.openWorker(workerId) }
         .onDisappear { model.closeWorker(workerId) }
+    }
+
+    // Land at the bottom on open. A LazyVStack lays out incrementally, so a single scrollTo on a long
+    // transcript settles mid-list — re-anchor across a few runloop turns until it sticks at the newest.
+    private func landAtBottom(_ proxy: ScrollViewProxy) async {
+        proxy.scrollTo(bottomID, anchor: .bottom)
+        for delayMs in [30, 120, 300] {
+            try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
+            if Task.isCancelled { return }
+            proxy.scrollTo(bottomID, anchor: .bottom)
+        }
+        atBottom = true
     }
 
     private var composer: some View {

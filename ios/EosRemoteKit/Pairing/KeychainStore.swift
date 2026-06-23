@@ -53,4 +53,7 @@ public enum KeychainStore {
     // Relay coordinates needed to reopen the socket for a warm resume after relaunch.
     public static let relayURL = "relay.url"
     public static let room = "relay.room"
+    // Pinned Mac identity pubkey (b64u SEC1) from the QR — needed for a post-enrollment cold CONNECT
+    // (no QR on hand) to pin-assert the Mac in CONNECT-2.
+    public static let macPub = "mac.pub"
 }
