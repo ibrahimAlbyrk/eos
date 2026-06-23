@@ -35,6 +35,7 @@ export interface PairArmOptions {
   lan?: string[];
   lanSpki?: string | null;
   relay?: { url: string; room: string } | null;
+  ttlMs?: number; // offer/QR otsExp window; default 120s
 }
 
 export interface RemoteGatewayHandle {
@@ -96,7 +97,14 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router, server: 
   const conns = new Map<string, GatewayConnection>();
   const connector = new RelayConnector({
     url: relayUrl, room, owner,
-    allow: () => keyring.bearerHashAllowlist(),
+    // Include the armed pairing bearer so a reconnect's re-register (which resends
+    // the whole allowlist) doesn't drop the in-flight pairing offer — otherwise a
+    // dropped relay socket mid-pairing would BEARER_DENY the joining device.
+    allow: () => {
+      const hashes = keyring.bearerHashAllowlist();
+      const pair = pairing.pairingBearerHash();
+      return pair ? [...hashes, pair] : hashes;
+    },
     onJoined: (clientId) => {
       const hex = clientId.toString("hex");
       const conn = new GatewayConnection({

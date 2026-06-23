@@ -23,7 +23,7 @@ export class PairingManager implements PairingProvider {
 
   // Arm a fresh offer and return the QR payload to render. Any prior offer is
   // discarded (single-use, one at a time).
-  arm(opts: { lan?: string[]; lanSpki?: string | null; relay?: { url: string; room: string } | null }): PairingQr {
+  arm(opts: { lan?: string[]; lanSpki?: string | null; relay?: { url: string; room: string } | null; ttlMs?: number }): PairingQr {
     const offer = generatePairing({ identity: this.identity, now: this.nowFn(), ...opts });
     this.offer = { ots: offer.ots, bearerHashHex: sha256Hex(offer.qr.bearer as string), qr: offer.qr };
     return offer.qr;
