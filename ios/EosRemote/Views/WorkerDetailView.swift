@@ -7,7 +7,6 @@ struct WorkerDetailView: View {
     @EnvironmentObject var model: AppModel
     let workerId: String
     @State private var draft = ""
-    @State private var blocks: [Block] = []
 
     private var worker: Worker? { model.workers.first { $0.id == workerId } }
 
@@ -16,12 +15,20 @@ struct WorkerDetailView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 8) {
-                        ForEach(blocks) { BlockView(block: $0).id($0.id) }
+                        if model.hasOlder {
+                            ProgressView()
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                                .onAppear { Task { await model.loadOlder() } }
+                        }
+                        ForEach(model.transcript) { BlockView(block: $0).id($0.id) }
                     }
                     .padding(.horizontal)
                 }
-                .onChange(of: blocks.count) { _, _ in
-                    if let last = blocks.last { withAnimation { proxy.scrollTo(last.id, anchor: .bottom) } }
+                // Auto-scroll only when the NEWEST block changes (a fresh message), not when older
+                // history prepends on scroll-up.
+                .onChange(of: model.transcript.last?.id) { _, id in
+                    if let id { withAnimation { proxy.scrollTo(id, anchor: .bottom) } }
                 }
             }
             composer
@@ -33,7 +40,8 @@ struct WorkerDetailView: View {
                 Button { Task { await model.interrupt(workerId) } } label: { Image(systemName: "stop.circle") }
             }
         }
-        .task { /* TODO: load durable transcript via control GET /workers/:id/events (order:desc) */ }
+        .task(id: workerId) { await model.openWorker(workerId) }
+        .onDisappear { model.closeWorker(workerId) }
     }
 
     private var composer: some View {

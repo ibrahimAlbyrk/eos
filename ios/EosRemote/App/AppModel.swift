@@ -16,6 +16,24 @@ final class AppModel: ObservableObject {
     // drive a fresh cold connect/step-up rather than assume the resumed session can perform it.
     @Published var needsColdConnect = false
 
+    // Live transcript of the currently-open worker (design §5.2, port of eventsStore+thinkingStore).
+    // Durable rows page in via control GET /workers/:id/events; agent:delta overlays live
+    // streaming text/thinking until the durable block lands; a worker:change nudge pulls new rows.
+    @Published var transcript: [Block] = []
+    @Published var loadingOlder = false
+    private(set) var hasOlder = false
+
+    private var openId: String?
+    private var durableBlocks: [String: Block] = [:]   // display id → block
+    private var durableBlockIds: Set<String> = []      // blockIds with a durable block (live drop guard)
+    private var liveBuffers: [String: LiveBuffer] = [:] // blockId → streaming overlay
+    private var newestRowId = 0
+    private var oldestRowId = 0
+    private var deltaFetching = false
+    private var deltaPending = false
+
+    private struct LiveBuffer { var blockId: String; var channel: String; var text: String; var ts: Double }
+
     let store = Store()
     private var connection: WSConnection?
     private var session: SessionState?
@@ -42,6 +60,9 @@ final class AppModel: ObservableObject {
             "queueWhenBusy": .bool(queueWhenBusy),
         ])
         await control("POST", "/workers/\(id)/message", body)
+        // Pull the just-logged user_message row so the sent message appears immediately, without
+        // waiting for the worker:change nudge to round-trip.
+        if openId == id { scheduleDelta() }
     }
 
     func interrupt(_ id: String) async { await control("POST", "/workers/\(id)/interrupt", .object([:])) }
@@ -136,13 +157,130 @@ final class AppModel: ObservableObject {
         guard let s = qr.relay?.url, let u = URL(string: s) else { throw PairingCoordinator.PairError.denied("no relay url") }
         return u
     }
+
+    // MARK: live transcript
+
+    // Open a worker's transcript: clear prior state and page in the newest events. Live deltas +
+    // worker:change nudges then keep it current until closeWorker.
+    func openWorker(_ id: String) async {
+        openId = id
+        durableBlocks = [:]; durableBlockIds = []; liveBuffers = [:]
+        newestRowId = 0; oldestRowId = 0; hasOlder = false
+        transcript = []
+        await fetchNewest()
+    }
+
+    func closeWorker(_ id: String) {
+        guard openId == id else { return }
+        openId = nil
+        durableBlocks = [:]; durableBlockIds = []; liveBuffers = [:]
+        transcript = []
+    }
+
+    // Scroll-to-top backward paging.
+    func loadOlder() async {
+        guard let id = openId, hasOlder, oldestRowId > 0, !loadingOlder else { return }
+        loadingOlder = true
+        defer { loadingOlder = false }
+        guard let rows = await fetchEvents("order=desc&beforeId=\(oldestRowId)&limit=500"), openId == id else { return }
+        hasOlder = rows.count >= 500
+        ingest(rows, workerId: id)
+    }
+
+    private func fetchEvents(_ query: String) async -> [JSONValue]? {
+        guard let connection, let id = openId else { return nil }
+        let reply = try? await connection.sendControl(method: "GET",
+            path: "/workers/\(id)/events?\(query)", bodyData: Data("{}".utf8))
+        return reply?.body?.arrayValue
+    }
+
+    private func fetchNewest() async {
+        guard let id = openId, let rows = await fetchEvents("limit=500&order=desc"), openId == id else { return }
+        hasOlder = rows.count >= 500
+        ingest(rows, workerId: id)
+    }
+
+    // Forward delta: only the rows appended after the highest loaded id (afterId overrides order).
+    private func fetchDelta() async {
+        guard let id = openId else { return }
+        if newestRowId == 0 { await fetchNewest(); return }
+        guard let rows = await fetchEvents("afterId=\(newestRowId)&limit=500"), openId == id, !rows.isEmpty else { return }
+        ingest(rows, workerId: id)
+    }
+
+    // Coalesce a burst of worker:change nudges into one in-flight delta fetch.
+    private func scheduleDelta() {
+        if deltaFetching { deltaPending = true; return }
+        deltaFetching = true
+        Task { @MainActor in
+            await fetchDelta()
+            deltaFetching = false
+            if deltaPending { deltaPending = false; scheduleDelta() }
+        }
+    }
+
+    private func ingest(_ rows: [JSONValue], workerId: String) {
+        for r in rows {
+            guard let rid = r["id"]?.intValue else { continue }
+            newestRowId = max(newestRowId, rid)
+            oldestRowId = oldestRowId == 0 ? rid : min(oldestRowId, rid)
+        }
+        for b in MessageNormalizer.normalize(rows, workerId: workerId) {
+            durableBlocks[b.id] = b
+            if let bid = b.blockId { durableBlockIds.insert(bid); liveBuffers[bid] = nil } // flicker-free handoff
+        }
+        recompute()
+    }
+
+    // agent:delta payload {workerId, blockId, channel, phase, text} — append to the live overlay.
+    private func applyDelta(_ payload: JSONValue?) {
+        guard let id = openId,
+              payload?["workerId"]?.stringValue == id,
+              let blockId = payload?["blockId"]?.stringValue,
+              !durableBlockIds.contains(blockId) else { return }   // durable already landed
+        if let phase = payload?["phase"]?.stringValue, phase == "stop" || phase == "end" { return }
+        let channel = payload?["channel"]?.stringValue ?? "reasoning"
+        var buf = liveBuffers[blockId] ?? LiveBuffer(blockId: blockId, channel: channel, text: "",
+                                                     ts: Date().timeIntervalSince1970 * 1000)
+        buf.channel = channel
+        buf.text += payload?["text"]?.stringValue ?? ""
+        liveBuffers[blockId] = buf
+        recompute()
+    }
+
+    @MainActor private func handleTranscriptEvent(_ event: EventFrame) {
+        switch event.reason {
+        case "agent:delta": applyDelta(event.payload)
+        case "worker:change": if event.payload?["workerId"]?.stringValue == openId { scheduleDelta() }
+        default: break
+        }
+    }
+
+    private func recompute() {
+        var all = Array(durableBlocks.values)
+        for buf in liveBuffers.values {
+            all.append(Block(id: "live:\(buf.blockId)", workerId: openId ?? "", blockId: buf.blockId,
+                             kind: buf.channel == "reasoning" ? .thinking : .assistant,
+                             ts: buf.ts, text: buf.text, raw: .null))
+        }
+        transcript = all.sorted { a, b in
+            if a.ts != b.ts { return a.ts < b.ts }
+            let an = rowNum(a.id), bn = rowNum(b.id)
+            return an != bn ? an < bn : a.id < b.id
+        }
+    }
+
+    private func rowNum(_ id: String) -> Int { Int(id.prefix(while: { $0.isNumber })) ?? 0 }
 }
 
 // WSConnection delegate — fold incoming frames into the store on the main actor.
 extension AppModel: WSConnectionDelegate {
     nonisolated func wsDidReceive(snapshot: SnapshotFrame) async { await store.applySnapshot(snapshot) }
     nonisolated func wsDidReceive(patch: PatchFrame) async { _ = await store.applyPatch(patch) }
-    nonisolated func wsDidReceive(event: EventFrame) async { _ = await store.applyEvent(event) }
+    nonisolated func wsDidReceive(event: EventFrame) async {
+        _ = await store.applyEvent(event)
+        await handleTranscriptEvent(event)
+    }
     nonisolated func wsDidReceive(challenge: ChallengeFrame) async { /* delivered inline via reply */ }
     nonisolated func wsDidReceive(error: ErrorFrame) async {
         await MainActor.run { self.lastError = "\(error.code): \(error.message ?? "")" }

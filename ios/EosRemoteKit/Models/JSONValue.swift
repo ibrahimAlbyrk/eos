@@ -34,6 +34,13 @@ public enum JSONValue: Codable, Sendable, Equatable {
         }
     }
 
+    // Parse a JSON string into a value. Durable event rows carry `payload` as a JSON STRING
+    // (the DB column), unlike live event-frame payloads which arrive already decoded.
+    public static func parse(_ string: String) -> JSONValue? {
+        guard let data = string.data(using: .utf8) else { return nil }
+        return try? JSONDecoder().decode(JSONValue.self, from: data)
+    }
+
     public subscript(_ key: String) -> JSONValue? {
         if case .object(let o) = self { return o[key] }
         return nil
