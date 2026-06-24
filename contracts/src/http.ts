@@ -1732,6 +1732,12 @@ export const ROUTES = {
   prompts: "/api/prompts",
   promptPreview: "/api/prompts/preview",
   workerDefinitions: "/worker-definitions",
+  // Workflow-orchestration: /workflows is the catalog + run-control endpoint
+  // (POST a run / PUT a definition / GET runs); workflowRun(id) reads one run's
+  // status; workflowStepOutput(id) is the worker-visibility typed-result path.
+  workflows: "/workflows",
+  workflowRun: (id: string): string => `/workflows/${id}`,
+  workflowStepOutput: (id: string): string => `/workers/${id}/step-output`,
   settings: "/api/settings",
   updateStatus: "/api/updates/status",
   updateCheck: "/api/updates/check",

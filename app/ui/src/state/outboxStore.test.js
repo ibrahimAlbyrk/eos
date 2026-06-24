@@ -234,3 +234,25 @@ describe("cancel / purge", () => {
     expect(outbox.itemsFor(W)).toHaveLength(0);
   });
 });
+
+describe("retract (recall)", () => {
+  it("drops the optimistic item matching clientMsgId", () => {
+    outbox.beginSend(W, { text: "hi", clientMsgId: "c1", busy: false });
+    expect(bubbles()).toHaveLength(1);
+    outbox.retract(W, "c1");
+    expect(outbox.itemsFor(W)).toHaveLength(0);
+  });
+
+  it("removes only the matching item; leaves the rest", () => {
+    outbox.beginSend(W, { text: "a", clientMsgId: "c1", busy: false });
+    outbox.beginSend(W, { text: "b", clientMsgId: "c2", busy: false });
+    outbox.retract(W, "c1");
+    expect(outbox.itemsFor(W).map((i) => i.clientMsgId)).toEqual(["c2"]);
+  });
+
+  it("is a no-op without a clientMsgId (keyless send)", () => {
+    outbox.beginSend(W, { text: "a", clientMsgId: "c1", busy: false });
+    outbox.retract(W, undefined);
+    expect(outbox.itemsFor(W)).toHaveLength(1);
+  });
+});

@@ -20,6 +20,7 @@ import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../..
 import { parentScope } from "../../../lib/mentionQuery.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
 import { composerMode, modeFlags } from "../../../lib/composerModes.js";
+import { shouldApplyPendingText } from "../../../lib/composerRestore.js";
 import { gitAgentName, gitTaskLabel } from "../../../lib/gitAgentName.js";
 import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
 import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
@@ -249,12 +250,15 @@ export function Composer({ live }) {
     applyTemplateText(pt.content, 0);
   }, [ui.composer.pendingTemplate]);
 
-  // Restored prompt queued by the rewind panel — replaces the input so the
-  // user can edit and resend, mirroring Claude Code's native rewind.
+  // Restored prompt queued by the rewind panel OR a recall (interrupt before the
+  // agent responded) — replaces the input so the user can edit and resend,
+  // mirroring Claude Code's native rewind. A recall restore (guard:"recall")
+  // never clobbers a draft the user typed after sending; rewind always replaces.
   useEffect(() => {
     const pt = ui.composer.pendingText;
     if (!pt) return;
     ui.updateComposer({ pendingText: null });
+    if (!shouldApplyPendingText(pt, text)) return;
     insertedPathsRef.current.clear();
     setTextAndSync(pt.content, pt.content.length);
     editorRef.current?.focus();

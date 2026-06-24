@@ -6,8 +6,9 @@
 // goal logic lives in the core runLoopTick use-case.
 
 import { runLoopTick, type LoopTickOutcome } from "../../core/src/use-cases/runLoopTick.ts";
+import type { LoopProgressSink } from "../../core/src/ports/LoopProgressSink.ts";
 import type { LoopStateRepo } from "../../core/src/ports/LoopStateRepo.ts";
-import type { LoopStatus } from "../../../contracts/src/loop.ts";
+import type { LoopStatus, LoopCheckProgress, LoopCheckEvent } from "../../contracts/src/loop.ts";
 import type { GoalCheckStrategy } from "../../core/src/ports/GoalCheckStrategy.ts";
 import type { WorkerRepo } from "../../core/src/ports/WorkerRepo.ts";
 import type { MessageQueueRepo } from "../../core/src/ports/MessageQueueRepo.ts";
@@ -38,6 +39,10 @@ export interface GoalLoopDeps {
   stopOnNoProgress: boolean;
   // Notify the UI of a loop lifecycle change (the daemon publishes loop:change).
   publishChange(workerId: string, status: LoopStatus): void;
+  // Transient live goal-check progress (the daemon publishes "loop:check").
+  publishCheck(progress: LoopCheckProgress): void;
+  // Durable per-attempt verdict appended to the worker's timeline ("loop_check").
+  recordCheck(workerId: string, event: LoopCheckEvent): void;
   renderer: PromptRenderer;
   isLive(workerId: string): boolean;
   clock: Clock;
@@ -63,6 +68,19 @@ export class GoalLoopService {
     if (this.deps.messageQueue.listPending(workerId).length > 0) return;
     if (this.deps.peerRequests.nextQueuedFor(workerId) != null) return;
 
+    // Fan each tick phase to the UI (loop:check) and persist the verdict
+    // (loop_check) — one sink, the same source for both the live indicator and
+    // the durable history, so they can never disagree.
+    const progress: LoopProgressSink = (u) => {
+      this.deps.publishCheck({ workerId, ...u });
+      if (u.phase === "verdict" && u.outcome) {
+        this.deps.recordCheck(workerId, {
+          attempt: u.attempt, maxAttempts: u.maxAttempts, strategy: u.strategy,
+          met: u.met ?? false, outcome: u.outcome, reason: u.reason ?? "",
+        });
+      }
+    };
+
     this.ticking.add(workerId);
     void (async () => {
       try {
@@ -76,6 +94,7 @@ export class GoalLoopService {
             noProgressWindow: this.deps.noProgressWindow,
             stopOnNoProgress: this.deps.stopOnNoProgress,
             renderer: this.deps.renderer,
+            progress,
             clock: this.deps.clock,
             log: this.deps.log,
           },

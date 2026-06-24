@@ -580,12 +580,18 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     if (!worker) { writeJson(res, 404, { error: "worker not found" }); return; }
     if (!worker.parent_id) { writeJson(res, 400, { error: "worker has no parent" }); return; }
 
-    c.bus.publish("worker:report", { workerId: params.id, parentId: worker.parent_id });
-
     // Report-hold gate (R7): a looped worker's terminal report is held until its
     // goal-check passes (the goal tick, after this turn ends, releases or
-    // discards it). needs-input always passes through.
-    if (reportHoldGate(c.loops, params.id, body.text, { retryOnFailed: c.config.loop.retryOnFailed }).held) {
+    // discards it). needs-input always passes through. Computed first so the
+    // worker:report can carry `held` for the workflow step-join (§3.4): a held
+    // report is not the step's terminal — the join waits for the release.
+    const hold = reportHoldGate(c.loops, params.id, body.text, { retryOnFailed: c.config.loop.retryOnFailed });
+    // `text` + `held` enrich the publish so the workflow spawn-join (which keys on
+    // worker:report) resolves a no-outputSchema TEXT-FALLBACK step. Other
+    // subscribers read only workerId/parentId; the extra fields are additive.
+    c.bus.publish("worker:report", { workerId: params.id, parentId: worker.parent_id, text: body.text, held: hold.held });
+
+    if (hold.held) {
       c.bus.publish("loop:change", { workerId: params.id, status: "active" });
       writeJson(res, 200, { ok: true, delivered: false, held: true });
       return;

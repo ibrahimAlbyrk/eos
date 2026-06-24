@@ -6,6 +6,8 @@ export * from "./backend.ts";
 export * from "./policy.ts";
 export * from "./worker.ts";
 export * from "./loop.ts";
+export * from "./workflow-node.ts";
+export * from "./workflow.ts";
 export * from "./http.ts";
 export * from "./hooks.ts";
 export * from "./ipc.ts";

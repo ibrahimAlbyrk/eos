@@ -6,6 +6,8 @@ import {
 } from "../../../contracts/src/commands/defs.ts";
 import type { NoBody } from "../../../contracts/src/commands/types.ts";
 import { transitionState } from "../../../core/src/use-cases/TransitionState.ts";
+import { recallPendingTurn } from "../../../core/src/use-cases/RecallPendingTurn.ts";
+import { appendSynthesized } from "../../shared/synthesized-events.ts";
 
 export const interruptWorkerHandler: CommandHandler<WorkerIdAddr, NoBody, InterruptWorkerResponse> = {
   def: interruptWorkerCommand,
@@ -39,6 +41,41 @@ export const interruptWorkerHandler: CommandHandler<WorkerIdAddr, NoBody, Interr
       { workerId: id, next: "IDLE", reason: "interrupt" },
     );
     c.bus.publish("worker:change", { workerId: id });
+
+    // Recall: interrupt before the agent responded. Only on a lane where the
+    // daemon owns the user_message row (!reportsMessageEvents — the SDK lane),
+    // never on kind: claude-cli self-reports from its JSONL and has its own
+    // keystroke/rewind choreography. If the turn produced no output, hide the
+    // just-sent bubble, drop its ledger row, return its text to the composer
+    // (UI), and roll back the SDK's own transcript. The handler only emits +
+    // shapes — the decision is the use-case's (mirrors the rewind route).
+    if (!session.capabilities.reportsMessageEvents) {
+      const recall = recallPendingTurn(
+        { events: c.events, queue: c.messageQueue, turnOutput: c.turnOutput },
+        id,
+      );
+      if (recall.recalled) {
+        appendSynthesized(c, id, "message_recalled", {
+          text: recall.text,
+          ...(recall.clientMsgId ? { clientMsgId: recall.clientMsgId } : {}),
+          recalledRowId: recall.rowId,
+        });
+        // Push the text + key so the UI restores the composer + retracts the
+        // optimistic bubble immediately (the durable event hides the server-side
+        // bubble; this drives the ephemeral client-side restore — raceless).
+        c.bus.publish("message:recalled", {
+          workerId: id,
+          text: recall.text,
+          ...(recall.clientMsgId ? { clientMsgId: recall.clientMsgId } : {}),
+        });
+        // Layer 2 — roll back the SDK's own session transcript so the recalled
+        // message leaks into neither the next turn nor a resume. Capability gate
+        // is the optional method's presence (SDK implements it; others omit it).
+        // Best-effort: a fork failure must not fail the interrupt.
+        if (session.recallLastUserTurn) void session.recallLastUserTurn().catch(() => {});
+      }
+    }
+
     return { status: 200, body: { ok: true } };
   },
 };

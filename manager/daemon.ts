@@ -29,14 +29,18 @@ import { isWorkerLive } from "./routes/worker-liveness.ts";
 import { resumeIfDead } from "./routes/resume-helpers.ts";
 import { formatWorkerReport } from "./shared/worker-report.ts";
 import { worktreeStateHash } from "./shared/worktree-state-hash.ts";
+import { appendSynthesized } from "./shared/synthesized-events.ts";
 import { GoalLoopService } from "./services/GoalLoopService.ts";
 import { reArmLoops, stopLoopForExitedWorker } from "./services/loop-rearm.ts";
+import { reArmWorkflows } from "./services/workflow-rearm.ts";
 
 import { registerHealthRoutes } from "./routes/health.ts";
 import { registerStreamRoutes } from "./routes/stream.ts";
 import { registerWorkerRoutes } from "./routes/workers.ts";
 import { registerOrchestratorRoutes } from "./routes/orchestrators.ts";
 import { registerLoopRoutes } from "./routes/loops.ts";
+import { registerWorkflowRoutes } from "./routes/workflows.ts";
+import { registerWorkflowStepOutputRoute } from "./routes/workflow-step-output.ts";
 import { registerPolicyRoutes } from "./routes/policy.ts";
 import { registerPendingRoutes } from "./routes/pending.ts";
 import { registerFsPickerRoutes } from "./routes/fs-picker.ts";
@@ -89,6 +93,11 @@ registerUpdateRoutes(router, c);
 // Unified command catalog (worker.spawn, worker.kill, …) — registered before
 // the hand-written worker routes so a migrated path resolves here first.
 registerCommandCatalog(router, c);
+// Workflow-orchestration: run-control + read surface, plus the typed step-output
+// path (POST /workers/:id/step-output) — registered before the worker routes so
+// its specific pattern resolves first.
+registerWorkflowStepOutputRoute(router, c);
+registerWorkflowRoutes(router, c);
 registerWorkerRoutes(router, c);
 registerOrchestratorRoutes(router, c);
 registerLoopRoutes(router, c);
@@ -149,6 +158,10 @@ const goalLoop = new GoalLoopService({
   noProgressWindow: c.config.loop.noProgressWindow,
   stopOnNoProgress: c.config.loop.stopOnNoProgress,
   publishChange: (workerId, status) => c.bus.publish("loop:change", { workerId, status }),
+  // Transient: any "loop:check" payload auto-forwards to the UI via SSE's "*"
+  // subscription. Durable: one "loop_check" timeline row per attempt outcome.
+  publishCheck: (progress) => c.bus.publish("loop:check", progress),
+  recordCheck: (workerId, event) => appendSynthesized(c, workerId, "loop_check", event),
   renderer: c.prompts,
   isLive: (id) => isWorkerLive(c, id),
   clock: c.clock,
@@ -416,6 +429,20 @@ void reArmLoops({
   workers: c.workers,
   resume: (worker) => resumeIfDead(c, worker),
   loopTickFor: (id) => goalLoop.loopTickFor(id),
+  log: c.log,
+});
+
+// Boot re-arm — re-drive each non-terminal workflow run after a restart
+// (sibling of reArmLoops). ReconcileWorkersOnBoot already reconciled every
+// step-worker row (SUSPENDED/DONE) inside buildContainer; engine.resume replays
+// journaled steps from their memoized output and runs the first un-journaled node
+// live. Voided so a long-running run never blocks boot.
+void reArmWorkflows({
+  runs: c.workflowRuns,
+  steps: c.workflowSteps,
+  events: c.events,
+  queue: c.messageQueue,
+  resume: (runId) => c.workflowService.resume(runId),
   log: c.log,
 });
 

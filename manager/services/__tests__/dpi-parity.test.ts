@@ -61,7 +61,10 @@ describe("DPI assembles per-role system prompts", () => {
     assert.match(r.text, /# Orchestrator/);
     // Tool-name variables resolve from the registry-backed globals.
     assert.match(r.text, /`spawn_worker`/);
-    assert.doesNotMatch(r.text, /\{\{/); // no unresolved {{*_TOOL}} left
+    // No unresolved {{UPPER_SNAKE}} variable left. (The §Workflows fragment shows
+    // literal lowercase {{nodes.*}}/{{args.*}} binding examples on purpose, so the
+    // guard targets the unresolved-var shape, not every "{{".)
+    assert.doesNotMatch(r.text, /\{\{[A-Z]/);
   });
 
   it("orchestrator → swarm playbook embedded in the system prompt (always-on)", async () => {
@@ -69,7 +72,24 @@ describe("DPI assembles per-role system prompts", () => {
     assert.ok(r.activeFragmentIds.includes("role/orchestrator/14-swarm-playbook"));
     assert.match(r.text, /# Swarm playbook/); // embedded, not referenced by path
     assert.match(r.text, /## Research swarms/); // research branch present
-    assert.doesNotMatch(r.text, /\{\{/); // all tool vars resolved
+    assert.doesNotMatch(r.text, /\{\{[A-Z]/); // no unresolved {{UPPER_SNAKE}} tool var
+  });
+
+  it("orchestrator → workflows guidance embedded; absent from worker + subagent prompts", async () => {
+    const orch = await assembleSystemPrompt(deps(), { ...baseCtx, role: "orchestrator", parentId: null });
+    assert.ok(orch.activeFragmentIds.includes("role/orchestrator/17-workflows"));
+    assert.match(orch.text, /# Workflows/);
+    // The fan-out binding syntax renders LITERALLY (via the LB/RB escape), so the
+    // orchestrator learns the exact tokens it must emit in a spec.
+    assert.ok(orch.text.includes("{{nodes.<prefix>-*.output}}"));
+    assert.ok(orch.text.includes("{{args.<field>}}"));
+    assert.match(orch.text, /run-inline/); // the 5 modes are named
+    // Orchestrator-only: a plain worker and a collaborate subagent must NOT carry it.
+    const worker = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker" });
+    assert.ok(!worker.activeFragmentIds.includes("role/orchestrator/17-workflows"));
+    assert.doesNotMatch(worker.text, /# Workflows/);
+    const sub = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker", canCollaborate: true });
+    assert.ok(!sub.activeFragmentIds.includes("role/orchestrator/17-workflows"));
   });
 
   it("git agent → worker preamble first, then only role/git/* fragments", async () => {

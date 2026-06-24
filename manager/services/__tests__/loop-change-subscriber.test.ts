@@ -30,6 +30,8 @@ function build() {
     noProgressWindow: 3,
     stopOnNoProgress: true,
     publishChange: () => {},
+    publishCheck: () => {},
+    recordCheck: () => {},
     renderer: { render: () => "CONTINUATION" },
     isLive: () => true,
     clock: { now: () => 1 },

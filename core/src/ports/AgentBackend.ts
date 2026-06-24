@@ -152,6 +152,15 @@ export interface AgentSession {
   // claude-sdk: query() has no fork primitive, so the session omits them.
   getRewindTargets?(): Promise<{ targets: unknown[] }>;
   rewind?(uuid: string, mode: string): Promise<RewindResult>;
+  // Recall the just-sent user turn (interrupt before the agent responded): roll
+  // back the live conversation to the entry BEFORE the recalled message so it
+  // leaks into neither the next turn nor a resume. claude-sdk: relaunch the
+  // query on a transcript sliced to the last assistant uuid (forkSession), like
+  // the /clear relaunch but resuming the sliced session instead of starting
+  // empty. Only meaningful on a lane where the daemon owns the user_message row
+  // (!reportsMessageEvents); incapable backends omit it (the interrupt handler
+  // gates on the method's presence — ISP, never on backend kind).
+  recallLastUserTurn?(): Promise<{ ok: boolean; reason?: string }>;
   // Switch the model (and optional effort) for subsequent turns on the LIVE
   // session. Only meaningful when capabilities.runtimeModelSwitch is true —
   // callers gate on that flag; an incapable session may no-op. LIVE in-session

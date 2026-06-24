@@ -149,6 +149,19 @@ export function cancelQueued(workerId) {
   if (kept.length !== list.length) setItems(workerId, kept);
 }
 
+// Recall (interrupt before the agent responded): drop the optimistic item for
+// the just-sent message instantly. The durable user_message bubble is hidden by
+// the message_recalled fold (server-authoritative); this clears the client-side
+// optimistic copy so it doesn't linger until TTL. Matched by clientMsgId — the
+// stable key the recall carries; a keyless send (no id) has no optimistic claim
+// to retract and falls through to the normal reconcile/TTL path.
+export function retract(workerId, clientMsgId) {
+  if (!clientMsgId) return;
+  const list = itemsFor(workerId);
+  const kept = list.filter((i) => i.clientMsgId !== clientMsgId);
+  if (kept.length !== list.length) setItems(workerId, kept);
+}
+
 export function purgeAgent(workerId) {
   syncState.delete(workerId);
   if (itemsByWorker.delete(workerId)) emit();

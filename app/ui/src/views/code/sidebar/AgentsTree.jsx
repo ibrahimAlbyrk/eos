@@ -1,8 +1,9 @@
-import { useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { loopBadgeTitle } from "../../../lib/loopDisplay.js";
+import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../../../state/loopCheckStore.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { api } from "../../../api/client.js";
 
@@ -27,6 +28,8 @@ export function AgentsTree({ roots, onRename, variant = "full" }) {
 
 function TreeNode({ node, onRename, variant = "full" }) {
   const ui = useUi();
+  // A live goal-check on this worker flips the static "loop" badge to "checking".
+  const loopCheck = useSyncExternalStore(subscribeLoopCheck, () => loopCheckFor(node.id));
   const collapsed = ui.collapsedNodes.has(node.id);
   const hasChildren = node.children.length > 0;
   const status = statusFromState(node.state);
@@ -114,8 +117,11 @@ function TreeNode({ node, onRename, variant = "full" }) {
                 api.renameIntent(node.id, true).catch(() => {});
               }}
             ><AgentName worker={node} /></span>}
-        {!isRenaming && node.loop && (
-          <span className={`ag-loop-badge st-${node.loop.status}`} title={loopBadgeTitle(node.loop)}>loop</span>
+        {!isRenaming && (node.loop || loopCheck) && (
+          <span
+            className={`ag-loop-badge st-${loopCheck ? "checking" : node.loop?.status}`}
+            title={loopBadgeTitle(node.loop)}
+          >{loopCheck ? "checking" : "loop"}</span>
         )}
         {!isRenaming && (ui.needsAttention(node)
           ? <span className="ag-notify" aria-label="finished with new output" title="finished with new output"></span>

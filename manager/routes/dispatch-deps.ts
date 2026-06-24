@@ -34,6 +34,8 @@ export function dispatchDeps(
     // Cleared inside the use-case ONLY when the message actually dispatches —
     // an enqueue must leave the settle window alone (see DispatchMessageDeps).
     clearTurnSettle: (id: string) => c.turnSettle.clear(id),
+    // Scope the recall window from each genuine dispatch push (see DispatchMessageDeps).
+    turnOutput: c.turnOutput,
     ...(opts.requireOrchestrator ? { requireOrchestrator: true } : {}),
     excerptLimit: opts.excerptLimit ?? 200,
   };

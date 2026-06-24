@@ -33,6 +33,17 @@ function Shell() {
     return () => { delete window.__nativeNavigate; };
   }, [ui.setActiveView, ui.setSelectedId]);
 
+  // Recall (interrupt before the agent responded): return the recalled message's
+  // text to the composer. Only for the worker the user is viewing — recall fires
+  // from Esc on the selected worker, and pendingText targets the one composer.
+  // guard:"recall" tells the Composer not to clobber a draft typed after sending.
+  useEffect(() => {
+    const r = live.recall;
+    if (r && r.workerId === ui.selectedId) {
+      ui.updateComposer({ pendingText: { content: r.content, ts: r.ts, guard: "recall" } });
+    }
+  }, [live.recall, ui.selectedId, ui.updateComposer]);
+
   const ActiveView = getViewComponent(ui.activeViewId);
 
   // Shell chrome (collapsed-rail handle + native toggle + hover flyout) lives

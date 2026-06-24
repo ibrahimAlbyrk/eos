@@ -88,6 +88,23 @@ describe("SqliteMessageQueueRepo", () => {
     assert.notEqual(repo.insert(pending("a")), null);
   });
 
+  it("removeDispatchedByClientMsgId drops the dispatched ledger row (recall) and frees its id", () => {
+    repo.insert({ ...pending("a"), dispatchedAt: 200 });
+    repo.removeDispatchedByClientMsgId("w1", "a");
+    // gone → its clientMsgId dedups no more
+    assert.notEqual(repo.insert(pending("a")), null);
+  });
+
+  it("removeDispatchedByClientMsgId leaves a still-pending row (dispatched_at IS NULL) untouched", () => {
+    repo.insert(pending("p")); // dispatched_at NULL
+    repo.removeDispatchedByClientMsgId("w1", "p");
+    assert.deepEqual(repo.listPending("w1").map((r) => r.clientMsgId), ["p"]);
+    // and it scopes by worker — another worker's dispatched row with the same id survives
+    repo.insert({ ...pending("p"), workerId: "w2", dispatchedAt: 200 });
+    repo.removeDispatchedByClientMsgId("w1", "p");
+    assert.equal(repo.insert({ ...pending("p"), workerId: "w2" }), null);
+  });
+
   it("hasRecentDispatch matches only dispatched rows after sinceTs", () => {
     repo.insert({ ...pending(null, "selam"), dispatchedAt: 1000 });
     assert.equal(repo.hasRecentDispatch("w1", "selam", 500), true);

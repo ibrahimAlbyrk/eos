@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { runLoopTick, type RunLoopTickDeps } from "../use-cases/runLoopTick.ts";
 import type { LoopRow, LoopAttempt } from "../ports/LoopStateRepo.ts";
 import type { GoalContext } from "../ports/GoalCheckStrategy.ts";
+import type { LoopProgressUpdate } from "../ports/LoopProgressSink.ts";
 import type { GoalVerdict, GoalSpec } from "../../../contracts/src/loop.ts";
 
 const GOAL: GoalSpec = { summary: "tests pass", criteria: [{ id: "c1", text: "npm test green", verify: "npm test" }] };
@@ -19,7 +20,7 @@ function verdict(over: Partial<GoalVerdict> = {}): GoalVerdict {
   return { met: false, criteria: [{ id: "c1", met: false, evidence: "non-zero" }], unmet: ["c1"], confidence: 1, reason: "unmet: c1", ...over };
 }
 
-function buildDeps(loop: LoopRow | null, v: GoalVerdict, opts: { stateHash?: string; stopOnNoProgress?: boolean; noProgressWindow?: number } = {}) {
+function buildDeps(loop: LoopRow | null, v: GoalVerdict, opts: { stateHash?: string; stopOnNoProgress?: boolean; noProgressWindow?: number; emitInStrategy?: (ctx: GoalContext) => void } = {}) {
   const statuses: Array<{ id: string; status: string }> = [];
   const attempts: Array<{ id: string; attempt: LoopAttempt }> = [];
   const dispatched: Array<{ workerId: string; text: string; origin: string }> = [];
@@ -27,6 +28,7 @@ function buildDeps(loop: LoopRow | null, v: GoalVerdict, opts: { stateHash?: str
   const held: Array<{ id: string; text: string | null }> = [];
   const released: Array<{ workerId: string; parentId: string; text: string }> = [];
   const ctxSeen: GoalContext[] = [];
+  const progress: LoopProgressUpdate[] = [];
   const deps = {
     loops: {
       findActiveByWorker: () => loop,
@@ -34,17 +36,18 @@ function buildDeps(loop: LoopRow | null, v: GoalVerdict, opts: { stateHash?: str
       recordAttempt: (id: string, attempt: LoopAttempt) => { attempts.push({ id, attempt }); },
       setHeldReport: (id: string, text: string | null) => { held.push({ id, text }); },
     },
-    strategyFor: () => ({ evaluate: async (_goal: GoalSpec, ctx: GoalContext) => { ctxSeen.push(ctx); return v; } }),
+    strategyFor: () => ({ evaluate: async (_goal: GoalSpec, ctx: GoalContext) => { ctxSeen.push(ctx); opts.emitInStrategy?.(ctx); return v; } }),
     dispatch: async (input: { workerId: string; text: string; origin: string }) => { dispatched.push(input); return {}; },
     releaseReport: async (input: { workerId: string; parentId: string; text: string }) => { released.push(input); return {}; },
     stateHash: async () => opts.stateHash ?? "state-fresh",
     noProgressWindow: opts.noProgressWindow ?? 3,
     stopOnNoProgress: opts.stopOnNoProgress ?? true,
     renderer: { render: (id: string, vars: Record<string, unknown>) => { renders.push({ id, vars }); return `RENDERED:${id}:attempt=${vars?.ATTEMPT}`; } },
+    progress: (u: LoopProgressUpdate) => { progress.push(u); },
     clock: { now: () => 1234 },
     log: { debug() {}, info() {}, warn() {}, error() {}, child() { return this; } },
   } as unknown as RunLoopTickDeps;
-  return { deps, statuses, attempts, dispatched, renders, held, released, ctxSeen };
+  return { deps, statuses, attempts, dispatched, renders, held, released, ctxSeen, progress };
 }
 
 // A frozen ring: window-1 prior attempts, all the same stateHash + unmet count.
@@ -251,6 +254,46 @@ describe("runLoopTick — precedence (goal-met → attemptLimit → no-progress)
     assert.equal(await runLoopTick(deps, { workerId: "w-1" }), "exhausted");
     const exh = renders.find((r) => r.id === "loop/exhausted-release");
     assert.match(String(exh?.vars.REASON), /attempt limit/);
+  });
+});
+
+describe("runLoopTick — progress sink", () => {
+  it("emits started → (strategy phase) → verdict, enriched with attempt/strategy", async () => {
+    const { deps, progress } = buildDeps(
+      loopRow({ attempt: 1, maxAttempts: 5, strategy: "command" }),
+      verdict(),
+      { emitInStrategy: (ctx) => ctx.progress?.({ phase: "verifying", criterionId: "c1" }) },
+    );
+    assert.equal(await runLoopTick(deps, { workerId: "w-1" }), "continued");
+    assert.deepEqual(progress.map((p) => p.phase), ["started", "verifying", "verdict"]);
+    // attempt/strategy are stamped on every update; the worker pass being checked
+    // is attempt+1 (the human-facing count the loop card shows).
+    assert.ok(progress.every((p) => p.attempt === 2 && p.maxAttempts === 5 && p.strategy === "command"));
+    assert.equal(progress[1].criterionId, "c1");
+    const last = progress[progress.length - 1];
+    assert.deepEqual({ met: last.met, outcome: last.outcome }, { met: false, outcome: "continued" });
+    assert.equal(last.reason, "unmet: c1");
+  });
+
+  it("verdict carries outcome:released when the goal is met", async () => {
+    const { deps, progress } = buildDeps(loopRow(), verdict({ met: true, unmet: [], reason: "all passed" }));
+    assert.equal(await runLoopTick(deps, { workerId: "w-1" }), "released");
+    const last = progress[progress.length - 1];
+    assert.deepEqual({ phase: last.phase, met: last.met, outcome: last.outcome }, { phase: "verdict", met: true, outcome: "released" });
+  });
+
+  it("verdict carries outcome:exhausted at the attempt limit", async () => {
+    const { deps, progress } = buildDeps(loopRow({ attempt: 2, maxAttempts: 2 }), verdict());
+    assert.equal(await runLoopTick(deps, { workerId: "w-1" }), "exhausted");
+    const last = progress[progress.length - 1];
+    assert.equal(last.outcome, "exhausted");
+    assert.match(String(last.reason), /attempt limit/);
+  });
+
+  it("a no-op tick (no active loop) emits nothing", async () => {
+    const { deps, progress } = buildDeps(null, verdict());
+    await runLoopTick(deps, { workerId: "w-1" });
+    assert.equal(progress.length, 0);
   });
 });
 

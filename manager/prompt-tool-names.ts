@@ -20,6 +20,7 @@ import { listAvailableWorkersDef } from "./tools/defs/list_available_workers.ts"
 import { createWorkerDef } from "./tools/defs/create_worker.ts";
 import { integrateWorkersDef } from "./tools/defs/integrate_workers.ts";
 import { dynamicLoopDef } from "./tools/defs/dynamic_loop.ts";
+import { workflowDef } from "./tools/defs/workflow.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
@@ -38,4 +39,13 @@ export const TOOL_NAME_VARS: VariableScope = {
   CREATE_WORKER_TOOL: createWorkerDef.name,
   INTEGRATE_WORKERS_TOOL: integrateWorkersDef.name,
   DYNAMIC_LOOP_TOOL: dynamicLoopDef.name,
+  WORKFLOW_TOOL: workflowDef.name,
+
+  // Literal mustache delimiters. The template engine is strict — a raw "{{…}}" in
+  // a prompt body is always parsed as an interpolation token (and throws if it
+  // isn't a valid path), so a body can't show a literal {{binding}} example. Emit
+  // one as {{LB}}path{{RB}} → renders the literal "{{path}}" (used by the workflow
+  // guidance + tool description to teach the {{nodes.*}}/{{args.*}} binding syntax).
+  LB: "{{",
+  RB: "}}",
 };

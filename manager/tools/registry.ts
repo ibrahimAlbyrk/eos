@@ -16,6 +16,8 @@ import { createWorkerDef } from "./defs/create_worker.ts";
 import { integrateWorkersDef } from "./defs/integrate_workers.ts";
 import { dynamicLoopDef } from "./defs/dynamic_loop.ts";
 import { currentDatetimeDef } from "./defs/current_datetime.ts";
+import { submitStepOutputDef } from "./defs/submit_step_output.ts";
+import { workflowDef } from "./defs/workflow.ts";
 
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
@@ -33,10 +35,11 @@ export const orchestratorDefs: ToolDefinition[] = [
   integrateWorkersDef,
   dynamicLoopDef,
   currentDatetimeDef,
+  workflowDef,
 ];
 
 // Always registered on a worker.
-export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDatetimeDef];
+export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDatetimeDef, submitStepOutputDef];
 
 // Registered only when the worker was spawned with collaborate=true (the
 // worker-mcp entrypoint composes them in).

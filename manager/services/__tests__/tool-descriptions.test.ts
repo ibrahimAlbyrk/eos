@@ -15,6 +15,14 @@ describe("renderToolDescriptions", () => {
     assert.ok(d.send_message_to_parent.length > 100);
   });
 
+  it("renders the workflow description with literal {{binding}} examples (not the bare-name fallback)", async () => {
+    const d = await renderToolDescriptions(promptsDir, ["workflow"]);
+    assert.notEqual(d.workflow, "workflow"); // a real description, not the missing-template fallback
+    assert.match(d.workflow, /run-inline/);
+    assert.ok(d.workflow.includes("{{nodes.<id>.output}}")); // binding syntax shown literally via LB/RB
+    assert.doesNotMatch(d.workflow, /\{\{[A-Z]/); // no unresolved {{UPPER_SNAKE}} variable
+  });
+
   it("falls back to the bare tool name when a description is missing", async () => {
     const d = await renderToolDescriptions(promptsDir, ["does_not_exist"]);
     assert.equal(d.does_not_exist, "does_not_exist");

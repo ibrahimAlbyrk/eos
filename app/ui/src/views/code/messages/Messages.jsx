@@ -10,7 +10,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { deriveActivity } from "../../../lib/agentActivity.js";
-import { buildBlocks, applyRewinds, applyClears, sortBlocksByTs } from "../../../lib/messageParser.js";
+import { buildBlocks, applyRewinds, applyClears, applyRecalls, sortBlocksByTs } from "../../../lib/messageParser.js";
 import { backendCaps } from "../../../lib/backendCaps.js";
 import { normRewindText } from "../../../lib/rewindMatch.js";
 import { deriveVerdict, deriveChildVerdicts } from "../../../lib/verdict.js";
@@ -34,11 +34,13 @@ import { ToolItem } from "./ToolItem.jsx";
 import { AgentBlock } from "./AgentBlock.jsx";
 import { ThinkingLine } from "./ThinkingLine.jsx";
 import { ProcessingLine } from "./ProcessingLine.jsx";
+import { GoalCheckLine, LoopCheckBlock } from "./LoopCheck.jsx";
 import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
 import { TerminalCard } from "./TerminalCard.jsx";
 import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceRuns } from "../../../state/terminalStore.js";
 import { subscribe as subscribeThinking, liveBlocksFor as liveThinkingFor, dropBlock as dropThinkingBlock } from "../../../state/thinkingStore.js";
+import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../../../state/loopCheckStore.js";
 import { setInputNeeded } from "../../../state/inputNeededStore.js";
 import * as outbox from "../../../state/outboxStore.js";
 
@@ -229,6 +231,10 @@ export function Messages({ live, agentId, isActive = true }) {
   useEffect(() => subscribeTerminal(() => setTermTick((t) => t + 1)), []);
   const [thinkTick, setThinkTick] = useState(0);
   useEffect(() => subscribeThinking(() => setThinkTick((t) => t + 1)), []);
+  // Live goal-check progress streams outside the event store too — re-render the
+  // "checking" indicator on each phase update.
+  const [loopCheckTick, setLoopCheckTick] = useState(0);
+  useEffect(() => subscribeLoopCheck(() => setLoopCheckTick((t) => t + 1)), []);
 
   // Outbox bubbles (sending/dispatching) overlay the durable blocks the same
   // way — they live in a module store, not React state.
@@ -253,7 +259,7 @@ export function Messages({ live, agentId, isActive = true }) {
   // durable rows change. Overlays join in the second memo so terminal chunks
   // and outbox ticks re-sort without re-parsing everything.
   const baseBlocks = useMemo(
-    () => buildBlocks(applyRewinds(applyClears(events), { bootPromptOffset })),
+    () => buildBlocks(applyRecalls(applyRewinds(applyClears(events), { bootPromptOffset }))),
     [events, bootPromptOffset],
   );
 
@@ -382,6 +388,13 @@ export function Messages({ live, agentId, isActive = true }) {
   const isAgentReply = lastBlock && (lastBlock.kind === "assistant" || lastBlock.kind === "toolGroup" || lastBlock.kind === "thinking" || lastBlock.kind === "agentRun");
   const showAnchor = !interrupted && (agentBusy || isAgentReply);
 
+  // Live goal-check (transient store) — shown only while the worker is idle under
+  // an active check; once it goes busy (a continuation) the normal busy spark
+  // takes over. The durable per-attempt verdicts are the loopCheck blocks.
+  const liveCheck = useMemo(() => loopCheckFor(selectedId), [selectedId, loopCheckTick]);
+  const showCheck = liveCheck != null && !agentBusy;
+  const loopChecks = useMemo(() => blocks.filter((b) => b.kind === "loopCheck"), [blocks]);
+
   // Layout effect: the initial scroll must land before paint, otherwise the
   // content flashes at the top and visibly jumps to the restored position.
   // Subsequent appends need no handling here — the hook's ResizeObserver
@@ -458,7 +471,7 @@ export function Messages({ live, agentId, isActive = true }) {
             workers={live.workers}
           />
         )}
-        {selectedWorker?.loop && <LoopStatus loop={selectedWorker.loop} />}
+        {selectedWorker?.loop && <LoopStatus loop={selectedWorker.loop} history={loopChecks} />}
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
@@ -490,7 +503,8 @@ export function Messages({ live, agentId, isActive = true }) {
           ].filter(Boolean).join(" ") || undefined;
           return <div key={key} data-bkey={key} className={cls}>{block}</div>;
         })}
-        {showAnchor && (
+        {showCheck && <GoalCheckLine check={liveCheck} now={live.now} />}
+        {showAnchor && !showCheck && (
           <ProcessingLine
             busy={agentBusy}
             elapsed={turnElapsedMs >= 1000 ? fmtElapsedShort(turnElapsedMs) : null}
@@ -531,6 +545,7 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
     case "loop":      return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageLoop text={b.text} /></MessageRow>;
+    case "loopCheck": return <LoopCheckBlock key={key} block={b} />;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} /></MessageRow>;
     case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} />;
     case "toolGroup": {

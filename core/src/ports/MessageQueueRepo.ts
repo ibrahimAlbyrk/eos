@@ -54,6 +54,11 @@ export interface MessageQueueRepo {
   markDispatched(ids: number[], ts: number): void;
   /** Claim rollback after a failed dispatch — deletes regardless of state. */
   removeById(id: number): void;
+  /** Recall: drop the dispatched ledger/claim row for a clientMsgId so the
+   *  recalled turn leaves no false hasRecentDispatch hit or orphan claim. Only
+   *  dispatched rows (dispatched_at NOT NULL) are removed — a still-pending row
+   *  is left untouched (the recall targets an already-dispatched message). */
+  removeDispatchedByClientMsgId(workerId: string, clientMsgId: string): void;
   /** Pill dismiss — deletes only if still pending. Returns whether a row was removed. */
   removePending(workerId: string, id: number): boolean;
   /** Interrupt semantics: Esc cancels everything the user queued. Deletes all

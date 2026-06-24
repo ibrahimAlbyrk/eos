@@ -85,7 +85,7 @@ export default [
     // node:assert. Production source under core/src/ — domain/, ports/,
     // use-cases/, services/ — gets the strict rule applied via the file
     // glob below.
-    files: ["core/src/domain/**/*.ts", "core/src/ports/**/*.ts", "core/src/use-cases/**/*.ts", "core/src/services/**/*.ts", "core/src/errors/**/*.ts", "core/src/index.ts"],
+    files: ["core/src/domain/**/*.ts", "core/src/ports/**/*.ts", "core/src/use-cases/**/*.ts", "core/src/services/**/*.ts", "core/src/workflow/**/*.ts", "core/src/errors/**/*.ts", "core/src/index.ts"],
     rules: {
       "no-restricted-imports": ["error", {
         patterns: [

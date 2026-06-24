@@ -12,6 +12,9 @@ export const USER_DATA_ENTRIES = [
   // User-authored worker definitions (~/.eos/workers/*.md) — non-regenerable user
   // data; without this they fall outside every backup/migration safety net.
   "workers",
+  // User-authored workflow definitions (~/.eos/workflows/*.json|.md) — same
+  // non-regenerable user data as workers; must be inside the safety net.
+  "workflows",
   "policy.yaml",
   "config.json",
   // Files-explorer trash fallback (used only when the macOS Finder Trash is

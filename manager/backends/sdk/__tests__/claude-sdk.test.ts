@@ -457,6 +457,102 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.ok(events.some((e) => e.type === "turn" && e.phase === "aborted"));
   });
 
+  // Recall (Layer 2): recallLastUserTurn forks the transcript sliced to the last
+  // assistant uuid (the anchor) and RELAUNCHES the query resuming that forked
+  // session — so the recalled, unanswered user message is in neither the agent's
+  // context nor any future resume. Reuses the controllable-iterator pattern to
+  // keep the session alive after the anchor message lands.
+  it("recallLastUserTurn forks at the last assistant uuid and resumes the sliced session", async () => {
+    // init + one completed assistant message set sessionId + lastAssistantUuid;
+    // the stream then blocks so the session stays alive for the recall.
+    const items: unknown[] = [
+      { type: "system", subtype: "init", session_id: "sess-1" },
+      { type: "assistant", uuid: "asst-1", message: { id: "msg_A", content: [{ type: "text", text: "hi" }] } },
+    ];
+    let i = 0;
+    let blockedReached = false; // true once the loop has consumed + mapped both items
+    const q1 = {
+      interrupt: async () => {},
+      [Symbol.asyncIterator]() {
+        return {
+          next: () => {
+            if (i < items.length) return Promise.resolve({ done: false, value: items[i++] });
+            blockedReached = true;
+            return new Promise<IteratorResult<unknown>>(() => {}); // block forever
+          },
+        };
+      },
+    };
+    const q2 = (async function* () { /* resumed sliced session — idle */ })();
+    const launched: Array<Record<string, unknown>> = [];
+    const queries: unknown[] = [q1, q2];
+    let qi = 0;
+    const queryFn: SdkQueryFn = (params) => { launched.push(params.options as unknown as Record<string, unknown>); return queries[qi++] as never; };
+    const forkCalls: Array<{ sessionId: string; options: { dir?: string; upToMessageId?: string } }> = [];
+    const forkSessionFn = async (sessionId: string, options: { dir?: string; upToMessageId?: string }) => {
+      forkCalls.push({ sessionId, options });
+      return { sessionId: "sess-forked" };
+    };
+
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+      forkSessionFn,
+    });
+
+    const session = await be.start(spec({ cwd: "/repo" }), {});
+    while (!blockedReached) await new Promise((r) => setTimeout(r, 1)); // both items mapped → anchor set
+    const r = await session.recallLastUserTurn!();
+
+    assert.deepEqual(r, { ok: true });
+    assert.equal(forkCalls.length, 1);
+    assert.equal(forkCalls[0].sessionId, "sess-1");
+    assert.equal(forkCalls[0].options.upToMessageId, "asst-1");
+    assert.equal(forkCalls[0].options.dir, "/repo"); // scoped to the worker's project dir
+    assert.equal(launched.length, 2, "a second query is launched (the recall relaunch)");
+    assert.equal(launched[1].resume, "sess-forked", "relaunch resumes the sliced (forked) session");
+  });
+
+  // No prior assistant message (the recalled message was the first turn) → nothing
+  // precedes it, so recall relaunches FRESH (no fork, no resume) like /clear.
+  it("recallLastUserTurn with no anchor relaunches fresh (first-turn recall)", async () => {
+    const items: unknown[] = [{ type: "system", subtype: "init", session_id: "sess-1" }];
+    let i = 0;
+    let blockedReached = false;
+    const q1 = {
+      interrupt: async () => {},
+      [Symbol.asyncIterator]() {
+        return { next: () => (i < items.length ? Promise.resolve({ done: false, value: items[i++] }) : (blockedReached = true, new Promise<IteratorResult<unknown>>(() => {}))) };
+      },
+    };
+    const q2 = (async function* () { /* fresh session — idle */ })();
+    const launched: Array<Record<string, unknown>> = [];
+    const queries: unknown[] = [q1, q2];
+    let qi = 0;
+    const queryFn: SdkQueryFn = (params) => { launched.push(params.options as unknown as Record<string, unknown>); return queries[qi++] as never; };
+    let forked = false;
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+      forkSessionFn: async () => { forked = true; return { sessionId: "x" }; },
+    });
+    const session = await be.start(spec(), {});
+    while (!blockedReached) await new Promise((r) => setTimeout(r, 1));
+    const r = await session.recallLastUserTurn!();
+    assert.deepEqual(r, { ok: true });
+    assert.equal(forked, false, "no fork without an anchor");
+    assert.equal(launched.length, 2);
+    assert.equal(launched[1].resume, undefined, "fresh relaunch — no resume");
+  });
+
   // Runtime model switch routes through the live SDK query's setModel control
   // method (streaming-input). effort is not an SDK lever — it's dropped here and
   // persisted by SetWorkerModel for the next resume. Mirrors the interrupt test's

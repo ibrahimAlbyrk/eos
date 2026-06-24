@@ -274,6 +274,59 @@ export const MIGRATIONS: Migration[] = [
       PRIMARY KEY (owner, name)
     )
   `},
+  // Runtime (orchestrator-created) workflow definitions — the create_workflow
+  // store, the workflow-system twin of worker_definitions (mig 050). Keyed by
+  // OWNER (creating orchestrator's id; stable across resume) so a resumed
+  // orchestrator's definitions reappear. The full WorkflowDefinition JSON is
+  // stored and re-validated on read, so a future schema bump degrades gracefully.
+  // PRIMARY KEY(owner,name) makes create an UPSERT (overwrite on name clash).
+  { id: "051_workflow_definitions", sql: `
+    CREATE TABLE IF NOT EXISTS workflow_definitions (
+      owner TEXT NOT NULL,
+      name TEXT NOT NULL,
+      json TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (owner, name)
+    )
+  `},
+  // Workflow runs — the status-lifecycle entity (clone of worker_loops, mig 047).
+  // A run is non-terminal in pending/running (the boot re-arm reconciles these)
+  // and settles into passed/failed/stopped. args_json/result_json carry the
+  // parsed run args + final result; anchor_id is the synthetic run-anchor worker
+  // row that roots the run's subtree (§3.5).
+  { id: "052_workflow_runs", sql: `
+    CREATE TABLE IF NOT EXISTS workflow_runs (
+      id TEXT PRIMARY KEY,
+      definition_name TEXT,
+      owner TEXT NOT NULL,
+      anchor_id TEXT NOT NULL,
+      status TEXT NOT NULL,
+      args_json TEXT,
+      result_json TEXT,
+      started_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )
+  `},
+  // Workflow steps — the per-node result journal that doubles as the resume
+  // cursor + memoization index (§3.4/§3.7). id is the composite ${runId}:${nodeId}
+  // so findByNode is a primary-key lookup; output_json holds the typed step
+  // result, persisted durably the instant a report is observed (crash-correctness).
+  // The run index serves listByRun.
+  { id: "053_workflow_steps", sql: `
+    CREATE TABLE IF NOT EXISTS workflow_steps (
+      id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      node_id TEXT NOT NULL,
+      node_type TEXT NOT NULL,
+      status TEXT NOT NULL,
+      worker_id TEXT,
+      output_json TEXT,
+      started_at INTEGER NOT NULL,
+      ended_at INTEGER
+    );
+    CREATE INDEX IF NOT EXISTS idx_workflow_steps_run ON workflow_steps(run_id);
+  `},
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

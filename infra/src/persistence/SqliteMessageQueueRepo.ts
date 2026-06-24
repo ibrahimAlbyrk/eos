@@ -55,6 +55,7 @@ export class SqliteMessageQueueRepo implements MessageQueueRepo {
   private readonly stmtListPendingUser;
   private readonly stmtMarkDispatched;
   private readonly stmtRemoveById;
+  private readonly stmtRemoveDispatchedByClientMsgId;
   private readonly stmtRemovePending;
   private readonly stmtClearPending;
   private readonly stmtClearPendingUser;
@@ -77,6 +78,9 @@ export class SqliteMessageQueueRepo implements MessageQueueRepo {
     );
     this.stmtMarkDispatched = db.prepare("UPDATE queued_messages SET dispatched_at = ? WHERE id = ?");
     this.stmtRemoveById = db.prepare("DELETE FROM queued_messages WHERE id = ?");
+    this.stmtRemoveDispatchedByClientMsgId = db.prepare(
+      "DELETE FROM queued_messages WHERE worker_id = ? AND client_msg_id = ? AND dispatched_at IS NOT NULL",
+    );
     this.stmtRemovePending = db.prepare(
       "DELETE FROM queued_messages WHERE worker_id = ? AND id = ? AND dispatched_at IS NULL",
     );
@@ -113,6 +117,10 @@ export class SqliteMessageQueueRepo implements MessageQueueRepo {
 
   removeById(id: number): void {
     this.stmtRemoveById.run(id);
+  }
+
+  removeDispatchedByClientMsgId(workerId: string, clientMsgId: string): void {
+    this.stmtRemoveDispatchedByClientMsgId.run(workerId, clientMsgId);
   }
 
   removePending(workerId: string, id: number): boolean {

@@ -14,7 +14,8 @@ import { applyCatalog } from "../lib/models.js";
 import { applyDescriptors } from "../lib/backendCaps.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
 import { applyDelta } from "../state/thinkingStore.js";
-import { cancelQueued } from "../state/outboxStore.js";
+import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
+import { cancelQueued, retract } from "../state/outboxStore.js";
 import { explorer } from "../state/explorerStore.js";
 import { emitGitChange } from "../state/gitChangeBus.js";
 
@@ -32,6 +33,11 @@ export function useLive() {
   const [uiConfig, setUiConfig] = useState(null);
   const [update, setUpdate] = useState(null);
   const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null });
+  // The latest recall (interrupt-before-response): the text to restore to the
+  // composer, keyed by worker. Bumped per recall (ts makes each a fresh object
+  // so the consuming effect always re-fires). The outbox retract happens inline
+  // here; the composer restore is driven by a ui-aware effect in Shell.
+  const [recall, setRecall] = useState(null);
   const now = useClockTick();
   const [interruptedId, _setInterruptedId] = useState(() => localStorage.getItem("cm:interruptedId"));
   const setInterruptedId = useCallback((id) => {
@@ -113,6 +119,22 @@ export function useLive() {
           // Live reasoning/text deltas (claude-sdk / in-process) — high-frequency
           // live data, not a state delta; route to the thinking store, skip refetch.
           if (data.reason === "agent:delta") { applyDelta(data.payload ?? {}); return; }
+          // Transient goal-check progress (loop tick) — drive the live "checking"
+          // indicator via the loop-check store; not a worker-state delta, so skip
+          // the refetch. The durable verdict rides loop_check (a worker:change).
+          if (data.reason === "loop:check") { applyLoopCheck(data.payload ?? {}); return; }
+          // Recall (interrupt before the agent responded): drop the optimistic
+          // bubble now + surface the text for the composer restore. The durable
+          // message_recalled event (delivered as a worker:change below) hides the
+          // server-side bubble via the Messages fold — so still refetch.
+          if (data.reason === "message:recalled") {
+            const p = data.payload ?? {};
+            if (p.workerId) {
+              retract(p.workerId, p.clientMsgId);
+              setRecall({ workerId: p.workerId, content: p.text ?? "", ts: Date.now() });
+            }
+            return;
+          }
           scheduleRefetch();
           if (data.payload?.workerId) {
             setEventSignal(prev => ({ tick: prev.tick + 1, workerId: data.payload.workerId }));
@@ -276,5 +298,6 @@ export function useLive() {
     applyUpdate,
     deferUpdate,
     eventSignal,
+    recall,
   };
 }

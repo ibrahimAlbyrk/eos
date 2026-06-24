@@ -8,7 +8,7 @@ import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 import { CreateWorkerRequestSchema } from "../../contracts/src/http.ts";
-import type { WorkerDefinitionRecord } from "../../contracts/src/worker-definition.ts";
+import { mergeAvailableWorkers } from "../../core/src/domain/worker-definition-catalog.ts";
 
 export function registerWorkerDefinitionRoutes(r: Router, c: Container): void {
   r.get("/worker-definitions", ({ url, res }) => {
@@ -17,10 +17,11 @@ export function registerWorkerDefinitionRoutes(r: Router, c: Container): void {
     const cwd = ownerRow?.worktree_dir ?? ownerRow?.cwd ?? null;
     // Disk first, runtime last → runtime wins on a name clash (same precedence
     // as the spawn path). Dedup by name into lean catalog entries.
-    const byName = new Map<string, WorkerDefinitionRecord>();
-    for (const rec of c.listWorkerDefinitionRecords(cwd)) byName.set(rec.name, rec);
-    if (owner) for (const rec of c.runtimeWorkerDefinitions.listFor(owner)) byName.set(rec.name, rec);
-    const entries = [...byName.values()].map((t) => ({
+    const merged = mergeAvailableWorkers(
+      c.listWorkerDefinitionRecords(cwd),
+      owner ? c.runtimeWorkerDefinitions.listFor(owner) : [],
+    );
+    const entries = merged.map((t) => ({
       name: t.name,
       description: t.description,
       whenToUse: t.whenToUse,

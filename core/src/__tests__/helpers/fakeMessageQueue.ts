@@ -34,6 +34,11 @@ export function fakeQueue(): { rows: QueueRow[]; repo: MessageQueueRepo } {
         .map(toPublic),
       markDispatched(ids, ts) { for (const r of rows) if (ids.includes(r.id)) r.dispatchedAt = ts; },
       removeById(id) { const i = rows.findIndex((r) => r.id === id); if (i >= 0) rows.splice(i, 1); },
+      removeDispatchedByClientMsgId(wid, clientMsgId) {
+        for (let i = rows.length - 1; i >= 0; i--) {
+          if (rows[i].workerId === wid && rows[i].clientMsgId === clientMsgId && rows[i].dispatchedAt !== null) rows.splice(i, 1);
+        }
+      },
       removePending(wid, id) {
         const i = rows.findIndex((r) => r.workerId === wid && r.id === id && r.dispatchedAt === null);
         if (i < 0) return false;

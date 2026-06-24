@@ -19,10 +19,25 @@ export type EventBusTopic =
   // Ephemeral live reasoning/text deltas (claude-sdk, in-process). Relayed to
   // SSE like terminal:chunk; never persisted, never drives worker state.
   | "agent:delta"
+  // A recalled (interrupt-before-response) message's text + key, pushed to SSE so
+  // the UI restores the composer + retracts the optimistic bubble. The durable
+  // hide rides the message_recalled event (worker:change); this is the ephemeral
+  // client-side restore signal. Never drives worker state.
+  | "message:recalled"
   // Dynamic-loop lifecycle (attach / status change / attempt / held). Published
   // from the manager (GoalLoopService + the loop/report routes); rebroadcast to
   // SSE by the "*" subscription. Never drives worker state.
   | "loop:change"
+  // Transient goal-check progress (started → verifying|judging → verdict) during
+  // a loop tick. Published from GoalLoopService's LoopProgressSink; rebroadcast to
+  // SSE by the "*" subscription (the loop:change model). Never persisted, never
+  // drives worker state — the durable record is the "loop_check" timeline event.
+  | "loop:check"
+  // Workflow-orchestration run/step lifecycle. Published from the manager
+  // (WorkflowService via the ProgressSink adapter); rebroadcast to SSE by the
+  // "*" subscription (the loop:change model). Never drives worker state.
+  | "workflow:run-change"
+  | "workflow:step-change"
   | "fs:change"
   | "git:change"
   | "update:available";

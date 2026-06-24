@@ -464,6 +464,41 @@
       "properties": {},
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "workflow": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "run-stored",
+            "run-inline",
+            "create",
+            "status",
+            "stop"
+          ],
+          "description": "run-stored: run a catalogued definition by `from`. run-inline: run an emitted `spec` once. create: persist a `spec` for reuse. status: read a run by `runId`. stop: abort a run by `runId` (reaps its workers)."
+        },
+        "from": {
+          "type": "string",
+          "description": "Stored workflow definition name (run-stored)."
+        },
+        "spec": {
+          "description": "The workflow definition object — { name, root, experts? } (run-inline / create). Validated server-side against the canonical schema."
+        },
+        "args": {
+          "description": "Run arguments object bound as {{args.*}} in step prompts (run-stored / run-inline)."
+        },
+        "runId": {
+          "type": "string",
+          "description": "Target run id (status / stop)."
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   "worker": {
@@ -484,6 +519,14 @@
     "current_datetime": {
       "type": "object",
       "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "submit_step_output": {
+      "type": "object",
+      "properties": {
+        "output": {}
+      },
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     }

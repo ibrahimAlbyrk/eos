@@ -15,6 +15,7 @@ import type { Clock } from "../ports/Clock.ts";
 import type { WorkerClient } from "../ports/WorkerClient.ts";
 import type { AgentBackendRegistry } from "../ports/AgentBackend.ts";
 import type { MessageQueueRepo } from "../ports/MessageQueueRepo.ts";
+import type { TurnOutputTracker } from "../ports/TurnOutputTracker.ts";
 import type { Logger } from "../ports/Logger.ts";
 import type { MessageRecord } from "../../../contracts/src/http.ts";
 import type { DispatchEnvelope } from "../domain/message-envelope.ts";
@@ -117,6 +118,10 @@ export interface DispatchMessageDeps {
    * would re-open the trailing-jsonl false-WORKING gate right when the drain
    * needs a stable IDLE, starving the queue. */
   clearTurnSettle?(workerId: string): void;
+  /** Reset the worker's turn-output signal at the dispatch push (a genuine new
+   *  turn): the recall window for this message scopes from HERE, not turn:started
+   *  (which fires after the first token). Read later by RecallPendingTurn. */
+  turnOutput?: TurnOutputTracker;
   excerptLimit?: number;
 }
 
@@ -283,6 +288,9 @@ export async function dispatchMessage(
   // A real dispatch starts a genuine new turn — the settle window must not
   // suppress its WORKING lift or its first transcript events.
   deps.clearTurnSettle?.(input.workerId);
+  // Scope the recall window from this push: until the agent emits its first
+  // delta/message, an interrupt may recall this exact message.
+  deps.turnOutput?.reset(input.workerId);
 
   let result;
   let selfReports: boolean;

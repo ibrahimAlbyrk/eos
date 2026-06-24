@@ -44,6 +44,20 @@ import { SqliteMessageQueueRepo } from "../infra/src/persistence/SqliteMessageQu
 import { SqlitePendingRepo } from "../infra/src/persistence/SqlitePendingRepo.ts";
 import { SqliteWorktreeRemovalQueue } from "../infra/src/persistence/SqliteWorktreeRemovalQueue.ts";
 import { SqliteLoopStateRepo } from "../infra/src/persistence/SqliteLoopStateRepo.ts";
+import { SqliteWorkflowRunRepo } from "../infra/src/persistence/SqliteWorkflowRunRepo.ts";
+import { SqliteWorkflowStepRepo } from "../infra/src/persistence/SqliteWorkflowStepRepo.ts";
+import { SqliteRuntimeWorkflowDefinitionStore } from "../infra/src/persistence/SqliteRuntimeWorkflowDefinitionStore.ts";
+import { FileWorkflowDefinitionSource, findProjectWorkflowDefinitionsDir } from "../infra/src/workflow/FileWorkflowDefinitionSource.ts";
+import { BuiltinWorkflowDefinitionSource } from "./workflows/index.ts";
+import { InMemoryStepExecutorRegistry } from "../core/src/workflow/registry.ts";
+import { registerBuiltinExecutors } from "../core/src/workflow/register-builtins.ts";
+import { WorkflowEngineImpl } from "../core/src/workflow/engine.ts";
+import { WorkerSpawnAdapter, type StepSpawnRequest } from "./services/WorkerSpawnAdapter.ts";
+import { EventBusProgressSink } from "./services/EventBusProgressSink.ts";
+import { WorkflowService } from "./services/WorkflowService.ts";
+import { spawnWorkerHandler } from "./commands/handlers/spawn-worker.ts";
+import { killWorkerHandler } from "./commands/handlers/kill-worker.ts";
+import type { WorkflowDefinition, WorkflowDefinitionRecord } from "../contracts/src/workflow.ts";
 import { DeterministicCommandStrategy } from "../infra/src/goalcheck/DeterministicCommandStrategy.ts";
 import { GitEvidenceCollector } from "../infra/src/goalcheck/GitEvidenceCollector.ts";
 import { LlmJudgeStrategy } from "../core/src/services/LlmJudgeStrategy.ts";
@@ -85,6 +99,7 @@ import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { createSlashCommandRegistry } from "../core/src/domain/slash-command.ts";
 import { clearCommand } from "../core/src/domain/commands/clear.ts";
 import { resolveMemorySources } from "../core/src/domain/memory-sources.ts";
+import { mergeAvailableWorkers } from "../core/src/domain/worker-definition-catalog.ts";
 import { selectInjectableMemory } from "../core/src/services/select-injectable-memory.ts";
 import { composeAppendedPrompt } from "../core/src/services/compose-appended-prompt.ts";
 import type { EosBuiltinMcpServer } from "../core/src/domain/tool-scope.ts";
@@ -102,6 +117,7 @@ import { assembleSystemPrompt } from "../core/src/use-cases/AssembleSystemPrompt
 import { TOOL_NAME_VARS } from "./prompt-tool-names.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
+import { TurnOutputTrackerService } from "./services/TurnOutputTracker.ts";
 import { StartupBackupService } from "./services/StartupBackupService.ts";
 import { FilePromptSource } from "../infra/src/prompt/FilePromptSource.ts";
 import { FileWorkerDefinitionSource, findProjectWorkerDefinitionsDir } from "../infra/src/worker-definition/FileWorkerDefinitionSource.ts";
@@ -504,6 +520,10 @@ export function buildContainer() {
   };
 
   const turnSettle = new TurnSettleService(systemClock);
+  // Per-worker "did this turn produce output yet?" — fed by the onAgentEvent
+  // delta sink below, reset at dispatch (DispatchMessage), read by the interrupt
+  // handler's recall decision. Never sourced from the durable log (deltas aren't logged).
+  const turnOutput = new TurnOutputTrackerService();
   const pendingQuestions = new PendingQuestionService(randomIdGenerator, systemClock);
   const backgroundActivity = new BackgroundActivityService(systemClock);
   const pendingPeerRequests = new PendingPeerRequestService(randomIdGenerator, systemClock, config.collaborate.awaitTimeoutMs);
@@ -584,7 +604,11 @@ export function buildContainer() {
       }
     }
     const workerDefinitionCatalog =
-      role === "orchestrator" ? renderWorkerDefinitionCatalog(listWorkerDefinitionRecords(lookupCwd)) : "";
+      role === "orchestrator"
+        ? renderWorkerDefinitionCatalog(
+            mergeAvailableWorkers(listWorkerDefinitionRecords(lookupCwd), runtimeWorkerDefinitions.listFor(id)),
+          )
+        : "";
     const { text } = assembleSystemPrompt(
       { registry: promptRegistry, prompts },
       {
@@ -836,9 +860,16 @@ export function buildContainer() {
     // rebroadcasts every bus topic), never persisted as an event row and never
     // driving worker state. The durable record stays the final `message` event.
     if (event.type === "delta") {
+      // First visible token of the turn (reasoning OR text) = the agent
+      // responded → an interrupt past this point is a normal interrupt, not a
+      // recall. Earliest, fullest proof of output (deltas never reach the log).
+      turnOutput.markSeen(workerId);
       bus.publish("agent:delta", { workerId, channel: event.channel, phase: event.phase, blockId: event.blockId, text: event.text });
       return;
     }
+    // Fallback for backends with deltas off: a durable assistant message also
+    // means the turn produced output (deltas always precede it on the SDK lane).
+    if (event.type === "message" && event.role === "assistant") turnOutput.markSeen(workerId);
     processAgentSignal(
       { workers, events, bus, clock: systemClock, models, log, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id) },
       workerId,
@@ -846,7 +877,92 @@ export function buildContainer() {
     );
   };
 
-  return {
+  // ===== Workflow-orchestration engine (§3) ================================
+  // Daemon-resident deterministic interpreter + its persistence, the spawn-join
+  // adapter, and the driver service. A late-bound self-reference (a holder mutated
+  // after the container is built) lets the step/expert spawn + teardown reuse the
+  // existing command handlers (which need the fully-built container); they only
+  // fire when a run is started, long after boot, so the late binding is safe.
+  const self: { c?: Container } = {};
+  const workflowRuns = new SqliteWorkflowRunRepo(db);
+  const workflowSteps = new SqliteWorkflowStepRepo(db);
+  const runtimeWorkflowDefinitions = new SqliteRuntimeWorkflowDefinitionStore(db);
+  // Drop an owner's runtime workflow definitions when its row is permanently
+  // removed (mirrors the worker-definition cascade).
+  bus.subscribe("worker:removed", (msg) =>
+    runtimeWorkflowDefinitions.deleteForOwner((msg.payload as { workerId: string }).workerId),
+  );
+  const userWorkflowDefinitionsDir = join(config.daemon.home, "workflows");
+  const builtinWorkflowDefinitions = new BuiltinWorkflowDefinitionSource();
+  // Definition-overlay resolver (clone of the worker-def resolver): builtin
+  // code-DSL modules < on-disk user/project files < the owner's runtime store.
+  // nearest-wins (last match by name), so the builtins are listed FIRST (lowest
+  // precedence); an unknown name returns null → the run use-case throws a hard error.
+  const resolveWorkflowDefinition = (name: string, ownerId: string): WorkflowDefinition | null => {
+    const ownerRow = workers.findById(ownerId);
+    const cwd = ownerRow?.worktree_dir ?? ownerRow?.cwd ?? null;
+    const dirs = [{ dir: userWorkflowDefinitionsDir, source: "user" as const }];
+    const proj = cwd ? findProjectWorkflowDefinitionsDir(cwd) : null;
+    if (proj) dirs.push({ dir: proj, source: "project" as const });
+    const records: WorkflowDefinitionRecord[] = [
+      ...builtinWorkflowDefinitions.list(),
+      ...new FileWorkflowDefinitionSource(dirs).list(),
+      ...runtimeWorkflowDefinitions.listFor(ownerId),
+    ];
+    let found: WorkflowDefinition | null = null;
+    for (const r of records) {
+      if (r.name === name) { const { source: _source, ...def } = r; found = def; }
+    }
+    return found;
+  };
+  // Step/expert spawn goes through the command handler (so from-definition /
+  // tool-scope / mode / backend resolution come for free — §3.5). SpawnStepSpec
+  // carries no cwd, so the run cwd is injected HERE: each step/expert runs in its
+  // own worktree off the repo root (isolation; never clobbers the user's
+  // checkout). Per-orchestrator run cwd is a future enhancement (RunContext
+  // carries none).
+  const runStepSpawn = (req: StepSpawnRequest): Promise<{ id: string }> => {
+    const withCwd = req.cwd || req.worktreeFrom ? req : { ...req, worktreeFrom: config.paths.repoRoot };
+    return spawnWorkerHandler.run({}, withCwd, { c: self.c!, requestId: "workflow" }).then((r) => ({ id: r.body.id }));
+  };
+  // Teardown reuses KillWorker (recursive subtree reap) with no actorId — the
+  // daemon-resident engine is trusted, the ownership gate is for agent kills.
+  const runStepKill = (id: string): void => {
+    void killWorkerHandler.run({ id, actorId: undefined }, {}, { c: self.c!, requestId: "workflow" })
+      .catch((e) => log.warn("workflow worker teardown failed", { id, error: e instanceof Error ? e.message : String(e) }));
+  };
+  const workflowProgress = new EventBusProgressSink(bus);
+  const workflowSpawn = new WorkerSpawnAdapter({
+    bus, steps: workflowSteps, workers, clock: systemClock,
+    runSpawn: runStepSpawn, killWorker: runStepKill,
+  });
+  const workflowRegistry = new InMemoryStepExecutorRegistry();
+  registerBuiltinExecutors(workflowRegistry);
+  const workflowEngine = new WorkflowEngineImpl({
+    registry: workflowRegistry,
+    runs: workflowRuns,
+    steps: workflowSteps,
+    spawn: workflowSpawn,
+    progress: workflowProgress,
+    clock: systemClock,
+    ids: randomIdGenerator,
+    log,
+    maxConcurrentSteps: config.workflow.maxConcurrentSteps,
+    resolveDefinition: resolveWorkflowDefinition,
+  });
+  const workflowService = new WorkflowService({
+    engine: workflowEngine,
+    runs: workflowRuns,
+    spawn: workflowSpawn,
+    progress: workflowProgress,
+    definitions: runtimeWorkflowDefinitions,
+    resolveDefinition: resolveWorkflowDefinition,
+    resolveMode: (ownerId) => modeResolver.resolveFor(ownerId),
+    ids: randomIdGenerator,
+    log,
+  });
+
+  const container = {
     get config() { return config; },
     log,
     db,
@@ -865,6 +981,7 @@ export function buildContainer() {
     judgeBackend,
     microTasks,
     supervisor,
+    turnOutput,
     portAllocator,
     httpWorkerClient,
     models,
@@ -907,6 +1024,11 @@ export function buildContainer() {
     promptRegistry,
     listWorkerDefinitionRecords,
     runtimeWorkerDefinitions,
+    workflowRuns,
+    workflowSteps,
+    workflowDefinitions: runtimeWorkflowDefinitions,
+    workflowSpawn,
+    workflowService,
     userTemplates,
     projectMemory,
     claudeHome,
@@ -927,6 +1049,9 @@ export function buildContainer() {
     getPolicy(): Policy { return policy; },
     reloadConfig(): void { config = reloadConfigFromDisk(); },
   };
+  // Late-bind the self-reference the workflow spawn/teardown closures capture.
+  self.c = container;
+  return container;
 }
 
 export type Container = ReturnType<typeof buildContainer>;

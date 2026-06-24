@@ -88,11 +88,16 @@ function durableBlocks(msgId: string, content: RawBlock[], startIdx: number): Co
 export interface SdkEventMapper {
   map(msg: SdkMsg): AgentEvent[];
   readonly sessionId: string | null;
+  // uuid of the last completed top-level assistant message — the recall anchor
+  // (forkSession slices the transcript up to and including it). null until the
+  // first assistant message of the session.
+  readonly lastAssistantUuid: string | null;
 }
 
 export function createSdkEventMapper(): SdkEventMapper {
   let turnActive = false;
   let sessionId: string | null = null;
+  let lastAssistantUuid: string | null = null;
   const openedBlocks = new Map<string, "reasoning" | "text">(); // blockId -> channel of open live blocks
   // The blockId must be stable across every delta of one content block AND match
   // the durable assistant block (UI handoff). The SDK's per-partial `uuid` is NOT
@@ -114,6 +119,7 @@ export function createSdkEventMapper(): SdkEventMapper {
 
   return {
     get sessionId() { return sessionId; },
+    get lastAssistantUuid() { return lastAssistantUuid; },
     map(msg: SdkMsg): AgentEvent[] {
       const out: AgentEvent[] = [];
       if (msg.session_id && !sessionId) sessionId = msg.session_id;
@@ -173,6 +179,10 @@ export function createSdkEventMapper(): SdkEventMapper {
             }
             return out;
           }
+          // Track the last completed top-level assistant message uuid — the recall
+          // anchor (the entry the SDK transcript is sliced to on recall). Subagent
+          // messages returned above never set it.
+          if (msg.uuid) lastAssistantUuid = msg.uuid;
           // Same anchor the live deltas used (message id), so durable blockIds
           // match and the UI hands off live -> durable instead of double-rendering.
           const msgId = msg.message?.id ?? blockBase();

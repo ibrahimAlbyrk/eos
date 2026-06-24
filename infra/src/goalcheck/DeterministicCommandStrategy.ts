@@ -22,6 +22,7 @@ export class DeterministicCommandStrategy implements GoalCheckStrategy {
         criteria.push({ id: c.id, met: false, evidence: "no deterministic verify; needs judge" });
         continue;
       }
+      ctx.progress?.({ phase: "verifying", criterionId: c.id });
       const r = await runShell(c.verify, cwd, VERIFY_TIMEOUT_MS);
       criteria.push({ id: c.id, met: r.exitCode === 0, evidence: `exit ${r.exitCode}: ${c.verify}` });
     }

@@ -49,6 +49,30 @@ export function applyRewinds(events, { bootPromptOffset = 0 } = {}) {
   return out;
 }
 
+// message_recalled (interrupt-before-response, SDK lane) hides the just-sent
+// user message the agent never answered: the matching user_message is dropped
+// (its text returns to the composer) and the marker itself renders nothing.
+// Matched by the recalled event-row id, falling back to clientMsgId. Display-only
+// — the events store keeps both rows (mirrors applyRewinds/applyClears).
+export function applyRecalls(events) {
+  const rowIds = new Set();
+  const clientMsgIds = new Set();
+  for (const ev of events) {
+    if (ev.type !== "message_recalled") continue;
+    const p = parsePayload(ev.payload);
+    if (typeof p.recalledRowId === "number") rowIds.add(p.recalledRowId);
+    if (p.clientMsgId) clientMsgIds.add(p.clientMsgId);
+  }
+  if (rowIds.size === 0 && clientMsgIds.size === 0) return events;
+  return events.filter((ev) => {
+    if (ev.type === "message_recalled") return false; // the marker renders nothing
+    if (ev.type !== "user_message") return true;
+    if (rowIds.has(ev.id)) return false;
+    const ids = parsePayload(ev.payload).clientMsgIds ?? [];
+    return !ids.some((c) => clientMsgIds.has(c));
+  });
+}
+
 const normRewindText = (s) => (s ?? "").replace(/\s+/g, " ").trim();
 
 function findRewindCut(events, payload, bootPromptOffset) {
@@ -301,6 +325,25 @@ export function buildBlocks(rawEvents) {
         kind: "loop",
         text: payload.text ?? "",
         ts: payload.anchorTs ?? payload.sentAt ?? ev.ts,
+      });
+      continue;
+    }
+    if (ev.type === "loop_check") {
+      // Durable per-attempt goal-check verdict (LoopCheckEventSchema). The
+      // chronological record renders inline; the LoopStatus card also aggregates
+      // these into an attempt history off the same blocks.
+      flushTools();
+      lastAsst = null;
+      const payload = parsePayload(ev.payload);
+      out.push({
+        kind: "loopCheck",
+        attempt: payload.attempt ?? null,
+        maxAttempts: payload.maxAttempts ?? null,
+        strategy: payload.strategy ?? null,
+        met: payload.met ?? false,
+        outcome: payload.outcome ?? null,
+        reason: payload.reason ?? "",
+        ts: ev.ts,
       });
       continue;
     }

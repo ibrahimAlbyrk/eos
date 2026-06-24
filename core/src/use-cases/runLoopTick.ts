@@ -15,6 +15,7 @@ import {
 import { detectNoProgress, outcomeKey } from "../domain/loop-progress.ts";
 import type { LoopStateRepo, LoopAttempt } from "../ports/LoopStateRepo.ts";
 import type { GoalCheckStrategy, GoalContext } from "../ports/GoalCheckStrategy.ts";
+import type { LoopProgressSink, LoopProgressUpdate } from "../ports/LoopProgressSink.ts";
 import type { PromptRenderer } from "../ports/PromptRenderer.ts";
 import type { Clock } from "../ports/Clock.ts";
 import type { Logger } from "../ports/Logger.ts";
@@ -32,6 +33,9 @@ export interface RunLoopTickDeps {
   noProgressWindow: number;
   stopOnNoProgress: boolean;
   renderer: PromptRenderer;
+  // Live goal-check progress (optional — absent in tests that don't assert it).
+  // runLoopTick reports started → (verifying|judging, via the strategy) → verdict.
+  progress?: LoopProgressSink;
   clock: Clock;
   log: Logger;
 }
@@ -54,6 +58,13 @@ export async function runLoopTick(deps: RunLoopTickDeps, input: RunLoopTickInput
   // orchestrator's reply reaches the worker and clears awaiting_input.
   if (loop.awaitingInput) return "noop";
 
+  // Live progress: enrich every update with this tick's attempt/strategy (the
+  // worker id is added by the manager sink). attempt is the human-facing pass
+  // count being checked (attemptsMade), matching the loop card's "attempt N/M".
+  const checkAttempt = loop.attempt + 1;
+  const emit = (u: Omit<LoopProgressUpdate, "attempt" | "maxAttempts" | "strategy">): void =>
+    deps.progress?.({ attempt: checkAttempt, maxAttempts: loop.maxAttempts, strategy: loop.strategy, ...u });
+
   const ctx: GoalContext = {
     workerId: input.workerId,
     worktreeDir: input.worktreeDir,
@@ -63,7 +74,9 @@ export async function runLoopTick(deps: RunLoopTickDeps, input: RunLoopTickInput
     // The worker's own terminal claim (the held report) is what the judge must
     // demote-and-verify; fall back to any caller-supplied text.
     lastReportText: loop.heldReport ?? input.lastReportText,
+    progress: (u) => emit({ phase: u.phase, criterionId: u.criterionId }),
   };
+  emit({ phase: "started" });
   const verdict = await deps.strategyFor(loop.strategy).evaluate(loop.goal, ctx);
 
   // The number of work passes the worker has made (the initial report + the
@@ -76,6 +89,7 @@ export async function runLoopTick(deps: RunLoopTickDeps, input: RunLoopTickInput
   // left one, else a synthesized completion (a worker that "just stops" still
   // surfaces).
   if (verdict.met) {
+    emit({ phase: "verdict", met: true, outcome: "released", reason: verdict.reason });
     if (loop.parentId != null) {
       const text = loop.heldReport
         ?? deps.renderer.render(LOOP_COMPLETE_TEMPLATE, buildLoopCompleteVars(loop.goal, attemptsMade)).trim();
@@ -91,6 +105,7 @@ export async function runLoopTick(deps: RunLoopTickDeps, input: RunLoopTickInput
   // or a synthesized "ended unmet" message when there is none — never leave the
   // orchestrator silent.
   const exhaust = async (reason: string): Promise<LoopTickOutcome> => {
+    emit({ phase: "verdict", met: false, outcome: "exhausted", reason });
     if (loop.parentId != null) {
       const text = loop.heldReport != null
         ? deps.renderer.render(EXHAUSTED_RELEASE_TEMPLATE, buildExhaustedReleaseVars(loop.goal, verdict, reason, loop.heldReport)).trim()
@@ -127,6 +142,7 @@ export async function runLoopTick(deps: RunLoopTickDeps, input: RunLoopTickInput
 
   // (4) Continue: the held report (if any) is a REJECTED completion claim —
   // discard it, record this attempt, and re-trigger.
+  emit({ phase: "verdict", met: false, outcome: "continued", reason: verdict.reason });
   if (loop.heldReport != null) deps.loops.setHeldReport(loop.id, null);
   deps.loops.recordAttempt(loop.id, entry);
   await deps.dispatch({

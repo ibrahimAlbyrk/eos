@@ -34,6 +34,23 @@ export function loopBadgeTitle(loop) {
   return tail ? `${base} — ${tail}` : base;
 }
 
+// Attempt "N/M" (bounded) or "N" (unbounded) for a live goal-check progress
+// entry (loopCheckStore) — the same phrasing as the loop card, off the transient
+// LoopCheckProgress fields rather than the persisted loop row.
+export function loopCheckAttemptText(check) {
+  if (!check) return "";
+  return check.maxAttempts != null ? `${check.attempt}/${check.maxAttempts}` : String(check.attempt);
+}
+
+// The phase segment of the live goal-check line: the running phase, naming the
+// criterion under a verify command, or the outcome once the verdict is in.
+export function loopCheckPhaseLabel(check) {
+  if (!check) return "";
+  if (check.phase === "verifying") return check.criterionId ? `verifying ${check.criterionId}` : "verifying";
+  if (check.phase === "verdict") return check.outcome ?? "verdict";
+  return check.phase; // started | judging
+}
+
 // One-line detail for an arm-at-spawn loop (SpawnLoopSchema: {goal, strategy?,
 // limit?}) carried by the spawn_worker tool input. Static spawn args, NOT live
 // loop state — surfaced as immediate feedback on the "Spawned <name>" message.

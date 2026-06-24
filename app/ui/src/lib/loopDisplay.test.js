@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { loopStatusLabel, loopAttemptText, loopSummary, loopBadgeTitle, spawnLoopDetails } from "./loopDisplay.js";
+import { loopStatusLabel, loopAttemptText, loopSummary, loopBadgeTitle, spawnLoopDetails, loopCheckAttemptText, loopCheckPhaseLabel } from "./loopDisplay.js";
 
 describe("loopDisplay", () => {
   it("formats bounded and unbounded attempt counts", () => {
@@ -41,5 +41,14 @@ describe("loopDisplay", () => {
     expect(spawnLoopDetails({ goal: { summary: "x" }, strategy: "judge", limit: null }))
       .toBe("Loop: x · judge · unbounded");
     expect(spawnLoopDetails(null)).toBe("");
+  });
+
+  it("formats live goal-check attempt + phase labels", () => {
+    expect(loopCheckAttemptText({ attempt: 2, maxAttempts: 5 })).toBe("2/5");
+    expect(loopCheckAttemptText({ attempt: 1, maxAttempts: null })).toBe("1");
+    expect(loopCheckPhaseLabel({ phase: "started" })).toBe("started");
+    expect(loopCheckPhaseLabel({ phase: "verifying", criterionId: "c1" })).toBe("verifying c1");
+    expect(loopCheckPhaseLabel({ phase: "verifying" })).toBe("verifying");
+    expect(loopCheckPhaseLabel({ phase: "verdict", outcome: "continued" })).toBe("continued");
   });
 });

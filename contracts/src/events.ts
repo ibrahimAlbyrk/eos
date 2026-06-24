@@ -61,6 +61,10 @@ export const WorkerEventTypeSchema = z.enum([
   // A dynamic-loop automated re-trigger delivered into the looped worker's chat —
   // rendered as a "Dynamic loop" system message, not a user bubble.
   "loop_continuation",
+  // One per-attempt goal-check verdict — the durable scrollback record of a loop
+  // tick's outcome (met/outcome/reason). Payload: LoopCheckEventSchema (loop.ts).
+  // Distinct from the transient "loop:check" bus topic, which is never persisted.
+  "loop_check",
   "question_pending",
   "question_answered",
   // Peer consultation: peer_consult marks the asker's timeline when it consults
@@ -68,6 +72,12 @@ export const WorkerEventTypeSchema = z.enum([
   "peer_consult",
   "peer_request",
   "conversation_rewound",
+  // Interrupt-before-response (claude-sdk lane): the daemon recalls the
+  // just-sent user_message the agent never answered. The UI folds this like
+  // conversation_rewound — hides the matching user bubble (never deletes the
+  // row) and returns the text to the composer. SDK-only (the daemon owns the
+  // user_message row there).
+  "message_recalled",
   "conversation_cleared",
   "try_applied",
   "try_kept",
@@ -82,8 +92,27 @@ export const WorkerEventTypeSchema = z.enum([
   // processAgentSignal's logEvent; the row type is stored free-form so logging
   // already works, but the enum lists it so consumers are type-complete.
   "agent_event",
+  // Workflow-orchestration run/step transitions appended to the replayable
+  // timeline (§3.7). The engine's ProgressSink emits them keyed by the run's id.
+  "workflow_run_started",
+  "workflow_run_done",
+  "workflow_run_failed",
+  "workflow_step_started",
+  "workflow_step_done",
+  "workflow_step_failed",
 ]);
 export type WorkerEventType = z.infer<typeof WorkerEventTypeSchema>;
+
+// message_recalled — emitted when an interrupt recalls the just-sent, unanswered
+// user message. `recalledRowId` is the user_message event row to hide; `clientMsgId`
+// (when the send carried one) lets the UI hide the optimistic bubble + dedup ledger.
+// `text` is restored to the composer.
+export const MessageRecalledPayloadSchema = z.object({
+  text: z.string(),
+  clientMsgId: z.string().optional(),
+  recalledRowId: z.number().optional(),
+});
+export type MessageRecalledPayload = z.infer<typeof MessageRecalledPayloadSchema>;
 
 export const UsagePayloadSchema = z.object({
   in: z.number().nonnegative().default(0),

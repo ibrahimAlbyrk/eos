@@ -81,6 +81,15 @@ describe("loadConfig — defaults", () => {
     assert.equal("maxTokens" in cfg.loop, false);
     assert.equal("maxWallClockMs" in cfg.loop, false);
   });
+  it("seeds config.workflow defaults", async () => {
+    const { defaults } = await import("../config.ts");
+    const cfg = defaults();
+    assert.deepEqual(cfg.workflow, {
+      enabled: true,
+      maxConcurrentSteps: 8,
+      defaultStepTimeoutMs: 0,
+    });
+  });
 });
 
 describe("loadConfig — env overrides", () => {
@@ -156,6 +165,16 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
     fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ daemon: { port: "not a number" } }));
     const cfg = await freshLoad();
     assert.equal(cfg.daemon.port, 7400);
+  });
+
+  it("partial config.workflow override field-merges over the defaults", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ workflow: { maxConcurrentSteps: 3 } }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.workflow.maxConcurrentSteps, 3);
+    assert.equal(cfg.workflow.enabled, true);          // untouched default preserved
+    assert.equal(cfg.workflow.defaultStepTimeoutMs, 0); // untouched default preserved
   });
 
   it("partial override leaves other fields at defaults", async () => {

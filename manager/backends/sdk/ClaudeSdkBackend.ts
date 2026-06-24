@@ -8,7 +8,7 @@
 // means Eos's tool host + event sink, not the model loop. The queryFn seam lets
 // tests drive a scripted SDK stream (FakeSdkQuery) with no real model / no billing.
 
-import { query as realQuery } from "@anthropic-ai/claude-agent-sdk";
+import { query as realQuery, forkSession as realForkSession } from "@anthropic-ai/claude-agent-sdk";
 import type { Options, McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import type { DroppedServer } from "./SdkMcpTranslator.ts";
 import type {
@@ -17,7 +17,7 @@ import type {
 import { backendCollaborate } from "../../../core/src/ports/AgentBackend.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { ToolContext } from "../../tools/types.ts";
-import { createSdkEventMapper } from "./SdkEventMapper.ts";
+import { createSdkEventMapper, type SdkEventMapper } from "./SdkEventMapper.ts";
 import { buildBillingGuardEnv } from "./billing-env.ts";
 import { buildSdkToolServers, type SdkToolHostDeps } from "./SdkToolHost.ts";
 import { makeCanUseTool, type PolicyDecider } from "./SdkPermissionBridge.ts";
@@ -57,6 +57,11 @@ export interface SdkQueryHandle extends AsyncIterable<unknown> {
 }
 export type SdkQueryFn = (params: { prompt: AsyncIterable<unknown>; options: Options }) => SdkQueryHandle;
 
+// Slices a session transcript up to (and including) a message uuid into a new
+// resumable session — the recall primitive (Layer 2). Injected as a seam so
+// tests assert the slice without touching disk. Mirrors the real SDK forkSession.
+export type ForkSessionFn = (sessionId: string, options: { dir?: string; upToMessageId?: string }) => Promise<{ sessionId: string }>;
+
 export interface ClaudeSdkBackendDeps {
   authResolver: AuthResolver;
   policy: PolicyDecider;
@@ -80,6 +85,9 @@ export interface ClaudeSdkBackendDeps {
     builtins: Record<string, McpServerConfig>,
   ): { mcpServers: Record<string, McpServerConfig>; dropped: DroppedServer[] };
   queryFn?: SdkQueryFn;
+  /** Recall (Layer 2) transcript-slice primitive — defaults to the SDK's
+   *  forkSession. Overridden in tests. */
+  forkSessionFn?: ForkSessionFn;
   log?: { warn(msg: string, meta?: Record<string, unknown>): void };
 }
 
@@ -118,10 +126,19 @@ interface Live {
   // /clear: tear down the current query and start a fresh one (new session, no
   // resume, empty context). The session row stays alive across the swap.
   relaunch?: () => void;
+  // Recall (Layer 2): like relaunch() but RESUMES the given (forked, sliced)
+  // session instead of starting empty.
+  relaunchResume?: (resume: string) => void;
+  // The current turn's mapper — surfaces sessionId + lastAssistantUuid (the
+  // recall anchor). Re-created on every (re)launch.
+  mapper?: SdkEventMapper;
+  // The worker's cwd — the project dir forkSession scopes its transcript search to.
+  cwd?: string;
 }
 
 export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend {
   const queryFn: SdkQueryFn = deps.queryFn ?? ((p) => realQuery(p as never) as unknown as SdkQueryHandle);
+  const forkSessionFn: ForkSessionFn = deps.forkSessionFn ?? ((sid, opts) => realForkSession(sid, opts));
   const live = new Map<string, Live>();
 
   const session = (workerId: string): AgentSession => ({
@@ -153,6 +170,39 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const oldInput = s.input;
       const oldQ = s.q;
       s.relaunch?.();
+      oldInput.close();
+      if (oldQ?.interrupt) { try { await oldQ.interrupt(); } catch { /* best-effort */ } }
+      return { ok: true };
+    },
+    // Recall (Layer 2): the user interrupted before the agent answered — roll the
+    // SDK's own conversation back to BEFORE the recalled message so it leaks into
+    // neither the next turn nor a resume. Sibling of clearContext (same relaunch +
+    // teardown discipline): instead of starting empty, fork the transcript sliced
+    // to the last assistant message (the anchor) and resume THAT. forkSession
+    // writes a fresh session file with remapped uuids; the new session id is
+    // captured by the relaunch's mapper and persisted, so a later resume is clean.
+    async recallLastUserTurn() {
+      const s = live.get(workerId);
+      if (!s || !s.alive) return { ok: false, reason: "session gone" };
+      const sessionId = s.mapper?.sessionId ?? null;
+      if (!sessionId) return { ok: false, reason: "no session id captured yet" };
+      const anchor = s.mapper?.lastAssistantUuid ?? null;
+      const oldInput = s.input;
+      const oldQ = s.q;
+      // No anchor → the recalled message was the FIRST turn; nothing precedes it,
+      // so relaunch empty (identical to /clear).
+      if (anchor) {
+        let forkedId: string;
+        try {
+          const forked = await forkSessionFn(sessionId, { ...(s.cwd ? { dir: s.cwd } : {}), upToMessageId: anchor });
+          forkedId = forked.sessionId;
+        } catch (e) {
+          return { ok: false, reason: e instanceof Error ? e.message : String(e) };
+        }
+        s.relaunchResume?.(forkedId);
+      } else {
+        s.relaunch?.();
+      }
       oldInput.close();
       if (oldQ?.interrupt) { try { await oldQ.interrupt(); } catch { /* best-effort */ } }
       return { ok: true };
@@ -258,7 +308,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
               : spec.permissionMode ? { permissionMode: spec.permissionMode as Options["permissionMode"] } : {}),
       } as Options;
 
-      const rec: Live = { q: null, input: createPushStream(), alive: true, interrupting: false, onExit: cb?.onExit };
+      const rec: Live = { q: null, input: createPushStream(), alive: true, interrupting: false, onExit: cb?.onExit, ...(spec.cwd ? { cwd: spec.cwd } : {}) };
       live.set(spec.workerId, rec);
       cb?.onSpawn?.({ kind: "inproc", ref: spec.workerId });
       cb?.onEvent?.({ type: "session", phase: "started" });
@@ -272,6 +322,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         rec.input = input;
         const options = { ...baseOptions, ...(resume ? { resume } : {}) } as Options;
         const mapper = createSdkEventMapper();
+        rec.mapper = mapper;
         const q = queryFn({ prompt: input.iterable, options });
         rec.q = q;
         if (initialPrompt) input.push(initialPrompt);
@@ -308,6 +359,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       };
 
       rec.relaunch = () => spawn(undefined, undefined);
+      rec.relaunchResume = (resume: string) => spawn(resume, undefined);
       spawn(typeof opts.resume === "string" ? opts.resume : undefined, spec.prompt || undefined);
 
       return session(spec.workerId);

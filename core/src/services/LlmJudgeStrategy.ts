@@ -34,6 +34,7 @@ export class LlmJudgeStrategy implements GoalCheckStrategy {
   }
 
   async evaluate(goal: GoalSpec, ctx: GoalContext): Promise<GoalVerdict> {
+    ctx.progress?.({ phase: "judging" });
     let bundle;
     try {
       bundle = await this.deps.evidence.collect(goal, ctx);

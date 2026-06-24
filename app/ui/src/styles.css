@@ -1616,6 +1616,47 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   word-break: break-word;
 }
 
+/* Per-attempt goal-check history (parsed loop_check events) inside the card. */
+.loop-status-history {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+.loop-status-attempt-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--text-xs);
+  line-height: 1.45;
+}
+.loop-status-attempt-row .lsa-n { font-family: var(--font-mono); color: var(--fg-faint); flex-shrink: 0; }
+.loop-status-attempt-row .lsa-outcome { font-family: var(--font-mono); flex-shrink: 0; }
+.loop-status-attempt-row.met .lsa-outcome { color: var(--ok); }
+.loop-status-attempt-row.unmet .lsa-outcome { color: var(--fg-dim); }
+.loop-status-attempt-row .lsa-reason { color: var(--fg-dim); word-break: break-word; }
+
+/* Live "goal check in progress" line — reuses .thinking-line; gc-text is the
+   status, the mono span at the end is the ticking M:SS elapsed. */
+.goal-check-line .gc-text { color: var(--fg-dim); }
+
+/* Durable per-attempt verdict, rendered inline in the transcript (mirrors the
+   git push/pull marker lines). */
+.loop-check-line {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--fg-dim);
+  padding: 2px 0;
+}
+.loop-check-line .lc-icon { flex-shrink: 0; }
+.loop-check-line.ok .lc-icon { color: var(--ok); }
+.loop-check-line .lc-reason { color: var(--fg-faint); word-break: break-word; }
+
 /* report / directive detail */
 .report-detail {
   background: var(--surface);
@@ -4683,6 +4724,12 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .agents-row .ag-loop-badge.st-stopped {
   color: var(--fg-faint);
   background: color-mix(in srgb, var(--fg-faint) 14%, transparent);
+}
+/* A goal check is running — a gentle pulse distinguishes it from the idle loop. */
+.agents-row .ag-loop-badge.st-checking {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  animation: ag-pulse 1.4s ease-in-out infinite;
 }
 /* Notification dot — replaces .ag-status when an unselected agent has new
    activity the user hasn't viewed. Accent blue with a soft glow and a
