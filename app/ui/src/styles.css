@@ -3776,7 +3776,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   display: inline-flex; align-items: center; justify-content: center;
   padding: 0;
 }
-.ctx-ring-btn:hover {
+.ctx-ring-btn:hover,
+.ctx-ring-btn.open {
   background: rgba(var(--tint), 0.05);
   backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
@@ -7893,6 +7894,10 @@ html:not([data-theme="light"]) .fv-editor--md {
 /* ---- Conflict resolver (right-panel island) ------------------------------ */
 .cr-list {
   flex: 1;
+  /* As a flex child it must be allowed to shrink below content height, or the
+     conflict list grows past the panel and overflows into the clipped
+     .conflict-viewer instead of scrolling here. */
+  min-height: 0;
   overflow-y: auto;
   padding: 10px 12px;
   display: flex;

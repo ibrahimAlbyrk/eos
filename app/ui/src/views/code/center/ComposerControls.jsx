@@ -190,7 +190,7 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
         )}
         <div className="ctx-ring-wrap">
           <button
-            className="ctx-ring-btn"
+            className={"ctx-ring-btn" + (ui.openPopover === "ctx" ? " open" : "")}
             id="ctxRingBtn"
             onClick={(e) => toggle("ctx", e)}
             title="Context usage"
