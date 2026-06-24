@@ -29,8 +29,8 @@ const CAPS: AgentCapabilities = {
   // query() exposes no fork/rewind primitive — the rewind route degrades honestly.
   rewind: false,
   // query.setModel takes effect mid-session in streaming-input mode (the mode we
-  // run) — wired in the session's setModel below. (effort has no live SDK lever;
-  // it's persisted by SetWorkerModel and applied on the next resume.)
+  // run) — wired in the session's setModel below. (effort IS applied at start()/
+  // resume via the Options.effort field; only LIVE in-session switching is unwired.)
   runtimeModelSwitch: true,
   runtimePermissionSwitch: false,
   streamingThinking: true,
@@ -158,8 +158,8 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       return { ok: true };
     },
     // Runtime model switch via the SDK Query control method (streaming-input
-    // only). effort is ignored here — the SDK has no /effort equivalent; it's
-    // persisted by the caller and applied at the next resume.
+    // only). effort is ignored HERE — the SDK has no live /effort equivalent; it's
+    // persisted by the caller and applied at start()/resume via Options.effort.
     async setModel(model: string) {
       const s = live.get(workerId);
       if (!s || !s.alive) return { ok: false, reason: "session gone" };
@@ -249,6 +249,8 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         // display:"summarized" is required to stream thinking on Opus 4.7+ (it
         // otherwise defaults to omitted) — proven by the spike.
         thinking: (opts.thinking as Options["thinking"]) ?? ({ type: "adaptive", display: "summarized" } as Options["thinking"]),
+        // effort maps 1:1 to the CLI `--effort` enum, already normalized by SpawnWorker.
+        ...(spec.effort ? { effort: spec.effort as Options["effort"] } : {}),
         ...(append ? { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append } } : {}),
         // bypassPermissions requires the explicit safety flag; else pass the mode through.
         ...(spec.permissionMode === "bypassPermissions"

@@ -154,8 +154,9 @@ export interface AgentSession {
   rewind?(uuid: string, mode: string): Promise<RewindResult>;
   // Switch the model (and optional effort) for subsequent turns on the LIVE
   // session. Only meaningful when capabilities.runtimeModelSwitch is true —
-  // callers gate on that flag; an incapable session may no-op. effort has no
-  // lever on every backend (claude-sdk: none) — persisted regardless by the caller.
+  // callers gate on that flag; an incapable session may no-op. LIVE in-session
+  // effort switching has no lever (claude-sdk: start()/resume apply effort via
+  // Options.effort, but no runtime switch) — persisted regardless by the caller.
   setModel(model: string, effort?: string | null): Promise<{ ok: boolean; reason?: string }>;
   // Graceful stop → forced kill after graceMs. Idempotent.
   stop(graceMs?: number): void;
