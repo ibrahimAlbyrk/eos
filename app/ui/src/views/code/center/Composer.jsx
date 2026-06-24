@@ -35,6 +35,7 @@ import { QuestionBanner } from "./QuestionBanner.jsx";
 import { TryDeck } from "./TryBanner.jsx";
 import { TaskTray } from "./TaskTray.jsx";
 import { WorktreeHub } from "./WorktreeHub.jsx";
+import { SubmitButton } from "./SubmitButton.jsx";
 
 function QueuedPill({ text, onDismiss }) {
   return (
@@ -845,6 +846,10 @@ export function Composer({ live }) {
   };
 
   const agentBusy = selected && (selected.state === "SPAWNING" || selected.state === "WORKING");
+  // Send turns into a stop (interrupt) control only while the agent is responding
+  // and the user hasn't typed a follow-up to queue — term/git modes keep send
+  // semantics. Same action as the Esc key.
+  const showStop = agentBusy && !text.trim() && !ui.composer.termMode && !ui.composer.gitMode;
   const queuedList = selected ? outbox.itemsFor(selected.id).filter((i) => i.state === "queued") : [];
 
   // Priority slot: exactly one blocking banner holds the band, Permission first
@@ -956,11 +961,10 @@ export function Composer({ live }) {
                 </svg>
               </button>
             )}
-            <button className="submit" title="Send" onClick={send}>
-              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 4v5H4m3-3l-3 3 3 3" />
-              </svg>
-            </button>
+            <SubmitButton
+              stop={showStop}
+              onClick={showStop ? () => live.interruptAgent(selected.id) : send}
+            />
           </div>
         </div>
 

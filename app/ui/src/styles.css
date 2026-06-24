@@ -3557,6 +3557,15 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    sits just left of the primary send so the two read apart. */
 .c-row2 .broadcast-btn { margin-right: 2px; }
 .c-row2 .broadcast-btn:hover { color: var(--accent); }
+/* Stop affordance: while the agent is responding and the input is empty, the
+   send button becomes an interrupt control. Override the input-state color
+   rules above so it always reads as an active (red) stop, not the faint send. */
+.c-row2:has(.composer-editor[data-empty]) .submit.stop,
+.c-row2:not(:has(.composer-editor[data-empty])) .submit.stop {
+  color: var(--err);
+  opacity: 1;
+}
+.c-row2 .submit.stop:hover { background: color-mix(in srgb, var(--err) 15%, transparent); }
 
 /* ── queued message pills (shown above input when agent is busy) ── */
 /* Mask fades animate via registered props (no-op where unsupported). */
