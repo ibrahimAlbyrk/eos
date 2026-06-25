@@ -49,7 +49,7 @@ function fakeSteps() {
   };
 }
 
-function makeAdapter() {
+function makeAdapter(opts: { stepTimeoutMs?: number } = {}) {
   const bus = fakeBus();
   const steps = fakeSteps();
   const inserted: Array<Record<string, unknown>> = [];
@@ -63,10 +63,16 @@ function makeAdapter() {
     clock: { now: () => 1000 },
     runSpawn: async (req: Record<string, unknown>) => { spawned.push(req); return { id: `w-${++n}` }; },
     killWorker: (id: string) => { killed.push(id); },
+    stepTimeoutMs: opts.stepTimeoutMs ?? 0, // off by default so existing tests arm no timer
   };
   const adapter = new WorkerSpawnAdapter(deps as never);
   return { adapter, bus, steps, inserted, killed, spawned };
 }
+
+// Mimic the composition root: an assistant message reaches the adapter via
+// noteAssistantText, then the WORKING→IDLE turn-end fires as a worker:change.
+const idle = (bus: { publish(t: string, p: unknown): void }, workerId: string) =>
+  bus.publish("worker:change", { workerId, from: "WORKING", state: "IDLE" });
 
 const stepSpec = (over: Record<string, unknown> = {}) => ({
   runId: "run-1", nodeId: "n1", parentId: "anchor-1",
@@ -108,6 +114,68 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     bus.publish("worker:report", { workerId: "w-1", text: "result: verified" });
     const outcome = await p;
     assert.equal(outcome.reportText, "result: verified");
+  });
+
+  // THE regression test for the live hang: a step-worker that answers and ends
+  // its turn IDLE WITHOUT calling send_message_to_parent must still settle — its
+  // last assistant message IS the step output (the report is optional).
+  it("settles on turn-end IDLE (no report) using the last assistant message as output", async () => {
+    const { adapter, bus } = makeAdapter();
+    const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
+    await tick();
+    adapter.noteAssistantText("w-1", "Özet: iş tamamlandı."); // a content-shaped answer, no report
+    idle(bus, "w-1");
+    const outcome = await p;
+    assert.equal(outcome.workerId, "w-1");
+    assert.equal(outcome.reportText, "Özet: iş tamamlandı.");
+    assert.equal(outcome.signal, "unknown"); // no result:/failed: first line → unknown, status passes
+  });
+
+  it("a worker that DOES report resolves via the report; a following IDLE is a no-op (resolve-once)", async () => {
+    const { adapter, bus } = makeAdapter();
+    const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
+    await tick();
+    adapter.noteAssistantText("w-1", "draft answer"); // captured, but the explicit report wins
+    bus.publish("worker:report", { workerId: "w-1", text: "result: shipped" });
+    const outcome = await p;
+    assert.equal(outcome.reportText, "result: shipped");
+    assert.equal(outcome.signal, "result");
+    // The turn-end IDLE that follows the report must not re-settle (join is gone).
+    idle(bus, "w-1");
+    assert.equal((await p).reportText, "result: shipped"); // unchanged — first settle won
+  });
+
+  it("a LOOPED step does NOT settle on its intermediate IDLE — only on the loop release", async () => {
+    const { adapter, bus } = makeAdapter();
+    const p = adapter.spawnAndAwait(stepSpec({ loop: { goal: { summary: "g", criteria: [] }, strategy: "hybrid" } }), new AbortController().signal);
+    await tick();
+    let settled = false;
+    void p.then(() => { settled = true; });
+    adapter.noteAssistantText("w-1", "result: premature");
+    bus.publish("worker:report", { workerId: "w-1", held: true, text: "result: premature" });
+    idle(bus, "w-1"); // an iteration boundary — must NOT settle a looped step
+    await tick();
+    assert.equal(settled, false, "a looped step's intermediate IDLE must not settle the join");
+    bus.publish("worker:report", { workerId: "w-1", held: false, text: "result: verified" }); // release
+    const outcome = await p;
+    assert.equal(outcome.reportText, "result: verified");
+  });
+
+  it("rejects after stepTimeoutMs when a step neither reports nor produces a final answer", async () => {
+    const { adapter, killed } = makeAdapter({ stepTimeoutMs: 20 });
+    const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
+    await tick();
+    // No report, no captured assistant text, no exit → only the backstop can settle it.
+    await assert.rejects(p, /timed out after 20ms/);
+    assert.deepEqual(killed, ["w-1"]); // the stuck worker is reaped
+  });
+
+  it("an IDLE with no captured final answer does NOT settle (waits for the timeout)", async () => {
+    const { adapter, bus } = makeAdapter({ stepTimeoutMs: 20 });
+    const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
+    await tick();
+    idle(bus, "w-1"); // turn ended but produced no assistant text
+    await assert.rejects(p, /timed out after 20ms/);
   });
 
   it("rejects when a worker exits before reporting (crash)", async () => {
