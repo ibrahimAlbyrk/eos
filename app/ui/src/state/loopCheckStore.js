@@ -63,3 +63,27 @@ export function pruneExcept(presentIds) {
   }
   if (changed) emit();
 }
+
+// Self-heal pass run on every workers update (useStorePrune). Two jobs:
+//   1. prune checks whose worker has left the live list (as pruneExcept), and
+//   2. clear a still-pending (pre-verdict) check for any worker no longer IDLE.
+// A goal check runs ONLY during a worker's IDLE edge, so a worker that is back to
+// WORKING (or terminal) while still holding a non-verdict entry missed its
+// "verdict" event (e.g. an SSE gap during a long check) — clear it so the badge
+// can't stick on "checking" forever. Verdict entries keep their own linger timer.
+export function reconcile(workers) {
+  const present = new Set(workers.map((w) => w.id));
+  let changed = false;
+  for (const w of workers) {
+    const e = checks.get(w.id);
+    if (e && e.phase !== "verdict" && String(w.state).toUpperCase() !== "IDLE") {
+      cancelTimer(w.id);
+      checks.delete(w.id);
+      changed = true;
+    }
+  }
+  for (const id of [...checks.keys()]) {
+    if (!present.has(id)) { cancelTimer(id); checks.delete(id); changed = true; }
+  }
+  if (changed) emit();
+}

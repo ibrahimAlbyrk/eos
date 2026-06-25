@@ -3385,6 +3385,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   outline: none;
   white-space: pre-wrap;
   word-break: break-word;
+  word-spacing: 0.12em;
+  letter-spacing: 0.02em;
   -webkit-user-modify: read-write-plaintext-only;
   transition: opacity 0.15s ease;
 }

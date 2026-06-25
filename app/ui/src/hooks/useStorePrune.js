@@ -4,7 +4,7 @@ import { pruneExcept as pruneConflict } from "../state/conflictStore.js";
 import { pruneExcept as pruneGitStatus } from "../state/gitStatusStore.js";
 import { pruneExcept as pruneTerminal } from "../state/terminalStore.js";
 import { pruneExcept as pruneThinking } from "../state/thinkingStore.js";
-import { pruneExcept as pruneLoopCheck } from "../state/loopCheckStore.js";
+import { reconcile as reconcileLoopCheck } from "../state/loopCheckStore.js";
 
 // Per-worker caches (diff/conflict/git/terminal/thinking) are purged on explicit delete
 // (useDeleteAgent), but a worker that auto-shutdowns, dies in a cascade, or
@@ -21,6 +21,8 @@ export function useStorePrune(workers) {
     pruneGitStatus(present);
     pruneTerminal(present);
     pruneThinking(present);
-    pruneLoopCheck(present);
+    // State-aware: also clears a pending check whose worker has left its IDLE
+    // window (a missed "verdict" can't strand the "checking" badge).
+    reconcileLoopCheck(workers);
   }, [workers]);
 }

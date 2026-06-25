@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { applyProgress, checkFor, clearCheck, pruneExcept, subscribe } from "./loopCheckStore.js";
+import { applyProgress, checkFor, clearCheck, pruneExcept, reconcile, subscribe } from "./loopCheckStore.js";
 
 // Module-level state — unique worker ids per assertion to avoid bleed.
 let n = 0;
@@ -74,6 +74,40 @@ describe("loopCheckStore", () => {
     applyProgress(prog(other, "judging"));
     pruneExcept(new Set([keep]));
     expect(checkFor(other)).toBeNull();
+    expect(checkFor(keep)).toBeTruthy();
+  });
+
+  it("reconcile clears a pending check when its worker is no longer IDLE", () => {
+    const w = wid();
+    applyProgress(prog(w, "verifying"));
+    reconcile([{ id: w, state: "WORKING" }]); // re-triggered before the verdict landed
+    expect(checkFor(w)).toBeNull();
+  });
+
+  it("reconcile keeps a check while its worker is still IDLE (check genuinely running)", () => {
+    const w = wid();
+    applyProgress(prog(w, "verifying"));
+    reconcile([{ id: w, state: "IDLE" }]);
+    expect(checkFor(w)).toBeTruthy();
+  });
+
+  it("reconcile leaves a verdict entry to its linger timer even if the worker moved on", () => {
+    vi.useFakeTimers();
+    const w = wid();
+    applyProgress(prog(w, "verdict", { met: false, outcome: "continued" }));
+    reconcile([{ id: w, state: "WORKING" }]);
+    expect(checkFor(w)).toMatchObject({ phase: "verdict" }); // still visible
+    vi.advanceTimersByTime(2000);
+    expect(checkFor(w)).toBeNull(); // linger owns the cleanup
+  });
+
+  it("reconcile drops checks for workers absent from the live list", () => {
+    const keep = wid();
+    const gone = wid();
+    applyProgress(prog(keep, "verifying"));
+    applyProgress(prog(gone, "verifying"));
+    reconcile([{ id: keep, state: "IDLE" }]);
+    expect(checkFor(gone)).toBeNull();
     expect(checkFor(keep)).toBeTruthy();
   });
 
