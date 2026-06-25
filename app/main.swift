@@ -228,11 +228,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     // WKUserScripts. (removeAllUserScripts is NOT an option — it would also drop
     // the setup-time context-menu and titlebar-drag scripts.)
     private var tokenScriptInjected = false
+    // Menu-bar status indicator — owned for the process lifetime so the retained
+    // NSStatusItem is never dropped (a dropped owner removes it from the bar).
+    private var statusBar: StatusBarCoordinator?
 
     func applicationDidFinishLaunching(_: Notification) {
         setupNotifications()
         setupWindow()
         ensureDaemon()
+        setupStatusBar()
     }
 
     private func setupWindow() {
@@ -316,6 +320,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
             backing: .buffered, defer: false
         )
         window.title = "Eos"
+        // Background-app behaviour (product decision #1): closing the window must
+        // NOT quit the app, and the window must stay reusable so the menu-bar item
+        // and AgentNavigator can re-show it. Default isReleasedWhenClosed would
+        // free it on close, leaving a dangling reference.
+        window.isReleasedWhenClosed = false
         // created before `window.delegate = self`: setFrameAutosaveName fires
         // windowDidResize synchronously, which already calls trafficLights.apply()
         trafficLights = TrafficLightPositioner(window: window)
@@ -838,7 +847,47 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         }
     }
 
-    func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool { true }
+    // Product decision #1: Eos is a background app. Closing the window leaves the
+    // process (and the menu-bar status item) running; Quit is offered from the
+    // status item. Reopening (Dock click / status-item "Open Eos") re-shows the
+    // window via applicationShouldHandleReopen + ensureMainWindowVisible.
+    func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool { false }
+
+    func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        if !flag { ensureMainWindowVisible() }
+        return true
+    }
+
+    // MARK: - Menu-bar status indicator
+
+    private func setupStatusBar() {
+        let navigator = WebViewAgentNavigator(
+            window: { [weak self] in self?.window },
+            webView: { [weak self] in self?.webView },
+            ensureWindow: { [weak self] in self?.ensureMainWindowVisible() }
+        )
+        statusBar = StatusBarCoordinator(
+            navigator: navigator,
+            brandImage: brandMarkImage(),
+            onQuit: { NSApp.terminate(nil) },
+            onOpenWindow: { [weak self] in self?.ensureMainWindowVisible() }
+        )
+        statusBar?.start()
+    }
+
+    func ensureMainWindowVisible() {
+        if window == nil { setupWindow(); loadWeb() }
+        NSApp.activate(ignoringOtherApps: true)
+        window?.makeKeyAndOrderFront(nil)
+    }
+
+    // Full-colour Eos dawn-star for the popover header: the bundled web asset
+    // (Contents/Resources/ui/logo.png) in a built app, the source PNG in dev.
+    private func brandMarkImage() -> NSImage? {
+        if let url = Bundle.main.resourceURL?.appendingPathComponent("ui/logo.png"),
+           let img = NSImage(contentsOf: url) { return img }
+        return NSImage(contentsOfFile: repoRoot() + "/app/ui/public/logo.png")
+    }
 
     // MARK: - URLSessionDataDelegate (SSE streaming)
 

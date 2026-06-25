@@ -12,11 +12,14 @@ mkdir -p "$APP_BUNDLE/Contents/MacOS"
 mkdir -p "$APP_BUNDLE/Contents/Resources"
 
 echo "compiling…"
+# Menu-bar status indicator lives in app/StatusBar/*.swift — the single-file
+# layout means new sources must be listed here or they're never compiled.
 swiftc -O \
   -target arm64-apple-macos13.0 \
   -o "$APP_BUNDLE/Contents/MacOS/Eos" \
   -framework Cocoa -framework WebKit -framework UserNotifications \
-  "$SCRIPT_DIR/main.swift"
+  "$SCRIPT_DIR/main.swift" \
+  "$SCRIPT_DIR"/StatusBar/*.swift
 
 cp "$SCRIPT_DIR/Info.plist" "$APP_BUNDLE/Contents/"
 /usr/libexec/PlistBuddy -c "Add :EosRepoRoot string $REPO_ROOT" "$APP_BUNDLE/Contents/Info.plist"
