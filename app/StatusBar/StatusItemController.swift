@@ -15,8 +15,7 @@ protocol CompletionPresenter: AnyObject {
 }
 
 // Semantic palette — monochrome bar tint + the app's accent/ok/err, resolved
-// per light/dark menu bar (R-1). Colour appears only for meaning. Shared with
-// the popover so the two surfaces never drift.
+// per light/dark menu bar (R-1). Colour appears only for meaning.
 enum BarPalette {
     static func isDark(_ a: NSAppearance) -> Bool {
         a.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
@@ -187,16 +186,6 @@ final class BarStatusView: NSView {
 
     func setConnected(_ value: Bool) { connected = value; render() }
 
-    // The visible dawn-star's frame in the status button's coordinate space.
-    // The popover anchors its caret to this, not to button.bounds: when a running
-    // count sits to the glyph's left the star is right-of-centre in the button, so
-    // a button-centred caret would point left of the star (the off-kilter bug).
-    // x is flip-invariant and `starLayer.position.x` is the star's true centre.
-    func glyphAnchorRect(in button: NSView) -> NSRect {
-        let cx = starLayer.position.x
-        return NSRect(x: cx - glyph / 2, y: 0, width: glyph, height: button.bounds.height)
-    }
-
     private func attr(_ s: String, _ font: NSFont, _ color: NSColor) -> NSAttributedString {
         NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: color])
     }
@@ -305,12 +294,11 @@ final class BarStatusView: NSView {
     }
 }
 
-// Owns the retained status item, the bar view, the animator, and the popover.
+// Owns the retained status item, the bar view, and the animator.
 final class StatusItemController: NSObject, CompletionPresenter {
     private let statusItem: NSStatusItem
     private let barView: BarStatusView
     private let animator: RunningAnimator
-    private let popover: AgentPopover
     private let dwell: TimeInterval
     private let onQuit: () -> Void
     private let onOpenWindow: () -> Void
@@ -319,9 +307,8 @@ final class StatusItemController: NSObject, CompletionPresenter {
     private var lastCount = 0
     private var connected = true
 
-    init(popover: AgentPopover, dwell: TimeInterval,
+    init(dwell: TimeInterval,
          onQuit: @escaping () -> Void, onOpenWindow: @escaping () -> Void) {
-        self.popover = popover
         self.dwell = dwell
         self.onQuit = onQuit
         self.onOpenWindow = onOpenWindow
@@ -380,14 +367,8 @@ final class StatusItemController: NSObject, CompletionPresenter {
         if event?.type == .rightMouseUp || event?.modifierFlags.contains(.control) == true {
             showMenu()
         } else {
-            togglePopover()
+            onOpenWindow()
         }
-    }
-
-    private func togglePopover() {
-        guard let button = statusItem.button else { return }
-        if popover.isShown { popover.close() }
-        else { popover.show(from: button, positioningRect: barView.glyphAnchorRect(in: button)) }
     }
 
     // Right-click / control-click → the conventional menu-bar affordance with a

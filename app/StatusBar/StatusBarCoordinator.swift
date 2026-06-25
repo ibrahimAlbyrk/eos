@@ -1,6 +1,5 @@
-// Composition root — the only place that knows all four rings. Wires
+// Composition root — the only place that knows all the rings. Wires
 //   source.onSnapshot → reducer/queue → presenter
-//   popover row-click   → navigator
 // Held by AppDelegate, so it lives for the process lifetime. Keeps AppDelegate
 // from growing a status-bar responsibility; every collaborator is behind a port.
 
@@ -11,14 +10,15 @@ final class StatusBarCoordinator {
     private let reducer = FleetReducer()
     private let queue: CompletionQueue
     private let controller: StatusItemController
-    private let popover: AgentPopover
+    // navigator (and the brandImage init param) are retained as inputs for the
+    // forthcoming status-bar panel; idle until that lands.
     private let navigator: AgentNavigator
 
     // Diff baseline: the previous snapshot, indexed by id. nil ⇒ next snapshot
     // seeds silently (cold start / post-reconnect — no completion storm).
     private var prev: [String: AgentSnapshot]?
     private var latest: [AgentSnapshot] = []
-    private let dwell: TimeInterval = 1.45
+    private let dwell: TimeInterval = 4.35 // 4.35 = 3× the original 1.45s, kept longer so completions are readable
 
     init(navigator: AgentNavigator,
          brandImage: NSImage?,
@@ -27,12 +27,9 @@ final class StatusBarCoordinator {
          source: AgentStatusSource = SSEAgentStatusSource()) {
         self.navigator = navigator
         self.source = source
-        popover = AgentPopover(brandImage: brandImage)
         queue = CompletionQueue(scheduler: MainQueueScheduler(), dwell: dwell)
-        controller = StatusItemController(popover: popover, dwell: dwell,
+        controller = StatusItemController(dwell: dwell,
                                           onQuit: onQuit, onOpenWindow: onOpenWindow)
-
-        popover.onFocus = { [weak self] id in self?.navigator.focus(agentId: id) }
 
         queue.onAnnounce = { [weak self] completion, remaining in
             self?.controller.announce(completion, remaining: remaining)
@@ -66,7 +63,6 @@ final class StatusBarCoordinator {
         if !queue.isPlaying {
             controller.renderRunning(running: diff.running, count: diff.runningCount)
         }
-        popover.update(snapshots: snapshots)
         prev = reducer.index(snapshots)
     }
 
