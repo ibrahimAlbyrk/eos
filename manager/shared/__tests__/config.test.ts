@@ -87,7 +87,7 @@ describe("loadConfig — defaults", () => {
     assert.deepEqual(cfg.workflow, {
       enabled: true,
       maxConcurrentSteps: 8,
-      defaultStepTimeoutMs: 0,
+      defaultStepTimeoutMs: 900000,
       defaultScriptTimeoutMs: 30000,
     });
   });
@@ -175,7 +175,7 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
     const cfg = await freshLoad();
     assert.equal(cfg.workflow.maxConcurrentSteps, 3);
     assert.equal(cfg.workflow.enabled, true);          // untouched default preserved
-    assert.equal(cfg.workflow.defaultStepTimeoutMs, 0); // untouched default preserved
+    assert.equal(cfg.workflow.defaultStepTimeoutMs, 900000); // untouched default preserved
   });
 
   it("partial override leaves other fields at defaults", async () => {

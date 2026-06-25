@@ -117,9 +117,10 @@ export interface DaemonConfig {
   };
   // Deterministic workflow-orchestration engine (daemon-resident). `enabled`
   // gates the run path; `maxConcurrentSteps` is the per-run leaf-spawn cap fed to
-  // the engine's ConcurrencyGate; `defaultStepTimeoutMs` is reserved (0 = no
-  // step timeout enforced yet); `defaultScriptTimeoutMs` is the kill deadline a
-  // `script` node uses when it sets no `timeoutMs` of its own (§ITEM 1).
+  // the engine's ConcurrencyGate; `defaultStepTimeoutMs` is the per-step hang
+  // backstop the spawn-join arms (a step that never reports AND never produces a
+  // final answer fails after it; 0 = off); `defaultScriptTimeoutMs` is the kill
+  // deadline a `script` node uses when it sets no `timeoutMs` of its own (§ITEM 1).
   workflow: {
     enabled: boolean;
     maxConcurrentSteps: number;
@@ -286,7 +287,7 @@ export function defaults(): DaemonConfig {
     workflow: {
       enabled: true,
       maxConcurrentSteps: 8,
-      defaultStepTimeoutMs: 0,
+      defaultStepTimeoutMs: 900000, // 15 min hang backstop (0 = off)
       defaultScriptTimeoutMs: 30000,
     },
     collaborate: {
