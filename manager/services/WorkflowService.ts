@@ -11,6 +11,7 @@ import { resumeWorkflow } from "../../core/src/use-cases/ResumeWorkflow.ts";
 import { stopWorkflow } from "../../core/src/use-cases/StopWorkflow.ts";
 import { createWorkflowDefinition } from "../../core/src/use-cases/CreateWorkflowDefinition.ts";
 import { WorkflowDefinitionSchema } from "../../contracts/src/workflow.ts";
+import { containsNodeType } from "../../core/src/workflow/node-scope.ts";
 import { NotFoundError, ValidationError } from "../../core/src/errors/index.ts";
 import type {
   WorkflowDefinition, WorkflowRunStatus, RunWorkflowResult,
@@ -34,6 +35,11 @@ export interface WorkflowServiceDeps {
   // The run permission mode, set EXPLICITLY on every spawn (§3.5). The manager
   // resolves it from the owning orchestrator; core never reads it.
   resolveMode(ownerId: string): string;
+  // On completion (passed OR failed), deliver the FULL result to the run owner as
+  // a directed message (§ITEM 8) — the manager holds both the result and
+  // dispatchMessage, so no core port. NOT called on user-stop/abort: the run
+  // promise rejects and hits .catch instead (the operator already knows).
+  deliverCompletion(ownerId: string, result: WorkflowRunResult): void;
   ids: IdGenerator;
   log: Logger;
 }
@@ -60,6 +66,14 @@ export class WorkflowService {
   run(input: RunWorkflowArgs, ownerId: string): RunWorkflowResult {
     if (input.spec) {
       WorkflowDefinitionSchema.parse(input.spec);   // fail loud on a malformed inline spec
+      // Trust gate (§ITEM 1c): a `script` node runs a local script, so it is
+      // allowed ONLY from a trusted stored/builtin/file definition — NEVER from an
+      // LLM-emitted run-inline spec, which would reintroduce arbitrary code-exec.
+      if (containsNodeType(input.spec.root, "script")) {
+        throw new ValidationError(
+          "run-inline specs may not contain `script` nodes; create the workflow and run it by name (run-stored)",
+        );
+      }
     } else if (input.from) {
       if (!this.deps.resolveDefinition(input.from, ownerId)) {
         throw new NotFoundError("workflow definition", input.from);
@@ -78,6 +92,7 @@ export class WorkflowService {
       { engine: this.deps.engine, resolveDefinition: this.deps.resolveDefinition },
       { runId, ownerId, mode, signal: controller.signal, from: input.from, spec: input.spec, args: input.args },
     )
+      .then((result) => this.deps.deliverCompletion(ownerId, result))   // passed AND failed
       .catch((e) => this.deps.log.warn("workflow run failed", { runId, error: e instanceof Error ? e.message : String(e) }))
       .finally(() => this.controllers.delete(runId));
 
@@ -99,7 +114,9 @@ export class WorkflowService {
     return resumeWorkflow(
       { engine: this.deps.engine },
       { runId, ownerId: row.owner, mode, signal: controller.signal },
-    ).finally(() => this.controllers.delete(runId));
+    )
+      .then((result) => { this.deps.deliverCompletion(row.owner, result); return result; })
+      .finally(() => this.controllers.delete(runId));
   }
 
   // The lean run view the `workflow` tool's status mode returns (the full row is

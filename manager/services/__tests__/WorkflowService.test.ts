@@ -14,8 +14,18 @@ function ids() {
   return { newWorkerId: mk, newOrchestratorId: mk, newPendingId: mk, newRequestId: mk, newLoopId: mk };
 }
 
+// Controls the fake engine.run's terminal behavior so a single harness covers
+// passed, failed, and the never-resolves-until-aborted (stop) paths.
+interface EngineOpts {
+  runStatus?: WorkflowRunStatus;
+  runOutput?: unknown;
+  // When set, engine.run blocks (mirroring a long tree drive) and rejects on
+  // abort — the shape a user-initiated stop produces.
+  blockUntilAbort?: boolean;
+}
+
 // Records what the engine/use-cases were asked to do, without driving anything.
-function harness(over: Partial<WorkflowServiceDeps> = {}) {
+function harness(over: Partial<WorkflowServiceDeps> = {}, opts: EngineOpts = {}) {
   const runs = new Map<string, WorkflowRun>();
   const calls = {
     run: [] as Array<{ def: WorkflowDefinition; args: unknown; ctx: RunContext }>,
@@ -23,6 +33,7 @@ function harness(over: Partial<WorkflowServiceDeps> = {}) {
     killed: [] as string[],
     created: [] as Array<{ ownerId: string; spec: WorkflowDefinition }>,
     progress: [] as Array<{ runId: string; status: WorkflowRunStatus }>,
+    delivered: [] as Array<{ ownerId: string; result: WorkflowRunResult }>,
   };
   const engine = {
     async run(def: WorkflowDefinition, args: unknown, ctx: RunContext): Promise<WorkflowRunResult> {
@@ -33,7 +44,12 @@ function harness(over: Partial<WorkflowServiceDeps> = {}) {
         id: ctx.runId, definitionName: def.name, owner: ctx.ownerId, anchorId: ctx.runId,
         status: "running", args, startedAt: 1, updatedAt: 1,
       });
-      return { runId: ctx.runId, status: "passed", output: "ok" };
+      if (opts.blockUntilAbort) {
+        return await new Promise<WorkflowRunResult>((_resolve, reject) => {
+          ctx.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+        });
+      }
+      return { runId: ctx.runId, status: opts.runStatus ?? "passed", output: opts.runOutput ?? "ok" };
     },
     async resume(runId: string, ctx: RunContext): Promise<WorkflowRunResult> {
       calls.resume.push({ runId, ctx });
@@ -56,6 +72,7 @@ function harness(over: Partial<WorkflowServiceDeps> = {}) {
     definitions: { create: (ownerId, spec) => calls.created.push({ ownerId, spec }), listFor: () => [], deleteForOwner() {} },
     resolveDefinition: (name) => (name === "known" ? { name: "known", root: { id: "r", type: "step", from: "x", prompt: "p" } } as never : null),
     resolveMode: () => "acceptEdits",
+    deliverCompletion: (ownerId, result) => calls.delivered.push({ ownerId, result }),
     ids: ids(),
     log: noopLog,
     ...over,
@@ -96,6 +113,76 @@ describe("WorkflowService", () => {
   it("run with neither from nor spec throws", () => {
     const { svc } = harness();
     assert.throws(() => svc.run({}, "orch-1"), /from.*spec/i);
+  });
+
+  it("trust gate: a run-inline spec carrying a `script` node is REJECTED before any drive", () => {
+    const { svc, calls } = harness();
+    const spec = {
+      name: "evil",
+      root: { type: "sequence", id: "r", children: [
+        { type: "step", id: "a", prompt: "p" },
+        { type: "script", id: "sc", script: "x.sh" },
+      ] },
+    } as unknown as WorkflowDefinition;
+    assert.throws(() => svc.run({ spec }, "orch-1"), /script.*nodes|run-stored/i);
+    assert.equal(calls.run.length, 0, "rejected before the engine is driven");
+  });
+
+  it("trust gate: a `script` node IS allowed from a stored (run-stored) definition", async () => {
+    const stored = {
+      name: "trusted",
+      root: { type: "script", id: "sc", script: "x.sh" },
+    } as unknown as WorkflowDefinition;
+    const { svc, calls } = harness({ resolveDefinition: (name) => (name === "trusted" ? stored : null) });
+    svc.run({ from: "trusted" }, "orch-1");
+    await Promise.resolve();
+    assert.equal(calls.run.length, 1, "stored script-bearing workflow runs");
+    assert.equal(calls.run[0].def.name, "trusted");
+  });
+
+  it("on completion (passed) delivers the FULL result to the owner", async () => {
+    let resolveDone: () => void = () => {};
+    const done = new Promise<void>((r) => { resolveDone = r; });
+    const delivered: Array<{ ownerId: string; result: WorkflowRunResult }> = [];
+    const { svc } = harness({
+      deliverCompletion: (ownerId, result) => { delivered.push({ ownerId, result }); resolveDone(); },
+    });
+    const res = svc.run({ from: "known", args: { x: 1 } }, "orch-1");
+    await done;
+    assert.equal(delivered.length, 1);
+    assert.equal(delivered[0].ownerId, "orch-1");
+    assert.equal(delivered[0].result.runId, res.runId);
+    assert.equal(delivered[0].result.status, "passed");
+    assert.equal(delivered[0].result.output, "ok");
+  });
+
+  it("on completion (failed) still delivers the FULL result to the owner", async () => {
+    let resolveDone: () => void = () => {};
+    const done = new Promise<void>((r) => { resolveDone = r; });
+    const delivered: Array<{ ownerId: string; result: WorkflowRunResult }> = [];
+    const { svc } = harness(
+      { deliverCompletion: (ownerId, result) => { delivered.push({ ownerId, result }); resolveDone(); } },
+      { runStatus: "failed", runOutput: { error: "boom" } },
+    );
+    const res = svc.run({ from: "known" }, "orch-7");
+    await done;
+    assert.equal(delivered.length, 1);
+    assert.equal(delivered[0].ownerId, "orch-7");
+    assert.equal(delivered[0].result.runId, res.runId);
+    assert.equal(delivered[0].result.status, "failed");
+    assert.deepEqual(delivered[0].result.output, { error: "boom" });
+  });
+
+  it("a user-stopped run does NOT deliver a completion", async () => {
+    const { svc, calls, runs } = harness({}, { blockUntilAbort: true });
+    const { runId } = svc.run({ from: "known" }, "orch-1");
+    await Promise.resolve(); // engine.run registered its abort listener + inserted the row
+    const res = svc.stop(runId);
+    assert.equal(res.status, "stopped");
+    assert.equal(runs.get(runId)!.status, "stopped");
+    // Let the aborted run promise settle through .catch (no .then delivery).
+    await new Promise((r) => setTimeout(r, 10));
+    assert.equal(calls.delivered.length, 0);
   });
 
   it("status reads the run row", async () => {
