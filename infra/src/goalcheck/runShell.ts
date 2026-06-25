@@ -19,14 +19,21 @@ export const VERIFY_TIMEOUT_MS = 5 * 60 * 1000;
 export interface ShellResult {
   exitCode: number;
   output: string;
+  // True only when `signal` cancelled the command before it finished — distinct
+  // from a real non-zero exit. A fail-fast verify pass reads this to tell
+  // "another criterion already failed, so I cancelled this one" apart from
+  // "this command itself failed".
+  aborted?: boolean;
 }
 
-export async function runShell(cmd: string, cwd: string, timeoutMs: number): Promise<ShellResult> {
+export async function runShell(cmd: string, cwd: string, timeoutMs: number, signal?: AbortSignal): Promise<ShellResult> {
   try {
-    const { stdout, stderr } = await exec("/bin/sh", ["-c", cmd], { cwd, timeout: timeoutMs, maxBuffer: MAX_BUFFER });
+    const { stdout, stderr } = await exec("/bin/sh", ["-c", cmd], { cwd, timeout: timeoutMs, maxBuffer: MAX_BUFFER, signal });
     return { exitCode: 0, output: combine(stdout, stderr) };
   } catch (e) {
-    const err = e as { code?: unknown; stdout?: string; stderr?: string };
+    const err = e as { code?: unknown; name?: unknown; stdout?: string; stderr?: string };
+    // signal-driven cancellation surfaces as an AbortError — not a verify failure.
+    if (err.name === "AbortError" || err.code === "ABORT_ERR") return { exitCode: -1, output: "aborted", aborted: true };
     const exitCode = typeof err.code === "number" ? err.code : 1;
     const out = combine(err.stdout ?? "", err.stderr ?? "");
     return { exitCode, output: out || (e instanceof Error ? e.message : String(e)) };

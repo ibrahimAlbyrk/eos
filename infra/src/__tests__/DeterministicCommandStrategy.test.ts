@@ -46,4 +46,23 @@ describe("DeterministicCommandStrategy", () => {
     assert.equal(v.met, false);
     assert.deepEqual(v.unmet, ["c2"]);
   });
+
+  it("a failing criterion aborts a still-running sibling instead of waiting it out", async () => {
+    const started = Date.now();
+    const v = await strategy.evaluate(
+      goal([
+        { id: "slow", text: "expensive suite", verify: "sleep 30" },
+        { id: "cheap", text: "structural check", verify: "exit 1" },
+      ]),
+      ctx,
+    );
+    const elapsed = Date.now() - started;
+    // The cheap failure must cancel the 30s sleep — not block on it.
+    assert.ok(elapsed < 10_000, `expected fast abort, took ${elapsed}ms`);
+    assert.equal(v.met, false);
+    // Only the genuine failure is unmet; the aborted sibling is skipped, not failed.
+    assert.deepEqual(v.unmet, ["cheap"]);
+    const slow = v.criteria.find((c) => c.id === "slow");
+    assert.match(slow!.evidence, /skipped/);
+  });
 });
