@@ -37,6 +37,11 @@ export interface SessionSpawnContext {
   // (interpolation variable). "" for untyped / non-orchestrator.
   workerDefinition: string;
   workerDefinitionCatalog: string;
+  // Orchestrator-facing workflow catalogs (interpolation variables, optional —
+  // absent ⇒ ""). The LIST of available workflow definitions (per-spawn, dynamic)
+  // and the registry-derived capability VOCABULARY (node-type + transform-fn names).
+  workflowDefinitionCatalog?: string;
+  workflowCapabilityCatalog?: string;
 }
 
 export interface AssembleDeps {
@@ -107,5 +112,7 @@ function sessionVars(ctx: SessionSpawnContext): VariableScope {
     EFFORT: ctx.effort ?? "",
     PERMISSION_MODE: ctx.permissionMode,
     AVAILABLE_WORKERS_CATALOG: ctx.workerDefinitionCatalog ?? "",
+    AVAILABLE_WORKFLOWS_CATALOG: ctx.workflowDefinitionCatalog ?? "",
+    WORKFLOW_CAPABILITY_CATALOG: ctx.workflowCapabilityCatalog ?? "",
   };
 }

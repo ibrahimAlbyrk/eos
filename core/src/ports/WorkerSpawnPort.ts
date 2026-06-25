@@ -7,6 +7,8 @@
 // under the anchor. `mintRunAnchor` inserts the synthetic anchor worker-row that
 // scopes the run's mesh and enables one-call subtree teardown via `killWorker`.
 
+import type { SpawnLoop } from "../../../contracts/src/loop.ts";
+
 // What a leaf `step` asks the spawn surface to run. `parentId` is the run anchor;
 // `mode` is set EXPLICITLY on every spawn so the engine never depends on the
 // anchor row for permission-mode inheritance (§3.5). `collaborate:true` so the
@@ -30,6 +32,9 @@ export interface SpawnStepSpec {
   readonly collaborate: boolean;      // true so steps can consult experts
   readonly outputSchema?: unknown;    // when set, the final report must carry a
                                       // matching ```json block (extracted engine-side)
+  readonly loop?: SpawnLoop;          // arm dynamic_loop at spawn → the worker
+                                      // self-iterates; its report is HELD until the
+                                      // goal-check releases it (the join awaits release)
 }
 
 // The terminal outcome of a step-worker: the parsed report signal

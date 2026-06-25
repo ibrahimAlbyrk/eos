@@ -28,8 +28,9 @@ export interface RunLoopTickDeps {
   // manager builds the wrapper + envelope from the worker row — core can't).
   releaseReport(input: { workerId: string; parentId: string; text: string }): Promise<unknown>;
   // A stable hash of the worker's current change-set ("" when no source) — the
-  // no-progress signal. Implemented in the manager over GitInfo.
-  stateHash(input: { worktreeDir?: string; forkBaseSha?: string }): Promise<string>;
+  // no-progress signal. Implemented in the manager over GitInfo. `cwd` is the
+  // fallback dir for a worker with no isolated worktree.
+  stateHash(input: { worktreeDir?: string; cwd?: string; forkBaseSha?: string }): Promise<string>;
   noProgressWindow: number;
   stopOnNoProgress: boolean;
   renderer: PromptRenderer;
@@ -43,6 +44,8 @@ export interface RunLoopTickDeps {
 export interface RunLoopTickInput {
   workerId: string;
   worktreeDir?: string;
+  // The worker's checkout dir — the no-progress fallback when it has no worktree.
+  cwd?: string;
   branch?: string;
   forkBaseSha?: string;
   lastReportText?: string;
@@ -126,7 +129,7 @@ export async function runLoopTick(deps: RunLoopTickDeps, input: RunLoopTickInput
 
   // (3) No-progress — compute the change-set hash once (for both the no-progress
   // check and the recorded attempt).
-  const stateHash = await deps.stateHash({ worktreeDir: input.worktreeDir, forkBaseSha: input.forkBaseSha });
+  const stateHash = await deps.stateHash({ worktreeDir: input.worktreeDir, cwd: input.cwd, forkBaseSha: input.forkBaseSha });
   const entry: LoopAttempt = { stateHash, outcomeHash: outcomeKey(verdict.unmet), unmetCount: verdict.unmet.length, reason: verdict.reason };
 
   // stateHash "" = no worktree/diff source → can't measure progress → skip.
