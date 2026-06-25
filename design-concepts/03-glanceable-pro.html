@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Eos · Glanceable Pro — menu bar status item</title>
+<style>
+  /* ============================================================
+     EOS · "GLANCEABLE PRO" menu-bar status indicator
+     Concept: an instrument cluster for power users running many
+     agents at once. Maximum signal in the bar item; a dense,
+     keyboard-driven popover behind it. System fonts only, zero deps.
+     ============================================================ */
+
+  :root {
+    /* Dawn palette — Eos is the goddess of dawn. Warm running, cool calm. */
+    --dawn-1:  #ffd27a;
+    --dawn-2:  #ff9d5c;
+    --dawn-3:  #ff6b6b;
+    --dawn-4:  #f0568f;
+    --run-glow: #ff8a5c;
+    --ok:      #34d399;
+    --ok-dim:  #0f9d6b;
+    --fail:    #ff5d6c;
+    --idle:    #8b8f99;
+
+    --bar-h: 26px;
+    --radius: 7px;
+
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+    --mono: "SF Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+    --ease-snap: cubic-bezier(.22, 1, .36, 1);
+    --ease-io:   cubic-bezier(.45, 0, .15, 1);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--font);
+    color: #fff;
+    /* layered dawn desktop so the menu-bar vibrancy reads as real blur */
+    background:
+      radial-gradient(120% 90% at 12% -10%, #3a2b52 0%, transparent 55%),
+      radial-gradient(130% 110% at 88% 0%, #6b3f5e 0%, transparent 50%),
+      radial-gradient(100% 120% at 50% 120%, #1c2540 0%, transparent 60%),
+      linear-gradient(160deg, #2a2140 0%, #14182c 60%, #0d1020 100%);
+    min-height: 100vh;
+    padding: 0 0 64px;
+    overflow-x: hidden;
+  }
+  /* faint film grain for depth */
+  body::after {
+    content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .035; z-index: 999;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  .stage { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+
+  .lede {
+    padding: 40px 28px 26px; max-width: 1180px; margin: 0 auto;
+  }
+  .lede .eyebrow {
+    font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+    color: var(--dawn-2); font-weight: 700; display: flex; align-items: center; gap: 9px;
+  }
+  .lede .eyebrow::before {
+    content: ""; width: 16px; height: 16px; border-radius: 5px;
+    background: conic-gradient(from 210deg, var(--dawn-1), var(--dawn-3), var(--dawn-4), var(--dawn-1));
+    box-shadow: 0 0 14px rgba(255,140,92,.6);
+  }
+  .lede h1 { font-size: 27px; font-weight: 800; letter-spacing: -.02em; margin: 12px 0 6px; }
+  .lede p  { font-size: 14px; color: #b9bdcc; max-width: 640px; line-height: 1.55; }
+
+  /* ---------- faux desktop windows holding the menu bars ---------- */
+  .desktops { display: grid; gap: 22px; }
+
+  .desk {
+    position: relative; border-radius: 13px; overflow: visible;
+    box-shadow: 0 22px 60px -22px rgba(0,0,0,.7), 0 1px 0 rgba(255,255,255,.06) inset;
+    isolation: isolate;
+  }
+  .desk-label {
+    position: absolute; top: 12px; left: 16px; z-index: 3;
+    font-size: 11px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase;
+    color: rgba(255,255,255,.55); pointer-events: none;
+  }
+  .desk.light .desk-label { color: rgba(20,22,34,.5); }
+
+  .desk-canvas { height: 168px; position: relative; }
+  .desk.dark  .desk-canvas { background:
+      radial-gradient(120% 140% at 80% -20%, #4a3a6b 0%, transparent 55%),
+      linear-gradient(165deg, #241d3a, #11142a); border-radius: 13px; }
+  .desk.light .desk-canvas { background:
+      radial-gradient(120% 140% at 80% -20%, #ffe7c2 0%, transparent 55%),
+      linear-gradient(165deg, #f3efe7, #dfe3ee); border-radius: 13px; }
+
+  /* ---------- the menu bar ---------- */
+  .menubar {
+    position: absolute; top: 0; left: 0; right: 0; height: var(--bar-h);
+    display: flex; align-items: stretch; padding: 0 8px 0 12px;
+    font-size: 13px; border-radius: 13px 13px 0 0;
+    backdrop-filter: saturate(180%) blur(22px); -webkit-backdrop-filter: saturate(180%) blur(22px);
+    z-index: 2;
+  }
+  .desk.dark  .menubar { background: rgba(28,28,34,.52); color: #f2f2f5; border-bottom: 1px solid rgba(255,255,255,.07); }
+  .desk.light .menubar { background: rgba(250,250,252,.62); color: #1c1d24; border-bottom: 1px solid rgba(0,0,0,.07); }
+
+  .mb-left  { display: flex; align-items: center; gap: 2px; }
+  .mb-right { display: flex; align-items: center; gap: 1px; margin-left: auto; }
+
+  .mb-apple { font-size: 15px; padding: 0 9px; display: flex; align-items: center; height: 100%; }
+  .mb-item  { padding: 0 9px; display: flex; align-items: center; height: 100%; border-radius: 5px; font-weight: 400; opacity: .92; }
+  .mb-item.app { font-weight: 700; }
+  .mb-item:hover { background: rgba(125,125,160,.22); }
+
+  .mb-sys { display: flex; align-items: center; height: 100%; padding: 0 7px; opacity: .85; }
+  .mb-sys svg { display: block; }
+  .desk.dark .mb-sys svg  { fill: #f2f2f5; }
+  .desk.light .mb-sys svg { fill: #1c1d24; }
+  .mb-clock { font-variant-numeric: tabular-nums; font-size: 12.5px; padding: 0 8px; opacity: .9; }
+
+  /* =====================================================================
+     THE STATUS ITEM — the star of the show
+     ===================================================================== */
+  .eos-item {
+    height: 100%; display: flex; align-items: center; gap: 0;
+    padding: 0 8px; margin: 0 1px; border-radius: 6px; cursor: pointer;
+    position: relative; user-select: none;
+    transition: background .15s ease;
+  }
+  .eos-item:hover { background: rgba(125,125,160,.20); }
+  .eos-item.active { background: rgba(125,125,160,.28); }
+  .desk.light .eos-item:hover  { background: rgba(40,40,70,.10); }
+  .desk.light .eos-item.active { background: rgba(40,40,70,.16); }
+
+  /* the morphing display: two stacked "channels", one shows at a time */
+  .eos-stack { position: relative; height: 18px; display: flex; align-items: center; }
+
+  .eos-view {
+    display: flex; align-items: center; gap: 6px; height: 18px;
+    transition: opacity .26s var(--ease-io), transform .3s var(--ease-snap), filter .26s;
+  }
+  /* live view stays in flow; flash view overlays */
+  .eos-view.flash {
+    position: absolute; left: 0; top: 0; opacity: 0; transform: translateY(7px) scale(.96);
+    pointer-events: none; white-space: nowrap;
+  }
+  .eos-item[data-mode="flash"] .eos-view.live  { opacity: 0; transform: translateY(-6px) scale(.97); filter: blur(.3px); }
+  .eos-item[data-mode="flash"] .eos-view.flash { opacity: 1; transform: translateY(0) scale(1); }
+
+  /* ----- LIVE view: status ring + count + sparkline ----- */
+  .eos-ring {
+    width: 14px; height: 14px; border-radius: 50%; position: relative; flex: none;
+    background: conic-gradient(from 0deg, var(--dawn-1), var(--dawn-2), var(--dawn-3), var(--dawn-4), var(--dawn-1));
+    -webkit-mask: radial-gradient(circle, transparent 4.4px, #000 5px);
+            mask: radial-gradient(circle, transparent 4.4px, #000 5px);
+    animation: spin 1.15s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  /* idle: ring goes quiet — a single soft dot, no motion */
+  .eos-item[data-state="idle"] .eos-ring {
+    background: var(--idle); animation: none;
+    -webkit-mask: none; mask: none; width: 7px; height: 7px; opacity: .55;
+    box-shadow: 0 0 0 3px rgba(139,143,153,.14);
+  }
+
+  .eos-count {
+    font-variant-numeric: tabular-nums; font-weight: 750; font-size: 13px;
+    letter-spacing: .01em; min-width: 8px; text-align: center;
+    line-height: 1; font-family: var(--font);
+  }
+  .eos-item[data-state="idle"] .eos-count { display: none; }
+
+  /* sparkline — a live equalizer; each bar = an active worker pulse */
+  .eos-spark { display: flex; align-items: flex-end; gap: 1.5px; height: 13px; }
+  .eos-spark i {
+    width: 2px; height: 30%; border-radius: 1px; flex: none;
+    background: linear-gradient(180deg, var(--dawn-1), var(--dawn-3));
+    transform-origin: bottom;
+    animation: eq 1s ease-in-out infinite;
+  }
+  .eos-spark i:nth-child(1){ animation-delay: -.0s;  animation-duration: .9s; }
+  .eos-spark i:nth-child(2){ animation-delay: -.25s; animation-duration: 1.15s; }
+  .eos-spark i:nth-child(3){ animation-delay: -.55s; animation-duration: .8s; }
+  .eos-spark i:nth-child(4){ animation-delay: -.15s; animation-duration: 1.05s; }
+  .eos-spark i:nth-child(5){ animation-delay: -.4s;  animation-duration: .95s; }
+  .eos-spark i:nth-child(6){ animation-delay: -.7s;  animation-duration: 1.2s; }
+  @keyframes eq {
+    0%,100% { height: 22%; opacity: .65; }
+    50%     { height: 100%; opacity: 1; }
+  }
+  .eos-item[data-state="idle"] .eos-spark { display: none; }
+
+  /* ----- FLASH view: completion playback ----- */
+  .flash-glyph {
+    width: 15px; height: 15px; border-radius: 50%; flex: none;
+    display: grid; place-items: center; font-size: 10px; font-weight: 900; color: #06210f;
+    background: var(--ok);
+    box-shadow: 0 0 0 3px rgba(52,211,153,.18), 0 0 12px rgba(52,211,153,.5);
+    animation: pop .42s var(--ease-snap);
+  }
+  .flash-glyph.fail { background: var(--fail); color: #2a0408; box-shadow: 0 0 0 3px rgba(255,93,108,.18), 0 0 12px rgba(255,93,108,.5); }
+  @keyframes pop { 0% { transform: scale(.2); } 60% { transform: scale(1.18); } 100% { transform: scale(1); } }
+
+  .flash-name {
+    font-size: 12.5px; font-weight: 650; letter-spacing: -.005em; max-width: 130px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .flash-done { font-size: 12px; opacity: .62; font-weight: 500; }
+  /* queue badge: how many completions still waiting to play */
+  .flash-badge {
+    font-size: 10.5px; font-weight: 800; font-variant-numeric: tabular-nums;
+    background: rgba(255,255,255,.16); color: inherit; padding: 1px 5px; border-radius: 7px;
+    margin-left: 2px;
+  }
+  .desk.light .flash-badge { background: rgba(20,20,40,.12); }
+
+  /* a thin progress hairline under the item that drains during each playback */
+  .flash-bar {
+    position: absolute; left: 6px; right: 6px; bottom: 2px; height: 1.5px; border-radius: 2px;
+    background: var(--ok); opacity: 0; transform-origin: left;
+  }
+  .flash-bar.fail { background: var(--fail); }
+  .eos-item[data-mode="flash"] .flash-bar { opacity: .8; animation: drain var(--hold,1500ms) linear; }
+  @keyframes drain { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+
+  /* tiny completion badge in idle/running too (recent done count, decays) */
+  .eos-tally {
+    font-size: 10px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ok);
+    display: none; align-items: center; gap: 2px; margin-left: 2px;
+  }
+  .eos-tally.show { display: inline-flex; }
+  .eos-tally::before { content: "✓"; font-size: 9px; }
+
+  /* =====================================================================
+     POPOVER
+     ===================================================================== */
+  .popover {
+    position: absolute; z-index: 50; width: 318px;
+    border-radius: 13px; overflow: hidden;
+    background: rgba(30,30,38,.74);
+    backdrop-filter: saturate(180%) blur(34px); -webkit-backdrop-filter: saturate(180%) blur(34px);
+    border: .5px solid rgba(255,255,255,.14);
+    box-shadow: 0 26px 70px -18px rgba(0,0,0,.7), 0 0 0 .5px rgba(255,255,255,.05) inset;
+    color: #f0f0f4;
+    opacity: 0; transform: translateY(-8px) scale(.97); transform-origin: top center;
+    pointer-events: none; transition: opacity .2s var(--ease-io), transform .24s var(--ease-snap);
+  }
+  .popover.open { opacity: 1; transform: translateY(0) scale(1); pointer-events: auto; }
+  /* little caret pointing up at the bar item */
+  .popover::before {
+    content: ""; position: absolute; top: -6px; width: 12px; height: 12px;
+    left: var(--caret, 50%); margin-left: -6px; transform: rotate(45deg);
+    background: rgba(40,40,50,.9); border-left: .5px solid rgba(255,255,255,.14); border-top: .5px solid rgba(255,255,255,.14);
+  }
+
+  .pop-head { padding: 12px 14px 10px; border-bottom: .5px solid rgba(255,255,255,.08); }
+  .pop-title-row { display: flex; align-items: center; justify-content: space-between; }
+  .pop-title { font-size: 13px; font-weight: 750; letter-spacing: -.01em; display: flex; align-items: center; gap: 8px; }
+  .pop-title .mark {
+    width: 15px; height: 15px; border-radius: 5px;
+    background: conic-gradient(from 210deg, var(--dawn-1), var(--dawn-3), var(--dawn-4), var(--dawn-1));
+    box-shadow: 0 0 10px rgba(255,140,92,.5);
+  }
+  .pop-quit { font-size: 11px; color: #9a9eb0; font-variant-numeric: tabular-nums; }
+  .pop-quit kbd { font-family: var(--mono); background: rgba(255,255,255,.1); padding: 1px 4px; border-radius: 4px; font-size: 10px; }
+
+  .pop-chips { display: flex; gap: 6px; margin-top: 9px; }
+  .chip {
+    display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 650;
+    padding: 3px 8px; border-radius: 7px; font-variant-numeric: tabular-nums;
+    background: rgba(255,255,255,.06);
+  }
+  .chip .dot { width: 6px; height: 6px; border-radius: 50%; }
+  .chip.run  .dot { background: var(--run-glow); box-shadow: 0 0 7px var(--run-glow); animation: pulse 1.3s ease-in-out infinite; }
+  .chip.done .dot { background: var(--ok); }
+  .chip.fail .dot { background: var(--fail); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  /* agent list */
+  .pop-list { max-height: 296px; overflow-y: auto; padding: 5px; scrollbar-width: thin; }
+  .pop-list::-webkit-scrollbar { width: 7px; }
+  .pop-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-radius: 4px; }
+
+  .row {
+    display: grid; grid-template-columns: 18px 1fr auto; gap: 9px; align-items: center;
+    padding: 8px 9px; border-radius: 9px; cursor: pointer; position: relative;
+    transition: background .12s;
+  }
+  .row + .row { margin-top: 1px; }
+  .row:hover, .row.sel { background: rgba(255,255,255,.08); }
+  .row.sel { box-shadow: 0 0 0 1px rgba(255,170,120,.45) inset; }
+
+  .row-glyph { width: 18px; height: 18px; display: grid; place-items: center; }
+  .row-glyph .spinner {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent, var(--run-glow));
+    -webkit-mask: radial-gradient(circle, transparent 3.6px, #000 4px);
+            mask: radial-gradient(circle, transparent 3.6px, #000 4px);
+    animation: spin 1s linear infinite;
+  }
+  .row-glyph .check, .row-glyph .x {
+    width: 14px; height: 14px; border-radius: 50%; display: grid; place-items: center;
+    font-size: 9px; font-weight: 900;
+  }
+  .row-glyph .check { background: rgba(52,211,153,.18); color: var(--ok); }
+  .row-glyph .x     { background: rgba(255,93,108,.18); color: var(--fail); }
+
+  .row-main { min-width: 0; }
+  .row-name {
+    font-size: 12.5px; font-weight: 650; letter-spacing: -.005em;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono);
+  }
+  .row-activity {
+    font-size: 11px; color: #a4a8ba; margin-top: 2px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .row.done .row-activity, .row.failed .row-activity { color: #797d8e; }
+
+  .row-meta { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .row-time {
+    font-size: 11.5px; font-variant-numeric: tabular-nums; color: #cfd2de; font-family: var(--mono);
+  }
+  .row.done .row-time { color: var(--ok); }
+  .row.failed .row-time { color: var(--fail); }
+  .row-tag {
+    font-size: 9px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+    color: #8b8f9e;
+  }
+  .row-chev { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); opacity: 0; color: #c7cad6; transition: opacity .12s, transform .12s; font-size: 12px; }
+  .row:hover .row-chev, .row.sel .row-chev { opacity: .8; transform: translateY(-50%) translateX(2px); }
+  .row:hover .row-meta, .row.sel .row-meta { opacity: .25; }
+
+  .pop-empty { padding: 30px 14px; text-align: center; color: #8a8e9e; font-size: 12px; }
+  .pop-empty .big { font-size: 22px; opacity: .5; margin-bottom: 8px; }
+
+  .pop-foot {
+    padding: 9px 13px; border-top: .5px solid rgba(255,255,255,.08);
+    display: flex; gap: 14px; font-size: 10.5px; color: #9094a6;
+  }
+  .pop-foot span { display: inline-flex; align-items: center; gap: 5px; }
+  .pop-foot kbd {
+    font-family: var(--mono); background: rgba(255,255,255,.1); padding: 1px 5px; border-radius: 4px;
+    font-size: 10px; color: #d4d7e2;
+  }
+
+  /* toast when "opening" an agent in the app */
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px);
+    background: rgba(20,20,28,.92); backdrop-filter: blur(20px);
+    border: .5px solid rgba(255,255,255,.14); border-radius: 11px;
+    padding: 11px 16px; font-size: 12.5px; display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 18px 50px -14px rgba(0,0,0,.7); opacity: 0; pointer-events: none;
+    transition: opacity .22s, transform .26s var(--ease-snap); z-index: 200;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .toast .mark { width: 16px; height: 16px; border-radius: 5px; background: conic-gradient(from 210deg, var(--dawn-1), var(--dawn-3), var(--dawn-4)); }
+
+  /* =====================================================================
+     CONTROLS + RATIONALE
+     ===================================================================== */
+  .panel {
+    margin-top: 26px; background: rgba(255,255,255,.04); border: .5px solid rgba(255,255,255,.09);
+    border-radius: 14px; padding: 18px 20px; backdrop-filter: blur(10px);
+  }
+  .panel h2 {
+    font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: #b9bdcc;
+    font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+  }
+  .panel h2::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--dawn-2); box-shadow: 0 0 8px var(--dawn-2); }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
+  .btn {
+    font-family: var(--font); font-size: 12.5px; font-weight: 600; color: #e9eaf2;
+    background: rgba(255,255,255,.07); border: .5px solid rgba(255,255,255,.12);
+    padding: 8px 14px; border-radius: 9px; cursor: pointer; transition: all .14s var(--ease-snap);
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .btn:hover { background: rgba(255,255,255,.13); transform: translateY(-1px); }
+  .btn:active { transform: translateY(0) scale(.98); }
+  .btn.primary { background: linear-gradient(135deg, var(--dawn-2), var(--dawn-4)); border-color: transparent; color: #fff; box-shadow: 0 6px 18px -6px rgba(255,107,107,.6); }
+  .btn .kbd { font-family: var(--mono); font-size: 10px; opacity: .6; }
+  .btn[data-on="true"] { box-shadow: 0 0 0 1.5px var(--ok) inset; color: var(--ok); }
+  .btn .led { width: 7px; height: 7px; border-radius: 50%; background: #555; }
+  .btn[data-on="true"] .led { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
+
+  .sep { width: 1px; height: 26px; background: rgba(255,255,255,.12); margin: 0 4px; }
+
+  details.rationale { margin-top: 22px; }
+  details.rationale summary {
+    cursor: pointer; list-style: none; font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+    color: #b9bdcc; font-weight: 700; display: flex; align-items: center; gap: 9px; padding: 4px 0;
+  }
+  details.rationale summary::-webkit-details-marker { display: none; }
+  details.rationale summary::before { content: "▸"; transition: transform .2s; color: var(--dawn-2); }
+  details.rationale[open] summary::before { transform: rotate(90deg); }
+  .rationale-body { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px,1fr)); gap: 18px; margin-top: 16px; }
+  .rcard { background: rgba(255,255,255,.03); border: .5px solid rgba(255,255,255,.08); border-radius: 11px; padding: 15px 16px; }
+  .rcard h3 { font-size: 12.5px; font-weight: 700; margin-bottom: 7px; color: #fff; display: flex; align-items: center; gap: 7px; }
+  .rcard h3 .ic { width: 18px; height: 18px; border-radius: 6px; background: rgba(255,140,92,.16); display: grid; place-items: center; font-size: 11px; }
+  .rcard p { font-size: 12.5px; line-height: 1.6; color: #b3b7c6; }
+  .rcard p b { color: #e6e8f0; font-weight: 650; }
+
+  .foot-note { text-align: center; color: #6b6f80; font-size: 11px; margin-top: 30px; }
+</style>
+</head>
+<body>
+
+  <header class="lede">
+    <div class="eyebrow">Eos · status item</div>
+    <h1>Glanceable Pro</h1>
+    <p>An instrument cluster for the menu bar. The bar item itself carries live signal — running count, a breathing activity sparkline, and a completion ticker — so you never have to open anything to know your fleet's state. Built for power users running many agents at once.</p>
+  </header>
+
+  <main class="stage">
+    <div class="desktops">
+      <!-- DARK menu bar (primary) -->
+      <section class="desk dark" id="deskDark">
+        <span class="desk-label">Dark menu bar</span>
+        <div class="desk-canvas">
+          <div class="menubar">
+            <div class="mb-left">
+              <span class="mb-apple"></span>
+              <span class="mb-item app">Eos</span>
+              <span class="mb-item">File</span>
+              <span class="mb-item">Fleet</span>
+              <span class="mb-item">View</span>
+              <span class="mb-item">Window</span>
+            </div>
+            <div class="mb-right">
+              <!-- STATUS ITEM injected here -->
+              <span class="mb-sys"><svg width="20" height="13" viewBox="0 0 20 13"><rect x="1" y="2" width="16" height="9" rx="2.4" fill="none" stroke-width="1.1" stroke="currentColor" style="stroke:inherit"/><rect x="2.6" y="3.6" width="9" height="5.8" rx="1.2"/><rect x="18" y="5" width="1.6" height="3" rx=".8"/></svg></span>
+              <span class="mb-sys"><svg width="16" height="13" viewBox="0 0 16 13"><path d="M8 11.2l2.1-2.6a3 3 0 00-4.2 0zM8 11.2l2.1-2.6M3.6 6.1a7 7 0 018.8 0M1 3.4a11 11 0 0114 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" style="stroke:inherit"/></svg></span>
+              <span class="mb-sys"><svg width="15" height="13" viewBox="0 0 15 13"><circle cx="7.5" cy="6.5" r="2" fill="none" stroke="currentColor" stroke-width="1.2" style="stroke:inherit"/><path d="M7.5 1v1.6M7.5 10.4V12M1 6.5h1.6M12.4 6.5H14M3 3l1.1 1.1M10.9 9l1.1 1.1M3 10l1.1-1.1M10.9 4l1.1-1.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" style="stroke:inherit"/></svg></span>
+              <span class="mb-clock" id="clockDark">Thu 09:41</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- LIGHT menu bar -->
+      <section class="desk light" id="deskLight">
+        <span class="desk-label">Light menu bar</span>
+        <div class="desk-canvas">
+          <div class="menubar">
+            <div class="mb-left">
+              <span class="mb-apple"></span>
+              <span class="mb-item app">Eos</span>
+              <span class="mb-item">File</span>
+              <span class="mb-item">Fleet</span>
+              <span class="mb-item">View</span>
+              <span class="mb-item">Window</span>
+            </div>
+            <div class="mb-right">
+              <span class="mb-sys"><svg width="20" height="13" viewBox="0 0 20 13"><rect x="1" y="2" width="16" height="9" rx="2.4" fill="none" stroke-width="1.1" stroke="currentColor" style="stroke:inherit"/><rect x="2.6" y="3.6" width="9" height="5.8" rx="1.2"/><rect x="18" y="5" width="1.6" height="3" rx=".8"/></svg></span>
+              <span class="mb-sys"><svg width="16" height="13" viewBox="0 0 16 13"><path d="M8 11.2l2.1-2.6a3 3 0 00-4.2 0zM3.6 6.1a7 7 0 018.8 0M1 3.4a11 11 0 0114 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" style="stroke:inherit"/></svg></span>
+              <span class="mb-sys"><svg width="15" height="13" viewBox="0 0 15 13"><circle cx="7.5" cy="6.5" r="2" fill="none" stroke="currentColor" stroke-width="1.2" style="stroke:inherit"/><path d="M7.5 1v1.6M7.5 10.4V12M1 6.5h1.6M12.4 6.5H14M3 3l1.1 1.1M10.9 9l1.1 1.1M3 10l1.1-1.1M10.9 4l1.1-1.1" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" style="stroke:inherit"/></svg></span>
+              <span class="mb-clock" id="clockLight">Thu 09:41</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- POPOVER (anchored under whichever item is clicked) -->
+    <div class="popover" id="popover">
+      <div class="pop-head">
+        <div class="pop-title-row">
+          <div class="pop-title"><span class="mark"></span> Agents</div>
+          <div class="pop-quit"><kbd>⌘</kbd><kbd>.</kbd> quit</div>
+        </div>
+        <div class="pop-chips" id="popChips"></div>
+      </div>
+      <div class="pop-list" id="popList"></div>
+      <div class="pop-foot">
+        <span><kbd>↑</kbd><kbd>↓</kbd> navigate</span>
+        <span><kbd>↵</kbd> open in Eos</span>
+        <span><kbd>esc</kbd> close</span>
+      </div>
+    </div>
+
+    <!-- CONTROLS -->
+    <div class="panel">
+      <h2>Demo controls</h2>
+      <div class="controls">
+        <button class="btn" data-act="idle">Idle <span class="kbd">0</span></button>
+        <button class="btn primary" data-act="spawn">Spawn 5 agents</button>
+        <button class="btn" data-act="finish1">Finish one</button>
+        <button class="btn" data-act="burst">Burst-finish 4 ✓</button>
+        <button class="btn" data-act="fail">Add a failure</button>
+        <div class="sep"></div>
+        <button class="btn" data-act="popover">Toggle popover</button>
+        <button class="btn" data-act="auto" id="autoBtn" data-on="true"><span class="led"></span> Auto-cycle</button>
+      </div>
+    </div>
+
+    <!-- RATIONALE -->
+    <details class="rationale" open>
+      <summary>Design rationale</summary>
+      <div class="rationale-body">
+        <div class="rcard">
+          <h3><span class="ic">◐</span> Glance over click</h3>
+          <p>The bar item answers the two questions a power user asks most — <b>how many are running</b> and <b>did anything just finish</b> — without a click. A spinning dawn ring + tabular count + a breathing equalizer make "work is happening" legible in peripheral vision; the count uses <b>tabular figures</b> so the bar never reflows as it changes.</p>
+        </div>
+        <div class="rcard">
+          <h3><span class="ic">✓</span> Sequential completion queue</h3>
+          <p>When several agents finish at once, completions <b>queue and play one at a time</b> — each name pops in with a green check, holds ~1.3s while a hairline drains, then the next slides up. A <b>+N badge</b> shows how many are still waiting, so a burst of 4 reads as a deliberate ticker, never a flicker. The bar settles back to the live view when the queue empties.</p>
+        </div>
+        <div class="rcard">
+          <h3><span class="ic">⌨</span> Dense, keyboard-first popover</h3>
+          <p>One click opens a tight list: status glyph, monospaced name, live elapsed time, and a truncated activity line per agent — sorted running-first. <b>↑/↓</b> move a selection ring, <b>↵</b> focuses that agent in Eos, <b>esc</b> closes. Every pixel is information; nothing is decoration.</p>
+        </div>
+        <div class="rcard">
+          <h3><span class="ic">☾</span> Native restraint</h3>
+          <p>Compact width, vibrancy blur, SF system type, and motion that is <b>crisp and purposeful</b> — the ring only spins while work runs, the equalizer stills at idle to near-invisibility. Tuned for <b>both light and dark</b> menu bars so it disappears into the OS until it has something to say.</p>
+        </div>
+      </div>
+    </details>
+
+    <p class="foot-note">Eos · Glanceable Pro concept · self-contained mockup · system fonts, zero dependencies</p>
+  </main>
+
+  <div class="toast" id="toast"><span class="mark"></span><span id="toastMsg"></span></div>
+
+<script>
+(() => {
+  "use strict";
+
+  // ---------- agent pool ----------
+  const NAMES = [
+    "auth-refactor","ui-popover","db-migrate","test-sweep","lint-fix",
+    "schema-sync","route-audit","perf-trace","docs-gen","cache-warm"
+  ];
+  const ACTS = [
+    "Editing manager/routes/agents.ts","Running test suite (42/118)","Searching core/ports for callers",
+    "Rebasing onto feat/eos-workflow","Writing migration 0042_sessions","Linting app/ui/src",
+    "Resolving merge in spawner/","Generating route table","Profiling SSE fan-out",
+    "Reading contracts/src/http.ts","Applying edits to popover.tsx","Verifying tsc --noEmit"
+  ];
+  const DONE_ACTS = ["Pushed 3 commits","Tests green · 118 passed","Migration applied","Branch ready to land","Lint clean"];
+  const FAIL_ACTS = ["tsc failed · 2 errors","Test suite red · 3 failed","Merge conflict unresolved"];
+
+  let uid = 0;
+  let agents = [];          // {id,name,status,elapsed,activity}
+  let clock = 0;            // virtual seconds
+  const queue = [];         // completion playback queue {name,ok}
+  let playing = false;
+  let recentDone = 0;       // decaying tally shown on live view
+
+  const fmt = s => {
+    const m = Math.floor(s/60), ss = s%60;
+    return m > 0 ? `${m}:${String(ss).padStart(2,"0")}` : `${ss}s`;
+  };
+  const pick = a => a[Math.floor((clock*7+uid*3+a.length) % a.length)]; // deterministic-ish, no Math.random reliance for stability
+
+  // ---------- bar item construction ----------
+  function makeItem() {
+    const el = document.createElement("span");
+    el.className = "eos-item";
+    el.innerHTML = `
+      <div class="eos-stack">
+        <div class="eos-view live">
+          <span class="eos-ring"></span>
+          <span class="eos-count">0</span>
+          <span class="eos-spark"><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          <span class="eos-tally"></span>
+        </div>
+        <div class="eos-view flash">
+          <span class="flash-glyph">✓</span>
+          <span class="flash-name"></span>
+          <span class="flash-done">done</span>
+          <span class="flash-badge"></span>
+        </div>
+      </div>
+      <div class="flash-bar"></div>`;
+    return el;
+  }
+
+  const items = [];
+  document.querySelectorAll(".desk .mb-right").forEach(right => {
+    const it = makeItem();
+    right.insertBefore(it, right.firstChild);
+    it.addEventListener("click", e => { e.stopPropagation(); togglePopover(it); });
+    items.push(it);
+  });
+
+  // ---------- live view rendering ----------
+  function runningCount() { return agents.filter(a => a.status === "running").length; }
+
+  function renderLive() {
+    const n = runningCount();
+    const state = n > 0 ? "running" : "idle";
+    items.forEach(it => {
+      if (it.dataset.mode !== "flash") it.dataset.mode = "live";
+      it.dataset.state = state;
+      it.querySelector(".eos-count").textContent = n;
+      // sparkline density follows the count (cap at 6 bars)
+      const bars = it.querySelectorAll(".eos-spark i");
+      bars.forEach((b,i) => b.style.display = i < Math.min(Math.max(n,3),6) ? "" : "none");
+      const tally = it.querySelector(".eos-tally");
+      if (recentDone > 0 && state === "running") { tally.classList.add("show"); tally.textContent = recentDone; }
+      else tally.classList.remove("show");
+    });
+  }
+
+  // ---------- completion queue playback ----------
+  function enqueueCompletion(name, ok) { queue.push({name, ok}); recentDone++; renderLive(); playNext(); }
+
+  function playNext() {
+    if (playing) return;
+    const next = queue.shift();
+    if (!next) { // queue drained — settle back to live
+      items.forEach(it => it.dataset.mode = "live");
+      return;
+    }
+    playing = true;
+    const HOLD = 1300;
+    items.forEach(it => {
+      it.style.setProperty("--hold", HOLD + "ms");
+      const glyph = it.querySelector(".flash-glyph");
+      const name  = it.querySelector(".flash-name");
+      const done  = it.querySelector(".flash-done");
+      const badge = it.querySelector(".flash-badge");
+      const bar   = it.querySelector(".flash-bar");
+      glyph.classList.toggle("fail", !next.ok);
+      glyph.textContent = next.ok ? "✓" : "✕";
+      bar.classList.toggle("fail", !next.ok);
+      name.textContent = next.name;
+      done.textContent = next.ok ? "done" : "failed";
+      badge.textContent = queue.length > 0 ? "+" + queue.length : "";
+      badge.style.display = queue.length > 0 ? "" : "none";
+      // re-trigger pop + drain animations by reflow
+      it.dataset.mode = "live"; void it.offsetWidth; it.dataset.mode = "flash";
+    });
+    setTimeout(() => { playing = false; playNext(); }, HOLD);
+  }
+
+  // ---------- popover ----------
+  const pop = document.getElementById("popover");
+  const popList = document.getElementById("popList");
+  const popChips = document.getElementById("popChips");
+  let popOpen = false, anchorItem = null, sel = -1;
+
+  function orderedAgents() {
+    const rank = { running: 0, failed: 1, completed: 2 };
+    return [...agents].sort((a,b) => (rank[a.status]-rank[b.status]) || (b.elapsed-a.elapsed));
+  }
+
+  function renderPopover() {
+    const run = agents.filter(a=>a.status==="running").length;
+    const done = agents.filter(a=>a.status==="completed").length;
+    const fail = agents.filter(a=>a.status==="failed").length;
+    popChips.innerHTML =
+      `<span class="chip run"><span class="dot"></span>${run} running</span>`+
+      `<span class="chip done"><span class="dot"></span>${done} done</span>`+
+      (fail?`<span class="chip fail"><span class="dot"></span>${fail} failed</span>`:``);
+
+    const list = orderedAgents();
+    if (!list.length) { popList.innerHTML = `<div class="pop-empty"><div class="big">◌</div>No agents running.<br>Quiet on the fleet.</div>`; return; }
+
+    popList.innerHTML = list.map((a,i) => {
+      const glyph = a.status==="running" ? `<span class="spinner"></span>`
+                  : a.status==="completed" ? `<span class="check">✓</span>`
+                  : `<span class="x">✕</span>`;
+      const tag = a.status==="running" ? "live" : a.status==="completed" ? "done" : "failed";
+      return `<div class="row ${a.status}${i===sel?' sel':''}" data-id="${a.id}" data-idx="${i}">
+        <div class="row-glyph">${glyph}</div>
+        <div class="row-main">
+          <div class="row-name">${a.name}</div>
+          <div class="row-activity">${a.activity}</div>
+        </div>
+        <div class="row-meta">
+          <div class="row-time">${fmt(a.elapsed)}</div>
+          <div class="row-tag">${tag}</div>
+        </div>
+        <div class="row-chev">›</div>
+      </div>`;
+    }).join("");
+
+    popList.querySelectorAll(".row").forEach(r => {
+      r.addEventListener("click", () => openAgent(r.dataset.id));
+      r.addEventListener("mouseenter", () => { sel = +r.dataset.idx; highlight(); });
+    });
+  }
+
+  function highlight() {
+    popList.querySelectorAll(".row").forEach((r,i) => r.classList.toggle("sel", i===sel));
+    const cur = popList.querySelector(".row.sel");
+    if (cur) cur.scrollIntoView({block:"nearest"});
+  }
+
+  function togglePopover(item) {
+    if (popOpen && anchorItem === item) { closePopover(); return; }
+    anchorItem = item; popOpen = true; sel = -1;
+    items.forEach(it => it.classList.toggle("active", it === item));
+    renderPopover();
+    const r = item.getBoundingClientRect();
+    const w = 318;
+    let left = r.left + r.width/2 - w/2 + window.scrollX;
+    left = Math.max(10, Math.min(left, window.innerWidth - w - 10));
+    pop.style.left = left + "px";
+    pop.style.top = (r.bottom + window.scrollY + 7) + "px";
+    pop.style.setProperty("--caret", (r.left + r.width/2 + window.scrollX - left) + "px");
+    pop.classList.add("open");
+  }
+  function closePopover() {
+    popOpen = false; pop.classList.remove("open");
+    items.forEach(it => it.classList.remove("active"));
+  }
+
+  document.addEventListener("click", e => { if (popOpen && !pop.contains(e.target)) closePopover(); });
+
+  // ---------- open agent (focus in app) ----------
+  const toast = document.getElementById("toast"), toastMsg = document.getElementById("toastMsg");
+  let toastT = null;
+  function openAgent(id) {
+    const a = agents.find(x=>x.id==id); if (!a) return;
+    closePopover();
+    toastMsg.innerHTML = `Focusing <b>${a.name}</b> in Eos…`;
+    toast.classList.add("show");
+    clearTimeout(toastT); toastT = setTimeout(()=>toast.classList.remove("show"), 1900);
+  }
+
+  // ---------- keyboard ----------
+  document.addEventListener("keydown", e => {
+    if (!popOpen) return;
+    const rows = orderedAgents();
+    if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(sel+1, rows.length-1); highlight(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(sel-1, 0); highlight(); }
+    else if (e.key === "Enter" && sel>=0) { e.preventDefault(); openAgent(rows[sel].id); }
+    else if (e.key === "Escape") closePopover();
+  });
+
+  // ---------- mutations ----------
+  function spawn(n) {
+    for (let i=0;i<n;i++){
+      const name = NAMES[(uid+i) % NAMES.length] + "-" + String(uid+i).padStart(2,"0").slice(-2);
+      agents.push({ id: ++uid, name, status:"running", elapsed: Math.floor((uid*7)%40), activity: ACTS[(uid+i)%ACTS.length] });
+    }
+    renderLive(); if (popOpen) renderPopover();
+  }
+  function finishOne(ok=true) {
+    const r = agents.filter(a=>a.status==="running");
+    if (!r.length) return;
+    const a = r[0];
+    a.status = ok ? "completed" : "failed";
+    a.activity = ok ? DONE_ACTS[a.id%DONE_ACTS.length] : FAIL_ACTS[a.id%FAIL_ACTS.length];
+    enqueueCompletion(a.name, ok);
+    if (popOpen) renderPopover();
+  }
+  function burst(n) {
+    const r = agents.filter(a=>a.status==="running").slice(0,n);
+    r.forEach((a,i) => setTimeout(()=>finishOne(true), i*90)); // land in quick succession → queue handles ordering
+  }
+  function reset() { agents = []; queue.length=0; recentDone=0; playing=false; items.forEach(it=>it.dataset.mode="live"); renderLive(); if(popOpen) renderPopover(); }
+
+  // ---------- ticking clock for elapsed + decay ----------
+  setInterval(() => {
+    clock++;
+    agents.forEach(a => { if (a.status==="running") a.elapsed++; });
+    // rotate a running agent's activity occasionally for life
+    if (clock % 3 === 0) {
+      const r = agents.filter(a=>a.status==="running");
+      if (r.length) { const a = r[clock % r.length]; a.activity = ACTS[(clock+a.id)%ACTS.length]; }
+    }
+    // decay recent-done tally
+    if (clock % 6 === 0 && recentDone>0 && queue.length===0 && !playing) { recentDone=0; renderLive(); }
+    if (popOpen) renderPopover();
+  }, 1000);
+
+  // wall clock text
+  function tickWall(){
+    // purely cosmetic; advance a fake HH:MM
+    const base = 9*60+41 + Math.floor(clock/60);
+    const hh = String(Math.floor(base/60)%24).padStart(2,"0"), mm = String(base%60).padStart(2,"0");
+    document.getElementById("clockDark").textContent = `Thu ${hh}:${mm}`;
+    document.getElementById("clockLight").textContent = `Thu ${hh}:${mm}`;
+  }
+  setInterval(tickWall, 1000);
+
+  // ---------- controls ----------
+  document.querySelectorAll("[data-act]").forEach(b => b.addEventListener("click", () => {
+    const act = b.dataset.act;
+    if (act==="idle") reset();
+    else if (act==="spawn") spawn(5);
+    else if (act==="finish1") finishOne(true);
+    else if (act==="burst") burst(4);
+    else if (act==="fail") finishOne(false);
+    else if (act==="popover") togglePopover(items[0]);
+    else if (act==="auto") toggleAuto();
+  }));
+
+  // ---------- auto-cycle demo ----------
+  const autoBtn = document.getElementById("autoBtn");
+  let autoOn = true, autoTimers = [];
+  const after = (ms, fn) => autoTimers.push(setTimeout(fn, ms));
+  function clearAuto(){ autoTimers.forEach(clearTimeout); autoTimers=[]; }
+
+  function runScene() {
+    if (!autoOn) return;
+    clearAuto();
+    reset();
+    // 1) idle a beat → spawn a fleet
+    after(900,  () => spawn(2));
+    after(1700, () => spawn(3));            // now 5 running — count + spark climb
+    after(3200, () => spawn(2));            // 7 running, dense
+    // 2) a burst of completions lands ~together → sequential queue plays
+    after(6200, () => burst(4));            // ✓ four in a row, +N badge
+    // 3) one more finishes, then a failure
+    after(10200, () => finishOne(true));
+    after(12200, () => finishOne(false));
+    // 4) drain the rest, settle to idle, loop
+    after(14500, () => { const left = agents.filter(a=>a.status==="running").length; burst(left); });
+    after(18500, () => reset());
+    after(20000, runScene);
+  }
+  function toggleAuto(){
+    autoOn = !autoOn; autoBtn.dataset.on = autoOn;
+    if (autoOn) runScene(); else clearAuto();
+  }
+
+  // ---------- boot ----------
+  renderLive();
+  runScene();
+})();
+</script>
+</body>
+</html>

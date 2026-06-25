@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Eos · Alive &amp; Expressive — menu bar status</title>
+<style>
+  /* ----------------------------------------------------------------
+     Eos · "Alive & Expressive" menu-bar status indicator
+     A living dawn-orb that breathes while agents work, and a
+     sequential completion celebration that queues finishers one by one.
+     Single file. System fonts. No network.
+  ----------------------------------------------------------------- */
+
+  :root{
+    --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, sans-serif;
+
+    /* dawn-aurora brand ramp (Eos = goddess of dawn) */
+    --dawn-1:#ff9d6c;  /* peach   */
+    --dawn-2:#ff6f9c;  /* rose    */
+    --dawn-3:#a17bff;  /* violet  */
+    --dawn-4:#5fb6ff;  /* sky     */
+    --done: #34d39a;   /* mint, completion */
+    --fail: #ff6b6b;
+
+    --ease-spring: cubic-bezier(.34,1.56,.64,1);
+    --ease-soft:   cubic-bezier(.4,0,.2,1);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; height:100%; }
+  body{
+    font-family:var(--font);
+    background:
+      radial-gradient(1200px 600px at 18% -10%, #2a2740 0%, transparent 55%),
+      radial-gradient(900px 500px at 100% 0%, #3a2336 0%, transparent 50%),
+      linear-gradient(160deg, #15131d 0%, #0d0c12 100%);
+    color:#e8e6f0;
+    min-height:100%;
+    padding:34px clamp(16px,5vw,60px) 80px;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .stage{ max-width:920px; margin:0 auto; }
+
+  .lead{ margin:0 0 26px; }
+  .lead .eyebrow{
+    font-size:11px; letter-spacing:.22em; text-transform:uppercase;
+    color:#8d86a8; font-weight:600;
+  }
+  .lead h1{
+    font-size:27px; font-weight:680; margin:7px 0 6px;
+    letter-spacing:-.02em;
+    background:linear-gradient(92deg,var(--dawn-1),var(--dawn-2),var(--dawn-3),var(--dawn-4));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .lead p{ margin:0; color:#a9a4c0; font-size:14px; max-width:62ch; line-height:1.55; }
+
+  /* ---------------- faux macOS menu bar ---------------- */
+  .barwrap{ margin-bottom:18px; }
+  .barwrap .barlabel{
+    font-size:10.5px; letter-spacing:.14em; text-transform:uppercase;
+    color:#6f6a88; margin:0 0 8px 4px; font-weight:600;
+  }
+
+  .menubar{
+    height:30px; border-radius:11px;
+    display:flex; align-items:center; gap:18px;
+    padding:0 12px 0 14px;
+    backdrop-filter:saturate(180%) blur(22px);
+    -webkit-backdrop-filter:saturate(180%) blur(22px);
+    font-size:13px; position:relative; overflow:hidden;
+    box-shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 14px 36px -16px rgba(0,0,0,.7);
+  }
+  /* dark vibrancy bar over a "wallpaper" */
+  .menubar.dark{
+    background:linear-gradient(180deg, rgba(38,34,52,.72), rgba(26,23,36,.66));
+    color:#f2f0f8;
+  }
+  .menubar.dark::before{
+    content:""; position:absolute; inset:0; z-index:-1;
+    background:linear-gradient(120deg,#5b3b6e,#2f3a6e,#7a4b53);
+    filter:blur(0px); opacity:.0;
+  }
+  /* light vibrancy bar */
+  .menubar.light{
+    background:linear-gradient(180deg, rgba(255,255,255,.74), rgba(244,242,250,.66));
+    color:#1c1a26;
+  }
+  .barhost{ border-radius:14px; padding:14px; }
+  .barhost.dark{  background:linear-gradient(120deg,#4a3160,#2c3566,#6e4350); }
+  .barhost.light{ background:linear-gradient(120deg,#ffd9b8,#d6c4ff,#bfe0ff); }
+
+  .mb-apple{ font-size:15px; opacity:.92; }
+  .mb-app{ font-weight:680; }
+  .mb-menu{ opacity:.82; font-weight:480; }
+  .menubar.light .mb-menu{ opacity:.7; }
+  .mb-spacer{ flex:1; }
+  .mb-tray{ display:flex; align-items:center; gap:15px; opacity:.9; }
+  .mb-ico{ width:17px; height:13px; display:inline-block; opacity:.85; }
+  .mb-clock{ font-variant-numeric:tabular-nums; font-weight:480; font-size:12.5px; letter-spacing:.01em; }
+
+  /* ================= THE EOS STATUS ITEM ================= */
+  .eos-item{
+    position:relative; height:22px; min-width:22px;
+    display:flex; align-items:center; gap:0;
+    padding:0 5px; border-radius:7px; cursor:pointer;
+    transition:background .18s var(--ease-soft);
+    -webkit-user-select:none; user-select:none;
+  }
+  .eos-item:hover{ background:rgba(140,120,255,.16); }
+  .menubar.light .eos-item:hover{ background:rgba(120,90,230,.13); }
+  .eos-item.menu-open{ background:rgba(140,120,255,.22); }
+
+  /* --- the orb: a breathing dawn organism --- */
+  .orb-stage{ position:relative; width:18px; height:18px; flex:0 0 auto; }
+
+  .orb{
+    position:absolute; inset:0; margin:auto;
+    width:7px; height:7px; border-radius:50%;
+    background:
+      radial-gradient(circle at 32% 30%, #fff 0 12%, transparent 42%),
+      conic-gradient(from 0deg, var(--dawn-1),var(--dawn-2),var(--dawn-3),var(--dawn-4),var(--dawn-1));
+    box-shadow:0 0 0 0 rgba(255,140,170,0);
+    transition:width .5s var(--ease-spring), height .5s var(--ease-spring),
+               background .4s linear, filter .4s ease, opacity .4s ease;
+  }
+  /* idle: tiny, dim, slow breath */
+  .eos-item[data-state="idle"] .orb{
+    width:6px; height:6px; opacity:.5; filter:saturate(.55) brightness(.85);
+    background:radial-gradient(circle at 35% 32%, #cfc9e6 0 30%, #8d86a8 80%);
+    animation:idleBreath 5.5s var(--ease-soft) infinite;
+  }
+  @keyframes idleBreath{
+    0%,100%{ transform:scale(.86); opacity:.42; }
+    50%    { transform:scale(1);   opacity:.62; }
+  }
+
+  /* running: luminous, faster breath, animated gradient + glow pulse */
+  .eos-item[data-state="running"] .orb{
+    width:9px; height:9px; opacity:1; filter:saturate(1.15) brightness(1.05);
+    animation:runBreath var(--breath,1.8s) ease-in-out infinite,
+              hueSpin 6s linear infinite;
+  }
+  @keyframes runBreath{
+    0%,100%{ transform:scale(.82); }
+    50%    { transform:scale(1.12); }
+  }
+  @keyframes hueSpin{ to{ filter:saturate(1.2) brightness(1.06) hue-rotate(360deg); } }
+
+  /* glow halo behind running orb */
+  .orb-glow{
+    position:absolute; inset:-4px; margin:auto; border-radius:50%;
+    background:radial-gradient(circle, rgba(255,150,180,.55), rgba(160,123,255,.22) 55%, transparent 72%);
+    opacity:0; transform:scale(.6); pointer-events:none;
+  }
+  .eos-item[data-state="running"] .orb-glow{
+    animation:glowPulse var(--breath,1.8s) ease-in-out infinite;
+  }
+  @keyframes glowPulse{
+    0%,100%{ opacity:.25; transform:scale(.75); }
+    50%    { opacity:.6;  transform:scale(1.25); }
+  }
+
+  /* orbiting particles — count + energy reflect # of agents */
+  .orbit{
+    position:absolute; inset:0; margin:auto; width:2px; height:2px;
+    pointer-events:none;
+  }
+  .orbit .p{
+    position:absolute; top:50%; left:50%; width:2.4px; height:2.4px;
+    border-radius:50%; margin:-1.2px 0 0 -1.2px;
+    background:var(--pc,#ffd0b0);
+    box-shadow:0 0 4px 1px var(--pc,#ffd0b0);
+    transform-origin:0 0;
+    opacity:0;
+  }
+  .eos-item[data-state="running"] .orbit .p{
+    opacity:.95;
+    animation:spin var(--dur,2.4s) linear infinite;
+    animation-delay:var(--delay,0s);
+  }
+  @keyframes spin{
+    from{ transform:rotate(0deg) translateX(var(--r,9px)) scale(var(--ps,1)); }
+    to  { transform:rotate(360deg) translateX(var(--r,9px)) scale(var(--ps,1)); }
+  }
+
+  /* count chip next to orb when running */
+  .eos-count{
+    font-size:11px; font-weight:640; line-height:1;
+    margin-left:6px; max-width:0; overflow:hidden; white-space:nowrap;
+    opacity:0; transform:translateX(-4px);
+    font-variant-numeric:tabular-nums;
+    transition:max-width .35s var(--ease-soft), opacity .25s, transform .35s var(--ease-spring), margin .25s;
+    background:linear-gradient(92deg,var(--dawn-2),var(--dawn-3));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .eos-item[data-state="running"] .eos-count{ max-width:26px; opacity:1; transform:none; }
+  .menubar.light .eos-count{ filter:brightness(.82) saturate(1.2); }
+
+  /* ---- completion celebration pill ---- */
+  .eos-pill{
+    display:flex; align-items:center; gap:5px;
+    max-width:0; overflow:hidden; white-space:nowrap;
+    margin-left:0; opacity:0;
+    transition:max-width .42s var(--ease-spring), margin .3s, opacity .2s;
+    font-size:12px; font-weight:560; letter-spacing:-.01em;
+  }
+  .eos-item.celebrate .eos-pill{ max-width:170px; opacity:1; margin-left:6px; }
+  .eos-item.celebrate .eos-count{ max-width:0; opacity:0; margin-left:0; }
+
+  .eos-pill .tick{
+    width:14px; height:14px; border-radius:50%; flex:0 0 auto;
+    display:grid; place-items:center;
+    background:var(--pillc,var(--done));
+    box-shadow:0 0 7px -1px var(--pillc,var(--done));
+    color:#08120d;
+    transform:scale(0);
+  }
+  .eos-item.celebrate .eos-pill .tick{ animation:tickPop .42s var(--ease-spring) forwards; }
+  @keyframes tickPop{ 0%{transform:scale(0) rotate(-30deg);} 60%{transform:scale(1.25);} 100%{transform:scale(1) rotate(0);} }
+  .eos-pill .tick svg{ width:8px; height:8px; }
+  .eos-pill .ptext{ opacity:0; transform:translateX(-6px); }
+  .eos-item.celebrate .eos-pill .ptext{ animation:slideIn .34s .08s var(--ease-soft) forwards; }
+  @keyframes slideIn{ to{ opacity:1; transform:none; } }
+  .eos-pill .ptext .nm{ font-weight:680; }
+  .menubar.dark .eos-pill .ptext{ color:#f1eff8; }
+  .menubar.light .eos-pill .ptext{ color:#241f30; }
+
+  /* sparkle burst layer */
+  .spark{ position:absolute; left:13px; top:50%; width:1px; height:1px; pointer-events:none; }
+  .spark i{
+    position:absolute; width:3px; height:3px; border-radius:50%;
+    background:var(--sc,#ffd27a); box-shadow:0 0 5px 1px var(--sc,#ffd27a);
+    opacity:0;
+  }
+  .spark.go i{ animation:burst .62s var(--ease-soft) forwards; }
+  @keyframes burst{
+    0%{ opacity:1; transform:translate(0,0) scale(1); }
+    100%{ opacity:0; transform:translate(var(--dx),var(--dy)) scale(.2); }
+  }
+
+  /* failed flavor */
+  .eos-item[data-flash="fail"] .orb{ background:radial-gradient(circle at 35% 32%, #fff 0 14%, var(--fail) 70%) !important; }
+
+  /* ================= POPOVER ================= */
+  .popover{
+    position:absolute; top:34px; right:6px; width:288px; z-index:50;
+    border-radius:14px; padding:7px;
+    transform-origin:top right;
+    background:linear-gradient(180deg, rgba(40,36,54,.96), rgba(28,25,40,.97));
+    border:1px solid rgba(255,255,255,.08);
+    box-shadow:0 20px 60px -16px rgba(0,0,0,.7), 0 0 0 .5px rgba(255,255,255,.05) inset;
+    backdrop-filter:blur(26px) saturate(180%);
+    -webkit-backdrop-filter:blur(26px) saturate(180%);
+    opacity:0; transform:scale(.94) translateY(-6px); pointer-events:none;
+    transition:opacity .16s var(--ease-soft), transform .2s var(--ease-spring);
+    color:#ece9f5;
+  }
+  .popover.open{ opacity:1; transform:none; pointer-events:auto; }
+  .popover::before{
+    content:""; position:absolute; top:-6px; right:18px; width:12px; height:12px;
+    background:inherit; transform:rotate(45deg);
+    border-left:1px solid rgba(255,255,255,.08); border-top:1px solid rgba(255,255,255,.08);
+  }
+
+  .pop-head{ display:flex; align-items:center; justify-content:space-between; padding:7px 9px 9px; }
+  .pop-head .ttl{ font-size:13px; font-weight:680; letter-spacing:-.01em; }
+  .pop-head .sub{ font-size:11px; color:#9b95b6; margin-top:1px; }
+  .pop-head .mini-orb{
+    width:18px; height:18px; border-radius:50%;
+    background:conic-gradient(from 0deg, var(--dawn-1),var(--dawn-2),var(--dawn-3),var(--dawn-4),var(--dawn-1));
+    box-shadow:0 0 10px -2px var(--dawn-3); animation:hueSpin 6s linear infinite;
+  }
+
+  .pop-list{ display:flex; flex-direction:column; gap:2px; max-height:300px; overflow:auto; }
+  .agent-row{
+    display:flex; align-items:center; gap:10px; padding:8px 9px; border-radius:9px;
+    cursor:pointer; transition:background .14s; position:relative;
+  }
+  .agent-row:hover{ background:rgba(150,130,255,.14); }
+  .agent-row .dot{ width:8px; height:8px; border-radius:50%; flex:0 0 auto; position:relative; }
+  .agent-row .dot.running{
+    background:conic-gradient(from 0deg,var(--dawn-1),var(--dawn-2),var(--dawn-3),var(--dawn-4),var(--dawn-1));
+    animation:hueSpin 4s linear infinite;
+    box-shadow:0 0 7px -1px var(--dawn-3);
+  }
+  .agent-row .dot.running::after{
+    content:""; position:absolute; inset:-3px; border-radius:50%;
+    border:1.5px solid rgba(255,150,180,.4); animation:ring 1.8s ease-out infinite;
+  }
+  @keyframes ring{ 0%{transform:scale(.6);opacity:.8;} 100%{transform:scale(1.7);opacity:0;} }
+  .agent-row .dot.completed{ background:var(--done); box-shadow:0 0 7px -1px var(--done); }
+  .agent-row .dot.failed{ background:var(--fail); box-shadow:0 0 7px -1px var(--fail); }
+
+  .agent-row .meta{ flex:1; min-width:0; }
+  .agent-row .nm{ font-size:12.5px; font-weight:600; display:flex; gap:7px; align-items:baseline; }
+  .agent-row .nm .el{ font-size:10.5px; color:#8e88a8; font-weight:500; font-variant-numeric:tabular-nums; }
+  .agent-row .act{ font-size:11px; color:#9892b4; margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .agent-row .go{ opacity:0; color:#b9b2d8; font-size:14px; transition:opacity .14s, transform .14s; transform:translateX(-3px); }
+  .agent-row:hover .go{ opacity:.9; transform:none; }
+
+  .agent-row.justdone{ animation:rowFlash 1s var(--ease-soft); }
+  @keyframes rowFlash{ 0%{ background:rgba(52,211,154,.28);} 100%{ background:transparent;} }
+
+  .pop-foot{
+    margin-top:5px; padding:9px; display:flex; justify-content:space-between; align-items:center;
+    border-top:1px solid rgba(255,255,255,.06); font-size:11px; color:#9b95b6;
+  }
+  .pop-foot .q{ display:flex; align-items:center; gap:6px; }
+  .pop-foot .qn{ color:var(--dawn-2); font-weight:700; }
+
+  /* ================= demo controls ================= */
+  .panel{
+    margin-top:22px; background:rgba(255,255,255,.035); border:1px solid rgba(255,255,255,.07);
+    border-radius:16px; padding:18px 20px;
+  }
+  .panel h2{ margin:0 0 3px; font-size:14px; font-weight:680; }
+  .panel .hint{ margin:0 0 15px; font-size:12px; color:#9892b4; }
+  .ctrls{ display:flex; flex-wrap:wrap; gap:9px; }
+  button.btn{
+    font-family:var(--font); font-size:12.5px; font-weight:560; color:#ece9f5;
+    background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1);
+    padding:9px 14px; border-radius:10px; cursor:pointer;
+    transition:transform .12s var(--ease-spring), background .15s, border-color .15s;
+  }
+  button.btn:hover{ background:rgba(150,130,255,.18); border-color:rgba(150,130,255,.4); }
+  button.btn:active{ transform:scale(.95); }
+  button.btn.accent{
+    background:linear-gradient(92deg,var(--dawn-2),var(--dawn-3)); border-color:transparent; color:#fff;
+  }
+  button.btn.accent:hover{ filter:brightness(1.08); }
+  button.btn.live[data-on="1"]{ box-shadow:0 0 0 2px rgba(255,150,180,.5) inset; }
+
+  /* ================= rationale ================= */
+  details.rationale{
+    margin-top:20px; background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.07);
+    border-radius:16px; padding:0 20px;
+  }
+  details.rationale summary{
+    list-style:none; cursor:pointer; padding:17px 0; font-size:13.5px; font-weight:640;
+    display:flex; align-items:center; gap:10px;
+  }
+  details.rationale summary::-webkit-details-marker{ display:none; }
+  details.rationale summary .chev{ transition:transform .2s; color:#9892b4; }
+  details.rationale[open] summary .chev{ transform:rotate(90deg); }
+  details.rationale .body{ padding:0 0 20px; font-size:13px; color:#b8b2d0; line-height:1.62; }
+  details.rationale .body p{ margin:0 0 11px; }
+  details.rationale .body b{ color:#ece9f5; font-weight:640; }
+  details.rationale .body .k{
+    color:var(--dawn-2); font-weight:600;
+  }
+
+  .credit{ margin-top:26px; text-align:center; font-size:11px; color:#6c6788; }
+</style>
+</head>
+<body>
+<div class="stage">
+
+  <header class="lead">
+    <div class="eyebrow">Eos · Menu-bar status · Concept 02</div>
+    <h1>Alive &amp; Expressive</h1>
+    <p>A breathing dawn-orb that lives in the menu bar. It dozes when idle, comes alive while
+       agents work — orbiting more energetically the busier it gets — and throws a tiny, sequential
+       celebration as each agent crosses the line. Shown live in both dark and light bars below.</p>
+  </header>
+
+  <!-- DARK BAR -->
+  <div class="barwrap">
+    <p class="barlabel">Dark menu bar</p>
+    <div class="barhost dark">
+      <div class="menubar dark" data-bar="dark"></div>
+    </div>
+  </div>
+
+  <!-- LIGHT BAR -->
+  <div class="barwrap">
+    <p class="barlabel">Light menu bar</p>
+    <div class="barhost light">
+      <div class="menubar light" data-bar="light"></div>
+    </div>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="panel">
+    <h2>Demo controls</h2>
+    <p class="hint">The orb is the same in both bars. Click it to open the popover. Fire several
+       completions at once to watch them queue and play one-by-one.</p>
+    <div class="ctrls">
+      <button class="btn accent" data-act="add">+ Start an agent</button>
+      <button class="btn" data-act="finish1">✓ Finish one</button>
+      <button class="btn" data-act="finish3">✓✓✓ Finish 3 at once</button>
+      <button class="btn" data-act="fail">⚠ Fail one</button>
+      <button class="btn" data-act="reset">Reset to idle</button>
+      <button class="btn live" data-act="auto" data-on="0">▶ Auto-cycling demo</button>
+    </div>
+  </div>
+
+  <!-- RATIONALE -->
+  <details class="rationale" open>
+    <summary><span class="chev">▶</span> Design rationale &amp; motion notes</summary>
+    <div class="body">
+      <p><b>The concept.</b> Eos is the dawn — so the status item is a tiny living organism made of a
+         dawn-aurora gradient. Activity reads as <span class="k">life</span>: it breathes, glows and
+         spins faster the more agents are running. At a glance you feel the system's pulse without
+         reading a word.</p>
+      <p><b>Idle is nearly invisible.</b> A 6px desaturated grey dot on a slow 5.5s breath — present
+         but quiet, so it never competes with the menu bar. No glow, no spin, no color.</p>
+      <p><b>Running is the signature.</b> The dot blooms into a luminous orb with three layered motions:
+         a <span class="k">breath</span> (scale), a <span class="k">glow pulse</span> (halo), and
+         <span class="k">orbiting particles</span> whose count and speed scale with the number of
+         active agents — 1 agent gives a calm single orbit; many agents make a busy little constellation.
+         A small count chip sits beside it. The gradient slowly hue-rotates so it's never static.</p>
+      <p><b>Completion is a queued celebration.</b> Finishes never collide. Each one expands a compact
+         pill from the orb — <span class="k">✓ Name done</span> with a spring-popped tick and a brief
+         sparkle burst — holds ~1.4s, then collapses so the next queued finisher plays. After the queue
+         drains it settles back to running (if work remains) or idle. This sequential playback is the
+         interaction the whole concept is built around.</p>
+      <p><b>Menu-bar discipline.</b> Compact by default (~22px); the pill caps its width and uses real
+         spring easing rather than bounce-for-bounce's-sake. Vibrancy/blur on both light and dark,
+         SF system type, tabular numerals. Motion is purposeful — every animation maps to a state, and
+         <span class="k">prefers-reduced-motion</span> would drop to opacity-only cross-fades.</p>
+      <p><b>The popover</b> lists running + recently-completed agents with a live spinner dot, elapsed
+         time and current activity; the just-finished row flashes mint. Clicking a row focuses that
+         agent in Eos (simulated here with a highlight).</p>
+    </div>
+  </details>
+
+  <div class="credit">Self-contained mockup · system fonts · no network · click the orb, then run “Auto-cycling demo”.</div>
+</div>
+
+<script>
+/* ----------------------------------------------------------------
+   State model + rendering. Two synced bars (dark/light) share one
+   agent list. JS stays minimal: a state machine for the bar item
+   and a queue for sequential completion playback.
+----------------------------------------------------------------- */
+
+const NAMES = ["auth-refactor","db-migrate","ui-polish","test-sweep","api-gen","docs-pass","perf-audit","lint-fix","schema-sync","cache-warm"];
+const ACTS  = ["reading core/ports…","writing migration…","running vitest…","grepping call-sites…","drafting schema…","building bundle…","verifying types…","resolving conflicts…"];
+
+let agents = [];          // {id,name,status,activity,startedAt(ms-fake),elapsed}
+let uid = 0;
+let fakeClock = 0;        // monotonic fake ms (avoids Date.now; we just tick)
+const queue = [];         // names waiting to celebrate
+let celebrating = false;
+let menuOpen = false;
+
+/* ---- build the two bars ---- */
+const TRAY_ICONS = {
+  dark:"#f2f0f8", light:"#1c1a26"
+};
+function iconSvg(color){
+  return `<svg class="mb-ico" viewBox="0 0 24 16" fill="none">
+    <path d="M2 11 L7 4 L12 11" stroke="${color}" stroke-width="1.6" stroke-linecap="round"/>
+    <circle cx="17" cy="8" r="2.4" stroke="${color}" stroke-width="1.6"/>
+  </svg>`;
+}
+function barHTML(theme){
+  const c = TRAY_ICONS[theme];
+  return `
+    <span class="mb-apple"></span>
+    <span class="mb-app">Eos</span>
+    <span class="mb-menu">File</span>
+    <span class="mb-menu">Edit</span>
+    <span class="mb-menu">View</span>
+    <span class="mb-menu">Agents</span>
+    <span class="mb-spacer"></span>
+    <span class="mb-tray">
+      ${iconSvg(c)}
+      <svg class="mb-ico" viewBox="0 0 26 14"><rect x="1" y="3" width="20" height="8" rx="2.2" stroke="${c}" stroke-width="1.4" fill="none"/><rect x="3" y="5" width="13" height="4" rx="1" fill="${c}"/><rect x="22.4" y="5.4" width="1.6" height="3.2" rx=".8" fill="${c}"/></svg>
+      <span class="eos-host"></span>
+      <span class="mb-clock">9:41 AM</span>
+    </span>
+  `;
+}
+
+/* the Eos status item markup (orb + count + pill + popover anchor) */
+function eosItemHTML(theme){
+  return `
+  <span class="eos-item" data-state="idle" data-theme="${theme}">
+    <span class="orb-stage">
+      <span class="orb-glow"></span>
+      <span class="orbit"></span>
+      <span class="orb"></span>
+      <span class="spark"></span>
+    </span>
+    <span class="eos-count">0</span>
+    <span class="eos-pill"><span class="tick"><svg viewBox="0 0 8 8"><path d="M1 4.2 L3 6 L7 1.6" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="ptext"></span></span>
+    <span class="popover">
+      <div class="pop-head">
+        <div><div class="ttl">Eos Agents</div><div class="sub"></div></div>
+        <div class="mini-orb"></div>
+      </div>
+      <div class="pop-list"></div>
+      <div class="pop-foot">
+        <span class="q">Completion queue <span class="qn">0</span></span>
+        <span>⌘E · open Eos</span>
+      </div>
+    </span>
+  </span>`;
+}
+
+const bars = [...document.querySelectorAll(".menubar")];
+bars.forEach(b=>{
+  b.innerHTML = barHTML(b.dataset.bar);
+  b.querySelector(".eos-host").innerHTML = eosItemHTML(b.dataset.bar);
+});
+const items = [...document.querySelectorAll(".eos-item")];
+
+/* ---- particle generation: density reflects agent count ---- */
+const PCOLORS = ["#ffd0b0","#ff9bbf","#c4a6ff","#9fd4ff"];
+function renderOrbit(count){
+  const n = count===0?0 : Math.min(2 + count, 7);   // 1 agent→3, scales, capped 7
+  const baseDur = Math.max(1.2, 2.8 - count*0.18);  // busier = faster spin
+  const breath  = Math.max(1.0, 2.0 - count*0.12) + "s";
+  items.forEach(item=>{
+    item.style.setProperty("--breath", breath);
+    const orbit = item.querySelector(".orbit");
+    let html="";
+    for(let i=0;i<n;i++){
+      const r = 8 + (i%3)*2.2;
+      const dur = (baseDur + (i%3)*0.5).toFixed(2);
+      const delay = (-(i*0.7)).toFixed(2);
+      const ps = (0.75 + (i%2)*0.4).toFixed(2);
+      const col = PCOLORS[i%PCOLORS.length];
+      html += `<span class="p" style="--r:${r}px;--dur:${dur}s;--delay:${delay}s;--ps:${ps};--pc:${col}"></span>`;
+    }
+    orbit.innerHTML = html;
+  });
+}
+
+/* ---- core state derivation ---- */
+function runningCount(){ return agents.filter(a=>a.status==="running").length; }
+
+function setBarState(){
+  const rc = runningCount();
+  // celebrating overrides visual but we keep data-state for the orb baseline
+  const baseState = rc>0 ? "running" : "idle";
+  items.forEach(item=>{
+    item.dataset.state = baseState;
+    item.querySelector(".eos-count").textContent = rc;
+  });
+  renderOrbit(rc);
+}
+
+/* ---- popover render ---- */
+function fmtElapsed(ms){
+  const s = Math.floor(ms/1000);
+  if(s<60) return s+"s";
+  return Math.floor(s/60)+"m "+(s%60)+"s";
+}
+function renderPopover(justDoneId){
+  const rc = runningCount();
+  const visible = agents.slice(-6).reverse();   // recent
+  items.forEach(item=>{
+    item.querySelector(".pop-head .sub").textContent =
+      rc>0 ? `${rc} running · ${agents.length} total` : "All quiet · no agents running";
+    const list = item.querySelector(".pop-list");
+    if(visible.length===0){
+      list.innerHTML = `<div class="agent-row" style="cursor:default;opacity:.6"><span class="dot completed" style="background:#5a5470;box-shadow:none"></span><div class="meta"><div class="nm">No agents yet</div><div class="act">Start one from the controls below.</div></div></div>`;
+    } else {
+      list.innerHTML = visible.map(a=>{
+        const cls = a.status;
+        const el = a.status==="running" ? fmtElapsed(fakeClock - a.startedAt) : a.finalElapsed;
+        const flash = a.id===justDoneId ? " justdone" : "";
+        return `<div class="agent-row${flash}" data-aid="${a.id}">
+          <span class="dot ${cls}"></span>
+          <div class="meta">
+            <div class="nm">${a.name}<span class="el">${el}</span></div>
+            <div class="act">${a.status==="running"?a.activity : a.status==="failed" ? "failed · needs attention" : "completed"}</div>
+          </div>
+          <span class="go">›</span>
+        </div>`;
+      }).join("");
+    }
+    item.querySelector(".pop-foot .qn").textContent = queue.length;
+  });
+}
+
+/* ---- completion celebration queue ---- */
+function enqueueCelebration(name, kind="done"){
+  queue.push({name, kind});
+  renderPopover();
+  if(!celebrating) playNext();
+}
+function playNext(){
+  if(queue.length===0){ celebrating=false; setBarState(); renderPopover(); return; }
+  celebrating = true;
+  const {name, kind} = queue.shift();
+  const col = kind==="fail" ? "var(--fail)" : "var(--done)";
+  const label = kind==="fail" ? `<span class="nm">${name}</span> failed` : `<span class="nm">${name}</span> done`;
+  items.forEach(item=>{
+    item.classList.remove("celebrate");      // reset to retrigger animations
+    void item.offsetWidth;                    // reflow
+    item.style.setProperty("--pillc", col);
+    item.querySelector(".eos-pill .ptext").innerHTML = label;
+    item.querySelector(".eos-pill .tick").style.background = col;
+    item.classList.add("celebrate");
+    if(kind!=="fail") fireSparkles(item);
+  });
+  renderPopover();
+  // hold, then collapse and play next
+  setTimeout(()=>{
+    items.forEach(item=>item.classList.remove("celebrate"));
+    setTimeout(playNext, 230);   // gap between celebrations
+  }, 1380);
+}
+function fireSparkles(item){
+  const spark = item.querySelector(".spark");
+  const cols = ["#ffd27a","#ff9bbf","#c4a6ff","#9fd4ff","#fff"];
+  let html="";
+  for(let i=0;i<7;i++){
+    const ang = (Math.PI*2/7)*i + i*0.3;
+    const dist = 9 + (i%3)*4;
+    const dx = (Math.cos(ang)*dist).toFixed(1)+"px";
+    const dy = (Math.sin(ang)*dist - 2).toFixed(1)+"px";
+    html += `<i style="--dx:${dx};--dy:${dy};--sc:${cols[i%cols.length]};animation-delay:${(i*0.012).toFixed(3)}s"></i>`;
+  }
+  spark.innerHTML = html;
+  spark.classList.remove("go"); void spark.offsetWidth; spark.classList.add("go");
+}
+
+/* ---- actions ---- */
+function addAgent(){
+  const used = agents.map(a=>a.name);
+  const name = NAMES.find(n=>!used.includes(n)) || ("agent-"+(uid));
+  agents.push({ id:++uid, name, status:"running", activity:ACTS[uid%ACTS.length], startedAt:fakeClock, finalElapsed:"" });
+  setBarState(); renderPopover();
+}
+function finishOne(kind="done"){
+  const live = agents.filter(a=>a.status==="running");
+  if(live.length===0) return false;
+  const a = live[Math.floor(rand()*live.length)];
+  a.status = kind==="fail" ? "failed" : "completed";
+  a.finalElapsed = fmtElapsed(fakeClock - a.startedAt);
+  setBarState();
+  enqueueCelebration(a.name, kind);
+  renderPopover(a.id);
+  return true;
+}
+function finishMany(n){
+  let fired=0;
+  for(let i=0;i<n;i++){ if(finishOne("done")) fired++; }
+  // if not enough running, top up then finish for a good demo
+  if(fired<n){
+    const need=n-fired;
+    for(let i=0;i<need;i++) addAgent();
+    setTimeout(()=>{ for(let i=0;i<need;i++) finishOne("done"); }, 200);
+  }
+}
+function reset(){
+  agents=[]; queue.length=0; celebrating=false;
+  items.forEach(item=>item.classList.remove("celebrate"));
+  setBarState(); renderPopover();
+}
+
+/* pseudo-random without Math.random reliance issues — fine for a mockup */
+let seed=12345; function rand(){ seed=(seed*1103515245+12345)&0x7fffffff; return seed/0x7fffffff; }
+
+/* ---- popover open/close ---- */
+function toggleMenu(open){
+  menuOpen = open;
+  items.forEach(item=>{
+    item.classList.toggle("menu-open", menuOpen);
+    item.querySelector(".popover").classList.toggle("open", menuOpen);
+  });
+  if(menuOpen) renderPopover();
+}
+items.forEach(item=>{
+  item.addEventListener("click",(e)=>{
+    if(e.target.closest(".agent-row")){
+      const row = e.target.closest(".agent-row");
+      const aid = row.dataset.aid;
+      if(aid){ focusAgent(row); }
+      return;
+    }
+    if(e.target.closest(".popover")) return;
+    toggleMenu(!menuOpen);
+    e.stopPropagation();
+  });
+});
+document.addEventListener("click",()=>{ if(menuOpen) toggleMenu(false); });
+function focusAgent(row){
+  // simulate "open/focus Eos at this agent"
+  row.style.transition="background .15s"; row.style.background="rgba(150,130,255,.34)";
+  const tag=document.createElement("span");
+  tag.textContent="↗ focusing in Eos";
+  tag.style.cssText="margin-left:auto;font-size:10px;color:#c4b9ff;font-weight:600";
+  row.querySelector(".go").style.display="none";
+  if(!row.querySelector(".focusing")){ tag.className="focusing"; row.appendChild(tag); }
+  setTimeout(()=>{ row.style.background=""; const t=row.querySelector(".focusing"); if(t)t.remove(); row.querySelector(".go").style.display=""; },900);
+}
+
+/* ---- tick the fake clock so elapsed times advance ---- */
+setInterval(()=>{
+  fakeClock += 1000;
+  if(menuOpen && runningCount()>0) renderPopover();
+}, 1000);
+
+/* ---- control wiring ---- */
+let autoTimer=null, autoStep=0;
+document.querySelector(".ctrls").addEventListener("click",(e)=>{
+  const b=e.target.closest("button"); if(!b) return;
+  const act=b.dataset.act;
+  if(act==="add") addAgent();
+  else if(act==="finish1") finishOne("done");
+  else if(act==="finish3") finishMany(3);
+  else if(act==="fail") finishOne("fail");
+  else if(act==="reset") reset();
+  else if(act==="auto") toggleAuto(b);
+});
+
+function toggleAuto(btn){
+  const on = btn.dataset.on==="1";
+  if(on){ btn.dataset.on="0"; btn.textContent="▶ Auto-cycling demo"; clearInterval(autoTimer); autoTimer=null; return; }
+  btn.dataset.on="1"; btn.textContent="⏸ Stop auto demo";
+  autoStep=0; reset();
+  if(!menuOpen) toggleMenu(true);
+  runAuto();
+  autoTimer=setInterval(runAuto, 2600);
+}
+/* a little scripted story so every state + the queue are visible hands-free */
+const STORY = [
+  ()=>{ addAgent(); },
+  ()=>{ addAgent(); addAgent(); },
+  ()=>{ addAgent(); },                 // 4 running — busy constellation
+  ()=>{ finishOne("done"); },
+  ()=>{ finishMany(3); },              // the signature: queued sequential celebration
+  ()=>{ addAgent(); addAgent(); },
+  ()=>{ finishOne("fail"); },
+  ()=>{ finishMany(2); },
+  ()=>{ reset(); },                    // settle to idle, breathe quietly
+];
+function runAuto(){
+  STORY[autoStep % STORY.length]();
+  autoStep++;
+}
+
+/* ---- boot ---- */
+setBarState();
+renderPopover();
+</script>
+</body>
+</html>

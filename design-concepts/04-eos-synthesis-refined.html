@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Eos · Menu-bar Status — Synthesis (Refined)</title>
+<style>
+  /* ═══════════════════════════════════════════════════════════════════
+     Eos menu-bar status indicator · Concept 04 — "Synthesis, Refined"
+
+     Backbone  : 01 Native & Calm  — right-edge-pinned ticker, semantic
+                 colour only, ONE spring easing for the whole hand.
+     Alive flourish (02) : the breathing dawn-star as the running glyph,
+                 its breath tempo scaled by how many agents are active.
+     Glanceable (03)     : tabular mono count + a +N queue badge + the
+                 dense, keyboard-driven popover.
+     Brand     : real Eos tokens (styles.css), the real liquid-glass
+                 recipe on the popover, the real dawn-star mark.
+     Single file · system fonts · zero network.
+     ═══════════════════════════════════════════════════════════════════ */
+
+  :root{
+    /* ONE easing drives width / transform / motion — the calm "one hand" */
+    --spring: cubic-bezier(.32,.72,0,1);
+    /* the app's signature rise, used for popover/card entrance */
+    --rise:   cubic-bezier(.2,.7,.3,1);
+
+    --sys: -apple-system, "SF Pro Text", BlinkMacSystemFont, system-ui, "Segoe UI", sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  }
+
+  /* ── Real Eos tokens, per theme (from app/ui/src/styles.css) ──────────── */
+  .frame.dark{
+    --bg:#1a1a1a; --surface-2:#252525;
+    --fg:#ebebeb; --fg-mid:#c4c4c4; --fg-dim:#8a8a8a; --fg-faint:#5a5a5a;
+    --accent:#6ea4e8; --accent-hover:#8ab9f0;
+    --ok:#67c084; --warn:#d4a55a; --err:#d97670;
+    --glass:30,30,30; --rim:255,255,255; --ink:0,0,0; --tint:255,255,255;
+    --bar-fg:rgba(255,255,255,.92);  /* template tint for the status glyph */
+  }
+  .frame.light{
+    --bg:#f6f1e6; --surface-2:#fdfaf3;
+    --fg:#2d2a23; --fg-mid:#4f4a3c; --fg-dim:#6b6555; --fg-faint:#7d7665;
+    --accent:#0969da; --accent-hover:#0550ae;
+    --ok:#1a7f37; --warn:#9a6700; --err:#cf222e;
+    --glass:248,242,230; --rim:255,255,255; --ink:255,255,255; --tint:60,45,20;
+    --bar-fg:rgba(0,0,0,.86);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{
+    font-family:var(--sys);
+    background:#161616;
+    color:#ebebeb;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    padding:42px 24px 88px;
+    letter-spacing:-.005em;
+  }
+  .wrap{ max-width:880px; margin:0 auto; }
+
+  /* page header ────────────────────────────────────────────────────────── */
+  .head{ display:flex; align-items:center; gap:16px; margin-bottom:30px; }
+  .head .brandmark{ width:46px; height:46px; flex:0 0 auto; }
+  .kicker{
+    font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase;
+    color:#6ea4e8; margin:0 0 6px;
+  }
+  .title{ font-size:25px; font-weight:700; letter-spacing:-.02em; margin:0 0 6px; color:#f3f3f3; }
+  .sub{ font-size:13.5px; line-height:1.55; color:#9a9a9a; margin:0; max-width:600px; }
+
+  .frame-label{
+    font-family:var(--mono); font-size:11px; font-weight:500; letter-spacing:.1em;
+    text-transform:uppercase; color:#6a6a6a; margin:24px 2px 9px;
+  }
+
+  /* the "desktop" that hosts a menu bar + wallpaper (so glass has something
+     real to blur). Tall enough to contain the popover, no clipping needed. */
+  .frame{
+    position:relative; height:372px; border-radius:14px; overflow:hidden;
+    box-shadow: 0 1px 0 rgba(255,255,255,.05) inset,
+                0 22px 50px -20px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.3);
+  }
+  .wall{ position:absolute; inset:0; }
+  /* dawn-tinted wallpapers — warm horizon, cool sky (the Eos metaphor) */
+  .frame.light .wall{
+    background:
+      radial-gradient(150% 120% at 16% -20%, #ffe7c9 0%, #ffd6b0 22%, #f3cfe0 52%, #cdd9f2 100%);
+  }
+  .frame.dark .wall{
+    background:
+      radial-gradient(120% 110% at 14% -18%, rgba(255,150,90,.26) 0%, rgba(255,150,90,0) 44%),
+      radial-gradient(150% 140% at 84% -22%, #2c3354 0%, #1a1d33 48%, #0d0e18 100%);
+  }
+  .frame .floor{
+    position:absolute; left:0; right:0; bottom:18px; text-align:center;
+    font-size:12px; font-weight:500; letter-spacing:.02em; pointer-events:none;
+  }
+  .frame.light .floor{ color:rgba(40,30,15,.34); }
+  .frame.dark  .floor{ color:rgba(255,255,255,.26); }
+
+  /* ── the menu bar ─────────────────────────────────────────────────────── */
+  .menubar{
+    position:absolute; top:0; left:0; right:0; height:26px;
+    display:flex; align-items:center; padding:0 9px 0 11px;
+    font-size:13px; line-height:1; z-index:5; color:var(--bar-fg);
+  }
+  .frame.light .menubar{
+    background:rgba(250,247,240,.55);
+    -webkit-backdrop-filter:blur(26px) saturate(1.7); backdrop-filter:blur(26px) saturate(1.7);
+    box-shadow:0 .5px 0 rgba(0,0,0,.10);
+  }
+  .frame.dark .menubar{
+    background:rgba(20,20,22,.40);
+    -webkit-backdrop-filter:blur(26px) saturate(1.7); backdrop-filter:blur(26px) saturate(1.7);
+    box-shadow:0 .5px 0 rgba(255,255,255,.07);
+  }
+  .mb-left{ display:flex; align-items:center; gap:15px; }
+  .mb-left svg{ display:block; }
+  .mb-left b{ font-weight:700; letter-spacing:-.01em; }
+  .mb-menu{ opacity:.82; font-weight:450; }
+  .mb-spacer{ flex:1; }
+  .mb-right{ display:flex; align-items:center; gap:13px; }
+  .mb-right .sys{ opacity:.82; display:flex; align-items:center; }
+  .mb-clock{ font-variant-numeric:tabular-nums; opacity:.92; }
+
+  /* ── the Eos status item (leftmost of the right cluster → grows leftward) ─ */
+  .status{
+    position:relative; height:21px; width:26px; flex:0 0 auto;
+    display:inline-flex; align-items:center; border-radius:6px;
+    color:inherit; background:transparent; cursor:pointer;
+    -webkit-appearance:none; appearance:none; border:0; padding:0;
+    transition:width .46s var(--spring), background-color .15s ease;
+  }
+  .frame.light .status:hover{ background:rgba(0,0,0,.06); }
+  .frame.dark  .status:hover{ background:rgba(255,255,255,.10); }
+  .frame.light .status.open{ background:rgba(0,0,0,.10); }
+  .frame.dark  .status.open{ background:rgba(255,255,255,.16); }
+
+  /* both "faces" are pinned to the right edge so neighbours never shift */
+  .face{
+    position:absolute; right:0; top:0; height:100%;
+    display:flex; align-items:center; justify-content:flex-end; gap:5px;
+    padding:0 5px; white-space:nowrap;
+    opacity:0; pointer-events:none;
+    transition:opacity .24s ease, transform .42s var(--spring);
+  }
+  .face.show{ opacity:1; }
+
+  /* live view: [count] [breathing dawn-star] — star pinned rightmost */
+  .si-count{
+    display:none; font-family:var(--mono); font-size:11px; font-weight:600;
+    font-variant-numeric:tabular-nums; opacity:.7; letter-spacing:0;
+  }
+  .si-count.show{ display:inline; }
+
+  .si-star{ display:block; width:16px; height:16px; color:var(--bar-fg); opacity:.5;
+            transform-origin:center; }
+  /* idle = quiet & still. running = the 02 flourish: a slow, low-amplitude
+     breath whose tempo (--breath) is scaled by the active-agent count. */
+  .status.running .si-star{
+    opacity:.95;
+    animation:star-breath var(--breath,1.9s) ease-in-out infinite;
+  }
+  @keyframes star-breath{
+    0%,100%{ transform:scale(.9);  opacity:.78; }
+    50%    { transform:scale(1.06); opacity:1; }
+  }
+
+  /* completion pill: ✓ name done  +N  — reads right-aligned, draws leftward */
+  .si-check{ display:flex; }
+  .si-check svg{ display:block; width:15px; height:15px; }
+  .si-check{ color:var(--ok); }
+  .si-check.fail{ color:var(--err); }
+  .si-check svg path{ stroke-dasharray:22; stroke-dashoffset:22; }
+  .si-check.draw svg path{ animation:check-draw .4s .04s var(--spring) forwards; }
+  @keyframes check-draw{ to{ stroke-dashoffset:0; } }
+
+  .si-name{ font-family:var(--mono); font-size:12px; font-weight:600; letter-spacing:-.01em; }
+  .si-done{ font-family:var(--mono); font-size:11.5px; font-weight:450; opacity:.5; }
+  .si-badge{
+    display:none; font-family:var(--mono); font-size:10px; font-weight:700;
+    font-variant-numeric:tabular-nums; padding:1px 5px; border-radius:7px; margin-left:1px;
+  }
+  .si-badge.show{ display:inline; }
+  .frame.light .si-badge{ background:rgba(0,0,0,.10); }
+  .frame.dark  .si-badge{ background:rgba(255,255,255,.14); }
+
+  /* a hairline that drains while each completion holds (from 03) */
+  .si-drain{
+    position:absolute; left:5px; right:5px; bottom:1px; height:1.5px; border-radius:2px;
+    background:var(--ok); opacity:0; transform-origin:left;
+  }
+  .si-drain.fail{ background:var(--err); }
+  .si-drain.run{ opacity:.8; animation:drain var(--hold,1450ms) linear; }
+  @keyframes drain{ from{ transform:scaleX(1); } to{ transform:scaleX(0); } }
+  .face-pill.tick{ animation:pill-tick .42s var(--spring); }
+  @keyframes pill-tick{ 0%{ transform:translateY(-3px); opacity:.35; } 100%{ transform:translateY(0); opacity:1; } }
+
+  /* ── the popover — REAL Eos liquid glass (styles.css .q-card / .glass-pop) ─ */
+  .pop{
+    position:absolute; top:31px; z-index:20; width:296px;
+    border-radius:12px; padding:7px;
+    opacity:0; transform:translateY(-7px) scale(.985); transform-origin:top right;
+    pointer-events:none;
+    transition:opacity .2s ease, transform .34s var(--rise);
+    /* canonical heavy-glass: rgba(glass,.5) + blur 22 / saturate 170% */
+    background:rgba(var(--glass), .5);
+    -webkit-backdrop-filter:blur(22px) saturate(170%);
+            backdrop-filter:blur(22px) saturate(170%);
+    box-shadow:0 8px 24px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.18);
+    color:var(--fg);
+  }
+  .pop.open{ opacity:1; transform:none; pointer-events:auto; }
+  /* THE signature rim: 1px 135° gradient border, bright top-left → faint
+     bottom-right, via mask-composite (verbatim from the design system). */
+  .pop::after{
+    content:""; position:absolute; inset:0; pointer-events:none;
+    border-radius:inherit; padding:1px;
+    background:linear-gradient(135deg,
+      rgba(var(--rim), .36),
+      rgba(var(--rim), .07) 38%,
+      rgba(var(--rim), .07) 62%,
+      rgba(var(--rim), .22)) border-box;
+    -webkit-mask:linear-gradient(#000,#000) content-box, linear-gradient(#000,#000);
+    -webkit-mask-composite:xor; mask-composite:exclude;
+  }
+  .pop > *{ position:relative; z-index:1; }
+
+  .pop-head{ display:flex; align-items:center; gap:9px; padding:7px 8px 9px; }
+  .pop-head .mark{ width:19px; height:19px; flex:0 0 auto; }
+  .pop-title{ font-size:14px; font-weight:700; letter-spacing:-.02em; }
+  .pop-meta{ margin-left:auto; font-family:var(--mono); font-size:11px; color:var(--fg-dim);
+             font-variant-numeric:tabular-nums; }
+
+  .pop-chips{ display:flex; gap:6px; padding:0 8px 7px; }
+  .chip{
+    display:inline-flex; align-items:center; gap:5px; font-family:var(--mono);
+    font-size:10.5px; font-weight:600; padding:3px 8px; border-radius:6px;
+    font-variant-numeric:tabular-nums; color:var(--fg-mid);
+    background:rgba(var(--tint), .06);
+  }
+  .chip .cdot{ width:6px; height:6px; border-radius:50%; }
+  .chip.run  .cdot{ background:var(--ok); box-shadow:0 0 6px color-mix(in srgb, var(--ok) 55%, transparent);
+                    animation:cpulse 1.4s ease-in-out infinite; }
+  .chip.done .cdot{ background:var(--ok); }
+  .chip.fail .cdot{ background:var(--err); }
+  @keyframes cpulse{ 50%{ opacity:.4; } }
+
+  .pop-sep{ height:1px; margin:2px 6px 5px; background:rgba(var(--tint), .08); }
+
+  .pop-list{ max-height:240px; overflow-y:auto; padding:0 1px; }
+  .pop-row{
+    display:flex; align-items:center; gap:10px; padding:7px 8px; border-radius:7px;
+    cursor:pointer; transition:background-color .14s ease;
+  }
+  .frame.light .pop-row:hover{ background:rgba(0,0,0,.05); }
+  .frame.dark  .pop-row:hover{ background:rgba(255,255,255,.06); }
+  /* keyboard selection ring — uses the brand accent (selection = accent) */
+  .pop-row.sel{ background:rgba(var(--tint), .05);
+                box-shadow:0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent) inset; }
+  .pop-row.focusing{ background:color-mix(in srgb, var(--accent) 16%, transparent); }
+
+  .dot{ width:17px; height:17px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
+  .dot svg{ display:block; }
+  .dot.run{ color:var(--ok); }
+  .dot.run svg{ width:14px; height:14px; animation:spin 1.15s linear infinite; }
+  .dot.done{ color:var(--ok); }
+  .dot.fail{ color:var(--err); }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .pop-body{ min-width:0; flex:1; }
+  .pop-name{ font-family:var(--mono); font-size:12.5px; font-weight:600; letter-spacing:-.01em;
+             line-height:1.3; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pop-act{ font-size:11.5px; color:var(--fg-dim); line-height:1.3;
+            overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pop-time{ font-family:var(--mono); font-size:11.5px; color:var(--fg-dim);
+             font-variant-numeric:tabular-nums; flex:0 0 auto; }
+  .pop-row.done .pop-time{ color:var(--ok); }
+  .pop-row.fail .pop-time{ color:var(--err); }
+  .pop-chev{ flex:0 0 auto; opacity:0; color:var(--fg-dim); font-size:13px; transform:translateX(-3px);
+             transition:opacity .12s, transform .12s; }
+  .pop-row:hover .pop-chev, .pop-row.sel .pop-chev{ opacity:.7; transform:none; }
+
+  .pop-empty{ padding:22px 8px 24px; text-align:center; font-size:12.5px; color:var(--fg-faint); }
+
+  .pop-foot{
+    margin-top:5px; padding:8px 8px 4px; display:flex; gap:13px;
+    font-family:var(--mono); font-size:10px; color:var(--fg-faint);
+    border-top:1px solid rgba(var(--tint), .08);
+  }
+  .pop-foot span{ display:inline-flex; align-items:center; gap:5px; }
+  .pop-foot kbd{
+    font-family:var(--mono); font-size:9.5px; padding:1px 4px; border-radius:3px;
+    background:rgba(var(--tint), .10); color:var(--fg-dim);
+  }
+  .pop-flash{
+    margin-top:4px; padding:7px 8px; font-size:11.5px; color:var(--accent);
+    opacity:0; height:0; overflow:hidden; transition:opacity .18s ease;
+  }
+  .pop-flash.show{ opacity:1; height:auto; }
+
+  /* ── demo controls ────────────────────────────────────────────────────── */
+  .controls{
+    display:flex; flex-wrap:wrap; align-items:center; gap:9px;
+    justify-content:center; margin:30px 0 8px;
+  }
+  .btn{
+    font-family:var(--sys); font-size:13px; font-weight:550; letter-spacing:-.01em;
+    color:#e8e8e8; background:#252525; border:1px solid #353535; border-radius:7px;
+    padding:8px 14px; cursor:pointer; transition:transform .12s var(--spring), background-color .14s, border-color .14s;
+  }
+  .btn:hover{ background:#2c2c2c; border-color:#444; }
+  .btn:active{ transform:scale(.97); }
+  .btn.key{ background:#6ea4e8; color:#0a0a0a; border-color:#6ea4e8; font-weight:600; }
+  .btn.key:hover{ background:#8ab9f0; }
+  .btn.toggle[data-on="true"]{ box-shadow:0 0 0 1.5px var(--ok,#67c084) inset; color:#67c084; border-color:transparent; }
+  .hint{ text-align:center; font-size:12px; color:#7a7a7a; margin:6px 0 0; }
+
+  /* ── rationale ────────────────────────────────────────────────────────── */
+  details.note{
+    margin:34px auto 0; max-width:720px;
+    background:#1f1f1f; border:1px solid #2a2a2a; border-radius:12px;
+    padding:2px 22px;
+  }
+  details.note > summary{
+    list-style:none; cursor:pointer; padding:16px 0;
+    font-size:13.5px; font-weight:600; letter-spacing:-.01em; color:#ededed;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  details.note > summary::-webkit-details-marker{ display:none; }
+  details.note > summary::after{ content:"+"; font-family:var(--mono); opacity:.4; }
+  details.note[open] > summary::after{ content:"–"; }
+  .note-body{ padding:0 0 20px; font-size:13px; line-height:1.62; color:#b4b4b4; }
+  .note-body h4{ font-size:12px; font-weight:700; letter-spacing:.04em; text-transform:uppercase;
+                 margin:18px 0 6px; color:#ededed; font-family:var(--mono); }
+  .note-body p{ margin:0 0 5px; }
+  .note-body .src{ color:#6ea4e8; font-weight:600; }
+  .note-body code{ font-family:var(--mono); font-size:12px; background:#262626; padding:1px 5px; border-radius:3px; color:#c4c4c4; }
+  .credit{ text-align:center; font-size:11px; color:#5a5a5a; margin:26px 0 0; font-family:var(--mono); }
+
+  @media (prefers-reduced-motion: reduce){
+    .si-star, .dot.run svg, .chip.run .cdot, .si-drain.run{ animation:none !important; }
+    .face, .status, .pop{ transition-duration:.001ms !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <!-- the real Eos dawn-star mark, full colour -->
+    <svg class="brandmark" viewBox="-180 -180 360 360" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Eos">
+      <defs>
+        <radialGradient id="hStar" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="98">
+          <stop offset="0" stop-color="#ffffff"/><stop offset=".2" stop-color="#e8f1ff"/>
+          <stop offset=".5" stop-color="#a9cdf6"/><stop offset=".8" stop-color="#5f93dd"/>
+          <stop offset="1" stop-color="#3f6fb5"/>
+        </radialGradient>
+        <radialGradient id="hHalo" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="168">
+          <stop offset="0" stop-color="#6ea4e8" stop-opacity=".5"/>
+          <stop offset=".45" stop-color="#6ea4e8" stop-opacity=".13"/>
+          <stop offset="1" stop-color="#6ea4e8" stop-opacity="0"/>
+        </radialGradient>
+        <radialGradient id="hCore" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="30">
+          <stop offset="0" stop-color="#ffffff"/><stop offset=".5" stop-color="#6ea4e8" stop-opacity=".55"/>
+          <stop offset="1" stop-color="#6ea4e8" stop-opacity="0"/>
+        </radialGradient>
+        <filter id="hBloom" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="7"/></filter>
+        <g id="hSpokes" fill="url(#hStar)">
+          <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(0)"/>
+          <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(45)"/>
+          <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(90)"/>
+          <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(135)"/>
+          <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(180)"/>
+          <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(225)"/>
+          <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(270)"/>
+          <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(315)"/>
+        </g>
+      </defs>
+      <circle r="168" fill="url(#hHalo)"/>
+      <use href="#hSpokes" filter="url(#hBloom)" opacity=".85"/>
+      <use href="#hSpokes"/>
+      <circle r="26" fill="url(#hCore)"/>
+    </svg>
+    <div>
+      <p class="kicker">Eos · Menu-bar status · Concept 04</p>
+      <h1 class="title">Synthesis — Refined</h1>
+      <p class="sub">A first-party Eos utility: quiet when idle, a living dawn-star while agents work, and a right-edge-pinned ticker that plays simultaneous completions one by one — so neighbours never shift. Built in the real liquid glass, the real palette, the real mark.</p>
+    </div>
+  </header>
+
+  <p class="frame-label">Light menu bar</p>
+  <div id="frame-light"></div>
+
+  <p class="frame-label">Dark menu bar</p>
+  <div id="frame-dark"></div>
+
+  <div class="controls">
+    <button class="btn" data-act="add">Spawn agent</button>
+    <button class="btn" data-act="five">Spawn 5</button>
+    <button class="btn" data-act="one">Complete one</button>
+    <button class="btn key" data-act="all">Complete all → queue ✓</button>
+    <button class="btn" data-act="fail">Fail one</button>
+    <button class="btn" data-act="reset">Idle</button>
+    <button class="btn toggle" data-act="auto" data-on="true">Auto demo: On</button>
+  </div>
+  <p class="hint">Click either status item to open the glass popover · ↑/↓ to select, ↵ to focus, esc to close. “Complete all” shows the signature sequential playback.</p>
+
+  <details class="note" open>
+    <summary>Design rationale — how the three concepts were merged</summary>
+    <div class="note-body">
+      <p>This is a convergence, not a fourth idea. Each concept contributed the part it did best; the brand was rebuilt from the real <code>styles.css</code> tokens so the result reads as something Eos shipped.</p>
+
+      <h4>Backbone — from 01 · Native &amp; Calm</h4>
+      <p><span class="src">Right-edge-pinned reveal.</span> The status item grows <em>leftward</em> (both faces pinned to <code>right:0</code>), so the system tray and the popover never shift — true menu-bar behaviour. <span class="src">Semantic colour only:</span> idle and running are monochrome, inheriting the bar tint exactly like every first-party item; colour appears only for meaning — <code>--ok</code> green completion, <code>--err</code> red failure. <span class="src">One easing</span> — <code>cubic-bezier(.32,.72,0,1)</code> — drives width, fade and motion so it feels like one hand.</p>
+
+      <h4>The alive flourish — from 02 · Alive &amp; Expressive</h4>
+      <p><span class="src">The breathing dawn-star</span> is the running glyph: the real Eos mark, breathing on a slow low-amplitude pulse whose tempo (<code>--breath</code>) tightens as more agents run — so activity, and its scale, are felt before they're read. 02's louder layers — orbiting particles, sparkle bursts, the off-palette peach/rose/violet ramp — were dropped; the dawn metaphor stays, recoloured to the app.</p>
+
+      <h4>The information model — from 03 · Glanceable Pro</h4>
+      <p><span class="src">Glance over click:</span> a tabular-mono running count rides beside the glyph (tabular figures so the bar never reflows). <span class="src">The sequential completion queue</span> with a <code>+N</code> badge and a hairline that drains during each hold. <span class="src">A dense, keyboard-first popover:</span> status glyph · mono name · live elapsed · activity line, sorted running-first; ↑/↓ move an accent selection ring, ↵ focuses the agent in Eos, esc closes.</p>
+
+      <h4>Brand fidelity</h4>
+      <p>The popover is the real <span class="src">liquid-glass recipe</span>: <code>rgba(var(--glass),.5)</code>, <code>blur(22px) saturate(170%)</code>, and the signature 135° rim highlight via <code>mask-composite</code> — over a wallpaper so the blur is genuine. The header carries the full-colour dawn-star; the bar shows a monochrome template form, respecting macOS conventions. Accent <code>#6ea4e8</code>, success <code>#67c084</code>, failure <code>#d97670</code> — straight from the app.</p>
+    </div>
+  </details>
+
+  <p class="credit">self-contained · system fonts · no network · click a status item, then watch the auto demo</p>
+</div>
+
+<script>
+/* ── tiny DOM helper ──────────────────────────────────────────────────── */
+const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ── iconography ──────────────────────────────────────────────────────── */
+/* monochrome dawn-star for the bar (template tint via currentColor) */
+const STAR = `<svg class="si-star" viewBox="-120 -120 240 240" aria-hidden="true">
+  <g fill="currentColor">
+    <rect x="-11" y="-96" width="22" height="84" rx="11" transform="rotate(0)"/>
+    <rect x="-11" y="-96" width="22" height="84" rx="11" transform="rotate(45)"/>
+    <rect x="-11" y="-96" width="22" height="84" rx="11" transform="rotate(90)"/>
+    <rect x="-11" y="-96" width="22" height="84" rx="11" transform="rotate(135)"/>
+    <rect x="-11" y="-96" width="22" height="84" rx="11" transform="rotate(180)"/>
+    <rect x="-11" y="-96" width="22" height="84" rx="11" transform="rotate(225)"/>
+    <rect x="-11" y="-96" width="22" height="84" rx="11" transform="rotate(270)"/>
+    <rect x="-11" y="-96" width="22" height="84" rx="11" transform="rotate(315)"/>
+  </g>
+  <circle r="20" fill="currentColor"/>
+</svg>`;
+/* full-colour dawn-star for the popover header (unique gradient ids) */
+const STAR_COLOR = `<svg class="mark" viewBox="-180 -180 360 360" aria-hidden="true">
+  <defs>
+    <radialGradient id="pStar" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="98">
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".2" stop-color="#e8f1ff"/>
+      <stop offset=".5" stop-color="#a9cdf6"/><stop offset=".8" stop-color="#5f93dd"/><stop offset="1" stop-color="#3f6fb5"/>
+    </radialGradient>
+    <radialGradient id="pHalo" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="168">
+      <stop offset="0" stop-color="#6ea4e8" stop-opacity=".5"/><stop offset=".45" stop-color="#6ea4e8" stop-opacity=".13"/><stop offset="1" stop-color="#6ea4e8" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="pCore" gradientUnits="userSpaceOnUse" cx="0" cy="0" r="30">
+      <stop offset="0" stop-color="#ffffff"/><stop offset=".5" stop-color="#6ea4e8" stop-opacity=".55"/><stop offset="1" stop-color="#6ea4e8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="pBloom" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="7"/></filter>
+    <g id="pSpokes" fill="url(#pStar)">
+      <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(0)"/><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(45)"/>
+      <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(90)"/><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(135)"/>
+      <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(180)"/><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(225)"/>
+      <rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(270)"/><rect x="-12" y="-98" width="24" height="86" rx="12" transform="rotate(315)"/>
+    </g>
+  </defs>
+  <circle r="168" fill="url(#pHalo)"/><use href="#pSpokes" filter="url(#pBloom)" opacity=".85"/><use href="#pSpokes"/><circle r="26" fill="url(#pCore)"/>
+</svg>`;
+
+const SPIN  = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="8" cy="8" r="6" stroke-dasharray="9 28"/></svg>`;
+const CHECK = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.4 8.5 L6.6 11.4 L12.6 4.8"/></svg>`;
+const CROSS = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 5 L11 11"/><path d="M11 5 L5 11"/></svg>`;
+const APPLE = `<svg width="13" height="15" viewBox="0 0 14 16" fill="currentColor"><path d="M11.2 8.5c0-1.7 1.4-2.5 1.4-2.6-0.8-1.1-2-1.3-2.4-1.3-1-0.1-2 0.6-2.5 0.6s-1.3-0.6-2.2-0.6c-1.1 0-2.2 0.7-2.8 1.7-1.2 2.1-0.3 5.2 0.9 6.9 0.6 0.8 1.3 1.8 2.2 1.7 0.9 0 1.2-0.6 2.3-0.6s1.4 0.6 2.3 0.5c0.9 0 1.6-0.8 2.2-1.7 0.7-1 1-1.9 1-2-0 0-1.9-0.7-1.9-2.8zM9.5 3.4c0.5-0.6 0.8-1.4 0.7-2.2-0.7 0-1.5 0.5-2 1-0.4 0.5-0.8 1.3-0.7 2.1 0.8 0.1 1.5-0.4 2-0.9z"/></svg>`;
+const WIFI = `<svg width="16" height="12" viewBox="0 0 18 13" fill="currentColor"><path d="M9 12.4 11.1 9.8a2.7 2.7 0 0 0-4.2 0L9 12.4zM5.1 7.6 6.4 9.1a3.9 3.9 0 0 1 5.2 0l1.3-1.5a5.9 5.9 0 0 0-7.8 0zM2.6 4.7 3.9 6.2a7.6 7.6 0 0 1 10.2 0l1.3-1.5a9.6 9.6 0 0 0-12.8 0z"/></svg>`;
+const BATTERY = `<svg width="25" height="13" viewBox="0 0 26 13" fill="none"><rect x="1" y="1.5" width="21" height="10" rx="3" stroke="currentColor" stroke-opacity=".4"/><rect x="2.6" y="3.1" width="14" height="6.8" rx="1.6" fill="currentColor"/><path d="M23.6 4.6 v3.8 a2 2 0 0 0 0-3.8z" fill="currentColor" fill-opacity=".4"/></svg>`;
+const CTRL = `<svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.4" y="3.4" width="13.2" height="5" rx="2.5"/><rect x="2.4" y="9.6" width="13.2" height="5" rx="2.5"/><circle cx="6.2" cy="5.9" r="1.4" fill="currentColor" stroke="none"/><circle cx="11.8" cy="12.1" r="1.4" fill="currentColor" stroke="none"/></svg>`;
+
+/* ── state ────────────────────────────────────────────────────────────── */
+const POOL = [
+  ['api-routes',   'Editing manager/routes/agents.ts'],
+  ['schema-sync',  'Reconciling Zod contracts'],
+  ['ui-popover',   'Laying out the dropdown'],
+  ['auth-refactor','Searching call sites in core/'],
+  ['lint-pass',    'Running eslint --fix'],
+  ['db-migrate',   'Applying WAL migration 0042'],
+  ['test-suite',   'tsx --test · 142 passing'],
+  ['sse-fanout',   'Profiling SSE fan-out'],
+];
+let agents = [];     // {id,name,status,activity,elapsed}
+let queue = [];      // completions awaiting ticker playback {name,failed}
+let playing = false;
+let autoOn = true;
+let nextId = 1;
+let focusTimer = null;
+
+const HOLD = 1450;
+const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+
+/* ── build one status item ────────────────────────────────────────────── */
+function buildStatus(){
+  const root = el('button','status');
+  root.setAttribute('aria-label','Eos agents');
+
+  const iconFace = el('span','face face-icon show');
+  const count = el('span','si-count');
+  const glyph = el('span','si-glyph', STAR);          // dawn-star, pinned rightmost
+  iconFace.append(count, glyph);
+
+  const pillFace = el('span','face face-pill');
+  const check = el('span','si-check', CHECK);
+  const name  = el('span','si-name');
+  const done  = el('span','si-done','done');
+  const badge = el('span','si-badge');
+  pillFace.append(check, name, done, badge);
+
+  const drain = el('span','si-drain');
+  root.append(iconFace, pillFace, drain);
+  return { root, iconFace, pillFace, count, glyph, check, name, done, badge, drain };
+}
+
+/* ── build one popover ────────────────────────────────────────────────── */
+function buildPopover(){
+  const root = el('div','pop');
+  const head = el('div','pop-head', STAR_COLOR);
+  head.append(el('span','pop-title','Eos'), el('span','pop-meta'));
+  const chips = el('div','pop-chips');
+  const sep = el('div','pop-sep');
+  const list = el('div','pop-list');
+  const foot = el('div','pop-foot',
+    '<span><kbd>↑</kbd><kbd>↓</kbd> select</span><span><kbd>↵</kbd> focus in Eos</span><span><kbd>esc</kbd> close</span>');
+  const flash = el('div','pop-flash');
+  root.append(head, chips, sep, list, foot, flash);
+  return { root, meta: head.querySelector('.pop-meta'), chips, list, foot, flash };
+}
+
+/* ── build a desktop frame ────────────────────────────────────────────── */
+function buildFrame(theme){
+  const frame = el('div','frame '+theme);
+  const wall = el('div','wall');
+  const floor = el('div','floor','Eos.app');
+
+  const bar = el('div','menubar');
+  const left = el('div','mb-left');
+  left.append(el('span','',APPLE), el('b',null,'Eos'));
+  ['File','Edit','View','Agents','Window','Help'].forEach(m => left.append(el('span','mb-menu',m)));
+  const right = el('div','mb-right');
+  const status = buildStatus();
+  right.append(status.root, el('span','sys',WIFI), el('span','sys',BATTERY), el('span','sys',CTRL),
+              el('span','mb-clock','Thu 25 Jun  9:41'));
+  bar.append(left, el('div','mb-spacer'), right);
+
+  const pop = buildPopover();
+  frame.append(wall, floor, bar, pop.root);
+  return { frame, status, pop };
+}
+
+const L = buildFrame('light');
+const D = buildFrame('dark');
+document.getElementById('frame-light').replaceWith(L.frame); L.frame.id='frame-light';
+document.getElementById('frame-dark').replaceWith(D.frame);  D.frame.id='frame-dark';
+const inst = [L, D];
+let sel = -1;     // keyboard selection index (shared)
+
+/* ── status-item rendering ────────────────────────────────────────────── */
+function setWidthBoth(w){ inst.forEach(i => i.status.root.style.width = w+'px'); }
+
+function applyIcon(){
+  const rc = agents.filter(a => a.status==='running').length;
+  // breath tempo scales with count: busier = slightly faster (calm range)
+  const breath = Math.max(1.25, 1.9 - rc*0.09).toFixed(2) + 's';
+  inst.forEach(i => {
+    i.status.pillFace.classList.remove('show','tick');
+    i.status.iconFace.classList.add('show');
+    i.status.root.classList.toggle('running', rc>0);
+    i.status.root.style.setProperty('--breath', breath);
+    i.status.count.classList.toggle('show', rc>0);
+    i.status.count.textContent = rc;
+  });
+  void L.status.root.offsetWidth;
+  setWidthBoth(L.status.iconFace.offsetWidth);
+}
+
+function showCompletion(name, first, failed, remaining){
+  inst.forEach(i => {
+    i.status.name.textContent = name;
+    i.status.done.textContent = failed ? 'failed' : 'done';
+    i.status.check.innerHTML = failed ? CROSS : CHECK;
+    i.status.check.classList.toggle('fail', !!failed);
+    i.status.badge.classList.toggle('show', remaining>0);
+    i.status.badge.textContent = remaining>0 ? '+'+remaining : '';
+    i.status.iconFace.classList.remove('show');
+    i.status.root.classList.remove('running');
+    i.status.pillFace.classList.add('show');
+  });
+  void L.status.root.offsetWidth;
+  setWidthBoth(L.status.pillFace.offsetWidth);
+  inst.forEach(i => {
+    // re-trigger check stroke + drain hairline
+    i.status.check.classList.remove('draw'); void i.status.check.offsetWidth; i.status.check.classList.add('draw');
+    i.status.drain.classList.toggle('fail', !!failed);
+    i.status.drain.style.setProperty('--hold', HOLD+'ms');
+    i.status.drain.classList.remove('run'); void i.status.drain.offsetWidth; i.status.drain.classList.add('run');
+    if(!first){ i.status.pillFace.classList.remove('tick'); void i.status.pillFace.offsetWidth; i.status.pillFace.classList.add('tick'); }
+  });
+}
+
+/* ── the signature sequential playback ────────────────────────────────── */
+async function runQueue(){
+  if(playing) return;
+  playing = true;
+  let first = true;
+  while(queue.length){
+    const item = queue.shift();
+    showCompletion(item.name, first, item.failed, queue.length);
+    first = false;
+    await sleep(HOLD);
+  }
+  inst.forEach(i => i.status.drain.classList.remove('run'));
+  applyIcon();
+  playing = false;
+}
+
+/* ── popover rendering ────────────────────────────────────────────────── */
+function ordered(){
+  const rank = { running:0, failed:1, completed:2 };
+  return [...agents].sort((a,b) => (rank[a.status]-rank[b.status]) || (b.elapsed-a.elapsed));
+}
+function statusDot(a){
+  if(a.status==='running') return `<span class="dot run">${SPIN}</span>`;
+  if(a.status==='failed')  return `<span class="dot fail">${CROSS}</span>`;
+  return `<span class="dot done">${CHECK}</span>`;
+}
+function renderPopover(){
+  const list = ordered();
+  const run  = agents.filter(a=>a.status==='running').length;
+  const done = agents.filter(a=>a.status==='completed').length;
+  const fail = agents.filter(a=>a.status==='failed').length;
+  inst.forEach(i => {
+    i.pop.meta.textContent = run ? `${run} running` : (agents.length ? 'all settled' : 'idle');
+    i.pop.chips.innerHTML =
+      `<span class="chip run"><span class="cdot"></span>${run} running</span>` +
+      `<span class="chip done"><span class="cdot"></span>${done} done</span>` +
+      (fail ? `<span class="chip fail"><span class="cdot"></span>${fail} failed</span>` : '');
+    i.pop.list.innerHTML = '';
+    if(!list.length){ i.pop.list.append(el('div','pop-empty','No active agents · quiet on the fleet')); return; }
+    list.forEach((a,idx) => {
+      const row = el('div','pop-row '+a.status+(idx===sel?' sel':''));
+      row.dataset.idx = idx;
+      row.innerHTML =
+        statusDot(a) +
+        `<div class="pop-body"><div class="pop-name">${a.name}</div><div class="pop-act">${a.activity}</div></div>` +
+        `<div class="pop-time">${fmt(a.elapsed)}</div><span class="pop-chev">›</span>`;
+      row.addEventListener('click', e => { e.stopPropagation(); focusAgent(a.name); });
+      row.addEventListener('mouseenter', () => { sel = idx; highlight(); });
+      i.pop.list.append(row);
+    });
+  });
+}
+function highlight(){
+  inst.forEach(i => i.pop.list.querySelectorAll('.pop-row').forEach(r =>
+    r.classList.toggle('sel', +r.dataset.idx===sel)));
+}
+function updateTimes(){
+  const list = ordered();
+  inst.forEach(i => i.pop.list.querySelectorAll('.pop-row').forEach((r,idx) => {
+    const a = list[idx]; if(a){ const t=r.querySelector('.pop-time'); if(t) t.textContent=fmt(a.elapsed); }
+  }));
+}
+
+/* click / ↵ an agent → "focus in Eos" */
+function focusAgent(name){
+  clearTimeout(focusTimer);
+  inst.forEach(i => {
+    i.pop.list.querySelectorAll('.pop-row').forEach(r =>
+      r.classList.toggle('focusing', r.querySelector('.pop-name')?.textContent===name));
+    i.pop.flash.textContent = `↗ Focusing “${name}” in Eos…`;
+    i.pop.flash.classList.add('show');
+  });
+  focusTimer = setTimeout(() => inst.forEach(i => {
+    i.pop.flash.classList.remove('show');
+    i.pop.list.querySelectorAll('.pop-row').forEach(r => r.classList.remove('focusing'));
+  }), 1200);
+}
+
+/* ── popover open / close (right edge pinned to the status item) ───────── */
+function popIsOpen(){ return inst.some(i => i.pop.root.classList.contains('open')); }
+function openPop(i){
+  inst.forEach(o => { if(o!==i){ o.pop.root.classList.remove('open'); o.status.root.classList.remove('open'); } });
+  sel = -1; renderPopover();
+  const s = i.status.root;
+  const rightGap = i.frame.clientWidth - (s.offsetLeft + s.offsetWidth);
+  i.pop.root.style.right = Math.max(8, rightGap) + 'px';
+  i.pop.root.classList.add('open');
+  s.classList.add('open');
+}
+function closeAll(){ inst.forEach(i => { i.pop.root.classList.remove('open'); i.status.root.classList.remove('open'); }); }
+
+inst.forEach(i => i.status.root.addEventListener('click', e => {
+  e.stopPropagation();
+  const isOpen = i.pop.root.classList.contains('open');
+  closeAll();
+  if(!isOpen) openPop(i);
+}));
+document.addEventListener('click', closeAll);
+
+/* ── keyboard (dense, keyboard-first — from 03) ───────────────────────── */
+document.addEventListener('keydown', e => {
+  if(!popIsOpen()) return;
+  const list = ordered();
+  if(e.key==='ArrowDown'){ e.preventDefault(); sel = Math.min(sel+1, list.length-1); highlight(); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); sel = Math.max(sel-1, 0); highlight(); }
+  else if(e.key==='Enter' && sel>=0 && list[sel]){ e.preventDefault(); focusAgent(list[sel].name); }
+  else if(e.key==='Escape'){ closeAll(); }
+});
+
+/* ── demo actions ─────────────────────────────────────────────────────── */
+function addAgent(){
+  const used = new Set(agents.map(a=>a.name));
+  const p = POOL.find(p=>!used.has(p[0])) || POOL[agents.length % POOL.length];
+  agents.push({ id:nextId++, name:p[0], status:'running', activity:p[1], elapsed: 2 + (nextId*7)%48 });
+  if(!playing) applyIcon();
+  if(popIsOpen()) renderPopover();
+}
+function completeOne(failed){
+  const a = agents.find(a=>a.status==='running');
+  if(!a) return;
+  a.status = failed ? 'failed' : 'completed';
+  a.activity = failed ? 'Stopped · needs input' : 'Finished · changes ready';
+  queue.push({ name:a.name, failed:!!failed });
+  if(popIsOpen()) renderPopover();
+  runQueue();
+}
+function completeAll(){
+  const running = agents.filter(a=>a.status==='running');
+  running.forEach(a => { a.status='completed'; a.activity='Finished · changes ready'; queue.push({ name:a.name, failed:false }); });
+  if(popIsOpen()) renderPopover();
+  runQueue();
+}
+function reset(){
+  agents = []; queue = []; sel = -1;
+  if(!playing) applyIcon();
+  if(popIsOpen()) renderPopover();
+}
+
+document.querySelector('.controls').addEventListener('click', e => {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if(!act) return;
+  if(act!=='auto') stopAuto();
+  if(act==='add') addAgent();
+  else if(act==='five'){ for(let k=0;k<5;k++) addAgent(); }
+  else if(act==='one') completeOne(false);
+  else if(act==='all') completeAll();
+  else if(act==='fail') completeOne(true);
+  else if(act==='reset') reset();
+  else if(act==='auto') toggleAuto(e.target.closest('[data-act]'));
+});
+
+/* ── auto demo loop ───────────────────────────────────────────────────── */
+const waitQueue = () => new Promise(res => { const t=setInterval(()=>{ if(!playing && !queue.length){ clearInterval(t); res(); } },120); });
+async function autoLoop(){
+  while(autoOn){
+    reset(); await sleep(1300); if(!autoOn) break;
+    for(let k=0;k<2;k++){ addAgent(); await sleep(560); } if(!autoOn) break;   // a couple running
+    for(let k=0;k<3;k++){ addAgent(); await sleep(420); } if(!autoOn) break;   // climb to 5 — breath tightens
+    await sleep(1800); if(!autoOn) break;
+    completeOne(false); await sleep(HOLD+200); if(!autoOn) break;              // one settles
+    completeAll(); await waitQueue(); if(!autoOn) break;                       // the signature burst
+    await sleep(900); if(!autoOn) break;
+    addAgent(); addAgent(); await sleep(1400); if(!autoOn) break;
+    completeOne(true);                                                         // a failure plays in red
+    await waitQueue(); if(!autoOn) break;
+    await sleep(1700);
+  }
+}
+function stopAuto(){
+  if(!autoOn) return;
+  autoOn=false;
+  const b=document.querySelector('[data-act="auto"]');
+  b.dataset.on='false'; b.textContent='Auto demo: Off';
+}
+function toggleAuto(btn){
+  autoOn = !autoOn;
+  btn.dataset.on = autoOn ? 'true' : 'false';
+  btn.textContent = 'Auto demo: ' + (autoOn ? 'On' : 'Off');
+  if(autoOn) autoLoop();
+}
+
+/* tick elapsed each second */
+setInterval(() => {
+  let changed=false;
+  agents.forEach(a => { if(a.status==='running'){ a.elapsed++; changed=true; } });
+  if(changed && popIsOpen()) updateTimes();
+}, 1000);
+
+/* ── boot ─────────────────────────────────────────────────────────────── */
+applyIcon();
+renderPopover();
+autoLoop();
+</script>
+</body>
+</html>

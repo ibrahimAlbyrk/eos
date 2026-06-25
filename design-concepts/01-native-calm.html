@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Eos · Menu Bar Status — Native &amp; Calm</title>
+<style>
+  /* ───────────────────────────────────────────────────────────
+     Eos menu-bar status indicator — "Native & Calm" concept
+     One spring easing everywhere · semantic colour only ·
+     monochrome until a state actually means something.
+     ─────────────────────────────────────────────────────────── */
+  :root{
+    --spring: cubic-bezier(.32,.72,0,1);
+    --sf: -apple-system, "SF Pro Text", BlinkMacSystemFont, "Helvetica Neue", "Segoe UI", system-ui, sans-serif;
+    --green-l:#1e9e46; --green-d:#30d158;
+    --red-l:#e0352b;   --red-d:#ff453a;
+    --page:#e9e9ec;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; }
+  body{
+    font-family:var(--sf);
+    color:#1d1d1f;
+    background:
+      radial-gradient(120% 80% at 50% -20%, #f4f4f6 0%, var(--page) 60%) fixed;
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    padding:40px 24px 80px;
+  }
+  .wrap{ max-width:880px; margin:0 auto; }
+
+  /* page header ----------------------------------------------------------- */
+  .head{ text-align:center; margin-bottom:30px; }
+  .kicker{
+    font-size:11px; font-weight:590; letter-spacing:.14em; text-transform:uppercase;
+    color:#86868b; margin:0 0 9px;
+  }
+  .title{ font-size:27px; font-weight:680; letter-spacing:-.02em; margin:0 0 7px; }
+  .sub{ font-size:14px; line-height:1.5; color:#6e6e73; margin:0 auto; max-width:520px; }
+
+  /* device frame (a "display" showing wallpaper + menu bar) --------------- */
+  .frame{
+    position:relative;
+    height:188px;
+    border-radius:14px;
+    overflow:hidden;
+    margin-bottom:16px;
+    box-shadow:
+      0 1px 0 rgba(255,255,255,.6) inset,
+      0 18px 44px -18px rgba(0,0,0,.42),
+      0 2px 8px rgba(0,0,0,.10);
+  }
+  .wall{ position:absolute; inset:0; }
+  .frame.light .wall{
+    background:
+      radial-gradient(140% 130% at 18% -25%, #ffe9cf 0%, #ffd2ad 26%, #f0c9e4 56%, #c3d2f2 100%);
+  }
+  .frame.dark .wall{
+    background:
+      radial-gradient(130% 120% at 12% -20%, rgba(255,150,70,.30) 0%, rgba(255,150,70,0) 42%),
+      radial-gradient(150% 140% at 82% -25%, #34306a 0%, #1c1838 46%, #0c0a1a 100%);
+  }
+  .frame .floor{
+    position:absolute; left:0; right:0; bottom:0; height:60px;
+    font-family:var(--sf); font-weight:600; letter-spacing:-.01em;
+    display:flex; align-items:flex-end; justify-content:center; padding-bottom:12px;
+    font-size:12px; pointer-events:none;
+  }
+  .frame.light .floor{ color:rgba(0,0,0,.32); }
+  .frame.dark  .floor{ color:rgba(255,255,255,.30); }
+
+  /* the menu bar ---------------------------------------------------------- */
+  .menubar{
+    position:absolute; top:0; left:0; right:0; height:25px;
+    display:flex; align-items:center; gap:0;
+    padding:0 9px 0 11px;
+    font-size:13px; line-height:1;
+    z-index:5;
+  }
+  .frame.light .menubar{
+    color:rgba(0,0,0,.86);
+    background:rgba(247,247,249,.55);
+    -webkit-backdrop-filter:blur(26px) saturate(1.7);
+    backdrop-filter:blur(26px) saturate(1.7);
+    box-shadow:0 .5px 0 rgba(0,0,0,.10);
+  }
+  .frame.dark .menubar{
+    color:rgba(255,255,255,.92);
+    background:rgba(0,0,0,.30);
+    -webkit-backdrop-filter:blur(26px) saturate(1.7);
+    backdrop-filter:blur(26px) saturate(1.7);
+    box-shadow:0 .5px 0 rgba(255,255,255,.08);
+  }
+  .mb-left{ display:flex; align-items:center; gap:14px; }
+  .mb-left svg{ display:block; }
+  .mb-left b{ font-weight:680; letter-spacing:-.01em; }
+  .mb-menu{ opacity:.92; }
+  .mb-spacer{ flex:1; }
+  .mb-right{ display:flex; align-items:center; gap:13px; }
+  .mb-right .sys{ opacity:.9; display:flex; align-items:center; }
+  .mb-clock{ font-variant-numeric:tabular-nums; letter-spacing:-.01em; opacity:.95; }
+
+  /* ── the Eos status item ──────────────────────────────────────────────── */
+  .status{
+    position:relative;
+    height:21px; width:30px;
+    flex:0 0 auto;
+    display:inline-flex; align-items:center;
+    border-radius:6px;
+    color:inherit;
+    background:transparent;
+    cursor:pointer;
+    -webkit-appearance:none; appearance:none; border:0; padding:0;
+    transition:width .46s var(--spring), background-color .18s ease;
+  }
+  .frame.light .status:hover{ background:rgba(0,0,0,.07); }
+  .frame.dark  .status:hover{ background:rgba(255,255,255,.13); }
+  .frame.light .status.open{ background:rgba(0,0,0,.10); }
+  .frame.dark  .status.open{ background:rgba(255,255,255,.18); }
+
+  .face{
+    position:absolute; right:0; top:0; height:100%;
+    display:flex; align-items:center; justify-content:flex-end; gap:5px;
+    padding:0 6px; white-space:nowrap;
+    opacity:0; pointer-events:none;
+    transition:opacity .26s ease, transform .42s var(--spring);
+  }
+  .face.show{ opacity:1; }
+  .face-pill{ transform:translateY(-4px); }
+  .face-pill.show{ transform:translateY(0); }
+  .face-pill.tick{ animation:tick .42s var(--spring); }
+  @keyframes tick{ 0%{ transform:translateY(-3px); opacity:.35; } 100%{ transform:translateY(0); opacity:1; } }
+
+  .si-glyph{ display:flex; }
+  .si-glyph svg{ display:block; width:17px; height:17px; }
+
+  .si-spinner{ display:none; }
+  .si-spinner.show{ display:flex; }
+  .si-spinner svg{ display:block; width:15px; height:15px; opacity:.62; animation:spin 1.15s linear infinite; }
+  @keyframes spin{ to{ transform:rotate(360deg); } }
+
+  .si-count{
+    display:none; font-size:11px; font-weight:600; font-variant-numeric:tabular-nums;
+    opacity:.72; letter-spacing:0;
+  }
+  .si-count.show{ display:inline; }
+
+  .si-check{ display:flex; }
+  .si-check svg{ display:block; width:15px; height:15px; }
+  .frame.light .si-check{ color:var(--green-l); }
+  .frame.dark  .si-check{ color:var(--green-d); }
+  .si-check.fail{ }
+  .frame.light .si-check.fail{ color:var(--red-l); }
+  .frame.dark  .si-check.fail{ color:var(--red-d); }
+  .si-check svg path{ stroke-dasharray:22; stroke-dashoffset:22; }
+  .si-check.draw svg path{ animation:draw .42s .05s var(--spring) forwards; }
+  @keyframes draw{ to{ stroke-dashoffset:0; } }
+
+  .si-name{ font-size:12.5px; font-weight:560; letter-spacing:-.01em; }
+  .si-done{ font-size:12.5px; font-weight:430; opacity:.55; }
+
+  /* ── the popover (Control-Center material) ────────────────────────────── */
+  .pop{
+    position:absolute; top:30px; z-index:20;
+    width:280px;
+    border-radius:13px;
+    padding:7px;
+    opacity:0; transform:translateY(-7px) scale(.985);
+    transform-origin:top right;
+    pointer-events:none;
+    transition:opacity .2s ease, transform .34s var(--spring);
+  }
+  .pop.open{ opacity:1; transform:none; pointer-events:auto; }
+  .frame.light .pop{
+    background:rgba(250,250,252,.72);
+    -webkit-backdrop-filter:blur(40px) saturate(1.8);
+    backdrop-filter:blur(40px) saturate(1.8);
+    border:.5px solid rgba(0,0,0,.10);
+    box-shadow:0 1px 0 rgba(255,255,255,.7) inset, 0 16px 44px -10px rgba(0,0,0,.30);
+    color:#1d1d1f;
+  }
+  .frame.dark .pop{
+    background:rgba(34,34,38,.62);
+    -webkit-backdrop-filter:blur(40px) saturate(1.8);
+    backdrop-filter:blur(40px) saturate(1.8);
+    border:.5px solid rgba(255,255,255,.12);
+    box-shadow:0 1px 0 rgba(255,255,255,.06) inset, 0 16px 44px -10px rgba(0,0,0,.55);
+    color:#f2f2f5;
+  }
+  .pop-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    padding:6px 8px 9px;
+  }
+  .pop-title{ font-size:13px; font-weight:640; letter-spacing:-.01em; }
+  .pop-meta{ font-size:11.5px; opacity:.5; font-variant-numeric:tabular-nums; }
+
+  .pop-row{
+    display:flex; align-items:center; gap:10px;
+    padding:7px 8px; border-radius:8px;
+    cursor:pointer;
+    transition:background-color .14s ease;
+  }
+  .frame.light .pop-row:hover{ background:rgba(0,0,0,.06); }
+  .frame.dark  .pop-row:hover{ background:rgba(255,255,255,.08); }
+  .pop-row.focusing{ background:rgba(10,122,255,.16); }
+
+  .dot{ width:18px; height:18px; flex:0 0 auto; display:flex; align-items:center; justify-content:center; }
+  .dot svg{ display:block; }
+  .dot.run svg{ width:15px; height:15px; opacity:.7; animation:spin 1.15s linear infinite; }
+  .frame.light .dot.done{ color:var(--green-l); } .frame.dark .dot.done{ color:var(--green-d); }
+  .frame.light .dot.fail{ color:var(--red-l); }   .frame.dark .dot.fail{ color:var(--red-d); }
+
+  .pop-body{ min-width:0; flex:1; }
+  .pop-name{ font-size:13px; font-weight:540; letter-spacing:-.01em; line-height:1.25; }
+  .pop-act{ font-size:11.5px; opacity:.55; line-height:1.3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pop-time{ font-size:11.5px; opacity:.5; font-variant-numeric:tabular-nums; flex:0 0 auto; }
+
+  .pop-empty{ padding:16px 8px 18px; text-align:center; font-size:12.5px; opacity:.45; }
+  .pop-foot{
+    margin-top:5px; padding:8px; font-size:11.5px; opacity:0; height:0; overflow:hidden;
+    transition:opacity .2s ease;
+  }
+  .pop-foot.show{ opacity:.62; height:auto; }
+  .pop-sep{ height:.5px; margin:4px 6px; }
+  .frame.light .pop-sep{ background:rgba(0,0,0,.08); }
+  .frame.dark  .pop-sep{ background:rgba(255,255,255,.10); }
+
+  /* ── demo controls ─────────────────────────────────────────────────────── */
+  .controls{
+    display:flex; flex-wrap:wrap; align-items:center; gap:9px;
+    justify-content:center; margin:26px 0 8px;
+  }
+  .btn{
+    font-family:var(--sf); font-size:13px; font-weight:530; letter-spacing:-.01em;
+    color:#1d1d1f; background:#fff;
+    border:.5px solid rgba(0,0,0,.12);
+    border-radius:9px; padding:8px 14px; cursor:pointer;
+    box-shadow:0 1px 2px rgba(0,0,0,.05);
+    transition:transform .12s var(--spring), background-color .15s, box-shadow .15s;
+  }
+  .btn:hover{ background:#fafafa; }
+  .btn:active{ transform:scale(.97); box-shadow:none; }
+  .btn.key{ background:#0a0a0a; color:#fff; border-color:#0a0a0a; }
+  .btn.key:hover{ background:#222; }
+  .btn.toggle[data-on="true"]{ background:#0a7aff; color:#fff; border-color:#0a7aff; }
+  .hint{ text-align:center; font-size:12px; color:#86868b; margin:4px 0 0; }
+
+  /* ── rationale ─────────────────────────────────────────────────────────── */
+  details.note{
+    margin:34px auto 0; max-width:680px;
+    background:#fff; border:.5px solid rgba(0,0,0,.10); border-radius:13px;
+    padding:4px 20px; box-shadow:0 1px 2px rgba(0,0,0,.04);
+  }
+  details.note > summary{
+    list-style:none; cursor:pointer; padding:14px 0;
+    font-size:13.5px; font-weight:600; letter-spacing:-.01em;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  details.note > summary::-webkit-details-marker{ display:none; }
+  details.note > summary::after{ content:"＋"; opacity:.4; font-weight:400; }
+  details.note[open] > summary::after{ content:"－"; }
+  .note-body{ padding:0 0 18px; font-size:13.5px; line-height:1.62; color:#3a3a3e; }
+  .note-body h4{ font-size:12.5px; font-weight:640; letter-spacing:-.01em; margin:16px 0 5px; color:#1d1d1f; }
+  .note-body p{ margin:0 0 4px; }
+  .note-body em{ color:#0a7aff; font-style:normal; font-weight:560; }
+  .frame-label{ font-size:11px; font-weight:560; letter-spacing:.06em; text-transform:uppercase; color:#86868b; margin:2px 2px 7px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <p class="kicker">Eos · Menu Bar Status</p>
+    <h1 class="title">Native &amp; Calm</h1>
+    <p class="sub">A status item that could have shipped with macOS. Quiet when idle, dignified while running, and a gentle queued ticker as agents finish — colour appears only when it means something.</p>
+  </header>
+
+  <p class="frame-label">Light menu bar</p>
+  <div id="frame-light"></div>
+
+  <p class="frame-label">Dark menu bar</p>
+  <div id="frame-dark"></div>
+
+  <div class="controls">
+    <button class="btn" data-act="add">Spawn agent</button>
+    <button class="btn" data-act="one">Complete one</button>
+    <button class="btn key" data-act="all">Complete all → queue ✓</button>
+    <button class="btn" data-act="fail">Fail one</button>
+    <button class="btn" data-act="reset">Idle</button>
+    <button class="btn toggle" data-act="auto" data-on="true">Auto demo: On</button>
+  </div>
+  <p class="hint">Click either status item to open the popover. “Complete all” shows the signature sequential playback.</p>
+
+  <details class="note">
+    <summary>Design rationale &amp; motion notes</summary>
+    <div class="note-body">
+      <p>The brief is the hardest kind: be invisible. A menu-bar utility earns trust by never demanding attention, so every decision here is subtractive.</p>
+
+      <h4>Semantic colour only</h4>
+      <p>Idle and running are strictly <em>monochrome</em> — the icon inherits the menu-bar tint (near-black on light, near-white on dark) exactly like every first-party item. Colour is reserved for meaning: system green for a completion, system red for a failure. Nothing is ever decorative.</p>
+
+      <h4>Running stays dignified</h4>
+      <p>“Living” is achieved with the smallest possible signal — a thin indeterminate arc and a quiet count, both in the bar tint. No pulsing glow, no brand hue. It reads as <em>working</em>, never as <em>look at me</em>.</p>
+
+      <h4>The completion ticker</h4>
+      <p>Completions queue and play as one continuous activity, not a burst of popups. The item reveals leftward (its right edge pinned, so neighbours and the popover never shift — true menu-bar behaviour), the checkmark strokes itself in, and between names the label does a subtle vertical swap while the width morphs. After the last one it collapses back to the icon. Sequential, never overlapping.</p>
+
+      <h4>One easing, system materials</h4>
+      <p>A single spring curve — <em>cubic-bezier(.32,.72,0,1)</em> — drives every transition, so width, fade and motion feel like one hand. Surfaces use real vibrancy (backdrop blur + saturation over the wallpaper), hairline borders and an inner top highlight, matching Control Center.</p>
+    </div>
+  </details>
+
+</div>
+
+<script>
+/* ── tiny DOM helper ──────────────────────────────────────────────────── */
+const el = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+/* ── iconography (SF-symbol-grade, drawn with currentColor) ───────────── */
+const SUN = `<svg viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M4.6 13 H13.4"/>
+  <path d="M5.4 13 a3.6 3.6 0 0 1 7.2 0"/>
+  <path d="M9 3 V4.7"/><path d="M3.8 5.6 L5 6.8"/><path d="M14.2 5.6 L13 6.8"/>
+  <path d="M2.4 9.6 H3.6"/><path d="M14.4 9.6 H15.6"/>
+</svg>`;
+const SPIN = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round">
+  <circle cx="8" cy="8" r="6" stroke-dasharray="9 28"/>
+</svg>`;
+const CHECK = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M3.4 8.5 L6.6 11.4 L12.6 4.8"/>
+</svg>`;
+const CROSS = `<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round">
+  <path d="M5 5 L11 11"/><path d="M11 5 L5 11"/>
+</svg>`;
+const APPLE = `<svg width="13" height="15" viewBox="0 0 14 16" fill="currentColor"><path d="M11.2 8.5c0-1.7 1.4-2.5 1.4-2.6-0.8-1.1-2-1.3-2.4-1.3-1-0.1-2 0.6-2.5 0.6s-1.3-0.6-2.2-0.6c-1.1 0-2.2 0.7-2.8 1.7-1.2 2.1-0.3 5.2 0.9 6.9 0.6 0.8 1.3 1.8 2.2 1.7 0.9 0 1.2-0.6 2.3-0.6s1.4 0.6 2.3 0.5c0.9 0 1.6-0.8 2.2-1.7 0.7-1 1-1.9 1-2-0 0-1.9-0.7-1.9-2.8zM9.5 3.4c0.5-0.6 0.8-1.4 0.7-2.2-0.7 0-1.5 0.5-2 1-0.4 0.5-0.8 1.3-0.7 2.1 0.8 0.1 1.5-0.4 2-0.9z"/></svg>`;
+/* a couple of system glyphs for the right cluster */
+const WIFI = `<svg width="16" height="12" viewBox="0 0 18 13" fill="currentColor"><path d="M9 12.4 11.1 9.8a2.7 2.7 0 0 0-4.2 0L9 12.4zM5.1 7.6 6.4 9.1a3.9 3.9 0 0 1 5.2 0l1.3-1.5a5.9 5.9 0 0 0-7.8 0zM2.6 4.7 3.9 6.2a7.6 7.6 0 0 1 10.2 0l1.3-1.5a9.6 9.6 0 0 0-12.8 0z"/></svg>`;
+const BATTERY = `<svg width="25" height="13" viewBox="0 0 26 13" fill="none"><rect x="1" y="1.5" width="21" height="10" rx="3" stroke="currentColor" stroke-opacity=".4"/><rect x="2.6" y="3.1" width="14" height="6.8" rx="1.6" fill="currentColor"/><path d="M23.6 4.6 v3.8 a2 2 0 0 0 0-3.8z" fill="currentColor" fill-opacity=".4"/></svg>`;
+const CTRL = `<svg width="16" height="16" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="2.4" y="3.4" width="13.2" height="5" rx="2.5"/><rect x="2.4" y="9.6" width="13.2" height="5" rx="2.5"/><circle cx="6.2" cy="5.9" r="1.4" fill="currentColor" stroke="none"/><circle cx="11.8" cy="12.1" r="1.4" fill="currentColor" stroke="none"/></svg>`;
+
+/* ── state ────────────────────────────────────────────────────────────── */
+const POOL = [
+  ['api-routes',   'Editing routes/agents.ts'],
+  ['schema-sync',  'Reconciling Zod contracts'],
+  ['ui-popover',   'Laying out the dropdown'],
+  ['auth-refactor','Searching call sites'],
+  ['lint-pass',    'Running eslint --fix'],
+  ['db-migrate',   'Applying WAL migration'],
+  ['test-suite',   'tsx --test · 142 passing'],
+];
+let agents = [];     // {id,name,status,activity,elapsed}
+let queue = [];      // names awaiting ticker playback
+let playing = false;
+let autoOn = true;
+let nextId = 1;
+let focusTimer = null;
+
+const fmt = s => `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+
+/* ── build one status item, returns its refs ──────────────────────────── */
+function buildStatus(){
+  const root = el('button','status');
+  root.setAttribute('aria-label','Eos agents');
+  const iconFace = el('span','face face-icon show');
+  const count   = el('span','si-count');
+  const spinner = el('span','si-spinner', SPIN);
+  const glyph   = el('span','si-glyph', SUN);
+  iconFace.append(count, spinner, glyph);           // glyph pinned at the right edge
+  const pillFace = el('span','face face-pill');
+  const check = el('span','si-check', CHECK);
+  const name  = el('span','si-name');
+  const done  = el('span','si-done','done');
+  pillFace.append(check, name, done);               // reads ✓ name done, right-aligned
+  root.append(iconFace, pillFace);
+  return { root, iconFace, pillFace, count, spinner, glyph, check, name, done };
+}
+
+/* ── build one popover, returns its refs ──────────────────────────────── */
+function buildPopover(){
+  const root = el('div','pop');
+  const head = el('div','pop-head');
+  const title = el('span','pop-title','Eos');
+  const meta = el('span','pop-meta');
+  head.append(title, meta);
+  const list = el('div','pop-list');
+  const foot = el('div','pop-foot');
+  root.append(head, list, foot);
+  return { root, meta, list, foot };
+}
+
+/* ── build a full device frame ────────────────────────────────────────── */
+function buildFrame(theme){
+  const frame = el('div','frame '+theme);
+  const wall = el('div','wall');
+  const floor = el('div','floor', theme==='light' ? 'Eos.app' : 'Eos.app');
+
+  const bar = el('div','menubar');
+  const left = el('div','mb-left');
+  left.append(el('span','',APPLE), el('b',null,'Eos'));
+  ['File','Edit','View','Agents','Window','Help'].forEach(m => left.append(el('span','mb-menu',m)));
+  const spacer = el('div','mb-spacer');
+  const right = el('div','mb-right');
+
+  const status = buildStatus();
+  right.append(
+    status.root,                                   // leftmost of the right cluster → grows leftward
+    el('span','sys',WIFI),
+    el('span','sys',BATTERY),
+    el('span','sys',CTRL),
+    el('span','mb-clock','Thu Jun 25  9:41 AM')
+  );
+  bar.append(left, spacer, right);
+
+  const pop = buildPopover();
+  frame.append(wall, floor, bar, pop.root);
+  return { frame, status, pop, right };
+}
+
+const L = buildFrame('light');
+const D = buildFrame('dark');
+document.getElementById('frame-light').replaceWith(L.frame); L.frame.id='frame-light';
+document.getElementById('frame-dark').replaceWith(D.frame);  D.frame.id='frame-dark';
+const inst = [L, D];                               // both instances stay in lock-step
+
+/* ── status-item rendering ────────────────────────────────────────────── */
+function setWidthBoth(w){ inst.forEach(i => i.status.root.style.width = w+'px'); }
+
+function applyIcon(){
+  const rc = agents.filter(a => a.status==='running').length;
+  inst.forEach(i => {
+    i.status.pillFace.classList.remove('show','tick');
+    i.status.iconFace.classList.add('show');
+    i.status.spinner.classList.toggle('show', rc>0);
+    i.status.count.classList.toggle('show', rc>0);
+    i.status.count.textContent = rc;
+  });
+  void L.status.root.offsetWidth;                  // force reflow before measuring
+  setWidthBoth(L.status.iconFace.offsetWidth);
+}
+
+function showCompletion(name, first, failed){
+  inst.forEach(i => {
+    i.status.name.textContent = name;
+    i.status.check.innerHTML = failed ? CROSS : CHECK;
+    i.status.check.classList.toggle('fail', !!failed);
+    i.status.iconFace.classList.remove('show');
+    i.status.pillFace.classList.add('show');
+  });
+  void L.status.root.offsetWidth;
+  setWidthBoth(L.status.pillFace.offsetWidth);
+  inst.forEach(i => {
+    i.status.check.classList.remove('draw'); void i.status.check.offsetWidth; i.status.check.classList.add('draw');
+    if(!first){ i.status.pillFace.classList.remove('tick'); void i.status.pillFace.offsetWidth; i.status.pillFace.classList.add('tick'); }
+  });
+}
+
+/* ── the signature sequential playback ────────────────────────────────── */
+async function runQueue(){
+  if(playing) return;
+  playing = true;
+  let first = true;
+  while(queue.length){
+    const item = queue.shift();
+    showCompletion(item.name, first, item.failed);
+    first = false;
+    await sleep(1500);
+  }
+  applyIcon();                                     // collapse back to idle / running
+  playing = false;
+}
+
+/* ── popover rendering ────────────────────────────────────────────────── */
+function statusDot(a){
+  if(a.status==='running') return `<span class="dot run">${SPIN}</span>`;
+  if(a.status==='failed')  return `<span class="dot fail">${CROSS}</span>`;
+  return `<span class="dot done">${CHECK}</span>`;
+}
+function renderPopover(){
+  const ordered = [
+    ...agents.filter(a=>a.status==='running'),
+    ...agents.filter(a=>a.status!=='running'),
+  ];
+  const active = agents.filter(a=>a.status==='running').length;
+  inst.forEach(i => {
+    i.pop.meta.textContent = active ? `${active} running` : (agents.length ? 'all done' : 'idle');
+    i.pop.list.innerHTML = '';
+    if(!ordered.length){
+      i.pop.list.append(el('div','pop-empty','No active agents'));
+      return;
+    }
+    ordered.forEach(a => {
+      const row = el('div','pop-row');
+      row.innerHTML =
+        statusDot(a) +
+        `<div class="pop-body"><div class="pop-name">${a.name}</div><div class="pop-act">${a.activity}</div></div>` +
+        `<div class="pop-time">${fmt(a.elapsed)}</div>`;
+      row.addEventListener('click', e => { e.stopPropagation(); focusAgent(a.name); });
+      i.pop.list.append(row);
+    });
+  });
+}
+function updateTimes(){
+  inst.forEach(i => {
+    const rows = i.pop.list.querySelectorAll('.pop-row');
+    const ordered = [
+      ...agents.filter(a=>a.status==='running'),
+      ...agents.filter(a=>a.status!=='running'),
+    ];
+    rows.forEach((r,idx) => { const a = ordered[idx]; if(a){ const t=r.querySelector('.pop-time'); if(t) t.textContent=fmt(a.elapsed); } });
+  });
+}
+
+/* click an agent → "open / focus in Eos" */
+function focusAgent(name){
+  clearTimeout(focusTimer);
+  inst.forEach(i => {
+    i.pop.list.querySelectorAll('.pop-row').forEach(r => {
+      r.classList.toggle('focusing', r.querySelector('.pop-name')?.textContent===name);
+    });
+    i.pop.foot.textContent = `Opening “${name}” in Eos…`;
+    i.pop.foot.classList.add('show');
+  });
+  focusTimer = setTimeout(() => inst.forEach(i => {
+    i.pop.foot.classList.remove('show');
+    i.pop.list.querySelectorAll('.pop-row').forEach(r => r.classList.remove('focusing'));
+  }), 1100);
+}
+
+/* ── popover open / close (right edge pinned to the status item) ───────── */
+function openPop(i){
+  inst.forEach(o => { if(o!==i){ o.pop.root.classList.remove('open'); o.status.root.classList.remove('open'); } });
+  renderPopover();
+  const s = i.status.root;
+  const rightGap = i.frame.clientWidth - (s.offsetLeft + s.offsetWidth);
+  i.pop.root.style.right = Math.max(8, rightGap) + 'px';
+  i.pop.root.classList.add('open');
+  s.classList.add('open');
+}
+function closeAll(){ inst.forEach(i => { i.pop.root.classList.remove('open'); i.status.root.classList.remove('open'); }); }
+
+inst.forEach(i => i.status.root.addEventListener('click', e => {
+  e.stopPropagation();
+  const isOpen = i.pop.root.classList.contains('open');
+  closeAll();
+  if(!isOpen) openPop(i);
+}));
+document.addEventListener('click', closeAll);
+
+/* ── demo actions ─────────────────────────────────────────────────────── */
+function addAgent(name, activity){
+  const used = new Set(agents.map(a=>a.name));
+  if(!name){ const p = POOL.find(p=>!used.has(p[0])) || POOL[agents.length % POOL.length]; name=p[0]; activity=p[1]; }
+  agents.push({ id:nextId++, name, status:'running', activity, elapsed: 2 + Math.floor(Math.random()*40) });
+  if(!playing) applyIcon();
+  renderPopover();
+}
+function completeOne(){
+  const a = agents.find(a=>a.status==='running');
+  if(!a) return;
+  a.status='completed'; a.activity='Finished · changes ready';
+  queue.push({ name:a.name, failed:false });
+  renderPopover(); runQueue();
+}
+function completeAll(){
+  const running = agents.filter(a=>a.status==='running');
+  running.forEach(a => { a.status='completed'; a.activity='Finished · changes ready'; queue.push({ name:a.name, failed:false }); });
+  renderPopover(); runQueue();
+}
+function failOne(){
+  const a = agents.find(a=>a.status==='running');
+  if(!a) return;
+  a.status='failed'; a.activity='Stopped · needs input';
+  queue.push({ name:a.name, failed:true });
+  renderPopover(); runQueue();
+}
+function reset(){
+  agents = []; queue = [];
+  if(!playing) applyIcon();
+  renderPopover();
+}
+
+document.querySelector('.controls').addEventListener('click', e => {
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if(!act) return;
+  if(act!=='auto') stopAuto();
+  if(act==='add') addAgent();
+  else if(act==='one') completeOne();
+  else if(act==='all') completeAll();
+  else if(act==='fail') failOne();
+  else if(act==='reset') reset();
+  else if(act==='auto') toggleAuto(e.target.closest('[data-act]'));
+});
+
+/* ── auto demo loop ───────────────────────────────────────────────────── */
+const waitQueue = () => new Promise(res => { const t=setInterval(()=>{ if(!playing && !queue.length){ clearInterval(t); res(); } },120); });
+
+async function autoLoop(){
+  while(autoOn){
+    reset(); await sleep(1300); if(!autoOn) break;
+    const picks = POOL.slice(0,4);
+    for(const [n,a] of picks){ if(!autoOn) break; addAgent(n,a); await sleep(640); }
+    await sleep(2200); if(!autoOn) break;
+    completeAll();
+    await waitQueue(); if(!autoOn) break;
+    await sleep(1600);
+  }
+}
+function stopAuto(){
+  if(!autoOn) return;
+  autoOn=false;
+  const b=document.querySelector('[data-act="auto"]');
+  b.dataset.on='false'; b.textContent='Auto demo: Off';
+}
+function toggleAuto(btn){
+  autoOn = !autoOn;
+  btn.dataset.on = autoOn ? 'true' : 'false';
+  btn.textContent = 'Auto demo: ' + (autoOn ? 'On' : 'Off');
+  if(autoOn) autoLoop();
+}
+
+/* tick running elapsed each second */
+setInterval(() => {
+  let changed=false;
+  agents.forEach(a => { if(a.status==='running'){ a.elapsed++; changed=true; } });
+  if(changed) updateTimes();
+}, 1000);
+
+/* ── boot ─────────────────────────────────────────────────────────────── */
+applyIcon();
+renderPopover();
+autoLoop();
+</script>
+</body>
+</html>
