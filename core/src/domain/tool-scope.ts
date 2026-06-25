@@ -5,7 +5,7 @@ export {
   EOS_BUILTIN_MCP_SERVERS,
   isEosControlTool,
   BLOCKED_BUILTIN_TOOLS,
-  BLOCKED_BUILTIN_TOOL_MESSAGE,
+  blockedBuiltinToolMessage,
   isBlockedBuiltinTool,
 } from "../../../contracts/src/tool-scope.ts";
 export type { EosBuiltinMcpServer } from "../../../contracts/src/tool-scope.ts";

@@ -314,7 +314,7 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.deepEqual(capturedOptions!.settingSources, ["user", "project"]); // load user/project so the binary discovers skills/agents/CLAUDE.md natively
     assert.deepEqual(capturedOptions!.managedSettings, { allowManagedPermissionRulesOnly: true }); // settings permission rules can't pre-approve ahead of the Eos gateway
     assert.equal(capturedOptions!.strictMcpConfig, true);
-    assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion"]); // worker spec (isOrchestrator:false) → AUQ only, Task kept
+    assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion", "Workflow"]); // worker spec (isOrchestrator:false) → blocked builtins only, Task kept
     assert.deepEqual(capturedOptions!.allowedTools, []); // nothing auto-approved → canUseTool gates every call
     assert.equal(capturedOptions!.systemPrompt, undefined); // no assembleAppendPrompt dep here → no append
     assert.deepEqual(ctxSelfIds, ["w-1"]); // ctx identity bound per-spec, not process.env
@@ -336,11 +336,11 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     });
 
     await be.start(spec({ isOrchestrator: true }), {});
-    assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion", "Task"]);
+    assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion", "Workflow", "Task"]);
 
     capturedOptions = null;
     await be.start(spec({ isOrchestrator: false }), {});
-    assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion"]);
+    assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion", "Workflow"]);
   });
 
   it("per-spec tool context: concurrent workers never share identity", async () => {

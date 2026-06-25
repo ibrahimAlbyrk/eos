@@ -10,8 +10,10 @@ set -uo pipefail
 input=$(cat)
 tool_name=$(printf '%s' "$input" | jq -r '.tool_name // ""' 2>/dev/null || echo "")
 
-# Keep the message in sync with BLOCKED_BUILTIN_TOOL_MESSAGE in
-# contracts/src/tool-scope.ts (PreToolUse + step-0 enforce the same deny).
+# Keep the message in sync with blockedBuiltinToolMessage("AskUserQuestion") in
+# contracts/src/tool-scope.ts (PreToolUse + step-0 enforce the same deny). The
+# other blocked builtin (Workflow) is stripped from the model surface via
+# --disallowedTools, so it never reaches this PermissionRequest hook.
 if [ "$tool_name" = "AskUserQuestion" ]; then
   echo '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny","message":"AskUserQuestion is disabled in Eos — its native menu has no answer surface here. Orchestrator: ask the operator via mcp__orchestrator__ask_user. Worker: proceed on your best judgment or report `needs input: <ask>` to your parent."}}}'
   exit 0

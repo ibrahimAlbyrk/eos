@@ -5,7 +5,7 @@
 // PreToolUse/PostToolUse hooks only emit activity, they never decide).
 
 import type { CanUseTool, PermissionResult } from "@anthropic-ai/claude-agent-sdk";
-import { isBlockedBuiltinTool, BLOCKED_BUILTIN_TOOL_MESSAGE } from "../../../contracts/src/tool-scope.ts";
+import { isBlockedBuiltinTool, blockedBuiltinToolMessage } from "../../../contracts/src/tool-scope.ts";
 
 export interface PolicyDecision {
   behavior: "allow" | "deny";
@@ -21,10 +21,10 @@ export interface PolicyDecider {
 
 export function makeCanUseTool(workerId: string, policy: PolicyDecider): CanUseTool {
   return async (toolName, input): Promise<PermissionResult> => {
-    // AskUserQuestion is hard-denied platform-wide; redirect to the orchestrator
-    // ask_user MCP tool (single source: contracts/src/tool-scope.ts).
+    // Blocked builtins are hard-denied platform-wide with a tool-keyed message
+    // (single source: contracts/src/tool-scope.ts).
     if (isBlockedBuiltinTool(toolName)) {
-      return { behavior: "deny", message: BLOCKED_BUILTIN_TOOL_MESSAGE };
+      return { behavior: "deny", message: blockedBuiltinToolMessage(toolName) };
     }
     const d = await policy.decide({ workerId, toolName, input });
     return d.behavior === "allow"

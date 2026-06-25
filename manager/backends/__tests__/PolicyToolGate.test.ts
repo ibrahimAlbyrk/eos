@@ -25,6 +25,16 @@ describe("PolicyToolGate — Lane B gate over the shared policy engine", () => {
     assert.equal(consulted, false);
   });
 
+  it("hard-denies the blocked builtin Workflow with a Workflow-specific message", async () => {
+    let consulted = false;
+    const policy: PolicyDecider = { async decide() { consulted = true; return { behavior: "allow" }; } };
+    const gate = makePolicyToolGate("w-1", policy);
+    const r = await gate.decide("Workflow", {});
+    assert.equal(r.allow, false);
+    assert.equal(consulted, false);
+    assert.match(r.message ?? "", /mcp__orchestrator__workflow/);
+  });
+
   it("passes the workerId + tool through to the policy", async () => {
     const seen: unknown[] = [];
     const policy: PolicyDecider = { async decide(i) { seen.push(i); return { behavior: "allow" }; } };

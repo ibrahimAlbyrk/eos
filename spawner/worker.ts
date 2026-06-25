@@ -12,7 +12,7 @@ import { join } from "node:path";
 import { spawn as ptySpawn } from "@homebridge/node-pty-prebuilt-multiarch";
 
 import { WORKER_EXIT, mcpReadyFlagName } from "../contracts/src/util.ts";
-import { isEosControlTool, isBlockedBuiltinTool, BLOCKED_BUILTIN_TOOL_MESSAGE } from "../contracts/src/tool-scope.ts";
+import { isEosControlTool, isBlockedBuiltinTool, blockedBuiltinToolMessage } from "../contracts/src/tool-scope.ts";
 import { buildSubscriptionChildEnv } from "../core/src/domain/env-allowlist.ts";
 import { parseWorkerOptions, expectsMcpReady } from "./options.ts";
 import { createDaemonEventClient } from "./events.ts";
@@ -624,7 +624,7 @@ const ingest = startIngestServer(opts.port, {
       const toolName = typeof body.tool_name === "string" ? body.tool_name : "unknown";
       if (isBlockedBuiltinTool(toolName) || (agentId && isEosControlTool(toolName))) {
         const reason = isBlockedBuiltinTool(toolName)
-          ? BLOCKED_BUILTIN_TOOL_MESSAGE
+          ? blockedBuiltinToolMessage(toolName)
           : `${toolName} is main-agent only — subagents cannot use Eos control tools. Return your findings; the main agent acts on them.`;
         const attribution = parentAgentToolUseId ? { parentAgentToolUseId } : {};
         evt.emit("tool_running", { toolName, toolUseId: body.tool_use_id ?? null, input: body.tool_input ?? {}, ...attribution });

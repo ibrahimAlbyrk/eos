@@ -6,12 +6,12 @@
 
 import type { ToolGate } from "../../core/src/use-cases/ToolRuntime.ts";
 import type { PolicyDecider } from "./sdk/SdkPermissionBridge.ts";
-import { isBlockedBuiltinTool, BLOCKED_BUILTIN_TOOL_MESSAGE } from "../../contracts/src/tool-scope.ts";
+import { isBlockedBuiltinTool, blockedBuiltinToolMessage } from "../../contracts/src/tool-scope.ts";
 
 export function makePolicyToolGate(workerId: string, policy: PolicyDecider): ToolGate {
   return {
     async decide(toolName, input) {
-      if (isBlockedBuiltinTool(toolName)) return { allow: false, message: BLOCKED_BUILTIN_TOOL_MESSAGE };
+      if (isBlockedBuiltinTool(toolName)) return { allow: false, message: blockedBuiltinToolMessage(toolName) };
       const d = await policy.decide({ workerId, toolName, input });
       return d.behavior === "allow" ? { allow: true } : { allow: false, message: d.message };
     },

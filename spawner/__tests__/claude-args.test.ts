@@ -58,7 +58,12 @@ describe("buildClaudeArgs positional boot prompt", () => {
   it("orchestrator spawn disallows Task; worker spawn does not pass --disallowedTools", () => {
     const orch = buildClaudeArgs(opts({ isOrchestrator: true }), "/tmp", "/tmp/s.json", ENV).args;
     assert.ok(orch.includes("--disallowedTools"), "orchestrator argv includes --disallowedTools");
+    assert.ok(orch.includes("AskUserQuestion"), "orchestrator argv disallows AskUserQuestion");
+    assert.ok(orch.includes("Workflow"), "orchestrator argv disallows Workflow");
     assert.ok(orch.includes("Task"), "orchestrator argv disallows Task");
+    // blocked builtins first, then orchestrator-only Task
+    const tools = orch.slice(orch.indexOf("--disallowedTools") + 1, orch.indexOf("--model"));
+    assert.deepEqual(tools, ["AskUserQuestion", "Workflow", "Task"]);
     // variadic <tools...> must be terminated by the next flag, not swallow it
     assert.ok(orch.indexOf("--disallowedTools") < orch.indexOf("--model"));
     assert.equal(orch[orch.indexOf("--model") - 1], "Task");

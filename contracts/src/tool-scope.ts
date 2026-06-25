@@ -17,15 +17,26 @@ export function isEosControlTool(toolName: string): boolean {
 // Built-in tools with no usable surface in Eos. AskUserQuestion's native TUI
 // menu has no reliable answer channel here — the operator answers through the
 // dashboard, which the orchestrator reaches via mcp__orchestrator__ask_user
-// instead. Enforced at every layer that can fire: auto-allow.sh
-// (PermissionRequest), spawner PreToolUse (the only gate under native
-// bypassPermissions), and PolicyGatewayService step 0 (ahead of user rules).
-export const BLOCKED_BUILTIN_TOOLS = ["AskUserQuestion"] as const;
+// instead. Workflow is claude's built-in CLI/SDK orchestration harness, which
+// has no surface in Eos either — orchestration goes through the
+// mcp__orchestrator__workflow tool, so the built-in is removed entirely.
+// Enforced at every layer that can fire: auto-allow.sh (PermissionRequest),
+// spawner PreToolUse (the only gate under native bypassPermissions), and
+// PolicyGatewayService step 0 (ahead of user rules).
+export const BLOCKED_BUILTIN_TOOLS = ["AskUserQuestion", "Workflow"] as const;
 
-export const BLOCKED_BUILTIN_TOOL_MESSAGE =
-  "AskUserQuestion is disabled in Eos — its native menu has no answer surface here. " +
-  "Orchestrator: ask the operator via mcp__orchestrator__ask_user. " +
-  "Worker: proceed on your best judgment or report `needs input: <ask>` to your parent.";
+const BLOCKED_BUILTIN_TOOL_MESSAGES: Record<string, string> = {
+  AskUserQuestion:
+    "AskUserQuestion is disabled in Eos — its native menu has no answer surface here. " +
+    "Orchestrator: ask the operator via mcp__orchestrator__ask_user. " +
+    "Worker: proceed on your best judgment or report `needs input: <ask>` to your parent.",
+  Workflow:
+    "The built-in Workflow tool is disabled in Eos — orchestrate via the mcp__orchestrator__workflow tool instead.",
+};
+
+export function blockedBuiltinToolMessage(toolName: string): string {
+  return BLOCKED_BUILTIN_TOOL_MESSAGES[toolName] ?? `${toolName} is disabled in Eos.`;
+}
 
 export function isBlockedBuiltinTool(toolName: string): boolean {
   return (BLOCKED_BUILTIN_TOOLS as readonly string[]).includes(toolName);
