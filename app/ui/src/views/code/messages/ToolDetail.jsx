@@ -122,7 +122,7 @@ export function EditDetail({ tool }) {
   );
 }
 
-function FailureBanner({ tool }) {
+export function FailureBanner({ tool }) {
   const kind = failureKind(tool);
   if (!kind) return null;
   const text = tool.result?.text ?? "";
@@ -498,7 +498,7 @@ const CopyIcon = (
 );
 
 // Copy-to-clipboard button matching the file-path-bar copy affordance.
-function CopyButton({ text, title = "Copy" }) {
+export function CopyButton({ text, title = "Copy" }) {
   const [copied, setCopied] = useState(false);
   const onCopy = (e) => {
     e.stopPropagation();
