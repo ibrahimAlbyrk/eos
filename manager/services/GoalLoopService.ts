@@ -101,6 +101,7 @@ export class GoalLoopService {
           {
             workerId,
             worktreeDir: w.worktree_dir ?? undefined,
+            cwd: w.cwd ?? undefined,
             branch: w.branch ?? undefined,
             forkBaseSha: w.fork_base_sha ?? undefined,
           },
