@@ -2367,6 +2367,46 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .awl-desc { margin-top: 3px; color: var(--fg-dim); font-size: var(--text-sm); line-height: 1.5; }
 .awl-empty { padding: 9px 14px; color: var(--fg-faint); font-size: var(--text-sm); }
 
+/* workflow tool call + run-completion card — reuses the .wd-card chrome, adds the
+   run id + run-status chip and the pretty-printed result block. */
+.wf-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.wf-id {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg);
+  word-break: break-all;
+}
+.tool-item-header .wf-id { margin-left: 6px; }
+.wf-running { font-style: italic; color: var(--fg-faint); }
+.wf-status {
+  font-size: var(--text-xs);
+  padding: 1px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  margin-left: 4px;
+}
+.wf-status-passed { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.wf-status-failed { background: color-mix(in srgb, var(--err) 18%, transparent); color: var(--err); }
+.wf-status-running { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.wf-status-stopped { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.wf-status-pending { background: color-mix(in srgb, var(--fg-faint) 20%, transparent); color: var(--fg-dim); }
+.wf-result {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--fg-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 360px;
+  overflow: auto;
+}
+.wf-card:hover .fp-copy { opacity: 1; }
+
 /* table inside assistant */
 .tbl {
   border: 1px solid var(--border);
