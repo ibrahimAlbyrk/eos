@@ -48,6 +48,7 @@ import { SqliteWorkflowRunRepo } from "../infra/src/persistence/SqliteWorkflowRu
 import { SqliteWorkflowStepRepo } from "../infra/src/persistence/SqliteWorkflowStepRepo.ts";
 import { SqliteRuntimeWorkflowDefinitionStore } from "../infra/src/persistence/SqliteRuntimeWorkflowDefinitionStore.ts";
 import { FileWorkflowDefinitionSource, findProjectWorkflowDefinitionsDir } from "../infra/src/workflow/FileWorkflowDefinitionSource.ts";
+import { NodeScriptRunner } from "../infra/src/workflow/NodeScriptRunner.ts";
 import { BuiltinWorkflowDefinitionSource } from "./workflows/index.ts";
 import { InMemoryStepExecutorRegistry } from "../core/src/workflow/registry.ts";
 import { registerBuiltinExecutors } from "../core/src/workflow/register-builtins.ts";
@@ -55,6 +56,9 @@ import { WorkflowEngineImpl } from "../core/src/workflow/engine.ts";
 import { WorkerSpawnAdapter, type StepSpawnRequest } from "./services/WorkerSpawnAdapter.ts";
 import { EventBusProgressSink } from "./services/EventBusProgressSink.ts";
 import { WorkflowService } from "./services/WorkflowService.ts";
+import { renderWorkflowCompletion } from "./services/workflow-completion.ts";
+import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
+import { dispatchDeps } from "./routes/dispatch-deps.ts";
 import { spawnWorkerHandler } from "./commands/handlers/spawn-worker.ts";
 import { killWorkerHandler } from "./commands/handlers/kill-worker.ts";
 import type { WorkflowDefinition, WorkflowDefinitionRecord } from "../contracts/src/workflow.ts";
@@ -100,6 +104,8 @@ import { createSlashCommandRegistry } from "../core/src/domain/slash-command.ts"
 import { clearCommand } from "../core/src/domain/commands/clear.ts";
 import { resolveMemorySources } from "../core/src/domain/memory-sources.ts";
 import { mergeAvailableWorkers } from "../core/src/domain/worker-definition-catalog.ts";
+import { renderWorkflowDefinitionCatalog } from "../core/src/domain/workflow-definition-catalog.ts";
+import { renderCapabilityCatalog } from "../core/src/domain/workflow-capability-catalog.ts";
 import { selectInjectableMemory } from "../core/src/services/select-injectable-memory.ts";
 import { composeAppendedPrompt } from "../core/src/services/compose-appended-prompt.ts";
 import type { EosBuiltinMcpServer } from "../core/src/domain/tool-scope.ts";
@@ -609,6 +615,14 @@ export function buildContainer() {
             mergeAvailableWorkers(listWorkerDefinitionRecords(lookupCwd), runtimeWorkerDefinitions.listFor(id)),
           )
         : "";
+    // Dynamic per-spawn LIST of available workflow definitions (orchestrator only),
+    // mirroring the worker catalog. The registry-derived capability VOCABULARY is a
+    // daemon constant (workflowCapabilityCatalog) injected for every role — fragment
+    // gating, not the var, decides who sees it.
+    const workflowDefinitionCatalog =
+      role === "orchestrator"
+        ? renderWorkflowDefinitionCatalog(listWorkflowDefinitionRecords(lookupCwd, id))
+        : "";
     const { text } = assembleSystemPrompt(
       { registry: promptRegistry, prompts },
       {
@@ -628,6 +642,8 @@ export function buildContainer() {
         canCollaborate: !!spec.collaborate,
         workerDefinition: spec.workerDefinition ?? "",
         workerDefinitionCatalog,
+        workflowDefinitionCatalog,
+        workflowCapabilityCatalog,
       },
       extra,
     );
@@ -894,23 +910,27 @@ export function buildContainer() {
   );
   const userWorkflowDefinitionsDir = join(config.daemon.home, "workflows");
   const builtinWorkflowDefinitions = new BuiltinWorkflowDefinitionSource();
-  // Definition-overlay resolver (clone of the worker-def resolver): builtin
-  // code-DSL modules < on-disk user/project files < the owner's runtime store.
-  // nearest-wins (last match by name), so the builtins are listed FIRST (lowest
-  // precedence); an unknown name returns null → the run use-case throws a hard error.
-  const resolveWorkflowDefinition = (name: string, ownerId: string): WorkflowDefinition | null => {
-    const ownerRow = workers.findById(ownerId);
-    const cwd = ownerRow?.worktree_dir ?? ownerRow?.cwd ?? null;
+  // The single source list both the resolver (find-one) and the orchestrator
+  // catalog (list-all) read: builtin code-DSL modules < on-disk user/project files
+  // < the owner's runtime store. Factored to keep the dir logic in one place (DRY).
+  const listWorkflowDefinitionRecords = (cwd: string | null, ownerId: string): WorkflowDefinitionRecord[] => {
     const dirs = [{ dir: userWorkflowDefinitionsDir, source: "user" as const }];
     const proj = cwd ? findProjectWorkflowDefinitionsDir(cwd) : null;
     if (proj) dirs.push({ dir: proj, source: "project" as const });
-    const records: WorkflowDefinitionRecord[] = [
+    return [
       ...builtinWorkflowDefinitions.list(),
       ...new FileWorkflowDefinitionSource(dirs).list(),
       ...runtimeWorkflowDefinitions.listFor(ownerId),
     ];
+  };
+  // Definition-overlay resolver (clone of the worker-def resolver): nearest-wins
+  // (last match by name), so the builtins are listed FIRST (lowest precedence); an
+  // unknown name returns null → the run use-case throws a hard error.
+  const resolveWorkflowDefinition = (name: string, ownerId: string): WorkflowDefinition | null => {
+    const ownerRow = workers.findById(ownerId);
+    const cwd = ownerRow?.worktree_dir ?? ownerRow?.cwd ?? null;
     let found: WorkflowDefinition | null = null;
-    for (const r of records) {
+    for (const r of listWorkflowDefinitionRecords(cwd, ownerId)) {
       if (r.name === name) { const { source: _source, ...def } = r; found = def; }
     }
     return found;
@@ -937,7 +957,19 @@ export function buildContainer() {
     runSpawn: runStepSpawn, killWorker: runStepKill,
   });
   const workflowRegistry = new InMemoryStepExecutorRegistry();
-  registerBuiltinExecutors(workflowRegistry);
+  // Trusted `script` node runner (§ITEM 1): resolves a script NAME only against
+  // the operator-controlled allowlist (~/.eos/scripts), never an arbitrary path.
+  const scriptRunner = new NodeScriptRunner({
+    scriptDirs: [join(config.daemon.home, "scripts")],
+    defaultCwd: config.paths.repoRoot,
+    defaultTimeoutMs: config.workflow.defaultScriptTimeoutMs,
+  });
+  const { transforms: workflowTransforms } = registerBuiltinExecutors(workflowRegistry, undefined, scriptRunner);
+  // Registry-derived capability VOCABULARY for the orchestrator prompt: node-type +
+  // transform-fn names straight from the live registries, so the prompt can never
+  // drift (a new executor/fn — e.g. the `script` node — shows up automatically). A
+  // daemon constant: the registries are fixed once registered.
+  const workflowCapabilityCatalog = renderCapabilityCatalog(workflowRegistry.types(), workflowTransforms.names());
   const workflowEngine = new WorkflowEngineImpl({
     registry: workflowRegistry,
     runs: workflowRuns,
@@ -958,6 +990,22 @@ export function buildContainer() {
     definitions: runtimeWorkflowDefinitions,
     resolveDefinition: resolveWorkflowDefinition,
     resolveMode: (ownerId) => modeResolver.resolveFor(ownerId),
+    // On completion, deliver the FULL result to the run owner as a worker_report —
+    // the orchestrator sees everything without polling status. self.c is late-bound
+    // (this closure only fires when a run completes, long after boot). The stable
+    // clientMsgId makes a boot re-arm's re-completion idempotent.
+    deliverCompletion: (ownerId, result) => {
+      const body = renderWorkflowCompletion(result);
+      void dispatchMessage(dispatchDeps(self.c!), {
+        workerId: ownerId,
+        text: body,
+        displayText: body,
+        envelope: { kind: "worker_report", fromWorker: result.runId, workerName: "workflow" },
+        queueWhenBusy: true,
+        clientMsgId: `wf-complete:${result.runId}`,
+        origin: "workflow-completion",
+      }).catch((e) => log.warn("workflow completion dispatch failed", { error: errMsg(e) }));
+    },
     ids: randomIdGenerator,
     log,
   });
