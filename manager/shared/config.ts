@@ -118,11 +118,13 @@ export interface DaemonConfig {
   // Deterministic workflow-orchestration engine (daemon-resident). `enabled`
   // gates the run path; `maxConcurrentSteps` is the per-run leaf-spawn cap fed to
   // the engine's ConcurrencyGate; `defaultStepTimeoutMs` is reserved (0 = no
-  // step timeout enforced yet).
+  // step timeout enforced yet); `defaultScriptTimeoutMs` is the kill deadline a
+  // `script` node uses when it sets no `timeoutMs` of its own (§ITEM 1).
   workflow: {
     enabled: boolean;
     maxConcurrentSteps: number;
     defaultStepTimeoutMs: number;
+    defaultScriptTimeoutMs: number;
   };
   // Peer collaboration (collaborate: true workers). awaitTimeoutMs: how long an
   // ask_peer consult to a not-yet-spawned peer waits for that peer to join
@@ -285,6 +287,7 @@ export function defaults(): DaemonConfig {
       enabled: true,
       maxConcurrentSteps: 8,
       defaultStepTimeoutMs: 0,
+      defaultScriptTimeoutMs: 30000,
     },
     collaborate: {
       awaitTimeoutMs: envNum("EOS_COLLABORATE_AWAIT_TIMEOUT_MS", 120000),
@@ -391,6 +394,7 @@ export const DaemonConfigOverrideSchema = z.object({
     enabled: z.boolean(),
     maxConcurrentSteps: z.number().int().positive(),
     defaultStepTimeoutMs: z.number().int().nonnegative(),
+    defaultScriptTimeoutMs: z.number().int().nonnegative(),
   }).partial().optional(),
   collaborate: z.object({
     awaitTimeoutMs: z.number().int().positive(),

@@ -88,6 +88,7 @@ describe("loadConfig — defaults", () => {
       enabled: true,
       maxConcurrentSteps: 8,
       defaultStepTimeoutMs: 0,
+      defaultScriptTimeoutMs: 30000,
     });
   });
 });

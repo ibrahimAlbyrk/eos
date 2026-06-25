@@ -15,6 +15,9 @@ export const USER_DATA_ENTRIES = [
   // User-authored workflow definitions (~/.eos/workflows/*.json|.md) — same
   // non-regenerable user data as workers; must be inside the safety net.
   "workflows",
+  // Operator-trusted local scripts a workflow `script` node may run (the
+  // allowlist root, ~/.eos/scripts) — non-regenerable user data (§ITEM 1).
+  "scripts",
   "policy.yaml",
   "config.json",
   // Files-explorer trash fallback (used only when the macOS Finder Trash is
