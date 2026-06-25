@@ -76,9 +76,12 @@ final class AgentPopover: NSObject, NSPopoverDelegate {
         highlight()
     }
 
-    func show(relativeTo button: NSStatusBarButton) {
+    // positioningRect is the visible dawn-star's frame in `button` coordinates,
+    // so the caret points at the star's centre (not the button centre — which is
+    // offset left whenever a running count sits to the glyph's left).
+    func show(from button: NSStatusBarButton, positioningRect: NSRect) {
         selection = -1
-        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        popover.show(relativeTo: positioningRect, of: button, preferredEdge: .minY)
         installKeyMonitor()
         elapsedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             self?.refreshTimes()

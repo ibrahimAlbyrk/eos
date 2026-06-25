@@ -187,6 +187,16 @@ final class BarStatusView: NSView {
 
     func setConnected(_ value: Bool) { connected = value; render() }
 
+    // The visible dawn-star's frame in the status button's coordinate space.
+    // The popover anchors its caret to this, not to button.bounds: when a running
+    // count sits to the glyph's left the star is right-of-centre in the button, so
+    // a button-centred caret would point left of the star (the off-kilter bug).
+    // x is flip-invariant and `starLayer.position.x` is the star's true centre.
+    func glyphAnchorRect(in button: NSView) -> NSRect {
+        let cx = starLayer.position.x
+        return NSRect(x: cx - glyph / 2, y: 0, width: glyph, height: button.bounds.height)
+    }
+
     private func attr(_ s: String, _ font: NSFont, _ color: NSColor) -> NSAttributedString {
         NSAttributedString(string: s, attributes: [.font: font, .foregroundColor: color])
     }
@@ -376,7 +386,8 @@ final class StatusItemController: NSObject, CompletionPresenter {
 
     private func togglePopover() {
         guard let button = statusItem.button else { return }
-        if popover.isShown { popover.close() } else { popover.show(relativeTo: button) }
+        if popover.isShown { popover.close() }
+        else { popover.show(from: button, positioningRect: barView.glyphAnchorRect(in: button)) }
     }
 
     // Right-click / control-click → the conventional menu-bar affordance with a
