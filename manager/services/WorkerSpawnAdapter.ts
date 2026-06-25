@@ -104,11 +104,21 @@ function readHeld(payload: unknown): boolean {
   return !!(payload && typeof payload === "object" && (payload as { held?: unknown }).held === true);
 }
 
+// A turn-end: transitionState publishes worker:change with the new state on the
+// WORKING→IDLE edge. Other worker:change publishers carry no state — filtered out.
+function isTurnEndIdle(payload: unknown): boolean {
+  return !!(payload && typeof payload === "object" && (payload as { state?: unknown }).state === "IDLE");
+}
+
 export class WorkerSpawnAdapter implements WorkerSpawnPort {
   private readonly deps: WorkerSpawnAdapterDeps;
   private readonly joins = new Map<string, PendingJoin>();
   // Anchor ids minted by this adapter — their own worker:exit never settles a step.
   private readonly anchors = new Set<string>();
+  // Last assistant TEXT seen per JOINED step-worker, fed by the daemon onAgentEvent
+  // sink (noteAssistantText). Used to settle a step that ends its turn without a
+  // voluntary report. Bounded to active joins (non-step workers are ignored).
+  private readonly lastText = new Map<string, string>();
   private readonly unsubs: Array<() => void> = [];
 
   constructor(deps: WorkerSpawnAdapterDeps) {
@@ -116,6 +126,14 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
     // ONE shared subscription for every PendingJoin (not one per spawn).
     this.unsubs.push(deps.bus.subscribe("worker:report", (m) => this.onReport(m.payload)));
     this.unsubs.push(deps.bus.subscribe("worker:exit", (m) => this.onExit(m.payload)));
+    this.unsubs.push(deps.bus.subscribe("worker:change", (m) => this.onStateChange(m.payload)));
+  }
+
+  // Fed from the composition root's onAgentEvent sink on every assistant message.
+  // Cheap no-op for non-step workers (only active joins are tracked).
+  noteAssistantText(workerId: string, text: string): void {
+    if (!this.joins.has(workerId)) return;
+    if (text) this.lastText.set(workerId, text);
   }
 
   stop(): void {
@@ -134,6 +152,7 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
     // recovered `worker_report` against the node instead of re-spawning it (§3.7).
     this.deps.steps.setWorker(spec.runId, spec.nodeId, id);
     return new Promise<StepOutcome>((resolve, reject) => {
+      let timer: ReturnType<typeof setTimeout> | null = null;
       const onAbort = (): void => {
         const entry = this.joins.get(id);
         if (!entry) return;
@@ -142,14 +161,32 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
         entry.reject(new Error("workflow run aborted"));
       };
       signal.addEventListener("abort", onAbort, { once: true });
-      const cleanup = (): void => signal.removeEventListener("abort", onAbort);
+      const cleanup = (): void => {
+        signal.removeEventListener("abort", onAbort);
+        if (timer) clearTimeout(timer);
+        this.lastText.delete(id);
+      };
       this.joins.set(id, {
         runId: spec.runId,
         nodeId: spec.nodeId,
         sawReport: false,
+        loopPending: !!spec.loop,
         resolve: (o) => { cleanup(); resolve(o); },
         reject: (e) => { cleanup(); reject(e); },
       });
+      // Hang backstop: a step that NEVER reports AND never produces a final answer
+      // (a worker stuck WORKING, or one that ends its turn empty) would wedge the
+      // run forever. Fail it loudly after stepTimeoutMs instead. 0 = off.
+      if (this.deps.stepTimeoutMs > 0) {
+        timer = setTimeout(() => {
+          const entry = this.joins.get(id);
+          if (!entry) return;
+          this.joins.delete(id);
+          this.deps.killWorker(id); // reap the stuck worker
+          entry.reject(new Error(`step worker ${id} timed out after ${this.deps.stepTimeoutMs}ms without reporting or producing a final answer`));
+        }, this.deps.stepTimeoutMs);
+        (timer as { unref?: () => void }).unref?.(); // never keep the daemon alive for it
+      }
     });
   }
 
@@ -249,5 +286,22 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
     if (entry.sawReport) return; // reported (held) then died — keep waiting for the release
     this.joins.delete(workerId);
     entry.reject(new Error(`step worker ${workerId} exited before reporting`));
+  }
+
+  // Turn-end settle (the report is OPTIONAL): a step-worker that answered and ended
+  // its turn without send_message_to_parent settles HERE on its WORKING→IDLE edge,
+  // using its last assistant text as the step output. Resolve-once: a worker that
+  // already reported has no join left, so this is a no-op for it.
+  private onStateChange(payload: unknown): void {
+    if (!isTurnEndIdle(payload)) return;
+    const workerId = readWorkerId(payload);
+    if (!workerId) return;
+    const entry = this.joins.get(workerId);
+    if (!entry) return;
+    if (entry.loopPending) return; // looped step: settles only on the loop-release republish
+    const text = this.lastText.get(workerId);
+    if (!text || text.trim().length === 0) return; // no final answer — let the timeout reject
+    this.joins.delete(workerId);
+    entry.resolve({ workerId, signal: classifyReport(text), reportText: text });
   }
 }

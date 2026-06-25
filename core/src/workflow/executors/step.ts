@@ -45,6 +45,7 @@ function spawnStep(node: StepNode, ctx: WorkflowExecCtx, prompt: string): Promis
     mode: ctx.mode,
     collaborate: true,
     outputSchema: node.outputSchema,
+    loop: node.loop,
   };
   return ctx.concurrency.run(() => ctx.spawn.spawnAndAwait(spec, ctx.signal));
 }
