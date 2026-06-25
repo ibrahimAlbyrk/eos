@@ -5,6 +5,7 @@ variables:
   - SPAWN_WORKER_TOOL
   - CREATE_WORKER_TOOL
   - ASK_PEER_TOOL
+  - WORKFLOW_CAPABILITY_CATALOG
   - LB
   - RB
 dpi:
@@ -45,21 +46,26 @@ One tool, mode-discriminated. The full call contract and return shapes live in t
 - `create {spec}` — validate + persist a spec for reuse (does NOT run it; run later with `run-stored`).
 - `status {runId}` / `stop {runId}` — poll a run, or abort it (reaps the run's whole worker subtree).
 
-Two builtins resolve by `from:` today: **`research-analysis-planning`** (3 research → 5 analysis over the full corpus → 2 plans) and **`build-with-experts`** (plan → implement each module with SOLID/patterns experts on call → review).
+`run-stored {from}` resolves a catalogued definition by name — see §Available workflows for the live list (the built-ins plus anything you or the project define).
 
 ## How to author a spec
 
 A `WorkflowDefinition` is `{ name, experts?, root }` (`name` required; `description?` and `argsSchema?` optional). `root` is a single node; container nodes nest `children`/`body`/`stages` to any depth. Every node carries a stable `id`; its result lands under `{{LB}}nodes.<id>.output{{RB}}`.
 
+The engine accepts exactly these node types and transform-fn names (registry-derived — the authoritative roster; the table below documents each node's fields, and a glue node's `fn` must be one of the transform-fn names):
+
+{{WORKFLOW_CAPABILITY_CATALOG}}
+
 | Node | Key fields | Does |
 |---|---|---|
-| `step` | `from?`, `prompt`, `model?`, `effort?`, `toolsAllow?`, `toolsDeny?`, `outputSchema?` | **The only leaf that spawns a worker.** Its **final report IS the output**; with `outputSchema`, end that report with a ```json block and the engine returns the parsed object instead. |
+| `step` | `from?`, `prompt`, `model?`, `effort?`, `toolsAllow?`, `toolsDeny?`, `outputSchema?`, `loop?` | **The only leaf that spawns a worker.** Its **final report IS the output**; with `outputSchema`, end that report with a ```json block and the engine returns the parsed object instead. `loop` (a `dynamic_loop` goal) makes the worker self-iterate until a judged goal is met — see `loopUntil` for when to use it. |
+| `script` | `script`, `over?`, `args?`, `timeoutMs?` | **Runs a TRUSTED local script, spawns NO worker** — deterministic glue, hook-style. `script` names an operator-installed script in `~/.eos/scripts` (a NAME, never a path); `over`'s bound value is passed as JSON on stdin + `EOS_NODE_INPUT`, `args` as argv. Output is `{{LB}}exitCode, stdout, stderr{{RB}}` (stdout parsed as JSON when it parses) so a `conditional` can branch; exit 0 ⇒ passed. **Trust gate: usable ONLY from a stored/builtin workflow (`create` then `run-stored`) — a `run-inline` spec carrying a `script` node is rejected.** |
 | `sequence` | `children[]` | run children in order; bindings accumulate. |
 | `parallel` | `children[]` | run children at once; **barrier** — awaits all. Use when a later step needs ALL of them. |
 | `pipeline` | `over`, `stages[]` | each item of `over` flows through all stages independently (no barrier). |
 | `forEach` | `over`, `body` | data-driven fan-out over a bound list; `{{LB}}item{{RB}}` is the current element in `body`. |
 | `conditional` | `predicate`, `then`, `else?` | branch on a predicate over bindings. |
-| `loopUntil` | `body`, `until?`, `maxIterations?` | re-run `body` until the predicate or limit. **Use this for loops — a step-worker must NOT arm its own `dynamic_loop`.** |
+| `loopUntil` | `body`, `until?`, `maxIterations?` | re-run `body` until the predicate or limit. **Pick by stop condition: a STRUCTURAL stop (a predicate over bindings) → `loopUntil`; a SEMANTIC "good-enough" stop an LLM/command judges → give a single `step` a `loop` instead — it reuses `dynamic_loop`'s command/judge/hybrid goal check, which a predicate can't express.** |
 | `phase` | `label`, `body` | observability grouping only (no control effect). |
 | `subWorkflow` | `name`, `args?` | run another stored definition inline. |
 | glue: `transform` `map` `filter` `dedup` `tally` `accumulate` | `fn`, `over` (`dedup`/`tally`: `fn?` key; `accumulate`: `init?`) | deterministic, spawns NO worker: `fn` names a **registered pure function by NAME** over the bound `over` list. |
