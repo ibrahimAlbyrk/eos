@@ -31,6 +31,10 @@ final class AgentPopover: NSObject, NSPopoverDelegate {
     private let rowH: CGFloat = 46
     private let maxListH: CGFloat = 230
     private let pad: CGFloat = 7
+    // Fixed chrome bands. The popover size is frozen at show() from these +
+    // the list height, then never mutated while shown — so it can't re-anchor.
+    private let headerH: CGFloat = 30, chipsH: CGFloat = 24, sepGap: CGFloat = 8, footH: CGFloat = 22
+    private let emptyListH: CGFloat = 56
 
     private let popover = NSPopover()
     private let brandImage: NSImage?
@@ -63,17 +67,23 @@ final class AgentPopover: NSObject, NSPopoverDelegate {
         let vc = NSViewController()
         vc.view = glass
         popover.contentViewController = vc
-        layoutChrome(listHeight: 0, hasRows: false)
+        layoutFixedChrome(listH: emptyListH)
     }
 
     // MARK: - Public
 
+    // A live /workers refresh: update header text + rows IN PLACE. Must never
+    // resize the popover or call show() again — both re-anchor it. When shown,
+    // rows are rebuilt inside the fixed-frame scroll view (only the list scrolls);
+    // when hidden, models are stored and rendered at the next show().
     func update(snapshots: [AgentSnapshot]) {
         models = order(snapshots.map(rowModel(from:)))
-        renderHeader(snapshots)
-        renderRows()
         if selection >= models.count { selection = models.count - 1 }
-        highlight()
+        renderHeader(snapshots)
+        if popover.isShown {
+            renderRows()
+            highlight()
+        }
     }
 
     // positioningRect is the visible dawn-star's frame in `button` coordinates,
@@ -81,6 +91,10 @@ final class AgentPopover: NSObject, NSPopoverDelegate {
     // offset left whenever a running count sits to the glyph's left).
     func show(from button: NSStatusBarButton, positioningRect: NSRect) {
         selection = -1
+        // Freeze the size from the rows present right now; it stays fixed for the
+        // whole shown session so neither a scroll nor a live refresh re-anchors it.
+        layoutFixedChrome(listH: listHeight(rowCount: models.count))
+        renderRows()
         popover.show(relativeTo: positioningRect, of: button, preferredEdge: .minY)
         installKeyMonitor()
         elapsedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
@@ -154,9 +168,16 @@ final class AgentPopover: NSObject, NSPopoverDelegate {
         container.addSubview(foot)
     }
 
-    private func layoutChrome(listHeight: CGFloat, hasRows: Bool) {
-        let headerH: CGFloat = 30, chipsH: CGFloat = 24, sepGap: CGFloat = 8, footH: CGFloat = 22
-        let listH = hasRows ? listHeight : 56
+    // The visible list height for a given row count — clamped to maxListH so a
+    // large fleet scrolls internally instead of growing the popover.
+    private func listHeight(rowCount: Int) -> CGFloat {
+        rowCount == 0 ? emptyListH : min(CGFloat(rowCount) * rowH, maxListH)
+    }
+
+    // The ONLY place the popover size + chrome frames are set. Called once at
+    // init and once per show(); never from the live-refresh path. This is what
+    // makes the shown popover's position and size invariant.
+    private func layoutFixedChrome(listH: CGFloat) {
         let total = pad + headerH + chipsH + sepGap + listH + footH + pad
         glass.frame = NSRect(x: 0, y: 0, width: WIDTH, height: total)
         container.frame = glass.bounds
@@ -167,9 +188,7 @@ final class AgentPopover: NSObject, NSPopoverDelegate {
 
         let listY = pad + headerH + chipsH + sepGap
         scroll.frame = NSRect(x: pad - 1, y: listY, width: innerW + 2, height: listH)
-        listDoc.frame = NSRect(x: 0, y: 0, width: scroll.contentSize.width, height: max(listH, CGFloat(models.count) * rowH))
-        emptyLabel.frame = NSRect(x: pad, y: listY + 18, width: innerW, height: 20)
-        emptyLabel.isHidden = hasRows
+        emptyLabel.frame = NSRect(x: pad, y: listY + (listH - 20) / 2, width: innerW, height: 20)
 
         if let foot = container.viewWithTag(902) {
             foot.frame = NSRect(x: pad + 1, y: total - pad - footH + 4, width: innerW, height: 16)
@@ -189,6 +208,10 @@ final class AgentPopover: NSObject, NSPopoverDelegate {
         chipsLabel.stringValue = parts.joined(separator: "   ")
     }
 
+    // Rebuilds the row views inside the (fixed-frame) scroll view's documentView.
+    // Touches ONLY the documentView — never the popover size or scroll frame — so
+    // a refresh changes what scrolls, not where the popover sits. The documentView
+    // grows with the row count; the clip view scrolls it inside its fixed bounds.
     private func renderRows() {
         for v in rowViews { v.removeFromSuperview() }
         rowViews.removeAll()
@@ -203,9 +226,9 @@ final class AgentPopover: NSObject, NSPopoverDelegate {
             listDoc.addSubview(row)
             rowViews.append(row)
         }
-        let listVisible = min(CGFloat(models.count) * rowH, maxListH)
-        layoutChrome(listHeight: listVisible, hasRows: !models.isEmpty)
-        listDoc.frame = NSRect(x: 0, y: 0, width: listW, height: max(listVisible, CGFloat(models.count) * rowH))
+        emptyLabel.isHidden = !models.isEmpty
+        let docH = max(scroll.contentSize.height, CGFloat(models.count) * rowH)
+        listDoc.frame = NSRect(x: 0, y: 0, width: listW, height: docH)
     }
 
     private func refreshTimes() {
