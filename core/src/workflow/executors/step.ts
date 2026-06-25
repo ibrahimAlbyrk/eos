@@ -1,7 +1,9 @@
 // step.ts — the only leaf that touches Eos (§3.4). Resolves its prompt from the
 // run bindings, spawns ONE worker through the SINGLE concurrency choke point
-// (`ctx.concurrency.run`, §3.9), and awaits its terminal report. The final report
-// TEXT is the step's output. When the node declares an `outputSchema` (a live Zod
+// (`ctx.concurrency.run`, §3.9), and awaits its terminal outcome. The worker's
+// final answer TEXT is the step's output — its explicit report if it sent one,
+// else its last message (the adapter settles either way). When the node declares
+// an `outputSchema` (a live Zod
 // schema in the code-DSL path), the engine EXTRACTS JSON from that text and
 // `safeParse`s it; on a parse/validation failure it re-prompts the worker EXACTLY
 // once, and worst case falls back to the raw report text with a `failed` status so
@@ -14,7 +16,7 @@ import type { SpawnStepSpec, StepOutcome } from "../../ports/WorkerSpawnPort.ts"
 import { execLocals, errMessage, extractJson } from "./util.ts";
 
 const SCHEMA_INSTRUCTION =
-  "\n\nEnd your final report with the result as JSON in a fenced ```json block matching the schema.";
+  "\n\nEnd your final answer (your last message) with the result as JSON in a fenced ```json block matching the schema.";
 
 // Duck-typed Zod check — the code-DSL path carries a live schema (parseable); a
 // serialized declarative spec carries a plain JSON-Schema object (not parseable
@@ -88,7 +90,7 @@ export const stepExecutor: StepExecutor<StepNode> = {
     }
 
     const retryPrompt =
-      `${prompt}\n\nYour previous final report did not contain valid JSON matching the schema (${firstTry.error}). End your report with a corrected ` +
+      `${prompt}\n\nYour previous answer did not contain valid JSON matching the schema (${firstTry.error}). End your final answer with a corrected ` +
       "```json block.";
     const second = await spawnStep(node, ctx, retryPrompt);
     const secondTry = validate(schema, second.reportText);
