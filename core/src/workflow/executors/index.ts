@@ -1,4 +1,5 @@
 export { stepExecutor } from "./step.ts";
+export { makeScriptExecutor } from "./script.ts";
 export { sequenceExecutor } from "./sequence.ts";
 export { parallelExecutor } from "./parallel.ts";
 export { pipelineExecutor } from "./pipeline.ts";

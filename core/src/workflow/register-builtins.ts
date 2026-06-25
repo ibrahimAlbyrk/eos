@@ -6,20 +6,32 @@
 // returned one. This wires NOTHING to the manager container — it is pure.
 
 import type { StepExecutorRegistry } from "../ports/StepExecutorRegistry.ts";
+import type { ScriptRunner } from "../ports/ScriptRunner.ts";
 import { TransformFnRegistry, defaultTransformFnRegistry } from "./transforms.ts";
 import {
-  stepExecutor, sequenceExecutor, parallelExecutor, pipelineExecutor,
+  stepExecutor, makeScriptExecutor,
+  sequenceExecutor, parallelExecutor, pipelineExecutor,
   forEachExecutor, loopUntilExecutor, conditionalExecutor, phaseExecutor,
   subWorkflowExecutor,
   makeTransformExecutor, makeMapExecutor, makeFilterExecutor,
   makeDedupExecutor, makeTallyExecutor, makeAccumulateExecutor,
 } from "./executors/index.ts";
 
+// Default when the composition root wires no real runner (tests / a daemon with
+// no scripts dir): a `script` node fails cleanly rather than executing anything.
+const unconfiguredScriptRunner: ScriptRunner = {
+  async run() {
+    return { stdout: "", exitCode: 1, stderr: "script runner not configured" };
+  },
+};
+
 export function registerBuiltinExecutors(
   registry: StepExecutorRegistry,
   transforms: TransformFnRegistry = defaultTransformFnRegistry(),
+  runner: ScriptRunner = unconfiguredScriptRunner,
 ): { transforms: TransformFnRegistry } {
   registry.register(stepExecutor);
+  registry.register(makeScriptExecutor(runner));
   registry.register(sequenceExecutor);
   registry.register(parallelExecutor);
   registry.register(pipelineExecutor);

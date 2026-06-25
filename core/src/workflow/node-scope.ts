@@ -32,6 +32,14 @@ export function collectIds(node: WorkflowNode, acc: Set<string> = new Set()): Se
   return acc;
 }
 
+// Does `node` or any descendant carry the given `type`? The trust gate (§ITEM 1c)
+// uses it to reject a run-inline spec that smuggles a `script` node — script nodes
+// are allowed only from trusted stored/builtin/file definitions.
+export function containsNodeType(node: WorkflowNode, type: WorkflowNode["type"]): boolean {
+  if (node.type === type) return true;
+  return childrenOf(node).some((child) => containsNodeType(child, type));
+}
+
 function childrenOf(node: WorkflowNode): WorkflowNode[] {
   switch (node.type) {
     case "sequence":
@@ -55,6 +63,12 @@ function rewriteNode(node: WorkflowNode, suffix: string, ids: Set<string>): Work
   switch (node.type) {
     case "step":
       return { ...node, id, prompt: rewriteRefs(node.prompt, suffix, ids) };
+    case "script":
+      return {
+        ...node, id,
+        over: node.over !== undefined ? rewriteRefs(node.over, suffix, ids) : undefined,
+        args: node.args?.map((a) => rewriteRefs(a, suffix, ids)),
+      };
     case "sequence":
       return { ...node, id, children: node.children.map((c) => rewriteNode(c, suffix, ids)) };
     case "parallel":
