@@ -885,7 +885,14 @@ export function buildContainer() {
     }
     // Fallback for backends with deltas off: a durable assistant message also
     // means the turn produced output (deltas always precede it on the SDK lane).
-    if (event.type === "message" && event.role === "assistant") turnOutput.markSeen(workerId);
+    if (event.type === "message" && event.role === "assistant") {
+      turnOutput.markSeen(workerId);
+      // Feed the step-join: a workflow step-worker's final answer IS the step
+      // output when it ends its turn without a voluntary report (no-op for any
+      // non-step worker). Keep the LAST assistant message's text.
+      const finalText = event.blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
+      if (finalText) workflowSpawn.noteAssistantText(workerId, finalText);
+    }
     processAgentSignal(
       { workers, events, bus, clock: systemClock, models, log, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id) },
       workerId,
@@ -955,6 +962,7 @@ export function buildContainer() {
   const workflowSpawn = new WorkerSpawnAdapter({
     bus, steps: workflowSteps, workers, clock: systemClock,
     runSpawn: runStepSpawn, killWorker: runStepKill,
+    stepTimeoutMs: config.workflow.defaultStepTimeoutMs,
   });
   const workflowRegistry = new InMemoryStepExecutorRegistry();
   // Trusted `script` node runner (§ITEM 1): resolves a script NAME only against
