@@ -26,6 +26,7 @@ import { ScrollHoldContext } from "./scrollHoldContext.js";
 import { FindBar } from "./FindBar.jsx";
 import { MessageUser } from "./MessageUser.jsx";
 import { MessageReport } from "./MessageReport.jsx";
+import { WorkflowReport } from "./WorkflowCard.jsx";
 import { MessageLoop } from "./MessageLoop.jsx";
 import { LoopStatus } from "./LoopStatus.jsx";
 import { MessageAssistant } from "./MessageAssistant.jsx";
@@ -541,7 +542,7 @@ const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request"
 function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewindDisabled) {
   switch (b.kind) {
     case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled}><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
-    case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
+    case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}>{b.workerName === "workflow" ? <WorkflowReport text={b.text} runId={b.fromWorker} /> : <MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" />}</MessageRow>;
     case "directive": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromParent} agentName={b.parentName} workers={workers} direction="out" /></MessageRow>;
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
     case "loop":      return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageLoop text={b.text} /></MessageRow>;
