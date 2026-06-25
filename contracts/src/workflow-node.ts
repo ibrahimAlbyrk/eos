@@ -18,6 +18,7 @@
 
 import { z } from "zod";
 import { EffortSchema } from "./shared.ts";
+import { SpawnLoopSchema, type SpawnLoop } from "./loop.ts";
 
 type Effort = z.infer<typeof EffortSchema>;
 
@@ -56,6 +57,24 @@ export interface StepNode {
   // final report with a matching ```json block, extracted + validated engine-side.
   // Omitted ⇒ the status-prefixed report text is the output (§3.6 fallback).
   outputSchema?: unknown;
+  // Arm `dynamic_loop` on this step's worker so it self-iterates until an
+  // LLM/command-judged goal is met (R7: holds the report until release). For a
+  // SEMANTIC "good-enough" stop a pure `loopUntil` predicate can't express; a
+  // STRUCTURAL stop stays a `loopUntil` over a single step.
+  loop?: SpawnLoop;
+}
+// script — a trusted local-script leaf (§ITEM 1): runs a NAMED, allowlisted
+// script (the runner resolves it against ~/.eos/scripts — NEVER an arbitrary
+// path/command) with the workflow's data, Claude-Code-hook style. Deterministic
+// glue, NOT an agent spawn. ALLOWED ONLY from a trusted stored/builtin/file
+// definition — a run-inline spec carrying a `script` node is rejected (§1c).
+export interface ScriptNode {
+  type: "script";
+  id: string;
+  script: string;              // allowlisted script id (a NAME, not a path) — see trust gate
+  over?: string;               // binding ref → JSON input (stdin + EOS_NODE_INPUT)
+  args?: string[];             // binding-resolved argv appended after the script
+  timeoutMs?: number;          // omitted ⇒ config.workflow.defaultScriptTimeoutMs
 }
 export interface SequenceNode {
   type: "sequence";
@@ -145,9 +164,10 @@ export interface AccumulateNode {
   init?: unknown;
 }
 
-// The union — exhaustive over all 15 node types.
+// The union — exhaustive over all 16 node types.
 export type WorkflowNode =
   | StepNode
+  | ScriptNode
   | SequenceNode
   | ParallelNode
   | PipelineNode
@@ -175,6 +195,16 @@ export const StepNodeSchema = z.object({
   toolsAllow: z.array(z.string()).optional(),
   toolsDeny: z.array(z.string()).optional(),
   outputSchema: z.unknown().optional(),
+  loop: SpawnLoopSchema.optional(),
+});
+
+export const ScriptNodeSchema = z.object({
+  type: z.literal("script"),
+  id: z.string(),
+  script: z.string(),
+  over: z.string().optional(),
+  args: z.array(z.string()).optional(),
+  timeoutMs: z.number().int().positive().optional(),
 });
 
 export const SequenceNodeSchema = z.object({
@@ -281,6 +311,7 @@ export const AccumulateNodeSchema = z.object({
 export const WorkflowNodeSchema: z.ZodType<WorkflowNode> = z.lazy(() =>
   z.discriminatedUnion("type", [
     StepNodeSchema,
+    ScriptNodeSchema,
     SequenceNodeSchema,
     ParallelNodeSchema,
     PipelineNodeSchema,
@@ -302,6 +333,7 @@ export const WorkflowNodeSchema: z.ZodType<WorkflowNode> = z.lazy(() =>
 // executor per entry; an exhaustiveness check can assert full coverage.
 export const WORKFLOW_NODE_TYPES = [
   "step",
+  "script",
   "sequence",
   "parallel",
   "pipeline",

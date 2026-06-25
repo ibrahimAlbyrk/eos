@@ -16,6 +16,7 @@ import {
 // by member (and the list stays in lockstep with the schema).
 const SAMPLES: Record<(typeof WORKFLOW_NODE_TYPES)[number], WorkflowNode> = {
   step: { type: "step", id: "s", prompt: "p" },
+  script: { type: "script", id: "s", script: "x.sh" },
   sequence: { type: "sequence", id: "s", children: [] },
   parallel: { type: "parallel", id: "s", children: [] },
   pipeline: { type: "pipeline", id: "s", over: "o", stages: [] },
@@ -37,9 +38,9 @@ const SAMPLES: Record<(typeof WORKFLOW_NODE_TYPES)[number], WorkflowNode> = {
 };
 
 describe("WorkflowNode union", () => {
-  it("is exhaustive over the 15 declared node types", () => {
-    assert.equal(WORKFLOW_NODE_TYPES.length, 15);
-    assert.equal(new Set(WORKFLOW_NODE_TYPES).size, 15);
+  it("is exhaustive over the 16 declared node types", () => {
+    assert.equal(WORKFLOW_NODE_TYPES.length, 16);
+    assert.equal(new Set(WORKFLOW_NODE_TYPES).size, 16);
   });
 
   it("parses one valid instance of every node type", () => {
