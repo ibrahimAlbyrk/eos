@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { wf } from "../workflow/dsl.ts";
 import { BindingScope } from "../workflow/bindings.ts";
 import { conditionalExecutor } from "../workflow/executors/conditional.ts";
-import { buildEngine, spawnPort, type SpawnResponse } from "./helpers/workflowFakes.ts";
+import { buildEngine, spawnPort, jsonReport, type SpawnResponse } from "./helpers/workflowFakes.ts";
 import type { WorkflowDefinition } from "../../../contracts/src/workflow.ts";
 
 // A duck-typed Zod-like schema (core has no direct `zod`): accepts { n: number }.
@@ -17,12 +17,12 @@ const numberSchema = {
 
 const ctx = { runId: "r", ownerId: "o", mode: "default" as const };
 
-describe("step executor — Zod validate-with-retry (§3.4)", () => {
-  it("re-prompts on a schema failure then returns the parsed object", async () => {
+describe("step executor — extract-validate-with-reprompt-once (§3.6)", () => {
+  it("re-prompts ONCE on a schema failure then returns the parsed object", async () => {
     let n = 0;
     const spawn = spawnPort((): SpawnResponse => {
       n += 1;
-      return n === 1 ? { output: { n: "nope" } } : { output: { n: 42 } };
+      return { reportText: jsonReport(n === 1 ? { n: "nope" } : { n: 42 }) };
     });
     const def = wf.define("retry", (b) => ({
       root: b.step({ id: "s", prompt: "compute it", outputSchema: numberSchema }),
@@ -32,14 +32,14 @@ describe("step executor — Zod validate-with-retry (§3.4)", () => {
 
     assert.deepEqual(res.output, { n: 42 });
     assert.equal(res.status, "passed");
-    assert.equal(spawn.calls.steps.length, 2, "one retry spawn after the first invalid output");
-    assert.match(spawn.calls.steps[1].prompt, /failed schema validation/);
-    // the schema instruction is appended on the first attempt too
-    assert.match(spawn.calls.steps[0].prompt, /submit_step_output/);
+    assert.equal(spawn.calls.steps.length, 2, "initial attempt + exactly one re-prompt");
+    assert.match(spawn.calls.steps[1].prompt, /corrected/);
+    // the schema instruction (a fenced json block) is appended on the first attempt
+    assert.match(spawn.calls.steps[0].prompt, /```json/);
   });
 
-  it("fails the step after exhausting retries", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ output: { n: "always-bad" } }));
+  it("fails the step (raw-text fallback) after the single re-prompt still fails", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ reportText: jsonReport({ n: "always-bad" }) }));
     const def = wf.define("retry-fail", (b) => ({
       root: b.step({ id: "s", prompt: "compute", outputSchema: numberSchema }),
     }));
@@ -47,7 +47,20 @@ describe("step executor — Zod validate-with-retry (§3.4)", () => {
     const res = await engine.run(def, {}, ctx);
 
     assert.equal(res.status, "failed");
-    assert.equal(spawn.calls.steps.length, 3, "initial attempt + 2 retries");
+    assert.equal(spawn.calls.steps.length, 2, "initial attempt + exactly one re-prompt");
+  });
+
+  it("falls back to the raw report text (status failed) when the report has NO JSON", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ reportText: "result: I forgot the JSON block" }));
+    const def = wf.define("nojson", (b) => ({
+      root: b.step({ id: "s", prompt: "go", outputSchema: numberSchema }),
+    }));
+    const { engine } = buildEngine(spawn);
+    const res = await engine.run(def, {}, ctx);
+
+    assert.equal(res.status, "failed");
+    assert.equal(res.output, "result: I forgot the JSON block", "raw text bound; never wedged");
+    assert.equal(spawn.calls.steps.length, 2, "initial attempt + exactly one re-prompt, then give up");
   });
 
   it("maps a failed report signal to a failed step (no schema)", async () => {

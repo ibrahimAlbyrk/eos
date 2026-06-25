@@ -48,9 +48,10 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     // Disk records (builtin < user < project) + the owning orchestrator's runtime
     // definitions (highest precedence). Per-owner: a sibling orchestrator's
     // definitions never leak here (the scope guard).
+    const defOwner = body.definitionOwnerId ?? body.parentId;
     const records = [
       ...c.listWorkerDefinitionRecords(lookupCwd),
-      ...(body.parentId ? c.runtimeWorkerDefinitions.listFor(body.parentId) : []),
+      ...(defOwner ? c.runtimeWorkerDefinitions.listFor(defOwner) : []),
     ];
     const def = resolveWorkerDefinitionByName(definitionName, records);
     if (!def) {

@@ -36,6 +36,7 @@ export interface NodeRunner {
 export interface WorkflowExecCtx {
   readonly runId: string;
   readonly anchorId: string;            // synthetic run anchor (parentId for every spawn) — §3.5
+  readonly ownerId: string;             // run owner (orchestrator selfId) — resolves create_worker runtime defs
   readonly mode: string;                // run permission mode, set explicitly on every spawn
   readonly args: unknown;
   readonly bindings: BindingScope;      // id -> output; resolves {{nodes.<id>.output}}

@@ -40,7 +40,6 @@ import { registerWorkerRoutes } from "./routes/workers.ts";
 import { registerOrchestratorRoutes } from "./routes/orchestrators.ts";
 import { registerLoopRoutes } from "./routes/loops.ts";
 import { registerWorkflowRoutes } from "./routes/workflows.ts";
-import { registerWorkflowStepOutputRoute } from "./routes/workflow-step-output.ts";
 import { registerPolicyRoutes } from "./routes/policy.ts";
 import { registerPendingRoutes } from "./routes/pending.ts";
 import { registerFsPickerRoutes } from "./routes/fs-picker.ts";
@@ -93,10 +92,7 @@ registerUpdateRoutes(router, c);
 // Unified command catalog (worker.spawn, worker.kill, …) — registered before
 // the hand-written worker routes so a migrated path resolves here first.
 registerCommandCatalog(router, c);
-// Workflow-orchestration: run-control + read surface, plus the typed step-output
-// path (POST /workers/:id/step-output) — registered before the worker routes so
-// its specific pattern resolves first.
-registerWorkflowStepOutputRoute(router, c);
+// Workflow-orchestration: run-control + read surface.
 registerWorkflowRoutes(router, c);
 registerWorkerRoutes(router, c);
 registerOrchestratorRoutes(router, c);

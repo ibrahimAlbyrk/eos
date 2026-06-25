@@ -7,7 +7,8 @@
 //
 // The `from` specialists (researcher / analyst / planner) name the intended roles;
 // a deployment supplies them as worker-definitions (absent ⇒ the default worker).
-// Output schemas light up the typed bindings via submit_step_output (§3.6).
+// Output schemas light up the typed bindings: each step ends its final report
+// with a matching ```json block, extracted + validated engine-side (§3.6).
 
 import { z } from "zod";
 import { wf } from "../../core/src/workflow/dsl.ts";

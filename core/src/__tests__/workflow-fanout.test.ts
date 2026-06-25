@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { wf } from "../workflow/dsl.ts";
-import { buildEngine, spawnPort, tick, type SpawnResponse } from "./helpers/workflowFakes.ts";
+import { buildEngine, spawnPort, tick, jsonReport, passSchema, type SpawnResponse } from "./helpers/workflowFakes.ts";
 
 const ctx = { runId: "r", ownerId: "o", mode: "default" as const };
 
@@ -91,13 +91,16 @@ describe("loopUntil executor — per-iteration id isolation + termination", () =
   });
 
   it("stops early when the until predicate sees an empty last round (lastCount)", async () => {
-    const spawn = spawnPort((spec): SpawnResponse => (spec.prompt === "round 2" ? { output: [] } : { output: ["item"] }));
+    // The body carries a schema so its array output flows through the engine's
+    // JSON extractor; key the empty round off the scoped per-iteration node id.
+    const spawn = spawnPort((spec): SpawnResponse =>
+      ({ reportText: jsonReport(spec.nodeId === "s#2" ? [] : ["item"]) }));
     const def = wf.define("lu2", (b) => ({
       root: b.loopUntil({
         id: "loop",
         maxIterations: 10,
         until: { op: "eq", left: "{{nodes.loop.lastCount}}", right: 0 },
-        body: b.step({ id: "s", prompt: "round {{iteration}}" }),
+        body: b.step({ id: "s", prompt: "round {{iteration}}", outputSchema: passSchema }),
       }),
     }));
     const { engine } = buildEngine(spawn);

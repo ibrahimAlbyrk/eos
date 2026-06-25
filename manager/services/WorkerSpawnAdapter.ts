@@ -9,9 +9,9 @@
 // The join settles on:
 //   • worker:report  → resolve with the report text + classifyReport() signal, but
 //                      ONLY a RELEASED report (a held:true report is ignored — we
-//                      wait for the loop-goal release; §2.3/§3.4).
-//   • step-output    → resolveStepOutput() (the typed path) durably persists
-//                      workflow_steps then resolves with the typed object (§3.6/§3.7).
+//                      wait for the loop-goal release; §2.3/§3.4). The report text
+//                      IS the step output; a typed step extracts JSON from it
+//                      engine-side (§3.6).
 //   • worker:exit    → reject IFF no report for that worker was seen first (a
 //                      persistent worker reports and keeps living; exit-without-
 //                      report = crash = failure). The synthetic run anchor's own
@@ -133,20 +133,6 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
     });
   }
 
-  // The typed path (§3.6): the step-output route calls this when a worker POSTs
-  // submit_step_output. Persist DURABLY before resolving so the completion
-  // survives a crash in the window before the engine's own post-step journal
-  // write (§3.7), then settle the join with the typed object. Idempotent: an
-  // already-settled / unknown worker is a no-op.
-  resolveStepOutput(workerId: string, output: unknown): void {
-    const entry = this.joins.get(workerId);
-    if (!entry) return;
-    this.deps.steps.setOutput(entry.runId, entry.nodeId, output);
-    this.deps.steps.setStatus(entry.runId, entry.nodeId, "passed");
-    this.joins.delete(workerId);
-    entry.resolve({ workerId, signal: "result", reportText: "", output });
-  }
-
   async spawnExpert(spec: ExpertSpawnSpec): Promise<{ workerId: string }> {
     const { id } = await this.deps.runSpawn({
       from: spec.from,
@@ -155,6 +141,7 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
       effort: spec.effort,
       name: spec.name, // expert id → peer-name slug
       parentId: spec.parentId, // = anchorId
+      definitionOwnerId: spec.definitionOwnerId, // run owner → resolves create_worker defs
       permissionMode: spec.mode as PermissionMode, // explicit — sidesteps inheritance
       collaborate: true,
       persistent: true, // standing IDLE-but-consultable mesh provider
@@ -212,6 +199,7 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
       toolsAllow: spec.toolsAllow,
       toolsDeny: spec.toolsDeny,
       parentId: spec.parentId, // = anchorId
+      definitionOwnerId: spec.definitionOwnerId, // run owner → resolves create_worker defs
       permissionMode: spec.mode as PermissionMode, // explicit — sidesteps inheritance
       collaborate: spec.collaborate,
       withGateway: true,
@@ -227,7 +215,7 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
     if (readHeld(payload)) return; // held — not the terminal; wait for the release
     const reportText = readReportText(payload);
     this.joins.delete(workerId);
-    entry.resolve({ workerId, signal: classifyReport(reportText), reportText, output: undefined });
+    entry.resolve({ workerId, signal: classifyReport(reportText), reportText });
   }
 
   private onExit(payload: unknown): void {

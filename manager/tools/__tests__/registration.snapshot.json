@@ -521,14 +521,6 @@
       "properties": {},
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
-    },
-    "submit_step_output": {
-      "type": "object",
-      "properties": {
-        "output": {}
-      },
-      "additionalProperties": false,
-      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   "peer": {

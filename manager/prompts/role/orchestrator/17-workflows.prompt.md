@@ -53,7 +53,7 @@ A `WorkflowDefinition` is `{ name, experts?, root }` (`name` required; `descript
 
 | Node | Key fields | Does |
 |---|---|---|
-| `step` | `from?`, `prompt`, `model?`, `effort?`, `toolsAllow?`, `toolsDeny?`, `outputSchema?` | **The only leaf that spawns a worker.** Awaits its report; with `outputSchema`, returns the typed object, else the report text. |
+| `step` | `from?`, `prompt`, `model?`, `effort?`, `toolsAllow?`, `toolsDeny?`, `outputSchema?` | **The only leaf that spawns a worker.** Its **final report IS the output**; with `outputSchema`, end that report with a ```json block and the engine returns the parsed object instead. |
 | `sequence` | `children[]` | run children in order; bindings accumulate. |
 | `parallel` | `children[]` | run children at once; **barrier** — awaits all. Use when a later step needs ALL of them. |
 | `pipeline` | `over`, `stages[]` | each item of `over` flows through all stages independently (no barrier). |
@@ -71,7 +71,7 @@ Bindings (resolved before each step runs):
 - `{{LB}}nodes.<id>.output{{RB}}` — a node's typed output (`…output.<field>` drills into it).
 - `{{LB}}nodes.<prefix>-*.output{{RB}}` — fan-out glob: every matching node's output, collected into a list (how a synth step reads a whole fan-out).
 
-Typed handoff: give a producing `step` an `outputSchema` (a JSON-Schema object). The step-worker returns a matching object via `submit_step_output`; downstream steps bind it by `{{LB}}nodes.<id>.output{{RB}}`. **No `outputSchema` ⇒ the step's output is its status-prefixed report TEXT** — fine for a terminal step, but a list you mean to fan out over or drill into needs a schema.
+Typed handoff: give a producing `step` an `outputSchema` (a JSON-Schema object). The step-worker **ends its final report with a fenced ```json block** matching the schema; the engine extracts and validates it, then binds the parsed object under `{{LB}}nodes.<id>.output{{RB}}` for downstream steps. **No `outputSchema` ⇒ the step's output is its status-prefixed report TEXT** — fine for a terminal step, but a list you mean to fan out over or drill into needs a schema.
 
 `experts[]` — a standing pool spawned once at run start (persistent + collaborate) and kept IDLE-but-consultable: a step-worker reaches one **by name** via `{{ASK_PEER_TOOL}}` (`peerName: "<expert id>"`) WHILE it works, and the engine tears them down at run end. Each expert is `{ id, from?, prompt, model?, effort? }`; `id` is the peer-name slug. Use them for cross-cutting authorities several steps consult (a SOLID reviewer, a domain expert) — not for data that belongs in a typed binding.
 

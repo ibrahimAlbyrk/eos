@@ -34,7 +34,7 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
   it("worker (always-on) tools match", () => {
     const fp = fingerprintModules(workerDefs.map((d) => toMcpModule(d, workerCtx)), FAKE_WORKER_SESSION);
     assert.deepEqual(fp, snapshot.worker);
-    assert.deepEqual(Object.keys(fp), ["send_message_to_parent", "current_datetime", "submit_step_output"]);
+    assert.deepEqual(Object.keys(fp), ["send_message_to_parent", "current_datetime"]);
   });
 
   it("peer (collaborate-only) tools match", () => {

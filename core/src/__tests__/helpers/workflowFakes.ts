@@ -56,14 +56,28 @@ export function stepRepo() {
 }
 
 // A response a programmable spawn returns for one call. Returning nothing ⇒ echo
-// the (binding-resolved) prompt as both reportText and typed output. `respond`
+// the (binding-resolved) prompt as the report text (the step output). `respond`
 // MAY return a never/late-resolving promise (to test overlap) or throw (to
-// simulate a crashed worker → spawnAndAwait rejects).
+// simulate a crashed worker → spawnAndAwait rejects). For a typed step, set
+// `reportText` to a ```json block (see `jsonReport`) so the engine extractor
+// recovers a structured output.
 export interface SpawnResponse {
   signal?: StepOutcome["signal"];
   reportText?: string;
-  output?: unknown;
 }
+
+// Encodes a value as the fenced ```json block a typed step's report carries, so
+// the engine's extractJson recovers it. Pairs with a node `outputSchema`.
+export function jsonReport(value: unknown): string {
+  return "```json\n" + JSON.stringify(value) + "\n```";
+}
+
+// A duck-typed schema that accepts ANY extracted JSON. The code-DSL path carries
+// a live Zod schema; tests that only need the extract→parse→bind flow exercised
+// use this so the parsed value passes straight through as the step output.
+export const passSchema = {
+  safeParse: (v: unknown): { success: true; data: unknown } => ({ success: true, data: v }),
+};
 export type Respond = (_spec: SpawnStepSpec, _index: number) => SpawnResponse | void | Promise<SpawnResponse | void>;
 
 export function spawnPort(respond?: Respond) {
@@ -105,7 +119,6 @@ export function spawnPort(respond?: Respond) {
           workerId,
           signal: r.signal ?? "result",
           reportText: r.reportText ?? spec.prompt,
-          output: "output" in r ? r.output : spec.prompt,
         };
       })();
       // Settle on the outcome OR on abort, whichever lands first; a settle after

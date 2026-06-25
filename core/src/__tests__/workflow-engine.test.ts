@@ -74,8 +74,8 @@ function spawnPort() {
     async spawnAndAwait(spec: SpawnStepSpec, _signal: AbortSignal): Promise<StepOutcome> {
       calls.steps.push(spec);
       const workerId = `step-w-${++w}`;
-      // echo the (already binding-resolved) prompt as the typed output
-      return { workerId, signal: "result", reportText: spec.prompt, output: spec.prompt };
+      // echo the (already binding-resolved) prompt as the report text (= output)
+      return { workerId, signal: "result", reportText: spec.prompt };
     },
     killWorker(workerId: string) { calls.killed.push(workerId); },
   };
@@ -102,7 +102,7 @@ const stepExecutor: StepExecutor = {
       runId: ctx.runId, nodeId: s.id, parentId: ctx.anchorId, from: s.from, prompt,
       mode: ctx.mode, collaborate: true, outputSchema: s.outputSchema,
     }, ctx.signal));
-    return { output: outcome.output ?? outcome.reportText, status: "passed", childWorkerIds: [outcome.workerId] };
+    return { output: outcome.reportText, status: "passed", childWorkerIds: [outcome.workerId] };
   },
 };
 

@@ -1,7 +1,7 @@
 // Workflow contracts — the SSOT for the workflow-orchestration system's stored
 // shapes and IPC payloads. The definition (with its standing expert pool + root
 // node tree), the persisted run/step rows, the single MCP `workflow` tool's
-// request surface, the typed step-output body, and the runtime-store records.
+// request surface, and the runtime-store records.
 // Mirrors worker-definition.ts (definition catalog) + loop.ts (lifecycle entity).
 
 import { z } from "zod";
@@ -120,16 +120,3 @@ export type CreateWorkflowResponse = z.infer<typeof CreateWorkflowResponseSchema
 
 // GET /workflows — the catalog of runs for the owner.
 export const WorkflowRunListResponseSchema = z.array(WorkflowRunSchema);
-
-// ---- typed step I/O — submit_step_output body (§3.6) ------------------------
-// The one net-new IPC path. The worker posts its typed result; the route
-// validates this envelope, resolves the step's PendingJoin with `output`, and
-// persists workflow_steps.output durably in the same handler. The per-step Zod
-// validation (against the node's outputSchema) happens engine-side after.
-export const StepResultRequestSchema = z.object({
-  output: z.unknown(),
-});
-export type StepResultRequest = z.infer<typeof StepResultRequestSchema>;
-
-export const StepResultResponseSchema = z.object({ ok: z.literal(true) });
-export type StepResultResponse = z.infer<typeof StepResultResponseSchema>;

@@ -130,7 +130,8 @@ export class WorkflowEngineImpl implements WorkflowEngine {
     try {
       for (const e of def.experts ?? []) {
         await this.deps.spawn.spawnExpert({
-          runId: ctx.runId, parentId: anchorId, name: e.id, from: e.from, prompt: e.prompt,
+          runId: ctx.runId, parentId: anchorId, definitionOwnerId: ctx.ownerId,
+          name: e.id, from: e.from, prompt: e.prompt,
           model: e.model, effort: e.effort, mode: ctx.mode, persistent: true, collaborate: true,
         });
       }
@@ -138,6 +139,7 @@ export class WorkflowEngineImpl implements WorkflowEngine {
       const execCtx: WorkflowExecCtx = {
         runId: ctx.runId,
         anchorId,
+        ownerId: ctx.ownerId,
         mode: ctx.mode,
         args,
         bindings: new BindingScope(args),

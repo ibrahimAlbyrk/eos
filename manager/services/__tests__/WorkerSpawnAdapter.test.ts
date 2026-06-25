@@ -80,7 +80,6 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     assert.equal(outcome.workerId, "w-1");
     assert.equal(outcome.reportText, "result: shipped");
     assert.equal(outcome.signal, "result");
-    assert.equal(outcome.output, undefined);
   });
 
   it("stamps the step-worker id onto the running row at spawn (§3.7 recovery key)", async () => {
@@ -92,23 +91,6 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     assert.equal(steps.rows.get(steps.key("run-1", "n1"))?.workerId, "w-1");
     bus.publish("worker:report", { workerId: "w-1", text: "result: ok" }); // settle so the promise never dangles
     await p;
-  });
-
-  it("typed submit_step_output resolves and persists durably", async () => {
-    const { adapter, bus, steps } = makeAdapter();
-    const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
-    await tick();
-    adapter.resolveStepOutput("w-1", { modules: ["a", "b"] });
-    const outcome = await p;
-    assert.deepEqual(outcome.output, { modules: ["a", "b"] });
-    assert.equal(outcome.signal, "result");
-    // durable write happened against (runId, nodeId), status passed (§3.7)
-    const row = steps.rows.get(steps.key("run-1", "n1"));
-    assert.deepEqual(row?.output, { modules: ["a", "b"] });
-    assert.equal(row?.status, "passed");
-    // the worker's own follow-up report is now a no-op (entry already settled)
-    bus.publish("worker:report", { workerId: "w-1", text: "result: done" });
-    assert.deepEqual((await p).output, { modules: ["a", "b"] });
   });
 
   it("ignores a held report and settles on the later released report", async () => {
@@ -191,15 +173,27 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     assert.equal(row.worktreeFrom, null);
   });
 
+  it("forwards definitionOwnerId onto the step spawn request (resolves run-owner create_worker defs — §ITEM 4)", async () => {
+    const { adapter, bus, spawned } = makeAdapter();
+    const p = adapter.spawnAndAwait(stepSpec({ definitionOwnerId: "orch-1" }), new AbortController().signal);
+    await tick();
+    // parentId is the synthetic anchor, but the runtime-def owner is the run owner.
+    assert.equal(spawned[0].parentId, "anchor-1");
+    assert.equal(spawned[0].definitionOwnerId, "orch-1");
+    bus.publish("worker:report", { workerId: "w-1", text: "result: ok" });
+    await p;
+  });
+
   it("spawnExpert spawns a persistent, collaborate, named mesh provider under the anchor", async () => {
     const { adapter, spawned } = makeAdapter();
     const { workerId } = await adapter.spawnExpert({
-      runId: "run-1", parentId: "anchor-1", name: "solid-expert", from: "solid-expert",
+      runId: "run-1", parentId: "anchor-1", definitionOwnerId: "orch-1", name: "solid-expert", from: "solid-expert",
       prompt: "stand by", mode: "acceptEdits", persistent: true, collaborate: true,
     } as never);
     assert.equal(workerId, "w-1");
     const req = spawned[0];
     assert.equal(req.parentId, "anchor-1");
+    assert.equal(req.definitionOwnerId, "orch-1"); // run owner → resolves create_worker defs
     assert.equal(req.name, "solid-expert");
     assert.equal(req.persistent, true);
     assert.equal(req.collaborate, true);

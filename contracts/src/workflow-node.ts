@@ -52,8 +52,9 @@ export interface StepNode {
   effort?: Effort;
   toolsAllow?: string[];
   toolsDeny?: string[];
-  // JSON-Schema object the step's typed result (via submit_step_output) must
-  // match; omitted ⇒ the status-prefixed report text is the output (§3.6 fallback).
+  // JSON-Schema object the step's typed result must match; the worker ends its
+  // final report with a matching ```json block, extracted + validated engine-side.
+  // Omitted ⇒ the status-prefixed report text is the output (§3.6 fallback).
   outputSchema?: unknown;
 }
 export interface SequenceNode {

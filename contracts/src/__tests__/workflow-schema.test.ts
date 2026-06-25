@@ -10,7 +10,6 @@ import {
   WorkflowToolRequestSchema,
   WorkflowRunSchema,
   WorkflowStepSchema,
-  StepResultRequestSchema,
 } from "../workflow.ts";
 
 // One minimal valid instance per node `type`, so the union is exercised member
@@ -117,9 +116,5 @@ describe("persisted rows + typed step I/O", () => {
       status: "passed", workerId: null, startedAt: 1, endedAt: null,
     });
     assert.equal(step.status, "passed");
-  });
-
-  it("carries arbitrary typed step output", () => {
-    assert.deepEqual(StepResultRequestSchema.parse({ output: { modules: ["a"] } }).output, { modules: ["a"] });
   });
 });

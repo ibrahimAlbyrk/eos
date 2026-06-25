@@ -2,9 +2,9 @@
 // as the resume cursor + memoization index (§3.4/§3.7). The adapter is
 // SqliteWorkflowStepRepo in infra/persistence/. `findByNode(runId, nodeId)` drives
 // memoized replay: a `passed` row returns its journaled output instead of
-// re-spawning. `setStatus`/`setOutput` let the step-output route persist a
-// completion durably the instant a report is observed (crash-correctness). The row
-// is the camelCase parsed DTO from contracts.
+// re-spawning. `setStatus`/`setOutput` let the boot re-arm persist a recovered
+// completion durably when it matches an unjournaled `worker_report` to a `running`
+// step (crash-correctness). The row is the camelCase parsed DTO from contracts.
 
 import type { WorkflowStep as WorkflowStepRow, StepStatus } from "../../../contracts/src/workflow.ts";
 

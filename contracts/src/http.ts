@@ -31,6 +31,12 @@ export const SpawnWorkerRequestSchema = z
     model: z.string().optional(),
     effort: z.string().optional(),
     parentId: z.string().optional(),
+    // Owner whose runtime worker-definitions (create_worker) this spawn may
+    // resolve `from` against. Normal spawns leave it unset → the owner is the
+    // parentId (unchanged). Workflow steps/experts spawn under a synthetic run
+    // anchor whose id is NOT the orchestrator selfId, so they set it explicitly
+    // to the run owner to reach that orchestrator's runtime definitions.
+    definitionOwnerId: z.string().optional(),
     permissionMode: PermissionModeSchema.optional(),
     role: z.enum(["git"]).optional(),
     // Available worker to spawn from (built-in / file / runtime). Resolves to
@@ -1734,10 +1740,9 @@ export const ROUTES = {
   workerDefinitions: "/worker-definitions",
   // Workflow-orchestration: /workflows is the catalog + run-control endpoint
   // (POST a run / PUT a definition / GET runs); workflowRun(id) reads one run's
-  // status; workflowStepOutput(id) is the worker-visibility typed-result path.
+  // status.
   workflows: "/workflows",
   workflowRun: (id: string): string => `/workflows/${id}`,
-  workflowStepOutput: (id: string): string => `/workers/${id}/step-output`,
   settings: "/api/settings",
   updateStatus: "/api/updates/status",
   updateCheck: "/api/updates/check",

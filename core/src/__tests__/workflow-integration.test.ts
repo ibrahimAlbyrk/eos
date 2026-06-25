@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { wf } from "../workflow/dsl.ts";
-import { buildEngine, spawnPort, tick, type SpawnResponse } from "./helpers/workflowFakes.ts";
+import { buildEngine, spawnPort, tick, jsonReport, passSchema, type SpawnResponse } from "./helpers/workflowFakes.ts";
 import type { WorkflowDefinition } from "../../../contracts/src/workflow.ts";
 import type { RunContext } from "../ports/WorkflowEngine.ts";
 
@@ -14,9 +14,10 @@ import type { RunContext } from "../ports/WorkflowEngine.ts";
 
 const CTX: RunContext = { runId: "run", ownerId: "orch", mode: "acceptEdits" };
 
-// A respond that echoes each node's id as its output — gives every step a stable,
-// assertable output so binding data-flow can be traced across the tree.
-const echoNodeId = (spec: { nodeId: string }): SpawnResponse => ({ output: spec.nodeId });
+// A respond that echoes each node's id as its report text (= its output) — gives
+// every step a stable, assertable output so binding data-flow can be traced
+// across the tree.
+const echoNodeId = (spec: { nodeId: string }): SpawnResponse => ({ reportText: spec.nodeId });
 
 // A duck-typed Zod-like schema (core carries no `zod`): accepts { n: number }.
 const numberSchema = {
@@ -37,19 +38,19 @@ function run(def: WorkflowDefinition, args: unknown, spawn: ReturnType<typeof sp
 // ===========================================================================
 
 describe("integration — leaf step (typed + text-fallback)", () => {
-  it("typed step: validates the submit_step_output object against the schema", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ output: { n: 42 } }));
+  it("typed step: extracts + validates the report's ```json block against the schema", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ reportText: jsonReport({ n: 42 }) }));
     const def = wf.define("t", (b) => ({ root: b.step({ id: "s", prompt: "go", outputSchema: numberSchema }) }));
     const { promise } = run(def, {}, spawn);
     const result = await promise;
     assert.equal(result.status, "passed");
     assert.deepEqual(result.output, { n: 42 });
-    // the schema instruction is appended to the prompt (the typed-path nudge)
-    assert.match(spawn.calls.steps[0].prompt, /submit_step_output/);
+    // the schema instruction (a fenced json block) is appended to the prompt
+    assert.match(spawn.calls.steps[0].prompt, /```json/);
   });
 
   it("text-fallback step: no schema ⇒ the report text is the output, prompt unmodified", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ reportText: "plain report", output: undefined }));
+    const spawn = spawnPort((): SpawnResponse => ({ reportText: "plain report" }));
     const def = wf.define("t", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
     const { promise } = run(def, {}, spawn);
     const result = await promise;
@@ -220,12 +221,14 @@ describe("integration — pipeline (ACTUAL overlap, no stage barrier)", () => {
 describe("integration — loopUntil (iteration metadata drives termination)", () => {
   it("re-runs the body until lastCount hits 0, injecting the iteration index", async () => {
     const lists: string[][] = [["a", "b"], ["c"], []];
+    // The body carries a schema so its array output flows through the engine's
+    // JSON extractor (a no-schema step's output would be a string).
     const spawn = spawnPort((spec, index): SpawnResponse =>
-      spec.nodeId.startsWith("tick") ? { output: lists[index] ?? [] } : {});
+      spec.nodeId.startsWith("tick") ? { reportText: jsonReport(lists[index] ?? []) } : {});
     const def = wf.define("loop", (b) => ({
       root: b.loopUntil({
         id: "loop",
-        body: b.step({ id: "tick", prompt: "tick {{iteration}}" }),
+        body: b.step({ id: "tick", prompt: "tick {{iteration}}", outputSchema: passSchema }),
         until: { op: "eq", left: "{{nodes.loop.lastCount}}", right: 0 },
         maxIterations: 5,
       }),
@@ -233,7 +236,8 @@ describe("integration — loopUntil (iteration metadata drives termination)", ()
     const result = await run(def, {}, spawn).promise;
     assert.equal(spawn.calls.steps.length, 3); // stops the round the last result is empty
     assert.deepEqual(spawn.calls.steps.map((s) => s.nodeId), ["tick#0", "tick#1", "tick#2"]);
-    assert.deepEqual(spawn.calls.steps.map((s) => s.prompt), ["tick 0", "tick 1", "tick 2"]);
+    // the iteration index is injected into each body prompt (schema suffix follows)
+    assert.ok(spawn.calls.steps.every((s, i) => s.prompt.startsWith(`tick ${i}`)));
     assert.deepEqual(result.output, []);
   });
 });
@@ -369,6 +373,17 @@ describe("integration — expert pool lifecycle (§4)", () => {
     assert.equal(spawn.calls.experts[0].persistent, true);
     assert.equal(spawn.calls.experts[0].collaborate, true);
     assert.equal(spawn.calls.experts[0].parentId, "run"); // = anchorId
+  });
+
+  it("threads the run owner (CTX.ownerId) onto step + expert specs as definitionOwnerId (§ITEM 4)", async () => {
+    const spawn = spawnPort(echoNodeId);
+    const def = expertDef({ type: "step", id: "s", prompt: "go" });
+    await run(def, {}, spawn).promise;
+    // The spawn handler resolves the orchestrator's create_worker runtime defs by
+    // the RUN OWNER, not the synthetic anchor id — so the engine must thread
+    // ctx.ownerId ("orch") onto every step AND expert spec.
+    assert.equal(spawn.calls.steps[0].definitionOwnerId, "orch");
+    assert.ok(spawn.calls.experts.length === 2 && spawn.calls.experts.every((e) => e.definitionOwnerId === "orch"));
   });
 
   it("reaps the anchor in finally even when the run FAILS", async () => {
