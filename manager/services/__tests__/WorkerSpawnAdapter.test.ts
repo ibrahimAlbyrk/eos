@@ -4,6 +4,9 @@ import assert from "node:assert/strict";
 import { WorkerSpawnAdapter } from "../WorkerSpawnAdapter.ts";
 import { EventBusProgressSink } from "../EventBusProgressSink.ts";
 import type { EventBus, EventBusSubscriber } from "../../../core/src/ports/EventBus.ts";
+import { runLoopTick, type RunLoopTickDeps } from "../../../core/src/use-cases/runLoopTick.ts";
+import type { LoopRow } from "../../../core/src/ports/LoopStateRepo.ts";
+import type { GoalSpec, GoalVerdict, SpawnLoop } from "../../../contracts/src/loop.ts";
 
 const tick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
@@ -198,6 +201,79 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     assert.equal(req.persistent, true);
     assert.equal(req.collaborate, true);
     assert.equal(req.permissionMode, "acceptEdits");
+  });
+});
+
+// The step-loop release bridge (§ITEM 7): a step armed with a `loop` HOLDS its
+// first report (the report route publishes worker:report{held:true}); the join
+// must keep waiting. The goal-check release runs through the REAL runLoopTick,
+// whose releaseReport is wired EXACTLY like manager/daemon.ts — it republishes
+// the terminal worker:report{held:false} that the adapter's onReport keys on. So
+// this exercises the whole chain: held → goal-met tick → daemon republish → join.
+describe("WorkerSpawnAdapter — step loop release bridge (§ITEM 7)", () => {
+  const GOAL: GoalSpec = { summary: "tests green", criteria: [{ id: "c1", text: "npm test passes", verify: "npm test" }] };
+  const STEP_LOOP: SpawnLoop = { goal: GOAL, strategy: "hybrid" };
+
+  function loopRow(over: Partial<LoopRow> = {}): LoopRow {
+    return {
+      id: "l-1", workerId: "w-1", parentId: "anchor-1", goal: GOAL, strategy: "hybrid",
+      status: "active", attempt: 0, maxAttempts: null, heldReport: null, lastReason: null,
+      awaitingInput: false, progressRing: [], startedAt: 1000, updatedAt: 1000, ...over,
+    };
+  }
+
+  const goalMet: GoalVerdict = {
+    met: true, criteria: [{ id: "c1", met: true, evidence: "exit 0" }], unmet: [], confidence: 1, reason: "all criteria met",
+  };
+
+  // runLoopTick deps whose releaseReport mirrors manager/daemon.ts: republish the
+  // released text as worker:report{held:false} so a waiting step-join resolves.
+  function tickDeps(bus: ReturnType<typeof fakeBus>, loop: LoopRow): RunLoopTickDeps {
+    return {
+      loops: { findActiveByWorker: () => loop, setStatus() {}, recordAttempt() {}, setHeldReport() {} },
+      strategyFor: () => ({ evaluate: async () => goalMet }),
+      dispatch: async () => ({}),
+      releaseReport: async ({ workerId, parentId, text }: { workerId: string; parentId: string; text: string }) => {
+        bus.publish("worker:report", { workerId, parentId, text, held: false });
+        return {};
+      },
+      stateHash: async () => "h",
+      noProgressWindow: 3,
+      stopOnNoProgress: true,
+      renderer: { render: () => "rendered" },
+      clock: { now: () => 1234 },
+      log: { debug() {}, info() {}, warn() {}, error() {}, child() { return this; } },
+    } as unknown as RunLoopTickDeps;
+  }
+
+  it("PART A — threads the loop onto the step spawn request", async () => {
+    const { adapter, bus, spawned } = makeAdapter();
+    const p = adapter.spawnAndAwait(stepSpec({ loop: STEP_LOOP }), new AbortController().signal);
+    await tick();
+    assert.deepEqual(spawned[0].loop, STEP_LOOP);
+    bus.publish("worker:report", { workerId: "w-1", text: "result: ok" }); // settle so it never dangles
+    await p;
+  });
+
+  it("PART B — holds the first report; the join resolves ONLY on releaseReport's republish, released text = step output", async () => {
+    const { adapter, bus } = makeAdapter();
+    const p = adapter.spawnAndAwait(stepSpec({ loop: STEP_LOOP }), new AbortController().signal);
+    await tick();
+
+    // The report route HOLDS a looped worker's first report — the join must wait.
+    let settled = false;
+    void p.then(() => { settled = true; });
+    bus.publish("worker:report", { workerId: "w-1", parentId: "anchor-1", held: true, text: "result: premature claim" });
+    await tick();
+    assert.equal(settled, false, "a held report must not resolve the workflow join");
+
+    // Goal-met tick → daemon-style releaseReport republishes worker:report{held:false}.
+    const tickResult = await runLoopTick(tickDeps(bus, loopRow({ heldReport: "result: verified done" })), { workerId: "w-1" });
+    assert.equal(tickResult, "released");
+
+    const outcome = await p;
+    assert.equal(outcome.reportText, "result: verified done"); // the released text IS the step output
+    assert.equal(outcome.signal, "result");
   });
 });
 

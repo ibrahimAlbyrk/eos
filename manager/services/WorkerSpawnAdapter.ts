@@ -12,12 +12,25 @@
 //                      wait for the loop-goal release; §2.3/§3.4). The report text
 //                      IS the step output; a typed step extracts JSON from it
 //                      engine-side (§3.6).
+//   • turn-end IDLE  → a step-worker that just answers and ends its turn WITHOUT a
+//                      voluntary send_message_to_parent never fires worker:report —
+//                      so the join would hang forever. The WORKING→IDLE edge (a
+//                      worker:change carrying state:"IDLE") settles the join using
+//                      the worker's LAST ASSISTANT MESSAGE TEXT as the step output.
+//                      The report stays OPTIONAL: report → that text wins (explicit,
+//                      preferred); no report → the final answer is the output. A
+//                      looped step is EXEMPT (its intermediate IDLE is not terminal —
+//                      it settles only on the loop-release republish; §WU-7).
 //   • worker:exit    → reject IFF no report for that worker was seen first (a
 //                      persistent worker reports and keeps living; exit-without-
 //                      report = crash = failure). The synthetic run anchor's own
 //                      exit is filtered by id so it never settles a step.
+//   • stepTimeoutMs  → backstop: a step that settles via NONE of the above within
+//                      the timeout (a worker stuck WORKING, or one that ends its
+//                      turn with no text) is REJECTED so the run fails loudly
+//                      instead of hanging. 0 = off.
 // First settle wins (resolve-once): the entry is deleted on the first of these, so
-// any later report/exit for the same worker is a no-op.
+// any later report/exit/idle for the same worker is a no-op.
 
 import { classifyReport } from "../../core/src/domain/report-signal.ts";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
@@ -47,6 +60,9 @@ export interface WorkerSpawnAdapterDeps {
   runSpawn(req: StepSpawnRequest): Promise<{ id: string }>;
   // Recursive subtree teardown (the KillWorker use-case). Wired with container deps.
   killWorker(workerId: string): void;
+  // Per-step hang backstop (ms); resolved by the manager from config.workflow
+  // (the maxConcurrentSteps precedent — core never reads config). 0 = off.
+  stepTimeoutMs: number;
 }
 
 interface PendingJoin {
@@ -56,6 +72,10 @@ interface PendingJoin {
   // a worker that already reported (even held) did not crash, so its later exit
   // must not be turned into a failure.
   sawReport: boolean;
+  // Derived from spec.loop: a looped step's report is HELD and re-triggers across
+  // turns, so its intermediate IDLE must NOT settle the join — it settles only on
+  // the loop-release republish. Never cleared.
+  loopPending: boolean;
   resolve(outcome: StepOutcome): void;
   reject(err: Error): void;
 }
@@ -202,6 +222,8 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
       definitionOwnerId: spec.definitionOwnerId, // run owner → resolves create_worker defs
       permissionMode: spec.mode as PermissionMode, // explicit — sidesteps inheritance
       collaborate: spec.collaborate,
+      loop: spec.loop, // armed by spawnWorkerHandler (armLoopAtSpawn); the report is
+                       // HELD until release — onReport awaits the worker:report{held:false}
       withGateway: true,
     };
   }

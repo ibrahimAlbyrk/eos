@@ -141,6 +141,12 @@ const goalLoop = new GoalLoopService({
     const parent = c.workers.findById(parentId);
     if (parent) await resumeIfDead(c, parent);
     const w = c.workers.findById(workerId);
+    // Bridge the loop release to a waiting workflow step-join (§3.4): the report
+    // route held the first report (worker:report{held:true}) so the join waited;
+    // emit the terminal worker:report{held:false} so the adapter's onReport resolves
+    // it with the released text as the step output. The adapter is the sole
+    // subscriber, so this never double-dispatches to the parent below.
+    c.bus.publish("worker:report", { workerId, parentId, text, held: false });
     return dispatchMessage(dispatchDeps(c), {
       workerId: parentId,
       text: w ? formatWorkerReport(w, text) : text,
