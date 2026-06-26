@@ -71,15 +71,24 @@ describe("step executor — extract-validate-with-reprompt-once (§3.6)", () => 
     assert.equal(res.status, "failed");
   });
 
-  // Fail-closed (Issue A): a final message with no result token classifies as
-  // `unknown`; the step must FAIL rather than pass on prose (the false-pass fix).
-  it("fails a step whose final message carries no result token (unknown → failed)", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ signal: "unknown", reportText: "the findings are empty, please send them" }));
-    const def = wf.define("u", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
+  it("maps a needs-input report signal to a failed step (no schema)", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ signal: "needs-input", reportText: "needs input: missing findings" }));
+    const def = wf.define("sig-ni", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
     const { engine } = buildEngine(spawn);
     const res = await engine.run(def, {}, ctx);
     assert.equal(res.status, "failed");
-    assert.equal(res.output, "the findings are empty, please send them");
+  });
+
+  // Issue A (relaxed): a content answer with no `result:` token classifies as
+  // `unknown`; the step PASSES — the final message IS the step output. Only an
+  // explicit `failed:`/`needs input:` fails (Issues B/C stop empty-input passes).
+  it("passes a step whose final message is a plain content answer (unknown → passed)", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ signal: "unknown", reportText: "Eos is the Greek goddess of the dawn." }));
+    const def = wf.define("u", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
+    const { engine } = buildEngine(spawn);
+    const res = await engine.run(def, {}, ctx);
+    assert.equal(res.status, "passed");
+    assert.equal(res.output, "Eos is the Greek goddess of the dawn.");
   });
 
   it("passes a step whose final message leads with a result: signal", async () => {
@@ -90,12 +99,14 @@ describe("step executor — extract-validate-with-reprompt-once (§3.6)", () => 
     assert.equal(res.status, "passed");
   });
 
-  it("appends the step-report instruction to every step prompt", async () => {
+  it("appends the step-report instruction (direct answer; failure tokens only) to every step prompt", async () => {
     const spawn = spawnPort();
     const def = wf.define("ri", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
     const { engine } = buildEngine(spawn);
     await engine.run(def, {}, ctx);
-    assert.match(spawn.calls.steps[0].prompt, /result:[\s\S]*needs input:[\s\S]*failed:/);
+    const prompt = spawn.calls.steps[0].prompt;
+    assert.match(prompt, /final message IS this step's output/);
+    assert.match(prompt, /failed:[\s\S]*needs input:|needs input:[\s\S]*failed:/);
   });
 });
 

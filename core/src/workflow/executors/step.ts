@@ -18,15 +18,15 @@ import { execLocals, errMessage, extractJson } from "./util.ts";
 export const SCHEMA_INSTRUCTION =
   "\n\nEnd your final answer (your last message) with the result as JSON in a fenced ```json block matching the schema.";
 
-// Appended to EVERY step prompt so the worker's terminal message is reliably
-// token-shaped — the IDLE-edge capture grabs that final message as the step
-// outcome, and signalStatus only passes a `result:` signal (fail-closed). Without
-// this, a non-reporting worker's arbitrary prose classifies as `unknown` and would
-// silently fail the step. Composes with SCHEMA_INSTRUCTION when a schema is present
-// (a `result:` first line plus a fenced ```json block).
+// Appended to EVERY step prompt. The worker's final message IS this step's
+// output — a plain content answer passes as-is (signalStatus is lenient); only an
+// explicit `failed:`/`needs input:` first line fails the step. Composes with
+// SCHEMA_INSTRUCTION when a schema is present (the answer still ends with a fenced
+// ```json block).
 export const STEP_REPORT_INSTRUCTION =
-  "\n\nEnd your final message with a first line that is EXACTLY one of `result:` / `needs input:` / " +
-  "`failed:` followed by a one-line headline — that first line is how the workflow records this step's outcome.";
+  "\n\nYour final message IS this step's output — answer the task directly; no `result:` prefix is " +
+  "needed to succeed. ONLY if you genuinely cannot complete the task, or required input is missing, " +
+  "begin your final message with `failed:` or `needs input:` and a one-line reason.";
 
 // Duck-typed Zod check — the code-DSL path carries a live schema (parseable); a
 // serialized declarative spec carries a plain JSON-Schema object (not parseable
@@ -38,12 +38,14 @@ function asZod(schema: unknown): ZodLike | null {
   return schema && typeof (schema as ZodLike).safeParse === "function" ? (schema as ZodLike) : null;
 }
 
-// Fail-closed: success requires a positive `result:` signal, NOT merely the
-// absence of a failure signal. `unknown` (an unrecognized final message) and
-// `needs-input`/`failed` all fail the step, so a non-answer surfaces loudly
-// instead of passing on prose.
+// Lenient but failure-aware: the worker's final message IS the step output, so a
+// plain content answer (`result` OR `unknown`) passes. Only an EXPLICIT failure
+// signal — `failed:` or `needs input:` — fails the step. Content-shaped step
+// workers ("summarize this") answer directly without a `result:` token, so gating
+// success on that prefix false-failed real answers; Issues B/C (real typed input +
+// strict bindings) already stop the empty-input false pass at its source.
 function signalStatus(signal: StepOutcome["signal"]): NodeResult["status"] {
-  return signal === "result" ? "passed" : "failed";
+  return signal === "failed" || signal === "needs-input" ? "failed" : "passed";
 }
 
 function spawnStep(node: StepNode, ctx: WorkflowExecCtx, prompt: string): Promise<StepOutcome> {
