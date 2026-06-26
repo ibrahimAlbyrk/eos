@@ -12,6 +12,7 @@ import { stopWorkflow } from "../../core/src/use-cases/StopWorkflow.ts";
 import { createWorkflowDefinition } from "../../core/src/use-cases/CreateWorkflowDefinition.ts";
 import { WorkflowDefinitionSchema } from "../../contracts/src/workflow.ts";
 import { containsNodeType } from "../../core/src/workflow/node-scope.ts";
+import { attachOutputValidators } from "./json-schema-validator.ts";
 import { NotFoundError, ValidationError } from "../../core/src/errors/index.ts";
 import type {
   WorkflowDefinition, WorkflowRunStatus, RunWorkflowResult,
@@ -74,6 +75,11 @@ export class WorkflowService {
           "run-inline specs may not contain `script` nodes; create the workflow and run it by name (run-stored)",
         );
       }
+      // Honor a declared JSON-Schema `outputSchema`: a run-inline spec carries it as
+      // a plain object the pure-core executor can't validate, so wrap it into the
+      // executor's ZodLike { safeParse } duck-type here (§Issue B) — restores typed
+      // step I/O for orchestrator-authored workflows.
+      attachOutputValidators(input.spec.root);
     } else if (input.from) {
       if (!this.deps.resolveDefinition(input.from, ownerId)) {
         throw new NotFoundError("workflow definition", input.from);
