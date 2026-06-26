@@ -115,6 +115,17 @@ describe("WorkflowService", () => {
     assert.throws(() => svc.run({}, "orch-1"), /from.*spec/i);
   });
 
+  it("run-inline: attaches a JSON-Schema validator to a step's outputSchema before driving (Issue B)", async () => {
+    const { svc, calls } = harness();
+    const spec = {
+      name: "typed", root: { id: "r", type: "step", prompt: "p", outputSchema: { type: "object", required: ["facts"] } },
+    } as unknown as WorkflowDefinition;
+    svc.run({ spec }, "orch-1");
+    await Promise.resolve();
+    const root = calls.run[0].def.root as { outputSchema?: { safeParse?: unknown } };
+    assert.equal(typeof root.outputSchema?.safeParse, "function", "inline JSON-Schema wrapped into a ZodLike validator");
+  });
+
   it("trust gate: a run-inline spec carrying a `script` node is REJECTED before any drive", () => {
     const { svc, calls } = harness();
     const spec = {

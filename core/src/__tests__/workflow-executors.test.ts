@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { wf } from "../workflow/dsl.ts";
 import { BindingScope } from "../workflow/bindings.ts";
 import { conditionalExecutor } from "../workflow/executors/conditional.ts";
-import { buildEngine, spawnPort, jsonReport, type SpawnResponse } from "./helpers/workflowFakes.ts";
+import { buildEngine, spawnPort, jsonReport, promptBody, type SpawnResponse } from "./helpers/workflowFakes.ts";
 import type { WorkflowDefinition } from "../../../contracts/src/workflow.ts";
 
 // A duck-typed Zod-like schema (core has no direct `zod`): accepts { n: number }.
@@ -70,12 +70,61 @@ describe("step executor — extract-validate-with-reprompt-once (§3.6)", () => 
     const res = await engine.run(def, {}, ctx);
     assert.equal(res.status, "failed");
   });
+
+  // Fail-closed (Issue A): a final message with no result token classifies as
+  // `unknown`; the step must FAIL rather than pass on prose (the false-pass fix).
+  it("fails a step whose final message carries no result token (unknown → failed)", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ signal: "unknown", reportText: "the findings are empty, please send them" }));
+    const def = wf.define("u", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
+    const { engine } = buildEngine(spawn);
+    const res = await engine.run(def, {}, ctx);
+    assert.equal(res.status, "failed");
+    assert.equal(res.output, "the findings are empty, please send them");
+  });
+
+  it("passes a step whose final message leads with a result: signal", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ signal: "result", reportText: "result: done" }));
+    const def = wf.define("r", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
+    const { engine } = buildEngine(spawn);
+    const res = await engine.run(def, {}, ctx);
+    assert.equal(res.status, "passed");
+  });
+
+  it("appends the step-report instruction to every step prompt", async () => {
+    const spawn = spawnPort();
+    const def = wf.define("ri", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
+    const { engine } = buildEngine(spawn);
+    await engine.run(def, {}, ctx);
+    assert.match(spawn.calls.steps[0].prompt, /result:[\s\S]*needs input:[\s\S]*failed:/);
+  });
+});
+
+// Issue C — a {{nodes.*}} ref that resolves to undefined fails the step LOUDLY,
+// naming the binding, instead of silently substituting "" and spawning on empty
+// input. args.* templating stays tolerant (covered by the bindings suite).
+describe("step executor — strict node bindings (Issue C)", () => {
+  it("fails the step naming the unresolved binding instead of spawning on \"\"", async () => {
+    const spawn = spawnPort();
+    const def = wf.define("strict", (b) => ({
+      root: b.sequence([
+        b.step({ id: "researcher", prompt: "research" }), // no schema → output is the string "research"
+        b.step({ id: "summarizer", prompt: "summarize {{nodes.researcher.output.facts}}" }), // .facts on a string → undefined
+      ], "root"),
+    }));
+    const { engine, deps } = buildEngine(spawn);
+    const res = await engine.run(def, {}, ctx);
+
+    assert.equal(res.status, "failed");
+    assert.equal(spawn.calls.steps.length, 1, "summarizer never spawned — failed at prompt resolution");
+    const out = deps.steps.findByNode("r", "summarizer")?.output;
+    assert.match(String(out), /nodes\.researcher\.output\.facts/);
+  });
 });
 
 describe("sequence executor", () => {
   it("short-circuits on a failed child", async () => {
     const spawn = spawnPort((spec): SpawnResponse =>
-      spec.prompt === "b" ? { signal: "failed", reportText: "b failed" } : {});
+      spec.nodeId === "b" ? { signal: "failed", reportText: "b failed" } : {});
     const def = wf.define("seq", (b) => ({
       root: b.sequence([
         b.step({ id: "a", prompt: "a" }),
@@ -87,14 +136,14 @@ describe("sequence executor", () => {
     const res = await engine.run(def, {}, ctx);
 
     assert.equal(res.status, "failed");
-    assert.deepEqual(spawn.calls.steps.map((s) => s.prompt), ["a", "b"], "c never runs");
+    assert.deepEqual(spawn.calls.steps.map((s) => promptBody(s.prompt)), ["a", "b"], "c never runs");
   });
 });
 
 describe("parallel executor — barrier", () => {
   it("awaits all children; a crashed child fails-soft without rejecting the barrier", async () => {
     const spawn = spawnPort((spec): SpawnResponse => {
-      if (spec.prompt === "boom") throw new Error("worker crashed");
+      if (spec.nodeId === "bad") throw new Error("worker crashed");
       return {};
     });
     const def = wf.define("par", (b) => ({
@@ -127,14 +176,14 @@ describe("conditional executor", () => {
     const spawn = spawnPort();
     const { engine } = buildEngine(spawn);
     await engine.run(def("did-then", "did-else"), { flag: true }, ctx);
-    assert.deepEqual(spawn.calls.steps.map((s) => s.prompt), ["did-then"]);
+    assert.deepEqual(spawn.calls.steps.map((s) => promptBody(s.prompt)), ["did-then"]);
   });
 
   it("runs `else` when the predicate fails", async () => {
     const spawn = spawnPort();
     const { engine } = buildEngine(spawn);
     await engine.run(def("did-then", "did-else"), {}, ctx);
-    assert.deepEqual(spawn.calls.steps.map((s) => s.prompt), ["did-else"]);
+    assert.deepEqual(spawn.calls.steps.map((s) => promptBody(s.prompt)), ["did-else"]);
   });
 
   it("returns a skipped NodeResult (no branch) when the predicate fails and there is no else", async () => {
@@ -189,9 +238,9 @@ describe("subWorkflow executor", () => {
     await engine.run(def, { q: "PARENT-ARG" }, ctx);
 
     // the sub-workflow sees ITS OWN args, not the parent's
-    assert.equal(spawn.calls.steps[0].prompt, "sub hello");
+    assert.equal(promptBody(spawn.calls.steps[0].prompt), "sub hello");
     // its output flowed to the parent under the subWorkflow node id
-    assert.equal(spawn.calls.steps[1].prompt, "after sub hello");
+    assert.equal(promptBody(spawn.calls.steps[1].prompt), "after sub hello");
     // its node ids were scoped (no collision with parent journal)
     const steps = deps.steps as ReturnType<typeof import("./helpers/workflowFakes.ts").stepRepo>;
     assert.ok(steps.findByNode("r", "inner@sw"), "sub node id scoped under the call");

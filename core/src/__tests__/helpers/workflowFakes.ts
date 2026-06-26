@@ -6,6 +6,7 @@
 import { WorkflowEngineImpl, type WorkflowEngineDeps } from "../../workflow/engine.ts";
 import { InMemoryStepExecutorRegistry } from "../../workflow/registry.ts";
 import { registerBuiltinExecutors } from "../../workflow/register-builtins.ts";
+import { SCHEMA_INSTRUCTION, STEP_REPORT_INSTRUCTION } from "../../workflow/executors/step.ts";
 import type { TransformFnRegistry } from "../../workflow/transforms.ts";
 import type { SpawnStepSpec, StepOutcome, ExpertSpawnSpec } from "../../ports/WorkerSpawnPort.ts";
 import type {
@@ -56,7 +57,9 @@ export function stepRepo() {
 }
 
 // A response a programmable spawn returns for one call. Returning nothing ⇒ echo
-// the (binding-resolved) prompt as the report text (the step output). `respond`
+// the (binding-resolved) prompt BODY as the report text (the step output) — the
+// executor-appended instructions are stripped so the echo mirrors prior behavior.
+// `respond`
 // MAY return a never/late-resolving promise (to test overlap) or throw (to
 // simulate a crashed worker → spawnAndAwait rejects). For a typed step, set
 // `reportText` to a ```json block (see `jsonReport`) so the engine extractor
@@ -70,6 +73,14 @@ export interface SpawnResponse {
 // the engine's extractJson recovers it. Pairs with a node `outputSchema`.
 export function jsonReport(value: unknown): string {
   return "```json\n" + JSON.stringify(value) + "\n```";
+}
+
+// Strip the executor-appended instructions (the step-report contract + the schema
+// suffix) so a test can assert on / echo the binding-resolved prompt BODY — the
+// part data-flow tests care about. The step executor now appends
+// STEP_REPORT_INSTRUCTION to every prompt (and SCHEMA_INSTRUCTION when typed).
+export function promptBody(prompt: string): string {
+  return prompt.split(STEP_REPORT_INSTRUCTION)[0].split(SCHEMA_INSTRUCTION)[0];
 }
 
 // A duck-typed schema that accepts ANY extracted JSON. The code-DSL path carries
@@ -118,7 +129,7 @@ export function spawnPort(respond?: Respond) {
         return {
           workerId,
           signal: r.signal ?? "result",
-          reportText: r.reportText ?? spec.prompt,
+          reportText: r.reportText ?? promptBody(spec.prompt),
         };
       })();
       // Settle on the outcome OR on abort, whichever lands first; a settle after

@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { wf } from "../workflow/dsl.ts";
-import { buildEngine, spawnPort, tick, jsonReport, passSchema, type SpawnResponse } from "./helpers/workflowFakes.ts";
+import { buildEngine, spawnPort, tick, jsonReport, passSchema, promptBody, type SpawnResponse } from "./helpers/workflowFakes.ts";
 
 const ctx = { runId: "r", ownerId: "o", mode: "default" as const };
 
@@ -14,8 +14,9 @@ describe("pipeline executor — independent per-item chains (§3.2 landmine)", (
     const bGate = new Promise<void>((r) => { releaseB = r; });
     const log: string[] = [];
     const spawn = spawnPort(async (spec): Promise<SpawnResponse> => {
-      log.push(spec.prompt);
-      if (spec.prompt === "s0 B") await bGate;
+      const body = promptBody(spec.prompt);
+      log.push(body);
+      if (body === "s0 B") await bGate;
       return {};
     });
     const def = wf.define("pipe", (b) => ({
@@ -55,7 +56,7 @@ describe("forEach executor — per-iteration id isolation + item injection", () 
     const res = await engine.run(def, { items: ["x", "y"] }, ctx);
 
     // item injected (a) + sibling ref resolved within the SAME iteration (b)
-    assert.deepEqual(spawn.calls.steps.map((s) => s.prompt).sort(), ["a x", "a y", "b a x", "b a y"]);
+    assert.deepEqual(spawn.calls.steps.map((s) => promptBody(s.prompt)).sort(), ["a x", "a y", "b a x", "b a y"]);
     // four distinct journal rows — body ids scoped per iteration, no collision
     const steps = deps.steps as ReturnType<typeof import("./helpers/workflowFakes.ts").stepRepo>;
     for (const id of ["a#0", "b#0", "a#1", "b#1"]) {
@@ -85,7 +86,7 @@ describe("loopUntil executor — per-iteration id isolation + termination", () =
     const { engine, deps } = buildEngine(spawn);
     await engine.run(def, {}, ctx);
 
-    assert.deepEqual(spawn.calls.steps.map((s) => s.prompt), ["round 0", "round 1", "round 2"]);
+    assert.deepEqual(spawn.calls.steps.map((s) => promptBody(s.prompt)), ["round 0", "round 1", "round 2"]);
     const steps = deps.steps as ReturnType<typeof import("./helpers/workflowFakes.ts").stepRepo>;
     for (const id of ["s#0", "s#1", "s#2"]) assert.ok(steps.findByNode("r", id), `journal row ${id}`);
   });

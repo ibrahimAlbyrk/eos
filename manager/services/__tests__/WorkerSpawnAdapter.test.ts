@@ -128,7 +128,7 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     const outcome = await p;
     assert.equal(outcome.workerId, "w-1");
     assert.equal(outcome.reportText, "Özet: iş tamamlandı.");
-    assert.equal(outcome.signal, "unknown"); // no result:/failed: first line → unknown, status passes
+    assert.equal(outcome.signal, "unknown"); // no result:/failed: first line → unknown (the step executor now FAILS on unknown — fail-closed)
   });
 
   it("a worker that DOES report resolves via the report; a following IDLE is a no-op (resolve-once)", async () => {

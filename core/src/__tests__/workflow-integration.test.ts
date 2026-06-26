@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { wf } from "../workflow/dsl.ts";
-import { buildEngine, spawnPort, tick, jsonReport, passSchema, type SpawnResponse } from "./helpers/workflowFakes.ts";
+import { buildEngine, spawnPort, tick, jsonReport, passSchema, promptBody, type SpawnResponse } from "./helpers/workflowFakes.ts";
 import type { WorkflowDefinition } from "../../../contracts/src/workflow.ts";
 import type { RunContext } from "../ports/WorkflowEngine.ts";
 
@@ -56,7 +56,7 @@ describe("integration — leaf step (typed + text-fallback)", () => {
     const result = await promise;
     assert.equal(result.status, "passed");
     assert.equal(result.output, "plain report");
-    assert.equal(spawn.calls.steps[0].prompt, "go"); // no schema suffix
+    assert.equal(promptBody(spawn.calls.steps[0].prompt), "go"); // no schema suffix; report instruction stripped
   });
 
   it("a failed report signal fails the step", async () => {
@@ -79,8 +79,8 @@ describe("integration — sequence", () => {
     }));
     const result = await run(def, {}, spawn).promise;
     assert.deepEqual(spawn.calls.steps.map((s) => s.nodeId), ["a", "b", "c"]);
-    assert.equal(spawn.calls.steps[1].prompt, "prev a");
-    assert.equal(spawn.calls.steps[2].prompt, "prev b");
+    assert.equal(promptBody(spawn.calls.steps[1].prompt), "prev a");
+    assert.equal(promptBody(spawn.calls.steps[2].prompt), "prev b");
     assert.equal(result.output, "c"); // the last child's output
   });
 });
@@ -165,7 +165,7 @@ describe("integration — subWorkflow", () => {
     // the sub's leaf id is scoped under the call; its args resolve to the node args
     assert.equal(spawn.calls.steps.length, 1);
     assert.equal(spawn.calls.steps[0].nodeId, "leaf@call");
-    assert.equal(spawn.calls.steps[0].prompt, "sub hi");
+    assert.equal(promptBody(spawn.calls.steps[0].prompt), "sub hi");
     assert.equal(result.output, "sub hi"); // bound into the parent under "call"
   });
 });
@@ -180,7 +180,7 @@ describe("integration — forEach (runtime count + per-iteration id isolation)",
     const result = await promise;
     assert.equal(spawn.calls.steps.length, 3); // count known only at runtime
     assert.deepEqual(spawn.calls.steps.map((s) => s.nodeId), ["item#0", "item#1", "item#2"]);
-    assert.deepEqual(spawn.calls.steps.map((s) => s.prompt), ["do x #0", "do y #1", "do z #2"]);
+    assert.deepEqual(spawn.calls.steps.map((s) => promptBody(s.prompt)), ["do x #0", "do y #1", "do z #2"]);
     assert.deepEqual(result.output, ["item#0", "item#1", "item#2"]);
     // per-iteration journal isolation: each scoped node has its own row
     assert.ok(built.deps.steps.findByNode("run", "item#0"));
@@ -195,8 +195,9 @@ describe("integration — pipeline (ACTUAL overlap, no stage barrier)", () => {
     const bGate = new Promise<void>((r) => { releaseB = r; });
     const log: string[] = [];
     const spawn = spawnPort(async (spec): Promise<SpawnResponse> => {
-      log.push(spec.prompt);
-      if (spec.prompt === "s0 B") await bGate;
+      const body = promptBody(spec.prompt);
+      log.push(body);
+      if (body === "s0 B") await bGate;
       return {};
     });
     const def = wf.define("pipe", (b) => ({
@@ -341,8 +342,8 @@ describe("integration — canonical topology: A → {B,C} → D diamond", () => 
     assert.ok(at("B0") < at("C1") && at("B1") < at("C1") && at("B2") < at("C1"), "B and C overlap");
     assert.ok(at("C0") < at("C1") && at("C1") < at("C2"), "C is sequential");
     // C reads the previous step each time
-    assert.equal(spawn.calls.steps.find((s) => s.nodeId === "C1")!.prompt, "C1 C0");
-    assert.equal(spawn.calls.steps.find((s) => s.nodeId === "C2")!.prompt, "C2 C1");
+    assert.equal(promptBody(spawn.calls.steps.find((s) => s.nodeId === "C1")!.prompt), "C1 C0");
+    assert.equal(promptBody(spawn.calls.steps.find((s) => s.nodeId === "C2")!.prompt), "C2 C1");
     // D consumes BOTH branches via bindings (B's aggregate + C's final output)
     const d = spawn.calls.steps.find((s) => s.nodeId === "D")!;
     assert.match(d.prompt, /B=\["B0","B1","B2"\]/);
@@ -493,7 +494,7 @@ describe("integration — resume (memoized replay, no re-spawn)", () => {
     const result = await built.engine.resume("run", CTX);
 
     assert.deepEqual(spawn.calls.steps.map((s) => s.nodeId), ["n2"], "only n2 re-spawns; n1 replays");
-    assert.equal(spawn.calls.steps[0].prompt, "use journaled-n1", "n1's journaled output re-seeds the binding");
+    assert.equal(promptBody(spawn.calls.steps[0].prompt), "use journaled-n1", "n1's journaled output re-seeds the binding");
     assert.equal(result.status, "passed");
   });
 });
