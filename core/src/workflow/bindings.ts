@@ -45,6 +45,23 @@ export class BindingScope {
     return template.replace(TOKEN, (_match, inner: string) => stringifyBinding(this.resolvePath(inner.trim(), locals)));
   }
 
+  // Like `resolve`, but reports every `{{nodes.*}}` token that resolved to
+  // `undefined` (a wrong path, a missing field, or a node that never produced
+  // output) instead of silently rendering "". `args.*` and injected locals stay
+  // tolerant (undefined → ""); only a dangling reference to a prior node's output
+  // is a hard authoring error, which the step executor surfaces by failing the
+  // step rather than feeding it empty input.
+  resolveStrict(template: string, locals?: Record<string, unknown>): { text: string; unresolved: string[] } {
+    const unresolved: string[] = [];
+    const text = template.replace(TOKEN, (_match, inner: string) => {
+      const path = inner.trim();
+      const value = this.resolvePath(path, locals);
+      if (value === undefined && path.split(".")[0] === "nodes") unresolved.push(path);
+      return stringifyBinding(value);
+    });
+    return { text, unresolved };
+  }
+
   private resolvePath(path: string, locals?: Record<string, unknown>): unknown {
     if (path === "") return undefined;
     const parts = path.split(".");

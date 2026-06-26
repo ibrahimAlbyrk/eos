@@ -32,6 +32,15 @@ export function collectIds(node: WorkflowNode, acc: Set<string> = new Set()): Se
   return acc;
 }
 
+// Visit `node` and every descendant (pre-order). The manager uses it to attach a
+// JSON-Schema validator to each `step` node carrying an inline `outputSchema` at
+// run acceptance — the tree-structure knowledge stays here, the validation
+// concretion stays in the manager (§Issue B).
+export function forEachNode(node: WorkflowNode, visit: (_node: WorkflowNode) => void): void {
+  visit(node);
+  for (const child of childrenOf(node)) forEachNode(child, visit);
+}
+
 // Does `node` or any descendant carry the given `type`? The trust gate (§ITEM 1c)
 // uses it to reject a run-inline spec that smuggles a `script` node — script nodes
 // are allowed only from trusted stored/builtin/file definitions.
