@@ -399,15 +399,52 @@ export const api = {
   async saveWorkflow(graph) {
     return putJson(`${ROUTES.workflows}?owner=operator`, graph);
   },
-  // RUN: launch the current graph as an operator-owned run-inline (Phase 4
-  // owner-optional path). Returns the postJson envelope; body = { runId, status }.
-  async runWorkflow(graph, args) {
-    return postJson(ROUTES.workflows, { mode: "run-inline", spec: graph, args });
+  // STOP: the ONE run-write op the Runs view exposes — abort an active run
+  // (status→stopped, reaps the anchor subtree). Stays reachable even when the
+  // engine is disabled. Returns the postJson envelope; body = the lean run view.
+  async stopWorkflowRun(runId) {
+    return postJson(ROUTES.workflows, { mode: "stop", runId });
+  },
+  // DELETE a stored (runtime) definition by name — the symmetric mirror of save.
+  // The daemon rejects builtins (400) and unknown names (404); the Library only
+  // surfaces Delete for runtime defs, so the happy path is a runtime row. Owner
+  // rides the query (operator default), same as save.
+  async deleteWorkflow(name) {
+    return del(`${ROUTES.workflowDefinition(encodeURIComponent(name))}?owner=operator`);
   },
   // Read one run row (status + per-step rows) for the GET status read.
   async getWorkflowRun(id) {
     const r = await getJson(ROUTES.workflowRun(id));
     return r.ok ? r.body : null;
+  },
+  // Phase-0 read endpoints (later phases — Library + Runs — consume these). All
+  // are thin GETs; each degrades to an empty list so a partial daemon never
+  // throws in render.
+  // Merged builtin+file+runtime definition records (Library cards + from/subGraph
+  // selectors). Owner rides the query (operator default), same as save/delete.
+  async listWorkflowDefinitions({ owner = "operator" } = {}) {
+    const r = await getJson(`${ROUTES.workflowDefinitions}?owner=${encodeURIComponent(owner)}`);
+    return r.ok ? r.body : [];
+  },
+  // Run list for the observation view: scope "active" (in-flight, cross-owner) or
+  // "recent" (capped most-recent history).
+  async listWorkflowRuns(scope = "active") {
+    const r = await getJson(`${ROUTES.workflowRuns}?scope=${encodeURIComponent(scope)}`);
+    return r.ok ? r.body : [];
+  },
+  // Per-node step rows for one run (run-detail step list + per-node coloring
+  // backfill on mount).
+  async getWorkflowRunSteps(id) {
+    const r = await getJson(ROUTES.workflowRunSteps(id));
+    return r.ok ? r.body : [];
+  },
+  // Worker-definition names for the node `from` / expert `from` selectors. Owner
+  // is optional (omitted ⇒ builtin+user+project; the operator editor has no agent
+  // row behind it). Degrades to [] so a partial daemon never throws in render.
+  async listWorkerDefinitions({ owner } = {}) {
+    const q = owner ? `?owner=${encodeURIComponent(owner)}` : "";
+    const r = await getJson(`${ROUTES.workerDefinitions}${q}`);
+    return r.ok ? r.body : [];
   },
 
   // Prompt templates

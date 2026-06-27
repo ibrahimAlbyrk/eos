@@ -90,7 +90,23 @@ export const ROUTES = {
   // before the /workflows/:id regex daemon-side.
   workflows: "/workflows",
   workflowCatalog: "/workflows/catalog",
+  // Merged builtin+file+runtime definition records (Library + from/subGraph
+  // selectors). Literal path — served before the /workflows/:id regex.
+  workflowDefinitions: "/workflows/definitions",
+  // Run list for the observation view: ?scope=active|recent. Literal path —
+  // served before the /workflows/:id regex.
+  workflowRuns: "/workflows/runs",
   workflowRun: (id) => `/workflows/${id}`,
+  // DELETE a stored (runtime) definition by name — the symmetric mirror of the PUT
+  // save. Same single-segment shape as /workflows/:id; the daemon routes DELETE
+  // distinctly from GET, so no collision.
+  workflowDefinition: (name) => `/workflows/${name}`,
+  // Per-node step rows for one run (read-only run canvas / step list). Two-segment
+  // path — no collision with the single-segment /workflows/:id regex.
+  workflowRunSteps: (id) => `/workflows/${id}/steps`,
+  // Worker-definition catalog (names for the node `from` / expert `from` selectors).
+  // Endpoint already exists daemon-side (manager/routes/worker-definitions.ts).
+  workerDefinitions: "/worker-definitions",
   templates: "/api/templates",
   template: (name) => `/api/templates/${name}`,
   settings: "/api/settings",
