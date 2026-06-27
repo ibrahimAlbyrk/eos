@@ -7,7 +7,7 @@
 // determinism clock/ids) reaches the executor through WorkflowExecCtx.
 
 import type { WorkflowNode } from "../../../contracts/src/workflow-node.ts";
-import type { WorkflowDefinition } from "../../../contracts/src/workflow.ts";
+import type { AnyWorkflowDefinition } from "../../../contracts/src/workflow-graph.ts";
 import type { BindingScope } from "../workflow/bindings.ts";
 import type { WorkerSpawnPort } from "./WorkerSpawnPort.ts";
 import type { ProgressSink } from "./ProgressSink.ts";
@@ -31,6 +31,12 @@ export interface StepExecutor<N extends WorkflowNode = WorkflowNode> {
 // through the concrete engine (DIP). The engine impl IS the NodeRunner.
 export interface NodeRunner {
   runNode(node: WorkflowNode, ctx: WorkflowExecCtx): Promise<NodeResult>;
+  // Journal a node that failed BEFORE it could run (the scheduler rejected its
+  // input port-type values). The engine owns the workflow_steps journal, so the
+  // scheduler — which holds only this seam — routes the failed row through here
+  // instead of touching the repo directly. Writes a terminal `failed` row carrying
+  // the failure detail; the run-level outcome is the caller's concern, unchanged.
+  journalFailedNode(node: WorkflowNode, ctx: WorkflowExecCtx, output: unknown): void;
 }
 
 export interface WorkflowExecCtx {
@@ -48,6 +54,13 @@ export interface WorkflowExecCtx {
   readonly log: Logger;
   readonly concurrency: ConcurrencyGate; // in-engine semaphore (§3.9)
   readonly signal: AbortSignal;         // stop/kill propagation (C6)
+  // Typed input-port values for a v2 graph node (Phase 3 / A5): the scheduler
+  // resolves the node's incoming edges into { port -> delivered value } and injects
+  // them here, so the executor consumes them as typed inputs (a worker forwards them
+  // on the spawn spec + interpolates `{{in.<port>}}`; glue feeds them to its fn via
+  // `over: "{{in.<port>}}"`) instead of only through cross-node `{{nodes.id}}` refs.
+  // Absent for the v1 tree path, where data flows via string bindings unchanged.
+  readonly inputs?: Record<string, unknown>;
   // loop metadata (§3.2) injected for loopUntil children:
   readonly iteration?: number;
   readonly lastResult?: unknown;
@@ -57,6 +70,7 @@ export interface WorkflowExecCtx {
   readonly item?: unknown;
   readonly index?: number;
   // subWorkflow resolution seam (§3.10): resolve a stored definition by name,
-  // owner already bound by the engine. Absent ⇒ subWorkflow nodes throw.
-  readonly resolveDefinition?: (name: string) => WorkflowDefinition | null;
+  // owner already bound by the engine. May resolve a v1 tree OR a v2 graph (the
+  // scheduler lowers either via toGraph). Absent ⇒ subWorkflow nodes throw.
+  readonly resolveDefinition?: (name: string) => AnyWorkflowDefinition | null;
 }

@@ -4,6 +4,17 @@
 // (the re-trigger + report-hold seams).
 
 import type { LoopStatus, LoopStrategy, GoalSpec } from "../../../contracts/src/loop.ts";
+import type { StepStatus } from "../domain/report-signal.ts";
+
+// The structured held output of a workflow step-worker node (workflow_step_output),
+// stored alongside heldReport so the loop-release republishes the TYPED object +
+// its self-declared status VERBATIM — never a stringified body or a status
+// re-sniffed from text (which inverts failed→done). Set/cleared with heldReport.
+export interface StepHeldOutput {
+  output: unknown;
+  status: StepStatus;
+  reason?: string;
+}
 
 export interface LoopRow {
   id: string;
@@ -18,6 +29,9 @@ export interface LoopRow {
   maxAttempts: number | null;
   // The worker's report, withheld until the goal check passes (released in P4).
   heldReport: string | null;
+  // The structured twin of heldReport for a workflow step-worker node — null for a
+  // plain (text-report) loop. Republished verbatim on release (§3.4 / D3 / H2).
+  heldOutput: StepHeldOutput | null;
   lastReason: string | null;
   // Paused on a human's answer: the worker reported needs-input, so the goal-gate
   // skips it (no re-trigger, no attempt burned) until the orchestrator replies.
@@ -57,6 +71,9 @@ export interface LoopStateRepo {
   setStatus(id: string, status: LoopStatus): void;
   recordAttempt(id: string, attempt: LoopAttempt): void;
   setHeldReport(id: string, text: string | null): void;
+  // Store the structured held output (workflow step channel). Cleared together
+  // with heldReport — setHeldReport(id, null) also clears it (see the adapter).
+  setHeldOutput(id: string, output: StepHeldOutput | null): void;
   setAwaitingInput(id: string, awaiting: boolean): void;
   clear(id: string): void;
 }

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { wf } from "../workflow/dsl.ts";
 import { BindingScope } from "../workflow/bindings.ts";
 import { conditionalExecutor } from "../workflow/executors/conditional.ts";
-import { buildEngine, spawnPort, jsonReport, promptBody, type SpawnResponse } from "./helpers/workflowFakes.ts";
+import { buildEngine, spawnPort, promptBody, type SpawnResponse } from "./helpers/workflowFakes.ts";
 import type { WorkflowDefinition } from "../../../contracts/src/workflow.ts";
 
 // A duck-typed Zod-like schema (core has no direct `zod`): accepts { n: number }.
@@ -17,12 +17,12 @@ const numberSchema = {
 
 const ctx = { runId: "r", ownerId: "o", mode: "default" as const };
 
-describe("step executor — extract-validate-with-reprompt-once (§3.6)", () => {
-  it("re-prompts ONCE on a schema failure then returns the parsed object", async () => {
+describe("step executor — validate-tool-arg-with-reprompt-once (§3.6 / Part B)", () => {
+  it("re-prompts ONCE on a schema failure then returns the validated output", async () => {
     let n = 0;
     const spawn = spawnPort((): SpawnResponse => {
       n += 1;
-      return { reportText: jsonReport(n === 1 ? { n: "nope" } : { n: 42 }) };
+      return { output: n === 1 ? { n: "nope" } : { n: 42 } };
     });
     const def = wf.define("retry", (b) => ({
       root: b.step({ id: "s", prompt: "compute it", outputSchema: numberSchema }),
@@ -33,13 +33,15 @@ describe("step executor — extract-validate-with-reprompt-once (§3.6)", () => 
     assert.deepEqual(res.output, { n: 42 });
     assert.equal(res.status, "passed");
     assert.equal(spawn.calls.steps.length, 2, "initial attempt + exactly one re-prompt");
-    assert.match(spawn.calls.steps[1].prompt, /corrected/);
-    // the schema instruction (a fenced json block) is appended on the first attempt
-    assert.match(spawn.calls.steps[0].prompt, /```json/);
+    assert.match(spawn.calls.steps[1].prompt, /schema/);
+    assert.match(spawn.calls.steps[1].prompt, /workflow_step_output/);
+    // No schema instruction is appended to the first attempt — the prompt is the
+    // binding-resolved body verbatim; the output contract lives in the DPI prompt.
+    assert.equal(spawn.calls.steps[0].prompt, "compute it");
   });
 
-  it("fails the step (raw-text fallback) after the single re-prompt still fails", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ reportText: jsonReport({ n: "always-bad" }) }));
+  it("fails the step after the single re-prompt still emits non-matching output", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ output: { n: "always-bad" } }));
     const def = wf.define("retry-fail", (b) => ({
       root: b.step({ id: "s", prompt: "compute", outputSchema: numberSchema }),
     }));
@@ -50,40 +52,41 @@ describe("step executor — extract-validate-with-reprompt-once (§3.6)", () => 
     assert.equal(spawn.calls.steps.length, 2, "initial attempt + exactly one re-prompt");
   });
 
-  it("falls back to the raw report text (status failed) when the report has NO JSON", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ reportText: "result: I forgot the JSON block" }));
-    const def = wf.define("nojson", (b) => ({
+  it("fails the step (status failed) when the emitted output does not match the schema", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ output: "not the structured object" }));
+    const def = wf.define("badshape", (b) => ({
       root: b.step({ id: "s", prompt: "go", outputSchema: numberSchema }),
     }));
     const { engine } = buildEngine(spawn);
     const res = await engine.run(def, {}, ctx);
 
     assert.equal(res.status, "failed");
-    assert.equal(res.output, "result: I forgot the JSON block", "raw text bound; never wedged");
+    assert.equal(res.output, "not the structured object", "the mis-shaped output is bound; never wedged");
     assert.equal(spawn.calls.steps.length, 2, "initial attempt + exactly one re-prompt, then give up");
   });
 
-  it("maps a failed report signal to a failed step (no schema)", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ signal: "failed", reportText: "blew up" }));
+  it("a failed status fails the step with the worker's reason (no schema)", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ status: "failed", reason: "blew up" }));
     const def = wf.define("sig", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
     const { engine } = buildEngine(spawn);
     const res = await engine.run(def, {}, ctx);
     assert.equal(res.status, "failed");
+    assert.equal(res.output, "blew up", "the reason is surfaced as the node output");
   });
 
-  it("maps a needs-input report signal to a failed step (no schema)", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ signal: "needs-input", reportText: "needs input: missing findings" }));
+  it("a needs-input status fails the step (fail-closed — no node-pause primitive)", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ status: "needs-input", reason: "missing findings" }));
     const def = wf.define("sig-ni", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
     const { engine } = buildEngine(spawn);
     const res = await engine.run(def, {}, ctx);
     assert.equal(res.status, "failed");
+    assert.equal(res.output, "missing findings");
   });
 
-  // Issue A (relaxed): a content answer with no `result:` token classifies as
-  // `unknown`; the step PASSES — the final message IS the step output. Only an
-  // explicit `failed:`/`needs input:` fails (Issues B/C stop empty-input passes).
-  it("passes a step whose final message is a plain content answer (unknown → passed)", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ signal: "unknown", reportText: "Eos is the Greek goddess of the dawn." }));
+  // Part B: a `done` status binds the emitted output as the node result — success
+  // is the positive `done`, never the mere absence of a failure token.
+  it("passes a step that emits a plain content output via the tool (done → passed)", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ status: "done", output: "Eos is the Greek goddess of the dawn." }));
     const def = wf.define("u", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
     const { engine } = buildEngine(spawn);
     const res = await engine.run(def, {}, ctx);
@@ -91,22 +94,32 @@ describe("step executor — extract-validate-with-reprompt-once (§3.6)", () => 
     assert.equal(res.output, "Eos is the Greek goddess of the dawn.");
   });
 
-  it("passes a step whose final message leads with a result: signal", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ signal: "result", reportText: "result: done" }));
+  it("passes a step that emits a structured output with no schema", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ status: "done", output: { ok: true } }));
     const def = wf.define("r", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
     const { engine } = buildEngine(spawn);
     const res = await engine.run(def, {}, ctx);
     assert.equal(res.status, "passed");
+    assert.deepEqual(res.output, { ok: true });
   });
 
-  it("appends the step-report instruction (direct answer; failure tokens only) to every step prompt", async () => {
+  it("appends NO instruction to a step prompt — the spawned prompt is the resolved body verbatim", async () => {
     const spawn = spawnPort();
     const def = wf.define("ri", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
     const { engine } = buildEngine(spawn);
     await engine.run(def, {}, ctx);
-    const prompt = spawn.calls.steps[0].prompt;
-    assert.match(prompt, /final message IS this step's output/);
-    assert.match(prompt, /failed:[\s\S]*needs input:|needs input:[\s\S]*failed:/);
+    // The output contract (call workflow_step_output) lives in the workflow-worker
+    // DPI prompt, not appended per step — so the spawned prompt is just the body.
+    assert.equal(spawn.calls.steps[0].prompt, "go");
+  });
+
+  it("spawns workflow nodes with role=workflow-worker and collaborate:false", async () => {
+    const spawn = spawnPort();
+    const def = wf.define("rc", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
+    const { engine } = buildEngine(spawn);
+    await engine.run(def, {}, ctx);
+    assert.equal(spawn.calls.steps[0].role, "workflow-worker");
+    assert.equal(spawn.calls.steps[0].collaborate, false);
   });
 });
 
@@ -135,7 +148,7 @@ describe("step executor — strict node bindings (Issue C)", () => {
 describe("sequence executor", () => {
   it("short-circuits on a failed child", async () => {
     const spawn = spawnPort((spec): SpawnResponse =>
-      spec.nodeId === "b" ? { signal: "failed", reportText: "b failed" } : {});
+      spec.nodeId === "b" ? { status: "failed", reason: "b failed" } : {});
     const def = wf.define("seq", (b) => ({
       root: b.sequence([
         b.step({ id: "a", prompt: "a" }),

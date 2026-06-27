@@ -7,6 +7,7 @@
 // WorkflowEngineImpl in core/src/workflow/engine.ts.
 
 import type { WorkflowDefinition, WorkflowRunStatus } from "../../../contracts/src/workflow.ts";
+import type { WorkflowGraph } from "../../../contracts/src/workflow-graph.ts";
 import type { NodeRunner } from "./StepExecutor.ts";
 
 // What a run needs that the persisted run row does not carry: the freshly-minted
@@ -26,6 +27,8 @@ export interface WorkflowRunResult {
 }
 
 export interface WorkflowEngine extends NodeRunner {
-  run(def: WorkflowDefinition, args: unknown, ctx: RunContext): Promise<WorkflowRunResult>;
+  // `def` is a v1 tree or a v2 graph — the engine compiles a tree into the graph
+  // runtime at run start and runs a graph directly (A4 Option C).
+  run(def: WorkflowDefinition | WorkflowGraph, args: unknown, ctx: RunContext): Promise<WorkflowRunResult>;
   resume(runId: string, ctx: RunContext): Promise<WorkflowRunResult>;
 }

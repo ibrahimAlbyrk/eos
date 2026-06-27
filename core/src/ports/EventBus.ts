@@ -38,6 +38,11 @@ export type EventBusTopic =
   // "*" subscription (the loop:change model). Never drives worker state.
   | "workflow:run-change"
   | "workflow:step-change"
+  // A workflow step-worker's typed output (workflow_step_output tool → the
+  // /workers/:id/step-output route). The SOLE settle channel for a workflow
+  // step's join (WorkerSpawnAdapter.onStepOutput); carries the typed output +
+  // status + held flag. Never drives worker state.
+  | "workflow:step-output"
   | "fs:change"
   | "git:change"
   | "update:available";

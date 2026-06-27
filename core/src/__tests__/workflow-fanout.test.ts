@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { wf } from "../workflow/dsl.ts";
-import { buildEngine, spawnPort, tick, jsonReport, passSchema, promptBody, type SpawnResponse } from "./helpers/workflowFakes.ts";
+import { buildEngine, spawnPort, tick, passSchema, promptBody, type SpawnResponse } from "./helpers/workflowFakes.ts";
 
 const ctx = { runId: "r", ownerId: "o", mode: "default" as const };
 
@@ -92,10 +92,10 @@ describe("loopUntil executor — per-iteration id isolation + termination", () =
   });
 
   it("stops early when the until predicate sees an empty last round (lastCount)", async () => {
-    // The body carries a schema so its array output flows through the engine's
-    // JSON extractor; key the empty round off the scoped per-iteration node id.
+    // The body carries a schema so its array output is validated by the engine;
+    // key the empty round off the scoped per-iteration node id.
     const spawn = spawnPort((spec): SpawnResponse =>
-      ({ reportText: jsonReport(spec.nodeId === "s#2" ? [] : ["item"]) }));
+      ({ output: spec.nodeId === "s#2" ? [] : ["item"] }));
     const def = wf.define("lu2", (b) => ({
       root: b.loopUntil({
         id: "loop",
@@ -118,5 +118,98 @@ describe("loopUntil executor — per-iteration id isolation + termination", () =
     }));
     const { engine } = buildEngine(spawn);
     await assert.rejects(engine.run(def, {}, ctx), /requires 'until' or 'maxIterations'/);
+  });
+});
+
+// D2 — a loop-in-loop must compose the outer+inner id suffixes so every logical
+// inner iteration gets a DISTINCT journal PK. Before the fix scopeGraphConfig did
+// not descend into a loop's config.body, so the inner body re-ran with only its
+// own per-iteration suffix and its PK collided across outer iterations (last-write-
+// wins → under-counted iterations + mis-attributed outputs).
+describe("D2 — nested loop (loop-in-loop) journal PK composition", () => {
+  // outer over 2 groups, inner over each group's items: 2 + 1 = 3 logical inner
+  // iterations. Composed ids: w#0#0, w#0#1 (group 0), w#1#0 (group 1).
+  const nested = wf.define("nested", (b) => ({
+    root: b.forEach({ id: "outer", over: "{{args.groups}}", body:
+      b.forEach({ id: "inner", over: "{{item}}", body:
+        b.step({ id: "w", prompt: "do {{item}}" }) }) }),
+  }));
+
+  it("journals each inner iteration under a distinct composed PK with correctly-attributed outputs", async () => {
+    const spawn = spawnPort();
+    const { engine, deps } = buildEngine(spawn);
+    const res = await engine.run(nested, { groups: [["a", "b"], ["c"]] }, ctx);
+
+    // three distinct inner iterations spawn three workers with composed ids
+    assert.deepEqual(spawn.calls.steps.map((s) => s.nodeId).sort(), ["w#0#0", "w#0#1", "w#1#0"]);
+    // each composed PK has its OWN journal row carrying its OWN item's output —
+    // no collision means no last-write-wins clobbering across outer iterations
+    assert.equal(deps.steps.findByNode("r", "w#0#0")?.output, "do a");
+    assert.equal(deps.steps.findByNode("r", "w#0#1")?.output, "do b");
+    assert.equal(deps.steps.findByNode("r", "w#1#0")?.output, "do c");
+    // the un-composed (colliding) ids never appear — the pre-fix collapse is gone
+    assert.equal(deps.steps.findByNode("r", "w#0"), null);
+    assert.equal(deps.steps.findByNode("r", "w"), null);
+    // exactly three worker rows journaled (no under-counting)
+    assert.equal(deps.steps.listByRun("r").filter((s) => s.nodeType === "step").length, 3);
+    // outputs aggregate per outer iteration, inner-item order preserved
+    assert.deepEqual(res.output, [["do a", "do b"], ["do c"]]);
+    assert.equal(res.status, "passed");
+  });
+
+  it("composes PKs across loop KINDS — a loopUntil nested in a forEach (both lower to kind:loop)", async () => {
+    // forEach (outer) over 2 items, each running a loopUntil (inner) of 2 iterations
+    // → 4 logical inner iterations. The deep-scope fires for any kind:"loop" body, so
+    // the composed ids must be w#0#0, w#0#1, w#1#0, w#1#1 (outer#item then inner#iter).
+    const crossKind = wf.define("cross-kind", (b) => ({
+      root: b.forEach({ id: "outer", over: "{{args.items}}", body:
+        b.loopUntil({ id: "inner", maxIterations: 2, body:
+          b.step({ id: "w", prompt: "{{item}}@{{iteration}}" }) }) }),
+    }));
+    const spawn = spawnPort();
+    const { engine, deps } = buildEngine(spawn);
+    const res = await engine.run(crossKind, { items: ["a", "b"] }, ctx);
+
+    assert.deepEqual(spawn.calls.steps.map((s) => s.nodeId).sort(), ["w#0#0", "w#0#1", "w#1#0", "w#1#1"]);
+    assert.equal(deps.steps.findByNode("r", "w#0#0")?.output, "a@0");
+    assert.equal(deps.steps.findByNode("r", "w#0#1")?.output, "a@1");
+    assert.equal(deps.steps.findByNode("r", "w#1#0")?.output, "b@0");
+    assert.equal(deps.steps.findByNode("r", "w#1#1")?.output, "b@1");
+    assert.equal(deps.steps.listByRun("r").filter((s) => s.nodeType === "step").length, 4, "four distinct inner iterations, no collision");
+    // loopUntil yields its last iteration's output; the forEach aggregates per item
+    assert.deepEqual(res.output, ["a@1", "b@1"]);
+    assert.equal(res.status, "passed");
+  });
+
+  it("leaves a SINGLE-level loop's journal unchanged (descent never fires for it)", async () => {
+    const spawn = spawnPort();
+    const single = wf.define("single", (b) => ({
+      root: b.forEach({ id: "each", over: "{{args.items}}", body: b.step({ id: "x", prompt: "do {{item}}" }) }),
+    }));
+    const { engine, deps } = buildEngine(spawn);
+    await engine.run(single, { items: ["p", "q"] }, ctx);
+    // plain single-suffix ids — identical to the pre-fix journal, no extra composition
+    assert.deepEqual(spawn.calls.steps.map((s) => s.nodeId).sort(), ["x#0", "x#1"]);
+    assert.ok(deps.steps.findByNode("r", "x#0") && deps.steps.findByNode("r", "x#1"));
+    assert.equal(deps.steps.findByNode("r", "x#0#0"), null, "no spurious composed id for a single-level loop");
+  });
+
+  it("RESUME: replays journaled inner iterations by composed PK and runs only the un-journaled frontier", async () => {
+    const spawn = spawnPort();
+    const { engine, deps } = buildEngine(spawn, { resolveDefinition: (name: string) => (name === "nested" ? nested : null) });
+    // An interrupted nested-loop run: group 0's two inner iterations already
+    // journaled `passed` (under their composed PKs); group 1's iteration never ran.
+    deps.runs.insert({ id: "r", definitionName: "nested", owner: "o", anchorId: "r", status: "running", args: { groups: [["a", "b"], ["c"]] }, startedAt: 1, updatedAt: 1 });
+    deps.steps.upsert({ id: "r:w#0#0", runId: "r", nodeId: "w#0#0", nodeType: "step", status: "passed", workerId: null, output: "seed-00", startedAt: 1, endedAt: 2 });
+    deps.steps.upsert({ id: "r:w#0#1", runId: "r", nodeId: "w#0#1", nodeType: "step", status: "passed", workerId: null, output: "seed-01", startedAt: 1, endedAt: 2 });
+
+    const res = await engine.resume("r", ctx);
+
+    // only the frontier inner iteration re-spawns; the two journaled ones replay
+    assert.deepEqual(spawn.calls.steps.map((s) => s.nodeId), ["w#1#0"], "no missed or duplicated iteration — only the frontier ran");
+    assert.equal(promptBody(spawn.calls.steps[0].prompt), "do c");
+    // the replayed outputs come straight from the journal, the frontier from the fresh run
+    assert.deepEqual(res.output, [["seed-00", "seed-01"], ["do c"]]);
+    assert.equal(res.status, "passed");
   });
 });

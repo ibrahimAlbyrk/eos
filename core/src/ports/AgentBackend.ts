@@ -119,6 +119,12 @@ export function backendCollaborate(opts: BackendLaunchOptions | undefined): bool
   return opts?.spec?.collaborate === true;
 }
 
+// The DPI role, resolved from the same canonical place as collaborate. Used by the
+// structured lanes to pick the tool surface (workflow-worker → workflowWorkerDefs).
+export function backendRole(opts: BackendLaunchOptions | undefined): string | undefined {
+  return opts?.spec?.role;
+}
+
 export interface AgentStartCallbacks {
   onSpawn?(handle: WorkerHandle): void;
   // Called when the session ends with its numeric code (signal → 128+n), or null.

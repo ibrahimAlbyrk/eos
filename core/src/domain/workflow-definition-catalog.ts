@@ -6,10 +6,12 @@
 // the first-seen position stable. One render-only helper suffices — the resolver
 // already owns find-one precedence; this owns the LIST shaping.
 
-import type { WorkflowDefinitionRecord } from "../../../contracts/src/workflow.ts";
+import type { AnyWorkflowDefinitionRecord } from "../../../contracts/src/workflow-graph.ts";
 
-export function renderWorkflowDefinitionCatalog(records: WorkflowDefinitionRecord[]): string {
-  const byName = new Map<string, WorkflowDefinitionRecord>();
+// Accepts v1 tree records AND v2 graph records — both carry name/description/
+// argsSchema, the only fields the catalog renders.
+export function renderWorkflowDefinitionCatalog(records: AnyWorkflowDefinitionRecord[]): string {
+  const byName = new Map<string, AnyWorkflowDefinitionRecord>();
   for (const rec of records) byName.set(rec.name, rec);
   return [...byName.values()]
     .map((r) => {

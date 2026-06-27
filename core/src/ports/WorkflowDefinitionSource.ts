@@ -3,8 +3,9 @@
 // tagged with its provenance; core stays oblivious to storage and on-disk format.
 // Clone of WorkerDefinitionSource. Later-listed dirs override earlier by name.
 
-import type { WorkflowDefinitionRecord } from "../../../contracts/src/workflow.ts";
+import type { AnyWorkflowDefinitionRecord } from "../../../contracts/src/workflow-graph.ts";
 
 export interface WorkflowDefinitionSource {
-  list(): WorkflowDefinitionRecord[];
+  // A source may emit v1 trees AND v2 graphs (each tagged with provenance).
+  list(): AnyWorkflowDefinitionRecord[];
 }

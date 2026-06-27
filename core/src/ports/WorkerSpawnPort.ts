@@ -11,8 +11,8 @@ import type { SpawnLoop } from "../../../contracts/src/loop.ts";
 
 // What a leaf `step` asks the spawn surface to run. `parentId` is the run anchor;
 // `mode` is set EXPLICITLY on every spawn so the engine never depends on the
-// anchor row for permission-mode inheritance (§3.5). `collaborate:true` so the
-// step-worker can consult the expert pool while it works.
+// anchor row for permission-mode inheritance (§3.5). `collaborate:false` — a
+// workflow node is a deterministic step with no peer/expert mesh (Part B / D4).
 export interface SpawnStepSpec {
   readonly runId: string;
   readonly nodeId: string;            // step PK is `${runId}:${nodeId}` — the adapter's
@@ -23,27 +23,35 @@ export interface SpawnStepSpec {
                                       // create_worker runtime defs (the anchor id
                                       // is not the selfId, so parentId can't).
   readonly from?: string;
+  readonly role?: string;             // DPI role — "workflow-worker" so the step
+                                      // gets the node-specific prompt + tool surface.
   readonly prompt: string;
   readonly model?: string;
   readonly effort?: string;
   readonly toolsAllow?: string[];
   readonly toolsDeny?: string[];
   readonly mode: string;              // explicit — sidesteps inheritance
-  readonly collaborate: boolean;      // true so steps can consult experts
-  readonly outputSchema?: unknown;    // when set, the final report must carry a
-                                      // matching ```json block (extracted engine-side)
+  readonly collaborate: boolean;      // false for workflow nodes (no peer/expert mesh)
+  readonly outputSchema?: unknown;    // when set, validates the workflow_step_output
+                                      // `output` arg directly (no prose scrape)
+  readonly inputs?: Record<string, unknown>; // typed input-port values delivered by
+                                      // the graph scheduler (Phase 3 / A5): the
+                                      // structured payload the node received on its
+                                      // edges, also interpolated into the prompt as
+                                      // `{{in.<port>}}` — not a scraped string ref.
   readonly loop?: SpawnLoop;          // arm dynamic_loop at spawn → the worker
-                                      // self-iterates; its report is HELD until the
+                                      // self-iterates; its output is HELD until the
                                       // goal-check releases it (the join awaits release)
 }
 
-// The terminal outcome of a step-worker: the parsed report signal
-// (classifyReport()) and the raw report text. The report text IS the step's
-// output (§3.6); a typed step extracts + validates JSON from it engine-side.
+// The terminal outcome of a step-worker: its self-declared status + the typed
+// output it emitted via workflow_step_output (Part B). `done` binds `output` as
+// the node result; `failed`/`needs-input` fail the node with `reason` surfaced.
 export interface StepOutcome {
   readonly workerId: string;
-  readonly signal: "result" | "needs-input" | "failed" | "unknown";
-  readonly reportText: string;
+  readonly status: "done" | "failed" | "needs-input";
+  readonly output: unknown;
+  readonly reason?: string;
 }
 
 // A standing expert: spawned once at run start, persistent + collaborate, kept

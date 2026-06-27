@@ -19,6 +19,7 @@
 // registry.get() lookup and imports no concrete executor.
 
 import type { WorkflowDefinition, WorkflowRunStatus } from "../../../contracts/src/workflow.ts";
+import type { WorkflowGraph, AnyWorkflowDefinition } from "../../../contracts/src/workflow-graph.ts";
 import type { WorkflowNode } from "../../../contracts/src/workflow-node.ts";
 import type {
   WorkflowEngine, RunContext, WorkflowRunResult,
@@ -34,6 +35,7 @@ import type { IdGenerator } from "../ports/IdGenerator.ts";
 import type { Logger } from "../ports/Logger.ts";
 import { BindingScope } from "./bindings.ts";
 import { CountingSemaphore } from "./concurrency.ts";
+import { scheduleGraph, toGraph } from "./scheduler.ts";
 
 export interface WorkflowEngineDeps {
   registry: StepExecutorRegistry;
@@ -48,10 +50,11 @@ export interface WorkflowEngineDeps {
   // config.workflow.maxConcurrentSteps and injects the number (core never reads
   // config). A fresh semaphore is minted per run, shared by every child ctx.
   maxConcurrentSteps: number;
-  // How resume() reconstructs a stored run's tree (the run row carries only the
-  // definition NAME, not the spec). The manager supplies the definition-overlay
-  // resolver; absent ⇒ resume of a named run throws a clear error.
-  resolveDefinition?: (name: string, ownerId: string) => WorkflowDefinition | null;
+  // How resume() reconstructs a stored run's definition (the run row carries only
+  // the definition NAME, not the spec). The manager supplies the definition-overlay
+  // resolver; it may return a v1 tree OR a v2 graph. Absent ⇒ resume of a named run
+  // throws a clear error.
+  resolveDefinition?: (name: string, ownerId: string) => AnyWorkflowDefinition | null;
 }
 
 export class WorkflowEngineImpl implements WorkflowEngine {
@@ -81,7 +84,36 @@ export class WorkflowEngineImpl implements WorkflowEngine {
     });
     this.deps.progress.stepChanged(ctx.runId, node.id, "running");
 
-    const result = await this.deps.registry.get(node.type).execute(node, ctx);
+    let result: NodeResult;
+    try {
+      result = await this.deps.registry.get(node.type).execute(node, ctx);
+    } catch (e) {
+      // D3: execute() threw (an executor error) or rejected (a run-abort/stop
+      // propagated to the in-flight spawn). The terminal upsert below is skipped,
+      // so without this the 'running' row above would stay 'running' FOREVER — an
+      // unfaithful journal that boot re-arm/resume read as still-in-flight. Settle
+      // it `failed` (StepStatus has no `stopped`; failed is the terminal status an
+      // errored/aborted node takes) before rethrowing. The rethrow is unchanged, so
+      // whether the run soft-fails to a token or propagates-and-aborts is still
+      // decided by the caller (scheduler.runLeaf) exactly as before.
+      //
+      // PRESERVE the stamped worker id: the spawn adapter set it on the `running`
+      // row the instant it knew it (before the await that just threw), so an
+      // in-flight step that crashes/aborts STAYS linked to its worker. Writing null
+      // here would clobber it (the repo upsert does ON CONFLICT SET worker_id),
+      // severing the failed step from its worker transcript + the workerId-keyed
+      // re-arm trace window.
+      const workerId = this.deps.steps.findByNode(ctx.runId, node.id)?.workerId ?? null;
+      this.deps.steps.upsert({
+        id: stepRowId(ctx.runId, node.id),
+        runId: ctx.runId, nodeId: node.id, nodeType: node.type,
+        status: "failed", workerId,
+        output: { error: e instanceof Error ? e.message : String(e) },
+        startedAt, endedAt: this.deps.clock.now(),
+      });
+      this.deps.progress.stepChanged(ctx.runId, node.id, "failed");
+      throw e;
+    }
 
     ctx.bindings.set(node.id, result.output);
     const workerId = result.childWorkerIds && result.childWorkerIds.length > 0 ? result.childWorkerIds[0] : null;
@@ -95,8 +127,25 @@ export class WorkflowEngineImpl implements WorkflowEngine {
     return result;
   }
 
+  // D4: journal a node that FAILED before runNode could ever create its row —
+  // i.e. the scheduler rejected its input port-type values, so it returns a failed
+  // token without dispatching the executor. Without this the failed node leaves NO
+  // workflow_steps row at all (invisible to the journal + to resume). Writes a
+  // terminal `failed` row carrying the validation error; the start/end timestamps
+  // coincide because the node never actually ran. The run-level failure is produced
+  // by the caller's failed Outcome, unchanged — this only makes the journal faithful.
+  journalFailedNode(node: WorkflowNode, ctx: WorkflowExecCtx, output: unknown): void {
+    const now = this.deps.clock.now();
+    this.deps.steps.upsert({
+      id: stepRowId(ctx.runId, node.id),
+      runId: ctx.runId, nodeId: node.id, nodeType: node.type,
+      status: "failed", workerId: null, output, startedAt: now, endedAt: now,
+    });
+    this.deps.progress.stepChanged(ctx.runId, node.id, "failed");
+  }
+
   // --- per-run lifecycle: fresh run ---
-  async run(def: WorkflowDefinition, args: unknown, ctx: RunContext): Promise<WorkflowRunResult> {
+  async run(def: WorkflowDefinition | WorkflowGraph, args: unknown, ctx: RunContext): Promise<WorkflowRunResult> {
     const anchorId = this.deps.spawn.mintRunAnchor(ctx.runId, ctx.ownerId, ctx.mode);
     const now = this.deps.clock.now();
     this.deps.runs.insert({
@@ -124,11 +173,14 @@ export class WorkflowEngineImpl implements WorkflowEngine {
     return this.execute(def, row.args, resumeCtx, row.anchorId);
   }
 
-  // The shared body run() and resume() both run: spawn experts → walk root →
-  // persist result, with a guaranteed teardown of the whole anchor subtree.
-  private async execute(def: WorkflowDefinition, args: unknown, ctx: RunContext, anchorId: string): Promise<WorkflowRunResult> {
+  // The shared body run() and resume() both run: spawn experts → schedule the
+  // graph → persist result, with a guaranteed teardown of the whole anchor subtree.
+  // A v1 tree is compiled into a v2 graph here (treeToGraph); a v2 graph runs
+  // directly — ONE runtime, both shapes (A4 Option C).
+  private async execute(def: WorkflowDefinition | WorkflowGraph, args: unknown, ctx: RunContext, anchorId: string): Promise<WorkflowRunResult> {
+    const graph = toGraph(def);
     try {
-      for (const e of def.experts ?? []) {
+      for (const e of graph.experts ?? []) {
         await this.deps.spawn.spawnExpert({
           runId: ctx.runId, parentId: anchorId, definitionOwnerId: ctx.ownerId,
           name: e.id, from: e.from, prompt: e.prompt,
@@ -156,7 +208,7 @@ export class WorkflowEngineImpl implements WorkflowEngine {
           : undefined,
       };
 
-      const result = await this.runNode(def.root, execCtx);
+      const result = await scheduleGraph(graph, execCtx);
       const status: WorkflowRunStatus = result.status === "passed" ? "passed" : "failed";
       this.deps.runs.setStatus(ctx.runId, status);
       this.deps.runs.setResult(ctx.runId, result.output);

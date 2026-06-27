@@ -1,51 +1,28 @@
 // step.ts — the only leaf that touches Eos (§3.4). Resolves its prompt from the
-// run bindings, spawns ONE worker through the SINGLE concurrency choke point
-// (`ctx.concurrency.run`, §3.9), and awaits its terminal outcome. The worker's
-// final answer TEXT is the step's output — its explicit report if it sent one,
-// else its last message (the adapter settles either way). When the node declares
-// an `outputSchema` (a live Zod
-// schema in the code-DSL path), the engine EXTRACTS JSON from that text and
-// `safeParse`s it; on a parse/validation failure it re-prompts the worker EXACTLY
-// once, and worst case falls back to the raw report text with a `failed` status so
-// downstream never wedges on a typed binding. The engine's Template Method does
-// the journaling; this executor never does.
+// run bindings, spawns ONE workflow-worker node through the SINGLE concurrency
+// choke point (`ctx.concurrency.run`, §3.9), and awaits its terminal outcome. The
+// node's output is the TYPED value it emits via the workflow_step_output tool (the
+// SOLE settle channel — Part B), never scraped from prose. `done` binds that value;
+// `failed`/`needs-input` fail the node with the worker's reason. When the node
+// declares an `outputSchema` (a live Zod schema in the code-DSL path, or a compiled
+// JSON-Schema validator attached manager-side), the engine `safeParse`s the tool
+// ARGUMENT directly; on a validation failure it re-prompts the worker EXACTLY once,
+// and worst case fails the node so downstream never wedges on a typed binding. The
+// engine's Template Method does the journaling; this executor never does.
 
 import type { StepNode } from "../../../../contracts/src/workflow-node.ts";
 import type { NodeResult, StepExecutor, WorkflowExecCtx } from "../../ports/StepExecutor.ts";
 import type { SpawnStepSpec, StepOutcome } from "../../ports/WorkerSpawnPort.ts";
-import { execLocals, errMessage, extractJson } from "./util.ts";
-
-export const SCHEMA_INSTRUCTION =
-  "\n\nEnd your final answer (your last message) with the result as JSON in a fenced ```json block matching the schema.";
-
-// Appended to EVERY step prompt. The worker's final message IS this step's
-// output — a plain content answer passes as-is (signalStatus is lenient); only an
-// explicit `failed:`/`needs input:` first line fails the step. Composes with
-// SCHEMA_INSTRUCTION when a schema is present (the answer still ends with a fenced
-// ```json block).
-export const STEP_REPORT_INSTRUCTION =
-  "\n\nYour final message IS this step's output — answer the task directly; no `result:` prefix is " +
-  "needed to succeed. ONLY if you genuinely cannot complete the task, or required input is missing, " +
-  "begin your final message with `failed:` or `needs input:` and a one-line reason.";
+import { execLocals, errMessage } from "./util.ts";
 
 // Duck-typed Zod check — the code-DSL path carries a live schema (parseable); a
-// serialized declarative spec carries a plain JSON-Schema object (not parseable
-// in pure core), in which case validation is skipped and the raw text flows.
+// serialized declarative spec carries a plain JSON-Schema object compiled into the
+// same safeParse shape manager-side (json-schema-validator). Absent ⇒ no schema.
 interface ZodLike {
   safeParse(_value: unknown): { success: true; data: unknown } | { success: false; error: unknown };
 }
 function asZod(schema: unknown): ZodLike | null {
   return schema && typeof (schema as ZodLike).safeParse === "function" ? (schema as ZodLike) : null;
-}
-
-// Lenient but failure-aware: the worker's final message IS the step output, so a
-// plain content answer (`result` OR `unknown`) passes. Only an EXPLICIT failure
-// signal — `failed:` or `needs input:` — fails the step. Content-shaped step
-// workers ("summarize this") answer directly without a `result:` token, so gating
-// success on that prefix false-failed real answers; Issues B/C (real typed input +
-// strict bindings) already stop the empty-input false pass at its source.
-function signalStatus(signal: StepOutcome["signal"]): NodeResult["status"] {
-  return signal === "failed" || signal === "needs-input" ? "failed" : "passed";
 }
 
 function spawnStep(node: StepNode, ctx: WorkflowExecCtx, prompt: string): Promise<StepOutcome> {
@@ -55,28 +32,25 @@ function spawnStep(node: StepNode, ctx: WorkflowExecCtx, prompt: string): Promis
     parentId: ctx.anchorId,
     definitionOwnerId: ctx.ownerId,
     from: node.from,
+    role: "workflow-worker",
     prompt,
     model: node.model,
     effort: node.effort,
     toolsAllow: node.toolsAllow,
     toolsDeny: node.toolsDeny,
     mode: ctx.mode,
-    collaborate: true,
+    collaborate: false,
     outputSchema: node.outputSchema,
+    inputs: ctx.inputs, // typed input-port values delivered on the node's edges (A5)
     loop: node.loop,
   };
   return ctx.concurrency.run(() => ctx.spawn.spawnAndAwait(spec, ctx.signal));
 }
 
-// Extract + validate JSON out of a step's report text against the live schema.
-function validate(
-  schema: ZodLike,
-  reportText: string,
-): { ok: true; value: unknown } | { ok: false; error: string } {
-  const { value, found } = extractJson(reportText);
-  if (!found) return { ok: false, error: "no JSON block found in the final report" };
-  const parsed = schema.safeParse(value);
-  return parsed.success ? { ok: true, value: parsed.data } : { ok: false, error: errMessage(parsed.error) };
+// A non-`done` status fails the node with the worker's reason (fail-closed: a
+// blocked/failed node surfaces loudly, never silently passes a non-answer).
+function failedResult(outcome: StepOutcome): NodeResult {
+  return { output: outcome.reason ?? outcome.output, status: "failed", childWorkerIds: [outcome.workerId] };
 }
 
 export const stepExecutor: StepExecutor<StepNode> = {
@@ -98,35 +72,30 @@ export const stepExecutor: StepExecutor<StepNode> = {
     }
     const basePrompt = resolved.text;
 
-    // No schema: the report TEXT is the output.
+    const first = await spawnStep(node, ctx, basePrompt);
+    if (first.status !== "done") return failedResult(first);
+
+    // No schema: the emitted output IS the node result.
     if (!schema) {
-      const outcome = await spawnStep(node, ctx, basePrompt + STEP_REPORT_INSTRUCTION);
-      return {
-        output: outcome.reportText,
-        status: signalStatus(outcome.signal),
-        childWorkerIds: [outcome.workerId],
-      };
+      return { output: first.output, status: "passed", childWorkerIds: [first.workerId] };
     }
 
-    // Schema: extract + validate JSON from the report text. Re-prompt EXACTLY
-    // once on failure; worst case bind the raw text but mark the step failed so a
-    // downstream binding never silently consumes prose as a typed object.
-    const prompt = basePrompt + SCHEMA_INSTRUCTION + STEP_REPORT_INSTRUCTION;
-    const first = await spawnStep(node, ctx, prompt);
-    const firstTry = validate(schema, first.reportText);
-    if (firstTry.ok) {
-      return { output: firstTry.value, status: "passed", childWorkerIds: [first.workerId] };
+    // Schema: validate the typed tool ARGUMENT directly — no prose scrape. Re-prompt
+    // EXACTLY once on a validation failure; worst case fail the node so a downstream
+    // binding never silently consumes a mis-shaped object.
+    const firstTry = schema.safeParse(first.output);
+    if (firstTry.success) {
+      return { output: firstTry.data, status: "passed", childWorkerIds: [first.workerId] };
     }
 
     const retryPrompt =
-      `${prompt}\n\nYour previous answer did not contain valid JSON matching the schema (${firstTry.error}). End your final answer with a corrected ` +
-      "```json block.";
+      `${basePrompt}\n\nYour previous output did not match the required schema (${errMessage(firstTry.error)}). ` +
+      "Call workflow_step_output again with output that matches the schema.";
     const second = await spawnStep(node, ctx, retryPrompt);
-    const secondTry = validate(schema, second.reportText);
-    if (secondTry.ok) {
-      return { output: secondTry.value, status: "passed", childWorkerIds: [second.workerId] };
-    }
-
-    return { output: second.reportText, status: "failed", childWorkerIds: [second.workerId] };
+    if (second.status !== "done") return failedResult(second);
+    const secondTry = schema.safeParse(second.output);
+    return secondTry.success
+      ? { output: secondTry.data, status: "passed", childWorkerIds: [second.workerId] }
+      : { output: second.output, status: "failed", childWorkerIds: [second.workerId] };
   },
 };

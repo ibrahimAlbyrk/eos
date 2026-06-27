@@ -9,6 +9,7 @@
 
 import type { SubWorkflowNode } from "../../../../contracts/src/workflow-node.ts";
 import type { NodeResult, StepExecutor, WorkflowExecCtx } from "../../ports/StepExecutor.ts";
+import { isWorkflowGraph } from "../../../../contracts/src/workflow-graph.ts";
 import { BindingScope } from "../bindings.ts";
 import { scopeNodeIds } from "../node-scope.ts";
 
@@ -20,6 +21,12 @@ export const subWorkflowExecutor: StepExecutor<SubWorkflowNode> = {
     }
     const def = ctx.resolveDefinition(node.name);
     if (!def) throw new Error(`subWorkflow definition "${node.name}" not found`);
+    // This v1 tree executor only runs when a v1 tree references a stored definition
+    // directly. A v2 graph is reached only via the graph scheduler's `subGraph` kind
+    // (which lowers either shape with toGraph), so a graph resolved here is a mis-wire.
+    if (isWorkflowGraph(def)) {
+      throw new Error(`subWorkflow "${node.id}" resolved a v2 graph "${node.name}"; reference it from a graph subGraph node instead`);
+    }
 
     const childCtx: WorkflowExecCtx = {
       ...ctx,

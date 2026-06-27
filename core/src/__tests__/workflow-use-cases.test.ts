@@ -22,6 +22,7 @@ function fakeEngine() {
       return Promise.resolve({ runId, status: "passed", output: null } as WorkflowRunResult);
     },
     runNode() { return Promise.resolve({ output: undefined, status: "passed" }); },
+    journalFailedNode() {},
   };
   return { engine, calls };
 }
@@ -78,6 +79,22 @@ describe("createWorkflowDefinition", () => {
   it("rejects a malformed spec at the boundary", () => {
     const store = { create() {}, listFor() { return []; }, deleteForOwner() {} };
     assert.throws(() => createWorkflowDefinition({ store }, { ownerId: "o", spec: { name: "x" } as unknown as WorkflowDefinition }));
+  });
+
+  it("rejects a spec with duplicate node ids, naming the duplicated id, and does not persist", () => {
+    const stored: string[] = [];
+    const store = { create(_o: string, d: WorkflowDefinition) { stored.push(d.name); }, listFor() { return []; }, deleteForOwner() {} };
+    // The duplicate sits one level deeper (inside a forEach body) than the first
+    // occurrence — proving the walk descends the full tree, not just top children.
+    const dupeSpec: WorkflowDefinition = {
+      name: "dupes",
+      root: { type: "parallel", id: "root", children: [
+        { type: "step", id: "dup", prompt: "p" },
+        { type: "forEach", id: "loop", over: "{{args.items}}", body: { type: "step", id: "dup", prompt: "q" } },
+      ] },
+    };
+    assert.throws(() => createWorkflowDefinition({ store }, { ownerId: "o", spec: dupeSpec }), /duplicate node id.*\bdup\b/i);
+    assert.deepEqual(stored, [], "a duplicate-id definition is never persisted");
   });
 });
 

@@ -6,7 +6,6 @@
 import { WorkflowEngineImpl, type WorkflowEngineDeps } from "../../workflow/engine.ts";
 import { InMemoryStepExecutorRegistry } from "../../workflow/registry.ts";
 import { registerBuiltinExecutors } from "../../workflow/register-builtins.ts";
-import { SCHEMA_INSTRUCTION, STEP_REPORT_INSTRUCTION } from "../../workflow/executors/step.ts";
 import type { TransformFnRegistry } from "../../workflow/transforms.ts";
 import type { SpawnStepSpec, StepOutcome, ExpertSpawnSpec } from "../../ports/WorkerSpawnPort.ts";
 import type {
@@ -57,39 +56,33 @@ export function stepRepo() {
 }
 
 // A response a programmable spawn returns for one call. Returning nothing ⇒ echo
-// the (binding-resolved) prompt BODY as the report text (the step output) — the
-// executor-appended instructions are stripped so the echo mirrors prior behavior.
-// `respond`
+// the (binding-resolved) prompt as the step output with status `done`. `respond`
 // MAY return a never/late-resolving promise (to test overlap) or throw (to
 // simulate a crashed worker → spawnAndAwait rejects). For a typed step, set
-// `reportText` to a ```json block (see `jsonReport`) so the engine extractor
-// recovers a structured output.
+// `output` to the structured value the worker emits via workflow_step_output —
+// the engine validates it against the node `outputSchema` directly (no scrape).
 export interface SpawnResponse {
-  signal?: StepOutcome["signal"];
-  reportText?: string;
+  status?: StepOutcome["status"];
+  output?: unknown;
+  reason?: string;
 }
 
-// Encodes a value as the fenced ```json block a typed step's report carries, so
-// the engine's extractJson recovers it. Pairs with a node `outputSchema`.
-export function jsonReport(value: unknown): string {
-  return "```json\n" + JSON.stringify(value) + "\n```";
-}
-
-// Strip the executor-appended instructions (the step-report contract + the schema
-// suffix) so a test can assert on / echo the binding-resolved prompt BODY — the
-// part data-flow tests care about. The step executor now appends
-// STEP_REPORT_INSTRUCTION to every prompt (and SCHEMA_INSTRUCTION when typed).
+// The step executor no longer appends any instruction text to the prompt — the
+// spawned prompt IS the binding-resolved body. Kept as an identity helper so the
+// data-flow tests that assert on the spawned prompt read unchanged.
 export function promptBody(prompt: string): string {
-  return prompt.split(STEP_REPORT_INSTRUCTION)[0].split(SCHEMA_INSTRUCTION)[0];
+  return prompt;
 }
 
-// A duck-typed schema that accepts ANY extracted JSON. The code-DSL path carries
-// a live Zod schema; tests that only need the extract→parse→bind flow exercised
-// use this so the parsed value passes straight through as the step output.
+// A duck-typed schema that accepts ANY value. The code-DSL path carries a live
+// Zod schema; tests that only need the validate→bind flow exercised use this so
+// the emitted output passes straight through as the step output.
 export const passSchema = {
   safeParse: (v: unknown): { success: true; data: unknown } => ({ success: true, data: v }),
 };
 export type Respond = (_spec: SpawnStepSpec, _index: number) => SpawnResponse | void | Promise<SpawnResponse | void>;
+
+type WorkerStamper = { setWorker(_runId: string, _nodeId: string, _workerId: string): void };
 
 export function spawnPort(respond?: Respond) {
   const calls = {
@@ -103,8 +96,14 @@ export function spawnPort(respond?: Respond) {
     order: [] as string[],
   };
   let w = 0;
+  // The journal the spawn stamps the worker id onto, mirroring the real adapter.
+  // Wired by buildEngine after deps are built (the spawn is created first).
+  let steps: WorkerStamper | undefined;
   return {
     calls,
+    // Connect the fake to the run's step journal so spawnAndAwait can stamp the
+    // worker id onto the `running` row exactly as WorkerSpawnAdapter does.
+    attachSteps(s: WorkerStamper) { steps = s; },
     mintRunAnchor(runId: string, ownerId: string, mode: string) {
       calls.anchors.push({ runId, ownerId, mode });
       calls.order.push(`anchor:${runId}`);
@@ -123,13 +122,18 @@ export function spawnPort(respond?: Respond) {
       const index = calls.steps.length;
       calls.steps.push({ ...spec, workerId });
       calls.order.push(`step:${spec.nodeId}`);
+      // Stamp the worker id onto the (already-`running`) step row the instant it is
+      // known, BEFORE the report lands — so an in-flight step that crashes/aborts
+      // stays durably linked to its worker (mirrors WorkerSpawnAdapter.spawnAndAwait).
+      steps?.setWorker(spec.runId, spec.nodeId, workerId);
       // The terminal outcome — the (possibly late/never-resolving) respond.
       const outcome = (async (): Promise<StepOutcome> => {
         const r = (respond ? await respond(spec, index) : undefined) ?? {};
         return {
           workerId,
-          signal: r.signal ?? "result",
-          reportText: r.reportText ?? promptBody(spec.prompt),
+          status: r.status ?? "done",
+          output: r.output ?? promptBody(spec.prompt),
+          reason: r.reason,
         };
       })();
       // Settle on the outcome OR on abort, whichever lands first; a settle after
@@ -179,6 +183,9 @@ export function buildEngine(
     maxConcurrentSteps: 16,
     ...over,
   };
+  // Wire the spawn fake to the (possibly overridden) journal so it stamps the
+  // worker id onto the running row, like the production adapter.
+  spawn.attachSteps?.(deps.steps);
   return { engine: new WorkflowEngineImpl(deps), deps, transforms };
 }
 

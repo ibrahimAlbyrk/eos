@@ -7,13 +7,14 @@
 
 import { NotFoundError } from "../errors/index.ts";
 import type { WorkflowEngine, WorkflowRunResult } from "../ports/WorkflowEngine.ts";
-import type { WorkflowDefinition } from "../../../contracts/src/workflow.ts";
+import type { AnyWorkflowDefinition } from "../../../contracts/src/workflow-graph.ts";
 
 export interface RunWorkflowDeps {
   engine: WorkflowEngine;
   // Overlay resolver for a stored `from` name (builtin → user/project → runtime),
-  // supplied by the manager; absent ⇒ only inline `spec` runs.
-  resolveDefinition?: (_name: string, _ownerId: string) => WorkflowDefinition | null;
+  // supplied by the manager; may return a v1 tree OR a v2 graph. Absent ⇒ only
+  // inline `spec` runs.
+  resolveDefinition?: (_name: string, _ownerId: string) => AnyWorkflowDefinition | null;
 }
 
 export interface RunWorkflowInput {
@@ -22,7 +23,7 @@ export interface RunWorkflowInput {
   mode: string;
   signal?: AbortSignal;
   from?: string;
-  spec?: WorkflowDefinition;
+  spec?: AnyWorkflowDefinition;   // v1 tree or v2 graph
   args?: unknown;
 }
 

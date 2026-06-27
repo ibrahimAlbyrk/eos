@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { wf } from "../workflow/dsl.ts";
-import { buildEngine, spawnPort, tick, jsonReport, passSchema, promptBody, type SpawnResponse } from "./helpers/workflowFakes.ts";
+import { buildEngine, spawnPort, tick, passSchema, promptBody, type SpawnResponse } from "./helpers/workflowFakes.ts";
 import type { WorkflowDefinition } from "../../../contracts/src/workflow.ts";
 import type { RunContext } from "../ports/WorkflowEngine.ts";
 
@@ -17,7 +17,7 @@ const CTX: RunContext = { runId: "run", ownerId: "orch", mode: "acceptEdits" };
 // A respond that echoes each node's id as its report text (= its output) — gives
 // every step a stable, assertable output so binding data-flow can be traced
 // across the tree.
-const echoNodeId = (spec: { nodeId: string }): SpawnResponse => ({ reportText: spec.nodeId });
+const echoNodeId = (spec: { nodeId: string }): SpawnResponse => ({ output: spec.nodeId });
 
 // A duck-typed Zod-like schema (core carries no `zod`): accepts { n: number }.
 const numberSchema = {
@@ -37,30 +37,30 @@ function run(def: WorkflowDefinition, args: unknown, spawn: ReturnType<typeof sp
 // EVERY NODE TYPE
 // ===========================================================================
 
-describe("integration — leaf step (typed + text-fallback)", () => {
-  it("typed step: extracts + validates the report's ```json block against the schema", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ reportText: jsonReport({ n: 42 }) }));
+describe("integration — leaf step (typed + untyped)", () => {
+  it("typed step: validates the emitted workflow_step_output arg against the schema", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ output: { n: 42 } }));
     const def = wf.define("t", (b) => ({ root: b.step({ id: "s", prompt: "go", outputSchema: numberSchema }) }));
     const { promise } = run(def, {}, spawn);
     const result = await promise;
     assert.equal(result.status, "passed");
     assert.deepEqual(result.output, { n: 42 });
-    // the schema instruction (a fenced json block) is appended to the prompt
-    assert.match(spawn.calls.steps[0].prompt, /```json/);
+    // No schema instruction is appended — the prompt is the binding-resolved body.
+    assert.equal(spawn.calls.steps[0].prompt, "go");
   });
 
-  it("text-fallback step: no schema ⇒ the report text is the output, prompt unmodified", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ reportText: "plain report" }));
+  it("untyped step: no schema ⇒ the emitted output is the result, prompt unmodified", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ output: "plain output" }));
     const def = wf.define("t", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
     const { promise } = run(def, {}, spawn);
     const result = await promise;
     assert.equal(result.status, "passed");
-    assert.equal(result.output, "plain report");
-    assert.equal(promptBody(spawn.calls.steps[0].prompt), "go"); // no schema suffix; report instruction stripped
+    assert.equal(result.output, "plain output");
+    assert.equal(promptBody(spawn.calls.steps[0].prompt), "go"); // no instruction appended
   });
 
-  it("a failed report signal fails the step", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ signal: "failed", reportText: "boom" }));
+  it("a failed status fails the step", async () => {
+    const spawn = spawnPort((): SpawnResponse => ({ status: "failed", reason: "boom" }));
     const def = wf.define("t", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
     const result = await run(def, {}, spawn).promise;
     assert.equal(result.status, "failed");
@@ -101,6 +101,52 @@ describe("integration — parallel (barrier)", () => {
   });
 });
 
+describe("integration — parallel composite-branch throw (HIGH-1)", () => {
+  it("an interior throw in a parallel's sequence branch settles the run FAILED (never rejects/dangles)", async () => {
+    // parallel([ sequence([A,B]), C ]) with A throwing. A is INTERIOR — its anchor B,
+    // not A, feeds the merge — so the old immediate-edge fan-in check missed it and
+    // the throw rejected the whole GraphRun. v1 parallel caught the throw at the
+    // branch boundary so the run completed "failed". The transitive fan-in check must
+    // soft-fail A → B short-circuits → merge rolls up failed → the run RESOLVES failed.
+    const spawn = spawnPort((spec): SpawnResponse => {
+      if (spec.nodeId === "A") throw new Error("A crashed");
+      return { output: spec.nodeId };
+    });
+    const def = wf.define("par-throw", (b) => ({
+      root: b.parallel([
+        b.sequence([
+          b.step({ id: "A", prompt: "A" }),
+          b.step({ id: "B", prompt: "B {{nodes.A.output}}" }),
+        ]),
+        b.step({ id: "C", prompt: "C" }),
+      ], "par"),
+    }));
+    const { built, promise } = run(def, {}, spawn);
+    const result = await promise;   // RESOLVES — a reject would throw here
+    assert.equal(result.status, "failed", "the run settled failed, not rejected");
+    assert.equal(spawn.calls.steps.find((s) => s.nodeId === "B"), undefined, "B short-circuited on A's failed token");
+    assert.ok(spawn.calls.steps.some((s) => s.nodeId === "C"), "the sibling branch C still ran");
+    // the run row was settled by the engine — not left dangling "running"
+    assert.equal(built.deps.runs.findById("run")?.status, "failed");
+  });
+
+  it("a single-node parallel child that throws still soft-fails (preserved)", async () => {
+    const spawn = spawnPort((spec): SpawnResponse => {
+      if (spec.nodeId === "x") throw new Error("x crashed");
+      return { output: spec.nodeId };
+    });
+    const def = wf.define("par-single", (b) => ({
+      root: b.parallel([
+        b.step({ id: "x", prompt: "x" }),
+        b.step({ id: "y", prompt: "y" }),
+      ], "par"),
+    }));
+    const result = await run(def, {}, spawn).promise;
+    assert.equal(result.status, "failed");
+    assert.ok(spawn.calls.steps.some((s) => s.nodeId === "y"), "the sibling still ran");
+  });
+});
+
 describe("integration — conditional (then / else / skip)", () => {
   const mk = (flag: string, withElse: boolean) => {
     const def = wf.define("cond", (b) => ({
@@ -136,8 +182,25 @@ describe("integration — conditional (then / else / skip)", () => {
     const { built, promise } = run(def, args, spawn);
     const result = await promise;
     assert.equal(spawn.calls.steps.length, 0); // neither branch ran
-    assert.equal(built.deps.steps.findByNode("run", "cond")?.status, "skipped"); // node skipped
+    // The conditional lowers to a `branch` + a `merge`. With no `else` arm the false
+    // predicate routes the branch's else port straight to the merge, so the `then`
+    // arm is never reached (no journal row) and the merge re-converges to no value —
+    // observably equivalent to the v1 conditional returning {status:skipped, output:undefined}.
+    assert.equal(built.deps.steps.findByNode("run", "then"), null); // unreached arm never journaled
     assert.equal(result.output, undefined);
+  });
+
+  it("HIGH-2: a false predicate with NO else FAILS the run (status pinned, not a flip to passed)", async () => {
+    // v1 conditional returned {status:skipped} → the engine mapped skipped → a failed
+    // run. The lowered no-else skip path must NOT roll up to passed. The prior
+    // equivalence test only checked output (undefined either way), so the flip went
+    // uncaught — pin result.status here.
+    const spawn = spawnPort(echoNodeId);
+    const { def, args } = mk("stop", false);
+    const result = await run(def, args, spawn).promise;
+    assert.equal(result.status, "failed", "skipped no-else conditional fails the run");
+    assert.equal(result.output, undefined);
+    assert.equal(spawn.calls.steps.length, 0);
   });
 });
 
@@ -222,10 +285,10 @@ describe("integration — pipeline (ACTUAL overlap, no stage barrier)", () => {
 describe("integration — loopUntil (iteration metadata drives termination)", () => {
   it("re-runs the body until lastCount hits 0, injecting the iteration index", async () => {
     const lists: string[][] = [["a", "b"], ["c"], []];
-    // The body carries a schema so its array output flows through the engine's
-    // JSON extractor (a no-schema step's output would be a string).
+    // The body carries a schema so its array output is validated by the engine
+    // (a no-schema step's echoed output would be a string).
     const spawn = spawnPort((spec, index): SpawnResponse =>
-      spec.nodeId.startsWith("tick") ? { reportText: jsonReport(lists[index] ?? []) } : {});
+      spec.nodeId.startsWith("tick") ? { output: lists[index] ?? [] } : {});
     const def = wf.define("loop", (b) => ({
       root: b.loopUntil({
         id: "loop",
@@ -388,7 +451,7 @@ describe("integration — expert pool lifecycle (§4)", () => {
   });
 
   it("reaps the anchor in finally even when the run FAILS", async () => {
-    const spawn = spawnPort((): SpawnResponse => ({ signal: "failed", reportText: "boom" }));
+    const spawn = spawnPort((): SpawnResponse => ({ status: "failed", reason: "boom" }));
     const def = expertDef({ type: "step", id: "s", prompt: "go" });
     const result = await run(def, {}, spawn).promise;
     assert.equal(result.status, "failed");

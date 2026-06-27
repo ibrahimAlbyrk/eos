@@ -74,8 +74,8 @@ function spawnPort() {
     async spawnAndAwait(spec: SpawnStepSpec, _signal: AbortSignal): Promise<StepOutcome> {
       calls.steps.push(spec);
       const workerId = `step-w-${++w}`;
-      // echo the (already binding-resolved) prompt as the report text (= output)
-      return { workerId, signal: "result", reportText: spec.prompt };
+      // echo the (already binding-resolved) prompt as the emitted output
+      return { workerId, status: "done", output: spec.prompt };
     },
     killWorker(workerId: string) { calls.killed.push(workerId); },
   };
@@ -100,9 +100,9 @@ const stepExecutor: StepExecutor = {
     const prompt = ctx.bindings.resolve(s.prompt);
     const outcome = await ctx.concurrency.run(() => ctx.spawn.spawnAndAwait({
       runId: ctx.runId, nodeId: s.id, parentId: ctx.anchorId, from: s.from, prompt,
-      mode: ctx.mode, collaborate: true, outputSchema: s.outputSchema,
+      mode: ctx.mode, collaborate: false, outputSchema: s.outputSchema,
     }, ctx.signal));
-    return { output: outcome.reportText, status: "passed", childWorkerIds: [outcome.workerId] };
+    return { output: outcome.output, status: "passed", childWorkerIds: [outcome.workerId] };
   },
 };
 
@@ -157,9 +157,9 @@ describe("WorkflowEngine.run — lifecycle", () => {
 
     const spawn = deps.spawn as ReturnType<typeof spawnPort>;
     assert.deepEqual(spawn.calls.anchors, [{ runId: "run-1", ownerId: "orch-1", mode: "acceptEdits" }]);
-    // every step spawned under the anchor, with mode set explicitly + collaborate
+    // every step spawned under the anchor, with mode set explicitly + no peer mesh
     assert.equal(spawn.calls.steps.length, 2);
-    assert.ok(spawn.calls.steps.every((s) => s.parentId === "run-1" && s.mode === "acceptEdits" && s.collaborate === true));
+    assert.ok(spawn.calls.steps.every((s) => s.parentId === "run-1" && s.mode === "acceptEdits" && s.collaborate === false));
     // bindings flowed: impl saw plan's output
     assert.equal(spawn.calls.steps[1].prompt, "I P hi");
     // teardown guaranteed exactly once on the anchor
@@ -172,10 +172,12 @@ describe("WorkflowEngine.run — lifecycle", () => {
     assert.equal(row.anchorId, "run-1");
     assert.equal(row.startedAt, 1000); // clock port, not Date.now
 
-    // each node journaled passed (root + plan + impl)
+    // each WORKER node journaled passed. Under the graph runtime the "root" sequence
+    // is lowered to ordering edges (it is no longer a node), so only the leaf workers
+    // journal — observably equivalent: plan + impl both ran, passed, output threaded.
     const steps = deps.steps as ReturnType<typeof stepRepo>;
     const byNode = new Map(steps.listByRun("run-1").map((s) => [s.nodeId, s.status]));
-    assert.deepEqual([byNode.get("root"), byNode.get("plan"), byNode.get("impl")], ["passed", "passed", "passed"]);
+    assert.deepEqual([byNode.get("plan"), byNode.get("impl")], ["passed", "passed"]);
   });
 
   it("spawns the standing experts (persistent + collaborate) under the anchor before any step", async () => {
@@ -222,8 +224,16 @@ describe("WorkflowEngine — memoized replay (resume)", () => {
       id: "run-2", definitionName: "demo", owner: "orch-1", anchorId: "run-2",
       status: "running", args: { x: "hi" }, startedAt: 1, updatedAt: 1,
     });
+    // The whole run already completed: every WORKER node journaled passed. (Under
+    // graph scheduling the "root" sequence is ordering edges, not a node, so the
+    // journaled frontier is the leaf workers; replaying them re-spawns nothing and
+    // the OUTPUT node still resolves to the last node's output.)
     steps.upsert({
-      id: "run-2:root", runId: "run-2", nodeId: "root", nodeType: "sequence",
+      id: "run-2:plan", runId: "run-2", nodeId: "plan", nodeType: "step",
+      status: "passed", workerId: null, output: "P hi", startedAt: 1, endedAt: 2,
+    });
+    steps.upsert({
+      id: "run-2:impl", runId: "run-2", nodeId: "impl", nodeType: "step",
       status: "passed", workerId: null, output: { done: true }, startedAt: 1, endedAt: 2,
     });
 

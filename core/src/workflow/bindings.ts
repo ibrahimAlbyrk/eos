@@ -80,11 +80,17 @@ export class BindingScope {
     const rest = parts[1] === "output" ? parts.slice(2) : parts.slice(1);
     if (id.includes("*")) {
       const re = globToRegExp(id);
-      const matched: unknown[] = [];
-      for (const [boundId, output] of this.outputs) {
-        if (re.test(boundId)) matched.push(rest.length ? walkPath(output, rest) : output);
-      }
-      return matched;
+      // Deterministic fan-in: the binding Map iterates in completion (insertion)
+      // order, which is nondeterministic across runs when matched nodes finish
+      // concurrently. Sort the matched ids lexicographically so the aggregated
+      // list order is stable and reproducible regardless of completion timing.
+      // (BindingScope holds no node-declaration order; the id is the only stable
+      // key available at this layer.)
+      const matchedIds = [...this.outputs.keys()].filter((boundId) => re.test(boundId)).sort();
+      return matchedIds.map((boundId) => {
+        const output = this.outputs.get(boundId);
+        return rest.length ? walkPath(output, rest) : output;
+      });
     }
     const output = this.outputs.get(id);
     return rest.length ? walkPath(output, rest) : output;

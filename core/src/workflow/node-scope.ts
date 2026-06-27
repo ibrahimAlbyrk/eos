@@ -12,6 +12,9 @@
 import type {
   WorkflowNode, Predicate,
 } from "../../../contracts/src/workflow-node.ts";
+import type {
+  WorkflowGraph, GraphNode, GraphEdge,
+} from "../../../contracts/src/workflow-graph.ts";
 
 // Mirrors the binding token in bindings.ts — a path inside `{{ … }}`. Kept local
 // so this pure tree-rewriter does not reach into BindingScope internals.
@@ -30,6 +33,23 @@ export function collectIds(node: WorkflowNode, acc: Set<string> = new Set()): Se
   acc.add(node.id);
   for (const child of childrenOf(node)) collectIds(child, acc);
   return acc;
+}
+
+// Walk the full node tree and return every id that appears more than once. Node
+// ids are run-scoped binding keys (the journal PK `${runId}:${nodeId}` and the
+// BindingScope output map), so a duplicate silently clobbers a node's output
+// binding (last-write-wins). Definition-acceptance callers reject any definition
+// carrying duplicates. Sorted so the rejection names the same id every run.
+export function findDuplicateIds(node: WorkflowNode): string[] {
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  const walk = (n: WorkflowNode): void => {
+    if (seen.has(n.id)) dupes.add(n.id);
+    else seen.add(n.id);
+    for (const child of childrenOf(n)) walk(child);
+  };
+  walk(node);
+  return [...dupes].sort();
 }
 
 // Visit `node` and every descendant (pre-order). The manager uses it to attach a
@@ -154,4 +174,76 @@ function rewritePredicate(pred: Predicate, suffix: string, ids: Set<string>): Pr
     case "or":
       return { op: "or", clauses: pred.clauses.map((c) => rewritePredicate(c, suffix, ids)) };
   }
+}
+
+// ---- graph (v2) analogs — per-iteration scoping for a loop body / subGraph -----
+// The graph scheduler (Phase 2) re-runs an encapsulated `loop` body sub-graph (or a
+// `subGraph` call) per iteration, so the SAME node ids would collide in the journal
+// PK (`${runId}:${nodeId}`) and the binding scope across iterations — the exact P2
+// concern `scopeNodeIds` solves for the v1 tree. `scopeGraphNodeIds` is the flat
+// node/edge analog: a DEEP clone with every node id suffixed, every edge endpoint
+// re-pointed, and every in-graph `{{nodes.<id>…}}` ref in a node's config rewritten
+// to the suffixed id (refs OUTSIDE the sub-graph — `{{args.*}}`, loop locals, an
+// external node fed through the body's input — are left intact, exactly as the v1
+// rewriter leaves them). Pure: no Node, no Date.now/Math.random.
+
+export function collectGraphIds(graph: WorkflowGraph): Set<string> {
+  return new Set(graph.nodes.map((n) => n.id));
+}
+
+export function scopeGraphNodeIds(graph: WorkflowGraph, suffix: string): WorkflowGraph {
+  const ids = collectGraphIds(graph);
+  return {
+    ...graph,
+    nodes: graph.nodes.map((n) => scopeGraphNode(n, suffix, ids)),
+    edges: graph.edges.map((e) => scopeGraphEdge(e, suffix, ids)),
+  };
+}
+
+function scopeGraphNode(node: GraphNode, suffix: string, ids: Set<string>): GraphNode {
+  return { ...node, id: `${node.id}${suffix}`, config: scopeGraphConfig(node.kind, node.config, suffix, ids) };
+}
+
+// An edge endpoint is suffixed iff it names a node inside this sub-graph (it always
+// does — a body sub-graph is self-contained — but the guard keeps it total).
+function scopeGraphEdge(edge: GraphEdge, suffix: string, ids: Set<string>): GraphEdge {
+  const re = (id: string): string => (ids.has(id) ? `${id}${suffix}` : id);
+  return {
+    ...edge,
+    from: { ...edge.from, node: re(edge.from.node) },
+    to: { ...edge.to, node: re(edge.to.node) },
+  };
+}
+
+// Rewrite the ref-bearing fields of a node's (kind-specific) config — the same
+// fields the executors resolve from bindings (`prompt` / `over` / `args` /
+// `predicate` / `until`). For a `loop` node we ALSO deep-scope `config.body`: the
+// body is its own sub-graph re-run per iteration, so when an OUTER loop scopes its
+// body with suffix S and that body contains an inner loop, the inner body's ids/refs
+// must also pick up S — otherwise the inner body re-runs with only its own per-
+// iteration suffix and its journal PK (`${runId}:${nodeId}`) collides across the
+// outer iterations (D2). Scoping is recursive, so a loop-in-loop composes outer+inner
+// suffixes (`leaf` → `leaf#i` here → `leaf#i#j` when the inner loop runs). A single-
+// level loop body is scoped only when THAT loop runs (this path is never reached for
+// it), so single-level journaling is unchanged.
+function scopeGraphConfig(kind: string, config: unknown, suffix: string, ids: Set<string>): unknown {
+  if (config === null || typeof config !== "object") return config;
+  const c = config as Record<string, unknown>;
+  const out: Record<string, unknown> = { ...c };
+  if (typeof c.prompt === "string") out.prompt = rewriteRefs(c.prompt, suffix, ids);
+  if (typeof c.over === "string") out.over = rewriteRefs(c.over, suffix, ids);
+  if (Array.isArray(c.args)) out.args = c.args.map((a) => (typeof a === "string" ? rewriteRefs(a, suffix, ids) : a));
+  if (isPredicate(c.predicate)) out.predicate = rewritePredicate(c.predicate, suffix, ids);
+  if (isPredicate(c.until)) out.until = rewritePredicate(c.until, suffix, ids);
+  if (kind === "loop" && isGraphLike(c.body)) out.body = scopeGraphNodeIds(c.body, suffix);
+  return out;
+}
+
+// A loop's `config.body` is a self-contained WorkflowGraph (nodes[] + edges[]).
+function isGraphLike(v: unknown): v is WorkflowGraph {
+  return typeof v === "object" && v !== null && Array.isArray((v as { nodes?: unknown }).nodes);
+}
+
+function isPredicate(v: unknown): v is Predicate {
+  return typeof v === "object" && v !== null && typeof (v as { op?: unknown }).op === "string";
 }

@@ -19,7 +19,7 @@ import { selectFragments } from "../services/fragment-select.ts";
 
 // What the daemon already knows about a spawn — the assembler's only input.
 export interface SessionSpawnContext {
-  role: "orchestrator" | "worker" | "git";
+  role: "orchestrator" | "worker" | "git" | "workflow-worker";
   parentId: string | null;
   name: string;
   workerId: string | null;
