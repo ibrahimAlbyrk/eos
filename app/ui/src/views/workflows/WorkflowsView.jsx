@@ -1,7 +1,7 @@
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { TabBar } from "../../components/TabBar.jsx";
 import { SettingsFooter } from "../../components/SettingsFooter.jsx";
-import { WorkflowsEmpty } from "./WorkflowsEmpty.jsx";
+import { WorkflowEditor } from "./editor/WorkflowEditor.jsx";
 
 export function WorkflowsSidebar({ variant }) {
   const body = (
@@ -23,7 +23,7 @@ export function WorkflowsView() {
   return (
     <AppLayout
       sidebar={(variant) => <WorkflowsSidebar variant={variant} />}
-      main={<WorkflowsEmpty />}
+      main={<WorkflowEditor />}
     />
   );
 }

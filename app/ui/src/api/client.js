@@ -387,6 +387,29 @@ export const api = {
     return r.body;
   },
 
+  // Workflow node-editor (Phase 5).
+  // Palette catalog: node kinds + their typed port shapes + live transform fns.
+  async getWorkflowCatalog() {
+    const r = await getJson(ROUTES.workflowCatalog);
+    if (!r.ok) throw new Error(`getWorkflowCatalog → ${r.status}`);
+    return r.body;
+  },
+  // SAVE: persist the authored v2 graph (PUT, owner=operator — the editor has no
+  // agent behind it; the daemon defaults an owner-less PUT to the operator owner).
+  async saveWorkflow(graph) {
+    return putJson(`${ROUTES.workflows}?owner=operator`, graph);
+  },
+  // RUN: launch the current graph as an operator-owned run-inline (Phase 4
+  // owner-optional path). Returns the postJson envelope; body = { runId, status }.
+  async runWorkflow(graph, args) {
+    return postJson(ROUTES.workflows, { mode: "run-inline", spec: graph, args });
+  },
+  // Read one run row (status + per-step rows) for the GET status read.
+  async getWorkflowRun(id) {
+    const r = await getJson(ROUTES.workflowRun(id));
+    return r.ok ? r.body : null;
+  },
+
   // Prompt templates
   async listTemplates() {
     const r = await getJson(ROUTES.templates);

@@ -85,6 +85,12 @@ export const ROUTES = {
   workerTryKeep: (id) => `/workers/${id}/try/keep`,
   workerTryDiscard: (id) => `/workers/${id}/try/discard`,
   commands: "/commands",
+  // Workflow node-editor: catalog (palette), create/run-control (PUT/POST), run
+  // read (GET). Mirrors contracts ROUTES; the catalog is a literal path served
+  // before the /workflows/:id regex daemon-side.
+  workflows: "/workflows",
+  workflowCatalog: "/workflows/catalog",
+  workflowRun: (id) => `/workflows/${id}`,
   templates: "/api/templates",
   template: (name) => `/api/templates/${name}`,
   settings: "/api/settings",

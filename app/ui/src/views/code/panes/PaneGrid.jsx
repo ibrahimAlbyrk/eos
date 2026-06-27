@@ -199,7 +199,9 @@ function Pane({ agentId, worker, live, focused, excludeIds, attention, canClose,
         )}
       </div>
       {worker
-        ? <Messages live={live} agentId={agentId} isActive={focused} />
+        // Every split pane is rendered on screen regardless of focus, so all are
+        // visible (and may animate); only the focused one is isActive (shared UI).
+        ? <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
         : <AgentPickerOverlay live={live} excludeIds={excludeIds} focused={focused} dragActive={!!zone} onPick={onPick} />}
     </div>
   );
