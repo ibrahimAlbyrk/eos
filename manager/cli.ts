@@ -28,7 +28,13 @@ async function api(method: string, path: string, body?: unknown): Promise<unknow
     process.exit(1);
   }
   if (!r.ok) {
-    console.error(`error ${r.status}: ${r.raw}`);
+    // Surface the daemon's structured { error } message cleanly (e.g.
+    // "error 404: workflow run not found") instead of dumping the raw JSON body;
+    // fall back to the raw text when there is no error field.
+    const errField = r.body && typeof r.body === "object" && "error" in r.body
+      ? (r.body as { error: unknown }).error
+      : undefined;
+    console.error(`error ${r.status}: ${typeof errField === "string" ? errField : r.raw}`);
     process.exit(1);
   }
   return r.body;

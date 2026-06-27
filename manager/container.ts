@@ -27,11 +27,11 @@ import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts"
 import { scrubSubscriptionEnv } from "../core/src/domain/env-allowlist.ts";
 import type { AgentEvent } from "../contracts/src/canonical.ts";
 import type { AgentBackend, AgentLaunchSpec } from "../core/src/ports/AgentBackend.ts";
-import { backendCollaborate } from "../core/src/ports/AgentBackend.ts";
+import { backendCollaborate, backendRole } from "../core/src/ports/AgentBackend.ts";
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSubscriptionAuthResolver } from "../infra/src/auth/SubscriptionAuthResolver.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
-import { orchestratorDefs, workerDefs, peerDefs } from "./tools/registry.ts";
+import { orchestratorDefs, workerDefs, peerDefs, workflowWorkerDefs } from "./tools/registry.ts";
 import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
 import { daemonApi } from "./shared/http.ts";
@@ -56,12 +56,16 @@ import { WorkflowEngineImpl } from "../core/src/workflow/engine.ts";
 import { WorkerSpawnAdapter, type StepSpawnRequest } from "./services/WorkerSpawnAdapter.ts";
 import { EventBusProgressSink } from "./services/EventBusProgressSink.ts";
 import { WorkflowService } from "./services/WorkflowService.ts";
-import { renderWorkflowCompletion } from "./services/workflow-completion.ts";
+import { renderWorkflowCompletion, makeWorkflowCompletionDelivery } from "./services/workflow-completion.ts";
 import { dispatchMessage } from "../core/src/use-cases/DispatchMessage.ts";
 import { dispatchDeps } from "./routes/dispatch-deps.ts";
 import { spawnWorkerHandler } from "./commands/handlers/spawn-worker.ts";
 import { killWorkerHandler } from "./commands/handlers/kill-worker.ts";
-import type { WorkflowDefinition, WorkflowDefinitionRecord } from "../contracts/src/workflow.ts";
+import {
+  definitionOfRecord,
+  type AnyWorkflowDefinition,
+  type AnyWorkflowDefinitionRecord,
+} from "../contracts/src/workflow-graph.ts";
 import { DeterministicCommandStrategy } from "../infra/src/goalcheck/DeterministicCommandStrategy.ts";
 import { GitEvidenceCollector } from "../infra/src/goalcheck/GitEvidenceCollector.ts";
 import { LlmJudgeStrategy } from "../core/src/services/LlmJudgeStrategy.ts";
@@ -106,6 +110,7 @@ import { resolveMemorySources } from "../core/src/domain/memory-sources.ts";
 import { mergeAvailableWorkers } from "../core/src/domain/worker-definition-catalog.ts";
 import { renderWorkflowDefinitionCatalog } from "../core/src/domain/workflow-definition-catalog.ts";
 import { renderCapabilityCatalog } from "../core/src/domain/workflow-capability-catalog.ts";
+import { buildWorkflowNodeCatalog } from "../core/src/domain/workflow-node-catalog.ts";
 import { selectInjectableMemory } from "../core/src/services/select-injectable-memory.ts";
 import { composeAppendedPrompt } from "../core/src/services/compose-appended-prompt.ts";
 import type { EosBuiltinMcpServer } from "../core/src/domain/tool-scope.ts";
@@ -412,6 +417,7 @@ export function buildContainer() {
       withGateway: !!spec.withGateway,
       parentId: spec.parentId,
       collaborate: !!spec.collaborate,
+      role: spec.role,
     });
     const wiredSpec: SpawnWorkerSpec = wire.path
       ? { ...spec, mcpConfig: wire.path, mcpStrict: wire.strict, permissionPromptTool: wire.permissionPromptTool ?? spec.permissionPromptTool }
@@ -466,6 +472,7 @@ export function buildContainer() {
     withGateway: boolean;
     parentId: string | undefined;
     collaborate: boolean;
+    role: string | undefined;
   }): { builtins: Record<string, unknown>; permissionPromptTool: string | undefined } => {
     const baseEnv = {
       ...process.env,
@@ -490,9 +497,10 @@ export function buildContainer() {
       };
     }
     // EOS_COLLABORATE gates the peer MCP tools (list_peers / ask_peer /
-    // respond_to_peer) inside the worker MCP server — read synchronously at its
-    // boot, so no daemon round-trip / row-insert race.
-    if (input.parentId) builtins.worker = node("worker-mcp.ts", { EOS_COLLABORATE: input.collaborate ? "1" : "" });
+    // respond_to_peer) inside the worker MCP server; EOS_ROLE selects the
+    // workflow-worker tool surface — both read synchronously at its boot, so no
+    // daemon round-trip / row-insert race.
+    if (input.parentId) builtins.worker = node("worker-mcp.ts", { EOS_COLLABORATE: input.collaborate ? "1" : "", EOS_ROLE: input.role ?? "" });
     return { builtins, permissionPromptTool: input.withGateway ? "mcp__gateway__decide" : undefined };
   };
 
@@ -503,6 +511,7 @@ export function buildContainer() {
     withGateway: boolean;
     parentId: string | undefined;
     collaborate: boolean;
+    role: string | undefined;
   }): { path: string | null; strict: boolean; permissionPromptTool: string | undefined } => {
     const agentCfg = input.isOrchestrator ? config.mcp.orchestrator : config.mcp.worker;
     const { builtins, permissionPromptTool } = buildMcpBuiltins(input);
@@ -590,7 +599,10 @@ export function buildContainer() {
   // passes it as systemPrompt.append — so it is built in exactly one place here.
   // null → no append (a top-level worker with no role fragment).
   const assembleAppendText = (spec: SpawnWorkerSpec, id: string): string | null => {
-    const role = spec.isOrchestrator ? "orchestrator" : spec.role === "git" ? "git" : "worker";
+    const role = spec.isOrchestrator ? "orchestrator"
+      : spec.role === "git" ? "git"
+      : spec.role === "workflow-worker" ? "workflow-worker"
+      : "worker";
     const lookupCwd = spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null;
     // The resolved definition body becomes one synthetic role/20 fragment (built-in,
     // user, project, and runtime bodies reach the prompt byte-identically). A
@@ -712,7 +724,7 @@ export function buildContainer() {
   // prompt .md takes effect on the next spawn with no daemon restart — parity with
   // the claude-cli MCP subprocess, which re-reads the prompt library on each spawn.
   const renderInprocToolDescriptions = (): Record<string, string> =>
-    renderToolDescriptions(config.paths.promptsDir, [...orchestratorDefs, ...workerDefs, ...peerDefs].map((d) => d.name));
+    renderToolDescriptions(config.paths.promptsDir, [...orchestratorDefs, ...workerDefs, ...peerDefs, ...workflowWorkerDefs].map((d) => d.name));
   const sdkPolicy = {
     async decide(i: { workerId: string; toolName: string; input: Record<string, unknown> }) {
       const d = await policyGateway.decide(i);
@@ -731,7 +743,9 @@ export function buildContainer() {
   const buildLaneTooling = (spec: AgentLaunchSpec): { items: Array<{ name: string; description: string; schema: Record<string, unknown> }>; tools: Map<string, { name: string; execute(input: Record<string, unknown>): Promise<string> }> } => {
     const ctx = makeToolContext(spec);
     const collaborate = backendCollaborate(spec.backendOptions);
-    const defs = spec.isOrchestrator ? orchestratorDefs : [...workerDefs, ...(collaborate ? peerDefs : [])];
+    const defs = backendRole(spec.backendOptions) === "workflow-worker" ? workflowWorkerDefs
+      : spec.isOrchestrator ? orchestratorDefs
+      : [...workerDefs, ...(collaborate ? peerDefs : [])];
     const server = mcpServerForRole(spec.isOrchestrator);
     const descriptions = renderInprocToolDescriptions();
     const items = defs.map((d) => ({ name: prefixedToolName(server, d.name), description: descriptions[d.name] ?? d.name, schema: toolJsonSchema(d), execute: toRuntimeTool(d, ctx).execute }));
@@ -779,7 +793,7 @@ export function buildContainer() {
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
-    toolHost: { orchestratorDefs, workerDefs, peerDefs, renderDescriptions: renderInprocToolDescriptions },
+    toolHost: { orchestratorDefs, workerDefs, peerDefs, workflowWorkerDefs, renderDescriptions: renderInprocToolDescriptions },
     daemonUrl: sdkDaemonUrl,
     makeToolContext,
     resolveSdkMcpServers,
@@ -798,7 +812,7 @@ export function buildContainer() {
   const judgeBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
-    toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+    toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], workflowWorkerDefs: [], renderDescriptions: () => ({}) },
     daemonUrl: sdkDaemonUrl,
     makeToolContext,
     // assembleAppendPrompt OMITTED → boots with only the stock claude_code preset.
@@ -887,11 +901,6 @@ export function buildContainer() {
     // means the turn produced output (deltas always precede it on the SDK lane).
     if (event.type === "message" && event.role === "assistant") {
       turnOutput.markSeen(workerId);
-      // Feed the step-join: a workflow step-worker's final answer IS the step
-      // output when it ends its turn without a voluntary report (no-op for any
-      // non-step worker). Keep the LAST assistant message's text.
-      const finalText = event.blocks.filter((b) => b.type === "text").map((b) => b.text).join("");
-      if (finalText) workflowSpawn.noteAssistantText(workerId, finalText);
     }
     processAgentSignal(
       { workers, events, bus, clock: systemClock, models, log, isSettling: (id) => turnSettle.isSettling(id), markSettling: (id) => turnSettle.mark(id) },
@@ -920,7 +929,7 @@ export function buildContainer() {
   // The single source list both the resolver (find-one) and the orchestrator
   // catalog (list-all) read: builtin code-DSL modules < on-disk user/project files
   // < the owner's runtime store. Factored to keep the dir logic in one place (DRY).
-  const listWorkflowDefinitionRecords = (cwd: string | null, ownerId: string): WorkflowDefinitionRecord[] => {
+  const listWorkflowDefinitionRecords = (cwd: string | null, ownerId: string): AnyWorkflowDefinitionRecord[] => {
     const dirs = [{ dir: userWorkflowDefinitionsDir, source: "user" as const }];
     const proj = cwd ? findProjectWorkflowDefinitionsDir(cwd) : null;
     if (proj) dirs.push({ dir: proj, source: "project" as const });
@@ -932,13 +941,14 @@ export function buildContainer() {
   };
   // Definition-overlay resolver (clone of the worker-def resolver): nearest-wins
   // (last match by name), so the builtins are listed FIRST (lowest precedence); an
-  // unknown name returns null → the run use-case throws a hard error.
-  const resolveWorkflowDefinition = (name: string, ownerId: string): WorkflowDefinition | null => {
+  // unknown name returns null → the run use-case throws a hard error. Returns a v1
+  // tree OR a v2 graph (file-authored graphs flow through here unchanged).
+  const resolveWorkflowDefinition = (name: string, ownerId: string): AnyWorkflowDefinition | null => {
     const ownerRow = workers.findById(ownerId);
     const cwd = ownerRow?.worktree_dir ?? ownerRow?.cwd ?? null;
-    let found: WorkflowDefinition | null = null;
+    let found: AnyWorkflowDefinition | null = null;
     for (const r of listWorkflowDefinitionRecords(cwd, ownerId)) {
-      if (r.name === name) { const { source: _source, ...def } = r; found = def; }
+      if (r.name === name) found = definitionOfRecord(r);
     }
     return found;
   };
@@ -978,6 +988,13 @@ export function buildContainer() {
   // drift (a new executor/fn — e.g. the `script` node — shows up automatically). A
   // daemon constant: the registries are fixed once registered.
   const workflowCapabilityCatalog = renderCapabilityCatalog(workflowRegistry.types(), workflowTransforms.names());
+  // Structured palette catalog for the node-editor UI (GET /workflows/catalog):
+  // the graph node-kinds with their default typed port shapes, plus the LIVE
+  // transform-fn names from the registry (so a newly-registered fn shows up).
+  const workflowNodeCatalog = {
+    nodeKinds: buildWorkflowNodeCatalog(),
+    transformFns: workflowTransforms.names(),
+  };
   const workflowEngine = new WorkflowEngineImpl({
     registry: workflowRegistry,
     runs: workflowRuns,
@@ -996,24 +1013,31 @@ export function buildContainer() {
     spawn: workflowSpawn,
     progress: workflowProgress,
     definitions: runtimeWorkflowDefinitions,
+    isBuiltinDefinition: (name) => builtinWorkflowDefinitions.list().some((r) => r.name === name),
     resolveDefinition: resolveWorkflowDefinition,
     resolveMode: (ownerId) => modeResolver.resolveFor(ownerId),
-    // On completion, deliver the FULL result to the run owner as a worker_report —
-    // the orchestrator sees everything without polling status. self.c is late-bound
-    // (this closure only fires when a run completes, long after boot). The stable
+    // On completion deliver the FULL result to the run owner — but ONLY when the
+    // owner is a live agent with an inbox (A6.4). An operator-owned run (CLI / an
+    // owner-less HTTP POST) has no agent row, so its completion is skipped here and
+    // read back via GET /workflows/:id + SSE instead. self.c is late-bound (this
+    // closure only fires when a run completes, long after boot). The stable
     // clientMsgId makes a boot re-arm's re-completion idempotent.
-    deliverCompletion: (ownerId, result) => {
-      const body = renderWorkflowCompletion(result);
-      void dispatchMessage(dispatchDeps(self.c!), {
-        workerId: ownerId,
-        text: body,
-        displayText: body,
-        envelope: { kind: "worker_report", fromWorker: result.runId, workerName: "workflow" },
-        queueWhenBusy: true,
-        clientMsgId: `wf-complete:${result.runId}`,
-        origin: "workflow-completion",
-      }).catch((e) => log.warn("workflow completion dispatch failed", { error: errMsg(e) }));
-    },
+    deliverCompletion: makeWorkflowCompletionDelivery({
+      isAgentOwner: (ownerId) => workers.findById(ownerId) != null,
+      deliverToInbox: (ownerId, result) => {
+        const body = renderWorkflowCompletion(result);
+        void dispatchMessage(dispatchDeps(self.c!), {
+          workerId: ownerId,
+          text: body,
+          displayText: body,
+          envelope: { kind: "worker_report", fromWorker: result.runId, workerName: "workflow" },
+          queueWhenBusy: true,
+          clientMsgId: `wf-complete:${result.runId}`,
+          origin: "workflow-completion",
+        }).catch((e) => log.warn("workflow completion dispatch failed", { error: errMsg(e) }));
+      },
+      log,
+    }),
     ids: randomIdGenerator,
     log,
   });
@@ -1085,6 +1109,7 @@ export function buildContainer() {
     workflowDefinitions: runtimeWorkflowDefinitions,
     workflowSpawn,
     workflowService,
+    workflowNodeCatalog,
     userTemplates,
     projectMemory,
     claudeHome,

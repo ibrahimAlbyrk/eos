@@ -22,6 +22,10 @@ interface EngineOpts {
   // When set, engine.run blocks (mirroring a long tree drive) and rejects on
   // abort — the shape a user-initiated stop produces.
   blockUntilAbort?: boolean;
+  // When set, engine.run REJECTS with this error WITHOUT aborting the signal — a
+  // genuine throw that escaped engine.execute before it settled the run row (the
+  // row is left "running" on purpose, simulating the silent-hang hole).
+  rejectError?: string;
 }
 
 // Records what the engine/use-cases were asked to do, without driving anything.
@@ -49,13 +53,16 @@ function harness(over: Partial<WorkflowServiceDeps> = {}, opts: EngineOpts = {})
           ctx.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
         });
       }
+      if (opts.rejectError) throw new Error(opts.rejectError); // genuine throw, row left "running"
       return { runId: ctx.runId, status: opts.runStatus ?? "passed", output: opts.runOutput ?? "ok" };
     },
     async resume(runId: string, ctx: RunContext): Promise<WorkflowRunResult> {
       calls.resume.push({ runId, ctx });
+      if (opts.rejectError) throw new Error(opts.rejectError); // genuine throw on the re-arm path
       return { runId, status: "passed", output: "ok" };
     },
     async runNode() { throw new Error("unused"); },
+    journalFailedNode() { throw new Error("unused"); },
   };
   const deps: WorkflowServiceDeps = {
     engine: engine as never,
@@ -126,6 +133,19 @@ describe("WorkflowService", () => {
     assert.equal(typeof root.outputSchema?.safeParse, "function", "inline JSON-Schema wrapped into a ZodLike validator");
   });
 
+  it("run-inline: a spec with duplicate node ids is REJECTED, naming the id, before any drive", () => {
+    const { svc, calls } = harness();
+    const spec = {
+      name: "dupes",
+      root: { type: "sequence", id: "root", children: [
+        { type: "step", id: "a", prompt: "p" },
+        { type: "step", id: "a", prompt: "q" },
+      ] },
+    } as unknown as WorkflowDefinition;
+    assert.throws(() => svc.run({ spec }, "orch-1"), /duplicate node id.*\ba\b/i);
+    assert.equal(calls.run.length, 0, "rejected before the engine is driven");
+  });
+
   it("trust gate: a run-inline spec carrying a `script` node is REJECTED before any drive", () => {
     const { svc, calls } = harness();
     const spec = {
@@ -137,6 +157,52 @@ describe("WorkflowService", () => {
     } as unknown as WorkflowDefinition;
     assert.throws(() => svc.run({ spec }, "orch-1"), /script.*nodes|run-stored/i);
     assert.equal(calls.run.length, 0, "rejected before the engine is driven");
+  });
+
+  it("run-inline: accepts a v2 GRAPH spec and drives the engine with it", async () => {
+    const { svc, calls } = harness();
+    const graph = {
+      name: "graph-inline", version: 2,
+      nodes: [
+        { id: "in", kind: "input" },
+        { id: "len", kind: "transform", config: { fn: "length", over: "{{args.items}}" } },
+        { id: "out", kind: "output" },
+      ],
+      edges: [
+        { from: { node: "in" }, to: { node: "len" } },
+        { from: { node: "len" }, to: { node: "out" } },
+      ],
+    } as unknown as WorkflowDefinition;
+    svc.run({ spec: graph, args: { items: [1, 2] } }, "operator");
+    await Promise.resolve();
+    assert.equal(calls.run.length, 1);
+    assert.equal(calls.run[0].def.name, "graph-inline");
+    assert.equal((calls.run[0].def as unknown as { version?: number }).version, 2, "the v2 graph drives the engine");
+  });
+
+  it("trust gate: a v2 GRAPH run-inline carrying a `script` node is REJECTED before any drive", () => {
+    const { svc, calls } = harness();
+    const graph = {
+      name: "evil-graph", version: 2,
+      nodes: [
+        { id: "in", kind: "input" },
+        { id: "sc", kind: "script", config: { script: "x.sh" } },
+        { id: "out", kind: "output" },
+      ],
+      edges: [
+        { from: { node: "in" }, to: { node: "sc" } },
+        { from: { node: "sc" }, to: { node: "out" } },
+      ],
+    } as unknown as WorkflowDefinition;
+    assert.throws(() => svc.run({ spec: graph }, "operator"), /script.*nodes|run-stored/i);
+    assert.equal(calls.run.length, 0, "rejected before the engine is driven");
+  });
+
+  it("run-inline: a structurally-INVALID v2 graph (no output node) is REJECTED before any drive", () => {
+    const { svc, calls } = harness();
+    const graph = { name: "bad-graph", version: 2, nodes: [{ id: "in", kind: "input" }], edges: [] } as unknown as WorkflowDefinition;
+    assert.throws(() => svc.run({ spec: graph }, "operator"));
+    assert.equal(calls.run.length, 0, "an invalid graph never reaches the engine");
   });
 
   it("trust gate: a `script` node IS allowed from a stored (run-stored) definition", async () => {
@@ -184,6 +250,24 @@ describe("WorkflowService", () => {
     assert.deepEqual(delivered[0].result.output, { error: "boom" });
   });
 
+  it("a rejected (non-aborted) run is settled FAILED and DOES deliver a completion (no dangling 'running')", async () => {
+    let resolveDone: () => void = () => {};
+    const done = new Promise<void>((r) => { resolveDone = r; });
+    const delivered: Array<{ ownerId: string; result: WorkflowRunResult }> = [];
+    const { svc, runs } = harness(
+      { deliverCompletion: (ownerId, result) => { delivered.push({ ownerId, result }); resolveDone(); } },
+      { rejectError: "kaboom" },
+    );
+    const { runId } = svc.run({ from: "known" }, "orch-1");
+    await done;
+    // the run row was settled failed — not left dangling "running"
+    assert.equal(runs.get(runId)!.status, "failed");
+    // and the owner was told the run ended, with a failed result
+    assert.equal(delivered.length, 1);
+    assert.equal(delivered[0].ownerId, "orch-1");
+    assert.equal(delivered[0].result.status, "failed");
+  });
+
   it("a user-stopped run does NOT deliver a completion", async () => {
     const { svc, calls, runs } = harness({}, { blockUntilAbort: true });
     const { runId } = svc.run({ from: "known" }, "orch-1");
@@ -216,6 +300,22 @@ describe("WorkflowService", () => {
     assert.equal(signal.aborted, true);
     assert.deepEqual(calls.killed, [runId]); // anchorId === runId
     assert.ok(calls.progress.some((p) => p.runId === runId && p.status === "stopped"));
+  });
+
+  it("a rejected resumed run is settled FAILED and DOES deliver a completion (no dangling 'running')", async () => {
+    const delivered: Array<{ ownerId: string; result: WorkflowRunResult }> = [];
+    const { svc, deps, runs } = harness(
+      { deliverCompletion: (ownerId, result) => { delivered.push({ ownerId, result }); } },
+      { rejectError: "resume-kaboom" },
+    );
+    deps.runs.insert({ id: "run-r", definitionName: "known", owner: "orch-9", anchorId: "run-r", status: "running", startedAt: 1, updatedAt: 1 });
+    await svc.resume("run-r"); // settleRejectedRun swallows the reject, mirroring the run path
+    // the re-armed run row was settled failed — not left dangling "running"
+    assert.equal(runs.get("run-r")!.status, "failed");
+    // and the owner was told the resumed run ended, with a failed result
+    assert.equal(delivered.length, 1);
+    assert.equal(delivered[0].ownerId, "orch-9");
+    assert.equal(delivered[0].result.status, "failed");
   });
 
   it("resume reconstructs the context from the run row and drives engine.resume", async () => {

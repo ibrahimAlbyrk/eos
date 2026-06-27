@@ -28,6 +28,7 @@ import { dispatchDeps } from "./routes/dispatch-deps.ts";
 import { isWorkerLive } from "./routes/worker-liveness.ts";
 import { resumeIfDead } from "./routes/resume-helpers.ts";
 import { formatWorkerReport } from "./shared/worker-report.ts";
+import { classifyReport, stepStatusOfSignal } from "../core/src/domain/report-signal.ts";
 import { worktreeStateHash } from "./shared/worktree-state-hash.ts";
 import { appendSynthesized } from "./shared/synthesized-events.ts";
 import { GoalLoopService } from "./services/GoalLoopService.ts";
@@ -138,15 +139,23 @@ const goalLoop = new GoalLoopService({
   // session), build the same wrapper the report route uses, and queue it (fan-in
   // serialized) exactly like a direct report.
   releaseReport: async ({ workerId, parentId, text }) => {
+    // Read the structured held output BEFORE resumeIfDead may settle the loop —
+    // the loop is still active here (runLoopTick clears it only after this returns).
+    const heldOutput = c.loops.findActiveByWorker(workerId)?.heldOutput ?? null;
     const parent = c.workers.findById(parentId);
     if (parent) await resumeIfDead(c, parent);
     const w = c.workers.findById(workerId);
-    // Bridge the loop release to a waiting workflow step-join (§3.4): the report
-    // route held the first report (worker:report{held:true}) so the join waited;
-    // emit the terminal worker:report{held:false} so the adapter's onReport resolves
-    // it with the released text as the step output. The adapter is the sole
-    // subscriber, so this never double-dispatches to the parent below.
-    c.bus.publish("worker:report", { workerId, parentId, text, held: false });
+    // Bridge the loop release to a waiting workflow step-join (§3.4 / D3): the
+    // /step-output route held the first output (workflow:step-output{held:true}) so
+    // the join waited; emit the terminal {held:false} so WorkerSpawnAdapter.onStepOutput
+    // resolves it. Republish the STRUCTURED held output VERBATIM — the typed object
+    // + its self-declared status — so a released looped step delivers its object
+    // (not a stringified body) and a failed step STAYS failed (no classifyReport
+    // status inversion, H2). A non-workflow loop has no held output → fall back to
+    // the text signal (harmless: the adapter is the sole subscriber, no step-join).
+    c.bus.publish("workflow:step-output", heldOutput
+      ? { workerId, parentId, output: heldOutput.output, status: heldOutput.status, reason: heldOutput.reason, held: false }
+      : { workerId, parentId, output: text, status: stepStatusOfSignal(classifyReport(text)), held: false });
     return dispatchMessage(dispatchDeps(c), {
       workerId: parentId,
       text: w ? formatWorkerReport(w, text) : text,

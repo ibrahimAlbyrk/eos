@@ -6,7 +6,7 @@ variables:
   - RB
 ---
 
-Run a DETERMINISTIC, multi-step workflow — a fixed tree of worker steps the daemon drives for you (fan-out / fan-in, pipelines, conditionals, data-driven loops), with typed step-to-step data, crash-safe resume, and a standing expert pool the steps consult while they work. Use this instead of hand-orchestrating with {{SPAWN_WORKER_TOOL}} when the topology is known up front and you want it driven reliably to completion — the engine spawns each step, awaits its typed result, binds it into the next step's prompt, and tears the whole run down at the end. The tool returns as soon as the run STARTS; poll `status` (or watch the dashboard) for progress.
+Author and launch a run on Eos's STANDALONE node-graph engine — a deterministic runtime that executes a graph of typed nodes (fan-out / fan-in, pipelines, conditionals, data-driven loops) input→output with NO LLM driving the control flow, crash-safe resume included. The engine also runs zero-LLM from a graph file, the `eos workflow` CLI, or the node-editor UI; this tool is the ONE optional path for an orchestrator to drive it. Through it you author a node tree the engine compiles into that graph and runs to completion. Use it instead of hand-orchestrating with {{SPAWN_WORKER_TOOL}} when the topology is known up front and you want it driven reliably — the engine spawns each step worker, awaits its typed output, binds it into downstream prompts, and tears the whole run down at the end. The tool returns as soon as the run STARTS; poll `status` (or watch the dashboard) for progress.
 
 `mode: "run-stored"` — run a catalogued definition by name. Provide:
 - `from` — the workflow definition name (built-in, on-disk `~/.eos/workflows/*`, or one you created).
@@ -14,7 +14,7 @@ Run a DETERMINISTIC, multi-step workflow — a fixed tree of worker steps the da
 Returns `{ runId, status: "running" }`.
 
 `mode: "run-inline"` — run a one-off definition without persisting it. Provide:
-- `spec` — the full workflow definition object: `{ name, root, experts? }`, where `root` is a node tree (`step` / `sequence` / `parallel` / `pipeline` / `forEach` / `conditional` / `loopUntil` / `phase` / `subWorkflow`). A `step` names a worker (`from`) + `prompt` and, when it declares an `outputSchema`, returns a typed object downstream steps bind by `{{LB}}nodes.<id>.output{{RB}}`.
+- `spec` — the workflow definition object: `{ name, root }`, where `root` is a node tree (`step` / `sequence` / `parallel` / `pipeline` / `forEach` / `conditional` / `loopUntil` / `phase` / `subWorkflow`) the engine compiles into its graph. A `step` names a worker (`from`) + `prompt`; the worker does the node's work in isolation and emits ONE typed output, and when the node declares an `outputSchema` that output is a typed object downstream nodes bind by `{{LB}}nodes.<id>.output{{RB}}`.
 - `args` (optional) — as above.
 Returns `{ runId, status: "running" }`.
 
@@ -24,4 +24,4 @@ Returns `{ runId, status: "running" }`.
 
 `mode: "stop"` — abort a run by `runId`: marks it `stopped`, halts further spawning, and reaps the run's whole worker subtree (experts + step-workers). Returns `{ runId, status }`.
 
-Notes: a workflow step-worker must NOT arm its own dynamic loop — the workflow IS the control loop; use a `loopUntil` node instead. The standing experts (declared in the definition's `experts`) are spawned once at run start and kept consultable via the peer mesh, then torn down when the run ends. Runs survive a daemon restart: a re-armed run replays its already-finished steps from their journaled output and continues.
+Notes: a step worker runs as an isolated node — it does NOT spawn sub-workers or consult peers, and must NOT arm its own dynamic loop (the graph IS the control loop; use a `loopUntil` node, or a `step`'s `loop` field, instead). Runs survive a daemon restart: a re-armed run replays its already-finished nodes from their journaled output and continues.

@@ -14,7 +14,7 @@ const flush = (): Promise<void> => new Promise((r) => setTimeout(r, 20));
 function loop(): LoopRow {
   return {
     id: "l-1", workerId: "w-1", parentId: null, goal: GOAL, strategy: "command",
-    status: "active", attempt: 0, maxAttempts: null, heldReport: null, lastReason: null,
+    status: "active", attempt: 0, maxAttempts: null, heldReport: null, heldOutput: null, lastReason: null,
     awaitingInput: false, progressRing: [], startedAt: 1, updatedAt: 1,
   };
 }

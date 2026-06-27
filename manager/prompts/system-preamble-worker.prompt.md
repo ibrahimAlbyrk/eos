@@ -1,9 +1,9 @@
 ---
-description: "Worker system preamble — emitted FIRST in every non-orchestrator agent's assembled system prompt"
+description: "Worker system preamble — emitted FIRST in the worker + git agents' assembled system prompts"
 dpi:
   layer: core
   priority: 0
-  when: { fact: role, ne: orchestrator }
+  when: { fact: role, in: ["worker", "git"] }
 ---
 `<budget:token_budget>`
 

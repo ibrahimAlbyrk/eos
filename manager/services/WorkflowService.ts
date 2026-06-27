@@ -9,14 +9,16 @@
 import { runWorkflow } from "../../core/src/use-cases/RunWorkflow.ts";
 import { resumeWorkflow } from "../../core/src/use-cases/ResumeWorkflow.ts";
 import { stopWorkflow } from "../../core/src/use-cases/StopWorkflow.ts";
-import { createWorkflowDefinition } from "../../core/src/use-cases/CreateWorkflowDefinition.ts";
+import { createWorkflowDefinition, assertUniqueNodeIds } from "../../core/src/use-cases/CreateWorkflowDefinition.ts";
+import { deleteWorkflowDefinition } from "../../core/src/use-cases/DeleteWorkflowDefinition.ts";
 import { WorkflowDefinitionSchema } from "../../contracts/src/workflow.ts";
+import {
+  WorkflowGraphSchema, isWorkflowGraph, type AnyWorkflowDefinition,
+} from "../../contracts/src/workflow-graph.ts";
 import { containsNodeType } from "../../core/src/workflow/node-scope.ts";
-import { attachOutputValidators } from "./json-schema-validator.ts";
+import { attachOutputValidators, attachGraphPortValidators } from "./json-schema-validator.ts";
 import { NotFoundError, ValidationError } from "../../core/src/errors/index.ts";
-import type {
-  WorkflowDefinition, WorkflowRunStatus, RunWorkflowResult,
-} from "../../contracts/src/workflow.ts";
+import type { WorkflowRunStatus, RunWorkflowResult } from "../../contracts/src/workflow.ts";
 import type { WorkflowEngine, WorkflowRunResult } from "../../core/src/ports/WorkflowEngine.ts";
 import type { WorkflowRunRepo } from "../../core/src/ports/WorkflowRunRepo.ts";
 import type { WorkerSpawnPort } from "../../core/src/ports/WorkerSpawnPort.ts";
@@ -30,9 +32,14 @@ export interface WorkflowServiceDeps {
   runs: WorkflowRunRepo;
   spawn: WorkerSpawnPort;             // killWorker(anchorId) reaps the subtree on stop
   progress: ProgressSink;
-  definitions: RuntimeWorkflowDefinitionStore;   // create() persists per-owner
-  // Overlay resolver (builtin → file → runtime), supplied by the container.
-  resolveDefinition(name: string, ownerId: string): WorkflowDefinition | null;
+  definitions: RuntimeWorkflowDefinitionStore;   // create()/delete() persist per-owner
+  // Whether a name belongs to a builtin (code-DSL) definition — deleteDefinition
+  // rejects those (builtins are not removable). Supplied by the container, which
+  // owns the BuiltinWorkflowDefinitionSource.
+  isBuiltinDefinition(name: string): boolean;
+  // Overlay resolver (builtin → file → runtime), supplied by the container. May
+  // resolve a v1 tree OR a v2 graph (a file-authored graph runs by name unchanged).
+  resolveDefinition(name: string, ownerId: string): AnyWorkflowDefinition | null;
   // The run permission mode, set EXPLICITLY on every spawn (§3.5). The manager
   // resolves it from the owning orchestrator; core never reads it.
   resolveMode(ownerId: string): string;
@@ -47,7 +54,7 @@ export interface WorkflowServiceDeps {
 
 export interface RunWorkflowArgs {
   from?: string;
-  spec?: WorkflowDefinition;
+  spec?: AnyWorkflowDefinition;   // v1 tree or v2 graph (run-inline)
   args?: unknown;
 }
 
@@ -65,21 +72,44 @@ export class WorkflowService {
   // engine.run's synchronous prefix mints the anchor + inserts the run row before
   // this returns, so a follow-up status() can never race a missing row.
   run(input: RunWorkflowArgs, ownerId: string): RunWorkflowResult {
-    if (input.spec) {
-      WorkflowDefinitionSchema.parse(input.spec);   // fail loud on a malformed inline spec
-      // Trust gate (§ITEM 1c): a `script` node runs a local script, so it is
-      // allowed ONLY from a trusted stored/builtin/file definition — NEVER from an
-      // LLM-emitted run-inline spec, which would reintroduce arbitrary code-exec.
-      if (containsNodeType(input.spec.root, "script")) {
-        throw new ValidationError(
-          "run-inline specs may not contain `script` nodes; create the workflow and run it by name (run-stored)",
-        );
+    let spec = input.spec;
+    if (spec) {
+      if (isWorkflowGraph(spec)) {
+        // v2 graph inline (the operator file-run path). Validate the full structural
+        // schema (id-uniqueness / dangling+typed+self edges / acyclicity) and apply
+        // the edge/port defaults the scheduler relies on.
+        spec = WorkflowGraphSchema.parse(spec);
+        // Trust gate (§ITEM 1c): a `script` node runs a local script, allowed ONLY
+        // from a trusted stored/builtin/file definition — never from an inline spec,
+        // regardless of owner (same rule as v1). Store the graph and run it by name.
+        if (spec.nodes.some((n) => n.kind === "script")) {
+          throw new ValidationError(
+            "run-inline graphs may not contain `script` nodes; store the graph and run it by name (run-stored)",
+          );
+        }
+        // Honor a declared JSON-Schema on a typed `json` port — the v2-graph analog
+        // of attachOutputValidators below: a run-inline graph carries port.schema as
+        // a plain object the pure scheduler can't validate (it would fall back to a
+        // coarse object/non-object check and pass a schema-violating value), so wrap
+        // it into the scheduler's ZodLike { safeParse } duck-type HERE (§Phase 3 / A5).
+        attachGraphPortValidators(spec);
+      } else {
+        WorkflowDefinitionSchema.parse(spec);   // fail loud on a malformed inline spec
+        assertUniqueNodeIds(spec);              // reject duplicate node ids (run-scoped binding keys)
+        // Trust gate (§ITEM 1c): a `script` node runs a local script, so it is
+        // allowed ONLY from a trusted stored/builtin/file definition — NEVER from an
+        // LLM-emitted run-inline spec, which would reintroduce arbitrary code-exec.
+        if (containsNodeType(spec.root, "script")) {
+          throw new ValidationError(
+            "run-inline specs may not contain `script` nodes; create the workflow and run it by name (run-stored)",
+          );
+        }
+        // Honor a declared JSON-Schema `outputSchema`: a run-inline spec carries it as
+        // a plain object the pure-core executor can't validate, so wrap it into the
+        // executor's ZodLike { safeParse } duck-type here (§Issue B) — restores typed
+        // step I/O for orchestrator-authored workflows.
+        attachOutputValidators(spec.root);
       }
-      // Honor a declared JSON-Schema `outputSchema`: a run-inline spec carries it as
-      // a plain object the pure-core executor can't validate, so wrap it into the
-      // executor's ZodLike { safeParse } duck-type here (§Issue B) — restores typed
-      // step I/O for orchestrator-authored workflows.
-      attachOutputValidators(input.spec.root);
     } else if (input.from) {
       if (!this.deps.resolveDefinition(input.from, ownerId)) {
         throw new NotFoundError("workflow definition", input.from);
@@ -93,25 +123,45 @@ export class WorkflowService {
     this.controllers.set(runId, controller);
     const mode = this.deps.resolveMode(ownerId);
 
-    // Fire-and-forget: the long-running tree drive self-handles its own failure.
+    // Fire-and-forget: the long-running graph drive self-handles its own failure.
     void runWorkflow(
       { engine: this.deps.engine, resolveDefinition: this.deps.resolveDefinition },
-      { runId, ownerId, mode, signal: controller.signal, from: input.from, spec: input.spec, args: input.args },
+      { runId, ownerId, mode, signal: controller.signal, from: input.from, spec, args: input.args },
     )
       .then((result) => this.deps.deliverCompletion(ownerId, result))   // passed AND failed
-      .catch((e) => this.deps.log.warn("workflow run failed", { runId, error: e instanceof Error ? e.message : String(e) }))
+      .catch((e) => this.settleRejectedRun(runId, ownerId, controller, e))
       .finally(() => this.controllers.delete(runId));
 
     return { runId, status: "running" };
   }
 
+  // A run promise that REJECTED never reached engine.execute's persist step, so the
+  // run row is still "running" and the owner was never told it ended. Close that
+  // silent-hang hole: settle the row failed + deliver the completion — UNLESS this
+  // was a user-stop (the signal is aborted), where stopWorkflow already set
+  // "stopped" and the operator knows, so we neither clobber the status nor deliver.
+  private settleRejectedRun(runId: string, ownerId: string, controller: AbortController, e: unknown): void {
+    const error = e instanceof Error ? e.message : String(e);
+    if (controller.signal.aborted) {
+      this.deps.log.warn("workflow run aborted", { runId, error });
+      return;
+    }
+    this.deps.log.warn("workflow run failed", { runId, error });
+    const output = { error };
+    this.deps.runs.setStatus(runId, "failed");
+    this.deps.runs.setResult(runId, output);
+    this.deps.progress.runChanged(runId, "failed");
+    this.deps.deliverCompletion(ownerId, { runId, status: "failed", output });
+  }
+
   // Boot re-arm (reArmWorkflows) re-drives an interrupted run: reconstruct the
   // RunContext and replay through engine.resume — journaled `passed` steps replay
   // their memoized output without re-spawning; the first un-journaled node runs
-  // live. Returns the engine promise so the caller (reArmWorkflows) owns error
-  // handling and may await for determinism; the daemon voids it so boot never
-  // blocks on a run's completion.
-  resume(runId: string): Promise<WorkflowRunResult> {
+  // live. A rejected resume gets the SAME settleRejectedRun treatment as the run
+  // path (settle the row failed + deliver completion, unless user-stopped), so an
+  // interrupted run never re-dangles 'running'. The daemon voids the returned
+  // promise so boot never blocks on a run's completion.
+  resume(runId: string): Promise<WorkflowRunResult | void> {
     const row = this.deps.runs.findById(runId);
     if (!row) throw new NotFoundError("workflow run", runId);
     const controller = new AbortController();
@@ -122,6 +172,7 @@ export class WorkflowService {
       { runId, ownerId: row.owner, mode, signal: controller.signal },
     )
       .then((result) => { this.deps.deliverCompletion(row.owner, result); return result; })
+      .catch((e) => this.settleRejectedRun(runId, row.owner, controller, e))
       .finally(() => this.controllers.delete(runId));
   }
 
@@ -153,7 +204,17 @@ export class WorkflowService {
   }
 
   // create_workflow: validate + persist a per-owner runtime definition for reuse.
-  create(spec: WorkflowDefinition, ownerId: string): { name: string } {
+  // Accepts a v1 tree or a v2 graph (the editor SAVE path).
+  create(spec: AnyWorkflowDefinition, ownerId: string): { name: string } {
     return createWorkflowDefinition({ store: this.deps.definitions }, { ownerId, spec });
+  }
+
+  // delete_workflow: remove a per-owner runtime definition (the mirror of create).
+  // Rejects a builtin (code, not removable) and 404s an unknown name.
+  deleteDefinition(name: string, ownerId: string): { name: string } {
+    return deleteWorkflowDefinition(
+      { store: this.deps.definitions, isBuiltin: this.deps.isBuiltinDefinition },
+      { ownerId, name },
+    );
   }
 }

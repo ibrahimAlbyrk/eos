@@ -178,6 +178,25 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
     assert.equal(cfg.workflow.defaultStepTimeoutMs, 900000); // untouched default preserved
   });
 
+  it("rejects defaultStepTimeoutMs:0 (fail-closed backstop is mandatory) and keeps the default", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    // 0 would disable the per-step hang backstop — the schema rejects it, so the
+    // whole override is ignored and the safe default (>0) holds.
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ workflow: { defaultStepTimeoutMs: 0 } }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.workflow.defaultStepTimeoutMs, 900000);
+    assert.ok(cfg.workflow.defaultStepTimeoutMs > 0);
+  });
+
+  it("accepts a positive defaultStepTimeoutMs override", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ workflow: { defaultStepTimeoutMs: 60000 } }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.workflow.defaultStepTimeoutMs, 60000);
+  });
+
   it("partial override leaves other fields at defaults", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");

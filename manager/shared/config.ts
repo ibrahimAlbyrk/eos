@@ -118,9 +118,11 @@ export interface DaemonConfig {
   // Deterministic workflow-orchestration engine (daemon-resident). `enabled`
   // gates the run path; `maxConcurrentSteps` is the per-run leaf-spawn cap fed to
   // the engine's ConcurrencyGate; `defaultStepTimeoutMs` is the per-step hang
-  // backstop the spawn-join arms (a step that never reports AND never produces a
-  // final answer fails after it; 0 = off); `defaultScriptTimeoutMs` is the kill
-  // deadline a `script` node uses when it sets no `timeoutMs` of its own (§ITEM 1).
+  // backstop the spawn-join arms — the fail-closed guarantee that a step which
+  // never calls workflow_step_output fails loudly instead of wedging the run, so
+  // it MUST be > 0 (the schema rejects 0, falling back to this default);
+  // `defaultScriptTimeoutMs` is the kill deadline a `script` node uses when it
+  // sets no `timeoutMs` of its own (§ITEM 1).
   workflow: {
     enabled: boolean;
     maxConcurrentSteps: number;
@@ -287,7 +289,7 @@ export function defaults(): DaemonConfig {
     workflow: {
       enabled: true,
       maxConcurrentSteps: 8,
-      defaultStepTimeoutMs: 900000, // 15 min hang backstop (0 = off)
+      defaultStepTimeoutMs: 900000, // 15 min hang backstop (mandatory fail-closed; must be > 0)
       defaultScriptTimeoutMs: 30000,
     },
     collaborate: {
@@ -394,7 +396,10 @@ export const DaemonConfigOverrideSchema = z.object({
   workflow: z.object({
     enabled: z.boolean(),
     maxConcurrentSteps: z.number().int().positive(),
-    defaultStepTimeoutMs: z.number().int().nonnegative(),
+    // > 0, not nonnegative: the per-step hang backstop is the fail-closed
+    // guarantee. 0 would let a node that never emits its output hang the run
+    // forever, so a config setting it to 0 is rejected and the safe default holds.
+    defaultStepTimeoutMs: z.number().int().positive(),
     defaultScriptTimeoutMs: z.number().int().nonnegative(),
   }).partial().optional(),
   collaborate: z.object({
