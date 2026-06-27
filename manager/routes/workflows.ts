@@ -18,8 +18,11 @@ import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
-import { WorkflowToolRequestSchema } from "../../contracts/src/workflow.ts";
+import { WorkflowToolRequestSchema, WorkflowRunsScopeSchema } from "../../contracts/src/workflow.ts";
 import { AnyWorkflowDefinitionSchema } from "../../contracts/src/workflow-graph.ts";
+
+// The history strip is capped server-side — "see recent runs", not a full export.
+const RECENT_RUNS_LIMIT = 50;
 
 // The synthetic owner for an operator-launched run (A6.4): the CLI / an owner-less
 // HTTP POST has no agent behind it. The run executes fine for any owner; the
@@ -99,6 +102,30 @@ export function registerWorkflowRoutes(r: Router, c: Container): void {
   // swallow "catalog" as an :id). Open read — no run state, no owner.
   r.get("/workflows/catalog", ({ res }) => {
     writeJson(res, 200, c.workflowNodeCatalog);
+  });
+
+  // Merged definition records (builtin + file + runtime/SQLite) for the Library +
+  // the editor's from/subGraph selectors — the existing list/CLI omits runtime
+  // saves; this closes that gap. Owner rides the query (operator default), same as
+  // PUT/DELETE; each record carries its `source` provenance. Literal path
+  // registered BEFORE the /workflows/:id regex (else "definitions" reads as an :id).
+  r.get("/workflows/definitions", ({ url, res }) => {
+    writeJson(res, 200, c.listWorkflowDefinitions(ownerOf(url)));
+  });
+
+  // Run list for the observation view: ?scope=active (in-flight, cross-owner) |
+  // recent (capped most-recent history). Read-only; both are thin repo reads.
+  // Literal path registered BEFORE the /workflows/:id regex.
+  r.get("/workflows/runs", ({ url, res }) => {
+    const scope = WorkflowRunsScopeSchema.catch("active").parse(url.searchParams.get("scope") ?? "active");
+    writeJson(res, 200, scope === "recent" ? c.workflowRuns.listRecent(RECENT_RUNS_LIMIT) : c.workflowRuns.listActive());
+  });
+
+  // Per-node step rows for one run (the read-only run canvas / step list +
+  // per-node coloring backfill on mount). Two-segment path — no collision with
+  // the single-segment /workflows/:id regex.
+  r.get(/^\/workflows\/(?<id>[^/]+)\/steps$/, ({ params, res }) => {
+    writeJson(res, 200, c.workflowSteps.listByRun(params.id));
   });
 
   // The dashboard status read — the full persisted run row (404 when unknown).

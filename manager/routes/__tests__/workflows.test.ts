@@ -32,6 +32,7 @@ function harness(enabled = true) {
     create: [] as Array<{ spec: unknown; owner: string }>,
     status: [] as string[],
     stop: [] as string[],
+    listDefs: [] as string[],
   };
   // Seeded under the operator owner — an owner-less DELETE resolves to "operator".
   const stored = [{ owner: "operator", name: "t4-inner-sum" }];
@@ -47,8 +48,22 @@ function harness(enabled = true) {
     deleteForOwner() {},
   };
   const runs = new Map<string, unknown>([["run-7", { id: "run-7", status: "running" }]]);
+  // Read-surface fixtures for the Phase-0 list endpoints. `definitions` carries a
+  // runtime-stored record (the gap the new endpoint closes); listWorkflowDefinitions
+  // records the owner it was called with.
+  const definitionRecords = [
+    { name: "build-with-experts", version: 2, source: "builtin", nodes: [], edges: [] },
+    { name: "t4-inner-sum", version: 2, source: "runtime", nodes: [], edges: [] },
+  ];
+  const activeRuns = [{ id: "run-7", status: "running" }];
+  const recentRuns = [{ id: "run-7", status: "running" }, { id: "run-2", status: "passed" }];
+  const stepsByRun = new Map<string, unknown[]>([
+    ["run-7", [{ id: "s1", runId: "run-7", nodeId: "in", status: "passed" }]],
+  ]);
   const c = {
     config: { workflow: { enabled } },
+    listWorkflowDefinitions: (owner: string) => { calls.listDefs.push(owner); return definitionRecords; },
+    workflowSteps: { listByRun: (id: string) => stepsByRun.get(id) ?? [] },
     workflowService: {
       run: (input: unknown, owner: string) => { calls.run.push({ input, owner }); return { runId: "run-1", status: "running" }; },
       create: (spec: unknown, owner: string) => { calls.create.push({ spec, owner }); return { name: "wf" }; },
@@ -57,7 +72,11 @@ function harness(enabled = true) {
       deleteDefinition: (name: string, owner: string) =>
         deleteWorkflowDefinition({ store: definitions, isBuiltin: (n) => BUILTINS.has(n) }, { ownerId: owner, name }),
     },
-    workflowRuns: { findById: (id: string) => runs.get(id) ?? null },
+    workflowRuns: {
+      findById: (id: string) => runs.get(id) ?? null,
+      listActive: () => activeRuns,
+      listRecent: (_limit: number) => recentRuns,
+    },
     workflowNodeCatalog: {
       nodeKinds: [
         { kind: "input", label: "Input", category: "io", inputs: [], outputs: [{ name: "out", type: "any" }] },
@@ -220,6 +239,48 @@ describe("workflow routes — owner-scoped, calling the service", () => {
     assert.ok(Array.isArray(body.nodeKinds), "nodeKinds is an array");
     assert.deepEqual(body.nodeKinds.map((k) => k.kind), ["input", "output"]);
     assert.deepEqual(body.transformFns, ["identity", "dedup"]);
+  });
+
+  it("GET /workflows/definitions returns the merged records incl. runtime (not swallowed by :id)", async () => {
+    const { c, calls } = harness();
+    const out = await invoke(c, "GET", "/workflows/definitions?owner=operator");
+    assert.equal(out.status, 200);
+    const body = out.payload as Array<{ name: string; source: string }>;
+    assert.deepEqual(body.map((r) => r.name), ["build-with-experts", "t4-inner-sum"]);
+    assert.ok(body.some((r) => r.source === "runtime"), "runtime-stored defs are surfaced");
+    assert.deepEqual(calls.listDefs, ["operator"], "owner rides the query");
+  });
+
+  it("GET /workflows/definitions defaults to the operator owner when owner-less", async () => {
+    const { c, calls } = harness();
+    await invoke(c, "GET", "/workflows/definitions");
+    assert.deepEqual(calls.listDefs, ["operator"]);
+  });
+
+  it("GET /workflows/runs?scope=active returns the in-flight runs (default scope)", async () => {
+    const { c } = harness();
+    const dflt = await invoke(c, "GET", "/workflows/runs");
+    assert.equal(dflt.status, 200);
+    assert.deepEqual((dflt.payload as Array<{ id: string }>).map((r) => r.id), ["run-7"]);
+    const active = await invoke(c, "GET", "/workflows/runs?scope=active");
+    assert.deepEqual((active.payload as Array<{ id: string }>).map((r) => r.id), ["run-7"]);
+  });
+
+  it("GET /workflows/runs?scope=recent returns the recent history (not swallowed by :id)", async () => {
+    const { c } = harness();
+    const out = await invoke(c, "GET", "/workflows/runs?scope=recent");
+    assert.equal(out.status, 200);
+    assert.deepEqual((out.payload as Array<{ id: string }>).map((r) => r.id), ["run-7", "run-2"]);
+  });
+
+  it("GET /workflows/:id/steps returns the per-node step rows (two-segment, not the :id row)", async () => {
+    const { c } = harness();
+    const out = await invoke(c, "GET", "/workflows/run-7/steps");
+    assert.equal(out.status, 200);
+    const body = out.payload as Array<{ nodeId: string }>;
+    assert.deepEqual(body.map((s) => s.nodeId), ["in"]);
+    const empty = await invoke(c, "GET", "/workflows/ghost/steps");
+    assert.deepEqual(empty.payload, []);
   });
 
   it("GET /workflows/:id returns the run row, 404 when unknown", async () => {

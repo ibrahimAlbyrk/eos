@@ -952,6 +952,14 @@ export function buildContainer() {
     }
     return found;
   };
+  // The HTTP list-definitions surface (GET /workflows/definitions): the same merged
+  // overlay the resolver reads, with the owner's cwd derived exactly as above — so
+  // the editor's Library + from/subGraph selectors see runtime-stored defs too.
+  const listWorkflowDefinitions = (ownerId: string): AnyWorkflowDefinitionRecord[] => {
+    const ownerRow = workers.findById(ownerId);
+    const cwd = ownerRow?.worktree_dir ?? ownerRow?.cwd ?? null;
+    return listWorkflowDefinitionRecords(cwd, ownerId);
+  };
   // Step/expert spawn goes through the command handler (so from-definition /
   // tool-scope / mode / backend resolution come for free — §3.5). SpawnStepSpec
   // carries no cwd, so the run cwd is injected HERE: each step/expert runs in its
@@ -1107,6 +1115,7 @@ export function buildContainer() {
     workflowRuns,
     workflowSteps,
     workflowDefinitions: runtimeWorkflowDefinitions,
+    listWorkflowDefinitions,
     workflowSpawn,
     workflowService,
     workflowNodeCatalog,
