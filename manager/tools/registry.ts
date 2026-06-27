@@ -17,6 +17,7 @@ import { integrateWorkersDef } from "./defs/integrate_workers.ts";
 import { dynamicLoopDef } from "./defs/dynamic_loop.ts";
 import { currentDatetimeDef } from "./defs/current_datetime.ts";
 import { workflowDef } from "./defs/workflow.ts";
+import { workflowStepOutputDef } from "./defs/workflow_step_output.ts";
 
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
@@ -43,3 +44,8 @@ export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDate
 // Registered only when the worker was spawned with collaborate=true (the
 // worker-mcp entrypoint composes them in).
 export const peerDefs: ToolDefinition[] = [listPeersDef, askPeerDef, respondToPeerDef];
+
+// The ONLY tools a workflow-worker node sees (Part B / D1+D4): its typed output
+// emitter + the clock. No send_message_to_parent (it never reports to a parent),
+// no peers, no sub-spawn — a deterministic graph node, nothing else.
+export const workflowWorkerDefs: ToolDefinition[] = [workflowStepOutputDef, currentDatetimeDef];

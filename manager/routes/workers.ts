@@ -10,6 +10,7 @@ import {
   EventsQuerySchema,
   MessageRequestSchema,
   ReportRequestSchema,
+  StepOutputRequestSchema,
   SetNameRequestSchema,
   RenameIntentRequestSchema,
   SetPermissionRequestSchema,
@@ -46,8 +47,9 @@ import { expandPath } from "../shared/path.ts";
 import { appendSynthesized } from "../shared/synthesized-events.ts";
 import { resumeWorkerVia, resumeIfDead, switchWorkerBackend } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
-import { reportHoldGate } from "./report-hold.ts";
+import { reportHoldGate, stepOutputHoldGate } from "./report-hold.ts";
 import { formatWorkerReport } from "../shared/worker-report.ts";
+import { safeStringify } from "../../infra/src/util/json.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
 import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
 import { pullBranch } from "../../core/src/use-cases/PullBranch.ts";
@@ -653,6 +655,58 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       c.log.warn("report delivery failed", { worker: params.id, parent: worker.parent_id, error: errMsg(e) });
       writeJson(res, 200, { ok: true, delivered: false });
     }
+  });
+
+  // POST /workers/:id/step-output — the typed settle channel for a workflow-worker
+  // node (the workflow_step_output tool). UNLIKE /report, this does ONLY: (1) the
+  // loop hold decision; (2) publish the workflow:step-output bus topic the
+  // step-join resolves on. No formatWorkerReport, no dispatchMessage, no auto-apply
+  // — a deterministic node has no parent to report to (Part B).
+  r.post(/^\/workers\/(?<id>[^/]+)\/step-output$/, async ({ params, req, res }) => {
+    const body = validate(StepOutputRequestSchema, await readBody(req));
+    const worker = c.workers.findById(params.id);
+    if (!worker) { writeJson(res, 404, { error: "worker not found" }); return; }
+
+    // Loop hold (R7 / D3): a looped node's first output is HELD until its goal-check
+    // releases it. The held text (what the goal-check JUDGES) is the reason for a
+    // failure, else the serialized output. The structured twin (heldOutput) is what
+    // the release re-emits VERBATIM as the node output — typed object + faithful
+    // status, never the stringified/re-sniffed text (H2).
+    const heldText = body.status === "done"
+      ? (typeof body.output === "string" ? body.output : safeStringify(body.output))
+      : (body.reason ?? "");
+    const hold = stepOutputHoldGate(
+      c.loops, params.id, body.status, heldText,
+      { output: body.output, status: body.status, reason: body.reason },
+      { retryOnFailed: c.config.loop.retryOnFailed },
+    );
+    c.bus.publish("workflow:step-output", {
+      workerId: params.id,
+      parentId: worker.parent_id,
+      output: body.output,
+      status: body.status,
+      reason: body.reason,
+      held: hold.held,
+    });
+    if (hold.held) {
+      c.bus.publish("loop:change", { workerId: params.id, status: "active" });
+      writeJson(res, 200, { ok: true, held: true });
+      return;
+    }
+    // Durable recovery trace (§3.7): a terminal (non-held) step output is the
+    // settle the engine is about to journal `passed`. Unlike /report, this route
+    // runs no dispatchMessage — so without this there is NO durable trace, and a
+    // crash before the journal write would re-spawn the finished node (double-run).
+    // Anchor-keyed + fromWorker-stamped exactly like the worker_report trace, but
+    // carrying the STRUCTURED output so the re-arm recovers the typed object + a
+    // faithful status. (Held outputs are skipped — they are not terminal; the loop
+    // release republish is the terminal there, traced via its own worker_report.)
+    if (worker.parent_id) {
+      c.events.append(worker.parent_id, c.clock.now(), "workflow_step_output", {
+        fromWorker: params.id, status: body.status, output: body.output, reason: body.reason,
+      });
+    }
+    writeJson(res, 200, { ok: true });
   });
 
   r.put(/^\/workers\/(?<id>[^/]+)\/name$/, async ({ params, req, res }) => {

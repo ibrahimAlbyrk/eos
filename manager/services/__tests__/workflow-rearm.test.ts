@@ -111,6 +111,85 @@ describe("reArmWorkflows", () => {
     assert.equal(runs.rows.get("run-x")!.status, "passed");
   });
 
+  it("recovers an unjournaled step from the structured workflow_step_output trace (no re-spawn, typed object)", async () => {
+    const runs = runRepo();
+    const steps = stepRepo();
+    const spawn = spawnPort();
+    const def = wf.define("solo-s", (b) => ({
+      root: b.step({ id: "n1", from: "a", prompt: "p1" }),
+    }));
+    // The crash window: n1's worker emitted its typed output via /step-output (so
+    // the route stamped the structured trace under the anchor) but the engine's
+    // `passed` journal write was lost — the row is stuck `running` with worker w-5.
+    runs.insert({
+      id: "run-s", definitionName: "solo-s", owner: "orch", anchorId: "anchor-s",
+      status: "running", startedAt: 1, updatedAt: 1,
+    });
+    steps.upsert({
+      id: "run-s:n1", runId: "run-s", nodeId: "n1", nodeType: "step",
+      status: "running", workerId: "w-5", startedAt: 1, endedAt: null,
+    });
+    const structuredOutput = { files: ["a.ts", "b.ts"], count: 2 };
+    const events = {
+      list: (): WorkerEventRow[] => [{
+        id: 1, worker_id: "anchor-s", ts: 2, type: "workflow_step_output",
+        payload: JSON.stringify({ fromWorker: "w-5", status: "done", output: structuredOutput }),
+      }],
+    };
+
+    const { engine } = buildEngine(spawn, {
+      runs, steps,
+      resolveDefinition: (name) => (name === "solo-s" ? def : null),
+    });
+
+    await reArmWorkflows({
+      runs, steps, events, queue: noQueue,
+      resume: (runId): Promise<WorkflowRunResult> =>
+        engine.resume(runId, { runId, ownerId: "orch", mode: "acceptEdits" }),
+      log: noopLog,
+    });
+
+    assert.deepEqual(spawn.calls.steps.map((s) => s.nodeId), [], "the recovered step is NOT re-spawned");
+    assert.equal(steps.rows.get("run-s:n1")!.status, "passed");
+    // The recovered output is the STRUCTURED object, not a stringified body.
+    assert.deepEqual(steps.rows.get("run-s:n1")!.output, structuredOutput);
+    assert.deepEqual(runs.rows.get("run-s")!.result, structuredOutput);
+    assert.equal(runs.rows.get("run-s")!.status, "passed");
+  });
+
+  it("a failed structured trace is re-journaled failed (reason as output), not falsely passed", async () => {
+    const runs = runRepo();
+    const steps = stepRepo();
+    const spawn = spawnPort();
+    runs.insert({
+      id: "run-f", definitionName: "solo-f", owner: "orch", anchorId: "anchor-f",
+      status: "running", startedAt: 1, updatedAt: 1,
+    });
+    steps.upsert({
+      id: "run-f:n1", runId: "run-f", nodeId: "n1", nodeType: "step",
+      status: "running", workerId: "w-6", startedAt: 1, endedAt: null,
+    });
+    const events = {
+      list: (): WorkerEventRow[] => [{
+        id: 1, worker_id: "anchor-f", ts: 2, type: "workflow_step_output",
+        payload: JSON.stringify({ fromWorker: "w-6", status: "failed", reason: "could not build" }),
+      }],
+    };
+
+    // A no-op resume isolates the recovery write — a failed step is NOT memo-
+    // replayable (the engine re-runs non-passed nodes on a real resume), so we
+    // assert only that recovery re-journals it faithfully rather than false-passing.
+    await reArmWorkflows({
+      runs, steps, events, queue: noQueue,
+      resume: async () => ({}),
+      log: noopLog,
+    });
+
+    assert.equal(steps.rows.get("run-f:n1")!.status, "failed");
+    assert.equal(steps.rows.get("run-f:n1")!.output, "could not build");
+    assert.deepEqual(spawn.calls.steps.map((s) => s.nodeId), []);
+  });
+
   it("recovers an unjournaled completion from a durable queued worker_report envelope", async () => {
     const runs = runRepo();
     const steps = stepRepo();

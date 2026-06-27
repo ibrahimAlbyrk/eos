@@ -1,10 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { compileJsonSchema, attachOutputValidators } from "../json-schema-validator.ts";
-import { buildEngine, spawnPort, jsonReport, type SpawnResponse } from "../../../core/src/__tests__/helpers/workflowFakes.ts";
+import { compileJsonSchema, attachOutputValidators, attachGraphPortValidators } from "../json-schema-validator.ts";
+import { buildEngine, spawnPort, type SpawnResponse } from "../../../core/src/__tests__/helpers/workflowFakes.ts";
 import type { WorkflowNode } from "../../../contracts/src/workflow-node.ts";
 import type { WorkflowDefinition } from "../../../contracts/src/workflow.ts";
+import { WORKFLOW_GRAPH_VERSION, type WorkflowGraph } from "../../../contracts/src/workflow-graph.ts";
 import type { RunContext } from "../../../core/src/ports/WorkflowEngine.ts";
 
 const ok = (schema: unknown, value: unknown) => assert.equal(compileJsonSchema(schema).safeParse(value).success, true);
@@ -89,8 +90,8 @@ describe("inline outputSchema honored through the real engine (Issue B)", () => 
   it("researcher output is the parsed object; downstream binding resolves the array", async () => {
     const spawn = spawnPort((spec): SpawnResponse =>
       spec.nodeId === "researcher"
-        ? { reportText: jsonReport({ facts: ["f1", "f2"] }) }
-        : { reportText: "result: summarized" });
+        ? { output: { facts: ["f1", "f2"] } }
+        : { output: "summarized" });
 
     const spec = {
       name: "research-then-summarize",
@@ -113,5 +114,110 @@ describe("inline outputSchema honored through the real engine (Issue B)", () => 
     // the downstream typed binding resolves to the real array, not ""
     const summarizer = spawn.calls.steps.find((s) => s.nodeId === "summarizer");
     assert.match(summarizer!.prompt, /\["f1","f2"\]/);
+  });
+});
+
+// Phase 3: the v2-graph analog. attachGraphPortValidators compiles a `json` INPUT
+// port's plain JSON-Schema into the same ZodLike the scheduler duck-types at the edge
+// boundary — JSON-Schema knowledge stays manager-side, the pure core only sees
+// safeParse (DIP, exactly as Part B did for the output tool arg).
+describe("attachGraphPortValidators — compiles json input ports into the scheduler's ZodLike", () => {
+  const hasSafeParse = (s: unknown): boolean => typeof (s as { safeParse?: unknown })?.safeParse === "function";
+
+  it("wraps a plain JSON-Schema on a json input port (recursing loop bodies); leaves others untouched", () => {
+    const body: WorkflowGraph = {
+      name: "body", version: WORKFLOW_GRAPH_VERSION,
+      nodes: [
+        { id: "__input__", kind: "input" },
+        { id: "bw", kind: "worker", inputs: [{ name: "p", type: "json", schema: { type: "object", required: ["x"] } }] },
+        { id: "__output__", kind: "output" },
+      ],
+      edges: [],
+    };
+    const graph: WorkflowGraph = {
+      name: "g", version: WORKFLOW_GRAPH_VERSION,
+      nodes: [
+        { id: "in", kind: "input" },
+        { id: "w", kind: "worker", inputs: [
+          { name: "typed", type: "json", schema: { type: "object", required: ["a"] } },
+          { name: "loose", type: "any", schema: { type: "object" } }, // not a json port → untouched
+          { name: "noschema", type: "json" },                          // json but no schema → untouched
+        ] },
+        { id: "L", kind: "loop", config: { loopKind: "forEach", body } },
+        { id: "out", kind: "output" },
+      ],
+      edges: [],
+    };
+
+    attachGraphPortValidators(graph);
+
+    const w = graph.nodes.find((n) => n.id === "w")!;
+    assert.ok(hasSafeParse(w.inputs!.find((p) => p.name === "typed")!.schema), "json port schema compiled");
+    assert.ok(!hasSafeParse(w.inputs!.find((p) => p.name === "loose")!.schema), "non-json port left as a plain schema");
+    assert.equal(w.inputs!.find((p) => p.name === "noschema")!.schema, undefined, "json port without schema untouched");
+    const bw = body.nodes.find((n) => n.id === "bw")!;
+    assert.ok(hasSafeParse(bw.inputs!.find((p) => p.name === "p")!.schema), "nested loop-body json port compiled");
+  });
+
+  it("leaves an already-ZodLike port schema untouched (the code-DSL path)", () => {
+    const live = { safeParse: () => ({ success: true as const, data: 1 }) };
+    const graph: WorkflowGraph = {
+      name: "g", version: WORKFLOW_GRAPH_VERSION,
+      nodes: [
+        { id: "in", kind: "input" },
+        { id: "w", kind: "worker", inputs: [{ name: "p", type: "json", schema: live }] },
+        { id: "out", kind: "output" },
+      ],
+      edges: [],
+    };
+    attachGraphPortValidators(graph);
+    assert.equal(graph.nodes.find((n) => n.id === "w")!.inputs![0].schema, live);
+  });
+});
+
+// End-to-end: a v2 graph whose consumer declares a typed `json` input port. After
+// attachGraphPortValidators, the scheduler validates the delivered edge value against
+// the compiled schema at the port boundary — a mis-shaped object fails the node, a
+// valid one flows through.
+describe("typed json input port validated at runtime through the real engine (Phase 3)", () => {
+  const CTX: RunContext = { runId: "run", ownerId: "orch", mode: "acceptEdits" };
+
+  const graph = (): WorkflowGraph => ({
+    name: "typed-json-port", version: WORKFLOW_GRAPH_VERSION,
+    nodes: [
+      { id: "in", kind: "input" },
+      { id: "producer", kind: "worker", config: { prompt: "p" }, outputs: [{ name: "out", type: "json" }] },
+      { id: "consumer", kind: "worker", config: { prompt: "c {{in.payload}}" },
+        inputs: [{ name: "payload", type: "json", schema: { type: "object", properties: { n: { type: "number" } }, required: ["n"] } }] },
+      { id: "out", kind: "output", inputs: [{ name: "in", type: "any" }] },
+    ],
+    edges: [
+      { from: { node: "in", port: "out" }, to: { node: "producer", port: "in" } },
+      { from: { node: "producer", port: "out" }, to: { node: "consumer", port: "payload" } },
+      { from: { node: "consumer", port: "out" }, to: { node: "out", port: "in" } },
+    ],
+  });
+
+  it("fails the consumer when the delivered object violates the port schema", async () => {
+    const g = graph();
+    attachGraphPortValidators(g); // what a future v2-graph acceptance path will do
+    const spawn = spawnPort((spec): SpawnResponse => (spec.nodeId === "producer" ? { output: { n: "not-a-number" } } : {}));
+    const { engine } = buildEngine(spawn);
+    const res = await engine.run(g, {}, CTX);
+
+    assert.equal(res.status, "failed");
+    assert.match(String(res.output), /input port "payload" failed schema validation/);
+    assert.ok(!spawn.calls.steps.some((s) => s.nodeId === "consumer"), "the mis-shaped node never spawned");
+  });
+
+  it("passes the consumer when the delivered object matches the port schema", async () => {
+    const g = graph();
+    attachGraphPortValidators(g);
+    const spawn = spawnPort((spec): SpawnResponse => (spec.nodeId === "producer" ? { output: { n: 5 } } : {}));
+    const { engine } = buildEngine(spawn);
+    const res = await engine.run(g, {}, CTX);
+
+    assert.equal(res.status, "passed");
+    assert.ok(spawn.calls.steps.some((s) => s.nodeId === "consumer"), "the validated node ran");
   });
 });

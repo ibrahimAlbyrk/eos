@@ -6,16 +6,19 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { mcpReadyFlagName } from "../contracts/src/util.ts";
 import { resolveSession } from "./worker-mcp/SessionContext.ts";
-import { workerDefs, peerDefs } from "./tools/registry.ts";
+import { workerDefs, peerDefs, workflowWorkerDefs } from "./tools/registry.ts";
 import { toMcpModule } from "./tools/projections.ts";
 import { workerCtx } from "./tools/context.ts";
 import { renderToolDescriptions, withToolDescriptions } from "./tool-descriptions.ts";
 
 const session = resolveSession();
 
-// Peer tools (list_peers / ask_peer / respond_to_peer) are registered only for
-// a collaborate-enabled worker — so a non-collaborating worker never sees them.
-const defs = session.collaborate ? [...workerDefs, ...peerDefs] : workerDefs;
+// A workflow-worker node sees ONLY its typed output tools — no parent-report, no
+// peers, no sub-spawn (Part B). Otherwise: the general worker surface, with the
+// peer tools (list_peers / ask_peer / respond_to_peer) only when collaborate=true.
+const defs = session.role === "workflow-worker"
+  ? workflowWorkerDefs
+  : session.collaborate ? [...workerDefs, ...peerDefs] : workerDefs;
 const mods = defs.map((d) => toMcpModule(d, workerCtx));
 
 // Descriptions pulled from the prompt library (prompts/tool/<name>), injected

@@ -21,6 +21,7 @@ import { createWorkerDef } from "./tools/defs/create_worker.ts";
 import { integrateWorkersDef } from "./tools/defs/integrate_workers.ts";
 import { dynamicLoopDef } from "./tools/defs/dynamic_loop.ts";
 import { workflowDef } from "./tools/defs/workflow.ts";
+import { workflowStepOutputDef } from "./tools/defs/workflow_step_output.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
@@ -40,6 +41,7 @@ export const TOOL_NAME_VARS: VariableScope = {
   INTEGRATE_WORKERS_TOOL: integrateWorkersDef.name,
   DYNAMIC_LOOP_TOOL: dynamicLoopDef.name,
   WORKFLOW_TOOL: workflowDef.name,
+  WORKFLOW_STEP_OUTPUT_TOOL: workflowStepOutputDef.name,
 
   // Literal mustache delimiters. The template engine is strict — a raw "{{…}}" in
   // a prompt body is always parsed as an interpolation token (and throws if it

@@ -5,6 +5,7 @@ import { WorkerSpawnAdapter } from "../WorkerSpawnAdapter.ts";
 import { EventBusProgressSink } from "../EventBusProgressSink.ts";
 import type { EventBus, EventBusSubscriber } from "../../../core/src/ports/EventBus.ts";
 import { runLoopTick, type RunLoopTickDeps } from "../../../core/src/use-cases/runLoopTick.ts";
+import { classifyReport, stepStatusOfSignal } from "../../../core/src/domain/report-signal.ts";
 import type { LoopRow } from "../../../core/src/ports/LoopStateRepo.ts";
 import type { GoalSpec, GoalVerdict, SpawnLoop } from "../../../contracts/src/loop.ts";
 
@@ -69,112 +70,138 @@ function makeAdapter(opts: { stepTimeoutMs?: number } = {}) {
   return { adapter, bus, steps, inserted, killed, spawned };
 }
 
-// Mimic the composition root: an assistant message reaches the adapter via
-// noteAssistantText, then the WORKING→IDLE turn-end fires as a worker:change.
+// The SOLE settle channel: a workflow-worker node's typed output (the /step-output
+// route publishes this). `held` defaults off (the terminal, released output).
+const stepOutput = (
+  bus: { publish(t: string, p: unknown): void },
+  workerId: string,
+  payload: { status?: string; output?: unknown; reason?: string; held?: boolean } = {},
+) => bus.publish("workflow:step-output", { workerId, status: "done", ...payload });
+
+// A turn-end IDLE — the adapter no longer subscribes to worker:change, so this is
+// a no-op that must NOT settle a step (asserted below).
 const idle = (bus: { publish(t: string, p: unknown): void }, workerId: string) =>
   bus.publish("worker:change", { workerId, from: "WORKING", state: "IDLE" });
 
 const stepSpec = (over: Record<string, unknown> = {}) => ({
   runId: "run-1", nodeId: "n1", parentId: "anchor-1",
-  prompt: "do the thing", mode: "acceptEdits", collaborate: true, ...over,
+  prompt: "do the thing", mode: "acceptEdits", role: "workflow-worker", collaborate: false, ...over,
 }) as never;
 
 describe("WorkerSpawnAdapter — spawn-join", () => {
-  it("resolves a step from a released worker:report (text-fallback path)", async () => {
+  it("resolves a step from a released workflow:step-output", async () => {
     const { adapter, bus } = makeAdapter();
     const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
     await tick();
-    bus.publish("worker:report", { workerId: "w-1", text: "result: shipped" });
+    stepOutput(bus, "w-1", { status: "done", output: "shipped" });
     const outcome = await p;
     assert.equal(outcome.workerId, "w-1");
-    assert.equal(outcome.reportText, "result: shipped");
-    assert.equal(outcome.signal, "result");
+    assert.equal(outcome.output, "shipped");
+    assert.equal(outcome.status, "done");
+  });
+
+  it("forwards role=workflow-worker + collaborate:false onto the step spawn request", async () => {
+    const { adapter, bus, spawned } = makeAdapter();
+    const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
+    await tick();
+    assert.equal(spawned[0].role, "workflow-worker");
+    assert.equal(spawned[0].collaborate, false);
+    stepOutput(bus, "w-1", { status: "done", output: "ok" });
+    await p;
+  });
+
+  it("a failed status surfaces the reason as the outcome", async () => {
+    const { adapter, bus } = makeAdapter();
+    const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
+    await tick();
+    stepOutput(bus, "w-1", { status: "failed", reason: "could not build" });
+    const outcome = await p;
+    assert.equal(outcome.status, "failed");
+    assert.equal(outcome.reason, "could not build");
   });
 
   it("stamps the step-worker id onto the running row at spawn (§3.7 recovery key)", async () => {
     const { adapter, bus, steps } = makeAdapter();
     const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
     await tick(); // let runSpawn resolve + the stamp + the join register
-    // The id is durably linked to the node BEFORE any report — so a crash in the
+    // The id is durably linked to the node BEFORE any output — so a crash in the
     // await window leaves a `running` row the boot re-arm can match + recover.
     assert.equal(steps.rows.get(steps.key("run-1", "n1"))?.workerId, "w-1");
-    bus.publish("worker:report", { workerId: "w-1", text: "result: ok" }); // settle so the promise never dangles
+    stepOutput(bus, "w-1", { status: "done", output: "ok" }); // settle so the promise never dangles
     await p;
   });
 
-  it("ignores a held report and settles on the later released report", async () => {
+  it("ignores a held output and settles on the later released output", async () => {
     const { adapter, bus } = makeAdapter();
     const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
     await tick();
     let settled = false;
     void p.then(() => { settled = true; });
-    bus.publish("worker:report", { workerId: "w-1", held: true, text: "result: premature" });
+    stepOutput(bus, "w-1", { status: "done", output: "premature", held: true });
     await tick();
-    assert.equal(settled, false, "a held report must not settle the join");
-    bus.publish("worker:report", { workerId: "w-1", text: "result: verified" });
+    assert.equal(settled, false, "a held output must not settle the join");
+    stepOutput(bus, "w-1", { status: "done", output: "verified" });
     const outcome = await p;
-    assert.equal(outcome.reportText, "result: verified");
+    assert.equal(outcome.output, "verified");
   });
 
-  // THE regression test for the live hang: a step-worker that answers and ends
-  // its turn IDLE WITHOUT calling send_message_to_parent must still settle — its
-  // last assistant message IS the step output (the report is optional).
-  it("settles on turn-end IDLE (no report) using the last assistant message as output", async () => {
+  // Fail-closed: with last-message capture removed, a node settles via NOTHING but
+  // the output tool. A turn-end IDLE must NOT settle it — only the timeout (or the
+  // tool) can.
+  it("does NOT settle on turn-end IDLE — only workflow_step_output settles", async () => {
     const { adapter, bus } = makeAdapter();
     const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
     await tick();
-    adapter.noteAssistantText("w-1", "Özet: iş tamamlandı."); // a content-shaped answer, no report
-    idle(bus, "w-1");
-    const outcome = await p;
-    assert.equal(outcome.workerId, "w-1");
-    assert.equal(outcome.reportText, "Özet: iş tamamlandı.");
-    assert.equal(outcome.signal, "unknown"); // no result:/failed: first line → unknown (the step executor PASSES on unknown — the message IS the output)
+    let settled = false;
+    void p.then(() => { settled = true; });
+    idle(bus, "w-1"); // the worker ended its turn without emitting — must NOT settle
+    await tick();
+    assert.equal(settled, false, "a turn-end IDLE must not settle a workflow node");
+    stepOutput(bus, "w-1", { status: "done", output: "emitted" }); // settle so it never dangles
+    assert.equal((await p).output, "emitted");
   });
 
-  it("a worker that DOES report resolves via the report; a following IDLE is a no-op (resolve-once)", async () => {
+  it("resolves via the output tool; a following IDLE is a no-op (resolve-once)", async () => {
     const { adapter, bus } = makeAdapter();
     const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
     await tick();
-    adapter.noteAssistantText("w-1", "draft answer"); // captured, but the explicit report wins
-    bus.publish("worker:report", { workerId: "w-1", text: "result: shipped" });
+    stepOutput(bus, "w-1", { status: "done", output: "shipped" });
     const outcome = await p;
-    assert.equal(outcome.reportText, "result: shipped");
-    assert.equal(outcome.signal, "result");
-    // The turn-end IDLE that follows the report must not re-settle (join is gone).
+    assert.equal(outcome.output, "shipped");
+    // The turn-end IDLE that follows must not re-settle (join is gone).
     idle(bus, "w-1");
-    assert.equal((await p).reportText, "result: shipped"); // unchanged — first settle won
+    assert.equal((await p).output, "shipped"); // unchanged — first settle won
   });
 
-  it("a LOOPED step does NOT settle on its intermediate IDLE — only on the loop release", async () => {
+  it("a LOOPED step's held output does NOT settle — only the released republish does", async () => {
     const { adapter, bus } = makeAdapter();
     const p = adapter.spawnAndAwait(stepSpec({ loop: { goal: { summary: "g", criteria: [] }, strategy: "hybrid" } }), new AbortController().signal);
     await tick();
     let settled = false;
     void p.then(() => { settled = true; });
-    adapter.noteAssistantText("w-1", "result: premature");
-    bus.publish("worker:report", { workerId: "w-1", held: true, text: "result: premature" });
-    idle(bus, "w-1"); // an iteration boundary — must NOT settle a looped step
+    stepOutput(bus, "w-1", { status: "done", output: "premature", held: true });
+    idle(bus, "w-1"); // an iteration boundary — must NOT settle
     await tick();
-    assert.equal(settled, false, "a looped step's intermediate IDLE must not settle the join");
-    bus.publish("worker:report", { workerId: "w-1", held: false, text: "result: verified" }); // release
+    assert.equal(settled, false, "a held looped output must not settle the join");
+    stepOutput(bus, "w-1", { status: "done", output: "verified", held: false }); // release
     const outcome = await p;
-    assert.equal(outcome.reportText, "result: verified");
+    assert.equal(outcome.output, "verified");
   });
 
-  it("rejects after stepTimeoutMs when a step neither reports nor produces a final answer", async () => {
+  it("rejects after stepTimeoutMs when a step never emits its output", async () => {
     const { adapter, killed } = makeAdapter({ stepTimeoutMs: 20 });
     const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
     await tick();
-    // No report, no captured assistant text, no exit → only the backstop can settle it.
+    // No output tool call, no exit → only the backstop can settle it (fail-closed).
     await assert.rejects(p, /timed out after 20ms/);
     assert.deepEqual(killed, ["w-1"]); // the stuck worker is reaped
   });
 
-  it("an IDLE with no captured final answer does NOT settle (waits for the timeout)", async () => {
+  it("an IDLE with no emitted output does NOT settle (waits for the timeout)", async () => {
     const { adapter, bus } = makeAdapter({ stepTimeoutMs: 20 });
     const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
     await tick();
-    idle(bus, "w-1"); // turn ended but produced no assistant text
+    idle(bus, "w-1"); // turn ended but emitted no output via the tool
     await assert.rejects(p, /timed out after 20ms/);
   });
 
@@ -186,16 +213,16 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     await assert.rejects(p, /exited before reporting/);
   });
 
-  it("does NOT reject on exit after a (held) report was seen", async () => {
+  it("does NOT reject on exit after a (held) output was seen", async () => {
     const { adapter, bus } = makeAdapter();
     const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
     await tick();
     let outcome: unknown = "pending";
     void p.then((o) => { outcome = o; }, (e) => { outcome = e; });
-    bus.publish("worker:report", { workerId: "w-1", held: true, text: "held" });
+    stepOutput(bus, "w-1", { status: "done", output: "held", held: true });
     bus.publish("worker:exit", { workerId: "w-1" });
     await tick();
-    assert.equal(outcome, "pending", "a reported-then-exited worker keeps waiting for the release");
+    assert.equal(outcome, "pending", "an emitted-then-exited worker keeps waiting for the release");
   });
 
   it("the run anchor's own exit never settles a step", async () => {
@@ -208,16 +235,16 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     bus.publish("worker:exit", { workerId: "anchor-1" }); // the anchor's spurious boot-reconcile exit
     await tick();
     assert.equal(outcome, "pending", "the anchor's exit must be filtered by id");
-    bus.publish("worker:report", { workerId: "w-1", text: "result: ok" });
-    assert.equal((await p).signal, "result");
+    stepOutput(bus, "w-1", { status: "done", output: "ok" });
+    assert.equal((await p).status, "done");
   });
 
-  it("first settle wins (resolve-once) across exit then report", async () => {
+  it("first settle wins (resolve-once) across exit then output", async () => {
     const { adapter, bus } = makeAdapter();
     const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
     await tick();
     bus.publish("worker:exit", { workerId: "w-1" }); // first settle = reject
-    bus.publish("worker:report", { workerId: "w-1", text: "result: late" }); // ignored
+    stepOutput(bus, "w-1", { status: "done", output: "late" }); // ignored
     await assert.rejects(p, /exited before reporting/);
   });
 
@@ -251,7 +278,7 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     // parentId is the synthetic anchor, but the runtime-def owner is the run owner.
     assert.equal(spawned[0].parentId, "anchor-1");
     assert.equal(spawned[0].definitionOwnerId, "orch-1");
-    bus.publish("worker:report", { workerId: "w-1", text: "result: ok" });
+    stepOutput(bus, "w-1", { status: "done", output: "ok" });
     await p;
   });
 
@@ -272,12 +299,13 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
   });
 });
 
-// The step-loop release bridge (§ITEM 7): a step armed with a `loop` HOLDS its
-// first report (the report route publishes worker:report{held:true}); the join
-// must keep waiting. The goal-check release runs through the REAL runLoopTick,
-// whose releaseReport is wired EXACTLY like manager/daemon.ts — it republishes
-// the terminal worker:report{held:false} that the adapter's onReport keys on. So
-// this exercises the whole chain: held → goal-met tick → daemon republish → join.
+// The step-loop release bridge (§ITEM 7 / D3): a step armed with a `loop` HOLDS its
+// first output (the /step-output route publishes workflow:step-output{held:true});
+// the join must keep waiting. The goal-check release runs through the REAL
+// runLoopTick, whose releaseReport is wired EXACTLY like manager/daemon.ts — it
+// republishes the terminal workflow:step-output{held:false} that the adapter's
+// onStepOutput keys on. So this exercises the whole chain: held → goal-met tick →
+// daemon republish → join.
 describe("WorkerSpawnAdapter — step loop release bridge (§ITEM 7)", () => {
   const GOAL: GoalSpec = { summary: "tests green", criteria: [{ id: "c1", text: "npm test passes", verify: "npm test" }] };
   const STEP_LOOP: SpawnLoop = { goal: GOAL, strategy: "hybrid" };
@@ -285,7 +313,7 @@ describe("WorkerSpawnAdapter — step loop release bridge (§ITEM 7)", () => {
   function loopRow(over: Partial<LoopRow> = {}): LoopRow {
     return {
       id: "l-1", workerId: "w-1", parentId: "anchor-1", goal: GOAL, strategy: "hybrid",
-      status: "active", attempt: 0, maxAttempts: null, heldReport: null, lastReason: null,
+      status: "active", attempt: 0, maxAttempts: null, heldReport: null, heldOutput: null, lastReason: null,
       awaitingInput: false, progressRing: [], startedAt: 1000, updatedAt: 1000, ...over,
     };
   }
@@ -293,16 +321,24 @@ describe("WorkerSpawnAdapter — step loop release bridge (§ITEM 7)", () => {
   const goalMet: GoalVerdict = {
     met: true, criteria: [{ id: "c1", met: true, evidence: "exit 0" }], unmet: [], confidence: 1, reason: "all criteria met",
   };
+  const goalUnmet: GoalVerdict = {
+    met: false, criteria: [{ id: "c1", met: false }], unmet: [{ id: "c1", reason: "still failing" }], confidence: 1, reason: "not yet",
+  };
 
   // runLoopTick deps whose releaseReport mirrors manager/daemon.ts: republish the
-  // released text as worker:report{held:false} so a waiting step-join resolves.
-  function tickDeps(bus: ReturnType<typeof fakeBus>, loop: LoopRow): RunLoopTickDeps {
+  // STRUCTURED held output verbatim (typed object + its self-declared status) so a
+  // released looped step delivers its object and a failed step stays failed. Falls
+  // back to the text-derived signal only when there is no structured held output.
+  function tickDeps(bus: ReturnType<typeof fakeBus>, loop: LoopRow, verdict: GoalVerdict = goalMet): RunLoopTickDeps {
     return {
-      loops: { findActiveByWorker: () => loop, setStatus() {}, recordAttempt() {}, setHeldReport() {} },
-      strategyFor: () => ({ evaluate: async () => goalMet }),
+      loops: { findActiveByWorker: () => loop, setStatus() {}, recordAttempt() {}, setHeldReport() {}, setHeldOutput() {} },
+      strategyFor: () => ({ evaluate: async () => verdict }),
       dispatch: async () => ({}),
       releaseReport: async ({ workerId, parentId, text }: { workerId: string; parentId: string; text: string }) => {
-        bus.publish("worker:report", { workerId, parentId, text, held: false });
+        const held = loop.heldOutput;
+        bus.publish("workflow:step-output", held
+          ? { workerId, parentId, output: held.output, status: held.status, reason: held.reason, held: false }
+          : { workerId, parentId, output: text, status: stepStatusOfSignal(classifyReport(text)), held: false });
         return {};
       },
       stateHash: async () => "h",
@@ -319,29 +355,59 @@ describe("WorkerSpawnAdapter — step loop release bridge (§ITEM 7)", () => {
     const p = adapter.spawnAndAwait(stepSpec({ loop: STEP_LOOP }), new AbortController().signal);
     await tick();
     assert.deepEqual(spawned[0].loop, STEP_LOOP);
-    bus.publish("worker:report", { workerId: "w-1", text: "result: ok" }); // settle so it never dangles
+    stepOutput(bus, "w-1", { status: "done", output: "ok" }); // settle so it never dangles
     await p;
   });
 
-  it("PART B — holds the first report; the join resolves ONLY on releaseReport's republish, released text = step output", async () => {
+  it("PART B — a released looped step delivers its TYPED OBJECT output verbatim (not a stringified body)", async () => {
     const { adapter, bus } = makeAdapter();
     const p = adapter.spawnAndAwait(stepSpec({ loop: STEP_LOOP }), new AbortController().signal);
     await tick();
 
-    // The report route HOLDS a looped worker's first report — the join must wait.
+    // The /step-output route HOLDS a looped worker's first output — the join waits.
+    const heldObject = { files: ["a.ts"], verified: true };
     let settled = false;
     void p.then(() => { settled = true; });
-    bus.publish("worker:report", { workerId: "w-1", parentId: "anchor-1", held: true, text: "result: premature claim" });
+    stepOutput(bus, "w-1", { status: "done", output: heldObject, held: true });
     await tick();
-    assert.equal(settled, false, "a held report must not resolve the workflow join");
+    assert.equal(settled, false, "a held output must not resolve the workflow join");
 
-    // Goal-met tick → daemon-style releaseReport republishes worker:report{held:false}.
-    const tickResult = await runLoopTick(tickDeps(bus, loopRow({ heldReport: "result: verified done" })), { workerId: "w-1" });
+    // Goal-met tick → daemon-style releaseReport republishes the STRUCTURED held
+    // output (status "done", the typed object) — NOT the safeStringify'd heldReport text.
+    const loop = loopRow({ heldReport: JSON.stringify(heldObject), heldOutput: { output: heldObject, status: "done" } });
+    const tickResult = await runLoopTick(tickDeps(bus, loop), { workerId: "w-1" });
     assert.equal(tickResult, "released");
 
     const outcome = await p;
-    assert.equal(outcome.reportText, "result: verified done"); // the released text IS the step output
-    assert.equal(outcome.signal, "result");
+    assert.deepEqual(outcome.output, heldObject); // the OBJECT survives release, not a JSON string
+    assert.notEqual(typeof outcome.output, "string");
+    assert.equal(outcome.status, "done");
+  });
+
+  it("PART C — a held FAILED looped step releases as failed (status NOT inverted to done)", async () => {
+    const { adapter, bus } = makeAdapter();
+    const p = adapter.spawnAndAwait(stepSpec({ loop: STEP_LOOP }), new AbortController().signal);
+    await tick();
+
+    // A failed output, held under retryOnFailed. Its reason has no "failed:" prefix,
+    // so the OLD text path's classifyReport(reason) would mis-classify it as done.
+    const failedOutput = { error: "compilation broke" };
+    stepOutput(bus, "w-1", { status: "failed", output: failedOutput, reason: "compilation broke", held: true });
+    await tick();
+
+    // Exhaust the loop (attempt limit) → releaseReport republishes the structured
+    // held output verbatim: status stays "failed", reason + object preserved.
+    const loop = loopRow({
+      attempt: 1, maxAttempts: 1, heldReport: "compilation broke",
+      heldOutput: { output: failedOutput, status: "failed", reason: "compilation broke" },
+    });
+    const tickResult = await runLoopTick(tickDeps(bus, loop, goalUnmet), { workerId: "w-1" });
+    assert.equal(tickResult, "exhausted");
+
+    const outcome = await p;
+    assert.equal(outcome.status, "failed", "a released failed step must STAY failed, never invert to done");
+    assert.equal(outcome.reason, "compilation broke");
+    assert.deepEqual(outcome.output, failedOutput);
   });
 });
 

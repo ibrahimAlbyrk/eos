@@ -9,7 +9,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import { orchestratorDefs, workerDefs, peerDefs } from "../registry.ts";
+import { orchestratorDefs, workerDefs, peerDefs, workflowWorkerDefs } from "../registry.ts";
 import { toMcpModule, toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "../projections.ts";
 import { toSdkTool } from "../../backends/sdk/SdkToolHost.ts";
 import { fingerprintModules } from "./fingerprint.ts";
@@ -21,6 +21,7 @@ const CTX: ToolContext = { selfId: "x", cwd: "/repo", isGitRepo: () => true, api
 const CASES = [
   { label: "orchestrator", defs: orchestratorDefs, isOrch: true },
   { label: "worker+peer", defs: [...workerDefs, ...peerDefs], isOrch: false },
+  { label: "workflow-worker", defs: workflowWorkerDefs, isOrch: false },
 ] as const;
 
 describe("tool projection parity — MCP / SDK / runtime expose identical name+schema", () => {

@@ -17,6 +17,7 @@
 import { forEachNode } from "../../core/src/workflow/node-scope.ts";
 import { safeStringify } from "../../infra/src/util/json.ts";
 import type { WorkflowNode } from "../../contracts/src/workflow-node.ts";
+import type { WorkflowGraph } from "../../contracts/src/workflow-graph.ts";
 
 interface ParseOk { success: true; data: unknown }
 interface ParseErr { success: false; error: unknown }
@@ -50,6 +51,28 @@ export function attachOutputValidators(root: WorkflowNode): void {
     if (node.outputSchema === undefined || hasSafeParse(node.outputSchema)) return;
     (node as { outputSchema?: unknown }).outputSchema = compileJsonSchema(node.outputSchema);
   });
+}
+
+// The v2-graph analog of attachOutputValidators (Phase 3 / A5): compile each `json`
+// INPUT port's plain JSON-Schema into the ZodLike { safeParse } the scheduler's
+// runtime port-type check duck-types, so a typed `json` port is validated at the
+// edge boundary with the SAME concretion the output tool already uses (DIP intact —
+// the JSON-Schema knowledge stays manager-side, the pure scheduler only sees
+// safeParse). Recurses into encapsulated loop/subGraph body sub-graphs. Mutates in
+// place. A live Zod (already safeParse) is left untouched.
+export function attachGraphPortValidators(graph: WorkflowGraph): void {
+  for (const node of graph.nodes) {
+    for (const port of node.inputs ?? []) {
+      if (port.type !== "json" || port.schema === undefined || hasSafeParse(port.schema)) continue;
+      (port as { schema?: unknown }).schema = compileJsonSchema(port.schema);
+    }
+    const body = (node.config as { body?: unknown } | undefined)?.body;
+    if (isGraph(body)) attachGraphPortValidators(body);
+  }
+}
+
+function isGraph(value: unknown): value is WorkflowGraph {
+  return !!value && typeof value === "object" && Array.isArray((value as { nodes?: unknown }).nodes);
 }
 
 type JsonSchema = Record<string, unknown>;
