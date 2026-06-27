@@ -108,6 +108,15 @@ kbd {
   --git-soft: color-mix(in srgb, var(--git) 14%, transparent);
   --amber: #e8a838;
   --violet: #c8a2ff;
+  /* Workflow node-kind category accents (editor-scoped). io/compute/transform
+     alias existing identity hues so they follow the theme for free; control +
+     composite are new and overridden in light below. Status hues (--ok/--warn/
+     --err) stay RESERVED for run state — never a kind accent. */
+  --wfk-io: var(--accent);
+  --wfk-compute: var(--violet);
+  --wfk-transform: var(--amber);
+  --wfk-control: #5cb8c4;
+  --wfk-composite: #9a8cff;
   /* rgb channels: --tint = neutral hover/active overlays, --glass = translucent
      panel bgs, --rim = glass rim gradients. Split so light mode can darken
      overlays + warm the glass independently. */
@@ -166,6 +175,8 @@ html[data-theme="light"] {
   --git: #1a7f37;
   --amber: #bc4c00;
   --violet: #8250df;
+  --wfk-control: #0e7c8b;
+  --wfk-composite: #5b4bd6;
   --tint: 60, 45, 20;
   --glass: 248, 242, 230;
   --rim: 255, 255, 255;
@@ -8363,8 +8374,53 @@ html.native .fx-ed-head { transition: padding-left 280ms ease; }
 html.native .app.side-collapsed .fx-ed-head { padding-left: 126px; }
 html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 
+/* ── Workflows tab: view host (Editor / Library / Runs sub-tabs) ──────────── */
+.wf-host { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
+.wf-views { flex: 1; min-height: 0; display: flex; }
+.wf-view { flex: 1; min-height: 0; display: flex; }
+.wfe-subtabs { max-width: 360px; }
+.tabbar__tab.is-disabled { color: var(--fg-faint); cursor: default; opacity: 0.6; }
+.tabbar__tab.is-disabled:hover { background: transparent; color: var(--fg-faint); }
+
+/* ── Workflow Library (management view) ───────────────────────────────────── */
+.wf-lib { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; padding: 4px 14px 18px; }
+.wf-lib__bar { display: flex; align-items: center; gap: 10px; padding: 8px 0 12px; flex: 0 0 auto; }
+.wf-lib__title { font-size: var(--text-sm); font-weight: 700; color: var(--fg-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+.wf-lib__state { color: var(--fg-dim); font-size: var(--text-sm); padding: 24px 4px; display: flex; align-items: center; gap: 12px; }
+.wf-lib__state--err { color: var(--err); }
+.wf-lib__grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+}
+.wf-lib-card {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: 10px;
+  background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,0.18), 0 4px 14px rgba(0,0,0,0.10);
+  animation: msg-blur-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.wf-lib-card__head { display: flex; align-items: center; gap: 8px; }
+.wf-lib-card__name { font-weight: 600; font-size: var(--text-sm); color: var(--fg); flex: 1; word-break: break-word; }
+.wf-lib-card__desc { font-size: var(--text-xs); color: var(--fg-dim); line-height: 1.45; min-height: 1.45em; }
+.wf-lib-card__meta { display: flex; align-items: center; gap: 8px; }
+.wf-lib-card__kind { font-size: 0.625rem; color: var(--fg-faint); font-family: var(--font-mono); flex: 1; }
+.wf-lib-card__norun { font-size: var(--text-xs); color: var(--fg-faint); font-style: italic; }
+.wf-lib-card__actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 2px; }
+.wf-lib-card__ro { font-size: 0.625rem; color: var(--fg-faint); text-transform: uppercase; letter-spacing: 0.04em; }
+.wf-lib-card__confirm { display: inline-flex; align-items: center; gap: 6px; }
+.wf-lib-card__confirm-q { font-size: var(--text-xs); color: var(--err); }
+
+/* Provenance badge — neutral for shipped/file defs, accent for the editor's own
+   runtime saves. Token-only so light mode follows for free. */
+.wf-prov {
+  font-size: 0.625rem; font-weight: 600; padding: 1px 6px; border-radius: 4px;
+  text-transform: uppercase; letter-spacing: 0.03em; font-family: var(--font-mono);
+  color: var(--fg-dim); background: rgba(var(--tint), 0.08); border: 0.5px solid rgba(var(--tint), 0.16);
+}
+.wf-prov--runtime { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); border-color: transparent; }
+.wf-prov--builtin { color: var(--violet); background: color-mix(in srgb, var(--violet) 14%, transparent); border-color: transparent; }
+
 /* ── Workflow node-editor (Workflows tab) ─────────────────────────────────── */
-.wfe { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
+.wfe { display: flex; flex-direction: column; flex: 1; min-width: 0; height: 100%; min-height: 0; background: var(--bg); position: relative; }
 .wfe-toolbar {
   display: flex; align-items: center; gap: 8px; padding: 8px 12px;
   border-bottom: 1px solid var(--border); flex: 0 0 auto;
@@ -8374,11 +8430,6 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px;
   background: var(--surface); color: var(--fg);
 }
-.wfe-args {
-  font-size: var(--text-xs); flex: 1; max-width: 320px;
-  padding: 5px 8px; border: 1px solid var(--border); border-radius: 7px;
-  background: var(--surface); color: var(--fg-mid); font-family: inherit;
-}
 .wfe-btn {
   font-size: var(--text-xs); padding: 5px 12px; border-radius: 7px;
   border: 1px solid var(--border-strong); background: var(--surface-2);
@@ -8387,8 +8438,6 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .wfe-btn:hover { background: var(--surface-3); }
 .wfe-btn--primary { background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hover); }
 .wfe-btn--danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 40%, var(--border)); }
-.wfe-runchip { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); }
-.wfe-runchip__id { color: var(--fg-dim); font-family: var(--font-mono, monospace); }
 .wfe-notice { font-size: var(--text-xs); padding: 3px 8px; border-radius: 6px; }
 .wfe-notice--err { color: var(--err); background: color-mix(in srgb, var(--err) 12%, transparent); }
 .wfe-notice--ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
@@ -8414,45 +8463,20 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .wfe-palette__item:hover { border-color: var(--accent); background: var(--surface-3); }
 .wfe-palette__item-label { font-size: var(--text-xs); font-weight: 600; }
 .wfe-palette__item-kind { font-size: 0.625rem; color: var(--fg-faint); }
+/* Palette item hover micro-motion — telegraphs grab/drag (reduced-motion below). */
+.wfe-palette__item { transition: border-color 120ms cubic-bezier(0.4, 0, 0.2, 1), transform 120ms cubic-bezier(0.4, 0, 0.2, 1), background 120ms ease; }
+.wfe-palette__item:hover { transform: translateX(2px); }
 
-/* Canvas */
-.wfe-canvas { position: relative; flex: 1; min-width: 0; overflow: auto; background: var(--bg); background-image: radial-gradient(var(--border) 1px, transparent 1px); background-size: 22px 22px; }
-.wfe-edges { position: absolute; top: 0; left: 0; width: 3000px; height: 2000px; pointer-events: none; overflow: visible; }
-.wfe-edge__hit { fill: none; stroke: transparent; stroke-width: 12; pointer-events: stroke; cursor: pointer; }
-.wfe-edge__line { fill: none; stroke: var(--border-strong); stroke-width: 2; }
-.wfe-edge:hover .wfe-edge__line { stroke: var(--err); }
+/* Inspector header kind icon — tinted to the kind's category accent (set inline
+   via var(--wfk-*)); same glyph set as the canvas node. */
+.wfe-insp-kicon { display: inline-flex; align-items: center; flex: 0 0 auto; }
+.wfe-insp-kicon svg { display: block; }
 
-/* Node */
-.wfe-node { position: absolute; border: 1px solid var(--border-strong); border-radius: 9px; background: var(--surface); box-shadow: 0 2px 8px rgba(0,0,0,0.18); user-select: none; }
-.wfe-node--selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.wfe-node--running { border-color: var(--accent); }
-.wfe-node--passed { border-color: var(--ok); }
-.wfe-node--failed { border-color: var(--err); }
-.wfe-node--skipped { opacity: 0.55; }
-.wfe-node__head { display: flex; align-items: center; gap: 6px; padding: 0 10px; cursor: grab; border-bottom: 1px solid var(--border); }
-.wfe-node__head:active { cursor: grabbing; }
-.wfe-node__label { font-size: var(--text-xs); font-weight: 600; color: var(--fg); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wfe-node__kind { font-size: 0.625rem; color: var(--fg-faint); }
-.wfe-node__status { font-size: 0.5625rem; padding: 1px 5px; border-radius: 5px; }
-.wfe-node__ports { display: flex; justify-content: space-between; padding: 4px 0; }
-.wfe-node__col { display: flex; flex-direction: column; flex: 1; }
-.wfe-node__col--out { align-items: flex-end; }
-.wfe-port { display: flex; align-items: center; gap: 5px; background: none; border: none; color: var(--fg-mid); font-size: 0.6875rem; cursor: pointer; padding: 0 8px; }
-.wfe-port--out { flex-direction: row; justify-content: flex-end; }
-.wfe-port:hover { color: var(--accent-hover); }
-.wfe-port--pending .wfe-handle { box-shadow: 0 0 0 3px var(--accent-soft); }
-.wfe-port__name { white-space: nowrap; }
-.wfe-port__type { font-style: normal; color: var(--fg-faint); font-size: 0.5625rem; margin: 0 4px; }
-.wfe-handle { width: 9px; height: 9px; border-radius: 50%; background: var(--surface-3); border: 1.5px solid var(--border-strong); flex: 0 0 auto; margin: 0 -12px; }
-.wfe-port--in .wfe-handle { margin-left: -12px; }
-.wfe-port--out .wfe-handle { margin-right: -12px; }
-.wfe-handle[data-type="json"], .wfe-handle[data-type="object"] { border-color: var(--accent); }
-.wfe-handle[data-type="array"] { border-color: var(--warn); }
-.wfe-handle[data-type="number"], .wfe-handle[data-type="string"], .wfe-handle[data-type="boolean"] { border-color: var(--ok); }
-
-/* Inspector */
-.wfe-inspector { flex: 0 0 232px; overflow-y: auto; padding: 12px; border-left: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 10px; }
+/* Inspector — content pops in on node-select (keyed remount); reuses cmdk-pop. */
+.wfe-inspector { flex: 0 0 268px; overflow-y: auto; padding: 12px; border-left: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 10px; animation: cmdk-pop 140ms cubic-bezier(0.2, 0.8, 0.3, 1); }
+.wfe-insp-kicon svg { color: inherit; }
 .wfe-inspector--empty { justify-content: center; align-items: center; }
+@media (prefers-reduced-motion: reduce) { .wfe-inspector { animation: none; } }
 .wfe-inspector__hint { font-size: var(--text-xs); color: var(--fg-faint); text-align: center; }
 .wfe-inspector__title { font-size: var(--text-sm); font-weight: 700; color: var(--fg); text-transform: capitalize; }
 .wfe-field { display: flex; flex-direction: column; gap: 4px; }
@@ -8467,3 +8491,387 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .wfe-insp__ports { display: flex; flex-direction: column; gap: 5px; }
 .wfe-insp__port { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .wfe-insp__port-name { font-size: var(--text-xs); color: var(--fg-mid); }
+
+/* ── Phase 3 typed inspector — controls, sub-forms, predicate builder, graph
+   meta, JSON editor, nested loop-body overlay. All token-only, reusing the chip /
+   field / prompt primitives so the inspector reads as one family with the app. */
+.wfe-inspector__header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.wfe-inspector__id { font-size: 0.625rem; color: var(--fg-faint); font-family: var(--font-mono, monospace); }
+.wfe-insp__section { display: flex; flex-direction: column; gap: 6px; padding-top: 8px; border-top: 1px solid var(--border); }
+.wfe-field__help { font-size: 0.5625rem; color: var(--fg-faint); }
+
+/* Typed inputs/selects/areas — the field shell from .wfe-field, scaled for the rail. */
+.wfe-input, .wfe-select, .wfe-textarea {
+  width: 100%; box-sizing: border-box; font-size: var(--text-xs); padding: 5px 7px;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2);
+  color: var(--fg); font-family: inherit;
+}
+.wfe-input--mono { font-family: var(--font-mono, monospace); }
+.wfe-select { cursor: pointer; }
+.wfe-textarea { resize: vertical; min-height: 48px; line-height: 1.5; background: rgba(var(--tint), 0.04); }
+.wfe-input:focus, .wfe-select:focus, .wfe-textarea:focus {
+  outline: none; border-color: color-mix(in srgb, var(--accent) 45%, transparent); background: rgba(var(--tint), 0.05);
+}
+
+/* Segmented chips inside the inspector/meta/overlay — smaller than the spawn popover. */
+.wfe-inspector .sp-chip, .wfe-meta .sp-chip, .wfe-loop-overlay .sp-chip { padding: 3px 8px; font-size: var(--text-xs); }
+.wfe-seg { gap: 4px; }
+
+/* Tag list (toolsAllow/Deny, script args). */
+.wfe-tags { display: flex; flex-direction: column; gap: 5px; }
+.wfe-tags__list { display: flex; flex-wrap: wrap; gap: 4px; }
+.wfe-tag { padding: 2px 7px; }
+.wfe-tag__x { color: var(--fg-faint); margin-left: 1px; }
+
+/* Small inline buttons (add clause / criterion / expert, edit body). */
+.wfe-mini-btn {
+  align-self: flex-start; font-size: 0.625rem; padding: 4px 9px; border-radius: 6px;
+  border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--fg-mid); cursor: pointer;
+}
+.wfe-mini-btn:hover { background: var(--surface-3); color: var(--fg); }
+.wfe-mini-btn--danger { color: var(--err); border-color: color-mix(in srgb, var(--err) 35%, var(--border)); }
+.wfe-mini-btn--wide { width: 100%; text-align: center; align-self: stretch; }
+
+/* Banners: trust-gate (warn) + kind notes. */
+.wfe-banner { font-size: 0.625rem; padding: 6px 8px; border-radius: 6px; background: rgba(var(--tint), 0.05); color: var(--fg-dim); line-height: 1.45; }
+.wfe-banner--warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+
+/* Sub-forms (SpawnLoop, each expert). */
+.wfe-subform { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--border); border-radius: 8px; background: rgba(var(--tint), 0.03); }
+.wfe-subform__head { display: flex; align-items: center; justify-content: space-between; }
+.wfe-crit { display: flex; flex-direction: column; gap: 3px; padding: 6px; border: 1px dashed var(--border); border-radius: 6px; }
+.wfe-crit__row { display: flex; gap: 4px; align-items: center; }
+.wfe-crit__row .wfe-input { flex: 1; }
+
+/* Predicate builder. */
+.wfe-pred { display: flex; flex-direction: column; gap: 5px; padding: 6px; border: 1px solid var(--border); border-radius: 7px; background: rgba(var(--tint), 0.03); }
+.wfe-pred--nested { background: rgba(var(--tint), 0.06); }
+.wfe-pred__rows, .wfe-pred__clauses { display: flex; flex-direction: column; gap: 4px; }
+.wfe-pred__clause { display: flex; flex-direction: column; gap: 3px; }
+
+/* Graph-meta panel (experts[] + argsSchema). */
+.wfe-meta { display: flex; flex-direction: column; gap: 10px; }
+
+/* JSON CodeMirror field. */
+.wfe-cm { border: 1px solid var(--border); border-radius: 6px; overflow: hidden; background: var(--surface-2); }
+.wfe-cm .cm-editor { font-size: 0.6875rem; background: transparent; }
+.wfe-cm .cm-gutters { background: transparent; border-right: 1px solid var(--border); }
+.wfe-cm--loading { padding: 8px; font-size: var(--text-xs); color: var(--fg-faint); }
+
+/* Nested loop-body overlay — a real editor surface over the canvas. */
+.wfe-loop-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+.wfe-loop-overlay__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--surface); flex: 0 0 auto; }
+.wfe-loop-overlay__title { font-size: var(--text-sm); font-weight: 600; color: var(--fg); }
+
+/* ---------------------------------------------------------------------------
+   React Flow canvas (FlowCanvas). The substrate is RF; this block re-themes it
+   onto the app's design tokens so it reads as one family, and overrides RF's
+   base handle/edge rules with combined-class selectors so the cascade wins even
+   though RF's stylesheet loads from the lazy chunk after styles.css.
+   --------------------------------------------------------------------------- */
+.wf-rf-canvas { flex: 1; min-width: 0; position: relative; background: var(--bg); }
+.wf-rf-canvas--loading { display: flex; align-items: center; justify-content: center; color: var(--fg-faint); font-size: var(--text-xs); }
+
+.wf-rf-canvas .react-flow {
+  --xy-background-pattern-color: var(--border);
+  --xy-edge-stroke: var(--border-strong);
+  --xy-edge-stroke-selected: var(--accent);
+  --xy-connectionline-stroke: var(--accent);
+  --xy-handle-background-color: var(--surface-3);
+  --xy-handle-border-color: var(--border-strong);
+  --xy-selection-background-color: var(--accent-soft);
+  --xy-selection-border: 1px dashed var(--accent);
+}
+
+/* Node card — the WfNode body. RF's wrapper (.react-flow__node-wfNode) only
+   positions; this is the visible card. Kind identity = a 3px left rail + a tinted
+   header icon, both in the category accent (--k, set by the cat class below); the
+   card body stays neutral so run-state border coloring reads cleanly on top. */
+.wf-rf-node {
+  width: 184px; box-sizing: border-box;
+  border: 1px solid var(--border-strong); border-radius: 10px;
+  background: var(--surface);
+  box-shadow: inset 3px 0 0 var(--k, var(--border-strong)),
+              0 1px 2px rgba(0, 0, 0, 0.18), 0 4px 14px rgba(0, 0, 0, 0.12);
+  user-select: none; position: relative; font-size: var(--text-xs);
+  animation: msg-blur-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
+  transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1),
+              box-shadow 120ms cubic-bezier(0.4, 0, 0.2, 1),
+              border-color 120ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Category accents → --k. io/compute/transform alias the identity hues; control +
+   composite are the editor-scoped --wfk-* additions. (Status hues stay reserved.) */
+.wf-rf-node--cat-io        { --k: var(--wfk-io); }
+.wf-rf-node--cat-compute   { --k: var(--wfk-compute); }
+.wf-rf-node--cat-transform { --k: var(--wfk-transform); }
+.wf-rf-node--cat-control   { --k: var(--wfk-control); }
+.wf-rf-node--cat-composite { --k: var(--wfk-composite); }
+
+.wf-rf-node--selected { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--k), 0 0 0 1px var(--accent), 0 4px 14px rgba(0, 0, 0, 0.12); }
+/* Hover lift (the rail + two-layer shadow are preserved through the deeper drop). */
+.wf-rf-node:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: inset 3px 0 0 var(--k), 0 6px 20px rgba(0, 0, 0, 0.18); }
+.wf-rf-node--selected:hover { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--k), 0 0 0 1px var(--accent), 0 6px 20px rgba(0, 0, 0, 0.18); }
+
+/* Run states — border + ring/pulse layered over the neutral card; the rail (--k)
+   survives underneath so kind identity is never lost. */
+.wf-rf-node--running { border-color: var(--accent); animation: wfe-node-run-pulse 1.8s ease-in-out infinite; }
+.wf-rf-node--passed { border-color: var(--ok); animation: wfe-node-pass-ping 420ms ease-out; }
+.wf-rf-node--failed { border-color: var(--err); animation: wfe-node-shake 320ms ease-out; }
+.wf-rf-node--skipped { opacity: 0.5; filter: grayscale(0.4); border-style: dashed; border-color: var(--border); }
+
+/* No will-change / layer promotion on nodes: a composited card is rasterized at 1×
+   and the viewport zoom upscales that bitmap, so it blurs while dragging when
+   zoomed in. Inline painting lets the browser re-rasterize crisply at live zoom. */
+
+.wf-rf-node__head { display: flex; align-items: center; gap: 6px; padding: 0 10px; border-bottom: 1px solid var(--border); cursor: grab; }
+.wf-rf-node__icon { color: var(--k, var(--fg-dim)); flex: 0 0 auto; display: block; }
+.wf-rf-node__label { font-weight: 600; color: var(--fg); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-rf-node__kind { font-size: 0.625rem; color: var(--fg-faint); }
+.wf-rf-node__status { font-size: 0.5625rem; padding: 1px 5px; border-radius: 5px; }
+.wf-rf-node__ports { display: flex; justify-content: space-between; padding: 6px 0; }
+.wf-rf-node__col { display: flex; flex-direction: column; flex: 1; }
+.wf-rf-node__col--out { align-items: flex-end; }
+.wf-rf-port { display: flex; align-items: center; padding: 0 10px; color: var(--fg-mid); }
+.wf-rf-port--out { justify-content: flex-end; }
+.wf-rf-port__name { white-space: nowrap; font-size: 0.6875rem; }
+.wf-rf-port__type { font-style: normal; color: var(--fg-faint); font-size: 0.5625rem; margin: 0 4px; }
+
+/* Node-state keyframes. The run pulse clones pane-attention-pulse scaled to the
+   node (box-shadow ring breathe — the one box-shadow animation, bounded to the
+   handful of running nodes); pass = a one-shot ok ring ping; fail = a one-shot
+   shake. All preserve the --k rail in the shadow. */
+@keyframes wfe-node-run-pulse {
+  0%, 100% { box-shadow: inset 3px 0 0 var(--k), 0 4px 14px rgba(0, 0, 0, 0.12), inset 0 0 0 1px var(--accent-soft); }
+  50%      { box-shadow: inset 3px 0 0 var(--k), 0 4px 14px rgba(0, 0, 0, 0.12), inset 0 0 0 1px var(--accent); }
+}
+@keyframes wfe-node-pass-ping {
+  0%   { box-shadow: inset 3px 0 0 var(--k), 0 4px 14px rgba(0, 0, 0, 0.12), 0 0 0 0 color-mix(in srgb, var(--ok) 50%, transparent); }
+  100% { box-shadow: inset 3px 0 0 var(--k), 0 4px 14px rgba(0, 0, 0, 0.12), 0 0 0 6px color-mix(in srgb, var(--ok) 0%, transparent); }
+}
+@keyframes wfe-node-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-3px); }
+  40% { transform: translateX(3px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+/* Handles = pointer-drag connect grabs. Combined-class selectors beat RF base. */
+.react-flow__handle.wf-rf-handle {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: var(--surface-3); border: 1.5px solid var(--border-strong);
+  transition: box-shadow 120ms ease, scale 120ms ease, background 120ms ease;
+}
+/* Hover telegraphs "grabbable": the dot grows, brightens, and gets a faint accent
+   halo. Grow with the standalone `scale` property, NOT the transform shorthand:
+   RF centers handles with a per-side transform (left translate(-50%,-50%), right
+   translate(50%,-50%)); overriding transform here flipped the right handles inward,
+   sliding them out from under the cursor → hover/unhover flicker. `scale` composes
+   on top of RF's translate, so the dot grows around its fixed center. */
+.react-flow__handle.wf-rf-handle:hover {
+  scale: 1.3;
+  border-color: var(--fg-dim);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+.react-flow__handle.wf-rf-handle[data-type="json"],
+.react-flow__handle.wf-rf-handle[data-type="object"] { border-color: var(--accent); }
+.react-flow__handle.wf-rf-handle[data-type="array"] { border-color: var(--warn); }
+.react-flow__handle.wf-rf-handle[data-type="number"],
+.react-flow__handle.wf-rf-handle[data-type="string"],
+.react-flow__handle.wf-rf-handle[data-type="boolean"] { border-color: var(--ok); }
+/* Live drag feedback: every compatible input lights receptive; incompatible
+   ones are dimmed + no-drop. Driven by canConnect via the WfConnection context. */
+.react-flow__handle.wf-rf-handle--receptive {
+  background: var(--ok); border-color: var(--ok);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 28%, transparent);
+}
+.react-flow__handle.wf-rf-handle--reject {
+  opacity: 0.35; cursor: no-drop;
+  border-color: var(--err);
+}
+
+/* Edges. Resting wire color follows the SOURCE port's data type (mixed toward the
+   neutral wire color so it doesn't shout) — same type→hue map as the handles, so a
+   wire and its endpoints agree. */
+.react-flow__edge .wf-rf-edge { stroke: var(--border-strong); stroke-width: 2; transition: stroke 120ms ease, stroke-width 120ms ease; }
+.react-flow__edge .wf-rf-edge[data-type="json"],
+.react-flow__edge .wf-rf-edge[data-type="object"] { stroke: color-mix(in srgb, var(--accent) 55%, var(--border-strong)); }
+.react-flow__edge .wf-rf-edge[data-type="array"] { stroke: color-mix(in srgb, var(--warn) 55%, var(--border-strong)); }
+.react-flow__edge .wf-rf-edge[data-type="number"],
+.react-flow__edge .wf-rf-edge[data-type="string"],
+.react-flow__edge .wf-rf-edge[data-type="boolean"] { stroke: color-mix(in srgb, var(--ok) 55%, var(--border-strong)); }
+/* Hover = removable (err + thicken; the fat interaction path is the hit target).
+   Selected overrides to accent. */
+.react-flow__edge:hover .wf-rf-edge { stroke: var(--err); stroke-width: 2.5; }
+.react-flow__edge.selected .wf-rf-edge,
+.react-flow__edge .wf-rf-edge--selected { stroke: var(--accent); }
+
+/* Live connection line (drag in progress) — accent, dashed, marching, round caps:
+   reads as "in progress / not yet committed". */
+.react-flow__connectionline path,
+.react-flow .react-flow__connection-path {
+  stroke: var(--accent); stroke-width: 2; stroke-dasharray: 1 7; stroke-linecap: round;
+  animation: wfe-wire-march 600ms linear infinite;
+}
+
+/* Run-flow overlay — a traveling dash on top of an active-frontier edge. WfEdge
+   only renders it for edges incident to a running node (data.flow), so it stops
+   the instant the run is terminal. Mirrors the monitor's mon-sweep dash march. */
+.react-flow__edge .wf-rf-edge__flow {
+  stroke: var(--accent); stroke-width: 2; stroke-dasharray: 2 10; stroke-linecap: round;
+  fill: none; pointer-events: none;
+  animation: wfe-wire-flow 900ms linear infinite;
+}
+@keyframes wfe-wire-march { to { stroke-dashoffset: -16; } }
+@keyframes wfe-wire-flow { to { stroke-dashoffset: -24; } }
+
+/* Controls (zoom / fit-view) themed onto app surfaces. */
+.wf-rf-canvas .react-flow__controls { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); border-radius: 8px; overflow: hidden; }
+.wf-rf-canvas .react-flow__controls-button {
+  background: var(--surface-2); border-bottom: 1px solid var(--border);
+  color: var(--fg-mid); width: 24px; height: 24px;
+}
+.wf-rf-canvas .react-flow__controls-button:hover { background: var(--surface-3); color: var(--fg); }
+.wf-rf-canvas .react-flow__controls-button svg { fill: currentColor; }
+
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__handle.wf-rf-handle { transition: none; }
+  /* Swap every node/wire animation for its resolved static end-state. */
+  .wf-rf-node,
+  .wf-rf-node--running,
+  .wf-rf-node--passed,
+  .wf-rf-node--failed { animation: none; transition: none; }
+  .wf-rf-node--running { box-shadow: inset 3px 0 0 var(--k), 0 4px 14px rgba(0, 0, 0, 0.12), inset 0 0 0 1px var(--accent); }
+  .wfe-palette__item { transition: none; }
+  .wfe-palette__item:hover { transform: none; }
+  .react-flow__edge .wf-rf-edge { transition: none; }
+  .react-flow__connectionline path,
+  .react-flow .react-flow__connection-path { animation: none; }
+  .react-flow__edge .wf-rf-edge__flow { animation: none; }
+}
+
+/* MiniMap + the snap toggle Panel, themed onto app surfaces. */
+.wf-rf-canvas .react-flow__minimap.wf-rf-minimap {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
+}
+.wf-rf-canvas .react-flow__minimap-node { fill: var(--border-strong); }
+.wf-rf-canvas .react-flow__minimap-mask { fill: color-mix(in srgb, var(--bg) 60%, transparent); }
+.wf-rf-snap {
+  font-size: var(--text-xs); padding: 4px 9px; border-radius: 7px; cursor: pointer;
+  border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--fg-mid);
+}
+.wf-rf-snap:hover { background: var(--surface-3); color: var(--fg); }
+.wf-rf-snap--on { border-color: var(--accent); color: var(--accent-hover); background: var(--accent-soft); }
+
+/* Quick-add / spawn menu — opened at the cursor (position: fixed = viewport px). A
+   transparent backdrop closes it on an outside click; the menu is keyboard-driven. */
+.wf-qa-backdrop { position: fixed; inset: 0; z-index: 40; }
+.wf-qa {
+  position: fixed; z-index: 41; width: 224px; max-height: 320px;
+  display: flex; flex-direction: column; overflow: hidden;
+  border: 1px solid var(--border-strong); border-radius: 10px;
+  background: var(--surface); box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  animation: cmdk-pop 120ms ease;
+}
+.wf-qa__search {
+  font-size: var(--text-sm); padding: 8px 10px; border: none; border-bottom: 1px solid var(--border);
+  background: var(--surface-2); color: var(--fg); outline: none;
+}
+.wf-qa__list { overflow-y: auto; padding: 4px; }
+.wf-qa__empty { font-size: var(--text-xs); color: var(--fg-faint); padding: 8px 10px; }
+.wf-qa__item {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 8px; width: 100%;
+  text-align: left; padding: 6px 8px; border: none; border-radius: 6px;
+  background: none; color: var(--fg); cursor: pointer;
+}
+.wf-qa__item--active { background: var(--surface-3); }
+.wf-qa__item-label { font-size: var(--text-xs); font-weight: 600; }
+.wf-qa__item-kind { font-size: 0.625rem; color: var(--fg-faint); }
+
+.wfe-palette__hint { font-size: 0.625rem; color: var(--fg-faint); line-height: 1.3; margin-bottom: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-qa { animation: none; }
+}
+
+/* Step status reserved for run observation; pairs with the run-status hues. */
+.wf-status-skipped { background: color-mix(in srgb, var(--fg-faint) 16%, transparent); color: var(--fg-faint); }
+
+/* Runs view — read-only live + history observation (Phase 5). Left rail = runs
+   list, right pane = the selected run's read-only detail. */
+.wf-runs { flex: 1; min-height: 0; display: flex; background: var(--bg); }
+.wf-runs__rail {
+  width: 260px; flex-shrink: 0; min-height: 0; display: flex; flex-direction: column;
+  border-right: 1px solid var(--border); overflow-y: auto;
+}
+.wf-runs__bar { display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px; }
+.wf-runs__title { font-size: var(--text-sm); font-weight: 700; color: var(--fg); flex: 1; }
+.wf-runs__state { font-size: var(--text-xs); color: var(--fg-dim); padding: 8px 12px; }
+.wf-runs__state--err { color: var(--err); }
+.wf-runs__list { padding: 4px 8px 12px; }
+.wf-runs__section-title {
+  font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--fg-faint); margin: 10px 6px 4px;
+}
+.wf-runs__section-empty { font-size: var(--text-xs); color: var(--fg-faint); padding: 2px 6px 4px; }
+.wf-run-row {
+  width: 100%; text-align: left; display: flex; flex-direction: column; gap: 4px;
+  padding: 7px 9px; margin-bottom: 4px; border: 1px solid transparent; border-radius: 8px;
+  background: var(--surface-2); color: var(--fg); cursor: pointer;
+}
+.wf-run-row:hover { background: var(--surface-3); }
+.wf-run-row--selected { border-color: var(--accent); background: var(--accent-soft); }
+.wf-run-row__name { font-size: var(--text-xs); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-run-row__meta { display: flex; align-items: center; gap: 8px; }
+.wf-run-row__elapsed { font-size: 0.625rem; color: var(--fg-faint); font-family: var(--font-mono, monospace); }
+
+.wf-runs__detail { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.wf-runs__empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--fg-faint); font-size: var(--text-sm); }
+
+.wf-run-detail { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wf-run-detail__state { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--fg-faint); font-size: var(--text-sm); }
+.wf-run-detail__head {
+  display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.wf-run-detail__title { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.wf-run-detail__name { font-size: var(--text-sm); font-weight: 700; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-run-detail__id { font-size: 0.625rem; color: var(--fg-faint); font-family: var(--font-mono, monospace); }
+.wf-run-detail__elapsed { font-size: var(--text-xs); color: var(--fg-dim); font-family: var(--font-mono, monospace); }
+.wf-run-detail__spacer { flex: 1; }
+.wf-run-detail__confirm { display: inline-flex; align-items: center; gap: 6px; }
+.wf-run-detail__confirm-q { font-size: var(--text-xs); color: var(--err); }
+
+.wf-run-detail__body { flex: 1; min-height: 0; display: flex; }
+.wf-run-detail__body--graph .wf-rf-canvas { flex: 1; min-width: 0; }
+.wf-run-detail__body--steps { overflow-y: auto; padding: 10px 14px; }
+.wf-run-detail__side {
+  width: 280px; flex-shrink: 0; min-height: 0; overflow-y: auto;
+  border-left: 1px solid var(--border); padding: 8px 10px;
+}
+.wf-run-detail__side-title {
+  font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  color: var(--fg-faint); margin: 2px 4px 8px;
+}
+
+.wf-run-steps { display: flex; flex-direction: column; gap: 6px; }
+.wf-run-steps__empty { font-size: var(--text-xs); color: var(--fg-faint); padding: 6px 4px; }
+.wf-run-step {
+  border: 1px solid var(--border); border-left: 3px solid var(--border-strong); border-radius: 8px;
+  background: var(--surface); padding: 7px 9px; display: flex; flex-direction: column; gap: 4px;
+}
+.wf-run-step--running { border-left-color: var(--accent); }
+.wf-run-step--passed { border-left-color: var(--ok); }
+.wf-run-step--failed { border-left-color: var(--err); }
+.wf-run-step--skipped { opacity: 0.6; }
+.wf-run-step__head { display: flex; align-items: center; gap: 6px; }
+.wf-run-step__node { font-size: var(--text-xs); font-weight: 600; color: var(--fg); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-run-step__type { font-size: 0.5625rem; color: var(--fg-faint); font-family: var(--font-mono, monospace); }
+.wf-run-step__meta { display: flex; align-items: center; gap: 8px; font-size: 0.625rem; color: var(--fg-faint); font-family: var(--font-mono, monospace); }
+.wf-run-step__worker { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-run-step__output {
+  font-size: 0.625rem; color: var(--fg-dim); font-family: var(--font-mono, monospace);
+  background: var(--surface-2); border-radius: 5px; padding: 4px 6px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}

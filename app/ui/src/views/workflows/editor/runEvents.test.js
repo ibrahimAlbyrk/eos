@@ -36,4 +36,12 @@ describe("runEvents (live SSE node highlighting)", () => {
     s = reduceRunEvent(s, { reason: "workflow:run-change", payload: { runId: "r1", status: "passed" } });
     expect(s.runStatus).toBe("passed");
   });
+
+  it("backfills from a seed (Runs view mid-run open) and keeps folding live", () => {
+    let s = createRunState("r1", { runStatus: "running", nodeStates: { n1: "passed", n2: "running" } });
+    expect(s.runStatus).toBe("running");
+    expect(s.nodeStates).toEqual({ n1: "passed", n2: "running" });
+    s = reduceRunEvent(s, { reason: "workflow:step-change", payload: { runId: "r1", nodeId: "n2", status: "passed" } });
+    expect(s.nodeStates).toEqual({ n1: "passed", n2: "passed" });
+  });
 });

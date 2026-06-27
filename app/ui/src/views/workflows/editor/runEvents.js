@@ -5,8 +5,15 @@
 //   workflow:step-change  payload { runId, nodeId, status, workerId }
 // (EventBusProgressSink). We track only events for the run we launched.
 
-export function createRunState(runId = null) {
-  return { runId, runStatus: runId ? "pending" : null, nodeStates: {} };
+// `seed` backfills the run from the persisted rows when a view opens mid-run (the
+// Runs view fetches GET /workflows/:id/steps + the run row, then keeps it live via
+// SSE through reduceRunEvent). Absent ⇒ a fresh pending run with no node states.
+export function createRunState(runId = null, seed = null) {
+  return {
+    runId,
+    runStatus: seed?.runStatus ?? (runId ? "pending" : null),
+    nodeStates: seed?.nodeStates ? { ...seed.nodeStates } : {},
+  };
 }
 
 // Parse one SSE `change` payload string into { reason, payload }, or null if it

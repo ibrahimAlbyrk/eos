@@ -22,21 +22,64 @@ describe("workflow editor API wire contract", () => {
     expect(JSON.parse(opts.body)).toEqual(graph);
   });
 
-  it("runWorkflow POSTs a run-inline body carrying the graph + args", async () => {
-    const fetchMock = stubFetch({ runId: "run-1", status: "running" });
-    const graph = { name: "demo", version: 2, nodes: [], edges: [] };
-    const r = await api.runWorkflow(graph, { x: 1 });
-
-    const [url, opts] = fetchMock.mock.calls[0];
-    expect(url).toContain(ROUTES.workflows);
-    expect(opts.method).toBe("POST");
-    expect(JSON.parse(opts.body)).toEqual({ mode: "run-inline", spec: graph, args: { x: 1 } });
-    expect(r.body.runId).toBe("run-1");
+  it("exposes NO runWorkflow client method — the editor only saves; runs are agent/CLI-launched", () => {
+    // Run-removal contract: the UI never launches a workflow. The only run-write op
+    // the UI keeps is stopWorkflowRun (the Runs view's Stop).
+    expect(api.runWorkflow).toBeUndefined();
+    expect(typeof api.saveWorkflow).toBe("function");
+    expect(typeof api.stopWorkflowRun).toBe("function");
   });
 
   it("getWorkflowCatalog GETs the catalog route", async () => {
     const fetchMock = stubFetch({ nodeKinds: [], transformFns: [] });
     await api.getWorkflowCatalog();
     expect(fetchMock.mock.calls[0][0]).toContain(ROUTES.workflowCatalog);
+  });
+
+  it("listWorkflowDefinitions GETs the definitions route with the owner query", async () => {
+    const fetchMock = stubFetch([]);
+    const body = await api.listWorkflowDefinitions();
+    const url = fetchMock.mock.calls[0][0];
+    expect(url).toContain(ROUTES.workflowDefinitions);
+    expect(url).toContain("owner=operator");
+    expect(body).toEqual([]);
+  });
+
+  it("deleteWorkflow DELETEs the by-name definition route with the owner query", async () => {
+    const fetchMock = stubFetch({ name: "demo" });
+    const r = await api.deleteWorkflow("demo");
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain(ROUTES.workflowDefinition("demo"));
+    expect(url).toContain("owner=operator");
+    expect(opts.method).toBe("DELETE");
+    expect(r.body.name).toBe("demo");
+  });
+
+  it("deleteWorkflow encodes a name with URL-unsafe characters", async () => {
+    const fetchMock = stubFetch({ name: "a/b copy" });
+    await api.deleteWorkflow("a/b copy");
+    const url = fetchMock.mock.calls[0][0];
+    expect(url).toContain("a%2Fb%20copy");
+  });
+
+  it("listWorkflowRuns GETs the runs route with the scope query", async () => {
+    const fetchMock = stubFetch([]);
+    await api.listWorkflowRuns("recent");
+    const url = fetchMock.mock.calls[0][0];
+    expect(url).toContain(ROUTES.workflowRuns);
+    expect(url).toContain("scope=recent");
+  });
+
+  it("getWorkflowRunSteps GETs the two-segment steps route for a run", async () => {
+    const fetchMock = stubFetch([]);
+    await api.getWorkflowRunSteps("run-1");
+    expect(fetchMock.mock.calls[0][0]).toContain(ROUTES.workflowRunSteps("run-1"));
+  });
+
+  it("listWorkerDefinitions GETs the worker-definitions route (for the `from` selector)", async () => {
+    const fetchMock = stubFetch([{ name: "general-purpose" }]);
+    const body = await api.listWorkerDefinitions();
+    expect(fetchMock.mock.calls[0][0]).toContain(ROUTES.workerDefinitions);
+    expect(body).toEqual([{ name: "general-purpose" }]);
   });
 });

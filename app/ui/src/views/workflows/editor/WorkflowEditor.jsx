@@ -1,57 +1,50 @@
-// The Workflows-tab node-graph editor. Composes the palette (left), the canvas
-// (center), and the inspector (right) over one immutable graph state. Save → PUT
-// /workflows (persist the v2 graph); Run → POST /workflows run-inline (operator-
-// owned); live run progress highlights nodes off the SSE stream.
-import { useMemo, useState } from "react";
+// The Workflows-tab node-graph editor. Composes the reusable GraphEditorSurface
+// (palette + React Flow canvas + typed inspector) over one useGraphEditor instance
+// — the single controlled source of truth — plus the toolbar (name/undo/save) and
+// the nested loop-body overlay. The editor only SAVES (Save → PUT /workflows,
+// persisting the v2 graph). Workflows are LAUNCHED only by agents / the CLI; run
+// observation lives entirely in the Runs view (no inline run in the editor).
+//
+// Phase 3: the inspector is typed per node kind (selectors for every enum), the
+// right rail shows the graph-level GraphMetaPanel when nothing is selected, and a
+// loop node opens its body on a real nested canvas (LoopBodyEditor).
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../../../api/client.js";
-import { Palette } from "./Palette.jsx";
-import { Canvas } from "./Canvas.jsx";
-import { Inspector } from "./Inspector.jsx";
 import { useWorkflowCatalog } from "./useWorkflowCatalog.js";
-import { useWorkflowRun } from "./useWorkflowRun.js";
-import {
-  createInitialGraph, addNode, removeNode, moveNode, updateNode,
-  setGraphMeta, addEdge, removeEdge, toWorkflowGraph,
-} from "./graphModel.js";
+import { useWorkerDefinitions, useWorkflowDefinitions } from "./useEditorCatalogs.js";
+import { useGraphEditor } from "./useGraphEditor.js";
+import { GraphEditorSurface } from "./GraphEditorSurface.jsx";
+import { LoopBodyEditor } from "./LoopBodyEditor.jsx";
+import { createInitialGraph, toWorkflowGraph, graphFromDoc } from "./graphModel.js";
+import { setConfigField } from "./nodeConfigSchemas.js";
 
-export function WorkflowEditor() {
+// `loadReq` ({ doc, nonce }) is the Library → Editor handoff: when its nonce
+// changes the editor replaces its graph with that definition's doc (graphFromDoc
+// rehydrates the same pure model the canvas drives). nonce, not doc identity,
+// gates it so re-opening the same definition still loads.
+export function WorkflowEditor({ loadReq = null }) {
   const { catalog, loading, error } = useWorkflowCatalog();
-  const [graph, setGraph] = useState(() => createInitialGraph());
-  const [selectedId, setSelectedId] = useState(null);
-  const [pendingPort, setPendingPort] = useState(null);
-  const [notice, setNotice] = useState(null); // { type: "err"|"ok"|"info", text }
-  const [runId, setRunId] = useState(null);
-  const [argsText, setArgsText] = useState("");
+  const workerDefs = useWorkerDefinitions();
+  const definitions = useWorkflowDefinitions();
+  const editor = useGraphEditor(() => createInitialGraph());
+  const { graph } = editor;
 
-  const run = useWorkflowRun(runId);
-  const selectedNode = useMemo(() => graph.nodes.find((n) => n.id === selectedId) || null, [graph, selectedId]);
+  const [notice, setNotice] = useState(null); // { type: "err"|"ok"|"info", text }
+  const [editingLoopId, setEditingLoopId] = useState(null);
+
+  const editingNode = useMemo(
+    () => (editingLoopId ? graph.nodes.find((n) => n.id === editingLoopId) || null : null),
+    [editingLoopId, graph],
+  );
 
   const flash = (type, text) => setNotice({ type, text });
 
-  const onAdd = (entry) => {
-    const pos = { x: 280 + (graph.counter % 6) * 26, y: 90 + (graph.counter % 9) * 30 };
-    const res = addNode(graph, entry, pos);
-    setGraph(res.state);
-    setSelectedId(res.node.id);
-  };
-
-  const onPortClick = (nodeId, side, portName) => {
-    if (side === "out") {
-      setPendingPort({ node: nodeId, port: portName });
-      flash("info", `connecting from ${nodeId}.${portName} — click a target input`);
-      return;
+  useEffect(() => {
+    if (loadReq?.doc) {
+      editor.replaceGraph(graphFromDoc(loadReq.doc));
+      flash("info", `loaded "${loadReq.doc.name || "workflow"}"`);
     }
-    // side === "in": complete a pending connection
-    if (!pendingPort) return;
-    const res = addEdge(graph, pendingPort, { node: nodeId, port: portName });
-    if (res.error) {
-      flash("err", `connection rejected: ${res.error}`);
-    } else {
-      setGraph(res.state);
-      flash("ok", "connected");
-    }
-    setPendingPort(null);
-  };
+  }, [loadReq?.nonce]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const onSave = async () => {
     const payload = toWorkflowGraph(graph);
@@ -59,16 +52,6 @@ export function WorkflowEditor() {
     const r = await api.saveWorkflow(payload);
     if (r.ok && r.body?.name) flash("ok", `saved "${r.body.name}"`);
     else flash("err", `save failed: ${r.body?.error || r.status}`);
-  };
-
-  const onRun = async () => {
-    let args;
-    if (argsText.trim()) {
-      try { args = JSON.parse(argsText); } catch (e) { flash("err", `args must be JSON: ${e instanceof Error ? e.message : e}`); return; }
-    }
-    const r = await api.runWorkflow(toWorkflowGraph(graph), args);
-    if (r.ok && r.body?.runId) { setRunId(r.body.runId); flash("ok", `run ${r.body.runId} started`); }
-    else flash("err", `run failed: ${r.body?.error || r.status}`);
   };
 
   return (
@@ -79,45 +62,39 @@ export function WorkflowEditor() {
           type="text"
           value={graph.name}
           aria-label="workflow name"
-          onChange={(e) => setGraph(setGraphMeta(graph, { name: e.target.value }))}
+          onChange={(e) => editor.onSetMeta({ name: e.target.value })}
         />
-        <input
-          className="wfe-args"
-          type="text"
-          value={argsText}
-          placeholder='args JSON (optional)'
-          aria-label="run args"
-          onChange={(e) => setArgsText(e.target.value)}
-        />
-        <button type="button" className="wfe-btn" onClick={onSave}>Save</button>
-        <button type="button" className="wfe-btn wfe-btn--primary" onClick={onRun}>Run</button>
-        {runId && (
-          <span className="wfe-runchip">
-            <span className="wfe-runchip__id">{runId}</span>
-            <span className={"wf-status wf-status-" + (run.runStatus || "pending")}>{run.runStatus || "pending"}</span>
-          </span>
-        )}
+        <button type="button" className="wfe-btn" onClick={editor.onUndo} disabled={!editor.canUndo} title="Undo (⌘Z)">Undo</button>
+        <button type="button" className="wfe-btn" onClick={editor.onRedo} disabled={!editor.canRedo} title="Redo (⇧⌘Z)">Redo</button>
+        <button type="button" className="wfe-btn wfe-btn--primary" onClick={onSave}>Save</button>
         {notice && <span className={"wfe-notice wfe-notice--" + notice.type}>{notice.text}</span>}
       </div>
-      <div className="wfe-body">
-        <Palette catalog={catalog} loading={loading} error={error} onAdd={onAdd} />
-        <Canvas
-          graph={graph}
-          selectedId={selectedId}
-          nodeStates={run.nodeStates}
-          pendingPort={pendingPort}
-          onSelect={setSelectedId}
-          onMoveNode={(id, x, y) => setGraph(moveNode(graph, id, x, y))}
-          onPortClick={onPortClick}
-          onRemoveEdge={(edgeId) => setGraph(removeEdge(graph, edgeId))}
-          onBackgroundClick={() => { setSelectedId(null); setPendingPort(null); }}
+
+      <GraphEditorSurface
+        editor={editor}
+        catalog={catalog}
+        loading={loading}
+        error={error}
+        workerDefs={workerDefs}
+        definitions={definitions}
+        active={!editingLoopId}
+        graphMetaEnabled
+        onEditLoopBody={setEditingLoopId}
+      />
+
+      {editingNode && (
+        <LoopBodyEditor
+          value={editingNode.config?.body}
+          title={`Loop body — ${editingNode.label || editingNode.id}`}
+          catalog={catalog}
+          loading={loading}
+          error={error}
+          workerDefs={workerDefs}
+          definitions={definitions}
+          onCommit={(bodyDoc) => editor.onUpdateNode(editingNode.id, { config: setConfigField(editingNode.config, "body", bodyDoc) })}
+          onClose={() => setEditingLoopId(null)}
         />
-        <Inspector
-          node={selectedNode}
-          onUpdateNode={(id, patch) => setGraph(updateNode(graph, id, patch))}
-          onRemoveNode={(id) => { setGraph(removeNode(graph, id)); setSelectedId(null); }}
-        />
-      </div>
+      )}
     </div>
   );
 }
