@@ -12,6 +12,7 @@
 // can never bleed into another's — the cross-agent thinking-leak class of bug.
 
 import { api } from "../api/client.js";
+import { dropWorker as dropRevealLedger } from "./animationLedger.js";
 
 export const PAGE_SIZE = 500;
 const POLL_MS = 5000;
@@ -288,7 +289,11 @@ function trimDetached(e) {
 function evictDetached() {
   const detached = [...entries.values()].filter((e) => e.attachers === 0 && e.subs.size === 0);
   for (let i = 0; i <= detached.length - 1 - MAX_CACHED_WORKERS; i++) {
-    entries.delete(detached[i].workerId); // Map order = recency; oldest first
+    const { workerId } = detached[i];
+    entries.delete(workerId); // Map order = recency; oldest first
+    // Drop the reveal ledger with the cached window so it can't grow unbounded;
+    // a switch-back re-pages the transcript and re-seeds it as already-revealed.
+    dropRevealLedger(workerId);
   }
 }
 

@@ -43,6 +43,7 @@ import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceR
 import { subscribe as subscribeThinking, liveBlocksFor as liveThinkingFor, dropBlock as dropThinkingBlock } from "../../../state/thinkingStore.js";
 import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../../../state/loopCheckStore.js";
 import { setInputNeeded } from "../../../state/inputNeededStore.js";
+import { wasRevealed, markRevealed } from "../../../state/animationLedger.js";
 import * as outbox from "../../../state/outboxStore.js";
 
 const SCROLL_THRESHOLD = 40;
@@ -55,13 +56,17 @@ const MAX_RESTORE_PAGES = 3;
 // memos don't churn while a switch is in flight.
 const NO_EVENTS = [];
 
-export function Messages({ live, agentId, isActive = true }) {
+export function Messages({ live, agentId, isActive = true, visible = true }) {
   const ui = useUi();
   // This pane renders exactly ONE agent. The host passes agentId explicitly so
   // several panes can stay mounted at once (keep-alive); a lone <Messages> with
-  // no host falls back to the global selection. isActive marks the visible pane —
+  // no host falls back to the global selection. isActive marks the focused pane —
   // only it drives shared UI state (question banner, verdict, agent viewer,
   // header scrim, ⌘F). Parked panes keep fetching/rendering but stay silent.
+  // visible = "rendered on screen" (the keep-alive `on` pane, or any split pane
+  // regardless of focus); it gates the blur-in reveal so hidden panes never
+  // animate. It is SEPARATE from isActive on purpose — a split's non-focused
+  // pane is visible but not active.
   const selectedId = agentId !== undefined ? agentId : ui.selectedId;
   const initialScrollDone = useRef(false);
   const lastTopRef = useRef(0);
@@ -351,24 +356,28 @@ export function Messages({ live, agentId, isActive = true }) {
     // the panel stack (its block may have gone stale while buried).
   }, [blocks, ui.agentViewer, isActive]);
 
-  // Blur-in baseline: blocks already present when an agent's transcript first
-  // renders stay static; only blocks arriving afterwards animate. Re-baselined
-  // on every agent switch so revisiting history never re-animates it.
-  const baselineRef = useRef({ id: null, keys: null });
-  if (baselineRef.current.id !== selectedId) baselineRef.current = { id: selectedId, keys: null };
+  // Blur-in seeding: blocks already present when an agent's transcript first
+  // renders are seeded into the ledger as already-revealed, so history stays
+  // static; only blocks arriving afterwards animate. The ledger (module scope,
+  // keyed by sessionId:blockKey) is the single source of "already seen", so this
+  // holds across remount/park/switch/SSE — no per-instance baseline to rebuild.
+  const seededRef = useRef(null); // selectedId we have already seeded
   useEffect(() => {
-    if (baselineRef.current.keys || eventsFor !== selectedId || blocks.length === 0) return;
-    // Wait for the initial scroll/restore to settle before snapshotting. Restore
-    // can page in older history (loadOlder) AFTER the newest page lands —
-    // snapshotting too early leaves those older blocks out of the baseline, so on
-    // a first visit they blur-in as if freshly arrived. Settling first means
-    // every block loaded during entry counts as baseline (static); only output
-    // arriving AFTER entry animates. (initialScrollDone flips in the layout
-    // effect, which runs before this passive effect in the same commit.)
+    if (seededRef.current === selectedId || eventsFor !== selectedId || blocks.length === 0) return;
+    // Wait for the initial scroll/restore to settle before seeding. Restore can
+    // page in older history (loadOlder) AFTER the newest page lands — seeding too
+    // early leaves those older blocks unseeded, so on a first visit they blur-in
+    // as if freshly arrived. Settling first means every block loaded during entry
+    // is seeded (static); only output arriving AFTER entry animates.
+    // (initialScrollDone flips in the layout effect, which runs before this
+    // passive effect in the same commit.)
     if (!initialScrollDone.current) return;
-    baselineRef.current.keys = new Set(blocks.map((b, i) => blockKey(b, i)));
+    for (let i = 0; i < blocks.length; i++) markRevealed(selectedId, blockKey(blocks[i], i));
+    seededRef.current = selectedId;
   }, [blocks, selectedId, eventsFor]);
-  const baselineKeys = baselineRef.current.keys;
+  // Gate animation until seeding has run for this session — otherwise the
+  // freshly-loaded transcript would flash its blur-in before the seed marks it.
+  const seeded = seededRef.current === selectedId;
 
   // expandedTools/settings in deps: expanding a tool mounts new text the ranges must cover.
   const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools, ui.settings], isActive);
@@ -477,19 +486,22 @@ export function Messages({ live, agentId, isActive = true }) {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
           // Live reasoning/text blocks blur-in as tokens stream (applyBlurIn only
-          // animates the appended tail). Durable blocks animate only when freshly
-          // arrived (post-baseline); the live -> durable handoff reuses the same
-          // instance by blockId, so the reveal state carries over without reflash.
+          // animates the appended tail); durable blocks add terminal cards. The
+          // live -> durable handoff reuses the same instance by blockId, so the
+          // ledger's word count carries over without reflash. Unified gate: only
+          // on-screen panes (visible), only after seeding marked the loaded
+          // history static (seeded), and only once per block (ledger). On settle
+          // the block is marked revealed so it never re-animates on remount/switch.
           const streamingKind = b.kind === "assistant" || b.kind === "thinking";
-          const animate = b.live
-            ? streamingKind
-            : (streamingKind || b.kind === "terminal") && baselineKeys != null && !baselineKeys.has(key);
+          const canAnimate = b.live ? streamingKind : (streamingKind || b.kind === "terminal");
+          const animate = visible && seeded && canAnimate && !wasRevealed(selectedId, key);
+          const onSettle = () => markRevealed(selectedId, key);
           // Rewind is PTY (claude-cli) choreography — structured backends have no
           // equivalent, so gate it on the backend's keystroke capability.
           const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).keystroke
             ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
             : null;
-          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, animate, parentWorker, onRewind, agentBusy);
+          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, animate, parentWorker, onRewind, agentBusy, selectedId, onSettle);
           if (!block) return null;
           // The wrapper carries the block's scroll-anchor identity
           // (lib/scrollAnchor.js) so every block kind is anchorable without
@@ -539,7 +551,7 @@ function blockKey(b, i) {
 // Such blocks must NOT get content-visibility, whose paint containment clips it.
 const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request", "loop", "assistant"]);
 
-function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewindDisabled) {
+function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewindDisabled, sessionId, onSettle) {
   switch (b.kind) {
     case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled}><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}>{b.workerName === "workflow" ? <WorkflowReport text={b.text} runId={b.fromWorker} /> : <MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" />}</MessageRow>;
@@ -547,8 +559,8 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
     case "loop":      return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageLoop text={b.text} /></MessageRow>;
     case "loopCheck": return <LoopCheckBlock key={key} block={b} />;
-    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} /></MessageRow>;
-    case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} />;
+    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} sessionId={sessionId} blockId={key} onSettle={onSettle} /></MessageRow>;
+    case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} sessionId={sessionId} blockId={key} onSettle={onSettle} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
       // expandedTools holds toggles against the settings-driven default (XOR)
@@ -557,7 +569,7 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
         open={open} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
     }
     case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} parent={parent} />;
-    case "terminal":  return <TerminalCard key={key} block={b} fresh={animate} />;
+    case "terminal":  return <TerminalCard key={key} block={b} fresh={animate} onSettle={onSettle} />;
     case "agentRun":  return <AgentBlock key={key} block={b} />;
     case "deliveryFailed":
       return (

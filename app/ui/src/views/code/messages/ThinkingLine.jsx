@@ -12,10 +12,10 @@ import { useBlurInReveal } from "../../../hooks/useBlurInReveal.js";
 // dangerouslySetInnerHTML, so applyBlurIn's DOM mutation isn't fought. The durable
 // block reuses this same instance by blockId, carrying the reveal state across the
 // live -> durable handoff with no reflash.
-export function ThinkingLine({ text, animate = false }) {
+export function ThinkingLine({ text, animate = false, sessionId, blockId, onSettle }) {
   const ref = useRef(null);
   const html = useMemo(() => (text ? escapeHtml(text) : ""), [text]);
-  useBlurInReveal(ref, html, animate);
+  useBlurInReveal(ref, html, animate, sessionId, blockId, onSettle);
   return (
     <div className="thinking-line">
       <span className="mono">
