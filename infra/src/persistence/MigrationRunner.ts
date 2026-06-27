@@ -327,6 +327,12 @@ export const MIGRATIONS: Migration[] = [
     );
     CREATE INDEX IF NOT EXISTS idx_workflow_steps_run ON workflow_steps(run_id);
   `},
+  // Structured twin of held_report for a workflow step-worker node: the typed
+  // {output,status,reason} JSON, held alongside held_report and republished
+  // VERBATIM on loop release (§3.4 / D3 / H2). Without it a looped step's typed
+  // output round-tripped through held_report's text — stringifying objects and
+  // inverting a held failed→done. NULL for plain (text-report) loops and legacy rows.
+  { id: "054_worker_loops_add_held_output", sql: "ALTER TABLE worker_loops ADD COLUMN held_output TEXT" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

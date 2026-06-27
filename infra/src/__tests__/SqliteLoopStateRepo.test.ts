@@ -100,4 +100,23 @@ describe("SqliteLoopStateRepo round-trip", () => {
     repo.clear("l-1");
     assert.equal(repo.findById("l-1"), null);
   });
+
+  it("held_output defaults to null and round-trips the structured payload (typed object + status)", () => {
+    repo.insert(input("l-1", "w-1"));
+    assert.equal(repo.findById("l-1")?.heldOutput, null);
+    const payload = { output: { files: ["a.ts"], count: 1 }, status: "done" as const };
+    repo.setHeldOutput("l-1", payload);
+    assert.deepEqual(repo.findById("l-1")?.heldOutput, payload);
+  });
+
+  it("setHeldReport(null) clears held_output too (shared lifecycle)", () => {
+    repo.insert(input("l-1", "w-1"));
+    repo.setHeldReport("l-1", "failed: broke");
+    repo.setHeldOutput("l-1", { output: { e: 1 }, status: "failed", reason: "broke" });
+    assert.ok(repo.findById("l-1")?.heldOutput);
+    // Clearing the report clears its structured twin atomically.
+    repo.setHeldReport("l-1", null);
+    assert.equal(repo.findById("l-1")?.heldReport, null);
+    assert.equal(repo.findById("l-1")?.heldOutput, null);
+  });
 });

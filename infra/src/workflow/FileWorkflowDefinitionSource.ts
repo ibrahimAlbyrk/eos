@@ -1,23 +1,31 @@
 // FileWorkflowDefinitionSource — reads ~/.eos/workflows/* definition files from
-// one or more directories and validates each against WorkflowDefinitionSchema.
-// Later directories override earlier ones by NAME (project shadows user shadows
-// built-in). Reads fresh on every list() so edits apply without a daemon restart.
-// Clone of FileWorkerDefinitionSource.
+// one or more directories and validates each on load. Later directories override
+// earlier ones by NAME (project shadows user shadows built-in). Reads fresh on
+// every list() so edits apply without a daemon restart. Clone of
+// FileWorkerDefinitionSource.
 //
-// A workflow definition is a structured tree (root/experts/argsSchema) with no
-// natural prose "body", so the primary on-disk form is `.json` (the whole file IS
-// the definition JSON). A `.md` form is accepted for parity with the worker-def
-// convention: its YAML frontmatter holds the definition and the markdown body is
-// folded in as `description` when the frontmatter omits one.
+// A definition file is EITHER a v1 tree (root/experts/argsSchema) or a v2 node
+// GRAPH (version:2, nodes[]/edges[]) — discriminated by the `version:2` literal.
+// The primary on-disk form is `.json` (the whole file IS the definition JSON). A
+// `.md` form is accepted for parity with the worker-def convention: its YAML
+// frontmatter holds the definition and the markdown body is folded in as
+// `description` when the frontmatter omits one. A v2 graph is validated against the
+// full WorkflowGraphSchema (id-uniqueness, dangling/typed/self edges, acyclicity)
+// at load, so a hand-authored graph that would deadlock or mis-wire never enters
+// the catalog — it is simply skipped, exactly like a malformed v1 tree.
 
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
   WorkflowDefinitionSchema,
-  type WorkflowDefinitionRecord,
   type WorkflowDefinitionSource as WorkflowDefinitionProvenance,
 } from "../../../contracts/src/workflow.ts";
+import {
+  WorkflowGraphSchema,
+  isWorkflowGraph,
+  type AnyWorkflowDefinitionRecord,
+} from "../../../contracts/src/workflow-graph.ts";
 import type { WorkflowDefinitionSource } from "../../../core/src/ports/WorkflowDefinitionSource.ts";
 
 const JSON_EXT = ".json";
@@ -35,14 +43,15 @@ export class FileWorkflowDefinitionSource implements WorkflowDefinitionSource {
     this.dirs = dirs;
   }
 
-  list(): WorkflowDefinitionRecord[] {
-    const byName = new Map<string, WorkflowDefinitionRecord>();
+  list(): AnyWorkflowDefinitionRecord[] {
+    const byName = new Map<string, AnyWorkflowDefinitionRecord>();
     for (const { dir, source } of this.dirs) {
       if (!existsSync(dir)) continue;
       for (const file of walk(dir)) {
         const rec = readDefinition(file, source);
-        // One unreadable/invalid file must not break the whole catalog: it
-        // simply won't appear (a definition with no `name`/`root` fails → skip).
+        // One unreadable/invalid file must not break the whole catalog: it simply
+        // won't appear (a v1 def with no `name`/`root`, or a v2 graph that fails the
+        // structural schema, fails → skip).
         if (rec) byName.set(rec.name, rec);
       }
     }
@@ -75,7 +84,7 @@ function walk(dir: string): string[] {
   return out;
 }
 
-function readDefinition(file: string, source: WorkflowDefinitionProvenance): WorkflowDefinitionRecord | null {
+function readDefinition(file: string, source: WorkflowDefinitionProvenance): AnyWorkflowDefinitionRecord | null {
   let content: string;
   try {
     content = readFileSync(file, "utf8");
@@ -84,9 +93,14 @@ function readDefinition(file: string, source: WorkflowDefinitionProvenance): Wor
   }
   const candidate = file.endsWith(JSON_EXT) ? parseJson(content) : parseMarkdown(content);
   if (!candidate) return null;
-  const result = WorkflowDefinitionSchema.safeParse(candidate);
-  if (!result.success) return null;
-  return { ...result.data, source };
+  // Discriminate on the `version:2` literal: a v2 graph is validated against the
+  // full structural WorkflowGraphSchema; everything else is parsed as a v1 tree.
+  if (isWorkflowGraph(candidate)) {
+    const graph = WorkflowGraphSchema.safeParse(candidate);
+    return graph.success ? { ...graph.data, source } : null;
+  }
+  const tree = WorkflowDefinitionSchema.safeParse(candidate);
+  return tree.success ? { ...tree.data, source } : null;
 }
 
 function parseJson(content: string): Record<string, unknown> | null {

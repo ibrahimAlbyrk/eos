@@ -10,6 +10,7 @@ import type {
   LoopRow,
   InsertLoopInput,
   LoopAttempt,
+  StepHeldOutput,
 } from "../../../core/src/ports/LoopStateRepo.ts";
 import type { LoopStatus, LoopStrategy, GoalSpec } from "../../../contracts/src/loop.ts";
 import { safeStringify } from "../util/json.ts";
@@ -29,6 +30,16 @@ function decodeRing(raw: unknown): LoopAttempt[] {
   }
 }
 
+function decodeHeldOutput(raw: unknown): StepHeldOutput | null {
+  if (typeof raw !== "string" || raw === "") return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? (parsed as StepHeldOutput) : null;
+  } catch {
+    return null;
+  }
+}
+
 function toLoopRow(r: Row): LoopRow {
   return {
     id: r.id as string,
@@ -40,6 +51,7 @@ function toLoopRow(r: Row): LoopRow {
     attempt: r.attempt as number,
     maxAttempts: (r.max_attempts as number | null) ?? null,
     heldReport: (r.held_report as string | null) ?? null,
+    heldOutput: decodeHeldOutput(r.held_output),
     lastReason: (r.last_reason as string | null) ?? null,
     awaitingInput: ((r.awaiting_input as number | null) ?? 0) !== 0,
     progressRing: decodeRing(r.progress_ring),
@@ -56,6 +68,8 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
   private readonly stmtSetStatus;
   private readonly stmtRecordAttempt;
   private readonly stmtSetHeldReport;
+  private readonly stmtClearHeld;
+  private readonly stmtSetHeldOutput;
   private readonly stmtSetAwaitingInput;
   private readonly stmtClear;
 
@@ -75,6 +89,10 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
       "UPDATE worker_loops SET attempt = attempt + 1, progress_ring = ?, last_reason = ?, updated_at = ? WHERE id = ?",
     );
     this.stmtSetHeldReport = db.prepare("UPDATE worker_loops SET held_report = ?, updated_at = ? WHERE id = ?");
+    // Clearing the held report clears its structured twin too — they share a
+    // lifecycle (set on hold, cleared on release/continue).
+    this.stmtClearHeld = db.prepare("UPDATE worker_loops SET held_report = NULL, held_output = NULL, updated_at = ? WHERE id = ?");
+    this.stmtSetHeldOutput = db.prepare("UPDATE worker_loops SET held_output = ?, updated_at = ? WHERE id = ?");
     this.stmtSetAwaitingInput = db.prepare("UPDATE worker_loops SET awaiting_input = ?, updated_at = ? WHERE id = ?");
     this.stmtClear = db.prepare("DELETE FROM worker_loops WHERE id = ?");
   }
@@ -118,7 +136,12 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
   }
 
   setHeldReport(id: string, text: string | null): void {
-    this.stmtSetHeldReport.run(text, Date.now(), id);
+    if (text === null) this.stmtClearHeld.run(Date.now(), id);
+    else this.stmtSetHeldReport.run(text, Date.now(), id);
+  }
+
+  setHeldOutput(id: string, output: StepHeldOutput | null): void {
+    this.stmtSetHeldOutput.run(output === null ? null : safeStringify(output), Date.now(), id);
   }
 
   setAwaitingInput(id: string, awaiting: boolean): void {
