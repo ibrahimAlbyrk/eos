@@ -10,6 +10,7 @@ export interface WorkflowRunRepo {
   insert(row: WorkflowRunRow): void;
   findById(id: string): WorkflowRunRow | null;
   listActive(): WorkflowRunRow[];                 // status IN (pending, running) — boot re-arm
+  listRecent(limit: number): WorkflowRunRow[];    // most-recent N by updatedAt DESC — history strip
   listByOwner(ownerId: string): WorkflowRunRow[];
   setStatus(id: string, status: WorkflowRunStatus): void;
   setResult(id: string, result: unknown): void;

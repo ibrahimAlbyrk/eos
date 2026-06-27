@@ -35,6 +35,7 @@ export function runRepo() {
     insert(row: WorkflowRun) { rows.set(row.id, { ...row }); },
     findById(id: string) { return rows.get(id) ?? null; },
     listActive() { return [...rows.values()].filter((r) => r.status === "pending" || r.status === "running"); },
+    listRecent(limit: number) { return [...rows.values()].sort((a, b) => b.updatedAt - a.updatedAt).slice(0, limit); },
     listByOwner(ownerId: string) { return [...rows.values()].filter((r) => r.owner === ownerId); },
     setStatus(id: string, status: WorkflowRunStatus) { const r = rows.get(id); if (r) r.status = status; },
     setResult(id: string, result: unknown) { const r = rows.get(id); if (r) r.result = result; },

@@ -48,6 +48,7 @@ export class SqliteWorkflowRunRepo implements WorkflowRunRepo {
   private readonly stmtInsert;
   private readonly stmtFindById;
   private readonly stmtListActive;
+  private readonly stmtListRecent;
   private readonly stmtListByOwner;
   private readonly stmtSetStatus;
   private readonly stmtSetResult;
@@ -62,6 +63,7 @@ export class SqliteWorkflowRunRepo implements WorkflowRunRepo {
     this.stmtListActive = db.prepare(
       "SELECT * FROM workflow_runs WHERE status IN ('pending', 'running') ORDER BY started_at ASC",
     );
+    this.stmtListRecent = db.prepare("SELECT * FROM workflow_runs ORDER BY updated_at DESC LIMIT ?");
     this.stmtListByOwner = db.prepare("SELECT * FROM workflow_runs WHERE owner = ? ORDER BY started_at ASC");
     this.stmtSetStatus = db.prepare("UPDATE workflow_runs SET status = ?, updated_at = ? WHERE id = ?");
     this.stmtSetResult = db.prepare("UPDATE workflow_runs SET result_json = ?, updated_at = ? WHERE id = ?");
@@ -88,6 +90,10 @@ export class SqliteWorkflowRunRepo implements WorkflowRunRepo {
 
   listActive(): WorkflowRun[] {
     return (this.stmtListActive.all() as Row[]).map(toWorkflowRun).filter((x): x is WorkflowRun => x !== null);
+  }
+
+  listRecent(limit: number): WorkflowRun[] {
+    return (this.stmtListRecent.all(limit) as Row[]).map(toWorkflowRun).filter((x): x is WorkflowRun => x !== null);
   }
 
   listByOwner(ownerId: string): WorkflowRun[] {

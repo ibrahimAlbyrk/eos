@@ -85,6 +85,15 @@ describe("SqliteWorkflowRunRepo round-trip", () => {
     assert.deepEqual(repo.listActive().map((x) => x.id), ["r-pending", "r-running"]);
   });
 
+  it("listRecent returns the most-recent N by updatedAt DESC, status-agnostic", () => {
+    repo.insert(run("a", { status: "passed", startedAt: 1, updatedAt: 10 }));
+    repo.insert(run("b", { status: "running", startedAt: 2, updatedAt: 30 }));
+    repo.insert(run("c", { status: "failed", startedAt: 3, updatedAt: 20 }));
+
+    assert.deepEqual(repo.listRecent(10).map((x) => x.id), ["b", "c", "a"]);
+    assert.deepEqual(repo.listRecent(2).map((x) => x.id), ["b", "c"]);
+  });
+
   it("listByOwner scopes to the owner", () => {
     repo.insert(run("a", { owner: "orch-1", startedAt: 1 }));
     repo.insert(run("b", { owner: "orch-1", startedAt: 2 }));
