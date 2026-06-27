@@ -91,6 +91,18 @@ export const WorkflowStepSchema = z.object({
 });
 export type WorkflowStep = z.infer<typeof WorkflowStepSchema>;
 
+// ---- read-surface query + response shapes (Phase 0 UI endpoints) ------------
+// GET /workflows/runs?scope=active|recent — active = in-flight (cross-owner);
+// recent = the capped most-recent history strip.
+export const WORKFLOW_RUNS_SCOPES = ["active", "recent"] as const;
+export const WorkflowRunsScopeSchema = z.enum(WORKFLOW_RUNS_SCOPES);
+export type WorkflowRunsScope = z.infer<typeof WorkflowRunsScopeSchema>;
+
+// GET /workflows/runs → run rows (active or recent history).
+export type WorkflowRunsResponse = WorkflowRun[];
+// GET /workflows/:id/steps → the per-node step rows for one run.
+export type WorkflowStepsResponse = WorkflowStep[];
+
 // ---- the single MCP `workflow` tool surface (§3.10) -------------------------
 // One discriminated-union input (mirrors spawn_worker's `from`). run-stored runs
 // a catalogued definition; run-inline runs an emitted spec; create persists a

@@ -1764,7 +1764,16 @@ export const ROUTES = {
   // Structured node-kind palette catalog for the editor (node kinds + port
   // shapes). Literal path — must be registered BEFORE the /workflows/:id regex.
   workflowCatalog: "/workflows/catalog",
+  // Merged builtin+file+runtime definition records (Library + from/subGraph
+  // selectors). Literal path — registered BEFORE the /workflows/:id regex.
+  workflowDefinitions: "/workflows/definitions",
+  // Run list for the observation view: ?scope=active|recent. Literal path —
+  // registered BEFORE the /workflows/:id regex.
+  workflowRuns: "/workflows/runs",
   workflowRun: (id: string): string => `/workflows/${id}`,
+  // Per-node step rows for one run (the read-only run canvas / step list). A
+  // two-segment path — no collision with the single-segment /workflows/:id regex.
+  workflowRunSteps: (id: string): string => `/workflows/${id}/steps`,
   // DELETE a stored (runtime/SQLite) workflow definition by name — the symmetric
   // mirror of PUT /workflows (create). Builtins are code and rejected; an unknown
   // name is a clean 404.

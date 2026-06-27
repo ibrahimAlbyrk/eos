@@ -170,6 +170,10 @@ export type AnyWorkflowDefinitionRecord =
   | (WorkflowGraph & { source: WorkflowDefinitionProvenance })
   | WorkflowDefinitionRecord;
 
+// GET /workflows/definitions → the merged builtin + file + runtime definition
+// records (each tagged with its provenance) the Library + from/subGraph selectors read.
+export type WorkflowDefinitionsResponse = AnyWorkflowDefinitionRecord[];
+
 // Strip the provenance tag back to a bare runnable definition (v1 tree | v2 graph).
 export function definitionOfRecord(record: AnyWorkflowDefinitionRecord): AnyWorkflowDefinition {
   const { source: _source, ...def } = record;
