@@ -100,6 +100,13 @@ export const WorkerEventTypeSchema = z.enum([
   "workflow_step_started",
   "workflow_step_done",
   "workflow_step_failed",
+  // The durable recovery trace for a workflow step's TYPED settle (§3.7). The
+  // /step-output route appends it under the run anchor the instant a step emits
+  // its terminal (non-held) output, BEFORE the engine journals it `passed` —
+  // mirroring how /report's worker_report anchors recovery. Carries the structured
+  // {fromWorker,status,output,reason} so the boot re-arm recovers the completion
+  // (typed object, faithful status) instead of re-spawning a finished node.
+  "workflow_step_output",
 ]);
 export type WorkerEventType = z.infer<typeof WorkerEventTypeSchema>;
 
