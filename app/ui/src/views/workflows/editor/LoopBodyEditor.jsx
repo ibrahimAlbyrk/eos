@@ -11,7 +11,7 @@ import { useGraphEditor } from "./useGraphEditor.js";
 import { createInitialGraph, graphFromDoc, toWorkflowGraph } from "./graphModel.js";
 import { setConfigField } from "./nodeConfigSchemas.js";
 
-export function LoopBodyEditor({ value, title, catalog, loading, error, workerDefs, definitions, onCommit, onClose, depth = 0 }) {
+export function LoopBodyEditor({ value, title, catalog, loading, error, workerDefs, definitions, readOnly = false, onCommit, onClose, depth = 0 }) {
   const editor = useGraphEditor(() =>
     value && Array.isArray(value.nodes) && value.nodes.length
       ? graphFromDoc(value)
@@ -23,9 +23,10 @@ export function LoopBodyEditor({ value, title, catalog, loading, error, workerDe
   const [editingLoopId, setEditingLoopId] = useState(null);
 
   // Commit the body live to the parent loop node (init body included), keeping
-  // graphModel the single source of truth for the persisted doc.
+  // graphModel the single source of truth for the persisted doc. A read-only view
+  // never writes back (it only renders the stored body).
   useEffect(() => {
-    onCommit(toWorkflowGraph(editor.graph));
+    if (!readOnly) onCommit(toWorkflowGraph(editor.graph));
   }, [editor.graph]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const editingNode = editingLoopId ? editor.graph.nodes.find((n) => n.id === editingLoopId) : null;
@@ -34,7 +35,7 @@ export function LoopBodyEditor({ value, title, catalog, loading, error, workerDe
     <div className="wfe-loop-overlay" style={{ zIndex: 50 + depth }}>
       <div className="wfe-loop-overlay__bar">
         <span className="wfe-loop-overlay__title">{title}</span>
-        <button type="button" className="wfe-btn wfe-btn--primary" onClick={onClose}>Done</button>
+        <button type="button" className="wfe-btn wfe-btn--primary" onClick={onClose}>{readOnly ? "Back" : "Done"}</button>
       </div>
       <GraphEditorSurface
         editor={editor}
@@ -43,6 +44,7 @@ export function LoopBodyEditor({ value, title, catalog, loading, error, workerDe
         error={error}
         workerDefs={workerDefs}
         definitions={definitions}
+        readOnly={readOnly}
         active={!editingLoopId}
         graphMetaEnabled={false}
         onEditLoopBody={setEditingLoopId}
@@ -56,6 +58,7 @@ export function LoopBodyEditor({ value, title, catalog, loading, error, workerDe
           error={error}
           workerDefs={workerDefs}
           definitions={definitions}
+          readOnly={readOnly}
           depth={depth + 1}
           onCommit={(bodyDoc) => editor.onUpdateNode(editingNode.id, { config: setConfigField(editingNode.config, "body", bodyDoc) })}
           onClose={() => setEditingLoopId(null)}

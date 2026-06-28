@@ -9,6 +9,7 @@ import { api } from "../../../api/client.js";
 import { useRunsLive } from "./useRunsLive.js";
 import { RunsList } from "./RunsList.jsx";
 import { RunDetail } from "./RunDetail.jsx";
+import { WorkflowSidebarPortal } from "../sidebarSlot.jsx";
 
 export function RunsView() {
   const { status, active, recent, error, reload } = useRunsLive();
@@ -36,27 +37,31 @@ export function RunsView() {
   }, [active, selectedId]);
 
   return (
-    <div className="wf-runs">
-      <div className="wf-runs__rail">
-        <div className="wf-runs__bar">
-          <div className="wf-runs__title">Runs</div>
-          <button type="button" className="wfe-btn" onClick={reload} disabled={status === "loading"}>Refresh</button>
-        </div>
-        {status === "error" && (
-          <div className="wf-runs__state wf-runs__state--err">
-            Couldn’t load runs{error ? `: ${error}` : ""}.
-            <button type="button" className="wfe-btn" onClick={reload}>Retry</button>
+    <>
+      {/* List rail lives in the left sidebar; the selected run's detail is the
+          main area. */}
+      <WorkflowSidebarPortal>
+        <div className="wf-runs__rail">
+          <div className="wf-runs__bar">
+            <div className="wf-runs__title">Runs</div>
+            <button type="button" className="wfe-btn" onClick={reload} disabled={status === "loading"}>Refresh</button>
           </div>
-        )}
-        {status !== "error" && (
-          <RunsList active={active} recent={recent} selectedId={selectedId} onSelect={setSelectedId} nowMs={now} />
-        )}
-      </div>
+          {status === "error" && (
+            <div className="wf-runs__state wf-runs__state--err">
+              Couldn’t load runs{error ? `: ${error}` : ""}.
+              <button type="button" className="wfe-btn" onClick={reload}>Retry</button>
+            </div>
+          )}
+          {status !== "error" && (
+            <RunsList active={active} recent={recent} selectedId={selectedId} onSelect={setSelectedId} nowMs={now} />
+          )}
+        </div>
+      </WorkflowSidebarPortal>
       <div className="wf-runs__detail">
         {selectedId
           ? <RunDetail key={selectedId} runId={selectedId} records={records} />
           : <div className="wf-runs__empty">Select a run to observe it.</div>}
       </div>
-    </div>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  isGraphDefinition, provenanceOf, isReadOnly, isDeletable, canEdit, canDuplicate,
+  isGraphDefinition, provenanceOf, isReadOnly, isDeletable, canEdit, canDuplicate, canOpen,
   latestRunFor, duplicateName, duplicateDoc, recordToDoc,
 } from "./libraryModel.js";
 
@@ -40,6 +40,13 @@ describe("libraryModel — provenance → read-only/deletable rule", () => {
     expect(canDuplicate(graph("g", "builtin"))).toBe(true);
     expect(canDuplicate(graph("g", "runtime"))).toBe(true);
     expect(canDuplicate(tree("t", "builtin"))).toBe(false);
+  });
+
+  it("card is openable for any graph (runtime or read-only), never a tree", () => {
+    expect(canOpen(graph("g", "runtime"))).toBe(true); // → editable
+    expect(canOpen(graph("g", "builtin"))).toBe(true); // → read-only view
+    expect(canOpen(tree("t", "builtin"))).toBe(false); // v1 tree: no render path
+    expect(canOpen(tree("t", "runtime"))).toBe(false);
   });
 });
 

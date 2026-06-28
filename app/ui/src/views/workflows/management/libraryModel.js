@@ -46,6 +46,13 @@ export function canDuplicate(record) {
   return isGraphDefinition(record);
 }
 
+// Openable by clicking the card: any GRAPH def opens in the editor — a runtime one
+// editably, a read-only-provenance one in the editor's readOnly view (isReadOnly
+// decides which). v1 trees have no v2 render path, so they aren't card-openable.
+export function canOpen(record) {
+  return isGraphDefinition(record);
+}
+
 // The latest run for a definition: runs whose definitionName matches the record's
 // name, most-recently-updated first. Null when the definition has never run.
 export function latestRunFor(name, runs) {

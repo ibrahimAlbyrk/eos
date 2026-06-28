@@ -8378,9 +8378,35 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .wf-host { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
 .wf-views { flex: 1; min-height: 0; display: flex; }
 .wf-view { flex: 1; min-height: 0; display: flex; }
-.wfe-subtabs { max-width: 360px; }
+/* Editor/Library/Runs switcher now lives inside the left sidebar panel; the base
+   .tabbar margins size it to the panel width. */
 .tabbar__tab.is-disabled { color: var(--fg-faint); cursor: default; opacity: 0.6; }
 .tabbar__tab.is-disabled:hover { background: transparent; color: var(--fg-faint); }
+
+/* Per-tab sidebar slot: the active tab portals its palette/list here (under the
+   switcher); the main area shows only the canvas/detail. The slot fills the
+   remaining height and its child owns the scroll. */
+.wf-sb-slot { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* Each tab's portaled child fills the slot's height and owns its scroll, spanning
+   the panel width (no in-canvas border / fixed track). */
+.wf-sb-slot .wfe-palette { flex: 1; min-height: 0; border-right: none; }
+.wf-sb-slot .wf-runs__rail { flex: 1; min-height: 0; width: auto; border-right: none; }
+.wf-sb-slot .wf-lib { flex: 1; min-height: 0; padding: 4px 10px 14px; }
+.wf-sb-slot .wf-lib__grid { grid-template-columns: 1fr; }
+
+/* Library main: a centered hint when nothing is picked; a read-only detail (header +
+   canvas + locked inspector) fills it when a built-in/file def is previewed in place. */
+.wf-lib-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.wf-lib-main__hint { margin: auto; max-width: 320px; text-align: center; color: var(--fg-faint); font-size: var(--text-sm); line-height: 1.5; padding: 24px; }
+
+.wf-lib-detail { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.wf-lib-detail__head {
+  display: flex; align-items: center; gap: 10px; padding: 9px 14px;
+  border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.wf-lib-detail__name { font-size: var(--text-sm); font-weight: 700; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wf-lib-detail__spacer { flex: 1; }
+.wf-lib-card--selected { border-color: var(--accent); background: var(--accent-soft); }
 
 /* ── Workflow Library (management view) ───────────────────────────────────── */
 .wf-lib { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; padding: 4px 14px 18px; }
@@ -8398,6 +8424,9 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,0.18), 0 4px 14px rgba(0,0,0,0.10);
   animation: msg-blur-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
 }
+.wf-lib-card--clickable { cursor: pointer; transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease; }
+.wf-lib-card--clickable:hover { border-color: var(--accent); box-shadow: 0 2px 6px rgba(0,0,0,0.22), 0 8px 20px rgba(0,0,0,0.14); transform: translateY(-1px); }
+.wf-lib-card--clickable:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .wf-lib-card__head { display: flex; align-items: center; gap: 8px; }
 .wf-lib-card__name { font-weight: 600; font-size: var(--text-sm); color: var(--fg); flex: 1; word-break: break-word; }
 .wf-lib-card__desc { font-size: var(--text-xs); color: var(--fg-dim); line-height: 1.45; min-height: 1.45em; }
@@ -8443,6 +8472,15 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .wfe-notice--ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
 .wfe-notice--info { color: var(--fg-dim); }
 
+/* Segmented chip row base — shared by the inspector's Segmented control
+   (inspectorControls Segmented uses `sp-chips wfe-seg`; the gap override lives in
+   the inspector section below). */
+.wfe-seg {
+  font-size: var(--text-xs); padding: 4px 10px; border-radius: 5px;
+  border: 1px solid transparent; background: transparent; color: var(--fg-dim);
+  cursor: pointer;
+}
+
 .wfe-body { display: flex; flex: 1; min-height: 0; }
 
 /* Palette */
@@ -8476,6 +8514,11 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .wfe-inspector { flex: 0 0 268px; overflow-y: auto; padding: 12px; border-left: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 10px; animation: cmdk-pop 140ms cubic-bezier(0.2, 0.8, 0.3, 1); }
 .wfe-insp-kicon svg { color: inherit; }
 .wfe-inspector--empty { justify-content: center; align-items: center; }
+/* Read-only view: lock every control (direct children) but keep the panel itself
+   scrollable, so a built-in/file graph is viewable without being editable. */
+.wfe-inspector--readonly > * { pointer-events: none; }
+.wfe-inspector--readonly { opacity: 0.92; }
+.wfe-ro-badge { font-size: 0.625rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--fg-faint); border: 1px solid var(--border); border-radius: 6px; padding: 2px 8px; }
 @media (prefers-reduced-motion: reduce) { .wfe-inspector { animation: none; } }
 .wfe-inspector__hint { font-size: var(--text-xs); color: var(--fg-faint); text-align: center; }
 .wfe-inspector__title { font-size: var(--text-sm); font-weight: 700; color: var(--fg); text-transform: capitalize; }
@@ -8488,6 +8531,7 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .wfe-field__ro { color: var(--fg-dim); }
 .wfe-field__config { font-family: var(--font-mono, monospace); resize: vertical; }
 .wfe-field__err { font-size: 0.625rem; color: var(--err); }
+.wfe-field__warn { font-size: 0.625rem; color: var(--warn); }
 .wfe-insp__ports { display: flex; flex-direction: column; gap: 5px; }
 .wfe-insp__port { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .wfe-insp__port-name { font-size: var(--text-xs); color: var(--fg-mid); }
@@ -8558,47 +8602,42 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .wfe-cm .cm-gutters { background: transparent; border-right: 1px solid var(--border); }
 .wfe-cm--loading { padding: 8px; font-size: var(--text-xs); color: var(--fg-faint); }
 
+/* Hybrid Form|JSON field — the schema + args row builders with the JsonField raw
+   escape hatch. The toggle sits above the field; an advanced (non-representable)
+   value pins it to JSON and shows the reason. */
+.wfe-hybrid { display: flex; flex-direction: column; gap: 5px; }
+.wfe-hybrid__bar { display: flex; align-items: center; gap: 6px; }
+.wfe-hybrid__locked { font-size: 0.625rem; color: var(--fg-faint); }
+.wfe-hybrid__reason { color: var(--warn); }
+.wfe-rows { display: flex; flex-direction: column; gap: 4px; }
+.wfe-rows__row { display: flex; align-items: center; gap: 4px; }
+.wfe-rows__row .wfe-input { flex: 1 1 auto; min-width: 0; }
+.wfe-rows__row .wfe-select { flex: 0 0 auto; width: auto; }
+.wfe-rows__req { display: inline-flex; align-items: center; gap: 3px; font-size: 0.625rem; color: var(--fg-dim); white-space: nowrap; }
+.wfe-rows__req input { width: auto; margin: 0; }
+
+/* Read-only canvas host — a positioned shell so the read-only nested loop-body
+   overlay (entered by double-click) anchors over the canvas + locked inspector. */
+.wfe-ro-host { position: relative; flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+
+/* Loop-body inspector row — the body is opened by double-clicking the node, so
+   this is a static size hint, not a button. */
+.wfe-subcanvas-hint { font-size: var(--text-xs); color: var(--fg-dim); padding: 4px 2px; }
+
 /* Nested loop-body overlay — a real editor surface over the canvas. */
 .wfe-loop-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
 .wfe-loop-overlay__bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--border); background: var(--surface); flex: 0 0 auto; }
 .wfe-loop-overlay__title { font-size: var(--text-sm); font-weight: 600; color: var(--fg); }
 
 /* ---------------------------------------------------------------------------
-   React Flow canvas (FlowCanvas). The substrate is RF; this block re-themes it
-   onto the app's design tokens so it reads as one family, and overrides RF's
-   base handle/edge rules with combined-class selectors so the cascade wins even
-   though RF's stylesheet loads from the lazy chunk after styles.css.
+   Shared canvas chrome — the editor/runs canvas container plus the category-accent
+   (--k) mapping, header-icon color, snap toggle, and wire-march keyframes. These
+   class names are REUSED by the bespoke SVG renderer (GraphRenderer) below; the
+   node/edge/handle bodies are SVG primitives styled by the .wf-svg-* rules.
    --------------------------------------------------------------------------- */
 .wf-rf-canvas { flex: 1; min-width: 0; position: relative; background: var(--bg); }
 .wf-rf-canvas--loading { display: flex; align-items: center; justify-content: center; color: var(--fg-faint); font-size: var(--text-xs); }
 
-.wf-rf-canvas .react-flow {
-  --xy-background-pattern-color: var(--border);
-  --xy-edge-stroke: var(--border-strong);
-  --xy-edge-stroke-selected: var(--accent);
-  --xy-connectionline-stroke: var(--accent);
-  --xy-handle-background-color: var(--surface-3);
-  --xy-handle-border-color: var(--border-strong);
-  --xy-selection-background-color: var(--accent-soft);
-  --xy-selection-border: 1px dashed var(--accent);
-}
-
-/* Node card — the WfNode body. RF's wrapper (.react-flow__node-wfNode) only
-   positions; this is the visible card. Kind identity = a 3px left rail + a tinted
-   header icon, both in the category accent (--k, set by the cat class below); the
-   card body stays neutral so run-state border coloring reads cleanly on top. */
-.wf-rf-node {
-  width: 184px; box-sizing: border-box;
-  border: 1px solid var(--border-strong); border-radius: 10px;
-  background: var(--surface);
-  box-shadow: inset 3px 0 0 var(--k, var(--border-strong)),
-              0 1px 2px rgba(0, 0, 0, 0.18), 0 4px 14px rgba(0, 0, 0, 0.12);
-  user-select: none; position: relative; font-size: var(--text-xs);
-  animation: msg-blur-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
-  transition: transform 120ms cubic-bezier(0.4, 0, 0.2, 1),
-              box-shadow 120ms cubic-bezier(0.4, 0, 0.2, 1),
-              border-color 120ms cubic-bezier(0.4, 0, 0.2, 1);
-}
 /* Category accents → --k. io/compute/transform alias the identity hues; control +
    composite are the editor-scoped --wfk-* additions. (Status hues stay reserved.) */
 .wf-rf-node--cat-io        { --k: var(--wfk-io); }
@@ -8607,162 +8646,176 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .wf-rf-node--cat-control   { --k: var(--wfk-control); }
 .wf-rf-node--cat-composite { --k: var(--wfk-composite); }
 
-.wf-rf-node--selected { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--k), 0 0 0 1px var(--accent), 0 4px 14px rgba(0, 0, 0, 0.12); }
-/* Hover lift (the rail + two-layer shadow are preserved through the deeper drop). */
-.wf-rf-node:hover { border-color: var(--border-strong); transform: translateY(-1px); box-shadow: inset 3px 0 0 var(--k), 0 6px 20px rgba(0, 0, 0, 0.18); }
-.wf-rf-node--selected:hover { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--k), 0 0 0 1px var(--accent), 0 6px 20px rgba(0, 0, 0, 0.18); }
-
-/* Run states — border + ring/pulse layered over the neutral card; the rail (--k)
-   survives underneath so kind identity is never lost. */
-.wf-rf-node--running { border-color: var(--accent); animation: wfe-node-run-pulse 1.8s ease-in-out infinite; }
-.wf-rf-node--passed { border-color: var(--ok); animation: wfe-node-pass-ping 420ms ease-out; }
-.wf-rf-node--failed { border-color: var(--err); animation: wfe-node-shake 320ms ease-out; }
-.wf-rf-node--skipped { opacity: 0.5; filter: grayscale(0.4); border-style: dashed; border-color: var(--border); }
-
-/* No will-change / layer promotion on nodes: a composited card is rasterized at 1×
-   and the viewport zoom upscales that bitmap, so it blurs while dragging when
-   zoomed in. Inline painting lets the browser re-rasterize crisply at live zoom. */
-
-.wf-rf-node__head { display: flex; align-items: center; gap: 6px; padding: 0 10px; border-bottom: 1px solid var(--border); cursor: grab; }
+/* Header icon color — the KindIcon's default class, tinted to the category --k.
+   Reused by the SVG renderer's node header. */
 .wf-rf-node__icon { color: var(--k, var(--fg-dim)); flex: 0 0 auto; display: block; }
-.wf-rf-node__label { font-weight: 600; color: var(--fg); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wf-rf-node__kind { font-size: 0.625rem; color: var(--fg-faint); }
-.wf-rf-node__status { font-size: 0.5625rem; padding: 1px 5px; border-radius: 5px; }
-.wf-rf-node__ports { display: flex; justify-content: space-between; padding: 6px 0; }
-.wf-rf-node__col { display: flex; flex-direction: column; flex: 1; }
-.wf-rf-node__col--out { align-items: flex-end; }
-.wf-rf-port { display: flex; align-items: center; padding: 0 10px; color: var(--fg-mid); }
-.wf-rf-port--out { justify-content: flex-end; }
-.wf-rf-port__name { white-space: nowrap; font-size: 0.6875rem; }
-.wf-rf-port__type { font-style: normal; color: var(--fg-faint); font-size: 0.5625rem; margin: 0 4px; }
 
-/* Node-state keyframes. The run pulse clones pane-attention-pulse scaled to the
-   node (box-shadow ring breathe — the one box-shadow animation, bounded to the
-   handful of running nodes); pass = a one-shot ok ring ping; fail = a one-shot
-   shake. All preserve the --k rail in the shadow. */
-@keyframes wfe-node-run-pulse {
-  0%, 100% { box-shadow: inset 3px 0 0 var(--k), 0 4px 14px rgba(0, 0, 0, 0.12), inset 0 0 0 1px var(--accent-soft); }
-  50%      { box-shadow: inset 3px 0 0 var(--k), 0 4px 14px rgba(0, 0, 0, 0.12), inset 0 0 0 1px var(--accent); }
-}
-@keyframes wfe-node-pass-ping {
-  0%   { box-shadow: inset 3px 0 0 var(--k), 0 4px 14px rgba(0, 0, 0, 0.12), 0 0 0 0 color-mix(in srgb, var(--ok) 50%, transparent); }
-  100% { box-shadow: inset 3px 0 0 var(--k), 0 4px 14px rgba(0, 0, 0, 0.12), 0 0 0 6px color-mix(in srgb, var(--ok) 0%, transparent); }
-}
-@keyframes wfe-node-shake {
-  0%, 100% { transform: translateX(0); }
-  20% { transform: translateX(-3px); }
-  40% { transform: translateX(3px); }
-  60% { transform: translateX(-3px); }
-  80% { transform: translateX(3px); }
-}
-
-/* Handles = pointer-drag connect grabs. Combined-class selectors beat RF base. */
-.react-flow__handle.wf-rf-handle {
-  width: 10px; height: 10px; border-radius: 50%;
-  background: var(--surface-3); border: 1.5px solid var(--border-strong);
-  transition: box-shadow 120ms ease, scale 120ms ease, background 120ms ease;
-}
-/* Hover telegraphs "grabbable": the dot grows, brightens, and gets a faint accent
-   halo. Grow with the standalone `scale` property, NOT the transform shorthand:
-   RF centers handles with a per-side transform (left translate(-50%,-50%), right
-   translate(50%,-50%)); overriding transform here flipped the right handles inward,
-   sliding them out from under the cursor → hover/unhover flicker. `scale` composes
-   on top of RF's translate, so the dot grows around its fixed center. */
-.react-flow__handle.wf-rf-handle:hover {
-  scale: 1.3;
-  border-color: var(--fg-dim);
-  box-shadow: 0 0 0 4px var(--accent-soft);
-}
-.react-flow__handle.wf-rf-handle[data-type="json"],
-.react-flow__handle.wf-rf-handle[data-type="object"] { border-color: var(--accent); }
-.react-flow__handle.wf-rf-handle[data-type="array"] { border-color: var(--warn); }
-.react-flow__handle.wf-rf-handle[data-type="number"],
-.react-flow__handle.wf-rf-handle[data-type="string"],
-.react-flow__handle.wf-rf-handle[data-type="boolean"] { border-color: var(--ok); }
-/* Live drag feedback: every compatible input lights receptive; incompatible
-   ones are dimmed + no-drop. Driven by canConnect via the WfConnection context. */
-.react-flow__handle.wf-rf-handle--receptive {
-  background: var(--ok); border-color: var(--ok);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 28%, transparent);
-}
-.react-flow__handle.wf-rf-handle--reject {
-  opacity: 0.35; cursor: no-drop;
-  border-color: var(--err);
-}
-
-/* Edges. Resting wire color follows the SOURCE port's data type (mixed toward the
-   neutral wire color so it doesn't shout) — same type→hue map as the handles, so a
-   wire and its endpoints agree. */
-.react-flow__edge .wf-rf-edge { stroke: var(--border-strong); stroke-width: 2; transition: stroke 120ms ease, stroke-width 120ms ease; }
-.react-flow__edge .wf-rf-edge[data-type="json"],
-.react-flow__edge .wf-rf-edge[data-type="object"] { stroke: color-mix(in srgb, var(--accent) 55%, var(--border-strong)); }
-.react-flow__edge .wf-rf-edge[data-type="array"] { stroke: color-mix(in srgb, var(--warn) 55%, var(--border-strong)); }
-.react-flow__edge .wf-rf-edge[data-type="number"],
-.react-flow__edge .wf-rf-edge[data-type="string"],
-.react-flow__edge .wf-rf-edge[data-type="boolean"] { stroke: color-mix(in srgb, var(--ok) 55%, var(--border-strong)); }
-/* Hover = removable (err + thicken; the fat interaction path is the hit target).
-   Selected overrides to accent. */
-.react-flow__edge:hover .wf-rf-edge { stroke: var(--err); stroke-width: 2.5; }
-.react-flow__edge.selected .wf-rf-edge,
-.react-flow__edge .wf-rf-edge--selected { stroke: var(--accent); }
-
-/* Live connection line (drag in progress) — accent, dashed, marching, round caps:
-   reads as "in progress / not yet committed". */
-.react-flow__connectionline path,
-.react-flow .react-flow__connection-path {
-  stroke: var(--accent); stroke-width: 2; stroke-dasharray: 1 7; stroke-linecap: round;
-  animation: wfe-wire-march 600ms linear infinite;
-}
-
-/* Run-flow overlay — a traveling dash on top of an active-frontier edge. WfEdge
-   only renders it for edges incident to a running node (data.flow), so it stops
-   the instant the run is terminal. Mirrors the monitor's mon-sweep dash march. */
-.react-flow__edge .wf-rf-edge__flow {
-  stroke: var(--accent); stroke-width: 2; stroke-dasharray: 2 10; stroke-linecap: round;
-  fill: none; pointer-events: none;
-  animation: wfe-wire-flow 900ms linear infinite;
-}
+/* Wire-march keyframes — the connection-line + run-flow dash march, shared by the
+   SVG renderer's .wf-svg-connectionline / .wf-svg-edge__flow. */
 @keyframes wfe-wire-march { to { stroke-dashoffset: -16; } }
 @keyframes wfe-wire-flow { to { stroke-dashoffset: -24; } }
 
-/* Controls (zoom / fit-view) themed onto app surfaces. */
-.wf-rf-canvas .react-flow__controls { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); border-radius: 8px; overflow: hidden; }
-.wf-rf-canvas .react-flow__controls-button {
-  background: var(--surface-2); border-bottom: 1px solid var(--border);
-  color: var(--fg-mid); width: 24px; height: 24px;
-}
-.wf-rf-canvas .react-flow__controls-button:hover { background: var(--surface-3); color: var(--fg); }
-.wf-rf-canvas .react-flow__controls-button svg { fill: currentColor; }
-
 @media (prefers-reduced-motion: reduce) {
-  .react-flow__handle.wf-rf-handle { transition: none; }
-  /* Swap every node/wire animation for its resolved static end-state. */
-  .wf-rf-node,
-  .wf-rf-node--running,
-  .wf-rf-node--passed,
-  .wf-rf-node--failed { animation: none; transition: none; }
-  .wf-rf-node--running { box-shadow: inset 3px 0 0 var(--k), 0 4px 14px rgba(0, 0, 0, 0.12), inset 0 0 0 1px var(--accent); }
   .wfe-palette__item { transition: none; }
   .wfe-palette__item:hover { transform: none; }
-  .react-flow__edge .wf-rf-edge { transition: none; }
-  .react-flow__connectionline path,
-  .react-flow .react-flow__connection-path { animation: none; }
-  .react-flow__edge .wf-rf-edge__flow { animation: none; }
 }
 
-/* MiniMap + the snap toggle Panel, themed onto app surfaces. */
-.wf-rf-canvas .react-flow__minimap.wf-rf-minimap {
-  background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
-}
-.wf-rf-canvas .react-flow__minimap-node { fill: var(--border-strong); }
-.wf-rf-canvas .react-flow__minimap-mask { fill: color-mix(in srgb, var(--bg) 60%, transparent); }
+/* Snap-to-grid toggle button (canvas Panel) — reused by the SVG renderer. */
 .wf-rf-snap {
   font-size: var(--text-xs); padding: 4px 9px; border-radius: 7px; cursor: pointer;
   border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--fg-mid);
 }
 .wf-rf-snap:hover { background: var(--surface-3); color: var(--fg); }
 .wf-rf-snap--on { border-color: var(--accent); color: var(--accent-hover); background: var(--accent-soft); }
+
+/* ---------------------------------------------------------------------------
+   Bespoke SVG renderer (GraphRenderer) — the blur-free workflow canvas. Every
+   selector here is .wf-svg-*. Nodes are SVG primitives, so theming rides
+   fill/stroke + the SAME tokens: the category rail reuses the .wf-rf-node--cat-*
+   → --k mapping above (custom props cascade onto an SVG <g>), status + receptivity
+   get fill/stroke/animation analogues.
+   --------------------------------------------------------------------------- */
+.wf-svg-canvas { overflow: hidden; }
+.wf-svg { display: block; width: 100%; height: 100%; touch-action: none; user-select: none; }
+.wf-svg__grid-dot { fill: var(--border); }
+
+/* Node card = SVG <rect>s; the left rail is the --k category accent (set by the
+   reused .wf-rf-node--cat-* class), the body stays neutral so run-state stroke
+   coloring reads cleanly on top — same identity model as the HTML card. */
+.wf-svg-node { cursor: grab; }
+.wf-svg-node__card { fill: var(--surface); stroke: var(--border-strong); stroke-width: 1; }
+.wf-svg-node__rail { fill: var(--k, var(--border-strong)); }
+.wf-svg-node__divider { stroke: var(--border); stroke-width: 1; }
+.wf-svg-node--selected .wf-svg-node__card { stroke: var(--accent); stroke-width: 1.5; }
+
+.wf-svg-node__label { fill: var(--fg); font-weight: 600; font-size: var(--text-xs); }
+.wf-svg-node__kind { fill: var(--fg-faint); font-size: 0.625rem; }
+.wf-svg-node__status { font-size: 0.5625rem; font-weight: 600; }
+.wf-svg-node__status--running { fill: var(--accent); }
+.wf-svg-node__status--passed { fill: var(--ok); }
+.wf-svg-node__status--failed { fill: var(--err); }
+.wf-svg-node__status--skipped { fill: var(--fg-faint); }
+.wf-svg-port__name { fill: var(--fg-mid); font-size: 0.6875rem; }
+.wf-svg-port__type { fill: var(--fg-faint); font-size: 0.5625rem; }
+
+/* Run-state — stroke/opacity analogues of the HTML box-shadow pulse/ping/shake.
+   (Shake becomes a stroke flash: a CSS transform on the node <g> would override its
+   translate() position attribute, so the failed cue stays a stroke effect.) */
+.wf-svg-node--running .wf-svg-node__card { stroke: var(--accent); animation: wfe-svg-run-pulse 1.8s ease-in-out infinite; }
+.wf-svg-node--passed .wf-svg-node__card { stroke: var(--ok); animation: wfe-svg-pass-ping 420ms ease-out; }
+.wf-svg-node--failed .wf-svg-node__card { stroke: var(--err); animation: wfe-svg-fail-flash 320ms ease-out; }
+.wf-svg-node--skipped { opacity: 0.5; }
+.wf-svg-node--skipped .wf-svg-node__card { stroke: var(--border); stroke-dasharray: 4 3; }
+@keyframes wfe-svg-run-pulse {
+  0%, 100% { stroke: var(--accent-soft); stroke-width: 1.5; }
+  50%      { stroke: var(--accent); stroke-width: 2; }
+}
+@keyframes wfe-svg-pass-ping {
+  0%   { stroke: var(--ok); stroke-width: 2.5; }
+  100% { stroke: var(--ok); stroke-width: 1.5; }
+}
+@keyframes wfe-svg-fail-flash {
+  0%, 100% { stroke: var(--err); stroke-width: 1.5; }
+  30%, 70% { stroke: var(--err); stroke-width: 2.5; }
+}
+
+/* Handles = pointer-drag connect grabs: a transparent hit halo + the visible dot.
+   The dot border follows the port data type (same hue map as the HTML handles);
+   receptive/reject reuse the single canConnect rule via the renderer. */
+.wf-svg-handle { cursor: crosshair; }
+.wf-svg-handle__hit { fill: transparent; }
+.wf-svg-handle__dot {
+  fill: var(--surface-3); stroke: var(--border-strong); stroke-width: 1.5;
+  transition: r 120ms ease, stroke 120ms ease, fill 120ms ease;
+}
+.wf-svg-handle:hover .wf-svg-handle__dot { r: 6.5; stroke: var(--fg-dim); }
+.wf-svg-handle__dot[data-type="json"],
+.wf-svg-handle__dot[data-type="object"] { stroke: var(--accent); }
+.wf-svg-handle__dot[data-type="array"] { stroke: var(--warn); }
+.wf-svg-handle__dot[data-type="number"],
+.wf-svg-handle__dot[data-type="string"],
+.wf-svg-handle__dot[data-type="boolean"] { stroke: var(--ok); }
+.wf-svg-handle--receptive .wf-svg-handle__dot { fill: var(--ok); stroke: var(--ok); r: 6.5; }
+.wf-svg-handle--reject { cursor: no-drop; }
+.wf-svg-handle--reject .wf-svg-handle__dot { stroke: var(--err); opacity: 0.4; }
+
+/* Edges: a thin visible wire (type-hued, like the HTML edges) over a fat transparent
+   hit path that catches hover/select/delete. */
+.wf-svg-edge { stroke: var(--border-strong); stroke-width: 2; pointer-events: none; transition: stroke 120ms ease, stroke-width 120ms ease; }
+.wf-svg-edge[data-type="json"],
+.wf-svg-edge[data-type="object"] { stroke: color-mix(in srgb, var(--accent) 55%, var(--border-strong)); }
+.wf-svg-edge[data-type="array"] { stroke: color-mix(in srgb, var(--warn) 55%, var(--border-strong)); }
+.wf-svg-edge[data-type="number"],
+.wf-svg-edge[data-type="string"],
+.wf-svg-edge[data-type="boolean"] { stroke: color-mix(in srgb, var(--ok) 55%, var(--border-strong)); }
+.wf-svg-edge-hit { stroke: transparent; stroke-width: 18; pointer-events: stroke; cursor: pointer; }
+.wf-svg-edge-group:hover .wf-svg-edge { stroke: var(--err); stroke-width: 2.5; }
+.wf-svg-edge--selected,
+.wf-svg-edge-group--selected .wf-svg-edge { stroke: var(--accent); }
+
+/* Run-flow overlay — traveling dash on an active-frontier edge (data.flow), reusing
+   the HTML renderer's march keyframes so the two substrates animate identically. */
+.wf-svg-edge__flow {
+  stroke: var(--accent); stroke-width: 2; stroke-dasharray: 2 10; stroke-linecap: round;
+  pointer-events: none; animation: wfe-wire-flow 900ms linear infinite;
+}
+
+/* Reconnect grabs — endpoint handles rendered (only for the SELECTED edge) in a layer
+   above the nodes, sitting exactly on the edge's port anchors. The transparent hit
+   halo owns the grab; a bare port still starts a NEW connection when no edge is selected. */
+.wf-svg-reconnect { cursor: grab; }
+.wf-svg-reconnect__hit { fill: transparent; }
+.wf-svg-reconnect__ring { fill: var(--surface); stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
+
+/* Live connection line (drag in progress) — accent dashed marching, reusing the
+   HTML connection-line march keyframes. */
+.wf-svg-connectionline {
+  stroke: var(--accent); stroke-width: 2; stroke-dasharray: 1 7; stroke-linecap: round;
+  pointer-events: none; animation: wfe-wire-march 600ms linear infinite;
+}
+
+/* Marquee selection box (drawn in screen space, so its stroke stays 1px at any zoom). */
+.wf-svg-marquee { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; stroke-dasharray: 3 3; pointer-events: none; }
+
+/* Chrome — overlays positioned in the canvas (not on the zoom transform), mirroring
+   React Flow's Controls (bottom-left), Panel (top-right), MiniMap (bottom-right). */
+.wf-svg-controls {
+  position: absolute; left: 12px; bottom: 12px; z-index: 5;
+  display: flex; flex-direction: column; gap: 1px;
+  border: 1px solid var(--border-strong); border-radius: 8px; overflow: hidden;
+  background: var(--border); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+.wf-svg-controls__btn {
+  width: 26px; height: 26px; display: flex; align-items: center; justify-content: center;
+  border: none; background: var(--surface-2); color: var(--fg-mid);
+  font-size: var(--text-sm); line-height: 1; cursor: pointer;
+}
+.wf-svg-controls__btn:hover { background: var(--surface-3); color: var(--fg); }
+
+.wf-svg-panel { position: absolute; z-index: 5; }
+.wf-svg-panel--top-right { top: 12px; right: 12px; }
+
+.wf-svg-minimap {
+  position: absolute; right: 12px; bottom: 12px; z-index: 5;
+  border: 1px solid var(--border-strong); border-radius: 8px;
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2); cursor: pointer; touch-action: none;
+}
+.wf-svg-minimap__node { fill: var(--fg-faint); opacity: 0.55; }
+.wf-svg-minimap__node--running { fill: var(--accent); opacity: 0.9; }
+.wf-svg-minimap__node--passed { fill: var(--ok); opacity: 0.9; }
+.wf-svg-minimap__node--failed { fill: var(--err); opacity: 0.9; }
+.wf-svg-minimap__viewport { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1; pointer-events: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-svg-node--running .wf-svg-node__card,
+  .wf-svg-node--passed .wf-svg-node__card,
+  .wf-svg-node--failed .wf-svg-node__card { animation: none; }
+  .wf-svg-node--running .wf-svg-node__card { stroke: var(--accent); stroke-width: 1.5; }
+  .wf-svg-handle__dot { transition: none; }
+  .wf-svg-edge { transition: none; }
+  .wf-svg-edge__flow, .wf-svg-connectionline { animation: none; }
+}
 
 /* Quick-add / spawn menu — opened at the cursor (position: fixed = viewport px). A
    transparent backdrop closes it on an outside click; the menu is keyboard-driven. */

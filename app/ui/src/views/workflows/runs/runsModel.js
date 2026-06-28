@@ -1,7 +1,7 @@
 // Pure, DOM-free logic for the read-only Runs view: backfilling per-node coloring
 // from the persisted step rows, deciding whether a run renders on the canvas or
 // falls back to a step list, formatting elapsed time, and live-merging a run-change
-// SSE event into the runs list. Kept free of React/@xyflow/DOM so it unit-tests in
+// SSE event into the runs list. Kept free of React/DOM so it unit-tests in
 // the repo's node test environment, like graphModel.js / runEvents.js.
 //
 // The per-NODE live coloring during a run is folded by editor/runEvents.js
