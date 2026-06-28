@@ -7,6 +7,15 @@ import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../..
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { api } from "../../../api/client.js";
 
+// A fully transparent 1×1 image to suppress the browser's native drag ghost — the
+// custom DragAffordance (PaneGrid) is what the user sees during a drag instead.
+// Created once at module load so it's decoded by the time a drag starts.
+const TRANSPARENT_DRAG_IMG = typeof Image === "function" ? new Image() : null;
+if (TRANSPARENT_DRAG_IMG) {
+  TRANSPARENT_DRAG_IMG.src =
+    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+}
+
 export function AgentsTree({ roots, onRename, variant = "full" }) {
   if (roots.length === 0) {
     return (
@@ -80,6 +89,7 @@ function TreeNode({ node, onRename, variant = "full" }) {
         onDragStart={(e) => {
           e.dataTransfer.setData("application/x-eos-agent", node.id);
           e.dataTransfer.effectAllowed = "move";
+          if (TRANSPARENT_DRAG_IMG) e.dataTransfer.setDragImage(TRANSPARENT_DRAG_IMG, 0, 0);
         }}
       >
         {hasChildren ? (

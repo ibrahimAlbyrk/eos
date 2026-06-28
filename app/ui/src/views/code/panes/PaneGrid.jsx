@@ -4,9 +4,11 @@ import { statusFromState } from "../../../lib/format.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { useInputNeeded } from "../../../hooks/useInputNeeded.js";
 import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, MAX_PANES } from "../../../lib/paneLayout.js";
+import { usePaneTransitions } from "../../../hooks/usePaneTransitions.js";
 import { Messages } from "../messages/Messages.jsx";
 import { TranscriptHost } from "../messages/TranscriptHost.jsx";
 import { AgentPickerOverlay } from "./AgentPickerOverlay.jsx";
+import { DragAffordance } from "./DragAffordance.jsx";
 
 const sameZone = (a, b) => !!a && !!b && a.kind === b.kind && a.edge === b.edge;
 
@@ -15,31 +17,37 @@ const sameZone = (a, b) => !!a && !!b && a.kind === b.kind && a.edge === b.edge;
 // edge-split + preview works identically whether you're at 1 pane or 9.
 function useDropSplit(canSplit, onDropZone) {
   const [zone, setZone] = useState(null);
+  // Live pointer + the hovered pane's rect, captured on dragover, drives the
+  // portaled DragAffordance (label trails the cursor; pill snaps to the region
+  // centroid computed from the rect). Null whenever no drag is over this pane.
+  const [pointer, setPointer] = useState(null);
   const hasAgentDrag = (e) => e.dataTransfer.types.includes("application/x-eos-agent");
-  const zoneAt = (e) => {
-    const r = e.currentTarget.getBoundingClientRect();
+  const zoneFrom = (e, r) => {
     const z = dropZoneFromPoint((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
     return canSplit ? z : { kind: "replace" }; // at the cap only replace is allowed
   };
+  const clear = () => { setZone(null); setPointer(null); };
   const handlers = {
     onDragOver: (e) => {
       if (!hasAgentDrag(e)) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
-      const z = zoneAt(e);
+      const r = e.currentTarget.getBoundingClientRect();
+      const z = zoneFrom(e, r);
       setZone((prev) => (sameZone(prev, z) ? prev : z));
+      setPointer({ x: e.clientX, y: e.clientY, rect: { left: r.left, top: r.top, width: r.width, height: r.height } });
     },
     // contains(relatedTarget): ignore leaves into our own children (the preview
     // would otherwise flicker as the pointer crosses the transcript).
-    onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) setZone(null); },
+    onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) clear(); },
     onDrop: (e) => {
-      const z = zone ?? zoneAt(e);
-      setZone(null);
+      const z = zone ?? zoneFrom(e, e.currentTarget.getBoundingClientRect());
+      clear();
       const id = e.dataTransfer.getData("application/x-eos-agent");
       if (id) { e.preventDefault(); onDropZone(z, id); }
     },
   };
-  return { zone, handlers };
+  return { zone, pointer, handlers };
 }
 
 function DropPreview({ zone }) {
@@ -55,54 +63,73 @@ function DropPreview({ zone }) {
 export function PaneGrid({ live }) {
   const ui = useUi();
   const gridRef = useRef(null);
+  // is-resizing disables the slot reflow transition for the duration of a divider
+  // drag so the resize stays 1:1 with the pointer (state, not a classList toggle,
+  // so a mid-drag re-render from setRatioFor can't clobber it).
+  const [resizing, setResizing] = useState(false);
   const pulseOn = ui.settings?.["notifications.paneAttention"] !== false;
   const rects = computeRects(ui.tree);
   const dividers = computeDividers(ui.tree);
+  const { leaving, setNode } = usePaneTransitions(rects);
   const canClose = rects.length > 1;
   const canSplit = rects.length < MAX_PANES;
   // Agents already shown in some pane — the empty-pane picker dims these and
   // focuses their existing pane instead of duplicating them.
   const shownAgentIds = new Set(rects.map((r) => r.agentId).filter(Boolean));
 
+  // One slot renderer for both live panes and the leaving ghosts. A ghost keeps
+  // the same key (leaf id) and element shape so React keeps the real Pane mounted
+  // across the close → the transcript fades out in place, it doesn't remount.
+  const renderSlot = ({ id, agentId, rect }, isLeaving = false) => {
+    const worker = agentId ? live.workers.find((w) => w.id === agentId) ?? null : null;
+    const focused = !isLeaving && id === ui.focusedLeafId;
+    return (
+      <div
+        key={id}
+        ref={isLeaving ? setNode(id) : undefined}
+        className={"pane-slot" + (isLeaving ? " is-leaving" : "")}
+        style={{ left: `${rect.left}%`, top: `${rect.top}%`, width: `${rect.width}%`, height: `${rect.height}%` }}
+      >
+        <Pane
+          agentId={agentId}
+          worker={worker}
+          live={live}
+          focused={focused}
+          excludeIds={shownAgentIds}
+          attention={pulseOn && !focused && !!worker && ui.needsAttentionRaw(worker)}
+          canClose={canClose}
+          canSplit={canSplit}
+          onFocus={() => ui.focusLeaf(id)}
+          onClose={() => ui.closeLeaf(id)}
+          onPick={(aid) => {
+            // Dedup: if the agent is already in another pane, focus that pane
+            // instead of duplicating it; otherwise fill this empty pane.
+            const existing = leafOfAgent(ui.tree, aid);
+            if (existing && existing.id !== id) ui.focusLeaf(existing.id);
+            else ui.dropReplace(id, aid);
+          }}
+          onDropZone={(zone, aid) => {
+            if (zone.kind === "split") ui.splitWithAgent(id, zone.dir, zone.side, aid);
+            else ui.dropReplace(id, aid);
+          }}
+        />
+      </div>
+    );
+  };
+
   return (
-    <div className="pane-grid" ref={gridRef}>
-      {rects.map(({ id, agentId, rect }) => {
-        const worker = agentId ? live.workers.find((w) => w.id === agentId) ?? null : null;
-        const focused = id === ui.focusedLeafId;
-        return (
-          <div
-            key={id}
-            className="pane-slot"
-            style={{ left: `${rect.left}%`, top: `${rect.top}%`, width: `${rect.width}%`, height: `${rect.height}%` }}
-          >
-            <Pane
-              agentId={agentId}
-              worker={worker}
-              live={live}
-              focused={focused}
-              excludeIds={shownAgentIds}
-              attention={pulseOn && !focused && !!worker && ui.needsAttentionRaw(worker)}
-              canClose={canClose}
-              canSplit={canSplit}
-              onFocus={() => ui.focusLeaf(id)}
-              onClose={() => ui.closeLeaf(id)}
-              onPick={(aid) => {
-                // Dedup: if the agent is already in another pane, focus that pane
-                // instead of duplicating it; otherwise fill this empty pane.
-                const existing = leafOfAgent(ui.tree, aid);
-                if (existing && existing.id !== id) ui.focusLeaf(existing.id);
-                else ui.dropReplace(id, aid);
-              }}
-              onDropZone={(zone, aid) => {
-                if (zone.kind === "split") ui.splitWithAgent(id, zone.dir, zone.side, aid);
-                else ui.dropReplace(id, aid);
-              }}
-            />
-          </div>
-        );
-      })}
+    <div className={"pane-grid" + (resizing ? " is-resizing" : "")} ref={gridRef}>
+      {rects.map((r) => renderSlot(r))}
+      {leaving.map((l) => renderSlot(l, true))}
       {dividers.map((d) => (
-        <Divider key={d.id} d={d} gridRef={gridRef} onRatio={(r) => ui.setRatioFor(d.id, r)} />
+        <Divider
+          key={d.id}
+          d={d}
+          gridRef={gridRef}
+          onRatio={(r) => ui.setRatioFor(d.id, r)}
+          onResizeStart={() => setResizing(true)}
+          onResizeEnd={() => setResizing(false)}
+        />
       ))}
     </div>
   );
@@ -113,13 +140,14 @@ export function PaneGrid({ live }) {
 export function SinglePane({ live }) {
   const ui = useUi();
   const leafId = ui.focusedLeafId;
-  const { zone, handlers } = useDropSplit(true, (z, aid) => {
+  const { zone, pointer, handlers } = useDropSplit(true, (z, aid) => {
     if (z.kind === "split") ui.splitWithAgent(leafId, z.dir, z.side, aid);
     else ui.dropReplace(leafId, aid);
   });
   return (
     <div className="single-pane" {...handlers}>
       {zone && <DropPreview zone={zone} />}
+      {zone && pointer && <DragAffordance pointer={pointer} zone={zone} />}
       <TranscriptHost live={live} activeId={ui.selectedId} />
     </div>
   );
@@ -128,8 +156,8 @@ export function SinglePane({ live }) {
 // Per-split resize handle. Pointer-capture drag (EffortPopover idiom): the ratio
 // is computed within the SPLIT's own rect, so dragging only resizes that split's
 // two children. Double-click resets to 0.5.
-function Divider({ d, gridRef, onRatio }) {
-  const start = (e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); };
+function Divider({ d, gridRef, onRatio, onResizeStart, onResizeEnd }) {
+  const start = (e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); onResizeStart(); };
   const move = (e) => {
     if (!(e.buttons & 1)) return;
     const g = gridRef.current?.getBoundingClientRect();
@@ -148,6 +176,7 @@ function Divider({ d, gridRef, onRatio }) {
       style={style}
       onPointerDown={start}
       onPointerMove={move}
+      onLostPointerCapture={onResizeEnd}
       onDoubleClick={() => onRatio(0.5)}
     />
   );
@@ -158,7 +187,7 @@ function Pane({ agentId, worker, live, focused, excludeIds, attention, canClose,
   // (per-agent store) or a pending permission (live.pendingPermissions). The
   // focused pane needs none — its banner is in the shared composer.
   const questionNeeded = useInputNeeded(agentId);
-  const { zone, handlers } = useDropSplit(canSplit, onDropZone);
+  const { zone, pointer, handlers } = useDropSplit(canSplit, onDropZone);
   const permNeeded = !!worker && (live.pendingPermissions ?? []).some((p) => p.worker_id === agentId);
   const needsInput = !focused && !!worker && (questionNeeded || permNeeded);
   const status = worker ? statusFromState(worker.state) : null;
@@ -176,6 +205,7 @@ function Pane({ agentId, worker, live, focused, excludeIds, attention, canClose,
       {...handlers}
     >
       {zone && <DropPreview zone={zone} />}
+      {zone && pointer && <DragAffordance pointer={pointer} zone={zone} />}
       <div className="pane-head">
         {status && <span className={`ag-dot ${status.dot}`} />}
         <span className="pane-name" title={worker ? nameOf(worker) : undefined}>

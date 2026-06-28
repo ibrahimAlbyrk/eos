@@ -934,10 +934,26 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   display: flex;
   flex-direction: column;
 }
-.pane-slot { position: absolute; }
+/* Eased reflow: survivors translate/shrink from old %-rect → new on any split or
+   close. Geometry (not transform) so the live content reflows without distortion;
+   bounded by .pane's `contain` so a reflow stays inside each pane's subtree. */
+.pane-slot {
+  position: absolute;
+  transition:
+    left 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    top 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    width 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    height 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+/* During a divider drag the slot transition is off so resize is 1:1 with the
+   pointer (the eased geometry would otherwise lag the ratio writes). */
+.pane-grid.is-resizing .pane-slot { transition: none; }
 .pane {
   position: absolute;
   inset: 3px; /* gap to neighbours (6px between) + a thin frame to the center */
+  /* Independent layout/paint root so a resizing pane's reflow doesn't re-flow its
+     siblings or the document (pane count is capped, transcript scrolls internally). */
+  contain: layout paint;
   display: flex;
   flex-direction: column;
   min-width: 0;
@@ -952,22 +968,28 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
   overflow: clip;
   transition: border-color 150ms ease, box-shadow 150ms ease;
+  animation: pane-enter 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 .pane.is-focused {
   border-color: var(--border-strong);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--accent-soft);
 }
 
-/* Drag-to-split preview: a translucent overlay showing where the dropped agent
+/* Drag-to-split preview: a frosted-glass overlay showing where the dropped agent
    will land — a half for an edge split, the whole pane for a center replace.
+   The backdrop-filter is what blurs the pane's transcript behind it (the accent
+   tint layers OVER the blur so it reads as tinted glass, not a dim).
    pointer-events:none so dragover keeps hitting the pane underneath. */
 .pane-drop-preview {
   position: absolute;
   z-index: 3;
   pointer-events: none;
   background: var(--accent-soft);
+  backdrop-filter: blur(var(--blur-lg)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(140%);
   border: 1.5px solid var(--accent);
-  border-radius: 6px;
+  border-radius: var(--panel-radius);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .pane-drop-preview--replace { inset: 0; }
 .pane-drop-preview--left   { left: 0; top: 0; bottom: 0; width: 50%; }
@@ -995,6 +1017,57 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .pane-divider--v::after { left: 50%; top: 8px; bottom: 8px; width: 2px; transform: translateX(-50%); }
 .pane-divider--h::after { top: 50%; left: 8px; right: 8px; height: 2px; transform: translateY(-50%); }
 .pane-divider:hover::after, .pane-divider:active::after { background: var(--accent); }
+
+/* New-pane entrance: a freshly-mounted leaf scales/fades into its rect. Keep-alive
+   keys panes by leaf id, so survivors never remount — only a genuinely new pane
+   runs this. transform+opacity only → stays on the compositor. */
+@keyframes pane-enter {
+  from { opacity: 0; transform: scale(0.97); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* A pane mid-exit (deferred unmount, hooks/usePaneTransitions) sits over its last
+   rect, fading out via WAAPI; pointer-events off so survivors reflow under it. */
+.pane-slot.is-leaving { pointer-events: none; }
+
+/* Cursor-tracking drag affordance (DragAffordance, portaled to <body> so it
+   escapes the panes' overflow:clip). Two pieces: a neutral glass label trailing
+   the pointer, and an accent pill snapped to the target region's centroid.
+   Both translate on the compositor; left/top:0 are the translate origin. */
+.drag-affordance-label,
+.drag-affordance-pill {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+.drag-affordance-label {
+  color: var(--fg);
+  background: color-mix(in srgb, var(--surface) 80%, transparent);
+  backdrop-filter: blur(var(--blur-sm));
+  -webkit-backdrop-filter: blur(var(--blur-sm));
+  border-radius: 6px;
+  padding: 4px 9px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+.drag-affordance-pill {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-weight: 600;
+  /* the transition to a new centroid when the zone changes IS the "snap". */
+  transition: transform 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane-slot { transition: none; }
+  .pane { animation: none; }
+  .drag-affordance-pill { transition: none; }
+}
 
 /* Saved-layout presets — header trigger + popover (reuses .glass-pop surface). */
 .pane-presets-wrap { position: relative; display: inline-flex; --app-region: no-drag; }
