@@ -4,7 +4,7 @@
 // rail when no node is selected. Like the node inspector, every enum (expert
 // model/effort, expert `from`) is a SELECTOR; only id/prompt are free text.
 import { Field, Select, Segmented, TextInput, TextArea } from "./inspectorControls.jsx";
-import { JsonField } from "./JsonField.jsx";
+import { SchemaHybridField } from "./SchemaRowsBuilder.jsx";
 import { effortChoicesFor } from "../../../lib/models.js";
 import { EFFORT_LEVELS } from "./nodeConfigSchemas.js";
 
@@ -69,9 +69,8 @@ export function GraphMetaPanel({ graph, onSetMeta, workerDefs, modelOptions }) {
       </div>
 
       <div className="wfe-insp__section">
-        <JsonField
+        <SchemaHybridField
           label="Args schema"
-          mode="schema"
           help="JSON-Schema for the run args (the input node's shape)"
           value={graph.argsSchema}
           onChange={(v) => onSetMeta({ argsSchema: v })}
