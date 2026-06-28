@@ -2,7 +2,7 @@
 // quick-add) and by releasing a port-drag over empty canvas (the spawn menu,
 // pre-filtered to compatible kinds). Keyboard-complete: type to filter, ↑/↓ to
 // move, Enter to pick, Escape to close. The list of kinds + the pick action are
-// supplied by FlowCanvas; this component is just the presentation + key handling.
+// supplied by the renderer; this component is just the presentation + key handling.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { filterKinds } from "./quickAdd.js";
 

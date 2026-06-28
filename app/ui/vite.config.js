@@ -17,9 +17,6 @@ export default defineConfig({
             { name: "react", test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
             { name: "highlight", test: /node_modules[\\/]highlight\.js[\\/]/ },
             { name: "markdown", test: /node_modules[\\/](marked|dompurify|diff)[\\/]/ },
-            // React Flow (the workflow editor canvas) — isolated lazy chunk so it
-            // never bloats the main/react bundle; only fetched when FlowCanvas mounts.
-            { name: "graph", test: /node_modules[\\/]@xyflow[\\/]/ },
             // CodeMirror (the Code view's editor + the workflow inspector's JSON
             // fields) — one shared lazy chunk, kept out of the main bundle.
             { name: "codemirror", test: /node_modules[\\/](@codemirror|@lezer|crelt|style-mod|w3c-keyname)[\\/]/ },

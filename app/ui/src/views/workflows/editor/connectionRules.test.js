@@ -1,16 +1,14 @@
 import { describe, it, expect } from "vitest";
 import {
-  toRfNode, toRfNodes, toRfEdge, toRfEdges,
-  fromRfConnection, connectionIsValid, handleReceptivity,
-  edgeSourceType, edgeFlowActive,
-} from "./rfAdapter.js";
+  connectionIsValid, handleReceptivity, edgeSourceType, edgeFlowActive,
+} from "./connectionRules.js";
 import { createInitialGraph, addNode, addEdge, canConnect } from "./graphModel.js";
 
 const workerEntry = { kind: "worker", label: "Worker", category: "compute", inputs: [{ name: "in", type: "any" }], outputs: [{ name: "out", type: "any" }] };
 const tallyEntry = { kind: "tally", label: "Tally", category: "transform", inputs: [{ name: "in", type: "array" }], outputs: [{ name: "out", type: "number" }] };
 const mapEntry = { kind: "map", label: "Map", category: "transform", inputs: [{ name: "in", type: "array" }], outputs: [{ name: "out", type: "array" }] };
 
-// A graph with input → worker, so there is a connectable surface to map + probe.
+// A graph with input → worker, so there is a connectable surface to probe.
 function withWorker() {
   let g = createInitialGraph({ name: "demo" });
   const w = addNode(g, workerEntry);
@@ -18,59 +16,7 @@ function withWorker() {
   return { g, workerId: w.node.id };
 }
 
-describe("rfAdapter — graphModel → React Flow node mapping", () => {
-  it("maps each graphModel node to an RF node with id, type, position from ui.{x,y}, and port data", () => {
-    const { g, workerId } = withWorker();
-    const nodes = toRfNodes(g);
-    expect(nodes.map((n) => n.id).sort()).toEqual(["input", "output", workerId].sort());
-
-    const worker = nodes.find((n) => n.id === workerId);
-    const source = g.nodes.find((n) => n.id === workerId);
-    expect(worker.type).toBe("wfNode");
-    expect(worker.position).toEqual({ x: source.ui.x, y: source.ui.y });
-    expect(worker.data.kind).toBe("worker");
-    expect(worker.data.inputs).toEqual([{ name: "in", type: "any" }]);
-    expect(worker.data.outputs).toEqual([{ name: "out", type: "any" }]);
-  });
-
-  it("marks seeded input/output nodes non-deletable and other nodes deletable", () => {
-    const { g, workerId } = withWorker();
-    const byId = Object.fromEntries(toRfNodes(g).map((n) => [n.id, n]));
-    expect(byId.input.deletable).toBe(false);
-    expect(byId.output.deletable).toBe(false);
-    expect(byId[workerId].deletable).toBe(true);
-  });
-
-  it("threads live run nodeStates into data.status (selection is RF-owned, not set here)", () => {
-    const { g, workerId } = withWorker();
-    const n = toRfNode(g.nodes.find((x) => x.id === workerId), { nodeStates: { [workerId]: "running" } });
-    expect(n.data.status).toBe("running");
-    expect(n.selected).toBeUndefined(); // selection lives in RF, not the adapter
-    const input = toRfNode(g.nodes.find((x) => x.id === "input"), { nodeStates: { [workerId]: "running" } });
-    expect(input.data.status).toBe(null);
-  });
-});
-
-describe("rfAdapter — edge mapping round-trips graphModel ⇄ React Flow", () => {
-  it("maps a graphModel edge to an RF edge with port names as handle ids", () => {
-    let { g, workerId } = withWorker();
-    g = addEdge(g, { node: "input", port: "out" }, { node: workerId, port: "in" }).state;
-    const [e] = toRfEdges(g);
-    expect(toRfEdge(g.edges[0], { graph: g })).toEqual(e);
-    expect(e).toMatchObject({ source: "input", sourceHandle: "out", target: workerId, targetHandle: "in", type: "wfEdge" });
-  });
-
-  it("fromRfConnection turns an RF connection back into graphModel endpoints", () => {
-    const { workerId } = withWorker();
-    const conn = { source: "input", sourceHandle: "out", target: workerId, targetHandle: "in" };
-    expect(fromRfConnection(conn)).toEqual({
-      from: { node: "input", port: "out" },
-      to: { node: workerId, port: "in" },
-    });
-  });
-});
-
-describe("rfAdapter — edge visual hints (typed color + run-flow)", () => {
+describe("connectionRules — edge visual hints (typed color + run-flow)", () => {
   it("edgeSourceType reads the source output port's declared type", () => {
     let g = createInitialGraph();
     const t = addNode(g, tallyEntry); g = t.state; // out: number
@@ -78,11 +24,9 @@ describe("rfAdapter — edge visual hints (typed color + run-flow)", () => {
     expect(edgeSourceType(g, g.edges[0])).toBe("number");
   });
 
-  it("toRfEdge carries the source type onto data.type (drives the wire hue)", () => {
-    let g = createInitialGraph();
-    const t = addNode(g, tallyEntry); g = t.state;
-    g = addEdge(g, { node: t.node.id, port: "out" }, { node: "output", port: "in" }).state;
-    expect(toRfEdge(g.edges[0], { graph: g }).data.type).toBe("number");
+  it("edgeSourceType degrades to 'any' without graph context", () => {
+    const edge = { id: "e1", from: { node: "a", port: "out" }, to: { node: "b", port: "in" } };
+    expect(edgeSourceType(null, edge)).toBe("any");
   });
 
   it("edgeFlowActive animates only an edge whose target is running and source produced", () => {
@@ -92,23 +36,9 @@ describe("rfAdapter — edge visual hints (typed color + run-flow)", () => {
     expect(edgeFlowActive("running", "pending")).toBe(false);
     expect(edgeFlowActive(undefined, undefined)).toBe(false);
   });
-
-  it("toRfEdges threads live nodeStates into data.flow per edge", () => {
-    let { g, workerId } = withWorker();
-    g = addEdge(g, { node: "input", port: "out" }, { node: workerId, port: "in" }).state;
-    const live = toRfEdges(g, { nodeStates: { input: "passed", [workerId]: "running" } });
-    expect(live[0].data.flow).toBe(true);
-    const idle = toRfEdges(g, { nodeStates: {} });
-    expect(idle[0].data.flow).toBe(false);
-  });
-
-  it("degrades to an untyped, non-flowing wire when no graph context is given", () => {
-    const edge = { id: "e1", from: { node: "a", port: "out" }, to: { node: "b", port: "in" } };
-    expect(toRfEdge(edge)).toMatchObject({ data: { type: "any", flow: false } });
-  });
 });
 
-describe("rfAdapter — connectionIsValid delegates to canConnect", () => {
+describe("connectionRules — connectionIsValid delegates to canConnect", () => {
   it("accepts a type-compatible connection and matches canConnect's verdict", () => {
     const { g, workerId } = withWorker();
     const conn = { source: "input", sourceHandle: "out", target: workerId, targetHandle: "in" };
@@ -135,7 +65,7 @@ describe("rfAdapter — connectionIsValid delegates to canConnect", () => {
   });
 });
 
-describe("rfAdapter — handleReceptivity drives the live receptive/reject glow", () => {
+describe("connectionRules — handleReceptivity drives the live receptive/reject glow", () => {
   it("lights compatible inputs receptive while dragging from an output", () => {
     const { g, workerId } = withWorker();
     const source = { nodeId: "input", handleId: "out", handleType: "source" };

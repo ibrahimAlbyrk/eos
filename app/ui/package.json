@@ -33,7 +33,6 @@
     "@fontsource-variable/jetbrains-mono": "^5.2.8",
     "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
     "@lezer/highlight": "^1.2.3",
-    "@xyflow/react": "12.11.1",
     "diff": "^9.0.0",
     "dompurify": "^3.4.5",
     "highlight.js": "^11.11.1",

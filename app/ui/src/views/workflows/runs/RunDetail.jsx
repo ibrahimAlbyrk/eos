@@ -3,7 +3,7 @@
 // one run-write op in the UI). Body: a v2-graph run renders the read-only canvas
 // with live node coloring plus the per-node step side-list; an inline / v1-tree run
 // (no graph to draw) falls back to the step list alone. Live node coloring + run
-// status come from useRunDetail (SSE-folded); the canvas is lazy so the @xyflow
+// status come from useRunDetail (SSE-folded); the canvas is lazy so the renderer
 // chunk stays out of the main bundle.
 import { lazy, Suspense, useEffect, useState } from "react";
 import { api } from "../../../api/client.js";

@@ -1,7 +1,7 @@
 // Left rail — the node palette, sourced from the live capability catalog. Each
 // entry can be DRAGGED onto the canvas (HTML5 drag → dropped at the cursor's flow
 // coordinate) or CLICKED to add at the viewport center. The dragged kind rides the
-// dataTransfer as a plain string; FlowCanvas's onDrop resolves it via the catalog.
+// dataTransfer as a plain string; the renderer's onDrop resolves it via the catalog.
 import { paletteGroups } from "./catalog.js";
 
 export const PALETTE_DND_MIME = "application/x-eos-wf-node";
