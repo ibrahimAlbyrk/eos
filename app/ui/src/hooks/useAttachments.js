@@ -53,10 +53,13 @@ export function useAttachments({ onUploadFailed } = {}) {
     return taken ? { from: label, to: finalLabel } : null;
   }, [nextLabel]);
 
-  const addUpload = useCallback((kind, file) => {
-    const label = nextLabel(file.name || kind, kind);
+  // `src` is a File or a paste-event snapshot {name, bytes} — the bytes were
+  // captured synchronously inside the paste event, so the upload threads them
+  // through to the api without re-reading a (possibly emptied) File.
+  const addUpload = useCallback((kind, src) => {
+    const label = nextLabel(src.name || kind, kind);
     setItems((prev) => [...prev, { label, kind, path: null, status: "uploading" }]);
-    const job = api.uploadPaste(file)
+    const job = api.uploadPaste(src)
       .then((res) => {
         if (!res.ok || !res.body?.path) throw new Error(`upload failed (${res.status})`);
         pathsRef.current.set(label, res.body.path);

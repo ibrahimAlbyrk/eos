@@ -18,6 +18,22 @@ function ensureDropDispatch() {
   onDragState((active) => dropStack[dropStack.length - 1]?.setDragActive(active));
 }
 
+// Capture each content-bearing file's bytes SYNCHRONOUSLY (file.arrayBuffer()
+// is started now, awaited later at upload) so the read happens inside the paste
+// event: in WKWebView a clipboard-backed File is only reliably readable during
+// the event — once the user changes the clipboard a deferred read yields empty
+// bytes, emptying an already-tokenized image. A Finder folder is a typeless
+// empty File (no blob) → dropped here; it takes the addPath branch instead.
+function snapshotFiles(files) {
+  return files
+    .filter((f) => f.type || f.size)
+    .map((file) => ({
+      name: file.name,
+      kind: file.type.startsWith("image/") ? "image" : attachmentKind(file.name),
+      bytes: file.arrayBuffer(),
+    }));
+}
+
 // Shared attachment intake for any contentEditable composing surface: turns
 // pasted / dropped / picked files into inline [label] tokens + chips backed by
 // uploaded paths. The attachment LIST is the source of truth (it alone feeds the
@@ -71,15 +87,11 @@ export function useAttachmentIntake({ attachments, editor }) {
     for (const label of removed) removeItem(label);
   }, [text, items, removeItem]);
 
-  const uploadFiles = (files, pos) => {
-    // A Finder folder surfaces as a typeless empty File — uploading it fails
-    // and flashes the chip, so drop those entries silently.
-    const real = files.filter((f) => f.type || f.size);
-    if (!real.length) return;
-    const labels = real.map((file) => {
-      const kind = file.type.startsWith("image/") ? "image" : attachmentKind(file.name);
-      return addUpload(kind, file);
-    });
+  // Uploads pre-read snapshots (bytes already captured inside the paste event
+  // by snapshotFiles); folders were filtered out at capture time.
+  const uploadFiles = (snapshots, pos) => {
+    if (!snapshots.length) return;
+    const labels = snapshots.map((s) => addUpload(s.kind, s));
     insertLabels(labels, pos);
   };
 
@@ -111,20 +123,25 @@ export function useAttachmentIntake({ attachments, editor }) {
       e.preventDefault();
       const el = editorRef.current;
       const pos = el ? getCursorOffset(el) : text.length;
+      // Read the bytes NOW, before any await — see snapshotFiles. The bridge
+      // path then resolves paths concurrently and only uses these if there are
+      // none (a screenshot/raw image); Finder URLs take the addPath branch and
+      // the snapshots are dropped, so there's no duplicate upload.
+      const snapshots = snapshotFiles(files);
       if (hasPasteboardBridge()) {
         // Finder copy → reference the on-disk paths (folders included); raw
-        // clipboard data (screenshots) has no path → fall back to upload.
+        // clipboard data (screenshots) has no path → upload the captured bytes.
         readPasteboardPaths().then((entries) => {
           if (entries?.length) {
             const labels = entries.map((en) => addPath(attachmentKind(en.path, en.isDir), en.path));
             insertLabels(labels, pos);
           } else {
-            uploadFiles(files, pos);
+            uploadFiles(snapshots, pos);
           }
         });
         return true;
       }
-      uploadFiles(files, pos);
+      uploadFiles(snapshots, pos);
       return true;
     }
     return false;

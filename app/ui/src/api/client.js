@@ -235,13 +235,17 @@ export const api = {
     const file = encodeURIComponent(`${ROUTES.fsRaw}${encodeRawPath(path)}`);
     return `${RAW_ORIGIN}${ROUTES.pdfjs}/web/viewer.html?file=${file}`;
   },
-  async uploadPaste(file) {
-    const buf = await file.arrayBuffer();
+  // `src` is a File/Blob, or a snapshot {name, bytes} whose bytes were read
+  // synchronously inside the paste event — a WKWebView clipboard-backed File
+  // goes empty once the clipboard changes, so the byte read can't be deferred
+  // to here. `bytes` may be an ArrayBuffer or a Promise<ArrayBuffer>.
+  async uploadPaste(src) {
+    const buf = src.bytes !== undefined ? await src.bytes : await src.arrayBuffer();
     const r = await fetch(`${DAEMON}${ROUTES.fsPaste}`, {
       method: "POST",
       headers: {
         "content-type": "application/octet-stream",
-        "x-filename": file.name || "paste.png",
+        "x-filename": src.name || "paste.png",
       },
       body: buf,
     });
