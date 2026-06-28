@@ -2,8 +2,14 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { BuiltinWorkflowDefinitionSource, BUILTIN_WORKFLOW_DEFINITIONS } from "../index.ts";
-import { WorkflowDefinitionSchema, type WorkflowDefinitionRecord } from "../../../contracts/src/workflow.ts";
-import type { StepNode, SequenceNode, PhaseNode, ParallelNode, ForEachNode } from "../../../contracts/src/workflow-node.ts";
+import {
+  WorkflowGraphSchema, type AnyWorkflowDefinitionRecord,
+} from "../../../contracts/src/workflow-graph.ts";
+import type { GraphNode } from "../../../contracts/src/workflow-graph.ts";
+
+const workerIdsWithPrefix = (nodes: GraphNode[], prefix: string) =>
+  nodes.filter((n) => n.kind === "worker" && n.id.startsWith(prefix)).map((n) => n.id).sort();
+const promptOf = (node: GraphNode | undefined) => (node?.config as { prompt?: string } | undefined)?.prompt ?? "";
 
 describe("BuiltinWorkflowDefinitionSource", () => {
   const source = new BuiltinWorkflowDefinitionSource();
@@ -15,48 +21,45 @@ describe("BuiltinWorkflowDefinitionSource", () => {
     assert.ok(records.every((r) => r.source === "builtin"), "every builtin record is tagged source:builtin");
   });
 
-  it("each builtin parses as a valid WorkflowDefinition", () => {
+  it("each builtin is a valid, laid-out v2 graph", () => {
     for (const def of BUILTIN_WORKFLOW_DEFINITIONS) {
-      const res = WorkflowDefinitionSchema.safeParse(def);
-      assert.ok(res.success, `${def.name} must parse: ${res.success ? "" : JSON.stringify(res.error.issues)}`);
+      const res = WorkflowGraphSchema.safeParse(def);
+      assert.ok(res.success, `${def.name} must parse as a v2 graph: ${res.success ? "" : JSON.stringify(res.error.issues)}`);
+      const g = res.success ? res.data : null;
+      assert.equal(g?.version, 2);
+      assert.ok(g?.nodes.every((n) => typeof n.ui?.x === "number" && typeof n.ui?.y === "number"),
+        `${def.name}: every node must carry a ui layout coordinate`);
     }
   });
 
   it("research-analysis-planning encodes the 3 → 5 → 2 barrier topology (§5.2)", () => {
-    const def = BUILTIN_WORKFLOW_DEFINITIONS.find((d) => d.name === "research-analysis-planning")!;
-    assert.deepEqual(def.experts, []);
-    const root = def.root as SequenceNode;
-    assert.equal(root.type, "sequence");
-    const [research, analysis, planning] = root.children as PhaseNode[];
-    assert.deepEqual([research.label, analysis.label, planning.label], ["research", "analysis", "planning"]);
-    const fanOut = (p: PhaseNode) => (p.body as ParallelNode).children as StepNode[];
-    assert.equal(fanOut(research).length, 3);
-    assert.equal(fanOut(analysis).length, 5);
-    assert.equal(fanOut(planning).length, 2);
+    const g = WorkflowGraphSchema.parse(BUILTIN_WORKFLOW_DEFINITIONS.find((d) => d.name === "research-analysis-planning")!);
+    assert.deepEqual(g.experts, []);
+    assert.deepEqual(workerIdsWithPrefix(g.nodes, "research-"), ["research-0", "research-1", "research-2"]);
+    assert.equal(workerIdsWithPrefix(g.nodes, "analysis-").length, 5);
+    assert.equal(workerIdsWithPrefix(g.nodes, "plan-").length, 2);
     // The analysis pass synthesizes the FULL research corpus via the fan-out glob.
-    assert.match(fanOut(analysis)[0].prompt, /\{\{nodes\.research-\*\.output\}\}/);
-    assert.deepEqual(fanOut(research).map((s) => s.id), ["research-0", "research-1", "research-2"]);
+    assert.match(promptOf(g.nodes.find((n) => n.id === "analysis-0")), /\{\{nodes\.research-\*\.output\}\}/);
   });
 
   it("build-with-experts wires a standing expert pool + per-module forEach (§4.5)", () => {
-    const def = BUILTIN_WORKFLOW_DEFINITIONS.find((d) => d.name === "build-with-experts")!;
-    assert.deepEqual(def.experts?.map((e) => e.id).sort(), ["patterns-expert", "solid-expert"]);
-    const root = def.root as SequenceNode;
-    const [plan, implement, review] = root.children as [StepNode, PhaseNode, StepNode];
-    assert.equal(plan.id, "plan");
+    const g = WorkflowGraphSchema.parse(BUILTIN_WORKFLOW_DEFINITIONS.find((d) => d.name === "build-with-experts")!);
+    assert.deepEqual(g.experts?.map((e) => e.id).sort(), ["patterns-expert", "solid-expert"]);
+    assert.equal(g.nodes.find((n) => n.id === "plan")?.kind, "worker");
     // The fan-out iterates the typed module list from plan's output.
-    const forEach = (implement as PhaseNode).body as ForEachNode;
-    assert.equal(forEach.type, "forEach");
-    assert.equal(forEach.over, "{{nodes.plan.output.modules}}");
-    assert.equal((forEach.body as StepNode).id, "impl-item");
+    const impl = g.nodes.find((n) => n.id === "impl");
+    assert.equal(impl?.kind, "loop");
+    const cfg = impl?.config as { loopKind?: string; over?: string };
+    assert.equal(cfg.loopKind, "forEach");
+    assert.equal(cfg.over, "{{nodes.plan.output.modules}}");
     // The barrier review reads the aggregated forEach output.
-    assert.match(review.prompt, /\{\{nodes\.impl\.output\}\}/);
+    assert.match(promptOf(g.nodes.find((n) => n.id === "review")), /\{\{nodes\.impl\.output\}\}/);
   });
 
   it("is resolvable by name and shadowable (overlay precedence — builtin listed first)", () => {
     // Replicates the container resolver's nearest-wins overlay (last match by name).
-    const resolve = (name: string, records: WorkflowDefinitionRecord[]) => {
-      let found: WorkflowDefinitionRecord | null = null;
+    const resolve = (name: string, records: AnyWorkflowDefinitionRecord[]) => {
+      let found: AnyWorkflowDefinitionRecord | null = null;
       for (const r of records) if (r.name === name) found = r;
       return found;
     };
@@ -66,7 +69,7 @@ describe("BuiltinWorkflowDefinitionSource", () => {
     assert.equal(resolve("nope", builtins), null);
 
     // A user/runtime definition of the same name shadows the builtin (it is listed AFTER).
-    const userOverride: WorkflowDefinitionRecord = {
+    const userOverride: AnyWorkflowDefinitionRecord = {
       name: "build-with-experts", source: "user",
       root: { type: "step", id: "x", prompt: "p" },
     };
