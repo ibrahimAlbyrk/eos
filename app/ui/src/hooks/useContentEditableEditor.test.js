@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { scrollDelta, linearize } from "./useContentEditableEditor.js";
+import { scrollDelta, linearize, toHtml } from "./useContentEditableEditor.js";
 
 // Plain-object stubs mimic just the DOM surface linearize touches (nodeType,
 // data, tagName, childNodes) — no jsdom needed, same approach as scrollAnchor.
@@ -95,5 +95,28 @@ describe("linearize — caret offset agrees with the text", () => {
       { node: c, offset: 1 },
     ]);
     expect(offsets).toEqual([0, 5]);
+  });
+});
+
+describe("toHtml — trailing newline projection", () => {
+  // WebKit collapses a final literal "\n", so exiting a list (e.g. Shift+Enter
+  // on an empty bullet → "- a\n") left the empty line invisible and the caret
+  // on the previous line. The trailing "\n" must project as a <br>.
+  it("projects a trailing newline as a <br>", () => {
+    expect(toHtml("- a\n", [])).toBe("- a<br>");
+  });
+
+  it("only the final newline becomes a <br> — interior breaks stay literal", () => {
+    expect(toHtml("a\n\n", [])).toBe("a\n<br>");
+    expect(toHtml("a\nb", [])).toBe("a\nb");
+  });
+
+  it("leaves text without a trailing newline untouched", () => {
+    expect(toHtml("plain", [])).toBe("plain");
+  });
+
+  it("the projected <br> reads back as the original \\n (round-trip)", () => {
+    // linearize maps <br> → "\n", so "- a" + <br> recovers the "- a\n" model.
+    expect(linearize(editor(txt("- a"), br())).text).toBe("- a\n");
   });
 });

@@ -112,8 +112,16 @@ export function setSelectionOffsets(el, start, end) {
     for (const child of node.childNodes) walk(child);
   }
   walk(el);
-  if (!startSet) return;
-  if (!endSet) range.collapse(true);
+  if (!startSet) {
+    if (pos === 0) return; // empty editor — leave the selection untouched
+    // The model's trailing "\n" is projected as a filler <br> (WebKit won't
+    // render a final literal newline), so an end-of-text offset lands past the
+    // last text node — collapse the caret onto that empty final line.
+    range.selectNodeContents(el);
+    range.collapse(false);
+  } else if (!endSet) {
+    range.collapse(true);
+  }
   const sel = window.getSelection();
   sel.removeAllRanges();
   sel.addRange(range);
@@ -222,6 +230,17 @@ function colorize(text, scanners) {
   return html;
 }
 
+// Model text → editor innerHTML: colorize (or escape when nothing matches),
+// then make a trailing newline visible. WebKit won't render a final literal
+// "\n" in white-space:pre-wrap — the empty last line collapses and the caret
+// jumps up to the previous line — so the trailing "\n" is projected as a <br>.
+// linearize already reads <br> back as "\n", so the model round-trip is intact.
+export function toHtml(text, scanners) {
+  let html = colorize(text, scanners) ?? esc(text);
+  if (text.endsWith("\n")) html = html.replace(/\n$/, "<br>");
+  return html;
+}
+
 // Native ⌘Z/⌘⇧Z are forwarded through window globals. More than one editor can
 // be mounted (composer + an open template editor); this stack routes the globals
 // to the topmost (most recently mounted) so closing the modal restores the
@@ -260,8 +279,7 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
   const applyColoring = useCallback(() => {
     const el = editorRef.current;
     if (!el) return;
-    const html = colorize(text, buildScanners());
-    const target = html ?? esc(text);
+    const target = toHtml(text, buildScanners());
     if (target !== lastHtmlRef.current) {
       const off = getCursorOffset(el);
       const focused = document.activeElement === el;
@@ -303,8 +321,7 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
     setCursorPos(newCursor ?? newText.length);
     const el = editorRef.current;
     if (!el) return;
-    const html = colorize(newText, buildScanners());
-    lastHtmlRef.current = html ?? esc(newText);
+    lastHtmlRef.current = toHtml(newText, buildScanners());
     el.innerHTML = lastHtmlRef.current;
     setCursorOffset(el, newCursor ?? newText.length);
     queueMicrotask(() => { suppressInputRef.current = false; });
