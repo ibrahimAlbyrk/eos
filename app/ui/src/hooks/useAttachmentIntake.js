@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { attachmentKind } from "../lib/attachmentKind.js";
-import { parseAttachmentMessage, findLabelAt } from "../lib/attachmentTokens.js";
-import { getCursorOffset } from "./useContentEditableEditor.js";
+import { parseAttachmentMessage, findLabelAt, spliceLabels, labelsDeleted } from "../lib/attachmentTokens.js";
+import { getCursorOffset, readEditor } from "./useContentEditableEditor.js";
 import { hasPasteboardBridge, readPasteboardPaths, onNativeDrop, onDragState } from "../lib/nativeBridge.js";
 
 // Native Finder drops arrive on a single global bus (nativeBridge). More than one
@@ -20,9 +20,11 @@ function ensureDropDispatch() {
 
 // Shared attachment intake for any contentEditable composing surface: turns
 // pasted / dropped / picked files into inline [label] tokens + chips backed by
-// uploaded paths. The inline token is the source of truth — deleting its text
-// drops the chip; the chip ✕ strips the token. Used by both the message composer
-// and the template editor so the two behave identically.
+// uploaded paths. The attachment LIST is the source of truth (it alone feeds the
+// send payload); the inline [label] token is its display projection. A chip is
+// dropped only by an explicit action — the chip ✕, the token-aware Backspace, or
+// a genuine deletion of its token text (select-all+delete, cut). Used by both the
+// message composer and the template editor so the two behave identically.
 //
 // `attachments` is a useAttachments() instance (owned by the caller, which also
 // feeds its items into useContentEditableEditor); `editor` exposes the editor
@@ -40,9 +42,16 @@ export function useAttachmentIntake({ attachments, editor }) {
     setTextAndSync(text.slice(0, idx) + text.slice(end), idx);
   };
 
+  // Insert at the LIVE editor text (read now, not the closed-over render value)
+  // so a deferred/native or rapid paste can't compute from a stale snapshot and
+  // overwrite a sibling label; clamp the offset off any existing token interior
+  // so a new label can never split one. Existing item labels gate both.
   const insertLabels = (labels, pos) => {
-    const chunk = labels.map((l) => l + " ").join("");
-    setTextAndSync(text.slice(0, pos) + chunk + text.slice(pos), pos + chunk.length);
+    const el = editorRef.current;
+    const live = el ? readEditor(el).text : text;
+    const existing = items.map((it) => it.label);
+    const { text: next, caret } = spliceLabels(live, pos, labels, existing);
+    setTextAndSync(next, caret);
   };
 
   const removeAttachmentToken = (label) => {
@@ -50,12 +59,16 @@ export function useAttachmentIntake({ attachments, editor }) {
     stripLabel(label);
   };
 
-  // Token is the source of truth: if its text is gone (select-all delete,
-  // double-esc, manual edit), drop the chip too.
+  // The chip list is the source of truth; the token is its projection. Inserts
+  // never remove a sibling label (insertLabels splices the live text), so the
+  // only thing that drops a chip here is a genuine deletion of its token — a
+  // present→absent transition (select-all+delete, cut, a selection spanning it,
+  // or the token-aware Backspace). prevText holds the last-seen text to detect it.
+  const prevTextRef = useRef(text);
   useEffect(() => {
-    for (const it of items) {
-      if (!text.includes(it.label)) removeItem(it.label);
-    }
+    const removed = labelsDeleted(prevTextRef.current, text, items.map((it) => it.label));
+    prevTextRef.current = text;
+    for (const label of removed) removeItem(label);
   }, [text, items, removeItem]);
 
   const uploadFiles = (files, pos) => {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { makeLabel, labelTitle, findLabelRegions, findLabelAt, buildAttachmentSuffix, parseAttachmentMessage, reconcileAttachmentItems } from "./attachmentTokens.js";
+import { makeLabel, labelTitle, findLabelRegions, findLabelAt, clampToTokenBoundary, spliceLabels, labelsDeleted, buildAttachmentSuffix, parseAttachmentMessage, reconcileAttachmentItems } from "./attachmentTokens.js";
 
 describe("makeLabel", () => {
   it("brackets the name, truncating past 24 chars with an ellipsis", () => {
@@ -58,6 +58,78 @@ describe("findLabelAt", () => {
     expect(findLabelAt(text, 11, ["[img.png]"])).toEqual({ start: 2, end: 11 });
     expect(findLabelAt(text, 2, ["[img.png]"])).toBeNull();
     expect(findLabelAt(text, 12, ["[img.png]"])).toBeNull();
+  });
+});
+
+describe("clampToTokenBoundary", () => {
+  const text = "x [img.png] y";
+  it("snaps an offset inside a token out to its end", () => {
+    expect(clampToTokenBoundary(text, 5, ["[img.png]"])).toBe(11); // inside [img.png]
+  });
+  it("leaves boundary and outside offsets unchanged", () => {
+    expect(clampToTokenBoundary(text, 2, ["[img.png]"])).toBe(2);  // at start
+    expect(clampToTokenBoundary(text, 11, ["[img.png]"])).toBe(11); // at end
+    expect(clampToTokenBoundary(text, 0, ["[img.png]"])).toBe(0);  // before
+    expect(clampToTokenBoundary(text, 13, ["[img.png]"])).toBe(13); // after
+  });
+});
+
+describe("spliceLabels", () => {
+  it("inserts at a clean offset, returning text + trailing caret", () => {
+    expect(spliceLabels("hi ", 3, ["[a.png]"], [])).toEqual({ text: "hi [a.png] ", caret: 11 });
+  });
+  it("clamps off a token interior so it can't split an existing label", () => {
+    // caret 2 sits inside [a.png] (0..7); insert must land after it, not inside.
+    const r = spliceLabels("[a.png] ", 2, ["[b.png]"], ["[a.png]"]);
+    expect(r.text).toBe("[a.png][b.png]  ");
+    expect(r.text).toContain("[a.png]");
+    expect(r.text).toContain("[b.png]");
+  });
+});
+
+describe("labelsDeleted", () => {
+  it("reports only labels that went present→absent", () => {
+    expect(labelsDeleted("[a] [b]", "[a]", ["[a]", "[b]"])).toEqual(["[b]"]);
+  });
+  it("ignores a freshly inserted label (absent before, present now)", () => {
+    expect(labelsDeleted("[a]", "[a] [b]", ["[a]", "[b]"])).toEqual([]);
+  });
+  it("reports all on a select-all delete", () => {
+    expect(labelsDeleted("[a] [b]", "", ["[a]", "[b]"])).toEqual(["[a]", "[b]"]);
+  });
+});
+
+// The defect this guards: pasting image B used to silently delete image A's chip
+// when B's token insert was computed from a stale text snapshot, splitting or
+// overwriting A's token so a substring GC dropped it. spliceLabels (live text +
+// clamp) + labelsDeleted (present→absent only) are exactly what the intake hook
+// runs, so driving them in sequence reproduces the bug and proves the fix.
+// Send payload == items.map(label) (Composer.prepareMessage), modeled here as `items`.
+describe("paste image A then image B never drops A (regression)", () => {
+  function paste(state, label, pos) {
+    const items = [...state.items, label];                  // chip appended first
+    const { text } = spliceLabels(state.text, pos, [label], state.items);
+    const dropped = labelsDeleted(state.text, text, items); // GC after the insert
+    return { text, items: items.filter((l) => !dropped.includes(l)) };
+  }
+
+  it("caret resting inside the prior token (sync paste path)", () => {
+    let s = { text: "", items: [] };
+    s = paste(s, "[a.png]", 0);   // → "[a.png] "
+    s = paste(s, "[b.png]", 2);   // caret INSIDE [a.png] → clamp to its end
+    expect(s.text).toContain("[a.png]");
+    expect(s.text).toContain("[b.png]");
+    expect(s.items).toEqual(["[a.png]", "[b.png]"]); // both reach the send payload
+  });
+
+  it("stale caret offset from the deferred native pasteboard path", () => {
+    let s = { text: "", items: [] };
+    s = paste(s, "[a.png]", 0);   // A resolves first, inserts at 0
+    // B's offset was captured before A existed (0) but B reads the LIVE text now.
+    s = paste(s, "[b.png]", 0);
+    expect(s.text).toContain("[a.png]");
+    expect(s.text).toContain("[b.png]");
+    expect(s.items).toEqual(["[a.png]", "[b.png]"]);
   });
 });
 

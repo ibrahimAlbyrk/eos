@@ -39,6 +39,33 @@ export function findLabelAt(text, pos, labels) {
   return null;
 }
 
+// Snap an insertion offset out of the interior of any [label] token, so an
+// inserted label can never split an existing one. Boundaries (start/end) are
+// already safe and returned unchanged.
+export function clampToTokenBoundary(text, pos, labels) {
+  for (const r of findLabelRegions(text, labels)) {
+    if (pos > r.start && pos < r.end) return r.end;
+  }
+  return pos;
+}
+
+// Splice attachment labels into `text` at `pos`, first clamping `pos` off any
+// existing token interior. Returns the new text + the caret after the inserted
+// run. Callers pass the LIVE editor text (read at insert time) so a deferred or
+// rapid paste can never compute from a stale snapshot and clobber a sibling.
+export function spliceLabels(text, pos, labels, existingLabels) {
+  const at = clampToTokenBoundary(text, pos, existingLabels);
+  const chunk = labels.map((l) => l + " ").join("");
+  return { text: text.slice(0, at) + chunk + text.slice(at), caret: at + chunk.length };
+}
+
+// Labels whose token went from present in `prevText` to absent in `nextText` —
+// a genuine deletion (select-all+delete, cut, a selection spanning the token).
+// Inserts splice into live text and never drop a label, so they yield none.
+export function labelsDeleted(prevText, nextText, labels) {
+  return labels.filter((l) => prevText.includes(l) && !nextText.includes(l));
+}
+
 // Reconcile chip items to the labels a (restored) text contains: keep items
 // whose label survives, re-seat known labels the text regained (status from the
 // resolved path / in-flight job, else skip), drop the rest. Returns `prev`
