@@ -4,6 +4,8 @@
 // The CodeMirror component is the view; this is the tested logic it drives. Kept
 // React/DOM-free like graphModel.js / predicateModel.js.
 
+import { metaValidateSchema } from "./jsonSchemaCheck.js";
+
 // Parse a JSON text field. Empty / whitespace ⇒ { ok, value: undefined } so the
 // field is omitted from config (matches v1 optionality). Returns the parsed value
 // or a human error message — never throws.
@@ -16,10 +18,11 @@ export function parseJson(text) {
   }
 }
 
-// Validate a JSON-Schema field: must parse AND (when present) be a plain object —
-// a JSON Schema is always an object ({ type, properties, … }), never an array or
-// scalar. This is a shape check, not a full meta-schema validation (the daemon's
-// compileJsonSchema is the hard gate at run time).
+// Validate a JSON-Schema field: must parse, be a plain object, AND be structurally
+// well-formed per the daemon's recognized vocabulary (metaValidateSchema mirrors
+// compileJsonSchema). This catches the wrong-but-valid schemas the daemon would
+// silently no-op at run time — a bad `type` value, a misspelled core keyword — so
+// they're flagged at edit time instead of binding raw data downstream.
 export function validateJsonSchema(text) {
   const parsed = parseJson(text);
   if (!parsed.ok) return parsed;
@@ -27,6 +30,8 @@ export function validateJsonSchema(text) {
   if (typeof parsed.value !== "object" || parsed.value === null || Array.isArray(parsed.value)) {
     return { ok: false, error: "a JSON Schema must be an object" };
   }
+  const metaErrors = metaValidateSchema(parsed.value);
+  if (metaErrors.length) return { ok: false, error: metaErrors.join("; ") };
   return parsed;
 }
 

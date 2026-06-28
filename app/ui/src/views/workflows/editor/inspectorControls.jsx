@@ -5,14 +5,17 @@
 // .wfe-field, the model-picker select look) so the inspector matches the app.
 import { useState } from "react";
 
-// A labeled field wrapper — uppercase-ish dim label + the control + optional help/error.
-export function Field({ label, required, help, error, children }) {
+// A labeled field wrapper — uppercase-ish dim label + the control + optional
+// help/warn/error. `error` is a hard validation failure (red); `warn` is an
+// advisory flag (amber) that doesn't block the commit. Error wins the slot.
+export function Field({ label, required, help, error, warn, children }) {
   return (
     <label className="wfe-field">
       <span className="wfe-field__label">{label}{required ? " *" : ""}</span>
       {children}
-      {help && !error && <span className="wfe-field__help">{help}</span>}
+      {help && !error && !warn && <span className="wfe-field__help">{help}</span>}
       {error && <span className="wfe-field__err">{error}</span>}
+      {!error && warn && <span className="wfe-field__warn">{warn}</span>}
     </label>
   );
 }

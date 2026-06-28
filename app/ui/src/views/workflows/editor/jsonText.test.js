@@ -32,6 +32,14 @@ describe("jsonText — validateJsonSchema", () => {
     expect(validateJsonSchema("5").ok).toBe(false);
     expect(validateJsonSchema("{bad").ok).toBe(false);
   });
+
+  it("rejects a JSON-valid but structurally-wrong schema (so it never silently commits)", () => {
+    const typo = validateJsonSchema('{"typ":"objct"}');
+    expect(typo.ok).toBe(false);
+    expect(typo.error).toMatch(/unknown schema keyword "typ"/);
+    expect(validateJsonSchema('{"type":"objct"}').ok).toBe(false); // bad type value
+    expect(validateJsonSchema('{"type":"object","properties":{"x":{"type":"strng"}}}').ok).toBe(false); // nested bad type
+  });
 });
 
 describe("jsonText — formatJson", () => {

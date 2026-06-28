@@ -14,6 +14,9 @@ import { Field, Select, Segmented, TextInput, TextArea, NumberInput, Tags, Bindi
 import { PredicateField } from "./PredicateBuilder.jsx";
 import { SpawnLoopForm } from "./SpawnLoopForm.jsx";
 import { JsonField } from "./JsonField.jsx";
+import { SchemaHybridField } from "./SchemaRowsBuilder.jsx";
+import { ArgsHybridField } from "./ArgsRowsBuilder.jsx";
+import { validateValue, isPlainObject } from "./jsonSchemaCheck.js";
 import { GraphMetaPanel } from "./GraphMetaPanel.jsx";
 import { KindIcon } from "./KindIcon.jsx";
 import { kindAccentVar } from "./nodeVisuals.js";
@@ -44,6 +47,26 @@ function retypePort(ports, name, type) {
   return ports.map((p) => (p.name === name ? { ...p, type } : p));
 }
 
+// Advisory validator for a subGraph node's `args` against the SELECTED target
+// workflow's argsSchema, so a missing required key / type mismatch is flagged at
+// edit time (not run time). Resolves the target by name from the live definitions
+// catalog (a v1 tree or v2 graph record both carry `argsSchema` at top level).
+// Degrades gracefully when the target isn't resolvable: checks args is a JSON
+// object and says so.
+function subGraphArgsValidator(node, definitions) {
+  return (value) => {
+    const targetName = node.config?.name;
+    if (!targetName) return null; // no target chosen yet — nothing to check against
+    const target = (definitions || []).find((d) => d.name === targetName);
+    if (!target) {
+      return isPlainObject(value) ? "target workflow not in catalog — checked as JSON object only" : "args should be a JSON object";
+    }
+    if (target.argsSchema === undefined) return null; // target declares no args shape
+    const errors = validateValue(target.argsSchema, value, "args");
+    return errors.length ? errors.join("; ") : null;
+  };
+}
+
 function PortRow({ port, onChange }) {
   return (
     <div className="wfe-insp__port">
@@ -54,8 +77,21 @@ function PortRow({ port, onChange }) {
 }
 
 // Render one config field by its control type.
-function ConfigField({ field, node, value, suggestions, options, onChange, onEditLoopBody }) {
+function ConfigField({ field, node, value, suggestions, options, definitions, onChange }) {
   const common = { label: field.label, required: field.required, help: field.help };
+  // The subGraph `args` literal is validated against the selected target's
+  // argsSchema; every other json-literal has no such cross-reference.
+  const isSubGraphArgs = node.kind === "subGraph" && field.key === "args";
+  const argsValidator = useMemo(
+    () => (isSubGraphArgs ? subGraphArgsValidator(node, definitions) : undefined),
+    [isSubGraphArgs, node, definitions],
+  );
+  // The target workflow's own argsSchema, resolved by name — drives the args row
+  // builder's prefill + per-key typing.
+  const targetSchema = useMemo(
+    () => (isSubGraphArgs ? (definitions || []).find((d) => d.name === node.config?.name)?.argsSchema : undefined),
+    [isSubGraphArgs, node.config?.name, definitions],
+  );
   switch (field.control) {
     case "textarea":
       return <Field {...common}><TextArea value={value} onChange={onChange} placeholder={field.placeholder} /></Field>;
@@ -92,38 +128,48 @@ function ConfigField({ field, node, value, suggestions, options, onChange, onEdi
     case "predicate":
       return <PredicateField label={field.label} required={field.required} value={value} onChange={onChange} suggestions={suggestions} path={`pred-${node.id}-${field.key}`} />;
     case "json-schema":
-      return <JsonField label={field.label} required={field.required} value={value} mode="schema" help={field.help} onChange={onChange} />;
+      return <SchemaHybridField label={field.label} required={field.required} help={field.help} value={value} onChange={onChange} />;
     case "json-literal":
-      return <JsonField label={field.label} required={field.required} value={value} mode="literal" help={field.help} onChange={onChange} />;
+      // Only subGraph.args gets the structured builder; accumulate.init (any value
+      // is legal) stays the raw JSON editor.
+      if (isSubGraphArgs) {
+        return <ArgsHybridField label={field.label} required={field.required} help={field.help} value={value} onChange={onChange} targetSchema={targetSchema} validator={argsValidator} />;
+      }
+      return <JsonField label={field.label} required={field.required} value={value} mode="literal" help={field.help} onChange={onChange} validator={argsValidator} />;
     case "spawn-loop":
       return <SpawnLoopForm value={value} onChange={onChange} />;
     case "sub-canvas":
-      return <LoopBodyField field={field} node={node} value={value} onEditLoopBody={onEditLoopBody} />;
+      return <LoopBodyField field={field} value={value} />;
     default:
       return null;
   }
 }
 
-// The loop body is a nested graph, not an inline value — open the nested canvas.
-function LoopBodyField({ field, node, value, onEditLoopBody }) {
+// The loop body is a nested graph, not an inline value. It is entered by
+// DOUBLE-CLICKING the loop node on the canvas (no inspector button); this row just
+// reports the body's size.
+function LoopBodyField({ field, value }) {
   const nodeCount = Array.isArray(value?.nodes) ? value.nodes.length : 0;
   return (
     <Field label={field.label} required={field.required} help={field.help}>
-      <button type="button" className="wfe-mini-btn wfe-mini-btn--wide" onClick={() => onEditLoopBody(node.id)}>
-        {nodeCount > 0 ? `Edit loop body (${nodeCount} nodes)` : "Edit loop body…"}
-      </button>
+      <div className="wfe-subcanvas-hint">
+        {nodeCount > 0 ? `${nodeCount} node${nodeCount === 1 ? "" : "s"}` : "empty"} — double-click the node to open its body
+      </div>
     </Field>
   );
 }
 
-export function Inspector({ node, graph, catalog, workerDefs, definitions, onUpdateNode, onRemoveNode, onEditLoopBody, graphMeta }) {
+export function Inspector({ node, graph, catalog, workerDefs, definitions, readOnly = false, onUpdateNode, onRemoveNode, graphMeta }) {
   const options = useFieldOptions({ catalog, workerDefs, definitions }, node);
   const suggestions = useMemo(() => bindingSuggestions(graph, node?.id), [graph, node?.id]);
+  // Read-only view: the panel stays visible (so meta/config can be read) but a CSS
+  // lock disables every control; the container itself keeps scrolling.
+  const ro = readOnly ? " wfe-inspector--readonly" : "";
 
   if (!node) {
     if (graphMeta?.enabled) {
       return (
-        <div className="wfe-inspector">
+        <div className={"wfe-inspector" + ro}>
           <GraphMetaPanel graph={graph} onSetMeta={graphMeta.onSetMeta} workerDefs={workerDefs} modelOptions={options.models} />
         </div>
       );
@@ -140,7 +186,7 @@ export function Inspector({ node, graph, catalog, workerDefs, definitions, onUpd
   const setCfg = (key, v) => onUpdateNode(node.id, { config: setConfigField(node.config, key, v) });
 
   return (
-    <div className="wfe-inspector">
+    <div className={"wfe-inspector" + ro}>
       <div className="wfe-inspector__header">
         <span className="wfe-insp-kicon" style={{ color: `var(${kindAccentVar(node.kind)})` }}>
           <KindIcon kind={node.kind} size={15} className="" />
@@ -181,16 +227,18 @@ export function Inspector({ node, graph, catalog, workerDefs, definitions, onUpd
               value={node.config?.[field.key]}
               suggestions={suggestions}
               options={options}
+              definitions={definitions}
               onChange={(v) => setCfg(field.key, v)}
-              onEditLoopBody={onEditLoopBody}
             />
           ))}
         </div>
       )}
 
-      <button type="button" className="wfe-btn wfe-btn--danger" onClick={() => onRemoveNode(node.id)}>
-        Delete node
-      </button>
+      {!readOnly && (
+        <button type="button" className="wfe-btn wfe-btn--danger" onClick={() => onRemoveNode(node.id)}>
+          Delete node
+        </button>
+      )}
     </div>
   );
 }

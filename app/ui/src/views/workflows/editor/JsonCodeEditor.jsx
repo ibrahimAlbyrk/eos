@@ -13,11 +13,13 @@ import { closeBrackets, closeBracketsKeymap } from "@codemirror/autocomplete";
 import { json } from "@codemirror/lang-json";
 import { fvSyntaxHighlight } from "../../../lib/cmHighlight.js";
 
-export default function JsonCodeEditor({ value = "", onChange, placeholder = "", minHeight = 80 }) {
+export default function JsonCodeEditor({ value = "", onChange, onBlur, placeholder = "", minHeight = 80 }) {
   const hostRef = useRef(null);
   const viewRef = useRef(null);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
+  const onBlurRef = useRef(onBlur);
+  onBlurRef.current = onBlur;
 
   // Build the editor once; the doc is then kept in sync with `value` below.
   useEffect(() => {
@@ -39,6 +41,7 @@ export default function JsonCodeEditor({ value = "", onChange, placeholder = "",
         EditorView.updateListener.of((u) => {
           if (u.docChanged) onChangeRef.current?.(u.state.doc.toString());
         }),
+        EditorView.domEventHandlers({ blur: () => { onBlurRef.current?.(); } }),
       ],
     });
     viewRef.current = view;
