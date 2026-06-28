@@ -32,6 +32,7 @@ function spawnStep(node: StepNode, ctx: WorkflowExecCtx, prompt: string): Promis
     parentId: ctx.anchorId,
     definitionOwnerId: ctx.ownerId,
     from: node.from,
+    worktreeFrom: ctx.cwd, // the run owner's cwd → spawn in the orchestrator's path
     role: "workflow-worker",
     prompt,
     model: node.model,

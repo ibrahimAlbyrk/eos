@@ -110,6 +110,15 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     await p;
   });
 
+  it("forwards worktreeFrom (the run owner's cwd) onto the step spawn request", async () => {
+    const { adapter, bus, spawned } = makeAdapter();
+    const p = adapter.spawnAndAwait(stepSpec({ worktreeFrom: "/orch/cwd" }), new AbortController().signal);
+    await tick();
+    assert.equal(spawned[0].worktreeFrom, "/orch/cwd");
+    stepOutput(bus, "w-1", { status: "done", output: "ok" });
+    await p;
+  });
+
   it("a failed status surfaces the reason as the outcome", async () => {
     const { adapter, bus } = makeAdapter();
     const p = adapter.spawnAndAwait(stepSpec(), new AbortController().signal);
@@ -271,6 +280,12 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     assert.equal(row.worktreeFrom, null);
   });
 
+  it("records the run cwd on the anchor row's worktreeFrom (recovered on resume)", () => {
+    const { adapter, inserted } = makeAdapter();
+    adapter.mintRunAnchor("run-9", "orch-7", "acceptEdits", "/orch/cwd");
+    assert.equal(inserted[0].worktreeFrom, "/orch/cwd");
+  });
+
   it("forwards definitionOwnerId onto the step spawn request (resolves run-owner create_worker defs — §ITEM 4)", async () => {
     const { adapter, bus, spawned } = makeAdapter();
     const p = adapter.spawnAndAwait(stepSpec({ definitionOwnerId: "orch-1" }), new AbortController().signal);
@@ -286,13 +301,14 @@ describe("WorkerSpawnAdapter — spawn-join", () => {
     const { adapter, spawned } = makeAdapter();
     const { workerId } = await adapter.spawnExpert({
       runId: "run-1", parentId: "anchor-1", definitionOwnerId: "orch-1", name: "solid-expert", from: "solid-expert",
-      prompt: "stand by", mode: "acceptEdits", persistent: true, collaborate: true,
+      worktreeFrom: "/orch/cwd", prompt: "stand by", mode: "acceptEdits", persistent: true, collaborate: true,
     } as never);
     assert.equal(workerId, "w-1");
     const req = spawned[0];
     assert.equal(req.parentId, "anchor-1");
     assert.equal(req.definitionOwnerId, "orch-1"); // run owner → resolves create_worker defs
     assert.equal(req.name, "solid-expert");
+    assert.equal(req.worktreeFrom, "/orch/cwd"); // run owner's cwd → expert spawns in the orchestrator's path
     assert.equal(req.persistent, true);
     assert.equal(req.collaborate, true);
     assert.equal(req.permissionMode, "acceptEdits");

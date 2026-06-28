@@ -25,6 +25,7 @@ export interface RunWorkflowInput {
   from?: string;
   spec?: AnyWorkflowDefinition;   // v1 tree or v2 graph
   args?: unknown;
+  cwd?: string;                   // the run owner's cwd → threaded onto every spawn
 }
 
 export async function runWorkflow(deps: RunWorkflowDeps, input: RunWorkflowInput): Promise<WorkflowRunResult> {
@@ -37,5 +38,6 @@ export async function runWorkflow(deps: RunWorkflowDeps, input: RunWorkflowInput
     ownerId: input.ownerId,
     mode: input.mode,
     signal: input.signal,
+    cwd: input.cwd,
   });
 }

@@ -38,6 +38,7 @@ const RunInlineRequestSchema = z.object({
   mode: z.literal("run-inline"),
   spec: AnyWorkflowDefinitionSchema,
   args: z.unknown().optional(),
+  cwd: z.string().optional(),
 });
 
 // owner rides the query (the create_worker precedent); absent ⇒ the operator owner.
@@ -63,13 +64,13 @@ export function registerWorkflowRoutes(r: Router, c: Container): void {
     // graph); every other mode against the canonical v1 request union.
     if (mode === "run-inline") {
       const body = validate(RunInlineRequestSchema, raw);
-      writeJson(res, 200, c.workflowService.run({ spec: body.spec, args: body.args }, owner));
+      writeJson(res, 200, c.workflowService.run({ spec: body.spec, args: body.args, cwd: body.cwd }, owner));
       return;
     }
     const body = validate(WorkflowToolRequestSchema, raw);
     switch (body.mode) {
       case "run-stored":
-        writeJson(res, 200, c.workflowService.run({ from: body.from, args: body.args }, owner));
+        writeJson(res, 200, c.workflowService.run({ from: body.from, args: body.args, cwd: body.cwd }, owner));
         return;
       case "status":
         writeJson(res, 200, c.workflowService.status(body.runId));

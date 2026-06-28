@@ -44,6 +44,8 @@ export interface WorkflowExecCtx {
   readonly anchorId: string;            // synthetic run anchor (parentId for every spawn) — §3.5
   readonly ownerId: string;             // run owner (orchestrator selfId) — resolves create_worker runtime defs
   readonly mode: string;                // run permission mode, set explicitly on every spawn
+  readonly cwd?: string;                // the run owner's cwd → spawned as worktreeFrom on every
+                                        // step/expert (mirrors spawn_worker); absent ⇒ repoRoot fallback
   readonly args: unknown;
   readonly bindings: BindingScope;      // id -> output; resolves {{nodes.<id>.output}}
   readonly engine: NodeRunner;          // recursion seam (DIP — executors never import the impl)

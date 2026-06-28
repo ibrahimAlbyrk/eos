@@ -43,6 +43,11 @@ export interface WorkflowServiceDeps {
   // The run permission mode, set EXPLICITLY on every spawn (§3.5). The manager
   // resolves it from the owning orchestrator; core never reads it.
   resolveMode(ownerId: string): string;
+  // The run cwd recovered from the persisted anchor row (its worktree_from/cwd),
+  // used on the RESUME path so a re-armed run re-spawns steps in the orchestrator's
+  // path. Absent ⇒ the spawn falls back to repoRoot. Supplied by the container
+  // (which owns the worker repo); core never reads worker rows.
+  resolveRunCwd?(anchorId: string): string | undefined;
   // On completion (passed OR failed), deliver the FULL result to the run owner as
   // a directed message (§ITEM 8) — the manager holds both the result and
   // dispatchMessage, so no core port. NOT called on user-stop/abort: the run
@@ -56,6 +61,7 @@ export interface RunWorkflowArgs {
   from?: string;
   spec?: AnyWorkflowDefinition;   // v1 tree or v2 graph (run-inline)
   args?: unknown;
+  cwd?: string;                   // the launching orchestrator's cwd → every spawn's worktreeFrom
 }
 
 export class WorkflowService {
@@ -126,7 +132,7 @@ export class WorkflowService {
     // Fire-and-forget: the long-running graph drive self-handles its own failure.
     void runWorkflow(
       { engine: this.deps.engine, resolveDefinition: this.deps.resolveDefinition },
-      { runId, ownerId, mode, signal: controller.signal, from: input.from, spec, args: input.args },
+      { runId, ownerId, mode, signal: controller.signal, from: input.from, spec, args: input.args, cwd: input.cwd },
     )
       .then((result) => this.deps.deliverCompletion(ownerId, result))   // passed AND failed
       .catch((e) => this.settleRejectedRun(runId, ownerId, controller, e))
@@ -167,9 +173,12 @@ export class WorkflowService {
     const controller = new AbortController();
     this.controllers.set(runId, controller);
     const mode = this.deps.resolveMode(row.owner);
+    // Recover the run cwd from the persisted anchor row so a re-armed run spawns
+    // steps in the orchestrator's path too; absent ⇒ repoRoot fallback downstream.
+    const cwd = this.deps.resolveRunCwd?.(row.anchorId);
     return resumeWorkflow(
       { engine: this.deps.engine },
-      { runId, ownerId: row.owner, mode, signal: controller.signal },
+      { runId, ownerId: row.owner, mode, signal: controller.signal, cwd },
     )
       .then((result) => { this.deps.deliverCompletion(row.owner, result); return result; })
       .catch((e) => this.settleRejectedRun(runId, row.owner, controller, e))

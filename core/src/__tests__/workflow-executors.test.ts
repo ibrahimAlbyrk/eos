@@ -123,6 +123,39 @@ describe("step executor — validate-tool-arg-with-reprompt-once (§3.6 / Part B
   });
 });
 
+// The run owner's cwd is threaded onto every spawn as worktreeFrom (mirrors
+// spawn_worker's worktreeFrom = ctx.cwd), so a run's step/expert workers start in
+// the orchestrator's path, not repoRoot. Absent ⇒ worktreeFrom is omitted and the
+// composition root (runStepSpawn) falls back to repoRoot.
+describe("step/expert spawn in the run owner's cwd (worktreeFrom thread)", () => {
+  it("a leaf step's SpawnStepSpec carries worktreeFrom = the run cwd", async () => {
+    const spawn = spawnPort();
+    const def = wf.define("cwd-step", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
+    const { engine } = buildEngine(spawn);
+    await engine.run(def, {}, { ...ctx, cwd: "/orch/cwd" });
+    assert.equal(spawn.calls.steps[0].worktreeFrom, "/orch/cwd");
+  });
+
+  it("a standing expert's ExpertSpawnSpec carries worktreeFrom = the run cwd", async () => {
+    const spawn = spawnPort();
+    const def = wf.define("cwd-expert", (b) => ({
+      experts: [{ id: "solid-expert", from: "solid-expert", prompt: "stand by" }],
+      root: b.step({ id: "s", prompt: "go" }),
+    }));
+    const { engine } = buildEngine(spawn);
+    await engine.run(def, {}, { ...ctx, cwd: "/orch/cwd" });
+    assert.equal(spawn.calls.experts[0].worktreeFrom, "/orch/cwd");
+  });
+
+  it("omits worktreeFrom when the run has no cwd (repoRoot fallback is downstream)", async () => {
+    const spawn = spawnPort();
+    const def = wf.define("no-cwd", (b) => ({ root: b.step({ id: "s", prompt: "go" }) }));
+    const { engine } = buildEngine(spawn);
+    await engine.run(def, {}, ctx);
+    assert.equal(spawn.calls.steps[0].worktreeFrom, undefined);
+  });
+});
+
 // Issue C — a {{nodes.*}} ref that resolves to undefined fails the step LOUDLY,
 // naming the binding, instead of silently substituting "" and spawning on empty
 // input. args.* templating stays tolerant (covered by the bindings suite).

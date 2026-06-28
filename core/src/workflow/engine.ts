@@ -146,7 +146,7 @@ export class WorkflowEngineImpl implements WorkflowEngine {
 
   // --- per-run lifecycle: fresh run ---
   async run(def: WorkflowDefinition | WorkflowGraph, args: unknown, ctx: RunContext): Promise<WorkflowRunResult> {
-    const anchorId = this.deps.spawn.mintRunAnchor(ctx.runId, ctx.ownerId, ctx.mode);
+    const anchorId = this.deps.spawn.mintRunAnchor(ctx.runId, ctx.ownerId, ctx.mode, ctx.cwd);
     const now = this.deps.clock.now();
     this.deps.runs.insert({
       id: ctx.runId, definitionName: def.name, owner: ctx.ownerId, anchorId,
@@ -169,7 +169,9 @@ export class WorkflowEngineImpl implements WorkflowEngine {
     // The anchor is a synthetic ROW (persists across restarts); reuse it rather
     // than minting a new one. Experts re-spawn fresh — they are config, never
     // journaled (§4.3) — so their dead processes come back before the replay.
-    const resumeCtx: RunContext = { runId, ownerId: row.owner, mode: ctx.mode, signal: ctx.signal };
+    // ctx.cwd is recovered from the persisted anchor row by the caller
+    // (WorkflowService.resume) so a resumed run spawns steps in the run's path too.
+    const resumeCtx: RunContext = { runId, ownerId: row.owner, mode: ctx.mode, signal: ctx.signal, cwd: ctx.cwd };
     return this.execute(def, row.args, resumeCtx, row.anchorId);
   }
 
@@ -183,7 +185,7 @@ export class WorkflowEngineImpl implements WorkflowEngine {
       for (const e of graph.experts ?? []) {
         await this.deps.spawn.spawnExpert({
           runId: ctx.runId, parentId: anchorId, definitionOwnerId: ctx.ownerId,
-          name: e.id, from: e.from, prompt: e.prompt,
+          name: e.id, from: e.from, worktreeFrom: ctx.cwd, prompt: e.prompt,
           model: e.model, effort: e.effort, mode: ctx.mode, persistent: true, collaborate: true,
         });
       }
@@ -193,6 +195,7 @@ export class WorkflowEngineImpl implements WorkflowEngine {
         anchorId,
         ownerId: ctx.ownerId,
         mode: ctx.mode,
+        cwd: ctx.cwd,
         args,
         bindings: new BindingScope(args),
         engine: this,

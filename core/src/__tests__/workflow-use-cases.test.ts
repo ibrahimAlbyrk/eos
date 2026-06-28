@@ -11,14 +11,19 @@ import type { WorkflowDefinition } from "../../../contracts/src/workflow.ts";
 const def: WorkflowDefinition = { name: "d", root: { type: "step", id: "s", prompt: "p" } };
 
 function fakeEngine() {
-  const calls = { run: [] as Array<{ def: WorkflowDefinition; args: unknown; ctx: RunContext }>, resume: [] as string[] };
+  const calls = {
+    run: [] as Array<{ def: WorkflowDefinition; args: unknown; ctx: RunContext }>,
+    resume: [] as string[],
+    resumeCtx: [] as RunContext[],
+  };
   const engine: WorkflowEngine = {
     run(d, args, ctx) {
       calls.run.push({ def: d, args, ctx });
       return Promise.resolve({ runId: ctx.runId, status: "passed", output: "out" } as WorkflowRunResult);
     },
-    resume(runId, _ctx) {
+    resume(runId, ctx) {
       calls.resume.push(runId);
+      calls.resumeCtx.push(ctx);
       return Promise.resolve({ runId, status: "passed", output: null } as WorkflowRunResult);
     },
     runNode() { return Promise.resolve({ output: undefined, status: "passed" }); },
@@ -33,7 +38,13 @@ describe("runWorkflow", () => {
     const res = await runWorkflow({ engine }, { runId: "r1", ownerId: "o", mode: "acceptEdits", spec: def, args: { x: 1 } });
     assert.deepEqual(res, { runId: "r1", status: "passed", output: "out" });
     assert.equal(calls.run[0].def, def);
-    assert.deepEqual(calls.run[0].ctx, { runId: "r1", ownerId: "o", mode: "acceptEdits", signal: undefined });
+    assert.deepEqual(calls.run[0].ctx, { runId: "r1", ownerId: "o", mode: "acceptEdits", signal: undefined, cwd: undefined });
+  });
+
+  it("forwards the run cwd onto the RunContext", async () => {
+    const { engine, calls } = fakeEngine();
+    await runWorkflow({ engine }, { runId: "r1", ownerId: "o", mode: "acceptEdits", spec: def, cwd: "/orch/cwd" });
+    assert.equal(calls.run[0].ctx.cwd, "/orch/cwd");
   });
 
   it("resolves a stored `from` name via the overlay resolver", async () => {
@@ -60,6 +71,12 @@ describe("resumeWorkflow", () => {
     const res = await resumeWorkflow({ engine }, { runId: "r9", ownerId: "o", mode: "default" });
     assert.equal(res.runId, "r9");
     assert.deepEqual(calls.resume, ["r9"]);
+  });
+
+  it("forwards the recovered run cwd onto the resume RunContext", async () => {
+    const { engine, calls } = fakeEngine();
+    await resumeWorkflow({ engine }, { runId: "r9", ownerId: "o", mode: "default", cwd: "/orch/cwd" });
+    assert.equal(calls.resumeCtx[0].cwd, "/orch/cwd");
   });
 });
 

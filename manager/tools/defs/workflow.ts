@@ -81,6 +81,9 @@ export const workflowDef: ToolDefinition = {
       const body: Record<string, unknown> = { ...a };
       if (spec !== undefined) body.spec = spec;
       if (runArgs !== undefined) body.args = runArgs;
+      // A run starts the step/expert workers in the orchestrator's path (mirrors
+      // spawn_worker's worktreeFrom = ctx.cwd). status/stop don't spawn — no cwd.
+      if ((a.mode === "run-stored" || a.mode === "run-inline") && ctx.cwd) body.cwd = ctx.cwd;
       req = commandRequest(runWorkflowCommand, {}, body as unknown as WorkflowToolRequest);
     }
     const res = ((await ctx.api(req.method, `${req.path}?owner=${owner}`, req.body)) ?? {}) as Record<string, unknown>;

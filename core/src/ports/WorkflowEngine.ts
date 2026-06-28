@@ -18,6 +18,11 @@ export interface RunContext {
   readonly ownerId: string;
   readonly mode: string;
   readonly signal?: AbortSignal;
+  // The orchestrator's working directory at run launch (mirrors spawn_worker's
+  // worktreeFrom = ctx.cwd). Threaded onto every step/expert spawn as
+  // worktreeFrom, so a run's workers start in the owner's path, not repoRoot.
+  // Absent ⇒ the spawn falls back to repoRoot at the composition root.
+  readonly cwd?: string;
 }
 
 export interface WorkflowRunResult {

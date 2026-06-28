@@ -14,6 +14,8 @@ export interface ResumeWorkflowInput {
   ownerId: string;
   mode: string;
   signal?: AbortSignal;
+  cwd?: string;                   // recovered from the persisted anchor row by the
+                                  // caller so a resumed run spawns steps in the run's path
 }
 
 export function resumeWorkflow(deps: ResumeWorkflowDeps, input: ResumeWorkflowInput): Promise<WorkflowRunResult> {
@@ -22,5 +24,6 @@ export function resumeWorkflow(deps: ResumeWorkflowDeps, input: ResumeWorkflowIn
     ownerId: input.ownerId,
     mode: input.mode,
     signal: input.signal,
+    cwd: input.cwd,
   });
 }

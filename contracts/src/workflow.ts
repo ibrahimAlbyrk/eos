@@ -107,9 +107,13 @@ export type WorkflowStepsResponse = WorkflowStep[];
 // One discriminated-union input (mirrors spawn_worker's `from`). run-stored runs
 // a catalogued definition; run-inline runs an emitted spec; create persists a
 // spec for reuse; status/stop address a run by id.
+// `cwd` (run-stored / run-inline) is the launching orchestrator's working dir —
+// threaded onto every step/expert spawn as worktreeFrom so a run's workers start
+// in the owner's path, not repoRoot (mirrors spawn_worker's worktreeFrom = ctx.cwd).
+// Optional: an owner-less/operator run omits it and falls back to repoRoot.
 export const WorkflowToolRequestSchema = z.discriminatedUnion("mode", [
-  z.object({ mode: z.literal("run-stored"), from: z.string(), args: z.unknown().optional() }),
-  z.object({ mode: z.literal("run-inline"), spec: WorkflowDefinitionSchema, args: z.unknown().optional() }),
+  z.object({ mode: z.literal("run-stored"), from: z.string(), args: z.unknown().optional(), cwd: z.string().optional() }),
+  z.object({ mode: z.literal("run-inline"), spec: WorkflowDefinitionSchema, args: z.unknown().optional(), cwd: z.string().optional() }),
   z.object({ mode: z.literal("create"), spec: WorkflowDefinitionSchema }),
   z.object({ mode: z.literal("status"), runId: z.string() }),
   z.object({ mode: z.literal("stop"), runId: z.string() }),

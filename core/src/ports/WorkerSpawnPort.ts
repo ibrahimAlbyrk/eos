@@ -23,6 +23,9 @@ export interface SpawnStepSpec {
                                       // create_worker runtime defs (the anchor id
                                       // is not the selfId, so parentId can't).
   readonly from?: string;
+  readonly worktreeFrom?: string;     // the run owner's cwd — the step spawns in the
+                                      // orchestrator's path (mirrors spawn_worker); absent
+                                      // ⇒ repoRoot fallback at the composition root.
   readonly role?: string;             // DPI role — "workflow-worker" so the step
                                       // gets the node-specific prompt + tool surface.
   readonly prompt: string;
@@ -64,6 +67,8 @@ export interface ExpertSpawnSpec {
                                       // create_worker runtime defs as steps.
   readonly name: string;              // expert id → peer-name slug
   readonly from?: string;
+  readonly worktreeFrom?: string;     // the run owner's cwd — experts spawn in the
+                                      // orchestrator's path too; absent ⇒ repoRoot fallback.
   readonly prompt: string;
   readonly model?: string;
   readonly effort?: string;
@@ -76,5 +81,7 @@ export interface WorkerSpawnPort {
   spawnAndAwait(spec: SpawnStepSpec, signal: AbortSignal): Promise<StepOutcome>;
   spawnExpert(spec: ExpertSpawnSpec): Promise<{ workerId: string }>;
   killWorker(workerId: string): void;
-  mintRunAnchor(runId: string, ownerId: string, mode: string): string;
+  // `cwd` (the run owner's working dir) is recorded on the anchor row so a boot
+  // re-arm/resume can recover the run cwd and re-spawn steps in the same path.
+  mintRunAnchor(runId: string, ownerId: string, mode: string, cwd?: string): string;
 }

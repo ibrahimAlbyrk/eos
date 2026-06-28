@@ -17,11 +17,35 @@ function recording(response: unknown = {}) {
 }
 
 describe("workflow tool — posts the run/create commands owner-scoped", () => {
-  it("run-stored POSTs the whole request to /workflows with the owner query", async () => {
+  it("run-stored POSTs the whole request to /workflows with the owner query + the orchestrator's cwd", async () => {
     const { ctx, calls } = recording();
     const args = { mode: "run-stored", from: "research", args: { topic: "x" } };
     await workflowDef.handler(ctx, args);
-    assert.deepEqual(calls, [{ method: "POST", path: "/workflows?owner=orch-1", body: args }]);
+    // cwd = ctx.cwd is threaded onto the run body so the run's workers start in the
+    // orchestrator's path (mirrors spawn_worker's worktreeFrom = ctx.cwd).
+    assert.deepEqual(calls, [{ method: "POST", path: "/workflows?owner=orch-1", body: { ...args, cwd: "/repo" } }]);
+  });
+
+  it("run-inline threads the orchestrator's cwd onto the posted body", async () => {
+    const { ctx, calls } = recording();
+    const spec = { name: "wf", root: { id: "r", type: "step", from: "x", prompt: "p" } };
+    await workflowDef.handler(ctx, { mode: "run-inline", spec });
+    assert.equal((calls[0].body as { cwd?: string }).cwd, "/repo");
+  });
+
+  it("status/stop do NOT carry a cwd (they spawn nothing)", async () => {
+    const { ctx, calls } = recording();
+    await workflowDef.handler(ctx, { mode: "status", runId: "run-9" });
+    await workflowDef.handler(ctx, { mode: "stop", runId: "run-9" });
+    assert.equal((calls[0].body as { cwd?: string }).cwd, undefined);
+    assert.equal((calls[1].body as { cwd?: string }).cwd, undefined);
+  });
+
+  it("omits cwd when the orchestrator has none", async () => {
+    const { ctx, calls } = recording();
+    (ctx as { cwd: string }).cwd = "";
+    await workflowDef.handler(ctx, { mode: "run-stored", from: "research" });
+    assert.equal((calls[0].body as { cwd?: string }).cwd, undefined);
   });
 
   it("status POSTs the request (status mode) to /workflows", async () => {

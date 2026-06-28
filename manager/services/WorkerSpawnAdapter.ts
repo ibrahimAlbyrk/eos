@@ -166,6 +166,7 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
   async spawnExpert(spec: ExpertSpawnSpec): Promise<{ workerId: string }> {
     const { id } = await this.deps.runSpawn({
       from: spec.from,
+      worktreeFrom: spec.worktreeFrom, // run owner's cwd → expert spawns in the orchestrator's path
       prompt: spec.prompt,
       model: spec.model,
       effort: spec.effort,
@@ -186,13 +187,15 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
 
   // mode is set EXPLICITLY on every expert/step spawn, so the anchor row is never
   // consulted for permission-mode inheritance (§3.5) — the param is accepted for
-  // the port contract but intentionally unused here.
-  mintRunAnchor(runId: string, ownerId: string, _mode: string): string {
+  // the port contract but intentionally unused here. `cwd` (the run owner's working
+  // dir) IS recorded on worktree_from so a boot re-arm/resume can recover the run
+  // cwd and re-spawn its steps in the same path (WorkflowService.resolveRunCwd).
+  mintRunAnchor(runId: string, ownerId: string, _mode: string, cwd?: string): string {
     this.deps.workers.insert({
       id: runId,
       prompt: "[workflow-run anchor]",
       cwd: null,
-      worktreeFrom: null,
+      worktreeFrom: cwd ?? null,
       branch: null,
       name: null,
       nameSource: "user", // never auto-named — it has no turn
@@ -219,10 +222,11 @@ export class WorkerSpawnAdapter implements WorkerSpawnPort {
   }
 
   private stepRequest(spec: SpawnStepSpec): StepSpawnRequest {
-    // No cwd/worktreeFrom: SpawnStepSpec carries none — the runSpawn wiring
-    // injects the run's working directory at the composition root.
+    // worktreeFrom = the run owner's cwd (mirrors spawn_worker). When absent the
+    // runSpawn wiring falls back to repoRoot at the composition root.
     return {
       from: spec.from,
+      worktreeFrom: spec.worktreeFrom, // run owner's cwd → spawn in the orchestrator's path
       role: spec.role, // "workflow-worker" → node-specific DPI prompt + tool surface
       prompt: spec.prompt,
       model: spec.model,

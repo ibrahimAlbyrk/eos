@@ -118,7 +118,20 @@ describe("workflow routes — owner-scoped, calling the service", () => {
     assert.deepEqual(out.payload, { runId: "run-1", status: "running" });
     assert.equal(calls.run.length, 1);
     assert.equal(calls.run[0].owner, "orch-1");
-    assert.deepEqual(calls.run[0].input, { from: "wf", args: { x: 1 } });
+    assert.deepEqual(calls.run[0].input, { from: "wf", args: { x: 1 }, cwd: undefined });
+  });
+
+  it("POST run-stored forwards the orchestrator's cwd to the service (→ every spawn's worktreeFrom)", async () => {
+    const { c, calls } = harness();
+    await invoke(c, "POST", "/workflows?owner=orch-1", { mode: "run-stored", from: "wf", cwd: "/orch/cwd" });
+    assert.equal(calls.run[0].input.cwd, "/orch/cwd");
+  });
+
+  it("POST run-inline forwards the orchestrator's cwd to the service", async () => {
+    const { c, calls } = harness();
+    const spec = { name: "inline", root: { id: "r", type: "step", from: "x", prompt: "p" } };
+    await invoke(c, "POST", "/workflows?owner=orch-1", { mode: "run-inline", spec, cwd: "/orch/cwd" });
+    assert.equal(calls.run[0].input.cwd, "/orch/cwd");
   });
 
   it("POST stop calls workflowService.stop", async () => {

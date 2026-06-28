@@ -961,11 +961,11 @@ export function buildContainer() {
     return listWorkflowDefinitionRecords(cwd, ownerId);
   };
   // Step/expert spawn goes through the command handler (so from-definition /
-  // tool-scope / mode / backend resolution come for free — §3.5). SpawnStepSpec
-  // carries no cwd, so the run cwd is injected HERE: each step/expert runs in its
-  // own worktree off the repo root (isolation; never clobbers the user's
-  // checkout). Per-orchestrator run cwd is a future enhancement (RunContext
-  // carries none).
+  // tool-scope / mode / backend resolution come for free — §3.5). The request now
+  // carries the run owner's cwd as worktreeFrom (threaded from the launching
+  // orchestrator, mirroring spawn_worker), so a run's workers start in the owner's
+  // path. repoRoot is the safety net ONLY when neither is present (an unknown-cwd
+  // edge: an owner-less/operator run, or a pre-cwd anchor on resume).
   const runStepSpawn = (req: StepSpawnRequest): Promise<{ id: string }> => {
     const withCwd = req.cwd || req.worktreeFrom ? req : { ...req, worktreeFrom: config.paths.repoRoot };
     return spawnWorkerHandler.run({}, withCwd, { c: self.c!, requestId: "workflow" }).then((r) => ({ id: r.body.id }));
@@ -1024,6 +1024,13 @@ export function buildContainer() {
     isBuiltinDefinition: (name) => builtinWorkflowDefinitions.list().some((r) => r.name === name),
     resolveDefinition: resolveWorkflowDefinition,
     resolveMode: (ownerId) => modeResolver.resolveFor(ownerId),
+    // On resume, recover the run cwd from the persisted anchor row (worktree_from,
+    // set by mintRunAnchor at run start) so the re-armed run spawns its steps in
+    // the orchestrator's path; null ⇒ repoRoot fallback at runStepSpawn.
+    resolveRunCwd: (anchorId) => {
+      const anchor = workers.findById(anchorId);
+      return anchor?.worktree_from ?? anchor?.cwd ?? undefined;
+    },
     // On completion deliver the FULL result to the run owner — but ONLY when the
     // owner is a live agent with an inbox (A6.4). An operator-owned run (CLI / an
     // owner-less HTTP POST) has no agent row, so its completion is skipped here and

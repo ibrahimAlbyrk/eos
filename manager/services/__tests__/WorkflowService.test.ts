@@ -102,6 +102,14 @@ describe("WorkflowService", () => {
     assert.ok(calls.run[0].ctx.signal instanceof AbortSignal);
   });
 
+  it("run carries the launching orchestrator's cwd onto the RunContext (→ every spawn's worktreeFrom)", async () => {
+    const { svc, calls } = harness();
+    svc.run({ from: "known", args: { x: 1 }, cwd: "/orch/cwd" }, "orch-1");
+    await Promise.resolve();
+    assert.equal(calls.run.length, 1);
+    assert.equal(calls.run[0].ctx.cwd, "/orch/cwd");
+  });
+
   it("run-stored: an unknown definition throws NotFoundError before any drive", () => {
     const { svc, calls } = harness();
     assert.throws(() => svc.run({ from: "nope" }, "orch-1"), /not found/i);
@@ -326,6 +334,17 @@ describe("WorkflowService", () => {
     assert.equal(calls.resume[0].runId, "run-x");
     assert.equal(calls.resume[0].ctx.ownerId, "orch-9");
     assert.equal(calls.resume[0].ctx.mode, "acceptEdits");
+  });
+
+  it("resume recovers the run cwd from the persisted anchor row onto the RunContext", async () => {
+    const seen: string[] = [];
+    const { svc, deps, calls } = harness({
+      resolveRunCwd: (anchorId) => { seen.push(anchorId); return anchorId === "anchor-x" ? "/orch/cwd" : undefined; },
+    });
+    deps.runs.insert({ id: "run-x", definitionName: "known", owner: "orch-9", anchorId: "anchor-x", status: "running", startedAt: 1, updatedAt: 1 });
+    await svc.resume("run-x");
+    assert.deepEqual(seen, ["anchor-x"]); // derived from the anchor, not the runId
+    assert.equal(calls.resume[0].ctx.cwd, "/orch/cwd");
   });
 
   it("create persists a per-owner runtime definition", () => {
