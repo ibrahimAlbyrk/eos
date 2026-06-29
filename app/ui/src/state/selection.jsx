@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
-import { openPanel, closePanel, popPanel, topPanel, updatePanelData } from "../lib/panelStack.js";
+import { topTypeIn, dataIn, openIn, closeIn, popIn, updateDataIn, clearPane, retainPanes } from "../lib/panelMap.js";
 import { loadCollapsedNodes, saveCollapsedNodes } from "../lib/collapseMemory.js";
 
 const SelectionContext = createContext(null);
@@ -35,22 +35,30 @@ export function SelectionProvider({ children }) {
   const [collapsedNodes, setCollapsedNodes] = useState(() => loadCollapsedNodes());
   useEffect(() => { saveCollapsedNodes(collapsedNodes); }, [collapsedNodes]);
   const [expandedTools, setExpandedTools] = useState(() => new Set());
-  // Right-panel navigation stack (see lib/panelStack.js). The four viewer
-  // fields derive from anywhere in the stack so buried panels stay MOUNTED —
-  // their fetched data and expand state survive a viewer pushed on top.
-  // topPanelType is the visibility signal: only that island is shown.
-  const [panelStack, setPanelStack] = useState([]);
-  const topPanelType = topPanel(panelStack)?.type ?? null;
-  const panelData = (type) => panelStack.find((p) => p.type === type)?.data ?? null;
-  const fileViewer = panelData("file");
-  const agentViewer = panelData("agent");
-  const diffViewer = panelData("diff");
-  // {cwd} — right panel listing committed-but-unpushed commits (@{u}..HEAD).
-  const commitsViewer = panelData("commits");
-  // {workerId} — right panel resolving the worktree's merge conflicts.
-  const conflictViewer = panelData("conflict");
-  // {workerId} — right panel browsing the project's Claude file-based memory.
-  const memoryViewer = panelData("memory");
+  // Right-panel navigation stacks, now keyed by paneId: { [leafId]: stack }
+  // (see lib/panelMap, which reuses lib/panelStack per pane). Each viewer is
+  // owned by its originating pane and docks to that pane's right edge. The
+  // pane-aware reads/wrappers live in useUi (it knows the originating pane via
+  // PaneScopeContext); this provider owns the map + the raw paneId-explicit ops.
+  // A buried entry stays MOUNTED so its fetched data/expand state survive a
+  // viewer pushed on top, exactly as the single global stack did before.
+  const [panelsByPane, setPanelsByPane] = useState({});
+  const panelsRef = useRef(panelsByPane);
+  panelsRef.current = panelsByPane;
+  const topPanelTypeIn = useCallback((paneId) => topTypeIn(panelsRef.current, paneId), []);
+  const panelDataIn = useCallback((paneId, type) => dataIn(panelsRef.current, paneId, type), []);
+  const openPanelIn = useCallback((paneId, type, data) => setPanelsByPane((m) => openIn(m, paneId, type, data)), []);
+  const closePanelIn = useCallback((paneId, type) => setPanelsByPane((m) => closeIn(m, paneId, type)), []);
+  const popPanelIn = useCallback((paneId) => setPanelsByPane((m) => popIn(m, paneId)), []);
+  const updatePanelDataIn = useCallback((paneId, type, updater) => setPanelsByPane((m) => updateDataIn(m, paneId, type, updater)), []);
+  // Clear-on-rebuild hooks, driven by PaneProvider (which owns the tree).
+  const clearPanelsIn = useCallback((paneId) => setPanelsByPane((m) => clearPane(m, paneId)), []);
+  const retainPanelsFor = useCallback((liveIds) => setPanelsByPane((m) => retainPanes(m, liveIds)), []);
+  // Escape pops the FOCUSED pane's stack. The keydown lives here but this
+  // provider can't see pane focus, so PaneProvider registers a focus-aware
+  // popper (mirrors registerEscapeGitMode). Returns true when it consumed Esc.
+  const escapePanelRef = useRef(null);
+  const registerEscapePanel = useCallback((fn) => { escapePanelRef.current = fn; }, []);
   const [renamingId, setRenamingId] = useState(null);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   // {workerId, verdict, command, ts} — derived by Messages from the loaded
@@ -84,7 +92,9 @@ export function SelectionProvider({ children }) {
     setPopoverData({});
   }, []);
 
-  useEffect(() => { setPanelStack([]); }, [selectedId]);
+  // (Clear-on-select is now per pane: PaneProvider clears a pane's stack when
+  // that pane's shown agent changes — see pane.jsx — preserving single-pane
+  // parity without nuking another pane's panel on a focus move.)
 
   useEffect(() => {
     const onKey = (e) => {
@@ -96,7 +106,7 @@ export function SelectionProvider({ children }) {
       // macOS fullscreen. Closing a panel must not also drop fullscreen.
       if (rewindPanel) { e.preventDefault(); setRewindPanel(null); return; }
       if (openPopover) { e.preventDefault(); closeAllPops(); return; }
-      if (panelStack.length) { e.preventDefault(); setPanelStack((s) => popPanel(s)); return; }
+      if (escapePanelRef.current?.()) { e.preventDefault(); return; }
       if (escapeGitModeRef.current?.()) { e.preventDefault(); return; }
       // Double-Esc with an agent selected → rewind panel (Claude Code parity:
       // composer's own double-Esc-clears-text path preventDefaults, so this
@@ -113,7 +123,7 @@ export function SelectionProvider({ children }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeAllPops, openPopover, panelStack, rewindPanel, selectedId]);
+  }, [closeAllPops, openPopover, rewindPanel, selectedId]);
 
   const toggleNodeCollapsed = useCallback((id) => {
     setCollapsedNodes((prev) => {
@@ -145,22 +155,6 @@ export function SelectionProvider({ children }) {
   // toggles would invert the new default — so settings.jsx drops them all.
   const resetToolToggles = useCallback(() => setExpandedTools(new Set()), []);
 
-  const openFileViewer = useCallback((path) => setPanelStack((s) => openPanel(s, "file", { path })), []);
-  const closeFileViewer = useCallback(() => setPanelStack((s) => closePanel(s, "file")), []);
-  const openAgentViewer = useCallback((block) => setPanelStack((s) => openPanel(s, "agent", block)), []);
-  const closeAgentViewer = useCallback(() => setPanelStack((s) => closePanel(s, "agent")), []);
-  const openDiffViewer = useCallback((workerId) => setPanelStack((s) => openPanel(s, "diff", { workerId })), []);
-  const closeDiffViewer = useCallback(() => setPanelStack((s) => closePanel(s, "diff")), []);
-  const openCommitsViewer = useCallback((cwd) => setPanelStack((s) => openPanel(s, "commits", { cwd })), []);
-  const closeCommitsViewer = useCallback(() => setPanelStack((s) => closePanel(s, "commits")), []);
-  const openConflictResolver = useCallback((workerId) => setPanelStack((s) => openPanel(s, "conflict", { workerId })), []);
-  const closeConflictResolver = useCallback(() => setPanelStack((s) => closePanel(s, "conflict")), []);
-  const openMemoryViewer = useCallback((workerId) => setPanelStack((s) => openPanel(s, "memory", { workerId })), []);
-  const closeMemoryViewer = useCallback(() => setPanelStack((s) => closePanel(s, "memory")), []);
-  const syncAgentViewer = useCallback((block) => {
-    setPanelStack((s) => updatePanelData(s, "agent", (prev) => prev.toolUseId === block.toolUseId ? block : prev));
-  }, []);
-
   const value = useMemo(() => ({
     selectedId, setSelectedId, takePreviousSelection,
     sideCollapsed, setSideCollapsed,
@@ -170,28 +164,23 @@ export function SelectionProvider({ children }) {
     renamingId, setRenamingId,
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
     verdict, setVerdict,
-    topPanelType,
-    fileViewer, openFileViewer, closeFileViewer,
-    agentViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
-    diffViewer, openDiffViewer, closeDiffViewer,
-    commitsViewer, openCommitsViewer, closeCommitsViewer,
-    conflictViewer, openConflictResolver, closeConflictResolver,
-    memoryViewer, openMemoryViewer, closeMemoryViewer,
+    // Raw paneId-explicit panel ops + reads. useUi wraps these into the
+    // scope-aware openFileViewer/topPanelType/... that every consumer calls.
+    topPanelTypeIn, panelDataIn,
+    openPanelIn, closePanelIn, popPanelIn, updatePanelDataIn,
+    clearPanelsIn, retainPanelsFor, registerEscapePanel,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
   }), [
     selectedId, setSelectedId, takePreviousSelection,
     sideCollapsed, openPopover, popoverPos, popoverData,
-    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, panelStack,
+    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, panelsByPane,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPop, closeAllPops, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
-    openFileViewer, closeFileViewer,
-    openAgentViewer, closeAgentViewer, syncAgentViewer,
-    openDiffViewer, closeDiffViewer,
-    openCommitsViewer, closeCommitsViewer,
-    openConflictResolver, closeConflictResolver,
-    openMemoryViewer, closeMemoryViewer,
+    topPanelTypeIn, panelDataIn,
+    openPanelIn, closePanelIn, popPanelIn, updatePanelDataIn,
+    clearPanelsIn, retainPanelsFor, registerEscapePanel,
     registerEscapeIdle,
     registerEscapeGitMode,
   ]);
