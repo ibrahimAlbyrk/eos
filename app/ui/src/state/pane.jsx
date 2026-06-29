@@ -35,7 +35,10 @@ function loadFocusedLeaf(tree) {
 }
 
 export function PaneProvider({ children }) {
-  const { selectedId, setSelectedId } = useSelection();
+  const {
+    selectedId, setSelectedId,
+    topPanelTypeIn, popPanelIn, clearPanelsIn, retainPanelsFor, registerEscapePanel,
+  } = useSelection();
   const [tree, setTree] = useState(loadTree);
   const [focusedLeafId, setFocusedLeafId] = useState(() => loadFocusedLeaf(loadTree()));
 
@@ -79,6 +82,41 @@ export function PaneProvider({ children }) {
     if (followRef.current) return;
     setTree((t) => setLeafAgent(t, focusedLeafId, selectedId));
   }, [selectedId, focusedLeafId]);
+
+  // Escape pops the FOCUSED pane's panel stack. SelectionProvider owns the
+  // keydown but can't see focus, so we register a focus-aware popper (reads live
+  // focus + selection's stable ops, so this registers once).
+  useEffect(() => {
+    registerEscapePanel(() => {
+      const id = focusedRef.current;
+      if (id && topPanelTypeIn(id)) { popPanelIn(id); return true; }
+      return false;
+    });
+  }, [registerEscapePanel, topPanelTypeIn, popPanelIn]);
+
+  // Clear-on-rebuild: on every tree change, drop any panel whose pane no longer
+  // exists. Covers close / prune / preset reapply (fillAgents mints fresh leaf
+  // ids → all old-keyed panels orphan and are pruned). No-op when all live.
+  const liveLeafIds = useMemo(() => leafList.map((l) => l.id), [leafList]);
+  useEffect(() => {
+    retainPanelsFor(new Set(liveLeafIds));
+  }, [liveLeafIds, retainPanelsFor]);
+
+  // Clear a pane's panel when its shown AGENT changes — single-pane parity with
+  // the old global clear-on-select (switching agents drops the stale viewer),
+  // without nuking another pane's panel on a focus move. New panes (no prior
+  // entry) and removed panes (handled above) are skipped; reuseLeafIds keeps
+  // id↔agent stable across follow rebuilds so survivors don't churn.
+  const paneAgentsRef = useRef(null);
+  useEffect(() => {
+    const cur = new Map(leafList.map((l) => [l.id, l.agentId ?? null]));
+    const prev = paneAgentsRef.current;
+    paneAgentsRef.current = cur;
+    if (!prev) return;
+    for (const [id, agentId] of cur) {
+      if (prev.has(id) && prev.get(id) !== agentId) clearPanelsIn(id);
+    }
+  }, [leafList, clearPanelsIn]);
 
   const focusLeaf = useCallback((id) => {
     const l = findLeaf(treeRef.current, id);
