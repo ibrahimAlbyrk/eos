@@ -82,6 +82,10 @@ kbd {
      full-bleed background layer underneath */
   --shell-gap: 6px;
   --panel-radius: 12px;
+  /* floor for a pane-docked right panel (file/diff/agent viewer): a pane-relative
+     fraction never shrinks below this, so a narrow split pane keeps the panel
+     usable (the transcript yields instead). */
+  --pane-panel-min: 320px;
   /* transcript rhythm: .messages flex gap owns ALL inter-block spacing —
      block roots carry no outer margins. Must stay ≥ --msg-actions-h + its
      4px top offset so the hover copy/timestamp row fits inside the gap. */
@@ -316,42 +320,9 @@ html.native .sb-section > .sb-iconbtn { margin-left: auto; }
 .app.side-collapsed {
   grid-template-columns: 0 1fr 0fr;
 }
-.app.file-open {
-  grid-template-columns: 280px 1fr 1.5fr;
-}
-.app.side-collapsed.file-open {
-  grid-template-columns: 0 1fr 1.5fr;
-}
-.app.agent-open {
-  grid-template-columns: 280px 1fr 0.6fr;
-}
-.app.side-collapsed.agent-open {
-  grid-template-columns: 0 1fr 0.6fr;
-}
-.app.diff-open {
-  grid-template-columns: 280px 1fr 1fr;
-}
-.app.side-collapsed.diff-open {
-  grid-template-columns: 0 1fr 1fr;
-}
-.app.commits-open {
-  grid-template-columns: 280px 1fr 0.8fr;
-}
-.app.side-collapsed.commits-open {
-  grid-template-columns: 0 1fr 0.8fr;
-}
-.app.conflict-open {
-  grid-template-columns: 280px 1fr 1.5fr;
-}
-.app.side-collapsed.conflict-open {
-  grid-template-columns: 0 1fr 1.5fr;
-}
-.app.memory-open {
-  grid-template-columns: 280px 1fr 1fr;
-}
-.app.side-collapsed.memory-open {
-  grid-template-columns: 0 1fr 1fr;
-}
+/* Right panels no longer live in window column 3 — they dock inside their
+   originating pane (see .pane-body + the viewer islands below), so the window
+   grid never resizes for a panel. Column 3 stays a dead 0fr track. */
 .app.side-collapsed .side { transform: translateX(-100%); opacity: 0; pointer-events: none; }
 .side { transition: transform 200ms ease, opacity 200ms ease; }
 
@@ -776,16 +747,17 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   background: var(--bg);
 }
 
-/* right-panel islands — shared geometry for every grid-column-3 viewer.
-   The center stays a full-bleed background layer; these float over it with a
-   thin margin frame (not grid gap — the closed 0fr track would keep a dead gap). */
+/* right-panel islands — shared geometry for every pane-docked viewer. Each is a
+   right-docked flex child of its pane's .pane-body (see below): closed it is a
+   zero-footprint mounted box, open it claims a pane-relative fraction of width
+   and the transcript (flex:1) takes the rest. The pane's own border/shadow frame
+   already separates it from the center bg. */
 .file-viewer, .diff-viewer, .commits-viewer, .agent-viewer, .conflict-viewer, .memory-viewer {
   display: flex;
   flex-direction: column;
   background: var(--surface-2, var(--bg));
   border: 1px solid var(--border);
   border-radius: var(--panel-radius);
-  margin: var(--shell-gap) var(--shell-gap) var(--shell-gap) 0;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
   min-width: 0;
   min-height: 0;
@@ -793,22 +765,34 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   opacity: 0;
   pointer-events: none;
   transform: translateX(14px);
-  /* Closed/buried panels stay MOUNTED (panel stack keeps their state) but must
-     cost zero layout/paint — content-visibility:hidden takes the whole subtree
-     out of rendering, so a huge buried diff can't jank other panels' opens. */
+  /* Closed/buried panels stay MOUNTED (the per-pane stack keeps their state) but
+     must cost zero layout/paint — content-visibility:hidden takes the whole
+     subtree out of rendering, and flex:none + width:0 + margin:0 keep the box
+     from claiming any width in the row (so the transcript stays full-bleed). */
   content-visibility: hidden;
-  grid-column: 3;
-  grid-row: 1;
+  flex: none;
+  width: 0;
+  margin: 0;
 }
-/* Open = top of the panel stack. Enter motion is compositor-only (opacity +
-   transform); close snaps instantly (no transition on the base state). */
+/* Open = top of THIS pane's stack. Enter motion is compositor-only (opacity +
+   transform); close snaps instantly (no transition on the base state). The
+   per-type widths translate the old window-column fractions into pane-relative
+   ones (file 1.5/(1+1.5)=60%, agent 0.6/1.6=37.5%, diff 50%, commits ~44%,
+   conflict 60%, memory 50%), floored so a narrow pane never crushes the panel. */
 .file-viewer.fv-open, .diff-viewer.dv-open, .commits-viewer.cv-open, .agent-viewer.av-open, .conflict-viewer.cr-open, .memory-viewer.mv-open {
   opacity: 1;
   pointer-events: auto;
   transform: none;
   content-visibility: visible;
+  margin: var(--shell-gap) var(--shell-gap) var(--shell-gap) 0;
   transition: opacity 150ms ease, transform 180ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
+.file-viewer.fv-open     { width: max(var(--pane-panel-min), 60%); }
+.agent-viewer.av-open    { width: max(var(--pane-panel-min), 37.5%); }
+.diff-viewer.dv-open     { width: max(var(--pane-panel-min), 50%); }
+.commits-viewer.cv-open  { width: max(var(--pane-panel-min), 44%); }
+.conflict-viewer.cr-open { width: max(var(--pane-panel-min), 60%); }
+.memory-viewer.mv-open   { width: max(var(--pane-panel-min), 50%); }
 
 /* top header strip — just session breadcrumb, nothing more */
 .head {
@@ -974,6 +958,19 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border-color: var(--border-strong);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--accent-soft);
 }
+/* The pane's transcript + its docked right panel share a horizontal row, below
+   the pane head (single-pane: below the center header). First child = the
+   transcript/picker (fills); the panel viewers dock after it (width set when
+   open, see the island rules). Used by both split panes and the single pane so
+   the dock geometry is identical at 1 pane or 9. */
+.pane-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+.pane-body > :first-child { flex: 1; min-width: 0; }
 
 /* Drag-to-split preview: a frosted-glass overlay showing where the dropped agent
    will land — a half for an edge split, the whole pane for a center replace.
@@ -984,7 +981,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   position: absolute;
   z-index: 3;
   pointer-events: none;
-  background: var(--accent-soft);
+  /* Low-alpha tint (≈6% accent, vs --accent-soft's 13%) so the blurred content
+     clearly shows through — frosted glass, not a colored panel. Blur strength,
+     border, and the accent ring are unchanged. */
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
   backdrop-filter: blur(var(--blur-lg)) saturate(140%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(140%);
   border: 1.5px solid var(--accent);

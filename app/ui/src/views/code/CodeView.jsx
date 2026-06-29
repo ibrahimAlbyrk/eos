@@ -12,12 +12,6 @@ import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { CenterHeader } from "./center/CenterHeader.jsx";
 import { Composer } from "./center/Composer.jsx";
 import { PaneGrid, SinglePane } from "./panes/PaneGrid.jsx";
-import { FileViewer } from "./messages/FileViewer.jsx";
-import { AgentViewer } from "./messages/AgentViewer.jsx";
-import { DiffViewer } from "./messages/DiffViewer.jsx";
-import { CommitsViewer } from "./messages/CommitsViewer.jsx";
-import { ConflictResolver } from "./messages/ConflictResolver.jsx";
-import { MemoryViewer } from "./messages/MemoryViewer.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
 
@@ -123,17 +117,10 @@ export function CodeView({ live }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [ui.openPopover, ui]);
 
-  // Grid sizing follows the VISIBLE (top) panel — buried panels stay mounted
-  // but must not claim the column.
-  const gridClass = [
-    ui.paneCount > 1 ? "split" : "",
-    ui.topPanelType === "file" ? "file-open" : "",
-    ui.topPanelType === "agent" ? "agent-open" : "",
-    ui.topPanelType === "diff" ? "diff-open" : "",
-    ui.topPanelType === "commits" ? "commits-open" : "",
-    ui.topPanelType === "conflict" ? "conflict-open" : "",
-    ui.topPanelType === "memory" ? "memory-open" : "",
-  ].filter(Boolean).join(" ");
+  // The right panels now mount INSIDE their originating pane (PanePanel docked
+  // to that pane's right edge), so the window grid no longer resizes for them —
+  // only `split` remains.
+  const gridClass = ui.paneCount > 1 ? "split" : "";
 
   return (
     <AppLayout
@@ -144,21 +131,12 @@ export function CodeView({ live }) {
           <CenterHeader live={live} />
           {/* Single pane keeps the keep-alive multiplexer (instant switch-back).
               Split view (2-4 panes) lays the transcripts out side by side; the
-              shared header + composer below track the focused pane. */}
+              shared header + composer below track the focused pane. Each pane
+              hosts its own docked right panel (see PanePanel). */}
           {ui.paneCount > 1
             ? <PaneGrid live={live} />
             : <SinglePane live={live} />}
           <Composer live={live} />
-        </>
-      }
-      rightPanel={
-        <>
-          <FileViewer />
-          <AgentViewer />
-          <DiffViewer live={live} />
-          <CommitsViewer />
-          <ConflictResolver live={live} />
-          <MemoryViewer />
         </>
       }
     >

@@ -9,6 +9,8 @@ import { Messages } from "../messages/Messages.jsx";
 import { TranscriptHost } from "../messages/TranscriptHost.jsx";
 import { AgentPickerOverlay } from "./AgentPickerOverlay.jsx";
 import { DragAffordance } from "./DragAffordance.jsx";
+import { PanePanel } from "./PanePanel.jsx";
+import { PaneScopeContext } from "../../../state/paneScope.js";
 
 const sameZone = (a, b) => !!a && !!b && a.kind === b.kind && a.edge === b.edge;
 
@@ -198,7 +200,15 @@ export function SinglePane({ live }) {
     <div className="single-pane" {...handlers}>
       {zone && <DropPreview zone={zone} />}
       {zone && pointer && <DragAffordance pointer={pointer} zone={zone} />}
-      <TranscriptHost live={live} activeId={ui.selectedId} />
+      {/* One pane spans the whole center, so its right-docked panel sits at the
+          center's right edge — identical horizontal dock to the old window-grid
+          mount. */}
+      <PaneScopeContext.Provider value={leafId}>
+        <div className="pane-body">
+          <TranscriptHost live={live} activeId={ui.selectedId} />
+          <PanePanel live={live} />
+        </div>
+      </PaneScopeContext.Provider>
     </div>
   );
 }
@@ -299,11 +309,21 @@ function Pane({ id, agentId, worker, live, focused, excludeIds, attention, canCl
           </button>
         )}
       </div>
-      {worker
-        // Every split pane is rendered on screen regardless of focus, so all are
-        // visible (and may animate); only the focused one is isActive (shared UI).
-        ? <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
-        : <AgentPickerOverlay live={live} excludeIds={excludeIds} focused={focused} dragActive={!!zone} onPick={onPick} />}
+      {/* Pane-local right panel: the transcript + this pane's docked viewer share
+          a horizontal flex row, so an opened panel shrinks ONLY this pane's
+          transcript and anchors to this pane's right edge. PaneScopeContext
+          publishes the leaf id so a transcript click (and the docked viewers)
+          resolve to this pane (see useUi). */}
+      <PaneScopeContext.Provider value={id}>
+        <div className="pane-body">
+          {worker
+            // Every split pane is rendered on screen regardless of focus, so all are
+            // visible (and may animate); only the focused one is isActive (shared UI).
+            ? <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
+            : <AgentPickerOverlay live={live} excludeIds={excludeIds} focused={focused} dragActive={!!zone} onPick={onPick} />}
+          <PanePanel live={live} />
+        </div>
+      </PaneScopeContext.Provider>
     </div>
   );
 }
