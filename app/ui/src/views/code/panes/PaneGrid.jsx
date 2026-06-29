@@ -12,42 +12,86 @@ import { DragAffordance } from "./DragAffordance.jsx";
 
 const sameZone = (a, b) => !!a && !!b && a.kind === b.kind && a.edge === b.edge;
 
+// dataTransfer types: an agent dragged in from the sidebar vs. a pane dragged by
+// its header. Distinct types so a drop target can tell them apart and route them
+// differently (split/replace vs. swap/move).
+const AGENT_TYPE = "application/x-eos-agent";
+const PANE_TYPE = "application/x-eos-pane";
+
+// Transparent 1×1 drag ghost so the browser's native preview is suppressed and
+// the custom DragAffordance is what the user sees (mirrors AgentsTree's const;
+// kept local — no import across the sidebar boundary).
+const TRANSPARENT_DRAG_IMG = typeof Image === "function" ? new Image() : null;
+if (TRANSPARENT_DRAG_IMG) {
+  TRANSPARENT_DRAG_IMG.src =
+    "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+}
+
+// The leaf id of the pane currently being header-dragged, so a pane's own drop
+// target can ignore itself during dragover (dataTransfer.getData is unreadable
+// until drop). Module-level since only one drag runs at a time, and the source
+// pane and the hovered pane are different component instances.
+let draggedPaneId = null;
+
 // Shared drag-to-split behavior: tracks the live drop zone under the cursor and
 // fires onDropZone on drop. Used by every pane AND the single-pane view so the
-// edge-split + preview works identically whether you're at 1 pane or 9.
-function useDropSplit(canSplit, onDropZone) {
+// edge-split + preview works identically whether you're at 1 pane or 9. When a
+// pane (not an agent) is the drag source, `onPaneDrop` routes it instead and
+// `selfId` lets the source pane ignore itself; both omitted = agent-only target.
+function useDropSplit(canSplit, onDropZone, onPaneDrop, selfId) {
   const [zone, setZone] = useState(null);
   // Live pointer + the hovered pane's rect, captured on dragover, drives the
   // portaled DragAffordance (label trails the cursor; pill snaps to the region
   // centroid computed from the rect). Null whenever no drag is over this pane.
   const [pointer, setPointer] = useState(null);
-  const hasAgentDrag = (e) => e.dataTransfer.types.includes("application/x-eos-agent");
-  const zoneFrom = (e, r) => {
-    const z = dropZoneFromPoint((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
-    return canSplit ? z : { kind: "replace" }; // at the cap only replace is allowed
+  // True while the active drag is a pane (vs. an agent) — flips the affordance
+  // copy ("Swap"/"Move here") without DragAffordance knowing the source.
+  const [paneDrag, setPaneDrag] = useState(false);
+  // Which kind of drag is over us, or null. A pane-drag over its own source pane
+  // counts as none (self-reposition is a no-op) so no affordance shows there.
+  const dragKind = (e) => {
+    const types = e.dataTransfer.types;
+    if (onPaneDrop && types.includes(PANE_TYPE)) return draggedPaneId === selfId ? null : "pane";
+    if (types.includes(AGENT_TYPE)) return "agent";
+    return null;
   };
-  const clear = () => { setZone(null); setPointer(null); };
+  const zoneFrom = (e, r, kind) => {
+    const z = dropZoneFromPoint((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
+    // Splitting (adding a pane) is capped → replace only; a pane MOVE is
+    // net-neutral so its edge zones stay live even at the cap.
+    return canSplit || kind === "pane" ? z : { kind: "replace" };
+  };
+  const clear = () => { setZone(null); setPointer(null); setPaneDrag(false); };
   const handlers = {
     onDragOver: (e) => {
-      if (!hasAgentDrag(e)) return;
+      const kind = dragKind(e);
+      if (!kind) return;
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
       const r = e.currentTarget.getBoundingClientRect();
-      const z = zoneFrom(e, r);
+      const z = zoneFrom(e, r, kind);
       setZone((prev) => (sameZone(prev, z) ? prev : z));
       setPointer({ x: e.clientX, y: e.clientY, rect: { left: r.left, top: r.top, width: r.width, height: r.height } });
+      setPaneDrag(kind === "pane");
     },
     // contains(relatedTarget): ignore leaves into our own children (the preview
     // would otherwise flicker as the pointer crosses the transcript).
     onDragLeave: (e) => { if (!e.currentTarget.contains(e.relatedTarget)) clear(); },
     onDrop: (e) => {
-      const z = zone ?? zoneFrom(e, e.currentTarget.getBoundingClientRect());
+      const kind = dragKind(e);
+      const z = zone ?? zoneFrom(e, e.currentTarget.getBoundingClientRect(), kind);
       clear();
-      const id = e.dataTransfer.getData("application/x-eos-agent");
+      const paneId = onPaneDrop ? e.dataTransfer.getData(PANE_TYPE) : "";
+      if (paneId) {
+        e.preventDefault();
+        if (paneId !== selfId) onPaneDrop(z, paneId); // dropping a pane on itself: no-op
+        return;
+      }
+      const id = e.dataTransfer.getData(AGENT_TYPE);
       if (id) { e.preventDefault(); onDropZone(z, id); }
     },
   };
-  return { zone, pointer, handlers };
+  return { zone, pointer, paneDrag, handlers };
 }
 
 function DropPreview({ zone }) {
@@ -91,6 +135,7 @@ export function PaneGrid({ live }) {
         style={{ left: `${rect.left}%`, top: `${rect.top}%`, width: `${rect.width}%`, height: `${rect.height}%` }}
       >
         <Pane
+          id={id}
           agentId={agentId}
           worker={worker}
           live={live}
@@ -111,6 +156,11 @@ export function PaneGrid({ live }) {
           onDropZone={(zone, aid) => {
             if (zone.kind === "split") ui.splitWithAgent(id, zone.dir, zone.side, aid);
             else ui.dropReplace(id, aid);
+          }}
+          onPaneDrop={(zone, srcLeafId) => {
+            // Header dragged from another pane: edge → relocate, center → swap.
+            if (zone.kind === "split") ui.movePane(srcLeafId, id, zone.dir, zone.side);
+            else ui.swapPanes(srcLeafId, id);
           }}
         />
       </div>
@@ -182,17 +232,22 @@ function Divider({ d, gridRef, onRatio, onResizeStart, onResizeEnd }) {
   );
 }
 
-function Pane({ agentId, worker, live, focused, excludeIds, attention, canClose, canSplit, onFocus, onClose, onPick, onDropZone }) {
+function Pane({ id, agentId, worker, live, focused, excludeIds, attention, canClose, canSplit, onFocus, onClose, onPick, onDropZone, onPaneDrop }) {
   // Blocked-on-input cue for non-focused panes: an open ask_user question
   // (per-agent store) or a pending permission (live.pendingPermissions). The
   // focused pane needs none — its banner is in the shared composer.
   const questionNeeded = useInputNeeded(agentId);
-  const { zone, pointer, handlers } = useDropSplit(canSplit, onDropZone);
+  const { zone, pointer, paneDrag, handlers } = useDropSplit(canSplit, onDropZone, onPaneDrop, id);
+  // This pane is being header-dragged → dim it. Armed on mousedown so the close
+  // button (a no-drag control in the header) can't start a drag.
+  const [dragging, setDragging] = useState(false);
+  const dragArmed = useRef(false);
   const permNeeded = !!worker && (live.pendingPermissions ?? []).some((p) => p.worker_id === agentId);
   const needsInput = !focused && !!worker && (questionNeeded || permNeeded);
   const status = worker ? statusFromState(worker.state) : null;
   // needs-input takes precedence over the attention pulse (more urgent).
-  const cls = ["pane", focused ? "is-focused" : "", needsInput ? "pane--needs-input" : attention ? "pane--attention" : ""]
+  const cls = ["pane", focused ? "is-focused" : "", dragging ? "pane--dragging" : "",
+    needsInput ? "pane--needs-input" : attention ? "pane--attention" : ""]
     .filter(Boolean)
     .join(" ");
 
@@ -205,8 +260,24 @@ function Pane({ agentId, worker, live, focused, excludeIds, attention, canClose,
       {...handlers}
     >
       {zone && <DropPreview zone={zone} />}
-      {zone && pointer && <DragAffordance pointer={pointer} zone={zone} />}
-      <div className="pane-head">
+      {zone && pointer && <DragAffordance pointer={pointer} zone={zone} paneDrag={paneDrag} />}
+      <div
+        className="pane-head"
+        draggable
+        // mousedown fires before dragstart and its target is the real element, so
+        // arm the drag only when the press did NOT land on the close button (the
+        // header is the draggable element, so dragstart.target is the header).
+        onMouseDown={(e) => { dragArmed.current = !e.target.closest(".pane-close"); }}
+        onDragStart={(e) => {
+          if (!dragArmed.current) { e.preventDefault(); return; }
+          draggedPaneId = id;
+          setDragging(true);
+          e.dataTransfer.setData(PANE_TYPE, id);
+          e.dataTransfer.effectAllowed = "move";
+          if (TRANSPARENT_DRAG_IMG) e.dataTransfer.setDragImage(TRANSPARENT_DRAG_IMG, 0, 0);
+        }}
+        onDragEnd={() => { draggedPaneId = null; setDragging(false); }}
+      >
         {status && <span className={`ag-dot ${status.dot}`} />}
         <span className="pane-name" title={worker ? nameOf(worker) : undefined}>
           {worker ? <AgentName worker={worker} /> : "Empty — hover to pick an agent"}

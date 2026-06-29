@@ -64,16 +64,23 @@ export function setLeafAgent(tree, leafId, agentId) {
   return mapLeaf(tree, leafId, (l) => (l.agentId === agentId ? l : { ...l, agentId }));
 }
 
+// Rebuild `tree`, splitting `leafId` into a new split that holds the EXISTING
+// `inserted` node beside the original leaf along `dir`; `side` ("before"|"after")
+// positions `inserted`. Pure (mapLeaf → same ref when leafId is absent). Shared
+// by splitLeaf (inserts a fresh leaf) and moveLeaf (re-inserts a detached one).
+function splitInto(tree, leafId, dir, side, inserted) {
+  return mapLeaf(tree, leafId, (l) => {
+    const [a, b] = side === "before" ? [inserted, l] : [l, inserted];
+    return { t: "split", id: nid(), dir, ratio: 0.5, a, b };
+  });
+}
+
 // Split a leaf into [existing, fresh] along dir; `side` ("before"|"after") places
 // the new leaf. Returns { tree, newId }. No-op (same tree, null id) at the cap.
 export function splitLeaf(tree, leafId, dir, side, agentId) {
   if (leafCount(tree) >= MAX_PANES || !findLeaf(tree, leafId)) return { tree, newId: null };
   const fresh = leaf(agentId);
-  const next = mapLeaf(tree, leafId, (l) => {
-    const [a, b] = side === "before" ? [fresh, l] : [l, fresh];
-    return { t: "split", id: nid(), dir, ratio: 0.5, a, b };
-  });
-  return { tree: next, newId: fresh.id };
+  return { tree: splitInto(tree, leafId, dir, side, fresh), newId: fresh.id };
 }
 
 // Remove a leaf; its parent split collapses to the sibling. Removing the only
@@ -89,6 +96,37 @@ export function removeLeaf(tree, leafId) {
     return a === n.a && b === n.b ? n : { ...n, a, b };
   };
   return walk(tree);
+}
+
+// Swap two leaf NODES wholesale at their positions: each agent's leaf id (and
+// agentId) travels into the other's slot, so the id-keyed renderer keeps both
+// panes mounted and animates them crossing. No-op (same ref) if idA===idB or
+// either id is missing.
+export function swapLeaves(tree, idA, idB) {
+  if (idA === idB) return tree;
+  const a = findLeaf(tree, idA);
+  const b = findLeaf(tree, idB);
+  if (!a || !b) return tree;
+  const walk = (n) => {
+    if (isLeaf(n)) return n.id === idA ? b : n.id === idB ? a : n;
+    const na = walk(n.a);
+    const nb = walk(n.b);
+    return na === n.a && nb === n.b ? n : { ...n, a: na, b: nb };
+  };
+  return walk(tree);
+}
+
+// Relocate a pane: detach the source leaf (its parent split collapses to the
+// sibling, exactly like removeLeaf) then split `targetId`, re-inserting the SAME
+// source node so its id + agentId survive — the renderer keeps it mounted and
+// just animates its rect. `side` places the source on the target's before/after
+// half. Net-neutral (no cap). No-op (same ref) if srcId===targetId or an id is
+// missing.
+export function moveLeaf(tree, srcId, targetId, dir, side) {
+  if (srcId === targetId) return tree;
+  const src = findLeaf(tree, srcId);
+  if (!src || !findLeaf(tree, targetId)) return tree;
+  return splitInto(removeLeaf(tree, srcId), targetId, dir, side, src);
 }
 
 export function setRatio(tree, splitId, ratio) {

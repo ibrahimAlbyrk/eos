@@ -1187,7 +1187,14 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   font-size: var(--text-sm);
   --app-region: no-drag;
   -webkit-user-select: none;
+  /* The header is the drag handle for repositioning the pane (drop on another
+     pane to swap, on its edge to move). */
+  cursor: grab;
 }
+.pane-head:active { cursor: grabbing; }
+/* The source pane dims while its header is dragged (set in PaneGrid). Static
+   opacity, not an animation, so no reduced-motion handling is needed. */
+.pane--dragging { opacity: 0.55; }
 .pane-head .ag-dot { flex-shrink: 0; }
 .pane-name {
   flex: 1;
@@ -1248,6 +1255,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   align-items: center;
   justify-content: center;
   --app-region: no-drag;
+  cursor: pointer; /* override the header's grab cursor */
 }
 .pane-close:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
 

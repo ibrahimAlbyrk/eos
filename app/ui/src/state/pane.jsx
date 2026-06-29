@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useSelection } from "./selection.jsx";
 import {
   MAX_PANES, FANOUT_MAX, leaf, leaves, leafCount, findLeaf, leafOfAgent, isValidTree,
-  splitLeaf, removeLeaf, setRatio, setLeafAgent, removeDeadLeaves, fillAgents,
+  splitLeaf, removeLeaf, swapLeaves, moveLeaf, setRatio, setLeafAgent, removeDeadLeaves, fillAgents,
   fanoutLayout, reuseLeafIds,
 } from "../lib/paneLayout.js";
 import { followAnchorId, selectFollowChildren } from "../lib/followPolicy.js";
@@ -119,6 +119,28 @@ export function PaneProvider({ children }) {
     setTree((t) => setLeafAgent(t, leafId, agentId));
     setFocusedLeafId(leafId);
     setSelectedId(agentId ?? null);
+  }, [exitFollow, setSelectedId]);
+
+  // Drag a pane header onto another pane's center → swap the two panes' slots.
+  // Each leaf id travels with its agent, so focus stays on the dragged pane.
+  const swapPanes = useCallback((idA, idB) => {
+    exitFollow();
+    const next = swapLeaves(treeRef.current, idA, idB);
+    if (next === treeRef.current) return;
+    setTree(next);
+    setFocusedLeafId(idA);
+    setSelectedId(findLeaf(next, idA)?.agentId ?? null);
+  }, [exitFollow, setSelectedId]);
+
+  // Drag a pane header onto another pane's edge → relocate it there. moveLeaf
+  // preserves the source leaf's id, so keep focus on it.
+  const movePane = useCallback((srcId, targetId, dir, side) => {
+    exitFollow();
+    const next = moveLeaf(treeRef.current, srcId, targetId, dir, side);
+    if (next === treeRef.current) return;
+    setTree(next);
+    setFocusedLeafId(srcId);
+    setSelectedId(findLeaf(next, srcId)?.agentId ?? null);
   }, [exitFollow, setSelectedId]);
 
   const closeLeaf = useCallback((id) => {
@@ -301,12 +323,12 @@ export function PaneProvider({ children }) {
     paneAgents,
     focusedPane,
     followMode,
-    focusLeaf, focusLeafByIndex, splitWithAgent, openEmptySplit, dropReplace, closeLeaf,
+    focusLeaf, focusLeafByIndex, splitWithAgent, openEmptySplit, dropReplace, swapPanes, movePane, closeLeaf,
     setRatioFor, selectAgent, togglePaneForAgent, prunePanes, resetToEmpty, setLayout, applyStructure,
     reconcileFollow, toggleFollow, setFollow,
   }), [
     tree, focusedLeafId, paneCount, paneAgents, focusedPane, followMode,
-    focusLeaf, focusLeafByIndex, splitWithAgent, openEmptySplit, dropReplace, closeLeaf,
+    focusLeaf, focusLeafByIndex, splitWithAgent, openEmptySplit, dropReplace, swapPanes, movePane, closeLeaf,
     setRatioFor, selectAgent, togglePaneForAgent, prunePanes, resetToEmpty, setLayout, applyStructure,
     reconcileFollow, toggleFollow, setFollow,
   ]);

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   leaf, isLeaf, isValidTree, leaves, leafCount, findLeaf, leafOfAgent,
-  setLeafAgent, splitLeaf, removeLeaf, setRatio, removeDeadLeaves,
+  setLeafAgent, splitLeaf, removeLeaf, swapLeaves, moveLeaf, setRatio, removeDeadLeaves,
   computeRects, computeDividers, dropZoneFromPoint, fanoutLayout,
   stripAgents, fillAgents, reuseLeafIds, defaultPanePresets, MAX_PANES,
 } from "./paneLayout.js";
@@ -62,6 +62,76 @@ describe("removeLeaf", () => {
   it("never removes the only leaf", () => {
     const root = leaf("a");
     expect(removeLeaf(root, root.id)).toBe(root);
+  });
+});
+
+describe("swapLeaves", () => {
+  it("swaps two leaves' positions, each keeping its id + agent (keep-alive)", () => {
+    const root = leaf("a");
+    const t = splitLeaf(root, root.id, "row", "after", "b").tree; // [a, b]
+    const [la, lb] = leaves(t);
+    const next = swapLeaves(t, la.id, lb.id);
+    expect(leaves(next).map((l) => l.agentId)).toEqual(["b", "a"]); // order swapped
+    expect(leafOfAgent(next, "a").id).toBe(la.id); // a's leaf id travels with it
+    expect(leafOfAgent(next, "b").id).toBe(lb.id);
+  });
+  it("swaps across a 3-pane tree, leaving the bystander's id untouched", () => {
+    const root = leaf("a");
+    let t = splitLeaf(root, root.id, "row", "after", "b").tree; // [a, b]
+    t = splitLeaf(t, leaves(t)[1].id, "col", "after", "c").tree; // [a, b, c]
+    const [la, lb, lc] = leaves(t);
+    const next = swapLeaves(t, la.id, lc.id); // swap a and c
+    expect(leaves(next).map((l) => l.agentId)).toEqual(["c", "b", "a"]);
+    expect(leafOfAgent(next, "a").id).toBe(la.id);
+    expect(leafOfAgent(next, "b").id).toBe(lb.id); // bystander unchanged
+    expect(leafOfAgent(next, "c").id).toBe(lc.id);
+  });
+  it("is a no-op (same ref) when idA===idB", () => {
+    const root = leaf("a");
+    const t = splitLeaf(root, root.id, "row", "after", "b").tree;
+    const id = leaves(t)[0].id;
+    expect(swapLeaves(t, id, id)).toBe(t);
+  });
+  it("is a no-op (same ref) when a leaf is missing", () => {
+    const root = leaf("a");
+    const t = splitLeaf(root, root.id, "row", "after", "b").tree;
+    expect(swapLeaves(t, leaves(t)[0].id, "nope")).toBe(t);
+  });
+});
+
+describe("moveLeaf", () => {
+  // [a, b, c]: a | (b / c)
+  const build3 = () => {
+    const root = leaf("a");
+    let t = splitLeaf(root, root.id, "row", "after", "b").tree; // [a, b]
+    t = splitLeaf(t, leaves(t)[1].id, "col", "after", "c").tree; // [a, b, c]
+    return t;
+  };
+  it("relocates the source across a 3-pane tree, preserving every surviving id", () => {
+    const t = build3();
+    const [la, lb, lc] = leaves(t);
+    const next = moveLeaf(t, la.id, lc.id, "row", "after"); // a → after c
+    expect(leafCount(next)).toBe(3); // net-neutral
+    expect(leaves(next).map((l) => l.agentId)).toEqual(["b", "c", "a"]);
+    expect(leafOfAgent(next, "a").id).toBe(la.id); // source travels
+    expect(leafOfAgent(next, "b").id).toBe(lb.id); // survivors stay
+    expect(leafOfAgent(next, "c").id).toBe(lc.id);
+    expect(isValidTree(next)).toBe(true);
+  });
+  it("places the source before the target when side='before'", () => {
+    const t = build3();
+    const next = moveLeaf(t, leaves(t)[0].id, leaves(t)[2].id, "col", "before"); // a before c
+    const order = leaves(next).map((l) => l.agentId);
+    expect(order.indexOf("a")).toBe(order.indexOf("c") - 1);
+  });
+  it("is a no-op (same ref) when srcId===targetId", () => {
+    const t = build3();
+    const id = leaves(t)[0].id;
+    expect(moveLeaf(t, id, id, "row", "after")).toBe(t);
+  });
+  it("is a no-op (same ref) when an id is missing", () => {
+    const t = build3();
+    expect(moveLeaf(t, leaves(t)[0].id, "nope", "row", "after")).toBe(t);
   });
 });
 
