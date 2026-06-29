@@ -18,6 +18,7 @@ import {
 } from "./ToolDetail.jsx";
 import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
 import { skillFilePath } from "../../../lib/skillBody.js";
+import { skillNameFromRead } from "../../../lib/skillName.js";
 import { toolDisplayName } from "../../../lib/toolDisplayName.js";
 import { argsSummary } from "../../../lib/toolArgs.js";
 import { WORKER_TOOL_SPECS } from "../../../lib/workerTools.js";
@@ -70,7 +71,10 @@ function hostOf(url) {
 const filePathOf = (t) => t.input?.file_path ?? null;
 
 register("Read", {
-  label: (t) => ({ verb: "Read", file: fileName(t.input?.file_path) }),
+  label: (t) => ({
+    verb: "Read",
+    file: skillNameFromRead(t.input?.file_path, t.result?.text) ?? fileName(t.input?.file_path),
+  }),
   runningLabel: (t) => ({ verb: "Reading", file: fileName(t.input?.file_path) }),
   filePath: filePathOf,
   Detail: ReadDetail,
