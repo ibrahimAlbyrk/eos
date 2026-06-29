@@ -981,12 +981,13 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   position: absolute;
   z-index: 3;
   pointer-events: none;
-  /* Low-alpha tint (≈6% accent, vs --accent-soft's 13%) so the blurred content
-     clearly shows through — frosted glass, not a colored panel. Blur strength,
-     border, and the accent ring are unchanged. */
-  background: color-mix(in srgb, var(--accent) 6%, transparent);
-  backdrop-filter: blur(var(--blur-lg)) saturate(140%);
-  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(140%);
+  /* Very-low-alpha tint (≈1.5% accent) so the blurred content shows through
+     almost fully — frosted glass, not a colored panel. Blur is bumped +30% over
+     --blur-lg (kept local via calc so other glass surfaces are unaffected);
+     border and the accent ring are unchanged. */
+  background: color-mix(in srgb, var(--accent) 1.5%, transparent);
+  backdrop-filter: blur(calc(var(--blur-lg) * 1.3)) saturate(140%);
+  -webkit-backdrop-filter: blur(calc(var(--blur-lg) * 1.3)) saturate(140%);
   border: 1.5px solid var(--accent);
   border-radius: var(--panel-radius);
   box-shadow: 0 0 0 3px var(--accent-soft);
