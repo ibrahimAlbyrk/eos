@@ -71,10 +71,10 @@ function hostOf(url) {
 const filePathOf = (t) => t.input?.file_path ?? null;
 
 register("Read", {
-  label: (t) => ({
-    verb: "Read",
-    file: skillNameFromRead(t.input?.file_path, t.result?.text) ?? fileName(t.input?.file_path),
-  }),
+  label: (t) => {
+    const skill = skillNameFromRead(t.input?.file_path, t.result?.text);
+    return { verb: "Read", file: skill ? `${skill} SKILL` : fileName(t.input?.file_path) };
+  },
   runningLabel: (t) => ({ verb: "Reading", file: fileName(t.input?.file_path) }),
   filePath: filePathOf,
   Detail: ReadDetail,
