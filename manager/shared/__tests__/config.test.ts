@@ -271,3 +271,27 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
     assert.ok(cfg.backends["claude-cli-opus"]);
   });
 });
+
+describe("priceForModel — unknown-model fallback (MJ2/Q0c)", () => {
+  it("an unknown model does NOT bill at the Opus price + warns", async () => {
+    const { priceForModel, UNKNOWN_MODEL_PRICE, defaults } = await import("../config.ts");
+    const prices = defaults().prices;
+    let warnedWith: string | undefined;
+    const price = priceForModel(prices, "deepseek-chat", (m) => { warnedWith = m; });
+    assert.notDeepEqual(price, prices.opus);
+    assert.deepEqual(price, UNKNOWN_MODEL_PRICE);
+    assert.equal(price.in, 0);
+    assert.equal(warnedWith, "deepseek-chat");
+  });
+
+  it("Claude family + null still resolve without warning", async () => {
+    const { priceForModel, defaults } = await import("../config.ts");
+    const prices = defaults().prices;
+    let warned = false;
+    const onUnknown = () => { warned = true; };
+    assert.deepEqual(priceForModel(prices, "claude-opus-4-8", onUnknown), prices.opus);
+    assert.deepEqual(priceForModel(prices, "claude-sonnet-4-6", onUnknown), prices.sonnet);
+    assert.deepEqual(priceForModel(prices, null, onUnknown), prices.opus);
+    assert.equal(warned, false);
+  });
+});

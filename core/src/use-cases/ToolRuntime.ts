@@ -19,8 +19,10 @@ export interface RuntimeTool {
 }
 
 export interface ToolGate {
-  // Returns allow=false to deny (its message becomes the tool_result text).
-  decide(toolName: string, input: Record<string, unknown>): Promise<{ allow: boolean; message?: string }>;
+  // Returns allow=false to deny (its message becomes the tool_result text). On
+  // allow, an optional updatedInput is the policy's rewritten input (rewrite
+  // rules / human-edited "ask" approvals) — executeGated runs the tool on it.
+  decide(toolName: string, input: Record<string, unknown>): Promise<{ allow: boolean; message?: string; updatedInput?: Record<string, unknown> }>;
 }
 
 export interface ToolRuntimeDeps {
@@ -124,7 +126,7 @@ async function executeGated(
   if (!tool) return { text: `unknown tool: ${name}`, isError: true };
 
   try {
-    return { text: await tool.execute(input), isError: false };
+    return { text: await tool.execute(decision.updatedInput ?? input), isError: false };
   } catch (e) {
     return { text: e instanceof Error ? e.message : String(e), isError: true };
   }

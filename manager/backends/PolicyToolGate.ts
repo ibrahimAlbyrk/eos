@@ -13,7 +13,7 @@ export function makePolicyToolGate(workerId: string, policy: PolicyDecider): Too
     async decide(toolName, input) {
       if (isBlockedBuiltinTool(toolName)) return { allow: false, message: blockedBuiltinToolMessage(toolName) };
       const d = await policy.decide({ workerId, toolName, input });
-      return d.behavior === "allow" ? { allow: true } : { allow: false, message: d.message };
+      return d.behavior === "allow" ? { allow: true, updatedInput: d.updatedInput } : { allow: false, message: d.message };
     },
   };
 }

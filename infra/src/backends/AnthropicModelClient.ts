@@ -8,6 +8,7 @@
 // opt-in only, never the default (the claude-cli backend remains default).
 
 import type { ModelClient, ModelMessage, ModelTurn } from "../../../core/src/ports/ModelClient.ts";
+import { normalizeBaseOrigin } from "./base-url.ts";
 
 export interface AnthropicToolSpec {
   name: string;
@@ -28,7 +29,7 @@ export interface AnthropicModelClientOpts {
 
 export function createAnthropicModelClient(opts: AnthropicModelClientOpts): ModelClient {
   const doFetch = opts.fetchImpl ?? fetch;
-  const base = (opts.baseUrl ?? "https://api.anthropic.com").replace(/\/$/, "");
+  const base = normalizeBaseOrigin(opts.baseUrl ?? "https://api.anthropic.com");
   return {
     async createTurn(messages: ModelMessage[]): Promise<ModelTurn> {
       const body = {

@@ -192,6 +192,30 @@ const DEFAULT_PRICES: Record<string, ModelPrice> = {
   haiku:  { in:  1.0, out:  5.0, cacheRead: 0.10, cacheCreate:  1.25, cacheCreate1h:  2.0 },
 };
 
+// Q0c/MJ2 — the loud fallback for an UNKNOWN model: a known-zero price, NOT the
+// Opus default. A non-Claude / unpriced model billed at Opus rates is a silent
+// ~10× overbill; charging $0 + warning (see priceForModel) makes it observable.
+export const UNKNOWN_MODEL_PRICE: ModelPrice = { in: 0, out: 0, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 };
+
+// Resolve a model name to its ModelPrice. A null/undefined model is the default
+// Claude (→ opus); Claude family names substring-match. An unrecognized model
+// falls back to UNKNOWN_MODEL_PRICE (loud known-zero) and invokes onUnknown so
+// the caller can warn once — never the silent Opus default (MJ2/Q0c).
+export function priceForModel(
+  prices: Record<string, ModelPrice>,
+  model: string | null | undefined,
+  onUnknown?: (model: string) => void,
+): ModelPrice {
+  const m = String(model ?? "opus").toLowerCase();
+  if (m in prices) return prices[m];
+  if (m.includes("fable")) return prices.fable;
+  if (m.includes("opus")) return prices.opus;
+  if (m.includes("sonnet")) return prices.sonnet;
+  if (m.includes("haiku")) return prices.haiku;
+  onUnknown?.(m);
+  return UNKNOWN_MODEL_PRICE;
+}
+
 const DEFAULT_BACKENDS: Record<string, BackendProfile> = {
   // claude-sdk is the default: subscription-billed, live thinking, in-process tools.
   // PTY (claude-cli) stays first-class and is the automatic fallback when the

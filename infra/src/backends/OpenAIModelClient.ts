@@ -7,6 +7,7 @@
 // Billing: API-key pool, opt-in; never the default.
 
 import type { ModelClient, ModelMessage, ModelTurn, ModelStreamCallbacks } from "../../../core/src/ports/ModelClient.ts";
+import { normalizeBaseOrigin } from "./base-url.ts";
 
 export interface OpenAIToolSpec {
   name: string;
@@ -26,7 +27,7 @@ export interface OpenAIModelClientOpts {
 
 export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClient {
   const doFetch = opts.fetchImpl ?? fetch;
-  const base = (opts.baseUrl ?? "https://api.openai.com").replace(/\/$/, "");
+  const base = normalizeBaseOrigin(opts.baseUrl ?? "https://api.openai.com");
   return {
     async createTurn(messages: ModelMessage[]): Promise<ModelTurn> {
       const mapped = messages.map(toOpenAIMessage);
