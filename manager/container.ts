@@ -21,6 +21,7 @@ import { createPortAllocator } from "../infra/src/net/PortAllocator.ts";
 import { createChildProcessSupervisor } from "../infra/src/supervision/ChildProcessSupervisor.ts";
 import { createClaudeCliBackend } from "./backends/ClaudeCliBackend.ts";
 import { createInProcessBackend } from "../infra/src/backends/InProcessBackend.ts";
+import { JsonlConversationStore } from "../infra/src/conversation/JsonlConversationStore.ts";
 import { createAnthropicModelClient } from "../infra/src/backends/AnthropicModelClient.ts";
 import { createOpenAIModelClient } from "../infra/src/backends/OpenAIModelClient.ts";
 import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts";
@@ -881,6 +882,13 @@ export function buildContainer() {
     },
   });
 
+  // Durability deps (MJ7) shared by every in-process kind: a persisted turn lets
+  // an orphaned worker (incl. a persistent orchestrator) survive a daemon restart
+  // (boot reconcile → SUSPENDED → resume rehydrates). Stored dialect-neutral under
+  // ~/.eos/conversations (non-regenerable user data). ids = the same generator the
+  // rest of the daemon uses (no Math.random in the backend).
+  const inProcessDurability = { store: new JsonlConversationStore(join(config.daemon.home, "conversations")), ids: randomIdGenerator };
+
   // anthropic-api backend — in-process, ToolRuntime-driven, gated by the shared
   // policy engine. Credentials/baseUrl/capabilities are resolved per-worker from the
   // profile (no process.env); the model gets the full DPI system prompt.
@@ -892,7 +900,7 @@ export function buildContainer() {
     makeSubagentTool,
     buildModelClient: ({ apiKey, baseUrl, model, system, items }) =>
       createAnthropicModelClient({ apiKey, baseUrl, model, system, tools: items.map((i) => ({ name: i.name, description: i.description, input_schema: i.schema })) }),
-  }));
+  }), inProcessDurability);
   // OpenAI-compatible backends (OpenAI, DeepSeek, Kimi/Moonshot, Codex-via-API, or
   // any compatible endpoint via a per-profile baseUrl). Same gated ToolRuntime path.
   // A fresh factory per kind (no shared closure) keeps each registration's dialect
@@ -906,8 +914,8 @@ export function buildContainer() {
     buildModelClient: ({ apiKey, baseUrl, model, system, items }) =>
       createOpenAIModelClient({ apiKey, baseUrl, model, system, tools: items.map((i) => ({ name: i.name, description: i.description, parameters: i.schema })) }),
   });
-  const openaiBackend = createInProcessBackend("openai", makeOpenAiEnvFactory());
-  const codexBackend = createInProcessBackend("codex", makeOpenAiEnvFactory());
+  const openaiBackend = createInProcessBackend("openai", makeOpenAiEnvFactory(), inProcessDurability);
+  const codexBackend = createInProcessBackend("codex", makeOpenAiEnvFactory(), inProcessDurability);
 
   // claude-sdk (Lane A): subscription-billed, live thinking. Reuses the shared
   // policy engine + loopback ToolContext + prompt-library descriptions.

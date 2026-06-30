@@ -18,6 +18,10 @@ export const USER_DATA_ENTRIES = [
   // Operator-trusted local scripts a workflow `script` node may run (the
   // allowlist root, ~/.eos/scripts) — non-regenerable user data (§ITEM 1).
   "scripts",
+  // Durable in-process conversations (~/.eos/conversations/<sessionId>.jsonl) — a
+  // metered/API worker's transcript, replayed on resume. Non-regenerable: losing
+  // it closes a SUSPENDED worker that could have resumed (M3 durability).
+  "conversations",
   "policy.yaml",
   "config.json",
   // Files-explorer trash fallback (used only when the macOS Finder Trash is

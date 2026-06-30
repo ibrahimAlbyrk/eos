@@ -6,8 +6,11 @@
 //
 // Unlike claude-cli (out-of-process, stateless attach via port), in-process
 // sessions hold live state (conversation + abort signal) in an in-memory
-// registry keyed by workerId; attach() looks them up. (They do not survive a
-// daemon restart — the daemon must reconcile orphaned in-process rows on boot.)
+// registry keyed by workerId; attach() looks them up. The LIVE registry does not
+// survive a daemon restart — but when durability deps (ConversationStore +
+// IdGenerator) are injected, each settled turn is persisted under the session id,
+// so the daemon reconciles the orphaned row to SUSPENDED and ResumeWorker revives
+// it via start({backendOptions.resume}) — NOT attach (see attach below).
 
 import type {
   AgentBackend,
@@ -19,6 +22,8 @@ import type {
   WorkerHandle,
 } from "../../../core/src/ports/AgentBackend.ts";
 import type { ModelClient, ModelMessage } from "../../../core/src/ports/ModelClient.ts";
+import type { ConversationStore } from "../../../core/src/ports/ConversationStore.ts";
+import type { IdGenerator } from "../../../core/src/ports/IdGenerator.ts";
 import { runTurn, type RuntimeTool, type ToolGate } from "../../../core/src/use-cases/ToolRuntime.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 
@@ -42,9 +47,22 @@ export interface InProcessEnv {
 // only CREDENTIAL resolution is async; the tool surface stays sync.
 export type InProcessEnvFactory = (spec: AgentLaunchSpec) => InProcessEnv | Promise<InProcessEnv>;
 
+// Durability injection seam (MJ7). A conversation outlives any single InProcessEnv
+// (rebuilt per start), so the store/ids live here, NOT in InProcessEnv. OPTIONAL —
+// tests/conformance pass none → no persistence, no session id, the universal
+// invariants stay green. Production passes both (the daemon's ConversationStore +
+// the shared IdGenerator the rest of the daemon uses — never Math.random here).
+export interface InProcessDeps {
+  store?: ConversationStore;
+  ids?: IdGenerator;
+}
+
 interface LiveSession {
   messages: ModelMessage[];
   signal: { aborted: boolean };
+  // Durable session id (resume target). "" when no id source was injected — then
+  // nothing is persisted and no `session ready` is emitted.
+  sessionId: string;
   emit(e: AgentEvent): void;
   onExit?: (code: number | null) => void;
   env: InProcessEnv;
@@ -63,14 +81,23 @@ const CAPS: AgentCapabilities = {
   contextClear: true,
 };
 
+// Durable in-process kinds persist a session id (ConversationStore) so the worker
+// survives a daemon restart — boot reconcile keeps the row SUSPENDED and
+// ResumeWorker revives it. The resume route gates on capabilities.resumable
+// (workers.ts), never on kind.
+const RESUMABLE_CAPS: AgentCapabilities = { ...CAPS, resumable: true };
+
 // Per-kind in-process provider metadata. Adding a metered provider = one entry.
 // enabled:true — the metered API lanes are SELECTABLE; the spawn-backend billing
 // guard (metered needs a costMode:"billed" profile) is the real safety net, so
-// enablement here never causes silent metered billing.
+// enablement here never causes silent metered billing. sessionStore
+// "eos-conversation" = the durable JSONL store (M3) — intentionally NOT loadable by
+// the claude lanes, so cross-lane handoff stays correctly blocked; in-process kinds
+// share it because they persist dialect-NEUTRAL messages (see ConversationStore).
 const IN_PROCESS_DESCRIPTORS: Record<string, Omit<BackendDescriptor, "kind">> = {
-  "anthropic-api": { label: "Anthropic API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "claude" }, auth: "apikey", enabled: true, sessionStore: "none" },
-  "openai": { label: "OpenAI API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: true, sessionStore: "none" },
-  "codex": { label: "Codex", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: true, sessionStore: "none" },
+  "anthropic-api": { label: "Anthropic API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: RESUMABLE_CAPS, models: { kind: "claude" }, auth: "apikey", enabled: true, sessionStore: "eos-conversation" },
+  "openai": { label: "OpenAI API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: RESUMABLE_CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: true, sessionStore: "eos-conversation" },
+  "codex": { label: "Codex", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: RESUMABLE_CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: true, sessionStore: "eos-conversation" },
 };
 
 export interface InProcessBackend extends AgentBackend {
@@ -79,7 +106,7 @@ export interface InProcessBackend extends AgentBackend {
   whenSettled(workerId: string): Promise<void>;
 }
 
-export function createInProcessBackend(kind: string, envFactory: InProcessEnvFactory): InProcessBackend {
+export function createInProcessBackend(kind: string, envFactory: InProcessEnvFactory, deps: InProcessDeps = {}): InProcessBackend {
   const live = new Map<string, LiveSession>();
   const descriptor: BackendDescriptor = {
     kind,
@@ -93,7 +120,10 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
       { model: s.env.model, tools: s.env.tools, gate: s.env.gate, emit: s.emit, signal: s.signal, contextWindow: s.env.contextWindow },
       s.messages,
     )
-      .then((msgs) => { s.messages = msgs; })
+      // Persist after each settled turn, at the one place the conversation is
+      // already mutated — so an orphaned row can rehydrate on resume. No-op when
+      // no store/session id was injected (tests/conformance).
+      .then((msgs) => { s.messages = msgs; if (deps.store && s.sessionId) deps.store.save(workerId, s.sessionId, msgs); })
       .catch(() => {})
       .finally(() => { if (s.current === p) s.current = null; });
     s.current = p;
@@ -118,12 +148,23 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
       return { ok: true };
     },
     // /clear: the conversation is the in-memory message buffer — drop it and
-    // clear any abort so the next turn starts from an empty context.
+    // clear any abort so the next turn starts from an empty context. Emit
+    // `cleared` so the FSM resets context/task in place (ProcessAgentSignal),
+    // delete the persisted conversation, and roll to a fresh session id so the
+    // wiped context is never re-loaded on a later resume (the row's session_id
+    // tracks the new id via the follow-up `ready`).
     async clearContext() {
       const s = live.get(workerId);
       if (!s) return { ok: false };
       s.signal.aborted = true;
       s.messages = [];
+      s.emit({ type: "session", phase: "cleared" });
+      deps.store?.delete(s.sessionId);
+      const fresh = deps.ids?.newSessionId();
+      if (fresh) {
+        s.sessionId = fresh;
+        s.emit({ type: "session", phase: "ready", sessionId: fresh });
+      }
       return { ok: true };
     },
     // No live model switch (runtimeModelSwitch:false) — the model is fixed by the
@@ -147,9 +188,17 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
       // Await the factory: the production factory resolves credentials (AuthResolver)
       // before building the model client; a sync factory (tests) resolves immediately.
       const env = await envFactory(spec);
+      // Resume target ?? a fresh injected id (never Math.random) ?? "" (deps-less:
+      // no persistence, no `ready`). On resume, rehydrate the persisted conversation
+      // before the first turn so the model continues from the prior context (the
+      // resume path carries no boot prompt — ResumeWorker forces the IDLE settle).
+      const resume = spec.backendOptions?.resume;
+      const sessionId = resume ?? deps.ids?.newSessionId() ?? "";
+      const seeded = resume && deps.store ? deps.store.load(resume) : null;
       const s: LiveSession = {
-        messages: [],
+        messages: seeded ?? [],
         signal: { aborted: false },
+        sessionId,
         emit: (e) => cb?.onEvent?.(e),
         onExit: cb?.onExit,
         env,
@@ -161,9 +210,20 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
       env.bindSession?.({ emit: s.emit, signal: s.signal });
       cb?.onSpawn?.({ kind: "inproc", ref: spec.workerId });
       s.emit({ type: "session", phase: "started" });
+      // Publish the durable session id so the daemon persists it on the worker row
+      // (ProcessAgentSignal.setSessionId) → boot reconcile keeps the row SUSPENDED.
+      if (s.sessionId) s.emit({ type: "session", phase: "ready", sessionId: s.sessionId });
       if (spec.prompt) kickTurn(spec.workerId, s, spec.prompt);
       return sessionFor(spec.workerId);
     },
+    // attach is for LIVE workers only (the message/kill/interrupt paths re-derive
+    // a session from the in-memory registry). The restart-RESUME path deliberately
+    // goes through start({backendOptions.resume}) — NOT attach — so the
+    // ConversationStore can rehydrate the conversation (ResumeWorker). After a
+    // restart with no `live` entry the returned session's methods 410 and
+    // isAlive() honestly reports false (live.has → false); it is never the resume
+    // vehicle. Lazy-rehydrating here is not feasible: attach is sync, the env
+    // factory is async, and the handle carries no session id to load.
     attach(workerId: string): AgentSession {
       return sessionFor(workerId);
     },
