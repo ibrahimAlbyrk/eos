@@ -1,8 +1,42 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { resolveDefinitionName, resolveWorkerDefinitionByName } from "../domain/worker-definition-resolution.ts";
+import { resolveDefinitionName, resolveWorkerDefinitionByName, splitProviderModel } from "../domain/worker-definition-resolution.ts";
 import { DEFAULT_WORKER_DEFINITION } from "../../../contracts/src/worker-definition.ts";
 import type { WorkerDefinitionRecord } from "../../../contracts/src/worker-definition.ts";
+
+describe("splitProviderModel — combined provider/model form", () => {
+  const configured = new Set(["deepseek", "kimi"]);
+
+  it("splits a configured-prefix model into backendProfile + model (rest after first /)", () => {
+    assert.deepEqual(
+      splitProviderModel("deepseek/deepseek-v4-pro", configured),
+      { backendProfile: "deepseek", model: "deepseek-v4-pro" },
+    );
+  });
+
+  it("keeps everything after the FIRST slash as the model", () => {
+    assert.deepEqual(
+      splitProviderModel("deepseek/foo/bar", configured),
+      { backendProfile: "deepseek", model: "foo/bar" },
+    );
+  });
+
+  it("a bare model id stays plain", () => {
+    assert.deepEqual(splitProviderModel("opus", configured), { model: "opus" });
+  });
+
+  it("an unconfigured prefix stays plain (no false split on provider-routed slash ids)", () => {
+    assert.deepEqual(
+      splitProviderModel("anthropic/claude-opus-4", configured),
+      { model: "anthropic/claude-opus-4" },
+    );
+  });
+
+  it("empty prefix or empty suffix stays plain", () => {
+    assert.deepEqual(splitProviderModel("/x", configured), { model: "/x" });
+    assert.deepEqual(splitProviderModel("deepseek/", configured), { model: "deepseek/" });
+  });
+});
 
 describe("resolveDefinitionName", () => {
   it("omitted from → general-purpose default", () => {

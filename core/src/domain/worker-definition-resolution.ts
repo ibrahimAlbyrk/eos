@@ -98,6 +98,24 @@ export function applyWorkerDefinitionDefaults(
   return out;
 }
 
+// Combined `provider/model` form: when a definition's model is written as
+// `<provider>/<model>` AND `<provider>` is a configured backend (a key in
+// config.backends, threaded as the set here — keeps this pure + Node-free), it is
+// sugar for backendProfile=<provider> + model=<everything after the first `/>`. A
+// bare model id, an unconfigured prefix, or an empty prefix/suffix stays plain so
+// legacy values (and provider-routed slash ids like "anthropic/claude-…" on a
+// differently-named profile) are untouched.
+export function splitProviderModel(
+  model: string,
+  configuredBackends: ReadonlySet<string>,
+): { backendProfile?: string; model: string } {
+  const slash = model.indexOf("/");
+  if (slash <= 0 || slash === model.length - 1) return { model };
+  const prefix = model.slice(0, slash);
+  if (!configuredBackends.has(prefix)) return { model };
+  return { backendProfile: prefix, model: model.slice(slash + 1) };
+}
+
 // Materialize the tool surface (string globs) into a ToolScope value. Baked once
 // at spawn so the gate hot path never re-resolves the type.
 export function materializeToolScope(t: WorkerDefinition): ToolScope {

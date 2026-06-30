@@ -7,7 +7,7 @@ import type { WorkerDefinition } from "../../../contracts/src/worker-definition.
 import { spawnWorker } from "../../../core/src/use-cases/SpawnWorker.ts";
 import { armLoopAtSpawn } from "../../services/arm-loop-at-spawn.ts";
 import { resolveSpawnIsolation } from "../../../core/src/domain/worktree-policy.ts";
-import { resolveDefinitionName, resolveWorkerDefinitionByName, applyWorkerDefinitionDefaults, materializeToolScope, isToolScopeRestrictive } from "../../../core/src/domain/worker-definition-resolution.ts";
+import { resolveDefinitionName, resolveWorkerDefinitionByName, applyWorkerDefinitionDefaults, materializeToolScope, isToolScopeRestrictive, splitProviderModel } from "../../../core/src/domain/worker-definition-resolution.ts";
 import { ValidationError } from "../../../core/src/errors/index.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
@@ -53,13 +53,21 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       ...c.listWorkerDefinitionRecords(lookupCwd),
       ...(defOwner ? c.runtimeWorkerDefinitions.listFor(defOwner) : []),
     ];
-    const def = resolveWorkerDefinitionByName(definitionName, records);
+    let def = resolveWorkerDefinitionByName(definitionName, records);
     if (!def) {
       throw new ValidationError(
         definitionName === DEFAULT_WORKER_DEFINITION
           ? `default worker definition "${DEFAULT_WORKER_DEFINITION}" not found — check the worker-definitions dir`
           : `unknown worker definition: ${definitionName}`,
       );
+    }
+    // Combined `provider/model` model form (e.g. model: "deepseek/deepseek-v4-pro"):
+    // sugar for backendProfile=<provider> + model=<rest> when <provider> is a
+    // configured backend. Only when no separate backendProfile is set — that
+    // explicit field still wins (and keeps a provider-routed slash id intact).
+    if (def.model?.includes("/") && !def.backendProfile) {
+      const split = splitProviderModel(def.model, new Set(Object.keys(c.config.backends)));
+      if (split.backendProfile) def = { ...def, model: split.model, backendProfile: split.backendProfile };
     }
     const requestHas = (f: string) => (body as Record<string, unknown>)[f] !== undefined;
     const dd = applyWorkerDefinitionDefaults(def, requestHas);
@@ -94,7 +102,11 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     // profile-driven backend's model + profile name thread into it. A definition
     // may default backendKind where the request left it unset. claude-cli keeps
     // today's behavior exactly (no model override, null profile).
-    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind ?? dd.backendKind, explicitProfileName: dd.backendProfile, parentId: body.parentId ?? null, isOrchestrator: false });
+    // explicitModel = the chosen model (request wins over the def's default). On an
+    // explicit profile pick it OVERRIDES the profile's pinned model (resolveSpawn-
+    // Backend applies it only there); non-profile/Claude lanes ignore it and flow
+    // the model through the spec below exactly as before.
+    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind ?? dd.backendKind, explicitProfileName: dd.backendProfile, explicitModel: body.model ?? dd.model, parentId: body.parentId ?? null, isOrchestrator: false });
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     // Billing/enablement guard on the RESOLVED backend (covers profile/inherit/
     // default picks, not just explicit body.backendKind): rejects a metered API

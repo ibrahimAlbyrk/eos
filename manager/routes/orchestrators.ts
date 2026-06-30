@@ -14,6 +14,7 @@ import { appendSynthesized } from "../shared/synthesized-events.ts";
 import { resumeIfDead } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
 import { resolveSpawnBackend, spawnBackendError } from "../shared/spawn-backend.ts";
+import { splitProviderModel } from "../../core/src/domain/worker-definition-resolution.ts";
 
 export function registerOrchestratorRoutes(r: Router, c: Container): void {
   r.get("/orchestrators", ({ res }) => {
@@ -25,9 +26,15 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const name = (body.name ?? "").trim() || randomOrchestratorName();
     const cwd = expandPath(body.cwd);
     const id = c.ids.newOrchestratorId();
-    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, explicitProfileName: body.backendProfile, explicitModel: body.model, isOrchestrator: true });
+    // Accept the combined `provider/model` form (sugar for backendProfile + model)
+    // when no separate profile is picked — mirrors the worker-def path.
+    const split = (body.model && !body.backendProfile)
+      ? splitProviderModel(body.model, new Set(Object.keys(c.config.backends)))
+      : { model: body.model, backendProfile: undefined };
+    const explicitProfileName = body.backendProfile ?? split.backendProfile;
+    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, explicitProfileName, explicitModel: split.model, isOrchestrator: true });
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
-    const explicit = !!(body.backendKind || body.backendProfile);
+    const explicit = !!(body.backendKind || explicitProfileName);
     const backendErr = spawnBackendError(backend, rb, explicit);
     if (backendErr) { writeJson(res, 400, { error: backendErr }); return; }
     const result = await spawnWorker(
@@ -54,7 +61,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         claudePermissionMode: body.permissionMode ?? "acceptEdits",
         // Profile-model providers carry their own model; request-model providers
         // (claude-sdk/claude-cli) run the user-picked Claude model.
-        model: backend.descriptor.modelSource === "profile" ? rb.model : (body.model ?? "opus"),
+        model: backend.descriptor.modelSource === "profile" ? rb.model : (split.model ?? "opus"),
         effort: body.effort ?? "xhigh",
         isOrchestrator: true,
         backendProfile: rb.profileName ?? undefined,
