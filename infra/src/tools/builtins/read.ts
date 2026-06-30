@@ -13,7 +13,6 @@ const DEFAULT_LIMIT = 2000;
 export function createReadTool(fs: ToolFileSystem): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.Read,
-    description: "Read a file from the filesystem with line numbers (cat -n style). Supports optional offset/limit for large files.",
     schema: {
       type: "object",
       properties: {

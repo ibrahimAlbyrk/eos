@@ -37,7 +37,6 @@ function globToRegExp(glob: string): RegExp {
 export function createGlobTool(fs: ToolFileSystem): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.Glob,
-    description: "Find files matching a glob pattern (supports ** and *), sorted by modification time (newest first).",
     schema: {
       type: "object",
       properties: {

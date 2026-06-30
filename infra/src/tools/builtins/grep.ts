@@ -15,7 +15,6 @@ function shQuote(s: string): string {
 export function createGrepTool(proc: ProcessRunner): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.Grep,
-    description: "Search file contents with ripgrep. output_mode: files_with_matches (default), content, or count.",
     schema: {
       type: "object",
       properties: {

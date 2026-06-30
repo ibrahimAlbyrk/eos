@@ -17,8 +17,10 @@ export interface BuiltinToolContext {
 
 export interface BuiltinTool {
   name: string;
-  description: string;
   // Provider-neutral JSON schema for the model-facing input (the lane item schema).
+  // The model-facing DESCRIPTION is NOT here: it is overlaid at the manager layer
+  // from the prompt library (manager/prompts/tool/<Name>), so this layer never
+  // imports prompt text and keeps only the bare canonical name + schema + behavior.
   schema: Record<string, unknown>;
   execute(input: Record<string, unknown>, ctx: BuiltinToolContext): Promise<string>;
 }

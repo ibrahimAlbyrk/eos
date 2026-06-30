@@ -20,7 +20,6 @@ interface NotebookCell {
 export function createNotebookEditTool(fs: ToolFileSystem): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.NotebookEdit,
-    description: "Edit a cell of a Jupyter notebook (.ipynb): replace its source, or insert/delete a cell.",
     schema: {
       type: "object",
       properties: {

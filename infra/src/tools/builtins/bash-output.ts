@@ -10,7 +10,6 @@ import { requireString } from "./_shared.ts";
 export function createBashOutputTool(proc: ProcessRunner): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.BashOutput,
-    description: "Read new output from a running or completed background shell (by its bash_id).",
     schema: {
       type: "object",
       properties: {

@@ -15,7 +15,6 @@ interface Todo {
 export function createTodoWriteTool(): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.TodoWrite,
-    description: "Create or update the working task list (todos). Use to track multi-step work.",
     schema: {
       type: "object",
       properties: {

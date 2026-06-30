@@ -10,7 +10,6 @@ import { resolveToolPath, applyStringEdit } from "./_shared.ts";
 export function createMultiEditTool(fs: ToolFileSystem): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.MultiEdit,
-    description: "Apply multiple sequential string edits to a single file in one atomic operation.",
     schema: {
       type: "object",
       properties: {

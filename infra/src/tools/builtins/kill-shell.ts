@@ -10,7 +10,6 @@ import { requireString } from "./_shared.ts";
 export function createKillShellTool(proc: ProcessRunner): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.KillShell,
-    description: "Kill a running background shell by its shell id.",
     schema: {
       type: "object",
       properties: {

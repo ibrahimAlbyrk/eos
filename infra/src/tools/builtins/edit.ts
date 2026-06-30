@@ -10,7 +10,6 @@ import { resolveToolPath, requireString, applyStringEdit } from "./_shared.ts";
 export function createEditTool(fs: ToolFileSystem): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.Edit,
-    description: "Replace a unique occurrence of old_string with new_string in a file. old_string must be unique unless replace_all is true.",
     schema: {
       type: "object",
       properties: {

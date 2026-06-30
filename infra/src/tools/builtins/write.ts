@@ -10,7 +10,6 @@ import { resolveToolPath, requireString } from "./_shared.ts";
 export function createWriteTool(fs: ToolFileSystem): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.Write,
-    description: "Write content to a file, overwriting if it exists and creating parent directories as needed.",
     schema: {
       type: "object",
       properties: {

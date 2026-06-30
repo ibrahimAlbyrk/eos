@@ -31,7 +31,6 @@ function htmlToText(html: string): string {
 export function createWebFetchTool(fetchImpl: FetchLike = globalThis.fetch as unknown as FetchLike): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.WebFetch,
-    description: "Fetch a URL and return its content as text. Use `prompt` to note what you are looking for.",
     schema: {
       type: "object",
       properties: {

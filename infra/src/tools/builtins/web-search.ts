@@ -10,7 +10,6 @@ import type { BuiltinTool } from "../../../../core/src/ports/BuiltinToolRegistry
 export function createWebSearchTool(): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.WebSearch,
-    description: "Search the web for a query. (Not configured on this lane.)",
     schema: {
       type: "object",
       properties: {

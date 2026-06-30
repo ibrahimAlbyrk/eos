@@ -9,7 +9,6 @@ import type { BuiltinTool } from "../../../../core/src/ports/BuiltinToolRegistry
 export function createExitPlanModeTool(): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.ExitPlanMode,
-    description: "Signal that planning is complete and present the plan. (Eos has no plan permission mode; this is a no-op acknowledgment.)",
     schema: {
       type: "object",
       properties: {

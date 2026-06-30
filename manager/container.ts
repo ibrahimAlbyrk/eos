@@ -38,7 +38,7 @@ import { createBuiltinToolRegistry } from "../infra/src/tools/builtins/registry.
 import { createNodeToolFileSystem } from "../infra/src/tools/NodeToolFileSystem.ts";
 import { createNodeProcessRunner } from "../infra/src/tools/NodeProcessRunner.ts";
 import { resolveWorkerDefinitionByName } from "../core/src/domain/worker-definition-resolution.ts";
-import { buildBuiltinSurface, buildLaneSurface, TASK_TOOL_ITEM, type LaneTooling } from "./backends/lane-tooling.ts";
+import { buildBuiltinSurface, buildLaneSurface, taskToolItem, type LaneTooling } from "./backends/lane-tooling.ts";
 import { orchestratorDefs, workerDefs, peerDefs, workflowWorkerDefs } from "./tools/registry.ts";
 import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
@@ -742,11 +742,6 @@ export function buildContainer() {
   // ToolRuntime lane (anthropic-api / openai / deepseek / kimi): the daemon-loopback
   // ToolContext, the one policy engine, and the prompt-library descriptions.
   const sdkDaemonUrl = `http://127.0.0.1:${config.daemon.port}`;
-  // Rendered fresh per spawn (not cached at construct-time) so editing a tool
-  // prompt .md takes effect on the next spawn with no daemon restart — parity with
-  // the claude-cli MCP subprocess, which re-reads the prompt library on each spawn.
-  const renderInprocToolDescriptions = (): Record<string, string> =>
-    renderToolDescriptions(config.paths.promptsDir, [...orchestratorDefs, ...workerDefs, ...peerDefs, ...workflowWorkerDefs].map((d) => d.name));
   const sdkPolicy = {
     async decide(i: { workerId: string; toolName: string; input: Record<string, unknown>; agentId?: string | null }) {
       const d = await policyGateway.decide(i);
@@ -771,10 +766,23 @@ export function buildContainer() {
     fs: createNodeToolFileSystem(),
     proc: createNodeProcessRunner(),
   });
+  // Tool descriptions (control defs + bare-named built-ins + Task) are authored as
+  // prompt fragments (prompts/tool/<name>) and rendered fresh per spawn — not cached at
+  // construct-time — so editing a tool .md takes effect on the next spawn with no daemon
+  // restart, parity with the claude-cli MCP subprocess that re-reads the prompt library
+  // each spawn. Control descriptions key by def name; the built-in + Task descriptions
+  // are overlaid onto the lane ITEMS (the in-process analog of withToolDescriptions).
+  const builtinDescriptionNames = [...builtinToolRegistry.list().map((t) => t.name), "Task"];
+  const renderInprocToolDescriptions = (): Record<string, string> =>
+    renderToolDescriptions(config.paths.promptsDir, [
+      ...[...orchestratorDefs, ...workerDefs, ...peerDefs, ...workflowWorkerDefs].map((d) => d.name),
+      ...builtinDescriptionNames,
+    ]);
   // The built-in surface for a spec (NO control tools) — used directly for the Task
-  // child surface (built-ins only) and merged into buildLaneTooling for parents.
+  // child surface (built-ins only) and merged into buildLaneTooling for parents. The
+  // built-in descriptions are overlaid from the prompt library.
   const buildBuiltinTooling = (spec: AgentLaunchSpec): LaneTooling =>
-    buildBuiltinSurface(builtinToolRegistry, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope });
+    buildBuiltinSurface(builtinToolRegistry, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope }, renderInprocToolDescriptions());
 
   // Orchestration tools projected onto the in-process ToolRuntime: prefixed
   // mcp__orchestrator__/worker__ names (so classifyTool always-allows them like the
@@ -794,7 +802,7 @@ export function buildContainer() {
       control.items.push({ name, description: descriptions[d.name] ?? d.name, schema: toolJsonSchema(d) });
       control.tools.set(name, { name, execute: toRuntimeTool(d, ctx).execute });
     }
-    return buildLaneSurface(builtinToolRegistry, control, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope });
+    return buildLaneSurface(builtinToolRegistry, control, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope }, descriptions);
   };
 
   // The complete in-process DPI system prompt (B1): the SAME assembler all lanes
@@ -854,7 +862,7 @@ export function buildContainer() {
       const { items, tools } = buildBuiltinTooling(childSpec);
       // Grandchildren up to the cap (recursion through this same closure).
       if (rt.depth + 1 < MAX_TASK_DEPTH) {
-        items.push(TASK_TOOL_ITEM);
+        items.push(taskToolItem(renderInprocToolDescriptions()));
         tools.set("Task", makeSubagentTool({ ...rt, parentSpec: childSpec, depth: rt.depth + 1 }));
       }
       const model = rt.buildModelClient({ apiKey: rt.apiKey, baseUrl: rt.baseUrl, model: childSpec.model, system, items, capabilities: rt.capabilities });

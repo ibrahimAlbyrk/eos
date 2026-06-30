@@ -14,7 +14,6 @@ const MAX_TIMEOUT_MS = 600_000;
 export function createBashTool(proc: ProcessRunner): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.Bash,
-    description: "Execute a shell command in the worker's working directory. Supports an optional timeout and background execution.",
     schema: {
       type: "object",
       properties: {

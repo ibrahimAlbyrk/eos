@@ -9,7 +9,6 @@ import { resolveToolPath } from "./_shared.ts";
 export function createLsTool(fs: ToolFileSystem): BuiltinTool {
   return {
     name: BUILTIN_TOOL_NAMES.LS,
-    description: "List the files and directories of a given path.",
     schema: {
       type: "object",
       properties: {
