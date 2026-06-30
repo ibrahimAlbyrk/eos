@@ -27,6 +27,16 @@ export function canHandoffBackend(source: BackendDescriptor, target: BackendDesc
   if (source.sessionStore !== target.sessionStore) {
     return { ok: false, reason: "the backends use incompatible conversation stores" };
   }
+  // The in-process kinds share one "eos-conversation" store but persist
+  // dialect-NEUTRAL messages: a same-dialect move (openai↔codex) is safe, but a
+  // LIVE cross-dialect handoff (openai↔anthropic-api) is a non-goal — the stored
+  // transcript can carry a provider's signed reasoning blocks that a foreign
+  // dialect cannot replay. Block on the declared wire dialect (descriptor data),
+  // never on a kind literal. Skipped when either side declares none (claude lanes,
+  // already store-incompatible above).
+  if (source.wireDialect && target.wireDialect && source.wireDialect !== target.wireDialect) {
+    return { ok: false, reason: "the backends speak different wire dialects (no live cross-dialect handoff)" };
+  }
   return { ok: true };
 }
 

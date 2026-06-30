@@ -29,9 +29,22 @@ export const ProviderCapabilitiesSchema = z
       .enum(["none", "openai-response_format", "anthropic-output_config", "vllm-guided_json", "ollama-format"])
       .default("none"),
     // The model's context window (tokens). Consumed in M1 by the fail-fast
-    // pre-flight guard so a small-context misconfig is diagnosable, not a raw 400.
+    // pre-flight guard, and in M4 by the ContextCompactor (drop-oldest near the
+    // window) so a small-context model compacts instead of a raw 400.
     contextWindow: z.number().int().positive(),
     maxTokens: z.number().int().positive().optional(),
+    // Bounded exponential-backoff knobs for the shared withRetry wrapper inside the
+    // two model clients (M4): retry 429/5xx honoring Retry-After. Capability-gated
+    // (a per-provider override) but defaulted in the client, so omitting it keeps
+    // the safe defaults — never a per-provider branch.
+    retry: z
+      .object({
+        maxRetries: z.number().int().nonnegative().optional(),
+        baseMs: z.number().int().positive().optional(),
+        capMs: z.number().int().positive().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 export type ProviderCapabilities = z.infer<typeof ProviderCapabilitiesSchema>;

@@ -73,10 +73,11 @@ describe("OpenAIModelClient", () => {
     assert.deepEqual(turn.toolCalls[0].input, {});
   });
 
-  it("surfaces non-OK HTTP as a model error", async () => {
-    const client = createOpenAIModelClient({ apiKey: "k", model: "m", fetchImpl: (async () => ({ ok: false, status: 429, async text() { return "rate limited"; } })) as unknown as typeof fetch });
+  it("surfaces a non-retryable HTTP status as a model error", async () => {
+    // 401 is non-retryable → returned straight to the caller (429/5xx now retry, M4).
+    const client = createOpenAIModelClient({ apiKey: "k", model: "m", fetchImpl: (async () => ({ ok: false, status: 401, async text() { return "unauthorized"; } })) as unknown as typeof fetch });
     const turn = await client.createTurn([{ role: "user", content: "x" }]);
     assert.equal(turn.stopReason, "error");
-    assert.match(turn.error ?? "", /429/);
+    assert.match(turn.error ?? "", /401/);
   });
 });

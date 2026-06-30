@@ -12,6 +12,14 @@ export interface ModelToolCall {
 export interface ModelMessage {
   role: "user" | "assistant" | "tool";
   content: unknown; // text or structured blocks/tool-results, backend-shaped
+  // Opaque per-message escape hatch, carried across tool turns and re-emitted
+  // unmodified by the dialect mapper that understands it. For reasoningRoundTrip:
+  // "preserve-signed" (Anthropic) the assistant tool-call message stashes its
+  // signed `thinking` block(s) here so the next request re-sends them verbatim
+  // (Anthropic 400s otherwise); the OpenAI mapper ignores it (reasoning is dropped
+  // from history — DeepSeek 400s if echoed back). Dialect-neutral: the core loop
+  // just copies turn.providerMetadata onto the message it pushes.
+  providerMetadata?: Record<string, unknown>;
 }
 
 export interface ModelTurn {

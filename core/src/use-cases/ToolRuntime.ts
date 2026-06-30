@@ -10,6 +10,8 @@
 // Node imports.
 
 import type { ModelClient, ModelMessage } from "../ports/ModelClient.ts";
+import type { ContextCompactor } from "../ports/ContextCompactor.ts";
+import type { ProviderCapabilities } from "../../../contracts/src/provider-capabilities.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import { contextTokensOf } from "../../../contracts/src/canonical.ts";
 
@@ -37,15 +39,23 @@ export interface ToolRuntimeDeps {
   /** The model's context window (tokens) for the M1 fail-fast pre-flight guard:
    *  before each model call, a cheap estimate of the conversation size is compared
    *  to this, and a turn that would overflow a small-context model aborts with a
-   *  typed `context_window_exceeded` error rather than a raw provider 400. Absent ⇒
-   *  no guard (real compaction lands in M4). */
+   *  typed `context_window_exceeded` error rather than a raw provider 400. Used only
+   *  as the fallback when no compactor is injected (tests). */
   contextWindow?: number;
+  /** M4 — real context compaction, replacing the fail-fast guard. When present
+   *  (with capabilities), the loop trims oldest tool-turns before each model call so
+   *  a small-context model compacts instead of 400ing, and recovers a reactive
+   *  provider `context_window_exceeded` by compacting harder and retrying once. */
+  compactor?: ContextCompactor;
+  /** Declared provider quirks the compactor reads (contextWindow). */
+  capabilities?: ProviderCapabilities;
 }
 
-// Cheap token estimate (chars/4) over the conversation, for the pre-flight guard.
+// Cheap token estimate (chars/4) over the conversation, for the pre-flight guard
+// and the ContextCompactor (shared so both judge the window the same way).
 // Deliberately approximate — it only needs to catch a small-context overflow
 // before the provider 400s, not bill accurately.
-function estimateTokens(messages: ModelMessage[]): number {
+export function estimateTokens(messages: ModelMessage[]): number {
   let chars = 0;
   for (const m of messages) {
     chars += typeof m.content === "string" ? m.content.length : JSON.stringify(m.content ?? "").length;
@@ -54,8 +64,11 @@ function estimateTokens(messages: ModelMessage[]): number {
 }
 
 export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[]): Promise<ModelMessage[]> {
-  const messages = conversation.slice();
+  let messages = conversation.slice();
   const max = deps.maxIterations ?? 50;
+  // One reactive (post-400) hard compaction per turn — bounds the retry so a
+  // pathological overflow can't loop forever.
+  let reactiveCompacted = false;
   deps.emit({ type: "turn", phase: "started" });
 
   for (let i = 0; i < max; i++) {
@@ -64,10 +77,13 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
       return messages;
     }
 
-    // Fail-fast context-window guard (M1 interim): a small-context model would
-    // hard-400 once history approaches its window. Catch it with a typed error
-    // (real compaction is M4) so a misconfig is diagnosable, not a raw 400.
-    if (deps.contextWindow && estimateTokens(messages) > deps.contextWindow * 0.9) {
+    // Near-window management before each model call. M4: a ContextCompactor trims
+    // oldest matched tool-turns so a small-context model compacts (turn continues)
+    // instead of 400ing. M1 fallback (no compactor injected — tests): the fail-fast
+    // guard aborts with a typed error rather than a raw provider 400.
+    if (deps.compactor && deps.capabilities) {
+      messages = deps.compactor.compact(messages, deps.capabilities);
+    } else if (deps.contextWindow && estimateTokens(messages) > deps.contextWindow * 0.9) {
       deps.emit({ type: "turn", phase: "error", reason: "context_window_exceeded" });
       return messages;
     }
@@ -108,6 +124,16 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
     }
 
     if (turn.stopReason === "error") {
+      // Recoverable provider overflow: an Anthropic model_context_window_exceeded
+      // (mapped to this typed error by the client) means our estimate was too low.
+      // Compact HARD (half the window) once and retry the same iteration; the
+      // proactive pass next loop sees the trimmed set. Bounded by reactiveCompacted.
+      if (turn.error === "context_window_exceeded" && deps.compactor && deps.capabilities && !reactiveCompacted) {
+        reactiveCompacted = true;
+        messages = deps.compactor.compact(messages, { ...deps.capabilities, contextWindow: Math.max(1, Math.floor(deps.capabilities.contextWindow * 0.5)) });
+        i--;
+        continue;
+      }
       deps.emit({ type: "turn", phase: "error", reason: turn.error });
       return messages;
     }
@@ -117,7 +143,11 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
       return messages;
     }
 
-    messages.push({ role: "assistant", content: turn.toolCalls });
+    // Carry any opaque per-turn provider metadata (Anthropic signed `thinking`
+    // blocks for reasoningRoundTrip:"preserve-signed") onto the pushed assistant
+    // message so the next request re-emits it verbatim. Neutral: undefined on the
+    // OpenAI lane (reasoning is dropped from history).
+    messages.push({ role: "assistant", content: turn.toolCalls, ...(turn.providerMetadata ? { providerMetadata: turn.providerMetadata } : {}) });
 
     for (const call of turn.toolCalls) {
       deps.emit({ type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: call.callId, name: call.name, input: call.input }] });

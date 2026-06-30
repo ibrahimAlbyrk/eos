@@ -23,17 +23,23 @@ import type {
 } from "../../../core/src/ports/AgentBackend.ts";
 import type { ModelClient, ModelMessage } from "../../../core/src/ports/ModelClient.ts";
 import type { ConversationStore } from "../../../core/src/ports/ConversationStore.ts";
+import type { ContextCompactor } from "../../../core/src/ports/ContextCompactor.ts";
 import type { IdGenerator } from "../../../core/src/ports/IdGenerator.ts";
 import { runTurn, type RuntimeTool, type ToolGate } from "../../../core/src/use-cases/ToolRuntime.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
+import type { ProviderCapabilities } from "../../../contracts/src/provider-capabilities.ts";
 
 export interface InProcessEnv {
   model: ModelClient;
   tools: Map<string, RuntimeTool>;
   gate: ToolGate;
   /** The model's context window (tokens), if declared — drives the ToolRuntime
-   *  fail-fast pre-flight guard. Absent ⇒ no guard. */
+   *  fail-fast pre-flight guard when no compactor is present. Absent ⇒ no guard. */
   contextWindow?: number;
+  /** M4 — declared provider quirks + the ContextCompactor, threaded into the loop so
+   *  history near contextWindow is trimmed (turn continues) instead of a raw 400. */
+  capabilities?: ProviderCapabilities;
+  compactor?: ContextCompactor;
   /** Late-bind the per-session emit + abort signal (created here in start(), after
    *  the factory ran). The Task-subagent closure needs them — its child loop shares
    *  the parent abort signal and re-tags child events onto the parent stream — but
@@ -84,8 +90,10 @@ const CAPS: AgentCapabilities = {
 // Durable in-process kinds persist a session id (ConversationStore) so the worker
 // survives a daemon restart — boot reconcile keeps the row SUSPENDED and
 // ResumeWorker revives it. The resume route gates on capabilities.resumable
-// (workers.ts), never on kind.
-const RESUMABLE_CAPS: AgentCapabilities = { ...CAPS, resumable: true };
+// (workers.ts), never on kind. streamingThinking:true — the loop streams reasoning/
+// text deltas (createTurn falls back per profile), so the UI renders live thinking
+// (it gates on this flag, never on kind).
+const RESUMABLE_CAPS: AgentCapabilities = { ...CAPS, resumable: true, streamingThinking: true };
 
 // Per-kind in-process provider metadata. Adding a metered provider = one entry.
 // enabled:true — the metered API lanes are SELECTABLE; the spawn-backend billing
@@ -94,10 +102,15 @@ const RESUMABLE_CAPS: AgentCapabilities = { ...CAPS, resumable: true };
 // "eos-conversation" = the durable JSONL store (M3) — intentionally NOT loadable by
 // the claude lanes, so cross-lane handoff stays correctly blocked; in-process kinds
 // share it because they persist dialect-NEUTRAL messages (see ConversationStore).
+// wireDialect distinguishes the request dialect so canHandoffBackend blocks a LIVE
+// cross-dialect handoff (openai↔anthropic-api) — these share the "eos-conversation"
+// store but a transcript carrying one dialect's signed reasoning can't replay on the
+// other. Same-dialect (openai↔codex) stays handoffable; resume is per-kind so it is
+// unaffected.
 const IN_PROCESS_DESCRIPTORS: Record<string, Omit<BackendDescriptor, "kind">> = {
-  "anthropic-api": { label: "Anthropic API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: RESUMABLE_CAPS, models: { kind: "claude" }, auth: "apikey", enabled: true, sessionStore: "eos-conversation" },
-  "openai": { label: "OpenAI API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: RESUMABLE_CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: true, sessionStore: "eos-conversation" },
-  "codex": { label: "Codex", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: RESUMABLE_CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: true, sessionStore: "eos-conversation" },
+  "anthropic-api": { label: "Anthropic API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: RESUMABLE_CAPS, models: { kind: "claude" }, auth: "apikey", enabled: true, sessionStore: "eos-conversation", wireDialect: "anthropic" },
+  "openai": { label: "OpenAI API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: RESUMABLE_CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: true, sessionStore: "eos-conversation", wireDialect: "openai-chat" },
+  "codex": { label: "Codex", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: RESUMABLE_CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: true, sessionStore: "eos-conversation", wireDialect: "openai-chat" },
 };
 
 export interface InProcessBackend extends AgentBackend {
@@ -117,7 +130,7 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
     s.signal.aborted = false; // a new turn clears a prior interrupt
     s.messages.push({ role: "user", content: userText });
     const p = runTurn(
-      { model: s.env.model, tools: s.env.tools, gate: s.env.gate, emit: s.emit, signal: s.signal, contextWindow: s.env.contextWindow },
+      { model: s.env.model, tools: s.env.tools, gate: s.env.gate, emit: s.emit, signal: s.signal, contextWindow: s.env.contextWindow, compactor: s.env.compactor, capabilities: s.env.capabilities },
       s.messages,
     )
       // Persist after each settled turn, at the one place the conversation is

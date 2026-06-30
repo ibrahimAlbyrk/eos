@@ -1,13 +1,28 @@
 // OpenAIModelClient — a ModelClient over the OpenAI Chat Completions API, which
-// also covers Codex-via-API and any OpenAI-compatible endpoint (baseUrl
-// override). Same role as AnthropicModelClient: maps the ToolRuntime's
-// ModelMessage[] → request and parses the response → ModelTurn. fetch is
-// injectable so the mapping is unit-tested with no live (billed) call.
+// also covers Codex-via-API and any OpenAI-compatible endpoint (baseUrl override:
+// DeepSeek/GLM/Ollama/vLLM/LM Studio/LiteLLM/OpenRouter). Maps the ToolRuntime's
+// ModelMessage[] → request and parses the response → ModelTurn. fetch is injectable
+// so the mapping is unit-tested with no live (billed) call.
+//
+// M4 normalization (all CAPABILITY-driven — no model-name/kind branches):
+//  • reasoningRoundTrip:"drop" — reasoning is never echoed into history (DeepSeek
+//    400s otherwise); this is the default and the mapper simply omits it.
+//  • token accounting — prompt_tokens_details.cached_tokens (OpenAI) AND
+//    prompt_cache_hit_tokens (DeepSeek) → cacheReadTokens.
+//  • effort→reasoning_effort, params.temperature/max_tokens, structured output —
+//    emitted only when the capability supports them (droppable, the LiteLLM lesson).
+//  • robust streamed tool-deltas (tolerate missing index/id) + supportsStreaming
+//    gating (prefer non-streaming for known-broken parsers).
+//  • withRetry on 429/5xx (Retry-After).
 //
 // Billing: API-key pool, opt-in; never the default.
 
 import type { ModelClient, ModelMessage, ModelTurn, ModelStreamCallbacks } from "../../../core/src/ports/ModelClient.ts";
+import type { ProviderCapabilities } from "../../../contracts/src/provider-capabilities.ts";
 import { normalizeBaseOrigin } from "./base-url.ts";
+import { withRetry, resolveRetryPolicy, defaultSleep, type SleepFn } from "./with-retry.ts";
+import { structuredOutputEnvelope, type StructuredRequest } from "./structured-output.ts";
+import type { ProviderErrorInfo } from "./provider-error.ts";
 
 export interface OpenAIToolSpec {
   name: string;
@@ -23,11 +38,34 @@ export interface OpenAIModelClientOpts {
   system?: string;
   tools?: OpenAIToolSpec[];
   fetchImpl?: typeof fetch;
+  // M4 — declared provider quirks + per-worker params, read instead of heuristics.
+  capabilities?: ProviderCapabilities;
+  params?: Record<string, unknown>;
+  effort?: string | null;
+  responseFormat?: StructuredRequest;
+  onProviderError?(e: ProviderErrorInfo): void;
+  sleepImpl?: SleepFn;
 }
+
+// OpenAI o-series reasoning_effort accepts these; anything else (TUI-only
+// "ultracode"/"auto") is dropped rather than risking a 400.
+const OPENAI_EFFORTS = new Set(["minimal", "low", "medium", "high"]);
 
 export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClient {
   const doFetch = opts.fetchImpl ?? fetch;
   const base = normalizeBaseOrigin(opts.baseUrl ?? "https://api.openai.com");
+  const caps = opts.capabilities;
+  const supportsStreaming = caps?.supportsStreaming !== false;
+  const retryPolicy = resolveRetryPolicy(caps?.retry);
+  const sleep = opts.sleepImpl ?? defaultSleep;
+
+  const paramMax = typeof opts.params?.max_tokens === "number" ? (opts.params.max_tokens as number) : undefined;
+  const maxTokens = paramMax ?? caps?.maxTokens ?? opts.maxTokens;
+  const temperature = typeof opts.params?.temperature === "number" ? (opts.params.temperature as number) : undefined;
+  // reasoning_effort only when the provider exposes openai-effort AND the value is
+  // one OpenAI accepts (capability-gated/droppable).
+  const reasoningEffort = caps?.reasoning === "openai-effort" && opts.effort && OPENAI_EFFORTS.has(opts.effort) ? opts.effort : undefined;
+
   // Keyless localhost (Ollama/vLLM/LM Studio, AuthRef.kind:"none"): an empty key
   // means send NO Authorization header — a `Bearer ` with no token 401s on some
   // servers and is meaningless on local ones.
@@ -35,58 +73,66 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
     opts.apiKey
       ? { "content-type": "application/json", authorization: `Bearer ${opts.apiKey}` }
       : { "content-type": "application/json" };
-  return {
+
+  const buildBody = (messages: ModelMessage[], stream: boolean): Record<string, unknown> => {
+    const mapped = messages.map(toOpenAIMessage);
+    return {
+      model: opts.model,
+      ...(stream ? { stream: true, stream_options: { include_usage: true } } : {}),
+      ...(maxTokens ? { max_tokens: maxTokens } : {}),
+      ...(temperature !== undefined ? { temperature } : {}),
+      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+      ...structuredOutputEnvelope(caps?.structuredOutput, opts.responseFormat),
+      ...(opts.tools && opts.tools.length ? { tools: opts.tools.map((t) => ({ type: "function", function: t })) } : {}),
+      messages: opts.system ? [{ role: "system", content: opts.system }, ...mapped] : mapped,
+    };
+  };
+
+  const post = (body: Record<string, unknown>, signal?: { aborted: boolean }) =>
+    withRetry(
+      () => doFetch(`${base}/v1/chat/completions`, { method: "POST", headers: headers(), body: JSON.stringify(body) }),
+      retryPolicy,
+      sleep,
+      signal,
+    );
+
+  const httpError = (status: number, text: string): ModelTurn => {
+    opts.onProviderError?.({ transport: "http", status, detail: text.slice(0, 200) });
+    return { toolCalls: [], stopReason: "error", error: `HTTP ${status}: ${text.slice(0, 200)}` };
+  };
+  const netError = (e: unknown): ModelTurn => {
+    const msg = e instanceof Error ? e.message : String(e);
+    opts.onProviderError?.({ transport: "network", detail: msg });
+    return { toolCalls: [], stopReason: "error", error: msg };
+  };
+
+  const client: ModelClient = {
     async createTurn(messages: ModelMessage[]): Promise<ModelTurn> {
-      const mapped = messages.map(toOpenAIMessage);
-      const body = {
-        model: opts.model,
-        ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
-        ...(opts.tools && opts.tools.length ? { tools: opts.tools.map((t) => ({ type: "function", function: t })) } : {}),
-        messages: opts.system ? [{ role: "system", content: opts.system }, ...mapped] : mapped,
-      };
       let resp: Response;
       try {
-        resp = await doFetch(`${base}/v1/chat/completions`, {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify(body),
-        });
+        resp = await post(buildBody(messages, false));
       } catch (e) {
-        return { toolCalls: [], stopReason: "error", error: e instanceof Error ? e.message : String(e) };
+        return netError(e);
       }
-      if (!resp.ok) {
-        const t = await resp.text().catch(() => "");
-        return { toolCalls: [], stopReason: "error", error: `HTTP ${resp.status}: ${t.slice(0, 200)}` };
-      }
+      if (!resp.ok) return httpError(resp.status, await resp.text().catch(() => ""));
       return parseOpenAIResponse((await resp.json()) as OpenAIResponse);
     },
-    async streamTurn(messages: ModelMessage[], cb: ModelStreamCallbacks): Promise<ModelTurn> {
-      const mapped = messages.map(toOpenAIMessage);
-      const body = {
-        model: opts.model,
-        stream: true,
-        stream_options: { include_usage: true },
-        ...(opts.maxTokens ? { max_tokens: opts.maxTokens } : {}),
-        ...(opts.tools && opts.tools.length ? { tools: opts.tools.map((t) => ({ type: "function", function: t })) } : {}),
-        messages: opts.system ? [{ role: "system", content: opts.system }, ...mapped] : mapped,
-      };
+  };
+  if (supportsStreaming) {
+    client.streamTurn = async (messages: ModelMessage[], cb: ModelStreamCallbacks): Promise<ModelTurn> => {
       let resp: Response;
       try {
-        resp = await doFetch(`${base}/v1/chat/completions`, {
-          method: "POST",
-          headers: headers(),
-          body: JSON.stringify(body),
-        });
+        resp = await post(buildBody(messages, true), cb.signal);
       } catch (e) {
-        return { toolCalls: [], stopReason: "error", error: e instanceof Error ? e.message : String(e) };
+        return netError(e);
       }
       if (!resp.ok || !resp.body) {
-        const t = resp.ok ? "no stream body" : await resp.text().catch(() => "");
-        return { toolCalls: [], stopReason: "error", error: `HTTP ${resp.status}: ${t.slice(0, 200)}` };
+        return resp.ok ? { toolCalls: [], stopReason: "error", error: "no stream body" } : httpError(resp.status, await resp.text().catch(() => ""));
       }
       return parseOpenAIStream(resp.body, cb);
-    },
-  };
+    };
+  }
+  return client;
 }
 
 function toOpenAIMessage(m: ModelMessage): Record<string, unknown> {
@@ -95,6 +141,7 @@ function toOpenAIMessage(m: ModelMessage): Record<string, unknown> {
     return { role: "tool", tool_call_id: c.callId, content: c.result };
   }
   if (m.role === "assistant" && Array.isArray(m.content)) {
+    // reasoningRoundTrip:"drop" — only tool_calls go back, never reasoning_content.
     return {
       role: "assistant",
       tool_calls: (m.content as Array<{ callId: string; name: string; input: unknown }>).map((tc) => ({
@@ -107,6 +154,19 @@ function toOpenAIMessage(m: ModelMessage): Record<string, unknown> {
   return { role: m.role === "assistant" ? "assistant" : "user", content: typeof m.content === "string" ? m.content : JSON.stringify(m.content) };
 }
 
+// prompt_tokens_details.cached_tokens (OpenAI) OR prompt_cache_hit_tokens (DeepSeek)
+// → the canonical cacheReadTokens.
+function cacheRead(u: { prompt_tokens_details?: { cached_tokens?: number }; prompt_cache_hit_tokens?: number } | null | undefined): number {
+  return u?.prompt_tokens_details?.cached_tokens ?? u?.prompt_cache_hit_tokens ?? 0;
+}
+
+interface OpenAIUsage {
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  prompt_tokens_details?: { cached_tokens?: number };
+  prompt_cache_hit_tokens?: number;
+}
+
 interface OpenAIResponse {
   choices?: Array<{
     // reasoning_content is the DeepSeek/Kimi reasoning field (OpenAI-compatible
@@ -114,9 +174,7 @@ interface OpenAIResponse {
     message?: { content?: string | null; reasoning_content?: string | null; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> };
     finish_reason?: string;
   }>;
-  // prompt_tokens_details.cached_tokens is the OpenAI/DeepSeek prompt-cache hit
-  // count → the canonical cacheReadTokens (was always 0 on this lane before).
-  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
+  usage?: OpenAIUsage;
 }
 
 export function parseOpenAIResponse(data: OpenAIResponse): ModelTurn {
@@ -137,7 +195,7 @@ export function parseOpenAIResponse(data: OpenAIResponse): ModelTurn {
     toolCalls,
     stopReason,
     usage: data.usage
-      ? { inputTokens: data.usage.prompt_tokens ?? 0, outputTokens: data.usage.completion_tokens ?? 0, cacheReadTokens: data.usage.prompt_tokens_details?.cached_tokens ?? 0 }
+      ? { inputTokens: data.usage.prompt_tokens ?? 0, outputTokens: data.usage.completion_tokens ?? 0, cacheReadTokens: cacheRead(data.usage) }
       : undefined,
   };
 }
@@ -147,12 +205,13 @@ interface OpenAIStreamChunk {
     delta?: { content?: string | null; reasoning_content?: string | null; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> };
     finish_reason?: string | null;
   }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } } | null;
+  usage?: OpenAIUsage | null;
 }
 
 // Drain an OpenAI-compatible SSE stream into a ModelTurn, emitting reasoning/text
-// deltas live. tool_calls stream as fragments (index + partial arguments) and are
-// buffered per index, then JSON-parsed once complete.
+// deltas live. tool_calls stream as fragments and are buffered per index; a server
+// that omits `index`/`id` (some OpenAI-compatible endpoints) is tolerated by
+// allocating a slot on each new id and continuing the most recent slot otherwise.
 export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: ModelStreamCallbacks): Promise<ModelTurn> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
@@ -162,6 +221,7 @@ export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: Mo
   let finishReason: string | undefined;
   let usage: ModelTurn["usage"];
   const toolsByIndex = new Map<number, { id: string; name: string; args: string }>();
+  let lastIdx = -1;
 
   // reader.cancel() cancels the underlying fetch body/socket AND releases the
   // lock, so finally covers every exit (a cancel after full drain is harmless).
@@ -181,7 +241,7 @@ export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: Mo
         if (!payload || payload === "[DONE]") continue;
         let chunk: OpenAIStreamChunk;
         try { chunk = JSON.parse(payload); } catch { continue; }
-        if (chunk.usage) usage = { inputTokens: chunk.usage.prompt_tokens ?? 0, outputTokens: chunk.usage.completion_tokens ?? 0, cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens ?? 0 };
+        if (chunk.usage) usage = { inputTokens: chunk.usage.prompt_tokens ?? 0, outputTokens: chunk.usage.completion_tokens ?? 0, cacheReadTokens: cacheRead(chunk.usage) };
         const choice = chunk.choices?.[0];
         if (!choice) continue;
         if (choice.finish_reason) finishReason = choice.finish_reason;
@@ -189,7 +249,10 @@ export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: Mo
         if (typeof d.reasoning_content === "string" && d.reasoning_content) { reasoning += d.reasoning_content; cb.onReasoningDelta?.(d.reasoning_content); }
         if (typeof d.content === "string" && d.content) { text += d.content; cb.onTextDelta?.(d.content); }
         for (const tc of d.tool_calls ?? []) {
-          const idx = tc.index ?? 0;
+          // Tolerate a missing index: a new id opens the next slot; a bare
+          // continuation fragment appends to the most recent slot.
+          const idx = typeof tc.index === "number" ? tc.index : tc.id ? lastIdx + 1 : Math.max(lastIdx, 0);
+          lastIdx = Math.max(lastIdx, idx);
           const cur = toolsByIndex.get(idx) ?? { id: "", name: "", args: "" };
           if (tc.id) cur.id = tc.id;
           if (tc.function?.name) cur.name = tc.function.name;

@@ -85,6 +85,13 @@ export interface BackendDescriptor {
   // in M3) — intentionally NOT loadable by the claude lanes, so cross-lane handoff
   // stays correctly blocked.
   readonly sessionStore: "claude-transcript" | "none" | "eos-conversation";
+  // The request wire dialect this backend speaks. The three in-process kinds share
+  // one "eos-conversation" store (dialect-NEUTRAL messages), so a same-dialect
+  // resume is safe — but a LIVE cross-dialect handoff (openai↔anthropic-api) is a
+  // non-goal and would replay a transcript carrying a provider's signed reasoning
+  // into a foreign dialect. canHandoffBackend blocks a mismatch on THIS, never on a
+  // kind literal. Absent on the claude lanes (already store-incompatible).
+  readonly wireDialect?: "anthropic" | "openai-chat";
 }
 
 // Identity + execution context to start a session. Deliberately free of argv /

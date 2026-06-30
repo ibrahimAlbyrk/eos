@@ -47,6 +47,26 @@ describe("canHandoffBackend", () => {
     assert.equal(r.ok, false);
     assert.match(r.ok === false ? r.reason : "", /incompatible/);
   });
+
+  // M4 — the in-process kinds share the "eos-conversation" store, so the store
+  // checks pass; a LIVE cross-dialect handoff must still be blocked on wireDialect
+  // (the transcript can carry one dialect's signed reasoning), while same-dialect
+  // stays handoffable. Capability-driven (descriptor data), never a kind literal.
+  const oai = desc({ kind: "openai", sessionStore: "eos-conversation", billing: "metered", models: { kind: "openai-compatible" }, wireDialect: "openai-chat" });
+  const codex = desc({ kind: "codex", sessionStore: "eos-conversation", billing: "metered", models: { kind: "openai-compatible" }, wireDialect: "openai-chat" });
+  const anthApi = desc({ kind: "anthropic-api", sessionStore: "eos-conversation", billing: "metered", models: { kind: "claude" }, wireDialect: "anthropic" });
+
+  it("blocks a LIVE cross-dialect handoff (openai↔anthropic-api) despite a shared store", () => {
+    const r = canHandoffBackend(oai, anthApi);
+    assert.equal(r.ok, false);
+    assert.match(r.ok === false ? r.reason : "", /wire dialect/);
+    assert.equal(canHandoffBackend(anthApi, oai).ok, false);
+  });
+
+  it("allows a same-dialect handoff (openai↔codex) on the shared store", () => {
+    assert.deepEqual(canHandoffBackend(oai, codex), { ok: true });
+    assert.deepEqual(canHandoffBackend(codex, oai), { ok: true });
+  });
 });
 
 describe("planBackendSwitch", () => {

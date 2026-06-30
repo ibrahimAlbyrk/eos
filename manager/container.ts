@@ -22,8 +22,10 @@ import { createChildProcessSupervisor } from "../infra/src/supervision/ChildProc
 import { createClaudeCliBackend } from "./backends/ClaudeCliBackend.ts";
 import { createInProcessBackend } from "../infra/src/backends/InProcessBackend.ts";
 import { JsonlConversationStore } from "../infra/src/conversation/JsonlConversationStore.ts";
+import { DropOldestContextCompactor } from "../infra/src/conversation/DropOldestContextCompactor.ts";
 import { createAnthropicModelClient } from "../infra/src/backends/AnthropicModelClient.ts";
 import { createOpenAIModelClient } from "../infra/src/backends/OpenAIModelClient.ts";
+import type { ProviderErrorInfo } from "../infra/src/backends/provider-error.ts";
 import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts";
 import { scrubSubscriptionEnv } from "../core/src/domain/env-allowlist.ts";
 import type { AgentEvent } from "../contracts/src/canonical.ts";
@@ -865,7 +867,7 @@ export function buildContainer() {
         items.push(taskToolItem(renderInprocToolDescriptions()));
         tools.set("Task", makeSubagentTool({ ...rt, parentSpec: childSpec, depth: rt.depth + 1 }));
       }
-      const model = rt.buildModelClient({ apiKey: rt.apiKey, baseUrl: rt.baseUrl, model: childSpec.model, system, items, capabilities: rt.capabilities });
+      const model = rt.buildModelClient({ apiKey: rt.apiKey, baseUrl: rt.baseUrl, model: childSpec.model, system, items, capabilities: rt.capabilities, params: rt.params, effort: rt.effort, workerId: childId });
       const gate = makePolicyToolGate(childId, sdkPolicy, { agentId: childId });
       let finalText = "";
       const childEmit = (e: AgentEvent): void => {
@@ -883,7 +885,7 @@ export function buildContainer() {
         // corrupt the parent turn FSM / double-render).
       };
       await runTurn(
-        { model, tools, gate, emit: childEmit, signal: rt.signal, contextWindow: rt.capabilities?.contextWindow },
+        { model, tools, gate, emit: childEmit, signal: rt.signal, contextWindow: rt.capabilities?.contextWindow, compactor: rt.compactor, capabilities: rt.capabilities },
         [{ role: "user", content: prompt }],
       );
       return finalText || "(subagent produced no text output)";
@@ -896,6 +898,14 @@ export function buildContainer() {
   // ~/.eos/conversations (non-regenerable user data). ids = the same generator the
   // rest of the daemon uses (no Math.random in the backend).
   const inProcessDurability = { store: new JsonlConversationStore(join(config.daemon.home, "conversations")), ids: randomIdGenerator };
+  // M4 — shared context compactor: drops oldest matched tool-turns near the model's
+  // contextWindow so a small-context model compacts instead of a raw 400 (D8).
+  const inProcessCompactor = new DropOldestContextCompactor();
+  // m5 — a typed provider-error structured log on the round-trip-error / refusal
+  // paths (the missing-price path is logged at priceFor). Built per client with its
+  // backend label; model + workerId give the diagnosable correlation.
+  const providerErrorSink = (backend: string, model: string, workerId?: string) =>
+    (e: ProviderErrorInfo): void => log.warn("provider error", { backend, model, workerId, transport: e.transport, status: e.status });
 
   // anthropic-api backend — in-process, ToolRuntime-driven, gated by the shared
   // policy engine. Credentials/baseUrl/capabilities are resolved per-worker from the
@@ -906,8 +916,9 @@ export function buildContainer() {
     authResolver,
     makeGate: inProcessGate,
     makeSubagentTool,
-    buildModelClient: ({ apiKey, baseUrl, model, system, items }) =>
-      createAnthropicModelClient({ apiKey, baseUrl, model, system, tools: items.map((i) => ({ name: i.name, description: i.description, input_schema: i.schema })) }),
+    compactor: inProcessCompactor,
+    buildModelClient: ({ apiKey, baseUrl, model, system, items, capabilities, params, effort, workerId }) =>
+      createAnthropicModelClient({ apiKey, baseUrl, model, system, capabilities, params, effort, onProviderError: providerErrorSink("anthropic-api", model, workerId), tools: items.map((i) => ({ name: i.name, description: i.description, input_schema: i.schema })) }),
   }), inProcessDurability);
   // OpenAI-compatible backends (OpenAI, DeepSeek, Kimi/Moonshot, Codex-via-API, or
   // any compatible endpoint via a per-profile baseUrl). Same gated ToolRuntime path.
@@ -919,8 +930,9 @@ export function buildContainer() {
     authResolver,
     makeGate: inProcessGate,
     makeSubagentTool,
-    buildModelClient: ({ apiKey, baseUrl, model, system, items }) =>
-      createOpenAIModelClient({ apiKey, baseUrl, model, system, tools: items.map((i) => ({ name: i.name, description: i.description, parameters: i.schema })) }),
+    compactor: inProcessCompactor,
+    buildModelClient: ({ apiKey, baseUrl, model, system, items, capabilities, params, effort, workerId }) =>
+      createOpenAIModelClient({ apiKey, baseUrl, model, system, capabilities, params, effort, onProviderError: providerErrorSink("openai", model, workerId), tools: items.map((i) => ({ name: i.name, description: i.description, parameters: i.schema })) }),
   });
   const openaiBackend = createInProcessBackend("openai", makeOpenAiEnvFactory(), inProcessDurability);
   const codexBackend = createInProcessBackend("codex", makeOpenAiEnvFactory(), inProcessDurability);

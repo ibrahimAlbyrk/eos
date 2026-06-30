@@ -19,8 +19,10 @@ import type { AgentEvent } from "../../contracts/src/canonical.ts";
 import type { InProcessEnv, InProcessEnvFactory } from "../../infra/src/backends/InProcessBackend.ts";
 import type { AuthResolver } from "../../core/src/ports/AuthResolver.ts";
 import type { ModelClient } from "../../core/src/ports/ModelClient.ts";
+import type { ContextCompactor } from "../../core/src/ports/ContextCompactor.ts";
 import type { RuntimeTool, ToolGate } from "../../core/src/use-cases/ToolRuntime.ts";
 import type { ProviderCapabilities } from "../../contracts/src/provider-capabilities.ts";
+import type { ProviderErrorInfo } from "../../infra/src/backends/provider-error.ts";
 
 // The model-schema view of one lane tool (name + provider-neutral JSON schema).
 export interface LaneToolItem {
@@ -36,6 +38,13 @@ export interface InProcessModelClientInput {
   system?: string;
   items: LaneToolItem[];
   capabilities?: ProviderCapabilities;
+  // M4 — per-worker model params (temperature/max_tokens/thinking) + the normalized
+  // effort, applied by the dialect client per capabilities. workerId is threaded for
+  // the provider-error structured log (m5).
+  params?: Record<string, unknown>;
+  effort?: string | null;
+  workerId?: string;
+  onProviderError?(e: ProviderErrorInfo): void;
 }
 
 // The per-session runtime ingredients the Task (subagent) closure captures. It is
@@ -47,6 +56,10 @@ export interface SubagentRuntimeContext {
   apiKey: string;
   baseUrl?: string;
   capabilities?: ProviderCapabilities;
+  // M4 — parent params/effort + the compactor flow to the child loop (same provider).
+  params?: Record<string, unknown>;
+  effort?: string | null;
+  compactor?: ContextCompactor;
   depth: number;
   emit(e: AgentEvent): void;
   signal: { aborted: boolean };
@@ -62,6 +75,9 @@ export interface InProcessEnvFactoryDeps {
   // Dialect-specific model-client builder bound at construction (Anthropic vs
   // OpenAI) — selection is by which factory the registry wires, never a kind branch.
   buildModelClient(input: InProcessModelClientInput): ModelClient;
+  // M4 — the ContextCompactor, threaded into the loop so a near-window conversation
+  // is trimmed (turn continues) instead of a raw provider 400. Optional (tests omit).
+  compactor?: ContextCompactor;
   // The Task subagent closure (§5e). Optional: tests/conformance omit it (no Task).
   // The Task model-schema item is added to the surface by buildLaneTooling (sync);
   // its executor — which needs resolved creds + the session emit/signal — is bound
@@ -78,6 +94,7 @@ export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProc
     const { items, tools } = deps.buildLaneTooling(spec);
     const system = deps.assembleSystem(spec) ?? undefined;
     const capabilities = opts?.capabilities;
+    const params = opts?.params as Record<string, unknown> | undefined;
     const model = deps.buildModelClient({
       apiKey: creds.apiKey ?? "",
       baseUrl: opts?.baseUrl ?? creds.baseUrl,
@@ -85,8 +102,11 @@ export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProc
       system,
       items,
       capabilities,
+      params,
+      effort: spec.effort,
+      workerId: spec.workerId,
     });
-    const env: InProcessEnv = { model, tools, gate: deps.makeGate(spec.workerId), contextWindow: capabilities?.contextWindow };
+    const env: InProcessEnv = { model, tools, gate: deps.makeGate(spec.workerId), contextWindow: capabilities?.contextWindow, capabilities, compactor: deps.compactor };
     // Bind the Task subagent executor once the session's emit/signal exist. The
     // matching schema item is already in `items` (buildLaneTooling), so the model
     // sees Task; orchestrators get neither (Task stripped from their surface).
@@ -97,6 +117,9 @@ export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProc
           apiKey: creds.apiKey ?? "",
           baseUrl: opts?.baseUrl ?? creds.baseUrl,
           capabilities,
+          params,
+          effort: spec.effort,
+          compactor: deps.compactor,
           depth: 0,
           emit,
           signal,
