@@ -20,6 +20,10 @@ export function dispatchDeps(
     client: c.httpWorkerClient,
     backends: c.backends,
     slashCommands: c.slashCommands,
+    // Prompt-template (.md slash-command) expansion (§5c) — applied only on lanes
+    // that don't expand natively (the in-process lane); DispatchMessage gates on the
+    // backend capability, never on kind.
+    expandTemplate: c.expandSlashTemplate,
     // The daemon-side seams a slash command may touch — sourced from the same
     // services the SessionEnd(clear) hook uses, so the command and the (now
     // idempotent) hook fallback stay in sync.

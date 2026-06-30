@@ -28,6 +28,9 @@ export const BUILTIN_TOOL_NAMES = {
   TodoWrite: "TodoWrite",
   Task: "Task",
   ExitPlanMode: "ExitPlanMode",
+  // Loads an Agent Skill's SKILL.md body on demand (the in-process lane's manual
+  // Skill invocation). Categorized as "other" like Task — no category-set entry.
+  Skill: "Skill",
 } as const;
 
 export type BuiltinToolName = (typeof BUILTIN_TOOL_NAMES)[keyof typeof BUILTIN_TOOL_NAMES];

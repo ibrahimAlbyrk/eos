@@ -105,6 +105,14 @@ export interface DispatchMessageDeps {
   /** Daemon-side seams a slash command may touch (queue clear, peer cancel,
    *  conversation_cleared). Required for interception to fire. */
   slashEffects?: SlashSideEffects;
+  /** Prompt-template (`.md` slash-command) expander (§5c). Invoked ONLY when the
+   *  resolved backend does NOT expand templates natively
+   *  (descriptor.capabilities.expandsSlashTemplates !== true — the in-process lane):
+   *  given the raw text + the worker's cwd, it discovers a matching `.md` command and
+   *  returns the expanded text, or null when the text is not a discovered template
+   *  command. Absent → no Eos-side expansion (the claude lanes self-expand). Gated on
+   *  the capability, never on backend kind. */
+  expandTemplate?(text: string, cwd: string | null): Promise<string | null>;
   log: Logger;
   /** When true and the worker has no live supervised child, the use-case
    * throws ConflictError instead of forwarding. Used for orchestrators —
@@ -277,6 +285,22 @@ export async function dispatchMessage(
     }
   }
 
+  // Prompt-template expansion (§5c) — only when the backend does NOT expand `.md`
+  // slash-commands natively. Placed AFTER control-command interception (those
+  // returned early) and BEFORE the turn dispatch, so a discovered template's
+  // expanded text becomes the model's user message. The chat event keeps the typed
+  // `/command` (below); only the text sent to the model is the expansion. A failed
+  // expansion never sinks the turn — it falls through to the raw text.
+  let outgoing = input.text;
+  if (backend && deps.expandTemplate && backend.descriptor.capabilities.expandsSlashTemplates !== true) {
+    try {
+      const expanded = await deps.expandTemplate(input.text, w.worktree_dir ?? w.cwd ?? null);
+      if (expanded !== null) outgoing = expanded;
+    } catch (e) {
+      deps.log.warn("slash-template expansion failed", { workerId: w.id, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
   const recordClientMsgIds = input.recordClientMsgIds
     ?? (input.clientMsgId ? [input.clientMsgId] : undefined);
   const record = buildMessageRecord(input.envelope, now, input.displayText, recordClientMsgIds);
@@ -301,7 +325,7 @@ export async function dispatchMessage(
         : { kind: "http" as const, port: w.port as number, pid: w.pid ?? null };
       const session = backend.attach(w.id, handle);
       selfReports = session.capabilities.reportsMessageEvents === true;
-      result = await session.sendMessage(input.text, selfReports ? record : undefined);
+      result = await session.sendMessage(outgoing, selfReports ? record : undefined);
     } else {
       // Legacy port path drives a claude-cli PTY worker — it self-reports.
       if (!w.port) throw new ConflictError("worker has no port");

@@ -40,6 +40,10 @@ export interface InProcessEnv {
    *  history near contextWindow is trimmed (turn continues) instead of a raw 400. */
   capabilities?: ProviderCapabilities;
   compactor?: ContextCompactor;
+  /** M6 — the bare name of the Skill RuntimeTool on this surface (§5c), forwarded to
+   *  the loop so a loaded skill body also surfaces as a canonical skill block. Absent
+   *  ⇒ no skill-block emit (tests/conformance, the claude lanes). */
+  skillToolName?: string;
   /** Late-bind the per-session emit + abort signal (created here in start(), after
    *  the factory ran). The Task-subagent closure needs them — its child loop shares
    *  the parent abort signal and re-tags child events onto the parent stream — but
@@ -135,7 +139,7 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
     s.signal.aborted = false; // a new turn clears a prior interrupt
     s.messages.push({ role: "user", content: userText });
     const p = runTurn(
-      { model: s.env.model, tools: s.env.tools, gate: s.env.gate, emit: s.emit, signal: s.signal, contextWindow: s.env.contextWindow, compactor: s.env.compactor, capabilities: s.env.capabilities },
+      { model: s.env.model, tools: s.env.tools, gate: s.env.gate, emit: s.emit, signal: s.signal, contextWindow: s.env.contextWindow, compactor: s.env.compactor, capabilities: s.env.capabilities, skillToolName: s.env.skillToolName },
       s.messages,
     )
       // Persist after each settled turn, at the one place the conversation is

@@ -33,6 +33,9 @@ const CLI_CAPS: AgentCapabilities = {
   reportsMessageEvents: true,
   // /clear is realized by forwarding the native slash to the TUI (clearContext).
   contextClear: true,
+  // The bundled binary expands prompt-template .md slash-commands itself — Eos must
+  // NOT double-expand (DispatchMessage gates its expander on this, never on kind).
+  expandsSlashTemplates: true,
 };
 
 const CLI_DESCRIPTOR: BackendDescriptor = {

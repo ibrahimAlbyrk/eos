@@ -96,6 +96,10 @@ export interface InProcessEnvFactoryDeps {
   // its executor — which needs resolved creds + the session emit/signal — is bound
   // here. Orchestrators never get it (Task is stripped from their surface).
   makeSubagentTool?(rt: SubagentRuntimeContext): RuntimeTool;
+  // M6 — the bare name of the Skill RuntimeTool on the surface (§5c), threaded to the
+  // loop so a loaded skill body also surfaces as a canonical skill block. Absent ⇒ no
+  // skill-block emit (tests). The Skill tool itself is merged by buildLaneTooling.
+  skillToolName?: string;
 }
 
 export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProcessEnvFactory {
@@ -128,7 +132,7 @@ export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProc
       effort: spec.effort,
       workerId: spec.workerId,
     });
-    const env: InProcessEnv = { model, tools, gate: deps.makeGate(spec.workerId), contextWindow: capabilities?.contextWindow, capabilities, compactor: deps.compactor };
+    const env: InProcessEnv = { model, tools, gate: deps.makeGate(spec.workerId), contextWindow: capabilities?.contextWindow, capabilities, compactor: deps.compactor, skillToolName: deps.skillToolName };
     // Close the external-MCP connections when the session stops (§5c lifecycle).
     if (mcp) env.closeSession = () => mcp.close();
     // Bind the Task subagent executor once the session's emit/signal exist. The

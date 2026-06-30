@@ -49,6 +49,12 @@ export interface ToolRuntimeDeps {
   compactor?: ContextCompactor;
   /** Declared provider quirks the compactor reads (contextWindow). */
   capabilities?: ProviderCapabilities;
+  /** The bare name of the Skill RuntimeTool, when one is on the surface (§5c). A
+   *  successful call to it additionally emits a canonical `skill` block correlated
+   *  by callId (the SKILL.md body, surfaced for the UI like the claude-cli lane) —
+   *  the model still receives the body as the tool_result. Dispatch + gating are
+   *  unchanged; absent ⇒ no skill block (tests, the claude lanes). */
+  skillToolName?: string;
 }
 
 // Cheap token estimate (chars/4) over the conversation, for the pre-flight guard
@@ -153,6 +159,11 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
       deps.emit({ type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: call.callId, name: call.name, input: call.input }] });
       const result = await executeGated(deps, call.name, call.input);
       deps.emit({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: call.callId, isError: result.isError, content: result.text }] });
+      // A loaded skill body also surfaces as a canonical skill block (UI parity with
+      // the claude-cli lane) — additive; the model already got the body above.
+      if (deps.skillToolName && call.name === deps.skillToolName && !result.isError) {
+        deps.emit({ type: "message", role: "assistant", blocks: [{ type: "skill", callId: call.callId, text: result.text }] });
+      }
       messages.push({ role: "tool", content: { callId: call.callId, result: result.text, isError: result.isError } });
     }
   }

@@ -38,6 +38,9 @@ const CAPS: AgentCapabilities = {
   // /clear restarts the query with a fresh session (no resume) — the conversation
   // lives in the SDK subprocess, so there is no buffer to drop. See clearContext.
   contextClear: true,
+  // The bundled binary (driven by the SDK) expands prompt-template .md slash-commands
+  // itself — Eos must NOT double-expand (DispatchMessage gates on this, never kind).
+  expandsSlashTemplates: true,
 };
 
 const SDK_DESCRIPTOR: BackendDescriptor = {

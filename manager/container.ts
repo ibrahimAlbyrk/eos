@@ -41,6 +41,9 @@ import { createNodeToolFileSystem } from "../infra/src/tools/NodeToolFileSystem.
 import { createNodeProcessRunner } from "../infra/src/tools/NodeProcessRunner.ts";
 import { resolveWorkerDefinitionByName } from "../core/src/domain/worker-definition-resolution.ts";
 import { buildBuiltinSurface, buildLaneSurface, taskToolItem, type LaneTooling } from "./backends/lane-tooling.ts";
+import { SKILL_TOOL_NAME, skillToolItem, buildSkillTool, renderAvailableSkills } from "./backends/skill-tooling.ts";
+import { createFileSkillCatalog } from "../infra/src/skills/FileSkillCatalog.ts";
+import { createCommandTemplateExpander } from "./backends/command-expander.ts";
 import { orchestratorDefs, workerDefs, peerDefs, workflowWorkerDefs } from "./tools/registry.ts";
 import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
@@ -610,6 +613,12 @@ export function buildContainer() {
   // natively (assumeNativeFor): the claude-cli binary auto-loads CLAUDE.md, the
   // claude-sdk lane (settingSources:[]) loads nothing.
   const memoryProvider = new FileMemoryProvider(resolveMemorySources(config.memory.sources));
+  // Agent Skills (§5c) — discovery + body load for the in-process lane. Skill
+  // trigger metadata (name+description) is folded into the in-process DPI prompt
+  // below (the §5h slot); the Skill RuntimeTool loads a body on manual invocation.
+  // The claude lanes discover + auto-trigger skills natively, so this is in-process
+  // only — gated by the lane parameter in assembleAppendText, never a `when` gate.
+  const skillCatalog = createFileSkillCatalog();
   // DPI assembly (shared): derive the appended system-prompt TEXT from the
   // fragments that match the spawn facts. Both backend lanes need the same text —
   // claude-cli writes it to a file for --append-system-prompt-file, claude-sdk
@@ -633,6 +642,23 @@ export function buildContainer() {
     // sorts first. Same injection mechanism as the worker-definition body below.
     if (lane === "in-process" && promptRegistry.has("lane/in-process")) {
       extra.push({ prompt: promptRegistry.get("lane/in-process"), dpi: { layer: "core", priority: -100 } });
+    }
+    // Skill trigger metadata (§5c / MJ6): for the in-process lane ONLY (the lane has
+    // no binary to discover skills), fold each visible skill's name+description into
+    // the prompt via the SAME `extra` mechanism as the worker-def body — keyed on the
+    // lane PARAMETER, never a `when` gate. The claude lanes discover skills natively,
+    // so they never reach here. Built as a synthetic tool-layer fragment.
+    if (lane === "in-process") {
+      const skillsBlock = renderAvailableSkills(skillCatalog.listSkills(lookupCwd));
+      if (skillsBlock) {
+        const raw: RawPrompt = { id: "skills/available", frontmatter: { dpi: { layer: "tool", priority: 50 }, variables: [] }, body: skillsBlock };
+        try {
+          const frag = toFragment(parsePrompt(raw));
+          if (frag) extra.push(frag);
+        } catch {
+          // A malformed skills block must not break the spawn — skip the fragment.
+        }
+      }
     }
     if (spec.workerDefinition && spec.workerDefinitionBody && spec.workerDefinitionBody.trim()) {
       const raw: RawPrompt = {
@@ -766,17 +792,23 @@ export function buildContainer() {
   // in-process lane: one registry, cwd-scoped per spawn. Gated for free by the
   // policy stack because every tool uses its BARE canonical name + canonical input
   // fields. The fs/process adapters are stateless, so one registry is shared.
+  const nodeToolFs = createNodeToolFileSystem();
+  const nodeProcessRunner = createNodeProcessRunner();
   const builtinToolRegistry = createBuiltinToolRegistry({
-    fs: createNodeToolFileSystem(),
-    proc: createNodeProcessRunner(),
+    fs: nodeToolFs,
+    proc: nodeProcessRunner,
   });
+  // Prompt-template (.md slash-command) expander (§5c) for lanes that don't expand
+  // natively. DispatchMessage gates this on capabilities.expandsSlashTemplates (false
+  // for in-process; the claude lanes self-expand), so it never double-expands.
+  const expandSlashTemplate = createCommandTemplateExpander({ fs: nodeToolFs, proc: nodeProcessRunner });
   // Tool descriptions (control defs + bare-named built-ins + Task) are authored as
   // prompt fragments (prompts/tool/<name>) and rendered fresh per spawn — not cached at
   // construct-time — so editing a tool .md takes effect on the next spawn with no daemon
   // restart, parity with the claude-cli MCP subprocess that re-reads the prompt library
   // each spawn. Control descriptions key by def name; the built-in + Task descriptions
   // are overlaid onto the lane ITEMS (the in-process analog of withToolDescriptions).
-  const builtinDescriptionNames = [...builtinToolRegistry.list().map((t) => t.name), "Task"];
+  const builtinDescriptionNames = [...builtinToolRegistry.list().map((t) => t.name), "Task", SKILL_TOOL_NAME];
   const renderInprocToolDescriptions = (): Record<string, string> =>
     renderToolDescriptions(config.paths.promptsDir, [
       ...[...orchestratorDefs, ...workerDefs, ...peerDefs, ...workflowWorkerDefs].map((d) => d.name),
@@ -785,8 +817,19 @@ export function buildContainer() {
   // The built-in surface for a spec (NO control tools) — used directly for the Task
   // child surface (built-ins only) and merged into buildLaneTooling for parents. The
   // built-in descriptions are overlaid from the prompt library.
-  const buildBuiltinTooling = (spec: AgentLaunchSpec): LaneTooling =>
-    buildBuiltinSurface(builtinToolRegistry, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope }, renderInprocToolDescriptions());
+  // Merge the Skill item+tool (§5c) into a surface so BOTH the parent lane surface
+  // and the Task child surface offer it — skills are non-control, so the child's
+  // agentId gate leaves them callable. cwd-scoped: loadBody resolves project skills.
+  const mergeSkillTooling = (surface: LaneTooling, cwd: string | null, descriptions: Record<string, string>): void => {
+    surface.items.push(skillToolItem(descriptions));
+    surface.tools.set(SKILL_TOOL_NAME, buildSkillTool(skillCatalog, cwd));
+  };
+  const buildBuiltinTooling = (spec: AgentLaunchSpec): LaneTooling => {
+    const descriptions = renderInprocToolDescriptions();
+    const surface = buildBuiltinSurface(builtinToolRegistry, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope }, descriptions);
+    mergeSkillTooling(surface, spec.cwd, descriptions);
+    return surface;
+  };
 
   // Orchestration tools projected onto the in-process ToolRuntime: prefixed
   // mcp__orchestrator__/worker__ names (so classifyTool always-allows them like the
@@ -806,7 +849,9 @@ export function buildContainer() {
       control.items.push({ name, description: descriptions[d.name] ?? d.name, schema: toolJsonSchema(d) });
       control.tools.set(name, { name, execute: toRuntimeTool(d, ctx).execute });
     }
-    return buildLaneSurface(builtinToolRegistry, control, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope }, descriptions);
+    const surface = buildLaneSurface(builtinToolRegistry, control, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope }, descriptions);
+    mergeSkillTooling(surface, spec.cwd, descriptions);
+    return surface;
   };
 
   // The complete in-process DPI system prompt (B1): the SAME assembler all lanes
@@ -892,7 +937,7 @@ export function buildContainer() {
         // corrupt the parent turn FSM / double-render).
       };
       await runTurn(
-        { model, tools, gate, emit: childEmit, signal: rt.signal, contextWindow: rt.capabilities?.contextWindow, compactor: rt.compactor, capabilities: rt.capabilities },
+        { model, tools, gate, emit: childEmit, signal: rt.signal, contextWindow: rt.capabilities?.contextWindow, compactor: rt.compactor, capabilities: rt.capabilities, skillToolName: SKILL_TOOL_NAME },
         [{ role: "user", content: prompt }],
       );
       return finalText || "(subagent produced no text output)";
@@ -941,6 +986,7 @@ export function buildContainer() {
     makeSubagentTool,
     compactor: inProcessCompactor,
     resolveMcpTools: resolveRuntimeMcpTools,
+    skillToolName: SKILL_TOOL_NAME,
     buildModelClient: ({ apiKey, baseUrl, model, system, items, capabilities, params, effort, workerId }) =>
       createAnthropicModelClient({ apiKey, baseUrl, model, system, capabilities, params, effort, onProviderError: providerErrorSink("anthropic-api", model, workerId), tools: items.map((i) => ({ name: i.name, description: i.description, input_schema: i.schema })) }),
   }), inProcessDurability);
@@ -956,6 +1002,7 @@ export function buildContainer() {
     makeSubagentTool,
     compactor: inProcessCompactor,
     resolveMcpTools: resolveRuntimeMcpTools,
+    skillToolName: SKILL_TOOL_NAME,
     buildModelClient: ({ apiKey, baseUrl, model, system, items, capabilities, params, effort, workerId }) =>
       createOpenAIModelClient({ apiKey, baseUrl, model, system, capabilities, params, effort, onProviderError: providerErrorSink("openai", model, workerId), tools: items.map((i) => ({ name: i.name, description: i.description, parameters: i.schema })) }),
   });
@@ -1292,6 +1339,7 @@ export function buildContainer() {
     claudeCliBackend,
     backends,
     slashCommands,
+    expandSlashTemplate,
     onAgentEvent,
     backendResolver,
     authResolver,
