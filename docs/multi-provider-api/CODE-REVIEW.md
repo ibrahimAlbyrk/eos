@@ -195,3 +195,77 @@ background shells or drop the parameter from `bash.ts:32` so it isn't a false pr
 | **Resource** bg shells tracked/killable, no unbounded growth | **GAP (MJ2)** | killable via KillShell, but registry never pruned + no reap on worker kill (orphaned processes + memory leak); no bg timeout. |
 | **Resource** AbortSignal honored | **PARTIAL** | streaming interruptible between chunks; non-streaming `createTurn` + retry-backoff sleep not cancellable mid-flight (documented M1–M3 limit); abort mislabeled as error (m1). |
 | **Robustness** matched-pair compaction, retry-only-retryable, dead-MCP fail-soft | **PASS** | verified above. |
+
+---
+
+## Re-review (round 2) — fix commit `45cb447`
+
+> Focused re-review of the fixer's diff (`git diff 523e91e..45cb447`) + the new regression
+> tests. Re-verified the fix logic AND hunted for regressions/new issues. Suites re-run:
+> core **759**, infra **382** (+7 new), manager api-lane+config **42**, api-lane-commands **6** —
+> all green, no regression. The new tests genuinely reproduce each bug pre-fix.
+
+### FINAL VERDICT: **production-ready.** 0 BLOCKER · 0 MAJOR remaining. The 1 BLOCKER + 2 MAJOR are genuinely resolved (correct logic + true reproductions); 2 new MINOR residuals (N1, N2), neither gating.
+
+### Per-finding
+
+- **B1 — RESOLVED.** `ToolRuntime.ts:156-159` now pushes `{role:"assistant", content: turn.text}`
+  on the terminal no-tool-call path only (not double-pushed; the tool-call push at `:163` is a
+  separate iteration). `InProcessBackend-multiturn.test.ts` uses a STRICT Anthropic stub that
+  400s on consecutive user roles — fails pre-fix, passes after, asserting `sawRoles[1] ===
+  ["user","assistant","user"]`. Reasoning round-trip intact: the terminal turn carries no
+  `providerMetadata` (correctly — a non-tool turn needs no signed-thinking re-emit), and the
+  multiturn test runs under `preserve-signed` caps. Durability test strengthened to confirm the
+  assistant reply is persisted (`stored.length 3→4`, `stored[3]` = the reply) and rehydrated.
+
+- **MJ1 — RESOLVED.** `InProcessBackend.ts:144-173`: a new turn chains on `s.current`
+  (`(s.current ?? resolve).then(run, run)`) instead of starting a concurrent `runTurn` — test
+  proves a mid-flight 2nd dispatch waits and then sees turn 1's reply (`seen[1] ===
+  ["first","r1","second"]`, serialized, not lost). The generation counter (bumped by
+  `clearContext`/`stop`, `:203`/`:222`) makes a cleared/stopped turn's persist a no-op
+  (`:163` `if (s.generation !== gen) return`) — test proves `/clear` mid-turn is not undone
+  (`store.load(freshId) === null`). No deadlock/livelock (`s.current` always resolves; `.finally`
+  nulls it); normal multi-turn persists unaffected (only clear/stop bump the counter).
+
+- **MJ2 — RESOLVED.** `NodeProcessRunner` tags each shell with `owner`; `reap(owner)` kills+evicts
+  exactly that session's shells, wired to `env.closeSession` for BOTH kinds
+  (`container.ts:997,1014` → `in-process-env.ts:140-146` → `stop()`), and the Task child reaps
+  `childId` in a `finally` (`container.ts:939-949`); `owner=spec.workerId` threaded
+  (`:828,852`). `timeoutMs` now honored for background shells (timer set/cleared on
+  close/error/kill/reap); `readBackground` returns the final output BEFORE evicting a finished
+  shell (no output loss — `NodeProcessRunner.test.ts` confirms); `killBackground`/`reap` evict;
+  output capped at 5 MB/stream (m2). Map-mutation-during-iteration in `reap` is safe.
+
+- **MINORs.** m1 RESOLVED+tested (`ToolRuntime.ts:133-140` maps `error:"aborted"` → `turn:aborted`;
+  exact-match, only the interrupt path produces it). m2 RESOLVED (`MAX_OUTPUT_CHARS`). m3 RESOLVED
+  (`routes/backends.ts:64-72` warns when a profile declares no `capabilities`; non-fatal).
+  m4 NOTED-not-fixed (dormant `anthropic-output_config` flagged in-code, acceptable). m5
+  NOTED-not-fixed (argv key exposure documented as inherent to `security(1)`, acceptable).
+
+### New findings (round 2) — both MINOR, non-blocking
+
+- **[MINOR] N1 — Evict-on-drain changes BashOutput re-poll semantics.** The draining read that
+  observes completion evicts the shell (`NodeProcessRunner.ts:95-99`), so a redundant
+  `BashOutput` re-poll returns `null` → `bash-output.ts:23` throws `no background shell with id`
+  rather than a benign "completed, no new output." The model normally stops at
+  `[status: completed]`, and `executeGated` catches the throw into an error tool_result, so it
+  never crashes — but it's a small parity deviation vs the bundled binary. Also: a finished bg
+  shell that is *never* re-read is retained until session `reap` (bounded by stop). *Optional:*
+  retain a completed shell for one extra benign read, or treat an unknown id as
+  completed-no-output. Not blocking.
+
+- **[MINOR] N2 — reap SIGKILLs the shell PID, not a detached descendant tree (pre-existing, not a
+  regression).** `spawn(..., {detached:false})` + `child.kill("SIGKILL")` kills `/bin/sh`; for a
+  compound/backgrounding command (`a & b`, pipelines) that leaves the shell resident, forked
+  grandchildren can still orphan. This is strictly *better* than before (the shell itself is now
+  killed) and matches the foreground `run()` behavior, so it is not introduced by this fix — but
+  MJ2's "no orphaned children" goal is only fully met for the common exec-replaced single-command
+  case. *Optional:* `detached:true` + `process.kill(-pid)` to kill the whole group. Not blocking.
+
+### Regression / soundness checks
+- All four suites green; the durability-test edits *strengthen* assertions (persist+rehydrate the
+  assistant turn), they do not weaken to hide a regression.
+- The `fakeProc` in `api-lane-commands.test.ts:26` lacks `reap()` but `reap` is never called on it
+  (command-expander uses only `proc.run`); suite passes. Harmless.
+- No new BLOCKER/MAJOR. Serialization is deadlock-free, the generation guard drops no legitimate
+  persist, reap is ownership-scoped (no cross-worker kill), eviction loses no output.

@@ -29,6 +29,28 @@ interface BgShell {
   exitCode: number | null;
   owner?: string;
   timer?: ReturnType<typeof setTimeout>;
+  // Set once a finished shell's final output has been drained: its (large) buffers
+  // are freed but the lightweight entry is retained so a redundant BashOutput re-poll
+  // still sees a benign "completed" instead of an "unknown shell" error (N1), and so
+  // reap()/kill can still group-kill any detached descendants of the exited shell (N2).
+  drained?: boolean;
+}
+
+// Background shells are spawned in their own process group (detached) so that a
+// reap/timeout/kill can terminate the WHOLE tree — the /bin/sh plus any descendants
+// it backgrounded (`a & b`, pipelines) — via a negative-pid signal, instead of just
+// the shell PID (N2). Falls back to a plain child kill if the group signal can't be
+// delivered (already-exited group leader, missing pid).
+function killTree(child: ChildProcess): void {
+  if (child.pid == null) {
+    try { child.kill("SIGKILL"); } catch { /* already gone */ }
+    return;
+  }
+  try {
+    process.kill(-child.pid, "SIGKILL");
+  } catch {
+    try { child.kill("SIGKILL"); } catch { /* already gone */ }
+  }
 }
 
 // Append to a stream buffer but never exceed MAX_OUTPUT_CHARS; the first overflow
@@ -72,11 +94,17 @@ export function createNodeProcessRunner(): ProcessRunner {
 
     startBackground(command, opts): string {
       const id = `bash_${++counter}`;
-      const child = spawn(command, { cwd: opts.cwd, shell: "/bin/sh", detached: false, stdio: ["ignore", "pipe", "pipe"] });
+      // detached:true puts the shell in a fresh process group (it becomes the leader)
+      // so killTree can later signal the whole group. unref() keeps the detached shell
+      // from holding the daemon's event loop open on its own; output capture is
+      // unaffected (the stdout/stderr pipe handles stay referenced until the child
+      // closes them).
+      const child = spawn(command, { cwd: opts.cwd, shell: "/bin/sh", detached: true, stdio: ["ignore", "pipe", "pipe"] });
+      child.unref();
       const shell: BgShell = { child, stdout: "", stderr: "", outCursor: 0, errCursor: 0, running: true, exitCode: null, owner: opts.owner };
       // Honor timeoutMs for background shells too (previously ignored): a runaway
-      // detached job is SIGKILLed instead of running forever.
-      if (opts.timeoutMs) shell.timer = setTimeout(() => { if (shell.running) shell.child.kill("SIGKILL"); }, opts.timeoutMs);
+      // detached job is SIGKILLed (whole group) instead of running forever.
+      if (opts.timeoutMs) shell.timer = setTimeout(() => { if (shell.running) killTree(shell.child); }, opts.timeoutMs);
       child.stdout?.on("data", (d) => { shell.stdout = appendCapped(shell.stdout, d.toString()); });
       child.stderr?.on("data", (d) => { shell.stderr = appendCapped(shell.stderr, d.toString()); });
       child.on("error", (e) => { shell.stderr = appendCapped(shell.stderr, e instanceof Error ? e.message : String(e)); shell.running = false; if (shell.timer) clearTimeout(shell.timer); });
@@ -92,11 +120,19 @@ export function createNodeProcessRunner(): ProcessRunner {
       const stderr = s.stderr.slice(s.errCursor);
       s.outCursor = s.stdout.length;
       s.errCursor = s.stderr.length;
-      // Evict a finished shell once this read has drained its final output, so
-      // completed background shells don't accumulate over a long session (MJ2/m2).
-      // The final output is returned by THIS call before the entry is dropped; a
-      // subsequent read of the same id returns null (already reaped).
-      if (!s.running) bg.delete(id);
+      // Once a finished shell's final output is drained, free its (large) buffers so
+      // completed shells don't grow the daemon's heap over a long session (MJ2/m2).
+      // The lightweight entry is kept (not deleted) so a redundant re-poll returns a
+      // benign "completed, no new output" instead of an "unknown shell" error (N1),
+      // and reap()/kill can still group-kill any detached descendants. The entry is
+      // freed by reap()/killBackground at session end.
+      if (!s.running && !s.drained) {
+        s.drained = true;
+        s.stdout = "";
+        s.stderr = "";
+        s.outCursor = 0;
+        s.errCursor = 0;
+      }
       return { stdout, stderr, running: s.running, exitCode: s.exitCode };
     },
 
@@ -104,7 +140,9 @@ export function createNodeProcessRunner(): ProcessRunner {
       const s = bg.get(id);
       if (!s) return false;
       if (s.timer) clearTimeout(s.timer);
-      if (s.running) s.child.kill("SIGKILL");
+      // Group-kill even an already-exited shell: a descendant it backgrounded may
+      // still be alive in the (now leaderless) group.
+      killTree(s.child);
       s.running = false;
       bg.delete(id); // an explicitly killed shell is gone — free it immediately
       return true;
@@ -112,11 +150,12 @@ export function createNodeProcessRunner(): ProcessRunner {
 
     reap(owner): void {
       // Kill + evict every background shell owned by a stopping session, so an
-      // in-process worker kill doesn't orphan its run_in_background children (MJ2).
+      // in-process worker kill doesn't orphan its run_in_background children — the
+      // whole process group is signalled so detached descendants die too (MJ2/N2).
       for (const [id, s] of bg) {
         if (s.owner !== owner) continue;
         if (s.timer) clearTimeout(s.timer);
-        if (s.running) s.child.kill("SIGKILL");
+        killTree(s.child);
         bg.delete(id);
       }
     },
