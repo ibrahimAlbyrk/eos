@@ -45,7 +45,8 @@ function makeEnv(model: ModelClient): InProcessEnv {
 }
 
 // A user turn that drives one echo tool round-trip then ends — so the persisted
-// conversation carries a user message + a neutral tool-call + a neutral tool-result.
+// conversation carries a user message + a neutral tool-call + a neutral tool-result +
+// the assistant's terminal text turn (B1: the assistant's own reply is kept in history).
 const toolThenDone = (): ModelTurn[] => [
   { toolCalls: [{ callId: "c1", name: "echo", input: { v: 1 } }], stopReason: "tool_use" },
   { text: "done", toolCalls: [], stopReason: "end_turn", usage: { inputTokens: 5, outputTokens: 2 } },
@@ -119,8 +120,9 @@ describe("InProcessBackend durability (M3)", () => {
 
     const stored = store.load(sessionId!);
     assert.ok(stored, "the conversation was persisted after the turn");
-    assert.equal(stored!.length, 3);
+    assert.equal(stored!.length, 4); // user + assistant(tool_call) + tool_result + assistant text (B1)
     assert.deepEqual(stored![0], { role: "user", content: "first task" }); // dialect-neutral
+    assert.deepEqual(stored![3], { role: "assistant", content: "done" }); // the assistant's reply is in history (B1)
 
     // --- boot reconcile: the row carries the persisted session_id (setSessionId on
     // the `ready` event in production) + an on-disk cwd → SUSPENDED, not closed ---
@@ -140,9 +142,9 @@ describe("InProcessBackend durability (M3)", () => {
     await session2.sendMessage("second task");
     await be2.whenSettled("w1");
     const seen = model2.seen[0];
-    assert.equal(seen.length, 4, "3 rehydrated messages + 1 new user message");
+    assert.equal(seen.length, 5, "4 rehydrated messages (incl. the assistant text turn, B1) + 1 new user message");
     assert.deepEqual(seen[0], { role: "user", content: "first task" });
-    assert.deepEqual(seen[3], { role: "user", content: "second task" });
+    assert.deepEqual(seen[4], { role: "user", content: "second task" });
   });
 
   it("/clear emits cleared, deletes the stored conversation, and rolls to a fresh session id", async (t) => {

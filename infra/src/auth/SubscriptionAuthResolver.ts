@@ -50,6 +50,10 @@ function readKeychainSecret(service: string): string | null {
 // auth:{kind:"keychain",ref:service} reference to config.json, never the raw key.
 // `-U` updates an existing item so re-adding a provider rotates the key in place.
 // Throws on non-darwin or a security(1) failure (the route surfaces it).
+// NOTE (m5): the secret is passed via argv (`-w <secret>`), briefly visible to a
+// same-user `ps`. `security add-generic-password` exposes no stdin/file channel for
+// the password, so there is no clean mitigation — accepted as a same-user-only
+// exposure; the key never reaches config.json/SQLite/logs/events.
 export function writeKeychainSecret(service: string, secret: string): void {
   if (process.platform !== "darwin") {
     throw new Error("Keychain storage is only supported on macOS");

@@ -35,6 +35,9 @@ export interface LaneSurfaceSpec {
   cwd: string;
   isOrchestrator: boolean;
   scope?: ToolScope;
+  /** Session/worker id, tagged onto background shells so they are reaped when the
+   *  session stops (MJ2). Absent in unit tests with no owning session. */
+  owner?: string;
 }
 
 // The Task subagent's model-facing input schema. Task itself is a per-session closure
@@ -75,7 +78,7 @@ export function buildBuiltinSurface(
   spec: LaneSurfaceSpec,
   descriptions: Record<string, string> = {},
 ): LaneTooling {
-  const ctx: BuiltinToolContext = { cwd: spec.cwd };
+  const ctx: BuiltinToolContext = { cwd: spec.cwd, owner: spec.owner };
   const disallowed = new Set<string>(disallowedBuiltinToolsFor(spec.isOrchestrator));
   const items: LaneToolItem[] = [];
   const tools = new Map<string, RuntimeTool>();

@@ -100,6 +100,10 @@ export interface InProcessEnvFactoryDeps {
   // loop so a loaded skill body also surfaces as a canonical skill block. Absent ⇒ no
   // skill-block emit (tests). The Skill tool itself is merged by buildLaneTooling.
   skillToolName?: string;
+  // MJ2 — kill + evict this session's background (run_in_background) shells when the
+  // session stops, so a worker kill doesn't orphan detached children. Composed onto
+  // env.closeSession alongside the MCP teardown. Optional (tests/conformance omit it).
+  reapShells?(workerId: string): void;
 }
 
 export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProcessEnvFactory {
@@ -133,8 +137,14 @@ export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProc
       workerId: spec.workerId,
     });
     const env: InProcessEnv = { model, tools, gate: deps.makeGate(spec.workerId), contextWindow: capabilities?.contextWindow, capabilities, compactor: deps.compactor, skillToolName: deps.skillToolName };
-    // Close the external-MCP connections when the session stops (§5c lifecycle).
-    if (mcp) env.closeSession = () => mcp.close();
+    // Tear down session-scoped resources when the session stops (§5c lifecycle):
+    // the external-MCP connections AND this session's background shells (MJ2).
+    if (mcp || deps.reapShells) {
+      env.closeSession = () => {
+        deps.reapShells?.(spec.workerId);
+        return mcp?.close();
+      };
+    }
     // Bind the Task subagent executor once the session's emit/signal exist. The
     // matching schema item is already in `items` (buildLaneTooling), so the model
     // sees Task; orchestrators get neither (Task stripped from their surface).

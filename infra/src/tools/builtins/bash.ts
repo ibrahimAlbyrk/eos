@@ -29,7 +29,7 @@ export function createBashTool(proc: ProcessRunner): BuiltinTool {
       const timeoutMs = requested ? Math.min(requested, MAX_TIMEOUT_MS) : undefined;
 
       if (input.run_in_background === true) {
-        const id = proc.startBackground(command, { cwd: ctx.cwd, timeoutMs });
+        const id = proc.startBackground(command, { cwd: ctx.cwd, timeoutMs, owner: ctx.owner });
         return `Background shell started with id ${id}. Use BashOutput (bash_id=${id}) to read output, KillShell (shell_id=${id}) to stop it.`;
       }
 

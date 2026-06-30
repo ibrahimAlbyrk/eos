@@ -13,6 +13,10 @@ import type { RuntimeTool } from "../use-cases/ToolRuntime.ts";
 export interface BuiltinToolContext {
   cwd: string;
   signal?: { aborted: boolean };
+  /** The session/worker id, tagged onto a background shell (Bash run_in_background)
+   *  so it is reaped when the session stops (MJ2). Absent in tests / contexts with
+   *  no owning session. */
+  owner?: string;
 }
 
 export interface BuiltinTool {

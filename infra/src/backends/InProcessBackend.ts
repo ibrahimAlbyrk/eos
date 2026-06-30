@@ -82,6 +82,11 @@ interface LiveSession {
   onExit?: (code: number | null) => void;
   env: InProcessEnv;
   current: Promise<void> | null;
+  // Monotonic per-session counter bumped by clearContext()/stop(). A turn captures it
+  // at start and its persist .then is dropped if it changed mid-turn, so a turn cleared
+  // or stopped out from under itself cannot re-populate s.messages or re-save stale
+  // history under the fresh session id (MJ1b).
+  generation: number;
 }
 
 // API-style backends: no keystroke channel; interrupt = abort the loop.
@@ -136,19 +141,36 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
   };
 
   const kickTurn = (workerId: string, s: LiveSession, userText: string): void => {
-    s.signal.aborted = false; // a new turn clears a prior interrupt
-    s.messages.push({ role: "user", content: userText });
-    const p = runTurn(
-      { model: s.env.model, tools: s.env.tools, gate: s.env.gate, emit: s.emit, signal: s.signal, contextWindow: s.env.contextWindow, compactor: s.env.compactor, capabilities: s.env.capabilities, skillToolName: s.env.skillToolName },
-      s.messages,
-    )
-      // Persist after each settled turn, at the one place the conversation is
-      // already mutated — so an orphaned row can rehydrate on resume. No-op when
-      // no store/session id was injected (tests/conformance).
-      .then((msgs) => { s.messages = msgs; if (deps.store && s.sessionId) deps.store.save(workerId, s.sessionId, msgs); })
-      .catch(() => {})
-      .finally(() => { if (s.current === p) s.current = null; });
+    // Serialize turns on s.current: when a turn is in flight, CHAIN the new one after
+    // it instead of starting a second runTurn over the same s.messages. The claude
+    // lanes serialize in the child process / SDK queue; the in-process lane has no such
+    // boundary, so a dispatch via a path that omits queueWhenBusy (the worker action
+    // route, the CLI, any HTTP client) would otherwise corrupt/lose s.messages (MJ1a).
+    const run = (): Promise<void> => {
+      if (!live.has(workerId)) return Promise.resolve(); // session stopped before this queued turn ran
+      s.signal.aborted = false; // a new turn clears a prior interrupt
+      s.messages.push({ role: "user", content: userText });
+      // Capture the generation now; the persist below is dropped if clearContext/stop
+      // bumped it mid-turn (MJ1b).
+      const gen = s.generation;
+      return runTurn(
+        { model: s.env.model, tools: s.env.tools, gate: s.env.gate, emit: s.emit, signal: s.signal, contextWindow: s.env.contextWindow, compactor: s.env.compactor, capabilities: s.env.capabilities, skillToolName: s.env.skillToolName },
+        s.messages,
+      )
+        // Persist after each settled turn, at the one place the conversation is
+        // already mutated — so an orphaned row can rehydrate on resume. No-op when
+        // no store/session id was injected (tests/conformance). The generation guard
+        // makes a cleared/stopped turn a no-op so it can't undo the clear.
+        .then((msgs) => {
+          if (s.generation !== gen) return;
+          s.messages = msgs;
+          if (deps.store && s.sessionId) deps.store.save(workerId, s.sessionId, msgs);
+        })
+        .catch(() => {});
+    };
+    const p = (s.current ?? Promise.resolve()).then(run, run);
     s.current = p;
+    void p.finally(() => { if (s.current === p) s.current = null; });
   };
 
   const sessionFor = (workerId: string): AgentSession => ({
@@ -179,6 +201,7 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
       const s = live.get(workerId);
       if (!s) return { ok: false };
       s.signal.aborted = true;
+      s.generation++; // drop any in-flight turn's trailing persist so it can't undo this clear
       s.messages = [];
       s.emit({ type: "session", phase: "cleared" });
       deps.store?.delete(s.sessionId);
@@ -196,6 +219,7 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
       const s = live.get(workerId);
       if (!s) return;
       s.signal.aborted = true;
+      s.generation++; // an in-flight turn settling after stop must not re-persist stale history
       live.delete(workerId);
       // Close session-scoped resources (external-MCP connections). Fire-and-forget:
       // stop() is sync and teardown must never throw or block the ended signal.
@@ -228,6 +252,7 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
         onExit: cb?.onExit,
         env,
         current: null,
+        generation: 0,
       };
       live.set(spec.workerId, s);
       // Late-bind the per-session emit/signal into any session-scoped tools (the

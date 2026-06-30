@@ -55,6 +55,10 @@ export function structuredOutputEnvelope(
     case "openai-response_format":
       return { response_format: { type: "json_schema", json_schema: { name, schema, strict: true } } };
     case "anthropic-output_config":
+      // NOTE (m4): DORMANT / UNVERIFIED. Gated off by default (structuredOutput:"none")
+      // and never exercised against the live Anthropic API — the exact request envelope
+      // is unconfirmed and a profile enabling it may 400. Verify the real field/shape
+      // before advertising it.
       return { output_config: { format: { type: "json_schema", schema } } };
     case "vllm-guided_json":
       return { guided_json: schema };

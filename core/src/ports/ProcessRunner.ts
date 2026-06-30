@@ -14,8 +14,12 @@ export interface ProcessResult {
 
 export interface ProcessRunOptions {
   cwd: string;
-  /** Kill the process after this many ms (foreground only). */
+  /** Kill the process after this many ms (foreground AND background). */
   timeoutMs?: number;
+  /** Owner (session/worker id) a background shell belongs to, so reap(owner) can
+   *  kill + evict exactly that session's shells when the worker stops — no orphaned
+   *  detached children. Ignored for foreground run(). */
+  owner?: string;
 }
 
 // One background shell's accumulated output since the last read (BashOutput is
@@ -35,4 +39,7 @@ export interface ProcessRunner {
   readBackground(id: string): BackgroundReadResult | null;
   /** Kill a background shell (false ⇒ unknown id / already gone). */
   killBackground(id: string): boolean;
+  /** Kill + evict every background shell started with this owner — called when an
+   *  in-process worker stops so its run_in_background children don't orphan. */
+  reap(owner: string): void;
 }

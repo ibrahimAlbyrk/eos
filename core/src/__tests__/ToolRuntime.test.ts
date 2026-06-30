@@ -91,4 +91,14 @@ describe("ToolRuntime.runTurn", () => {
     const last = events[events.length - 1];
     assert.equal(last.type === "turn" && last.phase, "error");
   });
+
+  it("a mid-stream abort (stopReason:error, error:'aborted') ends as turn:aborted, not turn:error (m1)", async () => {
+    const events: AgentEvent[] = [];
+    const model: ModelClient = { async createTurn() { return { toolCalls: [], stopReason: "error", error: "aborted" }; } };
+    await runTurn({ model, tools: new Map(), gate: allowGate, emit: (e) => events.push(e) }, []);
+    const last = events[events.length - 1];
+    assert.equal(last.type === "turn" && last.phase, "aborted");
+    assert.equal(last.type === "turn" && last.reason, "interrupted");
+    assert.equal(events.some((e) => e.type === "turn" && e.phase === "error"), false, "an interrupt is not surfaced as a turn error");
+  });
 });

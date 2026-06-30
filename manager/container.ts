@@ -826,7 +826,7 @@ export function buildContainer() {
   };
   const buildBuiltinTooling = (spec: AgentLaunchSpec): LaneTooling => {
     const descriptions = renderInprocToolDescriptions();
-    const surface = buildBuiltinSurface(builtinToolRegistry, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope }, descriptions);
+    const surface = buildBuiltinSurface(builtinToolRegistry, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope, owner: spec.workerId }, descriptions);
     mergeSkillTooling(surface, spec.cwd, descriptions);
     return surface;
   };
@@ -849,7 +849,7 @@ export function buildContainer() {
       control.items.push({ name, description: descriptions[d.name] ?? d.name, schema: toolJsonSchema(d) });
       control.tools.set(name, { name, execute: toRuntimeTool(d, ctx).execute });
     }
-    const surface = buildLaneSurface(builtinToolRegistry, control, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope }, descriptions);
+    const surface = buildLaneSurface(builtinToolRegistry, control, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope, owner: spec.workerId }, descriptions);
     mergeSkillTooling(surface, spec.cwd, descriptions);
     return surface;
   };
@@ -936,10 +936,17 @@ export function buildContainer() {
         // turn/session/delta/context are loop-internal — NOT forwarded (they would
         // corrupt the parent turn FSM / double-render).
       };
-      await runTurn(
-        { model, tools, gate, emit: childEmit, signal: rt.signal, contextWindow: rt.capabilities?.contextWindow, compactor: rt.compactor, capabilities: rt.capabilities, skillToolName: SKILL_TOOL_NAME },
-        [{ role: "user", content: prompt }],
-      );
+      try {
+        await runTurn(
+          { model, tools, gate, emit: childEmit, signal: rt.signal, contextWindow: rt.capabilities?.contextWindow, compactor: rt.compactor, capabilities: rt.capabilities, skillToolName: SKILL_TOOL_NAME },
+          [{ role: "user", content: prompt }],
+        );
+      } finally {
+        // The child's surface tagged its background shells with childId; the child loop
+        // is done and can no longer read them, so reap them now (MJ2) rather than
+        // leaking them for the parent session's lifetime.
+        nodeProcessRunner.reap(childId);
+      }
       return finalText || "(subagent produced no text output)";
     },
   });
@@ -987,6 +994,7 @@ export function buildContainer() {
     compactor: inProcessCompactor,
     resolveMcpTools: resolveRuntimeMcpTools,
     skillToolName: SKILL_TOOL_NAME,
+    reapShells: (workerId) => nodeProcessRunner.reap(workerId),
     buildModelClient: ({ apiKey, baseUrl, model, system, items, capabilities, params, effort, workerId }) =>
       createAnthropicModelClient({ apiKey, baseUrl, model, system, capabilities, params, effort, onProviderError: providerErrorSink("anthropic-api", model, workerId), tools: items.map((i) => ({ name: i.name, description: i.description, input_schema: i.schema })) }),
   }), inProcessDurability);
@@ -1003,6 +1011,7 @@ export function buildContainer() {
     compactor: inProcessCompactor,
     resolveMcpTools: resolveRuntimeMcpTools,
     skillToolName: SKILL_TOOL_NAME,
+    reapShells: (workerId) => nodeProcessRunner.reap(workerId),
     buildModelClient: ({ apiKey, baseUrl, model, system, items, capabilities, params, effort, workerId }) =>
       createOpenAIModelClient({ apiKey, baseUrl, model, system, capabilities, params, effort, onProviderError: providerErrorSink("openai", model, workerId), tools: items.map((i) => ({ name: i.name, description: i.description, parameters: i.schema })) }),
   });

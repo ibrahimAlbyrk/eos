@@ -34,7 +34,7 @@ export interface PreparedBackend {
 export function validateAddBackend(
   req: AddBackendRequest,
   existingPrices: Record<string, ModelPrice>,
-): { ok: true; prepared: PreparedBackend } | { ok: false; error: string } {
+): { ok: true; prepared: PreparedBackend; warnings?: string[] } | { ok: false; error: string } {
   // baseUrl is an ORIGIN ONLY — strip a trailing slash or "/v1" so the client's
   // "/v1/..." path never double-joins (MJ1).
   const baseUrl = req.baseUrl ? normalizeBaseOrigin(req.baseUrl) : undefined;
@@ -61,9 +61,18 @@ export function validateAddBackend(
   if (billedProfileNeedsPrice(profile, mergedPrices)) {
     return { ok: false, error: `backend "${req.name}" is costMode:"billed" but has no price — supply a "price" or add config.prices["${priceKey}"]` };
   }
+  // Non-fatal: a profile with no declared capabilities can't drive the in-process
+  // lane's near-window compaction or reasoning round-trip — on a small-context or
+  // local model it grows history unbounded and 400s with no recovery (m3). Warn
+  // rather than reject (the claude lanes don't need capabilities). contextWindow is
+  // schema-required once capabilities is present, so the only gap is omitting it.
+  const warnings = req.capabilities
+    ? undefined
+    : [`backend "${req.name}" declares no "capabilities" — the in-process lane cannot compact near the context window; declare capabilities (incl. contextWindow) for a small-context or local model.`];
   return {
     ok: true,
     prepared: { name: req.name, profile, ...(req.price ? { priceKey, price: toFullPrice(req.price) } : {}) },
+    ...(warnings ? { warnings } : {}),
   };
 }
 
@@ -79,6 +88,7 @@ export function registerBackendsRoutes(r: Router, c: Container): void {
     const result = validateAddBackend(body, c.config.prices);
     if (!result.ok) { writeJson(res, 400, { error: result.error }); return; }
     const { prepared } = result;
+    for (const w of result.warnings ?? []) c.log.warn("add-backend", { warning: w });
 
     // Store the key in the Keychain by reference (keychain kinds only). The raw key
     // is then dropped — only auth:{kind,ref} reaches config.json.

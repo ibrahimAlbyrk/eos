@@ -130,6 +130,14 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
     }
 
     if (turn.stopReason === "error") {
+      // A mid-stream interrupt surfaces from the SSE parser as stopReason:"error",
+      // error:"aborted" (ModelTurn has no "aborted" stop reason). Translate it to the
+      // clean abort path so the FSM/UI sees turn:aborted, not turn:error (m1) — same
+      // shape as the top-of-loop interrupt check.
+      if (turn.error === "aborted") {
+        deps.emit({ type: "turn", phase: "aborted", reason: "interrupted" });
+        return messages;
+      }
       // Recoverable provider overflow: an Anthropic model_context_window_exceeded
       // (mapped to this typed error by the client) means our estimate was too low.
       // Compact HARD (half the window) once and retry the same iteration; the
@@ -145,6 +153,13 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
     }
 
     if (turn.toolCalls.length === 0) {
+      // Persist the assistant's terminal TEXT turn into history before returning, so
+      // the next user turn alternates roles (Anthropic 400s on two consecutive user
+      // messages; the in-process lane pushes a fresh user message each turn) and every
+      // dialect keeps the model's own prior answers (B1). A terminal non-tool turn
+      // needs no signed-thinking re-emit, so it carries no providerMetadata — safe with
+      // reasoningRoundTrip:"preserve-signed".
+      if (turn.text) messages.push({ role: "assistant", content: turn.text });
       deps.emit({ type: "turn", phase: "ended" });
       return messages;
     }
