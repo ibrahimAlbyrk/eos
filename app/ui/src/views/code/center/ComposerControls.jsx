@@ -4,7 +4,7 @@ import { modelName, modelCtx, EFFORT_LABELS, effortChoicesFor } from "../../../l
 import { AcceptPopover } from "../popovers/AcceptPopover.jsx";
 import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { ModelPopover } from "../popovers/ModelPopover.jsx";
-import { BackendPopover } from "../popovers/BackendPopover.jsx";
+import { BackendPopover, SpawnModelPopover } from "../popovers/BackendPopover.jsx";
 import { EffortPopover } from "../popovers/EffortPopover.jsx";
 import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
@@ -28,19 +28,19 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
   const mode = selected?.permission_mode ?? ui.composer.permissionMode;
   const modeMeta = MODE_BY_ID[mode] ?? MODE_BY_ID.acceptEdits;
   const ModeIcon = modeMeta.Icon;
-  // A new-spawn profile pick runs the operator-chosen model (the two-level provider
-  // picker writes it into composer.model); it defaults to the profile's pinned model
-  // when first picked. The model pill then opens that picker, not the Claude list.
+  // A new-spawn profile pick runs the operator-chosen model: picking the provider
+  // defaults composer.model to that profile's pinned model, and the model pill then
+  // refines it from the provider's own model list.
   const spawnProfile = !selected ? ui.composer.backendProfile : null;
   const model = selected?.model ?? ui.composer.model;
   const effort = selected?.effort ?? ui.composer.effort;
   const modelInfo = { name: modelName(model) || model || "—", ctx: modelCtx(model) || "" };
   // Lock the runtime model switch only for a selected structured worker; the
-  // new-spawn profile model is chosen via the provider picker, never disabled.
+  // new-spawn profile model is chosen via the model picker, never disabled.
   const modelLocked = !!selected && !backendCaps(selected.backend_kind).runtimeModelSwitch;
-  // The model pill opens the two-level provider picker for a profile spawn (its
+  // The model pill opens the selected provider's model list for a profile spawn (its
   // models aren't the Claude list), else the Claude model popover.
-  const modelPopId = spawnProfile ? "backend" : "model";
+  const modelPopId = spawnProfile ? "spawnModel" : "model";
 
   // Provider switcher: only for a selected worker, and only when there's another
   // enabled provider to switch to. The daemon stops + resumes under the new
@@ -193,7 +193,7 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
             className={"model-pill" + (ui.openPopover === modelPopId ? " open" : "")}
             id="modelPill"
             disabled={modelLocked}
-            title={spawnProfile ? "Model for this provider — pick from the provider menu" : (modelLocked ? "Model is fixed for this backend (set at spawn)" : undefined)}
+            title={spawnProfile ? "Model for this provider" : (modelLocked ? "Model is fixed for this backend (set at spawn)" : undefined)}
             onClick={(e) => toggle(modelPopId, e)}
             data-popover-trigger={modelPopId}
           >
@@ -201,6 +201,7 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
             {modelInfo.ctx && <span className="ctx">({modelInfo.ctx} context)</span>}
           </button>
           <ModelPopover live={live} />
+          <SpawnModelPopover />
         </div>
         {effortChoicesFor(model).length > 0 && (
           <div className="effort-wrap" style={{ position: "relative" }}>
