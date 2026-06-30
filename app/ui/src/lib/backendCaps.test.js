@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel, applyProfiles, backendProfiles, profileModel, providerChoices, providerSpawn } from "./backendCaps.js";
+import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel, applyProfiles, backendProfiles, profileModel, providerChoices, providerSpawn, providerName } from "./backendCaps.js";
 
 const caps = (over) => ({ interrupt: true, keystroke: true, rewind: true, runtimeModelSwitch: true, runtimePermissionSwitch: true, ...over });
 const SAMPLE = [
@@ -81,6 +81,16 @@ describe("providerChoices (unified spawn-picker derivation)", () => {
     applyDescriptors(DESC);
     applyProfiles(PROFS);
     expect(providerChoices().map((p) => p.name)).toEqual(["claude-sdk", "claude-cli", "deepseek"]);
+  });
+
+  it("providerName shows the bare provider name, never the model", () => {
+    applyDescriptors(DESC);
+    applyProfiles(PROFS);
+    const [sdk, , deepseek] = providerChoices();
+    // subscription → clean descriptor label; profile → bare name (label embeds model)
+    expect(providerName(sdk)).toBe("Claude SDK");
+    expect(providerName(deepseek)).toBe("deepseek");
+    expect(providerName(null)).toBe(null);
   });
 
   it("providerSpawn applies kind-vs-profile precedence", () => {

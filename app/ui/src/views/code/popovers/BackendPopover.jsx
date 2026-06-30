@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { providerOptions, providerChoices } from "../../../lib/backendCaps.js";
+import { providerOptions, providerChoices, providerName } from "../../../lib/backendCaps.js";
 import { modelName } from "../../../lib/models.js";
 import { useProviderModels } from "../../../hooks/useProviderModels.js";
 
@@ -103,7 +103,7 @@ function SpawnBackendMenu({ ui }) {
           onMouseEnter={() => setActive(i)}
           onClick={() => pick(p)}
         >
-          <span className="mp-name">{p.label}</span>
+          <span className="mp-name">{providerName(p)}</span>
           {p.name === current && <CheckIcon />}
           <span className="mp-num">{i + 1}</span>
         </button>
@@ -126,6 +126,7 @@ function SpawnModelMenu({ ui }) {
   const paneRef = useRef(null);
   const currentModel = ui.composer.model;
   const { loading, models, error } = useProviderModels(ui.composer.provider);
+  const [active, setActive] = useState(0);
 
   useEffect(() => { paneRef.current?.focus(); }, []);
 
@@ -135,19 +136,33 @@ function SpawnModelMenu({ ui }) {
   };
 
   const onKeyDown = (e) => {
-    if (e.key === "Escape") { ui.closeAllPops(); e.preventDefault(); e.stopPropagation(); }
+    let handled = true;
+    if (e.key === "Escape") ui.closeAllPops();
+    else if (!models.length) handled = false;
+    else if (e.key === "ArrowDown") setActive((i) => (i + 1) % models.length);
+    else if (e.key === "ArrowUp") setActive((i) => (i - 1 + models.length) % models.length);
+    else if (e.key === "Enter" && models[active]) pick(models[active].id);
+    else if (/^[1-9]$/.test(e.key) && models[Number(e.key) - 1]) pick(models[Number(e.key) - 1].id);
+    else handled = false;
+    if (handled) { e.preventDefault(); e.stopPropagation(); }
   };
 
   return (
     <div className="model-popover glass-pop open" data-popover="spawnModel" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
       <div className="mp-head">Model</div>
       {loading && <div className="mp-sub mp-muted">Loading models…</div>}
-      {!loading && models.map((m) => {
+      {!loading && models.map((m, i) => {
         const on = m.id === currentModel;
         return (
-          <button key={m.id} className={"mp-row" + (on ? " on" : "")} onClick={() => pick(m.id)}>
+          <button
+            key={m.id}
+            className={"mp-row" + (on ? " on" : "") + (i === active ? " active" : "")}
+            onMouseEnter={() => setActive(i)}
+            onClick={() => pick(m.id)}
+          >
             <span className="mp-name">{m.name || modelName(m.id) || m.id}</span>
             {on && <CheckIcon />}
+            <span className="mp-num">{i + 1}</span>
           </button>
         );
       })}

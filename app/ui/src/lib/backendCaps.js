@@ -73,6 +73,16 @@ export function providerChoices() {
   return out;
 }
 
+// Display name for a provider CHOICE in the spawn picker — the bare provider
+// NAME, never the model. A subscription choice shows its clean descriptor label
+// ("Claude SDK"); an operator profile shows its name ("deepseek") because the
+// profile label embeds the model ("deepseek (deepseek-chat)"), which belongs on
+// the separate model pill, not the provider pill.
+export function providerName(choice) {
+  if (!choice) return null;
+  return choice.subscription ? (choice.label ?? choice.name) : choice.name;
+}
+
 // Resolve a provider choice NAME to the composer spawn fields (single source for
 // the composer pick + the Settings seed). A name backed by an operator profile
 // spawns via backendProfile (preserves the profile config); a bare subscription

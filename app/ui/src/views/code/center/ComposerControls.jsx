@@ -10,7 +10,7 @@ import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
-import { backendCaps, backendLabel, providerOptions, providerChoices } from "../../../lib/backendCaps.js";
+import { backendCaps, backendLabel, providerOptions, providerChoices, providerName } from "../../../lib/backendCaps.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
 export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus }) {
@@ -54,7 +54,7 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
   // New-spawn provider picker: the unified provider list (subscription kinds +
   // configured API profiles). Picking one sets composer.provider + a model.
   const showSpawnProvider = !selected && providerChoices().length > 0;
-  const spawnProviderLabel = spawnChoice?.label ?? ui.composer.provider ?? "Provider";
+  const spawnProviderLabel = providerName(spawnChoice) ?? ui.composer.provider ?? "Provider";
 
   const { used, total, pct } = contextUsage(selected, model);
   const r = 7;
