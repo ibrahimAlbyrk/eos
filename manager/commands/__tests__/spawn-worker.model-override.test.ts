@@ -135,3 +135,45 @@ describe("spawnWorkerHandler — combined provider/model def form (PART B)", () 
     assert.equal(sink.backendProfile, undefined);
   });
 });
+
+// The live bug: a deepseek (kind openai) orchestrator spawns a worker via the MCP
+// spawn_worker tool; its Claude model param (opus/sonnet/haiku) became body.model and
+// WON over the def's profile-bound model → the deepseek lane was driven with "sonnet"
+// → DeepSeek 400 → worker died IDLE. A bare inherited body.model must never override a
+// def's profile-bound model; only a model chosen FOR the profile may.
+describe("spawnWorkerHandler — cross-provider model poisoning fix (PART C)", () => {
+  it("def pins the deepseek profile (combined form) + WITH an inherited body.model=sonnet → keeps deepseek-v4-pro, NOT sonnet", async () => {
+    const sink = await run({ model: "deepseek/deepseek-v4-pro" }, { model: "sonnet" });
+    assert.equal(sink.kind, "openai");
+    assert.equal(sink.model, "deepseek-v4-pro"); // the def's own model, not the parent's "sonnet"
+    assert.equal(sink.backendProfile, "deepseek");
+  });
+
+  it("def pins backendProfile deepseek + model deepseek-v4-pro + body.model=opus → keeps deepseek-v4-pro, NOT opus", async () => {
+    const sink = await run({ backendProfile: "deepseek", model: "deepseek-v4-pro" }, { model: "opus" });
+    assert.equal(sink.kind, "openai");
+    assert.equal(sink.model, "deepseek-v4-pro");
+    assert.equal(sink.backendProfile, "deepseek");
+  });
+
+  it("a bare deepseek-profile def with NO model + body.model=opus → keeps the profile's pinned model (deepseek-chat), NOT opus", async () => {
+    const sink = await run({ backendProfile: "deepseek" }, { model: "opus" });
+    assert.equal(sink.kind, "openai");
+    assert.equal(sink.model, "deepseek-chat"); // the profile's pinned default, never the Claude "opus"
+    assert.equal(sink.backendProfile, "deepseek");
+  });
+
+  it("split-on-all-paths: def with backendProfile deepseek + a redundant deepseek/ slashed model never reaches the lane raw", async () => {
+    const sink = await run({ backendProfile: "deepseek", model: "deepseek/deepseek-v4-pro" }, {});
+    assert.equal(sink.kind, "openai");
+    assert.equal(sink.model, "deepseek-v4-pro"); // prefix stripped, never the raw "deepseek/deepseek-v4-pro"
+    assert.equal(sink.backendProfile, "deepseek");
+  });
+
+  it("no regression: a normal Claude worker's inherited body.model still flows to the claude lane", async () => {
+    const sink = await run({}, { model: "sonnet" });
+    assert.equal(sink.kind, "claude-cli");
+    assert.equal(sink.model, "sonnet");
+    assert.equal(sink.backendProfile, undefined);
+  });
+});

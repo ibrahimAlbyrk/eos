@@ -14,7 +14,7 @@ import { appendSynthesized } from "../shared/synthesized-events.ts";
 import { resumeIfDead } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
 import { resolveSpawnBackend, spawnBackendError } from "../shared/spawn-backend.ts";
-import { splitProviderModel } from "../../core/src/domain/worker-definition-resolution.ts";
+import { resolveCombinedModel } from "../../core/src/domain/worker-definition-resolution.ts";
 
 export function registerOrchestratorRoutes(r: Router, c: Container): void {
   r.get("/orchestrators", ({ res }) => {
@@ -26,12 +26,13 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const name = (body.name ?? "").trim() || randomOrchestratorName();
     const cwd = expandPath(body.cwd);
     const id = c.ids.newOrchestratorId();
-    // Accept the combined `provider/model` form (sugar for backendProfile + model)
-    // when no separate profile is picked — mirrors the worker-def path.
-    const split = (body.model && !body.backendProfile)
-      ? splitProviderModel(body.model, new Set(Object.keys(c.config.backends)))
-      : { model: body.model, backendProfile: undefined };
-    const explicitProfileName = body.backendProfile ?? split.backendProfile;
+    // Accept the combined `provider/model` form (sugar for backendProfile + model) —
+    // mirrors the worker-def path. resolveCombinedModel adopts the prefix as the
+    // profile when none is picked, normalizes a redundant prefix already on its own
+    // profile (so it never reaches the client raw), and keeps an explicit different
+    // profile + provider-routed slash id intact.
+    const split = resolveCombinedModel(body.model, body.backendProfile, new Set(Object.keys(c.config.backends)));
+    const explicitProfileName = split.backendProfile;
     const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, explicitProfileName, explicitModel: split.model, isOrchestrator: true });
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     const explicit = !!(body.backendKind || explicitProfileName);

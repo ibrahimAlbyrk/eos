@@ -119,4 +119,31 @@ describe("resolveSpawnBackend — explicit profile pick", () => {
     const resolved = await resolveSpawnBackend(c, { explicitProfileName: "deepseek", isOrchestrator: true });
     assert.equal(resolved.model, "deepseek-chat");
   });
+
+  // Defense-in-depth: a Claude alias must NOT override an openai-compatible (deepseek)
+  // profile's model — the family is read from the descriptor's models.kind capability,
+  // not a kind literal. This stops a parent's inherited "sonnet"/"opus"/"haiku" from
+  // poisoning a metered lane and 400-ing the provider, on ANY resolution path.
+  for (const claude of ["sonnet", "opus", "haiku", "claude-opus-4-8"]) {
+    it(`drops a cross-provider Claude model override (${claude}) on a deepseek profile — keeps the pinned model`, async () => {
+      const profile: ResolvedBackend = {
+        kind: "openai", model: "deepseek-chat", profileName: "deepseek", costMode: "billed",
+        auth: { kind: "keychain", ref: "eos/deepseek" }, baseUrl: "https://api.deepseek.com",
+      };
+      const c = fakeContainer(profile);
+      const resolved = await resolveSpawnBackend(c, { explicitProfileName: "deepseek", explicitModel: claude, isOrchestrator: true });
+      assert.equal(resolved.model, "deepseek-chat"); // pinned model kept, not the Claude alias
+      assert.equal(resolved.kind, "openai");
+    });
+  }
+
+  it("still applies a same-family (non-Claude) model override on a deepseek profile", async () => {
+    const profile: ResolvedBackend = {
+      kind: "openai", model: "deepseek-chat", profileName: "deepseek", costMode: "billed",
+      auth: { kind: "keychain", ref: "eos/deepseek" }, baseUrl: "https://api.deepseek.com",
+    };
+    const c = fakeContainer(profile);
+    const resolved = await resolveSpawnBackend(c, { explicitProfileName: "deepseek", explicitModel: "deepseek-reasoner", isOrchestrator: true });
+    assert.equal(resolved.model, "deepseek-reasoner");
+  });
 });

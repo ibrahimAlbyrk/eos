@@ -116,6 +116,27 @@ export function splitProviderModel(
   return { backendProfile: prefix, model: model.slice(slash + 1) };
 }
 
+// Profile-aware combined-form resolution — the single normalization every spawn
+// path runs so a `<provider>/<model>` value can NEVER reach a client raw. The
+// prefix is adopted as the profile only when no profile is pinned, or when the
+// pinned profile IS that provider (a redundant prefix, e.g. backendProfile:deepseek
+// + model:"deepseek/deepseek-v4-pro" → model:"deepseek-v4-pro"). A prefix naming a
+// DIFFERENT pinned profile is an intentional provider-routed id (e.g. an OpenRouter
+// profile on "deepseek/deepseek-chat") and stays intact. A bare/unconfigured-prefix
+// model is returned unchanged with the pinned profile preserved.
+export function resolveCombinedModel(
+  model: string | undefined,
+  pinnedProfile: string | undefined,
+  configuredBackends: ReadonlySet<string>,
+): { model: string | undefined; backendProfile: string | undefined } {
+  if (!model) return { model, backendProfile: pinnedProfile };
+  const split = splitProviderModel(model, configuredBackends);
+  if (split.backendProfile && (!pinnedProfile || pinnedProfile === split.backendProfile)) {
+    return { model: split.model, backendProfile: split.backendProfile };
+  }
+  return { model, backendProfile: pinnedProfile };
+}
+
 // Materialize the tool surface (string globs) into a ToolScope value. Baked once
 // at spawn so the gate hot path never re-resolves the type.
 export function materializeToolScope(t: WorkerDefinition): ToolScope {

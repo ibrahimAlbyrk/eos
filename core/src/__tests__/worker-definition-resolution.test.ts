@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { resolveDefinitionName, resolveWorkerDefinitionByName, splitProviderModel } from "../domain/worker-definition-resolution.ts";
+import { resolveDefinitionName, resolveWorkerDefinitionByName, splitProviderModel, resolveCombinedModel } from "../domain/worker-definition-resolution.ts";
 import { DEFAULT_WORKER_DEFINITION } from "../../../contracts/src/worker-definition.ts";
 import type { WorkerDefinitionRecord } from "../../../contracts/src/worker-definition.ts";
 
@@ -35,6 +35,41 @@ describe("splitProviderModel — combined provider/model form", () => {
   it("empty prefix or empty suffix stays plain", () => {
     assert.deepEqual(splitProviderModel("/x", configured), { model: "/x" });
     assert.deepEqual(splitProviderModel("deepseek/", configured), { model: "deepseek/" });
+  });
+});
+
+describe("resolveCombinedModel — profile-aware combined-form normalization", () => {
+  const configured = new Set(["deepseek", "kimi"]);
+
+  it("adopts the prefix as the profile + bares the model when none is pinned", () => {
+    assert.deepEqual(
+      resolveCombinedModel("deepseek/deepseek-v4-pro", undefined, configured),
+      { model: "deepseek-v4-pro", backendProfile: "deepseek" },
+    );
+  });
+
+  it("strips a REDUNDANT prefix already on its own pinned profile (never reaches a client raw)", () => {
+    assert.deepEqual(
+      resolveCombinedModel("deepseek/deepseek-v4-pro", "deepseek", configured),
+      { model: "deepseek-v4-pro", backendProfile: "deepseek" },
+    );
+  });
+
+  it("keeps a DIFFERENT pinned profile's provider-routed slash id intact (e.g. OpenRouter)", () => {
+    assert.deepEqual(
+      resolveCombinedModel("deepseek/deepseek-chat", "openrouter", configured),
+      { model: "deepseek/deepseek-chat", backendProfile: "openrouter" },
+    );
+  });
+
+  it("leaves a bare / unconfigured-prefix model unchanged, preserving the pinned profile", () => {
+    assert.deepEqual(resolveCombinedModel("opus", undefined, configured), { model: "opus", backendProfile: undefined });
+    assert.deepEqual(resolveCombinedModel("sonnet", "deepseek", configured), { model: "sonnet", backendProfile: "deepseek" });
+    assert.deepEqual(resolveCombinedModel("anthropic/claude-opus-4", undefined, configured), { model: "anthropic/claude-opus-4", backendProfile: undefined });
+  });
+
+  it("a missing model returns undefined model + the pinned profile", () => {
+    assert.deepEqual(resolveCombinedModel(undefined, "deepseek", configured), { model: undefined, backendProfile: "deepseek" });
   });
 });
 

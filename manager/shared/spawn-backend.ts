@@ -8,9 +8,30 @@
 import type { Container } from "../container.ts";
 import type { ResolvedBackend } from "../../core/src/ports/BackendDefaults.ts";
 import type { BackendKind } from "../../contracts/src/canonical.ts";
-import type { AgentBackend } from "../../core/src/ports/AgentBackend.ts";
+import type { AgentBackend, ModelCatalogRef } from "../../core/src/ports/AgentBackend.ts";
 import type { ResolveBackendInput } from "../../core/src/services/SqlBackedBackendResolver.ts";
 import { meteredNeedsBilledIntent } from "../../core/src/domain/backend-billing.ts";
+
+// A Claude-family model identifier: the tier aliases (opus/sonnet/haiku/fable), a
+// concrete "claude-*" id, or an "anthropic/…" provider-routed id. Anything else
+// (deepseek-*, gpt-*, kimi-*, …) is treated as a non-Claude id.
+function isClaudeModelId(model: string): boolean {
+  const m = model.toLowerCase();
+  return m === "opus" || m === "sonnet" || m === "haiku" || m === "fable"
+    || m.startsWith("claude-") || m.startsWith("anthropic/");
+}
+
+// Defense-in-depth for the profile model OVERRIDE: a model may override a profile's
+// pinned model ONLY when it plausibly belongs to that provider's family. The family
+// is read from the descriptor's model catalog (models.kind) — a CAPABILITY, never a
+// kind literal — so a Claude alias lands only on a claude-catalog lane (claude-cli/
+// -sdk/anthropic-api) and a non-Claude id only on an openai-compatible/static lane.
+// Unknown family (descriptor missing) fails open. This is what stops a parent's
+// inherited "sonnet" from poisoning a deepseek profile and 400-ing the provider.
+function modelMatchesFamily(model: string, family: ModelCatalogRef["kind"] | undefined): boolean {
+  if (!family) return true;
+  return isClaudeModelId(model) === (family === "claude");
+}
 
 export async function resolveSpawnBackend(c: Container, input: ResolveBackendInput): Promise<ResolvedBackend> {
   // Explicit provider pick from the UI: resolve straight from the descriptor —
@@ -30,18 +51,26 @@ export async function resolveSpawnBackend(c: Container, input: ResolveBackendInp
     rb = c.backendResolver.resolveForNewWorker(input);
   }
 
+  const d = c.backends.has(rb.kind) ? c.backends.get(rb.kind).descriptor : null;
+
   // Operator model OVERRIDE on a profile lane: when the picker supplies BOTH a
   // profile and a model, keep the profile's kind/baseUrl/auth/capabilities/costMode
   // but run the chosen model (e.g. the deepseek profile on deepseek-reasoner). The
-  // profile's pinned model stays the default when no model is chosen.
+  // profile's pinned model stays the default when no model is chosen. The override is
+  // applied ONLY when the model plausibly belongs to the profile's provider family
+  // (models.kind) — a cross-provider model (a Claude alias leaking onto a deepseek
+  // profile, etc.) is dropped so the lane keeps its pinned model instead of 400-ing.
   if (input.explicitProfileName && input.explicitModel && rb.profileName) {
-    rb = { ...rb, model: input.explicitModel };
+    if (modelMatchesFamily(input.explicitModel, d?.models.kind)) {
+      rb = { ...rb, model: input.explicitModel };
+    } else {
+      c.log.warn("cross_provider_model_override_dropped", { kind: rb.kind, profile: rb.profileName, model: input.explicitModel });
+    }
   }
 
   // Credential safety net (data-driven): a subscription in-process provider needs
   // a usable subscription credential; with none, fall back to the subscription
   // out-of-process (PTY) provider derived from the descriptors, never a kind literal.
-  const d = c.backends.has(rb.kind) ? c.backends.get(rb.kind).descriptor : null;
   if (d && d.auth === "subscription" && d.processModel === "in-process") {
     const auth = await c.authResolver.resolve({ kind: "subscription" });
     if (auth.scheme === "none") {
