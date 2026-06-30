@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel, applyProfiles, backendProfiles, profileModel, providerChoices, providerSpawn, providerName, canSwitchProvider, providerSwitchTargets } from "./backendCaps.js";
+import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel, applyProfiles, backendProfiles, profileModel, providerChoices, providerSpawn, providerName, canSwitchProvider, providerSwitchTargets, runningProviderLabel } from "./backendCaps.js";
 
 const caps = (over) => ({ interrupt: true, keystroke: true, rewind: true, runtimeModelSwitch: true, runtimePermissionSwitch: true, ...over });
 const SAMPLE = [
@@ -159,5 +159,16 @@ describe("running-worker provider switch (canSwitchProvider / providerSwitchTarg
     const by = (name) => t.find((p) => p.name === name);
     expect(by("deepseek").current).toBe(true); // the running deepseek worker is the current entry
     expect(by("claude-cli").disabled).toBe(true); // cross store
+  });
+
+  it("runningProviderLabel shows the provider name on the live worker's pill (not the raw kind)", () => {
+    applyDescriptors(DESC);
+    applyProfiles(PROFS);
+    // a deepseek worker (backend_kind openai) reads "deepseek", not "OpenAI API"
+    expect(runningProviderLabel({ backend_kind: "openai", backend_profile: "deepseek" })).toBe("deepseek");
+    // a subscription worker reads the clean kind label
+    expect(runningProviderLabel({ backend_kind: "claude-sdk", backend_profile: null })).toBe("Claude SDK");
+    expect(runningProviderLabel({ backend_kind: "claude-cli", backend_profile: null })).toBe("Claude CLI");
+    expect(runningProviderLabel(null)).toBe("—");
   });
 });

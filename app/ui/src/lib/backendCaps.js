@@ -116,6 +116,20 @@ export function providerName(choice) {
   return choice.subscription ? (choice.label ?? choice.name) : choice.name;
 }
 
+// Display label for a RUNNING worker's provider pill — the provider NAME (matching
+// the picker/panel), never the raw kind. A worker on a configured profile shows
+// that profile's name ("deepseek"); a bare subscription kind shows its clean label
+// ("Claude SDK"). Falls back to the kind label if no choice matches.
+export function runningProviderLabel(worker) {
+  if (!worker) return "—";
+  const choices = providerChoices();
+  const c =
+    (worker.backend_profile ? choices.find((p) => p.name === worker.backend_profile) : null) ??
+    choices.find((p) => p.kind === worker.backend_kind) ??
+    null;
+  return providerName(c) ?? backendLabel(worker.backend_kind);
+}
+
 // Resolve a provider choice NAME to the composer spawn fields (single source for
 // the composer pick + the Settings seed). A name backed by an operator profile
 // spawns via backendProfile (preserves the profile config); a bare subscription

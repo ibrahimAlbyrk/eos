@@ -10,7 +10,7 @@ import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
-import { backendCaps, backendLabel, providerChoices, providerName } from "../../../lib/backendCaps.js";
+import { backendCaps, providerChoices, providerName, runningProviderLabel } from "../../../lib/backendCaps.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
 export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus }) {
@@ -171,7 +171,7 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
               onClick={(e) => toggle("backend", e)}
               data-popover-trigger="backend"
             >
-              <span>{backendLabel(selected.backend_kind)}</span>
+              <span>{runningProviderLabel(selected)}</span>
             </button>
             <BackendPopover live={live} />
           </div>
