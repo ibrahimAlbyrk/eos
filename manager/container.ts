@@ -107,6 +107,8 @@ import { gitUpdateSource } from "../infra/src/updates/GitUpdateSource.ts";
 import { createDetachedBuildApplier } from "../infra/src/updates/DetachedBuildApplier.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
+import { createRuntimeMcpClient } from "../infra/src/mcp/RuntimeMcpClient.ts";
+import { connectRuntimeMcpTools } from "./backends/runtime-mcp.ts";
 import { FileMemoryProvider } from "../infra/src/memory/FileMemoryProvider.ts";
 import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
 import { reapWorktreeRemovals } from "../core/src/use-cases/ReapWorktreeRemovals.ts";
@@ -862,6 +864,11 @@ export function buildContainer() {
       const childSpec = buildChildSpec(rt.parentSpec, subagentType, childId);
       const system = assembleInProcessSystem(childSpec) ?? undefined;
       const { items, tools } = buildBuiltinTooling(childSpec);
+      // Share the session's external-MCP tools with the child (§5c): same already-
+      // connected clients (session-scoped, closed once at stop). External MCP tools
+      // are not control tools, so the child's agentId gate leaves them callable.
+      if (rt.mcpItems) items.push(...rt.mcpItems);
+      if (rt.mcpTools) for (const [name, tool] of rt.mcpTools) tools.set(name, tool);
       // Grandchildren up to the cap (recursion through this same closure).
       if (rt.depth + 1 < MAX_TASK_DEPTH) {
         items.push(taskToolItem(renderInprocToolDescriptions()));
@@ -907,6 +914,22 @@ export function buildContainer() {
   const providerErrorSink = (backend: string, model: string, workerId?: string) =>
     (e: ProviderErrorInfo): void => log.warn("provider error", { backend, model, workerId, transport: e.transport, status: e.status });
 
+  // M5 — external-MCP RuntimeTools for the in-process lane (§5c): the third
+  // emit/consume adapter, symmetric to resolveSdkMcpServers below. REUSE the shared
+  // core precedence (resolveMcpServers, nativeDiscovery:false → materialize the
+  // filtered inherited set, since this lane cannot self-discover) + the
+  // FileMcpServerCatalog UNCHANGED. builtins is EMPTY: Eos control tools are
+  // separate prefixed RuntimeTools here, not MCP servers. Each resolved server is
+  // connected by an embedded RuntimeMcpClient, listed, and wrapped as
+  // mcp__<server>__<tool> (gated mcp-always-allow); a dead server is dropped
+  // (fail-soft), and the toolset's close() tears the connections down at stop().
+  const resolveRuntimeMcpTools = (spec: AgentLaunchSpec) => {
+    const cfg = spec.isOrchestrator ? config.mcp.orchestrator : config.mcp.worker;
+    const inherited = spec.cwd ? mcpCatalog.listInherited(spec.cwd) : {};
+    const { servers } = resolveMcpServers({ inherited, builtins: {}, config: cfg, nativeDiscovery: false });
+    return connectRuntimeMcpTools(servers, (name, serverConfig) => createRuntimeMcpClient(name, serverConfig), log);
+  };
+
   // anthropic-api backend — in-process, ToolRuntime-driven, gated by the shared
   // policy engine. Credentials/baseUrl/capabilities are resolved per-worker from the
   // profile (no process.env); the model gets the full DPI system prompt.
@@ -917,6 +940,7 @@ export function buildContainer() {
     makeGate: inProcessGate,
     makeSubagentTool,
     compactor: inProcessCompactor,
+    resolveMcpTools: resolveRuntimeMcpTools,
     buildModelClient: ({ apiKey, baseUrl, model, system, items, capabilities, params, effort, workerId }) =>
       createAnthropicModelClient({ apiKey, baseUrl, model, system, capabilities, params, effort, onProviderError: providerErrorSink("anthropic-api", model, workerId), tools: items.map((i) => ({ name: i.name, description: i.description, input_schema: i.schema })) }),
   }), inProcessDurability);
@@ -931,6 +955,7 @@ export function buildContainer() {
     makeGate: inProcessGate,
     makeSubagentTool,
     compactor: inProcessCompactor,
+    resolveMcpTools: resolveRuntimeMcpTools,
     buildModelClient: ({ apiKey, baseUrl, model, system, items, capabilities, params, effort, workerId }) =>
       createOpenAIModelClient({ apiKey, baseUrl, model, system, capabilities, params, effort, onProviderError: providerErrorSink("openai", model, workerId), tools: items.map((i) => ({ name: i.name, description: i.description, parameters: i.schema })) }),
   });

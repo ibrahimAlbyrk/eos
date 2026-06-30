@@ -46,6 +46,11 @@ export interface InProcessEnv {
    *  they don't exist at factory time. Called once before the first turn; absent on
    *  envs with no session-bound tools (tests, conformance). */
   bindSession?(ctx: { emit(e: AgentEvent): void; signal: { aborted: boolean } }): void;
+  /** Tear down per-session resources opened by the factory (the external-MCP
+   *  client connections, §5c) at stop(). Best-effort, fire-and-forget; absent on
+   *  envs that hold none (tests, conformance). Resume re-runs the factory, so MCP
+   *  reconnects there — never reused across a restart. */
+  closeSession?(): void | Promise<void>;
 }
 // The factory may be async: the production factory resolves credentials lazily at
 // start() (AuthResolver) and then builds the model client. A sync factory (tests,
@@ -188,6 +193,9 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
       if (!s) return;
       s.signal.aborted = true;
       live.delete(workerId);
+      // Close session-scoped resources (external-MCP connections). Fire-and-forget:
+      // stop() is sync and teardown must never throw or block the ended signal.
+      void Promise.resolve(s.env.closeSession?.()).catch(() => {});
       s.emit({ type: "session", phase: "ended", outcome: "killed" });
       s.onExit?.(143);
     },

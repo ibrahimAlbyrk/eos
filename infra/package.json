@@ -11,11 +11,12 @@
   "dependencies": {
     "@eos/contracts": "file:../contracts",
     "@eos/core": "file:../core",
+    "@modelcontextprotocol/sdk": "^1.18.0",
     "chokidar": "^4.0.3",
     "yaml": "^2.6.0"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
   }
 }

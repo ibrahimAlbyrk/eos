@@ -23,6 +23,7 @@ import type { ContextCompactor } from "../../core/src/ports/ContextCompactor.ts"
 import type { RuntimeTool, ToolGate } from "../../core/src/use-cases/ToolRuntime.ts";
 import type { ProviderCapabilities } from "../../contracts/src/provider-capabilities.ts";
 import type { ProviderErrorInfo } from "../../infra/src/backends/provider-error.ts";
+import type { RuntimeMcpToolset } from "./runtime-mcp.ts";
 
 // The model-schema view of one lane tool (name + provider-neutral JSON schema).
 export interface LaneToolItem {
@@ -60,6 +61,12 @@ export interface SubagentRuntimeContext {
   params?: Record<string, unknown>;
   effort?: string | null;
   compactor?: ContextCompactor;
+  // M5 — the session's external-MCP tools (already connected in the factory). The
+  // child shares the parent's connections (session-scoped, closed once at stop), so
+  // a subagent can call mcp__<server>__<tool> too — gated mcp-always-allow, and NOT
+  // a control tool, so rung-0.5 subagent isolation leaves them callable.
+  mcpItems?: LaneToolItem[];
+  mcpTools?: Map<string, RuntimeTool>;
   depth: number;
   emit(e: AgentEvent): void;
   signal: { aborted: boolean };
@@ -78,6 +85,12 @@ export interface InProcessEnvFactoryDeps {
   // M4 — the ContextCompactor, threaded into the loop so a near-window conversation
   // is trimmed (turn continues) instead of a raw provider 400. Optional (tests omit).
   compactor?: ContextCompactor;
+  // M5 — external-MCP tool resolution (§5c). Connects each configured server,
+  // lists + wraps its tools as mcp__<server>__<tool> RuntimeTools, fail-soft on a
+  // dead server. Async (it opens connections), run AFTER the sync buildLaneTooling.
+  // Optional: tests/conformance omit it (no external MCP). Its close() tears the
+  // connections down at session stop (wired onto env.closeSession).
+  resolveMcpTools?(spec: AgentLaunchSpec): Promise<RuntimeMcpToolset>;
   // The Task subagent closure (§5e). Optional: tests/conformance omit it (no Task).
   // The Task model-schema item is added to the surface by buildLaneTooling (sync);
   // its executor — which needs resolved creds + the session emit/signal — is bound
@@ -92,6 +105,15 @@ export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProc
     // a global process.env key, so "any provider per worker" is expressible.
     const creds = await deps.authResolver.resolve(opts?.auth);
     const { items, tools } = deps.buildLaneTooling(spec);
+    // M5 — connect + merge external-MCP tools (§5c). buildLaneTooling stays SYNC
+    // (the design invariant); only this connection step is async, in the already-
+    // async factory. mcp__<server>__<tool> items/tools merge into the same surface,
+    // so the model sees them and the loop dispatches them through the shared gate.
+    const mcp = deps.resolveMcpTools ? await deps.resolveMcpTools(spec) : undefined;
+    if (mcp) {
+      items.push(...mcp.items);
+      for (const [name, tool] of mcp.tools) tools.set(name, tool);
+    }
     const system = deps.assembleSystem(spec) ?? undefined;
     const capabilities = opts?.capabilities;
     const params = opts?.params as Record<string, unknown> | undefined;
@@ -107,6 +129,8 @@ export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProc
       workerId: spec.workerId,
     });
     const env: InProcessEnv = { model, tools, gate: deps.makeGate(spec.workerId), contextWindow: capabilities?.contextWindow, capabilities, compactor: deps.compactor };
+    // Close the external-MCP connections when the session stops (§5c lifecycle).
+    if (mcp) env.closeSession = () => mcp.close();
     // Bind the Task subagent executor once the session's emit/signal exist. The
     // matching schema item is already in `items` (buildLaneTooling), so the model
     // sees Task; orchestrators get neither (Task stripped from their surface).
@@ -120,6 +144,8 @@ export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProc
           params,
           effort: spec.effort,
           compactor: deps.compactor,
+          mcpItems: mcp?.items,
+          mcpTools: mcp?.tools,
           depth: 0,
           emit,
           signal,
