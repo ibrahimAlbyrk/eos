@@ -54,10 +54,11 @@ export function SettingsProvider({ children }) {
   }, [defaultModel, updateComposer]);
 
   // Provider setting seeds the composer's backend kind (what new agents launch
-  // on); empty → server default. Mirrors the default-model seeding above.
+  // on); empty → server default. Mirrors the default-model seeding above. Clears
+  // any picked profile so backendKind/backendProfile never both apply.
   const defaultProvider = settings["model.provider"];
   useEffect(() => {
-    updateComposer({ backendKind: defaultProvider || null });
+    updateComposer({ backendKind: defaultProvider || null, backendProfile: null });
   }, [defaultProvider, updateComposer]);
 
   // Apply theme whenever the setting changes; animate only user-initiated

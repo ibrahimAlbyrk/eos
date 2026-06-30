@@ -10,7 +10,7 @@ import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
-import { backendCaps, backendLabel, providerOptions } from "../../../lib/backendCaps.js";
+import { backendCaps, backendLabel, providerOptions, spawnProviderOptions, backendProfiles, profileModel } from "../../../lib/backendCaps.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
 export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus }) {
@@ -28,12 +28,17 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
   const mode = selected?.permission_mode ?? ui.composer.permissionMode;
   const modeMeta = MODE_BY_ID[mode] ?? MODE_BY_ID.acceptEdits;
   const ModeIcon = modeMeta.Icon;
-  const model = selected?.model ?? ui.composer.model;
+  // A new-spawn profile pick fixes its own model (e.g. "deepseek-chat"); show that
+  // instead of the Claude model list, and lock the picker (the profile owns it).
+  const spawnProfile = !selected ? ui.composer.backendProfile : null;
+  const spawnProfileModel = spawnProfile ? profileModel(spawnProfile) : null;
+  const model = selected?.model ?? spawnProfileModel ?? ui.composer.model;
   const effort = selected?.effort ?? ui.composer.effort;
   const modelInfo = { name: modelName(model) || model || "—", ctx: modelCtx(model) || "" };
   // A structured (non-PTY) backend fixes its model per session — lock the runtime
-  // model switch once such a worker is selected (the new-spawn composer is PTY-default).
-  const modelLocked = !!selected && !backendCaps(selected.backend_kind).runtimeModelSwitch;
+  // model switch once such a worker is selected (the new-spawn composer is PTY-default),
+  // or once a model-fixed profile is picked for the next spawn.
+  const modelLocked = !!spawnProfile || (!!selected && !backendCaps(selected.backend_kind).runtimeModelSwitch);
 
   // Provider switcher: only for a selected worker, and only when there's another
   // enabled provider to switch to. The daemon stops + resumes under the new
@@ -42,6 +47,14 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
   const providers = providerOptions();
   const showProvider = !!selected && providers.length > 1;
   const providerBusy = !!selected && !["IDLE", "SUSPENDED", "DONE"].includes(selected.state);
+
+  // New-spawn provider/profile picker: shown only once profiles are configured
+  // (otherwise the composer's provider stays the Settings default, unchanged).
+  // Lists subscription kinds + named profiles; picking a profile fixes the model.
+  const showSpawnProvider = !selected && backendProfiles().length > 0;
+  const spawnProviderLabel = spawnProfile
+    ? (backendProfiles().find((p) => p.name === spawnProfile)?.label ?? spawnProfile)
+    : backendLabel(ui.composer.backendKind);
 
   const { used, total, pct } = contextUsage(selected, model);
   const r = 7;
@@ -158,6 +171,19 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
               data-popover-trigger="backend"
             >
               <span>{backendLabel(selected.backend_kind)}</span>
+            </button>
+            <BackendPopover live={live} />
+          </div>
+        )}
+        {showSpawnProvider && (
+          <div className="provider-wrap" style={{ position: "relative" }}>
+            <button
+              className={"model-pill" + (ui.openPopover === "backend" ? " open" : "")}
+              title="Provider for the next agent — a profile fixes its own model"
+              onClick={(e) => toggle("backend", e)}
+              data-popover-trigger="backend"
+            >
+              <span>{spawnProviderLabel}</span>
             </button>
             <BackendPopover live={live} />
           </div>

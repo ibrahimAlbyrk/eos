@@ -7,6 +7,7 @@
 // fall back to PTY-permissive defaults so controls aren't wrongly disabled.
 
 const DESCRIPTORS = new Map(); // kind -> { kind, label, enabled, billing, capabilities }
+let PROFILES = []; // configured named profiles: { name, kind, model, label }
 
 export function applyDescriptors(list) {
   if (!Array.isArray(list)) return;
@@ -16,11 +17,38 @@ export function applyDescriptors(list) {
   }
 }
 
+// Configured backend PROFILES (modelSource:"profile" lanes) from /api/ui-config.
+// Each fixes its own model — the composer locks the model picker when one is picked.
+export function applyProfiles(list) {
+  PROFILES = Array.isArray(list) ? list.filter((p) => p && typeof p.name === "string") : [];
+}
+
+export function backendProfiles() {
+  return PROFILES.slice();
+}
+
+// The model a named profile is pinned to (e.g. "deepseek-chat"), or null.
+export function profileModel(name) {
+  return (name ? PROFILES.find((p) => p.name === name)?.model : null) ?? null;
+}
+
 // Enabled providers for the Settings → Provider picker (value = kind, label = UI name).
 export function providerOptions() {
   return [...DESCRIPTORS.values()]
     .filter((d) => d.enabled)
     .map((d) => ({ value: d.kind, label: d.label }));
+}
+
+// Provider choices for the NEW-spawn composer: subscription (Claude) kinds the
+// user can launch on with the picked model, plus configured named profiles
+// (model fixed by the profile). Bare metered kinds are omitted — they need a
+// billed profile, not a raw kind pick, or the daemon rejects the spawn.
+export function spawnProviderOptions() {
+  const kinds = [...DESCRIPTORS.values()]
+    .filter((d) => d.enabled && d.billing === "subscription")
+    .map((d) => ({ type: "kind", value: d.kind, label: d.label }));
+  const profiles = PROFILES.map((p) => ({ type: "profile", value: p.name, label: p.label }));
+  return [...kinds, ...profiles];
 }
 
 // Capabilities the UI gates controls on (keystroke rewind, runtime model switch).

@@ -25,9 +25,10 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const name = (body.name ?? "").trim() || randomOrchestratorName();
     const cwd = expandPath(body.cwd);
     const id = c.ids.newOrchestratorId();
-    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, isOrchestrator: true });
+    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, explicitProfileName: body.backendProfile, isOrchestrator: true });
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
-    const backendErr = spawnBackendError(backend, rb, !!body.backendKind);
+    const explicit = !!(body.backendKind || body.backendProfile);
+    const backendErr = spawnBackendError(backend, rb, explicit);
     if (backendErr) { writeJson(res, 400, { error: backendErr }); return; }
     const result = await spawnWorker(
       {

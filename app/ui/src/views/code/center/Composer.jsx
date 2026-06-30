@@ -541,11 +541,24 @@ export function Composer({ live }) {
 
     const cwdFallback = ui.composer.cwd ?? live.recents[0] ?? null;
     if (!cwdFallback) { alert("Pick a folder first."); return; }
-    const r = await live.spawnOrchestrator({ cwd: cwdFallback, model: ui.composer.model, effort: ui.composer.effort, prompt: agentText, permissionMode: ui.composer.permissionMode, backendKind: ui.composer.backendKind });
+    // A named profile carries its own kind+model — send backendProfile alone and
+    // omit backendKind/model so the daemon resolves them from the profile.
+    const profile = ui.composer.backendProfile;
+    const r = await live.spawnOrchestrator({
+      cwd: cwdFallback,
+      model: profile ? undefined : ui.composer.model,
+      effort: ui.composer.effort,
+      prompt: agentText,
+      permissionMode: ui.composer.permissionMode,
+      backendKind: profile ? undefined : ui.composer.backendKind,
+      backendProfile: profile ?? undefined,
+    });
     if (r?.ok && r.body?.id) {
       const realId = r.body.id;
       ui.setSelectedId(realId);
       outbox.addDispatched(realId, { text: displayText, agentText });
+    } else if (!r?.ok) {
+      alert(r?.body?.error ?? "Failed to start agent");
     }
   };
 

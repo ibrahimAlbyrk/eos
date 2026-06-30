@@ -12,6 +12,10 @@ const DEFAULT_COMPOSER = {
   // Selected backend kind ("claude-cli" | "claude-sdk"), seeded from the provider
   // setting; null → server resolves the default. Threaded into spawns.
   backendKind: null,
+  // Selected named backend PROFILE (e.g. "deepseek") — mutually exclusive with
+  // backendKind (picking one clears the other). Its model is fixed by the
+  // profile, so the model picker locks while it's set.
+  backendProfile: null,
   gitMode: false,
   // `!` on an empty input flips the composer into terminal mode: Enter runs
   // the text as a daemon-side bash command instead of messaging the agent.

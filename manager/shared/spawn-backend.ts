@@ -16,9 +16,11 @@ export async function resolveSpawnBackend(c: Container, input: ResolveBackendInp
   // Explicit provider pick from the UI: resolve straight from the descriptor —
   // kind + the billing-derived cost mode (the route applies body.model for
   // request-model providers). An unregistered kind falls through to the
-  // resolver's profile/inherit/role/global chain.
+  // resolver's profile/inherit/role/global chain. An explicit PROFILE pick
+  // skips this bare-kind branch entirely so it resolves through the profile
+  // tier (carrying its costMode/model/auth) — a bare kind would lose those.
   let rb: ResolvedBackend;
-  if (input.explicitKind && c.backends.has(input.explicitKind)) {
+  if (!input.explicitProfileName && input.explicitKind && c.backends.has(input.explicitKind)) {
     const d = c.backends.get(input.explicitKind).descriptor;
     // Don't fabricate a "billed" opt-in for a bare metered kind pick — leave
     // costMode unset so spawnBackendError rejects it (the opt-in must come from a

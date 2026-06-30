@@ -193,8 +193,8 @@ export const api = {
   },
 
   // Orchestrators
-  async spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode, backendKind } = {}) {
-    return postJson(ROUTES.orchestrators, { name, cwd, model, effort, prompt, permissionMode, backendKind });
+  async spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile } = {}) {
+    return postJson(ROUTES.orchestrators, { name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile });
   },
   async sendOrchestratorMessage(id, text, { clientMsgId, queueWhenBusy } = {}) {
     return postJson(ROUTES.orchestratorMessage(id), { text, clientMsgId, queueWhenBusy });

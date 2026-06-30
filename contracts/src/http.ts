@@ -95,6 +95,11 @@ export const SpawnOrchestratorRequestSchema = z.object({
   prompt: z.string().optional(),
   permissionMode: PermissionModeSchema.optional(),
   backendKind: z.string().optional(),
+  // Explicit named backend PROFILE (a config.backends key, e.g. "deepseek").
+  // Routes through the resolver's profile tier so a billed metered profile
+  // carries its costMode/model/auth — unlike a bare backendKind. The composer
+  // picks one or the other (it clears backendKind when a profile is chosen).
+  backendProfile: z.string().optional(),
 });
 export type SpawnOrchestratorRequest = z.infer<typeof SpawnOrchestratorRequestSchema>;
 

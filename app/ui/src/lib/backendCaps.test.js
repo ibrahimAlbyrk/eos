@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel } from "./backendCaps.js";
+import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel, applyProfiles, backendProfiles, profileModel, spawnProviderOptions } from "./backendCaps.js";
 
 const caps = (over) => ({ interrupt: true, keystroke: true, rewind: true, runtimeModelSwitch: true, runtimePermissionSwitch: true, ...over });
 const SAMPLE = [
@@ -45,5 +45,28 @@ describe("backendCaps (descriptor-driven)", () => {
     expect(backendLabel("openai")).toBe("OpenAI"); // disabled but still labelled
     expect(backendLabel("mystery")).toBe("mystery"); // unknown -> raw kind, never blank
     expect(backendLabel(undefined)).toBe("—");
+  });
+});
+
+const PROFILES = [{ name: "deepseek", kind: "openai", model: "deepseek-chat", label: "deepseek (deepseek-chat)" }];
+
+describe("backend profiles (composer profile-lane picker)", () => {
+  it("applyProfiles / backendProfiles / profileModel expose the configured profiles", () => {
+    applyProfiles(PROFILES);
+    expect(backendProfiles()).toEqual(PROFILES);
+    expect(profileModel("deepseek")).toBe("deepseek-chat");
+    expect(profileModel("missing")).toBe(null);
+    applyProfiles(undefined); // tolerate a missing ui-config field
+    expect(backendProfiles()).toEqual([]);
+  });
+
+  it("spawnProviderOptions lists subscription kinds + named profiles, omitting bare metered kinds", () => {
+    applyDescriptors(SAMPLE); // openai is metered+disabled here
+    applyProfiles(PROFILES);
+    expect(spawnProviderOptions()).toEqual([
+      { type: "kind", value: "claude-cli", label: "Claude CLI" },
+      { type: "kind", value: "claude-sdk", label: "Claude SDK" },
+      { type: "profile", value: "deepseek", label: "deepseek (deepseek-chat)" },
+    ]);
   });
 });

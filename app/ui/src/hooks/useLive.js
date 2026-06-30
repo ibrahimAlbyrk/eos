@@ -11,7 +11,7 @@ import { createReconnectingStream } from "../api/sse.js";
 import { useClockTick } from "./useClockTick.js";
 import { usePendingPermissions } from "./usePendingPermissions.js";
 import { applyCatalog } from "../lib/models.js";
-import { applyDescriptors } from "../lib/backendCaps.js";
+import { applyDescriptors, applyProfiles } from "../lib/backendCaps.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
 import { applyDelta } from "../state/thinkingStore.js";
 import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
@@ -81,6 +81,7 @@ export function useLive() {
         setRecents(rec?.paths ?? []);
         applyCatalog(cfg?.modelCatalog);
         applyDescriptors(cfg?.backends);
+        applyProfiles(cfg?.backendProfiles);
         setUiConfig(cfg);
         setHealth(true);
       } catch { setHealth(false); }
@@ -155,8 +156,8 @@ export function useLive() {
     setRecents(r?.paths ?? []);
   }, []);
 
-  const spawnOrchestrator = useCallback(async ({ name, cwd, model, effort, prompt, permissionMode, backendKind } = {}) => {
-    const r = await api.spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode, backendKind });
+  const spawnOrchestrator = useCallback(async ({ name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile } = {}) => {
+    const r = await api.spawnOrchestrator({ name, cwd, model, effort, prompt, permissionMode, backendKind, backendProfile });
     // Refresh workers synchronously so the new id is visible before the
     // caller sets it as selected — otherwise App.jsx's stale-selection
     // cleanup races with the caller and immediately clears the selection.

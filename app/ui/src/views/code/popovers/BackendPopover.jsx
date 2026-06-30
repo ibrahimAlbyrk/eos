@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { providerOptions } from "../../../lib/backendCaps.js";
+import { providerOptions, spawnProviderOptions } from "../../../lib/backendCaps.js";
 
-// Provider switcher for a running worker. The daemon stops the current session
+// Provider switcher. For a running worker the daemon stops the current session
 // and resumes it under the picked backend, reusing the session id (the resumed
-// claude binary reloads the shared transcript). Compatibility + at-rest checks
-// are enforced daemon-side; the composer only offers it when sensible.
+// claude binary reloads the shared transcript). For the NEW-spawn composer (no
+// worker selected) it picks the backend kind OR named profile the next agent
+// launches on. Compatibility + at-rest checks are enforced daemon-side.
 export function BackendPopover({ live }) {
   const ui = useUi();
   if (ui.openPopover !== "backend") return null;
@@ -15,8 +16,12 @@ export function BackendPopover({ live }) {
 function BackendMenu({ live, ui }) {
   const paneRef = useRef(null);
   const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
-  const current = selected?.backend_kind;
-  const providers = providerOptions();
+  // Selected worker → live provider switch (enabled kinds). New spawn → the
+  // composer's kind+profile choices; current is whichever the composer holds.
+  const providers = selected ? providerOptions() : spawnProviderOptions();
+  const current = selected
+    ? selected.backend_kind
+    : (ui.composer.backendProfile ?? ui.composer.backendKind);
   // Hover/keyboard highlight is JS-driven (the popover rows have no :hover rule —
   // .mp-row.active is the highlight). Start on the current provider. Mirrors ModelPopover.
   const [active, setActive] = useState(() =>
@@ -25,7 +30,15 @@ function BackendMenu({ live, ui }) {
   useEffect(() => { paneRef.current?.focus(); }, []);
 
   const pick = async (p) => {
-    if (selected && p && p.value !== current) await live.switchBackend(selected.id, p.value);
+    if (!p) { ui.closeAllPops(); return; }
+    if (selected) {
+      if (p.value !== current) await live.switchBackend(selected.id, p.value);
+    } else {
+      // A profile carries its own model (lock it); a kind uses the model picker.
+      ui.updateComposer(p.type === "profile"
+        ? { backendProfile: p.value, backendKind: null }
+        : { backendKind: p.value, backendProfile: null });
+    }
     ui.closeAllPops();
   };
 
