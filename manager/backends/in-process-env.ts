@@ -61,10 +61,12 @@ export interface SubagentRuntimeContext {
   params?: Record<string, unknown>;
   effort?: string | null;
   compactor?: ContextCompactor;
-  // M5 — the session's external-MCP tools (already connected in the factory). The
-  // child shares the parent's connections (session-scoped, closed once at stop), so
-  // a subagent can call mcp__<server>__<tool> too — gated mcp-always-allow, and NOT
-  // a control tool, so rung-0.5 subagent isolation leaves them callable.
+  // M5 — the session's external-MCP tools. These are the SAME LIVE refs the factory
+  // fills when its BACKGROUND connect resolves (initially empty), so a subagent that
+  // runs after the connect still sees mcp__<server>__<tool> (the closure reads them
+  // at Task-execute time). The child shares the parent's connections (session-scoped,
+  // closed once at stop) — gated mcp-always-allow, and NOT a control tool, so
+  // rung-0.5 subagent isolation leaves them callable.
   mcpItems?: LaneToolItem[];
   mcpTools?: Map<string, RuntimeTool>;
   depth: number;
@@ -87,9 +89,10 @@ export interface InProcessEnvFactoryDeps {
   compactor?: ContextCompactor;
   // M5 — external-MCP tool resolution (§5c). Connects each configured server,
   // lists + wraps its tools as mcp__<server>__<tool> RuntimeTools, fail-soft on a
-  // dead server. Async (it opens connections), run AFTER the sync buildLaneTooling.
-  // Optional: tests/conformance omit it (no external MCP). Its close() tears the
-  // connections down at session stop (wired onto env.closeSession).
+  // dead server. Async (it opens connections); the factory runs it in the BACKGROUND
+  // (NOT awaited) so a slow/auth-failing server can't gate session start. Optional:
+  // tests/conformance omit it (no external MCP). Its close() tears the connections
+  // down at session stop (wired onto env.closeSession).
   resolveMcpTools?(spec: AgentLaunchSpec): Promise<RuntimeMcpToolset>;
   // The Task subagent closure (§5e). Optional: tests/conformance omit it (no Task).
   // The Task model-schema item is added to the surface by buildLaneTooling (sync);
@@ -113,41 +116,75 @@ export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProc
     // a global process.env key, so "any provider per worker" is expressible.
     const creds = await deps.authResolver.resolve(opts?.auth);
     const { items, tools } = deps.buildLaneTooling(spec);
-    // M5 — connect + merge external-MCP tools (§5c). buildLaneTooling stays SYNC
-    // (the design invariant); only this connection step is async, in the already-
-    // async factory. mcp__<server>__<tool> items/tools merge into the same surface,
-    // so the model sees them and the loop dispatches them through the shared gate.
-    const mcp = deps.resolveMcpTools ? await deps.resolveMcpTools(spec) : undefined;
-    if (mcp) {
-      items.push(...mcp.items);
-      for (const [name, tool] of mcp.tools) tools.set(name, tool);
-    }
     const system = deps.assembleSystem(spec) ?? undefined;
     const capabilities = opts?.capabilities;
     const params = opts?.params as Record<string, unknown> | undefined;
-    const model = deps.buildModelClient({
-      apiKey: creds.apiKey ?? "",
-      baseUrl: opts?.baseUrl ?? creds.baseUrl,
-      model: spec.model,
-      system,
-      items,
-      capabilities,
-      params,
-      effort: spec.effort,
-      workerId: spec.workerId,
-    });
-    const env: InProcessEnv = { model, tools, gate: deps.makeGate(spec.workerId), contextWindow: capabilities?.contextWindow, capabilities, compactor: deps.compactor, skillToolName: deps.skillToolName };
-    // Tear down session-scoped resources when the session stops (§5c lifecycle):
-    // the external-MCP connections AND this session's background shells (MJ2).
-    if (mcp || deps.reapShells) {
+    // Build a model client over the CURRENT tool surface. Called once now (built-ins +
+    // control) so the session is ready immediately, and again when the background MCP
+    // connect resolves (built-ins + MCP) — each dialect client SNAPSHOTS its tool
+    // schema at construction, so pushing items into the array afterwards would never
+    // reach the model; the client must be rebuilt and env.model swapped.
+    const buildModel = (toolItems: LaneToolItem[]): ModelClient =>
+      deps.buildModelClient({
+        apiKey: creds.apiKey ?? "",
+        baseUrl: opts?.baseUrl ?? creds.baseUrl,
+        model: spec.model,
+        system,
+        items: toolItems,
+        capabilities,
+        params,
+        effort: spec.effort,
+        workerId: spec.workerId,
+      });
+    const env: InProcessEnv = { model: buildModel(items), tools, gate: deps.makeGate(spec.workerId), contextWindow: capabilities?.contextWindow, capabilities, compactor: deps.compactor, skillToolName: deps.skillToolName };
+
+    // M5 perf — connect external MCP in the BACKGROUND (§5c). The in-process lane has
+    // no binary to background MCP for it, so awaiting the connect here is felt directly
+    // as session-start lag (the slowest/auth-failing server gates the first paint).
+    // Return the env with built-ins now; when the connect lands, merge its tools into
+    // the live surface AND swap env.model so the model sees them on the NEXT turn
+    // (kickTurn re-reads s.env.model each turn). The first turn essentially never needs
+    // external MCP. mcpItems/mcpTools are the SAME live refs handed to the Task subagent
+    // below — filled here so a subagent that runs after the connect still gets them.
+    const mcpItems: LaneToolItem[] = [];
+    const mcpTools = new Map<string, RuntimeTool>();
+    let mcpToolset: RuntimeMcpToolset | undefined;
+    let stopped = false;
+    if (deps.resolveMcpTools) {
+      env.whenMcpReady = (async () => {
+        try {
+          const mcp = await deps.resolveMcpTools!(spec);
+          // The session may have stopped while connecting — close instead of leaking;
+          // closeSession's pending-connect path relies on this teardown.
+          if (stopped) { await mcp.close().catch(() => {}); return; }
+          mcpToolset = mcp;
+          for (const it of mcp.items) mcpItems.push(it);
+          for (const [name, tool] of mcp.tools) mcpTools.set(name, tool);
+          items.push(...mcp.items);
+          for (const [name, tool] of mcp.tools) tools.set(name, tool);
+          env.model = buildModel(items);
+        } catch {
+          // Fail-soft: a connect/list failure leaves the session on built-ins only.
+        }
+      })();
+    }
+
+    // Tear down session-scoped resources when the session stops (§5c lifecycle): this
+    // session's background shells (MJ2) AND the external-MCP connections. This never
+    // blocks on a still-connecting server — a pending connect closes itself on resolve
+    // (it observes `stopped`), so a hung handshake can't stall stop().
+    if (deps.resolveMcpTools || deps.reapShells) {
       env.closeSession = () => {
         deps.reapShells?.(spec.workerId);
-        return mcp?.close();
+        stopped = true;
+        return mcpToolset?.close();
       };
     }
     // Bind the Task subagent executor once the session's emit/signal exist. The
     // matching schema item is already in `items` (buildLaneTooling), so the model
-    // sees Task; orchestrators get neither (Task stripped from their surface).
+    // sees Task; orchestrators get neither (Task stripped from their surface). The
+    // child shares the parent's LIVE MCP refs — initially empty, populated when the
+    // background connect resolves (read at Task-execute time).
     if (deps.makeSubagentTool && !spec.isOrchestrator) {
       env.bindSession = ({ emit, signal }) => {
         const task = deps.makeSubagentTool!({
@@ -158,8 +195,8 @@ export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProc
           params,
           effort: spec.effort,
           compactor: deps.compactor,
-          mcpItems: mcp?.items,
-          mcpTools: mcp?.tools,
+          mcpItems,
+          mcpTools,
           depth: 0,
           emit,
           signal,

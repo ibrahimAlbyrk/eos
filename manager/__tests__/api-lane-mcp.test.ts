@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 
 import { connectRuntimeMcpTools, type RuntimeMcpToolset } from "../backends/runtime-mcp.ts";
 import { createInProcessEnvFactory } from "../backends/in-process-env.ts";
-import { createInProcessBackend } from "../../infra/src/backends/InProcessBackend.ts";
+import { createInProcessBackend, type InProcessEnv } from "../../infra/src/backends/InProcessBackend.ts";
 import { PolicyGatewayService, type PolicyGatewayServiceDeps } from "../../core/src/services/PolicyGatewayService.ts";
 import type { Policy } from "../../core/src/domain/policy.ts";
 import { makePolicyToolGate, type PolicyDecider } from "../backends/PolicyToolGate.ts";
@@ -120,9 +120,15 @@ describe("API-lane MCP — end-to-end through the in-process backend", () => {
     { text: "done", toolCalls: [], stopReason: "end_turn" },
   ];
 
+  // External MCP connects in the BACKGROUND (instant start), so its tools land on a
+  // SUBSEQUENT turn, never turn 1. The worker is spawned with NO boot prompt; once the
+  // background connect has settled (env.whenMcpReady) we drive the MCP-calling turn
+  // explicitly with sendMessage — mirroring how a real session's first user message
+  // (or the orchestrator's first decomposition turn) arrives after setup.
   function startWorker(workerId: string, makeMcp: () => Promise<RuntimeMcpToolset>) {
     const events: AgentEvent[] = [];
     let offeredItems: { name: string }[] = [];
+    let env: InProcessEnv | undefined;
     const factory = createInProcessEnvFactory({
       assembleSystem: () => null,
       buildLaneTooling: () => ({ items: [], tools: new Map() }),
@@ -131,17 +137,22 @@ describe("API-lane MCP — end-to-end through the in-process backend", () => {
       resolveMcpTools: () => makeMcp(),
       buildModelClient: ({ items }) => { offeredItems = items; return fakeModel(turns); },
     });
-    const be = createInProcessBackend("fake-api", factory);
-    return { be, events, started: be.start(spec(workerId), { onEvent: (e) => events.push(e) }), itemsRef: () => offeredItems };
+    const be = createInProcessBackend("fake-api", async (s) => { env = await factory(s); return env; });
+    const started = be.start({ ...spec(workerId), prompt: "" }, { onEvent: (e) => events.push(e) });
+    return { be, events, started, itemsRef: () => offeredItems, env: () => env! };
   }
 
   it("an API worker lists + calls a fake MCP tool, gated mcp-always-allow", async () => {
     const rec = { calls: [] as Array<{ name: string; args: Record<string, unknown> }>, closed: false };
-    const { be, events, started, itemsRef } = startWorker("w-mcp", () => connectRuntimeMcpTools({ fake: { command: "x" } }, () => fakeMcpClient(rec)));
+    const { be, events, started, itemsRef, env } = startWorker("w-mcp", () => connectRuntimeMcpTools({ fake: { command: "x" } }, () => fakeMcpClient(rec)));
     const session = await started;
+    // Session is ready immediately (built-ins only); the external tool lands once the
+    // background connect resolves — then a subsequent turn can call it.
+    await env().whenMcpReady;
+    await session.sendMessage("go");
     await be.whenSettled("w-mcp");
 
-    // LIST: the model was offered the external tool on its surface.
+    // LIST: after the background connect, the model was offered the external tool.
     assert.ok(itemsRef().some((i) => i.name === "mcp__fake__echo"), "model is offered mcp__fake__echo");
     assert.ok(session.isAlive());
     // GATE: the always-allow `mcp` category lets it through the real policy gate
@@ -168,9 +179,11 @@ describe("API-lane MCP — end-to-end through the in-process backend", () => {
       async callTool() { return ""; },
       async close() {},
     };
-    const { be, events, started, itemsRef } = startWorker("w-dead", () =>
+    const { be, events, started, itemsRef, env } = startWorker("w-dead", () =>
       connectRuntimeMcpTools({ dead: { command: "no" }, fake: { command: "x" } }, (name) => (name === "dead" ? dead : fakeMcpClient(live)), { warn() {} }));
-    await started;
+    const session = await started;
+    await env().whenMcpReady;
+    await session.sendMessage("go");
     await be.whenSettled("w-dead");
 
     // The dead server is gone; the live one is still offered + callable.
@@ -179,5 +192,105 @@ describe("API-lane MCP — end-to-end through the in-process backend", () => {
     assert.deepEqual(live.calls, [{ name: "echo", args: { v: 42 } }]);
     // The session ran to completion despite the dead server.
     assert.ok(events.some((e) => e.type === "turn" && e.phase === "ended"));
+  });
+});
+
+describe("API-lane MCP — instant start (background connect)", () => {
+  // These tests probe the background-connect TIMING, not gate classification, so an
+  // always-allow gate keeps the built-in/MCP calls focused on what's being asserted.
+  const allowGate = { async decide() { return { allow: true }; } };
+  // A built-in (lane) tool the model can call on turn 1 WITHOUT any external MCP.
+  function pingTooling() {
+    const calls: string[] = [];
+    const tools = new Map<string, { name: string; execute: (i: Record<string, unknown>) => Promise<string> }>();
+    tools.set("ping", { name: "ping", execute: async () => { calls.push("ping"); return "pong"; } });
+    return { calls, build: () => ({ items: [{ name: "ping", description: "ping", schema: { type: "object", properties: {} } }], tools: new Map(tools) }) };
+  }
+  const pingThenEnd: ModelTurn[] = [
+    { toolCalls: [{ callId: "p1", name: "ping", input: {} }], stopReason: "tool_use" },
+    { text: "ok", toolCalls: [], stopReason: "end_turn" },
+  ];
+
+  // A SLOW/HANGING external connect must NOT block the env factory, session-ready, or
+  // the spawn return — the boot turn still runs against built-ins. If it DID block, the
+  // awaits below would never resolve and the test would time out (the failure signal).
+  it("a hanging resolveMcpTools never blocks session start or the first built-in turn", async () => {
+    const ping = pingTooling();
+    const factory = createInProcessEnvFactory({
+      assembleSystem: () => null,
+      buildLaneTooling: () => ping.build(),
+      authResolver: { async resolve() { return { apiKey: "" }; } },
+      makeGate: () => allowGate,
+      resolveMcpTools: () => new Promise<RuntimeMcpToolset>(() => {}), // never resolves
+      buildModelClient: () => fakeModel(pingThenEnd),
+    });
+    const be = createInProcessBackend("fake-api", factory);
+    const events: AgentEvent[] = [];
+    // start() resolves promptly despite the hung connect (it is NOT awaited).
+    const session = await be.start({ ...spec("w-hang"), prompt: "go" }, { onEvent: (e) => events.push(e) });
+    await be.whenSettled("w-hang");
+
+    assert.ok(session.isAlive(), "session is live with the connect still pending");
+    assert.deepEqual(ping.calls, ["ping"], "the boot turn ran against built-ins, not blocked on MCP");
+    assert.ok(events.some((e) => e.type === "session" && e.phase === "started"), "session started immediately");
+    assert.ok(events.some((e) => e.type === "turn" && e.phase === "ended"), "the first turn completed");
+  });
+
+  // The model sees mcp__<server>__<tool> only AFTER the background connect resolves +
+  // env.model is rebuilt — proving the snapshot-at-construction client was swapped.
+  it("external MCP tools become available after the background connect resolves", async () => {
+    const rec = { calls: [] as Array<{ name: string; args: Record<string, unknown> }>, closed: false };
+    let offered: { name: string }[] = [];
+    let env: InProcessEnv | undefined;
+    const factory = createInProcessEnvFactory({
+      assembleSystem: () => null,
+      buildLaneTooling: () => ({ items: [], tools: new Map() }),
+      authResolver: { async resolve() { return { apiKey: "" }; } },
+      makeGate: () => allowGate,
+      resolveMcpTools: () => connectRuntimeMcpTools({ fake: { command: "x" } }, () => fakeMcpClient(rec)),
+      buildModelClient: ({ items }) => { offered = items; return fakeModel([{ toolCalls: [{ callId: "c1", name: "mcp__fake__echo", input: { v: 9 } }], stopReason: "tool_use" }, { text: "done", toolCalls: [], stopReason: "end_turn" }]); },
+    });
+    const be = createInProcessBackend("fake-api", async (s) => { env = await factory(s); return env; });
+    const session = await be.start({ ...spec("w-after"), prompt: "" }, {});
+
+    // After the background connect resolves, env.model was rebuilt over the full
+    // surface, so the model is now offered the external tool (snapshot client swapped).
+    await env!.whenMcpReady;
+    assert.ok(offered.some((i) => i.name === "mcp__fake__echo"), "MCP offered after the rebuild");
+    // A subsequent turn dispatches the now-available external tool.
+    await session.sendMessage("go");
+    await be.whenSettled("w-after");
+    assert.deepEqual(rec.calls, [{ name: "echo", args: { v: 9 } }], "the external tool ran on a subsequent turn");
+  });
+
+  // stop() while the connect is still in flight must return immediately (no await on the
+  // handshake); the late-resolving connect then tears itself down (no leaked client).
+  it("closeSession tears down a still-pending external connect without hanging", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((r) => { release = r; });
+    const rec = { closed: false };
+    const toolset: RuntimeMcpToolset = { items: [], tools: new Map(), async close() { rec.closed = true; } };
+    let env: InProcessEnv | undefined;
+    const factory = createInProcessEnvFactory({
+      assembleSystem: () => null,
+      buildLaneTooling: () => ({ items: [], tools: new Map() }),
+      authResolver: { async resolve() { return { apiKey: "" }; } },
+      makeGate: () => allowGate,
+      resolveMcpTools: async () => { await gate; return toolset; },
+      buildModelClient: () => fakeModel([{ toolCalls: [], stopReason: "end_turn" }]),
+    });
+    const be = createInProcessBackend("fake-api", async (s) => { env = await factory(s); return env; });
+    const session = await be.start({ ...spec("w-pending"), prompt: "" }, {});
+
+    // The connect is still pending: stop() returns without blocking on it.
+    session.stop();
+    assert.equal(session.isAlive(), false, "stop returned without awaiting the pending connect");
+    assert.equal(rec.closed, false, "nothing connected yet, so nothing closed yet");
+
+    // When the connect finally lands, the background task observes `stopped` and closes
+    // it — no leaked connection.
+    release();
+    await env!.whenMcpReady;
+    assert.equal(rec.closed, true, "the late-resolving connect was torn down");
   });
 });

@@ -55,6 +55,12 @@ export interface InProcessEnv {
    *  envs that hold none (tests, conformance). Resume re-runs the factory, so MCP
    *  reconnects there — never reused across a restart. */
   closeSession?(): void | Promise<void>;
+  /** Resolves once the BACKGROUND external-MCP connect has settled — its tools
+   *  merged into the live surface and env.model rebuilt — or failed fail-soft.
+   *  Absent when no external MCP is configured. Turns run BEFORE this resolves
+   *  (built-ins only, so session-start stays instant); the merged mcp__<server>__
+   *  <tool> tools join on the NEXT turn after it resolves. */
+  whenMcpReady?: Promise<void>;
 }
 // The factory may be async: the production factory resolves credentials lazily at
 // start() (AuthResolver) and then builds the model client. A sync factory (tests,
