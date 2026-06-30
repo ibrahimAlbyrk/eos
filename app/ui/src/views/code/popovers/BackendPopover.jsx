@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { providerOptions, providerChoices, providerName } from "../../../lib/backendCaps.js";
+import { providerChoices, providerName, providerSwitchTargets } from "../../../lib/backendCaps.js";
 import { modelName } from "../../../lib/models.js";
 import { useProviderModels } from "../../../hooks/useProviderModels.js";
 
@@ -20,27 +20,29 @@ export function BackendPopover({ live }) {
   return selected ? <BackendSwitchMenu live={live} ui={ui} selected={selected} /> : <SpawnBackendMenu ui={ui} />;
 }
 
-// Live provider switch for a running worker — the existing flat KIND list.
+// Live provider switch for a running worker — the SAME configured providers as the
+// new-spawn picker (providerSwitchTargets over providerChoices), never a raw kind.
+// Targets the daemon can't hand off to (a different conversation store) are greyed
+// with the reason; the switch routes by the choice's backend kind.
 function BackendSwitchMenu({ live, ui, selected }) {
   const paneRef = useRef(null);
-  const providers = providerOptions();
-  const current = selected.backend_kind;
-  const [active, setActive] = useState(() => Math.max(0, providers.findIndex((p) => p.value === current)));
+  const targets = providerSwitchTargets(selected.backend_kind);
+  const [active, setActive] = useState(() => Math.max(0, targets.findIndex((p) => p.current)));
 
   useEffect(() => { paneRef.current?.focus(); }, []);
 
   const pick = async (p) => {
-    if (!p) { ui.closeAllPops(); return; }
-    if (p.value !== current) await live.switchBackend(selected.id, p.value);
+    if (!p || p.disabled) return;
+    if (!p.current) await live.switchBackend(selected.id, p.kind);
     ui.closeAllPops();
   };
 
   const onKeyDown = (e) => {
     let handled = true;
-    if (e.key === "ArrowDown") setActive((i) => (i + 1) % providers.length);
-    else if (e.key === "ArrowUp") setActive((i) => (i - 1 + providers.length) % providers.length);
-    else if (e.key === "Enter" && providers[active]) pick(providers[active]);
-    else if (/^[1-9]$/.test(e.key) && providers[Number(e.key) - 1]) pick(providers[Number(e.key) - 1]);
+    if (e.key === "ArrowDown") setActive((i) => (i + 1) % targets.length);
+    else if (e.key === "ArrowUp") setActive((i) => (i - 1 + targets.length) % targets.length);
+    else if (e.key === "Enter" && targets[active]) pick(targets[active]);
+    else if (/^[1-9]$/.test(e.key) && targets[Number(e.key) - 1]) pick(targets[Number(e.key) - 1]);
     else handled = false;
     if (handled) { e.preventDefault(); e.stopPropagation(); }
   };
@@ -48,15 +50,17 @@ function BackendSwitchMenu({ live, ui, selected }) {
   return (
     <div className="model-popover glass-pop open" data-popover="backend" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
       <div className="mp-head">Provider</div>
-      {providers.map((p, i) => (
+      {targets.map((p, i) => (
         <button
-          key={p.value}
-          className={"mp-row" + (p.value === current ? " on" : "") + (i === active ? " active" : "")}
+          key={p.name}
+          className={"mp-row" + (p.current ? " on" : "") + (i === active ? " active" : "") + (p.disabled ? " disabled" : "")}
+          disabled={p.disabled}
+          title={p.disabled ? p.reason : undefined}
           onMouseEnter={() => setActive(i)}
           onClick={() => pick(p)}
         >
-          <span className="mp-name">{p.label}</span>
-          {p.value === current && <CheckIcon />}
+          <span className="mp-name">{providerName(p)}</span>
+          {p.current && <CheckIcon />}
           <span className="mp-num">{i + 1}</span>
         </button>
       ))}

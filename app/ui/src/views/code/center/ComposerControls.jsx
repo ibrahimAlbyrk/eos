@@ -10,7 +10,7 @@ import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
-import { backendCaps, backendLabel, providerOptions, providerChoices, providerName } from "../../../lib/backendCaps.js";
+import { backendCaps, backendLabel, providerChoices, providerName } from "../../../lib/backendCaps.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
 export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus }) {
@@ -44,11 +44,12 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
   const modelPopId = spawnIsApi ? "spawnModel" : "model";
 
   // Provider switcher: only for a selected worker, and only when there's another
-  // enabled provider to switch to. The daemon stops + resumes under the new
-  // backend (keeping the conversation) and rejects a busy worker — so gate the
-  // pill on an at-rest state to keep that rejection off the happy path.
-  const providers = providerOptions();
-  const showProvider = !!selected && providers.length > 1;
+  // CONFIGURED provider to switch to (the same providerChoices the menu lists, so
+  // the pill never opens onto a single, un-switchable entry). The daemon stops +
+  // resumes under the new backend (keeping the conversation) and rejects a busy
+  // worker — so gate the pill on an at-rest state to keep that rejection off the
+  // happy path.
+  const showProvider = !!selected && providerChoices().length > 1;
   const providerBusy = !!selected && !["IDLE", "SUSPENDED", "DONE"].includes(selected.state);
 
   // New-spawn provider picker: the unified provider list (subscription kinds +

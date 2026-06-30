@@ -32,13 +32,46 @@ export function profileModel(name) {
   return (name ? PROFILES.find((p) => p.name === name)?.model : null) ?? null;
 }
 
-// Enabled providers as {value:kind,label} — the live worker's provider SWITCH
-// list (switch a running session's backend kind). The new-spawn picker uses
-// providerChoices() below, not this.
+// Enabled providers as {value:kind,label}. Legacy: both pickers now derive from
+// providerChoices() (configured providers only) — the new-spawn picker directly,
+// the live worker's switch via providerSwitchTargets() below. Kept for its test.
 export function providerOptions() {
   return [...DESCRIPTORS.values()]
     .filter((d) => d.enabled)
     .map((d) => ({ value: d.kind, label: d.label }));
+}
+
+// Can a RUNNING worker hand its conversation from sourceKind to targetKind? A
+// frontend mirror of core's canHandoffBackend, kept deliberately coarse: the
+// daemon (planBackendSwitch) is the authority and rejects anything finer — this
+// only greys the obvious blocks so the menu doesn't offer a switch that will fail.
+// A live handoff needs a shared conversation store; the UI descriptor doesn't
+// carry sessionStore, but billing class partitions the live stores today
+// (subscription → claude-transcript, metered → eos-conversation), so a cross-class
+// move is the store mismatch. Unknown/not-yet-loaded kinds → allowed (don't
+// disable on a guess; the daemon still decides).
+export function canSwitchProvider(sourceKind, targetKind) {
+  if (!sourceKind || !targetKind) return { ok: true };
+  if (sourceKind === targetKind) return { ok: false, reason: "already on this provider" };
+  const s = DESCRIPTORS.get(sourceKind);
+  const t = DESCRIPTORS.get(targetKind);
+  if (!s || !t) return { ok: true };
+  if (t.enabled === false) return { ok: false, reason: "provider is not enabled" };
+  if (s.billing !== t.billing) return { ok: false, reason: "different conversation store — no live handoff" };
+  return { ok: true };
+}
+
+// The RUNNING worker's provider-switch list: the SAME configured providers as the
+// new-spawn picker (providerChoices) — never a raw unconfigured kind — annotated
+// for the live switch: which entry is the current backend, and which targets the
+// daemon would refuse (greyed, with the reason). Switching is by kind, so a worker
+// on a profile matches its choice by kind.
+export function providerSwitchTargets(currentKind) {
+  return providerChoices().map((c) => {
+    const current = c.kind === currentKind;
+    const chk = current ? { ok: true } : canSwitchProvider(currentKind, c.kind);
+    return { ...c, current, disabled: !current && !chk.ok, reason: chk.ok ? null : chk.reason };
+  });
 }
 
 // The real usable providers for the NEW-SPAWN picker — the SINGLE derivation

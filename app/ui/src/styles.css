@@ -5285,6 +5285,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   text-align: left;
 }
 .mp-row.active { background: rgba(var(--tint), 0.06); }
+.mp-row.disabled { opacity: 0.4; cursor: not-allowed; }
+.mp-row.disabled .mp-name { color: var(--fg-faint); }
 .mp-row .mp-name {
   font-family: var(--font-ui);
   font-size: var(--text-sm);
