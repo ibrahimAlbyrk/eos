@@ -72,6 +72,47 @@ describe("fetchBackendModels", () => {
     assert.match(res.error ?? "", /HTTP 401/);
   });
 
+  it("annotates each model with a price: provider-endpoint pricing preferred, else the catalog", async () => {
+    const catalog: Record<string, { in: number; out: number; cacheRead: number; cacheCreate: number; cacheCreate1h: number }> = {
+      "deepseek-chat": { in: 0.28, out: 0.42, cacheRead: 0.028, cacheCreate: 0, cacheCreate1h: 0 },
+    };
+    const res = await fetchBackendModels({
+      profile: deepseekProfile,
+      descriptor: openaiDescriptor,
+      claudeCatalogIds: async () => [],
+      resolveAuth: apiKeyAuth,
+      priceFor: (m) => catalog[m] ?? null,
+      fetchImpl: fakeFetch(() => ({
+        ok: true, status: 200, json: async () => ({
+          data: [
+            // OpenRouter-style per-TOKEN pricing on the row → preferred over the catalog
+            { id: "router-model", pricing: { prompt: "0.000001", completion: "0.000002" } },
+            // no row pricing → falls back to the catalog
+            { id: "deepseek-chat" },
+            // unknown to both → no price annotation, still listed
+            { id: "mystery-model" },
+          ],
+        }),
+      })),
+    });
+    assert.deepEqual(res.models, ["router-model", "deepseek-chat", "mystery-model"]);
+    assert.deepEqual(res.prices?.["router-model"], { in: 1, out: 2 });
+    assert.deepEqual(res.prices?.["deepseek-chat"], { in: 0.28, out: 0.42 });
+    assert.equal(res.prices?.["mystery-model"], undefined);
+  });
+
+  it("omits the prices map entirely when nothing resolves a price", async () => {
+    const res = await fetchBackendModels({
+      profile: deepseekProfile,
+      descriptor: openaiDescriptor,
+      claudeCatalogIds: async () => [],
+      resolveAuth: apiKeyAuth,
+      fetchImpl: fakeFetch(() => ({ ok: true, status: 200, json: async () => ({ data: [{ id: "deepseek-chat" }] }) })),
+    });
+    assert.deepEqual(res.models, ["deepseek-chat"]);
+    assert.equal(res.prices, undefined);
+  });
+
   it("subscription (request-model) profile returns the Claude catalog ids without a provider call", async () => {
     const claudeSdkProfile: BackendProfile = { kind: "claude-sdk", model: "opus", auth: { kind: "subscription" }, costMode: "included" };
     const res = await fetchBackendModels({

@@ -31,11 +31,15 @@ export interface PreparedBackend {
   price?: ModelPrice;
 }
 
-// Pure validation + normalization. existingPrices is the merged config.prices, so a
-// billed profile whose model is already priced needs no inline price.
+// Pure validation + normalization. existingPrices is the merged config.prices and
+// catalogLookup is the auto-pricing catalog, so a billed profile whose model is
+// priced by EITHER needs no inline price. A billed profile with no resolvable price
+// is accepted with a WARNING (never rejected) — it bills at the loud known-zero
+// until a price is available; adding only an API key must be enough to add a provider.
 export function validateAddBackend(
   req: AddBackendRequest,
   existingPrices: Record<string, ModelPrice>,
+  catalogLookup?: (model: string) => ModelPrice | null,
 ): { ok: true; prepared: PreparedBackend; warnings?: string[] } | { ok: false; error: string } {
   // baseUrl is an ORIGIN ONLY — strip a trailing slash or "/v1" so the client's
   // "/v1/..." path never double-joins (MJ1).
@@ -57,24 +61,26 @@ export function validateAddBackend(
     ...(req.capabilities ? { capabilities: req.capabilities } : {}),
   };
   const priceKey = (profile.pricing ?? profile.model).toLowerCase();
-  // A billed profile must end up with a resolvable price. Merge the inline price
-  // (if any) before checking so "billed + inline price" is accepted (MJ2).
+  const warnings: string[] = [];
+  // A billed profile bills at the loud known-zero if no price resolves. Merge the
+  // inline price (if any), then consult the catalog. Only WARN — never reject — so a
+  // provider can be added with just {name, kind, baseUrl, apiKey} (MJ2).
   const mergedPrices = req.price ? { ...existingPrices, [priceKey]: toFullPrice(req.price) } : existingPrices;
-  if (billedProfileNeedsPrice(profile, mergedPrices)) {
-    return { ok: false, error: `backend "${req.name}" is costMode:"billed" but has no price — supply a "price" or add config.prices["${priceKey}"]` };
+  if (billedProfileNeedsPrice(profile, mergedPrices, catalogLookup)) {
+    warnings.push(`backend "${req.name}" is costMode:"billed" with no resolvable price (config.prices or pricing catalog) for model "${profile.model}" — its turns bill at zero until a price is available; add config.prices["${priceKey}"] to override.`);
   }
   // Non-fatal: a profile with no declared capabilities can't drive the in-process
   // lane's near-window compaction or reasoning round-trip — on a small-context or
   // local model it grows history unbounded and 400s with no recovery (m3). Warn
   // rather than reject (the claude lanes don't need capabilities). contextWindow is
   // schema-required once capabilities is present, so the only gap is omitting it.
-  const warnings = req.capabilities
-    ? undefined
-    : [`backend "${req.name}" declares no "capabilities" — the in-process lane cannot compact near the context window; declare capabilities (incl. contextWindow) for a small-context or local model.`];
+  if (!req.capabilities) {
+    warnings.push(`backend "${req.name}" declares no "capabilities" — the in-process lane cannot compact near the context window; declare capabilities (incl. contextWindow) for a small-context or local model.`);
+  }
   return {
     ok: true,
     prepared: { name: req.name, profile, ...(req.price ? { priceKey, price: toFullPrice(req.price) } : {}) },
-    ...(warnings ? { warnings } : {}),
+    ...(warnings.length ? { warnings } : {}),
   };
 }
 
@@ -101,12 +107,40 @@ function modelsAuthHeaders(dialect: string | undefined, apiKey: string | undefin
   return apiKey ? { authorization: `Bearer ${apiKey}` } : {};
 }
 
+// in/out per-MILLION-token price for a model id. Provider-endpoint pricing (when the
+// /v1/models row carries it, OpenRouter-style) is PREFERRED over the catalog.
+type PriceAnnotation = { in: number; out: number };
+
+// OpenRouter-style per-model pricing on a /v1/models row: data[].pricing.{prompt,
+// completion} are USD-per-TOKEN (strings or numbers). → per-MILLION in/out, or null
+// when the row carries no usable pricing.
+function parseProviderPricing(row: Record<string, unknown>): PriceAnnotation | null {
+  const p = row?.pricing;
+  if (!p || typeof p !== "object") return null;
+  const pp = p as Record<string, unknown>;
+  const inTok = toNum(pp.prompt ?? pp.input);
+  const outTok = toNum(pp.completion ?? pp.output);
+  if (inTok == null && outTok == null) return null;
+  return { in: (inTok ?? 0) * 1e6, out: (outTok ?? 0) * 1e6 };
+}
+
+function toNum(v: unknown): number | null {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim() !== "") {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
 // A configured provider's available model ids for the two-level composer picker.
 // A request-model lane (claude-cli/claude-sdk) shares the Claude catalog — no
 // provider call. A profile-model lane (openai/anthropic-api/codex) fetches its
 // provider's /v1/models with the resolved key + dialect auth header. Branches on
 // the descriptor's DATA (modelSource/wireDialect), never a kind literal. fetch is
 // injectable so the mapping + fail-soft paths are unit-tested with no billed call.
+// Each id is annotated with its resolved price (provider-endpoint pricing preferred,
+// else the auto-pricing catalog via priceFor) so the picker can show it.
 // FAIL-SOFT: any auth/network/parse failure returns the profile's pinned model
 // alone plus an `error` — the picker never 500s.
 export async function fetchBackendModels(opts: {
@@ -114,6 +148,7 @@ export async function fetchBackendModels(opts: {
   descriptor: BackendDescriptor | null;
   claudeCatalogIds: () => Promise<string[]>;
   resolveAuth: (_auth: AuthRef | undefined) => Promise<ResolvedAuth>;
+  priceFor?: (model: string) => ModelPrice | null;
   fetchImpl?: typeof fetch;
 }): Promise<BackendModelsResponse> {
   const { profile, descriptor } = opts;
@@ -128,14 +163,27 @@ export async function fetchBackendModels(opts: {
     const auth = await opts.resolveAuth(profile.auth);
     const resp = await doFetch(`${base}/v1/models`, { headers: modelsAuthHeaders(dialect, auth.apiKey) });
     if (!resp.ok) return { models: [profile.model], error: `provider returned HTTP ${resp.status}` };
-    const data = (await resp.json()) as { data?: Array<{ id?: unknown }> };
-    const ids = Array.isArray(data?.data)
-      ? data.data.map((m) => m?.id).filter((id): id is string => typeof id === "string" && id.length > 0)
-      : [];
-    return ids.length ? { models: ids } : { models: [profile.model], error: "provider returned no models" };
+    const data = (await resp.json()) as { data?: Array<Record<string, unknown>> };
+    const rows = Array.isArray(data?.data) ? data.data : [];
+    const ids: string[] = [];
+    const prices: Record<string, PriceAnnotation> = {};
+    for (const row of rows) {
+      const id = typeof row?.id === "string" && row.id.length > 0 ? row.id : null;
+      if (!id) continue;
+      ids.push(id);
+      const fromProvider = parseProviderPricing(row);
+      const resolved = fromProvider ?? toAnnotation(opts.priceFor?.(id));
+      if (resolved) prices[id] = resolved;
+    }
+    if (!ids.length) return { models: [profile.model], error: "provider returned no models" };
+    return Object.keys(prices).length ? { models: ids, prices } : { models: ids };
   } catch (e) {
     return { models: [profile.model], error: errMsg(e) };
   }
+}
+
+function toAnnotation(p: ModelPrice | null | undefined): PriceAnnotation | null {
+  return p ? { in: p.in, out: p.out } : null;
 }
 
 export function registerBackendsRoutes(r: Router, c: Container): void {
@@ -158,6 +206,7 @@ export function registerBackendsRoutes(r: Router, c: Container): void {
       descriptor,
       claudeCatalogIds: async () => (await c.modelCatalog.get()).map((m) => m.id),
       resolveAuth: (a) => c.authResolver.resolve(a),
+      priceFor: (m) => c.modelPricing.lookup(m),
     });
     modelsCache.set(name, { at: now, result });
     writeJson(res, 200, result);
@@ -165,7 +214,7 @@ export function registerBackendsRoutes(r: Router, c: Container): void {
 
   r.post("/api/backends", async ({ req, res }) => {
     const body = validate(AddBackendRequestSchema, await readBody(req));
-    const result = validateAddBackend(body, c.config.prices);
+    const result = validateAddBackend(body, c.config.prices, (m) => c.modelPricing.lookup(m));
     if (!result.ok) { writeJson(res, 400, { error: result.error }); return; }
     const { prepared } = result;
     for (const w of result.warnings ?? []) c.log.warn("add-backend", { warning: w });

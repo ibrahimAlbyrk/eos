@@ -197,14 +197,21 @@ const DEFAULT_PRICES: Record<string, ModelPrice> = {
 // ~10× overbill; charging $0 + warning (see priceForModel) makes it observable.
 export const UNKNOWN_MODEL_PRICE: ModelPrice = { in: 0, out: 0, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 };
 
+// A sync model→price resolver backed by the auto-pricing catalog (per-MILLION).
+// Returns null when the model is unknown to the catalog.
+export type CatalogLookup = (model: string) => ModelPrice | null;
+
 // Resolve a model name to its ModelPrice. A null/undefined model is the default
-// Claude (→ opus); Claude family names substring-match. An unrecognized model
-// falls back to UNKNOWN_MODEL_PRICE (loud known-zero) and invokes onUnknown so
+// Claude (→ opus); Claude family names substring-match. config.prices is a manual
+// OVERRIDE (present → wins); when absent, the auto-pricing catalog (current
+// cross-provider prices) is consulted before the loud known-zero fallback. Only a
+// model unknown to BOTH falls back to UNKNOWN_MODEL_PRICE and invokes onUnknown so
 // the caller can warn once — never the silent Opus default (MJ2/Q0c).
 export function priceForModel(
   prices: Record<string, ModelPrice>,
   model: string | null | undefined,
   onUnknown?: (model: string) => void,
+  catalogLookup?: CatalogLookup,
 ): ModelPrice {
   const m = String(model ?? "opus").toLowerCase();
   if (m in prices) return prices[m];
@@ -212,18 +219,24 @@ export function priceForModel(
   if (m.includes("opus")) return prices.opus;
   if (m.includes("sonnet")) return prices.sonnet;
   if (m.includes("haiku")) return prices.haiku;
+  const fromCatalog = catalogLookup?.(m);
+  if (fromCatalog) return fromCatalog;
   onUnknown?.(m);
   return UNKNOWN_MODEL_PRICE;
 }
 
-// MJ2 — a costMode:"billed" profile MUST have a resolvable price, else its turns
-// bill at the loud known-zero (never the Opus default) and the cost ledger is
-// wrong. True ⇒ this billed profile has no price entry for its model/pricing key.
-// Pure: used both at config-load (warn) and at POST /api/backends (reject).
-export function billedProfileNeedsPrice(profile: BackendProfile, prices: Record<string, ModelPrice>): boolean {
+// MJ2 — a costMode:"billed" profile bills at the loud known-zero when no price is
+// resolvable. True ⇒ this billed profile has no price in config.prices NOR the
+// pricing catalog for its model/pricing key. Pure: used at config-load (warn) and
+// at POST /api/backends (warn, never reject — the catalog auto-resolves most).
+export function billedProfileNeedsPrice(
+  profile: BackendProfile,
+  prices: Record<string, ModelPrice>,
+  catalogLookup?: CatalogLookup,
+): boolean {
   if (profile.costMode !== "billed") return false;
   let known = true;
-  priceForModel(prices, profile.pricing ?? profile.model, () => { known = false; });
+  priceForModel(prices, profile.pricing ?? profile.model, () => { known = false; }, catalogLookup);
   return !known;
 }
 
@@ -570,11 +583,14 @@ export function loadConfig(): DaemonConfig {
     }
   }
   cached = deepFreeze(mergeConfig(base, override));
-  // MJ2 — warn (never block startup) on a billed profile with no price, so an
-  // unpriced metered lane is observable at load rather than silently mis-billed.
+  // MJ2 — warn (never block startup) on a billed profile with no MANUAL price, so an
+  // unpriced metered lane is observable at load. The auto-pricing catalog (loaded
+  // async in the daemon) is not available here, so this checks config.prices only;
+  // the catalog still backstops the price at runtime (priceFor). Add config.prices
+  // to override the catalog.
   for (const [name, profile] of Object.entries(cached.backends)) {
     if (billedProfileNeedsPrice(profile, cached.prices)) {
-      console.log(`[config] backend "${name}" is costMode:"billed" but has no price for model "${profile.model}" — its turns bill at zero; add it to config.prices`);
+      console.log(`[config] backend "${name}" is costMode:"billed" with no price in config.prices for model "${profile.model}" — the pricing catalog is consulted at runtime; add config.prices to override`);
     }
   }
   // Best-effort: ensure ~/.eos exists so callers can write logs/pid.

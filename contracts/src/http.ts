@@ -483,6 +483,11 @@ export type AddBackendResponse = z.infer<typeof AddBackendResponseSchema>;
 // auth failure yields the profile's pinned model as the sole option plus `error`.
 export const BackendModelsResponseSchema = z.object({
   models: z.array(z.string()),
+  // Resolved per-MILLION-token price (USD) per model id — the provider endpoint's
+  // own pricing when it carries it (OpenRouter-style data[].pricing), else the
+  // auto-pricing catalog. Optional + keyed by id so consumers that read only
+  // `models` are unaffected; the picker can annotate each model with its price.
+  prices: z.record(z.string(), z.object({ in: z.number(), out: z.number() })).optional(),
   error: z.string().optional(),
 });
 export type BackendModelsResponse = z.infer<typeof BackendModelsResponseSchema>;

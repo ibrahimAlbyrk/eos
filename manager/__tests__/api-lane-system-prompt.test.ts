@@ -229,10 +229,18 @@ describe("POST /api/backends — validateAddBackend", () => {
     assert.equal(r.ok && r.prepared.profile.baseUrl, "http://localhost:11434");
   });
 
-  it("rejects a costMode:billed profile whose model has no price (MJ2)", () => {
+  it("ACCEPTS a billed profile with no price but WARNS (never rejects — MJ2)", () => {
     const r = validateAddBackend(addReq({ costMode: "billed", auth: { kind: "none" } }), PRICES);
-    assert.equal(r.ok, false);
-    assert.match(r.ok ? "" : r.error, /no price/);
+    assert.ok(r.ok);
+    assert.ok(r.ok && (r.warnings ?? []).some((w) => /bill(s|ed)? at zero|no resolvable price/.test(w)));
+  });
+
+  it("ACCEPTS a billed profile with no inline price when the pricing catalog resolves it (no price warn)", () => {
+    const catPrice = { in: 0.14, out: 0.28, cacheRead: 0.0028, cacheCreate: 0, cacheCreate1h: 0 };
+    const catalogLookup = (m: string) => (m === "deepseek-chat" ? catPrice : null);
+    const r = validateAddBackend(addReq({ costMode: "billed", auth: { kind: "none" } }), PRICES, catalogLookup);
+    assert.ok(r.ok);
+    assert.ok(r.ok && !(r.warnings ?? []).some((w) => /no resolvable price/.test(w)));
   });
 
   it("accepts a billed profile when an inline price is supplied", () => {

@@ -25,6 +25,7 @@ import { JsonlConversationStore } from "../infra/src/conversation/JsonlConversat
 import { DropOldestContextCompactor } from "../infra/src/conversation/DropOldestContextCompactor.ts";
 import { createAnthropicModelClient } from "../infra/src/backends/AnthropicModelClient.ts";
 import { createOpenAIModelClient } from "../infra/src/backends/OpenAIModelClient.ts";
+import { LiteLlmModelPricingCatalog } from "../infra/src/backends/ModelPricingCatalog.ts";
 import type { ProviderErrorInfo } from "../infra/src/backends/provider-error.ts";
 import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts";
 import { scrubSubscriptionEnv } from "../core/src/domain/env-allowlist.ts";
@@ -246,9 +247,18 @@ export function buildContainer() {
   });
 
   // Model catalog (pricing) -------------------------------------------------
-  // An unknown model bills at a loud known-zero (NOT the Opus default) + warns
-  // once per model, so an unpriced billed turn is observable, never silently
-  // ~10×-overbilled at Opus rates (MJ2/Q0c).
+  // Auto-pricing catalog: current cross-provider prices (LiteLLM map) fetched +
+  // cached to ~/.eos so a provider added with only its API key still bills at real
+  // prices. Loaded async (background refresh); the lookup is sync against the
+  // in-memory index. config.prices stays a manual OVERRIDE (present → wins).
+  const modelPricing = new LiteLlmModelPricingCatalog({
+    cacheFile: join(config.daemon.home, "model-pricing-cache.json"),
+    clock: systemClock,
+  });
+  modelPricing.start();
+  // An unknown model (in neither config.prices nor the catalog) bills at a loud
+  // known-zero (NOT the Opus default) + warns once per model, so an unpriced billed
+  // turn is observable, never silently ~10×-overbilled at Opus rates (MJ2/Q0c).
   const warnedUnpricedModels = new Set<string>();
   const models: ModelCatalog = {
     priceFor(model: string | null | undefined): ModelPrice {
@@ -256,7 +266,7 @@ export function buildContainer() {
         if (warnedUnpricedModels.has(m)) return;
         warnedUnpricedModels.add(m);
         log.warn("no price for model — billing at zero; add it to config.prices", { model: m });
-      });
+      }, (m) => modelPricing.lookup(m));
     },
   };
 
@@ -1373,6 +1383,7 @@ export function buildContainer() {
     claudeHome,
     userSettings,
     modelCatalog,
+    modelPricing,
     updates,
     cleanupMcpConfig,
     reloadPolicy(): void {

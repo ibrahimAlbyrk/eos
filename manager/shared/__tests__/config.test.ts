@@ -294,4 +294,29 @@ describe("priceForModel — unknown-model fallback (MJ2/Q0c)", () => {
     assert.deepEqual(priceForModel(prices, null, onUnknown), prices.opus);
     assert.equal(warned, false);
   });
+
+  it("consults the pricing catalog for an unknown model BEFORE the zero fallback", async () => {
+    const { priceForModel, defaults } = await import("../config.ts");
+    const prices = defaults().prices;
+    const catPrice = { in: 0.14, out: 0.28, cacheRead: 0.0028, cacheCreate: 0, cacheCreate1h: 0 };
+    const catalogLookup = (m: string) => (m === "deepseek-v4-flash" ? catPrice : null);
+    let warned = false;
+    const resolved = priceForModel(prices, "deepseek-v4-flash", () => { warned = true; }, catalogLookup);
+    assert.deepEqual(resolved, catPrice);
+    assert.equal(warned, false); // catalog hit ⇒ no unknown-model warn
+
+    // config.prices stays a manual OVERRIDE: a priced model never consults the catalog.
+    let consulted = false;
+    priceForModel(prices, "opus", undefined, () => { consulted = true; return null; });
+    assert.equal(consulted, false);
+  });
+
+  it("still falls back to the loud known-zero when the catalog also misses", async () => {
+    const { priceForModel, UNKNOWN_MODEL_PRICE, defaults } = await import("../config.ts");
+    const prices = defaults().prices;
+    let warnedWith: string | undefined;
+    const resolved = priceForModel(prices, "ghost-model", (m) => { warnedWith = m; }, () => null);
+    assert.deepEqual(resolved, UNKNOWN_MODEL_PRICE);
+    assert.equal(warnedWith, "ghost-model");
+  });
 });
