@@ -31,7 +31,13 @@ import { backendCollaborate, backendRole } from "../core/src/ports/AgentBackend.
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSubscriptionAuthResolver } from "../infra/src/auth/SubscriptionAuthResolver.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
-import { createInProcessEnvFactory } from "./backends/in-process-env.ts";
+import { createInProcessEnvFactory, type SubagentRuntimeContext } from "./backends/in-process-env.ts";
+import { runTurn, type RuntimeTool } from "../core/src/use-cases/ToolRuntime.ts";
+import { createBuiltinToolRegistry } from "../infra/src/tools/builtins/registry.ts";
+import { createNodeToolFileSystem } from "../infra/src/tools/NodeToolFileSystem.ts";
+import { createNodeProcessRunner } from "../infra/src/tools/NodeProcessRunner.ts";
+import { resolveWorkerDefinitionByName } from "../core/src/domain/worker-definition-resolution.ts";
+import { buildBuiltinSurface, buildLaneSurface, TASK_TOOL_ITEM, type LaneTooling } from "./backends/lane-tooling.ts";
 import { orchestratorDefs, workerDefs, peerDefs, workflowWorkerDefs } from "./tools/registry.ts";
 import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
@@ -741,7 +747,7 @@ export function buildContainer() {
   const renderInprocToolDescriptions = (): Record<string, string> =>
     renderToolDescriptions(config.paths.promptsDir, [...orchestratorDefs, ...workerDefs, ...peerDefs, ...workflowWorkerDefs].map((d) => d.name));
   const sdkPolicy = {
-    async decide(i: { workerId: string; toolName: string; input: Record<string, unknown> }) {
+    async decide(i: { workerId: string; toolName: string; input: Record<string, unknown>; agentId?: string | null }) {
       const d = await policyGateway.decide(i);
       return { behavior: d.behavior === "allow" ? ("allow" as const) : ("deny" as const), message: d.message, updatedInput: d.updatedInput };
     },
@@ -756,9 +762,23 @@ export function buildContainer() {
     isGitRepo: () => spawnSync("git", ["rev-parse", "--git-dir"], { cwd: spec.cwd, encoding: "utf8" }).status === 0,
     api: (method: string, path: string, body?: unknown) => daemonApi(sdkDaemonUrl, method, path, body),
   });
+  // Bare-named built-in tool surface (Read/Write/Edit/Bash/Glob/Grep/…) for the
+  // in-process lane: one registry, cwd-scoped per spawn. Gated for free by the
+  // policy stack because every tool uses its BARE canonical name + canonical input
+  // fields. The fs/process adapters are stateless, so one registry is shared.
+  const builtinToolRegistry = createBuiltinToolRegistry({
+    fs: createNodeToolFileSystem(),
+    proc: createNodeProcessRunner(),
+  });
+  // The built-in surface for a spec (NO control tools) — used directly for the Task
+  // child surface (built-ins only) and merged into buildLaneTooling for parents.
+  const buildBuiltinTooling = (spec: AgentLaunchSpec): LaneTooling =>
+    buildBuiltinSurface(builtinToolRegistry, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope });
+
   // Orchestration tools projected onto the in-process ToolRuntime: prefixed
   // mcp__orchestrator__/worker__ names (so classifyTool always-allows them like the
-  // PTY/SDK lanes), the executor map, and a provider-neutral JSON input schema.
+  // PTY/SDK lanes), MERGED with the bare-named built-ins ⊕ (non-orchestrators) the
+  // Task subagent item (executor bound in the env factory).
   const buildLaneTooling = (spec: AgentLaunchSpec): { items: Array<{ name: string; description: string; schema: Record<string, unknown> }>; tools: Map<string, { name: string; execute(input: Record<string, unknown>): Promise<string> }> } => {
     const ctx = makeToolContext(spec);
     const collaborate = backendCollaborate(spec.backendOptions);
@@ -767,9 +787,13 @@ export function buildContainer() {
       : [...workerDefs, ...(collaborate ? peerDefs : [])];
     const server = mcpServerForRole(spec.isOrchestrator);
     const descriptions = renderInprocToolDescriptions();
-    const items = defs.map((d) => ({ name: prefixedToolName(server, d.name), description: descriptions[d.name] ?? d.name, schema: toolJsonSchema(d), execute: toRuntimeTool(d, ctx).execute }));
-    const tools = new Map(items.map((i) => [i.name, { name: i.name, execute: i.execute }]));
-    return { items, tools };
+    const control: LaneTooling = { items: [], tools: new Map() };
+    for (const d of defs) {
+      const name = prefixedToolName(server, d.name);
+      control.items.push({ name, description: descriptions[d.name] ?? d.name, schema: toolJsonSchema(d) });
+      control.tools.set(name, { name, execute: toRuntimeTool(d, ctx).execute });
+    }
+    return buildLaneSurface(builtinToolRegistry, control, { cwd: spec.cwd, isOrchestrator: spec.isOrchestrator, scope: spec.backendOptions?.spec?.toolScope });
   };
 
   // The complete in-process DPI system prompt (B1): the SAME assembler all lanes
@@ -779,6 +803,84 @@ export function buildContainer() {
     assembleAppendFor((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId, "in-process");
   const inProcessGate = (workerId: string) => makePolicyToolGate(workerId, sdkPolicy);
 
+  // Task (subagent) closure (§5e / MJ5). Built per session in the env factory AFTER
+  // creds resolve; each invocation runs a nested ToolRuntime for the child with:
+  //   • a built-ins-only surface (NO control tools — the primary isolation defense),
+  //   • the child's own DPI system prompt (subagent_type → a worker definition body),
+  //   • a gate carrying agentId=childId so rung-0.5 hard-denies any control tool the
+  //     child attempts (defense-in-depth atop the surface omission),
+  //   • the parent's resolved creds + dialect (never process.env), and
+  //   • the SHARED parent abort signal (an interrupt propagates).
+  // Depth is capped; over-cap returns an error result instead of recursing.
+  const MAX_TASK_DEPTH = 2;
+  const buildChildSpec = (parentSpec: AgentLaunchSpec, subagentType: string, childId: string): AgentLaunchSpec => {
+    const parentSWS = (parentSpec.backendOptions?.spec ?? {}) as SpawnWorkerSpec;
+    const body = resolveWorkerDefinitionByName(subagentType, listWorkerDefinitionRecords(parentSpec.cwd ?? null))?.body ?? "";
+    const childSWS: SpawnWorkerSpec = {
+      ...parentSWS,
+      cwd: parentSpec.cwd,
+      isOrchestrator: false,
+      role: undefined,
+      parentId: parentSpec.workerId,
+      collaborate: false,
+      workerDefinition: subagentType,
+      workerDefinitionBody: body,
+    };
+    return {
+      workerId: childId,
+      cwd: parentSpec.cwd,
+      model: parentSpec.model,
+      effort: parentSpec.effort,
+      prompt: "",
+      persistent: false,
+      parentId: parentSpec.workerId,
+      isOrchestrator: false,
+      backendOptions: { ...parentSpec.backendOptions, spec: childSWS },
+    };
+  };
+  const makeSubagentTool = (rt: SubagentRuntimeContext): RuntimeTool => ({
+    name: "Task",
+    async execute(input) {
+      if (rt.depth >= MAX_TASK_DEPTH) {
+        return `Task depth limit reached (max ${MAX_TASK_DEPTH}) — complete this work directly rather than spawning a deeper subagent.`;
+      }
+      const subagentType = typeof input.subagent_type === "string" && input.subagent_type ? input.subagent_type : "general-purpose";
+      const prompt = typeof input.prompt === "string" ? input.prompt
+        : typeof input.description === "string" ? input.description : "";
+      const childId = randomIdGenerator.newWorkerId();
+      const childSpec = buildChildSpec(rt.parentSpec, subagentType, childId);
+      const system = assembleInProcessSystem(childSpec) ?? undefined;
+      const { items, tools } = buildBuiltinTooling(childSpec);
+      // Grandchildren up to the cap (recursion through this same closure).
+      if (rt.depth + 1 < MAX_TASK_DEPTH) {
+        items.push(TASK_TOOL_ITEM);
+        tools.set("Task", makeSubagentTool({ ...rt, parentSpec: childSpec, depth: rt.depth + 1 }));
+      }
+      const model = rt.buildModelClient({ apiKey: rt.apiKey, baseUrl: rt.baseUrl, model: childSpec.model, system, items, capabilities: rt.capabilities });
+      const gate = makePolicyToolGate(childId, sdkPolicy, { agentId: childId });
+      let finalText = "";
+      const childEmit = (e: AgentEvent): void => {
+        if (e.type === "message") {
+          if (e.role === "assistant") {
+            const text = e.blocks.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("");
+            if (text) finalText = text;
+          }
+          // Re-tag tool calls with the child id so the UI attributes child activity.
+          rt.emit({ ...e, blocks: e.blocks.map((b) => (b.type === "tool_call" ? { ...b, parentCallId: childId } : b)) });
+        } else if (e.type === "usage") {
+          rt.emit(e); // the subagent's tokens bill onto the parent worker
+        }
+        // turn/session/delta/context are loop-internal — NOT forwarded (they would
+        // corrupt the parent turn FSM / double-render).
+      };
+      await runTurn(
+        { model, tools, gate, emit: childEmit, signal: rt.signal, contextWindow: rt.capabilities?.contextWindow },
+        [{ role: "user", content: prompt }],
+      );
+      return finalText || "(subagent produced no text output)";
+    },
+  });
+
   // anthropic-api backend — in-process, ToolRuntime-driven, gated by the shared
   // policy engine. Credentials/baseUrl/capabilities are resolved per-worker from the
   // profile (no process.env); the model gets the full DPI system prompt.
@@ -787,6 +889,7 @@ export function buildContainer() {
     buildLaneTooling,
     authResolver,
     makeGate: inProcessGate,
+    makeSubagentTool,
     buildModelClient: ({ apiKey, baseUrl, model, system, items }) =>
       createAnthropicModelClient({ apiKey, baseUrl, model, system, tools: items.map((i) => ({ name: i.name, description: i.description, input_schema: i.schema })) }),
   }));
@@ -799,6 +902,7 @@ export function buildContainer() {
     buildLaneTooling,
     authResolver,
     makeGate: inProcessGate,
+    makeSubagentTool,
     buildModelClient: ({ apiKey, baseUrl, model, system, items }) =>
       createOpenAIModelClient({ apiKey, baseUrl, model, system, tools: items.map((i) => ({ name: i.name, description: i.description, parameters: i.schema })) }),
   });

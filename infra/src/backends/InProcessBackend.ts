@@ -29,6 +29,12 @@ export interface InProcessEnv {
   /** The model's context window (tokens), if declared — drives the ToolRuntime
    *  fail-fast pre-flight guard. Absent ⇒ no guard. */
   contextWindow?: number;
+  /** Late-bind the per-session emit + abort signal (created here in start(), after
+   *  the factory ran). The Task-subagent closure needs them — its child loop shares
+   *  the parent abort signal and re-tags child events onto the parent stream — but
+   *  they don't exist at factory time. Called once before the first turn; absent on
+   *  envs with no session-bound tools (tests, conformance). */
+  bindSession?(ctx: { emit(e: AgentEvent): void; signal: { aborted: boolean } }): void;
 }
 // The factory may be async: the production factory resolves credentials lazily at
 // start() (AuthResolver) and then builds the model client. A sync factory (tests,
@@ -150,6 +156,9 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
         current: null,
       };
       live.set(spec.workerId, s);
+      // Late-bind the per-session emit/signal into any session-scoped tools (the
+      // Task subagent closure) before the first turn runs.
+      env.bindSession?.({ emit: s.emit, signal: s.signal });
       cb?.onSpawn?.({ kind: "inproc", ref: spec.workerId });
       s.emit({ type: "session", phase: "started" });
       if (spec.prompt) kickTurn(spec.workerId, s, spec.prompt);

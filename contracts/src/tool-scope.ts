@@ -6,6 +6,8 @@
 // bypassPermissions, where PermissionRequest never fires) enforce it.
 // Names must match the builtins keys in manager/container.ts buildMcpBuiltins.
 
+import { BUILTIN_TOOL_NAMES } from "./builtin-tools.ts";
+
 export const EOS_BUILTIN_MCP_SERVERS = ["orchestrator", "worker", "gateway"] as const;
 
 export type EosBuiltinMcpServer = (typeof EOS_BUILTIN_MCP_SERVERS)[number];
@@ -49,7 +51,7 @@ export function isBlockedBuiltinTool(toolName: string): boolean {
 // subagents), so this set is role-scoped and deliberately SEPARATE from the
 // platform-wide BLOCKED_BUILTIN_TOOLS — merging the two would re-ban worker
 // subagents.
-export const ORCHESTRATOR_DISALLOWED_BUILTIN_TOOLS = ["Task"] as const;
+export const ORCHESTRATOR_DISALLOWED_BUILTIN_TOOLS = [BUILTIN_TOOL_NAMES.Task] as const;
 
 // The disallowed-tools list handed to the claude binary (CLI --disallowedTools /
 // SDK disallowedTools) for a spawn, keyed on the session-immutable isOrchestrator

@@ -6,6 +6,12 @@
 // a new entry into MODE_SPECS, no decider changes.
 
 import type { PermissionMode } from "../../../contracts/src/worker.ts";
+import {
+  FILE_EDIT_BUILTIN_TOOLS,
+  SHELL_BUILTIN_TOOLS,
+  READ_BUILTIN_TOOLS,
+  NETWORK_BUILTIN_TOOLS,
+} from "../../../contracts/src/builtin-tools.ts";
 
 export type { PermissionMode };
 
@@ -25,10 +31,12 @@ export interface ModeSpec {
   readonly decide: (category: ToolCategory) => Verdict;
 }
 
-const FILE_EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
-const SHELL_TOOLS = new Set(["Bash", "BashOutput", "KillBash", "KillShell"]);
-const READ_TOOLS = new Set(["Read", "Glob", "Grep", "LS"]);
-const NETWORK_TOOLS = new Set(["WebFetch", "WebSearch"]);
+// Category sets are built from the canonical name registry (contracts) so a
+// tool's category can never drift from its name across layers.
+const FILE_EDIT_TOOLS = new Set<string>(FILE_EDIT_BUILTIN_TOOLS);
+const SHELL_TOOLS = new Set<string>(SHELL_BUILTIN_TOOLS);
+const READ_TOOLS = new Set<string>(READ_BUILTIN_TOOLS);
+const NETWORK_TOOLS = new Set<string>(NETWORK_BUILTIN_TOOLS);
 
 // Pure segment-level resolution (core can't use node:path). Resolves "."/".."
 // so a traversal like plans/../../etc can't spoof the prefix check. Symlinks

@@ -8,11 +8,16 @@ import type { ToolGate } from "../../core/src/use-cases/ToolRuntime.ts";
 import type { PolicyDecider } from "./sdk/SdkPermissionBridge.ts";
 import { isBlockedBuiltinTool, blockedBuiltinToolMessage } from "../../contracts/src/tool-scope.ts";
 
-export function makePolicyToolGate(workerId: string, policy: PolicyDecider): ToolGate {
+// opts.agentId marks the gate as a sub-agent caller (nested Task child): the
+// gateway's rung-0.5 caller-scope check then hard-denies Eos control tools for it,
+// defense-in-depth atop the child surface omitting those tools entirely (§5e).
+export function makePolicyToolGate(workerId: string, policy: PolicyDecider, opts?: { agentId?: string }): ToolGate {
   return {
     async decide(toolName, input) {
       if (isBlockedBuiltinTool(toolName)) return { allow: false, message: blockedBuiltinToolMessage(toolName) };
-      const d = await policy.decide({ workerId, toolName, input });
+      // Only thread agentId when present so the default (rung-0) call shape is
+      // unchanged for the parent-worker gate.
+      const d = await policy.decide(opts?.agentId ? { workerId, toolName, input, agentId: opts.agentId } : { workerId, toolName, input });
       return d.behavior === "allow" ? { allow: true, updatedInput: d.updatedInput } : { allow: false, message: d.message };
     },
   };

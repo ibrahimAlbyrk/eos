@@ -14,9 +14,11 @@ export interface PolicyDecision {
 }
 
 // Minimal seam the bridge needs — the container adapts the real
-// PolicyGatewayService onto it.
+// PolicyGatewayService onto it. `agentId` (optional) flags a sub-agent caller so
+// the gateway's rung-0.5 caller-scope check can hard-deny Eos control tools for
+// nested Task subagents (the API lane has no native agent_id hook).
 export interface PolicyDecider {
-  decide(input: { workerId: string; toolName: string; input: Record<string, unknown> }): Promise<PolicyDecision>;
+  decide(input: { workerId: string; toolName: string; input: Record<string, unknown>; agentId?: string | null }): Promise<PolicyDecision>;
 }
 
 export function makeCanUseTool(workerId: string, policy: PolicyDecider): CanUseTool {

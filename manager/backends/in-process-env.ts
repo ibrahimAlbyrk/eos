@@ -15,6 +15,7 @@
 // invariant); buildLaneTooling stays sync.
 
 import type { AgentLaunchSpec } from "../../core/src/ports/AgentBackend.ts";
+import type { AgentEvent } from "../../contracts/src/canonical.ts";
 import type { InProcessEnv, InProcessEnvFactory } from "../../infra/src/backends/InProcessBackend.ts";
 import type { AuthResolver } from "../../core/src/ports/AuthResolver.ts";
 import type { ModelClient } from "../../core/src/ports/ModelClient.ts";
@@ -37,6 +38,21 @@ export interface InProcessModelClientInput {
   capabilities?: ProviderCapabilities;
 }
 
+// The per-session runtime ingredients the Task (subagent) closure captures. It is
+// built HERE, after credential resolution (N2: resolved creds + the dialect builder,
+// never process.env), and bound the session's emit/signal at start() time (they do
+// not exist at factory time). The closure runs a nested ToolRuntime for the child.
+export interface SubagentRuntimeContext {
+  parentSpec: AgentLaunchSpec;
+  apiKey: string;
+  baseUrl?: string;
+  capabilities?: ProviderCapabilities;
+  depth: number;
+  emit(e: AgentEvent): void;
+  signal: { aborted: boolean };
+  buildModelClient(input: InProcessModelClientInput): ModelClient;
+}
+
 export interface InProcessEnvFactoryDeps {
   // B1: the complete in-process DPI system prompt for this spawn (null ⇒ none).
   assembleSystem(spec: AgentLaunchSpec): string | null;
@@ -46,6 +62,11 @@ export interface InProcessEnvFactoryDeps {
   // Dialect-specific model-client builder bound at construction (Anthropic vs
   // OpenAI) — selection is by which factory the registry wires, never a kind branch.
   buildModelClient(input: InProcessModelClientInput): ModelClient;
+  // The Task subagent closure (§5e). Optional: tests/conformance omit it (no Task).
+  // The Task model-schema item is added to the surface by buildLaneTooling (sync);
+  // its executor — which needs resolved creds + the session emit/signal — is bound
+  // here. Orchestrators never get it (Task is stripped from their surface).
+  makeSubagentTool?(rt: SubagentRuntimeContext): RuntimeTool;
 }
 
 export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProcessEnvFactory {
@@ -65,6 +86,25 @@ export function createInProcessEnvFactory(deps: InProcessEnvFactoryDeps): InProc
       items,
       capabilities,
     });
-    return { model, tools, gate: deps.makeGate(spec.workerId), contextWindow: capabilities?.contextWindow };
+    const env: InProcessEnv = { model, tools, gate: deps.makeGate(spec.workerId), contextWindow: capabilities?.contextWindow };
+    // Bind the Task subagent executor once the session's emit/signal exist. The
+    // matching schema item is already in `items` (buildLaneTooling), so the model
+    // sees Task; orchestrators get neither (Task stripped from their surface).
+    if (deps.makeSubagentTool && !spec.isOrchestrator) {
+      env.bindSession = ({ emit, signal }) => {
+        const task = deps.makeSubagentTool!({
+          parentSpec: spec,
+          apiKey: creds.apiKey ?? "",
+          baseUrl: opts?.baseUrl ?? creds.baseUrl,
+          capabilities,
+          depth: 0,
+          emit,
+          signal,
+          buildModelClient: deps.buildModelClient,
+        });
+        tools.set(task.name, task);
+      };
+    }
+    return env;
   };
 }
