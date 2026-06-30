@@ -27,6 +27,22 @@ export interface RuntimeMcpLog {
   warn(message: string, meta?: unknown): void;
 }
 
+// Bounded per-server connect budget. A slow or unreachable server (e.g. an
+// auth-failing endpoint) is dropped at this cap instead of stalling session
+// start — the in-process lane has no binary to background MCP for it, so an
+// unbounded handshake is felt directly as startup lag.
+const CONNECT_TIMEOUT_MS = 3000;
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 export async function connectRuntimeMcpTools(
   servers: Record<string, unknown>,
   makeClient: McpToolClientFactory,
@@ -36,23 +52,35 @@ export async function connectRuntimeMcpTools(
   const tools = new Map<string, RuntimeTool>();
   const open: McpToolClient[] = [];
 
-  for (const [server, config] of Object.entries(servers)) {
-    const client = makeClient(server, config);
-    try {
-      await client.connect();
-      const remote = await client.listTools();
-      for (const t of remote) {
-        const name = `mcp__${server}__${t.name}`;
-        items.push({ name, description: t.description ?? name, schema: t.inputSchema ?? EMPTY_SCHEMA });
-        // Bind THIS client + the remote (unprefixed) tool name into the executor.
-        tools.set(name, { name, execute: (input) => client.callTool(t.name, input) });
+  // Connect every server in PARALLEL under a bounded timeout — total startup cost
+  // is the slowest single server (capped), never the sum, so one dead/slow server
+  // no longer serializes seconds of lag in front of the first turn. Still fail-soft
+  // per server (drop + close + log); order is preserved by Promise.all.
+  const settled = await Promise.all(
+    Object.entries(servers).map(async ([server, config]) => {
+      const client = makeClient(server, config);
+      try {
+        await withTimeout(client.connect(), CONNECT_TIMEOUT_MS, `mcp connect ${server}`);
+        const remote = await withTimeout(client.listTools(), CONNECT_TIMEOUT_MS, `mcp tools/list ${server}`);
+        return { server, client, remote };
+      } catch (e) {
+        // Drop just this server; close its half-open transport best-effort.
+        log?.warn("external MCP server dropped (fail-soft)", { server, error: e instanceof Error ? e.message : String(e) });
+        void client.close().catch(() => {});
+        return null;
       }
-      open.push(client);
-    } catch (e) {
-      // Drop just this server; close its half-open transport best-effort.
-      log?.warn("external MCP server dropped (fail-soft)", { server, error: e instanceof Error ? e.message : String(e) });
-      void client.close().catch(() => {});
+    }),
+  );
+
+  for (const r of settled) {
+    if (!r) continue;
+    for (const t of r.remote) {
+      const name = `mcp__${r.server}__${t.name}`;
+      items.push({ name, description: t.description ?? name, schema: t.inputSchema ?? EMPTY_SCHEMA });
+      // Bind THIS client + the remote (unprefixed) tool name into the executor.
+      tools.set(name, { name, execute: (input) => r.client.callTool(t.name, input) });
     }
+    open.push(r.client);
   }
 
   return {
