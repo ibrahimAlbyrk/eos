@@ -39,18 +39,6 @@ export function providerOptions() {
     .map((d) => ({ value: d.kind, label: d.label }));
 }
 
-// Provider choices for the NEW-spawn composer: subscription (Claude) kinds the
-// user can launch on with the picked model, plus configured named profiles
-// (model fixed by the profile). Bare metered kinds are omitted — they need a
-// billed profile, not a raw kind pick, or the daemon rejects the spawn.
-export function spawnProviderOptions() {
-  const kinds = [...DESCRIPTORS.values()]
-    .filter((d) => d.enabled && d.billing === "subscription")
-    .map((d) => ({ type: "kind", value: d.kind, label: d.label }));
-  const profiles = PROFILES.map((p) => ({ type: "profile", value: p.name, label: p.label }));
-  return [...kinds, ...profiles];
-}
-
 // Capabilities the UI gates controls on (keystroke rewind, runtime model switch).
 // Unknown/not-yet-loaded kind → PTY-permissive (don't disable a control on a guess).
 const PTY_DEFAULT_CAPS = { keystroke: true, rewind: true, runtimeModelSwitch: true };

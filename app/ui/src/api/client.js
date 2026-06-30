@@ -112,6 +112,18 @@ export const api = {
     const r = await fetch(`${DAEMON}${ROUTES.uiConfig}`);
     return r.ok ? r.json() : null;
   },
+  // A configured provider's available models for the two-level composer picker.
+  // Fail-soft: never throws — returns { models, error? } so the popover can fall
+  // back to the profile's pinned model.
+  async listBackendModels(name) {
+    try {
+      const r = await getJson(ROUTES.apiBackendModels(name));
+      if (r.ok) return r.body ?? { models: [] };
+      return { models: [], error: r.body?.error ?? `models → ${r.status}` };
+    } catch (e) {
+      return { models: [], error: e instanceof Error ? e.message : String(e) };
+    }
+  },
 
   // Workers
   async listWorkers() {

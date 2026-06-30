@@ -5304,6 +5304,19 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .mp-row .mp-check + .mp-num { margin-left: 0; }
 .model-popover:focus { outline: none; }
+/* Two-level new-spawn picker: a profile group + its lazily-loaded model rows. */
+.mp-group { position: relative; z-index: 1; }
+.mp-models { padding-left: 10px; }
+.mp-row.mp-sub { padding: 6px 10px; }
+.mp-row.mp-sub .mp-name { font-size: var(--text-xs); color: var(--fg-faint); }
+.mp-row.mp-sub.on .mp-name { color: var(--fg); }
+.mp-sub.mp-muted {
+  padding: 6px 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+.mp-sub.mp-err { color: #d08770; white-space: normal; }
 
 /* ============== Effort popover (slider) ============== */
 .effort-popover {

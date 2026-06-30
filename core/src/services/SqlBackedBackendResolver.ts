@@ -19,6 +19,11 @@ export interface ResolveBackendInput {
   explicitKind?: string | null;
   // Explicit named profile (config power-user path).
   explicitProfileName?: string | null;
+  // Operator-chosen model OVERRIDE for a profile pick (the two-level picker). When
+  // set alongside a profile, resolveSpawnBackend keeps the profile's
+  // kind/baseUrl/auth/capabilities but swaps in this model. Not consumed by this
+  // resolver — applied in resolveSpawnBackend (manager).
+  explicitModel?: string | null;
   parentId?: string | null;
   isOrchestrator: boolean;
 }

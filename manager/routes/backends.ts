@@ -13,8 +13,10 @@ import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
-import { AddBackendRequestSchema, type AddBackendRequest } from "../../contracts/src/http.ts";
-import type { BackendProfile } from "../../contracts/src/backend.ts";
+import { AddBackendRequestSchema, type AddBackendRequest, type BackendModelsResponse } from "../../contracts/src/http.ts";
+import type { BackendProfile, AuthRef } from "../../contracts/src/backend.ts";
+import type { BackendDescriptor } from "../../core/src/ports/AgentBackend.ts";
+import type { ResolvedAuth } from "../../core/src/ports/AuthResolver.ts";
 import { normalizeBaseOrigin } from "../../infra/src/backends/base-url.ts";
 import { writeKeychainSecret } from "../../infra/src/auth/SubscriptionAuthResolver.ts";
 import { billedProfileNeedsPrice, type ModelPrice } from "../shared/config.ts";
@@ -82,7 +84,85 @@ function toFullPrice(p: { in: number; out: number; cacheRead: number; cacheCreat
   return { in: p.in, out: p.out, cacheRead: p.cacheRead, cacheCreate: p.cacheCreate, cacheCreate1h: p.cacheCreate * 2 };
 }
 
+// Default origin per wire dialect when a profile omits baseUrl. Branches on the
+// descriptor's DATA (wireDialect), never a kind literal.
+const DIALECT_DEFAULT_ORIGIN: Record<string, string> = {
+  "openai-chat": "https://api.openai.com",
+  anthropic: "https://api.anthropic.com",
+};
+
+// Auth header for a provider's /v1/models GET, chosen by wire dialect: openai-chat
+// → Authorization: Bearer; anthropic → x-api-key (+ version). Keyless (no resolved
+// key — e.g. a localhost proxy) → no auth header, mirroring the model clients.
+function modelsAuthHeaders(dialect: string | undefined, apiKey: string | undefined): Record<string, string> {
+  if (dialect === "anthropic") {
+    return { "anthropic-version": "2023-06-01", ...(apiKey ? { "x-api-key": apiKey } : {}) };
+  }
+  return apiKey ? { authorization: `Bearer ${apiKey}` } : {};
+}
+
+// A configured provider's available model ids for the two-level composer picker.
+// A request-model lane (claude-cli/claude-sdk) shares the Claude catalog — no
+// provider call. A profile-model lane (openai/anthropic-api/codex) fetches its
+// provider's /v1/models with the resolved key + dialect auth header. Branches on
+// the descriptor's DATA (modelSource/wireDialect), never a kind literal. fetch is
+// injectable so the mapping + fail-soft paths are unit-tested with no billed call.
+// FAIL-SOFT: any auth/network/parse failure returns the profile's pinned model
+// alone plus an `error` — the picker never 500s.
+export async function fetchBackendModels(opts: {
+  profile: BackendProfile;
+  descriptor: BackendDescriptor | null;
+  claudeCatalogIds: () => Promise<string[]>;
+  resolveAuth: (_auth: AuthRef | undefined) => Promise<ResolvedAuth>;
+  fetchImpl?: typeof fetch;
+}): Promise<BackendModelsResponse> {
+  const { profile, descriptor } = opts;
+  if (descriptor && descriptor.modelSource === "request") {
+    const ids = await opts.claudeCatalogIds().catch(() => [] as string[]);
+    return { models: ids.length ? ids : [profile.model] };
+  }
+  const doFetch = opts.fetchImpl ?? fetch;
+  const dialect = descriptor?.wireDialect;
+  const base = normalizeBaseOrigin(profile.baseUrl ?? DIALECT_DEFAULT_ORIGIN[dialect ?? "openai-chat"] ?? "https://api.openai.com");
+  try {
+    const auth = await opts.resolveAuth(profile.auth);
+    const resp = await doFetch(`${base}/v1/models`, { headers: modelsAuthHeaders(dialect, auth.apiKey) });
+    if (!resp.ok) return { models: [profile.model], error: `provider returned HTTP ${resp.status}` };
+    const data = (await resp.json()) as { data?: Array<{ id?: unknown }> };
+    const ids = Array.isArray(data?.data)
+      ? data.data.map((m) => m?.id).filter((id): id is string => typeof id === "string" && id.length > 0)
+      : [];
+    return ids.length ? { models: ids } : { models: [profile.model], error: "provider returned no models" };
+  } catch (e) {
+    return { models: [profile.model], error: errMsg(e) };
+  }
+}
+
 export function registerBackendsRoutes(r: Router, c: Container): void {
+  // Short in-memory cache (60s) of a profile's model list, keyed by profile name —
+  // the picker re-opens a row repeatedly; don't re-hit the provider each time.
+  const modelsCache = new Map<string, { at: number; result: BackendModelsResponse }>();
+  const MODELS_CACHE_MS = 60_000;
+
+  // GET /api/backends/:name/models — the two-level picker's lazy model fetch.
+  r.get(/^\/api\/backends\/(?<name>[^/]+)\/models$/, async ({ params, res }) => {
+    const name = decodeURIComponent(params.name);
+    const profile = c.config.backends[name];
+    if (!profile) { writeJson(res, 404, { error: `backend "${name}" not found` }); return; }
+    const now = Date.now();
+    const hit = modelsCache.get(name);
+    if (hit && now - hit.at < MODELS_CACHE_MS) { writeJson(res, 200, hit.result); return; }
+    const descriptor = c.backends.has(profile.kind) ? c.backends.get(profile.kind).descriptor : null;
+    const result = await fetchBackendModels({
+      profile,
+      descriptor,
+      claudeCatalogIds: async () => (await c.modelCatalog.get()).map((m) => m.id),
+      resolveAuth: (a) => c.authResolver.resolve(a),
+    });
+    modelsCache.set(name, { at: now, result });
+    writeJson(res, 200, result);
+  });
+
   r.post("/api/backends", async ({ req, res }) => {
     const body = validate(AddBackendRequestSchema, await readBody(req));
     const result = validateAddBackend(body, c.config.prices);

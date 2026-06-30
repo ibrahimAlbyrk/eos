@@ -476,6 +476,17 @@ export const AddBackendResponseSchema = z.object({
 });
 export type AddBackendResponse = z.infer<typeof AddBackendResponseSchema>;
 
+// ---- GET /api/backends/:name/models ----------------------------------------
+// A configured provider's available model ids for the two-level composer picker.
+// A subscription (request-model) profile returns the Claude catalog ids; a metered
+// (profile-model) profile returns its provider's /v1/models. FAIL-SOFT: a fetch /
+// auth failure yields the profile's pinned model as the sole option plus `error`.
+export const BackendModelsResponseSchema = z.object({
+  models: z.array(z.string()),
+  error: z.string().optional(),
+});
+export type BackendModelsResponse = z.infer<typeof BackendModelsResponseSchema>;
+
 // ---- GET /pick-directory, POST /fs/open, GET /fs/default-app ----------------
 
 export const PickDirectoryResponseSchema = z.union([
@@ -1845,4 +1856,6 @@ export const ROUTES = {
   // for a billed profile, writes the API key (by reference) to the Keychain, then
   // persists the profile to ~/.eos/config.json + reloads.
   apiBackends: "/api/backends",
+  // A configured provider's available models for the two-level composer picker.
+  apiBackendModels: (name: string): string => `/api/backends/${name}/models`,
 } as const;

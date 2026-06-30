@@ -13,8 +13,9 @@ const DEFAULT_COMPOSER = {
   // setting; null → server resolves the default. Threaded into spawns.
   backendKind: null,
   // Selected named backend PROFILE (e.g. "deepseek") — mutually exclusive with
-  // backendKind (picking one clears the other). Its model is fixed by the
-  // profile, so the model picker locks while it's set.
+  // backendKind (picking one clears the other). The two-level provider picker sets
+  // both backendProfile and `model`; `model` is sent as an override on the lane
+  // (the profile's pinned model is the default when none is chosen).
   backendProfile: null,
   gitMode: false,
   // `!` on an empty input flips the composer into terminal mode: Enter runs

@@ -92,4 +92,31 @@ describe("resolveSpawnBackend — explicit profile pick", () => {
     // Not rejected as bare-metered: the billed opt-in carries through.
     assert.equal(spawnBackendError(c.backends.get(resolved.kind), resolved, true), null);
   });
+
+  it("applies the operator model OVERRIDE on a profile pick — keeps kind/baseUrl/auth/billed, swaps the model", async () => {
+    const profile: ResolvedBackend = {
+      kind: "openai", model: "deepseek-chat", profileName: "deepseek", costMode: "billed",
+      auth: { kind: "keychain", ref: "eos/deepseek" }, baseUrl: "https://api.deepseek.com",
+    };
+    const c = fakeContainer(profile);
+    const resolved = await resolveSpawnBackend(c, { explicitProfileName: "deepseek", explicitModel: "deepseek-reasoner", isOrchestrator: true });
+    assert.equal(resolved.kind, "openai");
+    assert.equal(resolved.model, "deepseek-reasoner"); // overridden from the pinned deepseek-chat
+    assert.equal(resolved.costMode, "billed");
+    assert.equal(resolved.profileName, "deepseek");
+    assert.equal(resolved.baseUrl, "https://api.deepseek.com");
+    assert.deepEqual(resolved.auth, { kind: "keychain", ref: "eos/deepseek" });
+    // Still passes the billed-intent guard after the override.
+    assert.equal(spawnBackendError(c.backends.get(resolved.kind), resolved, true), null);
+  });
+
+  it("keeps the profile's pinned model when no override is supplied", async () => {
+    const profile: ResolvedBackend = {
+      kind: "openai", model: "deepseek-chat", profileName: "deepseek", costMode: "billed",
+      auth: { kind: "keychain", ref: "eos/deepseek" }, baseUrl: "https://api.deepseek.com",
+    };
+    const c = fakeContainer(profile);
+    const resolved = await resolveSpawnBackend(c, { explicitProfileName: "deepseek", isOrchestrator: true });
+    assert.equal(resolved.model, "deepseek-chat");
+  });
 });

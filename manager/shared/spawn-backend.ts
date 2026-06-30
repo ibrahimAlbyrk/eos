@@ -30,6 +30,14 @@ export async function resolveSpawnBackend(c: Container, input: ResolveBackendInp
     rb = c.backendResolver.resolveForNewWorker(input);
   }
 
+  // Operator model OVERRIDE on a profile lane: when the picker supplies BOTH a
+  // profile and a model, keep the profile's kind/baseUrl/auth/capabilities/costMode
+  // but run the chosen model (e.g. the deepseek profile on deepseek-reasoner). The
+  // profile's pinned model stays the default when no model is chosen.
+  if (input.explicitProfileName && input.explicitModel && rb.profileName) {
+    rb = { ...rb, model: input.explicitModel };
+  }
+
   // Credential safety net (data-driven): a subscription in-process provider needs
   // a usable subscription credential; with none, fall back to the subscription
   // out-of-process (PTY) provider derived from the descriptors, never a kind literal.

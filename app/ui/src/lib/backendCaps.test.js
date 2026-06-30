@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel, applyProfiles, backendProfiles, profileModel, spawnProviderOptions } from "./backendCaps.js";
+import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel, applyProfiles, backendProfiles, profileModel } from "./backendCaps.js";
 
 const caps = (over) => ({ interrupt: true, keystroke: true, rewind: true, runtimeModelSwitch: true, runtimePermissionSwitch: true, ...over });
 const SAMPLE = [
@@ -58,15 +58,5 @@ describe("backend profiles (composer profile-lane picker)", () => {
     expect(profileModel("missing")).toBe(null);
     applyProfiles(undefined); // tolerate a missing ui-config field
     expect(backendProfiles()).toEqual([]);
-  });
-
-  it("spawnProviderOptions lists subscription kinds + named profiles, omitting bare metered kinds", () => {
-    applyDescriptors(SAMPLE); // openai is metered+disabled here
-    applyProfiles(PROFILES);
-    expect(spawnProviderOptions()).toEqual([
-      { type: "kind", value: "claude-cli", label: "Claude CLI" },
-      { type: "kind", value: "claude-sdk", label: "Claude SDK" },
-      { type: "profile", value: "deepseek", label: "deepseek (deepseek-chat)" },
-    ]);
   });
 });

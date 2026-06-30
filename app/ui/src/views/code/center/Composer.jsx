@@ -541,12 +541,13 @@ export function Composer({ live }) {
 
     const cwdFallback = ui.composer.cwd ?? live.recents[0] ?? null;
     if (!cwdFallback) { alert("Pick a folder first."); return; }
-    // A named profile carries its own kind+model — send backendProfile alone and
-    // omit backendKind/model so the daemon resolves them from the profile.
+    // A named profile carries its own kind/baseUrl/auth — send backendProfile and
+    // the operator-chosen model (the two-level picker sets it). The daemon applies
+    // the model as an OVERRIDE on the profile lane (pinned model is the default).
     const profile = ui.composer.backendProfile;
     const r = await live.spawnOrchestrator({
       cwd: cwdFallback,
-      model: profile ? undefined : ui.composer.model,
+      model: ui.composer.model,
       effort: ui.composer.effort,
       prompt: agentText,
       permissionMode: ui.composer.permissionMode,

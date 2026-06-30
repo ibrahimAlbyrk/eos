@@ -116,4 +116,6 @@ export const ROUTES = {
   updateDefer: "/api/updates/defer",
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
+  // A configured provider's available models (two-level composer picker).
+  apiBackendModels: (name) => `/api/backends/${name}/models`,
 };
