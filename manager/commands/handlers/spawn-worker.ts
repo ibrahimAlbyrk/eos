@@ -94,7 +94,7 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     // profile-driven backend's model + profile name thread into it. A definition
     // may default backendKind where the request left it unset. claude-cli keeps
     // today's behavior exactly (no model override, null profile).
-    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind ?? dd.backendKind, parentId: body.parentId ?? null, isOrchestrator: false });
+    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind ?? dd.backendKind, explicitProfileName: dd.backendProfile, parentId: body.parentId ?? null, isOrchestrator: false });
     const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
     // Billing/enablement guard on the RESOLVED backend (covers profile/inherit/
     // default picks, not just explicit body.backendKind): rejects a metered API
@@ -121,6 +121,13 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       // Claude model the user picked. Persist the resolved profile name for inheritance.
       ...(backend.descriptor.modelSource === "profile" ? { model: rb.model } : {}),
       backendProfile: rb.profileName ?? undefined,
+      // Resolved launch references threaded to the in-process env factory (creds
+      // by reference, origin baseUrl, provider params/capabilities). Harmless on
+      // the claude lanes (they read backendOptions.spec, not these).
+      backendAuth: rb.auth,
+      backendBaseUrl: rb.baseUrl,
+      backendParams: rb.params,
+      backendCapabilities: rb.capabilities,
       // Carry the resolved definition onto the spec: persisted (worker_definition
       // column) and surfaced as the DPI workerDefinition fact + the role/20 fragment.
       // def is always resolved now (defaults to general-purpose; unknown ⇒ thrown above).

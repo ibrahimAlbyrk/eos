@@ -216,6 +216,17 @@ export function priceForModel(
   return UNKNOWN_MODEL_PRICE;
 }
 
+// MJ2 — a costMode:"billed" profile MUST have a resolvable price, else its turns
+// bill at the loud known-zero (never the Opus default) and the cost ledger is
+// wrong. True ⇒ this billed profile has no price entry for its model/pricing key.
+// Pure: used both at config-load (warn) and at POST /api/backends (reject).
+export function billedProfileNeedsPrice(profile: BackendProfile, prices: Record<string, ModelPrice>): boolean {
+  if (profile.costMode !== "billed") return false;
+  let known = true;
+  priceForModel(prices, profile.pricing ?? profile.model, () => { known = false; });
+  return !known;
+}
+
 const DEFAULT_BACKENDS: Record<string, BackendProfile> = {
   // claude-sdk is the default: subscription-billed, live thinking, in-process tools.
   // PTY (claude-cli) stays first-class and is the automatic fallback when the
@@ -559,6 +570,13 @@ export function loadConfig(): DaemonConfig {
     }
   }
   cached = deepFreeze(mergeConfig(base, override));
+  // MJ2 — warn (never block startup) on a billed profile with no price, so an
+  // unpriced metered lane is observable at load rather than silently mis-billed.
+  for (const [name, profile] of Object.entries(cached.backends)) {
+    if (billedProfileNeedsPrice(profile, cached.prices)) {
+      console.log(`[config] backend "${name}" is costMode:"billed" but has no price for model "${profile.model}" — its turns bill at zero; add it to config.prices`);
+    }
+  }
   // Best-effort: ensure ~/.eos exists so callers can write logs/pid.
   try { mkdirSync(cached.daemon.home, { recursive: true }); } catch {}
   try { mkdirSync(cached.daemon.logDir, { recursive: true }); } catch {}

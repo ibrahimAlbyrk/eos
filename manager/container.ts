@@ -31,6 +31,7 @@ import { backendCollaborate, backendRole } from "../core/src/ports/AgentBackend.
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSubscriptionAuthResolver } from "../infra/src/auth/SubscriptionAuthResolver.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
+import { createInProcessEnvFactory } from "./backends/in-process-env.ts";
 import { orchestratorDefs, workerDefs, peerDefs, workflowWorkerDefs } from "./tools/registry.ts";
 import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
@@ -277,7 +278,10 @@ export function buildContainer() {
     profile(name: string) {
       const p = config.backends[name];
       if (!p) return null;
-      return { kind: p.kind, model: p.model, profileName: name, baseUrl: p.baseUrl, pricing: p.pricing, costMode: p.costMode, params: p.params };
+      // Map p.auth + p.capabilities here (the §3.2 reconciliation: auth was dropped
+      // at this hop) so the resolved backend carries the credential REFERENCE +
+      // declared quirks down to the in-process env factory.
+      return { kind: p.kind, model: p.model, profileName: name, baseUrl: p.baseUrl, auth: p.auth, pricing: p.pricing, costMode: p.costMode, params: p.params, capabilities: p.capabilities };
     },
     roleDefaultName(isOrchestrator: boolean): string | null {
       return (isOrchestrator ? config.defaults.orchestrator.backend : config.defaults.worker.backend) ?? null;
@@ -600,7 +604,7 @@ export function buildContainer() {
   // claude-cli writes it to a file for --append-system-prompt-file, claude-sdk
   // passes it as systemPrompt.append — so it is built in exactly one place here.
   // null → no append (a top-level worker with no role fragment).
-  const assembleAppendText = (spec: SpawnWorkerSpec, id: string): string | null => {
+  const assembleAppendText = (spec: SpawnWorkerSpec, id: string, lane: string): string | null => {
     const role = spec.isOrchestrator ? "orchestrator"
       : spec.role === "git" ? "git"
       : spec.role === "workflow-worker" ? "workflow-worker"
@@ -610,6 +614,15 @@ export function buildContainer() {
     // user, project, and runtime bodies reach the prompt byte-identically). A
     // whitespace-only body (e.g. the defaults-only `git` definition) yields none.
     const extra: Fragment[] = [];
+    // N1 — the in-process lane has no binary preset behind it, so it gets the
+    // generic base harness (claude_code-equivalent framing) injected HERE, keyed on
+    // the lane PARAMETER (never a `when` gate — the immutable-when rule forbids
+    // gating on backend). The fragment is content-only (no dpi block), so it is never
+    // auto-selected for the claude lanes; we attach a synthetic core/early dpi so it
+    // sorts first. Same injection mechanism as the worker-definition body below.
+    if (lane === "in-process" && promptRegistry.has("lane/in-process")) {
+      extra.push({ prompt: promptRegistry.get("lane/in-process"), dpi: { layer: "core", priority: -100 } });
+    }
     if (spec.workerDefinition && spec.workerDefinitionBody && spec.workerDefinitionBody.trim()) {
       const raw: RawPrompt = {
         id: `definition/${spec.workerDefinition}`,
@@ -668,7 +681,7 @@ export function buildContainer() {
   // Shared by both lanes: claude-cli writes it to the append file, claude-sdk
   // passes it inline. Memory disabled / no cwd → plain DPI text, verbatim.
   const assembleAppendFor = (spec: SpawnWorkerSpec, id: string, backendKind: string): string | null => {
-    const dpi = assembleAppendText(spec, id);
+    const dpi = assembleAppendText(spec, id, backendKind);
     if (!config.memory.enabled) return dpi;
     const cwd = spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null;
     if (!cwd) return dpi;
@@ -733,6 +746,10 @@ export function buildContainer() {
       return { behavior: d.behavior === "allow" ? ("allow" as const) : ("deny" as const), message: d.message, updatedInput: d.updatedInput };
     },
   };
+  // Credential resolver — defined here (before the in-process backends) because the
+  // async in-process env factory resolves provider creds BY REFERENCE at start().
+  // Shared with the claude-sdk lane below.
+  const authResolver = createSubscriptionAuthResolver();
   const makeToolContext = (spec: AgentLaunchSpec) => ({
     selfId: spec.workerId,
     cwd: spec.cwd,
@@ -755,32 +772,41 @@ export function buildContainer() {
     return { items, tools };
   };
 
+  // The complete in-process DPI system prompt (B1): the SAME assembler all lanes
+  // share, with lane "in-process" so selectInjectableMemory injects ALL memory and
+  // the lane base harness is folded in. backendOptions.spec is the SpawnWorkerSpec.
+  const assembleInProcessSystem = (spec: AgentLaunchSpec): string | null =>
+    assembleAppendFor((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId, "in-process");
+  const inProcessGate = (workerId: string) => makePolicyToolGate(workerId, sdkPolicy);
+
   // anthropic-api backend — in-process, ToolRuntime-driven, gated by the shared
-  // policy engine. Needs ANTHROPIC_API_KEY; opt-in via config (claude-cli default).
-  const anthropicBackend = createInProcessBackend("anthropic-api", (spec) => {
-    const { items, tools } = buildLaneTooling(spec);
-    return {
-      model: createAnthropicModelClient({ apiKey: process.env.ANTHROPIC_API_KEY ?? "", model: spec.model, tools: items.map((i) => ({ name: i.name, description: i.description, input_schema: i.schema })) }),
-      tools,
-      gate: makePolicyToolGate(spec.workerId, sdkPolicy),
-    };
-  });
+  // policy engine. Credentials/baseUrl/capabilities are resolved per-worker from the
+  // profile (no process.env); the model gets the full DPI system prompt.
+  const anthropicBackend = createInProcessBackend("anthropic-api", createInProcessEnvFactory({
+    assembleSystem: assembleInProcessSystem,
+    buildLaneTooling,
+    authResolver,
+    makeGate: inProcessGate,
+    buildModelClient: ({ apiKey, baseUrl, model, system, items }) =>
+      createAnthropicModelClient({ apiKey, baseUrl, model, system, tools: items.map((i) => ({ name: i.name, description: i.description, input_schema: i.schema })) }),
+  }));
   // OpenAI-compatible backends (OpenAI, DeepSeek, Kimi/Moonshot, Codex-via-API, or
-  // any compatible endpoint via OPENAI_BASE_URL). Same gated ToolRuntime path.
-  const openaiEnv = (spec: AgentLaunchSpec) => {
-    const { items, tools } = buildLaneTooling(spec);
-    return {
-      model: createOpenAIModelClient({ apiKey: process.env.OPENAI_API_KEY ?? "", model: spec.model, baseUrl: process.env.OPENAI_BASE_URL, tools: items.map((i) => ({ name: i.name, description: i.description, parameters: i.schema })) }),
-      tools,
-      gate: makePolicyToolGate(spec.workerId, sdkPolicy),
-    };
-  };
-  const openaiBackend = createInProcessBackend("openai", openaiEnv);
-  const codexBackend = createInProcessBackend("codex", openaiEnv);
+  // any compatible endpoint via a per-profile baseUrl). Same gated ToolRuntime path.
+  // A fresh factory per kind (no shared closure) keeps each registration's dialect
+  // bound at construction — never a runtime kind branch.
+  const makeOpenAiEnvFactory = () => createInProcessEnvFactory({
+    assembleSystem: assembleInProcessSystem,
+    buildLaneTooling,
+    authResolver,
+    makeGate: inProcessGate,
+    buildModelClient: ({ apiKey, baseUrl, model, system, items }) =>
+      createOpenAIModelClient({ apiKey, baseUrl, model, system, tools: items.map((i) => ({ name: i.name, description: i.description, parameters: i.schema })) }),
+  });
+  const openaiBackend = createInProcessBackend("openai", makeOpenAiEnvFactory());
+  const codexBackend = createInProcessBackend("codex", makeOpenAiEnvFactory());
 
   // claude-sdk (Lane A): subscription-billed, live thinking. Reuses the shared
   // policy engine + loopback ToolContext + prompt-library descriptions.
-  const authResolver = createSubscriptionAuthResolver();
   // SDK-lane emit adapter, symmetric to writeMcpConfig's JSON path: enumerate the
   // worker's inherited servers (the SDK can't self-discover with settingSources:[],
   // so nativeDiscovery:false materializes them), reuse the shared core precedence

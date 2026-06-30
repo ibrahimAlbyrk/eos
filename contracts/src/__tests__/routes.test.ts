@@ -30,6 +30,7 @@ const EXPECTED_KEYS = [
   "workflowRunSteps", "workflowDefinition", "settings",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
   "remotePair", "remoteStatus", "remoteArm",
+  "apiBackends",
 ] as const;
 
 describe("ROUTES completeness", () => {

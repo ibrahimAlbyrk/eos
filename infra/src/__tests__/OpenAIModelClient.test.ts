@@ -49,6 +49,25 @@ describe("OpenAIModelClient", () => {
     assert.equal(turn.stopReason, "end_turn");
   });
 
+  it("reads prompt_tokens_details.cached_tokens into cacheReadTokens", () => {
+    const turn = parseOpenAIResponse({
+      choices: [{ message: { content: "ok" }, finish_reason: "stop" }],
+      usage: { prompt_tokens: 100, completion_tokens: 5, prompt_tokens_details: { cached_tokens: 60 } },
+    });
+    assert.equal(turn.usage?.cacheReadTokens, 60);
+  });
+
+  it("keyless (empty apiKey) sends NO Authorization header", async () => {
+    const cap: { init?: FetchInit } = {};
+    const fetchImpl = (async (_url: string, init: FetchInit) => {
+      cap.init = init;
+      return { ok: true, async json() { return { choices: [{ message: { content: "hi" }, finish_reason: "stop" }] }; } } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const client = createOpenAIModelClient({ apiKey: "", model: "llama3", baseUrl: "http://localhost:11434", fetchImpl });
+    await client.createTurn([{ role: "user", content: "hi" }]);
+    assert.equal((cap.init!.headers as Record<string, string>).authorization, undefined);
+  });
+
   it("tolerates malformed tool arguments (no throw)", () => {
     const turn = parseOpenAIResponse({ choices: [{ message: { tool_calls: [{ id: "c", function: { name: "x", arguments: "{not json" } }] }, finish_reason: "tool_calls" }] });
     assert.deepEqual(turn.toolCalls[0].input, {});

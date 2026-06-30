@@ -12,4 +12,5 @@ export const randomIdGenerator: IdGenerator = {
   newPendingId: (): string => "p-" + rand(8),
   newRequestId: (): string => "r-" + rand(8),
   newLoopId: (): string => "l-" + rand(8),
+  newSessionId: (): string => "s-" + rand(8),
 };

@@ -17,6 +17,8 @@ import type { ModelCapabilities } from "../ports/ModelCapabilities.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import type { ToolScope } from "../../../contracts/src/worker-definition.ts";
 import type { NameSource } from "../../../contracts/src/worker.ts";
+import type { AuthRef } from "../../../contracts/src/backend.ts";
+import type { ProviderCapabilities } from "../../../contracts/src/provider-capabilities.ts";
 import { resolveEffort } from "../domain/effort.ts";
 import { assertOwnedBy } from "../services/WorkerOwnership.ts";
 import { ConflictError, NotFoundError } from "../errors/index.ts";
@@ -73,6 +75,14 @@ export interface SpawnWorkerSpec {
    * to the backend_profile column. Set by the spawn route's backend resolver;
    * absent ⇒ the default profile (null column). */
   backendProfile?: string;
+  /** Resolved-backend launch references threaded from the spawn route's backend
+   * resolver into backendOptions for the in-process lane (credential REFERENCE +
+   * origin baseUrl + provider params/capabilities). NOT persisted — re-resolved on
+   * resume; the env factory resolves the actual credential lazily at start(). */
+  backendAuth?: AuthRef;
+  backendBaseUrl?: string;
+  backendParams?: Record<string, unknown>;
+  backendCapabilities?: ProviderCapabilities;
   /** Resolved worker-definition name. Persisted to worker_definition; surfaced as the
    * immutable DPI `workerDefinition` fact. "" / absent ⇒ untyped base worker. The
    * spawn handler resolves it — the use-case only carries + persists. */
@@ -253,7 +263,16 @@ export async function spawnWorker(
         persistent: !!resolved.persistent,
         parentId: resolved.parentId ?? null,
         isOrchestrator: !!resolved.isOrchestrator,
-        backendOptions: { spec: withBranch },
+        // Thread the resolved profile's launch references (never secrets) so the
+        // in-process env factory can resolve creds + reach the right endpoint. The
+        // claude lanes ignore these typed extras.
+        backendOptions: {
+          spec: withBranch,
+          auth: resolved.backendAuth,
+          baseUrl: resolved.backendBaseUrl,
+          params: resolved.backendParams,
+          capabilities: resolved.backendCapabilities,
+        },
       },
       { onExit, onEvent: (e) => deps.onAgentEvent?.(id, e) },
     );

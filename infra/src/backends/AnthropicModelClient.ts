@@ -45,7 +45,10 @@ export function createAnthropicModelClient(opts: AnthropicModelClientOpts): Mode
           method: "POST",
           headers: {
             "content-type": "application/json",
-            "x-api-key": opts.apiKey,
+            // Keyless (empty key) → omit x-api-key, mirroring the OpenAI lane's
+            // no-Authorization-when-keyless behavior (an Anthropic-compatible
+            // localhost proxy may need no key).
+            ...(opts.apiKey ? { "x-api-key": opts.apiKey } : {}),
             "anthropic-version": opts.anthropicVersion ?? "2023-06-01",
           },
           body: JSON.stringify(body),

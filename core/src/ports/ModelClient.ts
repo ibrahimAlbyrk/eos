@@ -21,6 +21,11 @@ export interface ModelTurn {
   stopReason: "end_turn" | "tool_use" | "max_tokens" | "error";
   usage?: { inputTokens: number; outputTokens: number; cacheReadTokens?: number };
   error?: string;
+  // Native escape hatch — lets an adapter stash the provider's native stop reason,
+  // signed thinking blocks, or cache fields without bloating the neutral contract
+  // (e.g. carrying an Anthropic signed `thinking` block for reasoningRoundTrip:
+  // "preserve-signed"). Consumed by the M4 round-trip work; neutral here.
+  providerMetadata?: Record<string, unknown>;
 }
 
 // Streaming callbacks — reasoning/text arrive incrementally so the in-process

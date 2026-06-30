@@ -11,6 +11,9 @@ import { DecisionSchema, ExternalDecisionSchema } from "./policy.ts";
 import { SessionFactsSchema } from "./prompt.ts";
 import { WorkerDefinitionSchema, WorkerDefinitionSourceSchema } from "./worker-definition.ts";
 import { SpawnLoopSchema } from "./loop.ts";
+import { BackendKindSchema } from "./canonical.ts";
+import { AuthRefSchema } from "./backend.ts";
+import { ProviderCapabilitiesSchema } from "./provider-capabilities.ts";
 
 // ---- POST /workers ---------------------------------------------------------
 
@@ -414,6 +417,17 @@ export const UiBackendDescriptorSchema = z.object({
 });
 export type UiBackendDescriptor = z.infer<typeof UiBackendDescriptorSchema>;
 
+// A configured backend PROFILE surfaced to the composer's model/provider picker
+// for modelSource:"profile" lanes (the descriptor list above is the per-kind
+// provider metadata; this is the user's named profiles on top of it).
+export const UiBackendProfileSchema = z.object({
+  name: z.string(),
+  kind: z.string(),
+  model: z.string(),
+  label: z.string(),
+});
+export type UiBackendProfile = z.infer<typeof UiBackendProfileSchema>;
+
 export const UiConfigResponseSchema = z.object({
   models: z.array(z.string()),
   modelCatalog: z.array(CatalogModelSchema),
@@ -421,8 +435,41 @@ export const UiConfigResponseSchema = z.object({
   permissions: z.object({ defaultTtlMs: z.number().int().positive() }),
   sse: z.object({ keepaliveMs: z.number().int().positive() }),
   backends: z.array(UiBackendDescriptorSchema).default([]),
+  // Configured named profiles (config.backends) for the profile-lane picker.
+  backendProfiles: z.array(UiBackendProfileSchema).default([]),
 });
 export type UiConfigResponse = z.infer<typeof UiConfigResponseSchema>;
+
+// ---- POST /api/backends ----------------------------------------------------
+// Add a provider/profile. The raw apiKey (when given) is written to the Keychain
+// by reference and NEVER persisted to config.json — only auth:{kind,ref} is.
+export const AddBackendRequestSchema = z
+  .object({
+    name: z.string().min(1), // the config.backends key
+    kind: BackendKindSchema,
+    model: z.string().min(1),
+    baseUrl: z.string().url().optional(), // normalized to origin-only server-side (MJ1)
+    auth: AuthRefSchema.optional(), // omit ⇒ subscription; {kind:"none"} for keyless localhost
+    costMode: z.enum(["billed", "included"]).optional(),
+    params: UnknownRecordSchema.optional(),
+    capabilities: ProviderCapabilitiesSchema.optional(),
+    // The provider API key (keychain kinds only). Written to the OS Keychain under
+    // auth.ref, then discarded — never stored in config.json/SQLite/logs.
+    apiKey: z.string().optional(),
+    // Per-model price (per million tokens). REQUIRED for a billed profile whose
+    // model has no existing price (MJ2) — a billed profile can never bill at $0/Opus.
+    price: ModelPriceSchema.optional(),
+  })
+  .strict();
+export type AddBackendRequest = z.infer<typeof AddBackendRequestSchema>;
+
+export const AddBackendResponseSchema = z.object({
+  name: z.string(),
+  kind: z.string(),
+  model: z.string(),
+  baseUrl: z.string().optional(),
+});
+export type AddBackendResponse = z.infer<typeof AddBackendResponseSchema>;
 
 // ---- GET /pick-directory, POST /fs/open, GET /fs/default-app ----------------
 
@@ -1789,4 +1836,8 @@ export const ROUTES = {
   remotePair: "/api/remote/pair",
   remoteStatus: "/api/remote/status",
   remoteArm: "/api/remote/arm",
+  // Add-provider write route: normalizes baseUrl to origin-only, requires a price
+  // for a billed profile, writes the API key (by reference) to the Keychain, then
+  // persists the profile to ~/.eos/config.json + reloads.
+  apiBackends: "/api/backends",
 } as const;

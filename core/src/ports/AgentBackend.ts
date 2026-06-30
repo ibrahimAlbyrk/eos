@@ -9,6 +9,7 @@
 // opaque ref. Replaces the bare `port` + `pid` columns at the call sites.
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import type { AuthRef } from "../../../contracts/src/backend.ts";
+import type { ProviderCapabilities } from "../../../contracts/src/provider-capabilities.ts";
 import type { MessageRecord, RewindResult } from "./WorkerClient.ts";
 import type { SpawnWorkerSpec } from "../use-cases/SpawnWorker.ts";
 
@@ -48,6 +49,10 @@ export interface AgentCapabilities {
    *  Commands gate on this flag, never on kind — a backend without it never gets
    *  clearContext() called. */
   readonly contextClear?: boolean;
+  /** True when the backend expands prompt-template `.md` slash-commands itself
+   *  (the bundled claude binary does; the in-process lane does not). DispatchMessage
+   *  gates an Eos-side template expander on this flag, never on kind. Consumed in M6. */
+  readonly expandsSlashTemplates?: boolean;
 }
 
 // What the UI model picker shows for a provider. claude-cli + claude-sdk share
@@ -76,7 +81,10 @@ export interface BackendDescriptor {
   // both drive the bundled claude binary → "claude-transcript". "none" = no
   // resumable store (metered in-process lanes persist no session_id) → never a
   // backend-switch source or target. Consumed by canHandoffBackend (domain).
-  readonly sessionStore: "claude-transcript" | "none";
+  // "eos-conversation" is the durable in-process store (JSONL under ~/.eos, landed
+  // in M3) — intentionally NOT loadable by the claude lanes, so cross-lane handoff
+  // stays correctly blocked.
+  readonly sessionStore: "claude-transcript" | "none" | "eos-conversation";
 }
 
 // Identity + execution context to start a session. Deliberately free of argv /
@@ -107,6 +115,12 @@ export interface BackendLaunchOptions {
   readonly auth?: AuthRef;
   readonly thinking?: unknown;
   readonly params?: Readonly<Record<string, unknown>>;
+  // Provider base URL (origin-only, self-host / proxy / Azure) for api-key
+  // backends; the in-process env factory resolves the model client against it.
+  readonly baseUrl?: string;
+  // Declared per-provider quirks, threaded from the resolved profile so the
+  // in-process model client reads facts instead of model-name heuristics.
+  readonly capabilities?: ProviderCapabilities;
 }
 
 // collaborate (the peer-mesh opt-in) is a spawn fact persisted on the

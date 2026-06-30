@@ -34,6 +34,23 @@ export interface ToolRuntimeDeps {
   maxIterations?: number;
   /** Cooperative cancellation — checked between round-trips (interrupt). */
   signal?: { aborted: boolean };
+  /** The model's context window (tokens) for the M1 fail-fast pre-flight guard:
+   *  before each model call, a cheap estimate of the conversation size is compared
+   *  to this, and a turn that would overflow a small-context model aborts with a
+   *  typed `context_window_exceeded` error rather than a raw provider 400. Absent ⇒
+   *  no guard (real compaction lands in M4). */
+  contextWindow?: number;
+}
+
+// Cheap token estimate (chars/4) over the conversation, for the pre-flight guard.
+// Deliberately approximate — it only needs to catch a small-context overflow
+// before the provider 400s, not bill accurately.
+function estimateTokens(messages: ModelMessage[]): number {
+  let chars = 0;
+  for (const m of messages) {
+    chars += typeof m.content === "string" ? m.content.length : JSON.stringify(m.content ?? "").length;
+  }
+  return Math.ceil(chars / 4);
 }
 
 export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[]): Promise<ModelMessage[]> {
@@ -44,6 +61,14 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
   for (let i = 0; i < max; i++) {
     if (deps.signal?.aborted) {
       deps.emit({ type: "turn", phase: "aborted", reason: "interrupted" });
+      return messages;
+    }
+
+    // Fail-fast context-window guard (M1 interim): a small-context model would
+    // hard-400 once history approaches its window. Catch it with a typed error
+    // (real compaction is M4) so a misconfig is diagnosable, not a raw 400.
+    if (deps.contextWindow && estimateTokens(messages) > deps.contextWindow * 0.9) {
+      deps.emit({ type: "turn", phase: "error", reason: "context_window_exceeded" });
       return messages;
     }
 

@@ -8,4 +8,7 @@ export interface IdGenerator {
   newPendingId(): string;
   newRequestId(): string;
   newLoopId(): string;
+  // Durable in-process session id (the source the daemon persists so an API-lane
+  // worker can resume across a restart). Added now; consumed by M3 durability.
+  newSessionId(): string;
 }

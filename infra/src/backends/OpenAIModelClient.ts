@@ -28,6 +28,13 @@ export interface OpenAIModelClientOpts {
 export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClient {
   const doFetch = opts.fetchImpl ?? fetch;
   const base = normalizeBaseOrigin(opts.baseUrl ?? "https://api.openai.com");
+  // Keyless localhost (Ollama/vLLM/LM Studio, AuthRef.kind:"none"): an empty key
+  // means send NO Authorization header — a `Bearer ` with no token 401s on some
+  // servers and is meaningless on local ones.
+  const headers = (): Record<string, string> =>
+    opts.apiKey
+      ? { "content-type": "application/json", authorization: `Bearer ${opts.apiKey}` }
+      : { "content-type": "application/json" };
   return {
     async createTurn(messages: ModelMessage[]): Promise<ModelTurn> {
       const mapped = messages.map(toOpenAIMessage);
@@ -41,7 +48,7 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
       try {
         resp = await doFetch(`${base}/v1/chat/completions`, {
           method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${opts.apiKey}` },
+          headers: headers(),
           body: JSON.stringify(body),
         });
       } catch (e) {
@@ -67,7 +74,7 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
       try {
         resp = await doFetch(`${base}/v1/chat/completions`, {
           method: "POST",
-          headers: { "content-type": "application/json", authorization: `Bearer ${opts.apiKey}` },
+          headers: headers(),
           body: JSON.stringify(body),
         });
       } catch (e) {
@@ -107,7 +114,9 @@ interface OpenAIResponse {
     message?: { content?: string | null; reasoning_content?: string | null; tool_calls?: Array<{ id?: string; function?: { name?: string; arguments?: string } }> };
     finish_reason?: string;
   }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  // prompt_tokens_details.cached_tokens is the OpenAI/DeepSeek prompt-cache hit
+  // count → the canonical cacheReadTokens (was always 0 on this lane before).
+  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } };
 }
 
 export function parseOpenAIResponse(data: OpenAIResponse): ModelTurn {
@@ -127,7 +136,9 @@ export function parseOpenAIResponse(data: OpenAIResponse): ModelTurn {
     reasoning: typeof msg.reasoning_content === "string" && msg.reasoning_content ? msg.reasoning_content : undefined,
     toolCalls,
     stopReason,
-    usage: data.usage ? { inputTokens: data.usage.prompt_tokens ?? 0, outputTokens: data.usage.completion_tokens ?? 0 } : undefined,
+    usage: data.usage
+      ? { inputTokens: data.usage.prompt_tokens ?? 0, outputTokens: data.usage.completion_tokens ?? 0, cacheReadTokens: data.usage.prompt_tokens_details?.cached_tokens ?? 0 }
+      : undefined,
   };
 }
 
@@ -136,7 +147,7 @@ interface OpenAIStreamChunk {
     delta?: { content?: string | null; reasoning_content?: string | null; tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }> };
     finish_reason?: string | null;
   }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number } | null;
+  usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } } | null;
 }
 
 // Drain an OpenAI-compatible SSE stream into a ModelTurn, emitting reasoning/text
@@ -170,7 +181,7 @@ export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: Mo
         if (!payload || payload === "[DONE]") continue;
         let chunk: OpenAIStreamChunk;
         try { chunk = JSON.parse(payload); } catch { continue; }
-        if (chunk.usage) usage = { inputTokens: chunk.usage.prompt_tokens ?? 0, outputTokens: chunk.usage.completion_tokens ?? 0 };
+        if (chunk.usage) usage = { inputTokens: chunk.usage.prompt_tokens ?? 0, outputTokens: chunk.usage.completion_tokens ?? 0, cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens ?? 0 };
         const choice = chunk.choices?.[0];
         if (!choice) continue;
         if (choice.finish_reason) finishReason = choice.finish_reason;

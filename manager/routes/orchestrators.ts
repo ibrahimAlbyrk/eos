@@ -57,6 +57,13 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         effort: body.effort ?? "xhigh",
         isOrchestrator: true,
         backendProfile: rb.profileName ?? undefined,
+        // Resolved launch references for the in-process lane (creds by reference,
+        // origin baseUrl, provider params/capabilities) — so an orchestrator-on-GLM
+        // reaches its endpoint with its key + the full DPI prompt.
+        backendAuth: rb.auth,
+        backendBaseUrl: rb.baseUrl,
+        backendParams: rb.params,
+        backendCapabilities: rb.capabilities,
       },
     );
     if (body.prompt) {

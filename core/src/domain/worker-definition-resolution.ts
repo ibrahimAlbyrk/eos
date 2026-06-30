@@ -16,6 +16,7 @@ export interface WorkerDefinitionDefaults {
   effort?: EffortLevel;
   permissionMode?: PermissionMode;
   backendKind?: string;
+  backendProfile?: string;
   persistent?: boolean;
   collaborate?: boolean;
   isolation?: "worktree" | "cwd";
@@ -90,6 +91,7 @@ export function applyWorkerDefinitionDefaults(
   if (t.effort !== undefined && !requestHas("effort")) out.effort = t.effort;
   if (t.permissionMode !== undefined && !requestHas("permissionMode")) out.permissionMode = t.permissionMode;
   if (t.backendKind !== undefined && !requestHas("backendKind")) out.backendKind = t.backendKind;
+  if (t.backendProfile !== undefined && !requestHas("backendProfile")) out.backendProfile = t.backendProfile;
   if (t.persistent !== undefined && !requestHas("persistent")) out.persistent = t.persistent;
   if (t.collaborate !== undefined && !requestHas("collaborate")) out.collaborate = t.collaborate;
   if (t.isolation !== undefined && !requestHas("isolation")) out.isolation = t.isolation;

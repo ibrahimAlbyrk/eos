@@ -26,8 +26,15 @@ export interface InProcessEnv {
   model: ModelClient;
   tools: Map<string, RuntimeTool>;
   gate: ToolGate;
+  /** The model's context window (tokens), if declared — drives the ToolRuntime
+   *  fail-fast pre-flight guard. Absent ⇒ no guard. */
+  contextWindow?: number;
 }
-export type InProcessEnvFactory = (spec: AgentLaunchSpec) => InProcessEnv;
+// The factory may be async: the production factory resolves credentials lazily at
+// start() (AuthResolver) and then builds the model client. A sync factory (tests,
+// conformance) is equally valid — start() awaits either. Per the design invariant,
+// only CREDENTIAL resolution is async; the tool surface stays sync.
+export type InProcessEnvFactory = (spec: AgentLaunchSpec) => InProcessEnv | Promise<InProcessEnv>;
 
 interface LiveSession {
   messages: ModelMessage[];
@@ -51,10 +58,13 @@ const CAPS: AgentCapabilities = {
 };
 
 // Per-kind in-process provider metadata. Adding a metered provider = one entry.
+// enabled:true — the metered API lanes are SELECTABLE; the spawn-backend billing
+// guard (metered needs a costMode:"billed" profile) is the real safety net, so
+// enablement here never causes silent metered billing.
 const IN_PROCESS_DESCRIPTORS: Record<string, Omit<BackendDescriptor, "kind">> = {
-  "anthropic-api": { label: "Anthropic API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "claude" }, auth: "apikey", enabled: false, sessionStore: "none" },
-  "openai": { label: "OpenAI API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: false, sessionStore: "none" },
-  "codex": { label: "Codex", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: false, sessionStore: "none" },
+  "anthropic-api": { label: "Anthropic API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "claude" }, auth: "apikey", enabled: true, sessionStore: "none" },
+  "openai": { label: "OpenAI API", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: true, sessionStore: "none" },
+  "codex": { label: "Codex", processModel: "in-process", billing: "metered", modelSource: "profile", capabilities: CAPS, models: { kind: "openai-compatible" }, auth: "apikey", enabled: true, sessionStore: "none" },
 };
 
 export interface InProcessBackend extends AgentBackend {
@@ -74,7 +84,7 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
     s.signal.aborted = false; // a new turn clears a prior interrupt
     s.messages.push({ role: "user", content: userText });
     const p = runTurn(
-      { model: s.env.model, tools: s.env.tools, gate: s.env.gate, emit: s.emit, signal: s.signal },
+      { model: s.env.model, tools: s.env.tools, gate: s.env.gate, emit: s.emit, signal: s.signal, contextWindow: s.env.contextWindow },
       s.messages,
     )
       .then((msgs) => { s.messages = msgs; })
@@ -86,7 +96,9 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
   const sessionFor = (workerId: string): AgentSession => ({
     workerId,
     handle: { kind: "inproc", ref: workerId } as WorkerHandle,
-    capabilities: CAPS,
+    // Kind-aware: the session reports THIS provider's descriptor capabilities
+    // (so streamingThinking/resumable vary per kind), not a single shared constant.
+    capabilities: descriptor.capabilities,
     async sendMessage(text: string) {
       const s = live.get(workerId);
       if (!s) return { ok: false, status: 410, body: { error: "session gone" } };
@@ -126,12 +138,15 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
     kind,
     descriptor,
     async start(spec: AgentLaunchSpec, cb?: AgentStartCallbacks): Promise<AgentSession> {
+      // Await the factory: the production factory resolves credentials (AuthResolver)
+      // before building the model client; a sync factory (tests) resolves immediately.
+      const env = await envFactory(spec);
       const s: LiveSession = {
         messages: [],
         signal: { aborted: false },
         emit: (e) => cb?.onEvent?.(e),
         onExit: cb?.onExit,
-        env: envFactory(spec),
+        env,
         current: null,
       };
       live.set(spec.workerId, s);

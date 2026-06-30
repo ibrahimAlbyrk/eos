@@ -18,7 +18,7 @@ describe("OpenAIModelClient — reasoning_content (DeepSeek/Kimi)", () => {
     assert.equal(turn.text, "the answer");
     assert.equal(turn.reasoning, "step by step");
     assert.equal(turn.stopReason, "end_turn");
-    assert.deepEqual(turn.usage, { inputTokens: 9, outputTokens: 4 });
+    assert.deepEqual(turn.usage, { inputTokens: 9, outputTokens: 4, cacheReadTokens: 0 });
   });
 });
 
@@ -43,7 +43,7 @@ describe("parseOpenAIStream — SSE reasoning/text deltas + tool-call fragments"
     assert.equal(turn.reasoning, "let me think");
     assert.equal(turn.text, "answer");
     assert.equal(turn.stopReason, "end_turn");
-    assert.deepEqual(turn.usage, { inputTokens: 5, outputTokens: 3 });
+    assert.deepEqual(turn.usage, { inputTokens: 5, outputTokens: 3, cacheReadTokens: 0 });
   });
 
   it("aborted stream returns error (not end_turn) and cancels the reader", async () => {

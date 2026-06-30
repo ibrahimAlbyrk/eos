@@ -17,6 +17,14 @@ export function registerUiConfigRoutes(r: Router, c: Container): void {
         billing: d.billing,
         capabilities: d.capabilities,
       })),
+      // Configured named profiles for the composer's profile-lane picker
+      // (modelSource:"profile") — name+kind+model+label.
+      backendProfiles: Object.entries(c.config.backends).map(([name, p]) => ({
+        name,
+        kind: p.kind,
+        model: p.model,
+        label: `${name} (${p.model})`,
+      })),
     });
   });
 }

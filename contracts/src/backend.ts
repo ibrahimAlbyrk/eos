@@ -9,14 +9,16 @@
 import { z } from "zod";
 import { UnknownRecordSchema } from "./shared.ts";
 import { BackendKindSchema } from "./canonical.ts";
+import { ProviderCapabilitiesSchema } from "./provider-capabilities.ts";
 
 // Credentials are a REFERENCE, never a raw secret. `subscription` = the user's
 // logged-in Claude (claude-cli, no secret); `env` ref = an env-var name;
-// `keychain` ref = a macOS Keychain service id. Resolved lazily at launch in
-// infra, never persisted to SQLite, never logged.
+// `keychain` ref = a macOS Keychain service id; `none` = keyless (localhost
+// Ollama/vLLM/LM Studio — the client sends no Authorization). Resolved lazily at
+// launch in infra, never persisted to SQLite, never logged.
 export const AuthRefSchema = z
   .object({
-    kind: z.enum(["subscription", "env", "keychain"]),
+    kind: z.enum(["subscription", "env", "keychain", "none"]),
     ref: z.string().optional(),
   })
   .strict();
@@ -32,6 +34,10 @@ export const BackendProfileSchema = z
     // claude-cli is subscription-paid ⇒ "included"; API kinds ⇒ "billed".
     costMode: z.enum(["billed", "included"]).optional(),
     params: UnknownRecordSchema.optional(), // effort, temperature, reasoning, …
+    // Declared per-provider quirks (wire dialect, reasoning round-trip, cache,
+    // contextWindow). Omitted ⇒ defaulted per kind. Read by the in-process model
+    // clients (capability-not-kind discipline); only contextWindow is consumed in M1.
+    capabilities: ProviderCapabilitiesSchema.optional(),
   })
   .strict();
 export type BackendProfile = z.infer<typeof BackendProfileSchema>;

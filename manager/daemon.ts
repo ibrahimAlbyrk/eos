@@ -57,6 +57,7 @@ import { registerUpdateRoutes } from "./routes/updates.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
 import { registerDatetimeRoutes } from "./routes/datetime.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
+import { registerBackendsRoutes } from "./routes/backends.ts";
 import { registerFsRawRoutes } from "./routes/fs-raw.ts";
 import { registerCommandCatalog } from "./commands/register.ts";
 import { fdStats } from "../infra/src/util/fd-stats.ts";
@@ -77,6 +78,7 @@ registerStreamRoutes(router, c);
 // FS + UI routes registered before /workers etc. Order matters: first match
 // wins.
 registerUiConfigRoutes(router, c);
+registerBackendsRoutes(router, c);
 registerMetricsRoutes(router, c);
 registerDatetimeRoutes(router, c);
 registerFsPickerRoutes(router, c);

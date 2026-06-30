@@ -45,6 +45,18 @@ function readKeychainSecret(service: string): string | null {
   }
 }
 
+// Companion to readKeychainSecret: store a provider API key in the macOS Keychain
+// under `service`, BY REFERENCE — the POST /api/backends route persists only the
+// auth:{kind:"keychain",ref:service} reference to config.json, never the raw key.
+// `-U` updates an existing item so re-adding a provider rotates the key in place.
+// Throws on non-darwin or a security(1) failure (the route surfaces it).
+export function writeKeychainSecret(service: string, secret: string): void {
+  if (process.platform !== "darwin") {
+    throw new Error("Keychain storage is only supported on macOS");
+  }
+  execFileSync("security", ["add-generic-password", "-U", "-s", service, "-a", service, "-w", secret], { encoding: "utf8" });
+}
+
 export function createSubscriptionAuthResolver(): AuthResolver {
   return {
     async resolve(auth: AuthRef | undefined): Promise<ResolvedAuth> {
