@@ -32,11 +32,57 @@ export function profileModel(name) {
   return (name ? PROFILES.find((p) => p.name === name)?.model : null) ?? null;
 }
 
-// Enabled providers for the Settings → Provider picker (value = kind, label = UI name).
+// Enabled providers as {value:kind,label} — the live worker's provider SWITCH
+// list (switch a running session's backend kind). The new-spawn picker uses
+// providerChoices() below, not this.
 export function providerOptions() {
   return [...DESCRIPTORS.values()]
     .filter((d) => d.enabled)
     .map((d) => ({ value: d.kind, label: d.label }));
+}
+
+// The real usable providers for the NEW-SPAWN picker — the SINGLE derivation
+// shared by the composer and the Settings model section. Two sources, deduped by
+// name:
+//   • subscription Claude lanes from the descriptors (enabled + billing
+//     "subscription") → claude-sdk AND claude-cli, as bare-kind providers;
+//   • the operator's configured non-subscription PROFILES (openai / anthropic-api
+//     / codex), e.g. deepseek.
+// The shipped per-model default profiles (claude-sdk-opus, claude-cli-*) are
+// subscription-kind → excluded from the profile half; they collapse into the kind
+// providers + model selection. A subscription kind that ALSO has an operator
+// profile of the same name (e.g. a tuned "claude-sdk") carries that profile so
+// the spawn preserves its config.
+// Entry: { name, label, kind, subscription, profile, model }
+//   profile != null → spawn via backendProfile (preserves the profile config);
+//   else a bare subscription kind → spawn via backendKind.
+export function providerChoices() {
+  const out = [];
+  const seen = new Set();
+  for (const d of DESCRIPTORS.values()) {
+    if (!d.enabled || d.billing !== "subscription" || seen.has(d.kind)) continue;
+    seen.add(d.kind);
+    const prof = PROFILES.find((p) => p.name === d.kind) ?? null;
+    out.push({ name: d.kind, label: d.label ?? d.kind, kind: d.kind, subscription: true, profile: prof ? prof.name : null, model: prof?.model ?? null });
+  }
+  for (const p of PROFILES) {
+    if (DESCRIPTORS.get(p.kind)?.billing === "subscription" || seen.has(p.name)) continue;
+    seen.add(p.name);
+    out.push({ name: p.name, label: p.label ?? p.name, kind: p.kind, subscription: false, profile: p.name, model: p.model ?? null });
+  }
+  return out;
+}
+
+// Resolve a provider choice NAME to the composer spawn fields (single source for
+// the composer pick + the Settings seed). A name backed by an operator profile
+// spawns via backendProfile (preserves the profile config); a bare subscription
+// kind via backendKind. Unknown name → bare kind, so a stale default still spawns.
+export function providerSpawn(name) {
+  const c = providerChoices().find((p) => p.name === name) ?? null;
+  if (!c) return { backendKind: name || null, backendProfile: null, model: null };
+  return c.profile
+    ? { backendKind: null, backendProfile: c.profile, model: c.model }
+    : { backendKind: c.kind, backendProfile: null, model: c.model };
 }
 
 // Capabilities the UI gates controls on (keystroke rewind, runtime model switch).

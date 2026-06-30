@@ -9,14 +9,12 @@ const DEFAULT_COMPOSER = {
   model: "opus",
   effort: "xhigh",
   permissionMode: "acceptEdits",
-  // Selected backend kind ("claude-cli" | "claude-sdk"), seeded from the provider
-  // setting; null → server resolves the default. Threaded into spawns.
-  backendKind: null,
-  // Selected named backend PROFILE (e.g. "deepseek") — mutually exclusive with
-  // backendKind (picking one clears the other). The two-level provider picker sets
-  // both backendProfile and `model`; `model` is sent as an override on the lane
-  // (the profile's pinned model is the default when none is chosen).
-  backendProfile: null,
+  // Selected provider NAME from the unified spawn picker (providerChoices):
+  // a subscription kind ("claude-sdk" | "claude-cli") or an operator profile
+  // name ("deepseek"), seeded from the provider setting. Resolved to
+  // backendKind/backendProfile at spawn time (providerSpawn); a same-name operator
+  // profile wins so the spawn preserves its config. null → server default.
+  provider: null,
   gitMode: false,
   // `!` on an empty input flips the composer into terminal mode: Enter runs
   // the text as a daemon-side bash command instead of messaging the agent.

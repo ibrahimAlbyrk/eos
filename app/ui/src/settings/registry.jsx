@@ -10,8 +10,7 @@
 // entry in controls.jsx CONTROLS. A section may provide `Component` instead
 // of `groups` to render fully custom content.
 
-import { MODELS } from "../lib/models.js";
-import { providerOptions } from "../lib/backendCaps.js";
+import { ModelSettings, MODEL_SETTING_DEFAULTS } from "./ModelSettings.jsx";
 
 const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -107,48 +106,9 @@ export const SETTINGS_SECTIONS = [
     id: "model",
     label: "Model",
     Icon: ModelIcon,
-    groups: [
-      {
-        title: "Provider",
-        items: [
-          {
-            key: "model.provider",
-            label: "Provider",
-            description: "Backend new agents launch on — both bill your Claude subscription. Pick the model under the input bar.",
-            control: {
-              type: "select",
-              // Getter: re-evaluated each render so the list IS the daemon's enabled
-              // BackendDescriptors once ui-config loads (applyDescriptors) — no
-              // hardcoded kinds. ui-config is fetched at boot, so it's populated by
-              // the time Settings opens.
-              get options() {
-                return providerOptions();
-              },
-            },
-            defaultValue: "claude-sdk",
-          },
-        ],
-      },
-      {
-        title: "Model",
-        items: [
-          {
-            key: "model.default",
-            label: "Default model",
-            description: "New agents spawn with this model.",
-            control: {
-              type: "select",
-              // Getter: re-evaluated on every render spread, so the list stays
-              // in sync after applyCatalog() replaces MODELS at runtime.
-              get options() {
-                return MODELS.map((m) => ({ value: m.aliases[0] ?? m.id, label: m.name, hint: m.tag }));
-              },
-            },
-            defaultValue: "opus",
-          },
-        ],
-      },
-    ],
+    // Custom Component: the SAME provider + model picker as the composer (shared
+    // providerChoices() + useProviderModels()). Owns model.provider + model.default.
+    Component: ModelSettings,
   },
   {
     id: "code",
@@ -231,9 +191,14 @@ export const SETTINGS_SECTIONS = [
   },
 ];
 
-export const SETTING_DEFAULTS = Object.fromEntries(
-  SETTINGS_SECTIONS
-    .flatMap((s) => s.groups ?? [])
-    .flatMap((g) => g.items)
-    .map((i) => [i.key, i.defaultValue]),
-);
+export const SETTING_DEFAULTS = {
+  ...Object.fromEntries(
+    SETTINGS_SECTIONS
+      .flatMap((s) => s.groups ?? [])
+      .flatMap((g) => g.items)
+      .map((i) => [i.key, i.defaultValue]),
+  ),
+  // The model section is a custom Component (no groups items), so its keys'
+  // defaults are merged in explicitly.
+  ...MODEL_SETTING_DEFAULTS,
+};

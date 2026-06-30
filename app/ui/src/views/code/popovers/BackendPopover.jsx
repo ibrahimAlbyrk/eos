@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { providerOptions, backendProfiles } from "../../../lib/backendCaps.js";
+import { providerOptions, providerChoices } from "../../../lib/backendCaps.js";
 import { modelName } from "../../../lib/models.js";
-import { api } from "../../../api/client.js";
+import { useProviderModels } from "../../../hooks/useProviderModels.js";
 
 // Provider switcher. Two distinct modes:
 //   • a selected worker → live provider switch (the daemon stops + resumes the
 //     session under the picked backend KIND, reusing the session id);
-//   • the NEW-spawn composer → a provider-names-only picker over the configured
-//     backend PROFILES (config.backends). Picking one sets backendProfile + defaults
-//     the model to that profile's pinned model. The model itself is chosen from the
-//     SEPARATE model pill (SpawnModelPopover), not here.
+//   • the NEW-spawn composer → the unified provider picker over providerChoices()
+//     (subscription kinds + the operator's configured API profiles). Picking one
+//     sets composer.provider + defaults the model to a profile's pinned model. The
+//     model itself is chosen from the SEPARATE model pill — the Claude catalog
+//     (ModelPopover) for a subscription provider, this SpawnModelPopover for an API
+//     profile.
 export function BackendPopover({ live }) {
   const ui = useUi();
   if (ui.openPopover !== "backend") return null;
@@ -62,28 +64,31 @@ function BackendSwitchMenu({ live, ui, selected }) {
   );
 }
 
-// New-spawn provider picker: configured profile NAMES only. Picking one sets
-// backendProfile + defaults the model to that profile's pinned model; the model is
-// then refined from the separate model pill (SpawnModelPopover).
+// New-spawn provider picker over providerChoices(). Picking one sets
+// composer.provider (resolved to backendKind/backendProfile at spawn) and defaults
+// the model to a profile's pinned model; the model is then refined from the
+// separate model pill.
 function SpawnBackendMenu({ ui }) {
   const paneRef = useRef(null);
-  const profiles = backendProfiles();
-  const currentProfile = ui.composer.backendProfile;
-  const [active, setActive] = useState(() => Math.max(0, profiles.findIndex((p) => p.name === currentProfile)));
+  const choices = providerChoices();
+  const current = ui.composer.provider;
+  const [active, setActive] = useState(() => Math.max(0, choices.findIndex((p) => p.name === current)));
 
   useEffect(() => { paneRef.current?.focus(); }, []);
 
   const pick = (p) => {
-    ui.updateComposer({ backendProfile: p.name, model: p.model, backendKind: null });
+    const patch = { provider: p.name };
+    if (p.model) patch.model = p.model; // a profile's pinned model becomes the default
+    ui.updateComposer(patch);
     ui.closeAllPops();
   };
 
   const onKeyDown = (e) => {
     let handled = true;
-    if (e.key === "ArrowDown") setActive((i) => (i + 1) % profiles.length);
-    else if (e.key === "ArrowUp") setActive((i) => (i - 1 + profiles.length) % profiles.length);
-    else if (e.key === "Enter" && profiles[active]) pick(profiles[active]);
-    else if (/^[1-9]$/.test(e.key) && profiles[Number(e.key) - 1]) pick(profiles[Number(e.key) - 1]);
+    if (e.key === "ArrowDown") setActive((i) => (i + 1) % choices.length);
+    else if (e.key === "ArrowUp") setActive((i) => (i - 1 + choices.length) % choices.length);
+    else if (e.key === "Enter" && choices[active]) pick(choices[active]);
+    else if (/^[1-9]$/.test(e.key) && choices[Number(e.key) - 1]) pick(choices[Number(e.key) - 1]);
     else handled = false;
     if (handled) { e.preventDefault(); e.stopPropagation(); }
   };
@@ -91,15 +96,15 @@ function SpawnBackendMenu({ ui }) {
   return (
     <div className="model-popover glass-pop open" data-popover="backend" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
       <div className="mp-head">Provider</div>
-      {profiles.map((p, i) => (
+      {choices.map((p, i) => (
         <button
           key={p.name}
-          className={"mp-row" + (p.name === currentProfile ? " on" : "") + (i === active ? " active" : "")}
+          className={"mp-row" + (p.name === current ? " on" : "") + (i === active ? " active" : "")}
           onMouseEnter={() => setActive(i)}
           onClick={() => pick(p)}
         >
-          <span className="mp-name">{p.name}</span>
-          {p.name === currentProfile && <CheckIcon />}
+          <span className="mp-name">{p.label}</span>
+          {p.name === current && <CheckIcon />}
           <span className="mp-num">{i + 1}</span>
         </button>
       ))}
@@ -107,11 +112,10 @@ function SpawnBackendMenu({ ui }) {
   );
 }
 
-// New-spawn model picker for the SELECTED provider profile. Lazily fetches that
-// profile's models (the Claude catalog for a subscription profile, the provider's
-// /v1/models for a metered one — the endpoint branches server-side on modelSource).
-// Fail-soft: empty/error → the profile's pinned model alone, so the list is never a
-// dead end. Picking a model sets the composer model override.
+// New-spawn model picker for an API-profile provider. Lazily fetches that
+// provider's /v1/models (useProviderModels), fail-soft to its pinned model so the
+// list is never a dead end. A subscription provider uses the Claude ModelPopover
+// instead, never this. Picking a model sets the composer model override.
 export function SpawnModelPopover() {
   const ui = useUi();
   if (ui.openPopover !== "spawnModel") return null;
@@ -120,25 +124,10 @@ export function SpawnModelPopover() {
 
 function SpawnModelMenu({ ui }) {
   const paneRef = useRef(null);
-  const profileName = ui.composer.backendProfile;
   const currentModel = ui.composer.model;
-  const pinned = backendProfiles().find((p) => p.name === profileName)?.model ?? null;
-  const [state, setState] = useState({ loading: true, models: [], error: null });
+  const { loading, models, error } = useProviderModels(ui.composer.provider);
 
   useEffect(() => { paneRef.current?.focus(); }, []);
-
-  useEffect(() => {
-    if (!profileName) { setState({ loading: false, models: pinned ? [pinned] : [], error: null }); return; }
-    let alive = true;
-    setState({ loading: true, models: [], error: null });
-    api.listBackendModels(profileName).then((res) => {
-      if (!alive) return;
-      const models = res.models?.length ? res.models : (pinned ? [pinned] : []);
-      setState({ loading: false, models, error: res.error ?? null });
-    });
-    return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profileName]);
 
   const pick = (m) => {
     ui.updateComposer({ model: m });
@@ -152,17 +141,17 @@ function SpawnModelMenu({ ui }) {
   return (
     <div className="model-popover glass-pop open" data-popover="spawnModel" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
       <div className="mp-head">Model</div>
-      {state.loading && <div className="mp-sub mp-muted">Loading models…</div>}
-      {!state.loading && state.models.map((m) => {
-        const on = m === currentModel;
+      {loading && <div className="mp-sub mp-muted">Loading models…</div>}
+      {!loading && models.map((m) => {
+        const on = m.id === currentModel;
         return (
-          <button key={m} className={"mp-row" + (on ? " on" : "")} onClick={() => pick(m)}>
-            <span className="mp-name">{modelName(m) || m}</span>
+          <button key={m.id} className={"mp-row" + (on ? " on" : "")} onClick={() => pick(m.id)}>
+            <span className="mp-name">{m.name || modelName(m.id) || m.id}</span>
             {on && <CheckIcon />}
           </button>
         );
       })}
-      {!state.loading && state.error && <div className="mp-sub mp-muted mp-err">{state.error}</div>}
+      {!loading && error && <div className="mp-sub mp-muted mp-err">{error}</div>}
     </div>
   );
 }

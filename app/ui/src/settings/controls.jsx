@@ -100,7 +100,7 @@ function SegmentedControl({ value, onChange, options }) {
 // liquid-glass popover language. Same capture-phase outside-close as
 // ToolPickerControl below. Options may carry `disabled` (listed but not
 // pickable — e.g. providers that aren't wired yet) and `hint` (small badge).
-function SelectControl({ value, onChange, options }) {
+export function SelectControl({ value, onChange, options }) {
   const [open, setOpen] = useState(false);
   const btnRef = useRef(null);
   const current = (options ?? []).find((o) => o.value === value);

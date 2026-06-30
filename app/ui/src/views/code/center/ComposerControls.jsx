@@ -10,7 +10,7 @@ import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
-import { backendCaps, backendLabel, providerOptions, backendProfiles } from "../../../lib/backendCaps.js";
+import { backendCaps, backendLabel, providerOptions, providerChoices } from "../../../lib/backendCaps.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
 export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus }) {
@@ -28,19 +28,20 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
   const mode = selected?.permission_mode ?? ui.composer.permissionMode;
   const modeMeta = MODE_BY_ID[mode] ?? MODE_BY_ID.acceptEdits;
   const ModeIcon = modeMeta.Icon;
-  // A new-spawn profile pick runs the operator-chosen model: picking the provider
-  // defaults composer.model to that profile's pinned model, and the model pill then
+  // A new-spawn provider pick runs the operator-chosen model: picking the provider
+  // defaults composer.model to a profile's pinned model, and the model pill then
   // refines it from the provider's own model list.
-  const spawnProfile = !selected ? ui.composer.backendProfile : null;
+  const spawnChoice = !selected ? (providerChoices().find((p) => p.name === ui.composer.provider) ?? null) : null;
+  const spawnIsApi = !!spawnChoice && !spawnChoice.subscription;
   const model = selected?.model ?? ui.composer.model;
   const effort = selected?.effort ?? ui.composer.effort;
   const modelInfo = { name: modelName(model) || model || "—", ctx: modelCtx(model) || "" };
   // Lock the runtime model switch only for a selected structured worker; the
-  // new-spawn profile model is chosen via the model picker, never disabled.
+  // new-spawn model is chosen via the model picker, never disabled.
   const modelLocked = !!selected && !backendCaps(selected.backend_kind).runtimeModelSwitch;
-  // The model pill opens the selected provider's model list for a profile spawn (its
-  // models aren't the Claude list), else the Claude model popover.
-  const modelPopId = spawnProfile ? "spawnModel" : "model";
+  // The model pill opens the provider's own model list for an API-profile spawn
+  // (its models aren't the Claude catalog), else the Claude model popover.
+  const modelPopId = spawnIsApi ? "spawnModel" : "model";
 
   // Provider switcher: only for a selected worker, and only when there's another
   // enabled provider to switch to. The daemon stops + resumes under the new
@@ -50,11 +51,10 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
   const showProvider = !!selected && providers.length > 1;
   const providerBusy = !!selected && !["IDLE", "SUSPENDED", "DONE"].includes(selected.state);
 
-  // New-spawn provider picker: shown only once profiles are configured (otherwise
-  // the composer's provider stays the Settings default, unchanged). One row per
-  // configured profile; expanding it picks the profile + a model (two-level).
-  const showSpawnProvider = !selected && backendProfiles().length > 0;
-  const spawnProviderLabel = spawnProfile ?? "Provider";
+  // New-spawn provider picker: the unified provider list (subscription kinds +
+  // configured API profiles). Picking one sets composer.provider + a model.
+  const showSpawnProvider = !selected && providerChoices().length > 0;
+  const spawnProviderLabel = spawnChoice?.label ?? ui.composer.provider ?? "Provider";
 
   const { used, total, pct } = contextUsage(selected, model);
   const r = 7;
@@ -193,7 +193,7 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
             className={"model-pill" + (ui.openPopover === modelPopId ? " open" : "")}
             id="modelPill"
             disabled={modelLocked}
-            title={spawnProfile ? "Model for this provider" : (modelLocked ? "Model is fixed for this backend (set at spawn)" : undefined)}
+            title={!selected ? "Model for this provider" : (modelLocked ? "Model is fixed for this backend (set at spawn)" : undefined)}
             onClick={(e) => toggle(modelPopId, e)}
             data-popover-trigger={modelPopId}
           >

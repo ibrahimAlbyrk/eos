@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel, applyProfiles, backendProfiles, profileModel } from "./backendCaps.js";
+import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel, applyProfiles, backendProfiles, profileModel, providerChoices, providerSpawn } from "./backendCaps.js";
 
 const caps = (over) => ({ interrupt: true, keystroke: true, rewind: true, runtimeModelSwitch: true, runtimePermissionSwitch: true, ...over });
 const SAMPLE = [
@@ -58,5 +58,39 @@ describe("backend profiles (composer profile-lane picker)", () => {
     expect(profileModel("missing")).toBe(null);
     applyProfiles(undefined); // tolerate a missing ui-config field
     expect(backendProfiles()).toEqual([]);
+  });
+});
+
+describe("providerChoices (unified spawn-picker derivation)", () => {
+  // Subscription kinds (claude-sdk, claude-cli) + a configured openai profile.
+  // The shipped per-model default profiles are subscription-kind and a duplicate
+  // "claude-sdk" profile collides by name — all must collapse away.
+  const DESC = [
+    { kind: "claude-sdk", label: "Claude SDK", enabled: true, billing: "subscription", capabilities: {} },
+    { kind: "claude-cli", label: "Claude CLI", enabled: true, billing: "subscription", capabilities: {} },
+    { kind: "openai", label: "OpenAI", enabled: false, billing: "metered", capabilities: {} },
+  ];
+  const PROFS = [
+    { name: "claude-sdk-opus", kind: "claude-sdk", model: "opus", label: "claude-sdk-opus (opus)" },
+    { name: "claude-cli-opus", kind: "claude-cli", model: "opus", label: "claude-cli-opus (opus)" },
+    { name: "claude-sdk", kind: "claude-sdk", model: "opus", label: "claude-sdk (opus)" },
+    { name: "deepseek", kind: "openai", model: "deepseek-chat", label: "deepseek (deepseek-chat)" },
+  ];
+
+  it("lists subscription kinds + non-subscription profiles; excludes per-model defaults; dedupes by name", () => {
+    applyDescriptors(DESC);
+    applyProfiles(PROFS);
+    expect(providerChoices().map((p) => p.name)).toEqual(["claude-sdk", "claude-cli", "deepseek"]);
+  });
+
+  it("providerSpawn applies kind-vs-profile precedence", () => {
+    applyDescriptors(DESC);
+    applyProfiles(PROFS);
+    // a subscription kind backed by a same-name operator profile spawns via that profile
+    expect(providerSpawn("claude-sdk")).toEqual({ backendKind: null, backendProfile: "claude-sdk", model: "opus" });
+    // a bare subscription kind with no operator profile spawns via the kind
+    expect(providerSpawn("claude-cli")).toEqual({ backendKind: "claude-cli", backendProfile: null, model: null });
+    // an API profile spawns via the profile, carrying its pinned model default
+    expect(providerSpawn("deepseek")).toEqual({ backendKind: null, backendProfile: "deepseek", model: "deepseek-chat" });
   });
 });

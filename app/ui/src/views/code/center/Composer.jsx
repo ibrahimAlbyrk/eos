@@ -18,6 +18,7 @@ import { findLabelAt } from "../../../lib/attachmentTokens.js";
 import { shouldCollapsePaste, makePasteLabel, pasteLineCount, pastePreview } from "../../../lib/pasteTokens.js";
 import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
 import { parentScope } from "../../../lib/mentionQuery.js";
+import { providerSpawn } from "../../../lib/backendCaps.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
 import { composerMode, modeFlags } from "../../../lib/composerModes.js";
 import { shouldApplyPendingText } from "../../../lib/composerRestore.js";
@@ -541,18 +542,20 @@ export function Composer({ live }) {
 
     const cwdFallback = ui.composer.cwd ?? live.recents[0] ?? null;
     if (!cwdFallback) { alert("Pick a folder first."); return; }
-    // A named profile carries its own kind/baseUrl/auth — send backendProfile and
-    // the operator-chosen model (the two-level picker sets it). The daemon applies
-    // the model as an OVERRIDE on the profile lane (pinned model is the default).
-    const profile = ui.composer.backendProfile;
+    // Resolve the picked provider to spawn fields: a name backed by an operator
+    // profile spawns via backendProfile (carrying its kind/baseUrl/auth/params —
+    // e.g. claude-sdk's thinking, deepseek's endpoint); a bare subscription kind
+    // via backendKind. The operator-chosen model rides along as an OVERRIDE on a
+    // profile lane (its pinned model is the default).
+    const { backendKind, backendProfile } = providerSpawn(ui.composer.provider);
     const r = await live.spawnOrchestrator({
       cwd: cwdFallback,
       model: ui.composer.model,
       effort: ui.composer.effort,
       prompt: agentText,
       permissionMode: ui.composer.permissionMode,
-      backendKind: profile ? undefined : ui.composer.backendKind,
-      backendProfile: profile ?? undefined,
+      backendKind: backendKind ?? undefined,
+      backendProfile: backendProfile ?? undefined,
     });
     if (r?.ok && r.body?.id) {
       const realId = r.body.id;
