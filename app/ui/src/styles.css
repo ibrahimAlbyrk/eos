@@ -972,22 +972,21 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .pane-body > :first-child { flex: 1; min-width: 0; }
 
-/* Drag-to-split preview: a frosted-glass overlay showing where the dropped agent
-   will land — a half for an edge split, the whole pane for a center replace.
-   The backdrop-filter is what blurs the pane's transcript behind it (the accent
+/* Drag-to-split preview: a light misted-glass overlay showing where the dropped
+   agent will land — a half for an edge split, the whole pane for a center replace.
+   The backdrop-filter lightly hazes the pane's transcript behind it (the accent
    tint layers OVER the blur so it reads as tinted glass, not a dim).
    pointer-events:none so dragover keeps hitting the pane underneath. */
 .pane-drop-preview {
   position: absolute;
   z-index: 3;
   pointer-events: none;
-  /* Very-low-alpha tint (≈1.5% accent) so the blurred content shows through
-     almost fully — frosted glass, not a colored panel. Blur is bumped +30% over
-     --blur-lg (kept local via calc so other glass surfaces are unaffected);
-     border and the accent ring are unchanged. */
+  /* Very-low-alpha tint (≈1.5% accent) so the content shows through almost fully.
+     Blur is the lightest token (--blur-sm) so the pane behind stays clearly
+     readable — misted glass, not the heavy frost of a dropped-open panel. */
   background: color-mix(in srgb, var(--accent) 1.5%, transparent);
-  backdrop-filter: blur(calc(var(--blur-lg) * 1.3)) saturate(140%);
-  -webkit-backdrop-filter: blur(calc(var(--blur-lg) * 1.3)) saturate(140%);
+  backdrop-filter: blur(var(--blur-sm)) saturate(140%);
+  -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(140%);
   border: 1.5px solid var(--accent);
   border-radius: var(--panel-radius);
   box-shadow: 0 0 0 3px var(--accent-soft);
