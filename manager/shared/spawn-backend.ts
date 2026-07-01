@@ -12,12 +12,14 @@ import type { AgentBackend, ModelCatalogRef } from "../../core/src/ports/AgentBa
 import type { ResolveBackendInput } from "../../core/src/services/SqlBackedBackendResolver.ts";
 import { meteredNeedsBilledIntent } from "../../core/src/domain/backend-billing.ts";
 
-// A Claude-family model identifier: the tier aliases (opus/sonnet/haiku/fable), a
-// concrete "claude-*" id, or an "anthropic/…" provider-routed id. Anything else
-// (deepseek-*, gpt-*, kimi-*, …) is treated as a non-Claude id.
+// A Claude-family model identifier: the tier aliases (opus/sonnet/haiku/fable)
+// optionally followed by a version suffix (e.g. "sonnet-5", "opus-4.8"), a
+// concrete "claude-*" id, or an "anthropic/…" provider-routed id. The tier
+// name must be followed by a non-alpha char or end-of-string so "haikumaster"
+// etc. don't accidentally match. Anything else (deepseek-*, gpt-*, …) is false.
 function isClaudeModelId(model: string): boolean {
   const m = model.toLowerCase();
-  return m === "opus" || m === "sonnet" || m === "haiku" || m === "fable"
+  return /^(opus|sonnet|haiku|fable)([^a-z]|$)/.test(m)
     || m.startsWith("claude-") || m.startsWith("anthropic/");
 }
 

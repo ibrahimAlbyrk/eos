@@ -157,6 +157,26 @@ describe("modelMatchesFamily — cross-provider model guard", () => {
     assert.equal(modelMatchesFamily("anthropic/claude-opus-4", "claude"), true);
   });
 
+  // Catalog short-ids (tier-version): the live-failing case plus all four tiers.
+  it("Claude catalog short-ids (tier-version) match claude family", () => {
+    assert.equal(modelMatchesFamily("sonnet-5", "claude"), true);
+    assert.equal(modelMatchesFamily("opus-4.8", "claude"), true);
+    assert.equal(modelMatchesFamily("haiku-4.5", "claude"), true);
+    assert.equal(modelMatchesFamily("fable-5", "claude"), true);
+    assert.equal(modelMatchesFamily("claude-sonnet-5", "claude"), true);
+    assert.equal(modelMatchesFamily("anthropic/claude-x", "claude"), true);
+  });
+
+  it("non-Claude ids DO NOT match claude family", () => {
+    assert.equal(modelMatchesFamily("deepseek-v4-pro", "claude"), false);
+    assert.equal(modelMatchesFamily("gpt-5.5", "claude"), false);
+    assert.equal(modelMatchesFamily("kimi-k2.6", "claude"), false);
+    assert.equal(modelMatchesFamily("glm-5.2", "claude"), false);
+    assert.equal(modelMatchesFamily("qwen3.7-max", "claude"), false);
+    assert.equal(modelMatchesFamily("grok-4.3", "claude"), false);
+    assert.equal(modelMatchesFamily("gemini-3.1-pro-preview", "claude"), false);
+  });
+
   it("Claude models DO NOT match openai-compatible family", () => {
     assert.equal(modelMatchesFamily("opus", "openai-compatible"), false);
     assert.equal(modelMatchesFamily("sonnet", "openai-compatible"), false);
