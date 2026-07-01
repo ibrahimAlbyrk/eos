@@ -10,7 +10,8 @@ import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
-import { backendCaps, providerChoices, providerName, runningProviderLabel } from "../../../lib/backendCaps.js";
+import { providerChoices, providerName, runningProviderLabel } from "../../../lib/backendCaps.js";
+import { pickerLocked } from "../../../lib/composerPickerLock.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
 export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus }) {
@@ -36,9 +37,10 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
   const model = selected?.model ?? ui.composer.model;
   const effort = selected?.effort ?? ui.composer.effort;
   const modelInfo = { name: modelName(model) || model || "—", ctx: modelCtx(model) || "" };
-  // Lock the runtime model switch only for a selected structured worker; the
-  // new-spawn model is chosen via the model picker, never disabled.
-  const modelLocked = !!selected && !backendCaps(selected.backend_kind).runtimeModelSwitch;
+  // Once the conversation has started (a worker is selected → >= 1 sent message)
+  // the provider + model pickers lock: no backend/model switch mid-conversation.
+  // Before the first message (new-spawn composer) they stay live.
+  const locked = pickerLocked(selected);
   // The model pill opens the provider's own model list for an API-profile spawn
   // (its models aren't the Claude catalog), else the Claude model popover.
   const modelPopId = spawnIsApi ? "spawnModel" : "model";
@@ -166,8 +168,8 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
           <div className="provider-wrap" style={{ position: "relative" }}>
             <button
               className={"model-pill" + (ui.openPopover === "backend" ? " open" : "")}
-              disabled={providerBusy}
-              title={providerBusy ? "Provider switch needs the worker idle" : "Switch provider — keeps the conversation"}
+              disabled={locked || providerBusy}
+              title={locked ? "Provider is set for this conversation" : (providerBusy ? "Provider switch needs the worker idle" : "Switch provider — keeps the conversation")}
               onClick={(e) => toggle("backend", e)}
               data-popover-trigger="backend"
             >
@@ -193,8 +195,8 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
           <button
             className={"model-pill" + (ui.openPopover === modelPopId ? " open" : "")}
             id="modelPill"
-            disabled={modelLocked}
-            title={!selected ? "Model for this provider" : (modelLocked ? "Model is fixed for this backend (set at spawn)" : undefined)}
+            disabled={locked}
+            title={locked ? "Model is set for this conversation" : "Model for this provider"}
             onClick={(e) => toggle(modelPopId, e)}
             data-popover-trigger={modelPopId}
           >
