@@ -124,6 +124,28 @@ export const api = {
       return { models: [], error: e instanceof Error ? e.message : String(e) };
     }
   },
+  // Built-in add-provider presets — the catalog to list in the provider-management UI.
+  async listBackendPresets() {
+    try {
+      const r = await getJson(ROUTES.apiBackendPresets);
+      return r.ok ? (r.body?.presets ?? []) : [];
+    } catch {
+      return [];
+    }
+  },
+  // Ephemeral connection test — validates a provider config (preset + key) via a live
+  // /v1/models call before the config is persisted.
+  async testBackend(body) {
+    return postJson(ROUTES.apiBackendTest, body);
+  },
+  // Add a provider profile (writes the key to Keychain + config.json, reloads daemon).
+  async addBackend(body) {
+    return postJson(ROUTES.apiBackends, body);
+  },
+  // Remove a configured provider profile by name.
+  async deleteBackend(name) {
+    return del(ROUTES.apiBackendDelete(name));
+  },
 
   // Workers
   async listWorkers() {

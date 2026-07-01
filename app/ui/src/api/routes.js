@@ -118,5 +118,12 @@ export const ROUTES = {
   fsList: "/fs/list",
   policyRule: "/api/policy/rule",
   // A configured provider's available models (two-level composer picker).
+  apiBackends: "/api/backends",
+  apiBackendPresets: "/api/backends/presets",
   apiBackendModels: (name) => `/api/backends/${name}/models`,
+  // Ephemeral connection test — validates a provider config (preset + key) with a
+  // live /v1/models call before the config is persisted.
+  apiBackendTest: "/api/backends/test",
+  // Delete a configured provider profile by name.
+  apiBackendDelete: (name) => `/api/backends/${name}`,
 };
