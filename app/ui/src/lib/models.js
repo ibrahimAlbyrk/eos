@@ -6,7 +6,7 @@
 // label and the usage meter's total both derive from it.
 const BASELINE = [
   { id: "haiku-4.5",  aliases: ["haiku"],  label: "haiku-4.5",  name: "Haiku 4.5",  ctxTokens: 200_000,   tag: "fastest" },
-  { id: "sonnet-4.5", aliases: ["sonnet"], label: "sonnet-4.5", name: "Sonnet 4.5", ctxTokens: 1_000_000, tag: "balanced" },
+  { id: "sonnet-5", aliases: ["sonnet"], label: "sonnet-5", name: "Sonnet 5", ctxTokens: 1_000_000, tag: "balanced" },
   { id: "opus-4.8",   aliases: ["opus"],   label: "opus-4.8",   name: "Opus 4.8",   ctxTokens: 1_000_000, tag: "most capable" },
   { id: "fable-5",    aliases: ["fable"],  label: "fable-5",    name: "Fable 5",    ctxTokens: 1_000_000, tag: "most powerful" },
 ];

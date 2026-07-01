@@ -6,7 +6,7 @@ const CATALOG = [
   { id: "claude-fable-5", displayName: "Claude Fable 5", createdAt: "2026-06-09T00:00:00Z", maxInputTokens: 1000000, maxTokens: 128000 },
   { id: "claude-opus-4-8", displayName: "Claude Opus 4.8", createdAt: "2026-05-28T00:00:00Z", maxInputTokens: 1000000, maxTokens: 128000 },
   { id: "claude-opus-4-7", displayName: "Claude Opus 4.7", createdAt: "2026-04-14T00:00:00Z", maxInputTokens: 1000000, maxTokens: 128000 },
-  { id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6", createdAt: "2026-02-17T00:00:00Z", maxInputTokens: 1000000, maxTokens: 128000 },
+  { id: "claude-sonnet-5", displayName: "Claude Sonnet 5", createdAt: "2026-07-01T00:00:00Z", maxInputTokens: 1000000, maxTokens: 128000 },
   { id: "claude-sonnet-4-5-20250929", displayName: "Claude Sonnet 4.5", createdAt: "2025-09-29T00:00:00Z", maxInputTokens: 1000000, maxTokens: 64000 },
   { id: "claude-haiku-4-5-20251001", displayName: "Claude Haiku 4.5", createdAt: "2025-10-01T00:00:00Z", maxInputTokens: 200000, maxTokens: 64000 },
   { id: "claude-opus-4-20250514", displayName: "Claude Opus 4", createdAt: "2025-05-14T00:00:00Z", maxInputTokens: 200000, maxTokens: 32000 },
@@ -15,7 +15,7 @@ const CATALOG = [
 describe("curateCatalog", () => {
   it("picks the newest model per family in haiku/sonnet/opus/fable order", () => {
     const out = curateCatalog(CATALOG);
-    expect(out.map((m) => m.id)).toEqual(["haiku-4.5", "sonnet-4.6", "opus-4.8", "fable-5"]);
+    expect(out.map((m) => m.id)).toEqual(["haiku-4.5", "sonnet-5", "opus-4.8", "fable-5"]);
   });
 
   it("derives display fields from API data", () => {
@@ -29,7 +29,7 @@ describe("curateCatalog", () => {
       efforts: null,
       tag: "fastest",
     });
-    expect(sonnet.name).toBe("Sonnet 4.6");
+    expect(sonnet.name).toBe("Sonnet 5");
     expect(sonnet.ctxTokens).toBe(1_000_000);
     expect(opus.aliases).toEqual(["opus", "claude-opus-4-8"]);
     expect(opus.tag).toBe("most capable");
@@ -67,7 +67,7 @@ describe("curateCatalog", () => {
 describe("model helpers", () => {
   it("modelName resolves aliases and falls back to id parsing", () => {
     expect(modelName("opus")).toBe("Opus 4.8");
-    expect(modelName("claude-sonnet-4-6")).toBe("Sonnet 4.6");
+    expect(modelName("claude-sonnet-5")).toBe("Sonnet 5");
   });
 
   it("modelCtx resolves known models", () => {

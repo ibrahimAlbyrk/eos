@@ -27,7 +27,7 @@ struct SpawnSheet: View {
                 Section("Model") {
                     Picker("Model", selection: $model_) {
                         Text("Opus 4.8").tag("claude-opus-4-8")
-                        Text("Sonnet 4.6").tag("claude-sonnet-4-6")
+                        Text("Sonnet 5").tag("claude-sonnet-5")
                         Text("Haiku 4.5").tag("claude-haiku-4-5-20251001")
                     }
                     Picker("Effort", selection: $effort) {
