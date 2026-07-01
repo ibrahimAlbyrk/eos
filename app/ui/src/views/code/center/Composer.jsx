@@ -483,13 +483,9 @@ export function Composer({ live }) {
     // "/export" triggers a conversation download — never sends to any worker.
     if (mode !== "term" && t === "/export") {
       if (!selected) return;
-      try {
-        const tree = !!selected.is_orchestrator;
-        await api.exportWorker(selected.id, { tree });
-      } catch (e) {
-        console.error("export failed", e);
-      }
       setTextAndSync("", 0, "reset");
+      const tree = !!selected.is_orchestrator;
+      api.exportWorker(selected.id, { tree }).catch((e) => console.error("export failed", e));
       return;
     }
 
@@ -583,6 +579,12 @@ export function Composer({ live }) {
       backendProfile: backendProfile ?? undefined,
     });
     if (r?.ok && r.body?.id) {
+      try {
+        localStorage.setItem("cm:lastLaunched", JSON.stringify({
+          provider: ui.composer.provider ?? null,
+          model: ui.composer.model ?? null,
+        }));
+      } catch {}
       const realId = r.body.id;
       ui.setSelectedId(realId);
       outbox.addDispatched(realId, { text: displayText, agentText });

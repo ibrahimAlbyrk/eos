@@ -47,17 +47,29 @@ export function SettingsProvider({ children }) {
 
   // Default-model setting seeds the composer (what new agents spawn with);
   // per-agent changes stay in the model popover and don't touch the setting.
+  // Prefer the last-launched model (cm:lastLaunched) so Cmd+T reopens with the
+  // same model the user last used, not the stale server default.
   const { updateComposer } = useComposer();
   const defaultModel = settings["model.default"];
   useEffect(() => {
+    try {
+      const last = JSON.parse(localStorage.getItem("cm:lastLaunched") ?? "null");
+      if (last?.model) { updateComposer({ model: last.model }); return; }
+    } catch {}
     if (defaultModel) updateComposer({ model: defaultModel });
   }, [defaultModel, updateComposer]);
 
   // Provider setting seeds the composer's provider NAME (what new agents launch
   // on); empty → server default. Mirrors the default-model seeding above. Resolved
   // to backendKind/backendProfile at spawn time (providerSpawn).
+  // Prefer the last-launched provider (cm:lastLaunched) so Cmd+T reopens with
+  // the same provider as the last-launched agent instead of the stored setting.
   const defaultProvider = settings["model.provider"];
   useEffect(() => {
+    try {
+      const last = JSON.parse(localStorage.getItem("cm:lastLaunched") ?? "null");
+      if (last?.provider) { updateComposer({ provider: last.provider }); return; }
+    } catch {}
     updateComposer({ provider: defaultProvider || null });
   }, [defaultProvider, updateComposer]);
 
