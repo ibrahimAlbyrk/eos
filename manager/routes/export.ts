@@ -117,7 +117,14 @@ export function registerExportRoutes(r: Router, c: Container): void {
     const template = getTemplate();
     // Escape < so the HTML parser never sees </script> inside the JSON block
     const jsonStr = JSON.stringify(data).replace(/</g, "\\u003c");
-    const html = template.replace("<script id=\"export-data\" type=\"application/json\">{}</script>", `<script id="export-data" type="application/json">${jsonStr}</script>`);
+    // Use indexOf+slice instead of .replace() — replacement strings with $' or $& would
+    // be misinterpreted by String.prototype.replace as special substitution patterns.
+    const placeholder = '<script id="export-data" type="application/json">{}</script>';
+    const idx = template.indexOf(placeholder);
+    const html = idx === -1 ? template :
+      template.slice(0, idx) +
+      `<script id="export-data" type="application/json">${jsonStr}</script>` +
+      template.slice(idx + placeholder.length);
 
     const workerName = rootWorker.name ?? workerId;
     const dateStr = formatDate(Date.now());

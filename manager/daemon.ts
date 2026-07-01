@@ -356,6 +356,10 @@ function makeHandler(router: Router, opts: { cors?: boolean } = {}) {
       // x-filename: the /fs/paste upload (image paste) sends it; without it the
       // cross-origin preflight from eos://app/ blocks the POST and paste fails.
       res.setHeader("access-control-allow-headers", "content-type, x-eos-ui-token, x-filename");
+      // content-disposition: the export download reads the server-chosen filename
+      // (orchestrator name + date) off this header; unexposed it's invisible to
+      // cross-origin fetch and the UI falls back to the raw worker id.
+      res.setHeader("access-control-expose-headers", "content-disposition");
       res.setHeader("access-control-max-age", "86400");
       if (method === "OPTIONS") {
         res.writeHead(204);
