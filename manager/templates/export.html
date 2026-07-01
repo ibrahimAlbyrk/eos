@@ -427,6 +427,46 @@
     .event-time { text-align: left; flex: none; }
     .archive-meta { gap: .75rem; font-size: .75rem; }
   }
+
+  /* ── markdown body ───────────────────────────────────────────────── */
+  .md-body { color: var(--ink); line-height: 1.72; }
+  .md-body p { margin: .4em 0; }
+  .md-body p:first-child { margin-top: 0; }
+  .md-body p:last-child { margin-bottom: 0; }
+  .md-body h1 { font-size: 1.25em; font-weight: 600; margin: .9em 0 .35em; color: var(--ink); }
+  .md-body h2 { font-size: 1.1em; font-weight: 600; margin: .8em 0 .3em; color: var(--ink); }
+  .md-body h3 { font-size: 1em; font-weight: 600; margin: .7em 0 .25em; color: var(--ink); }
+  .md-body code { font-family: 'JetBrains Mono', monospace; font-size: .82em; background: var(--code-bg); padding: .1em .35em; border-radius: 3px; border: 1px solid var(--code-border); }
+  .md-body pre { background: var(--code-bg); border: 1px solid var(--code-border); border-radius: 4px; padding: .65em .9em; overflow-x: auto; margin: .55em 0; }
+  .md-body pre code { background: none; border: none; padding: 0; font-size: .76em; }
+  .md-body ul, .md-body ol { margin: .35em 0; padding-left: 1.4em; }
+  .md-body li { margin: .1em 0; }
+  .md-body strong { font-weight: 600; }
+  .md-body em { font-style: italic; }
+  .md-body a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+  .md-body hr { border: none; border-top: 1px solid var(--rule); margin: .8em 0; }
+
+  /* ── thinking block ──────────────────────────────────────────────── */
+  .thinking-block { border-left: 3px dashed var(--ink-faint); margin: .3em 0; border-radius: 0 3px 3px 0; }
+  .thinking-block summary {
+    font-family: 'JetBrains Mono', monospace; font-size: .7rem; color: var(--ink-muted);
+    padding: .35em .75em; cursor: pointer; list-style: none;
+    display: flex; align-items: center; gap: .4em; user-select: none;
+  }
+  .thinking-block summary::-webkit-details-marker { display: none; }
+  .thinking-block summary::marker { display: none; content: ''; }
+  .thinking-block summary:hover { background: rgba(0,0,0,.02); }
+  .thinking-label { font-style: italic; opacity: .75; }
+  .thinking-label::before { content: '◈ '; }
+  .thinking-content {
+    font-family: 'JetBrains Mono', monospace; font-size: .7rem; color: var(--ink-muted);
+    padding: .2em .75em .5em 1.4em; white-space: pre-wrap; word-break: break-word;
+    line-height: 1.55; font-style: italic; max-height: 320px; overflow-y: auto;
+  }
+
+  /* ── error result ────────────────────────────────────────────────── */
+  .dot.result-error { background: var(--accent); }
+  .result-err-label { font-family: 'JetBrains Mono', monospace; font-size: .6rem; color: var(--accent); text-transform: uppercase; letter-spacing: .06em; margin-right: .2em; }
 </style>
 </head>
 <body>
@@ -458,52 +498,123 @@
   'use strict';
 
   /* ── helpers ─────────────────────────────────────────────────────── */
-  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var MONTHS     = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
 
   function fmtTime(ms) {
     var d = new Date(ms);
-    return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' +
-           d.getUTCFullYear() + ' · ' +
-           pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds());
+    return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds());
   }
 
-  function fmtDate(iso) {
-    var d = new Date(iso);
-    if (isNaN(d.getTime())) return iso;
-    return MONTHS_LONG[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();
+  function fmtDate(ms) {
+    var d = new Date(ms);
+    return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();
   }
 
   function fmtDateTime(iso) {
     var d = new Date(iso);
     if (isNaN(d.getTime())) return iso;
-    return fmtDate(iso) + ' · ' +
-           pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ' UTC';
+    return MONTHS_LONG[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear() +
+           ' · ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ' UTC';
   }
 
   function escHtml(s) {
-    var div = document.createElement('div');
-    div.appendChild(document.createTextNode(s));
-    return div.innerHTML;
-  }
-
-  function escAttr(s) {
-    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    if (s == null) return '';
+    var d = document.createElement('div');
+    d.appendChild(document.createTextNode(String(s)));
+    return d.innerHTML;
   }
 
   function prettyJson(obj) {
-    try { return JSON.stringify(obj, null, 2); }
-    catch(e) { return String(obj); }
+    try { return JSON.stringify(obj, null, 2); } catch(e) { return String(obj); }
+  }
+
+  /* ── minimal markdown renderer ───────────────────────────────────── */
+  function inlineMd(raw) {
+    // 1. Pull out code spans — protect them from other transforms
+    var slots = [];
+    var s = raw.replace(/`([^`\n]+)`/g, function(_, code) {
+      slots.push('<code>' + escHtml(code) + '</code>');
+      return '\x00' + (slots.length - 1) + '\x00';
+    });
+    // 2. Escape remaining HTML per-segment (skip placeholders)
+    s = s.split(/(\x00\d+\x00)/).map(function(part) {
+      return /^\x00\d+\x00$/.test(part) ? part
+        : part.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    }).join('');
+    // 3. Inline transforms
+    s = s.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>');
+    s = s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+    s = s.replace(/__(.+?)__/g,'<strong>$1</strong>');
+    s = s.replace(/\*([^*\n]+?)\*/g,'<em>$1</em>');
+    s = s.replace(/_([^_\n]+?)_/g,'<em>$1</em>');
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // 4. Restore code slots
+    s = s.replace(/\x00(\d+)\x00/g, function(_, i) { return slots[+i]; });
+    return s;
+  }
+
+  function md(text) {
+    if (!text) return '';
+    var lines = text.split('\n');
+    var out = '';
+    var i = 0;
+    while (i < lines.length) {
+      var line = lines[i];
+      // Fenced code block
+      if (/^```/.test(line)) {
+        var lang = line.slice(3).trim();
+        var code = [];
+        i++;
+        while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }
+        i++;
+        out += '<pre><code' + (lang ? ' class="lang-' + escHtml(lang) + '"' : '') + '>' + escHtml(code.join('\n')) + '</code></pre>';
+        continue;
+      }
+      // Heading
+      var hm = line.match(/^(#{1,3})\s+(.+)$/);
+      if (hm) {
+        var lv = hm[1].length;
+        out += '<h' + lv + '>' + inlineMd(hm[2]) + '</h' + lv + '>'; i++; continue;
+      }
+      // HR
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
+        out += '<hr>'; i++; continue;
+      }
+      // Unordered list
+      if (/^[-*+] /.test(line)) {
+        out += '<ul>';
+        while (i < lines.length && /^[-*+] /.test(lines[i])) {
+          out += '<li>' + inlineMd(lines[i].replace(/^[-*+] /, '')) + '</li>'; i++;
+        }
+        out += '</ul>'; continue;
+      }
+      // Ordered list
+      if (/^\d+\. /.test(line)) {
+        out += '<ol>';
+        while (i < lines.length && /^\d+\. /.test(lines[i])) {
+          out += '<li>' + inlineMd(lines[i].replace(/^\d+\. /, '')) + '</li>'; i++;
+        }
+        out += '</ol>'; continue;
+      }
+      // Blank line
+      if (line.trim() === '') { i++; continue; }
+      // Paragraph — collect consecutive plain lines
+      var para = [];
+      while (i < lines.length && lines[i].trim() !== '' && !/^(#{1,3} |```|[-*+] |\d+\. |(-{3,}|\*{3,}|_{3,})$)/.test(lines[i])) {
+        para.push(lines[i]); i++;
+      }
+      if (para.length) out += '<p>' + inlineMd(para.join(' ')) + '</p>';
+    }
+    return out;
   }
 
   /* ── render header ───────────────────────────────────────────────── */
   function renderHeader(data) {
     var workerCount = data.workers ? Object.keys(data.workers).length : 0;
-    var eventCount = data.events ? data.events.length : 0;
     var exportedDate = data.exported_at ? fmtDateTime(data.exported_at) : 'Unknown date';
-
     var mark = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">' +
       '<circle cx="16" cy="16" r="14" stroke="%23b84a2c" stroke-width="1.5" opacity=".6"/>' +
       '<circle cx="16" cy="16" r="3" fill="%23b84a2c" opacity=".8"/>' +
@@ -512,7 +623,6 @@
       '<line x1="2" y1="16" x2="10" y2="16" stroke="%23b84a2c" stroke-width="1" opacity=".5"/>' +
       '<line x1="22" y1="16" x2="30" y2="16" stroke="%23b84a2c" stroke-width="1" opacity=".5"/>' +
       '</svg>';
-
     return '<header class="archive-header">' +
       '<div class="archive-mark">' + mark + '</div>' +
       '<h1 class="archive-title">Eos Export</h1>' +
@@ -522,185 +632,150 @@
         '<span>' + escHtml(exportedDate) + '</span>' +
         '<span class="meta-sep">·</span>' +
         '<span>' + workerCount + ' ' + (workerCount === 1 ? 'worker' : 'workers') + '</span>' +
-        '<span class="meta-sep">·</span>' +
-        '<span>' + eventCount + ' ' + (eventCount === 1 ? 'event' : 'events') + '</span>' +
       '</div>' +
       '</header>';
+  }
+
+  /* ── render a single block inside an agent_event message ─────────── */
+  function renderBlock(b) {
+    if (b.type === 'text') {
+      if (!b.text) return '';
+      return '<div class="msg-text md-body">' + md(b.text) + '</div>';
+    }
+    if (b.type === 'reasoning') {
+      if (!b.text) return '';
+      return '<details class="thinking-block">' +
+        '<summary><span class="thinking-label">Thinking</span></summary>' +
+        '<div class="thinking-content">' + escHtml(b.text) + '</div>' +
+        '</details>';
+    }
+    if (b.type === 'tool_call') {
+      var name = b.name || 'unknown';
+      var input = b.input ? prettyJson(b.input) : '';
+      return '<details class="tool-call-block">' +
+        '<summary><span class="chevron"></span> <span class="tool-name">' + escHtml(name) + '</span></summary>' +
+        (input ? '<div class="tool-detail">' + escHtml(input) + '</div>' : '') +
+        '</details>';
+    }
+    if (b.type === 'tool_result') {
+      var content = b.content != null ? String(b.content) : '';
+      var preview = content.length > 120 ? content.substring(0,120).replace(/\n/g,' ') + '…' : content.replace(/\n/g,' ');
+      var dotCls = 'dot' + (b.isError ? ' result-error' : '');
+      return '<details class="tool-result-block">' +
+        '<summary><span class="' + dotCls + '"></span>' +
+        (b.isError ? '<span class="result-err-label">error</span> ' : '') +
+        escHtml(preview || '(empty)') + '</summary>' +
+        (content ? '<div class="result-content">' + escHtml(content) + '</div>' : '') +
+        '</details>';
+    }
+    return '';
   }
 
   /* ── render a single event ───────────────────────────────────────── */
   function renderEvent(ev) {
     var time = fmtTime(ev.ts);
-    var body = '';
+    var date = fmtDate(ev.ts);
+    var timeEl = '<div class="event-time" title="' + escHtml(date) + '">' + escHtml(time) + '</div>';
 
-    switch (ev.type) {
-      case 'user_message':
-        body = '<div class="event-body-inner">' + escHtml((ev.payload && ev.payload.text) || '') + '</div>';
-        return '<div class="event msg-user">' +
-          '<div class="event-time">' + escHtml(time) + '</div>' +
-          '<div class="event-body">' + body + '</div>' +
-          '</div>';
-
-      case 'assistant_message':
-        var model = (ev.payload && ev.payload.model) ? '<span class="model-tag">' + escHtml(ev.payload.model) + '</span>' : '';
-        body = '<div class="event-body-inner">' +
-          model +
-          '<div class="text">' + escHtml((ev.payload && ev.payload.text) || '') + '</div>' +
-          '</div>';
-        return '<div class="event msg-assistant">' +
-          '<div class="event-time">' + escHtml(time) + '</div>' +
-          '<div class="event-body">' + body + '</div>' +
-          '</div>';
-
-      case 'tool_call':
-        var callName = (ev.payload && ev.payload.name) || 'unknown';
-        var callInput = (ev.payload && ev.payload.input) ? prettyJson(ev.payload.input) : '';
-        body = '<details class="tool-call-block">' +
-          '<summary><span class="chevron"></span> <span class="tool-name">' + escHtml(callName) + '</span></summary>' +
-          (callInput ? '<div class="tool-detail">' + escHtml(callInput) + '</div>' : '') +
-          '</details>';
-        return '<div class="event msg-tool-call">' +
-          '<div class="event-time">' + escHtml(time) + '</div>' +
-          '<div class="event-body">' + body + '</div>' +
-          '</div>';
-
-      case 'tool_result':
-        var content = (ev.payload && ev.payload.content != null) ? String(ev.payload.content) : '';
-        var preview = content.length > 100 ? content.substring(0,100).replace(/\n/g,' ') + '…' : content.replace(/\n/g,' ');
-        body = '<details class="tool-result-block">' +
-          '<summary><span class="dot"></span> ' + escHtml(preview || '(empty)') + '</summary>' +
-          (content ? '<div class="result-content">' + escHtml(content) + '</div>' : '') +
-          '</details>';
-        return '<div class="event msg-tool-result">' +
-          '<div class="event-time">' + escHtml(time) + '</div>' +
-          '<div class="event-body">' + body + '</div>' +
-          '</div>';
-
-      case 'thinking':
-        var thinkText = (ev.payload && ev.payload.text) || (ev.payload && ev.payload.content) || '';
-        body = '<div class="thinking-block">' + escHtml(thinkText) + '</div>';
-        return '<div class="event msg-thinking">' +
-          '<div class="event-time">' + escHtml(time) + '</div>' +
-          '<div class="event-body">' + body + '</div>' +
-          '</div>';
-
-      default:
-        return '<div class="event">' +
-          '<div class="event-time">' + escHtml(time) + '</div>' +
-          '<div class="event-body"><div class="event-body-inner" style="color:var(--ink-faint);font-style:italic;">' +
-          escHtml(ev.type) + ': ' + escHtml(prettyJson(ev.payload || {})) +
-          '</div></div></div>';
+    // User message
+    if (ev.type === 'user_message') {
+      var text = (ev.payload && ev.payload.text) || '';
+      return '<div class="event msg-user">' + timeEl +
+        '<div class="event-body"><div class="event-body-inner">' + escHtml(text) + '</div></div>' +
+        '</div>';
     }
+
+    // Agent events: only render message type
+    if (ev.type === 'agent_event') {
+      var p = ev.payload;
+      if (!p || p.type !== 'message') return null;
+      if (p.role !== 'assistant' && p.role !== 'tool') return null;
+      var blocks = p.blocks || [];
+      var body = '';
+      for (var k = 0; k < blocks.length; k++) body += renderBlock(blocks[k]);
+      if (!body) return null;
+      return '<div class="event msg-assistant">' + timeEl +
+        '<div class="event-body">' + body + '</div>' +
+        '</div>';
+    }
+
+    return null; // skip spawn, state, lifecycle events
   }
 
   /* ── render a worker section ─────────────────────────────────────── */
   function renderWorkerSection(workerId, worker, events) {
     if (!events || events.length === 0) return '';
-
     var sorted = events.slice().sort(function(a,b) { return a.ts - b.ts; });
-
     var badgeClass = worker.is_orchestrator ? 'worker-badge orch' : 'worker-badge';
-    var badgeText = worker.is_orchestrator ? 'Orchestrator' : 'Worker';
-
+    var badgeText  = worker.is_orchestrator ? 'Orchestrator' : 'Worker';
     var html = '<section class="worker-section">' +
       '<div class="worker-header">' +
         '<span class="worker-name">' + escHtml(worker.name || workerId) + '</span>' +
         '<span class="' + badgeClass + '">' + badgeText + '</span>' +
-        '<span class="worker-stats">' + sorted.length + ' ' + (sorted.length === 1 ? 'event' : 'events') + '</span>' +
       '</div>';
-
+    var rendered = 0;
     for (var i = 0; i < sorted.length; i++) {
-      html += renderEvent(sorted[i]);
+      var row = renderEvent(sorted[i]);
+      if (row) { html += row; rendered++; }
     }
-
+    if (rendered === 0) return '';
     html += '</section>';
     return html;
   }
 
   /* ── main ────────────────────────────────────────────────────────── */
   function main() {
-    var container = document.getElementById('export-container');
+    var container  = document.getElementById('export-container');
     var dataScript = document.getElementById('export-data');
-
-    if (!dataScript) {
-      container.innerHTML = '<div class="empty-state"><p>Missing export data.</p></div>';
-      return;
-    }
+    if (!dataScript) { container.innerHTML = '<div class="empty-state"><p>Missing export data.</p></div>'; return; }
 
     var data;
-    try {
-      data = JSON.parse(dataScript.textContent);
-    } catch(e) {
-      container.innerHTML = '<div class="empty-state"><div class="empty-title">Invalid Data</div><p>Could not parse the export JSON.</p></div>';
+    try { data = JSON.parse(dataScript.textContent); }
+    catch(e) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-title">Invalid Data</div><p>' + escHtml(e.message) + '</p></div>';
       return;
     }
 
     if (!data.workers && !data.events) {
       container.innerHTML = renderHeader(data || {}) +
-        '<div class="empty-state"><div class="empty-title">No Export Data</div><p>This template is ready to be filled with conversation data.</p></div>' +
+        '<div class="empty-state"><div class="empty-title">No Export Data</div></div>' +
         '<footer class="archive-footer">Eos · <a href="https://github.com/ibrahimalbyrk/eos">github.com/ibrahimalbyrk/eos</a></footer>';
       return;
     }
 
     var workers = data.workers || {};
-    var events = data.events || [];
-
-    // Sort all events by timestamp
+    var events  = data.events  || [];
     var globalSorted = events.slice().sort(function(a,b) { return a.ts - b.ts; });
 
-    // Assign events to workers
-    var workerEvents = {};
-    var workerOrder = [];
-    var seen = {};
-
-    // Orchestrator first, then others in order of first appearance
+    var workerEvents = {}, workerOrder = [], seen = {};
     for (var i = 0; i < globalSorted.length; i++) {
       var wid = globalSorted[i].worker_id;
       if (!seen[wid]) {
         seen[wid] = true;
         workerEvents[wid] = [];
-        if (workers[wid] && workers[wid].is_orchestrator) {
-          workerOrder.unshift(wid); // orchestrator at front
-        } else {
-          workerOrder.push(wid);
-        }
+        if (workers[wid] && workers[wid].is_orchestrator) workerOrder.unshift(wid);
+        else workerOrder.push(wid);
       }
       workerEvents[wid].push(globalSorted[i]);
     }
-
-    // Add any workers with no events (edge case)
     for (var id in workers) {
       if (workers.hasOwnProperty(id) && !seen[id]) {
         workerEvents[id] = [];
-        if (workers[id].is_orchestrator) {
-          workerOrder.unshift(id);
-        } else {
-          workerOrder.push(id);
-        }
+        if (workers[id].is_orchestrator) workerOrder.unshift(id); else workerOrder.push(id);
       }
     }
 
     var html = renderHeader(data);
-
     for (var j = 0; j < workerOrder.length; j++) {
       var wId = workerOrder[j];
       html += renderWorkerSection(wId, workers[wId] || { name: wId, is_orchestrator: false }, workerEvents[wId] || []);
     }
-
     html += '<footer class="archive-footer">Eos · <a href="https://github.com/ibrahimalbyrk/eos">github.com/ibrahimalbyrk/eos</a></footer>';
-
     container.innerHTML = html;
-
-    // Open all tool_result blocks for print (so PDF capture includes them)
-    // but keep them collapsed on screen. We handle this via print CSS
-    // (the result-content max-height is removed in print).
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', main);
-  } else {
-    main();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', main);
+  else main();
 })();
 </script>
 </body>

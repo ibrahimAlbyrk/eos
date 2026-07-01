@@ -115,8 +115,8 @@ export function registerExportRoutes(r: Router, c: Container): void {
     };
 
     const template = getTemplate();
-    const jsonStr = JSON.stringify(data);
-    // Replace the {} placeholder inside the export-data script tag
+    // Escape < so the HTML parser never sees </script> inside the JSON block
+    const jsonStr = JSON.stringify(data).replace(/</g, "\\u003c");
     const html = template.replace("<script id=\"export-data\" type=\"application/json\">{}</script>", `<script id="export-data" type="application/json">${jsonStr}</script>`);
 
     const workerName = rootWorker.name ?? workerId;
