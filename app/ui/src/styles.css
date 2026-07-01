@@ -3936,7 +3936,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   color: var(--fg);
   border-radius: 5px;
 }
-.c-row3 .model-pill:hover,
+.c-row3 .model-pill:hover:not(:disabled),
 .c-row3 .model-pill.open {
   background: rgba(var(--tint), 0.05);
   backdrop-filter: blur(var(--blur-sm));
@@ -3945,6 +3945,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
     inset 0 1px 1px rgba(var(--ink), 0.20),
     inset 0 0 0 1px rgba(var(--tint), 0.09);
 }
+/* Locked once the conversation starts (provider + model fixed): visibly passive. */
+.c-row3 .model-pill:disabled { opacity: 0.45; cursor: not-allowed; }
 .c-row3 .model-pill .ctx { color: var(--fg-dim); }
 .c-row3 .effort-pill {
   display: inline-flex;
@@ -5308,6 +5310,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   z-index: 60;
 }
 .model-popover.open { display: block; }
+/* Row scroll region — head stays pinned above it. Caps the list at ~7 rows so a
+   long catalog (e.g. an OpenAI-compatible provider's 120 models) scrolls instead
+   of running off-screen. */
+.mp-scroll { max-height: 240px; overflow-y: auto; }
 .mp-head {
   padding: 8px 10px 6px;
   font-size: var(--text-xs);
@@ -8048,6 +8054,75 @@ html:not([data-theme="light"]) .fv-editor--md {
   color: var(--fg-dim);
 }
 .stg-toolpick__opt:hover { background: rgba(var(--tint), 0.07); color: var(--fg); }
+
+/* Provider-management UI ("Model" settings tab) — add/remove buttons, error
+   warnings, and the "Test & Save" flow. Consistent with stg-row / stg-input. */
+.stg-prov-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  color: var(--fg-dim);
+  background: rgba(var(--tint), 0.04);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.08);
+  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+.stg-prov-add:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
+.stg-prov-rm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  color: var(--fg-faint);
+  transition: background 120ms ease, color 120ms ease;
+}
+.stg-prov-rm:hover { background: rgba(var(--err), 0.16); color: var(--err); }
+.stg-prov-rm:disabled { opacity: 0.4; cursor: default; }
+.stg-prov-cancel {
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+  padding: 4px 10px;
+  border-radius: 6px;
+  transition: color 120ms ease, background 120ms ease;
+}
+.stg-prov-cancel:hover { color: var(--fg); background: rgba(var(--tint), 0.06); }
+.stg-prov-ok {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+.stg-prov-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  border-radius: 8px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--on-accent);
+  background: var(--accent);
+  transition: background 120ms ease, opacity 120ms ease;
+}
+.stg-prov-save:hover:not(:disabled) { background: var(--accent-hover); }
+.stg-prov-save:disabled { opacity: 0.45; cursor: default; }
+.stg-prov-err {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: var(--text-sm);
+  color: var(--err);
+  background: rgba(var(--tint), 0.04);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 35%, transparent);
+  line-height: 1.45;
+}
+.stg-input--err {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--err) 55%, transparent) !important;
+}
 
 /* ============================================================================
    REWIND — double-Esc panel (restore conversation to a previous message)
