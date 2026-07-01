@@ -991,12 +991,19 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border: 1.5px solid var(--accent);
   border-radius: var(--panel-radius);
   box-shadow: 0 0 0 3px var(--accent-soft);
+  /* The preview stays mounted while the cursor moves between drop zones (only its
+     modifier class changes), so animating inset glides the frosted region between
+     halves/replace instead of snapping. Every zone gives all four edges an explicit
+     value (no `auto`, no width/height) so each property has a concrete from→to and
+     actually transitions. */
+  inset: 0;
+  transition: inset 150ms ease-out;
 }
 .pane-drop-preview--replace { inset: 0; }
-.pane-drop-preview--left   { left: 0; top: 0; bottom: 0; width: 50%; }
-.pane-drop-preview--right  { right: 0; top: 0; bottom: 0; width: 50%; }
-.pane-drop-preview--top    { left: 0; right: 0; top: 0; height: 50%; }
-.pane-drop-preview--bottom { left: 0; right: 0; bottom: 0; height: 50%; }
+.pane-drop-preview--left   { inset: 0 50% 0 0; }
+.pane-drop-preview--right  { inset: 0 0 0 50%; }
+.pane-drop-preview--top    { inset: 0 0 50% 0; }
+.pane-drop-preview--bottom { inset: 50% 0 0 0; }
 
 /* Per-split resize dividers — invisible grab strips at each split boundary;
    position/extent come from computeDividers (inline). A 2px line lights up on
@@ -1068,6 +1075,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   .pane-slot { transition: none; }
   .pane { animation: none; }
   .drag-affordance-pill { transition: none; }
+  .pane-drop-preview { transition: none; }
 }
 
 /* Saved-layout presets — header trigger + popover (reuses .glass-pop surface). */
@@ -1817,6 +1825,40 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border-radius: 0;
   font-size: inherit;
 }
+/* Per-block copy button on rendered code fences (lib/codeBlockCopy.js). The
+   button sits on the relative wrapper, NOT inside <pre>, so it stays pinned at
+   the top-right while the code scrolls horizontally. The wrapper carries the
+   block's vertical margin so spacing matches a bare <pre>. */
+.code-block-wrap { position: relative; margin: 8px 0 12px; }
+.code-block-wrap > pre { margin: 0; }
+.code-block-wrap > .code-copy-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  color: var(--fg-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+.code-block-wrap:hover > .code-copy-btn,
+.code-copy-btn:focus-visible { opacity: 1; }
+.code-copy-btn:hover { color: var(--fg); background: var(--surface-3); }
+.code-copy-btn .ccb-check { display: none; }
+.code-copy-btn.copied { opacity: 1; color: var(--ok, var(--accent)); }
+.code-copy-btn.copied .ccb-copy { display: none; }
+.code-copy-btn.copied .ccb-check { display: inline; }
+/* Touch / hover-less pointers can't reveal-on-hover — keep it faintly visible. */
+@media (hover: none) { .code-block-wrap > .code-copy-btn { opacity: 0.55; } }
+@media (prefers-reduced-motion: reduce) { .code-block-wrap > .code-copy-btn { transition: none; } }
 .md-prose table {
   width: 100%;
   border-collapse: separate;
@@ -3540,7 +3582,12 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   color: var(--fg-faint);
   pointer-events: none;
 }
-.composer-editor .cmd-hl { color: var(--accent); }
+.composer-editor .cmd-hl { color: var(--accent); border-radius: 5px; }
+/* @-mention hover highlight — matches the .cmd-pill/.paste-pill hover; no padding
+   so the atomic token highlights in place without reflowing the line. */
+.composer-editor .cmd-hl:hover {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
 /* slash-command pill — one block so the composer and the sent bubble match */
 .composer-editor .cmd-pill,
 .msg-user .cmd-pill {
