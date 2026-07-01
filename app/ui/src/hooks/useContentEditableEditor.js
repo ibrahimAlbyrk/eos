@@ -75,6 +75,15 @@ export function getCursorOffset(el) {
   return linearize(el, [{ node: sel.anchorNode, offset: sel.anchorOffset }]).offsets[0];
 }
 
+// The model offset of the selection's FOCUS (moving end). getCursorOffset reads
+// the anchor (fixed end), so Shift+Arrow — which moves the focus — needs this to
+// know where the caret edge actually is. Falls back to the anchor when collapsed.
+export function getFocusOffset(el) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount || !el.contains(sel.focusNode)) return getCursorOffset(el);
+  return linearize(el, [{ node: sel.focusNode, offset: sel.focusOffset }]).offsets[0];
+}
+
 export function getSelectionOffsets(el) {
   const sel = window.getSelection();
   if (!sel.rangeCount || !el.contains(sel.anchorNode)) return { start: 0, end: 0 };
@@ -129,6 +138,29 @@ export function setSelectionOffsets(el, start, end) {
 
 function setCursorOffset(el, offset) {
   setSelectionOffsets(el, offset, offset);
+}
+
+// Move only the selection FOCUS to model `offset`, keeping the anchor fixed —
+// Shift+Arrow over an atomic token extends across the whole token in one step.
+// Walks Text nodes under the same accounting setSelectionOffsets uses; an offset
+// past the last text node (trailing-"\n" filler <br>) extends to the editor end.
+export function extendSelectionToOffset(el, offset) {
+  const sel = window.getSelection();
+  if (!sel.rangeCount) return;
+  let pos = 0;
+  let point = null;
+  (function walk(node) {
+    if (point) return;
+    if (node.nodeType === TEXT_NODE) {
+      const len = node.textContent.length;
+      if (offset <= pos + len) { point = { node, offset: Math.max(0, offset - pos) }; return; }
+      pos += len;
+      return;
+    }
+    for (const child of node.childNodes) walk(child);
+  })(el);
+  if (point) sel.extend(point.node, point.offset);
+  else sel.extend(el, el.childNodes.length);
 }
 
 // Pure: how far to move scrollTop so [top,bottom] sits inside [boxTop,boxBottom]

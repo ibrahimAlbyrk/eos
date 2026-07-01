@@ -5,7 +5,7 @@ import { startRun } from "../../../state/terminalStore.js";
 import * as outbox from "../../../state/outboxStore.js";
 import { useCommands } from "../../../hooks/useCommands.js";
 import { useSlashItems } from "../../../hooks/useSlashItems.js";
-import { useContentEditableEditor, getCursorOffset, getSelectionOffsets, setSelectionOffsets, scrollSelectionIntoView } from "../../../hooks/useContentEditableEditor.js";
+import { useContentEditableEditor, getCursorOffset, getFocusOffset, getSelectionOffsets, setSelectionOffsets, extendSelectionToOffset, scrollSelectionIntoView } from "../../../hooks/useContentEditableEditor.js";
 import { listContinuation, listIndent } from "../../../lib/markdownBlocks.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
 import { findPlaceholders, nextPlaceholder, prevPlaceholder } from "../../../lib/placeholders.js";
@@ -15,6 +15,7 @@ import { useComposerDraftSync } from "../../../hooks/useComposerDraftSync.js";
 import { useInputHistory } from "../../../hooks/useInputHistory.js";
 import { draftKey } from "../../../state/composerDrafts.js";
 import { findLabelAt } from "../../../lib/attachmentTokens.js";
+import { tokenRegions, tokenAt, atomicCaretTarget } from "../../../lib/composerTokens.js";
 import { shouldCollapsePaste, makePasteLabel, pasteLineCount, pastePreview } from "../../../lib/pasteTokens.js";
 import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../../lib/completionMenu.js";
 import { parentScope } from "../../../lib/mentionQuery.js";
@@ -406,6 +407,17 @@ export function Composer({ live }) {
     return null;
   };
 
+  // Atomic token regions over the live model text — the single source the caret
+  // jump and click-select read from. `slashNames` is slashMap (the SAME set the
+  // editor colors with), so atomicity tracks exactly what renders blue. Computed
+  // per event (cheap, never on a render hot path) so it always sees fresh refs.
+  const currentTokenRegions = () => tokenRegions(text, {
+    slashNames: slashMap,
+    paths: [...insertedPathsRef.current.keys()],
+    pasteKeys: [...pastesRef.current.keys()],
+    attachmentLabels: attachmentItems.map((it) => it.label),
+  });
+
   // Shared text-prep for a normal (non-term) send: resolve @paths + pending
   // attachments, clear the input, return display/agent text. Single-send and
   // broadcast both use it so they stay identical.
@@ -467,6 +479,19 @@ export function Composer({ live }) {
     // "/clear" targets an existing agent's session — spawning a fresh agent
     // (orchestrator/git) with it as the boot prompt would be meaningless.
     if (mode !== "term" && t === "/clear" && (!selected || ui.composer.gitMode)) return;
+
+    // "/export" triggers a conversation download — never sends to any worker.
+    if (mode !== "term" && t === "/export") {
+      if (!selected) return;
+      try {
+        const tree = !!selected.is_orchestrator;
+        await api.exportWorker(selected.id, { tree });
+      } catch (e) {
+        console.error("export failed", e);
+      }
+      setTextAndSync("", 0, "reset");
+      return;
+    }
 
     history.push({ text: t, mode });
 
@@ -654,6 +679,27 @@ export function Composer({ live }) {
       }
     }
 
+    // Atomic caret: a plain Arrow (no completion menu open, no word/line
+    // modifier) steps OVER a whole @-path or /-command token in one move instead
+    // of char-by-char into it. Shift+Arrow extends the selection across it;
+    // Option/Cmd+Arrow keep native word/line nav. Non-collapsed + no Shift falls
+    // through to native collapse.
+    if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !showMenu && !showFileMenu && !e.altKey && !e.metaKey) {
+      const el = editorRef.current;
+      const sel = window.getSelection();
+      if (el && sel?.rangeCount && (e.shiftKey || sel.isCollapsed)) {
+        const pos = e.shiftKey ? getFocusOffset(el) : getCursorOffset(el);
+        const target = atomicCaretTarget(currentTokenRegions(), pos, e.key === "ArrowLeft" ? "left" : "right");
+        if (target != null) {
+          e.preventDefault();
+          if (e.shiftKey) extendSelectionToOffset(el, target);
+          else setSelectionOffsets(el, target, target);
+          setCursorPos(target);
+          return;
+        }
+      }
+    }
+
     // `!` as the first char of an empty input enters terminal mode (the char
     // is consumed) — mirrors the Claude Code TUI bash-mode affordance.
     // With no agent selected the run is workspace-scoped — any cwd candidate
@@ -835,7 +881,14 @@ export function Composer({ live }) {
 
   const onEditorClick = (e) => {
     const el = editorRef.current;
-    if (el) setCursorPos(getCursorOffset(el));
+    if (el) {
+      const pos = getCursorOffset(el);
+      // A click landing inside a token selects the whole token as one unit;
+      // boundary clicks (start/end) place a plain caret there.
+      const hit = tokenAt(currentTokenRegions(), pos, { interiorOnly: true });
+      if (hit) { setSelectionOffsets(el, hit.start, hit.end); setCursorPos(hit.end); }
+      else setCursorPos(pos);
+    }
     const pill = pillAt(e);
     if (pill) openPillInfo(pill);
   };
