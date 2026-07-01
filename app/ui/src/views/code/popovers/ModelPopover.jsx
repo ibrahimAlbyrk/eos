@@ -50,25 +50,27 @@ function ModelMenu({ live, ui }) {
       onKeyDown={onKeyDown}
     >
       <div className="mp-head">Models</div>
-      {MODELS.map((m, i) => {
-        const on = matchesModel(currentModel, m);
-        return (
-          <button
-            key={m.id}
-            className={"mp-row" + (on ? " on" : "") + (i === active ? " active" : "")}
-            onMouseEnter={() => setActive(i)}
-            onClick={() => pick(m)}
-          >
-            <span className="mp-name">{m.name}</span>
-            {on && (
-              <svg className="mp-check" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m2.5 8.5 3.5 3.5 7.5-8" />
-              </svg>
-            )}
-            <span className="mp-num">{i + 1}</span>
-          </button>
-        );
-      })}
+      <div className="mp-scroll">
+        {MODELS.map((m, i) => {
+          const on = matchesModel(currentModel, m);
+          return (
+            <button
+              key={m.id}
+              className={"mp-row" + (on ? " on" : "") + (i === active ? " active" : "")}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => pick(m)}
+            >
+              <span className="mp-name">{m.name}</span>
+              {on && (
+                <svg className="mp-check" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m2.5 8.5 3.5 3.5 7.5-8" />
+                </svg>
+              )}
+              <span className="mp-num">{i + 1}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

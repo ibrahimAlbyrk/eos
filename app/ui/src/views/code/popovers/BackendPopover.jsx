@@ -50,20 +50,22 @@ function BackendSwitchMenu({ live, ui, selected }) {
   return (
     <div className="model-popover glass-pop open" data-popover="backend" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
       <div className="mp-head">Provider</div>
-      {targets.map((p, i) => (
-        <button
-          key={p.name}
-          className={"mp-row" + (p.current ? " on" : "") + (i === active ? " active" : "") + (p.disabled ? " disabled" : "")}
-          disabled={p.disabled}
-          title={p.disabled ? p.reason : undefined}
-          onMouseEnter={() => setActive(i)}
-          onClick={() => pick(p)}
-        >
-          <span className="mp-name">{providerName(p)}</span>
-          {p.current && <CheckIcon />}
-          <span className="mp-num">{i + 1}</span>
-        </button>
-      ))}
+      <div className="mp-scroll">
+        {targets.map((p, i) => (
+          <button
+            key={p.name}
+            className={"mp-row" + (p.current ? " on" : "") + (i === active ? " active" : "") + (p.disabled ? " disabled" : "")}
+            disabled={p.disabled}
+            title={p.disabled ? p.reason : undefined}
+            onMouseEnter={() => setActive(i)}
+            onClick={() => pick(p)}
+          >
+            <span className="mp-name">{providerName(p)}</span>
+            {p.current && <CheckIcon />}
+            <span className="mp-num">{i + 1}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -100,18 +102,20 @@ function SpawnBackendMenu({ ui }) {
   return (
     <div className="model-popover glass-pop open" data-popover="backend" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
       <div className="mp-head">Provider</div>
-      {choices.map((p, i) => (
-        <button
-          key={p.name}
-          className={"mp-row" + (p.name === current ? " on" : "") + (i === active ? " active" : "")}
-          onMouseEnter={() => setActive(i)}
-          onClick={() => pick(p)}
-        >
-          <span className="mp-name">{providerName(p)}</span>
-          {p.name === current && <CheckIcon />}
-          <span className="mp-num">{i + 1}</span>
-        </button>
-      ))}
+      <div className="mp-scroll">
+        {choices.map((p, i) => (
+          <button
+            key={p.name}
+            className={"mp-row" + (p.name === current ? " on" : "") + (i === active ? " active" : "")}
+            onMouseEnter={() => setActive(i)}
+            onClick={() => pick(p)}
+          >
+            <span className="mp-name">{providerName(p)}</span>
+            {p.name === current && <CheckIcon />}
+            <span className="mp-num">{i + 1}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -154,23 +158,25 @@ function SpawnModelMenu({ ui }) {
   return (
     <div className="model-popover glass-pop open" data-popover="spawnModel" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
       <div className="mp-head">Model</div>
-      {loading && <div className="mp-sub mp-muted">Loading models…</div>}
-      {!loading && models.map((m, i) => {
-        const on = m.id === currentModel;
-        return (
-          <button
-            key={m.id}
-            className={"mp-row" + (on ? " on" : "") + (i === active ? " active" : "")}
-            onMouseEnter={() => setActive(i)}
-            onClick={() => pick(m.id)}
-          >
-            <span className="mp-name">{m.name || modelName(m.id) || m.id}</span>
-            {on && <CheckIcon />}
-            <span className="mp-num">{i + 1}</span>
-          </button>
-        );
-      })}
-      {!loading && error && <div className="mp-sub mp-muted mp-err">{error}</div>}
+      <div className="mp-scroll">
+        {loading && <div className="mp-sub mp-muted">Loading models…</div>}
+        {!loading && models.map((m, i) => {
+          const on = m.id === currentModel;
+          return (
+            <button
+              key={m.id}
+              className={"mp-row" + (on ? " on" : "") + (i === active ? " active" : "")}
+              onMouseEnter={() => setActive(i)}
+              onClick={() => pick(m.id)}
+            >
+              <span className="mp-name">{m.name || modelName(m.id) || m.id}</span>
+              {on && <CheckIcon />}
+              <span className="mp-num">{i + 1}</span>
+            </button>
+          );
+        })}
+        {!loading && error && <div className="mp-sub mp-muted mp-err">{error}</div>}
+      </div>
     </div>
   );
 }
