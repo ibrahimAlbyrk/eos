@@ -28,7 +28,7 @@ function isClaudeModelId(model: string): boolean {
 // -sdk/anthropic-api) and a non-Claude id only on an openai-compatible/static lane.
 // Unknown family (descriptor missing) fails open. This is what stops a parent's
 // inherited "sonnet" from poisoning a deepseek profile and 400-ing the provider.
-function modelMatchesFamily(model: string, family: ModelCatalogRef["kind"] | undefined): boolean {
+export function modelMatchesFamily(model: string, family: ModelCatalogRef["kind"] | undefined): boolean {
   if (!family) return true;
   return isClaudeModelId(model) === (family === "claude");
 }

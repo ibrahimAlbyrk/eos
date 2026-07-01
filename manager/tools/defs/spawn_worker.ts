@@ -16,7 +16,7 @@ export const spawnWorkerDef: ToolDefinition = {
       "Friendly slug for the worker (kebab-case). Should describe the outcome, not the action. Good: 'refactor-auth-tokens', 'add-billing-tests'. Bad: 'worker-1', 'fix-stuff', 'task'.",
     ),
     model: z.string().optional().describe(
-      "Claude model enum: 'opus' (default) | 'sonnet' | 'haiku'. Which tier fits which work → §Model. When in doubt, omit (defaults to opus).",
+      "Claude model alias ('opus'|'sonnet'|'haiku') or a cross-provider model in combined 'provider/model' form (e.g. 'deepseek/deepseek-v4-pro'). The combined form is sugar for backendProfile=<provider> + model=<rest> — the prefix is split off and never reaches the API raw. A bare cross-provider model MUST use the combined form, or it will be rejected. When in doubt, omit (defaults to opus).",
     ),
     effort: z.enum(EFFORT_LEVELS).optional().describe(
       "Reasoning effort enum. Pass ONLY for models that support it — opus and sonnet do, haiku does NOT (omit there). Which level fits which work → §Model. When in doubt, omit (defaults to xhigh).",

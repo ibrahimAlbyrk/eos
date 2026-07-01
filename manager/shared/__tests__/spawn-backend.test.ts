@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { spawnBackendError, resolveSpawnBackend } from "../spawn-backend.ts";
+import { spawnBackendError, resolveSpawnBackend, modelMatchesFamily } from "../spawn-backend.ts";
 import { SqlBackedBackendResolver } from "../../../core/src/services/SqlBackedBackendResolver.ts";
 import type { AgentBackend, AgentCapabilities, BackendDescriptor } from "../../../core/src/ports/AgentBackend.ts";
 import type { BackendDefaults, ResolvedBackend } from "../../../core/src/ports/BackendDefaults.ts";
@@ -145,5 +145,45 @@ describe("resolveSpawnBackend — explicit profile pick", () => {
     const c = fakeContainer(profile);
     const resolved = await resolveSpawnBackend(c, { explicitProfileName: "deepseek", explicitModel: "deepseek-reasoner", isOrchestrator: true });
     assert.equal(resolved.model, "deepseek-reasoner");
+  });
+});
+
+describe("modelMatchesFamily — cross-provider model guard", () => {
+  it("Claude models match claude family", () => {
+    assert.equal(modelMatchesFamily("opus", "claude"), true);
+    assert.equal(modelMatchesFamily("sonnet", "claude"), true);
+    assert.equal(modelMatchesFamily("haiku", "claude"), true);
+    assert.equal(modelMatchesFamily("claude-opus-4-8", "claude"), true);
+    assert.equal(modelMatchesFamily("anthropic/claude-opus-4", "claude"), true);
+  });
+
+  it("Claude models DO NOT match openai-compatible family", () => {
+    assert.equal(modelMatchesFamily("opus", "openai-compatible"), false);
+    assert.equal(modelMatchesFamily("sonnet", "openai-compatible"), false);
+    assert.equal(modelMatchesFamily("claude-opus-4", "openai-compatible"), false);
+  });
+
+  it("non-Claude models match openai-compatible family", () => {
+    assert.equal(modelMatchesFamily("deepseek-v4-pro", "openai-compatible"), true);
+    assert.equal(modelMatchesFamily("deepseek-chat", "openai-compatible"), true);
+    assert.equal(modelMatchesFamily("gpt-4o", "openai-compatible"), true);
+    assert.equal(modelMatchesFamily("kimi-k2", "openai-compatible"), true);
+  });
+
+  it("non-Claude models DO NOT match claude family", () => {
+    assert.equal(modelMatchesFamily("deepseek-v4-pro", "claude"), false);
+    assert.equal(modelMatchesFamily("gpt-4o", "claude"), false);
+  });
+
+  it("unknown family fails open (undefined)", () => {
+    assert.equal(modelMatchesFamily("deepseek-v4-pro", undefined), true);
+    assert.equal(modelMatchesFamily("opus", undefined), true);
+  });
+
+  it("static family — Claude models rejected, non-Claude models pass (static catalogs don't list Claude models)", () => {
+    assert.equal(modelMatchesFamily("opus", "static"), false);
+    assert.equal(modelMatchesFamily("sonnet", "static"), false);
+    assert.equal(modelMatchesFamily("deepseek-v4-pro", "static"), true);
+    assert.equal(modelMatchesFamily("gpt-4o", "static"), true);
   });
 });

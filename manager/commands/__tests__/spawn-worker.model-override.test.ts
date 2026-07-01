@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
 import { spawnWorkerHandler } from "../handlers/spawn-worker.ts";
+import { ValidationError } from "../../../core/src/errors/index.ts";
 import { SqlBackedBackendResolver } from "../../../core/src/services/SqlBackedBackendResolver.ts";
 import type { AgentBackend, AgentCapabilities, BackendDescriptor } from "../../../core/src/ports/AgentBackend.ts";
 import type { BackendDefaults, ResolvedBackend } from "../../../core/src/ports/BackendDefaults.ts";
@@ -175,5 +176,77 @@ describe("spawnWorkerHandler — cross-provider model poisoning fix (PART C)", (
     assert.equal(sink.kind, "claude-cli");
     assert.equal(sink.model, "sonnet");
     assert.equal(sink.backendProfile, undefined);
+  });
+});
+
+// The b106784 gap: the orchestrator's spawn-time model override (body.model) can
+// be a combined "provider/model" form or a cross-provider bare model. Without the
+// split + guard activation, these reached the API verbatim or on the wrong backend.
+// PART D covers the fix:
+//   1. body.model split (combined form like "deepseek/deepseek-v4-pro")
+//   2. guard activation (bodyProfile threads as explicitProfileName)
+//   3. belt-and-suspenders (model family mismatch on request-model backends)
+describe("spawnWorkerHandler — combined body.model split + cross-provider guard (PART D)", () => {
+  it("body.model 'deepseek/deepseek-v4-pro' splits to profile deepseek + model deepseek-v4-pro", async () => {
+    const sink = await run({}, { model: "deepseek/deepseek-v4-pro" });
+    assert.equal(sink.kind, "openai");
+    assert.equal(sink.model, "deepseek-v4-pro"); // prefix stripped, never raw
+    assert.equal(sink.backendProfile, "deepseek");
+    assert.equal(sink.baseUrl, "https://api.deepseek.com");
+    assert.deepEqual(sink.auth, { kind: "keychain", ref: "eos/deepseek" });
+  });
+
+  it("body.model 'deepseek/deepseek-v4-pro' with a matching def profile normalizes (redundant prefix stripped)", async () => {
+    const sink = await run({ backendProfile: "deepseek" }, { model: "deepseek/deepseek-v4-pro" });
+    assert.equal(sink.kind, "openai");
+    assert.equal(sink.model, "deepseek-v4-pro"); // prefix stripped
+    assert.equal(sink.backendProfile, "deepseek");
+  });
+
+  it("a matching Claude model on a Claude backend passes unchanged", async () => {
+    const sink = await run({}, { model: "sonnet" });
+    assert.equal(sink.kind, "claude-cli");
+    assert.equal(sink.model, "sonnet");
+    assert.equal(sink.backendProfile, undefined);
+  });
+
+  it("a matching non-Claude model on a profile backend passes (guard not triggered)", async () => {
+    const sink = await run({ backendProfile: "deepseek" }, { model: "deepseek-reasoner", backendProfile: "deepseek" });
+    assert.equal(sink.kind, "openai");
+    assert.equal(sink.model, "deepseek-reasoner");
+    assert.equal(sink.backendProfile, "deepseek");
+  });
+});
+
+// Belt-and-suspenders: a bare cross-provider model on a request-model backend
+// (e.g. claude-cli/sdk) must be rejected BEFORE reaching the API — never send
+// "deepseek-v4-pro" to the Claude endpoint. The runSentinel helper catches
+// SENTINEL (spawn passed), so rejection tests use a raw handler call.
+describe("spawnWorkerHandler — belt-and-suspenders cross-provider rejection (PART E)", () => {
+  const runReject = async (def: Partial<WorkerDefinitionRecord>, body: Record<string, unknown>): Promise<ValidationError> => {
+    const record = { name: "w", description: "", whenToUse: "", body: "", source: "project", ...def } as WorkerDefinitionRecord;
+    const sink: StartSink = {};
+    const c = fakeContainer(record, sink) as Record<string, unknown>;
+    try {
+      await spawnWorkerHandler.run({}, { prompt: "go", cwd: "/repo", from: "w", ...body } as never, { c, requestId: "t" } as never);
+      throw new Error("expected ValidationError but handler completed");
+    } catch (e) {
+      if (e instanceof ValidationError) return e;
+      if (e instanceof Error && e.message === SENTINEL) throw new Error("expected rejection but spawn succeeded — model reached backend", { cause: e });
+      throw e;
+    }
+  };
+
+  it("rejects bare 'deepseek-v4-pro' on a claude backend with a clear cross-provider message", async () => {
+    const err = await runReject({}, { model: "deepseek-v4-pro" });
+    assert.ok(err.message.includes("deepseek-v4-pro"));
+    assert.ok(err.message.includes("claude"));
+    assert.ok(err.message.includes("<provider>/<model>"));
+  });
+
+  it("rejects bare 'gpt-4o' on a claude backend", async () => {
+    const err = await runReject({}, { model: "gpt-4o" });
+    assert.ok(err.message.includes("gpt-4o"));
+    assert.ok(err.message.includes("claude"));
   });
 });

@@ -12,7 +12,7 @@ import { ValidationError } from "../../../core/src/errors/index.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
 import { appendSynthesized } from "../../shared/synthesized-events.ts";
-import { resolveSpawnBackend, spawnBackendError } from "../../shared/spawn-backend.ts";
+import { resolveSpawnBackend, spawnBackendError, modelMatchesFamily } from "../../shared/spawn-backend.ts";
 
 export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, SpawnWorkerResponse> = {
   def: spawnWorkerCommand,
@@ -71,6 +71,16 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       const combined = resolveCombinedModel(def.model, def.backendProfile, new Set(Object.keys(c.config.backends)));
       def = { ...def, model: combined.model, backendProfile: combined.backendProfile };
     }
+    // Split body.model combined form too — mirrors the orchestrator route so a
+    // combined form like "deepseek/deepseek-v4-pro" passed by the orchestrator is
+    // split into profile + model, never reaching the API raw.
+    let bodyModel: string | undefined = body.model;
+    let bodyProfile: string | undefined = body.backendProfile;
+    if (body.model?.includes("/")) {
+      const combined = resolveCombinedModel(body.model, body.backendProfile, new Set(Object.keys(c.config.backends)));
+      bodyModel = combined.model;
+      bodyProfile = combined.backendProfile ?? bodyProfile;
+    }
     const requestHas = (f: string) => (body as Record<string, unknown>)[f] !== undefined;
     const dd = applyWorkerDefinitionDefaults(def, requestHas);
     // Materialize the tool surface once at spawn (baked onto the row; the gate
@@ -99,24 +109,48 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     const claudePermissionMode = body.permissionMode
       ?? dd.permissionMode
       ?? (body.parentId ? c.modeResolver.resolveFor(body.parentId) : undefined);
-    const { promptTemplate: _promptTemplate, from: _from, toolsAllow: _toolsAllow, toolsDeny: _toolsDeny, editRegex: _editRegex, loop: _loop, ...bodyRest } = body;
+    const { promptTemplate: _promptTemplate, from: _from, toolsAllow: _toolsAllow, toolsDeny: _toolsDeny, editRegex: _editRegex, loop: _loop, model: _rawModel, ...bodyRest } = body;
     // Backend selection (defaults to claude-cli): resolve BEFORE the spec so a
     // profile-driven backend's model + profile name thread into it. A definition
     // may default backendKind where the request left it unset. claude-cli keeps
     // today's behavior exactly (no model override, null profile).
     //
+    // Thread the combined-split body profile as the explicit profile name so the
+    // cross-provider model guard in resolveSpawnBackend fires (closes the b106784
+    // gap where inline/general-purpose spawns never set explicitProfileName).
     // The profile-override model may override a profile's pinned model ONLY when it
-    // was chosen FOR that profile: the DEFINITION's own model (def.model, post combined-
-    // split) for a def-driven profile, or body.model only when the REQUEST itself picked
-    // the profile (backendProfile in the request). A bare inherited body.model — a parent
-    // orchestrator's Claude default like "sonnet" forwarded by spawn_worker — must NEVER
-    // override a def's profile-bound model, or it cross-poisons the metered lane and 400s
-    // the provider. (def.model, not dd.model: dd.model is nulled once the request carries
-    // any model, so it can't carry the def's profile-bound model here.) Non-profile/Claude
-    // lanes ignore explicitModel entirely and flow the model through the spec below.
-    const profileOverrideModel = requestHas("backendProfile") ? body.model : def.model;
-    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind ?? dd.backendKind, explicitProfileName: dd.backendProfile, explicitModel: profileOverrideModel, parentId: body.parentId ?? null, isOrchestrator: false });
-    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
+    // was chosen FOR that profile: an explicit or combined-split body profile wins;
+    // a def-driven profile keeps the def's own model — a bare inherited body.model
+    // never cross-poisons. (def.model, not dd.model: dd.model is nulled once the
+    // request carries any model, so it can't carry the def's profile-bound model.)
+    const explicitProfileName = bodyProfile ?? dd.backendProfile;
+    const explicitModel = bodyProfile
+      ? bodyModel
+      : (requestHas("backendProfile") ? bodyModel : def.model);
+    const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind ?? dd.backendKind, explicitProfileName, explicitModel, parentId: body.parentId ?? null, isOrchestrator: false });
+    let backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
+    // Belt-and-suspenders: after backend resolution, if the backend takes a request
+    // model and the final model doesn't match the backend's model family, fail loud
+    // — never send a known-bad model upstream. PREFER REPAIR: if a bare model
+    // unambiguously belongs to exactly one other configured backend, route there.
+    const finalModel = dd.model ?? (bodyModel !== undefined ? bodyModel : body.model);
+    if (backend.descriptor.modelSource === "request" && finalModel && !modelMatchesFamily(finalModel, backend.descriptor.models.kind)) {
+      const matching = c.backends.descriptors().filter((d) =>
+        d.enabled && d.kind !== backend.kind && d.modelSource === "request" && modelMatchesFamily(finalModel, d.models.kind),
+      );
+      if (matching.length === 1) {
+        const repairBackend = c.backends.has(matching[0].kind) ? c.backends.get(matching[0].kind) : null;
+        if (repairBackend) {
+          backend = repairBackend;
+          c.log.warn("model_repaired_to_matching_backend", { model: finalModel, to: matching[0].kind });
+        }
+      }
+      if (!modelMatchesFamily(finalModel, backend.descriptor.models.kind)) {
+        throw new ValidationError(
+          `model "${finalModel}" doesn't belong to provider "${backend.descriptor.models.kind ?? backend.descriptor.kind}" — pass it as "<provider>/<model>"`,
+        );
+      }
+    }
     // Billing/enablement guard on the RESOLVED backend (covers profile/inherit/
     // default picks, not just explicit body.backendKind): rejects a metered API
     // without a costMode:"billed" opt-in, or an explicit pick of a disabled backend.
@@ -130,10 +164,11 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       carryUncommitted: c.userSettings.read()["git.carryUncommitted"] === true,
       hydrateEnv: c.config.worker.hydrateEnvFiles,
       claudePermissionMode,
-      // Definition defaults — only the axes the request left unset (applyWorker-
-      // DefinitionDefaults already dropped request-set fields, so these never
-      // override an explicit request value).
-      ...(dd.model !== undefined ? { model: dd.model } : {}),
+      // Explicit model from the request (split if combined form), then definition
+      // defaults — only the axes the request left unset (applyWorkerDefinitionDefaults
+      // already dropped request-set fields, so these never override an explicit
+      // request value).
+      ...((bodyModel !== undefined || dd.model !== undefined) ? { model: dd.model ?? bodyModel } : {}),
       ...(dd.effort !== undefined ? { effort: dd.effort } : {}),
       ...(dd.persistent !== undefined ? { persistent: dd.persistent } : {}),
       ...(dd.collaborate !== undefined ? { collaborate: dd.collaborate } : {}),

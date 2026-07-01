@@ -13,7 +13,7 @@
         },
         "model": {
           "type": "string",
-          "description": "Claude model enum: 'opus' (default) | 'sonnet' | 'haiku'. Which tier fits which work → §Model. When in doubt, omit (defaults to opus)."
+          "description": "Claude model alias ('opus'|'sonnet'|'haiku') or a cross-provider model in combined 'provider/model' form (e.g. 'deepseek/deepseek-v4-pro'). The combined form is sugar for backendProfile=<provider> + model=<rest> — the prefix is split off and never reaches the API raw. A bare cross-provider model MUST use the combined form, or it will be rejected. When in doubt, omit (defaults to opus)."
         },
         "effort": {
           "type": "string",
