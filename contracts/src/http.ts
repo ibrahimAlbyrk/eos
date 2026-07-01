@@ -451,8 +451,14 @@ export type UiConfigResponse = z.infer<typeof UiConfigResponseSchema>;
 export const AddBackendRequestSchema = z
   .object({
     name: z.string().min(1), // the config.backends key
-    kind: BackendKindSchema,
-    model: z.string().min(1),
+    // A built-in provider preset id (openai/gemini/xai/qwen/moonshot/zhipu). When
+    // set, the server fills kind/baseUrl/capabilities/default-model/auth-ref from the
+    // preset, so the body need only carry { name, preset, apiKey }. Explicit fields
+    // below still override the preset.
+    preset: z.string().optional(),
+    // Required UNLESS a known preset supplies them (validated server-side).
+    kind: BackendKindSchema.optional(),
+    model: z.string().min(1).optional(),
     baseUrl: z.string().url().optional(), // normalized to origin-only server-side (MJ1)
     auth: AuthRefSchema.optional(), // omit ⇒ subscription; {kind:"none"} for keyless localhost
     costMode: z.enum(["billed", "included"]).optional(),
@@ -467,6 +473,21 @@ export const AddBackendRequestSchema = z
   })
   .strict();
 export type AddBackendRequest = z.infer<typeof AddBackendRequestSchema>;
+
+// ---- GET /api/backends/presets ---------------------------------------------
+// The built-in add-provider presets, summarized for a picker. Selecting one and
+// POSTing { name, preset:id, apiKey } adds the provider with just the key.
+export const ProviderPresetSummarySchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  kind: BackendKindSchema,
+  baseUrl: z.string(),
+  defaultModel: z.string(),
+});
+export type ProviderPresetSummary = z.infer<typeof ProviderPresetSummarySchema>;
+
+export const BackendPresetsResponseSchema = z.object({ presets: z.array(ProviderPresetSummarySchema) });
+export type BackendPresetsResponse = z.infer<typeof BackendPresetsResponseSchema>;
 
 export const AddBackendResponseSchema = z.object({
   name: z.string(),
@@ -1824,6 +1845,7 @@ export const ROUTES = {
   template: (name: string): string => `/api/templates/${name}`,
   prompts: "/api/prompts",
   promptPreview: "/api/prompts/preview",
+  workerExport: (id: string): string => `/workers/${id}/export`,
   workerDefinitions: "/worker-definitions",
   // Workflow-orchestration: /workflows is the catalog + run-control endpoint
   // (POST a run / PUT a definition / GET runs); workflowRun(id) reads one run's
@@ -1861,6 +1883,9 @@ export const ROUTES = {
   // for a billed profile, writes the API key (by reference) to the Keychain, then
   // persists the profile to ~/.eos/config.json + reloads.
   apiBackends: "/api/backends",
+  // Built-in add-provider presets (the six OpenAI-compatible providers): add one
+  // with just { name, preset:id, apiKey } via apiBackends.
+  apiBackendPresets: "/api/backends/presets",
   // A configured provider's available models for the two-level composer picker.
   apiBackendModels: (name: string): string => `/api/backends/${name}/models`,
 } as const;

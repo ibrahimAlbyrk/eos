@@ -49,12 +49,51 @@ describe("OpenAIModelClient", () => {
     assert.equal(turn.stopReason, "end_turn");
   });
 
-  it("reads prompt_tokens_details.cached_tokens into cacheReadTokens", () => {
+  it("reads cached_tokens into cacheReadTokens AND excludes them from inputTokens (bill once)", () => {
+    // prompt_tokens (100) INCLUDES the cached slice (60). inputTokens must report the
+    // non-cached 40 so cost = 40·in + 60·cacheRead — not 100·in + 60·cacheRead, which
+    // double-bills the cached tokens at the full input rate.
     const turn = parseOpenAIResponse({
       choices: [{ message: { content: "ok" }, finish_reason: "stop" }],
       usage: { prompt_tokens: 100, completion_tokens: 5, prompt_tokens_details: { cached_tokens: 60 } },
     });
     assert.equal(turn.usage?.cacheReadTokens, 60);
+    assert.equal(turn.usage?.inputTokens, 40);
+  });
+
+  it("authStyle x-goog-api-key sends the key in that header and NO Authorization", async () => {
+    const cap: { url?: string; init?: FetchInit } = {};
+    const fetchImpl = (async (url: string, init: FetchInit) => {
+      cap.url = url; cap.init = init;
+      return { ok: true, async json() { return { choices: [{ message: { content: "hi" }, finish_reason: "stop" }] }; } } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const client = createOpenAIModelClient({
+      apiKey: "AIza-key", model: "gemini-3.1-pro-preview",
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      capabilities: { wire: "openai-chat", contextWindow: 1_000_000, authStyle: "x-goog-api-key", chatCompletionsPath: "/chat/completions" },
+      fetchImpl,
+    });
+    await client.createTurn([{ role: "user", content: "hi" }]);
+    const h = cap.init!.headers as Record<string, string>;
+    assert.equal(h["x-goog-api-key"], "AIza-key");
+    assert.equal(h.authorization, undefined);
+    // chatCompletionsPath composes onto the origin-only base verbatim.
+    assert.equal(cap.url, "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions");
+  });
+
+  it("chatCompletionsPath overrides the /v1 default (Zhipu)", async () => {
+    const cap: { url?: string } = {};
+    const fetchImpl = (async (url: string) => {
+      cap.url = url;
+      return { ok: true, async json() { return { choices: [{ message: { content: "hi" }, finish_reason: "stop" }] }; } } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const client = createOpenAIModelClient({
+      apiKey: "k", model: "glm-5.2", baseUrl: "https://api.z.ai",
+      capabilities: { wire: "openai-chat", contextWindow: 200_000, chatCompletionsPath: "/api/paas/v4/chat/completions" },
+      fetchImpl,
+    });
+    await client.createTurn([{ role: "user", content: "hi" }]);
+    assert.equal(cap.url, "https://api.z.ai/api/paas/v4/chat/completions");
   });
 
   it("keyless (empty apiKey) sends NO Authorization header", async () => {

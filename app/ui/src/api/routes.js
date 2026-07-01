@@ -106,6 +106,7 @@ export const ROUTES = {
   workflowRunSteps: (id) => `/workflows/${id}/steps`,
   // Worker-definition catalog (names for the node `from` / expert `from` selectors).
   // Endpoint already exists daemon-side (manager/routes/worker-definitions.ts).
+  workerExport: (id) => `/workers/${id}/export`,
   workerDefinitions: "/worker-definitions",
   templates: "/api/templates",
   template: (name) => `/api/templates/${name}`,

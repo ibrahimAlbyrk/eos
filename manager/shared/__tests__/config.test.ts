@@ -320,3 +320,39 @@ describe("priceForModel — unknown-model fallback (MJ2/Q0c)", () => {
     assert.equal(warnedWith, "ghost-model");
   });
 });
+
+describe("priceForModel — built-in manual provider prices (Zhipu flat, Qwen tiered)", () => {
+  it("Zhipu GLM resolves to the exact direct-API flat price (wins over any proxy catalog)", async () => {
+    const { priceForModel, defaults } = await import("../config.ts");
+    const prices = defaults().prices;
+    // A catalog that would mis-price glm via a proxy SKU must NOT be consulted —
+    // config.prices is the override and is checked first.
+    let consulted = false;
+    const glm52 = priceForModel(prices, "glm-5.2", undefined, () => { consulted = true; return null; });
+    assert.deepEqual(glm52, { in: 1.40, out: 4.40, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 });
+    assert.equal(consulted, false);
+    assert.deepEqual(priceForModel(prices, "glm-4.7"), { in: 0.60, out: 2.20, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 });
+  });
+
+  it("Qwen models resolve to TIERED specs with the documented bands", async () => {
+    const { priceForModel, defaults } = await import("../config.ts");
+    const { isTieredPrice, selectTierPrice } = await import("../../../core/src/domain/value-objects.ts");
+    const prices = defaults().prices;
+
+    const max = priceForModel(prices, "qwen3.7-max");
+    assert.ok(isTieredPrice(max));
+    assert.deepEqual(selectTierPrice(max, 2_000_000), { in: 2.5, out: 7.5, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 });
+
+    const plus = priceForModel(prices, "qwen3.7-plus");
+    assert.ok(isTieredPrice(plus));
+    assert.equal(selectTierPrice(plus, 100_000).in, 0.4);   // ≤128k
+    assert.equal(selectTierPrice(plus, 200_000).in, 0.8);   // ≤256k
+    assert.equal(selectTierPrice(plus, 500_000).in, 1.2);   // >256k
+    assert.equal(selectTierPrice(plus, 500_000).out, 4.8);
+
+    const coder = priceForModel(prices, "qwen3-coder-plus");
+    assert.ok(isTieredPrice(coder));
+    assert.deepEqual([selectTierPrice(coder, 100_000).in, selectTierPrice(coder, 100_000).out], [0.3, 1.5]);
+    assert.deepEqual([selectTierPrice(coder, 900_000).in, selectTierPrice(coder, 900_000).out], [6.0, 60.0]);
+  });
+});

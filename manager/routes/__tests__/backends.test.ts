@@ -1,9 +1,11 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { fetchBackendModels } from "../backends.ts";
+import { fetchBackendModels, validateAddBackend } from "../backends.ts";
+import { findPreset } from "../../shared/provider-presets.ts";
 import type { AgentCapabilities, BackendDescriptor } from "../../../core/src/ports/AgentBackend.ts";
 import type { ResolvedAuth } from "../../../core/src/ports/AuthResolver.ts";
 import type { BackendProfile } from "../../../contracts/src/backend.ts";
+import type { AddBackendRequest } from "../../../contracts/src/http.ts";
 
 const caps: AgentCapabilities = { interrupt: true, keystroke: false, rewind: false, runtimeModelSwitch: false, runtimePermissionSwitch: false };
 
@@ -124,5 +126,77 @@ describe("fetchBackendModels", () => {
     });
     assert.deepEqual(res.models, ["opus", "sonnet", "haiku"]);
     assert.equal(res.error, undefined);
+  });
+});
+
+describe("fetchBackendModels — preset providers (path, auth, fallback)", () => {
+  const zhipuProfile: BackendProfile = {
+    kind: "openai", model: "glm-5.2", baseUrl: "https://api.z.ai",
+    auth: { kind: "keychain", ref: "eos-zhipu" }, costMode: "billed",
+    capabilities: findPreset("zhipu")!.capabilities,
+  };
+  const geminiProfile: BackendProfile = {
+    kind: "openai", model: "gemini-3.1-pro-preview", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    auth: { kind: "keychain", ref: "eos-gemini" }, costMode: "billed",
+    capabilities: findPreset("gemini")!.capabilities,
+  };
+
+  it("derives the models path from chatCompletionsPath (Zhipu → /api/paas/v4/models)", async () => {
+    let seenUrl = "";
+    await fetchBackendModels({
+      profile: zhipuProfile, descriptor: openaiDescriptor, claudeCatalogIds: async () => [], resolveAuth: apiKeyAuth,
+      fetchImpl: fakeFetch((url) => { seenUrl = url; return { ok: true, status: 200, json: async () => ({ data: [{ id: "glm-5.2" }] }) }; }),
+    });
+    assert.equal(seenUrl, "https://api.z.ai/api/paas/v4/models");
+  });
+
+  it("Gemini sends x-goog-api-key (no Authorization) and hits .../openai/models", async () => {
+    let seenUrl = ""; let seenHeaders: Record<string, string> = {};
+    await fetchBackendModels({
+      profile: geminiProfile, descriptor: openaiDescriptor, claudeCatalogIds: async () => [], resolveAuth: apiKeyAuth,
+      fetchImpl: fakeFetch((url, init) => { seenUrl = url; seenHeaders = init?.headers ?? {}; return { ok: true, status: 200, json: async () => ({ data: [{ id: "gemini-3.1-pro-preview" }] }) }; }),
+    });
+    assert.equal(seenUrl, "https://generativelanguage.googleapis.com/v1beta/openai/models");
+    assert.equal(seenHeaders["x-goog-api-key"], "KEY");
+    assert.equal(seenHeaders.authorization, undefined);
+  });
+
+  it("FAIL-SOFT returns the provider's static fallback list (pinned model first), never empty", async () => {
+    const res = await fetchBackendModels({
+      profile: zhipuProfile, descriptor: openaiDescriptor, claudeCatalogIds: async () => [], resolveAuth: apiKeyAuth,
+      fetchImpl: fakeFetch(() => { throw new Error("down"); }),
+    });
+    assert.deepEqual(res.models, ["glm-5.2", "glm-4.7", "glm-4.7-flash"]);
+    assert.equal(res.error, "down");
+  });
+});
+
+describe("validateAddBackend — preset expansion", () => {
+  it("a preset fills kind/model/baseUrl/capabilities/auth so only the key is needed", () => {
+    const gemini = findPreset("gemini")!;
+    const req: AddBackendRequest = { name: "gemini", preset: "gemini", apiKey: "AIza-x" };
+    const r = validateAddBackend(req, {}, undefined, gemini);
+    assert.ok(r.ok);
+    const p = r.prepared.profile;
+    assert.equal(p.kind, "openai");
+    assert.equal(p.model, "gemini-3.1-pro-preview");
+    assert.equal(p.baseUrl, "https://generativelanguage.googleapis.com/v1beta/openai");
+    assert.equal(p.costMode, "billed");
+    assert.equal(p.capabilities?.authStyle, "x-goog-api-key");
+    assert.equal(p.auth?.kind, "keychain");
+    assert.equal(p.auth?.ref, "eos-gemini");
+  });
+
+  it("explicit body fields override the preset", () => {
+    const openai = findPreset("openai")!;
+    const req: AddBackendRequest = { name: "oai", preset: "openai", model: "gpt-5.4-mini", apiKey: "sk" };
+    const r = validateAddBackend(req, {}, undefined, openai);
+    assert.ok(r.ok);
+    assert.equal(r.prepared.profile.model, "gpt-5.4-mini");
+  });
+
+  it("rejects a request with neither kind nor a preset", () => {
+    const r = validateAddBackend({ name: "x" } as AddBackendRequest, {});
+    assert.equal(r.ok, false);
   });
 });

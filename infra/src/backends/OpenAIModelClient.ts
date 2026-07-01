@@ -19,7 +19,7 @@
 
 import type { ModelClient, ModelMessage, ModelTurn, ModelStreamCallbacks } from "../../../core/src/ports/ModelClient.ts";
 import type { ProviderCapabilities } from "../../../contracts/src/provider-capabilities.ts";
-import { normalizeBaseOrigin } from "./base-url.ts";
+import { normalizeBaseOrigin, DEFAULT_CHAT_COMPLETIONS_PATH } from "./base-url.ts";
 import { withRetry, resolveRetryPolicy, defaultSleep, type SleepFn } from "./with-retry.ts";
 import { structuredOutputEnvelope, type StructuredRequest } from "./structured-output.ts";
 import type { ProviderErrorInfo } from "./provider-error.ts";
@@ -55,6 +55,7 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
   const doFetch = opts.fetchImpl ?? fetch;
   const base = normalizeBaseOrigin(opts.baseUrl ?? "https://api.openai.com");
   const caps = opts.capabilities;
+  const chatPath = caps?.chatCompletionsPath ?? DEFAULT_CHAT_COMPLETIONS_PATH;
   const supportsStreaming = caps?.supportsStreaming !== false;
   const retryPolicy = resolveRetryPolicy(caps?.retry);
   const sleep = opts.sleepImpl ?? defaultSleep;
@@ -67,12 +68,17 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
   const reasoningEffort = caps?.reasoning === "openai-effort" && opts.effort && OPENAI_EFFORTS.has(opts.effort) ? opts.effort : undefined;
 
   // Keyless localhost (Ollama/vLLM/LM Studio, AuthRef.kind:"none"): an empty key
-  // means send NO Authorization header — a `Bearer ` with no token 401s on some
-  // servers and is meaningless on local ones.
-  const headers = (): Record<string, string> =>
-    opts.apiKey
-      ? { "content-type": "application/json", authorization: `Bearer ${opts.apiKey}` }
-      : { "content-type": "application/json" };
+  // means send NO auth header — a `Bearer ` with no token 401s on some servers and
+  // is meaningless on local ones. authStyle picks the header: "x-goog-api-key"
+  // (Gemini) sends the key in that header and NO Authorization; anything else (the
+  // omitted-default) sends `Authorization: Bearer <key>`.
+  const headers = (): Record<string, string> => {
+    const h: Record<string, string> = { "content-type": "application/json" };
+    if (!opts.apiKey) return h;
+    if (caps?.authStyle === "x-goog-api-key") h["x-goog-api-key"] = opts.apiKey;
+    else h.authorization = `Bearer ${opts.apiKey}`;
+    return h;
+  };
 
   const buildBody = (messages: ModelMessage[], stream: boolean): Record<string, unknown> => {
     const mapped = messages.map(toOpenAIMessage);
@@ -90,7 +96,7 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
 
   const post = (body: Record<string, unknown>, signal?: { aborted: boolean }) =>
     withRetry(
-      () => doFetch(`${base}/v1/chat/completions`, { method: "POST", headers: headers(), body: JSON.stringify(body) }),
+      () => doFetch(`${base}${chatPath}`, { method: "POST", headers: headers(), body: JSON.stringify(body) }),
       retryPolicy,
       sleep,
       signal,
@@ -160,6 +166,17 @@ function cacheRead(u: { prompt_tokens_details?: { cached_tokens?: number }; prom
   return u?.prompt_tokens_details?.cached_tokens ?? u?.prompt_cache_hit_tokens ?? 0;
 }
 
+// The BILLABLE (non-cached) input. OpenAI/DeepSeek report prompt_tokens with the
+// cached tokens INCLUDED; cacheReadTokens reports them again at the (discounted)
+// cache rate. Reporting prompt_tokens verbatim as inputTokens double-bills the
+// cached slice (full input rate + cache rate). Subtract them here so inputTokens is
+// the non-cached input — matching Anthropic's input_tokens — and the cost engine
+// reconstructs the full prompt size (for tiered thresholds) as inputTokens +
+// cacheReadTokens.
+function billableInput(u: OpenAIUsage | null | undefined): number {
+  return Math.max(0, (u?.prompt_tokens ?? 0) - cacheRead(u));
+}
+
 interface OpenAIUsage {
   prompt_tokens?: number;
   completion_tokens?: number;
@@ -195,7 +212,7 @@ export function parseOpenAIResponse(data: OpenAIResponse): ModelTurn {
     toolCalls,
     stopReason,
     usage: data.usage
-      ? { inputTokens: data.usage.prompt_tokens ?? 0, outputTokens: data.usage.completion_tokens ?? 0, cacheReadTokens: cacheRead(data.usage) }
+      ? { inputTokens: billableInput(data.usage), outputTokens: data.usage.completion_tokens ?? 0, cacheReadTokens: cacheRead(data.usage) }
       : undefined,
   };
 }
@@ -241,7 +258,7 @@ export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: Mo
         if (!payload || payload === "[DONE]") continue;
         let chunk: OpenAIStreamChunk;
         try { chunk = JSON.parse(payload); } catch { continue; }
-        if (chunk.usage) usage = { inputTokens: chunk.usage.prompt_tokens ?? 0, outputTokens: chunk.usage.completion_tokens ?? 0, cacheReadTokens: cacheRead(chunk.usage) };
+        if (chunk.usage) usage = { inputTokens: billableInput(chunk.usage), outputTokens: chunk.usage.completion_tokens ?? 0, cacheReadTokens: cacheRead(chunk.usage) };
         const choice = chunk.choices?.[0];
         if (!choice) continue;
         if (choice.finish_reason) finishReason = choice.finish_reason;

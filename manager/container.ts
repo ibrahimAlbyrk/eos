@@ -7,7 +7,7 @@ import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, realpathSync } from "node:fs";
 
-import { loadConfig, reloadConfig as reloadConfigFromDisk, priceForModel, type DaemonConfig, type ModelPrice } from "./shared/config.ts";
+import { loadConfig, reloadConfig as reloadConfigFromDisk, priceForModel, type DaemonConfig, type ModelPriceSpec } from "./shared/config.ts";
 import { expandPath } from "./shared/path.ts";
 import { buildWorkerArgs } from "./shared/worker-args.ts";
 import { errMsg } from "../contracts/src/util.ts";
@@ -261,7 +261,7 @@ export function buildContainer() {
   // turn is observable, never silently ~10×-overbilled at Opus rates (MJ2/Q0c).
   const warnedUnpricedModels = new Set<string>();
   const models: ModelCatalog = {
-    priceFor(model: string | null | undefined): ModelPrice {
+    priceFor(model: string | null | undefined): ModelPriceSpec {
       return priceForModel(config.prices, model, (m) => {
         if (warnedUnpricedModels.has(m)) return;
         warnedUnpricedModels.add(m);

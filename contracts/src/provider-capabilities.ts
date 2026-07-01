@@ -15,6 +15,18 @@ export const ProviderCapabilitiesSchema = z
     // The wire dialect this provider speaks. Two dialects cover the whole
     // ecosystem (Anthropic Messages + OpenAI Chat Completions, baseUrl-swappable).
     wire: z.enum(["anthropic", "openai-chat"]),
+    // How the API key is presented. "bearer" (the effective default when omitted —
+    // applied in the model clients, NOT a schema .default(), so existing capability
+    // literals stay valid) → `Authorization: Bearer <key>`. "x-goog-api-key" → the
+    // key rides that header with NO Authorization (Gemini's native scheme; its
+    // OpenAI-compat shim documents this header, not Bearer).
+    authStyle: z.enum(["bearer", "x-goog-api-key"]).optional(),
+    // The provider's chat-completions path RELATIVE TO baseUrl's origin (the client
+    // owns it; baseUrl is origin-only). Omitted ⇒ "/v1/chat/completions". Set for a
+    // provider whose path is not /v1/...: Zhipu ("/api/paas/v4/chat/completions"),
+    // Gemini's shim ("/chat/completions", already under /v1beta/openai). The /models
+    // path is derived from this (…/chat/completions → …/models).
+    chatCompletionsPath: z.string().optional(),
     supportsStreaming: z.boolean().default(true),
     supportsTools: z.boolean().default(true),
     supportsParallelToolCalls: z.boolean().default(true),

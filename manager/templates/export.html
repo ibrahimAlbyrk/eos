@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eos Export</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&family=Playfair+Display:ital,wght@0,500;0,700;1,500&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+  /* ═══════════════════════════════════════════════════════════════════
+     Eos Conversation Export — "The Letterpress Archive"
+     Self-contained · editorial · print-friendly · warm paper aesthetic
+     ═══════════════════════════════════════════════════════════════════ */
+
+  :root {
+    --paper:        #faf7f2;
+    --paper-warm:   #f5f1e9;
+    --paper-deep:   #ede7dd;
+    --ink:          #1a1814;
+    --ink-soft:     #4a4640;
+    --ink-muted:    #8a847a;
+    --ink-faint:    #b8b2a8;
+    --accent:       #b84a2c;
+    --accent-ember: #d4653f;
+    --accent-wash:  #f4e5de;
+    --code-bg:      #f0ece4;
+    --code-border:  #e0dad0;
+    --rule:         #e5e0d8;
+    --orch-mark:    #9b8a6c;
+    --shadow:       0 1px 3px rgba(0,0,0,.04), 0 1px 2px rgba(0,0,0,.02);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 17px; -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
+  body {
+    font-family: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+    font-optical-sizing: auto;
+    background: var(--paper);
+    color: var(--ink);
+    line-height: 1.65;
+    min-height: 100vh;
+  }
+
+  /* ── page texture (subtle grain via repeating gradient) ──────────── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    opacity: .18;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(180,160,140,.03) 2px, rgba(180,160,140,.03) 3px),
+      repeating-linear-gradient(90deg, transparent, transparent 2px, rgba(180,160,140,.03) 2px, rgba(180,160,140,.03) 3px);
+  }
+
+  /* ── layout container ────────────────────────────────────────────── */
+  .archive {
+    position: relative;
+    z-index: 1;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 4rem 2rem 5rem;
+  }
+
+  /* ── header ──────────────────────────────────────────────────────── */
+  .archive-header {
+    text-align: center;
+    padding-bottom: 2.5rem;
+    margin-bottom: 2rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .archive-mark {
+    display: inline-block;
+    width: 32px;
+    height: 32px;
+    margin-bottom: 1.25rem;
+    opacity: .7;
+  }
+  .archive-mark svg { display: block; width: 100%; height: 100%; }
+
+  .archive-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 3rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    color: var(--ink);
+    line-height: 1.1;
+    margin-bottom: .35rem;
+    font-variant-ligatures: common-ligatures;
+  }
+  .archive-subtitle {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: .95rem;
+    font-weight: 400;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: 1.5rem;
+  }
+
+  /* decorative rule with diamond */
+  .rule-ornament {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    margin: 0 auto;
+    width: 220px;
+    max-width: 60%;
+  }
+  .rule-ornament::before,
+  .rule-ornament::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--rule);
+  }
+  .rule-ornament .diamond {
+    flex: 0 0 auto;
+    width: 7px;
+    height: 7px;
+    background: var(--accent);
+    transform: rotate(45deg);
+    margin: 0 16px;
+    opacity: .75;
+  }
+
+  .archive-meta {
+    display: flex;
+    justify-content: center;
+    gap: 1.5rem;
+    flex-wrap: wrap;
+    margin-top: 1.5rem;
+    font-size: .85rem;
+    color: var(--ink-muted);
+  }
+  .archive-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: .35rem;
+  }
+  .archive-meta .meta-sep { color: var(--ink-faint); }
+
+  /* ── worker sections ─────────────────────────────────────────────── */
+  .worker-section { margin-bottom: 2.5rem; }
+
+  .worker-header {
+    display: flex;
+    align-items: baseline;
+    gap: .75rem;
+    flex-wrap: wrap;
+    padding-bottom: .6rem;
+    margin-bottom: 1.25rem;
+    border-bottom: 1px solid var(--rule);
+  }
+  .worker-name {
+    font-family: 'Source Serif 4', Georgia, serif;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -.01em;
+  }
+  .worker-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .6rem;
+    font-weight: 500;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    padding: .2em .6em;
+    border-radius: 2px;
+    color: var(--ink-muted);
+    border: 1px solid var(--rule);
+    line-height: 1;
+  }
+  .worker-badge.orch {
+    color: var(--orch-mark);
+    border-color: #d5cebd;
+    background: #faf6ee;
+  }
+  .worker-stats {
+    font-size: .78rem;
+    color: var(--ink-faint);
+    margin-left: auto;
+  }
+
+  /* ── event row ───────────────────────────────────────────────────── */
+  .event {
+    padding: .55rem 0;
+    display: flex;
+    gap: 1rem;
+    align-items: flex-start;
+    transition: background .15s;
+  }
+  .event:hover { background: rgba(184,74,44,.015); }
+
+  .event-time {
+    flex: 0 0 72px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .68rem;
+    color: var(--ink-faint);
+    padding-top: .25rem;
+    text-align: right;
+    letter-spacing: -.02em;
+    line-height: 1.4;
+  }
+
+  .event-body { flex: 1; min-width: 0; }
+
+  /* ── user message ────────────────────────────────────────────────── */
+  .msg-user .event-body-inner {
+    padding: .7rem 1rem;
+    background: var(--accent-wash);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 3px 3px 0;
+    font-style: italic;
+    color: var(--ink-soft);
+  }
+
+  /* ── assistant message ───────────────────────────────────────────── */
+  .msg-assistant .event-body-inner {
+    padding: .25rem 0;
+  }
+  .msg-assistant .text {
+    color: var(--ink);
+    line-height: 1.7;
+  }
+  .model-tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .6rem;
+    font-weight: 500;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--ink-muted);
+    margin-bottom: .35rem;
+  }
+  .model-tag::before { content: '◆ '; color: var(--accent); font-size: .5rem; opacity: .7; }
+
+  /* ── tool call ───────────────────────────────────────────────────── */
+  .msg-tool-call {}
+  .tool-call-block {
+    border: 1px solid var(--code-border);
+    border-left: 3px solid var(--accent);
+    background: var(--code-bg);
+    border-radius: 0 3px 3px 0;
+    overflow: hidden;
+  }
+  .tool-call-block summary {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .78rem;
+    font-weight: 500;
+    color: var(--ink);
+    padding: .55rem .85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    user-select: none;
+    list-style: none;
+    transition: background .12s;
+  }
+  .tool-call-block summary::-webkit-details-marker { display: none; }
+  .tool-call-block summary::marker { display: none; content: ''; }
+  .tool-call-block summary:hover { background: rgba(184,74,44,.04); }
+  .tool-call-block summary .chevron {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 6px solid var(--ink-muted);
+    transition: transform .15s;
+    flex-shrink: 0;
+  }
+  .tool-call-block[open] summary .chevron { transform: rotate(180deg); }
+  .tool-call-block summary .tool-name {
+    font-weight: 500;
+    color: var(--accent);
+  }
+  .tool-call-block .tool-detail {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .72rem;
+    color: var(--ink-soft);
+    padding: 0 .85rem .65rem 1.9rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.6;
+  }
+
+  /* ── tool result ─────────────────────────────────────────────────── */
+  .msg-tool-result {}
+  .tool-result-block {
+    border: 1px solid var(--code-border);
+    border-left: 3px solid var(--ink-faint);
+    background: var(--code-bg);
+    border-radius: 0 3px 3px 0;
+    overflow: hidden;
+  }
+  .tool-result-block summary {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .72rem;
+    color: var(--ink-muted);
+    padding: .45rem .85rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: .45rem;
+    user-select: none;
+    list-style: none;
+    transition: background .12s;
+  }
+  .tool-result-block summary::-webkit-details-marker { display: none; }
+  .tool-result-block summary::marker { display: none; content: ''; }
+  .tool-result-block summary:hover { background: rgba(0,0,0,.02); }
+  .tool-result-block summary .dot {
+    width: 5px;
+    height: 5px;
+    background: var(--ink-faint);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .tool-result-block .result-content {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .72rem;
+    color: var(--ink-soft);
+    padding: .15rem .85rem .55rem 1.55rem;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.6;
+    max-height: 420px;
+    overflow-y: auto;
+  }
+
+  /* ── thinking block ──────────────────────────────────────────────── */
+  .msg-thinking {}
+  .thinking-block {
+    border-left: 3px dashed var(--ink-faint);
+    padding: .5rem .85rem;
+    margin: .3rem 0;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .7rem;
+    color: var(--ink-muted);
+    font-style: italic;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.55;
+  }
+
+  /* ── empty state ─────────────────────────────────────────────────── */
+  .empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--ink-muted);
+  }
+  .empty-state .empty-title {
+    font-family: 'Playfair Display', Georgia, serif;
+    font-size: 1.5rem;
+    font-weight: 500;
+    color: var(--ink-soft);
+    margin-bottom: .5rem;
+  }
+  .empty-state p { font-size: .9rem; }
+
+  /* ── footer ──────────────────────────────────────────────────────── */
+  .archive-footer {
+    text-align: center;
+    padding-top: 2.5rem;
+    margin-top: 2rem;
+    border-top: 1px solid var(--rule);
+    font-size: .72rem;
+    color: var(--ink-faint);
+    letter-spacing: .04em;
+  }
+  .archive-footer a { color: var(--ink-muted); text-decoration: none; }
+  .archive-footer a:hover { color: var(--accent); }
+
+  /* ── staggered entrance ──────────────────────────────────────────── */
+  @keyframes fadeRise {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .archive-header { animation: fadeRise .6s .05s both cubic-bezier(.2,.7,.3,1); }
+  .worker-section { animation: fadeRise .55s both cubic-bezier(.2,.7,.3,1); }
+  .worker-section:nth-child(1) { animation-delay: .15s; }
+  .worker-section:nth-child(2) { animation-delay: .22s; }
+  .worker-section:nth-child(3) { animation-delay: .29s; }
+  .worker-section:nth-child(4) { animation-delay: .36s; }
+  .worker-section:nth-child(5) { animation-delay: .43s; }
+  .worker-section:nth-child(n+6) { animation-delay: .50s; }
+
+  /* ── print styles ────────────────────────────────────────────────── */
+  @media print {
+    @page { margin: 2cm 2.2cm; }
+    html { font-size: 13px; }
+    body {
+      background: white;
+      color: #111;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    body::before { display: none; }
+    .archive { max-width: 100%; padding: 0; }
+    .archive-header { border-bottom-color: #ccc; padding-bottom: 1.5rem; }
+    .worker-header { border-bottom-color: #ddd; }
+    .msg-user .event-body-inner { background: #f8f4f0; border-left-color: #888; }
+    .tool-call-block, .tool-result-block { border-color: #ddd; background: #fafafa; }
+    .tool-call-block { border-left-color: #666; }
+    .tool-result-block { border-left-color: #aaa; }
+    .rule-ornament::before, .rule-ornament::after { background: #ccc; }
+    .event:hover { background: none; }
+    .tool-result-block .result-content { max-height: none; overflow: visible; }
+    .tool-result-block[open] .result-content { max-height: none; }
+    .archive-footer { border-top-color: #ddd; }
+    .worker-section { page-break-inside: avoid; }
+    .event { animation: none; }
+  }
+
+  /* ── responsive ──────────────────────────────────────────────────── */
+  @media (max-width: 600px) {
+    html { font-size: 15px; }
+    .archive { padding: 2rem 1rem 3rem; }
+    .archive-title { font-size: 2.2rem; }
+    .event { flex-direction: column; gap: .15rem; }
+    .event-time { text-align: left; flex: none; }
+    .archive-meta { gap: .75rem; font-size: .75rem; }
+  }
+</style>
+</head>
+<body>
+<div class="archive" id="export-container"></div>
+
+<!--
+  ═══════════════════════════════════════════════════════════════════════
+  EXPORT DATA — the daemon replaces the {} inside this script tag
+  with the full export JSON before sending the HTML to the browser.
+
+  The JSON shape:
+  {
+    "exported_at": "ISO-8601 timestamp string",
+    "workers": { "<worker_id>": { "name": "...", "is_orchestrator": true|false }, ... },
+    "events": [
+      { "worker_id": "...", "worker_name": "...", "event_id": N, "ts": <unix ms>,
+        "type": "user_message"|"assistant_message"|"tool_call"|"tool_result"|"thinking",
+        "payload": { ... } }
+    ]
+  }
+
+  See EXPORT_TEMPLATE.md for the full data contract.
+  ═══════════════════════════════════════════════════════════════════════
+-->
+<script id="export-data" type="application/json">{}</script>
+
+<script>
+(function() {
+  'use strict';
+
+  /* ── helpers ─────────────────────────────────────────────────────── */
+  var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  function pad(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function fmtTime(ms) {
+    var d = new Date(ms);
+    return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' +
+           d.getUTCFullYear() + ' · ' +
+           pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ':' + pad(d.getUTCSeconds());
+  }
+
+  function fmtDate(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return MONTHS_LONG[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();
+  }
+
+  function fmtDateTime(iso) {
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return iso;
+    return fmtDate(iso) + ' · ' +
+           pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + ' UTC';
+  }
+
+  function escHtml(s) {
+    var div = document.createElement('div');
+    div.appendChild(document.createTextNode(s));
+    return div.innerHTML;
+  }
+
+  function escAttr(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function prettyJson(obj) {
+    try { return JSON.stringify(obj, null, 2); }
+    catch(e) { return String(obj); }
+  }
+
+  /* ── render header ───────────────────────────────────────────────── */
+  function renderHeader(data) {
+    var workerCount = data.workers ? Object.keys(data.workers).length : 0;
+    var eventCount = data.events ? data.events.length : 0;
+    var exportedDate = data.exported_at ? fmtDateTime(data.exported_at) : 'Unknown date';
+
+    var mark = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">' +
+      '<circle cx="16" cy="16" r="14" stroke="%23b84a2c" stroke-width="1.5" opacity=".6"/>' +
+      '<circle cx="16" cy="16" r="3" fill="%23b84a2c" opacity=".8"/>' +
+      '<line x1="16" y1="2" x2="16" y2="10" stroke="%23b84a2c" stroke-width="1" opacity=".5"/>' +
+      '<line x1="16" y1="22" x2="16" y2="30" stroke="%23b84a2c" stroke-width="1" opacity=".5"/>' +
+      '<line x1="2" y1="16" x2="10" y2="16" stroke="%23b84a2c" stroke-width="1" opacity=".5"/>' +
+      '<line x1="22" y1="16" x2="30" y2="16" stroke="%23b84a2c" stroke-width="1" opacity=".5"/>' +
+      '</svg>';
+
+    return '<header class="archive-header">' +
+      '<div class="archive-mark">' + mark + '</div>' +
+      '<h1 class="archive-title">Eos Export</h1>' +
+      '<p class="archive-subtitle">Conversation Archive</p>' +
+      '<div class="rule-ornament"><span class="diamond"></span></div>' +
+      '<div class="archive-meta">' +
+        '<span>' + escHtml(exportedDate) + '</span>' +
+        '<span class="meta-sep">·</span>' +
+        '<span>' + workerCount + ' ' + (workerCount === 1 ? 'worker' : 'workers') + '</span>' +
+        '<span class="meta-sep">·</span>' +
+        '<span>' + eventCount + ' ' + (eventCount === 1 ? 'event' : 'events') + '</span>' +
+      '</div>' +
+      '</header>';
+  }
+
+  /* ── render a single event ───────────────────────────────────────── */
+  function renderEvent(ev) {
+    var time = fmtTime(ev.ts);
+    var body = '';
+
+    switch (ev.type) {
+      case 'user_message':
+        body = '<div class="event-body-inner">' + escHtml((ev.payload && ev.payload.text) || '') + '</div>';
+        return '<div class="event msg-user">' +
+          '<div class="event-time">' + escHtml(time) + '</div>' +
+          '<div class="event-body">' + body + '</div>' +
+          '</div>';
+
+      case 'assistant_message':
+        var model = (ev.payload && ev.payload.model) ? '<span class="model-tag">' + escHtml(ev.payload.model) + '</span>' : '';
+        body = '<div class="event-body-inner">' +
+          model +
+          '<div class="text">' + escHtml((ev.payload && ev.payload.text) || '') + '</div>' +
+          '</div>';
+        return '<div class="event msg-assistant">' +
+          '<div class="event-time">' + escHtml(time) + '</div>' +
+          '<div class="event-body">' + body + '</div>' +
+          '</div>';
+
+      case 'tool_call':
+        var callName = (ev.payload && ev.payload.name) || 'unknown';
+        var callInput = (ev.payload && ev.payload.input) ? prettyJson(ev.payload.input) : '';
+        body = '<details class="tool-call-block">' +
+          '<summary><span class="chevron"></span> <span class="tool-name">' + escHtml(callName) + '</span></summary>' +
+          (callInput ? '<div class="tool-detail">' + escHtml(callInput) + '</div>' : '') +
+          '</details>';
+        return '<div class="event msg-tool-call">' +
+          '<div class="event-time">' + escHtml(time) + '</div>' +
+          '<div class="event-body">' + body + '</div>' +
+          '</div>';
+
+      case 'tool_result':
+        var content = (ev.payload && ev.payload.content != null) ? String(ev.payload.content) : '';
+        var preview = content.length > 100 ? content.substring(0,100).replace(/\n/g,' ') + '…' : content.replace(/\n/g,' ');
+        body = '<details class="tool-result-block">' +
+          '<summary><span class="dot"></span> ' + escHtml(preview || '(empty)') + '</summary>' +
+          (content ? '<div class="result-content">' + escHtml(content) + '</div>' : '') +
+          '</details>';
+        return '<div class="event msg-tool-result">' +
+          '<div class="event-time">' + escHtml(time) + '</div>' +
+          '<div class="event-body">' + body + '</div>' +
+          '</div>';
+
+      case 'thinking':
+        var thinkText = (ev.payload && ev.payload.text) || (ev.payload && ev.payload.content) || '';
+        body = '<div class="thinking-block">' + escHtml(thinkText) + '</div>';
+        return '<div class="event msg-thinking">' +
+          '<div class="event-time">' + escHtml(time) + '</div>' +
+          '<div class="event-body">' + body + '</div>' +
+          '</div>';
+
+      default:
+        return '<div class="event">' +
+          '<div class="event-time">' + escHtml(time) + '</div>' +
+          '<div class="event-body"><div class="event-body-inner" style="color:var(--ink-faint);font-style:italic;">' +
+          escHtml(ev.type) + ': ' + escHtml(prettyJson(ev.payload || {})) +
+          '</div></div></div>';
+    }
+  }
+
+  /* ── render a worker section ─────────────────────────────────────── */
+  function renderWorkerSection(workerId, worker, events) {
+    if (!events || events.length === 0) return '';
+
+    var sorted = events.slice().sort(function(a,b) { return a.ts - b.ts; });
+
+    var badgeClass = worker.is_orchestrator ? 'worker-badge orch' : 'worker-badge';
+    var badgeText = worker.is_orchestrator ? 'Orchestrator' : 'Worker';
+
+    var html = '<section class="worker-section">' +
+      '<div class="worker-header">' +
+        '<span class="worker-name">' + escHtml(worker.name || workerId) + '</span>' +
+        '<span class="' + badgeClass + '">' + badgeText + '</span>' +
+        '<span class="worker-stats">' + sorted.length + ' ' + (sorted.length === 1 ? 'event' : 'events') + '</span>' +
+      '</div>';
+
+    for (var i = 0; i < sorted.length; i++) {
+      html += renderEvent(sorted[i]);
+    }
+
+    html += '</section>';
+    return html;
+  }
+
+  /* ── main ────────────────────────────────────────────────────────── */
+  function main() {
+    var container = document.getElementById('export-container');
+    var dataScript = document.getElementById('export-data');
+
+    if (!dataScript) {
+      container.innerHTML = '<div class="empty-state"><p>Missing export data.</p></div>';
+      return;
+    }
+
+    var data;
+    try {
+      data = JSON.parse(dataScript.textContent);
+    } catch(e) {
+      container.innerHTML = '<div class="empty-state"><div class="empty-title">Invalid Data</div><p>Could not parse the export JSON.</p></div>';
+      return;
+    }
+
+    if (!data.workers && !data.events) {
+      container.innerHTML = renderHeader(data || {}) +
+        '<div class="empty-state"><div class="empty-title">No Export Data</div><p>This template is ready to be filled with conversation data.</p></div>' +
+        '<footer class="archive-footer">Eos · <a href="https://github.com/ibrahimalbyrk/eos">github.com/ibrahimalbyrk/eos</a></footer>';
+      return;
+    }
+
+    var workers = data.workers || {};
+    var events = data.events || [];
+
+    // Sort all events by timestamp
+    var globalSorted = events.slice().sort(function(a,b) { return a.ts - b.ts; });
+
+    // Assign events to workers
+    var workerEvents = {};
+    var workerOrder = [];
+    var seen = {};
+
+    // Orchestrator first, then others in order of first appearance
+    for (var i = 0; i < globalSorted.length; i++) {
+      var wid = globalSorted[i].worker_id;
+      if (!seen[wid]) {
+        seen[wid] = true;
+        workerEvents[wid] = [];
+        if (workers[wid] && workers[wid].is_orchestrator) {
+          workerOrder.unshift(wid); // orchestrator at front
+        } else {
+          workerOrder.push(wid);
+        }
+      }
+      workerEvents[wid].push(globalSorted[i]);
+    }
+
+    // Add any workers with no events (edge case)
+    for (var id in workers) {
+      if (workers.hasOwnProperty(id) && !seen[id]) {
+        workerEvents[id] = [];
+        if (workers[id].is_orchestrator) {
+          workerOrder.unshift(id);
+        } else {
+          workerOrder.push(id);
+        }
+      }
+    }
+
+    var html = renderHeader(data);
+
+    for (var j = 0; j < workerOrder.length; j++) {
+      var wId = workerOrder[j];
+      html += renderWorkerSection(wId, workers[wId] || { name: wId, is_orchestrator: false }, workerEvents[wId] || []);
+    }
+
+    html += '<footer class="archive-footer">Eos · <a href="https://github.com/ibrahimalbyrk/eos">github.com/ibrahimalbyrk/eos</a></footer>';
+
+    container.innerHTML = html;
+
+    // Open all tool_result blocks for print (so PDF capture includes them)
+    // but keep them collapsed on screen. We handle this via print CSS
+    // (the result-content max-height is removed in print).
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', main);
+  } else {
+    main();
+  }
+})();
+</script>
+</body>
+</html>

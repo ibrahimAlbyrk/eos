@@ -7,7 +7,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createOpenAIModelClient } from "../backends/OpenAIModelClient.ts";
 import { createAnthropicModelClient } from "../backends/AnthropicModelClient.ts";
-import { normalizeBaseOrigin } from "../backends/base-url.ts";
+import { normalizeBaseOrigin, modelsPathFor } from "../backends/base-url.ts";
 import type { ModelMessage } from "../../../core/src/ports/ModelClient.ts";
 
 const messages: ModelMessage[] = [{ role: "user", content: "hi" }];
@@ -27,6 +27,13 @@ describe("baseUrl origin-only composition (MJ1/Q0b)", () => {
     assert.equal(normalizeBaseOrigin("http://localhost:11434/"), "http://localhost:11434");
     assert.equal(normalizeBaseOrigin("http://localhost:11434/v1"), "http://localhost:11434");
     assert.equal(normalizeBaseOrigin("http://localhost:11434/v1/"), "http://localhost:11434");
+  });
+
+  it("modelsPathFor swaps /chat/completions → /models, else defaults to /v1/models", () => {
+    assert.equal(modelsPathFor(undefined), "/v1/models");
+    assert.equal(modelsPathFor("/v1/chat/completions"), "/v1/models");
+    assert.equal(modelsPathFor("/api/paas/v4/chat/completions"), "/api/paas/v4/models"); // Zhipu
+    assert.equal(modelsPathFor("/chat/completions"), "/models"); // Gemini shim
   });
 
   for (const input of ["http://localhost:11434", "http://localhost:11434/", "http://localhost:11434/v1"]) {

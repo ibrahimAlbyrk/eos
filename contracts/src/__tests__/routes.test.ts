@@ -21,7 +21,7 @@ const EXPECTED_KEYS = [
   "workerInterrupt", "workerResume", "workerKeystroke",
   "workerQuestion", "workerQuestionPoll", "workerQuestionAnswer",
   "workerPeers", "workerPeerRequest", "workerPeerRequestPoll", "workerPeerResponse",
-  "workerNotify", "workerReport", "workerStepOutput", "workerRewindTargets", "workerRewind",
+  "workerNotify", "workerReport", "workerExport", "workerStepOutput", "workerRewindTargets", "workerRewind",
   "workerTerminal", "terminal", "terminalKill",
   "workerTryPreview", "workerTryState", "workerTry", "workerTryKeep", "workerTryDiscard",
   "commands",
@@ -30,7 +30,7 @@ const EXPECTED_KEYS = [
   "workflowRunSteps", "workflowDefinition", "settings",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
   "remotePair", "remoteStatus", "remoteArm",
-  "apiBackends", "apiBackendModels",
+  "apiBackends", "apiBackendPresets", "apiBackendModels",
 ] as const;
 
 describe("ROUTES completeness", () => {

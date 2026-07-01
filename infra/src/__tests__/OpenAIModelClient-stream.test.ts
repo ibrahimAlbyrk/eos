@@ -46,6 +46,19 @@ describe("parseOpenAIStream — SSE reasoning/text deltas + tool-call fragments"
     assert.deepEqual(turn.usage, { inputTokens: 5, outputTokens: 3, cacheReadTokens: 0 });
   });
 
+  it("streamed usage excludes cached tokens from inputTokens (bill once)", async () => {
+    const turn = await parseOpenAIStream(
+      sseStream([
+        'data: {"choices":[{"delta":{"content":"ok"}}]}\n',
+        'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n',
+        'data: {"usage":{"prompt_tokens":100,"completion_tokens":5,"prompt_tokens_details":{"cached_tokens":70}}}\n',
+        "data: [DONE]\n",
+      ]),
+      {},
+    );
+    assert.deepEqual(turn.usage, { inputTokens: 30, outputTokens: 5, cacheReadTokens: 70 });
+  });
+
   it("aborted stream returns error (not end_turn) and cancels the reader", async () => {
     let cancelled = false;
     const enc = new TextEncoder();

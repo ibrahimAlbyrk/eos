@@ -49,13 +49,15 @@ describe("parseOpenAIStream — tolerant tool-delta accumulation (missing index/
 });
 
 describe("token/cache accounting", () => {
-  it("reads DeepSeek prompt_cache_hit_tokens into cacheReadTokens", () => {
+  it("reads DeepSeek prompt_cache_hit_tokens into cacheReadTokens (excluded from inputTokens)", () => {
     const turn = parseOpenAIResponse({ choices: [{ message: { content: "ok" }, finish_reason: "stop" }], usage: { prompt_tokens: 100, completion_tokens: 5, prompt_cache_hit_tokens: 40 } });
     assert.equal(turn.usage?.cacheReadTokens, 40);
+    assert.equal(turn.usage?.inputTokens, 60); // 100 prompt − 40 cached → cached bills once
   });
   it("prefers OpenAI prompt_tokens_details.cached_tokens when both are present", () => {
     const turn = parseOpenAIResponse({ choices: [{ message: { content: "ok" }, finish_reason: "stop" }], usage: { prompt_tokens: 100, completion_tokens: 5, prompt_tokens_details: { cached_tokens: 60 }, prompt_cache_hit_tokens: 40 } });
     assert.equal(turn.usage?.cacheReadTokens, 60);
+    assert.equal(turn.usage?.inputTokens, 40); // 100 − 60 (the preferred OpenAI field)
   });
 });
 

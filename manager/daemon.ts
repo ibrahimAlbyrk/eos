@@ -55,6 +55,7 @@ import { registerWorkerDefinitionRoutes } from "./routes/worker-definitions.ts";
 import { registerSettingsRoutes } from "./routes/settings.ts";
 import { registerUpdateRoutes } from "./routes/updates.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
+import { registerExportRoutes } from "./routes/export.ts";
 import { registerDatetimeRoutes } from "./routes/datetime.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
 import { registerBackendsRoutes } from "./routes/backends.ts";
@@ -98,6 +99,7 @@ registerCommandCatalog(router, c);
 // Workflow-orchestration: run-control + read surface.
 registerWorkflowRoutes(router, c);
 registerWorkerRoutes(router, c);
+registerExportRoutes(router, c);
 registerOrchestratorRoutes(router, c);
 registerLoopRoutes(router, c);
 registerPolicyRoutes(router, c);

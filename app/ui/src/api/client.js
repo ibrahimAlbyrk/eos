@@ -609,6 +609,30 @@ export const api = {
     return postJson(ROUTES.workerTryDiscard(id), { workerId: ownerId }, uiTokenHeader());
   },
 
+  // Export — triggers a browser download of conversation HTML.
+  // Uses fetch + blob to avoid opening a new tab.
+  async exportWorker(id, { tree = false } = {}) {
+    const url = `${DAEMON}${ROUTES.workerExport(id)}?tree=${tree}`;
+    try {
+      const r = await fetch(url);
+      if (!r.ok) throw new Error(`export → ${r.status}`);
+      const blob = await r.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      // Extract filename from Content-Disposition or use a fallback
+      const disposition = r.headers.get("content-disposition");
+      const match = disposition?.match(/filename="?(.+?)"?$/);
+      a.download = match ? match[1] : `export-${id}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(blobUrl);
+    } catch (e) {
+      console.error("export failed", e);
+    }
+  },
+
   // SSE — returns the EventSource so the caller can attach listeners. The
   // reconnect logic in store/sse.js wraps this.
   newEventStream() {

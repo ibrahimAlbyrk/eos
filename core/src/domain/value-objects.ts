@@ -62,20 +62,67 @@ export interface ModelPrice {
   cacheCreate1h: number;   // 1-hour ephemeral writes (Anthropic: 2× input)
 }
 
+// One band of a context-threshold ("tiered") price: the per-million rates that
+// apply when a request's input-token count falls in this band. `maxInputTokens`
+// is the INCLUSIVE upper bound of the band; null = unbounded (the final, open
+// tier). Tiers are ordered ascending by maxInputTokens.
+export interface PriceTier {
+  maxInputTokens: number | null;
+  price: ModelPrice;
+}
+
+// A tiered price: an ordered list of input-token-threshold tiers. Used for
+// providers whose per-token rates change with prompt size (OpenAI's >272k
+// surcharge, Gemini's ≤200k/>200k split, Qwen's multi-bucket tiers).
+export interface TieredModelPrice {
+  tiers: PriceTier[];
+}
+
+// A price spec is EITHER a flat ModelPrice (the single-tier degenerate case —
+// what LiteLLM resolves and what existing configs hold) OR a TieredModelPrice.
+export type ModelPriceSpec = ModelPrice | TieredModelPrice;
+
+export function isTieredPrice(spec: ModelPriceSpec): spec is TieredModelPrice {
+  return Array.isArray((spec as TieredModelPrice).tiers);
+}
+
+// Resolve a spec to the flat ModelPrice that applies for a request whose
+// prompt-input token count is `inputTokens`. A flat spec returns itself (the
+// degenerate single tier). For a tiered spec, returns the first tier whose band
+// contains the count (falling back to the highest tier when the count exceeds
+// every bounded tier, never $0).
+export function selectTierPrice(spec: ModelPriceSpec, inputTokens: number): ModelPrice {
+  if (!isTieredPrice(spec)) return spec;
+  for (const tier of spec.tiers) {
+    if (tier.maxInputTokens == null || inputTokens <= tier.maxInputTokens) return tier.price;
+  }
+  return spec.tiers[spec.tiers.length - 1].price;
+}
+
 export interface ModelCatalog {
-  priceFor(model: string | null | undefined): ModelPrice;
+  priceFor(model: string | null | undefined): ModelPriceSpec;
 }
 
 /**
  * Cost in USD for a usage report. Decoupled from any specific model catalog
  * — callers inject the catalog so prices can be config-driven.
+ *
+ * `tokens.in` is the BILLABLE (non-cached) input across all providers — Anthropic
+ * reports input_tokens net of cache reads, and the OpenAI-compat clients subtract
+ * cached_tokens from prompt_tokens for the same reason. So cached tokens bill ONCE
+ * (at cacheRead), never at the input rate too.
+ *
+ * Tiered providers (OpenAI's >272k surcharge, Gemini's ≤200k/>200k split, Qwen's
+ * buckets) key their thresholds off the FULL prompt size, which is the billable
+ * input plus the cached input it served from cache — so tier selection uses
+ * `tokens.in + tokens.cacheRead`. Flat (Anthropic) pricing makes this a no-op.
  */
 export function computeCostUsd(
   catalog: ModelCatalog,
   model: string | null | undefined,
   tokens: { in: number; out: number; cacheRead: number; cacheCreate: number; cacheCreate1h: number },
 ): number {
-  const p = catalog.priceFor(model);
+  const p = selectTierPrice(catalog.priceFor(model), tokens.in + tokens.cacheRead);
   return (
     (tokens.in * p.in +
       tokens.out * p.out +

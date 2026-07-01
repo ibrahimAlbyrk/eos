@@ -15,11 +15,13 @@ import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 import { AddBackendRequestSchema, type AddBackendRequest, type BackendModelsResponse } from "../../contracts/src/http.ts";
 import type { BackendProfile, AuthRef } from "../../contracts/src/backend.ts";
+import type { BackendKind } from "../../contracts/src/canonical.ts";
 import type { BackendDescriptor } from "../../core/src/ports/AgentBackend.ts";
 import type { ResolvedAuth } from "../../core/src/ports/AuthResolver.ts";
-import { normalizeBaseOrigin } from "../../infra/src/backends/base-url.ts";
+import { normalizeBaseOrigin, modelsPathFor } from "../../infra/src/backends/base-url.ts";
 import { writeKeychainSecret } from "../../infra/src/auth/SubscriptionAuthResolver.ts";
-import { billedProfileNeedsPrice, type ModelPrice } from "../shared/config.ts";
+import { billedProfileNeedsPrice, type ModelPrice, type ModelPriceSpec } from "../shared/config.ts";
+import { PROVIDER_PRESETS, findPreset, fallbackModelsForBaseUrl, type ProviderPreset } from "../shared/provider-presets.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 
 export interface PreparedBackend {
@@ -38,27 +40,39 @@ export interface PreparedBackend {
 // until a price is available; adding only an API key must be enough to add a provider.
 export function validateAddBackend(
   req: AddBackendRequest,
-  existingPrices: Record<string, ModelPrice>,
+  existingPrices: Record<string, ModelPriceSpec>,
   catalogLookup?: (model: string) => ModelPrice | null,
+  preset?: ProviderPreset,
 ): { ok: true; prepared: PreparedBackend; warnings?: string[] } | { ok: false; error: string } {
+  // A preset fills the connection config the body omits (so { name, preset, apiKey }
+  // is enough); explicit fields still win. Resolve everything against it first.
+  const kind: BackendKind | undefined = req.kind ?? preset?.kind;
+  const model = req.model ?? preset?.defaultModel;
+  if (!kind) return { ok: false, error: "kind is required (or supply a known preset)" };
+  if (!model) return { ok: false, error: "model is required (or supply a known preset)" };
   // baseUrl is an ORIGIN ONLY — strip a trailing slash or "/v1" so the client's
   // "/v1/..." path never double-joins (MJ1).
-  const baseUrl = req.baseUrl ? normalizeBaseOrigin(req.baseUrl) : undefined;
+  const rawBaseUrl = req.baseUrl ?? preset?.baseUrl;
+  const baseUrl = rawBaseUrl ? normalizeBaseOrigin(rawBaseUrl) : undefined;
+  const capabilities = req.capabilities ?? preset?.capabilities;
+  const costMode = req.costMode ?? (preset ? "billed" : undefined);
+  // No explicit auth + a preset ⇒ store the key in the preset's Keychain ref.
+  const auth: AuthRef | undefined = req.auth ?? (preset ? { kind: "keychain", ref: preset.authRef } : undefined);
   // A keychain auth ref is required to know WHERE to store the key.
-  if (req.auth?.kind === "keychain" && !req.auth.ref) {
+  if (auth?.kind === "keychain" && !auth.ref) {
     return { ok: false, error: "auth.ref (Keychain service id) is required for a keychain credential" };
   }
-  if (req.auth?.kind === "keychain" && req.auth.ref && !req.apiKey) {
+  if (auth?.kind === "keychain" && auth.ref && !req.apiKey) {
     return { ok: false, error: "apiKey is required to store a keychain credential" };
   }
   const profile: BackendProfile = {
-    kind: req.kind,
-    model: req.model,
+    kind,
+    model,
     ...(baseUrl ? { baseUrl } : {}),
-    ...(req.auth ? { auth: req.auth } : {}),
-    ...(req.costMode ? { costMode: req.costMode } : {}),
+    ...(auth ? { auth } : {}),
+    ...(costMode ? { costMode } : {}),
     ...(req.params ? { params: req.params } : {}),
-    ...(req.capabilities ? { capabilities: req.capabilities } : {}),
+    ...(capabilities ? { capabilities } : {}),
   };
   const priceKey = (profile.pricing ?? profile.model).toLowerCase();
   const warnings: string[] = [];
@@ -74,7 +88,7 @@ export function validateAddBackend(
   // local model it grows history unbounded and 400s with no recovery (m3). Warn
   // rather than reject (the claude lanes don't need capabilities). contextWindow is
   // schema-required once capabilities is present, so the only gap is omitting it.
-  if (!req.capabilities) {
+  if (!capabilities) {
     warnings.push(`backend "${req.name}" declares no "capabilities" — the in-process lane cannot compact near the context window; declare capabilities (incl. contextWindow) for a small-context or local model.`);
   }
   return {
@@ -97,14 +111,17 @@ const DIALECT_DEFAULT_ORIGIN: Record<string, string> = {
   anthropic: "https://api.anthropic.com",
 };
 
-// Auth header for a provider's /v1/models GET, chosen by wire dialect: openai-chat
-// → Authorization: Bearer; anthropic → x-api-key (+ version). Keyless (no resolved
-// key — e.g. a localhost proxy) → no auth header, mirroring the model clients.
-function modelsAuthHeaders(dialect: string | undefined, apiKey: string | undefined): Record<string, string> {
+// Auth header for a provider's models GET, mirroring the model clients: anthropic →
+// x-api-key (+ version); openai-chat → Authorization: Bearer, UNLESS the profile
+// declares authStyle:"x-goog-api-key" (Gemini), which sends the key in that header
+// with no Authorization. Keyless (no resolved key — e.g. a localhost proxy) → no
+// auth header.
+function modelsAuthHeaders(dialect: string | undefined, apiKey: string | undefined, authStyle?: string): Record<string, string> {
   if (dialect === "anthropic") {
     return { "anthropic-version": "2023-06-01", ...(apiKey ? { "x-api-key": apiKey } : {}) };
   }
-  return apiKey ? { authorization: `Bearer ${apiKey}` } : {};
+  if (!apiKey) return {};
+  return authStyle === "x-goog-api-key" ? { "x-goog-api-key": apiKey } : { authorization: `Bearer ${apiKey}` };
 }
 
 // in/out per-MILLION-token price for a model id. Provider-endpoint pricing (when the
@@ -159,10 +176,18 @@ export async function fetchBackendModels(opts: {
   const doFetch = opts.fetchImpl ?? fetch;
   const dialect = descriptor?.wireDialect;
   const base = normalizeBaseOrigin(profile.baseUrl ?? DIALECT_DEFAULT_ORIGIN[dialect ?? "openai-chat"] ?? "https://api.openai.com");
+  const modelsPath = modelsPathFor(profile.capabilities?.chatCompletionsPath);
+  // When the live list can't be fetched, the picker shows the provider's static
+  // fallback (preset) list — pinned model first — so it's never empty.
+  const fallback = (error: string): BackendModelsResponse => {
+    const preset = fallbackModelsForBaseUrl(profile.baseUrl);
+    const models = [profile.model, ...(preset ?? [])].filter((m, i, a) => a.indexOf(m) === i);
+    return { models, error };
+  };
   try {
     const auth = await opts.resolveAuth(profile.auth);
-    const resp = await doFetch(`${base}/v1/models`, { headers: modelsAuthHeaders(dialect, auth.apiKey) });
-    if (!resp.ok) return { models: [profile.model], error: `provider returned HTTP ${resp.status}` };
+    const resp = await doFetch(`${base}${modelsPath}`, { headers: modelsAuthHeaders(dialect, auth.apiKey, profile.capabilities?.authStyle) });
+    if (!resp.ok) return fallback(`provider returned HTTP ${resp.status}`);
     const data = (await resp.json()) as { data?: Array<Record<string, unknown>> };
     const rows = Array.isArray(data?.data) ? data.data : [];
     const ids: string[] = [];
@@ -175,10 +200,10 @@ export async function fetchBackendModels(opts: {
       const resolved = fromProvider ?? toAnnotation(opts.priceFor?.(id));
       if (resolved) prices[id] = resolved;
     }
-    if (!ids.length) return { models: [profile.model], error: "provider returned no models" };
+    if (!ids.length) return fallback("provider returned no models");
     return Object.keys(prices).length ? { models: ids, prices } : { models: ids };
   } catch (e) {
-    return { models: [profile.model], error: errMsg(e) };
+    return fallback(errMsg(e));
   }
 }
 
@@ -212,18 +237,31 @@ export function registerBackendsRoutes(r: Router, c: Container): void {
     writeJson(res, 200, result);
   });
 
+  // GET /api/backends/presets — the built-in add-provider presets, summarized so a
+  // picker can list them; POST { name, preset:id, apiKey } adds one with just a key.
+  r.get("/api/backends/presets", ({ res }) => {
+    writeJson(res, 200, {
+      presets: PROVIDER_PRESETS.map((p) => ({ id: p.id, label: p.label, kind: p.kind, baseUrl: p.baseUrl, defaultModel: p.defaultModel })),
+    });
+  });
+
   r.post("/api/backends", async ({ req, res }) => {
     const body = validate(AddBackendRequestSchema, await readBody(req));
-    const result = validateAddBackend(body, c.config.prices, (m) => c.modelPricing.lookup(m));
+    // A `preset` body field selects a built-in provider; an unknown id is rejected.
+    const preset = body.preset ? findPreset(body.preset) : undefined;
+    if (body.preset && !preset) { writeJson(res, 400, { error: `unknown preset "${body.preset}"` }); return; }
+    const result = validateAddBackend(body, c.config.prices, (m) => c.modelPricing.lookup(m), preset);
     if (!result.ok) { writeJson(res, 400, { error: result.error }); return; }
     const { prepared } = result;
     for (const w of result.warnings ?? []) c.log.warn("add-backend", { warning: w });
 
-    // Store the key in the Keychain by reference (keychain kinds only). The raw key
+    // Store the key in the Keychain by reference (keychain kinds only) — using the
+    // RESOLVED auth (a preset supplies the ref when the body omits it). The raw key
     // is then dropped — only auth:{kind,ref} reaches config.json.
-    if (body.auth?.kind === "keychain" && body.auth.ref && body.apiKey) {
+    const resolvedAuth = prepared.profile.auth;
+    if (resolvedAuth?.kind === "keychain" && resolvedAuth.ref && body.apiKey) {
       try {
-        writeKeychainSecret(body.auth.ref, body.apiKey);
+        writeKeychainSecret(resolvedAuth.ref, body.apiKey);
       } catch (e) {
         writeJson(res, 500, { error: `failed to store API key in Keychain: ${errMsg(e)}` });
         return;

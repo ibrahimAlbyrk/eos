@@ -16,8 +16,12 @@ import { MemorySourceSchema, type MemorySourceSpec } from "../../contracts/src/m
 import { RemoteConfigSchema, type RemoteConfig, type RemoteMode } from "../../contracts/src/remote.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
+import { isTieredPrice, type ModelPriceSpec, type PriceTier } from "../../core/src/domain/value-objects.ts";
 
 export interface ModelPrice { in: number; out: number; cacheRead: number; cacheCreate: number; cacheCreate1h: number; }
+// A config price is EITHER flat (the existing/LiteLLM shape) or context-tiered.
+// Re-exported so consumers (container, routes) can accept both forms.
+export type { ModelPriceSpec } from "../../core/src/domain/value-objects.ts";
 
 // Per-task tunables for the micro-task subsystem (config.microTasks.tasks[id]).
 // charLimit bounds the inputs a task feeds its prompt; promptTemplate, when set,
@@ -70,7 +74,7 @@ export interface DaemonConfig {
   permissions: {
     defaultTtlMs: number;
   };
-  prices: Record<string, ModelPrice>;
+  prices: Record<string, ModelPriceSpec>;
   // Per-agent-type MCP wiring. Defaults inherit all of claude's normal MCP
   // servers (standard behavior); narrow with include/exclude or add type-only
   // servers via extra. See core/src/domain/mcp-resolution.ts.
@@ -181,15 +185,41 @@ function envStr(name: string, fallback: string): string {
   return process.env[name] ?? fallback;
 }
 
-// Default model prices mirror public Anthropic API rates (per million tokens).
-// Cache-read is heavily discounted (10% of input); cacheCreate is 5-minute
-// ephemeral writes (1.25× input); cacheCreate1h is 1-hour ephemeral writes
-// (2× input). Override in config.json under `prices` if Anthropic changes them.
-const DEFAULT_PRICES: Record<string, ModelPrice> = {
+// A Qwen input-tier band: Qwen bills NO cache discount (capabilities.cache:"none"),
+// so every tier's cache rates are 0. `maxInputTokens` is the inclusive upper bound.
+const qwenTier = (maxInputTokens: number | null, inR: number, outR: number): PriceTier => ({
+  maxInputTokens,
+  price: { in: inR, out: outR, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 },
+});
+
+// Default model prices (per million tokens). Anthropic SKUs mirror public API
+// rates: cache-read ≈10% of input, cacheCreate is 5-minute ephemeral writes
+// (1.25× input), cacheCreate1h is 1-hour writes (2× input). The non-Anthropic
+// entries below are MANUAL overrides for provider models the LiteLLM auto-catalog
+// either lacks or only carries behind a proxy SKU (wrong direct-API price): being in
+// config.prices, they WIN over the catalog (priceForModel checks here first). Models
+// the catalog prices correctly (OpenAI gpt-5.x, xAI grok-4.3, Kimi kimi-k2.6) are
+// intentionally absent — they resolve automatically and self-update. Override any of
+// these in config.json under `prices` (flat OR tiered).
+const DEFAULT_PRICES: Record<string, ModelPriceSpec> = {
   fable:  { in: 10.0, out: 50.0, cacheRead: 1.00, cacheCreate: 12.50, cacheCreate1h: 20.0 },
   opus:   { in: 15.0, out: 75.0, cacheRead: 1.50, cacheCreate: 18.75, cacheCreate1h: 30.0 },
   sonnet: { in:  3.0, out: 15.0, cacheRead: 0.30, cacheCreate:  3.75, cacheCreate1h:  6.0 },
   haiku:  { in:  1.0, out:  5.0, cacheRead: 0.10, cacheCreate:  1.25, cacheCreate1h:  2.0 },
+
+  // Zhipu GLM (Z.ai, international USD) — flat. LiteLLM only has Cloudflare/proxy
+  // SKUs for these, whose price differs from the direct Z.ai API; set manually.
+  "glm-5.2": { in: 1.40, out: 4.40, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 },
+  "glm-4.7": { in: 0.60, out: 2.20, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 },
+
+  // Alibaba Qwen (DashScope international USD) — TIERED on input-token count; absent
+  // from LiteLLM. Bands/rates from model-research cluster-03. qwen3.7-max is a single
+  // flat rate; plus/coder-plus scale with prompt size at the documented Qwen 128k/256k
+  // native boundaries. Intermediate-tier rates interpolate the documented endpoint
+  // range — refine in config.prices if Alibaba publishes finer bands.
+  "qwen3.7-max": { tiers: [qwenTier(null, 2.5, 7.5)] },
+  "qwen3.7-plus": { tiers: [qwenTier(128_000, 0.4, 1.6), qwenTier(256_000, 0.8, 3.2), qwenTier(null, 1.2, 4.8)] },
+  "qwen3-coder-plus": { tiers: [qwenTier(256_000, 0.3, 1.5), qwenTier(null, 6.0, 60.0)] },
 };
 
 // Q0c/MJ2 — the loud fallback for an UNKNOWN model: a known-zero price, NOT the
@@ -208,11 +238,11 @@ export type CatalogLookup = (model: string) => ModelPrice | null;
 // model unknown to BOTH falls back to UNKNOWN_MODEL_PRICE and invokes onUnknown so
 // the caller can warn once — never the silent Opus default (MJ2/Q0c).
 export function priceForModel(
-  prices: Record<string, ModelPrice>,
+  prices: Record<string, ModelPriceSpec>,
   model: string | null | undefined,
   onUnknown?: (model: string) => void,
   catalogLookup?: CatalogLookup,
-): ModelPrice {
+): ModelPriceSpec {
   const m = String(model ?? "opus").toLowerCase();
   if (m in prices) return prices[m];
   if (m.includes("fable")) return prices.fable;
@@ -231,7 +261,7 @@ export function priceForModel(
 // at POST /api/backends (warn, never reject — the catalog auto-resolves most).
 export function billedProfileNeedsPrice(
   profile: BackendProfile,
-  prices: Record<string, ModelPrice>,
+  prices: Record<string, ModelPriceSpec>,
   catalogLookup?: CatalogLookup,
 ): boolean {
   if (profile.costMode !== "billed") return false;
@@ -364,13 +394,41 @@ function parseRemoteMode(v: string): RemoteMode {
   return v === "lan" || v === "relay" ? v : "off";
 }
 
-const ModelPriceOverrideSchema = z.object({
+// A flat price override: any subset of the 5 rate fields (partial) so a config
+// like `{ sonnet: { in: 4 } }` keeps the other rates (mergeConfig field-merges).
+// .strict() so a MALFORMED tiered entry (e.g. a tier missing in/out) can't slip
+// through this branch by having its `tiers` key stripped to an empty `{}` —
+// which would silently become a $0 flat price. Strict makes it fail both union
+// branches → the whole override is loudly dropped instead of mispricing.
+const FlatModelPriceOverrideSchema = z.object({
   in: z.number().nonnegative(),
   out: z.number().nonnegative(),
   cacheRead: z.number().nonnegative(),
   cacheCreate: z.number().nonnegative(),
   cacheCreate1h: z.number().nonnegative(),
-}).partial();
+}).partial().strict();
+
+// One context-threshold tier: in/out are required (a tier must define complete
+// rates or tier selection yields NaN); cache rates default to 0.
+const PriceTierSchema = z.object({
+  maxInputTokens: z.number().int().nonnegative().nullable(),
+  price: z.object({
+    in: z.number().nonnegative(),
+    out: z.number().nonnegative(),
+    cacheRead: z.number().nonnegative().default(0),
+    cacheCreate: z.number().nonnegative().default(0),
+    cacheCreate1h: z.number().nonnegative().default(0),
+  }),
+});
+
+const TieredModelPriceSchema = z.object({
+  tiers: z.array(PriceTierSchema).min(1),
+});
+
+// Accepts BOTH forms. Tiered MUST be tried first: a flat `.partial()` object
+// would also accept `{ tiers: [...] }` (stripping the unknown key to `{}`), so
+// ordering tiered first is what disambiguates a tiered entry from a flat one.
+const ModelPriceOverrideSchema = z.union([TieredModelPriceSchema, FlatModelPriceOverrideSchema]);
 
 const AgentMcpConfigOverrideSchema = z.object({
   inheritDefaults: z.boolean(),
@@ -473,9 +531,11 @@ export const DaemonConfigOverrideSchema = z.object({
 
 // Merge file-loaded overrides on top of defaults. Most sections are flat and
 // merged one level deep. `prices` is special-cased: it's a two-level map
-// (model → {in,out,cacheRead,cacheCreate,cacheCreate1h}) and a partial
-// override like `{ sonnet: { in: 4 } }` must preserve the other 4 fields
-// instead of wiping them — otherwise computeCostUsd produces NaN.
+// (model → flat {in,out,cacheRead,cacheCreate,cacheCreate1h} OR a tiered spec).
+// A flat partial override like `{ sonnet: { in: 4 } }` must preserve the other 4
+// fields instead of wiping them — otherwise computeCostUsd produces NaN. A
+// tiered override replaces wholesale: field-merging it into a flat base (or vice
+// versa) would corrupt the tiers array.
 function mergeConfig(base: DaemonConfig, override: unknown): DaemonConfig {
   if (!override || typeof override !== "object") return base;
   const out: DaemonConfig = JSON.parse(JSON.stringify(base));
@@ -484,10 +544,21 @@ function mergeConfig(base: DaemonConfig, override: unknown): DaemonConfig {
     const incoming = o[k];
     if (!incoming || typeof incoming !== "object" || Array.isArray(incoming)) continue;
     if (k === "prices") {
-      const incPrices = incoming as Record<string, Partial<ModelPrice>>;
+      const incPrices = incoming as Record<string, ModelPriceSpec | Partial<ModelPrice>>;
       for (const model of Object.keys(incPrices)) {
-        const base = out.prices[model] ?? { in: 0, out: 0, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 };
-        out.prices[model] = { ...base, ...incPrices[model] };
+        const inc = incPrices[model];
+        // Tiered override → replace wholesale (a fresh clone, isolated from `o`).
+        if (isTieredPrice(inc as ModelPriceSpec)) {
+          out.prices[model] = JSON.parse(JSON.stringify(inc));
+          continue;
+        }
+        // Flat override → field-merge over a flat base (or zero-base when the
+        // base is absent or tiered) so a partial keeps the untouched rate fields.
+        const base = out.prices[model];
+        const flatBase = base && !isTieredPrice(base)
+          ? (base as ModelPrice)
+          : { in: 0, out: 0, cacheRead: 0, cacheCreate: 0, cacheCreate1h: 0 };
+        out.prices[model] = { ...flatBase, ...(inc as Partial<ModelPrice>) };
       }
     } else if (k === "mcp") {
       // Two-level (orchestrator|worker → AgentMcpConfig). Merge per agent,

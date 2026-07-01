@@ -1,0 +1,39 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import { PROVIDER_PRESETS, findPreset, fallbackModelsForBaseUrl } from "../provider-presets.ts";
+
+describe("provider presets", () => {
+  it("ships exactly the six providers, all OpenAI-compat, each with a fallback list", () => {
+    assert.deepEqual(
+      PROVIDER_PRESETS.map((p) => p.id).sort(),
+      ["gemini", "moonshot", "openai", "qwen", "xai", "zhipu"],
+    );
+    for (const p of PROVIDER_PRESETS) {
+      assert.equal(p.kind, "openai", `${p.id} kind`);
+      assert.equal(p.capabilities.wire, "openai-chat", `${p.id} wire`);
+      assert.ok(p.fallbackModels.length > 0, `${p.id} has a fallback list`);
+      assert.ok(p.fallbackModels.includes(p.defaultModel), `${p.id} default model is in its fallback list`);
+      assert.ok(p.authRef.startsWith("eos-"), `${p.id} authRef`);
+    }
+  });
+
+  it("Gemini uses the shim base, x-goog-api-key auth, and a /chat/completions path", () => {
+    const g = findPreset("gemini")!;
+    assert.equal(g.baseUrl, "https://generativelanguage.googleapis.com/v1beta/openai");
+    assert.equal(g.capabilities.authStyle, "x-goog-api-key");
+    assert.equal(g.capabilities.chatCompletionsPath, "/chat/completions");
+  });
+
+  it("Zhipu declares the /api/paas/v4 chat path off a bare origin", () => {
+    const z = findPreset("zhipu")!;
+    assert.equal(z.baseUrl, "https://api.z.ai");
+    assert.equal(z.capabilities.chatCompletionsPath, "/api/paas/v4/chat/completions");
+  });
+
+  it("fallbackModelsForBaseUrl matches by normalized origin, null for unknown", () => {
+    assert.deepEqual(fallbackModelsForBaseUrl("https://api.x.ai/v1"), findPreset("xai")!.fallbackModels);
+    assert.deepEqual(fallbackModelsForBaseUrl("https://api.openai.com/"), findPreset("openai")!.fallbackModels);
+    assert.equal(fallbackModelsForBaseUrl("https://api.deepseek.com"), null);
+    assert.equal(fallbackModelsForBaseUrl(undefined), null);
+  });
+});
