@@ -303,6 +303,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         cfg.userContentController.add(self, name: "titlebarDrag")
         cfg.userContentController.add(self, name: "themeChanged")
         cfg.userContentController.add(self, name: "themeSnapshot")
+        cfg.userContentController.add(self, name: "saveFile")
         cfg.userContentController.addScriptMessageHandler(self, contentWorld: .page, name: "pasteboardPaths")
 
         // Last resolved theme (posted by theme.js) so the window/webview bg
@@ -924,6 +925,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     }
 
     func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage) {
+        if message.name == "saveFile" {
+            guard let dict = message.body as? [String: String],
+                  let filename = dict["filename"],
+                  let base64 = dict["base64"],
+                  let data = Data(base64Encoded: base64) else { return }
+            DispatchQueue.main.async {
+                let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+                let dest = downloads.appendingPathComponent(filename)
+                do {
+                    try data.write(to: dest)
+                    NSWorkspace.shared.open(dest)
+                } catch {
+                    NSLog("saveFile: write failed: %@", error.localizedDescription)
+                }
+            }
+            return
+        }
         if message.name == "themeSnapshot" {
             // Freeze the current frame for the JS circular theme reveal — the
             // page flips theme under this image so backdrop-filter stays live.

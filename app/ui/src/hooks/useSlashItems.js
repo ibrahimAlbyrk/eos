@@ -6,6 +6,7 @@ import { useTemplates } from "./useTemplates.js";
 // message ("/clear" pasted + CR runs the command); listed for discoverability.
 export const BUILTIN_COMMANDS = [
   { name: "clear", description: "Clear conversation history (agent context + chat)", source: "builtin" },
+  { name: "export", description: "Export conversation as HTML", source: "builtin" },
 ];
 
 // The full slash universe for a cwd: builtins + daemon commands + templates.

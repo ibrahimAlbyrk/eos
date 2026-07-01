@@ -639,17 +639,25 @@ export const api = {
       const r = await fetch(url);
       if (!r.ok) throw new Error(`export → ${r.status}`);
       const blob = await r.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = blobUrl;
-      // Extract filename from Content-Disposition or use a fallback
       const disposition = r.headers.get("content-disposition");
       const match = disposition?.match(/filename="?(.+?)"?$/);
-      a.download = match ? match[1] : `export-${id}.html`;
+      const filename = match ? match[1] : `export-${id}.html`;
+      const base64 = await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result.split(",")[1]);
+        reader.readAsDataURL(blob);
+      });
+      // WKWebView (eos:// scheme) doesn't support <a download> — use native save dialog
+      if (window.webkit?.messageHandlers?.saveFile) {
+        window.webkit.messageHandlers.saveFile.postMessage({ filename, base64, mimeType: blob.type || "text/html" });
+        return;
+      }
+      const a = document.createElement("a");
+      a.href = `data:${blob.type};base64,${base64}`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(blobUrl);
     } catch (e) {
       console.error("export failed", e);
     }
