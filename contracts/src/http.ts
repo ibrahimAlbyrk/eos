@@ -513,6 +513,29 @@ export const BackendModelsResponseSchema = z.object({
 });
 export type BackendModelsResponse = z.infer<typeof BackendModelsResponseSchema>;
 
+// ---- POST /api/backends/test -------------------------------------------------
+// Ephemeral connection test: builds a profile IN MEMORY (NEVER persisted), resolves
+// the key IN MEMORY (NEVER writes Keychain), and does a live connectivity check via
+// the provider's /v1/models (reusing fetchBackendModels' live path). Returns
+// { ok: true, models } or { ok: false, status, error }.
+export const TestBackendRequestSchema = z
+  .object({
+    preset: z.string().optional(),
+    kind: BackendKindSchema.optional(),
+    baseUrl: z.string().url().optional(),
+    model: z.string().min(1).optional(),
+    capabilities: ProviderCapabilitiesSchema.optional(),
+    apiKey: z.string().optional(),
+  })
+  .strict();
+export type TestBackendRequest = z.infer<typeof TestBackendRequestSchema>;
+
+export const TestBackendResponseSchema = z.discriminatedUnion("ok", [
+  z.object({ ok: z.literal(true), models: z.array(z.string()) }),
+  z.object({ ok: z.literal(false), status: z.number().optional(), error: z.string() }),
+]);
+export type TestBackendResponse = z.infer<typeof TestBackendResponseSchema>;
+
 // ---- GET /pick-directory, POST /fs/open, GET /fs/default-app ----------------
 
 export const PickDirectoryResponseSchema = z.union([
@@ -1888,4 +1911,9 @@ export const ROUTES = {
   apiBackendPresets: "/api/backends/presets",
   // A configured provider's available models for the two-level composer picker.
   apiBackendModels: (name: string): string => `/api/backends/${name}/models`,
+  // Ephemeral connection test — validates a provider config (preset + key) with a
+  // live /v1/models call before the config is persisted.
+  apiBackendTest: "/api/backends/test",
+  // Delete a configured provider profile by name.
+  apiBackendDelete: (name: string): string => `/api/backends/${name}`,
 } as const;
