@@ -200,3 +200,55 @@ describe("validateAddBackend — preset expansion", () => {
     assert.equal(r.ok, false);
   });
 });
+
+// ---- POST /api/backends/test (ephemeral connection test) ---------------------
+// The route handler builds a profile IN MEMORY from a preset + apiKey, resolves the
+// key IN MEMORY, and calls fetchBackendModels. The unique path is the in-memory
+// resolution — no Keychain write. Test the model-fetch path with a raw apiKey.
+describe("POST /api/backends/test — ephemeral connection check", () => {
+  it("builds a profile in memory + fetches models with the raw apiKey", async () => {
+    const gemini = findPreset("gemini")!;
+    const profile = {
+      kind: gemini.kind,
+      model: gemini.defaultModel,
+      baseUrl: gemini.baseUrl,
+      capabilities: gemini.capabilities,
+      costMode: "billed" as const,
+    };
+    let seenAuth = "";
+    const res = await fetchBackendModels({
+      profile,
+      descriptor: openaiDescriptor,
+      claudeCatalogIds: async () => [],
+      resolveAuth: async () => ({ scheme: "apikey" as const, apiKey: "RAW-KEY" }),
+      fetchImpl: fakeFetch((_url, init) => {
+        seenAuth = init?.headers?.authorization ?? "";
+        return { ok: true, status: 200, json: async () => ({ data: [{ id: "gemini-3.1-pro-preview" }] }) };
+      }),
+    });
+    assert.equal(seenAuth, "Bearer RAW-KEY");
+    assert.deepEqual(res.models, ["gemini-3.1-pro-preview"]);
+    assert.equal(res.error, undefined);
+  });
+
+  it("returns the preset's default model when the key is bad (HTTP 401)", async () => {
+    const openai = findPreset("openai")!;
+    const profile = {
+      kind: openai.kind,
+      model: openai.defaultModel,
+      baseUrl: openai.baseUrl,
+      capabilities: openai.capabilities,
+      costMode: "billed" as const,
+    };
+    const res = await fetchBackendModels({
+      profile,
+      descriptor: openaiDescriptor,
+      claudeCatalogIds: async () => [],
+      resolveAuth: async () => ({ scheme: "apikey" as const, apiKey: "BAD" }),
+      fetchImpl: fakeFetch(() => ({ ok: false, status: 401, json: async () => ({}) })),
+    });
+    // FAIL-SOFT returns the preset's static fallback list + pinned model deduped.
+    assert.deepEqual(res.models, ["gpt-5.5", "gpt-5.5-pro", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.3-codex"]);
+    assert.match(res.error ?? "", /HTTP 401/);
+  });
+});
