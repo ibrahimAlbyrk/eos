@@ -3,14 +3,16 @@ import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { useInputNeeded } from "../../../hooks/useInputNeeded.js";
-import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, MAX_PANES } from "../../../lib/paneLayout.js";
+import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, splitRectForPanel, MAX_PANES } from "../../../lib/paneLayout.js";
 import { usePaneTransitions } from "../../../hooks/usePaneTransitions.js";
 import { Messages } from "../messages/Messages.jsx";
 import { TranscriptHost } from "../messages/TranscriptHost.jsx";
 import { AgentPickerOverlay } from "./AgentPickerOverlay.jsx";
 import { DragAffordance } from "./DragAffordance.jsx";
-import { PanePanel } from "./PanePanel.jsx";
+import { PaneViewers } from "./PaneViewers.jsx";
 import { PaneScopeContext } from "../../../state/paneScope.js";
+
+const pctStyle = (r) => ({ left: `${r.left}%`, top: `${r.top}%`, width: `${r.width}%`, height: `${r.height}%` });
 
 const sameZone = (a, b) => !!a && !!b && a.kind === b.kind && a.edge === b.edge;
 
@@ -123,18 +125,27 @@ export function PaneGrid({ live }) {
   // focuses their existing pane instead of duplicating them.
   const shownAgentIds = new Set(rects.map((r) => r.agentId).filter(Boolean));
 
+  // Each pane owns its OWN docked panel (independent open/close + file per pane):
+  // a pane with an open panel yields its right edge to it, carved out of that
+  // pane's own rect so neighbours never move — two panes can show their panels at
+  // once. ui.topPanelTypeIn(id) reads that pane's stack directly (keyed map).
+  const paneRectOf = (id, rect) => splitRectForPanel(rect, ui.topPanelTypeIn(id)).paneRect;
+
   // One slot renderer for both live panes and the leaving ghosts. A ghost keeps
   // the same key (leaf id) and element shape so React keeps the real Pane mounted
   // across the close → the transcript fades out in place, it doesn't remount.
   const renderSlot = ({ id, agentId, rect }, isLeaving = false) => {
     const worker = agentId ? live.workers.find((w) => w.id === agentId) ?? null : null;
     const focused = !isLeaving && id === ui.focusedLeafId;
+    // A pane with an open panel yields its right edge to it (paneRect); a leaving
+    // ghost keeps its full rect (no panel).
+    const slotRect = isLeaving ? rect : paneRectOf(id, rect);
     return (
       <div
         key={id}
         ref={isLeaving ? setNode(id) : undefined}
         className={"pane-slot" + (isLeaving ? " is-leaving" : "")}
-        style={{ left: `${rect.left}%`, top: `${rect.top}%`, width: `${rect.width}%`, height: `${rect.height}%` }}
+        style={pctStyle(slotRect)}
       >
         <Pane
           id={id}
@@ -173,6 +184,19 @@ export function PaneGrid({ live }) {
     <div className={"pane-grid" + (resizing ? " is-resizing" : "")} ref={gridRef}>
       {rects.map((r) => renderSlot(r))}
       {leaving.map((l) => renderSlot(l, true))}
+      {/* One docked panel slot PER pane — a grid sibling anchored to that pane's
+          right edge (own island chrome, full pane height, outside the pane body
+          so no head/fade clips it). Scoped to its pane via PaneScopeContext so the
+          viewers read THAT pane's stack (independent per pane). Zero-width when
+          that pane has nothing open, but kept mounted (stable key) so a buried
+          panel keeps its fetched state and its rect animates on reflow. */}
+      {rects.map(({ id, rect }) => (
+        <div key={`panel:${id}`} className="pane-slot pane-panel-slot" style={pctStyle(splitRectForPanel(rect, ui.topPanelTypeIn(id)).panelRect)}>
+          <PaneScopeContext.Provider value={id}>
+            <PaneViewers live={live} />
+          </PaneScopeContext.Provider>
+        </div>
+      ))}
       {dividers.map((d) => (
         <Divider
           key={d.id}
@@ -196,19 +220,22 @@ export function SinglePane({ live }) {
     if (z.kind === "split") ui.splitWithAgent(leafId, z.dir, z.side, aid);
     else ui.dropReplace(leafId, aid);
   });
+  // One pane spans the whole center: a horizontal flex row holds the transcript
+  // (flex:1) and its docked panel (flex-basis = its share of the width). The
+  // transcript stays a flex-1 child of a flex-column (.sp-body) — the same layout
+  // context it renders in without a panel — so it never collapses. Closed → the
+  // panel is zero-basis but kept mounted (keep-alive).
+  const { panelRect } = splitRectForPanel({ left: 0, top: 0, width: 100, height: 100 }, ui.topPanelType);
   return (
     <div className="single-pane" {...handlers}>
       {zone && <DropPreview zone={zone} />}
       {zone && pointer && <DragAffordance pointer={pointer} zone={zone} />}
-      {/* One pane spans the whole center, so its right-docked panel sits at the
-          center's right edge — identical horizontal dock to the old window-grid
-          mount. */}
-      <PaneScopeContext.Provider value={leafId}>
-        <div className="pane-body">
-          <TranscriptHost live={live} activeId={ui.selectedId} />
-          <PanePanel live={live} />
-        </div>
-      </PaneScopeContext.Provider>
+      <div className="pane-tx">
+        <TranscriptHost live={live} activeId={ui.selectedId} />
+      </div>
+      <div className="pane-panel-slot pane-dock" style={{ flexBasis: `${panelRect.width}%` }}>
+        <PaneViewers live={live} />
+      </div>
     </div>
   );
 }
@@ -309,21 +336,11 @@ function Pane({ id, agentId, worker, live, focused, excludeIds, attention, canCl
           </button>
         )}
       </div>
-      {/* Pane-local right panel: the transcript + this pane's docked viewer share
-          a horizontal flex row, so an opened panel shrinks ONLY this pane's
-          transcript and anchors to this pane's right edge. PaneScopeContext
-          publishes the leaf id so a transcript click (and the docked viewers)
-          resolve to this pane (see useUi). */}
-      <PaneScopeContext.Provider value={id}>
-        <div className="pane-body">
-          {worker
-            // Every split pane is rendered on screen regardless of focus, so all are
-            // visible (and may animate); only the focused one is isActive (shared UI).
-            ? <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
-            : <AgentPickerOverlay live={live} excludeIds={excludeIds} focused={focused} dragActive={!!zone} onPick={onPick} />}
-          <PanePanel live={live} />
-        </div>
-      </PaneScopeContext.Provider>
+      {worker
+        // Every split pane is rendered on screen regardless of focus, so all are
+        // visible (and may animate); only the focused one is isActive (shared UI).
+        ? <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
+        : <AgentPickerOverlay live={live} excludeIds={excludeIds} focused={focused} dragActive={!!zone} onPick={onPick} />}
     </div>
   );
 }

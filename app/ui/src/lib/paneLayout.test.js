@@ -4,6 +4,7 @@ import {
   setLeafAgent, splitLeaf, removeLeaf, swapLeaves, moveLeaf, setRatio, removeDeadLeaves,
   computeRects, computeDividers, dropZoneFromPoint, fanoutLayout,
   stripAgents, fillAgents, reuseLeafIds, defaultPanePresets, MAX_PANES,
+  splitRectForPanel,
 } from "./paneLayout.js";
 
 describe("leaf / leaves / count", () => {
@@ -383,6 +384,35 @@ describe("defaultPanePresets", () => {
     expect(grid.filter((r) => r.rect.top === 0)).toHaveLength(3);
     expect(grid.filter((r) => r.rect.top === 50)).toHaveLength(3);
     for (const r of grid) expect(r.rect.width).toBeCloseTo(20);
+  });
+});
+
+describe("splitRectForPanel", () => {
+  const rect = { left: 20, top: 0, width: 40, height: 100 };
+
+  it("no open panel → pane keeps its full rect, panel is zero-width at the right edge", () => {
+    const { paneRect, panelRect } = splitRectForPanel(rect, null);
+    expect(paneRect).toEqual(rect);
+    expect(panelRect).toEqual({ left: 60, top: 0, width: 0, height: 100 });
+  });
+
+  it("carves the panel out of the pane's OWN right edge (neighbour space untouched)", () => {
+    const { paneRect, panelRect } = splitRectForPanel(rect, "file"); // frac 0.5
+    expect(paneRect).toEqual({ left: 20, top: 0, width: 20, height: 100 });
+    expect(panelRect).toEqual({ left: 40, top: 0, width: 20, height: 100 });
+    // pane + panel exactly re-tile the original rect — nothing spills past it.
+    expect(paneRect.width + panelRect.width).toBeCloseTo(rect.width);
+    expect(panelRect.left + panelRect.width).toBeCloseTo(rect.left + rect.width);
+  });
+
+  it("agent panel takes a narrower share than file", () => {
+    const file = splitRectForPanel(rect, "file").panelRect.width;
+    const agent = splitRectForPanel(rect, "agent").panelRect.width;
+    expect(agent).toBeLessThan(file);
+  });
+
+  it("unknown type falls back to half the pane", () => {
+    expect(splitRectForPanel(rect, "mystery").panelRect.width).toBeCloseTo(20);
   });
 });
 

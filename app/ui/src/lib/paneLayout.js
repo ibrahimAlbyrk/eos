@@ -276,6 +276,23 @@ export function dropZoneFromPoint(fx, fy, edge = 0.3) {
   return { kind: "split", dir, side, edge: nearest };
 }
 
+// Width the docked viewer claims of its OWNING pane's rect, per panel type. The
+// panel opens as a sibling surface immediately right of the focused pane, so the
+// room comes out of that pane's own rect — neighbouring panes never move.
+const PANEL_FRAC = { file: 0.5, agent: 0.4, diff: 0.5, commits: 0.45, conflict: 0.5, memory: 0.5 };
+
+// Carve the focused pane's rect into [shrunk pane | adjacent panel]. `type` is
+// the open panel type (ui.topPanelType) or null/undefined when nothing is open →
+// the pane keeps its full rect and the panel rect is zero-width (kept mounted for
+// keep-alive, but claims no space). Pure geometry; % units, same frame as rect.
+export function splitRectForPanel(rect, type) {
+  const pw = rect.width * (type ? (PANEL_FRAC[type] ?? 0.5) : 0);
+  return {
+    paneRect: { ...rect, width: rect.width - pw },
+    panelRect: { left: rect.left + rect.width - pw, top: rect.top, width: pw, height: rect.height },
+  };
+}
+
 export function computeDividers(node, rect = FULL) {
   if (isLeaf(node)) return [];
   const { left, top, width, height } = rect;

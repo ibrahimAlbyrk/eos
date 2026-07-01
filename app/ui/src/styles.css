@@ -82,10 +82,6 @@ kbd {
      full-bleed background layer underneath */
   --shell-gap: 6px;
   --panel-radius: 12px;
-  /* floor for a pane-docked right panel (file/diff/agent viewer): a pane-relative
-     fraction never shrinks below this, so a narrow split pane keeps the panel
-     usable (the transcript yields instead). */
-  --pane-panel-min: 320px;
   /* transcript rhythm: .messages flex gap owns ALL inter-block spacing —
      block roots carry no outer margins. Must stay ≥ --msg-actions-h + its
      4px top offset so the hover copy/timestamp row fits inside the gap. */
@@ -320,9 +316,9 @@ html.native .sb-section > .sb-iconbtn { margin-left: auto; }
 .app.side-collapsed {
   grid-template-columns: 0 1fr 0fr;
 }
-/* Right panels no longer live in window column 3 — they dock inside their
-   originating pane (see .pane-body + the viewer islands below), so the window
-   grid never resizes for a panel. Column 3 stays a dead 0fr track. */
+/* Right panels dock beside the FOCUSED pane inside the pane grid (see
+   .pane-panel-slot), not in window column 3 — so the window grid never resizes
+   for a panel. Column 3 stays a dead 0fr track. */
 .app.side-collapsed .side { transform: translateX(-100%); opacity: 0; pointer-events: none; }
 .side { transition: transform 200ms ease, opacity 200ms ease; }
 
@@ -747,12 +743,15 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   background: var(--bg);
 }
 
-/* right-panel islands — shared geometry for every pane-docked viewer. Each is a
-   right-docked flex child of its pane's .pane-body (see below): closed it is a
-   zero-footprint mounted box, open it claims a pane-relative fraction of width
-   and the transcript (flex:1) takes the rest. The pane's own border/shadow frame
-   already separates it from the center bg. */
+/* right-panel islands — shared geometry for every docked viewer. Each fills its
+   panel slot (see .pane-panel-slot), inset 3px like a pane so it reads as its own
+   framed surface. All six overlay in the same slot (grid stacking → absolute
+   stacking); only the open one is visible. The slot is anchored beside the
+   focused pane (PaneGrid/SinglePane), so no pane head or bottom-fade ever clips
+   it. */
 .file-viewer, .diff-viewer, .commits-viewer, .agent-viewer, .conflict-viewer, .memory-viewer {
+  position: absolute;
+  inset: 3px;
   display: flex;
   flex-direction: column;
   background: var(--surface-2, var(--bg));
@@ -765,34 +764,20 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   opacity: 0;
   pointer-events: none;
   transform: translateX(14px);
-  /* Closed/buried panels stay MOUNTED (the per-pane stack keeps their state) but
-     must cost zero layout/paint — content-visibility:hidden takes the whole
-     subtree out of rendering, and flex:none + width:0 + margin:0 keep the box
-     from claiming any width in the row (so the transcript stays full-bleed). */
+  /* Closed/buried panels stay MOUNTED (panel stack keeps their state) but must
+     cost zero layout/paint — content-visibility:hidden takes the whole subtree
+     out of rendering, so a huge buried diff can't jank other panels' opens. */
   content-visibility: hidden;
-  flex: none;
-  width: 0;
-  margin: 0;
 }
-/* Open = top of THIS pane's stack. Enter motion is compositor-only (opacity +
-   transform); close snaps instantly (no transition on the base state). The
-   per-type widths translate the old window-column fractions into pane-relative
-   ones (file 1.5/(1+1.5)=60%, agent 0.6/1.6=37.5%, diff 50%, commits ~44%,
-   conflict 60%, memory 50%), floored so a narrow pane never crushes the panel. */
+/* Open = top of the focused pane's stack. Enter motion is compositor-only
+   (opacity + transform); close snaps instantly (no transition on the base state). */
 .file-viewer.fv-open, .diff-viewer.dv-open, .commits-viewer.cv-open, .agent-viewer.av-open, .conflict-viewer.cr-open, .memory-viewer.mv-open {
   opacity: 1;
   pointer-events: auto;
   transform: none;
   content-visibility: visible;
-  margin: var(--shell-gap) var(--shell-gap) var(--shell-gap) 0;
   transition: opacity 150ms ease, transform 180ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
-.file-viewer.fv-open     { width: max(var(--pane-panel-min), 60%); }
-.agent-viewer.av-open    { width: max(var(--pane-panel-min), 37.5%); }
-.diff-viewer.dv-open     { width: max(var(--pane-panel-min), 50%); }
-.commits-viewer.cv-open  { width: max(var(--pane-panel-min), 44%); }
-.conflict-viewer.cr-open { width: max(var(--pane-panel-min), 60%); }
-.memory-viewer.mv-open   { width: max(var(--pane-panel-min), 50%); }
 
 /* top header strip — just session breadcrumb, nothing more */
 .head {
@@ -910,13 +895,15 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   position: relative;
 }
 /* Single-pane view = the keep-alive multiplexer, but a drag-to-split drop target
-   too (so the first split can be made by drag). Relative for the drop preview. */
+   too (so the first split can be made by drag). Relative for the drop preview. A
+   horizontal row so the docked panel (.pane-dock) can shrink the transcript in
+   flow — the transcript still fills the row when no panel is open. */
 .single-pane {
   flex: 1;
   min-height: 0;
   position: relative;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
 }
 /* Eased reflow: survivors translate/shrink from old %-rect → new on any split or
    close. Geometry (not transform) so the live content reflows without distortion;
@@ -932,6 +919,39 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* During a divider drag the slot transition is off so resize is 1:1 with the
    pointer (the eased geometry would otherwise lag the ratio writes). */
 .pane-grid.is-resizing .pane-slot { transition: none; }
+
+/* The docked panel slot: a .pane-slot sibling anchored beside the focused pane
+   (PaneGrid via a computed rect, SinglePane via left/width). It is the positioned
+   ancestor the viewer islands (.file-viewer et al, absolute inset:3px) fill, so
+   the panel is its own framed surface — never inside a pane's body, head, or
+   fade. Zero-width when nothing is open (kept mounted for keep-alive). */
+/* z-index:2 keeps every docked panel IN FRONT of the message area — the
+   transcript's active pane carries z-index:1 (.tx-pane.on), so without this the
+   message area would paint over a panel docked in the same pane. The drop-preview
+   (z-index:3) still sits above the panel. */
+.pane-panel-slot { min-width: 0; min-height: 0; z-index: 2; }
+/* Single-pane transcript region — a flex-1 column so <TranscriptHost> (.tx-host,
+   flex:1) fills it exactly as it does with no panel open; yields row width to the
+   docked panel when one opens. (Named .pane-tx, NOT .sp-body — that class is
+   already owned by the spawn-panel form further down, whose z-index:5 would put
+   the transcript in front of the docked panel.) */
+.pane-tx {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Single-pane docked panel — an in-flow flex sibling of the transcript. flexBasis
+   (inline) is its share of the row width, 0 when closed; positioned so the viewer
+   islands (absolute inset:3px) frame inside it. Eased so open/close reflows the
+   transcript smoothly. */
+.pane-dock {
+  position: relative;
+  flex-grow: 0;
+  flex-shrink: 0;
+  transition: flex-basis 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
 .pane {
   position: absolute;
   inset: 3px; /* gap to neighbours (6px between) + a thin frame to the center */
@@ -958,20 +978,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   border-color: var(--border-strong);
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25), inset 0 0 0 1px var(--accent-soft);
 }
-/* The pane's transcript + its docked right panel share a horizontal row, below
-   the pane head (single-pane: below the center header). First child = the
-   transcript/picker (fills); the panel viewers dock after it (width set when
-   open, see the island rules). Used by both split panes and the single pane so
-   the dock geometry is identical at 1 pane or 9. */
-.pane-body {
-  flex: 1;
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: row;
-}
-.pane-body > :first-child { flex: 1; min-width: 0; }
-
 /* Drag-to-split preview: a light misted-glass overlay showing where the dropped
    agent will land — a half for an edge split, the whole pane for a center replace.
    The backdrop-filter lightly hazes the pane's transcript behind it (the accent

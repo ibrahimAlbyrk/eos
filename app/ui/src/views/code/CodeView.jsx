@@ -117,9 +117,9 @@ export function CodeView({ live }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [ui.openPopover, ui]);
 
-  // The right panels now mount INSIDE their originating pane (PanePanel docked
-  // to that pane's right edge), so the window grid no longer resizes for them —
-  // only `split` remains.
+  // The right panels dock as a sibling surface immediately right of the FOCUSED
+  // pane, INSIDE the pane grid (see PaneGrid/SinglePane) — not the window's right
+  // column — so the window grid never resizes for a panel. Only `split` remains.
   const gridClass = ui.paneCount > 1 ? "split" : "";
 
   return (
@@ -131,8 +131,8 @@ export function CodeView({ live }) {
           <CenterHeader live={live} />
           {/* Single pane keeps the keep-alive multiplexer (instant switch-back).
               Split view (2-4 panes) lays the transcripts out side by side; the
-              shared header + composer below track the focused pane. Each pane
-              hosts its own docked right panel (see PanePanel). */}
+              shared header + composer below track the focused pane. Each renders
+              the focused pane's docked panel adjacent to it (see PaneViewers). */}
           {ui.paneCount > 1
             ? <PaneGrid live={live} />
             : <SinglePane live={live} />}
