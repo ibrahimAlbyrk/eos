@@ -18,6 +18,7 @@ import type { BackendProfile, AuthRef } from "../../contracts/src/backend.ts";
 import type { BackendKind } from "../../contracts/src/canonical.ts";
 import type { BackendDescriptor } from "../../core/src/ports/AgentBackend.ts";
 import type { ResolvedAuth } from "../../core/src/ports/AuthResolver.ts";
+import { TestBackendRequestSchema, type TestBackendRequest, type TestBackendResponse } from "../../contracts/src/http.ts";
 import { normalizeBaseOrigin, modelsPathFor } from "../../infra/src/backends/base-url.ts";
 import { writeKeychainSecret } from "../../infra/src/auth/SubscriptionAuthResolver.ts";
 import { billedProfileNeedsPrice, type ModelPrice, type ModelPriceSpec } from "../shared/config.ts";
@@ -290,6 +291,84 @@ export function registerBackendsRoutes(r: Router, c: Container): void {
     }
 
     writeJson(res, 201, { name: prepared.name, kind: prepared.profile.kind, model: prepared.profile.model, baseUrl: prepared.profile.baseUrl });
+  });
+
+  // POST /api/backends/test — ephemeral connection test. Builds a profile IN MEMORY
+  // from a preset + apiKey, resolves the key IN MEMORY (NEVER persists, NEVER writes
+  // Keychain), and does a live connectivity check via the provider's /v1/models.
+  r.post("/api/backends/test", async ({ req, res }) => {
+    const body = validate(TestBackendRequestSchema, await readBody(req)) as TestBackendRequest;
+    const preset = body.preset ? findPreset(body.preset) : undefined;
+    if (body.preset && !preset) {
+      writeJson(res, 400, { ok: false, error: `unknown preset "${body.preset}"` });
+      return;
+    }
+    const kind: BackendKind | undefined = body.kind ?? preset?.kind;
+    const model = body.model ?? preset?.defaultModel;
+    if (!kind || !model) {
+      writeJson(res, 400, { ok: false, error: "kind and model are required (or supply a known preset)" });
+      return;
+    }
+    if (!body.apiKey) {
+      writeJson(res, 400, { ok: false, error: "apiKey is required" });
+      return;
+    }
+
+    // Build an EPHEMERAL profile — same shape as a persisted one but never stored.
+    const rawBaseUrl = body.baseUrl ?? preset?.baseUrl;
+    const baseUrl = rawBaseUrl ? normalizeBaseOrigin(rawBaseUrl) : undefined;
+    const profile: BackendProfile = {
+      kind,
+      model,
+      ...(baseUrl ? { baseUrl } : {}),
+      ...(preset?.capabilities || body.capabilities ? { capabilities: body.capabilities ?? preset?.capabilities } : {}),
+      costMode: "billed",
+    };
+
+    // Resolve the key IN MEMORY — bypass Keychain entirely.
+    const descriptor: BackendDescriptor | null = c.backends.has(kind) ? c.backends.get(kind).descriptor : null;
+    const inMemoryKey = body.apiKey;
+
+    let liveResult: TestBackendResponse;
+    try {
+      const modelsResult = await fetchBackendModels({
+        profile,
+        descriptor,
+        claudeCatalogIds: async () => [],
+        resolveAuth: async () => ({ scheme: "apikey" as const, apiKey: inMemoryKey }),
+        priceFor: (m) => c.modelPricing.lookup(m),
+        fetchImpl: fetch,
+      });
+      if (modelsResult.error) {
+        liveResult = { ok: false, error: modelsResult.error };
+      } else {
+        liveResult = { ok: true, models: modelsResult.models };
+      }
+    } catch (e) {
+      liveResult = { ok: false, error: errMsg(e) };
+    }
+    writeJson(res, liveResult.ok ? 200 : 400, liveResult);
+  });
+
+  // DELETE /api/backends/:name — remove a configured provider profile.
+  r.del(/^\/api\/backends\/(?<name>[^/]+)$/, async ({ params, res }) => {
+    const name = decodeURIComponent(params.name);
+    if (!c.config.backends[name]) {
+      writeJson(res, 404, { error: `backend "${name}" not found` });
+      return;
+    }
+    try {
+      const path = join(c.config.daemon.home, "config.json");
+      const existing = readConfigJson(path);
+      const backends = (existing.backends ?? {}) as Record<string, unknown>;
+      delete backends[name];
+      existing.backends = backends;
+      writeFileSync(path, JSON.stringify(existing, null, 2));
+      c.reloadConfig();
+      writeJson(res, 200, { ok: true });
+    } catch (e) {
+      writeJson(res, 500, { error: `failed to remove backend: ${errMsg(e)}` });
+    }
   });
 }
 
