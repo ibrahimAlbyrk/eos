@@ -17,11 +17,24 @@ describe("provider presets", () => {
     }
   });
 
-  it("Gemini uses the shim base, x-goog-api-key auth, and a /chat/completions path", () => {
+  it("Gemini uses the shim base, Bearer auth (default), and a /chat/completions path", () => {
     const g = findPreset("gemini")!;
     assert.equal(g.baseUrl, "https://generativelanguage.googleapis.com/v1beta/openai");
-    assert.equal(g.capabilities.authStyle, "x-goog-api-key");
+    // The OpenAI-compat shim authenticates with Authorization: Bearer — the omitted
+    // default — NOT x-goog-api-key (which is native-REST-only).
+    assert.equal(g.capabilities.authStyle, undefined);
     assert.equal(g.capabilities.chatCompletionsPath, "/chat/completions");
+  });
+
+  it("OpenAI declares gpt-5.x quirks: max_completion_tokens + reasoning_effort suppressed with tools", () => {
+    const o = findPreset("openai")!;
+    assert.equal(o.capabilities.maxTokensParam, "max_completion_tokens");
+    assert.equal(o.capabilities.dropReasoningEffortWithTools, true);
+    // Every other preset stays on the safe defaults.
+    for (const p of PROVIDER_PRESETS.filter((p) => p.id !== "openai")) {
+      assert.equal(p.capabilities.maxTokensParam, "max_tokens", `${p.id} maxTokensParam default`);
+      assert.equal(p.capabilities.dropReasoningEffortWithTools, false, `${p.id} dropReasoningEffortWithTools default`);
+    }
   });
 
   it("Zhipu declares the /api/paas/v4 chat path off a bare origin", () => {

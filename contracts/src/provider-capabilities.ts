@@ -45,6 +45,16 @@ export const ProviderCapabilitiesSchema = z
     // window) so a small-context model compacts instead of a raw 400.
     contextWindow: z.number().int().positive(),
     maxTokens: z.number().int().positive().optional(),
+    // The request parameter carrying the output-token cap. Chat Completions took
+    // `max_tokens` originally; OpenAI's gpt-5.x reasoning models on /v1/chat/completions
+    // REJECT it and require `max_completion_tokens`. Declared per-provider so the client
+    // emits the right key — default keeps every existing provider on `max_tokens`.
+    maxTokensParam: z.enum(["max_tokens", "max_completion_tokens"]).default("max_tokens"),
+    // OpenAI's gpt-5.x on /v1/chat/completions returns 400 when `reasoning_effort` is
+    // sent together with function tools. When true, the client omits reasoning_effort
+    // ONLY on requests that attach tools (a text-only turn still gets it). Default false
+    // → no provider suppresses, so effort emission is unchanged everywhere else.
+    dropReasoningEffortWithTools: z.boolean().default(false),
     // Bounded exponential-backoff knobs for the shared withRetry wrapper inside the
     // two model clients (M4): retry 429/5xx honoring Retry-After. Capability-gated
     // (a per-provider override) but defaulted in the client, so omitting it keeps

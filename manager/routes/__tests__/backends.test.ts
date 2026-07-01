@@ -150,15 +150,15 @@ describe("fetchBackendModels — preset providers (path, auth, fallback)", () =>
     assert.equal(seenUrl, "https://api.z.ai/api/paas/v4/models");
   });
 
-  it("Gemini sends x-goog-api-key (no Authorization) and hits .../openai/models", async () => {
+  it("Gemini sends Authorization: Bearer (no x-goog-api-key) and hits .../openai/models", async () => {
     let seenUrl = ""; let seenHeaders: Record<string, string> = {};
     await fetchBackendModels({
       profile: geminiProfile, descriptor: openaiDescriptor, claudeCatalogIds: async () => [], resolveAuth: apiKeyAuth,
       fetchImpl: fakeFetch((url, init) => { seenUrl = url; seenHeaders = init?.headers ?? {}; return { ok: true, status: 200, json: async () => ({ data: [{ id: "gemini-3.1-pro-preview" }] }) }; }),
     });
     assert.equal(seenUrl, "https://generativelanguage.googleapis.com/v1beta/openai/models");
-    assert.equal(seenHeaders["x-goog-api-key"], "KEY");
-    assert.equal(seenHeaders.authorization, undefined);
+    assert.equal(seenHeaders.authorization, "Bearer KEY");
+    assert.equal(seenHeaders["x-goog-api-key"], undefined);
   });
 
   it("FAIL-SOFT returns the provider's static fallback list (pinned model first), never empty", async () => {
@@ -182,7 +182,7 @@ describe("validateAddBackend — preset expansion", () => {
     assert.equal(p.model, "gemini-3.1-pro-preview");
     assert.equal(p.baseUrl, "https://generativelanguage.googleapis.com/v1beta/openai");
     assert.equal(p.costMode, "billed");
-    assert.equal(p.capabilities?.authStyle, "x-goog-api-key");
+    assert.equal(p.capabilities?.authStyle, undefined);
     assert.equal(p.auth?.kind, "keychain");
     assert.equal(p.auth?.ref, "eos-gemini");
   });

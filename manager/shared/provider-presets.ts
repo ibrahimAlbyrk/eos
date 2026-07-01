@@ -41,6 +41,9 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     capabilities: caps({
       reasoning: "openai-effort", reasoningRoundTrip: "none", cache: "automatic",
       contextWindow: 1_050_000, maxTokens: 128_000,
+      // gpt-5.x on /v1/chat/completions: needs max_completion_tokens (rejects
+      // max_tokens) and 400s if reasoning_effort is sent alongside function tools.
+      maxTokensParam: "max_completion_tokens", dropReasoningEffortWithTools: true,
     }),
     fallbackModels: ["gpt-5.5", "gpt-5.5-pro", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.3-codex"],
   },
@@ -49,15 +52,16 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     label: "Google Gemini",
     kind: "openai",
     // OpenAI-compat shim. Its path is /v1beta/openai/chat/completions (no extra
-    // /v1), so chatCompletionsPath is /chat/completions onto this base. Native auth
-    // is x-goog-api-key (the shim documents it; NOT Bearer).
+    // /v1), so chatCompletionsPath is /chat/completions onto this base. The shim
+    // authenticates with Authorization: Bearer (the omitted default) — NOT
+    // x-goog-api-key, which is native-REST-only and 404s/400s on the shim.
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
     defaultModel: "gemini-3.1-pro-preview",
     authRef: "eos-gemini",
     capabilities: caps({
       reasoning: "none", reasoningRoundTrip: "none", cache: "automatic",
       contextWindow: 1_000_000, maxTokens: 64_000,
-      authStyle: "x-goog-api-key", chatCompletionsPath: "/chat/completions",
+      chatCompletionsPath: "/chat/completions",
     }),
     fallbackModels: ["gemini-3.1-pro-preview", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-pro", "gemini-2.5-flash"],
   },

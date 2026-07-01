@@ -66,6 +66,14 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
   // reasoning_effort only when the provider exposes openai-effort AND the value is
   // one OpenAI accepts (capability-gated/droppable).
   const reasoningEffort = caps?.reasoning === "openai-effort" && opts.effort && OPENAI_EFFORTS.has(opts.effort) ? opts.effort : undefined;
+  // Output-token cap key: `max_tokens` by default, `max_completion_tokens` where the
+  // provider declares it (gpt-5.x on /v1/chat/completions rejects `max_tokens`).
+  const maxTokensParam = caps?.maxTokensParam ?? "max_tokens";
+  // gpt-5.x on /v1/chat/completions 400s when reasoning_effort rides along with
+  // function tools; the provider declares the incompatibility and we drop effort only
+  // on tool-bearing requests (capability-gated — every other provider unchanged).
+  const toolsPresent = Boolean(opts.tools && opts.tools.length);
+  const effortForBody = toolsPresent && caps?.dropReasoningEffortWithTools ? undefined : reasoningEffort;
 
   // Keyless localhost (Ollama/vLLM/LM Studio, AuthRef.kind:"none"): an empty key
   // means send NO auth header — a `Bearer ` with no token 401s on some servers and
@@ -85,9 +93,9 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
     return {
       model: opts.model,
       ...(stream ? { stream: true, stream_options: { include_usage: true } } : {}),
-      ...(maxTokens ? { max_tokens: maxTokens } : {}),
+      ...(maxTokens ? { [maxTokensParam]: maxTokens } : {}),
       ...(temperature !== undefined ? { temperature } : {}),
-      ...(reasoningEffort ? { reasoning_effort: reasoningEffort } : {}),
+      ...(effortForBody ? { reasoning_effort: effortForBody } : {}),
       ...structuredOutputEnvelope(caps?.structuredOutput, opts.responseFormat),
       ...(opts.tools && opts.tools.length ? { tools: opts.tools.map((t) => ({ type: "function", function: t })) } : {}),
       messages: opts.system ? [{ role: "system", content: opts.system }, ...mapped] : mapped,

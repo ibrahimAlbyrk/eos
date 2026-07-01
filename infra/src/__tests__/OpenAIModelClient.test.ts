@@ -32,6 +32,64 @@ describe("OpenAIModelClient", () => {
     assert.equal(body.messages[2].tool_call_id, "t1");
   });
 
+  it("emits max_completion_tokens (not max_tokens) and drops reasoning_effort with tools when the provider declares it (gpt-5.x)", async () => {
+    const cap: { init?: FetchInit } = {};
+    const fetchImpl = (async (_url: string, init: FetchInit) => {
+      cap.init = init;
+      return { ok: true, async json() { return { choices: [{ message: { content: "hi" }, finish_reason: "stop" }] }; } } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const client = createOpenAIModelClient({
+      apiKey: "sk-o", model: "gpt-5.5", baseUrl: "https://api.openai.com",
+      capabilities: { wire: "openai-chat", contextWindow: 1_050_000, maxTokens: 128_000, reasoning: "openai-effort", maxTokensParam: "max_completion_tokens", dropReasoningEffortWithTools: true },
+      effort: "high",
+      tools: [{ name: "Bash", description: "run", parameters: { type: "object" } }],
+      fetchImpl,
+    });
+    await client.createTurn([{ role: "user", content: "hi" }]);
+    const body = JSON.parse(cap.init!.body as string);
+    assert.equal(body.max_completion_tokens, 128_000);
+    assert.equal(body.max_tokens, undefined);
+    assert.equal(body.reasoning_effort, undefined); // suppressed because tools are attached
+  });
+
+  it("still emits reasoning_effort on a TOOL-LESS turn even when the provider suppresses it with tools", async () => {
+    const cap: { init?: FetchInit } = {};
+    const fetchImpl = (async (_url: string, init: FetchInit) => {
+      cap.init = init;
+      return { ok: true, async json() { return { choices: [{ message: { content: "hi" }, finish_reason: "stop" }] }; } } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const client = createOpenAIModelClient({
+      apiKey: "sk-o", model: "gpt-5.5",
+      capabilities: { wire: "openai-chat", contextWindow: 1_050_000, maxTokens: 128_000, reasoning: "openai-effort", maxTokensParam: "max_completion_tokens", dropReasoningEffortWithTools: true },
+      effort: "high",
+      fetchImpl,
+    });
+    await client.createTurn([{ role: "user", content: "hi" }]);
+    const body = JSON.parse(cap.init!.body as string);
+    assert.equal(body.reasoning_effort, "high");
+    assert.equal(body.max_completion_tokens, 128_000);
+  });
+
+  it("defaults to max_tokens and keeps reasoning_effort with tools when the provider does not declare the quirks (deepseek/xai unchanged)", async () => {
+    const cap: { init?: FetchInit } = {};
+    const fetchImpl = (async (_url: string, init: FetchInit) => {
+      cap.init = init;
+      return { ok: true, async json() { return { choices: [{ message: { content: "hi" }, finish_reason: "stop" }] }; } } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const client = createOpenAIModelClient({
+      apiKey: "k", model: "some-effort-model",
+      capabilities: { wire: "openai-chat", contextWindow: 128_000, maxTokens: 8_000, reasoning: "openai-effort" },
+      effort: "medium",
+      tools: [{ name: "Bash", description: "run", parameters: { type: "object" } }],
+      fetchImpl,
+    });
+    await client.createTurn([{ role: "user", content: "hi" }]);
+    const body = JSON.parse(cap.init!.body as string);
+    assert.equal(body.max_tokens, 8_000);
+    assert.equal(body.max_completion_tokens, undefined);
+    assert.equal(body.reasoning_effort, "medium"); // not suppressed — provider didn't declare the incompatibility
+  });
+
   it("parses tool_calls (arguments JSON) into ModelTurn", () => {
     const turn = parseOpenAIResponse({
       choices: [{ message: { content: null, tool_calls: [{ id: "call_1", function: { name: "run", arguments: '{"cmd":"ls"}' } }] }, finish_reason: "tool_calls" }],
