@@ -8,7 +8,7 @@ import { spawnWorker } from "../../../core/src/use-cases/SpawnWorker.ts";
 import { armLoopAtSpawn } from "../../services/arm-loop-at-spawn.ts";
 import { resolveSpawnIsolation } from "../../../core/src/domain/worktree-policy.ts";
 import { resolveDefinitionName, resolveWorkerDefinitionByName, applyWorkerDefinitionDefaults, materializeToolScope, isToolScopeRestrictive, resolveCombinedModel } from "../../../core/src/domain/worker-definition-resolution.ts";
-import { ValidationError } from "../../../core/src/errors/index.ts";
+import { ValidationError, ConflictError } from "../../../core/src/errors/index.ts";
 import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
 import { appendSynthesized } from "../../shared/synthesized-events.ts";
@@ -34,6 +34,12 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     if (body.loop) {
       if (!c.config.loop.enabled) throw new ValidationError("dynamic loop is disabled — set config.loop.enabled");
       if (!body.parentId) throw new ValidationError("a dynamic loop can only be armed on a worker spawned by an orchestrator");
+    }
+    // Archived workers are invisible to agents (ADR-3): attaching into an
+    // archived worker's worktree would revive a hidden workspace. Fail fast,
+    // before any resolution or side effect.
+    if (body.workspaceOf && c.workers.findById(body.workspaceOf)?.archived_at != null) {
+      throw new ConflictError("workspaceOf target is archived — restore it first");
     }
     // Resolve the available worker (`from`) → per-axis defaults + instructions
     // body. `git` is a built-in definition (manager/workers/git.md); legacy

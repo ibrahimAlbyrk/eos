@@ -110,7 +110,11 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const filter = body.ids ? new Set(body.ids) : null;
 
     const busy = new Set(["SPAWNING", "WORKING", "KILLING", "ENDING"]);
-    const children = c.workers.listByParent(params.id).filter((w) => !filter || filter.has(w.id));
+    // Archived children are excluded — an archived branch must not be swept
+    // into an integrate (ADR-3; the repo read stays all-inclusive).
+    const children = c.workers.listByParent(params.id)
+      .filter((w) => w.archived_at == null)
+      .filter((w) => !filter || filter.has(w.id));
     const nameById = new Map(children.map((w) => [w.id, w.name ?? null]));
 
     const refs: Array<{ repoRoot: string; worktreeDir: string | null; branch: string; workerId: string }> = [];

@@ -119,6 +119,8 @@ import { connectRuntimeMcpTools } from "./backends/runtime-mcp.ts";
 import { FileMemoryProvider } from "../infra/src/memory/FileMemoryProvider.ts";
 import { pruneOrphanWorktrees } from "../core/src/use-cases/PruneOrphanWorktrees.ts";
 import { reapWorktreeRemovals } from "../core/src/use-cases/ReapWorktreeRemovals.ts";
+import { purgeExpiredArchives } from "../core/src/use-cases/PurgeExpiredArchives.ts";
+import { archivePurgeDeps } from "./shared/archive-purge.ts";
 import { reconcileWorkersOnBoot } from "../core/src/use-cases/ReconcileWorkersOnBoot.ts";
 import { resolveMcpServers } from "../core/src/domain/mcp-resolution.ts";
 import { toSdkMcpServers } from "./backends/sdk/SdkMcpTranslator.ts";
@@ -1421,6 +1423,9 @@ export function buildContainer() {
     modelPricing,
     updates,
     cleanupMcpConfig,
+    // Kill/purge cascade leak cleanup: drop a session's ~/.eos conversation
+    // transcript. Closure keeps core Node-free (DIP — wired at composition root).
+    deleteConversation(sessionId: string): void { inProcessDurability.store.delete(sessionId); },
     reloadPolicy(): void {
       policy = loadPolicy({
         candidates: [
@@ -1436,6 +1441,24 @@ export function buildContainer() {
   };
   // Late-bind the self-reference the workflow spawn/teardown closures capture.
   self.c = container;
+
+  // Archive retention sweeper — age-based auto-purge of archived subtree roots
+  // through the real purgeWorker cascade. Boot tick + hourly interval (the
+  // worktree reaper pattern); retention is read from config at each tick, so a
+  // config.json edit + reloadConfig takes effect without a restart. Fully
+  // synchronous, so no in-flight guard is needed. "off" (the default) no-ops.
+  const ARCHIVE_SWEEP_INTERVAL_MS = 60 * 60 * 1000;
+  const archiveSweepTick = (): void => {
+    try {
+      const purged = purgeExpiredArchives(archivePurgeDeps(container), config.archive.retention);
+      if (purged.length) log.info("archive retention sweep purged", { retention: config.archive.retention, purged });
+    } catch (e) {
+      log.warn("archive retention sweep failed", { error: errMsg(e) });
+    }
+  };
+  archiveSweepTick();
+  setInterval(archiveSweepTick, ARCHIVE_SWEEP_INTERVAL_MS).unref();
+
   return container;
 }
 

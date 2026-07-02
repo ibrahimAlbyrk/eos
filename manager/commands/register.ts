@@ -9,6 +9,9 @@ import { toRouteHandler, type CommandHandler } from "./pipeline.ts";
 import { killWorkerHandler } from "./handlers/kill-worker.ts";
 import { spawnWorkerHandler } from "./handlers/spawn-worker.ts";
 import { interruptWorkerHandler } from "./handlers/interrupt-worker.ts";
+import { archiveWorkerHandler } from "./handlers/archive-worker.ts";
+import { restoreWorkerHandler } from "./handlers/restore-worker.ts";
+import { purgeWorkerHandler } from "./handlers/purge-worker.ts";
 
 export function registerCommandCatalog(r: Router, c: Container): void {
   const mount = <A, D, O>(h: CommandHandler<A, D, O>): void => {
@@ -17,4 +20,7 @@ export function registerCommandCatalog(r: Router, c: Container): void {
   mount(spawnWorkerHandler);
   mount(killWorkerHandler);
   mount(interruptWorkerHandler);
+  mount(archiveWorkerHandler);
+  mount(restoreWorkerHandler);
+  mount(purgeWorkerHandler);
 }

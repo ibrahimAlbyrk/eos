@@ -58,6 +58,8 @@ import { listConflicts } from "../../core/src/use-cases/ListConflicts.ts";
 import { getConflictDocument } from "../../core/src/use-cases/GetConflictDocument.ts";
 import { resolveConflictFile } from "../../core/src/use-cases/ResolveConflictFile.ts";
 import { discardFileChange } from "../../core/src/use-cases/DiscardFileChange.ts";
+import { purgeAllArchived } from "../../core/src/use-cases/PurgeExpiredArchives.ts";
+import { archivePurgeDeps } from "../shared/archive-purge.ts";
 import { decidePushPlan, isActionablePushPlan } from "../../core/src/domain/push-plan.ts";
 import { decidePullPlan, isActionablePullPlan } from "../../core/src/domain/pull-plan.ts";
 import { attachPatches, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES } from "../../infra/src/git/changes-parse.ts";
@@ -157,10 +159,35 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     return d.processModel === "in-process" && d.capabilities.resumable === true;
   };
 
+  // Unconditionally active-only — NO archived query param (ADR-3 amendment:
+  // archived workers are invisible to agents; list_active_workers and the web
+  // live tree both round-trip through here). The parentId branch filters the
+  // all-inclusive repo read by the same predicate.
   r.get("/workers", ({ url, res }) => {
     const parentId = url.searchParams.get("parentId");
-    const rows = parentId ? c.workers.listByParent(parentId) : c.workers.listAll();
+    const rows = parentId
+      ? c.workers.listByParent(parentId).filter((w) => w.archived_at == null)
+      : c.workers.listActive();
     writeJson(res, 200, withLoopState(c, withBackgroundActivity(c, rows)));
+  });
+
+  // Dedicated archived-only listing, consumed ONLY by the dashboard Archive
+  // view. Registered BEFORE the /workers/:id detail pattern so the literal
+  // "archived" segment is never parsed as a worker id.
+  r.get("/workers/archived", ({ res }) => {
+    writeJson(res, 200, c.workers.listArchived());
+  });
+
+  // App-termination purge hook (operator surface, never an MCP tool): the
+  // native shell POSTs here unconditionally on every quit; the daemon purges
+  // ALL archived subtree roots only when config archive.purgeOnAppClose is
+  // set, else no-ops. Synchronous cascade + idempotent (a second post finds
+  // nothing archived) — the app is quitting and won't retry.
+  r.post("/workers/archived/app-closed", ({ res }) => {
+    const purged = c.config.archive.purgeOnAppClose
+      ? purgeAllArchived(archivePurgeDeps(c))
+      : [];
+    writeJson(res, 200, { ok: true, purged });
   });
 
   // worker.spawn (POST /workers) is served by the command catalog —
@@ -171,6 +198,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     if (actorId) assertOwnedBy(c.workers, actorId, params.id, { allowSelf: true });
     const row = c.workers.findById(params.id);
     if (!row) { writeJson(res, 404, { error: "not found" }); return; }
+    // actorId marks an agent-plane read (get_worker MCP) — archived rows are
+    // invisible to agents, so answer exactly as if the row were gone. The
+    // dashboard (no actorId) still reads archived detail for the Archive view.
+    if (actorId && row.archived_at != null) { writeJson(res, 404, { error: "not found" }); return; }
     writeJson(res, 200, withLoopState(c, [row])[0]);
   });
 
@@ -257,6 +288,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
 
     const target = c.workers.findById(params.id);
     if (!target) { writeJson(res, 404, { error: "worker not found" }); return; }
+    // Rejected BEFORE resumeIfDead so a by-id message (MCP message_worker, CLI)
+    // can never lazy-resume a hidden worker (ADR-3).
+    if (target.archived_at != null) { writeJson(res, 409, { error: "worker is archived — restore first" }); return; }
     // Scope check before any side effect — a denied foreign message must not
     // resume a dead worker or clear its settle window.
     if (fromParent) assertOwnedBy(c.workers, fromParent, params.id);
@@ -329,6 +363,10 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   r.post(/^\/workers\/(?<id>[^/]+)\/resume$/, async ({ params, res }) => {
     const row = c.workers.findById(params.id);
     if (!row) { writeJson(res, 404, { error: "not found" }); return; }
+    // Rejected BEFORE resumeWorkerVia — archived ⇒ at rest until restored
+    // (ADR-3); a direct resume must not revive a hidden worker any more than
+    // a message may lazy-resume one.
+    if (row.archived_at != null) { writeJson(res, 409, { error: "worker is archived — restore first" }); return; }
     const result = await resumeWorkerVia(c, row);
     c.turnSettle.clear(params.id);
     writeJson(res, 200, result);
