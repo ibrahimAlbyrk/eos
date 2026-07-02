@@ -45,6 +45,19 @@ describe("thinkingStore", () => {
     expect(liveBlocksFor(w)).toHaveLength(0);
   });
 
+  it("does not classify an unknown/missing channel as reasoning", () => {
+    const w = wid();
+    applyDelta({ workerId: w, blockId: "b0", channel: "bogus", phase: "append", text: "x" });
+    applyDelta({ workerId: w, blockId: "b1", phase: "append", text: "y" }); // no channel
+    const live = liveBlocksFor(w);
+    expect(live.find((b) => b.blockId === "b0").channel).not.toBe("reasoning");
+    expect(live.find((b) => b.blockId === "b1").channel).not.toBe("reasoning");
+    // A later KNOWN channel still updates; an unknown one never overwrites it.
+    applyDelta({ workerId: w, blockId: "b0", channel: "reasoning", phase: "append", text: "z" });
+    applyDelta({ workerId: w, blockId: "b0", channel: "nope", phase: "append", text: "!" });
+    expect(liveBlocksFor(w).find((b) => b.blockId === "b0").channel).toBe("reasoning");
+  });
+
   it("ignores deltas with no workerId or blockId", () => {
     const w = wid();
     applyDelta({ workerId: w, blockId: "", phase: "append", text: "x" });

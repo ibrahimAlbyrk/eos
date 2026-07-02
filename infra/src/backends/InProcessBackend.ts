@@ -166,13 +166,23 @@ export function createInProcessBackend(kind: string, envFactory: InProcessEnvFac
         // Persist after each settled turn, at the one place the conversation is
         // already mutated — so an orphaned row can rehydrate on resume. No-op when
         // no store/session id was injected (tests/conformance). The generation guard
-        // makes a cleared/stopped turn a no-op so it can't undo the clear.
+        // makes a cleared/stopped turn a no-op so it can't undo the clear. Persist is
+        // best-effort — a store failure must not re-terminate a turn runTurn already
+        // settled (that would emit a second terminal event).
         .then((msgs) => {
           if (s.generation !== gen) return;
           s.messages = msgs;
-          if (deps.store && s.sessionId) deps.store.save(workerId, s.sessionId, msgs);
+          if (deps.store && s.sessionId) {
+            try { deps.store.save(workerId, s.sessionId, msgs); } catch { /* best-effort persist */ }
+          }
         })
-        .catch(() => {});
+        .catch((e) => {
+          // runTurn is designed to always settle the turn itself (its try/finally). A
+          // rejection escaping it (e.g. the terminal emit sink threw) would otherwise
+          // leave the worker stuck WORKING with no terminal event — emit one so
+          // ProcessAgentSignal settles the FSM to IDLE.
+          s.emit({ type: "turn", phase: "error", reason: e instanceof Error ? e.message : String(e) });
+        });
     };
     const p = (s.current ?? Promise.resolve()).then(run, run);
     s.current = p;

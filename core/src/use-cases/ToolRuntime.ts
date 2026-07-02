@@ -88,117 +88,136 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
   let reactiveCompacted = false;
   deps.emit({ type: "turn", phase: "started" });
 
-  for (let i = 0; i < max; i++) {
-    if (deps.signal?.aborted) {
-      deps.emit({ type: "turn", phase: "aborted", reason: "interrupted" });
-      return messages;
-    }
+  // runTurn owns the invariant "a turn always ends with exactly one terminal
+  // event". Every exit path records its terminal event via end(); the finally
+  // emits it once — so an UNGUARDED throw (pre-call compaction, a delta/message
+  // emit) still settles the turn (turn:error) instead of leaving the FSM stuck
+  // WORKING with a live thinking buffer that outlives the turn.
+  let terminal: Extract<AgentEvent, { type: "turn" }> | null = null;
+  const end = (e: Extract<AgentEvent, { type: "turn" }>) => { if (!terminal) terminal = e; };
 
-    // Near-window management before each model call. M4: a ContextCompactor trims
-    // oldest matched tool-turns so a small-context model compacts (turn continues)
-    // instead of 400ing. M1 fallback (no compactor injected — tests): the fail-fast
-    // guard aborts with a typed error rather than a raw provider 400.
-    if (deps.compactor && deps.capabilities) {
-      messages = deps.compactor.compact(messages, deps.capabilities);
-    } else if (deps.contextWindow && estimateTokens(messages) > deps.contextWindow * 0.9) {
-      deps.emit({ type: "turn", phase: "error", reason: "context_window_exceeded" });
-      return messages;
-    }
-
-    let turn;
-    const blockR = `inproc-${i}-r`;
-    const blockT = `inproc-${i}-t`;
-    let openR = false;
-    let openT = false;
-    try {
-      // Prefer streaming so reasoning/text arrive as live canonical deltas (the
-      // SAME pipeline as the claude-sdk lane); fall back to one round-trip.
-      turn = deps.model.streamTurn
-        ? await deps.model.streamTurn(messages, {
-            signal: deps.signal,
-            onReasoningDelta: (t) => { deps.emit({ type: "delta", channel: "reasoning", phase: openR ? "append" : "start", blockId: blockR, text: t }); openR = true; },
-            onTextDelta: (t) => { deps.emit({ type: "delta", channel: "text", phase: openT ? "append" : "start", blockId: blockT, text: t }); openT = true; },
-          })
-        : await deps.model.createTurn(messages);
-    } catch (e) {
-      deps.emit({ type: "turn", phase: "error", reason: e instanceof Error ? e.message : String(e) });
-      return messages;
-    }
-
-    // Close live blocks before their durable counterpart lands (UI drops by blockId).
-    if (openR) deps.emit({ type: "delta", channel: "reasoning", phase: "stop", blockId: blockR, text: "" });
-    if (openT) deps.emit({ type: "delta", channel: "text", phase: "stop", blockId: blockT, text: "" });
-    if (turn.reasoning) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "reasoning", text: turn.reasoning, blockId: blockR }] });
-    if (turn.text) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "text", text: turn.text, blockId: blockT }] });
-    if (turn.usage) {
-      // Each loop iteration is one API call, so this usage IS a per-request
-      // footprint: emit it as billing (summed) AND as a context snapshot (latest
-      // wins). Same split the claude-sdk/claude-cli lanes use.
-      const usage = { inputTokens: turn.usage.inputTokens, outputTokens: turn.usage.outputTokens, cacheReadTokens: turn.usage.cacheReadTokens ?? 0, cacheWriteTokens: {} };
-      deps.emit({ type: "usage", usage });
-      const tokens = contextTokensOf(usage);
-      if (tokens > 0) deps.emit({ type: "context", tokens });
-    }
-
-    if (turn.stopReason === "error") {
-      // A mid-stream interrupt surfaces from the SSE parser as stopReason:"error",
-      // error:"aborted" (ModelTurn has no "aborted" stop reason). Translate it to the
-      // clean abort path so the FSM/UI sees turn:aborted, not turn:error (m1) — same
-      // shape as the top-of-loop interrupt check.
-      if (turn.error === "aborted") {
-        deps.emit({ type: "turn", phase: "aborted", reason: "interrupted" });
+  try {
+    for (let i = 0; i < max; i++) {
+      if (deps.signal?.aborted) {
+        end({ type: "turn", phase: "aborted", reason: "interrupted" });
         return messages;
       }
-      // Recoverable provider overflow: an Anthropic model_context_window_exceeded
-      // (mapped to this typed error by the client) means our estimate was too low.
-      // Compact HARD (half the window) once and retry the same iteration; the
-      // proactive pass next loop sees the trimmed set. Bounded by reactiveCompacted.
-      if (turn.error === "context_window_exceeded" && deps.compactor && deps.capabilities && !reactiveCompacted) {
-        reactiveCompacted = true;
-        messages = deps.compactor.compact(messages, { ...deps.capabilities, contextWindow: Math.max(1, Math.floor(deps.capabilities.contextWindow * 0.5)) });
-        i--;
-        continue;
+
+      // Near-window management before each model call. M4: a ContextCompactor trims
+      // oldest matched tool-turns so a small-context model compacts (turn continues)
+      // instead of 400ing. M1 fallback (no compactor injected — tests): the fail-fast
+      // guard aborts with a typed error rather than a raw provider 400.
+      if (deps.compactor && deps.capabilities) {
+        messages = deps.compactor.compact(messages, deps.capabilities);
+      } else if (deps.contextWindow && estimateTokens(messages) > deps.contextWindow * 0.9) {
+        end({ type: "turn", phase: "error", reason: "context_window_exceeded" });
+        return messages;
       }
-      deps.emit({ type: "turn", phase: "error", reason: turn.error });
-      return messages;
-    }
 
-    if (turn.toolCalls.length === 0) {
-      // Persist the assistant's terminal TEXT turn into history before returning, so
-      // the next user turn alternates roles (Anthropic 400s on two consecutive user
-      // messages; the in-process lane pushes a fresh user message each turn) and every
-      // dialect keeps the model's own prior answers (B1). A terminal non-tool turn
-      // needs no signed-thinking re-emit, so it carries no providerMetadata — safe with
-      // reasoningRoundTrip:"preserve-signed".
-      if (turn.text) messages.push({ role: "assistant", content: turn.text });
-      deps.emit({ type: "turn", phase: "ended" });
-      return messages;
-    }
-
-    // Carry any opaque per-turn provider metadata (Anthropic signed `thinking`
-    // blocks for reasoningRoundTrip:"preserve-signed") onto the pushed assistant
-    // message so the next request re-emits it verbatim. Neutral: undefined on the
-    // OpenAI lane (reasoning is dropped from history).
-    messages.push({ role: "assistant", content: turn.toolCalls, ...(turn.providerMetadata ? { providerMetadata: turn.providerMetadata } : {}) });
-
-    for (const call of turn.toolCalls) {
-      // A subagent-spawning tool (Task) tags its block so the UI renders an agentRun;
-      // the flag is read from the tool itself, never from a backend-kind branch.
-      const spawnsSubagent = deps.tools.get(call.name)?.spawnsSubagent === true;
-      deps.emit({ type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: call.callId, name: call.name, input: call.input, ...(spawnsSubagent ? { spawnsSubagent: true } : {}) }] });
-      const result = await executeGated(deps, call.name, call.input, call.callId);
-      deps.emit({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: call.callId, isError: result.isError, content: result.text }] });
-      // A loaded skill body also surfaces as a canonical skill block (UI parity with
-      // the claude-cli lane) — additive; the model already got the body above.
-      if (deps.skillToolName && call.name === deps.skillToolName && !result.isError) {
-        deps.emit({ type: "message", role: "assistant", blocks: [{ type: "skill", callId: call.callId, text: result.text }] });
+      let turn;
+      const blockR = `inproc-${i}-r`;
+      const blockT = `inproc-${i}-t`;
+      let openR = false;
+      let openT = false;
+      try {
+        // Prefer streaming so reasoning/text arrive as live canonical deltas (the
+        // SAME pipeline as the claude-sdk lane); fall back to one round-trip.
+        turn = deps.model.streamTurn
+          ? await deps.model.streamTurn(messages, {
+              signal: deps.signal,
+              onReasoningDelta: (t) => { deps.emit({ type: "delta", channel: "reasoning", phase: openR ? "append" : "start", blockId: blockR, text: t }); openR = true; },
+              onTextDelta: (t) => { deps.emit({ type: "delta", channel: "text", phase: openT ? "append" : "start", blockId: blockT, text: t }); openT = true; },
+            })
+          : await deps.model.createTurn(messages);
+      } catch (e) {
+        end({ type: "turn", phase: "error", reason: e instanceof Error ? e.message : String(e) });
+        return messages;
       }
-      messages.push({ role: "tool", content: { callId: call.callId, result: result.text, isError: result.isError } });
+
+      // Close live blocks before their durable counterpart lands (UI drops by blockId).
+      if (openR) deps.emit({ type: "delta", channel: "reasoning", phase: "stop", blockId: blockR, text: "" });
+      if (openT) deps.emit({ type: "delta", channel: "text", phase: "stop", blockId: blockT, text: "" });
+      if (turn.reasoning) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "reasoning", text: turn.reasoning, blockId: blockR }] });
+      if (turn.text) deps.emit({ type: "message", role: "assistant", blocks: [{ type: "text", text: turn.text, blockId: blockT }] });
+      if (turn.usage) {
+        // Each loop iteration is one API call, so this usage IS a per-request
+        // footprint: emit it as billing (summed) AND as a context snapshot (latest
+        // wins). Same split the claude-sdk/claude-cli lanes use.
+        const usage = { inputTokens: turn.usage.inputTokens, outputTokens: turn.usage.outputTokens, cacheReadTokens: turn.usage.cacheReadTokens ?? 0, cacheWriteTokens: {} };
+        deps.emit({ type: "usage", usage });
+        const tokens = contextTokensOf(usage);
+        if (tokens > 0) deps.emit({ type: "context", tokens });
+      }
+
+      if (turn.stopReason === "error") {
+        // A mid-stream interrupt surfaces from the SSE parser as stopReason:"error",
+        // error:"aborted" (ModelTurn has no "aborted" stop reason). Translate it to the
+        // clean abort path so the FSM/UI sees turn:aborted, not turn:error (m1) — same
+        // shape as the top-of-loop interrupt check.
+        if (turn.error === "aborted") {
+          end({ type: "turn", phase: "aborted", reason: "interrupted" });
+          return messages;
+        }
+        // Recoverable provider overflow: an Anthropic model_context_window_exceeded
+        // (mapped to this typed error by the client) means our estimate was too low.
+        // Compact HARD (half the window) once and retry the same iteration; the
+        // proactive pass next loop sees the trimmed set. Bounded by reactiveCompacted.
+        if (turn.error === "context_window_exceeded" && deps.compactor && deps.capabilities && !reactiveCompacted) {
+          reactiveCompacted = true;
+          messages = deps.compactor.compact(messages, { ...deps.capabilities, contextWindow: Math.max(1, Math.floor(deps.capabilities.contextWindow * 0.5)) });
+          i--;
+          continue;
+        }
+        end({ type: "turn", phase: "error", reason: turn.error });
+        return messages;
+      }
+
+      if (turn.toolCalls.length === 0) {
+        // Persist the assistant's terminal TEXT turn into history before returning, so
+        // the next user turn alternates roles (Anthropic 400s on two consecutive user
+        // messages; the in-process lane pushes a fresh user message each turn) and every
+        // dialect keeps the model's own prior answers (B1). A terminal non-tool turn
+        // needs no signed-thinking re-emit, so it carries no providerMetadata — safe with
+        // reasoningRoundTrip:"preserve-signed".
+        if (turn.text) messages.push({ role: "assistant", content: turn.text });
+        end({ type: "turn", phase: "ended" });
+        return messages;
+      }
+
+      // Carry any opaque per-turn provider metadata (Anthropic signed `thinking`
+      // blocks for reasoningRoundTrip:"preserve-signed") onto the pushed assistant
+      // message so the next request re-emits it verbatim. Neutral: undefined on the
+      // OpenAI lane (reasoning is dropped from history).
+      messages.push({ role: "assistant", content: turn.toolCalls, ...(turn.providerMetadata ? { providerMetadata: turn.providerMetadata } : {}) });
+
+      for (const call of turn.toolCalls) {
+        // A subagent-spawning tool (Task) tags its block so the UI renders an agentRun;
+        // the flag is read from the tool itself, never from a backend-kind branch.
+        const spawnsSubagent = deps.tools.get(call.name)?.spawnsSubagent === true;
+        deps.emit({ type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: call.callId, name: call.name, input: call.input, ...(spawnsSubagent ? { spawnsSubagent: true } : {}) }] });
+        const result = await executeGated(deps, call.name, call.input, call.callId);
+        deps.emit({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: call.callId, isError: result.isError, content: result.text }] });
+        // A loaded skill body also surfaces as a canonical skill block (UI parity with
+        // the claude-cli lane) — additive; the model already got the body above.
+        if (deps.skillToolName && call.name === deps.skillToolName && !result.isError) {
+          deps.emit({ type: "message", role: "assistant", blocks: [{ type: "skill", callId: call.callId, text: result.text }] });
+        }
+        messages.push({ role: "tool", content: { callId: call.callId, result: result.text, isError: result.isError } });
+      }
     }
+
+    end({ type: "turn", phase: "aborted", reason: "max_iterations" });
+    return messages;
+  } catch (e) {
+    // An unguarded throw anywhere in the loop (compaction, a delta/message emit):
+    // record a terminal error so the turn still settles.
+    end({ type: "turn", phase: "error", reason: e instanceof Error ? e.message : String(e) });
+    return messages;
+  } finally {
+    // The single terminal emit — exactly one on every exit path. The fallback covers
+    // the theoretically-impossible "recorded none" so a turn can never end silent.
+    deps.emit(terminal ?? { type: "turn", phase: "error", reason: "turn ended without terminal event" });
   }
-
-  deps.emit({ type: "turn", phase: "aborted", reason: "max_iterations" });
-  return messages;
 }
 
 // Single chokepoint: every tool call is gated here before execution, so

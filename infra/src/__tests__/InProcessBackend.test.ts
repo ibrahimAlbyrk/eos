@@ -62,6 +62,50 @@ describe("InProcessBackend (second backend, fake model)", () => {
     assert.ok(events.map(tag).includes("turn:ended"));
   });
 
+  it("an unguarded loop failure (pre-call compaction throws) settles as one terminal turn:error", async () => {
+    // Pre-call compaction is unguarded inside the loop; a throw there used to escape
+    // runTurn with no terminal event. Piece 1's try/finally must turn it into exactly
+    // one turn:error so the FSM still idles.
+    const events: AgentEvent[] = [];
+    const turns: ModelTurn[] = [{ text: "hi", toolCalls: [], stopReason: "end_turn" }];
+    const be = createInProcessBackend("fake-api", () => ({
+      model: fakeModel(turns),
+      tools: new Map(),
+      gate: allowGate,
+      compactor: { compact() { throw new Error("compaction boom"); } },
+      capabilities: { contextWindow: 1000 } as never,
+    }));
+    await be.start(spec("go"), { onEvent: (e) => events.push(e) });
+    await be.whenSettled("w1");
+
+    const terminals = events.filter((e) => e.type === "turn" && (e.phase === "ended" || e.phase === "error" || e.phase === "aborted"));
+    assert.equal(terminals.length, 1, "exactly one terminal turn event");
+    assert.equal(tag(terminals[0]), "turn:error");
+  });
+
+  it("a runTurn rejection still settles the turn with a terminal turn:error (FSM leaves WORKING)", async () => {
+    // runTurn owns terminal emission via its finally. Simulate the residual failure
+    // piece 2 guards: the terminal-event sink itself throws (a flaky SSE publish), so
+    // runTurn's finally rejects. kickTurn's catch must emit a turn:error so the FSM
+    // still idles instead of hanging WORKING. The sink throws only on the FIRST
+    // terminal event (the finally's emit), then works — modelling a transient failure.
+    const events: AgentEvent[] = [];
+    let terminalThrows = 1;
+    const onEvent = (e: AgentEvent) => {
+      const isTerminal = e.type === "turn" && (e.phase === "ended" || e.phase === "error" || e.phase === "aborted");
+      if (isTerminal && terminalThrows > 0) { terminalThrows--; throw new Error("sse publish failed"); }
+      events.push(e);
+    };
+    const turns: ModelTurn[] = [{ text: "hi", toolCalls: [], stopReason: "end_turn", usage: { inputTokens: 1, outputTokens: 1 } }];
+    const be = createInProcessBackend("fake-api", () => ({ model: fakeModel(turns), tools: new Map(), gate: allowGate }));
+    await be.start(spec("go"), { onEvent });
+    await be.whenSettled("w1");
+
+    const terminals = events.filter((e) => e.type === "turn" && (e.phase === "ended" || e.phase === "error" || e.phase === "aborted"));
+    assert.equal(terminals.length, 1, "exactly one terminal turn event was delivered");
+    assert.equal(tag(terminals[0]), "turn:error", "the rejection settled as turn:error");
+  });
+
   it("attach reconstructs a usable session; stop ends it", async () => {
     const events: AgentEvent[] = [];
     const be = createInProcessBackend("fake-api", () => env([]));

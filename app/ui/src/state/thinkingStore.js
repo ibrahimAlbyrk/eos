@@ -7,6 +7,12 @@
 const blocks = new Map(); // `${workerId}:${blockId}` -> { workerId, blockId, channel, text, done, ts }
 const subs = new Set();
 
+// The only channels the loop emits (ToolRuntime). An unknown/missing channel must
+// NOT be silently treated as "reasoning" — that would render a malformed delta as a
+// live thinking line. Fall back to "text", which is never overlaid live, so a bad
+// delta can't masquerade as thinking; the durable canonical block still renders it.
+const KNOWN_CHANNELS = new Set(["reasoning", "text"]);
+
 function emit() {
   for (const cb of subs) cb();
 }
@@ -30,10 +36,10 @@ export function applyDelta({ workerId, blockId, channel, phase, text }) {
   }
   let b = blocks.get(k);
   if (!b) {
-    b = { workerId, blockId, channel: channel ?? "reasoning", text: "", done: false, ts: Date.now() };
+    b = { workerId, blockId, channel: KNOWN_CHANNELS.has(channel) ? channel : "text", text: "", done: false, ts: Date.now() };
     blocks.set(k, b);
   }
-  if (channel) b.channel = channel;
+  if (KNOWN_CHANNELS.has(channel)) b.channel = channel;
   b.text += text ?? "";
   emit();
 }

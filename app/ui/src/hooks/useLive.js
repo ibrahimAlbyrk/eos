@@ -13,7 +13,8 @@ import { usePendingPermissions } from "./usePendingPermissions.js";
 import { applyCatalog } from "../lib/models.js";
 import { applyDescriptors, applyProfiles } from "../lib/backendCaps.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
-import { applyDelta } from "../state/thinkingStore.js";
+import { applyDelta, dropWorker as dropThinking } from "../state/thinkingStore.js";
+import { isRunning } from "../lib/agentActivity.js";
 import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
 import { cancelQueued, retract } from "../state/outboxStore.js";
 import { explorer } from "../state/explorerStore.js";
@@ -148,6 +149,21 @@ export function useLive() {
     });
     return () => s.close();
   }, [scheduleRefetch]);
+
+  // Drop live reasoning/text buffers when a worker leaves the busy set — its turn
+  // ended (or errored/aborted via the terminal turn event), so a partial or errored
+  // turn's thinking line can't outlive the turn. A durable canonical block, when one
+  // landed, already replaced the live buffer by blockId; this clears any orphan an
+  // errored turn (no durable) left behind.
+  const busyIdsRef = useRef(new Set());
+  useEffect(() => {
+    const nextBusy = new Set();
+    for (const w of workers) if (isRunning(w)) nextBusy.add(w.id);
+    for (const id of busyIdsRef.current) {
+      if (!nextBusy.has(id)) dropThinking(id);
+    }
+    busyIdsRef.current = nextBusy;
+  }, [workers]);
 
   // mutations -------------------------------------------------------------
 
