@@ -780,6 +780,49 @@ export const FsListResponseSchema = z.object({
 });
 export type FsListResponse = z.infer<typeof FsListResponseSchema>;
 
+// ---- GET /symbols/lookup · GET /symbols/search -----------------------------
+
+// A syntactic occurrence of a named entity, name-matched (not binding-resolved)
+// — the same flat shape a future semantic adapter would return. Mirrors the
+// core SymbolOccurrence port type; the single source of truth for the IPC wire.
+export const SymbolOccurrenceSchema = z.object({
+  name: z.string(),
+  kind: z.string(),
+  role: z.enum(["definition", "reference"]),
+  path: z.string(),
+  line: z.number().int().positive(),
+  column: z.number().int().positive(),
+  lineText: z.string().optional(),
+});
+export type SymbolOccurrence = z.infer<typeof SymbolOccurrenceSchema>;
+
+export const SymbolsLookupQuerySchema = z.object({
+  root: z.string().min(1),
+  name: z.string().min(1),
+  want: z.enum(["definitions", "references"]).default("definitions"),
+  fromPath: z.string().optional(),
+});
+export type SymbolsLookupQuery = z.infer<typeof SymbolsLookupQuerySchema>;
+
+export const SymbolsLookupResponseSchema = z.object({
+  occurrences: z.array(SymbolOccurrenceSchema),
+  // Cold-root "still building" hint for the UI's indexing… state.
+  indexing: z.boolean().optional(),
+});
+export type SymbolsLookupResponse = z.infer<typeof SymbolsLookupResponseSchema>;
+
+export const SymbolsSearchQuerySchema = z.object({
+  root: z.string().min(1),
+  query: z.string().min(1),
+  limit: z.coerce.number().int().positive().max(200).default(50),
+});
+export type SymbolsSearchQuery = z.infer<typeof SymbolsSearchQuerySchema>;
+
+export const SymbolsSearchResponseSchema = z.object({
+  symbols: z.array(SymbolOccurrenceSchema),
+});
+export type SymbolsSearchResponse = z.infer<typeof SymbolsSearchResponseSchema>;
+
 // ---- GET /fs/image ---------------------------------------------------------
 // Binary response (image bytes); only the query is schematized.
 
@@ -1828,6 +1871,11 @@ export const ROUTES = {
   fsTrash: "/fs/trash",
   fsWatch: "/fs/watch",
   fsUnwatch: "/fs/unwatch",
+  // Syntactic symbol intelligence (tree-sitter tags). Un-gated GETs, same
+  // sandbox model as the /fs read routes. lookup serves go-to-def + find-refs
+  // (want=definitions|references); search serves symbol-name search.
+  symbolsLookup: "/symbols/lookup",
+  symbolsSearch: "/symbols/search",
   workerName: (id: string): string => `/workers/${id}/name`,
   workerRenameIntent: (id: string): string => `/workers/${id}/rename-intent`,
   workerOpen: (id: string): string => `/workers/${id}/open`,

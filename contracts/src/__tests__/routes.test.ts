@@ -14,6 +14,7 @@ const EXPECTED_KEYS = [
   "fsRaw", "pdfjs",
   "fsCheckout", "fsBranchCreate", "fsBranchRename", "fsBranchDelete", "fsFetch", "fsRemoteBranchDelete",
   "fsWrite", "fsPaste", "fsStat", "fsCreate", "fsRename", "fsMove", "fsTrash", "fsWatch", "fsUnwatch",
+  "symbolsLookup", "symbolsSearch",
   "workerName", "workerRenameIntent", "workerOpen", "workerPermission",
   "workerModel", "workerBackend", "workerDiff", "workerChanges", "workerFileDiff", "workerChangesDiscard",
   "workerConflicts", "workerConflictFile", "workerConflictResolve",
@@ -30,7 +31,7 @@ const EXPECTED_KEYS = [
   "workflowRunSteps", "workflowDefinition", "settings",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
   "remotePair", "remoteStatus", "remoteArm",
-  "apiBackends", "apiBackendPresets", "apiBackendModels",
+  "apiBackends", "apiBackendPresets", "apiBackendModels", "apiBackendTest", "apiBackendDelete",
 ] as const;
 
 describe("ROUTES completeness", () => {
