@@ -40,23 +40,27 @@ function encodeRawPath(p) {
 
 const inflight = new Map();
 
-function deduplicatedFetch(url, opts) {
-  if (opts?.method && opts.method !== "GET") return fetch(url, opts);
-  if (opts?.signal) return fetch(url, opts);
-  const key = url;
-  if (inflight.has(key)) return inflight.get(key);
-  const p = fetch(url, opts).finally(() => inflight.delete(key));
-  inflight.set(key, p);
+async function fetchJson(url, opts) {
+  const r = await fetch(url, opts);
+  let parsed = null;
+  try { parsed = await r.json(); } catch {}
+  return { ok: r.ok, status: r.status, body: parsed };
+}
+
+// Dedupe concurrent same-URL GETs on the PARSED envelope, never the raw
+// Response — a Response body is single-read, so a shared Response hands every
+// caller after the first `body: null`, and the newest caller (the only one a
+// seq guard applies) silently drops the refetch (stale archive list on restore).
+function deduplicatedFetchJson(url) {
+  if (inflight.has(url)) return inflight.get(url);
+  const p = fetchJson(url).finally(() => inflight.delete(url));
+  inflight.set(url, p);
   return p;
 }
 
 async function getJson(path, { signal } = {}) {
   const url = `${DAEMON}${path}`;
-  const r = signal ? await fetch(url, { signal }) : await deduplicatedFetch(url);
-  let parsed = null;
-  try { parsed = await r.json(); } catch {}
-  if (!r.ok) return { ok: false, status: r.status, body: parsed };
-  return { ok: true, status: r.status, body: parsed };
+  return signal ? fetchJson(url, { signal }) : deduplicatedFetchJson(url);
 }
 
 async function postJson(path, body, extraHeaders) {

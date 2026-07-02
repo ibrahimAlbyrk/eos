@@ -43,6 +43,29 @@ describe("archiveStore", () => {
     expect(getArchive().rows).toEqual([]);
   });
 
+  it("overlapping refetches apply the fresh list (restore's explicit refetch + SSE tick)", async () => {
+    vi.stubGlobal("fetch", okFetch([{ id: "a", archived_at: 1 }]));
+    await refreshArchived();
+    vi.unstubAllGlobals();
+
+    // Post-restore payload behind a real-Response mock: single-read body, so
+    // the client-level dedup must share the PARSED result, not the Response.
+    let used = false;
+    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => {
+        if (used) throw new TypeError("Body has already been consumed");
+        used = true;
+        return [];
+      },
+    })));
+
+    await Promise.all([refreshArchived(), refreshArchived()]);
+
+    expect(getArchive().rows).toEqual([]);
+  });
+
   it("selectArchived updates the snapshot and notifies subscribers", async () => {
     vi.stubGlobal("fetch", okFetch([{ id: "a", archived_at: 1 }]));
     await refreshArchived();

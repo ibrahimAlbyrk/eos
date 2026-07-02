@@ -108,6 +108,35 @@ describe("archive wire contract (frozen backend contract)", () => {
   });
 });
 
+describe("deduped GETs survive concurrent callers", () => {
+  // Real Response bodies are single-read — json() rejects on the second read.
+  // The re-readable mocks above hide that, so model it explicitly here.
+  const singleReadResponse = (body) => {
+    let used = false;
+    return {
+      ok: true,
+      status: 200,
+      json: async () => {
+        if (used) throw new TypeError("Body has already been consumed");
+        used = true;
+        return body;
+      },
+    };
+  };
+
+  it("concurrent same-URL GETs share one request and BOTH get the parsed body", async () => {
+    const rows = [{ id: "w1", archived_at: 123 }];
+    const fetchMock = vi.fn().mockImplementation(async () => singleReadResponse(rows));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const [a, b] = await Promise.all([api.listArchivedWorkers(), api.listArchivedWorkers()]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(a).toEqual(rows);
+    expect(b).toEqual(rows);
+  });
+});
+
 describe("api.renameIntent wire contract", () => {
   it("PUTs { active: true } to the rename-intent route (editor opened → pause)", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true }) });
