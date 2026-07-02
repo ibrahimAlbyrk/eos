@@ -144,7 +144,7 @@ export type MessageRequest = z.infer<typeof MessageRequestSchema>;
 // caused.
 export const MessageRecordSchema = z.union([
   z.object({ as: z.literal("user_message"), displayText: z.string().optional(), clientMsgIds: z.array(z.string()).optional(), sentAt: z.number().optional() }),
-  z.object({ as: z.literal("orchestrator_message"), fromParent: z.string(), parentName: z.string().optional(), sentAt: z.number().optional() }),
+  z.object({ as: z.literal("orchestrator_message"), fromParent: z.string(), parentName: z.string().optional(), displayText: z.string().optional(), sentAt: z.number().optional() }),
   z.object({ as: z.literal("worker_report"), fromWorker: z.string(), workerName: z.string().optional(), displayText: z.string().optional(), sentAt: z.number().optional() }),
   // A peer worker's consultation, delivered into this worker's PTY by the
   // PeerRequestPump. displayText is the bare question; the chat labels it

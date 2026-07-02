@@ -19,6 +19,7 @@ import type { TurnOutputTracker } from "../ports/TurnOutputTracker.ts";
 import type { Logger } from "../ports/Logger.ts";
 import type { MessageRecord } from "../../../contracts/src/http.ts";
 import type { DispatchEnvelope } from "../domain/message-envelope.ts";
+import { applySenderTag, senderTagForEnvelope } from "../domain/sender-tag.ts";
 import type { SlashCommandRegistry, SlashSideEffects } from "../domain/slash-command.ts";
 import { parseSlash } from "../domain/slash-command.ts";
 import { NotFoundError, ConflictError, UnreachableError } from "../errors/index.ts";
@@ -45,7 +46,7 @@ function buildMessageRecord(
   const display = displayText ? { displayText } : {};
   switch (env?.kind) {
     case "orchestrator_message":
-      return { as: "orchestrator_message", fromParent: env.fromParent, ...(env.parentName ? { parentName: env.parentName } : {}), sentAt };
+      return { as: "orchestrator_message", fromParent: env.fromParent, ...(env.parentName ? { parentName: env.parentName } : {}), ...display, sentAt };
     case "worker_report":
       return { as: "worker_report", fromWorker: env.fromWorker, ...(env.workerName ? { workerName: env.workerName } : {}), ...display, sentAt };
     case "peer_request":
@@ -301,6 +302,16 @@ export async function dispatchMessage(
     }
   }
 
+  // Sender tag — the ONE upstream chokepoint (the other is SpawnWorker's boot
+  // prompt). Wrap the model-visible text in its <agent_message>/<system_message>
+  // wrapper AFTER template expansion and BEFORE either lane sends it, so the
+  // model can tell operator (untagged) from agent from system. Both lanes pass
+  // `outgoing` verbatim; the chat still renders the bare body (record.displayText
+  // / the daemon-side append below), so the tag never reaches the UI. An operator
+  // dispatch (no envelope) leaves outgoing untagged.
+  const tag = senderTagForEnvelope(input.envelope);
+  if (tag) outgoing = applySenderTag(outgoing, tag.cls, tag.attrs);
+
   const recordClientMsgIds = input.recordClientMsgIds
     ?? (input.clientMsgId ? [input.clientMsgId] : undefined);
   const record = buildMessageRecord(input.envelope, now, input.displayText, recordClientMsgIds);
@@ -330,7 +341,7 @@ export async function dispatchMessage(
       // Legacy port path drives a claude-cli PTY worker — it self-reports.
       if (!w.port) throw new ConflictError("worker has no port");
       selfReports = true;
-      result = await deps.client.sendMessage(w.port, input.text, record);
+      result = await deps.client.sendMessage(w.port, outgoing, record);
     }
   } catch (e) {
     rollbackClaim();

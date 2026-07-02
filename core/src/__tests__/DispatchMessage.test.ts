@@ -239,32 +239,34 @@ describe("dispatchMessage — daemon-side queue + idempotency", () => {
 describe("dispatchMessage — agent-plane envelopes (report/directive/peer)", () => {
   const byType = (events: AppendedEvent[], type: string) => events.filter((e) => e.type === type);
 
-  it("worker_report, self-reporting parent (claude-cli): record rides, no daemon append", async () => {
+  it("worker_report, self-reporting parent (claude-cli): tagged body to the model, record rides, no daemon append", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
     const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    // The caller passes the CLEAN body + envelope; DispatchMessage wraps it in the
+    // <agent_message …> the model reads. The record's displayText stays the bare body.
     await dispatchMessage(deps, {
-      workerId: "w1", text: "[worker alice (w2)] reported:\nbody", displayText: "body",
-      envelope: { kind: "worker_report", fromWorker: "w2", workerName: "alice" },
+      workerId: "w1", text: "body", displayText: "body",
+      envelope: { kind: "worker_report", provenance: "agent", fromWorker: "w2", workerName: "alice" },
     });
     assert.deepEqual(byType(events, "worker_report"), []);
     assert.deepEqual(sends, [{
-      text: "[worker alice (w2)] reported:\nbody",
+      text: '<agent_message from="alice" worker-id="w2">\nbody\n</agent_message>',
       record: { as: "worker_report", fromWorker: "w2", workerName: "alice", displayText: "body", sentAt: 1234 },
     }]);
   });
 
-  it("worker_report, non-reporting parent (in-process): daemon append of the bare body, no record", async () => {
+  it("worker_report, non-reporting parent (in-process): daemon append of the bare body, tagged body to the session", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
     const { deps, events } = buildDeps({ backend: fakeBackend("inproc", false, sends), backendKind: "inproc" });
     await dispatchMessage(deps, {
-      workerId: "w1", text: "[worker alice (w2)] reported:\nbody", displayText: "body",
-      envelope: { kind: "worker_report", fromWorker: "w2", workerName: "alice" },
+      workerId: "w1", text: "body", displayText: "body",
+      envelope: { kind: "worker_report", provenance: "agent", fromWorker: "w2", workerName: "alice" },
     });
     assert.deepEqual(byType(events, "worker_report"), [
       { type: "worker_report", payload: { text: "body", fromWorker: "w2", workerName: "alice" } },
     ]);
-    // the session still receives the routing wrapper (what the model reads)
-    assert.deepEqual(sends, [{ text: "[worker alice (w2)] reported:\nbody", record: undefined }]);
+    // the session receives the <agent_message …> wrapper (what the model reads)
+    assert.deepEqual(sends, [{ text: '<agent_message from="alice" worker-id="w2">\nbody\n</agent_message>', record: undefined }]);
   });
 
   it("orchestrator_message, in-process worker: daemon append with parent routing", async () => {

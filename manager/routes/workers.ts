@@ -48,7 +48,7 @@ import { appendSynthesized } from "../shared/synthesized-events.ts";
 import { resumeWorkerVia, resumeIfDead, switchWorkerBackend } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
 import { reportHoldGate, stepOutputHoldGate } from "./report-hold.ts";
-import { formatWorkerReport } from "../shared/worker-report.ts";
+import { workerReportEnvelope } from "../shared/worker-report.ts";
 import { safeStringify } from "../../infra/src/util/json.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
 import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
@@ -273,6 +273,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         // directive the dashboard path's WORKING lift + settle-clear.
         await dispatchMessage(dispatchDeps(c), {
           workerId: params.id, text: body.text,
+          // Bare directive for the chat; the <agent_message from=…> wrapper the
+          // model sees is applied at the dispatch chokepoint.
+          displayText: body.text,
           envelope: { kind: "orchestrator_message", fromParent, parentName },
           // Busy worker → hold in the daemon queue and deliver at its next IDLE
           // (fully verified delivery), exactly like worker_report. A direct
@@ -606,12 +609,6 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     // the dashboard path uses before dispatching.
     await resumeIfDead(c, parent);
 
-    const label = worker.name ?? params.id;
-    // Compliance-independent merge handle: the header carries the branch and
-    // worktree even when the worker forgot its Handover line. Shared with the
-    // loop release path so a held-then-released report is byte-identical.
-    const formatted = formatWorkerReport(worker, body.text);
-
     // Opt-in auto-apply (settings: git.autoApplyOnReport): a finished worker's
     // changes land in the user's checkout as unstaged edits, same as clicking
     // Apply. Deterministic daemon-side git — no agent involved. Failures
@@ -637,13 +634,15 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       // port-less in-process (claude-sdk) orchestrator is reachable too (the old
       // direct httpWorkerClient.sendMessage(parent.port,…) silently dropped every
       // report to one). PTY parent self-reports worker_report at its transcript
-      // sighting; in-process gets the daemon-side append. formatted = the routing
-      // wrapper the parent reads; displayText = the bare body the chat renders.
+      // sighting; in-process gets the daemon-side append. The body IS the worker's
+      // report — the <agent_message from=… branch=…> wrapper (the merge handle the
+      // parent reads even when the worker omits its Handover line) is applied at
+      // the dispatch chokepoint from the envelope. displayText = what the chat renders.
       const result = await dispatchMessage(dispatchDeps(c), {
         workerId: worker.parent_id,
-        text: formatted,
+        text: body.text,
         displayText: body.text,
-        envelope: { kind: "worker_report", fromWorker: params.id, workerName: label },
+        envelope: workerReportEnvelope(worker, "agent"),
         // Fan-in serialization: N workers finishing together each get their own
         // orchestrator turn (FIFO, one per IDLE) instead of coalescing into one.
         // A report to a busy parent holds in the queue and drains at its next IDLE.
@@ -660,8 +659,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   // POST /workers/:id/step-output — the typed settle channel for a workflow-worker
   // node (the workflow_step_output tool). UNLIKE /report, this does ONLY: (1) the
   // loop hold decision; (2) publish the workflow:step-output bus topic the
-  // step-join resolves on. No formatWorkerReport, no dispatchMessage, no auto-apply
-  // — a deterministic node has no parent to report to (Part B).
+  // step-join resolves on. No worker-report envelope, no dispatchMessage, no
+  // auto-apply — a deterministic node has no parent to report to (Part B).
   r.post(/^\/workers\/(?<id>[^/]+)\/step-output$/, async ({ params, req, res }) => {
     const body = validate(StepOutputRequestSchema, await readBody(req));
     const worker = c.workers.findById(params.id);

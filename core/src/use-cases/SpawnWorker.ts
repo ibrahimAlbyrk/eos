@@ -20,6 +20,7 @@ import type { NameSource } from "../../../contracts/src/worker.ts";
 import type { AuthRef } from "../../../contracts/src/backend.ts";
 import type { ProviderCapabilities } from "../../../contracts/src/provider-capabilities.ts";
 import { resolveEffort } from "../domain/effort.ts";
+import { applySenderTag } from "../domain/sender-tag.ts";
 import { assertOwnedBy } from "../services/WorkerOwnership.ts";
 import { ConflictError, NotFoundError } from "../errors/index.ts";
 
@@ -139,6 +140,27 @@ export interface SpawnWorkerDeps {
   caps?: ModelCapabilities;
 }
 
+// Classify who authored the boot prompt and wrap it in that sender's tag. Pure
+// DATA, no inference from prose:
+//   • a workflow STEP node carries role "workflow-worker" → system (the engine);
+//   • any other parented, non-orchestrator worker (a spawn_worker'd worker, and a
+//     workflow EXPERT, which the engine spawns under the run anchor without a role
+//     marker) → agent, attributed to its parent;
+//   • a root orchestrator or an operator-spawned worker has no parent → the
+//     operator, delivered untagged.
+// An empty prompt (a persistent worker with no boot directive) is left untouched.
+function tagBootPrompt(deps: SpawnWorkerDeps, spec: SpawnWorkerSpec): string {
+  if (!spec.prompt || !spec.prompt.trim()) return spec.prompt;
+  if (spec.role === "workflow-worker") {
+    return applySenderTag(spec.prompt, "system", { kind: "workflow_boot" });
+  }
+  if (spec.parentId && !spec.isOrchestrator) {
+    const parent = deps.workers.findById(spec.parentId);
+    return applySenderTag(spec.prompt, "agent", { from: parent?.name ?? spec.parentId, "from-id": spec.parentId });
+  }
+  return spec.prompt;
+}
+
 export async function spawnWorker(
   deps: SpawnWorkerDeps,
   spec: SpawnWorkerSpec,
@@ -206,9 +228,19 @@ export async function spawnWorker(
     (resolved.worktreeFrom && branch && deps.resolveWorktreeDir
       ? deps.resolveWorktreeDir(resolved.worktreeFrom, branch)
       : undefined);
+  // Boot-prompt sender tag — the SECOND upstream chokepoint (DispatchMessage is
+  // the first, for runtime messages). The worker's FIRST turn is a directive from
+  // someone: a workflow node (step or expert) boots from the deterministic engine
+  // (system); a spawn_worker'd worker boots on its parent agent's directive
+  // (agent); a root orchestrator / operator-spawned worker boots on the operator's
+  // own words (untagged). Tag ONCE here so it uniformly covers the PTY argv, the
+  // post-boot paste, and the SDK initialPrompt. NEVER persisted — the row keeps
+  // the clean prompt, so the UI and a `--resume` never see the wrapper.
+  const bootPrompt = tagBootPrompt(deps, resolved);
   // Carry the normalized effort on the spec: buildArgs derives the --effort
-  // flag from spec.effort, so this is what actually reaches the claude CLI.
-  const withBranch = { ...resolved, branch, worktreeDir, effort };
+  // flag from spec.effort, so this is what actually reaches the claude CLI. The
+  // wrapped bootPrompt rides here too so the PTY lane's argv/paste is tagged.
+  const withBranch = { ...resolved, branch, worktreeDir, effort, prompt: bootPrompt };
 
   // In-process backends (claude-sdk) have no boot child to create the worktree,
   // so the daemon materializes it HERE — before launch — so the session starts in
@@ -257,7 +289,7 @@ export async function spawnWorker(
         cwd: resolved.cwd ?? inProcWorktreeDir ?? (resolved.workspaceOf ? worktreeDir : undefined) ?? resolved.worktreeFrom ?? "",
         model,
         effort,
-        prompt: resolved.prompt,
+        prompt: bootPrompt,
         systemPromptFile: resolved.systemPromptFile ?? null,
         permissionMode: resolved.claudePermissionMode ?? null,
         persistent: !!resolved.persistent,
