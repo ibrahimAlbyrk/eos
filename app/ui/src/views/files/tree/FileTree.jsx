@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import {
   explorer, useChildrenCache, useDirtyPaths, useDraft, useExpanded,
-  useExplorerRoot, useOpenPath, useRenaming, useSearchState, useSelection,
+  useExplorerRoot, useOpenPath, useRefsPanel, useRenaming, useSearchMode,
+  useSearchState, useSelection,
 } from "../../../state/explorerStore.js";
 import { flattenVisible } from "../../../lib/explorerNodes.js";
 import { isDescendant, parentDir } from "../../../lib/explorerApi.js";
 import { FileRow } from "./FileRow.jsx";
 import { FileIcon } from "../FileIcon.jsx";
+import { RefsPanel, SymbolSearchList } from "../SymbolResults.jsx";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 
 export function FileTree() {
@@ -17,6 +19,8 @@ export function FileTree() {
   const cache = useChildrenCache();
   const selection = useSelection();
   const search = useSearchState();
+  const searchMode = useSearchMode();
+  const refs = useRefsPanel();
   const openPath = useOpenPath();
   const dirty = useDirtyPaths();
   const draft = useDraft();
@@ -115,6 +119,14 @@ export function FileTree() {
         <span>Open a folder to browse files.</span>
       </div>
     );
+  }
+
+  // Editor-triggered symbol panels (find-references / go-to-def picker) take over
+  // the tree while open, ahead of any active filename/symbol search.
+  if (refs) return <RefsPanel refs={refs} root={root} openPath={openPath} />;
+
+  if (inSearch && searchMode === "symbols") {
+    return <SymbolSearchList search={search} root={root} openPath={openPath} />;
   }
 
   if (inSearch) {

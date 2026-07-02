@@ -29,7 +29,14 @@ const state = {
   expanded: new Set(), // dir abs paths
   childrenCache: new Map(), // dir -> { state: "loading"|"ready"|"error", entries }
   selection: { anchor: null, ids: new Set() },
+  searchMode: "files", // "files" | "symbols" — the search-box mode toggle
   search: { query: "", results: null, loading: false }, // results !== null ⇒ search mode
+  // Symbol references / go-to-def picker panel (editor-triggered, replaces the
+  // tree while set). { title, name, want, occurrences, loading, indexing } | null.
+  refs: null,
+  // Scroll-to-line signal for the open file. { path, line, column, seq } | null;
+  // seq is monotonic so the editor re-reveals even when the line is unchanged.
+  reveal: null,
   openPath: null,
   dirtyPaths: new Set(),
   draft: null, // { parentDir, type } — inline new-file/folder row
@@ -101,6 +108,8 @@ async function setRoot(root, { expanded = [], open = null } = {}) {
   state.childrenCache = new Map();
   state.selection = { anchor: null, ids: new Set() };
   state.search = { query: "", results: null, loading: false };
+  state.refs = null;
+  state.reveal = null;
   state.openPath = open || null;
   state.dirtyPaths = new Set();
   state.draft = null;
@@ -204,29 +213,51 @@ function clearSelection() {
 }
 
 // ---- search ----------------------------------------------------------------
+// One debounced pipeline, mode-switched: "files" hits the filename fuzzy search,
+// "symbols" hits the symbol-name index. Both replace the tree via search.results.
 
 let searchTimer = null;
 function setSearchQuery(q) {
   if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; }
   if (!q) { state.search = { query: "", results: null, loading: false }; emit(); return; }
+  state.refs = null; // typing a query dismisses the refs panel
   state.search = { query: q, results: state.search.results, loading: true };
   emit();
+  const mode = state.searchMode;
   searchTimer = setTimeout(async () => {
-    try {
-      const res = await api.listFiles(state.root, q);
-      if (state.search.query !== q) return; // stale
-      state.search = { query: q, results: res.entries ?? [], loading: false };
-    } catch {
-      if (state.search.query !== q) return;
-      state.search = { query: q, results: [], loading: false };
+    if (mode === "symbols") {
+      const res = await api.symbolsSearch(state.root, q);
+      if (state.search.query !== q || state.searchMode !== "symbols") return; // stale
+      state.search = { query: q, results: res?.symbols ?? [], loading: false, unavailable: res == null };
+    } else {
+      try {
+        const res = await api.listFiles(state.root, q);
+        if (state.search.query !== q) return; // stale
+        state.search = { query: q, results: res.entries ?? [], loading: false };
+      } catch {
+        if (state.search.query !== q) return;
+        state.search = { query: q, results: [], loading: false };
+      }
     }
     emit();
   }, 150);
 }
 
+// Flip the search box between filename and symbol search; re-runs the pending
+// query under the new mode so the toggle takes effect immediately.
+function setSearchMode(mode) {
+  const m = mode === "symbols" ? "symbols" : "files";
+  if (m === state.searchMode) return;
+  state.searchMode = m;
+  const q = state.search.query;
+  state.search = { query: "", results: null, loading: false };
+  emit();
+  if (q) setSearchQuery(q);
+}
+
 // ---- open file + dirty -----------------------------------------------------
 
-function openFilePath(path) { state.openPath = path; persistOpen(); emit(); }
+function openFilePath(path) { state.openPath = path; state.reveal = null; persistOpen(); emit(); }
 function closeFile() { state.openPath = null; persistOpen(); emit(); }
 function markDirty(path, dirty) {
   const ds = new Set(state.dirtyPaths);
@@ -235,6 +266,53 @@ function markDirty(path, dirty) {
   emit();
 }
 function consumeExternalChange() { state.externalChange = null; emit(); }
+
+// ---- symbol navigation (go-to-def / find-refs) -----------------------------
+
+let revealSeq = 0;
+// Open a file AND signal the editor to scroll to line/column. One emit so the
+// open + reveal land together; the editor keys its scroll effect off `seq`.
+function openAt(path, line, column) {
+  revealSeq += 1;
+  state.reveal = { path, line: line || 1, column: column || 1, seq: revealSeq };
+  state.openPath = path;
+  persistOpen();
+  emit();
+}
+
+// Find references: always shows the panel (honest name-matched list). A null
+// result (backend absent/errored) closes the panel — a quiet no-op.
+async function findReferences(name, fromPath) {
+  if (!state.root || !name) return;
+  state.refs = { title: name, name, want: "references", occurrences: [], loading: true, indexing: false };
+  emit();
+  const res = await api.symbolsLookup(state.root, name, "references", fromPath);
+  if (state.refs?.name !== name || state.refs?.want !== "references") return; // superseded
+  if (res == null) { state.refs = null; emit(); return; }
+  state.refs = {
+    title: name, name, want: "references",
+    occurrences: res.occurrences ?? [], loading: false, indexing: Boolean(res.indexing),
+  };
+  emit();
+}
+
+// Go to definition: one hit opens directly; several open the panel as a picker;
+// zero/indexing show the panel's honest empty/indexing state. Null (backend
+// absent) is a quiet no-op — no panel flash.
+async function goToDefinition(name, fromPath) {
+  if (!state.root || !name) return;
+  const res = await api.symbolsLookup(state.root, name, "definitions", fromPath);
+  if (res == null) return;
+  const occ = res.occurrences ?? [];
+  if (!res.indexing && occ.length === 1) { openAt(occ[0].path, occ[0].line, occ[0].column); return; }
+  state.refs = {
+    title: name, name, want: "definitions",
+    occurrences: occ, loading: false, indexing: Boolean(res.indexing),
+  };
+  emit();
+}
+
+function closeRefs() { if (state.refs) { state.refs = null; emit(); } }
 
 // ---- inline draft / rename -------------------------------------------------
 
@@ -288,13 +366,26 @@ export const explorer = {
   loadDir, refreshDir: (dir) => loadDir(dir, { quiet: true }),
   reconcileFsChange, resubscribeWatches, pauseWatches, resumeWatches,
   selectOnly, toggleSelect, setSelection, clearSelection,
-  setSearchQuery,
+  setSearchQuery, setSearchMode,
   openFilePath, closeFile, markDirty, consumeExternalChange,
+  openAt, findReferences, goToDefinition, closeRefs,
   startDraft, cancelDraft, startRename, cancelRename,
   createEntry, renameEntry, trashEntries, moveEntries,
   baseName,
   getState: () => state,
 };
+
+// Test-only: reset the slices the symbol/search suites touch (mirrors the
+// recallStore `_reset` pattern). No effect on production code paths.
+export function _resetForTest() {
+  state.root = null;
+  state.searchMode = "files";
+  state.search = { query: "", results: null, loading: false };
+  state.refs = null;
+  state.reveal = null;
+  state.openPath = null;
+  emit();
+}
 
 // Narrow slice hooks — each returns a stable ref so a component re-renders only
 // when its slice actually changes (the fields are replaced, never mutated).
@@ -303,6 +394,9 @@ export const useExpanded = () => useSyncExternalStore(subscribe, () => state.exp
 export const useChildrenCache = () => useSyncExternalStore(subscribe, () => state.childrenCache);
 export const useSelection = () => useSyncExternalStore(subscribe, () => state.selection);
 export const useSearchState = () => useSyncExternalStore(subscribe, () => state.search);
+export const useSearchMode = () => useSyncExternalStore(subscribe, () => state.searchMode);
+export const useRefsPanel = () => useSyncExternalStore(subscribe, () => state.refs);
+export const useReveal = () => useSyncExternalStore(subscribe, () => state.reveal);
 export const useOpenPath = () => useSyncExternalStore(subscribe, () => state.openPath);
 export const useDirtyPaths = () => useSyncExternalStore(subscribe, () => state.dirtyPaths);
 export const useDraft = () => useSyncExternalStore(subscribe, () => state.draft);

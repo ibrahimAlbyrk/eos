@@ -418,6 +418,31 @@ export const api = {
     return r.body;
   },
 
+  // Symbol intelligence — fail-soft by design: the backend lands separately and
+  // may be absent. A missing/errored endpoint resolves to `null` so the Files tab
+  // degrades to a quiet no-op rather than throwing. `want` = "definitions"|"references".
+  async symbolsLookup(root, name, want, fromPath) {
+    if (!root || !name) return null;
+    const params = new URLSearchParams({ root, name, want });
+    if (fromPath) params.set("fromPath", fromPath);
+    try {
+      const r = await getJson(`${ROUTES.symbolsLookup}?${params.toString()}`);
+      return r.ok ? (r.body ?? { occurrences: [] }) : null;
+    } catch {
+      return null;
+    }
+  },
+  async symbolsSearch(root, query, limit = 50) {
+    if (!root || !query) return null;
+    const params = new URLSearchParams({ root, query, limit: String(limit) });
+    try {
+      const r = await getJson(`${ROUTES.symbolsSearch}?${params.toString()}`);
+      return r.ok ? (r.body ?? { symbols: [] }) : null;
+    } catch {
+      return null;
+    }
+  },
+
   async listCommands(cwd) {
     const params = cwd ? `?cwd=${encodeURIComponent(cwd)}` : "";
     const r = await getJson(`${ROUTES.commands}${params}`);

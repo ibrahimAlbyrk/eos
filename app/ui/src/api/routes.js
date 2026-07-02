@@ -57,6 +57,11 @@ export const ROUTES = {
   fsTrash: "/fs/trash",
   fsWatch: "/fs/watch",
   fsUnwatch: "/fs/unwatch",
+  // Symbol-level code intelligence (name-matched, syntactic tier). Lookup serves
+  // go-to-definition + find-references (one handler, ?want=); search backs the
+  // Symbols search mode. Reads are un-gated GETs like /fs/read.
+  symbolsLookup: "/symbols/lookup",
+  symbolsSearch: "/symbols/search",
   workerName: (id) => `/workers/${id}/name`,
   workerRenameIntent: (id) => `/workers/${id}/rename-intent`,
   workerOpen: (id) => `/workers/${id}/open`,

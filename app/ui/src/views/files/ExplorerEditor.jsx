@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api/client.js";
-import { explorer, useExternalChange, useOpenPath } from "../../state/explorerStore.js";
+import { useUi } from "../../state/ui.jsx";
+import { explorer, useExternalChange, useOpenPath, useReveal } from "../../state/explorerStore.js";
 import { findAll, shortenHome } from "../../lib/fileUtils.jsx";
 import { fileKind } from "../../lib/fileKind.js";
 import { isMarkdownPath } from "../../lib/markdownPreview.js";
@@ -34,7 +35,9 @@ export function ExplorerEditor() {
 }
 
 function EditorInner({ path }) {
+  const ui = useUi();
   const externalChange = useExternalChange();
+  const reveal = useReveal();
   const [content, setContent] = useState(null);
   const [editContent, setEditContent] = useState("");
   const [binaryMeta, setBinaryMeta] = useState(null);
@@ -55,6 +58,14 @@ function EditorInner({ path }) {
   const isText = kind === "text";
   const isMarkdown = isText && isMarkdownPath(path);
   const showMarkdownPreview = isMarkdown && viewMode === "preview";
+
+  // Cmd/Ctrl-click → go to definition; right-click on an identifier → the
+  // go-to-def / find-refs menu (a shared-scope popover, like the tree's menu).
+  const symbolNav = useMemo(() => ({
+    onDefinition: (word) => explorer.goToDefinition(word, path),
+    onContextMenu: ({ word, x, y }) => ui.openPop("fx-sym-ctx", { x, y, data: { word, path } }),
+  }), [path, ui]);
+  const revealForPath = reveal?.path === path ? reveal : null;
 
   useEffect(() => {
     if (!wantsText) return;
@@ -198,6 +209,10 @@ function EditorInner({ path }) {
                   matches={findMatches}
                   filePath={path}
                   readOnly={content.length > HEAVY_TEXT_CHARS}
+                  symbolNav={symbolNav}
+                  revealLine={revealForPath?.line}
+                  revealColumn={revealForPath?.column}
+                  revealSeq={revealForPath?.seq}
                 />
               )
             )}

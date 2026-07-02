@@ -5,6 +5,7 @@ import { explorer } from "../../state/explorerStore.js";
 import { FilesSidebar } from "./sidebar/FilesSidebar.jsx";
 import { ExplorerEditor } from "./ExplorerEditor.jsx";
 import { FilesContextMenu } from "./FilesContextMenu.jsx";
+import { SymbolContextMenu } from "./SymbolContextMenu.jsx";
 import { FolderPicker } from "./picker/FolderPicker.jsx";
 import { useExplorerKeys } from "./useExplorerKeys.js";
 
@@ -52,6 +53,7 @@ export function FilesView({ live }) {
       main={<ExplorerEditor />}
     >
       <FilesContextMenu />
+      <SymbolContextMenu />
       <FolderPicker live={live} />
     </AppLayout>
   );
