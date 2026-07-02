@@ -22,14 +22,20 @@ export class DeterministicCommandStrategy implements GoalCheckStrategy {
   }
 
   async evaluate(goal: GoalSpec, ctx: GoalContext): Promise<GoalVerdict> {
-    const cwd = ctx.worktreeDir ?? this.repoRoot;
+    // Resolve against the worker's worktree, else its checkout, else the repo root
+    // (Fix 6a). Prefer the injected per-tick runner (shared with the collector so
+    // hybrid runs each verify once, Fix 6b); fall back to runShell. Either way the
+    // abort signal drives the fail-fast sibling-cancel.
+    const cwd = ctx.worktreeDir ?? ctx.cwd ?? this.repoRoot;
     const abort = new AbortController();
+    const run = (cmd: string): Promise<{ exitCode: number; output: string; aborted?: boolean }> =>
+      ctx.runCommand ? ctx.runCommand.run(cmd, cwd, abort.signal) : runShell(cmd, cwd, VERIFY_TIMEOUT_MS, abort.signal);
 
     const checked = await Promise.all(
       goal.criteria.map(async (c) => {
         if (!c.verify) return { id: c.id, met: false, skipped: false, evidence: "no deterministic verify; needs judge" };
         ctx.progress?.({ phase: "verifying", criterionId: c.id });
-        const r = await runShell(c.verify, cwd, VERIFY_TIMEOUT_MS, abort.signal);
+        const r = await run(c.verify);
         if (r.aborted) return { id: c.id, met: false, skipped: true, evidence: "skipped: another criterion already failed" };
         const met = r.exitCode === 0;
         if (!met) abort.abort(); // first real failure cancels the remaining commands

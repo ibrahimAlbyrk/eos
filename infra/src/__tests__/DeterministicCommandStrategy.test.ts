@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { tmpdir } from "node:os";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { DeterministicCommandStrategy } from "../goalcheck/DeterministicCommandStrategy.ts";
 import type { GoalContext } from "../../../core/src/ports/GoalCheckStrategy.ts";
 import type { GoalSpec } from "../../../contracts/src/loop.ts";
@@ -45,6 +47,26 @@ describe("DeterministicCommandStrategy", () => {
     );
     assert.equal(v.met, false);
     assert.deepEqual(v.unmet, ["c2"]);
+  });
+
+  it("resolves the verify cwd against ctx.cwd when there is no worktree (Fix 6a)", async () => {
+    // A marker file exists only in this dir, not the strategy's repoRoot (tmpdir).
+    const d = mkdtempSync(join(tmpdir(), "eos-detcwd-"));
+    writeFileSync(join(d, "marker"), "x");
+    const v = await strategy.evaluate(goal([{ id: "c1", text: "marker present", verify: "test -f marker" }]), { workerId: "w-1", attempt: 0, cwd: d });
+    assert.equal(v.met, true); // test -f marker only passes when run in d
+  });
+
+  it("prefers ctx.runCommand over runShell, passing the abort signal through (Fix 6b)", async () => {
+    const calls: string[] = [];
+    let sawSignal = false;
+    const runCommand = {
+      run: async (cmd: string, _cwd: string, signal?: AbortSignal) => { calls.push(cmd); sawSignal = signal instanceof AbortSignal; return { exitCode: 0, output: "" }; },
+    };
+    const v = await strategy.evaluate(goal([{ id: "c1", text: "ok", verify: "exit 0" }]), { workerId: "w-1", attempt: 0, runCommand });
+    assert.deepEqual(calls, ["exit 0"]);
+    assert.equal(sawSignal, true);
+    assert.equal(v.met, true);
   });
 
   it("a failing criterion aborts a still-running sibling instead of waiting it out", async () => {

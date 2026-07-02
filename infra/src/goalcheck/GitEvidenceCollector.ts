@@ -38,17 +38,29 @@ export class GitEvidenceCollector implements EvidenceCollector {
   }
 
   async collect(goal: GoalSpec, ctx: GoalContext): Promise<EvidenceBundle> {
-    const cwd = ctx.worktreeDir ?? this.deps.repoRoot;
+    // Verify commands + referenced files resolve against the worker's dir: its
+    // worktree, else its checkout (a worker with no isolated worktree), else the
+    // repo root (Fix 6a). Prefer the injected per-tick runner so a hybrid check
+    // doesn't re-run each verify a second time (Fix 6b); fall back to runShell.
+    const cwd = ctx.worktreeDir ?? ctx.cwd ?? this.deps.repoRoot;
+    const run = (cmd: string): Promise<{ exitCode: number; output: string }> =>
+      ctx.runCommand ? ctx.runCommand.run(cmd, cwd) : runShell(cmd, cwd, VERIFY_TIMEOUT_MS);
 
     const machineSignals: MachineSignal[] = [];
     for (const c of goal.criteria) {
       if (!c.verify) continue;
-      const r = await runShell(c.verify, cwd, VERIFY_TIMEOUT_MS);
+      const r = await run(c.verify);
       machineSignals.push({ criterionId: c.id, command: c.verify, exitCode: r.exitCode, output: truncate(r.output, OUTPUT_CAP) });
     }
 
+    // The diff is collected only from an isolated worktree; a bare-checkout worker
+    // reports "(no worktree — not collected)" downstream. diffBase is set ⇔ a
+    // worktree diff was attempted, carrying the base for the judge payload header
+    // and distinguishing empty-against-base from no-worktree (Fix 6d1).
     let diff: string | undefined;
+    let diffBase: string | undefined;
     if (ctx.worktreeDir) {
+      diffBase = ctx.forkBaseSha ?? "HEAD";
       const raw = await this.deps.git.fullDiff(ctx.worktreeDir, ctx.forkBaseSha).catch(() => null);
       if (raw && raw.length > 0) diff = truncate(raw, DIFF_CAP);
     }
@@ -58,6 +70,7 @@ export class GitEvidenceCollector implements EvidenceCollector {
     return {
       machineSignals,
       ...(diff ? { diff } : {}),
+      ...(diffBase ? { diffBase } : {}),
       ...(files.length > 0 ? { files } : {}),
       ...(ctx.lastReportText ? { reportClaim: ctx.lastReportText } : {}),
     };

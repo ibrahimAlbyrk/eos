@@ -68,6 +68,51 @@ describe("GitEvidenceCollector", () => {
     assert.equal(bundle.files?.[0].path, "/wt/out/result.json");
   });
 
+  it("resolves a relative path against ctx.cwd when there is no worktree (Fix 6a)", async () => {
+    const goal: GoalSpec = { summary: "g", criteria: [{ id: "c1", text: "see ./out/result.json" }] };
+    const bundle = await fileCollector({ "/checkout/out/result.json": "{}" })
+      .collect(goal, { workerId: "w-1", attempt: 0, cwd: "/checkout" });
+    assert.equal(bundle.files?.length, 1);
+    assert.equal(bundle.files?.[0].path, "/checkout/out/result.json");
+  });
+
+  it("prefers ctx.runCommand over runShell for verify commands, in the resolved cwd (Fix 6b)", async () => {
+    const calls: Array<[string, string]> = [];
+    const runCommand = { run: async (cmd: string, cwd: string) => { calls.push([cmd, cwd]); return { exitCode: 0, output: "via runner" }; } };
+    const goal: GoalSpec = { summary: "g", criteria: [{ id: "c1", text: "ok", verify: "echo hi" }] };
+    const bundle = await collector(async () => null).collect(goal, { workerId: "w-1", attempt: 0, cwd: "/checkout", runCommand });
+    assert.deepEqual(calls, [["echo hi", "/checkout"]]);
+    assert.equal(bundle.machineSignals[0].output, "via runner");
+  });
+
+  it("sets diffBase to the fork base when a worktree diff is collected (Fix 6d1)", async () => {
+    const goal: GoalSpec = { summary: "g", criteria: [{ id: "c1", text: "t" }] };
+    const bundle = await collector(async () => "diff --git a/x b/x")
+      .collect(goal, { workerId: "w-1", attempt: 0, worktreeDir: "/wt", forkBaseSha: "abc123" });
+    assert.equal(bundle.diffBase, "abc123");
+    assert.ok(bundle.diff);
+  });
+
+  it("worktree with no fork base → diffBase 'HEAD'", async () => {
+    const goal: GoalSpec = { summary: "g", criteria: [{ id: "c1", text: "t" }] };
+    const bundle = await collector(async () => "diff...").collect(goal, { workerId: "w-1", attempt: 0, worktreeDir: "/wt" });
+    assert.equal(bundle.diffBase, "HEAD");
+  });
+
+  it("worktree present but empty diff → diffBase set, diff omitted (empty-against-base, distinct from no-worktree)", async () => {
+    const goal: GoalSpec = { summary: "g", criteria: [{ id: "c1", text: "t" }] };
+    const bundle = await collector(async () => "").collect(goal, { workerId: "w-1", attempt: 0, worktreeDir: "/wt", forkBaseSha: "b" });
+    assert.equal(bundle.diffBase, "b");
+    assert.equal(bundle.diff, undefined);
+  });
+
+  it("no worktree → diffBase omitted (the payload renders '(no worktree — not collected)')", async () => {
+    const goal: GoalSpec = { summary: "g", criteria: [{ id: "c1", text: "t" }] };
+    const bundle = await collector(async () => "x").collect(goal, { workerId: "w-1", attempt: 0, cwd: "/checkout" });
+    assert.equal(bundle.diffBase, undefined);
+    assert.equal(bundle.diff, undefined);
+  });
+
   it("a referenced file that is absent yields NO file evidence (judge stays fail-closed → unmet)", async () => {
     const goal: GoalSpec = { summary: "g", criteria: [{ id: "c1", text: "output at /tmp/missing.txt" }] };
     const bundle = await fileCollector({}).collect(goal, { workerId: "w-1", attempt: 0 });

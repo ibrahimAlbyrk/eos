@@ -23,7 +23,15 @@ export function buildJudgeVars(goal: GoalSpec, bundle: EvidenceBundle): Variable
         .flatMap((s) => [`[${s.criterionId ?? "—"}] $ ${s.command}  ->  exit ${s.exitCode}`, s.output || "(no output)"])
         .join("\n");
 
-  const diff = bundle.diff && bundle.diff.length > 0 ? bundle.diff : "(none)";
+  // Diff visibility (Fix 6d1): show the base the diff is measured against, and
+  // tell the judge WHY a diff is empty — a worker with no worktree (nothing was
+  // collected) vs a real worktree with no change against its base. Collapsing
+  // both to "(none)" hid committed-work / no-worktree cases from the judge.
+  const worktreeCollected = bundle.diffBase !== undefined;
+  const diffBase = `base ${bundle.diffBase ?? "HEAD"}`;
+  const diff = bundle.diff && bundle.diff.length > 0
+    ? bundle.diff
+    : worktreeCollected ? "(empty against base)" : "(no worktree — not collected)";
 
   // FILES is empty when there are none → the template's {{#if FILES}} drops the
   // whole "EVIDENCE — FILES" section.
@@ -35,6 +43,7 @@ export function buildJudgeVars(goal: GoalSpec, bundle: EvidenceBundle): Variable
     GOAL_SUMMARY: goal.summary,
     CRITERIA: criteria,
     MACHINE_SIGNALS: machineSignals,
+    DIFF_BASE: diffBase,
     DIFF: diff,
     FILES: files,
     CLAIM: truncate(bundle.reportClaim ?? "(none)", CLAIM_CAP),

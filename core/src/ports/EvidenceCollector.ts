@@ -23,6 +23,12 @@ export interface EvidenceFile {
 export interface EvidenceBundle {
   machineSignals: MachineSignal[];
   diff?: string;
+  // The base the diff was taken against (a fork-point sha, or "HEAD"), set ONLY
+  // when a worktree diff was actually collected. Its presence ⇔ a worktree was
+  // available: buildJudgeVars renders "(base <sha|HEAD>)" in the payload header
+  // and distinguishes "(no worktree — not collected)" (diffBase absent) from
+  // "(empty against base)" (diffBase present, diff empty) (Fix 6d1).
+  diffBase?: string;
   files?: EvidenceFile[];
   // The worker's own report — a CLAIM to verify, NEVER accepted on its word.
   reportClaim?: string;
