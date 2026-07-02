@@ -1,5 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
-import { nextGitMode } from "../lib/composerModes.js";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
 const ComposerContext = createContext(null);
 
@@ -15,10 +14,9 @@ const DEFAULT_COMPOSER = {
   // backendKind/backendProfile at spawn time (providerSpawn); a same-name operator
   // profile wins so the spawn preserves its config. null → server default.
   provider: null,
-  gitMode: false,
-  // `!` on an empty input flips the composer into terminal mode: Enter runs
-  // the text as a daemon-side bash command instead of messaging the agent.
-  termMode: false,
+  // gitMode / termMode are per-pane now (each pane owns its Composer, so it holds
+  // them as local state) — no longer a singleton here. This provider keeps only
+  // the spawn config that the no-agent composer consumes.
   // {content, attachments, ts} queued by the template picker / ⌘K palette; the
   // Composer consumes it (re-seats attachment chips, inserts text + selects the
   // first {{placeholder}}) and clears.
@@ -35,22 +33,21 @@ export function ComposerProvider({ children }) {
     setComposer((c) => ({ ...c, ...patch }));
   }, []);
 
-  // Single source of truth for the git ("custom task") mode flip. `on`
-  // undefined toggles; the git button / startCustom / Cmd+G all route here.
-  const toggleGitMode = useCallback((on) => {
-    setComposer((c) => {
-      const next = nextGitMode(c, on);
-      return next === c.gitMode ? c : { ...c, gitMode: next };
-    });
-  }, []);
+  // gitMode is per-pane local state now, so the focused pane's Composer registers
+  // its own toggler here (mirrors selection.jsx's registerEscapeGitMode). Cmd+G
+  // (useGitModeHotkey) and the git button / startCustom all route through
+  // toggleGitMode → the focused composer, never a singleton flag.
+  const gitToggleRef = useRef(() => {});
+  const registerGitModeToggle = useCallback((fn) => { gitToggleRef.current = fn ?? (() => {}); }, []);
+  const toggleGitMode = useCallback((on) => { gitToggleRef.current(on); }, []);
 
   // Outbound message bubbles/pills live in state/outboxStore.js — the single
   // owner of the send lifecycle (Composer, Messages and useLive all touch it,
   // and they don't share a subtree below this provider).
 
   const value = useMemo(() => ({
-    composer, updateComposer, toggleGitMode,
-  }), [composer, updateComposer, toggleGitMode]);
+    composer, updateComposer, toggleGitMode, registerGitModeToggle,
+  }), [composer, updateComposer, toggleGitMode, registerGitModeToggle]);
 
   return <ComposerContext.Provider value={value}>{children}</ComposerContext.Provider>;
 }

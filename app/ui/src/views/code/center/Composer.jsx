@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { startRun } from "../../../state/terminalStore.js";
@@ -21,7 +21,7 @@ import { menuVisibility, escapeMenu, menuDismissedOnQueryChange } from "../../..
 import { parentScope } from "../../../lib/mentionQuery.js";
 import { providerSpawn } from "../../../lib/backendCaps.js";
 import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
-import { composerMode, modeFlags } from "../../../lib/composerModes.js";
+import { composerMode, modeFlags, nextGitMode } from "../../../lib/composerModes.js";
 import { shouldApplyPendingText } from "../../../lib/composerRestore.js";
 import { gitAgentName, gitTaskLabel } from "../../../lib/gitAgentName.js";
 import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
@@ -82,11 +82,17 @@ function QueuedList({ items, onDismiss }) {
   );
 }
 
-export function Composer({ live }) {
+export function Composer({ live, worker, paneId, focused }) {
   const ui = useUi();
   const [menuIndex, setMenuIndex] = useState(0);
   const [fileMenuIndex, setFileMenuIndex] = useState(0);
   const [menuDismissed, setMenuDismissed] = useState(false);
+  // git ("custom task") + terminal modes are per-pane: each pane owns its
+  // Composer, so they live here, not in the shared ui.composer singleton. Seeded
+  // from the per-agent draft on switch (a term-mode draft restored without the
+  // mode would send as chat instead of running a shell command).
+  const [gitMode, setGitMode] = useState(false);
+  const [termMode, setTermMode] = useState(false);
   const insertedPathsRef = useRef(new Map());
   // Collapsed long pastes: placeholder → full text. Held out-of-band (kept out
   // of the model string and the undo-snapshot bulk) and spliced back in at send,
@@ -101,7 +107,18 @@ export function Composer({ live }) {
   // Cleared on the next real input event.
   const recallRef = useRef(false);
 
-  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
+  // This composer targets its own pane's worker (null in the single-pane
+  // no-agent spawn state) — not the global selection. For the FOCUSED pane the
+  // two coincide (the focused leaf mirrors selectedId); other panes drive their
+  // own agent.
+  const selected = worker;
+
+  // git↔term are mutually exclusive; entering git while term is active is a
+  // no-op (nextGitMode encodes it). Shared by the git button, startCustom and
+  // the focus-registered Cmd+G handler below.
+  const toggleGitMode = useCallback((on) => {
+    setGitMode((g) => nextGitMode({ gitMode: g, termMode }, on));
+  }, [termMode]);
 
   // Pills render from the outbox (state/outboxStore.js — the single owner of
   // the send lifecycle), which mirrors the daemon queue. Synced on selection
@@ -114,20 +131,27 @@ export function Composer({ live }) {
     outbox.syncQueue(selected.id);
   }, [live.eventSignal.tick]);
 
-  // Global Escape exits git/terminal mode regardless of focus — registered into
-  // the selection provider's Escape chain (popover/viewers first, interrupt last).
+  // Escape exits git/terminal mode — but only the FOCUSED pane's composer owns
+  // the selection provider's single Escape ref, so N mounted composers don't
+  // clobber it. Re-registered on mode change so the handler reads fresh state.
   useEffect(() => {
+    if (!focused) return;
     ui.registerEscapeGitMode(() => {
-      if (ui.composer.termMode) {
-        ui.updateComposer({ termMode: false });
-        return true;
-      }
-      if (!ui.composer.gitMode) return false;
-      ui.updateComposer({ gitMode: false });
+      if (termMode) { setTermMode(false); return true; }
+      if (!gitMode) return false;
+      setGitMode(false);
       return true;
     });
     return () => ui.registerEscapeGitMode(null);
-  }, [ui.composer.gitMode, ui.composer.termMode, ui.registerEscapeGitMode, ui.updateComposer]);
+  }, [focused, gitMode, termMode, ui.registerEscapeGitMode]);
+
+  // Cmd+G routes through the composer provider to whichever composer is focused;
+  // register this one's toggler while it holds focus (same single-ref discipline).
+  useEffect(() => {
+    if (!focused) return;
+    ui.registerGitModeToggle(toggleGitMode);
+    return () => ui.registerGitModeToggle(null);
+  }, [focused, toggleGitMode, ui.registerGitModeToggle]);
 
   const cwd = selected?.cwd ?? ui.composer.cwd ?? live.recents[0] ?? null;
   const commands = useCommands(cwd);
@@ -159,7 +183,7 @@ export function Composer({ live }) {
     handleInput,
     undo,
     redo,
-  } = useContentEditableEditor(slashMap, insertedPathsRef, ui.selectedId, attachmentItems, reconcileToText, pastesRef);
+  } = useContentEditableEditor(slashMap, insertedPathsRef, selected?.id ?? null, attachmentItems, reconcileToText, pastesRef, focused);
 
   // Attachment intake (paste/drop/picker → [label] tokens + chips), shared with
   // the template editor. The inline token is the source of truth; this hook owns
@@ -186,15 +210,15 @@ export function Composer({ live }) {
   // git/term modes ride along: a term-mode draft restored without the mode
   // would send as a chat message instead of running as a shell command.
   useComposerDraftSync(
-    draftKey(ui.selectedId),
+    draftKey(selected?.id ?? null),
     () => ({
       text,
       cursorPos,
       insertedPaths: [...insertedPathsRef.current],
       pastes: [...pastesRef.current],
       attachments: attachmentItems,
-      gitMode: ui.composer.gitMode,
-      termMode: ui.composer.termMode,
+      gitMode,
+      termMode,
     }),
     (d) => {
       insertedPathsRef.current = new Map(d?.insertedPaths ?? []);
@@ -202,11 +226,8 @@ export function Composer({ live }) {
       restoreAttachments(d?.attachments ?? []);
       recallRef.current = true; // suppress menu auto-open, same as history recall
       setTextAndSync(d?.text ?? "", d?.cursorPos ?? 0, "reset"); // new agent = fresh undo baseline
-      const gitMode = d?.gitMode ?? false;
-      const termMode = d?.termMode ?? false;
-      if (ui.composer.gitMode !== gitMode || ui.composer.termMode !== termMode) {
-        ui.updateComposer({ gitMode, termMode });
-      }
+      setGitMode(d?.gitMode ?? false);
+      setTermMode(d?.termMode ?? false);
     }
   );
 
@@ -222,8 +243,8 @@ export function Composer({ live }) {
 
   const menuVis = menuVisibility({ activeMenu, menuDismissed });
   // Terminal mode: shell text is full of `/` and `@` — completion menus off.
-  const showMenu = menuVis.showMenu && !ui.composer.termMode;
-  const showFileMenu = menuVis.showFileMenu && !ui.composer.termMode;
+  const showMenu = menuVis.showMenu && !termMode;
+  const showFileMenu = menuVis.showFileMenu && !termMode;
 
   const activeHint = useMemo(() => {
     if (!text.includes("/")) return null;
@@ -240,8 +261,11 @@ export function Composer({ live }) {
   }, [text, cmdMap]);
 
   // Template queued by the picker popover or the ⌘K palette — replaces the
-  // whole input, then enters placeholder navigation.
+  // whole input, then enters placeholder navigation. pendingTemplate/pendingText
+  // are singletons aimed at the selected agent = the focused pane, so only the
+  // focused composer consumes them (else every pane would clear + apply).
   useEffect(() => {
+    if (!focused) return;
     const pt = ui.composer.pendingTemplate;
     if (!pt) return;
     ui.updateComposer({ pendingTemplate: null });
@@ -250,13 +274,14 @@ export function Composer({ live }) {
     // already durable); the inline [label] tokens ride in pt.content.
     for (const att of pt.attachments ?? []) addResolved(att);
     applyTemplateText(pt.content, 0);
-  }, [ui.composer.pendingTemplate]);
+  }, [focused, ui.composer.pendingTemplate]);
 
   // Restored prompt queued by the rewind panel OR a recall (interrupt before the
   // agent responded) — replaces the input so the user can edit and resend,
   // mirroring Claude Code's native rewind. A recall restore (guard:"recall")
   // never clobbers a draft the user typed after sending; rewind always replaces.
   useEffect(() => {
+    if (!focused) return;
     const pt = ui.composer.pendingText;
     if (!pt) return;
     ui.updateComposer({ pendingText: null });
@@ -264,7 +289,7 @@ export function Composer({ live }) {
     insertedPathsRef.current.clear();
     setTextAndSync(pt.content, pt.content.length);
     editorRef.current?.focus();
-  }, [ui.composer.pendingText]);
+  }, [focused, ui.composer.pendingText]);
 
   useEffect(() => { setMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [slashCtx?.query]);
   useEffect(() => { setFileMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [atCtx?.query]);
@@ -462,11 +487,11 @@ export function Composer({ live }) {
   // Broadcast the current message to every agent shown in a split pane.
   const sendBroadcast = async () => {
     const t = text.trim();
-    if (!t || ui.composer.gitMode || ui.composer.termMode) return;
+    if (!t || gitMode || termMode) return;
     const ids = [...new Set((ui.paneAgents ?? []).filter(Boolean))];
     const targets = ids.map((id) => live.workers.find((w) => w.id === id)).filter(Boolean);
     if (targets.length === 0) return;
-    history.push({ text: t, mode: composerMode(ui.composer) });
+    history.push({ text: t, mode: composerMode({ gitMode, termMode }) });
     const { displayText, agentText } = await prepareMessage();
     for (const w of targets) dispatchTo(w, displayText, agentText);
   };
@@ -474,11 +499,11 @@ export function Composer({ live }) {
   const send = async () => {
     const t = text.trim();
     if (!t) return;
-    const mode = composerMode(ui.composer);
+    const mode = composerMode({ gitMode, termMode });
 
     // "/clear" targets an existing agent's session — spawning a fresh agent
     // (orchestrator/git) with it as the boot prompt would be meaningless.
-    if (mode !== "term" && t === "/clear" && (!selected || ui.composer.gitMode)) return;
+    if (mode !== "term" && t === "/clear" && (!selected || gitMode)) return;
 
     // "/export" triggers a conversation download — never sends to any worker.
     if (mode !== "term" && t === "/export") {
@@ -491,10 +516,10 @@ export function Composer({ live }) {
 
     history.push({ text: t, mode });
 
-    if (ui.composer.termMode) {
+    if (termMode) {
       setTextAndSync("", 0, "reset");
       // One-shot like git mode: the mode closes on send, `!` re-enters.
-      ui.updateComposer({ termMode: false });
+      setTermMode(false);
       if (selected) {
         const r = await api.runTerminal(selected.id, t);
         if (r?.ok && r.body?.runId) startRun(selected.id, r.body.runId, t);
@@ -511,14 +536,14 @@ export function Composer({ live }) {
 
     let { displayText, agentText } = await prepareMessage();
 
-    if (ui.composer.gitMode) {
+    if (gitMode) {
       // A worktree worker is selected → the git task is about ITS tree, so
       // the git agent attaches INSIDE that worktree (direct file access, no
       // `git -C` indirection); its Environment section carries the branch and
       // checkout facts. Integration into the user's branch stays a checkout
       // task (the popover's Integrate action).
       if (selected?.worktree_dir && selected?.branch) {
-        ui.updateComposer({ gitMode: false });
+        setGitMode(false);
         const r = await live.spawnGitAgent({
           workspaceOf: selected.id,
           prompt: agentText,
@@ -539,7 +564,7 @@ export function Composer({ live }) {
         ? (selected.cwd ?? selected.worktree_from)
         : (ui.composer.cwd ?? live.recents[0] ?? null);
       if (!gitCwd) { alert("Pick a folder first."); return; }
-      ui.updateComposer({ gitMode: false });
+      setGitMode(false);
       const gitBranch = selected?.branch ?? ui.composer.branch ?? null;
       if (selected?.branch && selected?.worktree_from) {
         agentText = `Context: the selected Eos worker's branch is ${selected.branch} (a live agent worktree — never check it out or delete it).\n\n${agentText}`;
@@ -603,7 +628,7 @@ export function Composer({ live }) {
     // Cmd+Enter → broadcast to all split panes (normal mode only; an open
     // question banner keeps Cmd+Enter for answering).
     if (e.key === "Enter" && e.metaKey && !e.shiftKey && !ui.pendingQuestion
-        && ui.paneCount > 1 && !ui.composer.gitMode && !ui.composer.termMode) {
+        && ui.paneCount > 1 && !gitMode && !termMode) {
       e.preventDefault();
       sendBroadcast();
       return;
@@ -706,9 +731,9 @@ export function Composer({ live }) {
     // is consumed) — mirrors the Claude Code TUI bash-mode affordance.
     // With no agent selected the run is workspace-scoped — any cwd candidate
     // (composer picker / recents) is enough to enter the mode.
-    if (e.key === "!" && !text && !ui.composer.termMode && !ui.composer.gitMode && (selected || cwd)) {
+    if (e.key === "!" && !text && !termMode && !gitMode && (selected || cwd)) {
       e.preventDefault();
-      ui.updateComposer({ termMode: true });
+      setTermMode(true);
       return;
     }
 
@@ -735,7 +760,7 @@ export function Composer({ live }) {
     }
 
     if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-      const current = { text, mode: composerMode(ui.composer) };
+      const current = { text, mode: composerMode({ gitMode, termMode }) };
       const recalled = e.key === "ArrowUp" ? history.up(current) : history.down(current);
       if (recalled !== null) {
         e.preventDefault();
@@ -746,7 +771,11 @@ export function Composer({ live }) {
         // the top. Cursor is always at the end here, so scroll the box down.
         const el = editorRef.current;
         if (el) el.scrollTop = el.scrollHeight;
-        if (current.mode !== recalled.mode) ui.updateComposer(modeFlags(recalled.mode));
+        if (current.mode !== recalled.mode) {
+          const f = modeFlags(recalled.mode);
+          setGitMode(f.gitMode);
+          setTermMode(f.termMode);
+        }
         return;
       }
     }
@@ -769,9 +798,9 @@ export function Composer({ live }) {
     }
 
     if (e.key === "Backspace") {
-      if (ui.composer.termMode && !text) {
+      if (termMode && !text) {
         e.preventDefault();
-        ui.updateComposer({ termMode: false });
+        setTermMode(false);
         return;
       }
       const el = editorRef.current;
@@ -804,7 +833,7 @@ export function Composer({ live }) {
 
     // Shift+Enter on a list line continues the list (next marker); off a list
     // line it falls through to the default newline.
-    if (e.key === "Enter" && e.shiftKey && !ui.composer.termMode) {
+    if (e.key === "Enter" && e.shiftKey && !termMode) {
       const el = editorRef.current;
       const pos = el ? getCursorOffset(el) : cursorPos;
       const cont = listContinuation(text, pos);
@@ -925,7 +954,7 @@ export function Composer({ live }) {
   // Send turns into a stop (interrupt) control only while the agent is responding
   // and the user hasn't typed a follow-up to queue — term/git modes keep send
   // semantics. Same action as the Esc key.
-  const showStop = agentBusy && !text.trim() && !ui.composer.termMode && !ui.composer.gitMode;
+  const showStop = agentBusy && !text.trim() && !termMode && !gitMode;
   const queuedList = selected ? outbox.itemsFor(selected.id).filter((i) => i.state === "queued") : [];
 
   // Priority slot: exactly one blocking banner holds the band, Permission first
@@ -936,8 +965,11 @@ export function Composer({ live }) {
     (p) => !selected || p.worker_id === selected.id
   );
   const hasPermission = slotPermissions.length > 0;
+  // ui.pendingQuestion is a singleton, published ONLY by the focused pane's
+  // Messages (isActive gate), so it targets the focused pane's worker — gate the
+  // banner on `focused` so a non-focused pane never mirrors another's question.
   const hasQuestion = !!(
-    ui.pendingQuestion && selected && !ui.dismissedQuestions?.has(ui.pendingQuestion.toolUseId)
+    focused && ui.pendingQuestion && selected && !ui.dismissedQuestions?.has(ui.pendingQuestion.toolUseId)
   );
   const blockingActive = hasPermission || hasQuestion;
 
@@ -976,7 +1008,7 @@ export function Composer({ live }) {
           </div>
           <TryDeck live={live} selected={selected} />
           {selected ? (
-            <ComposerDiffRow live={live} wtStatus={wtStatus} />
+            <ComposerDiffRow live={live} worker={selected} wtStatus={wtStatus} />
           ) : (
             <ComposerConfigRow live={live} />
           )}
@@ -1006,19 +1038,19 @@ export function Composer({ live }) {
           <PasteInfoPopover onMouseEnter={keepPasteInfo} onMouseLeave={closePasteInfoSoon} />
           <div className={[
             "c-row2",
-            ui.composer.termMode ? "term-mode" : ui.composer.gitMode ? "git-mode" : "",
+            termMode ? "term-mode" : gitMode ? "git-mode" : "",
             dropActive ? "drop-active" : "",
           ].filter(Boolean).join(" ")}>
             {attachmentItems.length > 0 && (
               <AttachmentChips attachments={attachmentItems} onRemove={removeAttachmentToken} />
             )}
-            {ui.composer.termMode && <span className="term-prompt" aria-hidden>❯</span>}
+            {termMode && <span className="term-prompt" aria-hidden>❯</span>}
             <div
               ref={editorRef}
               className={escArmed ? "composer-editor esc-armed" : "composer-editor"}
               contentEditable
               role="textbox"
-              data-placeholder={ui.composer.termMode ? "Run a shell command — Enter to run, Esc to exit" : ui.composer.gitMode ? "Describe the git task — commit, rebase, merge…" : "Type / for commands, @ for files"}
+              data-placeholder={termMode ? "Run a shell command — Enter to run, Esc to exit" : gitMode ? "Describe the git task — commit, rebase, merge…" : "Type / for commands, @ for files"}
               data-empty={!text ? "" : undefined}
               data-hint={activeHint || undefined}
               onInput={(e) => { recallRef.current = false; handleInput(e); }}
@@ -1029,7 +1061,7 @@ export function Composer({ live }) {
               onPointerOut={onEditorPointerOut}
               onKeyUp={() => { const el = editorRef.current; if (el) setCursorPos(getCursorOffset(el)); }}
             />
-            {ui.paneCount > 1 && !ui.composer.gitMode && !ui.composer.termMode && (
+            {focused && ui.paneCount > 1 && !gitMode && !termMode && (
               <button className="submit broadcast-btn" title={`Send to all ${ui.paneCount} panes`} onClick={sendBroadcast}>
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="8" cy="8" r="1.6" fill="currentColor" stroke="none" />
@@ -1046,6 +1078,9 @@ export function Composer({ live }) {
 
         <ComposerControls
           live={live}
+          worker={selected}
+          gitMode={gitMode}
+          onToggleGitMode={toggleGitMode}
           onAttach={addAttachments}
           historyNav={history.nav && text === history.nav.entry.text ? history.nav : null}
           demoted={blockingActive}

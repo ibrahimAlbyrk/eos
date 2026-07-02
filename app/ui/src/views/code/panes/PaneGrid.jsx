@@ -7,6 +7,7 @@ import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, splitRec
 import { usePaneTransitions } from "../../../hooks/usePaneTransitions.js";
 import { Messages } from "../messages/Messages.jsx";
 import { TranscriptHost } from "../messages/TranscriptHost.jsx";
+import { Composer } from "../center/Composer.jsx";
 import { AgentPickerOverlay } from "./AgentPickerOverlay.jsx";
 import { DragAffordance } from "./DragAffordance.jsx";
 import { PaneViewers } from "./PaneViewers.jsx";
@@ -216,6 +217,7 @@ export function PaneGrid({ live }) {
 export function SinglePane({ live }) {
   const ui = useUi();
   const leafId = ui.focusedLeafId;
+  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
   const { zone, pointer, handlers } = useDropSplit(true, (z, aid) => {
     if (z.kind === "split") ui.splitWithAgent(leafId, z.dir, z.side, aid);
     else ui.dropReplace(leafId, aid);
@@ -230,8 +232,17 @@ export function SinglePane({ live }) {
     <div className="single-pane" {...handlers}>
       {zone && <DropPreview zone={zone} />}
       {zone && pointer && <DragAffordance pointer={pointer} zone={zone} />}
-      <div className="pane-tx">
-        <TranscriptHost live={live} activeId={ui.selectedId} />
+      {/* Transcript + its per-pane composer stack in a column; the docked panel
+          sits alongside them (full height) so the composer spans the transcript
+          width only, matching the split-pane layout. Same Composer component,
+          N=1 case — this is the ONLY spot the no-agent spawn flow lives. */}
+      <div className="sp-main">
+        <div className="pane-tx">
+          <TranscriptHost live={live} activeId={ui.selectedId} />
+        </div>
+        <PaneScopeContext.Provider value={leafId}>
+          <Composer live={live} worker={selected} paneId={leafId} focused />
+        </PaneScopeContext.Provider>
       </div>
       <div className="pane-panel-slot pane-dock" style={{ flexBasis: `${panelRect.width}%` }}>
         <PaneViewers live={live} />
@@ -336,11 +347,20 @@ function Pane({ id, agentId, worker, live, focused, excludeIds, attention, canCl
           </button>
         )}
       </div>
-      {worker
+      {worker ? (
         // Every split pane is rendered on screen regardless of focus, so all are
         // visible (and may animate); only the focused one is isActive (shared UI).
-        ? <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
-        : <AgentPickerOverlay live={live} excludeIds={excludeIds} focused={focused} dragActive={!!zone} onPick={onPick} />}
+        // The composer is owned by this pane and scoped to it (PaneScopeContext),
+        // so its panel actions dock to this pane and ui.* panel reads resolve here.
+        <>
+          <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
+          <PaneScopeContext.Provider value={id}>
+            <Composer live={live} worker={worker} paneId={id} focused={focused} />
+          </PaneScopeContext.Provider>
+        </>
+      ) : (
+        <AgentPickerOverlay live={live} excludeIds={excludeIds} focused={focused} dragActive={!!zone} onPick={onPick} />
+      )}
     </div>
   );
 }

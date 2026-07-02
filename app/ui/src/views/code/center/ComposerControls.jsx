@@ -14,9 +14,11 @@ import { providerChoices, providerName, runningProviderLabel } from "../../../li
 import { pickerLocked } from "../../../lib/composerPickerLock.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
-export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus }) {
+export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAttach, historyNav, demoted, wtStatus }) {
   const ui = useUi();
-  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
+  // The pane's own worker (null on the no-agent spawn composer), not the global
+  // selection — a non-focused pane's controls must read ITS agent's config.
+  const selected = worker ?? null;
 
   // Compact mirror of the ambient status (tasks + worktree fleet) shown only
   // while a blocking banner has demoted those panels out of the band above.
@@ -104,12 +106,12 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
         </div>
         <div className="git-wrap" style={{ position: "relative" }}>
           <button
-            className={"iconbtn git-agent-btn" + (ui.composer.gitMode ? " on" : "")}
-            title={ui.composer.gitMode ? "Exit git mode (⌘G)" : "Git agent (⌘G)"}
+            className={"iconbtn git-agent-btn" + (gitMode ? " on" : "")}
+            title={gitMode ? "Exit git mode (⌘G)" : "Git agent (⌘G)"}
             onClick={(e) => {
-              if (ui.composer.gitMode) {
+              if (gitMode) {
                 e.stopPropagation();
-                ui.toggleGitMode(false);
+                onToggleGitMode(false);
                 ui.closeAllPops();
                 return;
               }
@@ -132,9 +134,9 @@ export function ComposerControls({ live, onAttach, historyNav, demoted, wtStatus
         <div className="mem-wrap" style={{ position: "relative" }}>
           <button
             className="iconbtn"
-            title={ui.selectedId ? "Project memory" : "Select an agent to view its project memory"}
-            disabled={!ui.selectedId}
-            onClick={() => { if (ui.selectedId) ui.openMemoryViewer(ui.selectedId); }}
+            title={selected ? "Project memory" : "Select an agent to view its project memory"}
+            disabled={!selected}
+            onClick={() => { if (selected) ui.openMemoryViewer(selected.id); }}
           >
             <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
               <ellipse cx="8" cy="4" rx="5" ry="2" />

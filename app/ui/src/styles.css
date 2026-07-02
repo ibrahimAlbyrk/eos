@@ -922,6 +922,17 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   display: flex;
   flex-direction: row;
 }
+/* Transcript + its per-pane composer, stacked in a column beside the docked
+   panel. flex:1 so it takes the row width the panel doesn't; min-height:0 lets
+   the transcript (.pane-tx flex:1) shrink so the composer (flex-shrink:0) always
+   fits at the bottom. */
+.sp-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
 /* Eased reflow: survivors translate/shrink from old %-rect → new on any split or
    close. Geometry (not transform) so the live content reflows without distortion;
    bounded by .pane's `contain` so a reflow stays inside each pane's subtree. */
@@ -1449,26 +1460,13 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* In split mode the head's fade scrim would veil the top of the pane islands
    (each pane has its own header) — drop it. */
 .app.split .head::after { content: none; }
-/* Likewise the shared composer's fade scrim sits above the pane grid and would
-   veil the bottom outline of every pane. Drop it, and instead fade each pane's
-   OWN transcript into its bg at the bottom edge: the ::after is clipped by the
-   pane (border stays crisp) and sits below the scroll-to-bottom pill (z-index:2,
-   so it stays visible). Mirrors the single-view composer scrim. */
-.app.split .composer-wrap::before { content: none; }
-/* Single-pane: same reasoning — the full-width composer scrim would paint over
-   the transcript's scrollbar once a docked panel shifts it left of the window
-   edge. Drop it; the transcript-scoped .tx-pane.on::after fade replaces it. */
+/* The composer now lives INSIDE each pane, so its own ::before fade sits exactly
+   at that pane's transcript bottom (above the input) — it IS the per-pane bottom
+   fade, so keep it enabled and drop the old pane-level .pane::after (which would
+   now paint over the in-pane composer at the pane's bottom edge).
+   Single-pane keeps its transcript-scoped .tx-pane.on::after fade instead (the
+   composer-wrap scrim stays off there), so scope this scrim to split. */
 .app:not(.split) .composer-wrap::before { content: none; }
-.app.split .pane::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 14px;
-  bottom: 0;
-  height: 48px;
-  background: linear-gradient(to bottom, transparent, var(--bg));
-  pointer-events: none;
-}
 
 /* Sidebar row: agent shown in a non-focused split pane (the focused one keeps
    the stronger ".on"). A quiet left accent rail. */
@@ -2983,12 +2981,16 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  /* Per-pane composer: full-width inside its pane (no centered max-width column),
+     compact padding so narrow split panes don't waste horizontal space. */
+  align-items: stretch;
   gap: 6px;
-  padding: 8px 32px 12px;
+  padding: 8px 14px 12px;
   flex-shrink: 0;
 }
-/* fade overlay above composer — stops short of right edge so scrollbar stays visible */
+/* Top fade above the composer — sits at the transcript's bottom edge (bottom:100%
+   of the composer-wrap), fading messages into the pane bg just above the input.
+   Stops short of the right edge so the transcript scrollbar stays visible. */
 .composer-wrap::before {
   content: "";
   position: absolute;
@@ -3002,7 +3004,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .composer-inner {
   width: 100%;
-  max-width: 1134px;
+  /* No centered max-width column — the composer fills its pane's width. */
+  max-width: none;
   display: flex;
   flex-direction: column;
   gap: 6px;

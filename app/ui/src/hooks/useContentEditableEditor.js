@@ -286,7 +286,7 @@ function ensureUndoDispatch() {
   window.__eosRedo = () => undoTargets[undoTargets.length - 1]?.redo();
 }
 
-export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, attachItems = [], reconcileAttachments, pastesRef) {
+export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, attachItems = [], reconcileAttachments, pastesRef, autoFocus = true) {
   const [text, setText] = useState("");
   const [cursorPos, setCursorPos] = useState(0);
   const editorRef = useRef(null);
@@ -332,10 +332,13 @@ export function useContentEditableEditor(cmdMap, insertedPathsRef, selectedId, a
 
   // Auto-focus the editor whenever the selection changes — including the
   // "new orchestrator" mode (+ clears selection) and switching between
-  // agents. Lets users type immediately without a second click.
+  // agents. Lets users type immediately without a second click. Gated by
+  // autoFocus so only the focused pane's composer grabs focus (N per-pane
+  // composers would otherwise fight over it on mount); re-fires when a pane
+  // gains focus (autoFocus false→true) so a pane click focuses its editor.
   useEffect(() => {
-    editorRef.current?.focus();
-  }, [selectedId]);
+    if (autoFocus) editorRef.current?.focus();
+  }, [selectedId, autoFocus]);
 
   const snap = useCallback((newText, newCursor) => ({
     text: newText,

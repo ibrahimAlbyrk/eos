@@ -10,7 +10,6 @@ import { combo } from "../../keymap/index.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { CenterHeader } from "./center/CenterHeader.jsx";
-import { Composer } from "./center/Composer.jsx";
 import { PaneGrid, SinglePane } from "./panes/PaneGrid.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
@@ -130,13 +129,13 @@ export function CodeView({ live }) {
         <>
           <CenterHeader live={live} />
           {/* Single pane keeps the keep-alive multiplexer (instant switch-back).
-              Split view (2-4 panes) lays the transcripts out side by side; the
-              shared header + composer below track the focused pane. Each renders
-              the focused pane's docked panel adjacent to it (see PaneViewers). */}
+              Split view (2-4 panes) lays the transcripts out side by side. The
+              composer now lives INSIDE each pane (owned by that pane); the grid
+              fills the height the shared composer used to occupy. Each pane also
+              renders its own docked panel adjacent to it (see PaneViewers). */}
           {ui.paneCount > 1
             ? <PaneGrid live={live} />
             : <SinglePane live={live} />}
-          <Composer live={live} />
         </>
       }
     >

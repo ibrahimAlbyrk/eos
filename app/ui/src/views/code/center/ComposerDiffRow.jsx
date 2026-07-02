@@ -100,9 +100,11 @@ function SplitButton({ options, mode, onSelectMode, onAction, disabled, title })
 }
 
 
-export function ComposerDiffRow({ live, wtStatus }) {
+export function ComposerDiffRow({ live, worker, wtStatus }) {
   const ui = useUi();
-  const selected = live.workers.find((w) => w.id === ui.selectedId);
+  // The pane's own worker (this row is only rendered when it's set), not the
+  // global selection — each pane's git row describes ITS agent's tree.
+  const selected = worker;
   const [prMode, setPrMode] = useState("pr");
   const [commitMode, setCommitMode] = useState("commit");
   const [pushFx, setPushFx] = useState(""); // "" | "sync-leaving" | "sync-exit"
@@ -114,7 +116,7 @@ export function ComposerDiffRow({ live, wtStatus }) {
   // worktree rows) — otherwise these chips describe the USER'S repo while
   // the diff badge reads the worktree.
   const gitDir = workerGitDir(selected);
-  const { status: gs, refresh } = useGitStatus(ui.selectedId, { gitDir });
+  const { status: gs, refresh } = useGitStatus(selected?.id, { gitDir });
 
   // Snapshot missing (first visit) → render zeros: only folder/branch from the
   // sync worker row show, chips/badges stay hidden until real data lands.
@@ -156,11 +158,11 @@ export function ComposerDiffRow({ live, wtStatus }) {
       }
       return;
     }
-    api.sendWorkerAction(ui.selectedId, id === "draft" ? "draft-pr" : "pr");
+    api.sendWorkerAction(selected.id, id === "draft" ? "draft-pr" : "pr");
   };
 
   const handleCommitAction = (id) => {
-    api.sendWorkerAction(ui.selectedId, id);
+    api.sendWorkerAction(selected.id, id);
   };
 
   // Fan-in: spawn a git agent in a fresh worktree that merges the orchestrator's
@@ -266,7 +268,7 @@ export function ComposerDiffRow({ live, wtStatus }) {
         <button
           className={"git-chip conflict-chip conflict-chip-btn" + (ui.topPanelType === "conflict" ? " on" : "")}
           title="Resolve merge conflicts"
-          onClick={() => (ui.topPanelType === "conflict" ? ui.closeConflictResolver() : ui.openConflictResolver(ui.selectedId))}
+          onClick={() => (ui.topPanelType === "conflict" ? ui.closeConflictResolver() : ui.openConflictResolver(selected.id))}
         >
           <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M7 1.5L13 12H1L7 1.5z" />
@@ -281,7 +283,7 @@ export function ComposerDiffRow({ live, wtStatus }) {
         <button
           className={"diff-badge diff-badge-btn" + (ui.topPanelType === "diff" ? " on" : "")}
           title="View changes"
-          onClick={() => (ui.topPanelType === "diff" ? ui.closeDiffViewer() : ui.openDiffViewer(ui.selectedId))}
+          onClick={() => (ui.topPanelType === "diff" ? ui.closeDiffViewer() : ui.openDiffViewer(selected.id))}
         >
           {diff.insertions > 0 || diff.deletions > 0 ? (
             <>
@@ -305,7 +307,7 @@ export function ComposerDiffRow({ live, wtStatus }) {
       )}
       {showPush && (
         <PushButton
-          workerId={ui.selectedId}
+          workerId={selected.id}
           label={pushKind === "set-upstream" ? "Publish" : "Push"}
           ahead={ahead}
           sourceRef={syncChipRef}
@@ -314,7 +316,7 @@ export function ComposerDiffRow({ live, wtStatus }) {
         />
       )}
       {pullable && (
-        <PullButton workerId={ui.selectedId} onSettled={refresh} />
+        <PullButton workerId={selected.id} onSettled={refresh} />
       )}
       {isOrchestrator && dirtyChildren.length >= 2 && (
         <button
