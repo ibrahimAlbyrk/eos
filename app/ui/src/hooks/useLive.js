@@ -43,18 +43,32 @@ export function useLive() {
     else localStorage.removeItem("cm:interruptedId");
   }, []);
 
+  // Monotonic guard for the workers snapshot. Every api.listWorkers() call takes
+  // a sequence number when ISSUED; a resolved response is applied only if no
+  // newer request has already landed. Without this a stale in-flight fetch can
+  // resolve after a just-spawned worker's post-POST refresh and clobber the list
+  // with a pre-spawn snapshot — nulling the caller's fresh selection downstream.
+  const workersSeqRef = useRef(0);
+  const appliedWorkersSeqRef = useRef(0);
+  const applyWorkers = useCallback((seq, list) => {
+    if (seq < appliedWorkersSeqRef.current) return false;
+    appliedWorkersSeqRef.current = seq;
+    setWorkers(list);
+    setLoaded(true);
+    return true;
+  }, []);
+
   const setPendingPermissionsRef = useRef(null);
   const refetchTimer = useRef(null);
   const scheduleRefetch = useCallback(() => {
     if (refetchTimer.current) return;
     refetchTimer.current = setTimeout(async () => {
       refetchTimer.current = null;
+      const seq = ++workersSeqRef.current;
       try {
         const [list, pend] = await Promise.all([api.listWorkers(), api.listPending().catch(() => [])]);
         if (Array.isArray(pend)) setPendingPermissionsRef.current?.(pend);
-        if (Array.isArray(list)) {
-          setWorkers(list);
-          setLoaded(true);
+        if (Array.isArray(list) && applyWorkers(seq, list)) {
           const iid = localStorage.getItem("cm:interruptedId");
           if (iid) {
             const w = list.find((x) => x.id === iid);
@@ -63,18 +77,19 @@ export function useLive() {
         }
       } catch { setHealth(false); }
     }, SSE_DEBOUNCE_MS);
-  }, [setInterruptedId]);
+  }, [setInterruptedId, applyWorkers]);
 
   // initial load
   useEffect(() => {
     (async () => {
+      const seq = ++workersSeqRef.current;
       try {
         const [list, rec, cfg] = await Promise.all([
           api.listWorkers(),
           api.listRecents(),
           api.uiConfig(),
         ]);
-        if (Array.isArray(list)) { setWorkers(list); setLoaded(true); }
+        if (Array.isArray(list)) applyWorkers(seq, list);
         setRecents(rec?.paths ?? []);
         applyCatalog(cfg?.modelCatalog);
         applyDescriptors(cfg?.backends);
@@ -176,12 +191,13 @@ export function useLive() {
     // caller sets it as selected — otherwise App.jsx's stale-selection
     // cleanup races with the caller and immediately clears the selection.
     try {
+      const seq = ++workersSeqRef.current;
       const list = await api.listWorkers();
-      if (Array.isArray(list)) setWorkers(list);
+      if (Array.isArray(list)) applyWorkers(seq, list);
     } catch { /* fallback to scheduleRefetch */ }
     refreshRecents();
     return r;
-  }, [refreshRecents]);
+  }, [refreshRecents, applyWorkers]);
 
   // workspaceOf attaches the git agent INSIDE an existing worker's worktree
   // (tree-level ops, direct file access); cwd is the checkout path otherwise.
@@ -190,12 +206,13 @@ export function useLive() {
     // Same sync refresh as spawnOrchestrator — keeps the new id visible
     // before the caller selects it.
     try {
+      const seq = ++workersSeqRef.current;
       const list = await api.listWorkers();
-      if (Array.isArray(list)) setWorkers(list);
+      if (Array.isArray(list)) applyWorkers(seq, list);
     } catch { /* fallback to scheduleRefetch */ }
     refreshRecents();
     return r;
-  }, [refreshRecents]);
+  }, [refreshRecents, applyWorkers]);
 
   const workersRef = useRef(workers);
   workersRef.current = workers;
