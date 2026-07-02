@@ -15,6 +15,10 @@ describe("senderClassOf — classification from envelope data", () => {
     assert.equal(senderClassOf({ kind: "loop" }), "system");
   });
 
+  it("report_reminder is system", () => {
+    assert.equal(senderClassOf({ kind: "report_reminder" }), "system");
+  });
+
   it("worker_report provenance drives class; absent provenance is agent", () => {
     assert.equal(senderClassOf({ kind: "worker_report", fromWorker: "w2" }), "agent");
     assert.equal(senderClassOf({ kind: "worker_report", provenance: "agent", fromWorker: "w2" }), "agent");
@@ -119,6 +123,21 @@ describe("senderTagForEnvelope — envelope metadata → attributes", () => {
     assert.deepEqual(
       senderTagForEnvelope({ kind: "loop", attempt: 3 }),
       { cls: "system", attrs: { kind: "dynamic_loop", attempt: "3" } },
+    );
+  });
+
+  it("report_reminder → system report_reminder, no other attrs", () => {
+    assert.deepEqual(
+      senderTagForEnvelope({ kind: "report_reminder" }),
+      { cls: "system", attrs: { kind: "report_reminder" } },
+    );
+  });
+
+  it("report_reminder renders <system_message kind=\"report_reminder\">", () => {
+    const t = senderTagForEnvelope({ kind: "report_reminder" })!;
+    assert.equal(
+      applySenderTag("report now", t.cls, t.attrs),
+      '<system_message kind="report_reminder">\nreport now\n</system_message>',
     );
   });
 

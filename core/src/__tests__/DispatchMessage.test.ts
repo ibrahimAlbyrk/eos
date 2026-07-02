@@ -293,6 +293,33 @@ describe("dispatchMessage — agent-plane envelopes (report/directive/peer)", ()
     ]);
   });
 
+  it("report_reminder, self-reporting worker (claude-cli): record rides, tagged system body, no daemon append", async () => {
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    await dispatchMessage(deps, {
+      workerId: "w1", text: "report now", displayText: "report now",
+      envelope: { kind: "report_reminder" },
+    });
+    assert.deepEqual(byType(events, "report_reminder"), []);
+    assert.deepEqual(sends, [{
+      text: '<system_message kind="report_reminder">\nreport now\n</system_message>',
+      record: { as: "report_reminder", displayText: "report now", sentAt: 1234 },
+    }]);
+  });
+
+  it("report_reminder, non-reporting worker (in-process): daemon append of the bare body, tagged system body to the session", async () => {
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { deps, events } = buildDeps({ backend: fakeBackend("inproc", false, sends), backendKind: "inproc" });
+    await dispatchMessage(deps, {
+      workerId: "w1", text: "report now", displayText: "report now",
+      envelope: { kind: "report_reminder" },
+    });
+    assert.deepEqual(byType(events, "report_reminder"), [
+      { type: "report_reminder", payload: { text: "report now" } },
+    ]);
+    assert.deepEqual(sends, [{ text: '<system_message kind="report_reminder">\nreport now\n</system_message>', record: undefined }]);
+  });
+
   it("envelope kind drives the state-transition reason", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
     const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
