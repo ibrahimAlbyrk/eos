@@ -4,6 +4,23 @@ import { subscribe, getArchive, refreshArchived, selectArchived, toggleArchiveMo
 const okFetch = (body) =>
   vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => body });
 
+// Real-Response semantics: the body is single-read, json() rejects the second
+// time. Overlapping refetches (explicit + SSE tick) dedupe onto one request,
+// so the client must share the PARSED result — these tests pin that.
+const singleReadFetch = (body) =>
+  vi.fn().mockImplementation(async () => {
+    let used = false;
+    return {
+      ok: true,
+      status: 200,
+      json: async () => {
+        if (used) throw new TypeError("Body has already been consumed");
+        used = true;
+        return body;
+      },
+    };
+  });
+
 beforeEach(() => _resetArchive());
 afterEach(() => vi.unstubAllGlobals());
 
@@ -43,27 +60,36 @@ describe("archiveStore", () => {
     expect(getArchive().rows).toEqual([]);
   });
 
-  it("overlapping refetches apply the fresh list (restore's explicit refetch + SSE tick)", async () => {
+  it("restore: overlapping refetches (menu refetch + SSE tick) drop the restored row", async () => {
     vi.stubGlobal("fetch", okFetch([{ id: "a", archived_at: 1 }]));
     await refreshArchived();
     vi.unstubAllGlobals();
 
-    // Post-restore payload behind a real-Response mock: single-read body, so
-    // the client-level dedup must share the PARSED result, not the Response.
-    let used = false;
-    vi.stubGlobal("fetch", vi.fn().mockImplementation(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => {
-        if (used) throw new TypeError("Body has already been consumed");
-        used = true;
-        return [];
-      },
-    })));
-
+    vi.stubGlobal("fetch", singleReadFetch([]));
     await Promise.all([refreshArchived(), refreshArchived()]);
 
     expect(getArchive().rows).toEqual([]);
+  });
+
+  it("purge: overlapping refetches (menu refetch + SSE tick) drop the purged row and its selection", async () => {
+    vi.stubGlobal("fetch", okFetch([{ id: "a", archived_at: 1 }, { id: "b", archived_at: 2 }]));
+    await refreshArchived();
+    selectArchived("a");
+    vi.unstubAllGlobals();
+
+    vi.stubGlobal("fetch", singleReadFetch([{ id: "b", archived_at: 2 }]));
+    await Promise.all([refreshArchived(), refreshArchived()]);
+
+    expect(getArchive().rows).toEqual([{ id: "b", archived_at: 2 }]);
+    expect(getArchive().selectedId).toBe(null);
+  });
+
+  it("archive of a live agent: overlapping refetches (mount + SSE tick) surface the new row", async () => {
+    vi.stubGlobal("fetch", singleReadFetch([{ id: "a", archived_at: 1 }]));
+    await Promise.all([refreshArchived(), refreshArchived()]);
+
+    expect(getArchive().rows).toEqual([{ id: "a", archived_at: 1 }]);
+    expect(getArchive().loaded).toBe(true);
   });
 
   it("selectArchived updates the snapshot and notifies subscribers", async () => {
