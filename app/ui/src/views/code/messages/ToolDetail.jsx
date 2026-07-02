@@ -122,6 +122,37 @@ export function EditDetail({ tool }) {
   );
 }
 
+export function MultiEditDetail({ tool }) {
+  const filePath = tool.input?.file_path ?? "";
+  const edits = tool.input?.edits ?? [];
+
+  return (
+    <div className="tool-detail edit-detail">
+      <FailureBanner tool={tool} />
+      <div className="edit-filepath">{filePath}</div>
+      {edits.map((edit, i) => {
+        const oldStr = edit.old_string ?? "";
+        const newStr = edit.new_string ?? "";
+        const hunks = buildDiffHunks(
+          oldStr ? oldStr.split("\n") : [],
+          newStr ? newStr.split("\n") : []
+        );
+        return (
+          <div className="edit-diff" key={i}>
+            {hunks.map((h, j) => (
+              <div className={`ed-line ed-${h.type}`} key={j}>
+                <span className="ed-num">{h.num ?? ""}</span>
+                <span className="ed-sign">{h.type === "del" ? "-" : h.type === "add" ? "+" : " "}</span>
+                <span className="ed-text">{h.segments ?? h.text}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export function FailureBanner({ tool }) {
   const kind = failureKind(tool);
   if (!kind) return null;

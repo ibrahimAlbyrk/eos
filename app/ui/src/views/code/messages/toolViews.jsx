@@ -11,7 +11,7 @@
 // name + args hint in the header and a parameters/output/raw-payload card body.
 
 import {
-  ReadDetail, EditDetail, WriteDetail, BashDetail, AskUserQuestionDetail,
+  ReadDetail, EditDetail, MultiEditDetail, WriteDetail, BashDetail, AskUserQuestionDetail,
   AskUserDetail, SkillDetail, NotifyDetail, MessageDetail, GenericToolCard,
   PeerAskDetail, PeerRespondDetail, PeerListDetail,
   CreateWorkerDetail, AvailableWorkersDetail, DatetimeDetail,
@@ -86,6 +86,14 @@ register("Edit", {
   filePath: filePathOf,
   stats: editStats,
   Detail: EditDetail,
+});
+
+register("MultiEdit", {
+  label: (t) => ({ verb: "Edit", file: fileName(t.input?.file_path) }),
+  runningLabel: (t) => ({ verb: "Editing", file: fileName(t.input?.file_path) }),
+  filePath: filePathOf,
+  stats: multiEditStats,
+  Detail: MultiEditDetail,
 });
 
 register("Write", {
@@ -284,9 +292,9 @@ register("mcp__orchestrator__list_pending_permissions", {
   Detail: WorkerToolBody,
 });
 
-function editStats(tool) {
-  const oldLines = (tool.input?.old_string ?? "").split("\n");
-  const newLines = (tool.input?.new_string ?? "").split("\n");
+function singleEditStats(oldStr, newStr) {
+  const oldLines = oldStr.split("\n");
+  const newLines = newStr.split("\n");
   const m = oldLines.length, n = newLines.length;
   const dp = Array.from({ length: m + 1 }, () => new Uint16Array(n + 1));
   for (let i = 1; i <= m; i++)
@@ -294,6 +302,20 @@ function editStats(tool) {
       dp[i][j] = oldLines[i - 1] === newLines[j - 1] ? dp[i - 1][j - 1] + 1 : Math.max(dp[i - 1][j], dp[i][j - 1]);
   const shared = dp[m][n];
   return { add: n - shared, del: m - shared };
+}
+
+function editStats(tool) {
+  return singleEditStats(tool.input?.old_string ?? "", tool.input?.new_string ?? "");
+}
+
+function multiEditStats(tool) {
+  return (tool.input?.edits ?? []).reduce(
+    (acc, e) => {
+      const s = singleEditStats(e.old_string ?? "", e.new_string ?? "");
+      return { add: acc.add + s.add, del: acc.del + s.del };
+    },
+    { add: 0, del: 0 }
+  );
 }
 
 function bashLabel(tool) {

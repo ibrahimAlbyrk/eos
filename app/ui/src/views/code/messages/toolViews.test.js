@@ -41,6 +41,28 @@ describe("getToolView", () => {
     expect(stats).toEqual({ add: 1, del: 0 });
   });
 
+  it("gives MultiEdit a bespoke view matching Edit", () => {
+    const v = getToolView("MultiEdit");
+    expect(v.Detail).not.toBe(GenericToolCard);
+    const tool = { input: { file_path: "/a/b.ts", edits: [{ old_string: "x", new_string: "y" }] } };
+    expect(v.label(tool)).toEqual({ verb: "Edit", file: "b.ts" });
+    expect(v.runningLabel(tool)).toEqual({ verb: "Editing", file: "b.ts" });
+    expect(v.filePath(tool)).toBe("/a/b.ts");
+  });
+
+  it("computes MultiEdit diff stats across all edits", () => {
+    const stats = getToolView("MultiEdit").stats({
+      input: {
+        file_path: "/a/b.ts",
+        edits: [
+          { old_string: "a\nb", new_string: "a\nb\nc" },
+          { old_string: "x\ny", new_string: "x" },
+        ],
+      },
+    });
+    expect(stats).toEqual({ add: 1, del: 1 });
+  });
+
   it("resolves agentRef for send_message_to_parent from ctx.parent, null elsewhere", () => {
     const v = getToolView("mcp__worker__send_message_to_parent");
     expect(v.agentRef({}, { parent: { id: "w1", name: "orch" } })).toEqual({ id: "w1", name: "orch" });
