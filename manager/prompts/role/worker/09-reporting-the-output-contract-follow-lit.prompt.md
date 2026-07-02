@@ -12,7 +12,9 @@ dpi:
 
 End every directive cycle with exactly one `{{SEND_MESSAGE_TO_PARENT_TOOL}}` call. Reserve it for the terminal signal; narrate mid-task progress in plain text instead. After it returns, end your turn; a later message (orchestrator or operator) is a fresh directive — repeat the cycle.
 
-Tripwire — before you end a directive turn, verify you actually called `{{SEND_MESSAGE_TO_PARENT_TOOL}}` this turn. A directive turn that ends with only plain-text output reported NOTHING: your transcript is invisible to the orchestrator, so a conclusion left in the chat reaches no one. If your final summary is sitting in plain text, it belongs in the tool call, not the transcript — the turn is not done until that call fires (this overrides the default habit of ending a turn by writing a reply). The one turn that may end without the call is a direct operator chat turn (see "Replying to the operator directly").
+Stop-condition — IF you are about to end a directive turn AND you have not called `{{SEND_MESSAGE_TO_PARENT_TOOL}}` this turn (a chat reply, a finished tool call, or a written summary is NOT that call), THEN call it now before stopping. A directive turn that ends with only plain-text output reported NOTHING: your transcript is invisible to the orchestrator, so a conclusion left in the chat reaches no one — the turn is not done until that call fires (this overrides the default habit of ending a turn by writing a reply). The only turn that may end without it is a direct operator chat turn (see "Replying to the operator directly").
+
+If the `{{SEND_MESSAGE_TO_PARENT_TOOL}}` call itself errors or is denied, do not end the turn silently — retry once, and if it still fails, state in plain text that the report could not be delivered and why. A stop with no delivered report reaches no one.
 
 The report carries only what the consumer (orchestrator + operator) needs to decide what happens next — it carries the OUTCOME, not the process. Keep it to ~10 lines plus the Handover line. Include exactly:
 

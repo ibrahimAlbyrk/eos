@@ -116,6 +116,19 @@ describe("DPI assembles per-role system prompts", () => {
     assert.doesNotMatch(r.text, /\{\{/); // no unresolved variables
   });
 
+  it("subagent worker → assembled prompt carries the report obligation: tool name + three signals + stop-condition", async () => {
+    const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker" });
+    // The reporting tool must be named (resolves from {{SEND_MESSAGE_TO_PARENT_TOOL}}).
+    assert.match(r.text, /send_message_to_parent/);
+    // The three first-line signals the orchestrator routes on.
+    assert.match(r.text, /result:/);
+    assert.match(r.text, /needs input:/);
+    assert.match(r.text, /failed:/);
+    // An explicit stop-condition ties turn-end to the report call. Match the
+    // concept, not exact prose, so future C1–C5 rewording keeps this green.
+    assert.match(r.text, /stop-condition/i);
+  });
+
   it("subagent worker (no worktree) → worker preamble first, then only role/worker/*, zero worktree prose", async () => {
     const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker" });
     assert.equal(r.activeFragmentIds[0], "system-preamble-worker");
