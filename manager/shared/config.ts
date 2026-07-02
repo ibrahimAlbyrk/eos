@@ -16,6 +16,7 @@ import { MemorySourceSchema, type MemorySourceSpec } from "../../contracts/src/m
 import { RemoteConfigSchema, type RemoteConfig, type RemoteMode } from "../../contracts/src/remote.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
+import type { ArchiveRetention } from "../../core/src/use-cases/PurgeExpiredArchives.ts";
 import { isTieredPrice, type ModelPriceSpec, type PriceTier } from "../../core/src/domain/value-objects.ts";
 
 export interface ModelPrice { in: number; out: number; cacheRead: number; cacheCreate: number; cacheCreate1h: number; }
@@ -153,6 +154,18 @@ export interface DaemonConfig {
     enabled: boolean;
     pauseMaxMs: number;
     tasks: Record<string, MicroTaskCfg>;
+  };
+  // Archived-worker lifecycle. retention: age-based auto-purge of archived
+  // subtree roots — "off" keeps archives forever; daily/weekly/monthly purges
+  // roots archived ≥ 1/7/30 days ago (daemon sweeper: boot + hourly).
+  // purgeOnAppClose: the native shell posts /workers/archived/app-closed on
+  // every quit; only with this flag set does the daemon purge all archived.
+  // cmdW: what the dashboard's Cmd+W does to the selected agent — archive
+  // (reversible, the default) or delete permanently (pre-archive UX).
+  archive: {
+    retention: ArchiveRetention;
+    purgeOnAppClose: boolean;
+    cmdW: "archive" | "delete";
   };
   // iOS remote-control edge (design §6). OFF by default — absent config = no
   // remote surface. The crypto/wire contract is docs/ios-remote-protocol.md.
@@ -385,6 +398,11 @@ export function defaults(): DaemonConfig {
         "auto-name": { enabled: true, delayMs: 5000, model: "haiku", charLimit: 280 },
       },
     },
+    archive: {
+      retention: "off",
+      purgeOnAppClose: false,
+      cmdW: "archive",
+    },
     remote: {
       // OFF by default. The rate-limit + lease defaults below only take effect
       // once an operator arms remote (mode=lan|relay) in ~/.eos/config.json.
@@ -528,6 +546,11 @@ export const DaemonConfigOverrideSchema = z.object({
       charLimit: z.number().int().positive(),
       promptTemplate: z.string(),
     }).partial()),
+  }).partial().optional(),
+  archive: z.object({
+    retention: z.enum(["off", "daily", "weekly", "monthly"]),
+    purgeOnAppClose: z.boolean(),
+    cmdW: z.enum(["archive", "delete"]),
   }).partial().optional(),
   // mode optional on override (.partial) so a config.json may set just relay
   // topology without restating mode; mergeConfig field-merges over the default.

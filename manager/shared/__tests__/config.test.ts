@@ -91,6 +91,11 @@ describe("loadConfig — defaults", () => {
       defaultScriptTimeoutMs: 30000,
     });
   });
+  it("seeds config.archive defaults (retention off, no purge on app close, Cmd+W archives)", async () => {
+    const { defaults } = await import("../config.ts");
+    const cfg = defaults();
+    assert.deepEqual(cfg.archive, { retention: "off", purgeOnAppClose: false, cmdW: "archive" });
+  });
 });
 
 describe("loadConfig — env overrides", () => {
@@ -269,6 +274,57 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
     assert.equal(cfg.defaults.worker.backend, "claude-sdk");
     // Built-in claude-cli profiles still present (per-profile merge, not replace).
     assert.ok(cfg.backends["claude-cli-opus"]);
+  });
+
+  it("partial config.archive override field-merges over the defaults", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ archive: { retention: "weekly" } }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.archive.retention, "weekly");
+    assert.equal(cfg.archive.purgeOnAppClose, false); // untouched default preserved
+    assert.equal(cfg.archive.cmdW, "archive"); // untouched default preserved
+  });
+
+  it("accepts archive.cmdW: delete", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ archive: { cmdW: "delete" } }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.archive.cmdW, "delete");
+    assert.equal(cfg.archive.retention, "off"); // untouched default preserved
+  });
+
+  it("rejects an unknown archive.retention value and keeps the defaults", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ archive: { retention: "yearly" } }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.archive.retention, "off");
+  });
+
+  it("rejects an unknown archive.cmdW value and keeps the default", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ archive: { cmdW: "close" } }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.archive.cmdW, "archive");
+  });
+
+  it("reloadConfig picks up an archive edit without restart", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    // One module instance so loadConfig's memoized value is what reloadConfig resets.
+    const url = new URL(`../config.ts?t=${Date.now()}-${Math.random()}`, import.meta.url);
+    const mod = await import(url.href);
+    const before = mod.loadConfig() as ReturnType<typeof import("../config.ts").loadConfig>;
+    assert.deepEqual(before.archive, { retention: "off", purgeOnAppClose: false, cmdW: "archive" });
+    fs.writeFileSync(
+      path.join(tmpHome, "config.json"),
+      JSON.stringify({ archive: { retention: "daily", purgeOnAppClose: true } }),
+    );
+    const after = mod.reloadConfig() as ReturnType<typeof import("../config.ts").loadConfig>;
+    assert.deepEqual(after.archive, { retention: "daily", purgeOnAppClose: true, cmdW: "archive" });
   });
 });
 
