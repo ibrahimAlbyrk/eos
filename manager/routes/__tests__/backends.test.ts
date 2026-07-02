@@ -50,7 +50,7 @@ describe("fetchBackendModels", () => {
     assert.equal(res.error, undefined);
   });
 
-  it("FAIL-SOFT: a thrown fetch returns the pinned model alone + an error", async () => {
+  it("FAIL-SOFT: a thrown fetch returns the pinned model + preset fallback + an error", async () => {
     const res = await fetchBackendModels({
       profile: deepseekProfile,
       descriptor: openaiDescriptor,
@@ -58,11 +58,11 @@ describe("fetchBackendModels", () => {
       resolveAuth: apiKeyAuth,
       fetchImpl: fakeFetch(() => { throw new Error("network down"); }),
     });
-    assert.deepEqual(res.models, ["deepseek-chat"]);
+    assert.deepEqual(res.models, ["deepseek-chat", "deepseek-v4-flash", "deepseek-v4-pro"]);
     assert.equal(res.error, "network down");
   });
 
-  it("FAIL-SOFT: a non-ok response returns the pinned model + an HTTP error", async () => {
+  it("FAIL-SOFT: a non-ok response returns the pinned model + preset fallback + an HTTP error", async () => {
     const res = await fetchBackendModels({
       profile: deepseekProfile,
       descriptor: openaiDescriptor,
@@ -70,7 +70,7 @@ describe("fetchBackendModels", () => {
       resolveAuth: async () => ({ scheme: "none" }),
       fetchImpl: fakeFetch(() => ({ ok: false, status: 401, json: async () => ({}) })),
     });
-    assert.deepEqual(res.models, ["deepseek-chat"]);
+    assert.deepEqual(res.models, ["deepseek-chat", "deepseek-v4-flash", "deepseek-v4-pro"]);
     assert.match(res.error ?? "", /HTTP 401/);
   });
 

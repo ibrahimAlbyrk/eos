@@ -1,4 +1,4 @@
-// Built-in add-provider presets — the connection config (NOT the key) for the six
+// Built-in add-provider presets — the connection config (NOT the key) for the seven
 // OpenAI-compatible providers Eos ships ready to add. Each preset carries everything
 // a BackendProfile needs except the API key: kind, origin-only baseUrl, the declared
 // ProviderCapabilities (auth style + chat path quirks included), a sensible default
@@ -26,7 +26,7 @@ export interface ProviderPreset {
   fallbackModels: string[]; // flagship + key tiers, picker fallback when live list fails
 }
 
-// All six speak OpenAI Chat Completions; defaults fill the rest of the schema.
+// All seven speak OpenAI Chat Completions; defaults fill the rest of the schema.
 const caps = (over: Record<string, unknown>): ProviderCapabilities =>
   ProviderCapabilitiesSchema.parse({ wire: "openai-chat", ...over });
 
@@ -121,6 +121,25 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
       chatCompletionsPath: "/api/paas/v4/chat/completions",
     }),
     fallbackModels: ["glm-5.2", "glm-4.7", "glm-4.7-flash"],
+  },
+  {
+    id: "deepseek",
+    label: "DeepSeek",
+    kind: "openai",
+    // Origin-only; DeepSeek accepts both /chat/completions and /v1/... (the /v1 is
+    // OpenAI-SDK compat, unrelated to model version), so the default path composes.
+    baseUrl: "https://api.deepseek.com",
+    // deepseek-chat/deepseek-reasoner retire 2026/07/24; v4-flash is the successor.
+    defaultModel: "deepseek-v4-flash",
+    authRef: "eos-deepseek",
+    capabilities: caps({
+      // "drop": the openai-chat client always strips reasoning_content, correct for
+      // non-thinking use. (v4 thinking-mode + tools instead REQUIRES it echoed back —
+      // reverse of the retired deepseek-reasoner rule — but Eos enables no thinking.)
+      reasoning: "reasoning_content", reasoningRoundTrip: "drop", cache: "automatic",
+      contextWindow: 1_000_000, maxTokens: 384_000,
+    }),
+    fallbackModels: ["deepseek-v4-flash", "deepseek-v4-pro"],
   },
 ];
 

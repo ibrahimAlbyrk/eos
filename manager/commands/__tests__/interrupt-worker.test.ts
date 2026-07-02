@@ -26,6 +26,15 @@ function harness(opts: { reportsMessageEvents: boolean; outputSeen: boolean }) {
       const m = eventRows.map((r) => ({ id: r.id, worker_id: "w1", ts: r.id, type: r.type, payload: r.payload }));
       return order === "desc" ? m.slice().reverse() : m;
     },
+    latestOfType: (_w: string, type: string) => {
+      for (let i = eventRows.length - 1; i >= 0; i--) {
+        if (eventRows[i].type === type) {
+          const r = eventRows[i];
+          return { id: r.id, worker_id: "w1", ts: r.id, type: r.type, payload: r.payload };
+        }
+      }
+      return null;
+    },
     deleteByWorker: () => {},
   };
   // Seed the just-dispatched bubble + its dispatched ledger claim row.

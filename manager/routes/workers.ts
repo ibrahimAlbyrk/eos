@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
+import { ValidationError } from "../../core/src/errors/index.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 import { constantTimeEqual } from "../shared/constant-time.ts";
@@ -749,14 +750,20 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const w = c.workers.findById(params.id);
     const kind = w?.backend_kind ?? "claude-cli";
     const backend = c.backends.has(kind) ? c.backends.get(kind) : c.claudeCliBackend;
-    const out = await setWorkerModel(
-      {
-        workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
-        backend, log: c.log, caps: c.modelCatalog,
-      },
-      { workerId: params.id, model: body.model, effort: body.effort },
-    );
-    writeJson(res, 200, { ok: true, ...out });
+    try {
+      const out = await setWorkerModel(
+        {
+          workers: c.workers, events: c.events, bus: c.bus, clock: c.clock,
+          backend, log: c.log, caps: c.modelCatalog,
+        },
+        { workerId: params.id, model: body.model, effort: body.effort },
+      );
+      writeJson(res, 200, { ok: true, ...out });
+    } catch (e) {
+      // Model doesn't belong to this provider's catalog → 422, nothing persisted.
+      if (e instanceof ValidationError) { writeJson(res, 422, { error: e.message }); return; }
+      throw e;
+    }
   });
 
   r.put(/^\/workers\/(?<id>[^/]+)\/backend$/, async ({ params, req, res }) => {

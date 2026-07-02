@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { makeAutoNameTask, type AutoNameDeps } from "../micro-tasks/autoName.ts";
+import { makeAutoNameTask, isNameable, interpretModelOutput, NO_TITLE_SENTINEL, type AutoNameDeps } from "../micro-tasks/autoName.ts";
 import { buildMicroTasks } from "../micro-tasks/registry.ts";
 import type { WorkerRow } from "../../../contracts/src/worker.ts";
 import type { WorkerEventRow } from "../../../contracts/src/events.ts";
@@ -69,37 +69,61 @@ describe("auto-name gate", () => {
   });
 });
 
-describe("auto-name extract", () => {
-  it("truncates USER_INPUT and FIRST_OUTPUT to charLimit", async () => {
-    const { task } = setup({
-      charLimit: 10,
-      events: [
-        ev(1, "user_message", { text: "u".repeat(500) }),
-        ev(2, "agent_event", { type: "message", role: "assistant", blocks: [{ type: "text", text: "o".repeat(500) }] }),
-      ],
-    });
-    const vars = await task.extract(ctx);
-    assert.equal(vars?.USER_INPUT.length, 10);
-    assert.equal(vars?.FIRST_OUTPUT.length, 10);
+describe("auto-name isNameable", () => {
+  it("rejects greetings / too-short / single-word / symbol-only", () => {
+    assert.equal(isNameable("hi"), false);            // < 6 chars
+    assert.equal(isNameable("asdf"), false);          // one word
+    assert.equal(isNameable("??"), false);            // no letters, too short
+    assert.equal(isNameable("Kafka"), false);         // one word
   });
 
-  it("FIRST_OUTPUT is '' when no assistant output exists yet", async () => {
-    const { task } = setup({ events: [ev(1, "user_message", { text: "fix the build" })] });
+  it("accepts a real multi-word request, incl. non-ASCII letters", () => {
+    assert.equal(isNameable("fix the login bug"), true);
+    assert.equal(isNameable("iOS relay bağlantısını düzelt"), true); // \p{L} counts Turkish
+  });
+});
+
+describe("auto-name extract", () => {
+  it("returns only USER_INPUT, truncated to charLimit", async () => {
+    const { task } = setup({ charLimit: 10, events: [ev(1, "user_message", { text: "fix the login bug" })] });
     const vars = await task.extract(ctx);
-    assert.equal(vars?.USER_INPUT, "fix the build");
-    assert.equal(vars?.FIRST_OUTPUT, "");
+    assert.equal(vars?.USER_INPUT, "fix the lo"); // truncated to 10
+    assert.equal("FIRST_OUTPUT" in (vars ?? {}), false); // FIRST_OUTPUT fully removed
+  });
+
+  it("returns null (LLM skipped) for an unnameable request", async () => {
+    for (const bad of ["hi", "??", "Kafka"]) {
+      const { task } = setup({ events: [ev(1, "user_message", { text: bad })] });
+      assert.equal(await task.extract(ctx), null, `bad=${bad}`);
+    }
   });
 
   it("returns null when there is no user message", async () => {
     const { task } = setup({ events: [ev(1, "agent_event", { type: "message", role: "assistant", blocks: [{ type: "text", text: "hi" }] })] });
     assert.equal(await task.extract(ctx), null);
   });
+});
 
-  it("reads claude-sdk agent_event AND claude-cli jsonl assistant_text", async () => {
-    const sdk = setup({ events: [ev(1, "user_message", { text: "go" }), ev(2, "agent_event", { type: "message", role: "assistant", blocks: [{ type: "text", text: "A" }, { type: "text", text: "B" }] })] });
-    assert.equal((await sdk.task.extract(ctx))?.FIRST_OUTPUT, "AB"); // blocks concatenated
-    const cli = setup({ events: [ev(1, "user_message", { text: "go" }), ev(2, "jsonl", { kind: "assistant_text", text: "Building the API" })] });
-    assert.equal((await cli.task.extract(ctx))?.FIRST_OUTPUT, "Building the API");
+describe("auto-name interpretModelOutput", () => {
+  it("the NO_TITLE sentinel → null", () => {
+    assert.equal(interpretModelOutput(NO_TITLE_SENTINEL, ""), null);
+    assert.equal(interpretModelOutput("NO_TITLE", "fix the login bug"), null);
+  });
+
+  it("a refusal / preamble opener → null", () => {
+    assert.equal(interpretModelOutput("I'm sorry, I can't do that", ""), null);
+  });
+
+  it("a near-verbatim echo of the request → null", () => {
+    assert.equal(interpretModelOutput("Refactor the payment", "Refactor the payment module"), null);
+  });
+
+  it("an answer-shaped line (> MAX_TOPIC_WORDS) → null", () => {
+    assert.equal(interpretModelOutput("This line has far too many words to be a topic", ""), null);
+  });
+
+  it("a real topic → '<Topic> Orchestrator' (appears verbatim in request, not echo)", () => {
+    assert.equal(interpretModelOutput("Kafka Consumer", "rewrite the Kafka consumer"), "Kafka Consumer Orchestrator");
   });
 });
 

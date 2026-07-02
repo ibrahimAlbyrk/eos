@@ -3,10 +3,10 @@ import assert from "node:assert/strict";
 import { PROVIDER_PRESETS, findPreset, fallbackModelsForBaseUrl } from "../provider-presets.ts";
 
 describe("provider presets", () => {
-  it("ships exactly the six providers, all OpenAI-compat, each with a fallback list", () => {
+  it("ships exactly the seven providers, all OpenAI-compat, each with a fallback list", () => {
     assert.deepEqual(
       PROVIDER_PRESETS.map((p) => p.id).sort(),
-      ["gemini", "moonshot", "openai", "qwen", "xai", "zhipu"],
+      ["deepseek", "gemini", "moonshot", "openai", "qwen", "xai", "zhipu"],
     );
     for (const p of PROVIDER_PRESETS) {
       assert.equal(p.kind, "openai", `${p.id} kind`);
@@ -43,10 +43,22 @@ describe("provider presets", () => {
     assert.equal(z.capabilities.chatCompletionsPath, "/api/paas/v4/chat/completions");
   });
 
+  it("DeepSeek uses the default /v1 path, reasoning_content (dropped), 1M context", () => {
+    const d = findPreset("deepseek")!;
+    assert.equal(d.baseUrl, "https://api.deepseek.com");
+    assert.equal(d.defaultModel, "deepseek-v4-flash");
+    // DeepSeek accepts /v1/chat/completions, so no chatCompletionsPath override.
+    assert.equal(d.capabilities.chatCompletionsPath, undefined);
+    assert.equal(d.capabilities.reasoning, "reasoning_content");
+    assert.equal(d.capabilities.reasoningRoundTrip, "drop");
+    assert.equal(d.capabilities.contextWindow, 1_000_000);
+    assert.deepEqual(d.fallbackModels, ["deepseek-v4-flash", "deepseek-v4-pro"]);
+  });
+
   it("fallbackModelsForBaseUrl matches by normalized origin, null for unknown", () => {
     assert.deepEqual(fallbackModelsForBaseUrl("https://api.x.ai/v1"), findPreset("xai")!.fallbackModels);
     assert.deepEqual(fallbackModelsForBaseUrl("https://api.openai.com/"), findPreset("openai")!.fallbackModels);
-    assert.equal(fallbackModelsForBaseUrl("https://api.deepseek.com"), null);
+    assert.deepEqual(fallbackModelsForBaseUrl("https://api.deepseek.com"), findPreset("deepseek")!.fallbackModels);
     assert.equal(fallbackModelsForBaseUrl(undefined), null);
   });
 });

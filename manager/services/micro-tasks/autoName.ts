@@ -1,10 +1,11 @@
 // auto-name MicroTask — names a freshly-spawned ORCHESTRATOR once, from its
-// first request + first assistant output, via the one-shot Haiku path. Fires on
-// the orchestrator's first WORKING transition (the runner's seen-guard keeps it
-// to once); gated to is_orchestrator rows whose name is still the random default
-// (name_source='default'); CAS-writes so it can NEVER clobber a human ('user')
-// name — invariant I1. Fail-closed: any empty/garbage model output aborts and
-// the default name stays.
+// first request, via the one-shot Haiku path. Fires on the orchestrator's first
+// WORKING transition (the runner's seen-guard keeps it to once); gated to
+// is_orchestrator rows whose name is still the random default (name_source=
+// 'default'); CAS-writes so it can NEVER clobber a human ('user') name —
+// invariant I1. Fail-closed: a non-nameable request skips the LLM call, and any
+// sentinel/refusal/echo/garbage model output aborts — in every case the default
+// name stays.
 
 import type { MicroTask, MicroTaskContext } from "../../../core/src/ports/MicroTask.ts";
 import type { WorkerRepo } from "../../../core/src/ports/WorkerRepo.ts";
@@ -21,11 +22,26 @@ export interface AutoNameDeps {
   cfg(): { charLimit: number };
 }
 
+// The in-band sentinel the model emits when a request can't be named; treated as
+// "no name" by interpretModelOutput (the default survives).
+export const NO_TITLE_SENTINEL = "NO_TITLE";
+
+// Pre-call nameability thresholds. A request below any of these is unnameable —
+// extract returns null so the runner never spends an LLM call on it.
+export const MIN_CHARS = 6;
+export const MIN_WORDS = 2;
+export const MIN_DISTINCT_LETTERS = 3;
+// A first line longer than this many words is answer-shaped, not a topic label.
+export const MAX_TOPIC_WORDS = 6;
+
 const SUFFIX = "Orchestrator";
 const MAX_TOPIC_CHARS = 48;
 // First-turn events are few; cap the scan so a long-lived orchestrator's history
-// is never fully loaded just to read its opening request + output.
+// is never fully loaded just to read its opening request.
 const EVENT_SCAN_LIMIT = 500;
+
+// Refusal / preamble openings that mean the model answered instead of naming.
+const REFUSAL_RE = /\b(sorry|i can'?t|i am unable|as an ai|here'?s|sure,)\b/i;
 
 export function makeAutoNameTask(deps: AutoNameDeps): MicroTask {
   return {
@@ -52,23 +68,43 @@ export function makeAutoNameTask(deps: AutoNameDeps): MicroTask {
       return row.is_orchestrator === 1 && row.name_source === "default";
     },
     async extract(ctx) {
-      const limit = deps.cfg().charLimit;
-      const rows = deps.events.list({ workerId: ctx.entityId, since: 0, limit: EVENT_SCAN_LIMIT, order: "asc" });
-      const userInput = firstUserMessage(rows);
+      const userInput = readUserInput(deps, ctx.entityId);
       if (userInput == null) return null; // nothing to name from → abort
-      return {
-        USER_INPUT: truncate(userInput, limit),
-        FIRST_OUTPUT: truncate(firstAssistantText(rows), limit),
-      };
+      if (!isNameable(userInput)) return null; // unnameable → skip the LLM call
+      return { USER_INPUT: truncate(userInput, deps.cfg().charLimit) };
     },
     async apply(ctx: MicroTaskContext, output: string) {
-      const name = sanitizeName(output);
-      if (!name) return; // empty/garbage → leave the default in place
+      // Re-derive the request the model saw, from the same path extract used, so
+      // the echo check can reject a model that just parroted the input back.
+      const userInput = readUserInput(deps, ctx.entityId) ?? "";
+      const name = interpretModelOutput(output, userInput);
+      if (!name) return; // sentinel / refusal / echo / garbage → leave the default
       if (deps.workers.updateNameIfSource(ctx.entityId, name, "default", "auto")) {
         deps.bus.publish("worker:change", { workerId: ctx.entityId });
       }
     },
   };
+}
+
+// The opening request, read from the same events.list + firstUserMessage path
+// extract and apply both use. null when the worker has no user message yet.
+function readUserInput(deps: AutoNameDeps, entityId: string): string | null {
+  const rows = deps.events.list({ workerId: entityId, since: 0, limit: EVENT_SCAN_LIMIT, order: "asc" });
+  return firstUserMessage(rows);
+}
+
+// Deterministic pre-call gate: is this request substantial enough to name at all?
+// Rejects greetings, single-word prompts, gibberish, and symbol-only input before
+// any LLM call. \p{L} counts non-ASCII letters so Turkish input is nameable.
+export function isNameable(userInput: string): boolean {
+  const trimmed = userInput.trim();
+  if (trimmed.length < MIN_CHARS) return false;
+  if (!/\p{L}/u.test(trimmed)) return false;
+  const words = trimmed.match(/\p{L}[\p{L}\p{N}'-]*/gu) ?? [];
+  if (words.length < MIN_WORDS) return false;
+  const distinct = new Set((trimmed.toLowerCase().match(/\p{L}/gu) ?? []));
+  if (distinct.size < MIN_DISTINCT_LETTERS) return false;
+  return true;
 }
 
 function parsePayload(raw: string | null): unknown {
@@ -85,39 +121,28 @@ function firstUserMessage(rows: WorkerEventRow[]): string | null {
   return null;
 }
 
-// The opening assistant text — from a claude-sdk row (agent_event: a message with
-// text blocks) or a claude-cli row (jsonl: kind 'assistant_text'). Returns "" when
-// the worker hasn't produced output yet (the prompt tolerates an empty FIRST_OUTPUT).
-function firstAssistantText(rows: WorkerEventRow[]): string {
-  for (const r of rows) {
-    if (r.type === "agent_event") {
-      const p = parsePayload(r.payload) as { type?: unknown; role?: unknown; blocks?: unknown } | null;
-      if (p && p.type === "message" && p.role === "assistant" && Array.isArray(p.blocks)) {
-        const text = p.blocks
-          .filter((b): b is { type: string; text: string } =>
-            !!b && typeof b === "object" && (b as { type?: unknown }).type === "text" && typeof (b as { text?: unknown }).text === "string")
-          .map((b) => b.text)
-          .join("");
-        if (text.trim()) return text;
-      }
-    } else if (r.type === "jsonl") {
-      const p = parsePayload(r.payload) as { kind?: unknown; text?: unknown } | null;
-      if (p && p.kind === "assistant_text" && typeof p.text === "string" && p.text.trim()) return p.text;
-    }
-  }
-  return "";
-}
-
 function truncate(s: string, n: number): string {
   return s.length <= n ? s : s.slice(0, n);
 }
 
-// Normalize a raw model line into a safe "<Topic> Orchestrator" name, or "" if
-// there's nothing usable (caller then leaves the default). Defensive against
-// quotes, markdown, control chars, trailing punctuation, and a missing/duplicate
-// suffix — a safety net atop the prompt's own output contract.
-function sanitizeName(raw: string): string {
-  // First non-empty line only (ignore any trailing explanation the prompt forbids).
+// Validate an untrusted model line into a safe "<Topic> Orchestrator" name, or
+// null when it isn't a real topic. Layers, in order: (1) first non-empty line +
+// control/quote/markdown scrub; (2) the NO_TITLE sentinel; (3) a refusal/preamble
+// opener; (4) a near-verbatim echo of the request; (5) an answer-shaped (too many
+// words) line; (6) the structural title-case + suffix + clamp step.
+export function interpretModelOutput(raw: string, userInput: string): string | null {
+  const line = firstScrubbedLine(raw);
+  if (!line) return null;
+  if (line === NO_TITLE_SENTINEL) return null;
+  if (REFUSAL_RE.test(line)) return null;
+  if (isEcho(line, userInput)) return null;
+  if (line.split(/\s+/).filter(Boolean).length > MAX_TOPIC_WORDS) return null;
+  return structureName(line) || null;
+}
+
+// First non-empty line, stripped of control chars, wrapping quotes/backticks/
+// markdown emphasis, and trailing punctuation. "" when nothing usable remains.
+function firstScrubbedLine(raw: string): string {
   let s = (raw.replace(/\r/g, "").split("\n").map((l) => l.trim()).find((l) => l.length > 0)) ?? "";
   s = s.replace(/[\u0000-\u001f\u007f]/g, " ");
   // Strip wrapping quotes / backticks / markdown emphasis, repeatedly.
@@ -126,13 +151,15 @@ function sanitizeName(raw: string): string {
     prev = s;
     s = s.replace(/^["'`*_#>\s]+/, "").replace(/["'`*_\s]+$/, "");
   }
-  s = s.replace(/\s+/g, " ").replace(/[.,;:!?]+$/, "").trim();
-  if (!s) return "";
+  return s.replace(/\s+/g, " ").replace(/[.,;:!?]+$/, "").trim();
+}
 
+// Structural step: title-case the scrubbed line, clamp to 48 chars on a word
+// boundary, and guarantee exactly one trailing "Orchestrator". "" if the line
+// carries no real topic (e.g. the bare suffix).
+function structureName(s: string): string {
   const words = clampWords(s.split(" ").filter(Boolean).map(titleCaseWord), MAX_TOPIC_CHARS);
   if (words.length === 0) return "";
-
-  // Ensure exactly one trailing "Orchestrator".
   if (words[words.length - 1].toLowerCase() === SUFFIX.toLowerCase()) {
     words[words.length - 1] = SUFFIX;
   } else {
@@ -141,6 +168,30 @@ function sanitizeName(raw: string): string {
   const name = words.join(" ");
   // The model gave nothing but the suffix → not a real name.
   return name === SUFFIX ? "" : name;
+}
+
+// True when the model line is a near-verbatim echo of the request rather than a
+// distilled topic — compared on lowercased alphanumerics, flagged when they share
+// a long common prefix (the model reproduced the request from its start). A
+// genuine topic selects/reorders words, so it won't match the opening ~12 chars.
+// (Substring containment is deliberately NOT an echo signal: a real distilled
+// topic like "Kafka Consumer" often appears verbatim inside the request.)
+function isEcho(line: string, userInput: string): boolean {
+  const a = normalizeAlnum(line);
+  const b = normalizeAlnum(userInput);
+  if (!a || !b) return false;
+  return commonPrefixLen(a, b) > 12;
+}
+
+function normalizeAlnum(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function commonPrefixLen(a: string, b: string): number {
+  const n = Math.min(a.length, b.length);
+  let i = 0;
+  while (i < n && a[i] === b[i]) i++;
+  return i;
 }
 
 // Capitalize the first letter of each word (and hyphenated sub-word), preserving
