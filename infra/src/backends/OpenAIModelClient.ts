@@ -22,7 +22,7 @@ import type { ProviderCapabilities } from "../../../contracts/src/provider-capab
 import { normalizeBaseOrigin, DEFAULT_CHAT_COMPLETIONS_PATH } from "./base-url.ts";
 import { withRetry, resolveRetryPolicy, defaultSleep, type SleepFn } from "./with-retry.ts";
 import { structuredOutputEnvelope, type StructuredRequest } from "./structured-output.ts";
-import type { ProviderErrorInfo } from "./provider-error.ts";
+import { INSUFFICIENT_CREDITS, AUTH_INVALID, type ProviderErrorInfo } from "./provider-error.ts";
 
 export interface OpenAIToolSpec {
   name: string;
@@ -56,6 +56,15 @@ const OPENAI_EFFORTS = new Set(["minimal", "low", "medium", "high"]);
 // reasoning model's server-side think pause, tight enough that a dead socket can't
 // wedge the turn indefinitely. Overridable per-provider via the capability.
 const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 120_000;
+
+// Classify a non-OK OpenAI-compatible HTTP response into a typed error string
+// (credit/auth); anything else keeps the raw `HTTP <status>: <text>` fallback so
+// nothing is masked. Mirrors the Anthropic client's classifier — same typed strings.
+function classifyOpenAIError(status: number, text: string): string {
+  if (status === 401) return AUTH_INVALID;
+  if (status === 429 && /insufficient_quota/i.test(text)) return INSUFFICIENT_CREDITS;
+  return `HTTP ${status}: ${text.slice(0, 200)}`;
+}
 
 export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClient {
   const doFetch = opts.fetchImpl ?? fetch;
@@ -119,7 +128,7 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
 
   const httpError = (status: number, text: string): ModelTurn => {
     opts.onProviderError?.({ transport: "http", status, detail: text.slice(0, 200) });
-    return { toolCalls: [], stopReason: "error", error: `HTTP ${status}: ${text.slice(0, 200)}` };
+    return { toolCalls: [], stopReason: "error", error: classifyOpenAIError(status, text) };
   };
   const netError = (e: unknown): ModelTurn => {
     const msg = e instanceof Error ? e.message : String(e);

@@ -79,14 +79,34 @@ describe("AnthropicModelClient", () => {
     assert.equal(turn.text, "done");
   });
 
-  it("surfaces a non-OK HTTP response as a model error (no throw)", async () => {
+  it("surfaces an unclassified non-OK HTTP response as a raw model error (no throw)", async () => {
     const client = createAnthropicModelClient({
       apiKey: "sk", model: "m",
-      fetchImpl: (async () => ({ ok: false, status: 401, headers: { get: () => null }, async text() { return "unauthorized"; } })) as unknown as typeof fetch,
+      fetchImpl: (async () => ({ ok: false, status: 403, headers: { get: () => null }, async text() { return "forbidden"; } })) as unknown as typeof fetch,
     });
     const turn = await client.createTurn([{ role: "user", content: "hi" }]);
     assert.equal(turn.stopReason, "error");
-    assert.match(turn.error ?? "", /401/);
+    assert.match(turn.error ?? "", /403/);
+  });
+
+  it("maps a 400 credit-balance body to the typed insufficient_credits error", async () => {
+    const client = createAnthropicModelClient({
+      apiKey: "sk", model: "m",
+      fetchImpl: (async () => ({ ok: false, status: 400, headers: { get: () => null }, async text() { return JSON.stringify({ error: { type: "invalid_request_error", message: "Your credit balance is too low to access the Anthropic API." } }); } })) as unknown as typeof fetch,
+    });
+    const turn = await client.createTurn([{ role: "user", content: "hi" }]);
+    assert.equal(turn.stopReason, "error");
+    assert.equal(turn.error, "insufficient_credits");
+  });
+
+  it("maps a 401 to the typed auth_invalid error", async () => {
+    const client = createAnthropicModelClient({
+      apiKey: "sk", model: "m",
+      fetchImpl: (async () => ({ ok: false, status: 401, headers: { get: () => null }, async text() { return JSON.stringify({ error: { message: "invalid x-api-key" } }); } })) as unknown as typeof fetch,
+    });
+    const turn = await client.createTurn([{ role: "user", content: "hi" }]);
+    assert.equal(turn.stopReason, "error");
+    assert.equal(turn.error, "auth_invalid");
   });
 
   it("maps a context-overflow 400 to the typed context_window_exceeded error (recoverable trigger)", async () => {

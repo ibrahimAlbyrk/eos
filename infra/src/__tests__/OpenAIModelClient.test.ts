@@ -170,11 +170,30 @@ describe("OpenAIModelClient", () => {
     assert.deepEqual(turn.toolCalls[0].input, {});
   });
 
-  it("surfaces a non-retryable HTTP status as a model error", async () => {
-    // 401 is non-retryable → returned straight to the caller (429/5xx now retry, M4).
-    const client = createOpenAIModelClient({ apiKey: "k", model: "m", fetchImpl: (async () => ({ ok: false, status: 401, async text() { return "unauthorized"; } })) as unknown as typeof fetch });
+  it("surfaces an unclassified non-retryable HTTP status as a raw model error", async () => {
+    // 403 is non-retryable and unclassified → raw `HTTP <status>` fallback.
+    const client = createOpenAIModelClient({ apiKey: "k", model: "m", fetchImpl: (async () => ({ ok: false, status: 403, async text() { return "forbidden"; } })) as unknown as typeof fetch });
     const turn = await client.createTurn([{ role: "user", content: "x" }]);
     assert.equal(turn.stopReason, "error");
-    assert.match(turn.error ?? "", /401/);
+    assert.match(turn.error ?? "", /403/);
+  });
+
+  it("maps a 401 to the typed auth_invalid error", async () => {
+    const client = createOpenAIModelClient({ apiKey: "k", model: "m", fetchImpl: (async () => ({ ok: false, status: 401, async text() { return JSON.stringify({ error: { message: "Incorrect API key provided" } }); } })) as unknown as typeof fetch });
+    const turn = await client.createTurn([{ role: "user", content: "x" }]);
+    assert.equal(turn.stopReason, "error");
+    assert.equal(turn.error, "auth_invalid");
+  });
+
+  it("maps a 429 insufficient_quota body to the typed insufficient_credits error", async () => {
+    // 429 retries, so give it an instant sleep; the exhausted-retry response is
+    // classified from its body.
+    const client = createOpenAIModelClient({
+      apiKey: "k", model: "m", sleepImpl: async () => {},
+      fetchImpl: (async () => ({ ok: false, status: 429, headers: { get: () => null }, async text() { return JSON.stringify({ error: { type: "insufficient_quota", code: "insufficient_quota", message: "You exceeded your current quota" } }); } })) as unknown as typeof fetch,
+    });
+    const turn = await client.createTurn([{ role: "user", content: "x" }]);
+    assert.equal(turn.stopReason, "error");
+    assert.equal(turn.error, "insufficient_credits");
   });
 });

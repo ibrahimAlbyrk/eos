@@ -20,7 +20,7 @@ import type { ProviderCapabilities } from "../../../contracts/src/provider-capab
 import { normalizeBaseOrigin } from "./base-url.ts";
 import { withRetry, resolveRetryPolicy, defaultSleep, type SleepFn } from "./with-retry.ts";
 import { structuredOutputEnvelope, type StructuredRequest } from "./structured-output.ts";
-import type { ProviderErrorInfo } from "./provider-error.ts";
+import { INSUFFICIENT_CREDITS, AUTH_INVALID, type ProviderErrorInfo } from "./provider-error.ts";
 
 export interface AnthropicToolSpec {
   name: string;
@@ -50,6 +50,18 @@ export interface AnthropicModelClientOpts {
 // instead of treating it as a generic terminal error.
 function isContextOverflow(text: string): boolean {
   return /model_context_window_exceeded|prompt is too long|context.{0,40}(window|length)|maximum.{0,20}context/i.test(text);
+}
+
+// Classify a non-OK Anthropic HTTP response into a typed error string (context/credit/
+// auth), following the context_window_exceeded precedent; anything else keeps the raw
+// `HTTP <status>: <text>` fallback so nothing is masked.
+function classifyAnthropicError(status: number, text: string): string {
+  if (status === 401) return AUTH_INVALID;
+  if (status === 400) {
+    if (isContextOverflow(text)) return "context_window_exceeded";
+    if (/credit balance/i.test(text)) return INSUFFICIENT_CREDITS;
+  }
+  return `HTTP ${status}: ${text.slice(0, 200)}`;
 }
 
 function effortToBudget(effort: string): number {
@@ -134,8 +146,7 @@ export function createAnthropicModelClient(opts: AnthropicModelClientOpts): Mode
 
   const httpError = (status: number, text: string): ModelTurn => {
     opts.onProviderError?.({ transport: "http", status, detail: text.slice(0, 200) });
-    if (status === 400 && isContextOverflow(text)) return { toolCalls: [], stopReason: "error", error: "context_window_exceeded" };
-    return { toolCalls: [], stopReason: "error", error: `HTTP ${status}: ${text.slice(0, 200)}` };
+    return { toolCalls: [], stopReason: "error", error: classifyAnthropicError(status, text) };
   };
   const netError = (e: unknown): ModelTurn => {
     const msg = e instanceof Error ? e.message : String(e);
