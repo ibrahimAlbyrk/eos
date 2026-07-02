@@ -2983,9 +2983,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   position: relative;
   display: flex;
   flex-direction: column;
-  /* Per-pane composer: full-width inside its pane (no centered max-width column),
-     compact padding so narrow split panes don't waste horizontal space. */
-  align-items: stretch;
+  /* Per-pane composer: a centered max-width column inside its pane (the width
+     cap lives on .composer-inner), compact padding so narrow split panes don't
+     waste horizontal space. */
+  align-items: center;
   gap: 6px;
   padding: 8px 14px 12px;
   flex-shrink: 0;
@@ -3006,8 +3007,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .composer-inner {
   width: 100%;
-  /* No centered max-width column — the composer fills its pane's width. */
-  max-width: none;
+  /* Centered max-width column — caps the composer inside its pane (centered by
+     .composer-wrap align-items) rather than spanning the full pane width. */
+  max-width: 1134px;
   display: flex;
   flex-direction: column;
   gap: 6px;
