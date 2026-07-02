@@ -452,7 +452,22 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
           try {
             for await (const msg of q) {
               if (!isCurrent()) return; // superseded by a /clear restart → stay silent
-              for (const e of mapper.map(msg as SdkMsg)) cb?.onEvent?.(e);
+              for (const e of mapper.map(msg as SdkMsg)) {
+                // The SDK has no dedicated "interrupted" result subtype — a
+                // user-requested interrupt ends the turn with subtype
+                // "error_during_execution", which the mapper (unaware of the
+                // interrupt) surfaces as turn:error. Recognize that ONLY while
+                // WE set rec.interrupting, and translate to turn:aborted — the
+                // same convention as the m1 precedent in ToolRuntime. Other
+                // error_* subtypes (error_max_turns, or error_during_execution
+                // with no interrupt in flight) must keep flowing as turn:error.
+                if (rec.interrupting && e.type === "turn" && e.phase === "error" && e.reason === "error_during_execution") {
+                  rec.interrupting = false;
+                  cb?.onEvent?.({ type: "turn", phase: "aborted", reason: "interrupted" });
+                  continue;
+                }
+                cb?.onEvent?.(e);
+              }
             }
             if (!isCurrent()) return;
             if (rec.alive) {

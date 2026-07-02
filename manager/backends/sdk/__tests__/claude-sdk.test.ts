@@ -509,6 +509,86 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.ok(events.some((e) => e.type === "turn" && e.phase === "aborted"));
   });
 
+  // The SDK has no dedicated "interrupted" result subtype — a user-requested
+  // interrupt ends the turn with subtype "error_during_execution", identical to
+  // a genuine execution failure. The consume loop must translate that to
+  // turn:aborted ONLY when WE set interrupting (session.interrupt() was called
+  // for THIS turn); the same subtype arriving with no interrupt in flight is a
+  // real failure and must keep surfacing as turn:error. A controllable async
+  // iterable lets the test push messages on demand (mirrors the push-stream
+  // helper the backend itself uses internally).
+  function controllableStream() {
+    const queue: unknown[] = [];
+    let wake: (() => void) | null = null;
+    let closed = false;
+    return {
+      push(item: unknown) { queue.push(item); wake?.(); wake = null; },
+      end() { closed = true; wake?.(); wake = null; },
+      interrupt: async () => {},
+      [Symbol.asyncIterator]() {
+        return {
+          async next(): Promise<IteratorResult<unknown>> {
+            while (!queue.length && !closed) await new Promise<void>((r) => { wake = r; });
+            if (queue.length) return { done: false, value: queue.shift() };
+            return { done: true, value: undefined };
+          },
+        };
+      },
+    };
+  }
+
+  it("with interrupting set, an error_during_execution result surfaces as turn:aborted (reason interrupted), not turn:error", async () => {
+    const q = controllableStream();
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn: () => q as never,
+    });
+    const events: AgentEvent[] = [];
+    const session = await be.start(spec(), { onEvent: (e) => events.push(e) });
+    q.push({ type: "system", subtype: "init", session_id: "sess-1" });
+    while (!events.some((e) => e.type === "session" && e.phase === "ready")) await new Promise((r) => setTimeout(r, 1));
+
+    await session.interrupt(); // sets interrupting = true
+
+    q.push({ type: "result", subtype: "error_during_execution", usage: {}, model: "m" });
+    while (!events.some((e) => e.type === "turn" && e.phase !== "started")) await new Promise((r) => setTimeout(r, 1));
+
+    const ends = events.filter((e) => e.type === "turn" && e.phase !== "started");
+    assert.equal(ends.length, 1);
+    assert.equal((ends[0] as { phase: string }).phase, "aborted");
+    assert.equal((ends[0] as { reason?: string }).reason, "interrupted");
+    session.stop();
+  });
+
+  it("without interrupting, an error_during_execution result still surfaces as turn:error", async () => {
+    const q = controllableStream();
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn: () => q as never,
+    });
+    const events: AgentEvent[] = [];
+    const session = await be.start(spec(), { onEvent: (e) => events.push(e) });
+    q.push({ type: "system", subtype: "init", session_id: "sess-1" });
+    while (!events.some((e) => e.type === "session" && e.phase === "ready")) await new Promise((r) => setTimeout(r, 1));
+
+    q.push({ type: "result", subtype: "error_during_execution", usage: {}, model: "m" });
+    while (!events.some((e) => e.type === "turn" && e.phase !== "started")) await new Promise((r) => setTimeout(r, 1));
+
+    const ends = events.filter((e) => e.type === "turn" && e.phase !== "started");
+    assert.equal(ends.length, 1);
+    assert.equal((ends[0] as { phase: string }).phase, "error");
+    assert.equal((ends[0] as { reason?: string }).reason, "error_during_execution");
+    session.stop();
+  });
+
   // Deleting/stopping an SDK agent must end its IN-FLIGHT turn, not just close
   // future input — a ghost turn keeps calling tools (and spawning workers) until
   // it ends on its own. stop() aborts the launch's AbortController (handed to
