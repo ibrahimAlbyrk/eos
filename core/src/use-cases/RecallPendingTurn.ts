@@ -28,11 +28,6 @@ export type RecallPendingTurnResult =
   | { recalled: false }
   | { recalled: true; text: string; clientMsgId?: string; rowId: number };
 
-// How many recent events to scan back for the user_message. In the output-empty
-// case the user_message sits among the last few rows (its WORKING/IDLE state
-// rows are the only siblings), so a small window is ample.
-const SCAN_LIMIT = 50;
-
 export function recallPendingTurn(
   deps: RecallPendingTurnDeps,
   workerId: string,
@@ -41,11 +36,11 @@ export function recallPendingTurn(
   // or an assistant message) → it heard the message; no recall.
   if (deps.turnOutput.seen(workerId)) return { recalled: false };
 
-  // The most recent user_message is the just-dispatched bubble to recall. Walk
-  // newest-first; only the latest unanswered one is recalled (earlier ones may
-  // have been answered).
-  const rows = deps.events.list({ workerId, since: 0, limit: SCAN_LIMIT, order: "desc" });
-  const row = rows.find((r) => r.type === "user_message");
+  // The most recent user_message is the just-dispatched bubble to recall. Only
+  // the latest unanswered one is recalled (earlier ones may have been answered).
+  // latestOfType is direction-agnostic — a list({order:"desc"}) window would
+  // re-sort ASC in the real repo, so .find() there returns the OLDEST match.
+  const row = deps.events.latestOfType(workerId, "user_message");
   if (!row) return { recalled: false };
 
   let text = "";

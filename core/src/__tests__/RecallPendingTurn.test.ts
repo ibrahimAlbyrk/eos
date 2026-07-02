@@ -10,16 +10,26 @@ const tracker = (seen: boolean): TurnOutputTracker => {
   return { reset: () => { s = false; }, markSeen: () => { s = true; }, seen: () => s };
 };
 
-// In-memory EventRepo whose list() honors the desc order the use-case asks for.
-const events = (rows: Array<{ id: number; type: string; payload: string | null }>): EventRepo => ({
-  append: () => 0,
-  patchPayload: () => {},
-  list: ({ order }) => {
-    const mapped = rows.map((r) => ({ id: r.id, worker_id: "w1", ts: r.id, type: r.type, payload: r.payload }));
-    return order === "desc" ? mapped.slice().reverse() : mapped;
-  },
-  deleteByWorker: () => {},
-});
+// In-memory EventRepo modeling the REAL SqliteEventRepo: list({order:"desc"})
+// returns the newest-N window re-sorted ASC (oldest-first), NOT true desc — the
+// shape that masked the old list().find() bug. latestOfType is the direction-
+// agnostic read the use-case actually depends on.
+const events = (rows: Array<{ id: number; type: string; payload: string | null }>): EventRepo => {
+  const mapped = () => rows.map((r) => ({ id: r.id, worker_id: "w1", ts: r.id, type: r.type, payload: r.payload }));
+  return {
+    append: () => 0,
+    patchPayload: () => {},
+    list: ({ order, limit }) => {
+      const asc = mapped();
+      return order === "desc" ? asc.slice(-limit) : asc;
+    },
+    latestOfType: (_workerId, type) => {
+      const matches = mapped().filter((r) => r.type === type);
+      return matches.length ? matches[matches.length - 1] : null;
+    },
+    deleteByWorker: () => {},
+  };
+};
 
 const userMsg = (id: number, text: string, clientMsgIds?: string[]) => ({
   id,
@@ -67,5 +77,39 @@ describe("recallPendingTurn", () => {
       "w1",
     );
     assert.deepEqual(r, { recalled: false });
+  });
+
+  // Regression: the fake now returns ASC (oldest-first), like the real repo. A
+  // list().find() would pick the OLDEST user_message here; latestOfType picks the
+  // newest even with later non-user (state) rows sitting after it.
+  it("picks the LATEST user_message against an ASC-ordered log", () => {
+    const queue = fakeQueue();
+    const r = recallPendingTurn(
+      {
+        events: events([
+          userMsg(1, "old", ["c0"]),
+          userMsg(7, "newest", ["c1"]),
+          { id: 8, type: "state", payload: "{}" },
+          { id: 9, type: "state", payload: "{}" },
+        ]),
+        queue: queue.repo,
+        turnOutput: tracker(false),
+      },
+      "w1",
+    );
+    assert.deepEqual(r, { recalled: true, text: "newest", clientMsgId: "c1", rowId: 7 });
+  });
+
+  // Regression: the old SCAN_LIMIT=50 desc window could never see a user_message
+  // older than the newest 50 rows. latestOfType has no window.
+  it("finds the latest user_message beyond a 50-event window", () => {
+    const queue = fakeQueue();
+    const rows: Array<{ id: number; type: string; payload: string | null }> = [];
+    for (let i = 1; i <= 60; i++) rows.push(userMsg(i, `msg-${i}`, [`c${i}`]));
+    const r = recallPendingTurn(
+      { events: events(rows), queue: queue.repo, turnOutput: tracker(false) },
+      "w1",
+    );
+    assert.deepEqual(r, { recalled: true, text: "msg-60", clientMsgId: "c60", rowId: 60 });
   });
 });

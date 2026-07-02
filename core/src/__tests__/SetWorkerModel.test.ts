@@ -12,6 +12,7 @@ function buildDeps(opts: {
   runtimeModelSwitch?: boolean;
   setModelResult?: { ok: boolean; reason?: string };
   row?: Partial<WorkerRow>;
+  models?: { kind: string; models?: readonly string[] };
 } = {}): {
   deps: SetWorkerModelDeps;
   events: AppendedEvent[];
@@ -36,7 +37,7 @@ function buildDeps(opts: {
 
   const backend = {
     kind: "fake",
-    descriptor: { processModel: opts.processModel ?? "out-of-process" },
+    descriptor: { processModel: opts.processModel ?? "out-of-process", label: "Fake", models: opts.models },
     attach: (_id: string, handle: { kind: string }) => { handles.push(handle); return session; },
   } as unknown as AgentBackend;
 
@@ -94,5 +95,24 @@ describe("setWorkerModel — backend-port runtime apply", () => {
     const { deps, handles } = buildDeps({ processModel: "out-of-process" });
     await setWorkerModel(deps, { workerId: "w1", model: "opus" });
     assert.deepEqual(handles, [{ kind: "http", port: 7501, pid: 42 }]);
+  });
+});
+
+describe("setWorkerModel — model↔provider guard", () => {
+  it("rejects a model that doesn't belong to the provider, persisting nothing", async () => {
+    const { deps, updated, switched } = buildDeps({ models: { kind: "claude" } });
+    await assert.rejects(
+      () => setWorkerModel(deps, { workerId: "w1", model: "deepseek-chat" }),
+      /deepseek-chat/,
+    );
+    assert.deepEqual(updated, []);
+    assert.deepEqual(switched, []);
+  });
+
+  it("persists a model that matches the provider's catalog", async () => {
+    const { deps, updated } = buildDeps({ models: { kind: "claude" } });
+    const out = await setWorkerModel(deps, { workerId: "w1", model: "opus" });
+    assert.deepEqual(updated, [{ model: "opus", effort: null }]);
+    assert.equal(out.model, "opus");
   });
 });

@@ -13,7 +13,8 @@ import type { AgentBackend } from "../ports/AgentBackend.ts";
 import type { Logger } from "../ports/Logger.ts";
 import type { ModelCapabilities } from "../ports/ModelCapabilities.ts";
 import { resolveEffort } from "../domain/effort.ts";
-import { NotFoundError } from "../errors/index.ts";
+import { checkModelForProvider } from "../domain/model-provider.ts";
+import { NotFoundError, ValidationError } from "../errors/index.ts";
 
 export interface SetWorkerModelDeps {
   workers: WorkerRepo;
@@ -40,6 +41,15 @@ export async function setWorkerModel(
 ): Promise<{ model: string; effort: string | null; runtimeApplied: boolean }> {
   const w = deps.workers.findById(input.workerId);
   if (!w) throw new NotFoundError("worker", input.workerId);
+
+  // Provider is immutable mid-session — reject a model that doesn't belong to the
+  // resolved backend's catalog BEFORE persisting anything (a bad value would be
+  // written and then blindly handed to session.setModel). Fails open when no
+  // backend/catalog is known.
+  if (deps.backend) {
+    const check = checkModelForProvider(deps.backend.descriptor, input.model);
+    if (!check.ok) throw new ValidationError(check.reason);
+  }
 
   const requested = input.effort ?? null;
   const effort =

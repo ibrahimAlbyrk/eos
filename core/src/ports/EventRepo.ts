@@ -20,5 +20,9 @@ export interface EventRepo {
   /** Patches the payload of an existing row (used by usage delta-cost back-fill). */
   patchPayload(rowId: number, payload: unknown): void;
   list(q: EventQuery): WorkerEventRow[];
+  /** Newest row of `type` for a worker, or null. Direction-agnostic: the caller
+   *  never reasons about list() ordering (its "desc" window re-sorts ASC), so a
+   *  `list().find()` cannot silently return the OLDEST match. */
+  latestOfType(workerId: string, type: WorkerEventType): WorkerEventRow | null;
   deleteByWorker(workerId: string): void;
 }
