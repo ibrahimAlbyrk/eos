@@ -854,6 +854,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     // window via applicationShouldHandleReopen + ensureMainWindowVisible.
     func applicationShouldTerminateAfterLastWindowClosed(_: NSApplication) -> Bool { false }
 
+    // Fired on every quit; the daemon purges all archived agents only when
+    // config archive.purgeOnAppClose is set, else no-ops (idempotent). The
+    // response is ignored, but a brief bounded wait keeps the process alive
+    // long enough for the request to actually reach the daemon — a plain
+    // fire-and-forget dies with the process before hitting the wire.
+    func applicationWillTerminate(_: Notification) {
+        guard let url = URL(string: "\(DAEMON)/workers/archived/app-closed") else { return }
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.timeoutInterval = 2
+        if let token = uiToken() { req.setValue(token, forHTTPHeaderField: "x-eos-ui-token") }
+        let done = DispatchSemaphore(value: 0)
+        URLSession.shared.dataTask(with: req) { _, _, _ in done.signal() }.resume()
+        _ = done.wait(timeout: .now() + 2)
+    }
+
     func applicationShouldHandleReopen(_: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { ensureMainWindowVisible() }
         return true
