@@ -3,7 +3,7 @@
 // into module-scope globals.
 
 import { DatabaseSync } from "node:sqlite";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 import { randomBytes } from "node:crypto";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, realpathSync } from "node:fs";
 
@@ -96,6 +96,8 @@ import { createDarwinFsHelpers, type FsHelpers } from "../infra/src/filesystem/D
 import { noopFsHelpers } from "../infra/src/filesystem/NoopFsHelpers.ts";
 import { createNodeFileSystem } from "../infra/src/filesystem/NodeFileSystem.ts";
 import { NodeFileWatcher } from "../infra/src/filesystem/NodeFileWatcher.ts";
+import { TreeSitterSymbolIndex } from "../infra/src/symbols/TreeSitterSymbolIndex.ts";
+import type { FsChangeEvent } from "../core/src/ports/FileWatcher.ts";
 import { FsWatchRegistry } from "./services/FsWatchRegistry.ts";
 import { GitWatchReconciler } from "./services/GitWatchReconciler.ts";
 import { childProcessGitInfo } from "../infra/src/git/ChildProcessGitInfo.ts";
@@ -353,6 +355,31 @@ export function buildContainer() {
     sink: (changes) => bus.publish("fs:change", { changes }),
   });
   const fsWatchRegistry = new FsWatchRegistry({ watcher: fileWatcher });
+
+  // Symbol index (tree-sitter tags) — daemon-side, in-memory per browsed root,
+  // serving go-to-def / find-refs / symbol search by name matching. Freshness:
+  // incrementally re-parse changed files under a resident root off the shallow
+  // explorer watcher (fs:change); coarsely mark a root stale on a recursive
+  // git-state change (git:change) for edits that watcher never emits (dim03
+  // §2b). Multi-root memory is bounded by the adapter's LRU cap + release(root).
+  const symbolIndex = new TreeSitterSymbolIndex({ notify: (msg, meta) => log.warn(msg, meta) });
+  const isUnderRoot = (root: string, p: string): boolean =>
+    p === root || p.startsWith(root.endsWith(sep) ? root : root + sep);
+  bus.subscribe("fs:change", (msg) => {
+    const changes = (msg.payload as { changes: FsChangeEvent[] }).changes;
+    for (const root of symbolIndex.residentRoots()) {
+      const paths = changes.filter((ch) => isUnderRoot(root, ch.path)).map((ch) => ch.path);
+      if (paths.length)
+        void symbolIndex.invalidate(root, paths).catch((e) => log.warn("symbol invalidate failed", { root, error: errMsg(e) }));
+    }
+  });
+  bus.subscribe("git:change", (msg) => {
+    const dir = (msg.payload as { dir?: string }).dir;
+    if (!dir) return;
+    for (const root of symbolIndex.residentRoots()) {
+      if (isUnderRoot(root, dir) || isUnderRoot(dir, root)) symbolIndex.markDirty(root);
+    }
+  });
 
   // Git info + recents -----------------------------------------------------
   const git = childProcessGitInfo;
@@ -1345,6 +1372,7 @@ export function buildContainer() {
     files,
     fileWatcher,
     fsWatchRegistry,
+    symbolIndex,
     git,
     gitWatcher,
     gitWatchReconciler,
