@@ -155,6 +155,42 @@ describe("getToolView", () => {
     }
   });
 
+  it("gives the task tools bespoke views with header labels + badges", () => {
+    const create = getToolView("TaskCreate");
+    expect(create.Detail).not.toBe(GenericToolCard);
+    expect(create.label({ input: { subject: "add tests" } })).toEqual({ verb: "Created task", file: "add tests" });
+    expect(create.runningLabel({ input: { subject: "add tests" } })).toEqual({ verb: "Creating task", file: "add tests" });
+    // creates are always pending → a pending badge
+    expect(create.headerBadge({ input: { subject: "x" } }).props.className).toBe("task-badge task-badge-pending");
+
+    const update = getToolView("TaskUpdate");
+    expect(update.Detail).not.toBe(GenericToolCard);
+    expect(update.label({ input: { taskId: "3" } })).toEqual({ verb: "Updated task", file: "#3" });
+    expect(update.runningLabel({ input: { taskId: "3" } })).toEqual({ verb: "Updating task", file: "#3" });
+    // status badge only when the update carries a status
+    expect(update.headerBadge({ input: { taskId: "3", status: "completed" } }).props.className)
+      .toBe("task-badge task-badge-completed");
+    expect(update.headerBadge({ input: { taskId: "3", owner: "w" } })).toBe(null);
+
+    const get = getToolView("TaskGet");
+    expect(get.Detail).not.toBe(GenericToolCard);
+    expect(get.label({ input: { taskId: "1" } })).toEqual({ verb: "Read task", file: "#1" });
+    expect(get.runningLabel({ input: { taskId: "1" } })).toEqual({ verb: "Reading task", file: "#1" });
+    // status badge parsed from the plain-text result; null while still running
+    expect(get.headerBadge({ result: { text: "Task #1: foo\nStatus: in_progress" } }).props.className)
+      .toBe("task-badge task-badge-in_progress");
+    expect(get.headerBadge({})).toBe(null);
+
+    const list = getToolView("TaskList");
+    expect(list.Detail).not.toBe(GenericToolCard);
+    expect(list.runningLabel({})).toEqual({ verb: "Listing", file: "tasks" });
+    // count parsed from the plain-text result rows
+    expect(list.label({ result: { text: "#1 [pending] a\n#2 [in_progress] b (worker-x) [blocked by #1]" } }))
+      .toEqual({ verb: "Listed", file: "tasks (2)" });
+    // no result yet (running) → no count
+    expect(list.label({})).toEqual({ verb: "Listed", file: "tasks" });
+  });
+
   it("renders a loop badge on spawn_worker only when armed at spawn", () => {
     const spawn = getToolView("mcp__orchestrator__spawn_worker");
     expect(spawn.Detail).toBe(WorkerToolBody);

@@ -2528,6 +2528,49 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .awl-desc { margin-top: 3px; color: var(--fg-dim); font-size: var(--text-sm); line-height: 1.5; }
 .awl-empty { padding: 9px 14px; color: var(--fg-faint); font-size: var(--text-sm); }
 
+/* Task tools (TaskCreate/Update/Get/List) — status badge + card, reusing the
+   .wd-card chrome. */
+.task-badge {
+  font-size: var(--text-xs);
+  padding: 1px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tool-item-header .task-badge { margin-left: 6px; }
+.task-badge-pending { background: color-mix(in srgb, var(--fg-faint) 20%, transparent); color: var(--fg-dim); }
+.task-badge-in_progress { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.task-badge-completed { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+.task-badge-deleted { background: color-mix(in srgb, var(--err) 16%, transparent); color: var(--err); }
+
+.task-card .task-head { display: flex; align-items: center; gap: 8px; }
+.task-subject { font-weight: 600; color: var(--fg); font-size: var(--text-sm); word-break: break-word; }
+
+.task-deps { display: flex; flex-wrap: wrap; gap: 6px; }
+.task-dep {
+  padding: 2px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.task-dep-blocks { background: var(--surface-2); color: var(--fg-dim); }
+.tool-group .task-dep-blocks { background: var(--surface); }
+.task-dep-blocked {
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border-color: color-mix(in srgb, var(--warn) 25%, transparent);
+  color: var(--warn);
+}
+
+.task-row { display: flex; align-items: center; gap: 8px; padding: 8px 14px; }
+.task-row + .task-row { border-top: 1px solid var(--border); }
+.task-row-id { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint); }
+.task-row-subject { flex: 1; min-width: 0; color: var(--fg); font-size: var(--text-sm); word-break: break-word; }
+.task-row-owner { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-dim); }
+
 /* workflow tool call + run-completion card — reuses the .wd-card chrome, adds the
    run id + run-status chip and the pretty-printed result block. */
 .wf-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }

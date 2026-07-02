@@ -498,6 +498,172 @@ export function AvailableWorkersDetail({ tool }) {
   );
 }
 
+// Task-management tools (TaskCreate/TaskUpdate/TaskGet/TaskList) — the harness's
+// task list. Results are PLAIN TEXT, not JSON: TaskCreate → "Task #1 created…",
+// TaskGet → a "Task #n: subject / Status: … / Description: … / Blocks|Blocked by"
+// block, TaskList → one "#n [status] subject (owner) [blocked by #x]" line each.
+// So the header (subject/id from input) drives the collapsed row and the result
+// text is parsed here for the Get/List bodies.
+const TASK_STATUS_LABELS = {
+  pending: "pending",
+  in_progress: "in progress",
+  completed: "completed",
+  deleted: "deleted",
+};
+
+export function taskStatusBadge(status) {
+  if (!status) return null;
+  return <span className={"task-badge task-badge-" + status}>{TASK_STATUS_LABELS[status] ?? status}</span>;
+}
+
+// "Task #2: probe-B / Status: in_progress / Description: … / Blocks: #3 /
+// Blocked by: #1" → structured fields (blocks/blockedBy keep their "#" ids).
+export function parseTaskGet(text) {
+  const lines = (text ?? "").split("\n");
+  const head = lines[0]?.match(/^Task #(\d+):\s*(.*)$/);
+  if (!head) return null;
+  const task = { id: head[1], subject: head[2], status: null, description: null, blocks: null, blockedBy: null };
+  for (const line of lines.slice(1)) {
+    let m;
+    if ((m = line.match(/^Status:\s*(.*)$/))) task.status = m[1].trim();
+    else if ((m = line.match(/^Description:\s*(.*)$/))) task.description = m[1].trim();
+    else if ((m = line.match(/^Blocks:\s*(.*)$/))) task.blocks = m[1].trim();
+    else if ((m = line.match(/^Blocked by:\s*(.*)$/))) task.blockedBy = m[1].trim();
+  }
+  return task;
+}
+
+// "#1 [pending] subject (owner) [blocked by #2]" per line → row objects. The
+// trailing "[blocked by …]" and "(owner)" are peeled off the tail so the subject
+// itself is left intact.
+export function parseTaskListRows(text) {
+  return (text ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const m = line.match(/^#(\d+)\s+\[([^\]]+)\]\s+(.*)$/);
+      if (!m) return null;
+      let rest = m[3];
+      let blockedBy = null;
+      const bb = rest.match(/\s*\[blocked by ([^\]]+)\]\s*$/);
+      if (bb) { blockedBy = bb[1].trim(); rest = rest.slice(0, bb.index).trimEnd(); }
+      let owner = null;
+      const ow = rest.match(/\s*\(([^)]+)\)\s*$/);
+      if (ow) { owner = ow[1].trim(); rest = rest.slice(0, ow.index).trimEnd(); }
+      return { id: m[1], status: m[2].trim(), subject: rest, owner, blockedBy };
+    })
+    .filter(Boolean);
+}
+
+function TaskDeps({ blocks, blockedBy }) {
+  if (!blocks && !blockedBy) return null;
+  return (
+    <div className="wd-sec">
+      <div className="task-deps">
+        {blocks && <span className="task-dep task-dep-blocks">blocks {blocks}</span>}
+        {blockedBy && <span className="task-dep task-dep-blocked">blocked by {blockedBy}</span>}
+      </div>
+    </div>
+  );
+}
+
+// TaskCreate — the new task: subject as heading, a pending badge (creates are
+// always pending), and the description. The input IS the artifact, so it renders
+// fully while still running; the result is just a confirmation line.
+export function TaskCreateDetail({ tool }) {
+  if (tool.result?.isError) return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  const i = tool.input ?? {};
+  if (!i.subject && !i.description) return null;
+  return (
+    <div className="tool-detail wd-card task-card">
+      <div className="wd-sec task-head">
+        <span className="task-subject">{i.subject}</span>
+        {taskStatusBadge("pending")}
+      </div>
+      {i.description && <div className="wd-sec"><div className="wd-text">{i.description}</div></div>}
+    </div>
+  );
+}
+
+// TaskUpdate — only the fields this call changed (mirrors the result's "Updated
+// task #n status, owner"): the new status badge, subject/owner chips, edited
+// description, and any newly added blocks/blockedBy dependencies.
+export function TaskUpdateDetail({ tool }) {
+  if (tool.result?.isError) return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  const i = tool.input ?? {};
+  const blocks = Array.isArray(i.addBlocks) ? i.addBlocks : [];
+  const blockedBy = Array.isArray(i.addBlockedBy) ? i.addBlockedBy : [];
+  const chips = [];
+  if (i.subject) chips.push(["subject", i.subject]);
+  if (i.owner) chips.push(["owner", i.owner]);
+  const hasAny = i.status || i.description || chips.length > 0 || blocks.length > 0 || blockedBy.length > 0;
+  if (!hasAny) return null;
+  return (
+    <div className="tool-detail wd-card task-card">
+      <div className="wd-sec task-head">
+        <span className="task-subject">Task #{i.taskId}</span>
+        {taskStatusBadge(i.status)}
+      </div>
+      {i.description && <div className="wd-sec"><div className="wd-text">{i.description}</div></div>}
+      {chips.length > 0 && (
+        <div className="wd-sec">
+          <div className="wd-chips">
+            {chips.map(([k, v]) => (
+              <span className="wd-chip" key={k}><span className="wd-chip-k">{k}</span>{v}</span>
+            ))}
+          </div>
+        </div>
+      )}
+      <TaskDeps
+        blocks={blocks.map((id) => "#" + id).join(", ") || null}
+        blockedBy={blockedBy.map((id) => "#" + id).join(", ") || null}
+      />
+    </div>
+  );
+}
+
+// TaskGet — the fetched task, parsed from the plain-text result: subject heading
+// + status badge, description, and dependency pills.
+export function TaskGetDetail({ tool }) {
+  if (tool.result?.isError) return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  const task = parseTaskGet(tool.result?.text);
+  if (!task) return null;
+  return (
+    <div className="tool-detail wd-card task-card">
+      <div className="wd-sec task-head">
+        <span className="task-subject">{task.subject}</span>
+        {taskStatusBadge(task.status)}
+      </div>
+      {task.description && <div className="wd-sec"><div className="wd-text">{task.description}</div></div>}
+      <TaskDeps blocks={task.blocks} blockedBy={task.blockedBy} />
+    </div>
+  );
+}
+
+// TaskList — a compact table, one row per task: #id · status badge · subject,
+// with the owner and a blocked-by pill on the right when present.
+export function TaskListDetail({ tool }) {
+  if (tool.result?.isError) return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  const text = (tool.result?.text ?? "").trim();
+  if (!text) return null;
+  const rows = parseTaskListRows(text);
+  if (rows.length === 0) return <div className="tool-detail wd-card task-card"><div className="awl-empty">{text}</div></div>;
+  return (
+    <div className="tool-detail wd-card task-card">
+      {rows.map((r) => (
+        <div className="task-row" key={r.id}>
+          <span className="task-row-id">#{r.id}</span>
+          {taskStatusBadge(r.status)}
+          <span className="task-row-subject">{r.subject}</span>
+          {r.owner && <span className="task-row-owner">{r.owner}</span>}
+          {r.blockedBy && <span className="task-dep task-dep-blocked">blocked by {r.blockedBy}</span>}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const GENERIC_OUTPUT_MAX = 4000;
 const PARAM_VALUE_MAX = 300;
 const RAW_MAX = 8000;

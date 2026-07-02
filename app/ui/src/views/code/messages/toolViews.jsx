@@ -15,6 +15,8 @@ import {
   AskUserDetail, SkillDetail, NotifyDetail, MessageDetail, GenericToolCard,
   PeerAskDetail, PeerRespondDetail, PeerListDetail,
   CreateWorkerDetail, AvailableWorkersDetail, DatetimeDetail,
+  TaskCreateDetail, TaskUpdateDetail, TaskGetDetail, TaskListDetail,
+  taskStatusBadge, parseTaskGet, parseTaskListRows,
 } from "./ToolDetail.jsx";
 import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
 import { skillFilePath } from "../../../lib/skillBody.js";
@@ -234,6 +236,40 @@ for (const name of ["mcp__orchestrator__current_datetime", "mcp__worker__current
     Detail: DatetimeDetail,
   });
 }
+
+// Task-management tools (harness built-ins) — the collapsed row says what
+// happened at a glance (subject / #id / count) with a status badge; the bodies
+// live in ToolDetail.jsx. The result payloads are plain text, so the Get/List
+// count + badge parse it (parseTaskGet/parseTaskListRows).
+register("TaskCreate", {
+  label: (t) => ({ verb: "Created task", file: t.input?.subject ?? "" }),
+  runningLabel: (t) => ({ verb: "Creating task", file: t.input?.subject ?? "" }),
+  headerBadge: () => taskStatusBadge("pending"),
+  Detail: TaskCreateDetail,
+});
+
+register("TaskUpdate", {
+  label: (t) => ({ verb: "Updated task", file: t.input?.taskId ? `#${t.input.taskId}` : "" }),
+  runningLabel: (t) => ({ verb: "Updating task", file: t.input?.taskId ? `#${t.input.taskId}` : "" }),
+  headerBadge: (t) => taskStatusBadge(t.input?.status),
+  Detail: TaskUpdateDetail,
+});
+
+register("TaskGet", {
+  label: (t) => ({ verb: "Read task", file: t.input?.taskId ? `#${t.input.taskId}` : "" }),
+  runningLabel: (t) => ({ verb: "Reading task", file: t.input?.taskId ? `#${t.input.taskId}` : "" }),
+  headerBadge: (t) => taskStatusBadge(parseTaskGet(t.result?.text)?.status),
+  Detail: TaskGetDetail,
+});
+
+register("TaskList", {
+  label: (t) => {
+    const n = parseTaskListRows(t.result?.text).length;
+    return { verb: "Listed", file: n > 0 ? `tasks (${n})` : "tasks" };
+  },
+  runningLabel: () => ({ verb: "Listing", file: "tasks" }),
+  Detail: TaskListDetail,
+});
 
 // Worker-management MCP tools — folded into this registry so every tool
 // dispatches through getToolView. Verbs come from WORKER_TOOL_SPECS (shared with
