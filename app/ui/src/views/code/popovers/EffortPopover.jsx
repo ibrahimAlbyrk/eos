@@ -16,13 +16,13 @@ const INFO = {
   },
 };
 
-export function EffortPopover({ live }) {
+export function EffortPopover({ live, worker }) {
   const ui = useUi();
   if (ui.openPopover !== "effort") return null;
-  return <EffortPanel live={live} ui={ui} />;
+  return <EffortPanel live={live} ui={ui} worker={worker} />;
 }
 
-function EffortPanel({ live, ui }) {
+function EffortPanel({ live, ui, worker }) {
   const paneRef = useRef(null);
   const sliderRef = useRef(null);
   // Dragging is JS-driven (no CSS transition): a rAF loop chases the pointer
@@ -55,7 +55,9 @@ function EffortPanel({ live, ui }) {
     rafRef.current = requestAnimationFrame(tick);
   };
 
-  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
+  // This pane's own worker (not the global selection) — slider position + the
+  // setModel action must target THIS pane's agent.
+  const selected = worker ?? null;
   const currentModel = selected?.model ?? ui.composer.model;
   const currentEffort = selected?.effort ?? ui.composer.effort;
   const levels = effortChoicesFor(currentModel);

@@ -87,7 +87,7 @@ function PrIcon() {
   );
 }
 
-export function GitAgentPopover({ live, cwd }) {
+export function GitAgentPopover({ live, worker, cwd }) {
   const ui = useUi();
   const open = ui.openPopover === "git-agent";
   const [info, setInfo] = useState(EMPTY);
@@ -130,7 +130,9 @@ export function GitAgentPopover({ live, cwd }) {
   };
 
   const current = info.current;
-  const selected = live.workers.find((w) => w.id === ui.selectedId);
+  // This pane's own worker (not the global selection) — the integrate/commit
+  // options attach to THIS pane's worktree agent.
+  const selected = worker ?? null;
   // Worktree workers' eos-* branch: integrate it from the user's checkout —
   // the popover's cwd — with the branch named explicitly (the git agent can't
   // infer it from its own cwd).

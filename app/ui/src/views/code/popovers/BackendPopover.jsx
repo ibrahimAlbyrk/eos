@@ -13,10 +13,12 @@ import { useProviderModels } from "../../../hooks/useProviderModels.js";
 //     model itself is chosen from the SEPARATE model pill — the Claude catalog
 //     (ModelPopover) for a subscription provider, this SpawnModelPopover for an API
 //     profile.
-export function BackendPopover({ live }) {
+export function BackendPopover({ live, worker }) {
   const ui = useUi();
   if (ui.openPopover !== "backend") return null;
-  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
+  // This pane's own worker (not the global selection) — the switch targets +
+  // action must apply to THIS pane's agent, not the selected one.
+  const selected = worker ?? null;
   return selected ? <BackendSwitchMenu live={live} ui={ui} selected={selected} /> : <SpawnBackendMenu ui={ui} />;
 }
 

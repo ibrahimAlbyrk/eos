@@ -5,15 +5,17 @@ import { MODELS } from "../../../lib/models.js";
 const matchesModel = (current, model) =>
   current === model.id || model.aliases.includes(current);
 
-export function ModelPopover({ live }) {
+export function ModelPopover({ live, worker }) {
   const ui = useUi();
   if (ui.openPopover !== "model") return null;
-  return <ModelMenu live={live} ui={ui} />;
+  return <ModelMenu live={live} ui={ui} worker={worker} />;
 }
 
-function ModelMenu({ live, ui }) {
+function ModelMenu({ live, ui, worker }) {
   const paneRef = useRef(null);
-  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
+  // This pane's own worker (not the global selection) — the checkmark + the
+  // setModel action must target THIS pane's agent, not the selected one.
+  const selected = worker ?? null;
   const currentModel = selected?.model ?? ui.composer.model;
   const [active, setActive] = useState(() =>
     Math.max(0, MODELS.findIndex((m) => matchesModel(currentModel, m))));

@@ -1,10 +1,12 @@
 import { useUi } from "../../../state/ui.jsx";
 import { PERMISSION_MODES } from "../../../lib/permissionModes.jsx";
 
-export function AcceptPopover({ live }) {
+export function AcceptPopover({ live, worker }) {
   const ui = useUi();
   if (ui.openPopover !== "accept") return null;
-  const selected = live.workers.find((w) => w.id === ui.selectedId) ?? null;
+  // This pane's own worker (not the global selection) — a non-focused pane's
+  // menu must reflect ITS agent's permission mode, not the selected pane's.
+  const selected = worker ?? null;
   const current = selected?.permission_mode ?? ui.composer.permissionMode;
 
   const pick = async (mode) => {

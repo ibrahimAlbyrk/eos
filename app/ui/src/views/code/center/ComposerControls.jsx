@@ -92,7 +92,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             <ModeIcon className="mode-ic" />
             <span className="mode-label">{modeMeta.label}</span>
           </button>
-          <AcceptPopover live={live} />
+          <AcceptPopover live={live} worker={selected} />
         </div>
         <div className="plus-wrap" style={{ position: "relative" }}>
           <button
@@ -131,6 +131,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
           </button>
           <GitAgentPopover
             live={live}
+            worker={selected}
             cwd={selected ? (selected.cwd ?? selected.worktree_from) : (ui.composer.cwd ?? live.recents[0] ?? null)}
           />
         </div>
@@ -180,7 +181,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             >
               <span>{runningProviderLabel(selected)}</span>
             </button>
-            <BackendPopover live={live} />
+            <BackendPopover live={live} worker={selected} />
           </div>
         )}
         {showSpawnProvider && (
@@ -193,7 +194,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             >
               <span>{spawnProviderLabel}</span>
             </button>
-            <BackendPopover live={live} />
+            <BackendPopover live={live} worker={selected} />
           </div>
         )}
         <div className="model-wrap" style={{ position: "relative" }}>
@@ -208,7 +209,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             <span>{modelInfo.name}</span>
             {modelInfo.ctx && <span className="ctx">({modelInfo.ctx} context)</span>}
           </button>
-          <ModelPopover live={live} />
+          <ModelPopover live={live} worker={selected} />
           <SpawnModelPopover />
         </div>
         {effortChoicesFor(model).length > 0 && (
@@ -220,7 +221,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             >
               {EFFORT_LABELS[effort] ?? "Extra"}
             </button>
-            <EffortPopover live={live} />
+            <EffortPopover live={live} worker={selected} />
           </div>
         )}
         <div className="ctx-ring-wrap">
