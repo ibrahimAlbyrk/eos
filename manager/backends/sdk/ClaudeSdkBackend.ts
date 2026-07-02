@@ -8,6 +8,9 @@
 // means Eos's tool host + event sink, not the model loop. The queryFn seam lets
 // tests drive a scripted SDK stream (FakeSdkQuery) with no real model / no billing.
 
+import { readFileSync, realpathSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { query as realQuery, forkSession as realForkSession } from "@anthropic-ai/claude-agent-sdk";
 import type { Options, McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import type { DroppedServer } from "./SdkMcpTranslator.ts";
@@ -15,6 +18,9 @@ import type {
   AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, BackendDescriptor, WorkerHandle,
 } from "../../../core/src/ports/AgentBackend.ts";
 import { backendCollaborate, backendRole } from "../../../core/src/ports/AgentBackend.ts";
+import type { RewindResult } from "../../../core/src/ports/WorkerClient.ts";
+import { computeRewindTargets, rewindSliceAnchor, type RewindTarget } from "../../../core/src/domain/rewind-targets.ts";
+import { encodeCwd } from "../../../core/src/domain/claude-paths.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { ToolContext } from "../../tools/types.ts";
 import { createSdkEventMapper, type SdkEventMapper } from "./SdkEventMapper.ts";
@@ -26,8 +32,11 @@ import { disallowedBuiltinToolsFor } from "../../../contracts/src/tool-scope.ts"
 const CAPS: AgentCapabilities = {
   interrupt: true,
   keystroke: false,
-  // query() exposes no fork/rewind primitive — the rewind route degrades honestly.
-  rewind: false,
+  // Rewind is decoupled from keystroke (ISP): realized via the SDK's forkSession
+  // (roll the conversation back) + Query.rewindFiles (restore code), NOT a raw
+  // keystroke channel — so keystroke stays false while rewind is true. The rewind
+  // route + UI panel gate on THIS flag (see getRewindTargets/rewind below).
+  rewind: true,
   // query.setModel takes effect mid-session in streaming-input mode (the mode we
   // run) — wired in the session's setModel below. (effort IS applied at start()/
   // resume via the Options.effort field; only LIVE in-session switching is unwired.)
@@ -57,6 +66,10 @@ type SdkMsg = Parameters<ReturnType<typeof createSdkEventMapper>["map"]>[0];
 export interface SdkQueryHandle extends AsyncIterable<unknown> {
   interrupt?(): Promise<void>;
   setModel?(model?: string): Promise<void>;
+  // Restore tracked files to their state at a user message (the code-rewind
+  // primitive). Only effective when file checkpointing is enabled — returns
+  // canRewind:false otherwise. Present on the real Query; scripted in tests.
+  rewindFiles?(userMessageId: string, options?: { dryRun?: boolean }): Promise<{ canRewind: boolean; error?: string; filesChanged?: string[]; insertions?: number; deletions?: number }>;
 }
 export type SdkQueryFn = (params: { prompt: AsyncIterable<unknown>; options: Options }) => SdkQueryHandle;
 
@@ -91,6 +104,11 @@ export interface ClaudeSdkBackendDeps {
   /** Recall (Layer 2) transcript-slice primitive — defaults to the SDK's
    *  forkSession. Overridden in tests. */
   forkSessionFn?: ForkSessionFn;
+  /** Reads a claude-transcript session JSONL for (cwd, sessionId) — the rewind
+   *  panel's source. Defaults to the on-disk read under ~/.claude/projects;
+   *  overridden in tests so getRewindTargets/rewind assert against scripted JSONL
+   *  without touching disk (mirrors forkSessionFn). null = no transcript yet. */
+  readTranscriptFn?: (cwd: string, sessionId: string) => string | null;
   log?: { warn(msg: string, meta?: Record<string, unknown>): void };
 }
 
@@ -142,6 +160,17 @@ interface Live {
 export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend {
   const queryFn: SdkQueryFn = deps.queryFn ?? ((p) => realQuery(p as never) as unknown as SdkQueryHandle);
   const forkSessionFn: ForkSessionFn = deps.forkSessionFn ?? ((sid, opts) => realForkSession(sid, opts));
+  // The claude-transcript store lives at ~/.claude/projects/<encodeCwd(realpath
+  // cwd)>/<sessionId>.jsonl — the same scheme the CLI-lane tail derives (spawner/
+  // tail.ts). encodeCwd needs a realpath'd cwd; fall back to the raw cwd if it
+  // can't be resolved. Missing file → null (no transcript yet).
+  const readTranscriptFn: (cwd: string, sessionId: string) => string | null =
+    deps.readTranscriptFn ?? ((cwd, sessionId) => {
+      let dir = cwd;
+      try { dir = realpathSync(cwd); } catch { /* keep the raw cwd */ }
+      const path = join(homedir(), ".claude", "projects", encodeCwd(dir), `${sessionId}.jsonl`);
+      try { return readFileSync(path, "utf8"); } catch { return null; }
+    });
   const live = new Map<string, Live>();
 
   const session = (workerId: string): AgentSession => ({
@@ -210,6 +239,73 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       if (oldQ?.interrupt) { try { await oldQ.interrupt(); } catch { /* best-effort */ } }
       return { ok: true };
     },
+    // Rewind (the double-Esc panel / per-message undo): list the active-branch user
+    // prompts from the live session's transcript so the UI can offer them.
+    async getRewindTargets(): Promise<{ targets: RewindTarget[] }> {
+      const s = live.get(workerId);
+      const sessionId = s?.mapper?.sessionId ?? null;
+      if (!s || !sessionId || !s.cwd) return { targets: [] };
+      const jsonl = readTranscriptFn(s.cwd, sessionId);
+      return { targets: jsonl ? computeRewindTargets(jsonl) : [] };
+    },
+    // Roll the SDK conversation back to a prior user prompt (and optionally its
+    // code). Sibling of recallLastUserTurn — same fork + relaunch + teardown
+    // discipline — generalized from "the last, unanswered turn" to any selected
+    // prompt on the active branch.
+    async rewind(uuid: string, mode: string): Promise<RewindResult> {
+      const s = live.get(workerId);
+      if (!s || !s.alive) return { ok: false, error: "session gone" };
+      const sessionId = s.mapper?.sessionId ?? null;
+      if (!sessionId) return { ok: false, error: "no session id captured yet" };
+      const jsonl = s.cwd ? readTranscriptFn(s.cwd, sessionId) : null;
+      if (!jsonl) return { ok: false, error: "no session transcript yet" };
+      const targets = computeRewindTargets(jsonl);
+      const index = targets.findIndex((t) => t.uuid === uuid);
+      if (index < 0) return { ok: false, error: "message not found on the active branch" };
+      const target = targets[index];
+
+      // code/both: restore tracked files to their state at the selected message,
+      // on the CURRENT live query (its checkpoints are keyed by the original
+      // uuids — a fork below would remap them), so this runs FIRST. rewindFiles
+      // needs file checkpointing; without it canRewind is false — code-only fails
+      // honestly, both silently degrades to conversation-only (parity with the CLI
+      // submenu, whose option 1 is conversation-only when no checkpoint exists).
+      if (mode === "code" || mode === "both") {
+        const q = s.q;
+        if (mode === "code" && !q?.rewindFiles) return { ok: false, error: "file rewind unavailable on this session" };
+        if (q?.rewindFiles) {
+          const r = await q.rewindFiles(uuid).catch((e) => ({ canRewind: false, error: e instanceof Error ? e.message : String(e) }));
+          if (mode === "code" && !r.canRewind) return { ok: false, error: r.error ?? "no code checkpoint exists for this message" };
+        }
+      }
+
+      // conversation/both: fork the transcript sliced to the entry BEFORE the
+      // selected prompt (rewindSliceAnchor = its parent; forkSession's
+      // upToMessageId is inclusive, so slicing to the prompt itself would keep it)
+      // and resume THAT. No predecessor (the first prompt) → relaunch fresh, like
+      // /clear. The web chat prefills the composer with target.text.
+      if (mode === "conversation" || mode === "both") {
+        const anchor = rewindSliceAnchor(jsonl, uuid);
+        const oldInput = s.input;
+        const oldQ = s.q;
+        if (anchor) {
+          let forkedId: string;
+          try {
+            const forked = await forkSessionFn(sessionId, { ...(s.cwd ? { dir: s.cwd } : {}), upToMessageId: anchor });
+            forkedId = forked.sessionId;
+          } catch (e) {
+            return { ok: false, error: e instanceof Error ? e.message : String(e) };
+          }
+          s.relaunchResume?.(forkedId);
+        } else {
+          s.relaunch?.();
+        }
+        oldInput.close();
+        if (oldQ?.interrupt) { try { await oldQ.interrupt(); } catch { /* best-effort */ } }
+      }
+
+      return { ok: true, uuid: target.uuid, text: target.text, display: target.display, index };
+    },
     // Runtime model switch via the SDK Query control method (streaming-input
     // only). effort is ignored HERE — the SDK has no live /effort equivalent; it's
     // persisted by the caller and applied at start()/resume via Options.effort.
@@ -239,24 +335,32 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const auth = await deps.authResolver.resolve(opts.auth);
       const env = buildBillingGuardEnv({ auth, workerId: spec.workerId, daemonUrl: deps.daemonUrl });
       const ctx = deps.makeToolContext(spec);
-      const built = buildSdkToolServers(deps.toolHost, {
-        isOrchestrator: spec.isOrchestrator,
-        collaborate: backendCollaborate(opts),
-        role: backendRole(opts),
-        ctx,
-      });
-      const allowedTools = built.allowedTools;
-      // Default: just the in-process Eos builtins (judge / no resolver). With the
-      // resolver wired (worker/orchestrator lane) the inherited + external servers
-      // are merged in, Eos builtins winning collisions; dropped entries are logged.
-      let mcpServers = built.mcpServers;
-      if (deps.resolveSdkMcpServers) {
+      // MCP servers are built PER LAUNCH, never shared across queries: the Eos
+      // builtins are live McpServer instances (createSdkMcpServer), and the MCP
+      // protocol allows ONE transport per instance — reusing an instance on a
+      // /clear or recall relaunch makes the new query's connect throw "Already
+      // connected", which the SDK swallows silently, so the agent loses every
+      // Eos tool. Fresh instances per spawn() also pick up inherited .mcp.json
+      // edits on a relaunch. allowedTools stays EMPTY (from SdkToolHost): an
+      // allow-listed tool bypasses canUseTool; keeping Eos tools out routes EVERY
+      // call through canUseTool → PolicyGatewayService, like the PTY hook-as-gateway.
+      const buildMcpServers = (): { mcpServers: Record<string, McpServerConfig>; allowedTools: string[] } => {
+        const built = buildSdkToolServers(deps.toolHost, {
+          isOrchestrator: spec.isOrchestrator,
+          collaborate: backendCollaborate(opts),
+          role: backendRole(opts),
+          ctx,
+        });
+        // Default: just the in-process Eos builtins (judge / no resolver). With the
+        // resolver wired (worker/orchestrator lane) the inherited + external servers
+        // are merged in, Eos builtins winning collisions; dropped entries are logged.
+        if (!deps.resolveSdkMcpServers) return built;
         const r = deps.resolveSdkMcpServers(spec, built.mcpServers);
-        mcpServers = r.mcpServers;
         if (r.dropped.length) {
           deps.log?.warn("dropped inherited MCP servers", { workerId: spec.workerId, dropped: r.dropped });
         }
-      }
+        return { mcpServers: r.mcpServers, allowedTools: built.allowedTools };
+      };
 
       // The Eos orchestration protocol + injected project/user memory (CLAUDE.md,
       // …) ride in the appended system prompt. The container assembles both into
@@ -267,7 +371,8 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
 
       // Options shared by the initial launch AND any /clear restart. `resume` is
       // added per-launch — the initial honors backendOptions.resume; a clear
-      // restart never resumes (fresh session, empty context).
+      // restart never resumes (fresh session, empty context). mcpServers +
+      // allowedTools are ALSO per-launch (fresh instances via buildMcpServers).
       const baseOptions = {
         model: spec.model,
         // Run the SDK session in the worker's resolved directory (plain cwd, or
@@ -275,11 +380,6 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         // daemon's process.cwd() and the agent reads/edits the wrong tree.
         ...(spec.cwd ? { cwd: spec.cwd } : {}),
         env,
-        mcpServers,
-        // allowedTools stays EMPTY (from SdkToolHost): an allow-listed tool bypasses
-        // canUseTool. Keeping Eos tools out routes EVERY call (built-ins + mcp__*)
-        // through canUseTool → PolicyGatewayService, like the PTY hook-as-gateway.
-        allowedTools,
         // Hard-remove AskUserQuestion regardless of permission mode (it has no answer
         // surface in Eos; redirect to mcp__orchestrator__ask_user) — platform-wide deny.
         // Orchestrators additionally lose Task (they dispatch via spawn_worker, not
@@ -324,7 +424,8 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const spawn = (resume?: string, initialPrompt?: string): void => {
         const input = createPushStream();
         rec.input = input;
-        const options = { ...baseOptions, ...(resume ? { resume } : {}) } as Options;
+        const { mcpServers, allowedTools } = buildMcpServers();
+        const options = { ...baseOptions, mcpServers, allowedTools, ...(resume ? { resume } : {}) } as Options;
         const mapper = createSdkEventMapper();
         rec.mapper = mapper;
         const q = queryFn({ prompt: input.iterable, options });

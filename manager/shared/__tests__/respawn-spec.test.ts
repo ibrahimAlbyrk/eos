@@ -46,6 +46,13 @@ describe("buildRespawnSpec", () => {
     assert.equal(spec.withGateway, false);
   });
 
+  // collaborate is a spawn fact both lanes read from spec.collaborate — dropping
+  // it on resume silently strips a collaborate worker's peer tools.
+  it("carries the persisted collaborate flag (peer tools survive resume)", () => {
+    assert.equal(buildRespawnSpec(row({ collaborate: 1 }), deps).collaborate, true);
+    assert.equal(buildRespawnSpec(row({ collaborate: null }), deps).collaborate, false);
+  });
+
   it("reattaches by worktree_dir over cwd, never sets worktreeFrom", () => {
     const spec = buildRespawnSpec(row({ worktree_from: "/repo", branch: "eos-x", worktree_dir: "/repo/.eos/worktrees/eos-x" }), deps);
     assert.equal(spec.cwd, "/repo/.eos/worktrees/eos-x");

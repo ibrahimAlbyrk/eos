@@ -8,32 +8,13 @@
 import type { Container } from "../container.ts";
 import type { ResolvedBackend } from "../../core/src/ports/BackendDefaults.ts";
 import type { BackendKind } from "../../contracts/src/canonical.ts";
-import type { AgentBackend, ModelCatalogRef } from "../../core/src/ports/AgentBackend.ts";
+import type { AgentBackend } from "../../core/src/ports/AgentBackend.ts";
 import type { ResolveBackendInput } from "../../core/src/services/SqlBackedBackendResolver.ts";
 import { meteredNeedsBilledIntent } from "../../core/src/domain/backend-billing.ts";
-
-// A Claude-family model identifier: the tier aliases (opus/sonnet/haiku/fable)
-// optionally followed by a version suffix (e.g. "sonnet-5", "opus-4.8"), a
-// concrete "claude-*" id, or an "anthropic/…" provider-routed id. The tier
-// name must be followed by a non-alpha char or end-of-string so "haikumaster"
-// etc. don't accidentally match. Anything else (deepseek-*, gpt-*, …) is false.
-function isClaudeModelId(model: string): boolean {
-  const m = model.toLowerCase();
-  return /^(opus|sonnet|haiku|fable)([^a-z]|$)/.test(m)
-    || m.startsWith("claude-") || m.startsWith("anthropic/");
-}
-
-// Defense-in-depth for the profile model OVERRIDE: a model may override a profile's
-// pinned model ONLY when it plausibly belongs to that provider's family. The family
-// is read from the descriptor's model catalog (models.kind) — a CAPABILITY, never a
-// kind literal — so a Claude alias lands only on a claude-catalog lane (claude-cli/
-// -sdk/anthropic-api) and a non-Claude id only on an openai-compatible/static lane.
-// Unknown family (descriptor missing) fails open. This is what stops a parent's
-// inherited "sonnet" from poisoning a deepseek profile and 400-ing the provider.
-export function modelMatchesFamily(model: string, family: ModelCatalogRef["kind"] | undefined): boolean {
-  if (!family) return true;
-  return isClaudeModelId(model) === (family === "claude");
-}
+// The provider-family predicate lives in core domain (shared with the runtime
+// model-switch guard); re-exported so existing callers keep their import site.
+import { modelMatchesFamily } from "../../core/src/domain/model-provider.ts";
+export { modelMatchesFamily };
 
 export async function resolveSpawnBackend(c: Container, input: ResolveBackendInput): Promise<ResolvedBackend> {
   // Explicit provider pick from the UI: resolve straight from the descriptor —

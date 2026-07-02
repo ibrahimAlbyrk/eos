@@ -38,6 +38,9 @@ export function buildRespawnSpec(row: WorkerRow, deps: RespawnSpecDeps): SpawnWo
     effort: row.effort ?? undefined,
     isOrchestrator,
     role: row.agent_role ?? undefined,
+    // Peer-mesh opt-in is a spawn fact both lanes read from spec.collaborate;
+    // dropping it on resume silently strips a collaborate worker's peer tools.
+    collaborate: !!row.collaborate,
     persistent: isOrchestrator || isGitAgent || !!parentId || !!def?.persistent,
     // with_gateway predates migration 026 on old rows — fall back to the
     // orchestrator-dispatched heuristic (spawn_worker defaults gateway on).

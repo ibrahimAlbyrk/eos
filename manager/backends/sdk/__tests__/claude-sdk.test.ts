@@ -4,6 +4,7 @@ import type { AgentEvent } from "../../../../contracts/src/canonical.ts";
 import { createSdkEventMapper } from "../SdkEventMapper.ts";
 import { createClaudeSdkBackend, type SdkQueryFn } from "../ClaudeSdkBackend.ts";
 import type { AgentLaunchSpec } from "../../../../core/src/ports/AgentBackend.ts";
+import type { RewindTarget } from "../../../../core/src/domain/rewind-targets.ts";
 import type { ToolContext } from "../../../tools/types.ts";
 
 // A scripted SDK message stream for one turn: init -> message_start -> thinking
@@ -193,6 +194,51 @@ describe("SdkEventMapper — SDK stream -> canonical sequence", () => {
     const resultMsgs = out.filter((e) => e.type === "message" && e.role === "tool");
     assert.equal(resultMsgs.length, 1);
     assert.equal((resultMsgs[0] as { blocks: { callId?: string }[] }).blocks[0].callId, "t1");
+  });
+
+  // Edit/Write's absolute-line-number patch rides the SDKUserMessage's
+  // tool_use_result sidecar. When it carries a valid structuredPatch, the mapper
+  // attaches it to the top-level tool_result block (same optional field both
+  // lanes populate). The runtime shape is unverified, so garbage degrades to
+  // no patch — never a throw.
+  it("attaches patch from a tool_use_result sidecar carrying structuredPatch", () => {
+    const mapper = createSdkEventMapper();
+    const script: unknown[] = [
+      { type: "system", subtype: "init", session_id: "s" },
+      { type: "assistant", uuid: "a0", message: { id: "msg_A", content: [{ type: "tool_use", id: "e1", name: "Edit", input: { file_path: "/x" } }] } },
+      {
+        type: "user", uuid: "u0",
+        message: { content: [{ type: "tool_result", tool_use_id: "e1", content: "ok", is_error: false }] },
+        tool_use_result: { structuredPatch: [{ oldStart: 42, oldLines: 1, newStart: 42, newLines: 1, lines: ["-old", "+new"] }] },
+      },
+      { type: "result", subtype: "success", usage: {}, model: "m" },
+    ];
+    const out: AgentEvent[] = [];
+    for (const m of script) out.push(...mapper.map(m as never));
+    const resultMsg = out.find((e) => e.type === "message" && e.role === "tool") as
+      | { blocks: { patch?: { oldStart: number; newStart: number; lines: string[] }[] }[] } | undefined;
+    assert.deepEqual(resultMsg?.blocks[0].patch, [{ oldStart: 42, newStart: 42, lines: ["-old", "+new"] }]);
+  });
+
+  it("degrades to no patch on a garbage / absent tool_use_result sidecar", () => {
+    const run = (sidecar: unknown): AgentEvent[] => {
+      const mapper = createSdkEventMapper();
+      const script: unknown[] = [
+        { type: "system", subtype: "init", session_id: "s" },
+        { type: "assistant", uuid: "a0", message: { id: "msg_A", content: [{ type: "tool_use", id: "t1", name: "Read", input: {} }] } },
+        { type: "user", uuid: "u0", message: { content: [{ type: "tool_result", tool_use_id: "t1", content: "data" }] }, ...(sidecar !== undefined ? { tool_use_result: sidecar } : {}) },
+        { type: "result", subtype: "success", usage: {}, model: "m" },
+      ];
+      const out: AgentEvent[] = [];
+      for (const m of script) out.push(...mapper.map(m as never));
+      return out;
+    };
+    for (const sidecar of [undefined, {}, { structuredPatch: "nope" }, { structuredPatch: [{ foo: 1 }] }, "weird"]) {
+      const out = run(sidecar);
+      const resultMsg = out.find((e) => e.type === "message" && e.role === "tool") as { blocks: Record<string, unknown>[] } | undefined;
+      assert.ok(resultMsg, "tool_result block still emitted");
+      assert.equal(Object.prototype.hasOwnProperty.call(resultMsg!.blocks[0], "patch"), false, "no patch attached for garbage sidecar");
+    }
   });
 
   // A result subtype of error_* is a failed turn — surfaced as turn:error (with the
@@ -521,6 +567,15 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.equal(forkCalls[0].options.dir, "/repo"); // scoped to the worker's project dir
     assert.equal(launched.length, 2, "a second query is launched (the recall relaunch)");
     assert.equal(launched[1].resume, "sess-forked", "relaunch resumes the sliced (forked) session");
+    // Regression: the relaunch must build FRESH MCP server instances. An McpServer
+    // allows one transport per instance — reusing the first query's makes the new
+    // connect throw "Already connected" (silently swallowed by the SDK), and the
+    // agent loses every Eos tool exactly when an interrupt recalled its message.
+    assert.notEqual(
+      (launched[0].mcpServers as Record<string, unknown>).worker,
+      (launched[1].mcpServers as Record<string, unknown>).worker,
+      "recall relaunch reuses the first query's MCP server instance",
+    );
   });
 
   // No prior assistant message (the recalled message was the first turn) → nothing
@@ -557,6 +612,103 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.equal(forked, false, "no fork without an anchor");
     assert.equal(launched.length, 2);
     assert.equal(launched[1].resume, undefined, "fresh relaunch — no resume");
+  });
+
+  // Rewind (the double-Esc panel / per-message undo). A scripted active-branch
+  // transcript: u1 -> a1 -> u2 -> a2. getRewindTargets lists u1,u2; rewind rolls
+  // the conversation back to BEFORE a selected prompt. readTranscriptFn is a seam
+  // so these assert the fork slice without touching ~/.claude on disk.
+  const REWIND_TRANSCRIPT = [
+    { type: "user", uuid: "u1", parentUuid: null, isSidechain: false, timestamp: "2026-01-01T00:00:01Z", message: { role: "user", content: "first prompt" } },
+    { type: "assistant", uuid: "a1", parentUuid: "u1", isSidechain: false, message: { role: "assistant", content: [{ type: "text", text: "r1" }] } },
+    { type: "user", uuid: "u2", parentUuid: "a1", isSidechain: false, timestamp: "2026-01-01T00:00:02Z", message: { role: "user", content: "second prompt" } },
+    { type: "assistant", uuid: "a2", parentUuid: "u2", isSidechain: false, message: { role: "assistant", content: [{ type: "text", text: "r2" }] } },
+  ].map((e) => JSON.stringify(e)).join("\n");
+
+  // A session that captures its sessionId (system init) then blocks so it stays
+  // alive for the rewind call. Returns { session, queryFn's launched, forkCalls,
+  // ready }. Mirrors the recall tests' controllable-iterator pattern.
+  function startRewindSession(over: {
+    readTranscriptFn?: (cwd: string, sessionId: string) => string | null;
+    forkSessionFn?: (sessionId: string, options: { dir?: string; upToMessageId?: string }) => Promise<{ sessionId: string }>;
+  } = {}) {
+    const items: unknown[] = [{ type: "system", subtype: "init", session_id: "sess-1" }];
+    let i = 0;
+    const ready = { hit: false };
+    const q1 = {
+      interrupt: async () => {},
+      [Symbol.asyncIterator]() {
+        return { next: () => (i < items.length ? Promise.resolve({ done: false, value: items[i++] }) : (ready.hit = true, new Promise<IteratorResult<unknown>>(() => {}))) };
+      },
+    };
+    const q2 = (async function* () { /* resumed / fresh session — idle */ })();
+    const queries: unknown[] = [q1, q2];
+    let qi = 0;
+    const launched: Array<Record<string, unknown>> = [];
+    const queryFn: SdkQueryFn = (params) => { launched.push(params.options as unknown as Record<string, unknown>); return queries[qi++] as never; };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+      readTranscriptFn: over.readTranscriptFn ?? (() => REWIND_TRANSCRIPT),
+      ...(over.forkSessionFn ? { forkSessionFn: over.forkSessionFn } : {}),
+    });
+    return { be, launched, ready };
+  }
+
+  it("getRewindTargets lists the active-branch user prompts from the transcript store", async () => {
+    const seen: Array<{ cwd: string; sessionId: string }> = [];
+    const { be, ready } = startRewindSession({ readTranscriptFn: (cwd, sessionId) => { seen.push({ cwd, sessionId }); return REWIND_TRANSCRIPT; } });
+    const session = await be.start(spec({ cwd: "/repo" }), {});
+    assert.equal(session.capabilities.rewind, true); // route + panel gate on this
+    while (!ready.hit) await new Promise((r) => setTimeout(r, 1)); // sessionId captured
+    const { targets } = await session.getRewindTargets!();
+    assert.deepEqual(seen, [{ cwd: "/repo", sessionId: "sess-1" }]); // resolved from cwd + captured sessionId
+    assert.deepEqual(targets.map((t) => (t as RewindTarget).uuid), ["u1", "u2"]);
+    assert.deepEqual(targets.map((t) => (t as RewindTarget).upCount), [2, 1]);
+    assert.deepEqual(targets.map((t) => (t as RewindTarget).display), ["first prompt", "second prompt"]);
+    session.stop();
+  });
+
+  // PARITY PIN: the CLI "Restore conversation" restores to the point BEFORE the
+  // selected user prompt (the submenu literally says "before you sent this
+  // message"), and forkSession's upToMessageId is INCLUSIVE. So the SDK must slice
+  // to the entry immediately before u2 — its parent a1 — NOT u2 itself (which
+  // would keep the prompt in the forked session, i.e. restore-to-AFTER). This test
+  // fails if the slice point ever regresses to the target uuid.
+  it("rewind slices BEFORE the selected prompt (upToMessageId = its parent, not the prompt) and resumes the fork", async () => {
+    const forkCalls: Array<{ sessionId: string; options: { dir?: string; upToMessageId?: string } }> = [];
+    const { be, launched, ready } = startRewindSession({
+      forkSessionFn: async (sessionId, options) => { forkCalls.push({ sessionId, options }); return { sessionId: "sess-forked" }; },
+    });
+    const session = await be.start(spec({ cwd: "/repo" }), {});
+    while (!ready.hit) await new Promise((r) => setTimeout(r, 1));
+    const r = await session.rewind!("u2", "conversation");
+    assert.equal(forkCalls.length, 1);
+    assert.equal(forkCalls[0].sessionId, "sess-1");
+    assert.equal(forkCalls[0].options.upToMessageId, "a1", "slice to the parent of u2 (before it), never u2 itself");
+    assert.equal(forkCalls[0].options.dir, "/repo"); // scoped to the worker's project dir
+    assert.equal(launched.length, 2, "the conversation relaunch resumes the sliced session");
+    assert.equal(launched[1].resume, "sess-forked");
+    assert.deepEqual(r, { ok: true, uuid: "u2", text: "second prompt", display: "second prompt", index: 1 });
+  });
+
+  // Edge of the same parity rule: rewinding to the FIRST prompt has no predecessor
+  // to slice to (parent is null) → relaunch fresh, no fork (like /clear + recall's
+  // no-anchor branch).
+  it("rewind to the first prompt relaunches fresh — nothing precedes it, so no fork", async () => {
+    let forked = false;
+    const { be, launched, ready } = startRewindSession({ forkSessionFn: async () => { forked = true; return { sessionId: "x" }; } });
+    const session = await be.start(spec({ cwd: "/repo" }), {});
+    while (!ready.hit) await new Promise((r) => setTimeout(r, 1));
+    const r = await session.rewind!("u1", "conversation");
+    assert.equal(forked, false, "no fork without a predecessor");
+    assert.equal(launched.length, 2);
+    assert.equal(launched[1].resume, undefined, "fresh relaunch — no resume");
+    assert.deepEqual(r, { ok: true, uuid: "u1", text: "first prompt", display: "first prompt", index: 0 });
   });
 
   // Runtime model switch routes through the live SDK query's setModel control
@@ -717,6 +869,12 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
 
     assert.equal(optionsSeen.length, 2, "a second query was launched");
     assert.equal(optionsSeen[1].resume, undefined, "the restart never resumes — fresh session");
+    // Same reconnect-safety contract as the recall relaunch: fresh MCP instances.
+    assert.notEqual(
+      (optionsSeen[0].mcpServers as Record<string, unknown>).worker,
+      (optionsSeen[1].mcpServers as Record<string, unknown>).worker,
+      "clear restart reuses the first query's MCP server instance",
+    );
     assert.equal(controllers[0].interrupted, true, "old query interrupted during the swap");
     assert.equal(exitCode, -1, "the superseded old stream reports NO exit");
     assert.equal(session.isAlive(), true, "session stays alive across the restart");

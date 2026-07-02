@@ -6,7 +6,7 @@
 // validated Python probes (content_block_delta -> thinking_delta/text_delta).
 
 import type { AgentEvent, ContentBlock, CanonicalUsage } from "../../../contracts/src/canonical.ts";
-import { contextTokensOf } from "../../../contracts/src/canonical.ts";
+import { contextTokensOf, parseStructuredPatch } from "../../../contracts/src/canonical.ts";
 
 // --- the SDK message subset we read (structural) ---------------------------
 interface RawDelta { type: string; text?: string; thinking?: string }
@@ -31,6 +31,11 @@ interface SdkMsg {
   // tool_use id. Drives subagent attribution: inner tools surface as parented
   // activity grouped under the agentRun, not as top-level main-stream blocks.
   parent_tool_use_id?: string | null;
+  // SDKUserMessage sidecar riding alongside a tool_result — for Edit/Write it
+  // plausibly carries the same { structuredPatch } the CLI transcript does. Read
+  // structurally (unknown) and narrowed defensively via parseStructuredPatch: the
+  // runtime shape is unverified, so a missing/garbage sidecar just yields no patch.
+  tool_use_result?: unknown;
 }
 
 // Cache-creation tokens split by TTL tier (the price table charges 1h higher
@@ -226,6 +231,12 @@ export function createSdkEventMapper(): SdkEventMapper {
           const content = Array.isArray(msg.message?.content) ? (msg.message!.content as RawBlock[]) : [];
           const results = content.filter((b) => b.type === "tool_result");
           if (!results.length) return out;
+          // Edit/Write's absolute-line-number patch rides the message-level
+          // tool_use_result sidecar (not the result block). Parse defensively —
+          // undefined for non-Edit tools or an unexpected sidecar shape.
+          const patch = parseStructuredPatch(
+            (msg.tool_use_result as { structuredPatch?: unknown } | undefined)?.structuredPatch,
+          );
           for (const r of results) {
             // Subagent inner tool result → parented activity carrying the result, so
             // the agentRun shows it under the agent (it has no durable main-stream
@@ -236,7 +247,7 @@ export function createSdkEventMapper(): SdkEventMapper {
             if (msg.parent_tool_use_id) {
               out.push({ type: "activity", kind: "tool_finished", callId: r.tool_use_id ?? null, result: blockText(r.content), isError: !!r.is_error, parentCallId: msg.parent_tool_use_id });
             } else {
-              out.push({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: r.tool_use_id ?? "", isError: !!r.is_error, content: blockText(r.content) }] });
+              out.push({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: r.tool_use_id ?? "", isError: !!r.is_error, content: blockText(r.content), ...(patch ? { patch } : {}) }] });
             }
           }
           return out;
