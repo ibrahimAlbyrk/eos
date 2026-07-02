@@ -153,6 +153,9 @@ export const MessageRecordSchema = z.union([
   // A dynamic-loop automated re-trigger delivered into the looped worker's chat;
   // the chat renders it as a "Dynamic loop" system message (not a user bubble).
   z.object({ as: z.literal("loop_continuation"), displayText: z.string().optional(), sentAt: z.number().optional() }),
+  // A daemon-injected nudge to a worker that went IDLE having never reported this
+  // life; rendered as a <system_message kind="report_reminder"> (not a user bubble).
+  z.object({ as: z.literal("report_reminder"), displayText: z.string().optional(), sentAt: z.number().optional() }),
 ]);
 export type MessageRecord = z.infer<typeof MessageRecordSchema>;
 
@@ -451,8 +454,8 @@ export type UiConfigResponse = z.infer<typeof UiConfigResponseSchema>;
 export const AddBackendRequestSchema = z
   .object({
     name: z.string().min(1), // the config.backends key
-    // A built-in provider preset id (openai/gemini/xai/qwen/moonshot/zhipu). When
-    // set, the server fills kind/baseUrl/capabilities/default-model/auth-ref from the
+    // A built-in provider preset id (openai/gemini/xai/qwen/moonshot/zhipu/deepseek).
+    // When set, the server fills kind/baseUrl/capabilities/default-model/auth-ref from the
     // preset, so the body need only carry { name, preset, apiKey }. Explicit fields
     // below still override the preset.
     preset: z.string().optional(),
@@ -1906,7 +1909,7 @@ export const ROUTES = {
   // for a billed profile, writes the API key (by reference) to the Keychain, then
   // persists the profile to ~/.eos/config.json + reloads.
   apiBackends: "/api/backends",
-  // Built-in add-provider presets (the six OpenAI-compatible providers): add one
+  // Built-in add-provider presets (the seven OpenAI-compatible providers): add one
   // with just { name, preset:id, apiKey } via apiBackends.
   apiBackendPresets: "/api/backends/presets",
   // A configured provider's available models for the two-level composer picker.

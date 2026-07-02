@@ -61,6 +61,9 @@ export const WorkerEventTypeSchema = z.enum([
   // A dynamic-loop automated re-trigger delivered into the looped worker's chat —
   // rendered as a "Dynamic loop" system message, not a user bubble.
   "loop_continuation",
+  // A daemon-injected nudge to a worker that went IDLE having never reported this
+  // life — rendered as a "report_reminder" system message, not a user bubble.
+  "report_reminder",
   // One per-attempt goal-check verdict — the durable scrollback record of a loop
   // tick's outcome (met/outcome/reason). Payload: LoopCheckEventSchema (loop.ts).
   // Distinct from the transient "loop:check" bus topic, which is never persisted.

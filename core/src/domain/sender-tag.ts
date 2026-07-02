@@ -27,6 +27,7 @@ export function senderClassOf(env: DispatchEnvelope | undefined): SenderClass {
       // Absent provenance = "agent" — a real worker report predates the field.
       return env.provenance === "system" ? "system" : "agent";
     case "loop":
+    case "report_reminder":
       return "system";
     default:
       return "operator";
@@ -95,5 +96,7 @@ export function senderTagForEnvelope(
         : { cls, attrs: { from: env.workerName ?? env.fromWorker, "worker-id": env.fromWorker, branch: env.branch, worktree: env.worktreeDir } };
     case "loop":
       return { cls, attrs: { kind: "dynamic_loop", attempt: env.attempt != null ? String(env.attempt) : undefined } };
+    case "report_reminder":
+      return { cls, attrs: { kind: "report_reminder" } };
   }
 }

@@ -36,4 +36,8 @@ export type DispatchEnvelope =
   // A dynamic-loop automated re-trigger delivered to the looped worker. Rendered
   // as a <system_message kind="dynamic_loop"> so the worker (and the human
   // watching) can tell it apart from an operator turn; attempt rides as an attr.
-  | { kind: "loop"; attempt?: number };
+  | { kind: "loop"; attempt?: number }
+  // A daemon-injected safety-net nudge to a worker that went IDLE having never
+  // reported this life. Rendered as a <system_message kind="report_reminder">;
+  // no payload — the body is the rendered reminder template.
+  | { kind: "report_reminder" };

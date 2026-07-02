@@ -53,6 +53,8 @@ function buildMessageRecord(
       return { as: "peer_request", fromWorker: env.fromWorker, ...(env.fromName ? { fromName: env.fromName } : {}), ...display, sentAt };
     case "loop":
       return { as: "loop_continuation", ...display, sentAt };
+    case "report_reminder":
+      return { as: "report_reminder", ...display, sentAt };
     default:
       return { as: "user_message", ...display, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}), sentAt };
   }
@@ -82,6 +84,9 @@ function appendChatEvent(
       return;
     case "loop":
       events.append(workerId, ts, "loop_continuation", { text });
+      return;
+    case "report_reminder":
+      events.append(workerId, ts, "report_reminder", { text });
       return;
     default:
       events.append(workerId, ts, "user_message", { text, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}) });
