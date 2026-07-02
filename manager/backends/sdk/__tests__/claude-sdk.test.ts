@@ -509,6 +509,38 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.ok(events.some((e) => e.type === "turn" && e.phase === "aborted"));
   });
 
+  // Deleting/stopping an SDK agent must end its IN-FLIGHT turn, not just close
+  // future input — a ghost turn keeps calling tools (and spawning workers) until
+  // it ends on its own. stop() aborts the launch's AbortController (handed to
+  // query() via Options.abortController) and best-effort interrupts the query.
+  it("stop() aborts the in-flight query via the launch's AbortController + best-effort interrupt", async () => {
+    let interrupted = false;
+    let capturedOptions: Record<string, unknown> | null = null;
+    const q = {
+      interrupt: async () => { interrupted = true; },
+      // an in-flight turn: the stream never yields (a long-running tool call)
+      [Symbol.asyncIterator]() { return { next: () => new Promise<IteratorResult<unknown>>(() => {}) }; },
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn: (params) => { capturedOptions = params.options as unknown as Record<string, unknown>; return q as never; },
+    });
+    let exitCode: number | null = -1;
+    const session = await be.start(spec(), { onExit: (c) => { exitCode = c; } });
+    const controller = capturedOptions!.abortController as AbortController;
+    assert.ok(controller instanceof AbortController, "each launch hands query() its own AbortController");
+    assert.equal(controller.signal.aborted, false);
+    session.stop();
+    assert.equal(controller.signal.aborted, true, "stop() aborts the in-flight turn");
+    assert.equal(interrupted, true, "stop() also best-effort interrupts the live query");
+    assert.equal(exitCode, 143);
+    assert.equal(session.isAlive(), false);
+  });
+
   // Recall (Layer 2): recallLastUserTurn forks the transcript sliced to the last
   // assistant uuid (the anchor) and RELAUNCHES the query resuming that forked
   // session — so the recalled, unanswered user message is in neither the agent's
@@ -875,6 +907,8 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
       (optionsSeen[1].mcpServers as Record<string, unknown>).worker,
       "clear restart reuses the first query's MCP server instance",
     );
+    assert.notEqual(optionsSeen[0].abortController, optionsSeen[1].abortController,
+      "relaunch gets a FRESH AbortController — an aborted one must never be reused");
     assert.equal(controllers[0].interrupted, true, "old query interrupted during the swap");
     assert.equal(exitCode, -1, "the superseded old stream reports NO exit");
     assert.equal(session.isAlive(), true, "session stays alive across the restart");

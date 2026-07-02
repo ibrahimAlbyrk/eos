@@ -138,6 +138,10 @@ function createPushStream(): PushStream {
 interface Live {
   q: SdkQueryHandle | null;
   input: PushStream;
+  // The CURRENT launch's abort controller (fresh per spawn/relaunch — an aborted
+  // controller must never be reused). stop() aborts it so the in-flight turn
+  // actually ends instead of running on as a ghost after the row is deleted.
+  abort: AbortController;
   alive: boolean;
   // Set by interrupt() before q.interrupt(); guards the stream-completion branch
   // so an interrupt that ends the query iterator is reported as an interrupt
@@ -320,6 +324,12 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const s = live.get(workerId);
       if (!s || !s.alive) return;
       s.alive = false;
+      // End the IN-FLIGHT turn, not just future input: interrupt is the graceful
+      // path, abort the hard one (the SDK closes stdin, then kills the subprocess
+      // after its ~2s grace window). Without these a stopped/deleted agent keeps
+      // acting — and calling tools — until its current turn finishes on its own.
+      if (s.q?.interrupt) { try { s.q.interrupt().catch(() => {}); } catch { /* best-effort */ } }
+      s.abort.abort();
       s.input.close();
       live.delete(workerId);
       s.onExit?.(143);
@@ -412,7 +422,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
               : spec.permissionMode ? { permissionMode: spec.permissionMode as Options["permissionMode"] } : {}),
       } as Options;
 
-      const rec: Live = { q: null, input: createPushStream(), alive: true, interrupting: false, onExit: cb?.onExit, ...(spec.cwd ? { cwd: spec.cwd } : {}) };
+      const rec: Live = { q: null, input: createPushStream(), abort: new AbortController(), alive: true, interrupting: false, onExit: cb?.onExit, ...(spec.cwd ? { cwd: spec.cwd } : {}) };
       live.set(spec.workerId, rec);
       cb?.onSpawn?.({ kind: "inproc", ref: spec.workerId });
       cb?.onEvent?.({ type: "session", phase: "started" });
@@ -424,8 +434,12 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const spawn = (resume?: string, initialPrompt?: string): void => {
         const input = createPushStream();
         rec.input = input;
+        // Fresh controller per launch — /clear and recall relaunches must not
+        // inherit a (possibly aborted) predecessor. stop() aborts the current one.
+        const abort = new AbortController();
+        rec.abort = abort;
         const { mcpServers, allowedTools } = buildMcpServers();
-        const options = { ...baseOptions, mcpServers, allowedTools, ...(resume ? { resume } : {}) } as Options;
+        const options = { ...baseOptions, mcpServers, allowedTools, abortController: abort, ...(resume ? { resume } : {}) } as Options;
         const mapper = createSdkEventMapper();
         rec.mapper = mapper;
         const q = queryFn({ prompt: input.iterable, options });
@@ -452,8 +466,10 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
             }
           } catch (e) {
             if (!isCurrent()) return;
-            deps.log?.warn("claude-sdk query failed", { workerId: spec.workerId, error: e instanceof Error ? e.message : String(e) });
+            // !rec.alive here means stop() already tore the session down — the
+            // abort's own error is expected, not a crash worth logging.
             if (rec.alive) {
+              deps.log?.warn("claude-sdk query failed", { workerId: spec.workerId, error: e instanceof Error ? e.message : String(e) });
               rec.alive = false;
               live.delete(spec.workerId);
               cb?.onEvent?.({ type: "session", phase: "ended", outcome: "crashed" });
