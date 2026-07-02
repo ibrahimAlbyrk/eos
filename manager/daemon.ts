@@ -33,6 +33,7 @@ import { worktreeStateHash } from "./shared/worktree-state-hash.ts";
 import { createMemoCommandRunner } from "../infra/src/goalcheck/MemoCommandRunner.ts";
 import { appendSynthesized } from "./shared/synthesized-events.ts";
 import { GoalLoopService } from "./services/GoalLoopService.ts";
+import { ReportGapService } from "./services/ReportGapService.ts";
 import { reArmLoops, stopLoopForExitedWorker } from "./services/loop-rearm.ts";
 import { reArmWorkflows } from "./services/workflow-rearm.ts";
 
@@ -199,6 +200,21 @@ const goalLoop = new GoalLoopService({
   log: c.log,
 });
 
+// Report-gap safety net. Owns its worker:report (mark reported) + worker:exit
+// (reclaim) subscriptions via start(); the daemon only wires checkOnIdle into
+// the drain "empty" branch below (sibling of goalLoop.loopTickFor). A worker
+// that reaches IDLE having never reported this life gets ONE report reminder.
+const reportGap = new ReportGapService({
+  workers: c.workers,
+  loops: c.loops,
+  isLive: (id) => isWorkerLive(c, id),
+  dispatch: (input) => dispatchMessage(dispatchDeps(c), input),
+  renderer: c.prompts,
+  bus: c.bus,
+  log: c.log,
+});
+reportGap.start();
+
 const draining = new Set<string>();
 const drainFor = (workerId: string): void => {
   if (draining.has(workerId)) return;
@@ -232,7 +248,13 @@ const drainFor = (workerId: string): void => {
     // Queue genuinely empty at IDLE → it's the loop's turn (no-op when the
     // worker has no active loop). "dispatched"/"not-idle"/"failed" never reach
     // here, so a drained message or a busy worker is never preempted.
-    if (outcome === "empty") goalLoop.loopTickFor(workerId);
+    if (outcome === "empty") {
+      goalLoop.loopTickFor(workerId);
+      // Sibling of the loop tick: nudge a worker that went idle having never
+      // reported this life. Self-excludes looped and already-reported workers,
+      // so at most one of these two fires.
+      reportGap.checkOnIdle(workerId);
+    }
   });
 };
 // Peer-request pump — a collaborate worker's queued consultations are delivered
