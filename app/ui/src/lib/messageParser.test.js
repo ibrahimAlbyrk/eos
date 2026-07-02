@@ -281,6 +281,45 @@ describe("buildBlocks foreground agentRun closes on its tool_result (SDK lane)",
   });
 });
 
+// Canonical agent_event rows, as persisted by the in-process / SDK lanes. Exercises
+// the full normalizeEvents → buildBlocks pipeline (not the pre-expanded legacy shapes).
+function agentEvent(ts, event) {
+  return { type: "agent_event", ts, payload: event };
+}
+
+describe("buildBlocks subagent via spawnsSubagent marker (in-process lane)", () => {
+  it("folds a marker-carrying tool_call into an agentRun and attaches activity-carried inner tools", () => {
+    const events = [
+      agentEvent(100, { type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: "task-1", name: "Task", input: { subagent_type: "general-purpose", description: "do a thing", prompt: "go" }, spawnsSubagent: true }] }),
+      agentEvent(101, { type: "activity", kind: "tool_started", callId: "inner-1", toolName: "Bash", input: { command: "ls" }, parentCallId: "task-1" }),
+      agentEvent(102, { type: "activity", kind: "tool_finished", callId: "inner-1", result: "files", isError: false }),
+      agentEvent(103, { type: "message", role: "tool", blocks: [{ type: "tool_result", callId: "task-1", isError: false, content: "sub summary" }] }),
+    ];
+    const blocks = buildBlocks(events);
+    const run = blocks.find((b) => b.kind === "agentRun" && b.toolUseId === "task-1");
+    expect(run).toBeTruthy();
+    expect(run.status).toBe("completed");
+    expect(run.result).toBe("sub summary");
+    expect(run.subagentType).toBe("general-purpose");
+    expect(run.tools.map((t) => t.id)).toEqual(["inner-1"]);
+    expect(run.tools[0].name).toBe("Bash");
+    expect(run.tools[0].done).toBe(true);
+    // Neither the inner tool nor the Task itself leaks into the top-level tool stream.
+    expect(blocks.some((b) => (b.kind === "tool" && (b.tool.id === "inner-1" || b.tool.id === "task-1")))).toBe(false);
+  });
+
+  it("still folds an Agent-by-name tool_call for events persisted before the marker existed", () => {
+    const events = [
+      agentEvent(100, { type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: "ag-1", name: "Agent", input: { description: "legacy" } }] }),
+      agentEvent(101, { type: "activity", kind: "tool_started", callId: "inner-9", toolName: "Read", input: { file_path: "/x" }, parentCallId: "ag-1" }),
+      agentEvent(102, { type: "message", role: "tool", blocks: [{ type: "tool_result", callId: "ag-1", isError: false, content: "done" }] }),
+    ];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun" && b.toolUseId === "ag-1");
+    expect(run).toBeTruthy();
+    expect(run.tools.map((t) => t.id)).toEqual(["inner-9"]);
+  });
+});
+
 describe("buildBlocks standalone tools", () => {
   it("keeps standalone tools out of toolGroups and splits the surrounding group", () => {
     const events = [

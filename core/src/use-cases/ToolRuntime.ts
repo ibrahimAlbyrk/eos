@@ -15,9 +15,20 @@ import type { ProviderCapabilities } from "../../../contracts/src/provider-capab
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import { contextTokensOf } from "../../../contracts/src/canonical.ts";
 
+// Per-invocation context handed to execute(). `callId` is the id stamped on THIS
+// call's tool_call block — a subagent-spawning tool parents its child's inner
+// tools to it (subagent attribution), matching the id the UI's agentRun is keyed by.
+export interface RuntimeToolContext {
+  callId: string;
+}
+
 export interface RuntimeTool {
   name: string;
-  execute(input: Record<string, unknown>): Promise<string>;
+  // Marks a tool whose execution runs a nested agent (the Task subagent). The
+  // runtime stamps `spawnsSubagent` on the tool_call block so the UI folds it into
+  // an agentRun; the child's inner tools ride parented activity, not the parent stream.
+  spawnsSubagent?: boolean;
+  execute(input: Record<string, unknown>, context?: RuntimeToolContext): Promise<string>;
 }
 
 export interface ToolGate {
@@ -171,8 +182,11 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
     messages.push({ role: "assistant", content: turn.toolCalls, ...(turn.providerMetadata ? { providerMetadata: turn.providerMetadata } : {}) });
 
     for (const call of turn.toolCalls) {
-      deps.emit({ type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: call.callId, name: call.name, input: call.input }] });
-      const result = await executeGated(deps, call.name, call.input);
+      // A subagent-spawning tool (Task) tags its block so the UI renders an agentRun;
+      // the flag is read from the tool itself, never from a backend-kind branch.
+      const spawnsSubagent = deps.tools.get(call.name)?.spawnsSubagent === true;
+      deps.emit({ type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: call.callId, name: call.name, input: call.input, ...(spawnsSubagent ? { spawnsSubagent: true } : {}) }] });
+      const result = await executeGated(deps, call.name, call.input, call.callId);
       deps.emit({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: call.callId, isError: result.isError, content: result.text }] });
       // A loaded skill body also surfaces as a canonical skill block (UI parity with
       // the claude-cli lane) — additive; the model already got the body above.
@@ -194,6 +208,7 @@ async function executeGated(
   deps: ToolRuntimeDeps,
   name: string,
   input: Record<string, unknown>,
+  callId: string,
 ): Promise<{ text: string; isError: boolean }> {
   let decision;
   try {
@@ -207,7 +222,7 @@ async function executeGated(
   if (!tool) return { text: `unknown tool: ${name}`, isError: true };
 
   try {
-    return { text: await tool.execute(decision.updatedInput ?? input), isError: false };
+    return { text: await tool.execute(decision.updatedInput ?? input, { callId }), isError: false };
   } catch (e) {
     return { text: e instanceof Error ? e.message : String(e), isError: true };
   }

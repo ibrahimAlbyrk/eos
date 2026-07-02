@@ -47,6 +47,12 @@ export const ToolCallBlockSchema = z.object({
   name: z.string(),
   input: UnknownRecordSchema.default({}),
   parentCallId: z.string().nullable().optional(), // subagent attribution
+  // Set (true, else omitted) when this call runs a nested agent (the Task/Agent
+  // subagent) — the lane-neutral signal that the UI folds this call into an
+  // agentRun and hangs the child's inner tools (delivered as parented activity)
+  // beneath it. Every lane stamps it; older persisted events without it fall back
+  // to name === "Agent".
+  spawnsSubagent: z.literal(true).optional(),
 });
 
 export const ToolResultBlockSchema = z.object({

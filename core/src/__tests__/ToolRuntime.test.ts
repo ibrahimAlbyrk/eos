@@ -92,6 +92,27 @@ describe("ToolRuntime.runTurn", () => {
     assert.equal(last.type === "turn" && last.phase, "error");
   });
 
+  it("stamps spawnsSubagent on a subagent-spawning tool's call block and threads its callId into execute", async () => {
+    const events: AgentEvent[] = [];
+    let seenCtx: { callId: string } | undefined;
+    const tools = new Map<string, RuntimeTool>([
+      ["Task", { name: "Task", spawnsSubagent: true, async execute(_input, ctx) { seenCtx = ctx; return "sub result"; } }],
+    ]);
+    const turn: ModelTurn = { toolCalls: [{ callId: "task-1", name: "Task", input: { subagent_type: "x" } }], stopReason: "tool_use" };
+    await runTurn({ model: fakeModel([turn, endTurn]), tools, gate: allowGate, emit: (e) => events.push(e) }, []);
+    const tc = events.find((e): e is Extract<AgentEvent, { type: "message" }> => e.type === "message" && e.blocks[0].type === "tool_call")!;
+    const block = tc.blocks[0];
+    assert.equal(block.type === "tool_call" && block.spawnsSubagent, true);
+    assert.deepEqual(seenCtx, { callId: "task-1" });
+  });
+
+  it("does NOT stamp spawnsSubagent on an ordinary tool", async () => {
+    const events: AgentEvent[] = [];
+    await runTurn({ model: fakeModel([callTurn, endTurn]), tools: echoTool([]), gate: allowGate, emit: (e) => events.push(e) }, []);
+    const tc = events.find((e): e is Extract<AgentEvent, { type: "message" }> => e.type === "message" && e.blocks[0].type === "tool_call")!;
+    assert.equal(tc.blocks[0].type === "tool_call" && tc.blocks[0].spawnsSubagent, undefined);
+  });
+
   it("a mid-stream abort (stopReason:error, error:'aborted') ends as turn:aborted, not turn:error (m1)", async () => {
     const events: AgentEvent[] = [];
     const model: ModelClient = { async createTurn() { return { toolCalls: [], stopReason: "error", error: "aborted" }; } };

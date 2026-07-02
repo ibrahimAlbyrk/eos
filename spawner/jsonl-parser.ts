@@ -110,8 +110,11 @@ export function parseJsonlLine(
           input: (block.input as Record<string, unknown>) ?? {},
           ...stamp,
         };
-        if (block.name === "Agent" && msg.model) {
-          toolEvt.parentModel = msg.model;
+        if (block.name === "Agent") {
+          // Converge on the canonical subagent marker (carried into the tool_call
+          // block by canonical-map); parentModel rides alongside for the agentRun's label.
+          toolEvt.spawnsSubagent = true;
+          if (msg.model) toolEvt.parentModel = msg.model;
         }
         emit("jsonl", toolEvt);
       } else if (block.type === "thinking") {

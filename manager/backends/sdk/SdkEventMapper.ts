@@ -79,7 +79,9 @@ function durableBlocks(msgId: string, content: RawBlock[], startIdx: number): Co
     else if (b.type === "thinking") {
       if ((b.thinking ?? "").trim()) blocks.push({ type: "reasoning", text: b.thinking ?? "", blockId });
     } else if (b.type === "tool_use") {
-      blocks.push({ type: "tool_call", callId: b.id ?? "", name: b.name ?? "", input: b.input ?? {} });
+      // The SDK names the subagent tool "Agent"; mark it so all lanes converge on the
+      // contract marker (the UI still also honors name === "Agent" for older events).
+      blocks.push({ type: "tool_call", callId: b.id ?? "", name: b.name ?? "", input: b.input ?? {}, ...(b.name === "Agent" ? { spawnsSubagent: true } : {}) });
     }
   });
   return blocks;

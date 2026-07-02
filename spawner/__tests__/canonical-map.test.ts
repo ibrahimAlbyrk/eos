@@ -33,6 +33,11 @@ test("jsonl tool_use without input defaults to {}", () => {
   assert.deepEqual(out[0].blocks[0].input, {});
 });
 
+test("jsonl tool_use carries the spawnsSubagent marker onto the tool_call block (Agent)", () => {
+  const out = mapValid("jsonl", { kind: "tool_use", id: "agent_1", name: "Agent", input: { description: "sub" }, spawnsSubagent: true });
+  assert.deepEqual(out[0].blocks, [{ type: "tool_call", callId: "agent_1", name: "Agent", input: { description: "sub" }, spawnsSubagent: true }]);
+});
+
 test("jsonl tool_result → message{role:tool, tool_result}", () => {
   const out = mapValid("jsonl", { kind: "tool_result", toolUseId: "toolu_1", isError: true, text: "boom" });
   assert.equal(out[0].role, "tool");

@@ -37,6 +37,7 @@ import { createSubscriptionAuthResolver } from "../infra/src/auth/SubscriptionAu
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
 import { createInProcessEnvFactory, type SubagentRuntimeContext } from "./backends/in-process-env.ts";
 import { runTurn, type RuntimeTool } from "../core/src/use-cases/ToolRuntime.ts";
+import { mapSubagentEvent } from "./backends/subagent-events.ts";
 import { createBuiltinToolRegistry } from "../infra/src/tools/builtins/registry.ts";
 import { createNodeToolFileSystem } from "../infra/src/tools/NodeToolFileSystem.ts";
 import { createNodeProcessRunner } from "../infra/src/tools/NodeProcessRunner.ts";
@@ -908,7 +909,8 @@ export function buildContainer() {
   };
   const makeSubagentTool = (rt: SubagentRuntimeContext): RuntimeTool => ({
     name: "Task",
-    async execute(input) {
+    spawnsSubagent: true,
+    async execute(input, ctx) {
       if (rt.depth >= MAX_TASK_DEPTH) {
         return `Task depth limit reached (max ${MAX_TASK_DEPTH}) — complete this work directly rather than spawning a deeper subagent.`;
       }
@@ -931,20 +933,23 @@ export function buildContainer() {
       }
       const model = rt.buildModelClient({ apiKey: rt.apiKey, baseUrl: rt.baseUrl, model: childSpec.model, system, items, capabilities: rt.capabilities, params: rt.params, effort: rt.effort, workerId: childId });
       const gate = makePolicyToolGate(childId, sdkPolicy, { agentId: childId });
+      // Parent this child's inner tools to THIS Task call's tool_call id (what the
+      // UI's agentRun is keyed by) — the callId threaded into execute. A depth-2+
+      // child parents to its immediate parent Task's callId, itself an inner activity
+      // with no agentRun, so the UI's timestamp-proximity fallback flattens it onto
+      // the outermost Task's agentRun (same shape as claude-sdk's nested subagents).
+      const taskCallId = ctx?.callId ?? childId;
       let finalText = "";
       const childEmit = (e: AgentEvent): void => {
-        if (e.type === "message") {
-          if (e.role === "assistant") {
-            const text = e.blocks.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("");
-            if (text) finalText = text;
-          }
-          // Re-tag tool calls with the child id so the UI attributes child activity.
-          rt.emit({ ...e, blocks: e.blocks.map((b) => (b.type === "tool_call" ? { ...b, parentCallId: childId } : b)) });
-        } else if (e.type === "usage") {
-          rt.emit(e); // the subagent's tokens bill onto the parent worker
+        // The child's terminal text is the Task result — capture it, but keep it OUT
+        // of the parent stream (mirrors SdkEventMapper: subagent text is internal).
+        if (e.type === "message" && e.role === "assistant") {
+          const text = e.blocks.filter((b) => b.type === "text").map((b) => (b as { text: string }).text).join("");
+          if (text) finalText = text;
         }
-        // turn/session/delta/context are loop-internal — NOT forwarded (they would
-        // corrupt the parent turn FSM / double-render).
+        // Child inner tools → parented activity under the agentRun; usage forwarded;
+        // text/reasoning/turn/delta/context/session dropped (loop-internal / summarized).
+        for (const out of mapSubagentEvent(taskCallId, e)) rt.emit(out);
       };
       try {
         await runTurn(

@@ -150,6 +150,12 @@ describe("SdkEventMapper — SDK stream -> canonical sequence", () => {
       .flatMap((e) => (e as { blocks: { type: string; name?: string }[] }).blocks)
       .filter((b) => b.type === "tool_call").map((b) => b.name);
     assert.deepEqual(toolCallNames, ["Agent"]);
+    // The Agent tool_call carries the lane-neutral subagent marker so the UI folds it.
+    const agentCall = out
+      .filter((e) => e.type === "message" && e.role === "assistant")
+      .flatMap((e) => (e as { blocks: { type: string; name?: string; spawnsSubagent?: boolean }[] }).blocks)
+      .find((b) => b.type === "tool_call" && b.name === "Agent");
+    assert.equal(agentCall?.spawnsSubagent, true);
 
     // The inner tool surfaces as parented activity carrying its input + result.
     const innerStart = out.find((e) => e.type === "activity" && e.kind === "tool_started" && (e as { callId?: string }).callId === "inner_1") as { parentCallId?: string; input?: Record<string, unknown> } | undefined;

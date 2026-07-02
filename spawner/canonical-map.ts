@@ -57,7 +57,7 @@ function jsonlToCanonical(p: Rec): AgentEvent[] {
       return [{
         type: "message",
         role: "assistant",
-        blocks: [{ type: "tool_call", callId: str(p.id) ?? "", name: str(p.name) ?? "", input: asRec(p.input) }],
+        blocks: [{ type: "tool_call", callId: str(p.id) ?? "", name: str(p.name) ?? "", input: asRec(p.input), ...(p.spawnsSubagent === true ? { spawnsSubagent: true } : {}) }],
       }];
     case "tool_result":
       return [{

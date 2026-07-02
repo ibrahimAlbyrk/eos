@@ -18,6 +18,11 @@ export const STANDALONE_TOOLS = new Set([
   "mcp__worker__send_message_to_parent",
 ]);
 
+// A tool_use that runs a subagent: the lane-neutral `spawnsSubagent` marker (every
+// backend stamps it), OR name === "Agent" for events persisted before the marker
+// existed. Drives agentRun folding + inner-tool attribution.
+const isSubagentToolUse = (p) => p.spawnsSubagent === true || p.name === "Agent";
+
 // Grouping lanes: a consecutive run of same-lane tools collapses into one
 // toolGroup; a lane change flushes the run. null = standalone, never groups.
 const laneOf = (name) =>
@@ -135,7 +140,7 @@ function normalizeEvents(events) {
       for (const b of e.blocks ?? []) {
         if (b.type === "text") out.push({ type: "jsonl", ts, payload: { kind: "assistant_text", text: b.text ?? "", blockId: b.blockId } });
         else if (b.type === "reasoning") out.push({ type: "jsonl", ts, payload: { kind: "thinking", text: b.text ?? "", blockId: b.blockId } });
-        else if (b.type === "tool_call") out.push({ type: "jsonl", ts, payload: { kind: "tool_use", id: b.callId, name: b.name ?? "", input: b.input ?? {} } });
+        else if (b.type === "tool_call") out.push({ type: "jsonl", ts, payload: { kind: "tool_use", id: b.callId, name: b.name ?? "", input: b.input ?? {}, ...(b.spawnsSubagent ? { spawnsSubagent: true } : {}) } });
         else if (b.type === "tool_result") out.push({ type: "jsonl", ts, payload: { kind: "tool_result", toolUseId: b.callId, isError: !!b.isError, text: b.content ?? "" } });
         else if (b.type === "skill") out.push({ type: "jsonl", ts, payload: { kind: "skill_body", toolUseId: b.callId, text: b.text ?? "" } });
       }
@@ -173,7 +178,7 @@ export function buildBlocks(rawEvents) {
     const p = parsePayload(ev.payload);
     if (p.kind === "tool_use" && p.id) {
       toolUseIds.add(p.id);
-      if (p.name === "Agent") {
+      if (isSubagentToolUse(p)) {
         agentSpans.set(p.id, { startTs: ev.ts, endTs: Infinity, background: false });
       }
     } else if (p.kind === "skill_body" && p.toolUseId) {
@@ -484,7 +489,7 @@ export function buildBlocks(rawEvents) {
       out.push({ kind: "thinking", text: p.text, ts: p.tsTranscript ?? ev.ts, ...(p.blockId ? { blockId: p.blockId } : {}) });
     } else if (p.kind === "tool_use") {
       lastAsst = null;
-      if (p.name === "Agent") {
+      if (isSubagentToolUse(p)) {
         flushTools();
         const result = lc.resultOf(p.id);
         const isBackground = result && (result.text ?? "").includes("Async agent launched");
