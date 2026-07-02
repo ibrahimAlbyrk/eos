@@ -145,6 +145,23 @@ describe("SqliteLoopStateRepo round-trip", () => {
     assert.equal(repo.findById("l-1")?.checkFailures, 0);
   });
 
+  it("deleteByWorker removes every loop row for the worker (any status) and leaves others", () => {
+    repo.insert(input("l-1", "w-1"));
+    repo.setStatus("l-1", "passed");
+    repo.insert(input("l-2", "w-1"));
+    repo.insert(input("l-3", "w-2"));
+    repo.deleteByWorker("w-1");
+    assert.equal(repo.findById("l-1"), null);
+    assert.equal(repo.findById("l-2"), null);
+    assert.equal(repo.findById("l-3")?.workerId, "w-2");
+  });
+
+  it("deleteByWorker on a worker with no loop rows is a no-op", () => {
+    repo.insert(input("l-1", "w-1"));
+    repo.deleteByWorker("w-none");
+    assert.equal(repo.findById("l-1")?.id, "l-1");
+  });
+
   it("resetProgress clears the ring but leaves the attempt counter", () => {
     repo.insert(input("l-1", "w-1"));
     repo.recordAttempt("l-1", { stateHash: "s1", outcomeHash: "o1", reason: "red" });

@@ -62,9 +62,15 @@ export function listPeersOf(
 ): WorkerRow[] {
   const self = workers.findById(selfId);
   if (!self || !self.collaborate || self.parent_id == null) return [];
+  // Archived siblings are invisible to agents (ADR-3 amendment) — without this
+  // guard an archived SUSPENDED sibling would still be consultable and lazily
+  // revived by the peer-request route.
   return workers
     .listByParent(self.parent_id)
-    .filter((w) => w.id !== selfId && !!w.collaborate && isConsultable(w, canLazyResume(w)));
+    .filter(
+      (w) =>
+        w.id !== selfId && w.archived_at == null && !!w.collaborate && isConsultable(w, canLazyResume(w)),
+    );
 }
 
 // Classifies a peer reference (id or name) relative to the asker, WITHOUT
@@ -91,9 +97,11 @@ export function resolvePeerRef(
   if (!asker || !asker.collaborate || asker.parent_id == null) {
     return { kind: "denied", reason: "you are not in a collaboration group" };
   }
+  // Archived siblings are out entirely (ADR-3 amendment): by id they read as
+  // `absent`, never `resolved` — an archived peer must not be revivable here.
   const siblings = workers
     .listByParent(asker.parent_id)
-    .filter((w) => w.id !== askerId && !!w.collaborate);
+    .filter((w) => w.id !== askerId && w.archived_at == null && !!w.collaborate);
 
   if (ref.id != null) {
     if (ref.id === askerId) return { kind: "denied", reason: "a worker cannot consult itself" };

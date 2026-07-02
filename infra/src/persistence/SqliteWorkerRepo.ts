@@ -32,6 +32,9 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtSetSessionId;
   private readonly stmtSetTasks;
   private readonly stmtClearRuntime;
+  private readonly stmtSetArchived;
+  private readonly stmtListActive;
+  private readonly stmtListArchived;
   private readonly stmtReactivate;
   private readonly stmtDelete;
   private readonly stmtFindChildrenIds;
@@ -75,6 +78,9 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtSetSessionId = db.prepare("UPDATE workers SET session_id = ? WHERE id = ?");
     this.stmtSetTasks = db.prepare("UPDATE workers SET tasks = ? WHERE id = ?");
     this.stmtClearRuntime = db.prepare("UPDATE workers SET pid = NULL, port = NULL WHERE id = ?");
+    this.stmtSetArchived = db.prepare("UPDATE workers SET archived_at = ? WHERE id = ?");
+    this.stmtListActive = db.prepare("SELECT * FROM workers WHERE archived_at IS NULL ORDER BY started_at DESC");
+    this.stmtListArchived = db.prepare("SELECT * FROM workers WHERE archived_at IS NOT NULL ORDER BY started_at DESC");
     this.stmtReactivate = db.prepare("UPDATE workers SET pid = ?, port = ?, ended_at = NULL, exit_code = NULL WHERE id = ?");
     this.stmtDelete = db.prepare("DELETE FROM workers WHERE id = ?");
     this.stmtFindChildrenIds = db.prepare("SELECT id FROM workers WHERE parent_id = ?");
@@ -196,6 +202,18 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   clearRuntime(id: string): void {
     this.stmtClearRuntime.run(id);
+  }
+
+  setArchived(id: string, ts: number | null): void {
+    this.stmtSetArchived.run(ts, id);
+  }
+
+  listActive(): WorkerRow[] {
+    return this.stmtListActive.all() as unknown as WorkerRow[];
+  }
+
+  listArchived(): WorkerRow[] {
+    return this.stmtListArchived.all() as unknown as WorkerRow[];
   }
 
   reactivate(id: string, runtime: { pid: number | null; port: number }): void {

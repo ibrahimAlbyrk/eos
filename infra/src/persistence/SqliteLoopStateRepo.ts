@@ -77,6 +77,7 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
   private readonly stmtSetHeldOutput;
   private readonly stmtSetAwaitingInput;
   private readonly stmtClear;
+  private readonly stmtDeleteByWorker;
 
   constructor(db: DatabaseSync) {
     this.stmtInsert = db.prepare(`
@@ -111,6 +112,7 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
     this.stmtSetHeldOutput = db.prepare("UPDATE worker_loops SET held_output = ?, updated_at = ? WHERE id = ?");
     this.stmtSetAwaitingInput = db.prepare("UPDATE worker_loops SET awaiting_input = ?, updated_at = ? WHERE id = ?");
     this.stmtClear = db.prepare("DELETE FROM worker_loops WHERE id = ?");
+    this.stmtDeleteByWorker = db.prepare("DELETE FROM worker_loops WHERE worker_id = ?");
   }
 
   insert(input: InsertLoopInput): void {
@@ -185,5 +187,9 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
 
   clear(id: string): void {
     this.stmtClear.run(id);
+  }
+
+  deleteByWorker(workerId: string): void {
+    this.stmtDeleteByWorker.run(workerId);
   }
 }

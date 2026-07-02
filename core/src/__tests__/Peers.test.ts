@@ -10,6 +10,7 @@ function row(p: Partial<WorkerRow> & { id: string }): WorkerRow {
     prompt: p.prompt ?? "do the thing", name: p.name ?? null, pid: null, port: 1,
     started_at: 0, ended_at: null, exit_code: null,
     parent_id: p.parent_id ?? null, collaborate: p.collaborate ?? null,
+    archived_at: p.archived_at ?? null,
   } as WorkerRow;
 }
 
@@ -74,6 +75,15 @@ describe("Peers.listPeersOf", () => {
     ]);
     assert.deepEqual(listPeersOf(r, "A").map((w) => w.id), []); // default: SUSPENDED hidden
     assert.deepEqual(listPeersOf(r, "A", () => true).map((w) => w.id), ["S"]);
+  });
+
+  it("never lists an archived sibling — even one lazy-resume could revive", () => {
+    const r = repo([
+      row({ id: "A", parent_id: "orch", collaborate: 1 }),
+      row({ id: "Z", parent_id: "orch", collaborate: 1, state: "SUSPENDED", archived_at: 500 }),
+      row({ id: "B", parent_id: "orch", collaborate: 1 }),
+    ]);
+    assert.deepEqual(listPeersOf(r, "A", () => true).map((w) => w.id), ["B"]);
   });
 });
 
@@ -143,6 +153,17 @@ describe("Peers.resolvePeerRef", () => {
     assert.equal(byId.kind === "resolved" && byId.target.id, "S");
     const byName = resolvePeerRef(sr, "A", { name: "sleeper" }, () => true);
     assert.equal(byName.kind === "resolved" && byName.target.id, "S");
+  });
+
+  it("treats an archived sibling as absent — by id and by name, lazy-resume or not", () => {
+    const ar = repo([
+      row({ id: "A", name: "consumer", parent_id: "orch", collaborate: 1 }),
+      row({ id: "Z", name: "archived-expert", parent_id: "orch", collaborate: 1, state: "SUSPENDED", archived_at: 500 }),
+    ]);
+    // absent, never resolved: an archived worker must be invisible to agents,
+    // and never denied-with-a-name either (that would leak its existence).
+    assert.equal(resolvePeerRef(ar, "A", { id: "Z" }, () => true).kind, "absent");
+    assert.equal(resolvePeerRef(ar, "A", { name: "archived-expert" }, () => true).kind, "absent");
   });
 
   it("denies self-consult by id", () => {

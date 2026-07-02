@@ -337,6 +337,9 @@ export const MIGRATIONS: Migration[] = [
   // failure bumps it; any determinate verdict resets it to 0; two in a row exhaust
   // the loop. NOT NULL DEFAULT 0 backfills legacy rows to a clean streak.
   { id: "055_worker_loops_add_check_failures", sql: "ALTER TABLE worker_loops ADD COLUMN check_failures INTEGER NOT NULL DEFAULT 0" },
+  // Orthogonal archive flag (epoch ms; NULL = not archived). NULL default keeps
+  // every pre-feature row live; no index — the table holds tens of rows (ADR-6).
+  { id: "056_workers_add_archived_at", sql: "ALTER TABLE workers ADD COLUMN archived_at INTEGER" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

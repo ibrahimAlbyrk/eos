@@ -98,4 +98,7 @@ export interface LoopStateRepo {
   setHeldOutput(id: string, output: StepHeldOutput | null): void;
   setAwaitingInput(id: string, awaiting: boolean): void;
   clear(id: string): void;
+  // Remove every loop row (any status) belonging to the worker — the
+  // kill/purge cascade's leak cleanup.
+  deleteByWorker(workerId: string): void;
 }

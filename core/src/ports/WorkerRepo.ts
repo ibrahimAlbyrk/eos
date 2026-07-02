@@ -100,6 +100,14 @@ export interface WorkerRepo {
   // Null out pid/port when the process is known dead (suspend) — a stale pid
   // could be reused by an unrelated process and get signalled on delete.
   clearRuntime(id: string): void;
+  // Stamp (epoch ms) or clear (null) the orthogonal archived flag. Never
+  // touches state — archive settles the row to DONE/SUSPENDED separately.
+  setArchived(id: string, ts: number | null): void;
+  // Visibility partitions of listAll. listAll/listByParent/findChildrenIds stay
+  // all-inclusive on purpose: the worktree reaper's shared-branch check and the
+  // kill/purge recursion must keep seeing archived rows.
+  listActive(): WorkerRow[];
+  listArchived(): WorkerRow[];
   // Resume: re-bind a revived row to its new process. State moves separately
   // (TransitionState); started_at and cost counters carry on.
   reactivate(id: string, runtime: { pid: number | null; port: number }): void;

@@ -117,6 +117,58 @@ describe("SqliteWorkerRepo name provenance + CAS", () => {
   });
 });
 
+describe("SqliteWorkerRepo archived_at", () => {
+  it("setArchived(ts) stamps, setArchived(null) clears — round-trip via findById", () => {
+    repo.insert(input("w-arc", null, 100));
+    assert.equal(repo.findById("w-arc")?.archived_at ?? null, null);
+    repo.setArchived("w-arc", 5000);
+    assert.equal(repo.findById("w-arc")?.archived_at, 5000);
+    repo.setArchived("w-arc", null);
+    assert.equal(repo.findById("w-arc")?.archived_at ?? null, null);
+  });
+
+  it("listActive/listArchived partition exactly; listAll returns both", () => {
+    repo.insert(input("w-live", null, 100));
+    repo.insert(input("w-gone", null, 200));
+    repo.setArchived("w-gone", 5000);
+    assert.deepEqual(repo.listActive().map((w) => w.id), ["w-live"]);
+    assert.deepEqual(repo.listArchived().map((w) => w.id), ["w-gone"]);
+    assert.equal(repo.listAll().length, 2);
+  });
+
+  it("listByParent stays all-inclusive over archived children", () => {
+    repo.insert(input("w-kid", "orch-1", 100));
+    repo.setArchived("w-kid", 5000);
+    assert.deepEqual(repo.listByParent("orch-1").map((w) => w.id), ["w-kid"]);
+    assert.deepEqual(repo.findChildrenIds("orch-1"), ["w-kid"]);
+  });
+});
+
+describe("migration 056 archived_at — NULL default, no backfill", () => {
+  it("adds archived_at as NULL for a row that pre-existed the migration", () => {
+    const fresh = new DatabaseSync(":memory:");
+    fresh.exec("CREATE TABLE IF NOT EXISTS schema_migrations (id TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)");
+    const rec = fresh.prepare("INSERT INTO schema_migrations (id, applied_at) VALUES (?, 0)");
+    for (const m of MIGRATIONS) {
+      if (m.id === "056_workers_add_archived_at") continue;
+      fresh.exec(m.sql);
+      rec.run(m.id);
+    }
+    fresh.prepare("INSERT INTO workers (id, state, prompt, started_at) VALUES ('legacy', 'IDLE', 'p', 1)").run();
+
+    const ran = runMigrations(fresh, noopLog as never);
+    assert.equal(ran, 1);
+    assert.equal(new SqliteWorkerRepo(fresh).findById("legacy")?.archived_at ?? null, null);
+  });
+
+  it("re-running migrations is a no-op (duplicate column recoverable)", () => {
+    assert.equal(runMigrations(db, noopLog as never), 0);
+    repo.insert(input("w-r", null, 100));
+    repo.setArchived("w-r", 7);
+    assert.equal(repo.findById("w-r")?.archived_at, 7);
+  });
+});
+
 describe("migration 049 name_source — strict gate, no backfill", () => {
   it("adds name_source as NULL for a row that pre-existed the migration", () => {
     const fresh = new DatabaseSync(":memory:");
