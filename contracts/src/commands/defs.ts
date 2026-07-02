@@ -66,11 +66,74 @@ export const killWorkerCommand: CommandDef<KillWorkerAddr, NoBody, KillWorkerRes
   meta: { summary: "Terminate a worker (SIGTERM + DB row removal)", mutates: true, scope: "worker" },
 };
 
-// ---- worker.interrupt ------------------------------------------------------
-
 // Reusable addr for any worker-scoped command addressed only by its id.
 export const WorkerIdAddrSchema = z.object({ id: z.string().min(1) });
 export type WorkerIdAddr = z.infer<typeof WorkerIdAddrSchema>;
+
+// ---- worker.archive / worker.restore / worker.purge -------------------------
+// HTTP-only operator surface (ADR-3 amendment): archived workers are invisible
+// to agents, so NO MCP tool is ever built from these defs — consumers are the
+// dashboard Archive view and the CLI. Archive stops the process and stamps the
+// subtree reversibly; restore flips it back; purge is the destructive cascade
+// (kill semantics) allowed only on already-archived rows.
+
+export const ArchiveWorkerResponseSchema = z.object({
+  id: z.string(),
+  // Subtree ids stamped, depth-first order.
+  archived: z.array(z.string()),
+  was_state: z.string(),
+});
+export type ArchiveWorkerResponse = z.infer<typeof ArchiveWorkerResponseSchema>;
+
+export const RestoreWorkerResponseSchema = z.object({
+  id: z.string(),
+  restored: z.array(z.string()),
+});
+export type RestoreWorkerResponse = z.infer<typeof RestoreWorkerResponseSchema>;
+
+export const PurgeWorkerResponseSchema = z.object({
+  id: z.string(),
+  removed: z.literal(true),
+  name: z.string().nullable(),
+});
+export type PurgeWorkerResponse = z.infer<typeof PurgeWorkerResponseSchema>;
+
+export const archiveWorkerCommand: CommandDef<KillWorkerAddr, NoBody, ArchiveWorkerResponse> = {
+  name: "worker.archive",
+  method: "POST",
+  pattern: /^\/workers\/(?<id>[^/]+)\/archive$/,
+  buildPath: ({ id, actorId }) =>
+    `/workers/${encodeURIComponent(id)}/archive` + (actorId ? `?actorId=${encodeURIComponent(actorId)}` : ""),
+  addr: KillWorkerAddrSchema,
+  data: NoBodySchema,
+  output: ArchiveWorkerResponseSchema,
+  meta: { summary: "Archive a worker subtree (stop process, keep rows/worktree)", mutates: true, scope: "worker" },
+};
+
+export const restoreWorkerCommand: CommandDef<WorkerIdAddr, NoBody, RestoreWorkerResponse> = {
+  name: "worker.restore",
+  method: "POST",
+  pattern: /^\/workers\/(?<id>[^/]+)\/restore$/,
+  buildPath: ({ id }) => `/workers/${encodeURIComponent(id)}/restore`,
+  addr: WorkerIdAddrSchema,
+  data: NoBodySchema,
+  output: RestoreWorkerResponseSchema,
+  meta: { summary: "Restore an archived worker subtree to the live list", mutates: true, scope: "worker" },
+};
+
+export const purgeWorkerCommand: CommandDef<KillWorkerAddr, NoBody, PurgeWorkerResponse> = {
+  name: "worker.purge",
+  method: "DELETE",
+  pattern: /^\/workers\/(?<id>[^/]+)\/purge$/,
+  buildPath: ({ id, actorId }) =>
+    `/workers/${encodeURIComponent(id)}/purge` + (actorId ? `?actorId=${encodeURIComponent(actorId)}` : ""),
+  addr: KillWorkerAddrSchema,
+  data: NoBodySchema,
+  output: PurgeWorkerResponseSchema,
+  meta: { summary: "Permanently delete an archived worker subtree", mutates: true, scope: "worker" },
+};
+
+// ---- worker.interrupt ------------------------------------------------------
 
 // Either the success shape or the standard {error} body (404 gone / 409 not
 // running). The handler returns the exact body, so the contract stays honest.
@@ -128,6 +191,9 @@ export const createWorkflowCommand: CommandDef<NoAddr, WorkflowDefinition, Creat
 export const COMMANDS = [
   spawnWorkerCommand,
   killWorkerCommand,
+  archiveWorkerCommand,
+  restoreWorkerCommand,
+  purgeWorkerCommand,
   interruptWorkerCommand,
   runWorkflowCommand,
   createWorkflowCommand,

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ROUTES } from "../http.ts";
 
 const EXPECTED_KEYS = [
-  "health", "stream", "workers", "worker", "workerEvents", "workerMessage",
+  "health", "stream", "workers", "workersArchived", "workersArchivedAppClosed", "worker", "workerEvents", "workerMessage",
   "workerQueue", "workerQueueItem",
   "workerAction", "workerPush", "workerPushState", "workerPull",
   "orchestrators", "orchestratorMessage", "orchestratorIntegrate",
@@ -20,6 +20,7 @@ const EXPECTED_KEYS = [
   "workerConflicts", "workerConflictFile", "workerConflictResolve",
   "workerMemory", "workerMemoryItem",
   "workerInterrupt", "workerResume", "workerKeystroke",
+  "workerArchive", "workerRestore", "workerPurge",
   "workerQuestion", "workerQuestionPoll", "workerQuestionAnswer",
   "workerPeers", "workerPeerRequest", "workerPeerRequestPoll", "workerPeerResponse",
   "workerNotify", "workerReport", "workerExport", "workerStepOutput", "workerRewindTargets", "workerRewind",
@@ -28,7 +29,7 @@ const EXPECTED_KEYS = [
   "commands",
   "templates", "template", "prompts", "promptPreview", "workerDefinitions",
   "workflows", "workflowCatalog", "workflowDefinitions", "workflowRuns", "workflowRun",
-  "workflowRunSteps", "workflowDefinition", "settings",
+  "workflowRunSteps", "workflowDefinition", "settings", "settingsArchive",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
   "remotePair", "remoteStatus", "remoteArm",
   "apiBackends", "apiBackendPresets", "apiBackendModels", "apiBackendTest", "apiBackendDelete",

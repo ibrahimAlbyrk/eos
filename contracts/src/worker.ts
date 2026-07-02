@@ -111,6 +111,12 @@ export const WorkerRowSchema = z.object({
   // half-created worktree walks UP to the source repo and misattributes the
   // user's checkout diff to this worker. Git reads gate on this flag.
   workspace_ready: z.number().nullable().optional(),
+  // Epoch ms when the worker was archived; NULL/absent = not archived. An
+  // orthogonal flag, not a state — an archived row always sits at rest
+  // (DONE/SUSPENDED) underneath. Archived rows are invisible to agents: they
+  // leave GET /workers unconditionally and only the dashboard-only
+  // /workers/archived route lists them.
+  archived_at: z.number().nullable().optional(),
 });
 
 export const PermissionModeSchema = z.enum([

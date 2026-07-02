@@ -1818,7 +1818,16 @@ export type CurrentDateTimeResponse = z.infer<typeof CurrentDateTimeResponseSche
 export const ROUTES = {
   health: "/health",
   stream: "/stream",
+  // Unconditionally excludes archived rows — NO archived query param exists
+  // (ADR-3 amendment: archived workers are invisible to agents).
   workers: "/workers",
+  // Dedicated archived-only listing; its only consumer is the dashboard's
+  // Archive view. Must be matched before the /workers/:id detail pattern.
+  workersArchived: "/workers/archived",
+  // App-termination purge hook (operator surface, never an MCP tool): the
+  // native shell POSTs here unconditionally on quit; the daemon purges ALL
+  // archived workers only when config archive.purgeOnAppClose is set.
+  workersArchivedAppClosed: "/workers/archived/app-closed",
   worker: (id: string): string => `/workers/${id}`,
   workerEvents: (id: string): string => `/workers/${id}/events`,
   workerMessage: (id: string): string => `/workers/${id}/message`,
@@ -1893,6 +1902,10 @@ export const ROUTES = {
   workerMemoryItem: (id: string, name: string): string => `/workers/${id}/memory/${name}`,
   workerInterrupt: (id: string): string => `/workers/${id}/interrupt`,
   workerResume: (id: string): string => `/workers/${id}/resume`,
+  // HTTP-only operator surface (ADR-3 amendment) — never exposed as MCP tools.
+  workerArchive: (id: string): string => `/workers/${id}/archive`,
+  workerRestore: (id: string): string => `/workers/${id}/restore`,
+  workerPurge: (id: string): string => `/workers/${id}/purge`,
   workerKeystroke: (id: string): string => `/workers/${id}/keystroke`,
   workerQuestion: (id: string): string => `/workers/${id}/question`,
   workerQuestionPoll: (id: string, questionId: string): string => `/workers/${id}/question/${questionId}`,
@@ -1943,6 +1956,9 @@ export const ROUTES = {
   // name is a clean 404.
   workflowDefinition: (name: string): string => `/workflows/${name}`,
   settings: "/api/settings",
+  // Archive lifecycle config — lives in ~/.eos/config.json (daemon sweeper +
+  // app-closed purge read it live), so it bypasses the settings.json store.
+  settingsArchive: "/api/settings/archive",
   updateStatus: "/api/updates/status",
   updateCheck: "/api/updates/check",
   updateApply: "/api/updates/apply",
