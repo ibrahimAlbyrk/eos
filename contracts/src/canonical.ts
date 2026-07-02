@@ -55,11 +55,50 @@ export const ToolCallBlockSchema = z.object({
   spawnsSubagent: z.literal(true).optional(),
 });
 
+// One hunk of an Edit/Write tool_result's structured patch — the only carrier of
+// *absolute* file line numbers (oldStart/newStart). The input snippet
+// (old_string/new_string) has no idea where in the file it sits, so the UI diff
+// falls back to snippet-relative numbers (starting at 1) without this.
+export const PatchHunkSchema = z.object({
+  oldStart: z.number(),
+  newStart: z.number(),
+  lines: z.array(z.string()),
+});
+export type PatchHunk = z.infer<typeof PatchHunkSchema>;
+
+// Slim an incoming structuredPatch (the claude-cli transcript sidecar OR the
+// claude-sdk tool_use_result sidecar) down to the fields the UI diff needs.
+// Pure + defensive: returns undefined for absent/empty/garbage input so both
+// anti-corruption layers can attach `patch` ONLY when it parses to valid hunks
+// and degrade silently otherwise — the SDK's runtime shape is unverified, so
+// this narrowing IS the gate (never throws on an unexpected shape).
+export function parseStructuredPatch(sp: unknown): PatchHunk[] | undefined {
+  if (!Array.isArray(sp) || sp.length === 0) return undefined;
+  const hunks: PatchHunk[] = [];
+  for (const h of sp) {
+    if (!h || typeof h !== "object") continue;
+    const hr = h as Record<string, unknown>;
+    if (
+      typeof hr.oldStart === "number" &&
+      typeof hr.newStart === "number" &&
+      Array.isArray(hr.lines) &&
+      hr.lines.every((l) => typeof l === "string")
+    ) {
+      hunks.push({ oldStart: hr.oldStart, newStart: hr.newStart, lines: hr.lines as string[] });
+    }
+  }
+  return hunks.length ? hunks : undefined;
+}
+
 export const ToolResultBlockSchema = z.object({
   type: z.literal("tool_result"),
   callId: z.string(),
   isError: z.boolean().default(false),
   content: z.string().default(""),
+  // Edit/Write results carry a structured patch (absolute file line numbers) as
+  // a sidecar — both lanes populate it via parseStructuredPatch. Optional +
+  // additive so persisted rows without it stay valid; absent for every other tool.
+  patch: z.array(PatchHunkSchema).optional(),
 });
 
 // A Skill's injected SKILL.md body — claude-cli surfaces it as its own transcript
