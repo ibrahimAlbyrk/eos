@@ -219,8 +219,10 @@ function emitMessageEvent(p: PendingMessage, anchorTs?: number): void {
   const anchor = anchorTs != null ? { anchorTs } : {};
   switch (p.record.as) {
     case "orchestrator_message":
+      // displayText = the bare directive, without the <agent_message …> wrapper
+      // the model received — what this worker's chat renders.
       evt.emit("orchestrator_message", {
-        text: p.text,
+        text: p.record.displayText ?? p.text,
         fromParent: p.record.fromParent,
         parentName: p.record.parentName ?? p.record.fromParent,
         ...sentAt,

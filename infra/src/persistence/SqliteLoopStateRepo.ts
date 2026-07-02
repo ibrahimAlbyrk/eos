@@ -9,6 +9,7 @@ import type {
   LoopStateRepo,
   LoopRow,
   InsertLoopInput,
+  LoopAmendPatch,
   LoopAttempt,
   StepHeldOutput,
 } from "../../../core/src/ports/LoopStateRepo.ts";
@@ -54,6 +55,7 @@ function toLoopRow(r: Row): LoopRow {
     heldOutput: decodeHeldOutput(r.held_output),
     lastReason: (r.last_reason as string | null) ?? null,
     awaitingInput: ((r.awaiting_input as number | null) ?? 0) !== 0,
+    checkFailures: (r.check_failures as number | null) ?? 0,
     progressRing: decodeRing(r.progress_ring),
     startedAt: r.started_at as number,
     updatedAt: r.updated_at as number,
@@ -66,6 +68,9 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
   private readonly stmtFindActiveByWorker;
   private readonly stmtListActive;
   private readonly stmtSetStatus;
+  private readonly stmtAmend;
+  private readonly stmtResetProgress;
+  private readonly stmtSetCheckFailures;
   private readonly stmtRecordAttempt;
   private readonly stmtSetHeldReport;
   private readonly stmtClearHeld;
@@ -85,6 +90,17 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
     );
     this.stmtListActive = db.prepare("SELECT * FROM worker_loops WHERE status = 'active' ORDER BY started_at ASC");
     this.stmtSetStatus = db.prepare("UPDATE worker_loops SET status = ?, updated_at = ? WHERE id = ?");
+    // Goal renegotiation writes all three amendable columns in one statement; the
+    // repo reads the current row first and passes merged values (see amend()).
+    this.stmtAmend = db.prepare(
+      "UPDATE worker_loops SET goal_json = ?, strategy = ?, max_attempts = ?, updated_at = ? WHERE id = ?",
+    );
+    this.stmtResetProgress = db.prepare(
+      "UPDATE worker_loops SET progress_ring = NULL, updated_at = ? WHERE id = ?",
+    );
+    this.stmtSetCheckFailures = db.prepare(
+      "UPDATE worker_loops SET check_failures = ?, updated_at = ? WHERE id = ?",
+    );
     this.stmtRecordAttempt = db.prepare(
       "UPDATE worker_loops SET attempt = attempt + 1, progress_ring = ?, last_reason = ?, updated_at = ? WHERE id = ?",
     );
@@ -126,6 +142,25 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
 
   setStatus(id: string, status: LoopStatus): void {
     this.stmtSetStatus.run(status, Date.now(), id);
+  }
+
+  amend(id: string, patch: LoopAmendPatch): void {
+    const cur = this.findById(id);
+    if (!cur) return;
+    const goal = patch.goal ?? cur.goal;
+    const strategy = patch.strategy ?? cur.strategy;
+    // maxAttempts is present-with-null to force unbounded, so distinguish absent
+    // (keep) from an explicit null via the key, not a nullish check.
+    const maxAttempts = "maxAttempts" in patch ? (patch.maxAttempts ?? null) : cur.maxAttempts;
+    this.stmtAmend.run(safeStringify(goal), strategy, maxAttempts, Date.now(), id);
+  }
+
+  resetProgress(id: string): void {
+    this.stmtResetProgress.run(Date.now(), id);
+  }
+
+  setCheckFailures(id: string, n: number): void {
+    this.stmtSetCheckFailures.run(n, Date.now(), id);
   }
 
   recordAttempt(id: string, attempt: LoopAttempt): void {

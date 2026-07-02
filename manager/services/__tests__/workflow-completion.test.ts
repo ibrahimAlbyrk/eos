@@ -5,14 +5,17 @@ import { renderWorkflowCompletion, makeWorkflowCompletionDelivery } from "../wor
 import type { WorkflowRunResult } from "../../../core/src/ports/WorkflowEngine.ts";
 
 describe("renderWorkflowCompletion", () => {
-  it("headers the runId + status and embeds the full output", () => {
+  // The runId + status now ride as <system_message kind="worker_report" …> tag
+  // attributes (applied at the dispatch chokepoint), so the body is the clean
+  // serialized output — no inline "[workflow …] completed" header.
+  it("is the clean serialized output (no inline header)", () => {
     const body = renderWorkflowCompletion({ runId: "run-1", status: "passed", output: { a: 1, b: "x" } });
-    assert.equal(body, '[workflow run-1] completed (status: passed):\n{"a":1,"b":"x"}');
+    assert.equal(body, '{"a":1,"b":"x"}');
   });
 
-  it("carries the failed status in the header", () => {
+  it("serializes a raw-string output verbatim", () => {
     const body = renderWorkflowCompletion({ runId: "run-2", status: "failed", output: "raw text" });
-    assert.equal(body, '[workflow run-2] completed (status: failed):\n"raw text"');
+    assert.equal(body, '"raw text"');
   });
 });
 

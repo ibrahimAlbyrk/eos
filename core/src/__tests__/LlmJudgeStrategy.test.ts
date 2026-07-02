@@ -79,11 +79,56 @@ describe("LlmJudgeStrategy", () => {
     assert.equal(renders[1].vars.RETRY, "1");        // second render: retry flag set
   });
 
+  it("unparseable-after-retry fails closed as INDETERMINATE (Fix 6c: infra failure, not an all-unmet judgment)", async () => {
+    const { svc } = strategy(["not json", "still not json"]);
+    const v = await svc.evaluate(GOAL_1, CTX);
+    assert.equal(v.met, false);
+    assert.equal(v.indeterminate, true);             // flagged so the tick re-arms instead of burning an attempt
+  });
+
+  it("evidence-collection failure fails closed as INDETERMINATE", async () => {
+    const svc = new LlmJudgeStrategy({
+      judge: { judge: async () => "{}" },
+      evidence: { collect: async () => { throw new Error("collect boom"); } },
+      renderer: { render: () => "PROMPT" },
+      temperature: 0.1,
+      log: noopLog,
+    });
+    const v = await svc.evaluate(GOAL_1, CTX);
+    assert.equal(v.met, false);
+    assert.equal(v.indeterminate, true);
+    assert.match(v.reason, /evidence collection failed/);
+  });
+
+  it("a valid unmet verdict is DETERMINATE (indeterminate stays unset)", async () => {
+    const { svc } = strategy(['{"met":false,"criteria":[{"id":"c1","met":false,"evidence":"exit 1"}],"unmet":["c1"],"confidence":0.6,"reason":"red"}']);
+    const v = await svc.evaluate(GOAL_1, CTX);
+    assert.equal(v.met, false);
+    assert.equal(v.indeterminate, undefined);        // a real judgment must not read as infra failure
+  });
+
   it("normalizes an inconsistent verdict toward unmet (met:true with a failing criterion → met:false)", async () => {
     const { svc } = strategy(['{"met":true,"criteria":[{"id":"c1","met":true,"evidence":"ok"},{"id":"c2","met":false,"evidence":"bad"}],"unmet":["c2"],"confidence":0.8,"reason":"r"}']);
     const v = await svc.evaluate(GOAL_2, CTX);
     assert.equal(v.met, false);
     assert.deepEqual(v.unmet, ["c2"]);
+  });
+
+  it("forces met:false on a contradictory unverifiable+met criterion (unverifiable is never met)", async () => {
+    const { svc } = strategy(['{"met":true,"criteria":[{"id":"c1","met":true,"evidence":"exit 0"},{"id":"c2","met":true,"evidence":"cannot be proven","unverifiable":true}],"unmet":[],"confidence":0.8,"reason":"r"}']);
+    const v = await svc.evaluate(GOAL_2, CTX);
+    assert.equal(v.met, false);
+    assert.deepEqual(v.unmet, ["c2"]);
+    assert.equal(v.criteria[1].met, false);
+    assert.equal(v.criteria[1].unverifiable, true);
+  });
+
+  it("passes unverifiable through on a met:false criterion (the escalate signal survives normalization)", async () => {
+    const { svc } = strategy(['{"met":false,"criteria":[{"id":"c1","met":true,"evidence":"exit 0"},{"id":"c2","met":false,"evidence":"no artifact could prove runtime behavior","unverifiable":true}],"unmet":["c2"],"confidence":0.8,"reason":"r"}']);
+    const v = await svc.evaluate(GOAL_2, CTX);
+    assert.equal(v.met, false);
+    assert.equal(v.criteria[1].unverifiable, true);
+    assert.equal(v.criteria[0].unverifiable, undefined);
   });
 
   it("a throwing judge fails closed to unmet", async () => {

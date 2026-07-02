@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { LoopCheckProgressSchema, LoopCheckEventSchema } from "../loop.ts";
+import { LoopCheckProgressSchema, LoopCheckEventSchema, GoalVerdictSchema } from "../loop.ts";
 import { WorkerEventTypeSchema } from "../events.ts";
 
 describe("LoopCheckProgressSchema (transient live progress)", () => {
@@ -49,6 +49,12 @@ describe("LoopCheckEventSchema (persisted per-attempt verdict)", () => {
     assert.deepEqual(r.data, e);
   });
 
+  it("accepts the escalated outcome in both the event and the live progress payload", () => {
+    const e = { attempt: 2, maxAttempts: null, strategy: "judge", met: false, outcome: "escalated", reason: "gate cannot verify c2" };
+    assert.ok(LoopCheckEventSchema.safeParse(e).success);
+    assert.ok(LoopCheckProgressSchema.safeParse({ workerId: "w-1", phase: "verdict", ...e }).success);
+  });
+
   it("requires met/outcome/reason (the durable record is never partial)", () => {
     assert.ok(!LoopCheckEventSchema.safeParse({ attempt: 1, maxAttempts: null, strategy: "judge" }).success);
   });
@@ -57,5 +63,26 @@ describe("LoopCheckEventSchema (persisted per-attempt verdict)", () => {
 describe("loop_check timeline event", () => {
   it("is a registered worker event type", () => {
     assert.ok(WorkerEventTypeSchema.safeParse("loop_check").success);
+  });
+});
+
+describe("GoalVerdictSchema — unverifiable lane", () => {
+  const base = { met: false, unmet: ["c1"], confidence: 0.5, reason: "r" };
+
+  it("round-trips a verdict with an unverifiable met:false criterion", () => {
+    const v = { ...base, criteria: [{ id: "c1", met: false, evidence: "no check exists", unverifiable: true }] };
+    const r = GoalVerdictSchema.safeParse(v);
+    assert.ok(r.success);
+    assert.deepEqual(r.data, v);
+  });
+
+  it("unverifiable is optional — a criterion without it still parses", () => {
+    const r = GoalVerdictSchema.safeParse({ ...base, criteria: [{ id: "c1", met: false, evidence: "exit 1" }] });
+    assert.ok(r.success);
+    assert.equal(r.data.criteria[0].unverifiable, undefined);
+  });
+
+  it("rejects a non-boolean unverifiable", () => {
+    assert.ok(!GoalVerdictSchema.safeParse({ ...base, criteria: [{ id: "c1", met: false, evidence: "x", unverifiable: "yes" }] }).success);
   });
 });

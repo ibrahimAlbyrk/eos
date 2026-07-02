@@ -333,6 +333,10 @@ export const MIGRATIONS: Migration[] = [
   // output round-tripped through held_report's text — stringifying objects and
   // inverting a held failed→done. NULL for plain (text-report) loops and legacy rows.
   { id: "054_worker_loops_add_held_output", sql: "ALTER TABLE worker_loops ADD COLUMN held_output TEXT" },
+  // Consecutive-indeterminate goal-check counter (Fix 6c): an evidence/judge infra
+  // failure bumps it; any determinate verdict resets it to 0; two in a row exhaust
+  // the loop. NOT NULL DEFAULT 0 backfills legacy rows to a clean streak.
+  { id: "055_worker_loops_add_check_failures", sql: "ALTER TABLE worker_loops ADD COLUMN check_failures INTEGER NOT NULL DEFAULT 0" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

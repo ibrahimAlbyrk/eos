@@ -7,6 +7,7 @@ import { validate } from "../middleware/validate.ts";
 import { DynamicLoopRequestSchema } from "../../contracts/src/loop.ts";
 import type { DynamicLoopResponse } from "../../contracts/src/loop.ts";
 import { attachLoop } from "../../core/src/use-cases/attachLoop.ts";
+import { amendLoop } from "../../core/src/use-cases/amendLoop.ts";
 import { stopLoop } from "../../core/src/use-cases/stopLoop.ts";
 
 // Dynamic-loop attach/stop. Orchestrator-plane, loopback-trusted like the other
@@ -16,11 +17,35 @@ import { stopLoop } from "../../core/src/use-cases/stopLoop.ts";
 export function registerLoopRoutes(r: Router, c: Container): void {
   r.post(/^\/orchestrators\/(?<id>[^/]+)\/loop$/, async ({ params, req, res }) => {
     const body = validate(DynamicLoopRequestSchema, await readBody(req));
+
+    // Amend renegotiates an existing loop's goal in place — provided fields
+    // replace, absent fields keep. No goal-required guard: an amend may touch only
+    // strategy or limit.
+    if (body.op === "amend") {
+      const amended = amendLoop(
+        { loops: c.loops, workers: c.workers },
+        {
+          callerId: params.id,
+          target: body.target,
+          loopId: body.loopId,
+          goal: body.goal,
+          strategy: body.strategy,
+          limit: body.limit,
+          enabled: c.config.loop.enabled,
+        },
+      );
+      const workerId = c.loops.findById(amended.loopId)?.workerId;
+      if (workerId) c.bus.publish("loop:change", { workerId, status: "active" });
+      const response: DynamicLoopResponse = { loopId: amended.loopId, status: amended.status, ...(amended.warnings ? { warnings: amended.warnings } : {}) };
+      writeJson(res, 200, response);
+      return;
+    }
+
     if (!body.goal) { writeJson(res, 400, { error: "goal required to attach a loop" }); return; }
     // Per-loop args override the global config.loop defaults (core never reads
     // config — the manager passes resolved plain values in). limit may be an
     // explicit null (unbounded), so only fall back when the field is absent.
-    const { loopId } = attachLoop(
+    const { loopId, warnings } = attachLoop(
       { loops: c.loops, workers: c.workers, ids: c.ids, clock: c.clock },
       {
         callerId: params.id,
@@ -34,7 +59,7 @@ export function registerLoopRoutes(r: Router, c: Container): void {
       },
     );
     c.bus.publish("loop:change", { workerId: body.target ?? params.id, status: "active" });
-    const response: DynamicLoopResponse = { loopId, status: "active" };
+    const response: DynamicLoopResponse = { loopId, status: "active", ...(warnings ? { warnings } : {}) };
     writeJson(res, 200, response);
   });
 

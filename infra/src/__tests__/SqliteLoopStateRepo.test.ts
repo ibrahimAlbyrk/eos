@@ -119,4 +119,40 @@ describe("SqliteLoopStateRepo round-trip", () => {
     assert.equal(repo.findById("l-1")?.heldReport, null);
     assert.equal(repo.findById("l-1")?.heldOutput, null);
   });
+
+  it("amend replaces only the provided goal/strategy/maxAttempts and keeps the rest", () => {
+    repo.insert(input("l-1", "w-1", { maxAttempts: 5 }));
+    const NEW_GOAL: GoalSpec = { summary: "v2", criteria: [{ id: "c2", text: "boots", verify: "curl -sf localhost" }] };
+    repo.amend("l-1", { goal: NEW_GOAL, strategy: "judge" });
+    const row = repo.findById("l-1");
+    assert.deepEqual(row?.goal, NEW_GOAL);
+    assert.equal(row?.strategy, "judge");
+    assert.equal(row?.maxAttempts, 5); // absent in the patch → untouched
+  });
+
+  it("amend sets max_attempts to null (unbounded) when the key is present", () => {
+    repo.insert(input("l-1", "w-1", { maxAttempts: 5 }));
+    repo.amend("l-1", { maxAttempts: null });
+    assert.equal(repo.findById("l-1")?.maxAttempts, null);
+  });
+
+  it("check_failures defaults to 0 and round-trips through setCheckFailures (Fix 6c)", () => {
+    repo.insert(input("l-1", "w-1"));
+    assert.equal(repo.findById("l-1")?.checkFailures, 0);
+    repo.setCheckFailures("l-1", 1);
+    assert.equal(repo.findById("l-1")?.checkFailures, 1);
+    repo.setCheckFailures("l-1", 0);
+    assert.equal(repo.findById("l-1")?.checkFailures, 0);
+  });
+
+  it("resetProgress clears the ring but leaves the attempt counter", () => {
+    repo.insert(input("l-1", "w-1"));
+    repo.recordAttempt("l-1", { stateHash: "s1", outcomeHash: "o1", reason: "red" });
+    repo.recordAttempt("l-1", { stateHash: "s2", outcomeHash: "o2", reason: "red" });
+    assert.equal(repo.findById("l-1")?.attempt, 2);
+    repo.resetProgress("l-1");
+    const row = repo.findById("l-1");
+    assert.deepEqual(row?.progressRing, []);
+    assert.equal(row?.attempt, 2); // the attempt bound is orthogonal to the ring
+  });
 });

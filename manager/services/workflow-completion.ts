@@ -1,14 +1,16 @@
 // renderWorkflowCompletion — format a finished workflow run as the message body
 // delivered to its owner (the orchestrator) on completion (§ITEM 8). Carries the
-// FULL result so the owner sees everything WITHOUT calling the status tool; the
-// status (passed|failed) rides in the header line.
+// FULL result so the owner sees everything WITHOUT calling the status tool. The
+// run id + status ride as <system_message kind="worker_report" from="workflow"
+// worker-id=… status=…> attributes (applied at the dispatch chokepoint from the
+// envelope), so the body is just the clean serialized output.
 
 import { safeStringify } from "../../infra/src/util/json.ts";
 import type { WorkflowRunResult } from "../../core/src/ports/WorkflowEngine.ts";
 import type { Logger } from "../../core/src/ports/Logger.ts";
 
 export function renderWorkflowCompletion(result: WorkflowRunResult): string {
-  return `[workflow ${result.runId}] completed (status: ${result.status}):\n${safeStringify(result.output)}`;
+  return safeStringify(result.output);
 }
 
 // The run-completion delivery decision (design A6.4). A run may be AGENT-owned (the

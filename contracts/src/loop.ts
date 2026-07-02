@@ -45,21 +45,40 @@ export const GoalVerdictSchema = z.object({
       id: z.string(),
       met: z.boolean(),
       evidence: z.string(),
+      // The judge's own "no collectible artifact could ever prove this"
+      // diagnosis (rubric rule 8). Meaningful only on met:false rows —
+      // normalization forces met:false whenever it is set (unverifiable is
+      // never met). Drives the tick's escalate path.
+      unverifiable: z.boolean().optional(),
     }),
   ),
   unmet: z.array(z.string()),
+  // UI/telemetry ONLY — the judge's certainty, NEVER a gate input. Release is
+  // decided by `met` + per-criterion agreement (and the explicit `unverifiable`
+  // flag), never by a confidence threshold: worker prose measurably sways judge
+  // certainty, so gating on it would hand the worker an indirect lever (Fix 6e).
   confidence: z.number(),
   reason: z.string(),
+  // Set by the judge strategy's fail-closed path (evidence collection threw, or
+  // the judge output stayed unparseable after one retry). The CHECK ITSELF
+  // failed — NOT a judgment on the work. The tick keeps the held report, burns
+  // no attempt, and re-arms with a neutral nudge; two consecutive indeterminates
+  // exhaust the loop as an infra failure. Still fail-closed: indeterminate (like
+  // every unmet verdict) never releases.
+  indeterminate: z.boolean().optional(),
 });
 export type GoalVerdict = z.infer<typeof GoalVerdictSchema>;
 
 // Orchestrator-only request driving the `dynamic_loop` tool. `op` selects
-// attach vs stop. For attach: `goal` is required, `target` omitted/equal to the
-// caller means a self-loop, `strategy` defaults to "hybrid", and `limit` is the
-// attempt bound (null = unbounded — the only user-facing bound besides
-// goal-met). For stop: `loopId` (or `target`) identifies the loop to stop.
+// attach, amend, or stop. For attach: `goal` is required, `target` omitted/equal
+// to the caller means a self-loop, `strategy` defaults to "hybrid", and `limit`
+// is the attempt bound (null = unbounded — the only user-facing bound besides
+// goal-met). For amend: `loopId` (or `target`) identifies the active loop, and
+// each of `goal`/`strategy`/`limit` that is PROVIDED replaces the current value
+// wholesale (absent fields keep theirs). For stop: `loopId` (or `target`)
+// identifies the loop to stop.
 export const DynamicLoopRequestSchema = z.object({
-  op: z.enum(["attach", "stop"]),
+  op: z.enum(["attach", "amend", "stop"]),
   target: z.string().optional(),
   goal: GoalSpecSchema.optional(),
   strategy: LoopStrategySchema.optional(),
@@ -71,6 +90,10 @@ export type DynamicLoopRequest = z.infer<typeof DynamicLoopRequestSchema>;
 export const DynamicLoopResponseSchema = z.object({
   loopId: z.string(),
   status: LoopStatusSchema,
+  // Attach-time lint advisories: judged criteria the gate may never be able to
+  // confirm (verify-less, naming no artifact). Present only when attach produced
+  // them; advisory, never blocks the attach.
+  warnings: z.array(z.string()).optional(),
 });
 export type DynamicLoopResponse = z.infer<typeof DynamicLoopResponseSchema>;
 
@@ -98,7 +121,9 @@ export type SpawnLoop = z.infer<typeof SpawnLoopSchema>;
 export const LoopCheckPhaseSchema = z.enum(["started", "verifying", "judging", "verdict"]);
 export type LoopCheckPhase = z.infer<typeof LoopCheckPhaseSchema>;
 
-export const LoopCheckOutcomeSchema = z.enum(["released", "continued", "exhausted"]);
+// "escalated" = the tick paused the loop and surfaced the (UNVERIFIED) report to
+// the parent for a decision — never a pass; the loop row stays "active".
+export const LoopCheckOutcomeSchema = z.enum(["released", "continued", "exhausted", "escalated"]);
 export type LoopCheckOutcome = z.infer<typeof LoopCheckOutcomeSchema>;
 
 export const LoopCheckProgressSchema = z.object({

@@ -1301,7 +1301,9 @@ export function buildContainer() {
           workerId: ownerId,
           text: body,
           displayText: body,
-          envelope: { kind: "worker_report", fromWorker: result.runId, workerName: "workflow" },
+          // A run completion is the engine speaking, not a worker — system
+          // provenance. runId + terminal status ride as tag attributes.
+          envelope: { kind: "worker_report", provenance: "system", fromWorker: result.runId, workerName: "workflow", status: result.status },
           queueWhenBusy: true,
           clientMsgId: `wf-complete:${result.runId}`,
           origin: "workflow-completion",

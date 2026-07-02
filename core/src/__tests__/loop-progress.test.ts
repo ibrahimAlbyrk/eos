@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { detectNoProgress, outcomeKey, type ProgressEntry } from "../domain/loop-progress.ts";
 
-const e = (stateHash: string, unmetCount: number): ProgressEntry => ({ stateHash, unmetCount });
+const e = (stateHash: string, unmetCount: number, outcomeHash = "o"): ProgressEntry => ({ stateHash, outcomeHash, unmetCount });
 
 describe("outcomeKey", () => {
   it("is order-independent", () => {
@@ -29,12 +29,31 @@ describe("detectNoProgress", () => {
     assert.equal(detectNoProgress([e("a", 2), e("b", 2), e("a", 1)], 3), null);
   });
 
-  it("a distinct change-set each attempt → null (not flagged by the bounded ring)", () => {
-    assert.equal(detectNoProgress([e("a", 1), e("b", 1), e("c", 1)], 3), null);
+  it("a distinct change-set each attempt with DIFFERENT unmet sets → null (still exploring)", () => {
+    assert.equal(detectNoProgress([e("a", 1, "x"), e("b", 1, "y"), e("c", 1, "x")], 3), null);
   });
 
   it("only the last `window` entries are considered", () => {
     // older shrinking entries don't rescue a frozen tail
     assert.equal(detectNoProgress([e("x", 9), e("h", 1), e("h", 1), e("h", 1)], 3), "frozen");
+  });
+});
+
+describe("detectNoProgress — stalled (thrasher)", () => {
+  it("STALLED: a new change-set every attempt, identical unmet set, not shrinking", () => {
+    assert.equal(detectNoProgress([e("a", 1), e("b", 1), e("c", 1)], 3), "stalled");
+  });
+
+  it("identical unmet set but a shrinking count → null (convergence guard fires first)", () => {
+    assert.equal(detectNoProgress([e("a", 2), e("b", 2), e("c", 1)], 3), null);
+  });
+
+  it("frozen and oscillation take precedence over stalled", () => {
+    assert.equal(detectNoProgress([e("h", 1), e("h", 1), e("h", 1)], 3), "frozen");
+    assert.equal(detectNoProgress([e("a", 1), e("b", 1), e("a", 1)], 3), "oscillation");
+  });
+
+  it("needs a full window before flagging", () => {
+    assert.equal(detectNoProgress([e("a", 1), e("b", 1)], 3), null);
   });
 });

@@ -95,3 +95,45 @@ describe("attachLoop", () => {
     assert.throws(() => armed(deps, { callerId: "o-ghost", goal: GOAL }), NotFoundError);
   });
 });
+
+describe("attachLoop goal lint", () => {
+  const NO_VERIFY: GoalSpec = { summary: "playable", criteria: [{ id: "c1", text: "the game is playable" }] };
+
+  it("rejects a command-strategy goal with a verify-less criterion (structurally unpassable)", () => {
+    const { deps, inserted } = buildDeps({ "o-1": { is_orchestrator: 1 } });
+    assert.throws(
+      () => armed(deps, { callerId: "o-1", goal: NO_VERIFY, strategy: "command" }),
+      (e: unknown) => e instanceof ValidationError && /verify/.test((e as Error).message),
+    );
+    assert.equal(inserted.length, 0);
+  });
+
+  it("warns (not rejects) on a judge/hybrid verify-less criterion that names no file path", () => {
+    const { deps, inserted } = buildDeps({ "o-1": { is_orchestrator: 1 } });
+    const res = attachLoop(deps, { callerId: "o-1", goal: NO_VERIFY, strategy: "hybrid", enabled: true });
+    assert.equal(inserted.length, 1);                 // attach still succeeds
+    assert.equal(res.warnings?.length, 1);
+    assert.match(res.warnings![0], /c1/);
+  });
+
+  it("no warning when a verify-less criterion names a file path", () => {
+    const goal: GoalSpec = { summary: "compiles", criteria: [{ id: "c1", text: "src/game.ts compiles" }] };
+    const { deps } = buildDeps({ "o-1": { is_orchestrator: 1 } });
+    const res = attachLoop(deps, { callerId: "o-1", goal, strategy: "judge", enabled: true });
+    assert.equal(res.warnings, undefined);
+  });
+
+  it("warns only for the verify-less criterion in a mixed goal", () => {
+    const goal: GoalSpec = {
+      summary: "mixed",
+      criteria: [
+        { id: "c1", text: "npm test green", verify: "npm test" },
+        { id: "c2", text: "the ui feels responsive" },
+      ],
+    };
+    const { deps } = buildDeps({ "o-1": { is_orchestrator: 1 } });
+    const res = attachLoop(deps, { callerId: "o-1", goal, strategy: "hybrid", enabled: true });
+    assert.equal(res.warnings?.length, 1);
+    assert.match(res.warnings![0], /c2/);
+  });
+});

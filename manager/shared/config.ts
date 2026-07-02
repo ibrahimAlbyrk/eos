@@ -117,6 +117,11 @@ export interface DaemonConfig {
     noProgressWindow: number;
     stopOnNoProgress: boolean;
     retryOnFailed: boolean;
+    // judge.temperature is IGNORED on the claude-sdk lane the judge runs on today
+    // (the agent SDK surfaces only model/effort/thinking, not per-call
+    // temperature — see LlmJudgeStrategy / AgentBackendJudgeClient). It is passed
+    // through and becomes live only if/when the metered anthropic-api lane ships
+    // (Fix 6f). Kept, not removed, to avoid churning the config schema.
     judge: { model: string; temperature: number };
   };
   // Deterministic workflow-orchestration engine (daemon-resident). `enabled`

@@ -9,7 +9,7 @@ import { runLoopTick, type LoopTickOutcome } from "../../core/src/use-cases/runL
 import type { LoopProgressSink } from "../../core/src/ports/LoopProgressSink.ts";
 import type { LoopStateRepo } from "../../core/src/ports/LoopStateRepo.ts";
 import type { LoopStatus, LoopCheckProgress, LoopCheckEvent } from "../../contracts/src/loop.ts";
-import type { GoalCheckStrategy } from "../../core/src/ports/GoalCheckStrategy.ts";
+import type { GoalCheckStrategy, CommandRunner } from "../../core/src/ports/GoalCheckStrategy.ts";
 import type { WorkerRepo } from "../../core/src/ports/WorkerRepo.ts";
 import type { MessageQueueRepo } from "../../core/src/ports/MessageQueueRepo.ts";
 import type { PromptRenderer } from "../../core/src/ports/PromptRenderer.ts";
@@ -22,6 +22,8 @@ const STATUS_OF: Record<LoopTickOutcome, LoopStatus | null> = {
   continued: "active",
   released: "passed",
   exhausted: "exhausted",
+  // Escalation pauses (awaiting input) without ending the loop — still active.
+  escalated: "active",
 };
 
 export interface GoalLoopDeps {
@@ -32,9 +34,11 @@ export interface GoalLoopDeps {
   // means the peer pump owns the next turn, so the loop must yield.
   peerRequests: { nextQueuedFor(to: string): unknown };
   strategyFor(name: string): GoalCheckStrategy;
-  dispatch(input: { workerId: string; text: string; origin: string }): Promise<unknown>;
-  releaseReport(input: { workerId: string; parentId: string; text: string }): Promise<unknown>;
+  dispatch(input: { workerId: string; text: string; origin: string; attempt?: number }): Promise<unknown>;
+  releaseReport(input: { workerId: string; parentId: string; text: string; provenance: "agent" | "system" }): Promise<unknown>;
   stateHash(input: { worktreeDir?: string; forkBaseSha?: string }): Promise<string>;
+  // Builds a per-tick memoizing command runner (dedups hybrid's double-run).
+  makeCommandRunner?: () => CommandRunner;
   noProgressWindow: number;
   stopOnNoProgress: boolean;
   // Notify the UI of a loop lifecycle change (the daemon publishes loop:change).
@@ -91,6 +95,7 @@ export class GoalLoopService {
             dispatch: this.deps.dispatch,
             releaseReport: this.deps.releaseReport,
             stateHash: this.deps.stateHash,
+            makeCommandRunner: this.deps.makeCommandRunner,
             noProgressWindow: this.deps.noProgressWindow,
             stopOnNoProgress: this.deps.stopOnNoProgress,
             renderer: this.deps.renderer,

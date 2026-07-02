@@ -78,15 +78,22 @@ function parseVerdict(raw: string): GoalVerdict | null {
 }
 
 // met only when the judge's overall flag AND every criterion agree — tightens
-// toward unmet, never loosens. unmet is the union of the judge's list and every
-// met:false criterion.
+// toward unmet, never loosens. An unverifiable criterion can never be met
+// (rubric rule 8): a contradictory unverifiable+met row is forced to met:false,
+// so unverifiable only ever survives on unmet criteria. unmet is the union of
+// the judge's list and every met:false criterion.
 function normalize(v: GoalVerdict): GoalVerdict {
-  const met = v.met && v.criteria.length > 0 && v.criteria.every((c) => c.met);
+  const criteria = v.criteria.map((c) => (c.unverifiable && c.met ? { ...c, met: false } : c));
+  const met = v.met && criteria.length > 0 && criteria.every((c) => c.met);
   const unmet = new Set(v.unmet);
-  for (const c of v.criteria) if (!c.met) unmet.add(c.id);
-  return { ...v, met, unmet: [...unmet] };
+  for (const c of criteria) if (!c.met) unmet.add(c.id);
+  return { ...v, criteria, met, unmet: [...unmet] };
 }
 
+// The check infrastructure failed (evidence collection threw, or the judge output
+// stayed unparseable). Still fail-closed (met:false, every criterion unmet), but
+// flagged `indeterminate` so the tick treats it as an infra failure — no attempt
+// burned, a neutral re-arm — instead of telling the worker its work is all unmet.
 function failClosed(goal: GoalSpec, reason: string): GoalVerdict {
   return {
     met: false,
@@ -94,5 +101,6 @@ function failClosed(goal: GoalSpec, reason: string): GoalVerdict {
     unmet: goal.criteria.map((c) => c.id),
     confidence: 0,
     reason,
+    indeterminate: true,
   };
 }

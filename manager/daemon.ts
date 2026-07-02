@@ -27,9 +27,10 @@ import { drainQueuedMessages } from "../core/src/use-cases/DrainQueuedMessages.t
 import { dispatchDeps } from "./routes/dispatch-deps.ts";
 import { isWorkerLive } from "./routes/worker-liveness.ts";
 import { resumeIfDead } from "./routes/resume-helpers.ts";
-import { formatWorkerReport } from "./shared/worker-report.ts";
+import { workerReportEnvelope } from "./shared/worker-report.ts";
 import { classifyReport, stepStatusOfSignal } from "../core/src/domain/report-signal.ts";
 import { worktreeStateHash } from "./shared/worktree-state-hash.ts";
+import { createMemoCommandRunner } from "../infra/src/goalcheck/MemoCommandRunner.ts";
 import { appendSynthesized } from "./shared/synthesized-events.ts";
 import { GoalLoopService } from "./services/GoalLoopService.ts";
 import { reArmLoops, stopLoopForExitedWorker } from "./services/loop-rearm.ts";
@@ -131,18 +132,24 @@ const goalLoop = new GoalLoopService({
   messageQueue: c.messageQueue,
   peerRequests: c.pendingPeerRequests,
   strategyFor: c.strategyFor,
-  // origin:"loop" carries a loop envelope so the continuation renders as a
-  // "Dynamic loop" system message (not a user bubble) and is agent-plane (no pill).
+  // origin:"loop" carries a loop envelope so the continuation is wrapped as a
+  // <system_message kind="dynamic_loop" attempt=…> (not an operator turn) and is
+  // agent-plane (no pill). displayText = the bare continuation body the chat
+  // renders (the wrapper never reaches the UI); attempt rides the tag.
   dispatch: (input) => dispatchMessage(dispatchDeps(c), {
-    ...input,
+    workerId: input.workerId,
+    text: input.text,
+    origin: input.origin,
     queueWhenBusy: true,
-    ...(input.origin === "loop" ? { envelope: { kind: "loop" as const } } : {}),
+    ...(input.origin === "loop"
+      ? { envelope: { kind: "loop" as const, ...(input.attempt != null ? { attempt: input.attempt } : {}) }, displayText: input.text }
+      : {}),
   }),
   // Release a held report to the parent as a worker_report — resume a
   // suspended parent first (a report held for minutes can outlive its parent's
   // session), build the same wrapper the report route uses, and queue it (fan-in
   // serialized) exactly like a direct report.
-  releaseReport: async ({ workerId, parentId, text }) => {
+  releaseReport: async ({ workerId, parentId, text, provenance }) => {
     // Read the structured held output BEFORE resumeIfDead may settle the loop —
     // the loop is still active here (runLoopTick clears it only after this returns).
     const heldOutput = c.loops.findActiveByWorker(workerId)?.heldOutput ?? null;
@@ -162,14 +169,23 @@ const goalLoop = new GoalLoopService({
       : { workerId, parentId, output: text, status: stepStatusOfSignal(classifyReport(text)), held: false });
     return dispatchMessage(dispatchDeps(c), {
       workerId: parentId,
-      text: w ? formatWorkerReport(w, text) : text,
+      // Clean body; the <agent_message|system_message …> wrapper (with the
+      // branch/worktree merge handle) is applied at the dispatch chokepoint from
+      // the envelope. provenance = "agent" for a held report, "system" for a
+      // daemon-synthesized loop-complete/exhausted message.
+      text,
       displayText: text,
-      envelope: { kind: "worker_report", fromWorker: workerId, workerName: w?.name ?? workerId },
+      envelope: w
+        ? workerReportEnvelope(w, provenance)
+        : { kind: "worker_report", provenance, fromWorker: workerId, workerName: workerId },
       queueWhenBusy: true,
       origin: "report",
     });
   },
   stateHash: (input) => worktreeStateHash(c.git, input),
+  // One memoizing runner per check so a hybrid tick runs each verify command once
+  // (the deterministic pass and the evidence collector share it).
+  makeCommandRunner: () => createMemoCommandRunner(),
   noProgressWindow: c.config.loop.noProgressWindow,
   stopOnNoProgress: c.config.loop.stopOnNoProgress,
   publishChange: (workerId, status) => c.bus.publish("loop:change", { workerId, status }),
@@ -240,17 +256,20 @@ const pumpPeerFor = (workerId: string): boolean => {
   c.pendingPeerRequests.markDelivered(next.requestId);
   const asker = c.workers.findById(next.from);
   const fromName = asker?.name ?? next.from;
-  const formatted =
-    `[Peer request from ${fromName} (${next.from})]\n${next.question}\n\n` +
+  // The sender identity is carried by the <agent_message from=…> wrapper (applied
+  // at the dispatch chokepoint from the peer_request envelope); the body keeps only
+  // the question + the genuinely instructional guidance the tag can't convey.
+  const body =
+    `${next.question}\n\n` +
     `Answer this from your area, then call respond_to_peer with your answer — that is the only thing that reaches ${fromName}; plain text in this turn does not.`;
   // Backend-aware delivery + settle-clear + WORKING lift, same path as the
   // dashboard and report flows — a port-less in-process (claude-sdk) peer is
   // reachable too (the old httpWorkerClient.sendMessage(w.port,…) silently
   // skipped them). PTY peer self-reports peer_request at its transcript
   // sighting; in-process gets the daemon-side append. displayText = the bare
-  // question the chat renders (without the "[Peer request from …]" framing).
+  // question the chat renders (without the wrapper or the guidance).
   void dispatchMessage(dispatchDeps(c), {
-    workerId, text: formatted, displayText: next.question,
+    workerId, text: body, displayText: next.question,
     envelope: { kind: "peer_request", fromWorker: next.from, fromName: asker?.name ?? undefined },
     origin: "peer-request",
   })

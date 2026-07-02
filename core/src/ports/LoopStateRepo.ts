@@ -36,6 +36,9 @@ export interface LoopRow {
   // Paused on a human's answer: the worker reported needs-input, so the goal-gate
   // skips it (no re-trigger, no attempt burned) until the orchestrator replies.
   awaitingInput: boolean;
+  // Consecutive indeterminate goal checks (evidence/judge infra failure). Reset to
+  // 0 on any determinate verdict; two in a row exhaust the loop (Fix 6c).
+  checkFailures: number;
   // Recent attempt fingerprints — the no-progress/oscillation safety reads this.
   progressRing: LoopAttempt[];
   startedAt: number;
@@ -51,6 +54,16 @@ export interface InsertLoopInput {
   maxAttempts: number | null;
   startedAt: number;
   updatedAt: number;
+}
+
+// Partial goal-renegotiation patch (amendLoop). Only the provided fields are
+// written; an absent field keeps its current value. maxAttempts is present-with-
+// null to force unbounded, distinct from absent (keep) — callers pass the key
+// only when the caller actually supplied a new limit.
+export interface LoopAmendPatch {
+  goal?: GoalSpec;
+  strategy?: LoopStrategy;
+  maxAttempts?: number | null;
 }
 
 // One re-trigger attempt's fingerprint: a hash of the worker's change-set, a key
@@ -69,7 +82,16 @@ export interface LoopStateRepo {
   findActiveByWorker(workerId: string): LoopRow | null;
   listActive(): LoopRow[];
   setStatus(id: string, status: LoopStatus): void;
+  // Goal renegotiation: replace the provided fields of an active loop's goal spec.
+  amend(id: string, patch: LoopAmendPatch): void;
+  // Clear the no-progress/oscillation fingerprint buffer — the ring's outcomeHashes
+  // reference criterion ids that no longer exist after a goal amend, so a fresh
+  // window must start. Leaves the attempt counter and maxAttempts bound untouched.
+  resetProgress(id: string): void;
   recordAttempt(id: string, attempt: LoopAttempt): void;
+  // Consecutive-indeterminate counter (Fix 6c): set to n on an indeterminate
+  // check, reset to 0 on any determinate verdict.
+  setCheckFailures(id: string, n: number): void;
   setHeldReport(id: string, text: string | null): void;
   // Store the structured held output (workflow step channel). Cleared together
   // with heldReport — setHeldReport(id, null) also clears it (see the adapter).

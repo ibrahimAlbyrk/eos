@@ -9,8 +9,8 @@ export const dynamicLoopDef: ToolDefinition = {
   name: "dynamic_loop",
   visibility: "orchestrator",
   inputSchema: {
-    op: z.enum(["attach", "stop"]).describe(
-      "'attach' to arm a loop, 'stop' to end one.",
+    op: z.enum(["attach", "amend", "stop"]).describe(
+      "'attach' to arm a loop, 'amend' to renegotiate an active loop's goal/strategy/limit in place, 'stop' to end one.",
     ),
     target: z.string().optional().describe(
       "Worker id to loop. Omit (or pass your own id) to loop yourself.",
@@ -29,14 +29,14 @@ export const dynamicLoopDef: ToolDefinition = {
           .min(1),
       })
       .optional()
-      .describe("The structured goal (required for 'attach')."),
+      .describe("The structured goal (required for 'attach'; for 'amend' the replacement goal — omit to keep the current one)."),
     strategy: z.enum(["command", "judge", "hybrid"]).optional().describe(
-      "How the goal is checked. Defaults to 'hybrid'.",
+      "How the goal is checked. Defaults to 'hybrid' on attach; on 'amend' omit to keep the current strategy.",
     ),
     limit: z.number().int().positive().nullable().optional().describe(
-      "Max attempts before the loop exhausts. null = unbounded (goal-met is the only exit).",
+      "Max attempts before the loop exhausts. null = unbounded (goal-met is the only exit). On 'amend' omit to keep the current limit.",
     ),
-    loopId: z.string().optional().describe("The loop to stop (for 'stop'); omit to stop the target's active loop."),
+    loopId: z.string().optional().describe("The loop to amend/stop; omit to target the worker's active loop (via `target`)."),
   },
   handler: async (ctx, args) => {
     const a = args as DynamicLoopRequest;

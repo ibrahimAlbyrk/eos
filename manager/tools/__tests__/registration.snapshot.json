@@ -378,9 +378,10 @@
           "type": "string",
           "enum": [
             "attach",
+            "amend",
             "stop"
           ],
-          "description": "'attach' to arm a loop, 'stop' to end one."
+          "description": "'attach' to arm a loop, 'amend' to renegotiate an active loop's goal/strategy/limit in place, 'stop' to end one."
         },
         "target": {
           "type": "string",
@@ -425,7 +426,7 @@
             "criteria"
           ],
           "additionalProperties": false,
-          "description": "The structured goal (required for 'attach')."
+          "description": "The structured goal (required for 'attach'; for 'amend' the replacement goal — omit to keep the current one)."
         },
         "strategy": {
           "type": "string",
@@ -434,7 +435,7 @@
             "judge",
             "hybrid"
           ],
-          "description": "How the goal is checked. Defaults to 'hybrid'."
+          "description": "How the goal is checked. Defaults to 'hybrid' on attach; on 'amend' omit to keep the current strategy."
         },
         "limit": {
           "anyOf": [
@@ -446,11 +447,11 @@
               "type": "null"
             }
           ],
-          "description": "Max attempts before the loop exhausts. null = unbounded (goal-met is the only exit)."
+          "description": "Max attempts before the loop exhausts. null = unbounded (goal-met is the only exit). On 'amend' omit to keep the current limit."
         },
         "loopId": {
           "type": "string",
-          "description": "The loop to stop (for 'stop'); omit to stop the target's active loop."
+          "description": "The loop to amend/stop; omit to target the worker's active loop (via `target`)."
         }
       },
       "required": [

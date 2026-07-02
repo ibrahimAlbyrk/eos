@@ -6,6 +6,7 @@
 // target — one goal at a time.
 
 import { assertOwnedBy } from "../services/WorkerOwnership.ts";
+import { lintGoalCriteria } from "../domain/loop-criteria-lint.ts";
 import { ConflictError, NotFoundError, PermissionDeniedError, ValidationError } from "../errors/index.ts";
 import type { WorkerRepo } from "../ports/WorkerRepo.ts";
 import type { LoopStateRepo } from "../ports/LoopStateRepo.ts";
@@ -31,7 +32,7 @@ export interface AttachLoopInput {
   enabled: boolean;
 }
 
-export function attachLoop(deps: AttachLoopDeps, input: AttachLoopInput): { loopId: string } {
+export function attachLoop(deps: AttachLoopDeps, input: AttachLoopInput): { loopId: string; warnings?: string[] } {
   if (!input.enabled) {
     throw new ValidationError("dynamic loop is disabled — set config.loop.enabled");
   }
@@ -49,6 +50,9 @@ export function attachLoop(deps: AttachLoopDeps, input: AttachLoopInput): { loop
     throw new ConflictError(`an active loop already exists on ${targetId}`);
   }
 
+  const strategy = input.strategy ?? "hybrid";
+  const warnings = lintGoalCriteria(strategy, input.goal);
+
   const parentId = targetId === input.callerId
     ? null
     : (deps.workers.findById(targetId)?.parent_id ?? null);
@@ -60,10 +64,10 @@ export function attachLoop(deps: AttachLoopDeps, input: AttachLoopInput): { loop
     workerId: targetId,
     parentId,
     goal: input.goal,
-    strategy: input.strategy ?? "hybrid",
+    strategy,
     maxAttempts: input.limit ?? null,
     startedAt: now,
     updatedAt: now,
   });
-  return { loopId };
+  return warnings.length > 0 ? { loopId, warnings } : { loopId };
 }

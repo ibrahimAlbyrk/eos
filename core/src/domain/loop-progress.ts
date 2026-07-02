@@ -1,16 +1,16 @@
 // Pure no-progress / oscillation detector — the only safety net on an unbounded
 // loop (budget was removed). Reads the bounded progress ring (the last
 // noProgressWindow attempts) and flags FROZEN (an identical change-set across the
-// whole window) or OSCILLATION (cycling between a few change-sets) while the
-// worker is NOT converging (the unmet count isn't shrinking).
-//
-// Limitation (by design — bounded ring): a worker that emits a genuinely NEW
-// change-set every attempt while never closing a criterion ("thrasher") is not
-// flagged here — that needs a persistent stagnation counter beyond the window
-// (a possible follow-up). The attempt limit + frozen/oscillation cover the rest.
+// whole window), OSCILLATION (cycling between a few change-sets), or STALLED (a
+// genuinely new change-set on every attempt yet the identical unmet criterion set
+// across the whole window — the thrasher signature) while the worker is NOT
+// converging (the unmet count isn't shrinking). Frozen/oscillation exhaust the
+// loop; stalled escalates it (pause + surface) — that policy lives in runLoopTick.
 
 export interface ProgressEntry {
   stateHash: string;
+  // outcomeKey of the attempt's unmet criterion set — equal hash ⇒ same unmet set.
+  outcomeHash: string;
   unmetCount: number;
 }
 
@@ -18,7 +18,7 @@ export interface ProgressEntry {
 // reads as oscillation; 1 distinct is reported as frozen instead.
 const OSCILLATION_DISTINCT_MAX = 2;
 
-export type NoProgressReason = "frozen" | "oscillation";
+export type NoProgressReason = "frozen" | "oscillation" | "stalled";
 
 // A stable key for an unmet criterion set — the directive's outcomeHash. Equal
 // key ⇒ same unmet set. No crypto needed (core is pure); a sorted join is a
@@ -38,5 +38,8 @@ export function detectNoProgress(ring: ProgressEntry[], window: number): NoProgr
   const distinct = new Set(w.map((e) => e.stateHash)).size;
   if (distinct === 1) return "frozen";
   if (distinct <= OSCILLATION_DISTINCT_MAX) return "oscillation";
+  // Stalled: distinct change-sets (> OSCILLATION_DISTINCT_MAX, guaranteed here)
+  // but the identical unmet set every attempt — churn that closes nothing.
+  if (new Set(w.map((e) => e.outcomeHash)).size === 1) return "stalled";
   return null;
 }

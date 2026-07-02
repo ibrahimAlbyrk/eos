@@ -126,6 +126,13 @@ describe("tool handlers issue the expected daemon calls", () => {
     assert.deepEqual(calls, [{ method: "POST", path: "/orchestrators/self-1/loop", body: args }]);
   });
 
+  it("dynamic_loop amend POSTs the request to /orchestrators/:self/loop (op-dispatched, not a new route)", async () => {
+    const { ctx, calls } = recording();
+    const args = { op: "amend", loopId: "l-9", limit: 3 };
+    await dynamicLoopDef.handler(ctx, args);
+    assert.deepEqual(calls, [{ method: "POST", path: "/orchestrators/self-1/loop", body: args }]);
+  });
+
   it("dynamic_loop stop POSTs the request to /orchestrators/:self/loop/stop", async () => {
     const { ctx, calls } = recording();
     const args = { op: "stop", loopId: "l-9" };
