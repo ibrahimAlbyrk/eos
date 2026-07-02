@@ -39,6 +39,75 @@ describe("api.answerQuestion wire contract", () => {
   });
 });
 
+describe("archive wire contract (frozen backend contract)", () => {
+  const okFetch = (body = { ok: true }) =>
+    vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => body });
+
+  it("archiveWorker POSTs to /workers/:id/archive", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.archiveWorker("w1");
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain(ROUTES.workerArchive("w1"));
+    expect(opts.method).toBe("POST");
+  });
+
+  it("restoreWorker POSTs to /workers/:id/restore", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.restoreWorker("w1");
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain(ROUTES.workerRestore("w1"));
+    expect(opts.method).toBe("POST");
+  });
+
+  it("purgeWorker DELETEs /workers/:id/purge", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.purgeWorker("w1");
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain(ROUTES.workerPurge("w1"));
+    expect(opts.method).toBe("DELETE");
+  });
+
+  it("killWorker DELETEs /workers/:id (permanent delete of a live agent)", async () => {
+    const fetchMock = okFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.killWorker("w1");
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url.endsWith(ROUTES.worker("w1"))).toBe(true);
+    expect(opts.method).toBe("DELETE");
+  });
+
+  it("listArchivedWorkers GETs /workers/archived and returns the rows", async () => {
+    const rows = [{ id: "w1", archived_at: 123 }];
+    const fetchMock = okFetch(rows);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const body = await api.listArchivedWorkers();
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain(ROUTES.workersArchived);
+    expect(opts?.method).toBeUndefined();
+    expect(body).toEqual(rows);
+  });
+
+  it("listArchivedWorkers throws on a non-ok response (listWorkers convention)", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(api.listArchivedWorkers()).rejects.toThrow("listArchivedWorkers → 500");
+  });
+});
+
 describe("api.renameIntent wire contract", () => {
   it("PUTs { active: true } to the rename-intent route (editor opened → pause)", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true }) });

@@ -239,6 +239,29 @@ export function useLive() {
     return r;
   }, [scheduleRefetch, setInterruptedId]);
 
+  // Archive replaces the old hard delete for every UI entry point. The row
+  // (and its subtree) leaves the next /workers payload, so downstream vanish
+  // handling (prunePanes, selection cleanup, useStorePrune) is unchanged.
+  const archiveAgent = useCallback(async (id) => {
+    const r = await api.archiveWorker(id);
+    scheduleRefetch();
+    return r;
+  }, [scheduleRefetch]);
+
+  const restoreAgent = useCallback(async (id) => {
+    const r = await api.restoreWorker(id);
+    scheduleRefetch();
+    return r;
+  }, [scheduleRefetch]);
+
+  const purgeAgent = useCallback(async (id) => {
+    const r = await api.purgeWorker(id);
+    scheduleRefetch();
+    return r;
+  }, [scheduleRefetch]);
+
+  // Permanent delete of a LIVE agent — menu-only and confirm-gated at the call
+  // site; Cmd+W stays archive-only.
   const killAgent = useCallback(async (id) => {
     const r = await api.killWorker(id);
     scheduleRefetch();
@@ -318,6 +341,9 @@ export function useLive() {
     spawnGitAgent,
     sendToAgent,
     interruptAgent,
+    archiveAgent,
+    restoreAgent,
+    purgeAgent,
     killAgent,
     renameAgent,
     setPermissionMode,

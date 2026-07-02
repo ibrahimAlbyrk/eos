@@ -604,6 +604,24 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
     inset 0 0 0 1px rgba(var(--tint), 0.09);
 }
 
+/* Archive toggle — Code sidebar only, directly above the Settings footer
+   (same pill recipe). It carries the margin-top:auto that pins the footer
+   block to the bottom; the following .sb-settings must drop its own, or the
+   two auto margins would split the free space and separate the rows. */
+.sb-archive {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  padding: 6px 10px 0;
+}
+.sb-archive + .sb-settings { margin-top: 0; }
+/* Active while in archived mode — the .modes .m.on recipe */
+.sb-archive .sb-settings__btn.on {
+  background: var(--surface-3);
+  color: var(--fg);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
 /* segmented control for Chat/Cowork/Code modes */
 .modes {
   display: flex;
@@ -3892,11 +3910,15 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   align-items: flex-start;
   gap: 6px;
   /* Bounded backlog area (~6 pills); past that it scrolls. Top/bottom padding
-     keeps each pill's floating ✕ (offset -6px) inside the scroll clip. */
+     keeps each pill's floating ✕ (offset -6px) inside the scroll clip. The
+     negative bottom margin cancels .composer-inner's flex gap so the bottom
+     pill's baseline lands 6px above .integration-wrap — same offset the
+     ambient rail floats at — instead of stacking gap + padding into 12px. */
   max-height: 224px;
   overflow-y: auto;
   scroll-behavior: smooth;
   padding: 6px 10px 6px 0;
+  margin-bottom: -6px;
   /* Soft edges only toward more content — QueuedList toggles the classes. */
   --qfade-top: 0px;
   --qfade-bot: 0px;
@@ -9280,4 +9302,35 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   font-size: 0.625rem; color: var(--fg-dim); font-family: var(--font-mono, monospace);
   background: var(--surface-2); border-radius: 5px; padding: 4px 6px;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+/* ============================== Archive panel ============================= */
+/* Fills the Code view's main area while archive mode is on: the selected
+   archived root gets the normal single-pane agent view, with the composer
+   inert + dimmed (the app's disabled-control opacity idiom). List rows reuse
+   the Code sidebar's .agents-row. */
+
+.archive-main {
+  flex: 1; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+
+.archive-empty {
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
+  text-align: center;
+}
+
+.archive-hint {
+  flex-shrink: 0;
+  text-align: center;
+  color: var(--fg-faint);
+  font-size: var(--text-xs);
+  padding: 2px 0 6px;
+}
+
+.composer-archived {
+  flex-shrink: 0;
+  opacity: 0.55;
 }

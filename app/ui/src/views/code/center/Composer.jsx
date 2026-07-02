@@ -884,7 +884,7 @@ export function Composer({ live, worker, paneId, focused }) {
   useEffect(() => () => { clearTimeout(pillHoverTimer.current); clearTimeout(pasteCloseTimer.current); }, []);
 
   // Worktree-fleet summary reported up by ComposerDiffRow — drives the footer
-  // mirror shown while the ambient hub is demoted by a blocking banner.
+  // mirror shown while the ambient hub is demoted (railYields).
   const [wtStatus, setWtStatus] = useState(null);
 
   // Anchor a composer popover above a pill: x = pill offset within .c-row2-wrap.
@@ -991,6 +991,11 @@ export function Composer({ live, worker, paneId, focused }) {
     focused && ui.pendingQuestion && selected && !ui.dismissedQuestions?.has(ui.pendingQuestion.toolUseId)
   );
   const blockingActive = hasPermission || hasQuestion;
+  // The ambient rail also yields while queued pills are visible (same overlap
+  // risk as a blocking banner — the rail floats up from .integration-wrap and
+  // would sit over the queued list). The footer mirror stays gated on this
+  // wider condition too, so tasks/worktree status is still visible somewhere.
+  const railYields = blockingActive || queuedList.length > 0;
 
   return (
     <div className="composer-wrap">
@@ -1020,10 +1025,11 @@ export function Composer({ live, worker, paneId, focused }) {
         ) : null}
         <div className="integration-wrap">
           {/* Ambient rail: tasks (left) + worktree fleet (right) on one line,
-              docked flush above the git bar. Both yield to a blocking banner. */}
+              docked flush above the git bar. Both yield to a blocking banner
+              or a visible queued-pill list (railYields). */}
           <div className="ambient-rail">
-            <TaskTray selected={selected} blockingActive={blockingActive} />
-            <WorktreeHub live={live} selected={selected} blockingActive={blockingActive} onStatus={setWtStatus} />
+            <TaskTray selected={selected} blockingActive={railYields} />
+            <WorktreeHub live={live} selected={selected} blockingActive={railYields} onStatus={setWtStatus} />
           </div>
           <TryDeck live={live} selected={selected} />
           {selected ? (
@@ -1102,7 +1108,7 @@ export function Composer({ live, worker, paneId, focused }) {
           onToggleGitMode={toggleGitMode}
           onAttach={addAttachments}
           historyNav={history.nav && text === history.nav.entry.text ? history.nav : null}
-          demoted={blockingActive}
+          demoted={railYields}
           wtStatus={wtStatus}
         />
       </div>

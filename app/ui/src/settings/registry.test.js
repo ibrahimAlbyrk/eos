@@ -18,6 +18,19 @@ describe("settings registry", () => {
     expect(keysOf(section("general"))).not.toContain("verbose.enabled");
   });
 
+  it("archive group lives in General: retention select, purge-on-close toggle, ⌘W action", () => {
+    const keys = keysOf(section("general"));
+    expect(keys).toEqual(expect.arrayContaining(["archive.retention", "archive.purgeOnAppClose", "archive.cmdW"]));
+    expect(SETTING_DEFAULTS["archive.retention"]).toBe("off");
+    expect(SETTING_DEFAULTS["archive.purgeOnAppClose"]).toBe(false);
+    expect(SETTING_DEFAULTS["archive.cmdW"]).toBe("archive");
+    const items = section("general").groups.find((g) => g.title === "Archive").items;
+    expect(items.find((i) => i.key === "archive.retention").control.options.map((o) => o.value))
+      .toEqual(["off", "daily", "weekly", "monthly"]);
+    expect(items.find((i) => i.key === "archive.cmdW").control.options.map((o) => o.value))
+      .toEqual(["archive", "delete"]);
+  });
+
   it("model section renders a custom Component (the shared provider/model picker) and keeps its defaults", () => {
     const model = section("model");
     expect(model.groups).toBeUndefined();

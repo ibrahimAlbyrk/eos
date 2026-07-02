@@ -16,6 +16,7 @@ import {
   PeerAskDetail, PeerRespondDetail, PeerListDetail,
   CreateWorkerDetail, AvailableWorkersDetail, DatetimeDetail,
   TaskCreateDetail, TaskUpdateDetail, TaskGetDetail, TaskListDetail, TodoWriteDetail,
+  ToolSearchDetail, ScheduleWakeupDetail, TaskOutputDetail, formatDelay,
   taskStatusBadge, parseTaskGet, parseTaskListRows,
 } from "./ToolDetail.jsx";
 import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
@@ -289,6 +290,27 @@ register("TaskList", {
   },
   runningLabel: () => ({ verb: "Listing", file: "tasks" }),
   Detail: TaskListDetail,
+});
+
+// ToolSearch / ScheduleWakeup / TaskOutput (harness built-ins) — each encodes its
+// hint in label.file (query / human delay / task id), so summary stays null; the
+// matched tools, wake reason+prompt, and captured output live in the Detail body.
+register("ToolSearch", {
+  label: (t) => ({ verb: "Searched tools", file: t.input?.query ?? "" }),
+  runningLabel: (t) => ({ verb: "Searching tools", file: t.input?.query ?? "" }),
+  Detail: ToolSearchDetail,
+});
+
+register("ScheduleWakeup", {
+  label: (t) => ({ verb: "Scheduled wakeup", file: formatDelay(t.input?.delaySeconds) }),
+  runningLabel: (t) => ({ verb: "Scheduling wakeup", file: formatDelay(t.input?.delaySeconds) }),
+  Detail: ScheduleWakeupDetail,
+});
+
+register("TaskOutput", {
+  label: (t) => ({ verb: "Read task output", file: t.input?.task_id ?? "" }),
+  runningLabel: (t) => ({ verb: "Reading task output", file: t.input?.task_id ?? "" }),
+  Detail: TaskOutputDetail,
 });
 
 // Worker-management MCP tools — folded into this registry so every tool

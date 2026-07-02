@@ -705,6 +705,100 @@ export function TodoWriteDetail({ tool }) {
   );
 }
 
+// A human "in 45m" delay from a raw seconds count. Empty for missing/invalid.
+export function formatDelay(sec) {
+  if (typeof sec !== "number" || !Number.isFinite(sec) || sec <= 0) return "";
+  const s = Math.round(sec);
+  if (s < 60) return `${s}s`;
+  if (s < 3600) {
+    const m = Math.floor(s / 60), rem = s % 60;
+    return rem ? `${m}m ${rem}s` : `${m}m`;
+  }
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return m ? `${h}h ${m}m` : `${h}h`;
+}
+
+// Tool names from a ToolSearch result — one per returned <function> block. The
+// function name is the first "name":"…" in each block (it precedes parameters,
+// whose own property keys carry object values, not string values).
+export function parseToolSearchNames(text) {
+  if (typeof text !== "string" || !text) return [];
+  const names = [];
+  for (const block of text.split("<function>")) {
+    const m = /"name"\s*:\s*"([^"]+)"/.exec(block);
+    if (m && !names.includes(m[1])) names.push(m[1]);
+  }
+  return names;
+}
+
+function clampText(s, n) {
+  const t = String(s ?? "");
+  return t.length > n ? t.slice(0, n) + "…" : t;
+}
+
+// ToolSearch (harness) — fetches deferred tool schemas by query. The query is in
+// the header; the body lists the matched tool names parsed from the returned
+// <function> blocks. No result yet (still fetching) → nothing to show.
+export function ToolSearchDetail({ tool }) {
+  if (tool.result?.isError) return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  const names = parseToolSearchNames(tool.result?.text);
+  if (names.length === 0) return null;
+  return (
+    <div className="tool-detail wd-card">
+      <div className="wd-sec">
+        <div className="wd-sec-label">{names.length} tool{names.length === 1 ? "" : "s"} matched</div>
+        <div className="wd-chips">
+          {names.map((n) => <span className="wd-chip" key={n}>{n}</span>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ScheduleWakeup (harness) — the /loop self-pace timer. The input IS the artifact
+// (result is just a confirmation), so it renders while still running: the reason
+// as the heading, the human delay as a chip, and the wake prompt truncated and
+// de-emphasized underneath.
+export function ScheduleWakeupDetail({ tool }) {
+  if (tool.result?.isError) return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  const i = tool.input ?? {};
+  const delay = formatDelay(i.delaySeconds);
+  if (!delay && !i.reason && !i.prompt) return null;
+  return (
+    <div className="tool-detail wd-card task-card">
+      <div className="wd-sec task-head">
+        <span className="task-subject">{i.reason || "Scheduled wakeup"}</span>
+        {delay && <span className="wd-chip"><span className="wd-chip-k">in</span> {delay}</span>}
+      </div>
+      {i.prompt && (
+        <div className="wd-sec">
+          <div className="wd-sec-label">On wake</div>
+          <div className="wd-text">{clampText(i.prompt, 200)}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// TaskOutput (harness) — reads a background task's output by id. The result is
+// the captured stdout/transcript (plain text), clamped in the generic output
+// block. Still running / no result → nothing to show.
+export function TaskOutputDetail({ tool }) {
+  if (tool.result?.isError) return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  const output = tool.result?.text ?? "";
+  if (!output.trim()) return null;
+  return (
+    <div className="tool-detail wd-card">
+      <div className="wd-sec">
+        <div className="gd-output-text">{output.slice(0, GENERIC_OUTPUT_MAX)}</div>
+        {output.length > GENERIC_OUTPUT_MAX && (
+          <div className="gd-output-more">+{output.length - GENERIC_OUTPUT_MAX} more characters</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const GENERIC_OUTPUT_MAX = 4000;
 const PARAM_VALUE_MAX = 300;
 const RAW_MAX = 8000;

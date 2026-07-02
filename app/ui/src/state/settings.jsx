@@ -32,6 +32,15 @@ export function SettingsProvider({ children }) {
     api.getSettings()
       .then((s) => setSettings((v) => ({ ...v, ...s })))
       .catch(() => { loaded.current = false; });
+    // Archive lifecycle keys live in ~/.eos/config.json (the daemon sweeper +
+    // app-closed purge read them), so they load from their own endpoint and
+    // merge in flat-key form. A failed load keeps the registry defaults.
+    api.getArchiveConfig()
+      .then((a) => setSettings((v) => ({
+        ...v,
+        ...Object.fromEntries(Object.entries(a).map(([k, val]) => [`archive.${k}`, val])),
+      })))
+      .catch(() => {});
   }, []);
 
   // Manual expand/collapse clicks are XOR overrides against the verbose
@@ -42,6 +51,11 @@ export function SettingsProvider({ children }) {
     if (key === THEME_KEY) themeChangedByUser.current = true;
     if (key.startsWith("verbose.")) resetToolToggles();
     setSettings((v) => ({ ...v, [key]: value }));
+    // archive.* persists to config.json (see the load above), never settings.json.
+    if (key.startsWith("archive.")) {
+      api.patchArchiveConfig({ [key.slice("archive.".length)]: value }).catch(() => {});
+      return;
+    }
     api.patchSettings({ [key]: value }).catch(() => {});
   }, [resetToolToggles]);
 

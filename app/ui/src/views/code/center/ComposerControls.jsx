@@ -21,7 +21,8 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   const selected = worker ?? null;
 
   // Compact mirror of the ambient status (tasks + worktree fleet) shown only
-  // while a blocking banner has demoted those panels out of the band above.
+  // while a blocking banner or a visible queued-pill list has demoted those
+  // panels out of the band above.
   const tasks = selected ? parseWorkerTasks(selected) : [];
   const taskTotal = tasks.length;
   const taskDone = tasks.filter((t) => t.status === "completed").length;

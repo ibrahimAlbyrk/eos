@@ -100,6 +100,51 @@ export const SETTINGS_SECTIONS = [
           },
         ],
       },
+      {
+        // archive.* persists to ~/.eos/config.json (the daemon reads it), not
+        // the settings.json store — see the archive branch in state/settings.jsx.
+        title: "Archive",
+        items: [
+          {
+            key: "archive.retention",
+            label: "Auto-delete archived agents",
+            description:
+              "Permanently delete agents archived longer than 1 day (Daily), 7 days (Weekly), or 30 days (Monthly). Off keeps archives forever.",
+            control: {
+              type: "select",
+              options: [
+                { value: "off", label: "Off" },
+                { value: "daily", label: "Daily" },
+                { value: "weekly", label: "Weekly" },
+                { value: "monthly", label: "Monthly" },
+              ],
+            },
+            defaultValue: "off",
+          },
+          {
+            key: "archive.purgeOnAppClose",
+            label: "Purge archive when the app closes",
+            description:
+              "Permanently delete all archived agents every time Eos quits.",
+            control: { type: "toggle" },
+            defaultValue: false,
+          },
+          {
+            key: "archive.cmdW",
+            label: "⌘W action",
+            description:
+              "What ⌘W does to the selected agent. Archive is reversible from the Archive view; Delete permanently removes the agent and its subtree without asking.",
+            control: {
+              type: "select",
+              options: [
+                { value: "archive", label: "Archive" },
+                { value: "delete", label: "Delete permanently" },
+              ],
+            },
+            defaultValue: "archive",
+          },
+        ],
+      },
     ],
   },
   {

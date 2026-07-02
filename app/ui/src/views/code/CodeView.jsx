@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { useUi } from "../../state/ui.jsx";
+import { subscribe, getArchive } from "../../state/archiveStore.js";
 import { useAgentSwitchHotkeys } from "../../hooks/useAgentSwitchHotkeys.js";
 import { usePaneFocusHotkeys } from "../../hooks/usePaneFocusHotkeys.js";
-import { useDeleteAgentHotkey } from "../../hooks/useDeleteAgentHotkey.js";
+import { useArchiveAgentHotkey } from "../../hooks/useArchiveAgentHotkey.js";
 import { useGitModeHotkey } from "../../hooks/useGitModeHotkey.js";
 import { useOpenEmptySplitHotkey } from "../../hooks/useOpenEmptySplitHotkey.js";
 import { useGlobalKeymap, useKeybinding } from "../../keymap/useKeymap.js";
@@ -13,9 +14,12 @@ import { CenterHeader } from "./center/CenterHeader.jsx";
 import { PaneGrid, SinglePane } from "./panes/PaneGrid.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
+import { ArchiveView } from "../archive/ArchiveView.jsx";
+import { ArchiveContextMenu } from "../archive/ArchiveContextMenu.jsx";
 
 export function CodeView({ live }) {
   const ui = useUi();
+  const { archiveMode } = useSyncExternalStore(subscribe, getArchive);
 
   // One capture-phase window listener for every keymap binding below (and any
   // future view binding) — replaces the per-hook listeners one at a time.
@@ -27,8 +31,8 @@ export function CodeView({ live }) {
   // Cmd+Ctrl+1..4 → focus the Nth split pane.
   usePaneFocusHotkeys();
 
-  // Cmd+W → delete the selected agent (falls back to the previous selection).
-  useDeleteAgentHotkey(live);
+  // Cmd+W → archive the selected agent (falls back to the previous selection).
+  useArchiveAgentHotkey(live);
 
   // Cmd+G → toggle the composer's git custom-task mode.
   useGitModeHotkey();
@@ -48,8 +52,8 @@ export function CodeView({ live }) {
   // Last agent removed → reset to the clean new-session state, in ANY layout.
   // `live.loaded` so an empty list during the initial fetch isn't mistaken for
   // "all deleted". Both cleanup effects below bail when the list is empty, so
-  // this is the single owner of that transition (single-pane delete already
-  // self-heals via useDeleteAgent; this covers the split case whose multi-pane
+  // this is the single owner of that transition (single-pane archive already
+  // self-heals via useArchiveAgent; this covers the split case whose multi-pane
   // path defers to prunePanes — which can't run once the list is empty).
   useEffect(() => {
     if (!live.loaded || live.workers.length > 0) return;
@@ -126,20 +130,28 @@ export function CodeView({ live }) {
       gridClass={gridClass}
       sidebar={(variant) => <CodeSidebar live={live} variant={variant} />}
       main={
-        <>
-          <CenterHeader live={live} />
-          {/* Single pane keeps the keep-alive multiplexer (instant switch-back).
-              Split view (2-4 panes) lays the transcripts out side by side. The
-              composer now lives INSIDE each pane (owned by that pane); the grid
-              fills the height the shared composer used to occupy. Each pane also
-              renders its own docked panel adjacent to it (see PaneViewers). */}
-          {ui.paneCount > 1
-            ? <PaneGrid live={live} />
-            : <SinglePane live={live} />}
-        </>
+        archiveMode ? (
+          // Archive mode replaces the main area with the archive panel; the
+          // pane tree below stays untouched in ui state, so toggling off
+          // remounts the exact layout/selection the user left.
+          <ArchiveView live={live} />
+        ) : (
+          <>
+            <CenterHeader live={live} />
+            {/* Single pane keeps the keep-alive multiplexer (instant switch-back).
+                Split view (2-4 panes) lays the transcripts out side by side. The
+                composer now lives INSIDE each pane (owned by that pane); the grid
+                fills the height the shared composer used to occupy. Each pane also
+                renders its own docked panel adjacent to it (see PaneViewers). */}
+            {ui.paneCount > 1
+              ? <PaneGrid live={live} />
+              : <SinglePane live={live} />}
+          </>
+        )
       }
     >
       <AgentContextMenu live={live} />
+      <ArchiveContextMenu live={live} />
       {ui.rewindPanel && <RewindPanel live={live} />}
     </AppLayout>
   );

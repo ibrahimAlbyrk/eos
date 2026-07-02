@@ -37,6 +37,17 @@ describe("web ROUTES parity with contracts ROUTES", () => {
     expect(missing).toEqual([]);
   });
 
+  // The archive feature's frozen contract, asserted explicitly (the parity
+  // sweep below also covers these, but a rename there would fail with a less
+  // pointed message than this).
+  it("archive endpoints match the frozen backend contract", () => {
+    expect(webRoutes.workersArchived).toBe("/workers/archived");
+    expect(webRoutes.workerArchive("w1")).toBe("/workers/w1/archive");
+    expect(webRoutes.workerRestore("w1")).toBe("/workers/w1/restore");
+    expect(webRoutes.workerPurge("w1")).toBe("/workers/w1/purge");
+    expect(webRoutes.settingsArchive).toBe("/api/settings/archive");
+  });
+
   it("every web ROUTES path matches the contracts path for that key", () => {
     const mismatched = [];
     for (const key of Object.keys(webRoutes)) {

@@ -154,7 +154,19 @@ export const api = {
     return r.body;
   },
   async spawnWorker(spec) { return postJson(ROUTES.workers, spec); },
+  // Archive / restore / purge / kill — the dashboard's worker lifecycle ops.
+  // Archive replaces the old hard delete on Cmd+W (reversible; rows/worktree
+  // kept); purge permanently deletes an ARCHIVED worker, kill a LIVE one —
+  // both confirm-gated in the menus that call them.
+  async archiveWorker(id) { return postJson(ROUTES.workerArchive(id)); },
+  async restoreWorker(id) { return postJson(ROUTES.workerRestore(id)); },
+  async purgeWorker(id) { return del(ROUTES.workerPurge(id)); },
   async killWorker(id) { return del(ROUTES.worker(id)); },
+  async listArchivedWorkers() {
+    const r = await getJson(ROUTES.workersArchived);
+    if (!r.ok) throw new Error(`listArchivedWorkers → ${r.status}`);
+    return r.body;
+  },
   async getWorkerEvents(id, { since = 0, order = "asc", limit, beforeId, afterId, signal } = {}) {
     const params = new URLSearchParams();
     params.set("since", String(since));
@@ -535,6 +547,17 @@ export const api = {
   },
   async patchSettings(patch) {
     return putJson(ROUTES.settings, { settings: patch });
+  },
+
+  // Archive lifecycle config — lives in ~/.eos/config.json (the daemon sweeper
+  // and app-closed purge read it live), so it bypasses the settings.json store.
+  async getArchiveConfig() {
+    const r = await getJson(ROUTES.settingsArchive);
+    if (!r.ok) throw new Error(`getArchiveConfig → ${r.status}`);
+    return r.body?.archive ?? {};
+  },
+  async patchArchiveConfig(patch) {
+    return putJson(ROUTES.settingsArchive, patch);
   },
 
   // Auto-update — status is an open read; apply is uiToken-gated (an agent must

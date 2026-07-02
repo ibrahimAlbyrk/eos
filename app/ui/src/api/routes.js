@@ -11,7 +11,13 @@ export const ROUTES = {
   health: "/health",
   stream: "/stream",
   workers: "/workers",
+  // Dedicated archived-only listing (dashboard-only). GET /workers takes NO
+  // archived param — archived rows are unconditionally excluded there.
+  workersArchived: "/workers/archived",
   worker: (id) => `/workers/${id}`,
+  workerArchive: (id) => `/workers/${id}/archive`,
+  workerRestore: (id) => `/workers/${id}/restore`,
+  workerPurge: (id) => `/workers/${id}/purge`,
   workerEvents: (id) => `/workers/${id}/events`,
   workerMessage: (id) => `/workers/${id}/message`,
   workerQueue: (id) => `/workers/${id}/queue`,
@@ -116,6 +122,7 @@ export const ROUTES = {
   templates: "/api/templates",
   template: (name) => `/api/templates/${name}`,
   settings: "/api/settings",
+  settingsArchive: "/api/settings/archive",
   updateStatus: "/api/updates/status",
   updateCheck: "/api/updates/check",
   updateApply: "/api/updates/apply",

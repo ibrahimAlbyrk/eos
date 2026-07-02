@@ -216,6 +216,53 @@ describe("getToolView", () => {
     expect(tw.summary({ input: { todos: [] } })).toBe("");
   });
 
+  it("gives ToolSearch a bespoke view keyed on the query", () => {
+    const v = getToolView("ToolSearch");
+    expect(v.Detail).not.toBe(GenericToolCard);
+    expect(v.label({ input: { query: "select:Read" } })).toEqual({ verb: "Searched tools", file: "select:Read" });
+    expect(v.runningLabel({ input: { query: "select:Read" } })).toEqual({ verb: "Searching tools", file: "select:Read" });
+    // encodes hint in label.file → null summary (BASE)
+    expect(v.summary({ input: { query: "x" } })).toBe(null);
+    // completed: Detail renders the matched tool names parsed from the result
+    const result = { text: '<functions>\n<function>{"description": "d", "name": "Read", "parameters": {}}</function>\n<function>{"description": "d", "name": "Edit", "parameters": {"properties": {"name": {"type": "string"}}}}</function>\n</functions>' };
+    const done = v.Detail({ tool: { name: "ToolSearch", input: { query: "x" }, result } });
+    expect(done).not.toBe(null);
+    // still running (no result) → no crash, nothing to render
+    expect(v.Detail({ tool: { name: "ToolSearch", input: { query: "x" } } })).toBe(null);
+    // missing input entirely → still no crash
+    expect(v.label({})).toEqual({ verb: "Searched tools", file: "" });
+  });
+
+  it("gives ScheduleWakeup a bespoke view with a human delay + reason", () => {
+    const v = getToolView("ScheduleWakeup");
+    expect(v.Detail).not.toBe(GenericToolCard);
+    expect(v.label({ input: { delaySeconds: 2700 } })).toEqual({ verb: "Scheduled wakeup", file: "45m" });
+    expect(v.runningLabel({ input: { delaySeconds: 90 } })).toEqual({ verb: "Scheduling wakeup", file: "1m 30s" });
+    // hour-scale + missing/invalid delay
+    expect(v.label({ input: { delaySeconds: 3600 } }).file).toBe("1h");
+    expect(v.label({ input: {} })).toEqual({ verb: "Scheduled wakeup", file: "" });
+    expect(v.label({})).toEqual({ verb: "Scheduled wakeup", file: "" });
+    expect(v.summary({ input: { delaySeconds: 60 } })).toBe(null);
+    // completed & running both render from input without throwing
+    const done = v.Detail({ tool: { name: "ScheduleWakeup", input: { delaySeconds: 2700, reason: "watching CI", prompt: "keep going" }, result: { text: "ok" } } });
+    expect(done).not.toBe(null);
+    expect(v.Detail({ tool: { name: "ScheduleWakeup", input: {} } })).toBe(null);
+  });
+
+  it("gives TaskOutput a bespoke view keyed on the task id", () => {
+    const v = getToolView("TaskOutput");
+    expect(v.Detail).not.toBe(GenericToolCard);
+    expect(v.label({ input: { task_id: "t-9" } })).toEqual({ verb: "Read task output", file: "t-9" });
+    expect(v.runningLabel({ input: { task_id: "t-9" } })).toEqual({ verb: "Reading task output", file: "t-9" });
+    expect(v.summary({ input: { task_id: "t-9" } })).toBe(null);
+    // completed: renders the captured output
+    const done = v.Detail({ tool: { name: "TaskOutput", input: { task_id: "t-9" }, result: { text: "build passed" } } });
+    expect(done).not.toBe(null);
+    // still running (no result) and missing input → no crash, nothing to render
+    expect(v.Detail({ tool: { name: "TaskOutput", input: { task_id: "t-9" } } })).toBe(null);
+    expect(v.label({})).toEqual({ verb: "Read task output", file: "" });
+  });
+
   it("renders a loop badge on spawn_worker only when armed at spawn", () => {
     const spawn = getToolView("mcp__orchestrator__spawn_worker");
     expect(spawn.Detail).toBe(WorkerToolBody);
