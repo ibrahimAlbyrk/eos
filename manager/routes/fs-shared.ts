@@ -1,7 +1,7 @@
 import { readdirSync, realpathSync } from "node:fs";
-import { execSync } from "node:child_process";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { IGNORED_ENTRIES } from "../../core/src/domain/fsIgnore.ts";
+import { listCandidateFiles } from "../../infra/src/filesystem/gitCandidateFiles.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { constantTimeEqual } from "../shared/constant-time.ts";
 
@@ -58,14 +58,8 @@ function scoreMatch(name: string, relPath: string, query: string): number {
 }
 
 export function searchProject(cwd: string, query: string, limit: number): FsEntry[] {
-  let fileList: string[];
-  try {
-    const tracked = execSync("git ls-files", { cwd, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
-    const untracked = execSync("git ls-files --others --exclude-standard", { cwd, encoding: "utf8", maxBuffer: 10 * 1024 * 1024 });
-    fileList = [...new Set([...tracked.trim().split("\n"), ...untracked.trim().split("\n")])].filter(Boolean);
-  } catch {
-    fileList = walkFiles(cwd, cwd, 5);
-  }
+  // Same git-scoped candidate set the symbol index parses (DRY).
+  const fileList = listCandidateFiles(cwd);
 
   const scored: { entry: FsEntry; score: number }[] = [];
   const seenDirs = new Set<string>();
@@ -94,25 +88,6 @@ export function searchProject(cwd: string, query: string, limit: number): FsEntr
 
   scored.sort((a, b) => b.score - a.score || sortEntries(a.entry, b.entry));
   return scored.slice(0, limit).map((s) => s.entry);
-}
-
-function walkFiles(base: string, dir: string, maxDepth: number): string[] {
-  if (maxDepth <= 0) return [];
-  const results: string[] = [];
-  try {
-    const items = readdirSync(dir, { withFileTypes: true });
-    for (const item of items) {
-      if (item.name.startsWith(".") || IGNORED.has(item.name)) continue;
-      const full = join(dir, item.name);
-      const rel = full.slice(base.length + 1);
-      if (item.isDirectory()) {
-        results.push(...walkFiles(base, full, maxDepth - 1));
-      } else {
-        results.push(rel);
-      }
-    }
-  } catch {}
-  return results;
 }
 
 // realpath the deepest existing ancestor of `abs` and re-append the missing
