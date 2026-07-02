@@ -29,7 +29,14 @@ export function SelectionProvider({ children }) {
   const [sideCollapsed, setSideCollapsed] = useState(() => localStorage.getItem("cm:sideCollapsed") === "1");
 
   useEffect(() => { localStorage.setItem("cm:sideCollapsed", sideCollapsed ? "1" : "0"); }, [sideCollapsed]);
-  const [openPopover, setOpenPopover] = useState(null);
+  // Popover open state is PER PANE, keyed by leaf id: { [paneId]: id }. Each
+  // pane owns its own Composer, so opening one pane's menu must not render it in
+  // the others (they gated on a single global string before). Chrome outside a
+  // pane resolves to the focused pane via useUi's scope. Position/data stay
+  // global — only the mutually-exclusive chrome context menus use them.
+  const [openPopoverByPane, setOpenPopoverByPane] = useState({});
+  const openPopByPaneRef = useRef(openPopoverByPane);
+  openPopByPaneRef.current = openPopoverByPane;
   const [popoverPos, setPopoverPos] = useState({ x: 0, y: 0 });
   const [popoverData, setPopoverData] = useState({});
   const [collapsedNodes, setCollapsedNodes] = useState(() => loadCollapsedNodes());
@@ -82,13 +89,27 @@ export function SelectionProvider({ children }) {
   const escapeGitModeRef = useRef(null);
   const registerEscapeGitMode = useCallback((fn) => { escapeGitModeRef.current = fn; }, []);
 
-  const openPop = useCallback((id, opts = {}) => {
-    setOpenPopover(id);
+  // Raw paneId-explicit popover ops. useUi wraps these into the scope-aware
+  // openPop/closeAllPops/openPopover that every call site uses (mirrors the
+  // panelsByPane pattern) — a composer scopes to its own pane, chrome to focused.
+  const openPopoverIn = useCallback((paneId) => openPopByPaneRef.current[paneId] ?? null, []);
+  const openPopIn = useCallback((paneId, id, opts = {}) => {
+    setOpenPopoverByPane((m) => ({ ...m, [paneId]: id }));
     if (opts.x != null && opts.y != null) setPopoverPos({ x: opts.x, y: opts.y });
     if (opts.data) setPopoverData(opts.data);
   }, []);
-  const closeAllPops = useCallback(() => {
-    setOpenPopover(null);
+  const closePopsIn = useCallback((paneId) => {
+    setOpenPopoverByPane((m) => {
+      if (!(paneId in m)) return m;
+      const next = { ...m };
+      delete next[paneId];
+      return next;
+    });
+    setPopoverData({});
+  }, []);
+  // Close every pane's popover at once — Escape and any global dismissal.
+  const closeAllPopsEverywhere = useCallback(() => {
+    setOpenPopoverByPane((m) => (Object.keys(m).length ? {} : m));
     setPopoverData({});
   }, []);
 
@@ -105,7 +126,7 @@ export function SelectionProvider({ children }) {
       // WKWebView's native responder chain → NSWindow cancelOperation: → exits
       // macOS fullscreen. Closing a panel must not also drop fullscreen.
       if (rewindPanel) { e.preventDefault(); setRewindPanel(null); return; }
-      if (openPopover) { e.preventDefault(); closeAllPops(); return; }
+      if (Object.keys(openPopByPaneRef.current).length) { e.preventDefault(); closeAllPopsEverywhere(); return; }
       if (escapePanelRef.current?.()) { e.preventDefault(); return; }
       if (escapeGitModeRef.current?.()) { e.preventDefault(); return; }
       // Double-Esc with an agent selected → rewind panel (Claude Code parity:
@@ -123,7 +144,7 @@ export function SelectionProvider({ children }) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeAllPops, openPopover, rewindPanel, selectedId]);
+  }, [closeAllPopsEverywhere, rewindPanel, selectedId]);
 
   const toggleNodeCollapsed = useCallback((id) => {
     setCollapsedNodes((prev) => {
@@ -158,7 +179,7 @@ export function SelectionProvider({ children }) {
   const value = useMemo(() => ({
     selectedId, setSelectedId, takePreviousSelection,
     sideCollapsed, setSideCollapsed,
-    openPopover, openPop, closeAllPops, popoverPos, popoverData,
+    openPopoverIn, openPopIn, closePopsIn, closeAllPopsEverywhere, popoverPos, popoverData,
     collapsedNodes, toggleNodeCollapsed, removeCollapsedNodes,
     expandedTools, toggleToolExpanded, resetToolToggles,
     renamingId, setRenamingId,
@@ -174,10 +195,10 @@ export function SelectionProvider({ children }) {
     registerEscapeGitMode,
   }), [
     selectedId, setSelectedId, takePreviousSelection,
-    sideCollapsed, openPopover, popoverPos, popoverData,
+    sideCollapsed, openPopoverByPane, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, panelsByPane,
     rewindPanel, openRewindPanel, closeRewindPanel,
-    openPop, closeAllPops, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
+    openPopoverIn, openPopIn, closePopsIn, closeAllPopsEverywhere, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
     topPanelTypeIn, panelDataIn,
     openPanelIn, closePanelIn, popPanelIn, updatePanelDataIn,
     clearPanelsIn, retainPanelsFor, registerEscapePanel,

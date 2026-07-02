@@ -56,6 +56,13 @@ export function useUi() {
   scopeRef.current = scopePane;
 
   const { topPanelTypeIn, panelDataIn, openPanelIn, closePanelIn, updatePanelDataIn } = selection;
+  const { openPopoverIn, openPopIn, closePopsIn } = selection;
+
+  // Scope-aware popover open/close: a composer targets its OWN pane, chrome the
+  // focused pane. Keeps every call site (ui.openPop(id)/ui.closeAllPops()) intact
+  // while making the open state per pane — one pane's menu no longer opens in all.
+  const openPop = useCallback((id, opts = {}) => openPopIn(scopeRef.current, id, opts), [openPopIn]);
+  const closeAllPops = useCallback(() => closePopsIn(scopeRef.current), [closePopsIn]);
 
   // Scope-aware actions. Read scope from a ref so identities stay stable across
   // renders — some viewers list these in useCallback deps.
@@ -99,10 +106,15 @@ export function useUi() {
       ...search,
       ...settings,
       ...panels,
+      // Scope-resolved popover state — overrides the raw paneId-explicit ops
+      // spread from selection, so consumers read/act on their own pane's popover.
+      openPopover: openPopoverIn(scopePane),
+      openPop,
+      closeAllPops,
     };
   }, [
     navigation, selection, pane, composer, attention, search, settings, scopePane,
-    topPanelTypeIn, panelDataIn,
+    topPanelTypeIn, panelDataIn, openPopoverIn, openPop, closeAllPops,
     openFileViewer, closeFileViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     openDiffViewer, closeDiffViewer, openCommitsViewer, closeCommitsViewer,
     openConflictResolver, closeConflictResolver, openMemoryViewer, closeMemoryViewer,
