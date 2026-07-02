@@ -44,6 +44,19 @@ test("jsonl tool_result → message{role:tool, tool_result}", () => {
   assert.deepEqual(out[0].blocks, [{ type: "tool_result", callId: "toolu_1", isError: true, content: "boom" }]);
 });
 
+test("jsonl tool_result forwards the extracted patch onto the canonical block", () => {
+  const patch = [{ oldStart: 35, newStart: 35, lines: ["-b", "+x"] }];
+  const out = mapValid("jsonl", { kind: "tool_result", toolUseId: "toolu_1", isError: false, text: "ok", patch });
+  assert.deepEqual(out[0].blocks, [{ type: "tool_result", callId: "toolu_1", isError: false, content: "ok", patch }]);
+});
+
+test("jsonl tool_result omits patch when absent or empty (non-Edit tools)", () => {
+  const noPatch = mapValid("jsonl", { kind: "tool_result", toolUseId: "t", text: "ok" });
+  assert.equal(Object.prototype.hasOwnProperty.call(noPatch[0].blocks[0], "patch"), false);
+  const emptyPatch = mapValid("jsonl", { kind: "tool_result", toolUseId: "t", text: "ok", patch: [] });
+  assert.equal(Object.prototype.hasOwnProperty.call(emptyPatch[0].blocks[0], "patch"), false);
+});
+
 test("jsonl skill_body → message{skill} correlated by callId", () => {
   const out = mapValid("jsonl", { kind: "skill_body", toolUseId: "toolu_9", text: "/skills/x\nbody" });
   assert.equal(out[0].role, "assistant");

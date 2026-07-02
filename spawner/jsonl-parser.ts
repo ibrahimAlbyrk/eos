@@ -6,6 +6,8 @@
 //   { message: { role: "user",      content: [{type:"tool_result", ...}] }}
 // Plus legacy and built-in-tool variants handled below.
 
+import { parseStructuredPatch, type PatchHunk } from "../contracts/src/canonical.ts";
+
 export interface UsagePayload {
   in: number;
   out: number;
@@ -13,15 +15,6 @@ export interface UsagePayload {
   cacheCreate: number;
   cacheCreate1h: number;
   model: string;
-}
-
-// One hunk of an Edit/Write tool_result's structured patch — the only source
-// of *absolute* file line numbers (oldStart/newStart). The snippet in
-// tool.input (old_string/new_string) has no idea where in the file it sits.
-export interface PatchHunk {
-  oldStart: number;
-  newStart: number;
-  lines: string[];
 }
 
 export interface JsonlPayload {
@@ -157,7 +150,7 @@ export function parseJsonlLine(
         // `message` (not inside the content block) — keep it for absolute line
         // numbers in the UI diff.
         const tur = e.toolUseResult as { structuredPatch?: unknown } | undefined;
-        const patch = extractPatch(tur?.structuredPatch);
+        const patch = parseStructuredPatch(tur?.structuredPatch);
         emit("jsonl", {
           kind: "tool_result",
           toolUseId: block.tool_use_id,
@@ -212,20 +205,6 @@ function transcriptTs(v: unknown): number | undefined {
   if (typeof v !== "string") return undefined;
   const t = Date.parse(v);
   return Number.isNaN(t) ? undefined : t;
-}
-
-// Slims the transcript's structuredPatch down to the fields the UI diff needs.
-// Returns undefined for absent/empty patches (non-Edit tools, MCP edits).
-function extractPatch(sp: unknown): PatchHunk[] | undefined {
-  if (!Array.isArray(sp) || sp.length === 0) return undefined;
-  const hunks: PatchHunk[] = [];
-  for (const h of sp) {
-    const hr = h as Record<string, unknown>;
-    if (typeof hr.oldStart === "number" && typeof hr.newStart === "number" && Array.isArray(hr.lines)) {
-      hunks.push({ oldStart: hr.oldStart, newStart: hr.newStart, lines: hr.lines as string[] });
-    }
-  }
-  return hunks.length ? hunks : undefined;
 }
 
 // Tool results are usually a string or text blocks, but some tools return other

@@ -19,14 +19,13 @@
 //     match on "≥2 of N fragments" instead of one contiguous marker.
 
 import { normalizeForMatch } from "./delivery.ts";
+import { computeRewindTargets, type RewindTarget } from "../core/src/domain/rewind-targets.ts";
 
-export interface RewindTarget {
-  uuid: string;
-  text: string;
-  display: string;
-  ts: string;
-  upCount: number;
-}
+// The pure transcript walk (computeRewindTargets + its RewindTarget shape) lives
+// in core/src/domain/rewind-targets.ts so the claude-sdk lane shares it; re-export
+// here so this module stays the spawner's single rewind surface.
+export { computeRewindTargets };
+export type { RewindTarget };
 
 export type RewindMode = "conversation" | "code" | "both";
 
@@ -85,93 +84,6 @@ export function rowNeedle(display: string): string | null {
   const firstLine = display.split("\n", 1)[0] ?? "";
   const n = normalizeForMatch(firstLine).slice(0, NEEDLE_LEN);
   return n.length >= MIN_NEEDLE_LEN ? n : null;
-}
-
-// ---- transcript walk -------------------------------------------------------
-
-interface TranscriptEntry {
-  type?: unknown;
-  uuid?: unknown;
-  parentUuid?: unknown;
-  isSidechain?: unknown;
-  isMeta?: unknown;
-  timestamp?: unknown;
-  message?: { role?: unknown; content?: unknown };
-}
-
-function promptText(e: TranscriptEntry): string | null {
-  const m = e.message;
-  if (!m || m.role !== "user" || e.isMeta === true) return null;
-  let text: string;
-  if (typeof m.content === "string") {
-    text = m.content;
-  } else if (Array.isArray(m.content)) {
-    const blocks = m.content as Array<{ type?: unknown; text?: unknown }>;
-    const texts = blocks.filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text as string);
-    // tool_result-only and image-only entries are not prompts in the TUI list.
-    if (!texts.some((t) => t.trim() !== "")) return null;
-    text = texts.join("\n");
-  } else {
-    return null;
-  }
-  if (text.trim() === "") return null;
-  if (text.startsWith("[Request interrupted")) return null;
-  if (text.startsWith("<local-command-stdout")) return null;
-  return text;
-}
-
-function displayFor(text: string): string {
-  const name = /<command-name>([^<]*)<\/command-name>/.exec(text)?.[1]?.trim();
-  if (!name) return text;
-  const args = /<command-args>([^<]*)<\/command-args>/.exec(text)?.[1]?.trim();
-  return args ? `${name} ${args}` : name;
-}
-
-/**
- * User prompts on the transcript's ACTIVE branch, oldest first. The JSONL is a
- * parentUuid DAG after rewinds — abandoned branches stay in the file — so we
- * walk back from the newest non-sidechain user/assistant entry and keep only
- * user entries on that chain. Must mirror what the TUI panel lists, or
- * upCount navigation drifts (the row needle verification catches drift).
- */
-export function computeRewindTargets(jsonl: string): RewindTarget[] {
-  const entries: TranscriptEntry[] = [];
-  for (const line of jsonl.split("\n")) {
-    if (!line.trim()) continue;
-    try { entries.push(JSON.parse(line) as TranscriptEntry); } catch { /* torn line */ }
-  }
-
-  const byUuid = new Map<string, TranscriptEntry>();
-  let tip: TranscriptEntry | null = null;
-  for (const e of entries) {
-    if (typeof e.uuid !== "string") continue;
-    byUuid.set(e.uuid, e);
-    if ((e.type === "user" || e.type === "assistant") && e.isSidechain !== true) tip = e;
-  }
-  if (!tip) return [];
-
-  const onPath = new Set<string>();
-  let cur: TranscriptEntry | null = tip;
-  while (cur && typeof cur.uuid === "string" && !onPath.has(cur.uuid)) {
-    onPath.add(cur.uuid);
-    cur = typeof cur.parentUuid === "string" ? byUuid.get(cur.parentUuid) ?? null : null;
-  }
-
-  const prompts: Array<{ uuid: string; text: string; ts: string }> = [];
-  for (const e of entries) {
-    if (e.type !== "user" || typeof e.uuid !== "string" || !onPath.has(e.uuid)) continue;
-    const text = promptText(e);
-    if (text === null) continue;
-    prompts.push({ uuid: e.uuid, text, ts: typeof e.timestamp === "string" ? e.timestamp : "" });
-  }
-
-  return prompts.map((p, i) => ({
-    uuid: p.uuid,
-    text: p.text,
-    display: displayFor(p.text),
-    ts: p.ts,
-    upCount: prompts.length - i,
-  }));
 }
 
 // ---- driver -----------------------------------------------------------------

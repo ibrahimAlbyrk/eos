@@ -6,7 +6,7 @@
 // PTY/chokidar scaffolding, and so it imposes no runtime dependency (the
 // canonical type import is erased by strip-types).
 
-import type { AgentEvent } from "../contracts/src/canonical.ts";
+import type { AgentEvent, PatchHunk } from "../contracts/src/canonical.ts";
 import { contextTokensOf } from "../contracts/src/canonical.ts";
 
 type Rec = Record<string, unknown>;
@@ -59,12 +59,17 @@ function jsonlToCanonical(p: Rec): AgentEvent[] {
         role: "assistant",
         blocks: [{ type: "tool_call", callId: str(p.id) ?? "", name: str(p.name) ?? "", input: asRec(p.input), ...(p.spawnsSubagent === true ? { spawnsSubagent: true } : {}) }],
       }];
-    case "tool_result":
+    case "tool_result": {
+      // jsonl-parser already extracted the structuredPatch into p.patch (absolute
+      // file line numbers for Edit/Write); carry it through so the UI diff can show
+      // them. Absent for every other tool → the block omits the optional field.
+      const patch = Array.isArray(p.patch) && p.patch.length ? { patch: p.patch as PatchHunk[] } : {};
       return [{
         type: "message",
         role: "tool",
-        blocks: [{ type: "tool_result", callId: str(p.toolUseId) ?? "", isError: p.isError === true, content: str(p.text) ?? "" }],
+        blocks: [{ type: "tool_result", callId: str(p.toolUseId) ?? "", isError: p.isError === true, content: str(p.text) ?? "", ...patch }],
       }];
+    }
     case "skill_body":
       // A Skill's injected SKILL.md body, keyed to its tool_use id (jsonl-parser
       // emits it separately). Carried as a canonical skill block correlated by callId.
