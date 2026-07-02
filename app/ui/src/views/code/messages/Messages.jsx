@@ -584,6 +584,13 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
           conversation cleared
         </div>
       );
+    case "turnError":
+      return (
+        <div key={key} className="turn-error mono">
+          <span className="te-icon" aria-hidden>!</span>
+          <span className="te-msg">{b.message}</span>
+        </div>
+      );
     case "push":
       return (
         <div key={key} className={"git-push-line mono" + (b.ok ? " ok" : " err")}>

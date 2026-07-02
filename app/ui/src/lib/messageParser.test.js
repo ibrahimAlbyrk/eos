@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildBlocks, buildSummary, buildWorkerSummary, gitActions, applyRewinds, applyClears, sortBlocksByTs } from "./messageParser.js";
+import { buildBlocks, buildSummary, buildWorkerSummary, gitActions, applyRewinds, applyClears, sortBlocksByTs, providerErrorMessage } from "./messageParser.js";
 
 function agentRow(id, ts) {
   return { type: "jsonl", ts, payload: { kind: "tool_use", id, name: "Agent", input: { description: id } } };
@@ -853,5 +853,35 @@ describe("buildBlocks persisted goal-check verdict (loop_check)", () => {
     ]);
     const lc = blocks.find((b) => b.kind === "loopCheck");
     expect(lc).toMatchObject({ attempt: 1, maxAttempts: null, met: true, outcome: "released", reason: "" });
+  });
+});
+
+describe("buildBlocks turn:error → rendered error block", () => {
+  const turnError = (reason, ts = 100) => ({ type: "agent_event", ts, payload: { type: "turn", phase: "error", reason } });
+
+  it("maps a typed insufficient_credits reason to a human message block", () => {
+    const blocks = buildBlocks([turnError("insufficient_credits")]);
+    const te = blocks.find((b) => b.kind === "turnError");
+    expect(te).toBeTruthy();
+    expect(te.reason).toBe("insufficient_credits");
+    expect(te.message).toBe(providerErrorMessage("insufficient_credits"));
+    expect(te.message).toMatch(/credits/i);
+  });
+
+  it("maps a typed auth_invalid reason to a human message block", () => {
+    const blocks = buildBlocks([turnError("auth_invalid")]);
+    const te = blocks.find((b) => b.kind === "turnError");
+    expect(te.message).toMatch(/key/i);
+  });
+
+  it("falls back to the raw reason for an unmapped error", () => {
+    const blocks = buildBlocks([turnError("HTTP 500: upstream boom")]);
+    const te = blocks.find((b) => b.kind === "turnError");
+    expect(te.message).toBe("HTTP 500: upstream boom");
+  });
+
+  it("a non-error turn end yields NO error block (only the Stop barrier)", () => {
+    const blocks = buildBlocks([{ type: "agent_event", ts: 50, payload: { type: "turn", phase: "ended" } }]);
+    expect(blocks.some((b) => b.kind === "turnError")).toBe(false);
   });
 });

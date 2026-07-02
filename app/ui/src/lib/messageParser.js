@@ -4,6 +4,18 @@ import { isWorkerToolName, WORKER_TOOL_SPECS } from "./workerTools.js";
 
 export { parsePayload };
 
+// Typed provider-error codes → human English with remediation. The keys MUST match
+// the STRING contract produced by the in-process model clients
+// (infra/src/backends/{Anthropic,OpenAI}ModelClient.ts); any other reason (raw
+// `HTTP <status>: …`, stream stalls) falls back to the raw string.
+const PROVIDER_ERROR_MESSAGES = {
+  insufficient_credits: "Provider API credits exhausted — add credits in your provider console.",
+  auth_invalid: "Provider API key invalid or expired — check the key in your provider settings.",
+};
+export function providerErrorMessage(reason) {
+  return PROVIDER_ERROR_MESSAGES[reason] || reason || "The model turn failed.";
+}
+
 // Tools that never merge into a toolGroup — always rendered as standalone blocks.
 // "Agent" is here for the live hook-only window: the transcript tool_use (which
 // renders the agentRun block) flushes at step boundaries, so mid-turn the Agent
@@ -154,6 +166,10 @@ function normalizeEvents(events) {
       // alive → drop (heartbeat: no render, no lifecycle effect)
     } else if (e?.type === "turn" && e.phase !== "started") {
       out.push({ type: "hook", ts, payload: { event: "Stop" } }); // turn end → tool-lifecycle turn barrier; no render
+      // A turn that ended in error (provider billing/auth failure, stream stall, …)
+      // ALSO surfaces a renderable error block — without it the worker just goes idle
+      // with no feedback. The Stop barrier above still closes open tools.
+      if (e.phase === "error") out.push({ type: "turn_error", ts, payload: { reason: e.reason ?? "" } });
     } else if (e?.type === "session" && e.phase === "ended") {
       out.push({ type: "exit", ts, payload: {} }); // exit barrier — closes every open tool
     }
@@ -407,6 +423,13 @@ export function buildBlocks(rawEvents) {
         lastAsst = null;
         out.push({ kind: "deliveryFailed", text: payload.text ?? "", ts: ev.ts });
       }
+      continue;
+    }
+    if (ev.type === "turn_error") {
+      flushTools();
+      lastAsst = null;
+      const payload = parsePayload(ev.payload);
+      out.push({ kind: "turnError", reason: payload.reason ?? "", message: providerErrorMessage(payload.reason ?? ""), ts: ev.ts });
       continue;
     }
     if (ev.type === "conversation_cleared") {
