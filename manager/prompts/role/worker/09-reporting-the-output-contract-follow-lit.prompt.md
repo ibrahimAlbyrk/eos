@@ -24,6 +24,8 @@ The **first line** MUST begin with one of these exact tokens — the orchestrato
 
 The token must be the literal first characters of line one — `# result:` or `I finished: result: …` does not parse. A first line that matches none of the three cannot be routed: a looped worker's report is then held and re-checked as if it claimed `result:`; a non-looped worker's is forwarded unrouted. Always lead with a bare token.
 
+If a dynamic-loop goal gates your reports, `needs input:` is your escape hatch: it passes straight through to the orchestrator and pauses the goal-check gate instead of re-triggering another attempt.
+
 Then, in order:
 
 1. Outcome — 1-3 sentences. What is now true that wasn't, stated as result not story.

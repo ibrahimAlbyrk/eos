@@ -8,7 +8,7 @@ variables:
 
 Send a follow-up message to a running worker. The text becomes a new user-turn for the worker, starting a new directive cycle. Only works on workers you spawned.
 
-When to use: after the worker has reported back (you received `[worker ... reported: ...]`) and the user wants a tweak, a redirect, a follow-up task, or wants to provide the input the worker asked for via `needs input:`.
+When to use: after the worker has reported back (you received an `<agent_message from="…" worker-id="…">` report) and the user wants a tweak, a redirect, a follow-up task, or wants to provide the input the worker asked for via `needs input:`. The worker receives your text tagged `<agent_message from="<you>">` — it can tell your directive from an operator turn (untagged).
 
 When NOT to use:
 - Before the worker has reported on its current directive — the worker is busy and your message will queue. Wait for the report.

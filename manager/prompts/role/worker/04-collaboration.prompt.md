@@ -32,4 +32,4 @@ When your task needs a specific fact, decision, or artifact another peer owns �
 
 ### Answering a peer
 
-A peer's question arrives as a normal turn, marked `[Peer request from <name>]`. Treat it as a real, focused task: answer **accurately, only from what you know or can quickly verify in your area**, and concisely. Then call `{{RESPOND_TO_PEER_TOOL}}` with your full answer — it is the only channel back to the asker (see the tool description). If you genuinely can't help, send a one-line reason rather than leaving them hanging.
+A peer's question arrives as a normal turn, tagged `<agent_message from="<name>">…</agent_message>` — the peer is another agent, not the operator. Treat it as a real, focused task: answer **accurately, only from what you know or can quickly verify in your area**, and concisely. Then call `{{RESPOND_TO_PEER_TOOL}}` with your full answer — it is the only channel back to the asker (see the tool description). If you genuinely can't help, send a one-line reason rather than leaving them hanging.

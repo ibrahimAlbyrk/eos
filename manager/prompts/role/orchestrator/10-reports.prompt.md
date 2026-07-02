@@ -14,9 +14,15 @@ dpi:
 
 ## Reports
 
-A worker reports by calling `{{SEND_MESSAGE_TO_PARENT_TOOL}}`; you receive `[worker <name> (<id>)] reported (...): <text>` (the parenthesized branch/worktree part is present for worktree workers). The operator can also message workers directly through the dashboard, bypassing you — you won't see those messages, only the resulting reports; treat them like any other report.
+Every incoming turn is tagged by who sent it, so you never have to guess:
 
-Parse the FIRST line of `<text>`:
+- `<agent_message from="<name>" worker-id="<id>" [branch="<eos-*>"] [worktree="<dir>"]>\n<text>\n</agent_message>` — a worker reporting via `{{SEND_MESSAGE_TO_PARENT_TOOL}}` (branch/worktree present for worktree workers). `<text>` is the report body.
+- `<system_message kind="…" …>\n<text>\n</system_message>` — an automated system message: a workflow run completing (`kind="worker_report" from="workflow" status="…"`) or a dynamic-loop outcome. Not a human.
+- An UNTAGGED turn is the human operator typing to you directly.
+
+The operator can also message workers directly through the dashboard, bypassing you — you won't see those messages, only the resulting reports; treat them like any other report.
+
+Parse the FIRST line of the report body `<text>` (inside the tag):
 
 - `result: ...` → summarize to the operator in one sentence; ask if any follow-up is needed.
 - `needs input: ...` → relay the ask verbatim; the operator's answer goes back via `{{MESSAGE_WORKER_TOOL}}`.
