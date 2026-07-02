@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { useOriginPane } from "../../../state/paneScope.js";
+import { combo } from "../../../keymap/index.js";
+import { useKeybinding } from "../../../keymap/useKeymap.js";
 import { api } from "../../../api/client.js";
 import { findAll, shortenHome } from "../../../lib/fileUtils.jsx";
 import { fileKind } from "../../../lib/fileKind.js";
@@ -106,6 +109,24 @@ function FileViewerInner({ path }) {
       setTimeout(() => findRef.current?.focus(), 50);
     }
   };
+
+  // ⌘F while this pane's docked panel is the focused region → this find bar
+  // outranks the chat's (priority 10 vs 0). Unlike the button's toggle, a repeat
+  // ⌘F re-opens + selects the query (chat semantics). Non-text files have no
+  // find bar, so their `when` fails and ⌘F falls through to the chat search.
+  const paneId = useOriginPane() ?? ui.focusedLeafId;
+  const paneFocused = paneId === ui.focusedLeafId;
+  useKeybinding({
+    match: combo("mod+f"),
+    priority: 10,
+    when: () => isText && ui.topPanelType === "file" && paneFocused && ui.focusedRegion === "panel",
+    run: (ctx, e) => {
+      e.preventDefault();
+      setShowOpenWith(false);
+      setShowFind(true);
+      requestAnimationFrame(() => { findRef.current?.focus(); findRef.current?.select(); });
+    },
+  }, [isText, ui.topPanelType, paneFocused, ui.focusedRegion]);
 
   const togglePreview = () => {
     setViewMode((m) => (m === "preview" ? "source" : "preview"));

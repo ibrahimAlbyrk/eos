@@ -73,6 +73,24 @@ describe("createKeymap", () => {
     expect(order).toEqual(["high2"]);
   });
 
+  // Region-scoped ⌘F: the FileViewer's find (priority 10, gated on the focused
+  // panel region) outranks the chat's default (priority 0); when the panel's
+  // `when` fails the event falls through to chat.
+  it("competing mod+f: focused panel binding wins, chat wins otherwise", () => {
+    const km = createKeymap();
+    const runs = [];
+    let region = "transcript";
+    km.register({ match: combo("mod+f"), priority: 0, when: () => true, run: () => runs.push("chat") });
+    km.register({ match: combo("mod+f"), priority: 10, when: () => region === "panel", run: () => runs.push("panel") });
+    const cmdF = () => km.handle(ev({ metaKey: true, key: "f" }), {});
+    cmdF();
+    region = "panel";
+    cmdF();
+    region = "transcript";
+    cmdF();
+    expect(runs).toEqual(["chat", "panel", "chat"]);
+  });
+
   it("run receives (ctx, event)", () => {
     const km = createKeymap();
     let seen = null;

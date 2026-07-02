@@ -21,7 +21,6 @@ export function FindBar({ find }) {
           onKeyDown={onKeyDown}
           placeholder="Find"
           spellCheck={false}
-          autoFocus
         />
         {find.query && (
           <span className="page-find-count">

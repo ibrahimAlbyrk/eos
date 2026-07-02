@@ -41,6 +41,10 @@ export function PaneProvider({ children }) {
   } = useSelection();
   const [tree, setTree] = useState(loadTree);
   const [focusedLeafId, setFocusedLeafId] = useState(() => loadFocusedLeaf(loadTree()));
+  // Which region of the focused pane owns region-scoped shortcuts (⌘F): the
+  // transcript or its docked panel. Set by mousedown-capture in PaneGrid /
+  // SinglePane; any focus change resets to the transcript (the default owner).
+  const [focusedRegion, setFocusedRegion] = useState("transcript");
 
   // Synchronous mirrors so the imperative actions read the live value without an
   // impure functional updater — same pattern selection.jsx uses.
@@ -122,6 +126,7 @@ export function PaneProvider({ children }) {
     const l = findLeaf(treeRef.current, id);
     if (!l) return;
     setFocusedLeafId(id);
+    setFocusedRegion("transcript");
     setSelectedId(l.agentId ?? null);
   }, [setSelectedId]);
 
@@ -357,6 +362,7 @@ export function PaneProvider({ children }) {
   const value = useMemo(() => ({
     tree,
     focusedLeafId,
+    focusedRegion, setFocusedRegion,
     paneCount,
     paneAgents,
     focusedPane,
@@ -365,7 +371,7 @@ export function PaneProvider({ children }) {
     setRatioFor, selectAgent, togglePaneForAgent, prunePanes, resetToEmpty, setLayout, applyStructure,
     reconcileFollow, toggleFollow, setFollow,
   }), [
-    tree, focusedLeafId, paneCount, paneAgents, focusedPane, followMode,
+    tree, focusedLeafId, focusedRegion, paneCount, paneAgents, focusedPane, followMode,
     focusLeaf, focusLeafByIndex, splitWithAgent, openEmptySplit, dropReplace, swapPanes, movePane, closeLeaf,
     setRatioFor, selectAgent, togglePaneForAgent, prunePanes, resetToEmpty, setLayout, applyStructure,
     reconcileFollow, toggleFollow, setFollow,

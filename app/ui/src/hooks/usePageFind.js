@@ -4,6 +4,8 @@
 // simply rebuilt whenever content changes.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { findAll } from "../lib/fileUtils.jsx";
+import { combo } from "../keymap/index.js";
+import { useKeybinding } from "../keymap/useKeymap.js";
 
 const highlights = typeof CSS !== "undefined" ? CSS.highlights : null;
 
@@ -59,20 +61,18 @@ export function usePageFind(contentRef, wrapRef, deps, enabled = true) {
   const paintedRef = useRef(0);
   const inputRef = useRef(null);
 
-  // Only the active transcript pane owns ⌘F. Parked keep-alive panes stay
-  // mounted, so without this gate every pane would grab the shortcut at once.
-  useEffect(() => {
-    if (!enabled) return;
-    const onKey = (e) => {
-      const meta = e.metaKey || e.ctrlKey;
-      if (!meta || e.altKey || e.shiftKey) return;
-      if (e.key !== "f" && e.key !== "F") return;
+  // Only the active transcript pane owns ⌘F (parked keep-alive panes stay
+  // mounted, so without the `when` gate every pane would grab it at once).
+  // Priority 0 = the DEFAULT owner: a focused docked panel with its own find
+  // (FileViewer, priority 10) outranks it; panels without one fall through here.
+  useKeybinding({
+    match: combo("mod+f"),
+    when: () => enabled,
+    run: (ctx, e) => {
       e.preventDefault();
       setOpen(true);
-      requestAnimationFrame(() => { inputRef.current?.focus(); inputRef.current?.select(); });
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
+      requestAnimationFrame(() => { inputRef.current?.focus({ preventScroll: true }); inputRef.current?.select(); });
+    },
   }, [enabled]);
 
   const scrollToRange = useCallback((range) => {

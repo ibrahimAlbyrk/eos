@@ -192,7 +192,15 @@ export function PaneGrid({ live }) {
           that pane has nothing open, but kept mounted (stable key) so a buried
           panel keeps its fetched state and its rect animates on reflow. */}
       {rects.map(({ id, rect }) => (
-        <div key={`panel:${id}`} className="pane-slot pane-panel-slot" style={pctStyle(splitRectForPanel(rect, ui.topPanelTypeIn(id)).panelRect)}>
+        <div
+          key={`panel:${id}`}
+          className="pane-slot pane-panel-slot"
+          style={pctStyle(splitRectForPanel(rect, ui.topPanelTypeIn(id)).panelRect)}
+          // The slot is a grid SIBLING of its pane, so the Pane's focus capture
+          // never sees clicks here. Focus the owning pane, then claim the panel
+          // region for ⌘F (after focusLeaf — it resets the region to transcript).
+          onMouseDownCapture={() => { ui.focusLeaf(id); ui.setFocusedRegion("panel"); }}
+        >
           <PaneScopeContext.Provider value={id}>
             <PaneViewers live={live} />
           </PaneScopeContext.Provider>
@@ -236,7 +244,9 @@ export function SinglePane({ live }) {
           sits alongside them (full height) so the composer spans the transcript
           width only, matching the split-pane layout. Same Composer component,
           N=1 case — this is the ONLY spot the no-agent spawn flow lives. */}
-      <div className="sp-main">
+      {/* Region handlers mirror the split-pane pair: transcript side vs. docked
+          panel decide which one owns ⌘F (state/pane.jsx focusedRegion). */}
+      <div className="sp-main" onMouseDownCapture={() => ui.setFocusedRegion("transcript")}>
         <div className="pane-tx">
           <TranscriptHost live={live} activeId={ui.selectedId} />
         </div>
@@ -244,7 +254,11 @@ export function SinglePane({ live }) {
           <Composer live={live} worker={selected} paneId={leafId} focused />
         </PaneScopeContext.Provider>
       </div>
-      <div className="pane-panel-slot pane-dock" style={{ flexBasis: `${panelRect.width}%` }}>
+      <div
+        className="pane-panel-slot pane-dock"
+        style={{ flexBasis: `${panelRect.width}%` }}
+        onMouseDownCapture={() => ui.setFocusedRegion("panel")}
+      >
         <PaneViewers live={live} />
       </div>
     </div>
@@ -303,8 +317,11 @@ function Pane({ id, agentId, worker, live, focused, excludeIds, attention, canCl
     <div
       className={cls}
       // Capture so a click that also hits a transcript link/button still focuses
-      // the pane first. mousedown (not click) makes focus feel immediate.
-      onMouseDownCapture={focused ? undefined : onFocus}
+      // the pane first. mousedown (not click) makes focus feel immediate. Runs
+      // even when already focused so a click anywhere in the pane hands ⌘F back
+      // to the transcript region (focusLeaf resets focusedRegion; re-focusing is
+      // a no-op otherwise).
+      onMouseDownCapture={onFocus}
       {...handlers}
     >
       {zone && <DropPreview zone={zone} />}
