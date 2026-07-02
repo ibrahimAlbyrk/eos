@@ -87,6 +87,55 @@ describe("killWorker — worktree cleanup", () => {
   });
 });
 
+describe("killWorker — adopted leak cleanups (optional deps)", () => {
+  it("cleans loop rows + the conversation transcript when the optional deps are wired", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const { deps } = buildDeps({ w1: { session_id: "sess-1" } });
+      const loopDeletes: string[] = [];
+      const convDeletes: string[] = [];
+      deps.loops = { deleteByWorker: (id: string) => { loopDeletes.push(id); } };
+      deps.deleteConversation = (sessionId: string) => { convDeletes.push(sessionId); };
+      killWorker(deps, "w1");
+      assert.deepEqual(loopDeletes, ["w1"]);
+      assert.deepEqual(convDeletes, ["sess-1"]);
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  it("skips the conversation delete for a row without session_id; absent deps stay a no-op", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const { deps, deleted } = buildDeps({ w1: {} });
+      const convDeletes: string[] = [];
+      deps.deleteConversation = (sessionId: string) => { convDeletes.push(sessionId); };
+      killWorker(deps, "w1"); // loops absent entirely — must not throw
+      assert.deepEqual(convDeletes, []);
+      assert.deepEqual(deleted, ["w1"]);
+    } finally {
+      mock.timers.reset();
+    }
+  });
+});
+
+describe("killWorker — archived rows (compat path)", () => {
+  it("still cascades an archived row; process stop no-ops on the dead process", () => {
+    mock.timers.enable({ apis: ["setTimeout"] });
+    try {
+      const { deps, enqueued, deleted } = buildDeps({
+        w1: { state: "DONE", archived_at: 500, pid: null, worktree_from: "/repo", branch: "eos-w1-x" },
+      });
+      const res = killWorker(deps, "w1");
+      assert.deepEqual(res.killed, []);
+      assert.deepEqual(deleted, ["w1"]);
+      assert.equal(enqueued.length, 1);
+    } finally {
+      mock.timers.reset();
+    }
+  });
+});
+
 describe("killWorker — result identity (durable name for the transcript)", () => {
   it("returns the worker id and name so a killed-worker tool row stays named", () => {
     mock.timers.enable({ apis: ["setTimeout"] });
