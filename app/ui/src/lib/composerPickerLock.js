@@ -6,3 +6,12 @@
 export function pickerLocked(selected) {
   return !!selected;
 }
+
+// The MODEL pill is a narrower lock: provider stays immutable mid-session, but the
+// model may be switched live on a backend whose descriptor reports
+// runtimeModelSwitch. So it stays locked once a conversation has started UNLESS
+// that capability is present. `runtimeModelSwitch` comes from the worker's backend
+// descriptor (backendCaps), never a kind literal.
+export function modelPickerLocked(selected, runtimeModelSwitch) {
+  return pickerLocked(selected) && !runtimeModelSwitch;
+}

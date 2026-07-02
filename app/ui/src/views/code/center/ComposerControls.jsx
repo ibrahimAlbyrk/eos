@@ -10,8 +10,8 @@ import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
-import { providerChoices, providerName, runningProviderLabel } from "../../../lib/backendCaps.js";
-import { pickerLocked } from "../../../lib/composerPickerLock.js";
+import { providerChoices, providerName, runningProviderLabel, backendCaps } from "../../../lib/backendCaps.js";
+import { pickerLocked, modelPickerLocked } from "../../../lib/composerPickerLock.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
 export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAttach, historyNav, demoted, wtStatus }) {
@@ -43,6 +43,9 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   // the provider + model pickers lock: no backend/model switch mid-conversation.
   // Before the first message (new-spawn composer) they stay live.
   const locked = pickerLocked(selected);
+  // The model pill unlocks mid-conversation when the selected worker's backend can
+  // switch model at runtime (descriptor capability, never a kind literal).
+  const modelLocked = modelPickerLocked(selected, backendCaps(selected?.backend_kind).runtimeModelSwitch);
   // The model pill opens the provider's own model list for an API-profile spawn
   // (its models aren't the Claude catalog), else the Claude model popover.
   const modelPopId = spawnIsApi ? "spawnModel" : "model";
@@ -197,8 +200,8 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
           <button
             className={"model-pill" + (ui.openPopover === modelPopId ? " open" : "")}
             id="modelPill"
-            disabled={locked}
-            title={locked ? "Model is set for this conversation" : "Model for this provider"}
+            disabled={modelLocked}
+            title={modelLocked ? "Model is set for this conversation" : "Model for this provider"}
             onClick={(e) => toggle(modelPopId, e)}
             data-popover-trigger={modelPopId}
           >

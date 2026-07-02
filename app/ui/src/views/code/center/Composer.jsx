@@ -5,6 +5,7 @@ import { startRun } from "../../../state/terminalStore.js";
 import * as outbox from "../../../state/outboxStore.js";
 import { useCommands } from "../../../hooks/useCommands.js";
 import { useSlashItems } from "../../../hooks/useSlashItems.js";
+import { getRecall, subscribe as subscribeRecall, consumeRecall } from "../../../state/recallStore.js";
 import { useContentEditableEditor, getCursorOffset, getFocusOffset, getSelectionOffsets, setSelectionOffsets, extendSelectionToOffset, scrollSelectionIntoView } from "../../../hooks/useContentEditableEditor.js";
 import { listContinuation, listIndent } from "../../../lib/markdownBlocks.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
@@ -276,10 +277,10 @@ export function Composer({ live, worker, paneId, focused }) {
     applyTemplateText(pt.content, 0);
   }, [focused, ui.composer.pendingTemplate]);
 
-  // Restored prompt queued by the rewind panel OR a recall (interrupt before the
-  // agent responded) — replaces the input so the user can edit and resend,
-  // mirroring Claude Code's native rewind. A recall restore (guard:"recall")
-  // never clobbers a draft the user typed after sending; rewind always replaces.
+  // Restored prompt queued by the rewind panel — replaces the input so the user
+  // can edit and resend, mirroring Claude Code's native rewind. pendingText is a
+  // singleton aimed at the selected agent = the focused pane, so only the focused
+  // composer consumes it.
   useEffect(() => {
     if (!focused) return;
     const pt = ui.composer.pendingText;
@@ -290,6 +291,24 @@ export function Composer({ live, worker, paneId, focused }) {
     setTextAndSync(pt.content, pt.content.length);
     editorRef.current?.focus();
   }, [focused, ui.composer.pendingText]);
+
+  // Recall (interrupt before the agent responded): the daemon returns the
+  // just-sent, unanswered message's text. Consumed EXACTLY ONCE by the composer
+  // that OWNS recall.workerId — single identity end-to-end (not the focused/
+  // selected pane), so split view routes it to the right pane and a re-render /
+  // reselect / SSE reconnect never re-prefills. consumeRecall clears the source
+  // the instant it applies; a draft typed after sending is never clobbered.
+  const [recallTick, setRecallTick] = useState(0);
+  useEffect(() => subscribeRecall(() => setRecallTick((t) => t + 1)), []);
+  useEffect(() => {
+    const r = getRecall();
+    if (!r || r.workerId !== selected?.id) return;
+    consumeRecall(r.token);
+    if ((text ?? "").trim()) return; // don't clobber a draft typed after sending
+    insertedPathsRef.current.clear();
+    setTextAndSync(r.content, r.content.length);
+    editorRef.current?.focus();
+  }, [recallTick, selected?.id]);
 
   useEffect(() => { setMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [slashCtx?.query]);
   useEffect(() => { setFileMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [atCtx?.query]);

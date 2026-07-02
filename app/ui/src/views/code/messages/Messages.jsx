@@ -496,9 +496,10 @@ export function Messages({ live, agentId, isActive = true, visible = true }) {
           const canAnimate = b.live ? streamingKind : (streamingKind || b.kind === "terminal");
           const animate = visible && seeded && canAnimate && !wasRevealed(selectedId, key);
           const onSettle = () => markRevealed(selectedId, key);
-          // Rewind is PTY (claude-cli) choreography — structured backends have no
-          // equivalent, so gate it on the backend's keystroke capability.
-          const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).keystroke
+          // Rewind is a backend CAPABILITY, decoupled from keystroke (claude-cli
+          // realizes it via PTY choreography, claude-sdk via a native fork) — gate
+          // it on the backend's `rewind` flag, never on keystroke or kind.
+          const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).rewind
             ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
             : null;
           const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, animate, parentWorker, onRewind, agentBusy, selectedId, onSettle);

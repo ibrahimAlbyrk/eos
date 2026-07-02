@@ -141,12 +141,12 @@ function normalizeEvents(events) {
         if (b.type === "text") out.push({ type: "jsonl", ts, payload: { kind: "assistant_text", text: b.text ?? "", blockId: b.blockId } });
         else if (b.type === "reasoning") out.push({ type: "jsonl", ts, payload: { kind: "thinking", text: b.text ?? "", blockId: b.blockId } });
         else if (b.type === "tool_call") out.push({ type: "jsonl", ts, payload: { kind: "tool_use", id: b.callId, name: b.name ?? "", input: b.input ?? {}, ...(b.spawnsSubagent ? { spawnsSubagent: true } : {}) } });
-        else if (b.type === "tool_result") out.push({ type: "jsonl", ts, payload: { kind: "tool_result", toolUseId: b.callId, isError: !!b.isError, text: b.content ?? "" } });
+        else if (b.type === "tool_result") out.push({ type: "jsonl", ts, payload: { kind: "tool_result", toolUseId: b.callId, isError: !!b.isError, text: b.content ?? "", patch: b.patch } });
         else if (b.type === "skill") out.push({ type: "jsonl", ts, payload: { kind: "skill_body", toolUseId: b.callId, text: b.text ?? "" } });
       }
     } else if (e?.type === "message" && e.role === "tool") {
       for (const b of e.blocks ?? []) {
-        if (b.type === "tool_result") out.push({ type: "jsonl", ts, payload: { kind: "tool_result", toolUseId: b.callId, isError: !!b.isError, text: b.content ?? "" } });
+        if (b.type === "tool_result") out.push({ type: "jsonl", ts, payload: { kind: "tool_result", toolUseId: b.callId, isError: !!b.isError, text: b.content ?? "", patch: b.patch } });
       }
     } else if (e?.type === "activity") {
       if (e.kind === "tool_started") out.push({ type: "tool_running", ts, payload: { toolName: e.toolName, toolUseId: e.callId, input: e.input ?? {}, parentAgentToolUseId: e.parentCallId ?? undefined } });

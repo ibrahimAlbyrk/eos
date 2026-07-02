@@ -753,6 +753,25 @@ describe("buildBlocks canonical agent_event decoder (claude-sdk / in-process lan
     expect(blocks.find((b) => b.kind === "assistant").text).toBe("hi");
   });
 
+  it("carries a tool_result's patch through to tool.result.patch (absolute line numbers for EditDetail)", () => {
+    const patch = [{ oldStart: 35, newStart: 35, lines: ["-b", "+x"] }];
+    const events = [
+      ae(100, { type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: "e1", name: "Edit", input: { file_path: "/x" } }] }),
+      ae(101, { type: "message", role: "tool", blocks: [{ type: "tool_result", callId: "e1", content: "ok", isError: false, patch }] }),
+    ];
+    const tool = mainTool(buildBlocks(events), "e1");
+    expect(tool.result.patch).toEqual(patch);
+  });
+
+  it("leaves patch null on a tool_result with no structuredPatch", () => {
+    const events = [
+      ae(100, { type: "message", role: "assistant", blocks: [{ type: "tool_call", callId: "r1", name: "Read", input: { file_path: "/x" } }] }),
+      ae(101, { type: "message", role: "tool", blocks: [{ type: "tool_result", callId: "r1", content: "data", isError: false }] }),
+    ];
+    const tool = mainTool(buildBlocks(events), "r1");
+    expect(tool.result.patch).toBe(null);
+  });
+
   it("drops delta + turn:started; a bare tool_started renders a live (running) tool", () => {
     // delta is ephemeral (live thinking, relayed over SSE) and turn:started is a
     // state signal — neither becomes a block. A tool_started with no durable

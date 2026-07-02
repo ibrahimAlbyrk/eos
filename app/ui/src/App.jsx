@@ -33,16 +33,9 @@ function Shell() {
     return () => { delete window.__nativeNavigate; };
   }, [ui.setActiveView, ui.setSelectedId]);
 
-  // Recall (interrupt before the agent responded): return the recalled message's
-  // text to the composer. Only for the worker the user is viewing — recall fires
-  // from Esc on the selected worker, and pendingText targets the one composer.
-  // guard:"recall" tells the Composer not to clobber a draft typed after sending.
-  useEffect(() => {
-    const r = live.recall;
-    if (r && r.workerId === ui.selectedId) {
-      ui.updateComposer({ pendingText: { content: r.content, ts: r.ts, guard: "recall" } });
-    }
-  }, [live.recall, ui.selectedId, ui.updateComposer]);
+  // Recall (interrupt before the agent responded) is consumed directly by the
+  // pane's Composer that owns recall.workerId (recallStore) — no selectedId-keyed
+  // derivation here, so nothing re-injects on re-render, reselect, or reconnect.
 
   const ActiveView = getViewComponent(ui.activeViewId);
 

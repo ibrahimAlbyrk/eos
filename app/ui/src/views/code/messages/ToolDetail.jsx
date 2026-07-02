@@ -125,30 +125,47 @@ export function EditDetail({ tool }) {
 export function MultiEditDetail({ tool }) {
   const filePath = tool.input?.file_path ?? "";
   const edits = tool.input?.edits ?? [];
+  const patch = tool.result?.patch;
+  // The tool_result's structuredPatch is a single file-wide diff spanning every
+  // edit, with absolute line numbers — prefer it (same pattern as EditDetail).
+  // Fall back to the per-edit snippet diff while running or for patchless edits.
+  const usePatch = Array.isArray(patch) && patch.length > 0;
 
   return (
     <div className="tool-detail edit-detail">
       <FailureBanner tool={tool} />
       <div className="edit-filepath">{filePath}</div>
-      {edits.map((edit, i) => {
-        const oldStr = edit.old_string ?? "";
-        const newStr = edit.new_string ?? "";
-        const hunks = buildDiffHunks(
-          oldStr ? oldStr.split("\n") : [],
-          newStr ? newStr.split("\n") : []
-        );
-        return (
-          <div className="edit-diff" key={i}>
-            {hunks.map((h, j) => (
-              <div className={`ed-line ed-${h.type}`} key={j}>
-                <span className="ed-num">{h.num ?? ""}</span>
-                <span className="ed-sign">{h.type === "del" ? "-" : h.type === "add" ? "+" : " "}</span>
-                <span className="ed-text">{h.segments ?? h.text}</span>
-              </div>
-            ))}
-          </div>
-        );
-      })}
+      {usePatch ? (
+        <div className="edit-diff">
+          {patchToHunks(patch).map((h, i) => (
+            <div className={`ed-line ed-${h.type}`} key={i}>
+              <span className="ed-num">{h.num ?? ""}</span>
+              <span className="ed-sign">{h.type === "del" ? "-" : h.type === "add" ? "+" : " "}</span>
+              <span className="ed-text">{h.segments ?? h.text}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        edits.map((edit, i) => {
+          const oldStr = edit.old_string ?? "";
+          const newStr = edit.new_string ?? "";
+          const hunks = buildDiffHunks(
+            oldStr ? oldStr.split("\n") : [],
+            newStr ? newStr.split("\n") : []
+          );
+          return (
+            <div className="edit-diff" key={i}>
+              {hunks.map((h, j) => (
+                <div className={`ed-line ed-${h.type}`} key={j}>
+                  <span className="ed-num">{h.num ?? ""}</span>
+                  <span className="ed-sign">{h.type === "del" ? "-" : h.type === "add" ? "+" : " "}</span>
+                  <span className="ed-text">{h.segments ?? h.text}</span>
+                </div>
+              ))}
+            </div>
+          );
+        })
+      )}
     </div>
   );
 }

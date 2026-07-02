@@ -17,6 +17,7 @@ import { applyDelta, dropWorker as dropThinking } from "../state/thinkingStore.j
 import { isRunning } from "../lib/agentActivity.js";
 import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
 import { cancelQueued, retract } from "../state/outboxStore.js";
+import { setRecall } from "../state/recallStore.js";
 import { explorer } from "../state/explorerStore.js";
 import { emitGitChange } from "../state/gitChangeBus.js";
 
@@ -34,11 +35,6 @@ export function useLive() {
   const [uiConfig, setUiConfig] = useState(null);
   const [update, setUpdate] = useState(null);
   const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null });
-  // The latest recall (interrupt-before-response): the text to restore to the
-  // composer, keyed by worker. Bumped per recall (ts makes each a fresh object
-  // so the consuming effect always re-fires). The outbox retract happens inline
-  // here; the composer restore is driven by a ui-aware effect in Shell.
-  const [recall, setRecall] = useState(null);
   const now = useClockTick();
   const [interruptedId, _setInterruptedId] = useState(() => localStorage.getItem("cm:interruptedId"));
   const setInterruptedId = useCallback((id) => {
@@ -133,7 +129,9 @@ export function useLive() {
             const p = data.payload ?? {};
             if (p.workerId) {
               retract(p.workerId, p.clientMsgId);
-              setRecall({ workerId: p.workerId, content: p.text ?? "", ts: Date.now() });
+              // The owning pane's Composer consumes this once (recallStore) — no
+              // selectedId detour, no re-inject on reselect/reconnect.
+              setRecall(p.workerId, p.text ?? "");
             }
             return;
           }
@@ -247,6 +245,9 @@ export function useLive() {
 
   const setModel = useCallback(async (id, model, effort) => {
     const r = await api.setWorkerModel(id, model, effort);
+    // A 422 means the model isn't valid for the worker's provider (nothing
+    // persisted) — surface it like the backend-switch rejection.
+    if (!r.ok) console.warn("model switch failed", r.status, r.body);
     scheduleRefetch();
     return r;
   }, [scheduleRefetch]);
@@ -315,6 +316,5 @@ export function useLive() {
     applyUpdate,
     deferUpdate,
     eventSignal,
-    recall,
   };
 }
