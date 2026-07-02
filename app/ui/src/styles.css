@@ -878,6 +878,23 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   pointer-events: auto;
   z-index: 1;
 }
+/* Single-pane bottom fade — scoped to the active transcript pane (which shrinks
+   with the docked panel), NOT the full-width composer scrim, so it stops 14px
+   short of THIS transcript's scrollbar even when a panel carves width off the
+   right. Mirrors the split-view .pane::after; z-index:1 sits above the message
+   content but below the scroll-to-bottom pill (z-index:2). The composer scrim is
+   dropped in single-pane (see .app:not(.split) .composer-wrap::before). */
+.tx-pane.on::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 14px;
+  bottom: 0;
+  height: 48px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+  z-index: 1;
+}
 
 /* ============================================================================
    SPLIT VIEW  ·  2-4 agent transcripts side by side (PaneGrid). The sidebar and
@@ -1438,6 +1455,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    pane (border stays crisp) and sits below the scroll-to-bottom pill (z-index:2,
    so it stays visible). Mirrors the single-view composer scrim. */
 .app.split .composer-wrap::before { content: none; }
+/* Single-pane: same reasoning — the full-width composer scrim would paint over
+   the transcript's scrollbar once a docked panel shifts it left of the window
+   edge. Drop it; the transcript-scoped .tx-pane.on::after fade replaces it. */
+.app:not(.split) .composer-wrap::before { content: none; }
 .app.split .pane::after {
   content: "";
   position: absolute;
