@@ -21,7 +21,7 @@ export function LoopStatus({ loop, history }) {
       {recent.length > 0 && (
         <div className="loop-status-history">
           {recent.map((h, i) => (
-            <div key={i} className={"loop-status-attempt-row" + (h.met ? " met" : " unmet")}>
+            <div key={i} className={"loop-status-attempt-row" + (h.met ? " met" : h.outcome === "escalated" ? " escalated" : " unmet")}>
               <span className="lsa-n">#{h.attempt}</span>
               <span className="lsa-outcome">{h.outcome ?? (h.met ? "met" : "unmet")}</span>
               {h.reason && <span className="lsa-reason">{h.reason}</span>}

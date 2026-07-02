@@ -29,9 +29,10 @@ export function GoalCheckLine({ check, now }) {
 // same blocks into an at-a-glance attempt history.
 export function LoopCheckBlock({ block }) {
   const attempt = block.maxAttempts != null ? `${block.attempt}/${block.maxAttempts}` : block.attempt;
+  const escalated = block.outcome === "escalated";
   return (
-    <div className={"loop-check-line mono" + (block.met ? " ok" : " unmet")}>
-      <span className="lc-icon" aria-hidden>{block.met ? "✓" : "·"}</span>
+    <div className={"loop-check-line mono" + (block.met ? " ok" : escalated ? " escalated" : " unmet")}>
+      <span className="lc-icon" aria-hidden>{block.met ? "✓" : escalated ? "!" : "·"}</span>
       <span className="lc-msg">Goal check · attempt {attempt} · {block.outcome ?? (block.met ? "met" : "unmet")}</span>
       {block.reason && <span className="lc-reason">{block.reason}</span>}
     </div>

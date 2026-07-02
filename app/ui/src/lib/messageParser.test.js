@@ -107,6 +107,10 @@ describe("ask_peer peer name linking", () => {
     type: "tool_running", ts,
     payload: { toolName: "mcp__worker__ask_peer", toolUseId, input: { peerId, question: "help?" } },
   });
+  const askPeerByName = (toolUseId, peerName, ts) => ({
+    type: "tool_running", ts,
+    payload: { toolName: "mcp__worker__ask_peer", toolUseId, input: { peerName, question: "help?" } },
+  });
   const peerConsult = (toWorker, toName, ts) => ({
     type: "peer_consult", ts, payload: { requestId: "r1", toWorker, toName, question: "help?" },
   });
@@ -126,6 +130,22 @@ describe("ask_peer peer name linking", () => {
   it("does not mislink a consult addressed to a different peer", () => {
     const blocks = buildBlocks([askPeer("ap1", "w2", 100), peerConsult("w9", "other", 101)]);
     expect(mainTool(blocks, "ap1").peerTo).toBeUndefined();
+  });
+
+  // peerName path: ask_peer addressed by name, peer_consult carries toName
+  it("links peerTo when ask_peer uses peerName and peer_consult resolves toWorker", () => {
+    const blocks = buildBlocks([askPeerByName("ap2", "data-analyst", 200), peerConsult("w5", "data-analyst", 201)]);
+    expect(mainTool(blocks, "ap2").peerTo).toEqual({ id: "w5", name: "data-analyst" });
+  });
+
+  it("links peerTo when ask_peer uses peerName and peer_consult has no toWorker yet", () => {
+    const blocks = buildBlocks([askPeerByName("ap3", "data-analyst", 200), peerConsult(null, "data-analyst", 201)]);
+    expect(mainTool(blocks, "ap3").peerTo).toEqual({ id: null, name: "data-analyst" });
+  });
+
+  it("does not mislink a peerName consult addressed to a different name", () => {
+    const blocks = buildBlocks([askPeerByName("ap4", "data-analyst", 200), peerConsult("w9", "other-peer", 201)]);
+    expect(mainTool(blocks, "ap4").peerTo).toBeUndefined();
   });
 });
 

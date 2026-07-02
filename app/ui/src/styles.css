@@ -1761,6 +1761,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .loop-status-attempt-row .lsa-outcome { font-family: var(--font-mono); flex-shrink: 0; }
 .loop-status-attempt-row.met .lsa-outcome { color: var(--ok); }
 .loop-status-attempt-row.unmet .lsa-outcome { color: var(--fg-dim); }
+.loop-status-attempt-row.escalated .lsa-outcome { color: var(--warn); }
 .loop-status-attempt-row .lsa-reason { color: var(--fg-dim); word-break: break-word; }
 
 /* Live "goal check in progress" line — reuses .thinking-line; gc-text is the
@@ -1780,6 +1781,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 .loop-check-line .lc-icon { flex-shrink: 0; }
 .loop-check-line.ok .lc-icon { color: var(--ok); }
+.loop-check-line.escalated .lc-icon { color: var(--warn); }
 .loop-check-line .lc-reason { color: var(--fg-faint); word-break: break-word; }
 
 /* report / directive detail */

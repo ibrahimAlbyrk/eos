@@ -81,8 +81,15 @@ describe("getToolView", () => {
     expect(ask.Detail).not.toBe(GenericToolCard);
     expect(ask.label({ input: { peerId: "w-7" } })).toEqual({ verb: "Asked", file: "w-7" });
     expect(ask.runningLabel({ input: { peerId: "w-7" } })).toEqual({ verb: "Asking", file: "w-7" });
-    // agentRef resolves the peer by id (AgentLink fills the name from workers)
-    expect(ask.agentRef({ input: { peerId: "w-7" } })).toEqual({ id: "w-7", name: null });
+    // agentRef: when only peerId is set, name falls back to peerId (peerAskTarget design)
+    expect(ask.agentRef({ input: { peerId: "w-7" } })).toEqual({ id: "w-7", name: "w-7" });
+    expect(ask.agentRef({ input: {} })).toBe(null);
+    // peerName path: no peerId, addressed by name only
+    expect(ask.label({ input: { peerName: "data-analyst" } })).toEqual({ verb: "Asked", file: "data-analyst" });
+    expect(ask.runningLabel({ input: { peerName: "data-analyst" } })).toEqual({ verb: "Asking", file: "data-analyst" });
+    expect(ask.agentRef({ input: { peerName: "data-analyst" } })).toEqual({ id: null, name: "data-analyst" });
+    // empty input degrades to "peer" / null
+    expect(ask.label({ input: {} })).toEqual({ verb: "Asked", file: "peer" });
     expect(ask.agentRef({ input: {} })).toBe(null);
 
     const respond = getToolView("mcp__worker__respond_to_peer");

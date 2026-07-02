@@ -195,12 +195,18 @@ register("mcp__worker__list_peers", {
   Detail: PeerListDetail,
 });
 
+// Resolves the targeted peer from whichever addressing path was used (peerId or peerName).
+// Mirrors workerIdentity() in WorkerToolCard.jsx: parser-linked peerTo wins; input fields are fallback.
+function peerAskTarget(t) {
+  const id = t.peerTo?.id ?? t.input?.peerId ?? null;
+  const name = t.peerTo?.name ?? t.input?.peerName ?? t.input?.peerId ?? null;
+  return (id !== null || name !== null) ? { id, name } : null;
+}
+
 register("mcp__worker__ask_peer", {
-  label: (t) => ({ verb: "Asked", file: t.peerTo?.name ?? t.input?.peerId ?? "peer" }),
-  runningLabel: (t) => ({ verb: "Asking", file: t.peerTo?.name ?? t.input?.peerId ?? "peer" }),
-  // Prefer the durable peer name the parser linked from the peer_consult event
-  // (still correct after the peer is killed); fall back to live resolution by id.
-  agentRef: (t) => t.peerTo ?? (t.input?.peerId ? { id: t.input.peerId, name: null } : null),
+  label: (t) => ({ verb: "Asked", file: peerAskTarget(t)?.name ?? "peer" }),
+  runningLabel: (t) => ({ verb: "Asking", file: peerAskTarget(t)?.name ?? "peer" }),
+  agentRef: (t) => peerAskTarget(t),
   Detail: PeerAskDetail,
 });
 

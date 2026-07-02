@@ -50,5 +50,6 @@ describe("loopDisplay", () => {
     expect(loopCheckPhaseLabel({ phase: "verifying", criterionId: "c1" })).toBe("verifying c1");
     expect(loopCheckPhaseLabel({ phase: "verifying" })).toBe("verifying");
     expect(loopCheckPhaseLabel({ phase: "verdict", outcome: "continued" })).toBe("continued");
+    expect(loopCheckPhaseLabel({ phase: "verdict", outcome: "escalated" })).toBe("escalated");
   });
 });

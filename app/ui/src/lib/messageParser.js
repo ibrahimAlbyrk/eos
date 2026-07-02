@@ -372,7 +372,12 @@ export function buildBlocks(rawEvents) {
       // the header keeps the name after the peer is killed. Transparent to the
       // tool stream: no flush, no timeline item (the ask_peer tool renders it).
       const payload = parsePayload(ev.payload);
-      if (lastAskPeer && !lastAskPeer.peerTo && lastAskPeer.input?.peerId === payload.toWorker) {
+      if (
+        lastAskPeer &&
+        !lastAskPeer.peerTo &&
+        (lastAskPeer.input?.peerId === payload.toWorker ||
+          (payload.toName && lastAskPeer.input?.peerName === payload.toName))
+      ) {
         lastAskPeer.peerTo = { id: payload.toWorker ?? null, name: payload.toName ?? null };
       }
       continue;
