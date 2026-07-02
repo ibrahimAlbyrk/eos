@@ -15,7 +15,7 @@ import {
   AskUserDetail, SkillDetail, NotifyDetail, MessageDetail, GenericToolCard,
   PeerAskDetail, PeerRespondDetail, PeerListDetail,
   CreateWorkerDetail, AvailableWorkersDetail, DatetimeDetail,
-  TaskCreateDetail, TaskUpdateDetail, TaskGetDetail, TaskListDetail,
+  TaskCreateDetail, TaskUpdateDetail, TaskGetDetail, TaskListDetail, TodoWriteDetail,
   taskStatusBadge, parseTaskGet, parseTaskListRows,
 } from "./ToolDetail.jsx";
 import { gitActions, gitVerbLabel } from "../../../lib/messageParser.js";
@@ -266,6 +266,20 @@ register("TaskGet", {
   runningLabel: (t) => ({ verb: "Reading task", file: t.input?.taskId ? `#${t.input.taskId}` : "" }),
   headerBadge: (t) => taskStatusBadge(parseTaskGet(t.result?.text)?.status),
   Detail: TaskGetDetail,
+});
+
+register("TodoWrite", {
+  label: () => ({ verb: "Updated", file: "task list" }),
+  runningLabel: () => ({ verb: "Updating", file: "tasks…" }),
+  summary: (t) => {
+    const todos = t.input?.todos ?? [];
+    if (todos.length === 0) return "";
+    const nCompleted = todos.filter((t) => t.status === "completed").length;
+    const nInProgress = todos.filter((t) => t.status === "in_progress").length;
+    const nPending = todos.filter((t) => t.status === "pending").length;
+    return `${todos.length} items (${nCompleted} done, ${nInProgress} active, ${nPending} pending)`;
+  },
+  Detail: TodoWriteDetail,
 });
 
 register("TaskList", {

@@ -681,6 +681,30 @@ export function TaskListDetail({ tool }) {
   );
 }
 
+// TodoWrite — the harness task-list update: each todo gets a status badge row
+// inside a .wd-card. Input shape: { todos: [{ content, status, activeForm }] }.
+export function TodoWriteDetail({ tool }) {
+  if (tool.result?.isError) return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
+  const todos = tool.input?.todos ?? [];
+  if (todos.length === 0) return null;
+  const nCompleted = todos.filter((t) => t.status === "completed").length;
+  const nInProgress = todos.filter((t) => t.status === "in_progress").length;
+  const nPending = todos.filter((t) => t.status === "pending").length;
+  return (
+    <div className="tool-detail wd-card task-card">
+      <div className="wd-sec task-head">
+        <span className="task-subject">{todos.length} items ({nCompleted} completed, {nInProgress} in progress, {nPending} pending)</span>
+      </div>
+      {todos.map((todo, i) => (
+        <div className="task-row" key={i}>
+          {taskStatusBadge(todo.status)}
+          <span className="task-row-subject">{todo.activeForm || todo.content}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const GENERIC_OUTPUT_MAX = 4000;
 const PARAM_VALUE_MAX = 300;
 const RAW_MAX = 8000;

@@ -198,6 +198,24 @@ describe("getToolView", () => {
     expect(list.label({})).toEqual({ verb: "Listed", file: "tasks" });
   });
 
+  it("gives TodoWrite a bespoke view with status counts", () => {
+    const tw = getToolView("TodoWrite");
+    expect(tw.Detail).not.toBe(GenericToolCard);
+    expect(tw.label({})).toEqual({ verb: "Updated", file: "task list" });
+    expect(tw.runningLabel({})).toEqual({ verb: "Updating", file: "tasks…" });
+    // summary: counts by status
+    const todos = [
+      { content: "a", status: "completed", activeForm: "Doing a" },
+      { content: "b", status: "in_progress", activeForm: "Working on b" },
+      { content: "c", status: "pending", activeForm: "Pending c" },
+      { content: "d", status: "pending", activeForm: "Pending d" },
+    ];
+    expect(tw.summary({ input: { todos } })).toBe("4 items (1 done, 1 active, 2 pending)");
+    // empty input → no summary
+    expect(tw.summary({ input: {} })).toBe("");
+    expect(tw.summary({ input: { todos: [] } })).toBe("");
+  });
+
   it("renders a loop badge on spawn_worker only when armed at spawn", () => {
     const spawn = getToolView("mcp__orchestrator__spawn_worker");
     expect(spawn.Detail).toBe(WorkerToolBody);
