@@ -165,6 +165,12 @@ export async function spawnWorker(
   deps: SpawnWorkerDeps,
   spec: SpawnWorkerSpec,
 ): Promise<{ id: string; port: number }> {
+  // A parented worker spawn requires the parent row to still exist. A caller
+  // deleted mid-turn (its ghost turn runs until aborted) must fail here — not
+  // insert an orphan child under a parent that is already gone.
+  if (spec.parentId && !spec.isOrchestrator && !deps.workers.findById(spec.parentId)) {
+    throw new NotFoundError("worker", spec.parentId);
+  }
   let resolved = spec.parentId ? { ...spec, persistent: true } : spec;
 
   // Attach mode: spawn INTO an existing worker's worktree. Copy the target's

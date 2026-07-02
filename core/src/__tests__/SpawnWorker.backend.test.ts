@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { spawnWorker, type SpawnWorkerDeps } from "../use-cases/SpawnWorker.ts";
+import { NotFoundError } from "../errors/index.ts";
 import { createFakeAgentBackend } from "../../../infra/src/backends/FakeAgentBackend.ts";
 
 // Phase 1: when an AgentBackend is injected, spawn goes through it and the legacy
@@ -64,6 +65,39 @@ describe("spawnWorker — backend path", () => {
     deps.caps = { effortLevelsFor: async () => ["low", "medium", "high", "max"] };
     await spawnWorker(deps, { prompt: "x", cwd: "/tmp", model: "claude-opus-4-6" });
     assert.equal(inserted[0].effort, "high"); // default xhigh → clamped
+  });
+});
+
+// A ghost caller (deleted mid-turn, its turn not yet aborted) must not create an
+// orphan: a parented, non-orchestrator spawn requires the parent row to exist.
+describe("spawnWorker — dangling parentId guard", () => {
+  const withParentLookup = (deps: SpawnWorkerDeps, rows: Record<string, unknown>) => {
+    (deps.workers as unknown as { findById: (id: string) => unknown }).findById = (id) => rows[id];
+  };
+
+  it("throws NotFoundError and inserts nothing when the parent row is gone", async () => {
+    const { deps, inserted } = buildDeps(createFakeAgentBackend());
+    withParentLookup(deps, {});
+    await assert.rejects(
+      spawnWorker(deps, { prompt: "x", cwd: "/tmp", parentId: "o-dead" }),
+      NotFoundError,
+    );
+    assert.equal(inserted.length, 0, "no orphan row inserted");
+  });
+
+  it("spawns normally when the parent row exists", async () => {
+    const { deps, inserted } = buildDeps(createFakeAgentBackend());
+    withParentLookup(deps, { "o-1": { id: "o-1", name: "orch" } });
+    await spawnWorker(deps, { prompt: "x", cwd: "/tmp", parentId: "o-1" });
+    assert.equal(inserted.length, 1);
+    assert.equal(inserted[0].parentId, "o-1");
+  });
+
+  it("skips the guard for an orchestrator spawn (rule is non-orchestrator only)", async () => {
+    const { deps, inserted } = buildDeps(createFakeAgentBackend());
+    withParentLookup(deps, {});
+    await spawnWorker(deps, { prompt: "x", cwd: "/tmp", parentId: "o-gone", isOrchestrator: true });
+    assert.equal(inserted.length, 1);
   });
 });
 

@@ -194,7 +194,10 @@ export interface AgentSession {
   // effort switching has no lever (claude-sdk: start()/resume apply effort via
   // Options.effort, but no runtime switch) — persisted regardless by the caller.
   setModel(model: string, effort?: string | null): Promise<{ ok: boolean; reason?: string }>;
-  // Graceful stop → forced kill after graceMs. Idempotent.
+  // Graceful stop → forced kill after graceMs. Idempotent. Stopping MUST end
+  // the in-flight turn (abort/interrupt the running query or process), not
+  // merely refuse future input — a stopped/deleted agent must not keep acting
+  // (or spawning children) until its current turn happens to finish.
   stop(graceMs?: number): void;
   isAlive(): boolean;
 }
