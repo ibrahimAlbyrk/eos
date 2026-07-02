@@ -78,6 +78,44 @@ describe("parseOpenAIStream — SSE reasoning/text deltas + tool-call fragments"
     assert.equal(cancelled, true);
   });
 
+  it("breaks the drain on [DONE] even when the socket is held open (no hang)", async () => {
+    // A well-behaved endpoint sends its data + [DONE] but never closes the socket
+    // (DeepSeek-style). Without the [DONE] break the next read() would await forever;
+    // with it the turn settles cleanly with the delivered content.
+    let cancelled = false;
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) {
+        c.enqueue(enc.encode('data: {"choices":[{"delta":{"content":"answer"},"finish_reason":"stop"}]}\n'));
+        c.enqueue(enc.encode("data: [DONE]\n"));
+        // deliberately NOT closed — the socket lingers after [DONE]
+      },
+      cancel() { cancelled = true; },
+    });
+    const turn = await parseOpenAIStream(stream, {});
+    assert.equal(turn.text, "answer");
+    assert.equal(turn.stopReason, "end_turn");
+    assert.equal(cancelled, true); // the reader (and socket) was cancelled after [DONE]
+  });
+
+  it("resolves a stalled stream as stopReason error via the idle timeout (no hang)", async () => {
+    // The endpoint sends a partial chunk then goes silent forever — no more data,
+    // no [DONE], no close. The idle timeout must resolve it as an error, preserving
+    // the partial text, instead of wedging the drain.
+    let cancelled = false;
+    const enc = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(c) { c.enqueue(enc.encode('data: {"choices":[{"delta":{"content":"partial"}}]}\n')); },
+      // no further data, never closes
+      cancel() { cancelled = true; },
+    });
+    const turn = await parseOpenAIStream(stream, {}, 30);
+    assert.equal(turn.stopReason, "error");
+    assert.match(turn.error ?? "", /idle|timeout/i);
+    assert.equal(turn.text, "partial");
+    assert.equal(cancelled, true);
+  });
+
   it("buffers tool_call argument fragments across chunks", async () => {
     const turn = await parseOpenAIStream(
       sseStream([

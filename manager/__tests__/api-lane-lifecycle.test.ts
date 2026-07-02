@@ -67,6 +67,30 @@ async function startStub(script: (req: StubReq["body"], idx: number) => SseChunk
   return { url: `http://127.0.0.1:${port}`, requests, close: () => new Promise<void>((r) => server.close(() => r())) };
 }
 
+// A stub that writes its chunks (optionally the [DONE] sentinel) then DELIBERATELY
+// never ends the response — the socket lingers, reproducing the endpoints that
+// wedge the drain. closeAllConnections force-drops the held socket on teardown.
+async function startHeldOpenStub(chunks: SseChunk[], opts: { sendDone: boolean } = { sendDone: true }): Promise<Stub> {
+  const requests: StubReq[] = [];
+  const server = createServer((req, res) => {
+    let raw = "";
+    req.on("data", (c) => { raw += c; });
+    req.on("end", () => {
+      let body: StubReq["body"] = { messages: [] };
+      try { body = JSON.parse(raw); } catch { /* keep empty */ }
+      requests.push({ url: req.url ?? "", auth: req.headers["authorization"] as string | undefined, body });
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      for (const ch of chunks) res.write(`data: ${JSON.stringify(ch)}\n\n`);
+      if (opts.sendDone) res.write("data: [DONE]\n\n");
+      // no res.end() — the socket stays open after the payload
+    });
+  });
+  await new Promise<void>((r) => server.listen(0, "127.0.0.1", () => r()));
+  const addr = server.address();
+  const port = typeof addr === "object" && addr ? addr.port : 0;
+  return { url: `http://127.0.0.1:${port}`, requests, close: () => new Promise<void>((r) => { server.closeAllConnections?.(); server.close(() => r()); }) };
+}
+
 const textDelta = (s: string): SseChunk => ({ choices: [{ delta: { content: s }, finish_reason: null }] });
 const finish = (reason: string): SseChunk => ({ choices: [{ delta: {}, finish_reason: reason }] });
 const usage = (inTok: number, outTok: number): SseChunk => ({ choices: [], usage: { prompt_tokens: inTok, completion_tokens: outTok } });
@@ -271,5 +295,54 @@ describe("api-lane full lifecycle (real localhost-stub model)", () => {
     assert.match(JSON.stringify(sent), /truncated to fit/, "the retained compaction marker is present");
     assert.ok(!events.some((e) => e.type === "turn" && e.phase === "error" && e.reason === "context_window_exceeded"), "no context_window_exceeded error");
     assert.ok(events.some((e) => e.type === "turn" && e.phase === "ended"), "the turn continued to completion");
+  });
+});
+
+// ─── 4. Stream termination: a stalled stream can never hang the turn ──────────────
+
+describe("api-lane stream termination (real client + held-open socket)", () => {
+  it("settles the turn cleanly when the endpoint holds the socket open after [DONE]", { timeout: 5000 }, async (t) => {
+    // The DeepSeek-shaped bug: the endpoint sends its answer + [DONE] then keeps the
+    // socket open. Without breaking on [DONE] the drain hangs → the turn never ends
+    // (spinner spins forever) and the answer never lands as a durable message (it only
+    // ever shows as a live thinking line). Break-on-[DONE] resolves it as one clean
+    // terminal event with the durable text delivered.
+    const cwd = tmp(t);
+    const stub = await startHeldOpenStub([textDelta("hello "), textDelta("world"), finish("stop"), usage(3, 2)]);
+    t.after(() => stub.close());
+    const env: InProcessEnv = {
+      model: createOpenAIModelClient({ apiKey: "", model: "glm-stub", baseUrl: stub.url, capabilities: CAPS }),
+      tools: new Map(), gate: allowGate,
+    };
+    const events: AgentEvent[] = [];
+    const be = createInProcessBackend("openai", () => env);
+    await be.start({ workerId: "w-hang", cwd, model: "glm-stub", prompt: "hi", persistent: false, parentId: "orch", isOrchestrator: false }, { onEvent: (e) => events.push(e) });
+    await be.whenSettled("w-hang");
+
+    const tags = events.map(tagOf);
+    const terminals = tags.filter((tg) => tg === "turn:ended" || tg === "turn:error" || tg === "turn:aborted");
+    assert.deepEqual(terminals, ["turn:ended"], "exactly one terminal turn event, and it ended cleanly");
+    assert.ok(tags.includes("msg:text"), "the durable answer text was emitted (not stuck as a live thinking delta)");
+  });
+
+  it("resolves the turn as a single terminal error when the stream stalls without [DONE]", { timeout: 5000 }, async (t) => {
+    // A truly stalled stream: partial data, no [DONE], socket held open. The idle
+    // timeout must resolve it as ONE terminal error instead of hanging.
+    const cwd = tmp(t);
+    const stub = await startHeldOpenStub([textDelta("partial")], { sendDone: false });
+    t.after(() => stub.close());
+    const caps: ProviderCapabilities = { ...CAPS, streamIdleTimeoutMs: 50 };
+    const env: InProcessEnv = {
+      model: createOpenAIModelClient({ apiKey: "", model: "glm-stub", baseUrl: stub.url, capabilities: caps }),
+      tools: new Map(), gate: allowGate,
+    };
+    const events: AgentEvent[] = [];
+    const be = createInProcessBackend("openai", () => env);
+    await be.start({ workerId: "w-stall", cwd, model: "glm-stub", prompt: "hi", persistent: false, parentId: "orch", isOrchestrator: false }, { onEvent: (e) => events.push(e) });
+    await be.whenSettled("w-stall");
+
+    const terminals = events.filter((e) => e.type === "turn" && (e.phase === "ended" || e.phase === "error" || e.phase === "aborted"));
+    assert.equal(terminals.length, 1, "exactly one terminal turn event");
+    assert.equal(terminals[0].type === "turn" && terminals[0].phase, "error", "the stalled stream settled as turn:error");
   });
 });

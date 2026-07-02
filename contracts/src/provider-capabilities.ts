@@ -44,6 +44,12 @@ export const ProviderCapabilitiesSchema = z
     // pre-flight guard, and in M4 by the ContextCompactor (drop-oldest near the
     // window) so a small-context model compacts instead of a raw 400.
     contextWindow: z.number().int().positive(),
+    // Max ms the streaming parser will wait for the NEXT chunk before treating the
+    // stream as stalled (resolves stopReason:"error" instead of hanging the turn) —
+    // an endpoint that holds the socket open after sending its data (or never sends
+    // [DONE]) can otherwise wedge the whole turn. Capability-gated but defaulted in
+    // the client, so omitting it keeps the safe default — never a per-kind branch.
+    streamIdleTimeoutMs: z.number().int().positive().optional(),
     maxTokens: z.number().int().positive().optional(),
     // The request parameter carrying the output-token cap. Chat Completions took
     // `max_tokens` originally; OpenAI's gpt-5.x reasoning models on /v1/chat/completions

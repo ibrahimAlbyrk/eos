@@ -51,6 +51,12 @@ export interface OpenAIModelClientOpts {
 // "ultracode"/"auto") is dropped rather than risking a 400.
 const OPENAI_EFFORTS = new Set(["minimal", "low", "medium", "high"]);
 
+// Default cap on the gap between streamed chunks before the parser gives up on a
+// stalled stream (see streamIdleTimeoutMs). Generous enough not to trip a slow
+// reasoning model's server-side think pause, tight enough that a dead socket can't
+// wedge the turn indefinitely. Overridable per-provider via the capability.
+const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 120_000;
+
 export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClient {
   const doFetch = opts.fetchImpl ?? fetch;
   const base = normalizeBaseOrigin(opts.baseUrl ?? "https://api.openai.com");
@@ -59,6 +65,7 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
   const supportsStreaming = caps?.supportsStreaming !== false;
   const retryPolicy = resolveRetryPolicy(caps?.retry);
   const sleep = opts.sleepImpl ?? defaultSleep;
+  const streamIdleTimeoutMs = caps?.streamIdleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
 
   const paramMax = typeof opts.params?.max_tokens === "number" ? (opts.params.max_tokens as number) : undefined;
   const maxTokens = paramMax ?? caps?.maxTokens ?? opts.maxTokens;
@@ -143,7 +150,7 @@ export function createOpenAIModelClient(opts: OpenAIModelClientOpts): ModelClien
       if (!resp.ok || !resp.body) {
         return resp.ok ? { toolCalls: [], stopReason: "error", error: "no stream body" } : httpError(resp.status, await resp.text().catch(() => ""));
       }
-      return parseOpenAIStream(resp.body, cb);
+      return parseOpenAIStream(resp.body, cb, streamIdleTimeoutMs);
     };
   }
   return client;
@@ -233,11 +240,34 @@ interface OpenAIStreamChunk {
   usage?: OpenAIUsage | null;
 }
 
+// Read the next chunk, but give up after idleMs of silence — a stalled stream (a
+// socket held open with no further data, or one that never sends [DONE]) would
+// otherwise wedge the drain forever. Returns the STALLED sentinel on timeout; the
+// orphaned read() settles harmlessly when the caller cancels the reader.
+const STALLED = Symbol("stream-stalled");
+type StreamRead = { done: boolean; value?: Uint8Array };
+function readOrStall(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  idleMs: number,
+): Promise<StreamRead | typeof STALLED> {
+  if (!(idleMs > 0)) return reader.read();
+  return new Promise((resolve) => {
+    let settled = false;
+    const timer = setTimeout(() => { if (!settled) { settled = true; resolve(STALLED); } }, idleMs);
+    reader.read().then(
+      (r) => { if (!settled) { settled = true; clearTimeout(timer); resolve(r); } },
+      () => { if (!settled) { settled = true; clearTimeout(timer); resolve(STALLED); } },
+    );
+  });
+}
+
 // Drain an OpenAI-compatible SSE stream into a ModelTurn, emitting reasoning/text
 // deltas live. tool_calls stream as fragments and are buffered per index; a server
 // that omits `index`/`id` (some OpenAI-compatible endpoints) is tolerated by
 // allocating a slot on each new id and continuing the most recent slot otherwise.
-export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: ModelStreamCallbacks): Promise<ModelTurn> {
+// Terminates the drain on the `[DONE]` sentinel (some endpoints keep the socket
+// open afterward) and on an idle-timeout stall, so the turn always settles.
+export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: ModelStreamCallbacks, idleTimeoutMs = 0): Promise<ModelTurn> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -251,10 +281,14 @@ export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: Mo
   // reader.cancel() cancels the underlying fetch body/socket AND releases the
   // lock, so finally covers every exit (a cancel after full drain is harmless).
   let aborted = false;
+  let stalled = false;
+  let sawDone = false;
   try {
     for (;;) {
       if (cb.signal?.aborted) { aborted = true; break; }
-      const { done, value } = await reader.read();
+      const read = await readOrStall(reader, idleTimeoutMs);
+      if (read === STALLED) { stalled = true; break; }
+      const { done, value } = read;
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       let nl: number;
@@ -263,7 +297,10 @@ export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: Mo
         buffer = buffer.slice(nl + 1);
         if (!line.startsWith("data:")) continue;
         const payload = line.slice(5).trim();
-        if (!payload || payload === "[DONE]") continue;
+        if (!payload) continue;
+        // Terminal sentinel: stop draining now — an endpoint that holds the socket
+        // open after [DONE] would otherwise hang the read loop forever.
+        if (payload === "[DONE]") { sawDone = true; break; }
         let chunk: OpenAIStreamChunk;
         try { chunk = JSON.parse(payload); } catch { continue; }
         if (chunk.usage) usage = { inputTokens: billableInput(chunk.usage), outputTokens: chunk.usage.completion_tokens ?? 0, cacheReadTokens: cacheRead(chunk.usage) };
@@ -285,6 +322,7 @@ export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: Mo
           toolsByIndex.set(idx, cur);
         }
       }
+      if (sawDone) break;
     }
   } finally {
     await reader.cancel().catch(() => {});
@@ -293,6 +331,9 @@ export async function parseOpenAIStream(body: ReadableStream<Uint8Array>, cb: Mo
   // ModelTurn has no "aborted" stopReason — report a cancelled stream as the
   // file's existing error shape (ToolRuntime ends the turn on stopReason:"error").
   if (aborted) return { text: text || undefined, reasoning: reasoning || undefined, toolCalls: [], stopReason: "error", error: "aborted", usage };
+  // A stalled stream is likewise an error, not a clean end — surface any partial
+  // text/reasoning so the durable block still lands, but stop the turn.
+  if (stalled) return { text: text || undefined, reasoning: reasoning || undefined, toolCalls: [], stopReason: "error", error: "stream idle timeout", usage };
 
   const toolCalls: ModelTurn["toolCalls"] = [];
   for (const t of toolsByIndex.values()) {
