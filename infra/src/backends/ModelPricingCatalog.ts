@@ -39,6 +39,8 @@ export type FetchPricingSource = () => Promise<LiteLlmRawMap>;
 export const BUNDLED_PRICES: Record<string, ModelPrice> = {
   "deepseek-chat": { in: 0.28, out: 0.42, cacheRead: 0.028, cacheCreate: 0, cacheCreate1h: 0 },
   "deepseek-reasoner": { in: 0.28, out: 0.42, cacheRead: 0.028, cacheCreate: 0, cacheCreate1h: 0 },
+  "deepseek-v4-flash": { in: 0.14, out: 0.28, cacheRead: 0.0028, cacheCreate: 0, cacheCreate1h: 0 },
+  "deepseek-v4-pro": { in: 0.435, out: 0.87, cacheRead: 0.003625, cacheCreate: 0, cacheCreate1h: 0 },
   "gpt-4o": { in: 5, out: 15, cacheRead: 1.5, cacheCreate: 15, cacheCreate1h: 15 },
   "gpt-4o-mini": { in: 0.15, out: 0.6, cacheRead: 0.075, cacheCreate: 0.6, cacheCreate1h: 0.6 },
 };
