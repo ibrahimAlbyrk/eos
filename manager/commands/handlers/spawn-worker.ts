@@ -217,6 +217,7 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
         onAgentEvent: c.onAgentEvent,
         recents: c.recents,
         caps: c.modelCatalog,
+        isSuspending: (wid) => c.suspendGuard.isSuspending(wid),
       },
       spec,
     );
