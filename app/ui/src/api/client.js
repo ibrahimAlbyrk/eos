@@ -684,9 +684,6 @@ export const api = {
   async resizePty(id, cols, rows) {
     return postJson(ROUTES.ptyResize(id), { cols, rows }, uiTokenHeader());
   },
-  async getPtyBuffer(id) {
-    return getJson(ROUTES.ptyBuffer(id), { headers: uiTokenHeader() });
-  },
   async killPty(id) {
     return del(ROUTES.ptySession(id), uiTokenHeader());
   },

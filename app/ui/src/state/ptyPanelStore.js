@@ -1,12 +1,13 @@
-// ptyPanelStore — tab list + active tab for the embedded
-// multi-tab PTY terminal. A module singleton (like archiveStore) because the
-// panel's toolbar toggle, the tab bar, and the panel body render across
-// different subtrees and must share one source of truth; the singleton pattern
-// also survives duplicate mounts (StrictMode / pane remounts).
+// ptyPanelStore — tab list + active tab for the embedded multi-tab PTY terminal.
+// A module singleton (like archiveStore) because the panel's toolbar toggle, the
+// tab bar, and the panel body render across different subtrees and must share one
+// source of truth; the singleton pattern also survives duplicate mounts.
 //
-// The tab-NUMBER counter is SERVER-owned: every tab mirrors the `number` the
-// daemon assigned in its PtySession response. The store never invents numbers —
-// it only reflects the server's session list.
+// Lifecycle: the panel ALWAYS opens clean — there is no reattach/scrollback-replay
+// path. Closing the panel terminates every session (killAllSessions); opening it
+// kills any stale server sessions, then spawns one fresh tab. The tab NUMBER is
+// server-owned (mirrors the daemon's PtySession.number); the server counter
+// resets when its registry empties, so a clean open yields the single "Terminal".
 
 import { api } from "../api/client.js";
 
@@ -36,7 +37,7 @@ export async function openTab({ cols = 80, rows = 24, cwd } = {}) {
   const r = await api.createPty({ cols, rows, cwd });
   const s = r?.body;
   if (!r?.ok || !s?.sessionId) return null;
-  tabs = [...tabs, { sessionId: s.sessionId, number: s.number, exited: false, fresh: true }];
+  tabs = [...tabs, { sessionId: s.sessionId, number: s.number, exited: false }];
   activeId = s.sessionId;
   emit();
   return s;
@@ -69,37 +70,24 @@ export function switchTab(sessionId) {
   emit();
 }
 
-// Reattach after a page reload / WKWebView relaunch: GET /pty → mirror the live
-// server sessions as tabs. Scrollback replay is TerminalView's job (per-session
-// GET /pty/:id/buffer on mount). Fail-soft: a daemon blip keeps the tabs we have.
-export async function reattach() {
-  let body;
+// Terminate every session and clear the tab list. Used on panel close AND at the
+// start of a clean open (never reattach/replay a stale session). Clears the UI
+// first (no flash of old tabs), then reconciles with the server's live list and
+// DELETEs all — so sessions left over from an app quit-while-open are reaped too.
+export async function killAllSessions() {
+  const known = tabs.map((t) => t.sessionId);
+  tabs = [];
+  activeId = null;
+  emit();
+  let ids = known;
   try {
     const r = await api.listPty();
-    body = r?.ok ? r.body : null;
-  } catch {
-    return;
-  }
-  const sessions = body?.sessions;
-  if (!Array.isArray(sessions)) return;
-  tabs = sessions
-    .slice()
-    .sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
-    .map((s) => ({ sessionId: s.sessionId, number: s.number, exited: !s.alive, fresh: false }));
-  if (!tabs.some((t) => t.sessionId === activeId)) {
-    activeId = tabs[0]?.sessionId ?? null;
-  }
-  emit();
-}
-
-// First-mount marker cleared once TerminalView has skipped its buffer replay.
-// After this a remount (panel close→reopen) treats the tab as a reattach and
-// does replay, restoring scrollback.
-export function clearFresh(sessionId) {
-  const t = tabs.find((x) => x.sessionId === sessionId);
-  if (!t || !t.fresh) return;
-  tabs = tabs.map((x) => (x.sessionId === sessionId ? { ...x, fresh: false } : x));
-  emit();
+    const server = r?.ok ? r.body?.sessions : null;
+    if (Array.isArray(server)) {
+      ids = [...new Set([...known, ...server.map((s) => s.sessionId)])];
+    }
+  } catch { /* daemon blip — still DELETE what we knew */ }
+  await Promise.all(ids.map((id) => api.killPty(id).catch(() => {})));
 }
 
 // pty:exit landed — mark the tab so the tab bar can show it died; the session
