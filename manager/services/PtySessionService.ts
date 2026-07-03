@@ -6,9 +6,12 @@ import type { PtySession } from "../../contracts/src/http.ts";
 // Interactive multi-tab PTY sessions (the `pty` feature). Each session is a
 // long-lived login shell in a real PTY. Output is BATCHED onto the bus as
 // pty:data (LEADING-EDGE: the first bytes of a window publish immediately so
-// the prompt paints with ~0 added latency, then a 200ms / 8KB trailing batch
-// coalesces sustained bursts — the keystroke-echo firehose otherwise) and
-// mirrored into a per-session rolling ring buffer that
+// the prompt/echo paints with ~0 added latency, then a ~16ms / 8KB trailing
+// batch coalesces sustained bursts). The window is one frame at 60fps, not the
+// 200ms of the one-shot TerminalRunService idiom: interactive echo lands inside
+// the window on every keystroke, so 200ms there felt rubber-banded. The 8KB
+// trigger still caps a full-throughput dump. Output mirrors into a per-session
+// rolling ring buffer that
 // GET /pty/:id/buffer replays on reattach; the client dedups live frames with
 // seq <= its last-seen seq. Distinct from TerminalRunService, the one-shot `!`
 // runner — see the naming note in contracts/src/http.ts.
@@ -31,7 +34,10 @@ interface Session {
 }
 
 const BUFFER_CAP = 256 * 1024;
-const FLUSH_MS = 200;
+// Trailing-batch window: ~one frame at 60fps. Bounds added echo latency to
+// <=~16ms during sustained typing while still coalescing bursts; the 8KB
+// trigger below handles throughput floods (cat bigfile) without waiting.
+const FLUSH_MS = 16;
 const FLUSH_BYTES = 8 * 1024;
 const MAX_SESSIONS = 32;
 
@@ -122,7 +128,7 @@ export class PtySessionService {
     this.openBatchWindow(s);
   }
 
-  // Opens (or re-opens) the 200ms trailing-batch window. When it closes, any
+  // Opens (or re-opens) the ~16ms trailing-batch window. When it closes, any
   // output that accumulated during the window is drained in one frame; if none
   // did, the next byte starts a fresh leading-edge publish.
   private openBatchWindow(s: Session): void {

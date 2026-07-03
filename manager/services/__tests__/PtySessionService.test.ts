@@ -74,7 +74,7 @@ describe("PtySessionService", () => {
     assert.equal(s.cwd, "/other");
   });
 
-  it("publishes the first output on the leading edge, then coalesces the trailing window", async () => {
+  it("publishes the first output on the leading edge, then coalesces the trailing window within one frame", async () => {
     const { svc, published, hosts } = harness();
     const s = svc.create({ cols: 80, rows: 24 });
     hosts[0].emit("prompt$ "); // leading edge → on the bus with NO batch delay
@@ -85,12 +85,16 @@ describe("PtySessionService", () => {
     hosts[0].emit("a"); // inside the window → buffered
     hosts[0].emit("b"); // inside the window → buffered
     assert.equal(dataFrames(published).length, 1, "sustained burst stays batched until the window closes");
-    await wait(260);
+
+    // Echo latency bound: the window is ~16ms, so the coalesced frame lands well
+    // under the old 200ms — a 50ms wait would NOT have drained a 200ms window,
+    // pinning the regression. (Generous vs 16ms to absorb CI timer jitter.)
+    await wait(50);
     frames = dataFrames(published);
-    assert.equal(frames.length, 2);
+    assert.equal(frames.length, 2, "trailing burst drains within one frame, not 200ms");
     assert.deepEqual(frames[1].payload, { sessionId: s.sessionId, number: 1, seq: 2, data: "ab" });
 
-    // Buffer replays the flushed output through the current seq.
+    // Buffer replays the flushed output through the current seq (unchanged semantics).
     assert.deepEqual(svc.buffer(s.sessionId), { seq: 2, data: "prompt$ ab" });
   });
 
