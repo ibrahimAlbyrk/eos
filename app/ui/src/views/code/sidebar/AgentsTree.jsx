@@ -16,12 +16,15 @@ if (TRANSPARENT_DRAG_IMG) {
     "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 }
 
-export function AgentsTree({ roots, onRename, variant = "full" }) {
+export function AgentsTree({ roots, loaded = true, onRename, variant = "full" }) {
   if (roots.length === 0) {
+    // `loaded` gates the definitive empty state: until the first /workers fetch
+    // resolves (or after a swallowed failure) an empty list only means "still
+    // loading" — rendering "No agents yet" there reads as zero agents existing.
     return (
       <div className="agents-section">
         <div className="empty-tree" style={{ padding: "24px 14px", color: "var(--fg-faint)", fontSize: "var(--text-sm)" }}>
-          No agents yet — click + to spawn an orchestrator
+          {loaded ? "No agents yet — click + to spawn an orchestrator" : "Loading agents…"}
         </div>
       </div>
     );

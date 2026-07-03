@@ -25,7 +25,7 @@ export function CodeSidebar({ live, variant = "full" }) {
       ) : (
         <>
           <SidebarHead total={live.workers.length} variant={variant} />
-          <AgentsTree roots={tree} onRename={live.renameAgent} variant={variant} />
+          <AgentsTree roots={tree} loaded={live.loaded} onRename={live.renameAgent} variant={variant} />
         </>
       )}
       <ArchiveToggle />
