@@ -6,68 +6,41 @@
 <title>Eos Export</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,700;12..96,800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   /* ═══════════════════════════════════════════════════════════════════
-     Eos Conversation Export — "Obsidian Dawn"
-     Self-contained · deep blue-violet night lit by a warm dawn horizon
-     Dark on screen · adapts to a clean light document for print
+     Eos Conversation Export — "Quiet Ledger"
+     Neutral charcoal canvas · soft muted-green accent · editorial serif
+     A vertical timeline (spine) threads every event.
+     Self-contained · flips to a clean light document for print.
      ═══════════════════════════════════════════════════════════════════ */
 
   :root {
-    /* ── background layers (blue-violet near-black, deepest → highest) ── */
-    --bg-void:      #05060b;
-    --bg-base:      #0a0c13;
-    --bg-surface:   #10131d;
-    --bg-elevated:  #161a26;
-    --bg-hover:     #1e2331;
-    --bg-inset:     #0c0e16;
+    /* neutral, faintly-cool charcoal (hue ~265, near-zero chroma) */
+    --bg:        oklch(0.195 0.003 265);
+    --surface:   oklch(0.240 0.004 265);
+    --surface-2: oklch(0.285 0.004 265);
+    --inset:     oklch(0.160 0.003 265);
 
-    /* ── text hierarchy ── */
-    --text-bright:    #f6f8ff;
-    --text-primary:   #e9ebf4;
-    --text-secondary: #aab2c8;
-    --text-muted:     #6f7891;
-    --text-faint:     #464d61;
+    --line:      oklch(0.340 0.005 265);
+    --line-soft: oklch(0.285 0.005 265);
 
-    /* ── dawn brand gradient ── */
-    --dawn-rose:   #ff6b8a;
-    --dawn-coral:  #ff8a5c;
-    --dawn-amber:  #ffb454;
-    --dawn-grad:   linear-gradient(115deg, #ff6b8a 0%, #ff8a5c 45%, #ffb454 100%);
+    --t1: oklch(0.930 0.003 265);   /* primary text */
+    --t2: oklch(0.760 0.004 265);   /* secondary   */
+    --t3: oklch(0.605 0.005 265);   /* muted       */
+    --t4: oklch(0.460 0.005 265);   /* faint       */
 
-    /* ── element accents ── */
-    --accent-user:      #ff6b8a;
-    --accent-assistant: #ffb454;
-    --accent-tool:      #3dd8c0;
-    --accent-result:    #7e8bb8;
-    --accent-think:     #9b8cff;
-    --accent-error:     #ff5d6c;
-    --accent-link:      #ff9d6b;
-    --accent-code:      #7fd8c8;
+    /* accents — soft pastels, matched lightness/chroma (kept quiet) */
+    --amber: oklch(0.810 0.050 158);   /* signature / user / active / links (soft green) */
+    --sage:  oklch(0.800 0.045 245);   /* tool calls (soft blue) */
+    --rust:  oklch(0.740 0.062 20);    /* errors (soft rose)     */
 
-    /* ── borders ── */
-    --border-subtle:  #1a1e2b;
-    --border-default: #262b3d;
-    --border-strong:  #363d54;
+    --r-sm: 7px;
+    --r-md: 12px;
 
-    /* ── glows & shadows ── */
-    --glow-dawn:   0 0 60px rgba(255,138,92,.12);
-    --glow-user:   0 2px 24px rgba(255,107,138,.08);
-    --glow-tool:   0 0 24px rgba(61,216,192,.10);
-    --glow-think:  0 0 28px rgba(155,140,255,.10);
-    --glow-error:  0 0 24px rgba(255,93,108,.14);
-    --shadow-sm:   0 1px 2px rgba(0,0,0,.4);
-    --shadow-md:   0 6px 24px rgba(0,0,0,.4);
-    --shadow-lg:   0 16px 48px rgba(0,0,0,.5);
+    --gutter: 58px;   /* timestamp column */
+    --spine:  76px;   /* x of the timeline line + markers */
 
-    /* ── radii ── */
-    --radius-sm:   5px;
-    --radius-md:   8px;
-    --radius-lg:   12px;
-    --radius-pill: 999px;
-
-    /* let closed↔open details animate their height */
     interpolate-size: allow-keywords;
   }
 
@@ -80,656 +53,458 @@
   }
   body {
     font-family: 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
-    font-optical-sizing: auto;
-    background: var(--bg-base);
-    color: var(--text-primary);
-    line-height: 1.6;
+    background: var(--bg);
+    color: var(--t1);
+    line-height: 1.65;
     min-height: 100vh;
   }
 
-  ::selection { background: rgba(255,138,92,.25); color: var(--text-bright); }
-  :focus-visible { outline: 2px solid var(--accent-link); outline-offset: 2px; border-radius: 4px; }
+  ::selection { background: color-mix(in oklch, var(--amber) 30%, transparent); color: #fff; }
+  :focus-visible { outline: 2px solid var(--amber); outline-offset: 3px; border-radius: 4px; }
 
-  /* ── background: dawn glow bleeding from the top, aurora in a corner, soft vignette ── */
+  /* faint warmth bleeding from the top — the only "glow" in the piece */
   body::before {
     content: '';
     position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background:
-      radial-gradient(ellipse 1200px 620px at 50% -12%,
-        rgba(255,138,92,.10), rgba(255,107,138,.05) 32%, transparent 62%),
-      radial-gradient(ellipse 900px 700px at 100% 108%,
-        rgba(61,216,192,.05), transparent 55%),
-      radial-gradient(ellipse at 50% 40%, transparent 55%, rgba(0,0,0,.30));
-  }
-  /* fine grain to kill gradient banding on dark */
-  body::after {
-    content: '';
-    position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    opacity: .035; mix-blend-mode: overlay;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background: radial-gradient(115% 55% at 50% -12%,
+      color-mix(in oklch, var(--t1) 5%, transparent), transparent 60%);
   }
 
-  /* ── layout container ────────────────────────────────────────────── */
+  /* ── page frame ──────────────────────────────────────────────────── */
   .archive {
     position: relative;
     z-index: 1;
-    max-width: 1240px;
+    max-width: 1680px;
     margin: 0 auto;
-    padding: 5rem 2.5rem 6rem;
+    padding: 5.5rem 3rem 7rem;
   }
 
   /* ── header ──────────────────────────────────────────────────────── */
   .archive-header {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding-bottom: 3.5rem;
+    padding-bottom: 2.75rem;
     margin-bottom: 3rem;
-    border-bottom: 1px solid transparent;
+    border-bottom: 1px solid var(--line-soft);
+    animation: rise .5s .04s both cubic-bezier(.22,.68,.28,1);
   }
-  .archive-header::after {
-    content: '';
-    position: absolute; left: 0; right: 0; bottom: 0; height: 1px;
-    background: linear-gradient(90deg, transparent, var(--border-default) 20%, var(--border-default) 80%, transparent);
-  }
-
-  .archive-mark {
-    order: 1;
-    display: inline-block;
-    width: 40px; height: 40px;
-    margin-bottom: 1.25rem;
-    filter: drop-shadow(0 0 12px rgba(255,138,92,.5));
-  }
-  .archive-mark svg { display: block; width: 100%; height: 100%; }
-  /* recolor the emitted sun mark to dawn coral (CSS overrides SVG attrs) */
-  .archive-mark svg [stroke] { stroke: var(--dawn-coral); }
-  .archive-mark svg [fill]   { fill: var(--dawn-coral); }
-
-  .archive-subtitle {
-    order: 2;
-    font: 500 0.72rem/1.4 'JetBrains Mono', ui-monospace, monospace;
-    letter-spacing: 0.3em;
-    text-indent: 0.3em; /* optical re-center for trailing tracking */
-    text-transform: uppercase;
-    color: var(--text-muted);
-    margin-bottom: 1rem;
-  }
-
-  .archive-title {
-    order: 3;
-    font: 800 3.25rem/1.04 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
-    letter-spacing: -0.03em;
-    background: var(--dawn-grad);
-    -webkit-background-clip: text; background-clip: text;
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-    filter: drop-shadow(0 0 24px rgba(255,138,92,.25));
-  }
-
-  .rule-ornament {
-    order: 4;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 220px; max-width: 60%;
-    margin-top: 1.5rem;
-  }
-  .rule-ornament::before,
-  .rule-ornament::after {
-    content: '';
-    flex: 1; height: 1px;
-  }
-  .rule-ornament::before { background: linear-gradient(90deg, transparent, var(--border-strong)); }
-  .rule-ornament::after  { background: linear-gradient(90deg, var(--border-strong), transparent); }
-  .rule-ornament .diamond {
-    flex: 0 0 auto;
-    width: 6px; height: 6px;
-    background: var(--dawn-coral);
-    transform: rotate(45deg);
-    margin: 0 14px;
-    opacity: .9;
-    box-shadow: 0 0 8px rgba(255,138,92,.6);
-  }
-
-  .archive-meta {
-    order: 5;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 1.25rem;
-    margin-top: 1.75rem;
-    font: 400 0.8rem/1.5 'JetBrains Mono', ui-monospace, monospace;
-    letter-spacing: 0.02em;
-    color: var(--text-secondary);
-  }
-  .archive-meta span { display: inline-flex; align-items: center; }
-  .archive-meta .meta-sep { color: var(--text-faint); }
-
-  /* ── worker sections ─────────────────────────────────────────────── */
-  .worker-section { margin-bottom: 4rem; }
-  .worker-section:last-child { margin-bottom: 0; }
-
-  .worker-header {
-    display: flex;
-    align-items: baseline;
-    gap: .75rem;
-    flex-wrap: wrap;
-    padding-bottom: .9rem;
-    margin-bottom: 2rem;
-    border-bottom: 1px solid var(--border-subtle);
-    position: sticky; top: 0; z-index: 5;
-    background: color-mix(in srgb, var(--bg-base) 82%, transparent);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-  }
-  .worker-name {
+  .eyebrow {
     display: inline-flex;
     align-items: center;
-    font: 700 1.5rem/1.2 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
-    letter-spacing: -.02em;
-    color: var(--text-primary);
-  }
-  .worker-name::before {
-    content: '';
-    display: inline-block;
-    width: 8px; height: 8px;
-    border-radius: 2px;
-    margin-right: .6rem;
-    color: var(--accent-tool);
-    background: currentColor;
-    box-shadow: 0 0 10px currentColor;
-  }
-  .worker-header:has(.worker-badge.orch) .worker-name::before { color: var(--dawn-coral); }
-
-  .worker-badge {
-    font: 600 0.625rem/1 'JetBrains Mono', ui-monospace, monospace;
+    gap: .6rem;
+    font: 500 .7rem/1 'JetBrains Mono', ui-monospace, monospace;
+    letter-spacing: .26em;
     text-transform: uppercase;
-    letter-spacing: .14em;
-    padding: .3em .7em;
-    border-radius: var(--radius-pill);
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-default);
-    color: var(--text-muted);
+    color: var(--t3);
+    margin-bottom: 1.1rem;
   }
-  .worker-badge.orch {
-    color: var(--dawn-coral);
-    background: rgba(255,138,92,.10);
-    border-color: rgba(255,138,92,.35);
-    box-shadow: 0 0 16px rgba(255,138,92,.15);
+  .eyebrow::before {
+    content: '';
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--amber) 14%, transparent);
   }
-  .worker-stats {
-    margin-left: auto;
-    font: 400 0.75rem/1.4 'JetBrains Mono', ui-monospace, monospace;
-    color: var(--text-faint);
+  .archive-title {
+    font: 400 3rem/1.02 'Instrument Serif', Georgia, 'Times New Roman', serif;
+    letter-spacing: -.005em;
+    color: var(--t1);
+    margin-bottom: 1.25rem;
   }
-
-  /* ── tabbed layout: sidebar of workers + one visible conversation ─── */
-  .export-body {
-    display: grid;
-    grid-template-columns: 210px 1fr;
-    gap: 2.25rem;
-    align-items: start;
-  }
-  .worker-nav {
-    position: sticky;
-    top: 1.25rem;
-    display: flex;
-    flex-direction: column;
-    gap: .3rem;
-    max-height: calc(100vh - 2.5rem);
-    overflow-y: auto;
-    animation: fadeRise .5s .12s both cubic-bezier(.22,.68,.28,1);
-  }
-  .nav-tab {
+  .archive-meta {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
+    gap: .85rem;
+    font: 400 .78rem/1.5 'JetBrains Mono', ui-monospace, monospace;
+    color: var(--t3);
+  }
+  .archive-meta .meta-sep { color: var(--t4); }
+
+  /* ── worker switcher (multi-worker only) ─────────────────────────── */
+  .workers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .35rem;
+    margin-bottom: 3rem;
+    animation: rise .5s .1s both cubic-bezier(.22,.68,.28,1);
+  }
+  .wtab {
+    display: inline-flex;
+    align-items: center;
     gap: .55rem;
-    width: 100%;
-    padding: .55rem .7rem;
+    padding: .5rem .9rem;
     background: transparent;
     border: 1px solid transparent;
-    border-left: 2px solid transparent;
-    border-radius: var(--radius-md);
-    color: var(--text-secondary);
-    font: 500 .85rem/1.3 'Hanken Grotesk', system-ui, sans-serif;
-    text-align: left;
+    border-radius: 999px;
+    color: var(--t3);
+    font: 500 .84rem/1 'Hanken Grotesk', system-ui, sans-serif;
     cursor: pointer;
     transition: background .15s ease, color .15s ease, border-color .15s ease;
   }
-  .nav-tab:hover { background: var(--bg-surface); color: var(--text-primary); }
-  .nav-dot {
-    width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0;
-    color: var(--accent-tool);
-    background: currentColor;
-    box-shadow: 0 0 8px currentColor;
+  .wtab:hover { color: var(--t1); background: var(--surface); }
+  .wdot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    background: var(--t4);
+    transition: background .15s ease;
   }
-  .nav-tab.orch .nav-dot { color: var(--dawn-coral); }
-  .nav-label {
-    flex: 1; min-width: 0;
-    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    letter-spacing: -.01em;
-  }
-  .nav-count {
-    flex-shrink: 0;
+  .wtab.orch .wdot { background: var(--amber); }
+  .wcount {
     font: 400 .68rem/1 'JetBrains Mono', ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
-    color: var(--text-faint);
+    color: var(--t4);
   }
-  .nav-tab.active {
-    background: var(--bg-elevated);
-    border-color: var(--border-default);
-    border-left-color: var(--accent-tool);
-    color: var(--text-bright);
-    box-shadow: 0 0 20px rgba(61,216,192,.07);
+  .wtab.active {
+    color: var(--t1);
+    background: var(--surface);
+    border-color: var(--line);
   }
-  .nav-tab.active.orch {
-    border-left-color: var(--dawn-coral);
-    border-color: rgba(255,138,92,.28);
-    box-shadow: 0 0 20px rgba(255,138,92,.08);
-  }
-  .nav-tab.active .nav-count { color: var(--text-muted); }
+  .wtab.active .wcount { color: var(--t3); }
 
-  .worker-panels { min-width: 0; }
-  .worker-panels.solo { max-width: 860px; margin: 0 auto; }
-  .worker-panel { min-width: 0; margin-bottom: 0; }
-  .worker-panel[hidden] { display: none; }
-  .worker-panel.active { animation: panelIn .3s ease both; }
-  @keyframes panelIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .panels { min-width: 0; }
+  .panel { min-width: 0; }
+  .panel[hidden] { display: none; }
+  .panel.active { animation: rise .32s ease both; }
 
-  /* ── event row: timestamp gutter + flexed content ────────────────── */
+  /* ── panel header (which worker you're reading) ──────────────────── */
+  .panel-head {
+    display: flex;
+    align-items: baseline;
+    gap: .8rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.75rem;
+  }
+  .panel-name {
+    font: 400 1.6rem/1.2 'Instrument Serif', Georgia, serif;
+    letter-spacing: 0;
+    color: var(--t1);
+  }
+  .panel-badge {
+    font: 500 .6rem/1 'JetBrains Mono', ui-monospace, monospace;
+    text-transform: uppercase;
+    letter-spacing: .13em;
+    padding: .4em .75em;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    color: var(--t3);
+  }
+  .panel-badge.orch {
+    color: var(--amber);
+    border-color: color-mix(in oklch, var(--amber) 40%, var(--line));
+  }
+
+  /* ── the timeline & its spine ────────────────────────────────────── */
+  .timeline { position: relative; }
+  .timeline::before {
+    content: '';
+    position: absolute;
+    left: var(--spine); top: .8rem; bottom: .8rem;
+    width: 1px;
+    transform: translateX(-.5px);
+    background: var(--line-soft);
+  }
+
   .event {
+    position: relative;
     display: grid;
-    grid-template-columns: 64px 1fr;
-    gap: 1.5rem;
-    padding: 0.55rem 0;
-    align-items: start;
+    grid-template-columns: var(--gutter) 1fr;
+    padding-bottom: 1.7rem;
   }
+  .event:last-child { padding-bottom: 0; }
   .event-time {
-    font: 400 0.6875rem/1.4 'JetBrains Mono', ui-monospace, monospace;
-    font-variant-numeric: tabular-nums;
-    color: var(--text-faint);
+    grid-column: 1;
     text-align: right;
-    padding-top: 0.2rem;
-    letter-spacing: -0.01em;
+    padding-right: .9rem;
+    padding-top: .35rem;
+    font: 400 .66rem/1.4 'JetBrains Mono', ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+    color: var(--t4);
     transition: color .15s ease;
   }
-  .event:hover .event-time { color: var(--text-muted); }
-  .event-body { min-width: 0; }
+  .event:hover .event-time { color: var(--t3); }
+  .event-body {
+    grid-column: 2;
+    min-width: 0;
+    padding-left: calc(var(--spine) - var(--gutter) + 1.1rem);
+    padding-top: .15rem;
+  }
 
-  /* ── user message — warm, boxed, shifted right ───────────────────── */
-  .msg-user .event-body-inner {
-    max-width: 90%;
-    margin-left: auto;
-    padding: 1rem 1.25rem;
-    background: linear-gradient(rgba(255,107,138,.08), rgba(255,107,138,.03));
-    border: 1px solid rgba(255,107,138,.18);
-    border-left: 3px solid var(--accent-user);
-    border-radius: 4px 12px 12px 4px;
-    box-shadow: var(--glow-user);
-    font-style: italic;
-    color: var(--text-secondary);
+  /* markers sit on the spine */
+  .event-marker {
+    position: absolute;
+    left: var(--spine); top: .5rem;
+    transform: translateX(-50%);
+    width: 11px; height: 11px;
+    border-radius: 50%;
+    background: var(--bg);
+    border: 1.5px solid var(--t4);
+    z-index: 1;
+  }
+  .m-user {
+    background: var(--amber);
+    border-color: var(--amber);
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--amber) 15%, transparent);
+  }
+  .m-assistant { border-color: var(--t3); }
+  .m-assistant.orch { border-color: var(--amber); }
+  .m-tool {
+    width: 8px; height: 8px; top: .62rem;
+    background: var(--t4); border: none;
+  }
+  .m-tool.err { background: var(--rust); }
+
+  /* ── user message ────────────────────────────────────────────────── */
+  .ev-user .event-body-inner {
+    padding: .95rem 1.2rem;
+    background: var(--surface);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-md);
+    color: var(--t1);
     line-height: 1.7;
     overflow-wrap: break-word;
-    transition: border-color .2s ease, box-shadow .2s ease;
   }
-  .msg-user .event-body-inner:hover {
-    border-color: rgba(255,107,138,.3);
-    box-shadow: 0 2px 28px rgba(255,107,138,.14);
-  }
+  .ev-user .role-label { color: var(--amber); }
 
-  /* ── assistant text — no box, flows open ─────────────────────────── */
-  .msg-assistant .msg-text.md-body { color: var(--text-primary); }
-
-  .model-tag {
-    display: inline-block;
-    font: 500 0.65rem/1 'JetBrains Mono', ui-monospace, monospace;
+  .role-label {
+    display: block;
+    font: 500 .6rem/1 'JetBrains Mono', ui-monospace, monospace;
     text-transform: uppercase;
-    letter-spacing: .1em;
-    padding: .2em .6em;
-    border-radius: var(--radius-sm);
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    color: var(--text-muted);
-    margin-bottom: .6rem;
+    letter-spacing: .16em;
+    color: var(--t4);
+    margin-bottom: .55rem;
   }
-  .model-tag::before { content: '◆ '; color: var(--accent-assistant); }
+
+  /* ── assistant text — unboxed, flows open ────────────────────────── */
+  .msg-assistant .msg-text.md-body { color: var(--t1); }
 
   /* ── markdown body ───────────────────────────────────────────────── */
   .md-body {
-    font: 400 1rem/1.72 'Hanken Grotesk', system-ui, -apple-system, sans-serif;
-    color: var(--text-primary);
+    font: 400 .96rem/1.75 'Hanken Grotesk', system-ui, sans-serif;
+    color: var(--t1);
   }
   .md-body p { margin: .7em 0; }
   .md-body p:first-child { margin-top: 0; }
   .md-body p:last-child { margin-bottom: 0; }
-  .md-body h1 { font: 700 1.5em/1.25 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif; letter-spacing: -.01em; color: var(--text-primary); margin: 1.4em 0 .5em; }
-  .md-body h2 { font: 700 1.25em/1.3 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif; letter-spacing: -.01em; color: var(--text-primary); margin: 1.2em 0 .4em; }
-  .md-body h3 { font: 700 1.05em/1.4 'Hanken Grotesk', system-ui, sans-serif; color: var(--text-secondary); margin: 1em 0 .3em; }
-  .md-body strong { font-weight: 700; color: var(--text-bright); }
-  .md-body em { font-style: italic; color: var(--text-secondary); }
+  .md-body h1, .md-body h2 {
+    font-family: 'Instrument Serif', Georgia, serif;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--t1);
+    line-height: 1.2;
+  }
+  .md-body h1 { font-size: 1.7em; margin: 1.3em 0 .45em; }
+  .md-body h2 { font-size: 1.4em; margin: 1.15em 0 .4em; }
+  .md-body h3 {
+    font: 600 1em/1.4 'Hanken Grotesk', system-ui, sans-serif;
+    color: var(--t2);
+    margin: 1em 0 .3em;
+  }
+  .md-body strong { font-weight: 700; color: #fff; }
+  .md-body em { font-style: italic; color: var(--t2); }
   .md-body a {
-    color: var(--accent-link);
-    text-decoration: underline; text-underline-offset: 3px;
-    text-decoration-color: rgba(255,157,107,.4);
-    transition: color .15s, text-decoration-color .15s;
+    color: var(--amber);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: color-mix(in oklch, var(--amber) 40%, transparent);
+    transition: text-decoration-color .15s;
   }
-  .md-body a:hover { color: var(--dawn-amber); text-decoration-color: var(--dawn-amber); }
-  .md-body ul, .md-body ol { margin: .5em 0; padding-left: 1.5em; }
-  .md-body li { margin: .3em 0; line-height: 1.7; }
-  .md-body li::marker { color: var(--dawn-coral); }
-  .md-body hr {
-    border: none; height: 1px; margin: 1.5em 0;
-    background: linear-gradient(90deg, transparent, var(--border-default), transparent);
-  }
+  .md-body a:hover { text-decoration-color: var(--amber); }
+  .md-body ul, .md-body ol { margin: .5em 0; padding-left: 1.4em; }
+  .md-body li { margin: .3em 0; }
+  .md-body li::marker { color: var(--amber); }
+  .md-body hr { border: none; height: 1px; margin: 1.6em 0; background: var(--line-soft); }
   .md-body code {
     font: 400 .85em 'JetBrains Mono', ui-monospace, monospace;
-    color: var(--accent-code);
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-subtle);
-    border-radius: var(--radius-sm);
-    padding: .15em .4em;
+    color: var(--sage);
+    background: var(--inset);
+    border: 1px solid var(--line-soft);
+    border-radius: 5px;
+    padding: .12em .4em;
   }
   .md-body pre {
-    background: var(--bg-void);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg);
-    padding: 1rem 1.25rem; margin: .9em 0;
+    background: var(--inset);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-md);
+    padding: 1rem 1.2rem;
+    margin: .9em 0;
     overflow-x: auto;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.02);
   }
   .md-body pre code {
-    color: #c8d0e6; background: none; border: none; padding: 0;
+    color: #cfd4de; background: none; border: none; padding: 0;
     font-size: .8125rem; line-height: 1.65;
   }
 
-  /* ── details / summary reset + chevron ───────────────────────────── */
+  /* ── collapsibles: one shared quiet shape ────────────────────────── */
   details summary { list-style: none; cursor: pointer; }
   summary::-webkit-details-marker { display: none; }
   summary::marker { content: ''; }
 
-  .chevron {
-    width: 8px; height: 8px; flex-shrink: 0;
-    border-right: 1.5px solid currentColor;
-    border-bottom: 1.5px solid currentColor;
-    transform: rotate(-45deg);              /* points right when closed */
-    transition: transform .2s cubic-bezier(.4,0,.2,1);
+  .thinking-block, .tool-call-block, .tool-result-block {
+    margin: .5rem 0;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-md);
+    background: color-mix(in oklch, var(--surface) 45%, transparent);
+    overflow: hidden;
+    transition: border-color .15s ease, background .15s ease;
   }
-  details[open] .chevron { transform: rotate(45deg); } /* points down when open */
-  .tool-call-block .chevron { color: var(--accent-tool); }
-  .thinking-block .chevron  { color: var(--accent-think); }
-
-  /* content reveal on open */
-  @keyframes revealDown { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-  .thinking-block[open] .thinking-content,
-  .tool-call-block[open] .tool-detail,
-  .tool-result-block[open] .result-content { animation: revealDown .25s ease both; }
-  details::details-content { transition: height .25s ease, content-visibility .25s allow-discrete; }
-
-  /* ── thinking block (violet) ─────────────────────────────────────── */
-  .thinking-block {
-    background: rgba(155,140,255,.04);
-    border: 1px solid rgba(155,140,255,.15);
-    border-left: 2px solid var(--accent-think);
-    border-radius: var(--radius-md);
-    margin: .4rem 0; overflow: hidden;
-    transition: box-shadow .2s ease, background .2s ease;
+  .thinking-block:hover, .tool-call-block:hover, .tool-result-block:hover { border-color: var(--line); }
+  .thinking-block[open], .tool-call-block[open], .tool-result-block[open] {
+    background: var(--surface);
+    border-color: var(--line);
   }
-  .thinking-block summary {
-    display: flex; align-items: center; gap: .5rem;
-    padding: .6rem .9rem;
-    cursor: pointer; user-select: none; list-style: none;
+  .thinking-block summary,
+  .tool-call-block summary,
+  .tool-result-block summary {
+    display: flex; align-items: center; gap: .6rem;
+    padding: .58rem .85rem;
+    user-select: none;
   }
-  .thinking-label {
-    font: italic 500 .8rem 'Hanken Grotesk', system-ui, sans-serif;
-    letter-spacing: .01em;
-    color: var(--accent-think);
-  }
-  .thinking-label::before { content: '◈ '; font-style: normal; }
-  /* markup omits a .chevron here → draw a right-aligned one on the summary */
-  .thinking-block summary::after {
-    content: ''; margin-left: auto;
-    width: 8px; height: 8px; flex-shrink: 0;
-    border-right: 1.5px solid var(--accent-think);
-    border-bottom: 1.5px solid var(--accent-think);
-    opacity: .7;
+  .thinking-block summary::after,
+  .tool-call-block summary::after,
+  .tool-result-block summary::after {
+    content: '';
+    margin-left: auto;
+    width: 6px; height: 6px; flex-shrink: 0;
+    border-right: 1.5px solid var(--t4);
+    border-bottom: 1.5px solid var(--t4);
     transform: rotate(-45deg);
     transition: transform .2s cubic-bezier(.4,0,.2,1);
   }
-  .thinking-block[open] summary::after { transform: rotate(45deg); }
-  .thinking-content {
-    font: 400 .875rem/1.7 'Hanken Grotesk', system-ui, sans-serif;
-    color: var(--text-secondary);
-    white-space: pre-wrap; word-break: break-word;
-    padding: .25rem 1rem 1rem 1.35rem;
-    max-height: 400px; overflow-y: auto;
-    -webkit-mask-image: linear-gradient(#000 calc(100% - 24px), transparent);
-            mask-image: linear-gradient(#000 calc(100% - 24px), transparent);
-  }
-  .thinking-block[open] { background: rgba(155,140,255,.05); box-shadow: var(--glow-think); }
-  .thinking-block[open] summary { border-bottom: 1px solid rgba(155,140,255,.12); }
+  details[open] summary::after { transform: rotate(45deg); }
 
-  /* ── tool call (teal) ────────────────────────────────────────────── */
-  .tool-call-block {
-    background: var(--bg-elevated);
-    border: 1px solid var(--border-default);
-    border-left: 2px solid var(--accent-tool);
-    border-radius: var(--radius-md);
-    overflow: hidden; margin: .4rem 0;
-    transition: box-shadow .2s ease, border-color .2s ease;
+  .lead-dot {
+    width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+    background: var(--t4);
   }
-  .tool-call-block summary {
-    display: flex; align-items: center; gap: .5rem;
-    padding: .65rem .9rem;
-    cursor: pointer; user-select: none; list-style: none;
-    font: 500 .8125rem 'JetBrains Mono', ui-monospace, monospace;
+
+  @keyframes reveal { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+  .thinking-block[open] .thinking-content,
+  .tool-call-block[open] .tool-detail,
+  .tool-result-block[open] .result-content { animation: reveal .2s ease both; }
+  details::details-content { transition: height .22s ease, content-visibility .22s allow-discrete; }
+
+  /* thinking */
+  .thinking-block .lead-dot { background: var(--t3); }
+  .thinking-label {
+    font: italic 400 .82rem/1 'Hanken Grotesk', system-ui, sans-serif;
+    color: var(--t2);
   }
-  .tool-call-block summary:hover { background: var(--bg-hover); }
-  .tool-call-block .tool-name { font-weight: 600; letter-spacing: .01em; color: var(--accent-tool); }
-  .tool-detail {
-    font: 400 .78rem/1.6 'JetBrains Mono', ui-monospace, monospace;
-    color: #c8d0e6;
+  .thinking-content {
+    font: 400 .85rem/1.7 'Hanken Grotesk', system-ui, sans-serif;
+    color: var(--t2);
     white-space: pre-wrap; word-break: break-word;
-    background: var(--bg-inset);
-    border-radius: 6px;
+    padding: .1rem 1rem 1rem 1.9rem;
+    max-height: 380px; overflow-y: auto;
+  }
+
+  /* tool call */
+  .tool-call-block .lead-dot { background: var(--sage); }
+  .tool-call-block summary { font: 500 .8rem/1 'JetBrains Mono', ui-monospace, monospace; }
+  .tool-call-block .tool-name { color: var(--sage); font-weight: 500; }
+  .tool-detail {
+    font: 400 .76rem/1.6 'JetBrains Mono', ui-monospace, monospace;
+    color: var(--t2);
+    white-space: pre-wrap; word-break: break-word;
+    background: var(--inset);
+    border-radius: var(--r-sm);
     margin: 0 .6rem .6rem 1.9rem;
     padding: .75rem .9rem;
-    max-height: 480px; overflow: auto;
+    max-height: 440px; overflow: auto;
   }
-  .tool-call-block[open] { box-shadow: var(--glow-tool); border-color: rgba(61,216,192,.3); }
-  .tool-call-block[open] summary { background: var(--bg-hover); border-bottom: 1px solid var(--border-subtle); }
 
-  /* ── tool result (quiet slate; red on error) ─────────────────────── */
-  .tool-result-block {
-    background: var(--bg-surface);
-    border: 1px solid var(--border-subtle);
-    border-left: 2px solid var(--accent-result);
-    border-radius: var(--radius-md);
-    overflow: hidden; margin: .4rem 0;
-    transition: box-shadow .2s ease, border-color .2s ease;
-  }
+  /* tool result */
   .tool-result-block summary {
-    display: flex; align-items: center; gap: .5rem;
-    padding: .55rem .9rem;
-    cursor: pointer; user-select: none; list-style: none;
-    font: 400 .75rem 'JetBrains Mono', ui-monospace, monospace;
-    color: var(--text-muted);
+    font: 400 .76rem/1.5 'JetBrains Mono', ui-monospace, monospace;
+    color: var(--t3);
   }
-  .tool-result-block summary:hover { background: var(--bg-hover); }
-  .tool-result-block .dot {
-    width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
-    background: var(--accent-result);
+  .tool-result-block .rp {
+    flex: 1; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .tool-result-block summary::after {   /* right-aligned chevron, no markup change */
-    content: ''; margin-left: auto;
-    width: 8px; height: 8px; flex-shrink: 0;
-    border-right: 1.5px solid var(--text-muted);
-    border-bottom: 1.5px solid var(--text-muted);
-    transform: rotate(45deg);
-    transition: transform .2s ease;
-  }
-  .tool-result-block[open] summary::after { transform: rotate(225deg); }
   .result-content {
-    font: 400 .78rem/1.6 'JetBrains Mono', ui-monospace, monospace;
-    color: var(--text-secondary);
+    font: 400 .76rem/1.6 'JetBrains Mono', ui-monospace, monospace;
+    color: var(--t2);
     white-space: pre-wrap; word-break: break-word;
-    background: var(--bg-inset);
+    background: var(--inset);
+    border-radius: var(--r-sm);
     padding: .75rem .9rem;
-    margin: 0 .6rem .6rem 1.55rem;
-    border-radius: 6px;
-    max-height: 460px; overflow-y: auto;
+    margin: 0 .6rem .6rem 1.9rem;
+    max-height: 420px; overflow-y: auto;
   }
-  .tool-result-block[open] summary { border-bottom: 1px solid var(--border-subtle); }
-
-  /* error variant */
-  .tool-result-block:has(.result-error) {
-    border-left-color: var(--accent-error);
-    background: rgba(255,93,108,.04);
-  }
-  .dot.result-error { background: var(--accent-error); box-shadow: 0 0 8px rgba(255,93,108,.6); }
+  .tool-result-block:has(.result-error) { border-color: color-mix(in oklch, var(--rust) 30%, var(--line-soft)); }
+  .lead-dot.result-error { background: var(--rust); }
   .result-err-label {
-    font: 600 .6rem 'JetBrains Mono', ui-monospace, monospace;
-    text-transform: uppercase; letter-spacing: .08em;
-    color: var(--accent-error);
-    margin-right: .3em;
+    font: 500 .6rem 'JetBrains Mono', ui-monospace, monospace;
+    text-transform: uppercase; letter-spacing: .1em;
+    color: var(--rust);
+    margin-right: .1em;
   }
-  .tool-result-block:has(.result-error)[open] { box-shadow: var(--glow-error); }
 
   /* ── empty state ─────────────────────────────────────────────────── */
-  .empty-state { text-align: center; padding: 4rem 2rem; color: var(--text-muted); }
+  .empty-state { text-align: center; padding: 5rem 2rem; color: var(--t3); }
   .empty-state .empty-title {
-    font: 700 1.5rem/1.2 'Bricolage Grotesque', 'Segoe UI', system-ui, sans-serif;
-    color: var(--text-secondary);
+    font: 400 1.6rem/1.2 'Instrument Serif', Georgia, serif;
+    color: var(--t2);
     margin-bottom: .5rem;
   }
   .empty-state p { font-size: .9rem; }
 
   /* ── footer ──────────────────────────────────────────────────────── */
   .archive-footer {
-    position: relative;
-    text-align: center;
-    margin-top: 4rem; padding-top: 3rem;
-    border-top: 1px solid transparent;
+    margin-top: 4.5rem;
+    padding-top: 2.25rem;
+    border-top: 1px solid var(--line-soft);
     font: 400 .72rem/1.6 'JetBrains Mono', ui-monospace, monospace;
-    letter-spacing: .05em;
-    color: var(--text-faint);
+    color: var(--t4);
   }
-  .archive-footer::before {
-    content: '';
-    position: absolute; left: 0; right: 0; top: 0; height: 1px;
-    background: linear-gradient(90deg, transparent, var(--border-default) 20%, var(--border-default) 80%, transparent);
-  }
-  .archive-footer a { color: var(--text-muted); text-decoration: none; transition: color .15s; }
-  .archive-footer a:hover { color: var(--accent-link); }
+  .archive-footer a { color: var(--t3); text-decoration: none; transition: color .15s; }
+  .archive-footer a:hover { color: var(--amber); }
 
-  /* ── staggered entrance ──────────────────────────────────────────── */
-  @keyframes fadeRise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
-  .archive-header { animation: fadeRise .6s .05s both cubic-bezier(.22,.68,.28,1); }
-  /* nav fades in (see .worker-nav); the active panel uses panelIn on show */
+  @keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 
-  /* ── custom scrollbars (open panels) ─────────────────────────────── */
+  /* ── scrollbars ──────────────────────────────────────────────────── */
   .thinking-content, .tool-detail, .result-content, .md-body pre {
     scrollbar-width: thin;
-    scrollbar-color: var(--bg-hover) transparent;
+    scrollbar-color: var(--line) transparent;
   }
   ::-webkit-scrollbar { width: 8px; height: 8px; }
-  ::-webkit-scrollbar-thumb { background: var(--bg-hover); border-radius: 4px; }
-  ::-webkit-scrollbar-thumb:hover { background: var(--border-strong); }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--t4); }
   ::-webkit-scrollbar-track { background: transparent; }
 
-  /* ── reduced motion ──────────────────────────────────────────────── */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
   }
 
-  /* ── responsive: sidebar → horizontal tab strip ──────────────────── */
-  @media (max-width: 820px) {
-    .export-body { grid-template-columns: 1fr; gap: 1.25rem; }
-    .worker-nav {
-      position: static; max-height: none;
-      flex-direction: row; flex-wrap: nowrap;
-      overflow-x: auto; overflow-y: hidden;
-      gap: .4rem; padding-bottom: .5rem;
-    }
-    .nav-tab { width: auto; flex: 0 0 auto; border-left-width: 1px; }
-    .nav-tab.active { border-left-color: var(--border-default); border-bottom: 2px solid var(--accent-tool); }
-    .nav-tab.active.orch { border-bottom-color: var(--dawn-coral); }
-    .nav-label { max-width: 200px; }
-    .worker-panels.solo { max-width: none; }
-  }
-
-  /* ── responsive: collapse the timestamp gutter ───────────────────── */
-  @media (max-width: 640px) {
+  /* ── responsive ──────────────────────────────────────────────────── */
+  @media (max-width: 620px) {
     html { font-size: 15px; }
-    .archive { padding: 2.5rem 1.1rem 3.5rem; }
+    :root { --gutter: 46px; --spine: 58px; }
+    .archive { padding: 3rem 1.15rem 4rem; }
     .archive-title { font-size: 2.25rem; }
-    .event { grid-template-columns: 1fr; gap: .25rem; }
-    .event-time { text-align: left; padding-top: 0; }
-    .msg-user .event-body-inner { max-width: 100%; }
-    .worker-header { position: static; -webkit-backdrop-filter: none; backdrop-filter: none; }
+    .event-time { padding-right: .5rem; font-size: .6rem; }
   }
 
-  /* ── print: keepable document → clean light page ─────────────────── */
+  /* ── print: clean light document ─────────────────────────────────── */
   @media print {
     @page { margin: 2cm 2.2cm; }
     :root {
-      --bg-void:      #f4f4f7;
-      --bg-base:      #ffffff;
-      --bg-surface:   #f8f8fb;
-      --bg-elevated:  #f2f2f6;
-      --bg-hover:     #ececf1;
-      --bg-inset:     #f6f6f9;
-      --text-bright:    #000000;
-      --text-primary:   #1a1a1f;
-      --text-secondary: #33343c;
-      --text-muted:     #565863;
-      --text-faint:     #8a8c98;
-      --border-subtle:  #e3e3e9;
-      --border-default: #d5d5dd;
-      --border-strong:  #bdbdc9;
-      --accent-user:      #c4443f;
-      --accent-assistant: #b57414;
-      --accent-tool:      #0e8f7e;
-      --accent-result:    #5a6b9a;
-      --accent-think:     #6a5acd;
-      --accent-error:     #c62828;
-      --accent-link:      #b8562a;
-      --accent-code:      #0e7c6e;
+      --bg: #fff; --surface: #f6f6f8; --surface-2: #eeeef2; --inset: #f3f3f6;
+      --line: #d5d5dd; --line-soft: #e6e6ec;
+      --t1: #1a1a1f; --t2: #3a3b44; --t3: #5c5e6a; --t4: #8a8c98;
+      --amber: #2f7d55; --sage: #2f5da8; --rust: #b0433a;
     }
     html { font-size: 12px; }
-    body {
-      background: #fff; color: var(--text-primary);
-      -webkit-print-color-adjust: exact; print-color-adjust: exact;
-    }
-    body::before, body::after { display: none !important; }
-    *, *::before, *::after { box-shadow: none !important; text-shadow: none !important; animation: none !important; }
+    body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    body::before { display: none !important; }
+    *, *::before, *::after { box-shadow: none !important; animation: none !important; }
     .archive { max-width: 100%; padding: 0; }
-    .archive-mark { filter: none; }
-    .archive-title {
-      background: none; -webkit-text-fill-color: initial;
-      color: var(--accent-link); filter: none;
-    }
-    .worker-section { page-break-inside: avoid; break-inside: avoid; margin-bottom: 2rem; }
-    /* tabs can't be clicked on paper: hide the nav, stack every worker's panel */
-    .worker-nav { display: none; }
-    .export-body { display: block; }
-    .worker-panels.solo { max-width: 100%; }
-    .worker-panel[hidden] { display: block !important; }
-    .worker-panel { margin-bottom: 2rem; }
-    .worker-header {
-      position: static; -webkit-backdrop-filter: none; backdrop-filter: none;
-      background: #fff;
-    }
-    /* hardcoded light-on-dark code text → dark ink on paper */
-    .md-body pre code, .tool-detail { color: #24242d !important; }
-    /* expand any capped/faded panels for full paper output */
+    .workers { display: none; }
+    .panel[hidden] { display: block !important; }
+    .panel { margin-bottom: 2.5rem; page-break-inside: auto; }
+    .event { break-inside: avoid; }
+    .md-body pre code, .tool-detail, .result-content { color: #24242d !important; }
     .thinking-content, .tool-detail, .result-content, .md-body pre {
       max-height: none !important; overflow: visible !important;
-      -webkit-mask-image: none !important; mask-image: none !important;
     }
-    a { color: var(--accent-link); }
+    a { color: var(--amber); }
   }
 </style>
 </head>
@@ -745,14 +520,25 @@
   {
     "exported_at": "ISO-8601 timestamp string",
     "workers": { "<worker_id>": { "name": "...", "is_orchestrator": true|false }, ... },
-    "events": [
-      { "worker_id": "...", "worker_name": "...", "event_id": N, "ts": <unix ms>,
-        "type": "user_message"|"assistant_message"|"tool_call"|"tool_result"|"thinking",
-        "payload": { ... } }
-    ]
+    "events": [ <event>, <event>, ... ]
   }
 
-  See EXPORT_TEMPLATE.md for the full data contract.
+  Every event: { "worker_id", "ts": <unix ms>, "type", "payload" }.
+  This template renders TWO event shapes — mix them freely:
+
+  A) FLAT typed events — payload holds the fields directly:
+       user_message       payload.text
+       assistant_message  payload.text            (markdown)
+       thinking           payload.text
+       tool_call          payload.name, payload.input
+       tool_result        payload.content, payload.isError
+  B) ENVELOPE events — a message carrying an ordered list of blocks:
+       type "agent_event", payload { "type":"message", "role":"assistant"|"tool",
+         "blocks": [ {type:"text",text}, {type:"reasoning",text},
+                     {type:"tool_call",name,input}, {type:"tool_result",content,isError} ] }
+
+  Field aliases accepted: text/content, input/args/arguments, isError/is_error/error,
+  name/tool/tool_name, content/output/result. Unknown event types are ignored.
   ═══════════════════════════════════════════════════════════════════════
 -->
 <script id="export-data" type="application/json">{}</script>
@@ -762,7 +548,7 @@
   'use strict';
 
   /* ── helpers ─────────────────────────────────────────────────────── */
-  var MONTHS     = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var MONTHS      = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
   function pad(n) { return n < 10 ? '0' + n : '' + n; }
@@ -797,25 +583,21 @@
 
   /* ── minimal markdown renderer ───────────────────────────────────── */
   function inlineMd(raw) {
-    // 1. Pull out code spans — protect them from other transforms
     var slots = [];
     var s = raw.replace(/`([^`\n]+)`/g, function(_, code) {
       slots.push('<code>' + escHtml(code) + '</code>');
       return '\x00' + (slots.length - 1) + '\x00';
     });
-    // 2. Escape remaining HTML per-segment (skip placeholders)
     s = s.split(/(\x00\d+\x00)/).map(function(part) {
       return /^\x00\d+\x00$/.test(part) ? part
         : part.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
     }).join('');
-    // 3. Inline transforms
     s = s.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>');
     s = s.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
     s = s.replace(/__(.+?)__/g,'<strong>$1</strong>');
     s = s.replace(/\*([^*\n]+?)\*/g,'<em>$1</em>');
     s = s.replace(/_([^_\n]+?)_/g,'<em>$1</em>');
     s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
-    // 4. Restore code slots
     s = s.replace(/\x00(\d+)\x00/g, function(_, i) { return slots[+i]; });
     return s;
   }
@@ -827,7 +609,6 @@
     var i = 0;
     while (i < lines.length) {
       var line = lines[i];
-      // Fenced code block
       if (/^```/.test(line)) {
         var lang = line.slice(3).trim();
         var code = [];
@@ -837,17 +618,12 @@
         out += '<pre><code' + (lang ? ' class="lang-' + escHtml(lang) + '"' : '') + '>' + escHtml(code.join('\n')) + '</code></pre>';
         continue;
       }
-      // Heading
       var hm = line.match(/^(#{1,3})\s+(.+)$/);
       if (hm) {
         var lv = hm[1].length;
         out += '<h' + lv + '>' + inlineMd(hm[2]) + '</h' + lv + '>'; i++; continue;
       }
-      // HR
-      if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) {
-        out += '<hr>'; i++; continue;
-      }
-      // Unordered list
+      if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) { out += '<hr>'; i++; continue; }
       if (/^[-*+] /.test(line)) {
         out += '<ul>';
         while (i < lines.length && /^[-*+] /.test(lines[i])) {
@@ -855,7 +631,6 @@
         }
         out += '</ul>'; continue;
       }
-      // Ordered list
       if (/^\d+\. /.test(line)) {
         out += '<ol>';
         while (i < lines.length && /^\d+\. /.test(lines[i])) {
@@ -863,9 +638,7 @@
         }
         out += '</ol>'; continue;
       }
-      // Blank line
       if (line.trim() === '') { i++; continue; }
-      // Paragraph — collect consecutive plain lines
       var para = [];
       while (i < lines.length && lines[i].trim() !== '' && !/^(#{1,3} |```|[-*+] |\d+\. |(-{3,}|\*{3,}|_{3,})$)/.test(lines[i])) {
         para.push(lines[i]); i++;
@@ -875,131 +648,190 @@
     return out;
   }
 
-  /* ── render header ───────────────────────────────────────────────── */
-  function renderHeader(data) {
-    var workerCount = data.workers ? Object.keys(data.workers).length : 0;
+  /* ── header ──────────────────────────────────────────────────────── */
+  function renderHeader(data, stats) {
+    var workerCount = stats ? stats.workers : (data.workers ? Object.keys(data.workers).length : 0);
     var exportedDate = data.exported_at ? fmtDateTime(data.exported_at) : 'Unknown date';
-    var mark = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">' +
-      '<circle cx="16" cy="16" r="14" stroke="%23b84a2c" stroke-width="1.5" opacity=".6"/>' +
-      '<circle cx="16" cy="16" r="3" fill="%23b84a2c" opacity=".8"/>' +
-      '<line x1="16" y1="2" x2="16" y2="10" stroke="%23b84a2c" stroke-width="1" opacity=".5"/>' +
-      '<line x1="16" y1="22" x2="16" y2="30" stroke="%23b84a2c" stroke-width="1" opacity=".5"/>' +
-      '<line x1="2" y1="16" x2="10" y2="16" stroke="%23b84a2c" stroke-width="1" opacity=".5"/>' +
-      '<line x1="22" y1="16" x2="30" y2="16" stroke="%23b84a2c" stroke-width="1" opacity=".5"/>' +
-      '</svg>';
+    var meta = '<span>' + escHtml(exportedDate) + '</span>' +
+      '<span class="meta-sep">/</span>' +
+      '<span>' + workerCount + ' ' + (workerCount === 1 ? 'worker' : 'workers') + '</span>';
+    if (stats && stats.events != null) {
+      meta += '<span class="meta-sep">/</span>' +
+        '<span>' + stats.events + ' ' + (stats.events === 1 ? 'event' : 'events') + '</span>';
+    }
     return '<header class="archive-header">' +
-      '<div class="archive-mark">' + mark + '</div>' +
-      '<h1 class="archive-title">Eos Export</h1>' +
-      '<p class="archive-subtitle">Conversation Archive</p>' +
-      '<div class="rule-ornament"><span class="diamond"></span></div>' +
-      '<div class="archive-meta">' +
-        '<span>' + escHtml(exportedDate) + '</span>' +
-        '<span class="meta-sep">·</span>' +
-        '<span>' + workerCount + ' ' + (workerCount === 1 ? 'worker' : 'workers') + '</span>' +
-      '</div>' +
+      '<span class="eyebrow">Eos Archive</span>' +
+      '<h1 class="archive-title">Conversation Export</h1>' +
+      '<div class="archive-meta">' + meta + '</div>' +
       '</header>';
   }
 
-  /* ── render a single block inside an agent_event message ─────────── */
-  function renderBlock(b) {
-    if (b.type === 'text') {
-      if (!b.text) return '';
-      return '<div class="msg-text md-body">' + md(b.text) + '</div>';
+  /* ── field-alias helpers (tolerate naming variants across exporters) ── */
+  function pick(o) {
+    for (var i = 1; i < arguments.length; i++) {
+      if (o && o[arguments[i]] != null) return o[arguments[i]];
     }
-    if (b.type === 'reasoning') {
-      if (!b.text) return '';
+    return undefined;
+  }
+  function asText(v) { return v == null ? '' : (typeof v === 'string' ? v : prettyJson(v)); }
+  function blocksHaveError(blocks) {
+    for (var e = 0; e < blocks.length; e++) {
+      var b = blocks[e];
+      if (b && b.type === 'tool_result' && pick(b, 'isError', 'is_error', 'error')) return true;
+    }
+    return false;
+  }
+
+  /* ── one block inside a message (used by both event shapes) ──────── */
+  function renderBlock(b) {
+    if (!b || !b.type) return '';
+    if (b.type === 'text') {
+      var txt = asText(pick(b, 'text', 'content'));
+      if (!txt) return '';
+      return '<div class="msg-text md-body">' + md(txt) + '</div>';
+    }
+    if (b.type === 'reasoning' || b.type === 'thinking') {
+      var rtxt = asText(pick(b, 'text', 'content'));
+      if (!rtxt) return '';
       return '<details class="thinking-block">' +
-        '<summary><span class="thinking-label">Thinking</span></summary>' +
-        '<div class="thinking-content">' + escHtml(b.text) + '</div>' +
+        '<summary><span class="lead-dot"></span><span class="thinking-label">Thinking</span></summary>' +
+        '<div class="thinking-content">' + escHtml(rtxt) + '</div>' +
         '</details>';
     }
     if (b.type === 'tool_call') {
-      var name = b.name || 'unknown';
-      var input = b.input ? prettyJson(b.input) : '';
+      var name = pick(b, 'name', 'tool', 'tool_name') || 'unknown';
+      var input = asText(pick(b, 'input', 'args', 'arguments'));
       return '<details class="tool-call-block">' +
-        '<summary><span class="chevron"></span> <span class="tool-name">' + escHtml(name) + '</span></summary>' +
+        '<summary><span class="lead-dot"></span><span class="tool-name">' + escHtml(name) + '</span></summary>' +
         (input ? '<div class="tool-detail">' + escHtml(input) + '</div>' : '') +
         '</details>';
     }
     if (b.type === 'tool_result') {
-      var content = b.content != null ? String(b.content) : '';
-      var preview = content.length > 120 ? content.substring(0,120).replace(/\n/g,' ') + '…' : content.replace(/\n/g,' ');
-      var dotCls = 'dot' + (b.isError ? ' result-error' : '');
+      var content = asText(pick(b, 'content', 'output', 'result'));
+      var isErr = !!pick(b, 'isError', 'is_error', 'error');
+      var preview = content.length > 120 ? content.substring(0,120).replace(/\n/g,' ') + '\u2026' : content.replace(/\n/g,' ');
+      var dotCls = 'lead-dot' + (isErr ? ' result-error' : '');
       return '<details class="tool-result-block">' +
         '<summary><span class="' + dotCls + '"></span>' +
-        (b.isError ? '<span class="result-err-label">error</span> ' : '') +
-        escHtml(preview || '(empty)') + '</summary>' +
+        (isErr ? '<span class="result-err-label">error</span>' : '') +
+        '<span class="rp">' + escHtml(preview || '(empty)') + '</span></summary>' +
         (content ? '<div class="result-content">' + escHtml(content) + '</div>' : '') +
         '</details>';
     }
     return '';
   }
 
-  /* ── render a single event ───────────────────────────────────────── */
-  function renderEvent(ev) {
-    var time = fmtTime(ev.ts);
-    var date = fmtDate(ev.ts);
-    var timeEl = '<div class="event-time" title="' + escHtml(date) + '">' + escHtml(time) + '</div>';
+  /* ── small wrappers so both shapes share one row layout ──────────── */
+  function rowAssistant(timeEl, isOrch, body) {
+    return '<div class="event ev-assistant">' + timeEl +
+      '<span class="event-marker m-assistant' + (isOrch ? ' orch' : '') + '"></span>' +
+      '<div class="event-body msg-assistant">' + body + '</div></div>';
+  }
+  function rowThinking(timeEl, isOrch, body) {
+    return '<div class="event ev-assistant">' + timeEl +
+      '<span class="event-marker m-assistant' + (isOrch ? ' orch' : '') + '"></span>' +
+      '<div class="event-body">' + body + '</div></div>';
+  }
+  function rowTool(timeEl, hasErr, body) {
+    return '<div class="event ev-tool">' + timeEl +
+      '<span class="event-marker m-tool' + (hasErr ? ' err' : '') + '"></span>' +
+      '<div class="event-body">' + body + '</div></div>';
+  }
 
-    // User message
-    if (ev.type === 'user_message') {
-      var text = (ev.payload && ev.payload.text) || '';
-      return '<div class="event msg-user">' + timeEl +
-        '<div class="event-body"><div class="event-body-inner">' + escHtml(text) + '</div></div>' +
+  /* ── one event row on the timeline ───────────────────────────────── */
+  function renderEvent(ev, isOrch) {
+    if (!ev) return null;
+    var timeEl = '<div class="event-time" title="' + escHtml(fmtDate(ev.ts)) + '">' + escHtml(fmtTime(ev.ts)) + '</div>';
+    var p = ev.payload || {};
+    var type = ev.type;
+
+    // ── User message (flat, or a message envelope with role "user") ──
+    if (type === 'user_message' || ((type === 'agent_event' || type === 'message') && p.role === 'user')) {
+      var text = asText(pick(p, 'text', 'content'));
+      return '<div class="event ev-user">' + timeEl +
+        '<span class="event-marker m-user"></span>' +
+        '<div class="event-body"><div class="event-body-inner">' +
+          '<span class="role-label">User</span>' + escHtml(text) +
+        '</div></div>' +
         '</div>';
     }
 
-    // Agent events: only render message type
-    if (ev.type === 'agent_event') {
-      var p = ev.payload;
-      if (!p || p.type !== 'message') return null;
+    // ── ENVELOPE: agent_event / message carrying an ordered block list ──
+    if (type === 'agent_event' || type === 'message') {
+      if (p.type && p.type !== 'message') return null;
       if (p.role !== 'assistant' && p.role !== 'tool') return null;
       var blocks = p.blocks || [];
       var body = '';
       for (var k = 0; k < blocks.length; k++) body += renderBlock(blocks[k]);
       if (!body) return null;
-      return '<div class="event msg-assistant">' + timeEl +
-        '<div class="event-body">' + body + '</div>' +
-        '</div>';
+      return p.role === 'tool'
+        ? rowTool(timeEl, blocksHaveError(blocks), body)
+        : rowAssistant(timeEl, isOrch, body);
     }
 
-    return null; // skip spawn, state, lifecycle events
+    // ── FLAT typed events ────────────────────────────────────────────
+    if (type === 'assistant_message') {
+      var abody = '';
+      if (p.blocks && p.blocks.length) {
+        for (var bi = 0; bi < p.blocks.length; bi++) abody += renderBlock(p.blocks[bi]);
+      } else {
+        var atxt = asText(pick(p, 'text', 'content'));
+        if (atxt) abody = '<div class="msg-text md-body">' + md(atxt) + '</div>';
+      }
+      return abody ? rowAssistant(timeEl, isOrch, abody) : null;
+    }
+    if (type === 'thinking' || type === 'reasoning') {
+      var tbody = renderBlock({ type: 'thinking', text: pick(p, 'text', 'content') });
+      return tbody ? rowThinking(timeEl, isOrch, tbody) : null;
+    }
+    if (type === 'tool_call') {
+      var cbody = renderBlock({ type: 'tool_call', name: pick(p, 'name', 'tool', 'tool_name'), input: pick(p, 'input', 'args', 'arguments') });
+      return cbody ? rowTool(timeEl, false, cbody) : null;
+    }
+    if (type === 'tool_result') {
+      var isErr = !!pick(p, 'isError', 'is_error', 'error');
+      var rbody = renderBlock({ type: 'tool_result', content: pick(p, 'content', 'output', 'result'), isError: isErr });
+      return rbody ? rowTool(timeEl, isErr, rbody) : null;
+    }
+
+    return null; // spawn, state, lifecycle, or unknown — skipped
   }
 
-  /* ── render one worker's event rows → { html, count } (count = visible rows) ── */
-  function renderWorkerBody(events) {
+  /* ── one worker's rows → { html, count } ─────────────────────────── */
+  function renderWorkerBody(events, isOrch) {
     var sorted = (events || []).slice().sort(function(a,b) { return a.ts - b.ts; });
     var html = '', count = 0;
     for (var i = 0; i < sorted.length; i++) {
-      var row = renderEvent(sorted[i]);
+      var row = renderEvent(sorted[i], isOrch);
       if (row) { html += row; count++; }
     }
     return { html: html, count: count };
   }
 
-  /* ── sidebar tab for one worker ──────────────────────────────────── */
-  function renderNavTab(worker, workerId, panelId, active, count) {
+  /* ── worker switcher tab ─────────────────────────────────────────── */
+  function renderWorkerTab(worker, workerId, panelId, active, count) {
     var role = worker.is_orchestrator ? ' orch' : '';
     var roleText = worker.is_orchestrator ? 'Orchestrator' : 'Worker';
-    return '<button class="nav-tab' + role + (active ? ' active' : '') + '" type="button"' +
+    return '<button class="wtab' + role + (active ? ' active' : '') + '" type="button"' +
       ' role="tab" aria-selected="' + (active ? 'true' : 'false') + '" aria-controls="' + panelId + '"' +
       ' data-target="' + panelId + '" title="' + escHtml((worker.name || workerId) + ' · ' + roleText) + '">' +
-      '<span class="nav-dot"></span>' +
-      '<span class="nav-label">' + escHtml(worker.name || workerId) + '</span>' +
-      '<span class="nav-count">' + count + '</span>' +
+      '<span class="wdot"></span>' +
+      '<span class="wname">' + escHtml(worker.name || workerId) + '</span>' +
+      '<span class="wcount">' + count + '</span>' +
       '</button>';
   }
 
   /* ── conversation panel for one worker ───────────────────────────── */
   function renderWorkerPanel(worker, workerId, bodyHtml, panelId, active) {
-    var badgeClass = worker.is_orchestrator ? 'worker-badge orch' : 'worker-badge';
+    var badgeClass = worker.is_orchestrator ? 'panel-badge orch' : 'panel-badge';
     var badgeText  = worker.is_orchestrator ? 'Orchestrator' : 'Worker';
-    return '<section class="worker-section worker-panel' + (active ? ' active' : '') + '"' +
+    return '<section class="panel' + (active ? ' active' : '') + '"' +
       ' id="' + panelId + '" role="tabpanel"' + (active ? '' : ' hidden') + '>' +
-      '<div class="worker-header">' +
-        '<span class="worker-name">' + escHtml(worker.name || workerId) + '</span>' +
+      '<div class="panel-head">' +
+        '<span class="panel-name">' + escHtml(worker.name || workerId) + '</span>' +
         '<span class="' + badgeClass + '">' + badgeText + '</span>' +
-      '</div>' + bodyHtml +
+      '</div>' +
+      '<div class="timeline">' + bodyHtml + '</div>' +
       '</section>';
   }
 
@@ -1045,40 +877,38 @@
       }
     }
 
-    // Build a nav tab + conversation panel per worker that has visible events.
-    var navHtml = '', panelsHtml = '', idx = 0;
+    // Build a switcher tab + conversation panel per worker with visible events.
+    var tabsHtml = '', panelsHtml = '', idx = 0, totalEvents = 0;
     for (var j = 0; j < workerOrder.length; j++) {
       var wId = workerOrder[j];
       var worker = workers[wId] || { name: wId, is_orchestrator: false };
-      var built = renderWorkerBody(workerEvents[wId] || []);
+      var built = renderWorkerBody(workerEvents[wId] || [], !!worker.is_orchestrator);
       if (!built.html) continue;
       var active = idx === 0;
       var panelId = 'wpanel-' + idx;
-      navHtml    += renderNavTab(worker, wId, panelId, active, built.count);
+      tabsHtml   += renderWorkerTab(worker, wId, panelId, active, built.count);
       panelsHtml += renderWorkerPanel(worker, wId, built.html, panelId, active);
+      totalEvents += built.count;
       idx++;
     }
 
-    var html = renderHeader(data);
+    var html = renderHeader(data, { workers: idx, events: totalEvents });
     if (idx === 0) {
       html += '<div class="empty-state"><div class="empty-title">No Conversation</div>' +
         '<p>This export contains no displayable messages.</p></div>';
     } else if (idx === 1) {
-      // Single worker → no tabs, just the conversation.
-      html += '<div class="worker-panels solo">' + panelsHtml + '</div>';
+      html += '<div class="panels solo">' + panelsHtml + '</div>';
     } else {
-      html += '<div class="export-body">' +
-        '<nav class="worker-nav" role="tablist" aria-label="Workers">' + navHtml + '</nav>' +
-        '<div class="worker-panels">' + panelsHtml + '</div>' +
-        '</div>';
+      html += '<nav class="workers" role="tablist" aria-label="Workers">' + tabsHtml + '</nav>' +
+        '<div class="panels">' + panelsHtml + '</div>';
     }
     html += '<footer class="archive-footer">Eos · <a href="https://github.com/ibrahimalbyrk/eos">github.com/ibrahimalbyrk/eos</a></footer>';
     container.innerHTML = html;
 
-    // Tab switching: show the selected worker's panel, hide the rest.
-    var tabs = container.querySelectorAll('.nav-tab');
+    // Switcher: show the selected worker's panel, hide the rest.
+    var tabs = container.querySelectorAll('.wtab');
     if (tabs.length > 1) {
-      var panels = container.querySelectorAll('.worker-panel');
+      var panels = container.querySelectorAll('.panel');
       var activate = function(panelId) {
         for (var t = 0; t < tabs.length; t++) {
           var on = tabs[t].getAttribute('data-target') === panelId;
