@@ -29,7 +29,7 @@ export function TerminalPanel() {
       <TerminalTabBar tabs={tabs} activeId={activeId} />
       <div className="pty-body">
         {tabs.map((t) => (
-          <TerminalView key={t.sessionId} sessionId={t.sessionId} active={t.sessionId === activeId} />
+          <TerminalView key={t.sessionId} sessionId={t.sessionId} active={t.sessionId === activeId} fresh={t.fresh} />
         ))}
       </div>
     </div>

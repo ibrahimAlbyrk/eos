@@ -4,7 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import "@xterm/xterm/css/xterm.css";
 import { api } from "../../api/client.js";
 import { onPtyData, onPtyExit } from "../../state/ptyBus.js";
-import { markExited } from "../../state/ptyPanelStore.js";
+import { markExited, clearFresh } from "../../state/ptyPanelStore.js";
 
 // ONE xterm.js instance per PTY session. Stays MOUNTED while inactive (parent
 // hides it with display:none) so scrollback survives tab switches client-side.
@@ -13,7 +13,7 @@ import { markExited } from "../../state/ptyPanelStore.js";
 // gives no ordering guarantee); ResizeObserver → FitAddon → POST resize; incoming
 // pty:data frames (via ptyBus) are written to the terminal with seq dedup against
 // the scrollback replayed on mount from GET /pty/:id/buffer.
-export function TerminalView({ sessionId, active }) {
+export function TerminalView({ sessionId, active, fresh }) {
   const hostRef = useRef(null);
   const termRef = useRef(null);
   const fitRef = useRef(null);
@@ -76,19 +76,26 @@ export function TerminalView({ sessionId, active }) {
       markExited(sessionId);
     });
 
-    // Replay scrollback, then flush any live frames that arrived mid-fetch.
-    api.getPtyBuffer(sessionId)
-      .then((r) => {
-        const b = r?.ok ? r.body : null;
-        if (b) { term.write(b.data ?? ""); lastSeq.current = b.seq ?? -1; }
-      })
-      .catch(() => {})
-      .finally(() => {
-        replayed.current = true;
-        pending.current.sort((a, b) => a.seq - b.seq).forEach(writeFrame);
-        pending.current = [];
-        doFit();
-      });
+    const flushPending = () => {
+      replayed.current = true;
+      pending.current.sort((a, b) => a.seq - b.seq).forEach(writeFrame);
+      pending.current = [];
+    };
+    if (fresh) {
+      // Just-created session: no scrollback to replay — go live immediately and
+      // let a later remount (panel reopen) fall back to the reattach path.
+      flushPending();
+      clearFresh(sessionId);
+    } else {
+      // Reattach: replay scrollback, then flush any live frames that raced in.
+      api.getPtyBuffer(sessionId)
+        .then((r) => {
+          const b = r?.ok ? r.body : null;
+          if (b) { term.write(b.data ?? ""); lastSeq.current = b.seq ?? -1; }
+        })
+        .catch(() => {})
+        .finally(() => { flushPending(); doFit(); });
+    }
 
     const ro = new ResizeObserver(() => doFit());
     ro.observe(host);

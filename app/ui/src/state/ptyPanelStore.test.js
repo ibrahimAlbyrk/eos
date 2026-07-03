@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   subscribe, getPtyPanel, openTab, closeTab, switchTab,
-  setPanelOpen, togglePanel, reattach, markExited, _resetPtyPanel,
+  setPanelOpen, togglePanel, reattach, markExited, clearFresh, _resetPtyPanel,
 } from "./ptyPanelStore.js";
 
 // A tiny in-memory PTY daemon: POST /pty mints a server-numbered session, DELETE
@@ -112,6 +112,29 @@ describe("ptyPanelStore", () => {
     togglePanel();
     expect(getPtyPanel().panelOpen).toBe(true);
     expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  it("openTab marks the tab fresh (skips buffer replay); clearFresh flips it for remount replay", async () => {
+    vi.stubGlobal("fetch", mockServer());
+    await openTab();
+    const id = getPtyPanel().tabs[0].sessionId;
+    expect(getPtyPanel().tabs[0].fresh).toBe(true);
+    clearFresh(id);
+    expect(getPtyPanel().tabs[0].fresh).toBe(false);
+  });
+
+  it("reattach-mirrored tabs are NOT fresh (they have server scrollback to replay)", async () => {
+    vi.stubGlobal("fetch", mockServer());
+    await openTab();
+    _resetPtyPanel();
+    await reattach();
+    expect(getPtyPanel().tabs.every((t) => t.fresh === false)).toBe(true);
+  });
+
+  it("tab numbers come straight from the server response — no client-side counter", async () => {
+    vi.stubGlobal("fetch", mockServer());
+    await openTab(); await openTab();
+    expect(getPtyPanel().tabs.map((t) => t.number)).toEqual([1, 2]);
   });
 
   it("getPtyPanel returns a stable reference between emits (useSyncExternalStore contract)", () => {

@@ -9403,29 +9403,37 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 /* ─── Embedded PTY terminal panel ──────────────────────────────────────────
    Docks in the window's grid-column:3 slot (otherwise a dead 0fr track). When
    the panel is open we give column 3 a real width; the .side-collapsed variant
-   keeps the terminal wide with the sidebar hidden. */
+   keeps the terminal wide with the sidebar hidden.
+
+   The panel is ALWAYS dark (its own #1a1a1a, matching the xterm theme bg) no
+   matter the app theme — so tab text/pills use fixed light-on-dark values, never
+   the theme tokens (which would go dark-on-dark in the light app theme). ONE bg
+   for the whole panel: the tab-bar row and the terminal share --pty-bg; only the
+   tab pills stand out. No header/content divider band, no rounded inset. */
 .app.pty-open { grid-template-columns: 280px 1fr minmax(380px, 42%); }
 .app.pty-open.side-collapsed { grid-template-columns: 0 1fr minmax(380px, 42%); }
 
 .pty-panel {
+  --pty-bg: #1a1a1a;
   grid-column: 3;
   display: flex;
   flex-direction: column;
   min-width: 0;
   height: 100%;
-  background: #1a1a1a;
+  background: var(--pty-bg);
   border-left: 1px solid var(--border);
   overflow: hidden;
 }
 
-/* Tab bar: pill tabs + trailing "+" on the left, panel-close "×" pinned right. */
+/* Tab bar: shares the panel bg exactly (no seam), pills + trailing "+" on the
+   left, panel-close "×" pinned right. No border-bottom — the uniform bg is the
+   whole point. */
 .pty-tabbar {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 6px 6px 5px;
-  background: var(--surface-3);
-  border-bottom: 1px solid var(--border);
+  background: var(--pty-bg);
   flex-shrink: 0;
 }
 .pty-tabs {
@@ -9448,18 +9456,18 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   padding: 4px 6px 4px 9px;
   border-radius: 7px;
   border: 0.5px solid transparent;
-  color: var(--fg-mid);
+  color: #9a9a9a;
   font-size: var(--text-sm);
   font-weight: 500;
   cursor: pointer;
   user-select: none;
   transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
 }
-.pty-tab:not(.is-active):hover { color: var(--fg); background: rgba(var(--tint), 0.06); }
+.pty-tab:not(.is-active):hover { color: #ebebeb; background: rgba(255, 255, 255, 0.05); }
 .pty-tab.is-active {
-  color: var(--fg);
-  background: rgba(var(--tint), 0.04);
-  border-color: rgba(var(--tint), 0.24);
+  color: #ebebeb;
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.14);
 }
 .pty-tab.is-exited .pty-tab__label { opacity: 0.55; text-decoration: line-through; }
 .pty-tab__label {
@@ -9476,23 +9484,24 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   flex-shrink: 0;
   border: none;
   background: transparent;
-  color: var(--fg-faint);
+  color: #7f7f7f;
   cursor: pointer;
   border-radius: 4px;
 }
 .pty-tab__close { width: 15px; height: 15px; opacity: 0.7; }
-.pty-tab__close:hover { background: rgba(var(--tint), 0.12); color: var(--fg); opacity: 1; }
+.pty-tab__close:hover { background: rgba(255, 255, 255, 0.14); color: #ebebeb; opacity: 1; }
 .pty-tab__add { width: 22px; height: 22px; }
-.pty-tab__add:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
+.pty-tab__add:hover { background: rgba(255, 255, 255, 0.08); color: #ebebeb; }
 .pty-panel__close { width: 22px; height: 22px; margin-left: 2px; }
-.pty-panel__close:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
+.pty-panel__close:hover { background: rgba(255, 255, 255, 0.08); color: #ebebeb; }
 
-/* Body: stacked xterm hosts, only the active one visible; each fills the body. */
+/* Body: stacked xterm hosts, only the active one visible; each fills the body
+   and shares the panel bg so header→content is seamless. */
 .pty-body {
   position: relative;
   flex: 1;
   min-height: 0;
-  background: #1a1a1a;
+  background: var(--pty-bg);
 }
 .pty-view {
   position: absolute;

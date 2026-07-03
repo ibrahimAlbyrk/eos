@@ -37,7 +37,7 @@ export async function openTab({ cols = 80, rows = 24 } = {}) {
   const r = await api.createPty({ cols, rows });
   const s = r?.body;
   if (!r?.ok || !s?.sessionId) return null;
-  tabs = [...tabs, { sessionId: s.sessionId, number: s.number, exited: false }];
+  tabs = [...tabs, { sessionId: s.sessionId, number: s.number, exited: false, fresh: true }];
   activeId = s.sessionId;
   emit();
   return s;
@@ -97,10 +97,20 @@ export async function reattach() {
   tabs = sessions
     .slice()
     .sort((a, b) => (a.number ?? 0) - (b.number ?? 0))
-    .map((s) => ({ sessionId: s.sessionId, number: s.number, exited: !s.alive }));
+    .map((s) => ({ sessionId: s.sessionId, number: s.number, exited: !s.alive, fresh: false }));
   if (!tabs.some((t) => t.sessionId === activeId)) {
     activeId = tabs[0]?.sessionId ?? null;
   }
+  emit();
+}
+
+// First-mount marker cleared once TerminalView has skipped its buffer replay.
+// After this a remount (panel close→reopen) treats the tab as a reattach and
+// does replay, restoring scrollback.
+export function clearFresh(sessionId) {
+  const t = tabs.find((x) => x.sessionId === sessionId);
+  if (!t || !t.fresh) return;
+  tabs = tabs.map((x) => (x.sessionId === sessionId ? { ...x, fresh: false } : x));
   emit();
 }
 
