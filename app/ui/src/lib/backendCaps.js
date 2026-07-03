@@ -6,7 +6,7 @@
 // Until ui-config arrives (a brief boot window) the map is empty and the helpers
 // fall back to PTY-permissive defaults so controls aren't wrongly disabled.
 
-const DESCRIPTORS = new Map(); // kind -> { kind, label, enabled, billing, capabilities }
+const DESCRIPTORS = new Map(); // kind -> { kind, label, enabled, billing, sessionStore, wireDialect?, capabilities }
 let PROFILES = []; // configured named profiles: { name, kind, model, label }
 
 export function applyDescriptors(list) {
@@ -41,15 +41,16 @@ export function providerOptions() {
     .map((d) => ({ value: d.kind, label: d.label }));
 }
 
-// Can a RUNNING worker hand its conversation from sourceKind to targetKind? A
-// frontend mirror of core's canHandoffBackend, kept deliberately coarse: the
-// daemon (planBackendSwitch) is the authority and rejects anything finer — this
+// Can a RUNNING worker hand its conversation from sourceKind to targetKind? The
+// frontend mirror of core's canHandoffBackend — a live switch stays on the SAME
+// backend infrastructure: both sides share a non-"none" conversation store AND
+// speak the same wire dialect (so a provider's stored reasoning replays cleanly).
+// That grouping is the descriptor DATA (sessionStore + wireDialect), never a kind
+// literal — claude-cli↔claude-sdk (claude-transcript) and openai↔codex
+// (eos-conversation / openai-chat) are same-infra; openai↔anthropic-api is a
+// cross-dialect block. The daemon (planBackendSwitch) is the final authority; this
 // only greys the obvious blocks so the menu doesn't offer a switch that will fail.
-// A live handoff needs a shared conversation store; the UI descriptor doesn't
-// carry sessionStore, but billing class partitions the live stores today
-// (subscription → claude-transcript, metered → eos-conversation), so a cross-class
-// move is the store mismatch. Unknown/not-yet-loaded kinds → allowed (don't
-// disable on a guess; the daemon still decides).
+// Unknown/not-yet-loaded kinds → allowed (don't disable on a guess).
 export function canSwitchProvider(sourceKind, targetKind) {
   if (!sourceKind || !targetKind) return { ok: true };
   if (sourceKind === targetKind) return { ok: false, reason: "already on this provider" };
@@ -57,8 +58,23 @@ export function canSwitchProvider(sourceKind, targetKind) {
   const t = DESCRIPTORS.get(targetKind);
   if (!s || !t) return { ok: true };
   if (t.enabled === false) return { ok: false, reason: "provider is not enabled" };
-  if (s.billing !== t.billing) return { ok: false, reason: "different conversation store — no live handoff" };
+  if (s.sessionStore === "none" || t.sessionStore === "none") {
+    return { ok: false, reason: "no shared conversation store — no live handoff" };
+  }
+  if (s.sessionStore !== t.sessionStore) return { ok: false, reason: "different conversation store — no live handoff" };
+  if (s.wireDialect && t.wireDialect && s.wireDialect !== t.wireDialect) {
+    return { ok: false, reason: "different wire dialect — no live handoff" };
+  }
   return { ok: true };
+}
+
+// Does the running worker (on currentKind) have at least one SAME-INFRASTRUCTURE
+// provider it can switch to right now — a providerSwitchTargets entry that isn't
+// the current backend and isn't greyed as a cross-infrastructure block? The
+// composer's provider pill gates on this: mid-conversation it stays open only when
+// a real switch exists, and locks when every other provider is cross-infra.
+export function hasProviderSwitchTarget(currentKind) {
+  return providerSwitchTargets(currentKind).some((p) => !p.current && !p.disabled);
 }
 
 // The RUNNING worker's provider-switch list: the SAME configured providers as the
@@ -116,18 +132,27 @@ export function providerName(choice) {
   return choice.subscription ? (choice.label ?? choice.name) : choice.name;
 }
 
+// The provider CHOICE a running worker maps to — matched by its configured profile
+// name first ("deepseek"), else by bare kind (a subscription lane). null when no
+// configured choice matches. The single source for the worker's provider identity:
+// its pill label AND whether its model pill uses the provider's own model list.
+export function runningProviderChoice(worker) {
+  if (!worker) return null;
+  const choices = providerChoices();
+  return (
+    (worker.backend_profile ? choices.find((p) => p.name === worker.backend_profile) : null) ??
+    choices.find((p) => p.kind === worker.backend_kind) ??
+    null
+  );
+}
+
 // Display label for a RUNNING worker's provider pill — the provider NAME (matching
 // the picker/panel), never the raw kind. A worker on a configured profile shows
 // that profile's name ("deepseek"); a bare subscription kind shows its clean label
 // ("Claude SDK"). Falls back to the kind label if no choice matches.
 export function runningProviderLabel(worker) {
   if (!worker) return "—";
-  const choices = providerChoices();
-  const c =
-    (worker.backend_profile ? choices.find((p) => p.name === worker.backend_profile) : null) ??
-    choices.find((p) => p.kind === worker.backend_kind) ??
-    null;
-  return providerName(c) ?? backendLabel(worker.backend_kind);
+  return providerName(runningProviderChoice(worker)) ?? backendLabel(worker.backend_kind);
 }
 
 // Resolve a provider choice NAME to the composer spawn fields (single source for

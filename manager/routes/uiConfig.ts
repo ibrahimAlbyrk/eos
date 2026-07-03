@@ -53,6 +53,10 @@ export function registerUiConfigRoutes(r: Router, c: Container): void {
         label: d.label,
         enabled: d.enabled,
         billing: d.billing,
+        // The UI derives "same infrastructure" (live provider-switch grouping)
+        // from these two facts, mirroring core's canHandoffBackend.
+        sessionStore: d.sessionStore,
+        wireDialect: d.wireDialect,
         capabilities: d.capabilities,
       })),
       // Configured named profiles for the composer's profile-lane picker

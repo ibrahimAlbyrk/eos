@@ -10,8 +10,8 @@ import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
-import { providerChoices, providerName, runningProviderLabel, backendCaps } from "../../../lib/backendCaps.js";
-import { pickerLocked, modelPickerLocked } from "../../../lib/composerPickerLock.js";
+import { providerChoices, providerName, runningProviderLabel, runningProviderChoice, hasProviderSwitchTarget } from "../../../lib/backendCaps.js";
+import { pickerLocked, modelPickerLocked, workerBusy } from "../../../lib/composerPickerLock.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
 export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAttach, historyNav, demoted, wtStatus }) {
@@ -40,16 +40,17 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   const model = selected?.model ?? ui.composer.model;
   const effort = selected?.effort ?? ui.composer.effort;
   const modelInfo = { name: modelName(model) || model || "—", ctx: modelCtx(model) || "" };
-  // Once the conversation has started (a worker is selected → >= 1 sent message)
-  // the provider + model pickers lock: no backend/model switch mid-conversation.
-  // Before the first message (new-spawn composer) they stay live.
-  const locked = pickerLocked(selected);
-  // The model pill unlocks mid-conversation when the selected worker's backend can
-  // switch model at runtime (descriptor capability, never a kind literal).
-  const modelLocked = modelPickerLocked(selected, backendCaps(selected?.backend_kind).runtimeModelSwitch);
-  // The model pill opens the provider's own model list for an API-profile spawn
-  // (its models aren't the Claude catalog), else the Claude model popover.
-  const modelPopId = spawnIsApi ? "spawnModel" : "model";
+  // The model pill locks ONLY while the worker is busy on a turn (a mid-turn model
+  // change errors) — independent of the provider lock. Idle/stopped → selectable;
+  // the change persists (SetWorkerModel) and applies to the next turn even when the
+  // backend can't hot-swap the model live.
+  const modelLocked = modelPickerLocked(selected);
+  // The model pill opens the provider's OWN model list for any API/profile lane —
+  // a new-spawn API pick OR a running API worker — since those models aren't the
+  // Claude catalog; a subscription lane uses the Claude model popover.
+  const selectedChoice = selected ? runningProviderChoice(selected) : null;
+  const selectedIsApi = !!selectedChoice && !selectedChoice.subscription;
+  const modelPopId = spawnIsApi || selectedIsApi ? "spawnModel" : "model";
 
   // Provider switcher: only for a selected worker, and only when there's another
   // CONFIGURED provider to switch to (the same providerChoices the menu lists, so
@@ -58,7 +59,13 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   // worker — so gate the pill on an at-rest state to keep that rejection off the
   // happy path.
   const showProvider = !!selected && providerChoices().length > 1;
-  const providerBusy = !!selected && !["IDLE", "SUSPENDED", "DONE"].includes(selected.state);
+  const providerBusy = workerBusy(selected);
+  // Mid-conversation the pill no longer blanket-locks: a live switch is allowed to
+  // any provider on the SAME backend infrastructure (shared conversation store +
+  // wire dialect — descriptor data via hasProviderSwitchTarget, never a kind
+  // literal). It locks only when every other provider is a cross-infrastructure
+  // switch the daemon would refuse. Independent of the model pill (which never locks).
+  const providerLocked = pickerLocked(selected) && !hasProviderSwitchTarget(selected?.backend_kind);
 
   // New-spawn provider picker: the unified provider list (subscription kinds +
   // configured API profiles). Picking one sets composer.provider + a model.
@@ -175,8 +182,8 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
           <div className="provider-wrap" style={{ position: "relative" }}>
             <button
               className={"model-pill" + (ui.openPopover === "backend" ? " open" : "")}
-              disabled={locked || providerBusy}
-              title={locked ? "Provider is set for this conversation" : (providerBusy ? "Provider switch needs the worker idle" : "Switch provider — keeps the conversation")}
+              disabled={providerLocked || providerBusy}
+              title={providerLocked ? "No same-infrastructure provider to switch to" : (providerBusy ? "Provider switch needs the worker idle" : "Switch provider — keeps the conversation")}
               onClick={(e) => toggle("backend", e)}
               data-popover-trigger="backend"
             >
@@ -203,7 +210,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             className={"model-pill" + (ui.openPopover === modelPopId ? " open" : "")}
             id="modelPill"
             disabled={modelLocked}
-            title={modelLocked ? "Model is set for this conversation" : "Model for this provider"}
+            title={modelLocked ? "Model switch needs the worker idle" : "Model for this provider"}
             onClick={(e) => toggle(modelPopId, e)}
             data-popover-trigger={modelPopId}
           >
@@ -211,7 +218,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             {modelInfo.ctx && <span className="ctx">({modelInfo.ctx} context)</span>}
           </button>
           <ModelPopover live={live} worker={selected} />
-          <SpawnModelPopover />
+          <SpawnModelPopover live={live} worker={selected} />
         </div>
         {effortChoicesFor(model).length > 0 && (
           <div className="effort-wrap" style={{ position: "relative" }}>

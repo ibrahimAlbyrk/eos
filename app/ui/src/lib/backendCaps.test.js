@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel, applyProfiles, backendProfiles, profileModel, providerChoices, providerSpawn, providerName, canSwitchProvider, providerSwitchTargets, runningProviderLabel } from "./backendCaps.js";
+import { backendCaps, backendBilled, applyDescriptors, providerOptions, backendLabel, applyProfiles, backendProfiles, profileModel, providerChoices, providerSpawn, providerName, canSwitchProvider, providerSwitchTargets, hasProviderSwitchTarget, runningProviderChoice, runningProviderLabel } from "./backendCaps.js";
 
 const caps = (over) => ({ interrupt: true, keystroke: true, rewind: true, runtimeModelSwitch: true, runtimePermissionSwitch: true, ...over });
 const SAMPLE = [
@@ -106,26 +106,62 @@ describe("providerChoices (unified spawn-picker derivation)", () => {
 });
 
 describe("running-worker provider switch (canSwitchProvider / providerSwitchTargets)", () => {
-  // claude-cli + claude-sdk (subscription) and a configured openai profile
-  // (deepseek). openai is metered+enabled (selectable) but never appears as a raw
-  // kind; codex is metered+disabled.
+  // claude-cli + claude-sdk (subscription, claude-transcript store) and a configured
+  // openai profile (deepseek). openai is metered+enabled (selectable) but never
+  // appears as a raw kind; codex is metered+disabled.
   const DESC = [
-    { kind: "claude-cli", label: "Claude CLI", enabled: true, billing: "subscription", capabilities: {} },
-    { kind: "claude-sdk", label: "Claude SDK", enabled: true, billing: "subscription", capabilities: {} },
-    { kind: "openai", label: "OpenAI API", enabled: true, billing: "metered", capabilities: {} },
-    { kind: "codex", label: "Codex", enabled: false, billing: "metered", capabilities: {} },
+    { kind: "claude-cli", label: "Claude CLI", enabled: true, billing: "subscription", sessionStore: "claude-transcript", capabilities: {} },
+    { kind: "claude-sdk", label: "Claude SDK", enabled: true, billing: "subscription", sessionStore: "claude-transcript", capabilities: {} },
+    { kind: "openai", label: "OpenAI API", enabled: true, billing: "metered", sessionStore: "eos-conversation", wireDialect: "openai-chat", capabilities: {} },
+    { kind: "codex", label: "Codex", enabled: false, billing: "metered", sessionStore: "eos-conversation", wireDialect: "openai-chat", capabilities: {} },
   ];
   const PROFS = [{ name: "deepseek", kind: "openai", model: "deepseek-chat", label: "deepseek (deepseek-chat)" }];
 
-  it("canSwitchProvider mirrors the daemon's coarse handoff rule", () => {
+  it("canSwitchProvider mirrors the daemon's handoff rule (shared store + wire dialect)", () => {
     applyDescriptors(DESC);
     applyProfiles(PROFS);
     expect(canSwitchProvider("claude-cli", "claude-cli")).toEqual({ ok: false, reason: "already on this provider" });
-    expect(canSwitchProvider("claude-cli", "claude-sdk")).toEqual({ ok: true }); // same store (subscription)
-    expect(canSwitchProvider("claude-cli", "openai").ok).toBe(false); // cross store (metered) blocked
+    expect(canSwitchProvider("claude-cli", "claude-sdk")).toEqual({ ok: true }); // same store (claude-transcript)
+    expect(canSwitchProvider("claude-cli", "openai").ok).toBe(false); // cross store blocked
     expect(canSwitchProvider("openai", "codex")).toEqual({ ok: false, reason: "provider is not enabled" });
     expect(canSwitchProvider("mystery", "claude-cli")).toEqual({ ok: true }); // not loaded -> don't disable on a guess
     expect(canSwitchProvider(null, "claude-cli")).toEqual({ ok: true });
+  });
+
+  it("groups same-infrastructure providers (shared store + wire dialect); blocks cross-dialect", () => {
+    // Two OpenAI-compatible lanes + an Anthropic-dialect lane, all on the same
+    // eos-conversation store, plus a subscription lane on a different store.
+    applyDescriptors([
+      { kind: "openai", label: "OpenAI", enabled: true, billing: "metered", sessionStore: "eos-conversation", wireDialect: "openai-chat", capabilities: {} },
+      { kind: "codex", label: "Codex", enabled: true, billing: "metered", sessionStore: "eos-conversation", wireDialect: "openai-chat", capabilities: {} },
+      { kind: "anthropic-api", label: "Anthropic API", enabled: true, billing: "metered", sessionStore: "eos-conversation", wireDialect: "anthropic", capabilities: {} },
+      { kind: "claude-sdk", label: "Claude SDK", enabled: true, billing: "subscription", sessionStore: "claude-transcript", capabilities: {} },
+    ]);
+    // shared store AND dialect → same infrastructure, switchable
+    expect(canSwitchProvider("openai", "codex")).toEqual({ ok: true });
+    // shared store, different wire dialect → cross-infrastructure block
+    expect(canSwitchProvider("openai", "anthropic-api")).toEqual({ ok: false, reason: "different wire dialect — no live handoff" });
+    // different store entirely → cross-infrastructure block
+    expect(canSwitchProvider("openai", "claude-sdk").ok).toBe(false);
+  });
+
+  it("hasProviderSwitchTarget: true when a same-infra sibling exists, false when only cross-infra", () => {
+    // deepseek (openai) + mycodex (codex) are both OpenAI-compatible → siblings.
+    applyDescriptors(DESC.map((d) => (d.kind === "codex" ? { ...d, enabled: true } : d)));
+    applyProfiles([
+      { name: "deepseek", kind: "openai", model: "deepseek-chat", label: "deepseek (deepseek-chat)" },
+      { name: "mycodex", kind: "codex", model: "gpt-5-codex", label: "mycodex (gpt-5-codex)" },
+    ]);
+    expect(hasProviderSwitchTarget("claude-cli")).toBe(true); // claude-sdk shares the store
+    expect(hasProviderSwitchTarget("openai")).toBe(true); // codex shares store + dialect
+
+    // Only a subscription lane + a lone openai profile → no same-infra sibling.
+    applyDescriptors([
+      { kind: "claude-sdk", label: "Claude SDK", enabled: true, billing: "subscription", sessionStore: "claude-transcript", capabilities: {} },
+      { kind: "openai", label: "OpenAI", enabled: true, billing: "metered", sessionStore: "eos-conversation", wireDialect: "openai-chat", capabilities: {} },
+    ]);
+    applyProfiles([{ name: "deepseek", kind: "openai", model: "deepseek-chat", label: "deepseek (deepseek-chat)" }]);
+    expect(hasProviderSwitchTarget("claude-sdk")).toBe(false); // only cross-store deepseek to offer
   });
 
   it("provider switch list is providerChoices() — configured providers only, no raw unconfigured kinds", () => {
@@ -159,6 +195,18 @@ describe("running-worker provider switch (canSwitchProvider / providerSwitchTarg
     const by = (name) => t.find((p) => p.name === name);
     expect(by("deepseek").current).toBe(true); // the running deepseek worker is the current entry
     expect(by("claude-cli").disabled).toBe(true); // cross store
+  });
+
+  it("runningProviderChoice maps a worker to its provider choice (profile first, else kind)", () => {
+    applyDescriptors(DESC);
+    applyProfiles(PROFS);
+    // a deepseek worker (backend_kind openai + profile deepseek) → the non-subscription API choice
+    expect(runningProviderChoice({ backend_kind: "openai", backend_profile: "deepseek" }))
+      .toMatchObject({ name: "deepseek", kind: "openai", subscription: false });
+    // a subscription worker (no profile) → matched by kind
+    expect(runningProviderChoice({ backend_kind: "claude-sdk", backend_profile: null }))
+      .toMatchObject({ name: "claude-sdk", subscription: true });
+    expect(runningProviderChoice(null)).toBe(null);
   });
 
   it("runningProviderLabel shows the provider name on the live worker's pill (not the raw kind)", () => {

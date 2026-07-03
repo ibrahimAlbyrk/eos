@@ -137,6 +137,26 @@ describe("deduped GETs survive concurrent callers", () => {
   });
 });
 
+// Regression: the dedup above must NOT cover /workers — a refetch issued after
+// a spawn would join a pre-spawn in-flight GET and apply a stale snapshot with
+// the newest seq (useLive's guard can't reject a shared body).
+describe("workers snapshot GETs are never dedup-shared", () => {
+  it("concurrent listWorkers issue distinct requests, each with its own body", async () => {
+    const preSpawn = [{ id: "orch" }];
+    const postSpawn = [{ id: "orch" }, { id: "w-new", parent_id: "orch" }];
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => preSpawn })
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => postSpawn });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const [a, b] = await Promise.all([api.listWorkers(), api.listWorkers()]);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(a).toEqual(preSpawn);
+    expect(b).toEqual(postSpawn);
+  });
+});
+
 describe("api.renameIntent wire contract", () => {
   it("PUTs { active: true } to the rename-intent route (editor opened → pause)", async () => {
     const fetchMock = vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ ok: true }) });

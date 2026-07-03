@@ -155,8 +155,13 @@ export const api = {
   },
 
   // Workers
+  // The workers snapshot is what every mutation refetch races against: a call
+  // issued after a spawn must never be handed a response snapshotted before
+  // the spawn. The shared-URL dedup would join the older in-flight GET
+  // (useLive's seq guard orders distinct requests, but can't see a shared
+  // stale body), so /workers always fetches fresh.
   async listWorkers() {
-    const r = await getJson(ROUTES.workers);
+    const r = await fetchJson(`${DAEMON}${ROUTES.workers}`);
     if (!r.ok) throw new Error(`listWorkers → ${r.status}`);
     return r.body;
   },

@@ -461,6 +461,12 @@ export const UiBackendDescriptorSchema = z.object({
   label: z.string(),
   enabled: z.boolean(),
   billing: z.enum(["subscription", "metered"]),
+  // Conversation-store format + request wire dialect — the two facts that decide
+  // whether two providers share the same underlying backend infrastructure (so a
+  // LIVE provider switch can hand the conversation off). The UI groups "same
+  // infrastructure" on THIS data (canSwitchProvider), never on kind literals.
+  sessionStore: z.enum(["claude-transcript", "none", "eos-conversation"]),
+  wireDialect: z.enum(["anthropic", "openai-chat"]).optional(),
   capabilities: z.object({
     interrupt: z.boolean(),
     keystroke: z.boolean(),

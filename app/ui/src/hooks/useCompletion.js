@@ -25,8 +25,10 @@ export function useCompletion({ text, cursorPos, commands, cwd, selected, worker
   }, [atCtx, text, cursorPos]);
 
   // Browse mode: one listing per directory, cached by (cwd, dir) and filtered
-  // in memory — so typing within a directory never refetches, and stepping
-  // back to a visited directory is instant.
+  // in memory — so typing within a directory never refetches. The cache is
+  // display-only (stale-while-revalidate): a visited directory paints
+  // instantly from it, but every open/step re-lists so files moved or renamed
+  // on disk show at their current paths without an app restart.
   const dirCacheRef = useRef(new Map());
   const [browseEntries, setBrowseEntries] = useState([]);
   const [loadedDir, setLoadedDir] = useState(null); // { cwd, dir } now in browseEntries
@@ -35,7 +37,7 @@ export function useCompletion({ text, cursorPos, commands, cwd, selected, worker
     if (wantDir === null || !cwd) return;
     const key = cwd + "\0" + wantDir;
     const cached = dirCacheRef.current.get(key);
-    if (cached) { setBrowseEntries(cached); setLoadedDir({ cwd, dir: wantDir }); return; }
+    if (cached) { setBrowseEntries(cached); setLoadedDir({ cwd, dir: wantDir }); }
     let cancelled = false;
     api.listFiles(cwd, "", { dir: wantDir }).then((r) => {
       if (cancelled) return;

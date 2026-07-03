@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { providerChoices, providerName, providerSwitchTargets } from "../../../lib/backendCaps.js";
+import { providerChoices, providerName, providerSwitchTargets, runningProviderChoice } from "../../../lib/backendCaps.js";
 import { modelName } from "../../../lib/models.js";
 import { useProviderModels } from "../../../hooks/useProviderModels.js";
 
@@ -122,26 +122,33 @@ function SpawnBackendMenu({ ui }) {
   );
 }
 
-// New-spawn model picker for an API-profile provider. Lazily fetches that
+// Model picker for an API-profile provider — used both by the new-spawn composer
+// and by a RUNNING API worker (its provider's models aren't the Claude catalog, so
+// this replaces the Claude ModelPopover for that lane). Lazily fetches the
 // provider's /v1/models (useProviderModels), fail-soft to its pinned model so the
 // list is never a dead end. A subscription provider uses the Claude ModelPopover
-// instead, never this. Picking a model sets the composer model override.
-export function SpawnModelPopover() {
+// instead, never this. Picking a model: a running worker → live setModel (persists
+// for the next turn); the new-spawn composer → the composer model override.
+export function SpawnModelPopover({ live, worker }) {
   const ui = useUi();
   if (ui.openPopover !== "spawnModel") return null;
-  return <SpawnModelMenu ui={ui} />;
+  return <SpawnModelMenu ui={ui} live={live} worker={worker ?? null} />;
 }
 
-function SpawnModelMenu({ ui }) {
+function SpawnModelMenu({ ui, live, worker }) {
   const paneRef = useRef(null);
-  const currentModel = ui.composer.model;
-  const { loading, models, error } = useProviderModels(ui.composer.provider);
+  // A running worker sources its OWN configured provider + model; the new-spawn
+  // composer sources the composer's chosen provider + model.
+  const providerNm = worker ? (runningProviderChoice(worker)?.name ?? null) : ui.composer.provider;
+  const currentModel = worker?.model ?? ui.composer.model;
+  const { loading, models, error } = useProviderModels(providerNm);
   const [active, setActive] = useState(0);
 
   useEffect(() => { paneRef.current?.focus(); }, []);
 
-  const pick = (m) => {
-    ui.updateComposer({ model: m });
+  const pick = async (m) => {
+    if (worker) await live.setModel(worker.id, m, worker.effort ?? ui.composer.effort);
+    else ui.updateComposer({ model: m });
     ui.closeAllPops();
   };
 
