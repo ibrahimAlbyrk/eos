@@ -10,7 +10,6 @@ import { useGlobalKeymap, useKeybinding } from "../../keymap/useKeymap.js";
 import { combo } from "../../keymap/index.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
-import { CenterHeader } from "./center/CenterHeader.jsx";
 import { PaneGrid, SinglePane } from "./panes/PaneGrid.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
@@ -136,17 +135,15 @@ export function CodeView({ live }) {
           // remounts the exact layout/selection the user left.
           <ArchiveView live={live} />
         ) : (
-          <>
-            <CenterHeader />
-            {/* Single pane keeps the keep-alive multiplexer (instant switch-back).
-                Split view (2-4 panes) lays the transcripts out side by side. The
-                composer now lives INSIDE each pane (owned by that pane); the grid
-                fills the height the shared composer used to occupy. Each pane also
-                renders its own docked panel adjacent to it (see PaneViewers). */}
-            {ui.paneCount > 1
-              ? <PaneGrid live={live} />
-              : <SinglePane live={live} />}
-          </>
+          // No global header strip: the pane area is the first child of the center
+          // and fills its full height, so each pane's own PaneHeader is the topmost
+          // row of the window. Single pane keeps the keep-alive multiplexer (instant
+          // switch-back); split view (2-4 panes) lays the transcripts side by side.
+          // The composer lives INSIDE each pane; each pane renders its own docked
+          // panel adjacent to it (see PaneViewers).
+          ui.paneCount > 1
+            ? <PaneGrid live={live} />
+            : <SinglePane live={live} />
         )
       }
     >

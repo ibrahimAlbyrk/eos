@@ -82,13 +82,6 @@ kbd {
      full-bleed background layer underneath */
   --shell-gap: 6px;
   --panel-radius: 12px;
-  /* live height of the center top bar, published by CenterHeader; 0 until measured
-     so a docked panel falls back to its normal (below-bar) top with no jump. */
-  --head-h: 0px;
-  /* width an open top-right dock steals from the bar's right end, published by
-     CenterHeader; reserved as .head padding-right so the button cluster reflows to
-     the left of the viewer. 0 = no open dock → cluster keeps its right-end spot. */
-  --dock-cover: 0px;
   /* transcript rhythm: .messages flex gap owns ALL inter-block spacing —
      block roots carry no outer margins. Must stay ≥ --msg-actions-h + its
      4px top offset so the hover copy/timestamp row fits inside the gap. */
@@ -219,9 +212,6 @@ html[data-theme="light"] {
    Glass card extends into titlebar; sb-head becomes the titlebar row.
    ============================================================================ */
 
-/* center header toggle — only in non-native collapsed */
-.head-toggle { display: none !important; }
-
 /* fixed toggle button — always visible at same position in native */
 .native-toggle-zone { display: none !important; }
 html.native .native-toggle-zone {
@@ -274,22 +264,12 @@ html.native .side-island--status { display: none; }
 html.native .side .sb-divider { display: none; }
 html.native .empty-tree { padding: 6px 14px !important; }
 
-/* center header: compact 28px, inherits breadcrumb */
-html.native .head {
-  height: auto;
-  /* breadcrumb row sits at the traffic-light/toggle center-y (23) in BOTH
-     sidebar states — same padding-top, so collapsing never shifts it vertically */
-  padding: 13px 16px 0;
-  transition: padding-left 280ms ease;
-}
-html.native .app.side-collapsed .head { padding-left: 126px; }
 html.native .side-handle-zone { display: none !important; }
 
 /* fullscreen: no traffic lights in window, simplify layout */
 html.native.fullscreen .native-toggle-zone { left: 16px; top: 10px; }
 html.native.fullscreen .side-island--agents { padding-top: 16px; }
 html.native.fullscreen .sb-section { padding-left: 12px; }
-html.native.fullscreen .app.side-collapsed .head { padding-left: 46px; }
 
 /* "Agents" section header — visible only in native mode */
 .sb-section { display: none; }
@@ -371,8 +351,6 @@ html.native .native-toggle.attention-blink,
   .native-toggle.attention-blink,
   .side-handle.attention-blink { animation: none; opacity: 1; }
 }
-.app.side-collapsed .head { padding-left: 52px; }
-.app.side-collapsed .head .tl { display: none; }
 
 /* hover popup panel — appears on SideHandle / native-toggle hover */
 .side-handle-popup {
@@ -804,86 +782,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   transition: opacity 150ms ease, transform 180ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 
-/* top header strip — just session breadcrumb, nothing more */
-.head {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 60px;
-  padding: 18px 16px 0;
-  --app-region: drag;
-  -webkit-user-select: none;
-  cursor: default;
-  flex-shrink: 0;
-}
-/* Reserve an open top-right dock's width so the .right button cluster (margin-left:
-   auto) reflows just left of the viewer instead of hiding behind it. Both the web
-   (60px) and native heads pad 16px right, so keep that and add the dock cover.
-   The native rule repeats it to beat `html.native .head`'s padding shorthand. */
-.head { padding-right: calc(16px + var(--dock-cover, 0px)); }
-html.native .head { padding-right: calc(16px + var(--dock-cover, 0px)); }
-.head .crumb {
-  display: flex; align-items: baseline; gap: 7px;
-  font-size: var(--text-sm);
-  --app-region: no-drag;
-}
-.head .crumb .v-wrap {
-  position: relative;
-  align-self: center;
-  display: inline-flex;
-}
-.head .crumb .scope { color: var(--fg-dim); }
-.head .crumb .sep { color: var(--fg-faint); }
-.head .crumb .cur { color: var(--fg); font-weight: 450; }
-.head .crumb .crumb-link { color: var(--fg-dim); font-size: inherit; }
-.head .crumb .crumb-link:hover { color: var(--fg); }
-.head .crumb .ag-rename-input {
-  background: var(--surface-2);
-  border: 1px solid var(--accent);
-  border-radius: 3px;
-  color: var(--fg);
-  font-size: var(--text-sm);
-  font-family: inherit;
-  padding: 1px 4px;
-  outline: none;
-  width: 180px;
-}
-.head .crumb .v {
-  margin-left: 4px;
-  color: var(--fg-faint);
-  cursor: pointer;
-  align-self: center;
-  display: inline-flex;
-  --app-region: no-drag;
-}
-.head .crumb .v:hover { color: var(--fg); }
-.head .right { margin-left: auto; display: flex; gap: 6px; --app-region: no-drag; }
-.head .right .ibtn {
-  width: 24px; height: 24px;
-  border-radius: 4px;
-  color: var(--fg-dim);
-  display: inline-flex; align-items: center; justify-content: center;
-}
-.head .right .ibtn:hover { background: var(--surface); color: var(--fg); }
-.head::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 14px;
-  top: 100%;
-  height: 48px;
-  background: linear-gradient(to top, transparent, var(--bg));
-  pointer-events: none;
-  z-index: 1;
-  transition: opacity 160ms ease;
-}
-/* scrolled to the very top: the scrim would veil the transcript's first
-   lines — Messages toggles this class from its scroll handler */
-.center.msgs-at-top .head::after {
-  opacity: 0;
-}
-
 /* Keep-alive transcript panes (TranscriptHost): one <Messages> per recently
    viewed agent stays mounted and stacked in this area; only the active one is
    shown. Parked panes use content-visibility:hidden — layout/paint skipped while
@@ -1027,20 +925,10 @@ html.native .head { padding-right: calc(16px + var(--dock-cover, 0px)); }
 .pane-dock .terminal-viewer, .pane-dock .file-viewer, .pane-dock .diff-viewer,
 .pane-dock .commits-viewer, .pane-dock .agent-viewer, .pane-dock .conflict-viewer,
 .pane-dock .memory-viewer {
+  /* Full-height sibling of the transcript column: the pane header caps the
+     transcript only, so the dock spans the pane top-to-bottom with the same
+     --shell-gap frame on every edge (no rise over the slim window strip). */
   inset: var(--shell-gap);
-  /* Single view is always the top region: rise the full bar height so the viewer's
-     top edge lands --shell-gap from the window top (at the top-bar level), keeping
-     the --shell-gap bottom/side edges from `inset`. */
-  top: calc(var(--shell-gap) - var(--head-h));
-}
-/* Split view: a panel docked beside a TOP-ROW pane (.at-top) rises over the bar
-   too. Its viewers keep the pane's 3px inset (var(--shell-gap)/2) on the other
-   edges; only the top is lifted the bar height. Lower-row docks are untouched. */
-.pane-panel-slot.at-top .terminal-viewer, .pane-panel-slot.at-top .file-viewer,
-.pane-panel-slot.at-top .diff-viewer, .pane-panel-slot.at-top .commits-viewer,
-.pane-panel-slot.at-top .agent-viewer, .pane-panel-slot.at-top .conflict-viewer,
-.pane-panel-slot.at-top .memory-viewer {
-  top: calc(var(--shell-gap) / 2 - var(--head-h));
 }
 .pane {
   position: absolute;
@@ -1281,13 +1169,19 @@ html.native .head { padding-right: calc(16px + var(--dock-cover, 0px)); }
   }
 }
 
+/* Geometry ported 1:1 from the original global top bar (.head @ 979c81c^): 60px
+   tall, padding 18px 16px 0 (top-padding + bottom:0 + align-items:center place the
+   breadcrumb at the same low center-y ~39px), gap 8px, borderless. Only the drag
+   semantics differ from the original — the per-pane header is a pane-move handle
+   (--app-region:no-drag, cursor:grab), not the window-drag strip it replaced. */
 .pane-head {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
+  height: 60px;
   flex-shrink: 0;
-  padding: 7px 8px 7px 11px;
-  border-bottom: 1px solid var(--border);
+  padding: 18px 16px 0;
   font-size: var(--text-sm);
   --app-region: no-drag;
   -webkit-user-select: none;
@@ -1296,10 +1190,130 @@ html.native .head { padding-right: calc(16px + var(--dock-cover, 0px)); }
   cursor: grab;
 }
 .pane-head:active { cursor: grabbing; }
+/* native: compact auto-height bar (ported from the original html.native .head) —
+   the breadcrumb row sits at the traffic-light/toggle center-y instead of the
+   web bar's lower 60px-strip centerline. */
+html.native .pane-head {
+  height: auto;
+  padding: 13px 16px 0;
+}
+/* Top-ROW split panes: the pane island sits 7px below the window top (3px
+   .pane-grid margin + 3px .pane inset + 1px .pane border), which pushed the bar
+   content 7px below the N=1 line. Shave those 7px off the bar's top so the
+   breadcrumb/buttons land at the SAME window-y in both modes (the traffic-light
+   row in native). N=1 never gets this class; lower-row panes keep the standard
+   bar (no window edge to align to). Native keeps height:auto from above. */
+.pane-head--toprow {
+  height: 53px;
+  padding-top: 11px;
+}
+html.native .pane-head--toprow { padding-top: 6px; }
+/* Below-bar fade scrim (ported from the original .head::after): veils the
+   transcript's top 48px as it scrolls under the bar. Hidden while scrolled to
+   the very top (msgs-at-top, toggled by Messages) and in split mode, where each
+   pane is its own island and the panes carry their own chrome. */
+.pane-head::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 14px;
+  top: 100%;
+  height: 48px;
+  background: linear-gradient(to top, transparent, var(--bg));
+  pointer-events: none;
+  z-index: 1;
+  transition: opacity 160ms ease;
+}
+.center.msgs-at-top .pane-head::after { opacity: 0; }
+.app.split .pane-head::after { content: none; }
 /* The source pane dims while its header is dragged (set in PaneGrid). Static
    opacity, not an animation, so no reduced-motion handling is needed. */
 .pane--dragging { opacity: 0.55; }
 .pane-head .ag-dot { flex-shrink: 0; }
+
+/* Top-left pane header: the native window chrome (traffic lights + sidebar
+   toggle) sits over this header once the strip is gone. When the sidebar is
+   collapsed, reserve a left inset so the breadcrumb starts exactly where the old
+   .head strip's collapsed padding-left put it (52 web / 126 native / 46
+   native-fullscreen): the bar keeps its 16px base padding and the flex row adds
+   an 8px gap after the inset, so each width is the original minus those 24px.
+   The inset is a real element (not padding) so it can opt back into the window-
+   drag region: --app-region: drag, and data-window-drag keeps the pane-move drag
+   from arming on it. Only present while collapsed, so it adds no gap otherwise. */
+.pane-head-inset { display: none; }
+.app.side-collapsed .pane-head--topleft .pane-head-inset {
+  display: block;
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 28px;
+  --app-region: drag;
+}
+html.native .app.side-collapsed .pane-head--topleft .pane-head-inset { width: 102px; }
+html.native.fullscreen .app.side-collapsed .pane-head--topleft .pane-head-inset { width: 22px; }
+/* Split view: the same 7px island chrome (grid margin + pane inset + border)
+   also shifts the top-left pane's content RIGHT — trim it off the inset so the
+   collapsed breadcrumb starts at the same x as N=1 (traffic-light row). */
+.app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 21px; }
+html.native .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 95px; }
+html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 15px; }
+
+/* Per-pane breadcrumb (project / chain / current agent). flex:1 + overflow so it
+   truncates — never wraps — when the pane is narrow (e.g. the ~40% orchestrator
+   pane in follow-mode fanout); the status + action cluster stay pinned right. */
+.pane-head .crumb {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  cursor: default;
+}
+.pane-head .crumb .scope { color: var(--fg-dim); flex-shrink: 0; }
+.pane-head .crumb .sep { color: var(--fg-faint); flex-shrink: 0; }
+/* cur weight/color ported from the original (.head .crumb .cur: fg, 450); dimmed
+   only in a NON-focused split pane as a per-pane focus cue (mirrors the old mini
+   pane-head's dimmed .pane-name). N=1 has no .pane ancestor → always fg. */
+.pane-head .crumb .cur {
+  color: var(--fg);
+  font-weight: 450;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pane:not(.is-focused) .pane-head .crumb .cur { color: var(--fg-dim); }
+.pane-head .crumb .crumb-link { color: var(--fg-dim); font-size: inherit; white-space: nowrap; flex-shrink: 0; }
+.pane-head .crumb .crumb-link:hover { color: var(--fg); }
+.pane-head .crumb .v-wrap { position: relative; align-self: center; display: inline-flex; flex-shrink: 0; margin-left: 4px; }
+.pane-head .crumb .v {
+  color: var(--fg-faint);
+  cursor: pointer;
+  align-self: center;
+  display: inline-flex;
+}
+.pane-head .crumb .v:hover { color: var(--fg); }
+.pane-head .crumb .ag-rename-input {
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  padding: 1px 4px;
+  outline: none;
+  min-width: 0;
+  width: 180px;
+}
+/* Right-side control cluster (terminal / split / close). margin-left:auto pins it
+   right in the empty/new-session rows where the left side isn't a flex:1 crumb. */
+.pane-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
 .pane-name {
   flex: 1;
   min-width: 0;
@@ -1519,9 +1533,6 @@ html.native .head { padding-right: calc(16px + var(--dock-cover, 0px)); }
 .pane-split-btn.is-active { background: var(--accent-soft); color: var(--accent); }
 .pane-split-btn.is-active:hover { background: var(--accent-soft); color: var(--accent-hover); }
 
-/* In split mode the head's fade scrim would veil the top of the pane islands
-   (each pane has its own header) — drop it. */
-.app.split .head::after { content: none; }
 /* The composer now lives INSIDE each pane, so its own ::before fade sits exactly
    at that pane's transcript bottom (above the input) — it IS the per-pane bottom
    fade, so keep it enabled and drop the old pane-level .pane::after (which would
@@ -9574,3 +9585,90 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .pty-view .xterm,
 .pty-view .xterm-viewport { height: 100% !important; }
 .pty-view .xterm-viewport { background: transparent !important; }
+
+/* ============================================================================
+   TOASTS — app-wide notification stack (state/toastStore + components/toast).
+   Fixed top-right glass cards: slide-in-from-right on mount, slide-out-to-right
+   on exit, right-only pointer-drag to dismiss. Sits above cmdk (z 500). See
+   NOTIFICATION_SYSTEM_DESIGN.md.
+   ============================================================================ */
+.toast-viewport {
+  position: fixed;
+  top: 52px; /* clears the topmost pane-head toolbar (~30px) with a gap */
+  right: 16px;
+  z-index: 1000; /* above cmdk (500) + settings (450/500) */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(360px, calc(100vw - 28px));
+  pointer-events: none; /* only the cards below opt back in */
+}
+
+.toast {
+  position: relative;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px 10px 10px 12px;
+  border-radius: 10px; /* matches composer input bar corners (~8px); overrides .glass-pop's 10px, rim ::after inherits */
+  color: var(--fg);
+  font-size: var(--text-sm);
+  cursor: grab;
+  touch-action: pan-y; /* keep vertical page scroll; we own the horizontal axis */
+  animation: toast-in 220ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  transition: transform 220ms cubic-bezier(0.2, 0.7, 0.3, 1), opacity 220ms;
+}
+.toast.dragging { cursor: grabbing; transition: none; } /* 1:1 finger tracking */
+.toast.leaving { transform: translateX(120%); opacity: 0; } /* slide-out-to-right */
+
+.toast--info { --tone: var(--accent); }
+.toast--warning { --tone: var(--warn); }
+.toast--error { --tone: var(--err); }
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.toast__glyph {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--tone);
+  background: color-mix(in srgb, var(--tone) 16%, transparent);
+}
+/* Body is a single inline row: an optional (de-emphasized) title sits before the
+   message so a titled toast stays one line tall — never the old two-line card. */
+.toast__body { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 6px; }
+.toast__title { flex: none; font-weight: 600; }
+.toast__msg { min-width: 0; word-break: break-word; }
+
+.toast__close {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--fg-faint);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.toast__close:hover { color: var(--fg); background: rgba(var(--tint), 0.08); }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  /* No transform-based exit: dropping the transform transition means
+     onTransitionEnd(transform) never fires, so the JS fallback timer handles
+     removal. Only opacity fades; drag still tracks (inline transform wins). */
+  .toast,
+  .toast.leaving { transition: opacity 120ms linear; transform: none; }
+}

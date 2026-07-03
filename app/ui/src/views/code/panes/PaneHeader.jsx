@@ -7,15 +7,23 @@ import { RenameInput } from "../../../components/RenameInput.jsx";
 import { api } from "../../../api/client.js";
 import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { TerminalToggleButton } from "../center/TerminalToggleButton.jsx";
+import { FollowButton } from "../center/FollowButton.jsx";
 import { SplitEmptyButton } from "../center/SplitEmptyButton.jsx";
+import { PanePresets } from "../center/PanePresets.jsx";
 
-// Per-pane top bar. Owned by each pane and rendered INSIDE its
-// PaneScopeContext.Provider, so every scoped ui read/action (openPop, terminal
-// toggle) targets THIS pane with no prop-drilling. The breadcrumb + rename +
-// agent menu are keyed off the pane's OWN agent, not the focused selection — so
-// each pane shows its own chain in split view. dragProps (from PaneGrid) carry
-// the drag-to-reposition wiring onto the root; the single-pane view omits them.
-export function PaneHeader({ worker, live, attention, needsInput, canClose, onClose, dragProps, newSession }) {
+// Per-pane top bar — element-for-element the original global bar (CenterHeader
+// @ 979c81c^): breadcrumb + agent menu on the left, terminal / follow / split /
+// presets on the right. Follow + presets act globally but render in every
+// pane's header so N=1 is the exact original and splits stay consistent.
+// Owned by each pane and rendered INSIDE its PaneScopeContext.Provider, so
+// every scoped ui read/action (openPop, terminal toggle) targets THIS pane with
+// no prop-drilling. The breadcrumb + rename + agent menu are keyed off the
+// pane's OWN agent, not the focused selection — so each pane shows its own
+// chain in split view. dragProps (from PaneGrid) carry the drag-to-reposition
+// wiring onto the root; the single-pane view omits them. `split` adds the only
+// extras the old mini pane-head had over the global bar: the status dot/label
+// (or needs-input / attention cue) and the close button — never shown at N=1.
+export function PaneHeader({ worker, live, attention, needsInput, canClose, onClose, dragProps, newSession, topLeft, topRow, split }) {
   const ui = useUi();
   // Header-local rename (breadcrumb inline edit), reset when the pane's agent
   // changes so a stale editor never carries over to a different worker.
@@ -24,26 +32,43 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
 
   const status = worker ? statusFromState(worker.state) : null;
 
+  // The top-left pane (rect touches 0,0) is the one under the native window chrome
+  // once the strip is gone. When the sidebar is collapsed its header reserves a
+  // left inset (CSS) so the breadcrumb clears the traffic lights + sidebar toggle;
+  // that inset zone is also the window-drag region (data-window-drag opts it back
+  // into --app-region: drag, and out of the pane-move arming in PaneGrid).
+  // --toprow: split panes on the grid's top row compensate the island chrome
+  // above them so the bar content sits at the N=1 window-y (see styles.css).
+  const rootClass = ["pane-head", topRow ? "pane-head--toprow" : "", topLeft ? "pane-head--topleft" : ""]
+    .filter(Boolean)
+    .join(" ");
+  const insetEl = topLeft ? <span className="pane-head-inset" data-window-drag aria-hidden="true" /> : null;
+
   // No agent: the single-pane new-session state shows the "new orchestrator"
   // breadcrumb (+ split); a split empty pane keeps today's hover-to-pick hint.
   if (!worker) {
     if (newSession) {
       const { project } = breadcrumbFor(live.workers, null, ui.composer.cwd);
       return (
-        <div className="pane-head" {...dragProps}>
+        <div className={rootClass} {...dragProps}>
+          {insetEl}
           <div className="crumb">
             <span className="scope">{project}</span>
             <span className="sep">/</span>
             <span className="cur">new orchestrator</span>
           </div>
           <div className="pane-head-actions">
+            <TerminalToggleButton />
+            <FollowButton />
             <SplitEmptyButton />
+            <PanePresets />
           </div>
         </div>
       );
     }
     return (
-      <div className="pane-head" {...dragProps}>
+      <div className={rootClass} {...dragProps}>
+        {insetEl}
         <span className="pane-name">Empty — hover to pick an agent</span>
         {canClose && <CloseButton onClose={onClose} />}
       </div>
@@ -59,8 +84,9 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   };
 
   return (
-    <div className="pane-head" {...dragProps}>
-      {status && <span className={`ag-dot ${status.dot}`} />}
+    <div className={rootClass} {...dragProps}>
+      {insetEl}
+      {split && <span className={`ag-dot ${status.dot}`} />}
       <div className="crumb">
         <span className="scope">{project}</span>
         {chain.map((seg, i) => {
@@ -95,14 +121,16 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
           <HeaderAgentMenu live={live} agent={worker} onRename={startRename} />
         </span>
       </div>
-      {needsInput
+      {split && (needsInput
         ? <span className="pane-input-label" title="Needs your input — click the pane to answer">needs input</span>
         : attention
           ? <span className="ag-notify" aria-label="finished with new output" title="finished with new output" />
-          : <span className="pane-status">{status.label}</span>}
+          : <span className="pane-status">{status.label}</span>)}
       <div className="pane-head-actions">
         <TerminalToggleButton />
+        <FollowButton />
         <SplitEmptyButton />
+        <PanePresets />
         {canClose && <CloseButton onClose={onClose} />}
       </div>
     </div>

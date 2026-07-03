@@ -137,6 +137,12 @@ export function PaneGrid({ live }) {
   const renderSlot = ({ id, agentId, rect }, isLeaving = false) => {
     const worker = agentId ? live.workers.find((w) => w.id === agentId) ?? null : null;
     const focused = !isLeaving && id === ui.focusedLeafId;
+    // The pane whose rect touches the window's top-left corner owns the native
+    // chrome inset (traffic lights + sidebar toggle) now that the strip is gone.
+    const topLeft = !isLeaving && rect.left === 0 && rect.top === 0;
+    // Top-ROW panes compensate the island chrome above them (grid margin + pane
+    // inset + border) so their header content sits at the N=1 bar's window-y.
+    const topRow = !isLeaving && rect.top === 0;
     // A pane with an open panel yields its right edge to it (paneRect); a leaving
     // ghost keeps its full rect (no panel).
     const slotRect = isLeaving ? rect : paneRectOf(id, rect);
@@ -153,6 +159,8 @@ export function PaneGrid({ live }) {
           worker={worker}
           live={live}
           focused={focused}
+          topLeft={topLeft}
+          topRow={topRow}
           excludeIds={shownAgentIds}
           attention={pulseOn && !focused && !!worker && ui.needsAttentionRaw(worker)}
           canClose={canClose}
@@ -260,6 +268,7 @@ export function SinglePane({ live }) {
             canClose={false}
             onClose={() => {}}
             newSession
+            topLeft
           />
           <div className="pane-tx">
             <TranscriptHost live={live} activeId={ui.selectedId} />
@@ -307,7 +316,7 @@ function Divider({ d, gridRef, onRatio, onResizeStart, onResizeEnd }) {
   );
 }
 
-function Pane({ id, agentId, worker, live, focused, excludeIds, attention, canClose, canSplit, onFocus, onClose, onPick, onDropZone, onPaneDrop }) {
+function Pane({ id, agentId, worker, live, focused, topLeft, topRow, excludeIds, attention, canClose, canSplit, onFocus, onClose, onPick, onDropZone, onPaneDrop }) {
   // Blocked-on-input cue for non-focused panes: an open ask_user question
   // (per-agent store) or a pending permission (live.pendingPermissions). The
   // focused pane needs none — its banner is in the shared composer.
@@ -331,7 +340,7 @@ function Pane({ id, agentId, worker, live, focused, excludeIds, attention, canCl
   // only when the press did NOT land on a header control (button/input).
   const dragProps = {
     draggable: true,
-    onMouseDown: (e) => { dragArmed.current = !e.target.closest("button, input"); },
+    onMouseDown: (e) => { dragArmed.current = !e.target.closest("button, input, [data-window-drag]"); },
     onDragStart: (e) => {
       if (!dragArmed.current) { e.preventDefault(); return; }
       draggedPaneId = id;
@@ -367,6 +376,9 @@ function Pane({ id, agentId, worker, live, focused, excludeIds, attention, canCl
           canClose={canClose}
           onClose={onClose}
           dragProps={dragProps}
+          topLeft={topLeft}
+          topRow={topRow}
+          split
         />
         {worker ? (
           // Every split pane is rendered on screen regardless of focus, so all are
