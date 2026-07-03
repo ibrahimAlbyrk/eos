@@ -1,7 +1,5 @@
 import { useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { statusFromState } from "../../../lib/format.js";
-import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { useInputNeeded } from "../../../hooks/useInputNeeded.js";
 import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, splitRectForPanel, MAX_PANES } from "../../../lib/paneLayout.js";
 import { usePaneTransitions } from "../../../hooks/usePaneTransitions.js";
@@ -11,6 +9,7 @@ import { Composer } from "../center/Composer.jsx";
 import { AgentPickerOverlay } from "./AgentPickerOverlay.jsx";
 import { DragAffordance } from "./DragAffordance.jsx";
 import { PaneViewers } from "./PaneViewers.jsx";
+import { PaneHeader } from "./PaneHeader.jsx";
 import { PaneScopeContext } from "../../../state/paneScope.js";
 
 const pctStyle = (r) => ({ left: `${r.left}%`, top: `${r.top}%`, width: `${r.width}%`, height: `${r.height}%` });
@@ -250,10 +249,21 @@ export function SinglePane({ live }) {
       {/* Region handlers mirror the split-pane pair: transcript side vs. docked
           panel decide which one owns ⌘F (state/pane.jsx focusedRegion). */}
       <div className="sp-main" onMouseDownCapture={() => ui.setFocusedRegion("transcript")}>
-        <div className="pane-tx">
-          <TranscriptHost live={live} activeId={ui.selectedId} />
-        </div>
+        {/* Same PaneHeader as the split panes, scoped to the single leaf. No agent
+            → the new-session ("new orchestrator") breadcrumb; close is hidden. */}
         <PaneScopeContext.Provider value={leafId}>
+          <PaneHeader
+            worker={selected}
+            live={live}
+            attention={false}
+            needsInput={false}
+            canClose={false}
+            onClose={() => {}}
+            newSession
+          />
+          <div className="pane-tx">
+            <TranscriptHost live={live} activeId={ui.selectedId} />
+          </div>
           <Composer live={live} worker={selected} paneId={leafId} focused />
         </PaneScopeContext.Provider>
       </div>
@@ -309,12 +319,29 @@ function Pane({ id, agentId, worker, live, focused, excludeIds, attention, canCl
   const dragArmed = useRef(false);
   const permNeeded = !!worker && (live.pendingPermissions ?? []).some((p) => p.worker_id === agentId);
   const needsInput = !focused && !!worker && (questionNeeded || permNeeded);
-  const status = worker ? statusFromState(worker.state) : null;
   // needs-input takes precedence over the attention pulse (more urgent).
   const cls = ["pane", focused ? "is-focused" : "", dragging ? "pane--dragging" : "",
     needsInput ? "pane--needs-input" : attention ? "pane--attention" : ""]
     .filter(Boolean)
     .join(" ");
+
+  // Drag-to-reposition wiring spread onto the PaneHeader root (the header is the
+  // drag handle: drop on another pane to swap, on its edge to move). mousedown
+  // fires before dragstart and its target is the real element, so arm the drag
+  // only when the press did NOT land on a header control (button/input).
+  const dragProps = {
+    draggable: true,
+    onMouseDown: (e) => { dragArmed.current = !e.target.closest("button, input"); },
+    onDragStart: (e) => {
+      if (!dragArmed.current) { e.preventDefault(); return; }
+      draggedPaneId = id;
+      setDragging(true);
+      e.dataTransfer.setData(PANE_TYPE, id);
+      e.dataTransfer.effectAllowed = "move";
+      if (TRANSPARENT_DRAG_IMG) e.dataTransfer.setDragImage(TRANSPARENT_DRAG_IMG, 0, 0);
+    },
+    onDragEnd: () => { draggedPaneId = null; setDragging(false); },
+  };
 
   return (
     <div
@@ -329,58 +356,29 @@ function Pane({ id, agentId, worker, live, focused, excludeIds, attention, canCl
     >
       {zone && <DropPreview zone={zone} />}
       {zone && pointer && <DragAffordance pointer={pointer} zone={zone} paneDrag={paneDrag} />}
-      <div
-        className="pane-head"
-        draggable
-        // mousedown fires before dragstart and its target is the real element, so
-        // arm the drag only when the press did NOT land on the close button (the
-        // header is the draggable element, so dragstart.target is the header).
-        onMouseDown={(e) => { dragArmed.current = !e.target.closest(".pane-close"); }}
-        onDragStart={(e) => {
-          if (!dragArmed.current) { e.preventDefault(); return; }
-          draggedPaneId = id;
-          setDragging(true);
-          e.dataTransfer.setData(PANE_TYPE, id);
-          e.dataTransfer.effectAllowed = "move";
-          if (TRANSPARENT_DRAG_IMG) e.dataTransfer.setDragImage(TRANSPARENT_DRAG_IMG, 0, 0);
-        }}
-        onDragEnd={() => { draggedPaneId = null; setDragging(false); }}
-      >
-        {status && <span className={`ag-dot ${status.dot}`} />}
-        <span className="pane-name" title={worker ? nameOf(worker) : undefined}>
-          {worker ? <AgentName worker={worker} /> : "Empty — hover to pick an agent"}
-        </span>
-        {worker && (needsInput
-          ? <span className="pane-input-label" title="Needs your input — click the pane to answer">needs input</span>
-          : attention
-            ? <span className="ag-notify" aria-label="finished with new output" title="finished with new output" />
-            : <span className="pane-status">{status.label}</span>)}
-        {canClose && (
-          <button
-            className="pane-close"
-            title="Close pane"
-            onClick={(e) => { e.stopPropagation(); onClose(); }}
-          >
-            <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
-              <path d="M4 4l8 8M12 4l-8 8" />
-            </svg>
-          </button>
-        )}
-      </div>
-      {worker ? (
-        // Every split pane is rendered on screen regardless of focus, so all are
-        // visible (and may animate); only the focused one is isActive (shared UI).
-        // The composer is owned by this pane and scoped to it (PaneScopeContext),
-        // so its panel actions dock to this pane and ui.* panel reads resolve here.
-        <>
-          <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
-          <PaneScopeContext.Provider value={id}>
+      {/* Header + body share ONE pane scope: the header's terminal/split/menu and
+          the composer's panel actions all resolve to THIS pane, zero prop-drilling. */}
+      <PaneScopeContext.Provider value={id}>
+        <PaneHeader
+          worker={worker}
+          live={live}
+          attention={attention}
+          needsInput={needsInput}
+          canClose={canClose}
+          onClose={onClose}
+          dragProps={dragProps}
+        />
+        {worker ? (
+          // Every split pane is rendered on screen regardless of focus, so all are
+          // visible (and may animate); only the focused one is isActive (shared UI).
+          <>
+            <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
             <Composer live={live} worker={worker} paneId={id} focused={focused} />
-          </PaneScopeContext.Provider>
-        </>
-      ) : (
-        <AgentPickerOverlay live={live} excludeIds={excludeIds} focused={focused} dragActive={!!zone} onPick={onPick} />
-      )}
+          </>
+        ) : (
+          <AgentPickerOverlay live={live} excludeIds={excludeIds} focused={focused} dragActive={!!zone} onPick={onPick} />
+        )}
+      </PaneScopeContext.Provider>
     </div>
   );
 }

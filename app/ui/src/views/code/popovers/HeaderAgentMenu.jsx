@@ -10,8 +10,9 @@ import { DELETE_CONFIRM_KEY, shouldConfirmDelete } from "../../../lib/deleteConf
 import { api } from "../../../api/client.js";
 import { MenuList } from "./MenuList.jsx";
 
-// Breadcrumb chevron dropdown — acts on the currently selected agent.
-export function HeaderAgentMenu({ live, onRename }) {
+// Breadcrumb chevron dropdown — acts on the pane's agent (passed in by the
+// PaneHeader that owns it), scoped to that pane's popover state.
+export function HeaderAgentMenu({ live, agent, onRename }) {
   const ui = useUi();
   const { settings, setSetting } = useSettings();
   const archiveAgent = useArchiveAgent(live);
@@ -19,7 +20,6 @@ export function HeaderAgentMenu({ live, onRename }) {
   // Survives the menu closing on item click (MenuList runs onClose after run).
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
-  const agent = live.workers.find((w) => w.id === ui.selectedId);
   const open = ui.openPopover === "head-menu";
   if (!agent || (!open && !confirming)) return null;
 

@@ -137,7 +137,7 @@ export function CodeView({ live }) {
           <ArchiveView live={live} />
         ) : (
           <>
-            <CenterHeader live={live} />
+            <CenterHeader />
             {/* Single pane keeps the keep-alive multiplexer (instant switch-back).
                 Split view (2-4 panes) lays the transcripts out side by side. The
                 composer now lives INSIDE each pane (owned by that pane); the grid
