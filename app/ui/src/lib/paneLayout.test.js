@@ -397,9 +397,9 @@ describe("splitRectForPanel", () => {
   });
 
   it("carves the panel out of the pane's OWN right edge (neighbour space untouched)", () => {
-    const { paneRect, panelRect } = splitRectForPanel(rect, "file"); // frac 0.75
-    expect(paneRect).toEqual({ left: 20, top: 0, width: 10, height: 100 });
-    expect(panelRect).toEqual({ left: 30, top: 0, width: 30, height: 100 });
+    const { paneRect, panelRect } = splitRectForPanel(rect, "file"); // frac 0.6
+    expect(paneRect).toEqual({ left: 20, top: 0, width: 16, height: 100 });
+    expect(panelRect).toEqual({ left: 36, top: 0, width: 24, height: 100 });
     // pane + panel exactly re-tile the original rect — nothing spills past it.
     expect(paneRect.width + panelRect.width).toBeCloseTo(rect.width);
     expect(panelRect.left + panelRect.width).toBeCloseTo(rect.left + rect.width);

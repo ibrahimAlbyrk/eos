@@ -82,6 +82,13 @@ kbd {
      full-bleed background layer underneath */
   --shell-gap: 6px;
   --panel-radius: 12px;
+  /* live height of the center top bar, published by CenterHeader; 0 until measured
+     so a docked panel falls back to its normal (below-bar) top with no jump. */
+  --head-h: 0px;
+  /* width an open top-right dock steals from the bar's right end, published by
+     CenterHeader; reserved as .head padding-right so the button cluster reflows to
+     the left of the viewer. 0 = no open dock → cluster keeps its right-end spot. */
+  --dock-cover: 0px;
   /* transcript rhythm: .messages flex gap owns ALL inter-block spacing —
      block roots carry no outer margins. Must stay ≥ --msg-actions-h + its
      4px top offset so the hover copy/timestamp row fits inside the gap. */
@@ -810,6 +817,12 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   cursor: default;
   flex-shrink: 0;
 }
+/* Reserve an open top-right dock's width so the .right button cluster (margin-left:
+   auto) reflows just left of the viewer instead of hiding behind it. Both the web
+   (60px) and native heads pad 16px right, so keep that and add the dock cover.
+   The native rule repeats it to beat `html.native .head`'s padding shorthand. */
+.head { padding-right: calc(16px + var(--dock-cover, 0px)); }
+html.native .head { padding-right: calc(16px + var(--dock-cover, 0px)); }
 .head .crumb {
   display: flex; align-items: baseline; gap: 7px;
   font-size: var(--text-sm);
@@ -928,6 +941,14 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   min-width: 0;
   min-height: 0;
   position: relative;
+  /* Outer edge gap == the sidebar's --shell-gap. Panes/docked panels are
+     ABSOLUTELY positioned, so their containing block is this grid's padding box —
+     padding here would NOT inset them (they'd still fill it). MARGIN does: it
+     shrinks the grid's box 3px on every window-facing edge, and each pane/panel
+     adds its own 3px inset, so outer edges read 6px like .side. The gap BETWEEN
+     adjacent islands stays 6px (3px + 3px). getBoundingClientRect() excludes the
+     margin, so the %-rect divider math stays exact. */
+  margin: calc(var(--shell-gap) / 2);
 }
 /* Single-pane view = the keep-alive multiplexer, but a drag-to-split drop target
    too (so the first split can be made by drag). Relative for the drop preview. A
@@ -997,6 +1018,29 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   flex-grow: 0;
   flex-shrink: 0;
   transition: flex-basis 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+/* Single-view docked panel: unlike the split-view slots it has no --shell-gap/2
+   grid padding (it is kept zero-width when closed — padding a border-box element
+   would leave a permanent sliver), so its viewer carries the full --shell-gap
+   itself: 6px on the outer edges AND the transcript-facing edge (one panel, no
+   adjacent island to double the gap with). */
+.pane-dock .terminal-viewer, .pane-dock .file-viewer, .pane-dock .diff-viewer,
+.pane-dock .commits-viewer, .pane-dock .agent-viewer, .pane-dock .conflict-viewer,
+.pane-dock .memory-viewer {
+  inset: var(--shell-gap);
+  /* Single view is always the top region: rise the full bar height so the viewer's
+     top edge lands --shell-gap from the window top (at the top-bar level), keeping
+     the --shell-gap bottom/side edges from `inset`. */
+  top: calc(var(--shell-gap) - var(--head-h));
+}
+/* Split view: a panel docked beside a TOP-ROW pane (.at-top) rises over the bar
+   too. Its viewers keep the pane's 3px inset (var(--shell-gap)/2) on the other
+   edges; only the top is lifted the bar height. Lower-row docks are untouched. */
+.pane-panel-slot.at-top .terminal-viewer, .pane-panel-slot.at-top .file-viewer,
+.pane-panel-slot.at-top .diff-viewer, .pane-panel-slot.at-top .commits-viewer,
+.pane-panel-slot.at-top .agent-viewer, .pane-panel-slot.at-top .conflict-viewer,
+.pane-panel-slot.at-top .memory-viewer {
+  top: calc(var(--shell-gap) / 2 - var(--head-h));
 }
 .pane {
   position: absolute;
@@ -1903,6 +1947,41 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* Touch / hover-less pointers can't reveal-on-hover — keep it faintly visible. */
 @media (hover: none) { .code-block-wrap > .code-copy-btn { opacity: 0.55; } }
 @media (prefers-reduced-motion: reduce) { .code-block-wrap > .code-copy-btn { transition: none; } }
+/* Mermaid diagram canvas (hooks/useMermaid.js hydrates these). The token vars
+   already resolve per theme, so one :root rule covers light + dark; the SVG's
+   own colors come from mermaid themeVariables built off the same tokens. */
+.mermaid-block {
+  margin: 8px 0 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-x: auto;
+  text-align: center;
+}
+.mermaid-block svg { max-width: 100%; height: auto; }
+.mermaid-block.mermaid-loading { opacity: 0.6; }
+/* Raw source shown while loading and inside the error box — never centered. */
+.mermaid-block .mermaid-src {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--fg-dim);
+  text-align: left;
+  white-space: pre;
+  overflow-x: auto;
+}
+.mermaid-block.mermaid-error {
+  border-color: var(--err);
+  text-align: left;
+}
+.mermaid-error-box { display: flex; flex-direction: column; gap: 8px; }
+.mermaid-error-msg {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--err);
+}
 .md-prose table {
   width: 100%;
   border-collapse: separate;

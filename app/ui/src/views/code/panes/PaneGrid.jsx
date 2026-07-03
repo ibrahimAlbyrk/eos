@@ -194,7 +194,10 @@ export function PaneGrid({ live }) {
       {rects.map(({ id, rect }) => (
         <div
           key={`panel:${id}`}
-          className="pane-slot pane-panel-slot"
+          // at-top: this pane hugs the grid's top row, so its docked panel may rise
+          // over the top bar (see .pane-panel-slot.at-top in styles). A panel beside
+          // a lower-row pane keeps its normal top so it can't overlap the pane above.
+          className={"pane-slot pane-panel-slot" + (rect.top === 0 ? " at-top" : "")}
           style={pctStyle(splitRectForPanel(rect, ui.topPanelTypeIn(id)).panelRect)}
           // The slot is a grid SIBLING of its pane, so the Pane's focus capture
           // never sees clicks here. Focus the owning pane, then claim the panel
