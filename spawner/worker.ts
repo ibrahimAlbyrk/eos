@@ -74,7 +74,7 @@ const mcpReadyFlagPath = opts.workerId ? join(tmpdir(), mcpReadyFlagName(opts.wo
 if (mcpReadyFlagPath) { try { unlinkSync(mcpReadyFlagPath); } catch {} }
 
 const evt = createDaemonEventClient(opts.daemonUrl, opts.workerId);
-const wt = setupWorktree({
+const wt = await setupWorktree({
   worktreeFrom: opts.worktreeFrom,
   cwd: opts.cwd,
   name,

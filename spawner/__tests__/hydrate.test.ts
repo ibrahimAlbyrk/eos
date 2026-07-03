@@ -26,14 +26,14 @@ function byPath(items: HydrationItem[], p: string): HydrationItem | undefined {
   return items.find((i) => i.path === p);
 }
 
-test("hydrates gitignored node_modules into the worktree", () => {
+test("hydrates gitignored node_modules into the worktree", async () => {
   const { root, worktree } = makeRepo();
   try {
     writeFileSync(join(root, ".gitignore"), "node_modules\n");
     mkdirSync(join(root, "node_modules", "pkg"), { recursive: true });
     writeFileSync(join(root, "node_modules", "pkg", "index.js"), "module.exports = 1;");
 
-    const items = hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: false, log: () => {} });
+    const items = await hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: false, log: () => {} });
 
     const nm = byPath(items, "node_modules");
     assert.ok(nm);
@@ -44,13 +44,13 @@ test("hydrates gitignored node_modules into the worktree", () => {
   }
 });
 
-test("skips node_modules that is NOT gitignored", () => {
+test("skips node_modules that is NOT gitignored", async () => {
   const { root, worktree } = makeRepo();
   try {
     mkdirSync(join(root, "node_modules"), { recursive: true });
     writeFileSync(join(root, "node_modules", "x.js"), "x");
 
-    const items = hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: false, log: () => {} });
+    const items = await hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: false, log: () => {} });
 
     const nm = byPath(items, "node_modules");
     assert.ok(nm);
@@ -62,14 +62,14 @@ test("skips node_modules that is NOT gitignored", () => {
   }
 });
 
-test("finds nested node_modules in subpackages", () => {
+test("finds nested node_modules in subpackages", async () => {
   const { root, worktree } = makeRepo();
   try {
     writeFileSync(join(root, ".gitignore"), "node_modules\n");
     mkdirSync(join(root, "packages", "web", "node_modules"), { recursive: true });
     writeFileSync(join(root, "packages", "web", "node_modules", "y.js"), "y");
 
-    const items = hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: false, log: () => {} });
+    const items = await hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: false, log: () => {} });
 
     const nested = byPath(items, join("packages", "web", "node_modules"));
     assert.ok(nested);
@@ -80,18 +80,18 @@ test("finds nested node_modules in subpackages", () => {
   }
 });
 
-test(".env files copied only when includeEnvFiles is set", () => {
+test(".env files copied only when includeEnvFiles is set", async () => {
   const { root, worktree } = makeRepo();
   try {
     writeFileSync(join(root, ".gitignore"), ".env*\n");
     writeFileSync(join(root, ".env"), "SECRET=1");
     writeFileSync(join(root, ".env.local"), "LOCAL=1");
 
-    const without = hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: false, log: () => {} });
+    const without = await hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: false, log: () => {} });
     assert.equal(byPath(without, ".env"), undefined);
     assert.ok(!existsSync(join(worktree, ".env")));
 
-    const withEnv = hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: true, log: () => {} });
+    const withEnv = await hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: true, log: () => {} });
     const env = byPath(withEnv, ".env");
     assert.ok(env);
     assert.ok(env.status === "cloned" || env.status === "copied");
@@ -102,7 +102,7 @@ test(".env files copied only when includeEnvFiles is set", () => {
   }
 });
 
-test("symlinked node_modules is ignored entirely", () => {
+test("symlinked node_modules is ignored entirely", async () => {
   const { root, worktree } = makeRepo();
   try {
     writeFileSync(join(root, ".gitignore"), "node_modules\n");
@@ -110,7 +110,7 @@ test("symlinked node_modules is ignored entirely", () => {
     mkdirSync(real, { recursive: true });
     symlinkSync(real, join(root, "node_modules"));
 
-    const items = hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: false, log: () => {} });
+    const items = await hydrateWorktree({ repoRoot: root, worktreeDir: worktree, includeEnvFiles: false, log: () => {} });
     assert.equal(byPath(items, "node_modules"), undefined);
     assert.ok(!existsSync(join(worktree, "node_modules")));
   } finally {

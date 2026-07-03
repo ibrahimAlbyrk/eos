@@ -80,8 +80,10 @@ export interface WorktreeSpec {
  * new branch (when `worktreeFrom` is given), joins an existing one (attach
  * mode), or uses the provided cwd directly. Path canonicalization happens
  * here so downstream code always sees a realpath'd absolute directory.
+ * Async only for the shared hydrateWorktree (execFile-based); the git calls
+ * here stay sync — this runs in the worker child, not the daemon.
  */
-export function setupWorktree(spec: WorktreeSpec, log: (m: string) => void): WorktreeContext {
+export async function setupWorktree(spec: WorktreeSpec, log: (m: string) => void): Promise<WorktreeContext> {
   if (spec.attach && spec.worktreeDir && spec.worktreeFrom) {
     // Attach mode: the worktree belongs to another live worker — verify and
     // join it. No create, no hydration (the owner already hydrated), and no
@@ -131,7 +133,7 @@ export function setupWorktree(spec: WorktreeSpec, log: (m: string) => void): Wor
     // rewinds to a commit older than the fork point.
     const forkBaseSha = git(["rev-parse", "HEAD"], worktreeDir).stdout.trim() || null;
     log(`worktree created: ${worktreeDir} on branch ${branch}`);
-    const hydration = hydrateWorktree({
+    const hydration = await hydrateWorktree({
       repoRoot,
       worktreeDir,
       includeEnvFiles: spec.hydrateEnv,

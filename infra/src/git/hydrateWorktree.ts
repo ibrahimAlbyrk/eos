@@ -10,10 +10,15 @@
 // Lives in infra/ (not spawner/) so BOTH lanes share one impl: the claude-cli
 // worker child (spawner/worktree.ts) and the daemon's ChildProcessWorktreeManager
 // (the in-process claude-sdk lane, which has no boot child to hydrate for it).
+// Subprocesses run async (execFile): the daemon lane executes this on its own
+// event loop mid-spawn, and a blocking copy would freeze every HTTP/SSE surface.
 
-import { spawnSync } from "node:child_process";
+import { execFile } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
+import { promisify } from "node:util";
+
+const exec = promisify(execFile);
 
 const MAX_SCAN_DEPTH = 4;
 // Plain-copy fallback cap (KB). Clonefile has no cap — it is cheap.
@@ -32,9 +37,14 @@ export interface HydrateInput {
   log(m: string): void;
 }
 
-function run(cmd: string, args: string[], cwd?: string): { code: number; stdout: string; stderr: string } {
-  const r = spawnSync(cmd, args, { cwd, encoding: "utf8" });
-  return { code: r.status ?? -1, stdout: r.stdout ?? "", stderr: r.stderr ?? "" };
+async function run(cmd: string, args: string[], cwd?: string): Promise<{ code: number; stdout: string; stderr: string }> {
+  try {
+    const { stdout, stderr } = await exec(cmd, args, { cwd, encoding: "utf8" });
+    return { code: 0, stdout: stdout ?? "", stderr: stderr ?? "" };
+  } catch (e) {
+    const err = e as { code?: number | string; stdout?: string; stderr?: string };
+    return { code: typeof err.code === "number" ? err.code : -1, stdout: err.stdout ?? "", stderr: err.stderr ?? "" };
+  }
 }
 
 function findTargets(root: string): { nodeModules: string[]; envFiles: string[] } {
@@ -59,25 +69,25 @@ function findTargets(root: string): { nodeModules: string[]; envFiles: string[] 
   return { nodeModules, envFiles };
 }
 
-function isIgnoredInSource(repoRoot: string, rel: string): boolean {
-  return run("git", ["check-ignore", "-q", rel], repoRoot).code === 0;
+async function isIgnoredInSource(repoRoot: string, rel: string): Promise<boolean> {
+  return (await run("git", ["check-ignore", "-q", rel], repoRoot)).code === 0;
 }
 
-function sizeKb(path: string): number {
-  const r = run("du", ["-sk", path]);
+async function sizeKb(path: string): Promise<number> {
+  const r = await run("du", ["-sk", path]);
   const n = Number.parseInt(r.stdout.split("\t")[0] ?? "", 10);
   return Number.isFinite(n) ? n : Number.MAX_SAFE_INTEGER;
 }
 
-function copyInto(src: string, dst: string): HydrationItem["status"] | "too-large" {
+async function copyInto(src: string, dst: string): Promise<HydrationItem["status"] | "too-large"> {
   mkdirSync(dirname(dst), { recursive: true });
   // Clonefile first. cp -c fails fast off APFS (or across filesystems).
-  if (run("cp", ["-Rc", src, dst]).code === 0) return "cloned";
-  if (sizeKb(src) > PLAIN_COPY_CAP_KB) return "too-large";
-  return run("cp", ["-R", src, dst]).code === 0 ? "copied" : "failed";
+  if ((await run("cp", ["-Rc", src, dst])).code === 0) return "cloned";
+  if ((await sizeKb(src)) > PLAIN_COPY_CAP_KB) return "too-large";
+  return (await run("cp", ["-R", src, dst])).code === 0 ? "copied" : "failed";
 }
 
-export function hydrateWorktree(input: HydrateInput): HydrationItem[] {
+export async function hydrateWorktree(input: HydrateInput): Promise<HydrationItem[]> {
   const { repoRoot, worktreeDir, log } = input;
   const items: HydrationItem[] = [];
   const { nodeModules, envFiles } = findTargets(repoRoot);
@@ -85,7 +95,7 @@ export function hydrateWorktree(input: HydrateInput): HydrationItem[] {
 
   for (const src of candidates) {
     const rel = relative(repoRoot, src);
-    if (!isIgnoredInSource(repoRoot, rel)) {
+    if (!(await isIgnoredInSource(repoRoot, rel))) {
       items.push({ path: rel, status: "skipped", reason: "not gitignored in source — would dirty the worktree" });
       log(`hydrate: skip ${rel} (not gitignored)`);
       continue;
@@ -95,7 +105,7 @@ export function hydrateWorktree(input: HydrateInput): HydrationItem[] {
       items.push({ path: rel, status: "skipped", reason: "already exists in worktree" });
       continue;
     }
-    const outcome = copyInto(src, dst);
+    const outcome = await copyInto(src, dst);
     if (outcome === "too-large") {
       items.push({ path: rel, status: "skipped", reason: `over plain-copy cap (${PLAIN_COPY_CAP_KB}KB) and clonefile unavailable` });
       log(`hydrate: skip ${rel} (too large for plain copy)`);

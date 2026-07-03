@@ -78,7 +78,7 @@ export const childProcessWorktreeManager: WorktreeManager = {
     // Hydrate gitignored deps from the source so the agent can build/test on turn
     // one — the in-process lane's stand-in for the claude-cli worker boot. Best
     // effort (hydrateWorktree never throws); a failed copy never aborts the spawn.
-    hydrateWorktree({ repoRoot: root, worktreeDir, includeEnvFiles: !!input.hydrateEnv, log: () => {} });
+    await hydrateWorktree({ repoRoot: root, worktreeDir, includeEnvFiles: !!input.hydrateEnv, log: () => {} });
     const head = await git(worktreeDir, ["rev-parse", "HEAD"]);
     return { created: true, worktreeDir, forkBaseSha: head.code === 0 ? (head.stdout.trim() || null) : null };
   },

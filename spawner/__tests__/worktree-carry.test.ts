@@ -62,11 +62,11 @@ after(() => {
 });
 
 describe("setupWorktree carry-uncommitted", () => {
-  it("forks the worktree from a snapshot of the source's uncommitted work", () => {
+  it("forks the worktree from a snapshot of the source's uncommitted work", async () => {
     const { repo, head } = freshRepo();
     dirty(repo);
 
-    const ctx = setupWorktree(spec(repo, "feat", true), () => {});
+    const ctx = await setupWorktree(spec(repo, "feat", true), () => {});
     const wt = ctx.worktreeDir!;
     assert.ok(wt, "worktreeDir set");
 
@@ -92,11 +92,11 @@ describe("setupWorktree carry-uncommitted", () => {
     assert.match(srcStatus, /\?\? untracked\.txt/);
   });
 
-  it("forks clean from HEAD when carry is disabled", () => {
+  it("forks clean from HEAD when carry is disabled", async () => {
     const { repo, head } = freshRepo();
     dirty(repo);
 
-    const ctx = setupWorktree(spec(repo, "feat", false), () => {});
+    const ctx = await setupWorktree(spec(repo, "feat", false), () => {});
     const wt = ctx.worktreeDir!;
 
     assert.doesNotMatch(readFileSync(join(wt, "tracked.txt"), "utf8"), /modified/);
@@ -104,10 +104,10 @@ describe("setupWorktree carry-uncommitted", () => {
     assert.equal(ctx.forkBaseSha, head, "fork base is the source HEAD");
   });
 
-  it("forks clean from HEAD when carry is enabled but the source is clean", () => {
+  it("forks clean from HEAD when carry is enabled but the source is clean", async () => {
     const { repo, head } = freshRepo();
 
-    const ctx = setupWorktree(spec(repo, "feat", true), () => {});
+    const ctx = await setupWorktree(spec(repo, "feat", true), () => {});
     assert.equal(ctx.forkBaseSha, head, "no snapshot when nothing is dirty");
     assert.equal(git(ctx.worktreeDir!, "status", "--porcelain").out.trim(), "");
   });
