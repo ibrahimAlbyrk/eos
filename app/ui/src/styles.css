@@ -9423,8 +9423,8 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .pty-tabbar {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 6px 5px;
+  gap: 4px;
+  padding: 3px 6px;
   background: var(--pty-bg);
   flex-shrink: 0;
 }
@@ -9442,14 +9442,14 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .pty-tab {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
   max-width: 140px;
-  padding: 4px 6px 4px 9px;
-  border-radius: 7px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 6px;
   border: 0.5px solid transparent;
   color: #9a9a9a;
-  font-size: var(--text-sm);
+  font-size: 11px;
   font-weight: 500;
   cursor: pointer;
   user-select: none;
@@ -9476,9 +9476,9 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   cursor: pointer;
   border-radius: 4px;
 }
-.pty-tab__close { width: 15px; height: 15px; opacity: 0.7; }
+.pty-tab__close { width: 13px; height: 13px; opacity: 0.7; }
 .pty-tab__close:hover { background: rgba(255, 255, 255, 0.14); color: #ebebeb; opacity: 1; }
-.pty-tab__add { width: 22px; height: 22px; }
+.pty-tab__add { width: 18px; height: 18px; }
 .pty-tab__add:hover { background: rgba(255, 255, 255, 0.08); color: #ebebeb; }
 .pty-panel__close { width: 22px; height: 22px; margin-left: 2px; }
 .pty-panel__close:hover { background: rgba(255, 255, 255, 0.08); color: #ebebeb; }
