@@ -79,6 +79,8 @@ export function useUi() {
   const closeConflictResolver = useCallback(() => closePanelIn(scopeRef.current, "conflict"), [closePanelIn]);
   const openMemoryViewer = useCallback((workerId) => openPanelIn(scopeRef.current, "memory", { workerId }), [openPanelIn]);
   const closeMemoryViewer = useCallback(() => closePanelIn(scopeRef.current, "memory"), [closePanelIn]);
+  const openTerminalViewer = useCallback(() => openPanelIn(scopeRef.current, "terminal", {}), [openPanelIn]);
+  const closeTerminalViewer = useCallback(() => closePanelIn(scopeRef.current, "terminal"), [closePanelIn]);
 
   return useMemo(() => {
     // Per-pane resolved reads (recompute when the panel map or scope changes).
@@ -90,12 +92,14 @@ export function useUi() {
       commitsViewer: panelDataIn(scopePane, "commits"),
       conflictViewer: panelDataIn(scopePane, "conflict"),
       memoryViewer: panelDataIn(scopePane, "memory"),
+      terminalViewer: panelDataIn(scopePane, "terminal"),
       openFileViewer, closeFileViewer,
       openAgentViewer, closeAgentViewer, syncAgentViewer,
       openDiffViewer, closeDiffViewer,
       openCommitsViewer, closeCommitsViewer,
       openConflictResolver, closeConflictResolver,
       openMemoryViewer, closeMemoryViewer,
+      openTerminalViewer, closeTerminalViewer,
     };
     return {
       ...navigation,
@@ -118,5 +122,6 @@ export function useUi() {
     openFileViewer, closeFileViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     openDiffViewer, closeDiffViewer, openCommitsViewer, closeCommitsViewer,
     openConflictResolver, closeConflictResolver, openMemoryViewer, closeMemoryViewer,
+    openTerminalViewer, closeTerminalViewer,
   ]);
 }

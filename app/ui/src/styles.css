@@ -767,7 +767,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    stacking); only the open one is visible. The slot is anchored beside the
    focused pane (PaneGrid/SinglePane), so no pane head or bottom-fade ever clips
    it. */
-.file-viewer, .diff-viewer, .commits-viewer, .agent-viewer, .conflict-viewer, .memory-viewer {
+.terminal-viewer, .file-viewer, .diff-viewer, .commits-viewer, .agent-viewer, .conflict-viewer, .memory-viewer {
   position: absolute;
   inset: 3px;
   display: flex;
@@ -789,7 +789,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 /* Open = top of the focused pane's stack. Enter motion is compositor-only
    (opacity + transform); close snaps instantly (no transition on the base state). */
-.file-viewer.fv-open, .diff-viewer.dv-open, .commits-viewer.cv-open, .agent-viewer.av-open, .conflict-viewer.cr-open, .memory-viewer.mv-open {
+.terminal-viewer.tv-open, .file-viewer.fv-open, .diff-viewer.dv-open, .commits-viewer.cv-open, .agent-viewer.av-open, .conflict-viewer.cr-open, .memory-viewer.mv-open {
   opacity: 1;
   pointer-events: auto;
   transform: none;
@@ -9400,34 +9400,26 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   opacity: 0.55;
 }
 
-/* ─── Embedded PTY terminal panel ──────────────────────────────────────────
-   Docks in the window's grid-column:3 slot (otherwise a dead 0fr track). When
-   the panel is open we give column 3 a real width; the .side-collapsed variant
-   keeps the terminal wide with the sidebar hidden.
-
-   The panel is ALWAYS dark (its own #1a1a1a, matching the xterm theme bg) no
-   matter the app theme — so tab text/pills use fixed light-on-dark values, never
-   the theme tokens (which would go dark-on-dark in the light app theme). ONE bg
-   for the whole panel: the tab-bar row and the terminal share --pty-bg; only the
-   tab pills stand out. No header/content divider band, no rounded inset. */
-.app.pty-open { grid-template-columns: 280px 1fr minmax(380px, 42%); }
-.app.pty-open.side-collapsed { grid-template-columns: 0 1fr minmax(380px, 42%); }
-
+/* ─── Embedded PTY terminal panel (interior) ───────────────────────────────
+   The panel now docks as one of the pane's right-side island cards (chrome via
+   the .terminal-viewer entry in the .file-viewer selector lists above). This is
+   only the interior that FILLS that card: ONE uniform dark bg shared by the tab
+   bar and the xterm body (identical to the xterm theme background), pill tabs,
+   trailing "+", far-right panel ×. No card chrome, no layout split of its own —
+   the island owns positioning/radius/shadow. */
 .pty-panel {
   --pty-bg: #1a1a1a;
-  grid-column: 3;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-width: 0;
-  height: 100%;
   background: var(--pty-bg);
-  border-left: 1px solid var(--border);
   overflow: hidden;
 }
 
-/* Tab bar: shares the panel bg exactly (no seam), pills + trailing "+" on the
-   left, panel-close "×" pinned right. No border-bottom — the uniform bg is the
-   whole point. */
+/* Tab bar: shares the panel bg exactly (no seam); pills + trailing "+" on the
+   left, panel-close "×" pinned right. Always-dark, so fixed light-on-dark values
+   (theme tokens would go dark-on-dark in the light app theme). */
 .pty-tabbar {
   display: flex;
   align-items: center;
@@ -9470,11 +9462,7 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   border-color: rgba(255, 255, 255, 0.14);
 }
 .pty-tab.is-exited .pty-tab__label { opacity: 0.55; text-decoration: line-through; }
-.pty-tab__label {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
+.pty-tab__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pty-tab__close,
 .pty-tab__add,
 .pty-panel__close {
@@ -9503,11 +9491,7 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   min-height: 0;
   background: var(--pty-bg);
 }
-.pty-view {
-  position: absolute;
-  inset: 0;
-  padding: 4px 2px 4px 8px;
-}
+.pty-view { position: absolute; inset: 0; padding: 4px 2px 4px 8px; }
 .pty-view .xterm,
 .pty-view .xterm-viewport { height: 100% !important; }
 .pty-view .xterm-viewport { background: transparent !important; }

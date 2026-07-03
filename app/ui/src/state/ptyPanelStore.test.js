@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  subscribe, getPtyPanel, openTab, closeTab, switchTab,
-  setPanelOpen, togglePanel, reattach, markExited, clearFresh, _resetPtyPanel,
+  getPtyPanel, openTab, closeTab, switchTab,
+  reattach, markExited, clearFresh, _resetPtyPanel,
 } from "./ptyPanelStore.js";
 
 // A tiny in-memory PTY daemon: POST /pty mints a server-numbered session, DELETE
@@ -71,20 +71,6 @@ describe("ptyPanelStore", () => {
     expect(s.activeId).toBe(s.tabs[0].sessionId);
   });
 
-  it("panel-close preserves tabs + active session (only panelOpen flips)", async () => {
-    vi.stubGlobal("fetch", mockServer());
-    await openTab(); await openTab();
-    setPanelOpen(true);
-    const tabsBefore = getPtyPanel().tabs;
-    const activeBefore = getPtyPanel().activeId;
-
-    setPanelOpen(false);
-    const s = getPtyPanel();
-    expect(s.panelOpen).toBe(false);
-    expect(s.tabs).toBe(tabsBefore); // untouched reference — sessions persist
-    expect(s.activeId).toBe(activeBefore);
-  });
-
   it("reattach mirrors live server sessions as tabs sorted by number (page reload)", async () => {
     vi.stubGlobal("fetch", mockServer());
     await openTab(); await openTab(); // server holds s1, s2
@@ -103,15 +89,6 @@ describe("ptyPanelStore", () => {
     const s = getPtyPanel();
     expect(s.tabs[0].exited).toBe(true);
     expect(s.tabs).toHaveLength(1);
-  });
-
-  it("togglePanel flips panelOpen and notifies subscribers", () => {
-    const cb = vi.fn();
-    subscribe(cb);
-    expect(getPtyPanel().panelOpen).toBe(false);
-    togglePanel();
-    expect(getPtyPanel().panelOpen).toBe(true);
-    expect(cb).toHaveBeenCalledTimes(1);
   });
 
   it("openTab marks the tab fresh (skips buffer replay); clearFresh flips it for remount replay", async () => {

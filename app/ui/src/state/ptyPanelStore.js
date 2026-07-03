@@ -1,4 +1,4 @@
-// ptyPanelStore — panel-open flag + tab list + active tab for the embedded
+// ptyPanelStore — tab list + active tab for the embedded
 // multi-tab PTY terminal. A module singleton (like archiveStore) because the
 // panel's toolbar toggle, the tab bar, and the panel body render across
 // different subtrees and must share one source of truth; the singleton pattern
@@ -10,14 +10,13 @@
 
 import { api } from "../api/client.js";
 
-let panelOpen = false;
 let tabs = []; // [{ sessionId, number, exited }]
 let activeId = null;
-let snapshot = { panelOpen, tabs, activeId };
+let snapshot = { tabs, activeId };
 const subs = new Set();
 
 function emit() {
-  snapshot = { panelOpen, tabs, activeId };
+  snapshot = { tabs, activeId };
   for (const cb of subs) cb();
 }
 
@@ -70,17 +69,6 @@ export function switchTab(sessionId) {
   emit();
 }
 
-export function setPanelOpen(open) {
-  if (panelOpen === open) return;
-  panelOpen = open;
-  emit();
-}
-
-export function togglePanel() {
-  panelOpen = !panelOpen;
-  emit();
-}
-
 // Reattach after a page reload / WKWebView relaunch: GET /pty → mirror the live
 // server sessions as tabs. Scrollback replay is TerminalView's job (per-session
 // GET /pty/:id/buffer on mount). Fail-soft: a daemon blip keeps the tabs we have.
@@ -125,9 +113,8 @@ export function markExited(sessionId) {
 
 // Test-only: reset the module singleton between cases.
 export function _resetPtyPanel() {
-  panelOpen = false;
   tabs = [];
   activeId = null;
   subs.clear();
-  snapshot = { panelOpen, tabs, activeId };
+  snapshot = { tabs, activeId };
 }

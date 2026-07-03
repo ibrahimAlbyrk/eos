@@ -4,6 +4,7 @@ import { DiffViewer } from "../messages/DiffViewer.jsx";
 import { CommitsViewer } from "../messages/CommitsViewer.jsx";
 import { ConflictResolver } from "../messages/ConflictResolver.jsx";
 import { MemoryViewer } from "../messages/MemoryViewer.jsx";
+import { TerminalViewer } from "../messages/TerminalViewer.jsx";
 
 // The docked panel's contents: all six viewers, mounted once and overlaid inside
 // the panel slot (only the open one is visible). Rendered OUTSIDE any
@@ -18,6 +19,7 @@ export function PaneViewers({ live }) {
       <CommitsViewer />
       <ConflictResolver live={live} />
       <MemoryViewer />
+      <TerminalViewer />
     </>
   );
 }

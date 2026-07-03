@@ -9,15 +9,15 @@ import { markExited, clearFresh } from "../../state/ptyPanelStore.js";
 // ONE xterm.js instance per PTY session. Stays MOUNTED while inactive (parent
 // hides it with display:none) so scrollback survives tab switches client-side.
 //
-// Wiring: xterm.onData → POST /pty/:id/input (per-session FIFO queue, since HTTP
-// gives no ordering guarantee); ResizeObserver → FitAddon → POST resize; incoming
+// Wiring: xterm.onData → POST /pty/:id/input (coalescing send queue: one POST in
+// flight, keys typed meanwhile batch into the next payload — ordered, no N-deep
+// round-trip pile-up); ResizeObserver → FitAddon → POST resize; incoming
 // pty:data frames (via ptyBus) are written to the terminal with seq dedup against
 // the scrollback replayed on mount from GET /pty/:id/buffer.
 export function TerminalView({ sessionId, active, fresh }) {
   const hostRef = useRef(null);
   const termRef = useRef(null);
   const fitRef = useRef(null);
-  const sendChain = useRef(Promise.resolve());
   const lastSeq = useRef(-1);
   const replayed = useRef(false);
   const pending = useRef([]);
@@ -54,13 +54,22 @@ export function TerminalView({ sessionId, active, fresh }) {
     };
     doFit();
 
-    // Per-session FIFO: each input POST awaits the prior one so keystrokes land
-    // in order even though fetch resolves out of order.
-    const onData = term.onData((data) => {
-      sendChain.current = sendChain.current.then(() =>
-        api.sendPtyInput(sessionId, data).catch(() => {})
-      );
-    });
+    // Coalescing input queue: keystrokes append to a buffer flushed as ONE POST.
+    // While a POST is in flight, further keys accumulate and ship in the next
+    // payload rather than queueing a serialized round-trip per key — order is
+    // preserved (single in-flight POST, appended in type order).
+    let inputBuf = "";
+    let sending = false;
+    const flushInput = () => {
+      if (sending || !inputBuf) return;
+      const payload = inputBuf;
+      inputBuf = "";
+      sending = true;
+      api.sendPtyInput(sessionId, payload)
+        .catch(() => {})
+        .finally(() => { sending = false; flushInput(); });
+    };
+    const onData = term.onData((data) => { inputBuf += data; flushInput(); });
 
     const writeFrame = (f) => {
       if (f.seq <= lastSeq.current) return;

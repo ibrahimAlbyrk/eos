@@ -1,9 +1,9 @@
-import { openTab, closeTab, switchTab, setPanelOpen } from "../../state/ptyPanelStore.js";
+import { openTab, closeTab, switchTab } from "../../state/ptyPanelStore.js";
 
 // Tab bar for the PTY panel: pill tabs "Terminal N" each with its own ×, a
 // trailing "+" to open a new session, and a FAR-RIGHT × that closes the whole
 // panel (sessions persist — panel-close never kills a PTY).
-export function TerminalTabBar({ tabs, activeId }) {
+export function TerminalTabBar({ tabs, activeId, onClosePanel }) {
   return (
     <div className="pty-tabbar">
       <div className="pty-tabs">
@@ -38,7 +38,7 @@ export function TerminalTabBar({ tabs, activeId }) {
       </div>
       <button
         className="pty-panel__close"
-        onClick={() => setPanelOpen(false)}
+        onClick={onClosePanel}
         aria-label="Close terminal panel"
         title="Close panel"
       >
