@@ -9,6 +9,7 @@ import { MonitorWidget } from "./components/monitor/MonitorWidget.jsx";
 import { NativeToggleZone } from "./components/layout/NativeToggleZone.jsx";
 import { SideHandle } from "./components/layout/SideHandle.jsx";
 import { SidebarPopup } from "./components/layout/SidebarPopup.jsx";
+import { ToastViewport } from "./components/toast/ToastViewport.jsx";
 import { getViewComponent, getViewSidebar } from "./views/registry.js";
 
 function Shell() {
@@ -54,6 +55,7 @@ function Shell() {
       <CommandPalette live={live} />
       <MonitorWidget live={live} />
       <SettingsModal />
+      <ToastViewport />
     </>
   );
 }
