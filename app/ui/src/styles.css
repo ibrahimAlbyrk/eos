@@ -1195,7 +1195,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    web bar's lower 60px-strip centerline. */
 html.native .pane-head {
   height: auto;
-  padding: 13px 16px 0;
+  /* 11px top + 24px button row / 2 = content center-y 23px — the traffic-light
+     line (main.swift TrafficLightPositioner: AppKit's 26 nudged up 3). */
+  padding: 11px 16px 0;
 }
 /* Top-ROW split panes: the pane island sits 7px below the window top (3px
    .pane-grid margin + 3px .pane inset + 1px .pane border), which pushed the bar
@@ -1207,7 +1209,7 @@ html.native .pane-head {
   height: 53px;
   padding-top: 11px;
 }
-html.native .pane-head--toprow { padding-top: 6px; }
+html.native .pane-head--toprow { padding-top: 4px; } /* 7px chrome + 4 + 12 = 23 */
 /* Below-bar fade scrim (ported from the original .head::after): veils the
    transcript's top 48px as it scrolls under the bar. Hidden while scrolled to
    the very top (msgs-at-top, toggled by Messages) and in split mode, where each
