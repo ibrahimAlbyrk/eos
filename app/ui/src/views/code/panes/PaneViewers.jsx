@@ -19,7 +19,7 @@ export function PaneViewers({ live }) {
       <CommitsViewer />
       <ConflictResolver live={live} />
       <MemoryViewer />
-      <TerminalViewer />
+      <TerminalViewer live={live} />
     </>
   );
 }

@@ -32,8 +32,8 @@ export function getPtyPanel() {
 
 // Open a new session: POST /pty → push the server-numbered tab → activate it.
 // cols/rows seed the PTY; TerminalView re-fits and POSTs the real size on mount.
-export async function openTab({ cols = 80, rows = 24 } = {}) {
-  const r = await api.createPty({ cols, rows });
+export async function openTab({ cols = 80, rows = 24, cwd } = {}) {
+  const r = await api.createPty({ cols, rows, cwd });
   const s = r?.body;
   if (!r?.ok || !s?.sessionId) return null;
   tabs = [...tabs, { sessionId: s.sessionId, number: s.number, exited: false, fresh: true }];
@@ -44,7 +44,7 @@ export async function openTab({ cols = 80, rows = 24 } = {}) {
 
 // Close a tab: DELETE /pty/:id, drop it. If it was the LAST tab, immediately
 // open a fresh one so the panel never shows zero tabs (spec).
-export async function closeTab(sessionId) {
+export async function closeTab(sessionId, { cwd } = {}) {
   await api.killPty(sessionId);
   const idx = tabs.findIndex((t) => t.sessionId === sessionId);
   const wasActive = activeId === sessionId;
@@ -52,7 +52,7 @@ export async function closeTab(sessionId) {
   if (tabs.length === 0) {
     activeId = null;
     emit();
-    await openTab();
+    await openTab({ cwd });
     return;
   }
   if (wasActive) {

@@ -3,7 +3,7 @@ import { openTab, closeTab, switchTab } from "../../state/ptyPanelStore.js";
 // Tab bar for the PTY panel: pill tabs each with its own ×, a
 // trailing "+" to open a new session, and a FAR-RIGHT × that closes the whole
 // panel (sessions persist — panel-close never kills a PTY).
-export function TerminalTabBar({ tabs, activeId, onClosePanel }) {
+export function TerminalTabBar({ tabs, activeId, cwd, onClosePanel }) {
   return (
     <div className="pty-tabbar">
       <div className="pty-tabs">
@@ -20,7 +20,7 @@ export function TerminalTabBar({ tabs, activeId, onClosePanel }) {
               <span className="pty-tab__label">{label}</span>
               <button
                 className="pty-tab__close"
-                onClick={(e) => { e.stopPropagation(); closeTab(t.sessionId); }}
+                onClick={(e) => { e.stopPropagation(); closeTab(t.sessionId, { cwd }); }}
                 aria-label={`Close ${label}`}
                 title="Close tab"
               >
@@ -31,7 +31,7 @@ export function TerminalTabBar({ tabs, activeId, onClosePanel }) {
             </div>
           );
         })}
-        <button className="pty-tab__add" onClick={() => openTab()} aria-label="New terminal" title="New terminal">
+        <button className="pty-tab__add" onClick={() => openTab({ cwd })} aria-label="New terminal" title="New terminal">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
             <path d="M8 3v10M3 8h10" />
           </svg>

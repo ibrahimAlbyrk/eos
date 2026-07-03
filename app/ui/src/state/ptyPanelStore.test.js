@@ -114,6 +114,24 @@ describe("ptyPanelStore", () => {
     expect(getPtyPanel().tabs.map((t) => t.number)).toEqual([1, 2]);
   });
 
+  it("openTab forwards cwd to POST /pty when given, and omits it when absent", async () => {
+    const bodies = [];
+    let n = 0;
+    vi.stubGlobal("fetch", vi.fn(async (url, opts = {}) => {
+      const path = new URL(url).pathname;
+      if (path === "/pty" && (opts.method ?? "GET") === "POST") {
+        bodies.push(JSON.parse(opts.body));
+        n += 1;
+        return { ok: true, status: 200, json: async () => ({ sessionId: `s${n}`, number: n, alive: true }) };
+      }
+      return { ok: true, status: 200, json: async () => ({ ok: true }) };
+    }));
+    await openTab({ cwd: "/proj/alpha" });
+    await openTab();
+    expect(bodies[0].cwd).toBe("/proj/alpha");
+    expect("cwd" in bodies[1]).toBe(false); // undefined cwd is dropped from the payload
+  });
+
   it("getPtyPanel returns a stable reference between emits (useSyncExternalStore contract)", () => {
     expect(getPtyPanel()).toBe(getPtyPanel());
   });
