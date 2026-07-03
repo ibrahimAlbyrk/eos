@@ -26,8 +26,14 @@ export function TerminalView({ sessionId, active }) {
     const host = hostRef.current;
     if (!host) return;
 
-    const accent =
-      getComputedStyle(document.documentElement).getPropertyValue("--accent").trim() || "#ebebeb";
+    // Resolve the panel's theme colors to concrete values for xterm's ITheme
+    // (xterm can't read CSS vars): match the diff/panel island bg (--surface-2)
+    // and foreground (--fg) so the terminal follows the app theme in both modes.
+    const root = getComputedStyle(document.documentElement);
+    const cssVar = (name, fallback) => root.getPropertyValue(name).trim() || fallback;
+    const bg = cssVar("--surface-2", cssVar("--bg", "#252525"));
+    const fg = cssVar("--fg", "#ebebeb");
+    const accent = cssVar("--accent", fg);
     const term = new Terminal({
       cursorBlink: true,
       cursorStyle: "block",
@@ -35,7 +41,7 @@ export function TerminalView({ sessionId, active }) {
         getComputedStyle(document.documentElement).getPropertyValue("--font-mono").trim() ||
         "monospace",
       fontSize: 12,
-      theme: { background: "#1a1a1a", foreground: "#ebebeb", cursor: accent },
+      theme: { background: bg, foreground: fg, cursor: accent },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
