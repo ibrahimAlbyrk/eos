@@ -34,7 +34,7 @@ describe("archived-row context menu", () => {
   it("Restore runs directly; permanent delete is confirm-gated and hits purge", () => {
     expect(archiveCtxSrc).toContain("live.restoreAgent(");
     expect(archiveCtxSrc).toContain("live.purgeAgent(");
-    expect(archiveCtxSrc).toContain("BranchConfirmDialog");
+    expect(archiveCtxSrc).toContain("DeleteConfirmDialog");
     // Restore must NOT sit behind the confirm state; only delete sets it.
     expect(archiveCtxSrc).toMatch(/onClick={\(\) => runRestore\(agentId\)}/);
     expect(archiveCtxSrc).toMatch(/setConfirmId\(agentId\)/);

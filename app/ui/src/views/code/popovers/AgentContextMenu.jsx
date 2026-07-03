@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { useSettings } from "../../../state/settings.jsx";
 import { useArchiveAgent, useKillAgent } from "../../../hooks/useArchiveAgent.js";
-import { BranchConfirmDialog } from "./BranchConfirmDialog.jsx";
+import { DeleteConfirmDialog } from "./DeleteConfirmDialog.jsx";
 import { fanoutLayout } from "../../../lib/paneLayout.js";
 import { isRunning } from "../../../lib/agentActivity.js";
 import { subtreeIds } from "../../../lib/tree.js";
 import { nameOf } from "../../../lib/agentName.js";
 import { permanentDeleteMessage } from "../../../lib/archive.js";
+import { DELETE_CONFIRM_KEY, shouldConfirmDelete } from "../../../lib/deleteConfirm.js";
 import { api } from "../../../api/client.js";
 
 export function AgentContextMenu({ live }) {
   const ui = useUi();
+  const { settings, setSetting } = useSettings();
   const archiveAgent = useArchiveAgent(live);
   const killAgent = useKillAgent(live);
   // Held OUTSIDE the popover-open gate: picking "Delete" closes the menu, and
@@ -22,8 +25,9 @@ export function AgentContextMenu({ live }) {
   const doomed = confirmId ? live.workers.find((w) => w.id === confirmId) ?? null : null;
   if (!open && !doomed) return null;
 
-  const confirmKill = async () => {
+  const confirmKill = async (dontAskAgain) => {
     if (!doomed || busy) return;
+    if (dontAskAgain) setSetting(DELETE_CONFIRM_KEY, false);
     setBusy(true);
     await killAgent(doomed.id);
     setBusy(false);
@@ -55,6 +59,13 @@ export function AgentContextMenu({ live }) {
       ui.closeAllPops();
     };
 
+    // Same download path as the /export slash command (Composer): tree export
+    // for orchestrators, single-agent otherwise.
+    const exportAgent = () => {
+      api.exportWorker(agentId, { tree: !!agent?.is_orchestrator });
+      ui.closeAllPops();
+    };
+
     // Direct archive, no confirm (deliberate) — archiving is fully reversible
     // from the archive list; rows, transcript, worktree and branch are all kept.
     // Selection re-targeting + the pre-POST selection switch live in
@@ -63,7 +74,7 @@ export function AgentContextMenu({ live }) {
 
     // Clamp to viewport
     const left = Math.min(x, window.innerWidth - 220);
-    const top = Math.min(y, window.innerHeight - (canFanout ? 235 : 190));
+    const top = Math.min(y, window.innerHeight - (canFanout ? 265 : 220));
 
     menu = (
       <div
@@ -91,6 +102,12 @@ export function AgentContextMenu({ live }) {
           </svg>
           Rename
         </button>
+        <button className="menu-item" onClick={exportAgent}>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M8 2v8M4.5 7 8 10.5 11.5 7M3 13.5h10" />
+          </svg>
+          Export
+        </button>
         <div className="menu-sep"></div>
         <button className="menu-item" onClick={archive}>
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -100,7 +117,13 @@ export function AgentContextMenu({ live }) {
         </button>
         <button
           className="menu-item danger"
-          onClick={() => { setConfirmId(agentId); ui.closeAllPops(); }}
+          onClick={() => {
+            // "Don't ask again" suppresses the confirm — kill directly (the
+            // removal funnel closes the menu itself).
+            if (!shouldConfirmDelete(settings)) { killAgent(agentId); return; }
+            setConfirmId(agentId);
+            ui.closeAllPops();
+          }}
         >
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M2.5 4.5h11M6.5 2.5h3M5 4.5V13a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V4.5M6.5 7.5v4M9.5 7.5v4" />
@@ -115,10 +138,8 @@ export function AgentContextMenu({ live }) {
     <>
       {menu}
       {doomed && (
-        <BranchConfirmDialog
+        <DeleteConfirmDialog
           message={permanentDeleteMessage(nameOf(doomed), subtreeIds(live.workers, doomed.id).length)}
-          confirmLabel="Delete permanently"
-          danger
           busy={busy}
           onConfirm={confirmKill}
           onCancel={() => { if (!busy) setConfirmId(null); }}

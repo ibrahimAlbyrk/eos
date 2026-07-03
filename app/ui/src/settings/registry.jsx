@@ -145,6 +145,27 @@ export const SETTINGS_SECTIONS = [
           },
         ],
       },
+      {
+        title: "Confirmations",
+        items: [
+          {
+            key: "confirm.agentDelete",
+            label: "Confirm before deleting agents",
+            description:
+              "Show a confirmation dialog before an agent (and its subtree) is permanently deleted from the menus. Ticking \"Don't ask again\" in the dialog turns this off.",
+            control: { type: "toggle" },
+            defaultValue: true,
+          },
+          {
+            key: "confirm.archivePurge",
+            label: "Confirm before purging archived agents",
+            description:
+              "Show a confirmation dialog before an archived agent (and its subtree) is permanently deleted from the Archive view. Ticking \"Don't ask again\" in the dialog turns this off.",
+            control: { type: "toggle" },
+            defaultValue: true,
+          },
+        ],
+      },
     ],
   },
   {

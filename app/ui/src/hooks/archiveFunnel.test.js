@@ -58,9 +58,9 @@ describe("Cmd+W funnel archives; delete is menu-only and shares the funnel", () 
 
   it("delete is danger-styled and confirm-gated in both menus", () => {
     expect(ctxMenuSrc).toContain('className="menu-item danger"');
-    expect(ctxMenuSrc).toContain("BranchConfirmDialog");
+    expect(ctxMenuSrc).toContain("DeleteConfirmDialog");
     expect(headMenuSrc).toContain('label: "Delete", danger: true');
-    expect(headMenuSrc).toContain("BranchConfirmDialog");
+    expect(headMenuSrc).toContain("DeleteConfirmDialog");
   });
 
   it("useLive exposes the archive/restore/purge/kill wrappers", () => {

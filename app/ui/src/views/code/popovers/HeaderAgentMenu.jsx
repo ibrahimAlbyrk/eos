@@ -1,16 +1,19 @@
 import { useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { useSettings } from "../../../state/settings.jsx";
 import { useArchiveAgent, useKillAgent } from "../../../hooks/useArchiveAgent.js";
-import { BranchConfirmDialog } from "./BranchConfirmDialog.jsx";
+import { DeleteConfirmDialog } from "./DeleteConfirmDialog.jsx";
 import { subtreeIds } from "../../../lib/tree.js";
 import { nameOf } from "../../../lib/agentName.js";
 import { permanentDeleteMessage } from "../../../lib/archive.js";
+import { DELETE_CONFIRM_KEY, shouldConfirmDelete } from "../../../lib/deleteConfirm.js";
 import { api } from "../../../api/client.js";
 import { MenuList } from "./MenuList.jsx";
 
 // Breadcrumb chevron dropdown — acts on the currently selected agent.
 export function HeaderAgentMenu({ live, onRename }) {
   const ui = useUi();
+  const { settings, setSetting } = useSettings();
   const archiveAgent = useArchiveAgent(live);
   const killAgent = useKillAgent(live);
   // Survives the menu closing on item click (MenuList runs onClose after run).
@@ -29,8 +32,9 @@ export function HeaderAgentMenu({ live, onRename }) {
     });
   };
 
-  const confirmKill = async () => {
+  const confirmKill = async (dontAskAgain) => {
     if (busy) return;
+    if (dontAskAgain) setSetting(DELETE_CONFIRM_KEY, false);
     setBusy(true);
     await killAgent(agent.id);
     setBusy(false);
@@ -48,11 +52,14 @@ export function HeaderAgentMenu({ live, onRename }) {
     },
     "sep",
     { id: "rename", label: "Rename", kbd: "R", run: () => onRename(agent.id) },
+    // Same download path as the /export slash command: tree export for orchestrators.
+    { id: "export", label: "Export", kbd: "E", run: () => api.exportWorker(agent.id, { tree: !!agent.is_orchestrator }) },
     "sep",
     // kbd "⌘W" is display-only (MenuList's single-keypress match never fires
     // on a multi-char kbd) — it advertises the real hotkey, not a menu key.
     { id: "archive", label: "Archive", kbd: "⌘W", run: () => archiveAgent(agent.id) },
-    { id: "delete", label: "Delete", danger: true, run: () => setConfirming(true) },
+    // "Don't ask again" suppresses the confirm — kill directly.
+    { id: "delete", label: "Delete", danger: true, run: () => (shouldConfirmDelete(settings) ? setConfirming(true) : killAgent(agent.id)) },
   ];
 
   return (
@@ -63,10 +70,8 @@ export function HeaderAgentMenu({ live, onRename }) {
         </div>
       )}
       {confirming && (
-        <BranchConfirmDialog
+        <DeleteConfirmDialog
           message={permanentDeleteMessage(nameOf(agent), subtreeIds(live.workers, agent.id).length)}
-          confirmLabel="Delete permanently"
-          danger
           busy={busy}
           onConfirm={confirmKill}
           onCancel={() => { if (!busy) setConfirming(false); }}
