@@ -40,7 +40,10 @@ export function ArchiveSidebar() {
 
 function ArchiveNode({ node, selectedId, isRoot = false }) {
   const ui = useUi();
-  const collapsed = ui.collapsedNodes.has(node.id);
+  // Archived subtrees start COLLAPSED (inverse of the live tree): membership in
+  // the shared collapse store means "user expanded this archived node", so an
+  // untouched orchestrator hides its workers until its chevron is clicked.
+  const collapsed = !ui.collapsedNodes.has(node.id);
   const hasChildren = node.children.length > 0;
 
   const onCtx = (e) => {
