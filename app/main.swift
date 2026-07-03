@@ -311,6 +311,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         let theme = initialTheme()
 
         webView = EosWebView(frame: .zero, configuration: cfg)
+        // macOS 13.3+ gates Safari Web Inspector attach behind isInspectable
+        // (developerExtrasEnabled alone no longer opens it). Local self-signed
+        // dev app, so keeping it always-on is fine.
+        if #available(macOS 13.3, *) { webView.isInspectable = true }
         webView.navigationDelegate = self
         webView.wantsLayer = true
         webView.layer?.backgroundColor = themeBackground(theme).cgColor
