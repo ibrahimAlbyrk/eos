@@ -58,9 +58,12 @@ function deduplicatedFetchJson(url) {
   return p;
 }
 
-async function getJson(path, { signal } = {}) {
+async function getJson(path, { signal, headers } = {}) {
   const url = `${DAEMON}${path}`;
-  return signal ? fetchJson(url, { signal }) : deduplicatedFetchJson(url);
+  // headers (e.g. a UI token on a gated GET) vary per caller, so they can't ride
+  // the shared-URL dedup cache — go straight to fetchJson like the signal path.
+  if (signal || headers) return fetchJson(url, { signal, headers });
+  return deduplicatedFetchJson(url);
 }
 
 async function postJson(path, body, extraHeaders) {
@@ -658,6 +661,29 @@ export const api = {
   },
   async killTerminal(runId) {
     return postJson(ROUTES.terminalKill(runId), {}, uiTokenHeader());
+  },
+
+  // Interactive PTY sessions (the embedded terminal panel). EVERY /pty route is
+  // UI-token gated daemon-side (a raw shell is arbitrary exec), so list + buffer
+  // carry the token too — not just the mutations; without it reattach and
+  // scrollback replay 403.
+  async createPty({ cols, rows, cwd } = {}) {
+    return postJson(ROUTES.pty, { cols, rows, cwd }, uiTokenHeader());
+  },
+  async listPty() {
+    return getJson(ROUTES.pty, { headers: uiTokenHeader() });
+  },
+  async sendPtyInput(id, data) {
+    return postJson(ROUTES.ptyInput(id), { data }, uiTokenHeader());
+  },
+  async resizePty(id, cols, rows) {
+    return postJson(ROUTES.ptyResize(id), { cols, rows }, uiTokenHeader());
+  },
+  async getPtyBuffer(id) {
+    return getJson(ROUTES.ptyBuffer(id), { headers: uiTokenHeader() });
+  },
+  async killPty(id) {
+    return del(ROUTES.ptySession(id), uiTokenHeader());
   },
 
   // Try (unstaged apply) — state is a read; apply/keep/discard mutate the

@@ -13,6 +13,8 @@ import { usePendingPermissions } from "./usePendingPermissions.js";
 import { applyCatalog } from "../lib/models.js";
 import { applyDescriptors, applyProfiles } from "../lib/backendCaps.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
+import { emitPtyData, emitPtyExit } from "../state/ptyBus.js";
+import { markExited } from "../state/ptyPanelStore.js";
 import { applyDelta, dropWorker as dropThinking } from "../state/thinkingStore.js";
 import { isRunning } from "../lib/agentActivity.js";
 import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
@@ -129,6 +131,11 @@ export function useLive() {
           // route them to the terminal store and skip the refetch entirely.
           if (data.reason === "terminal:chunk") { applyChunk(data.payload ?? {}); return; }
           if (data.reason === "terminal:done") applyDone(data.payload ?? {});
+          // Interactive-PTY bytes/exit — high-frequency live data routed straight
+          // to the matching xterm via ptyBus (seq dedup lives in TerminalView);
+          // pty:exit also flags the tab. Not a worker delta, so skip the refetch.
+          if (data.reason === "pty:data") { emitPtyData(data.payload ?? {}); return; }
+          if (data.reason === "pty:exit") { const p = data.payload ?? {}; emitPtyExit(p); if (p.sessionId) markExited(p.sessionId); return; }
           // Live reasoning/text deltas (claude-sdk / in-process) — high-frequency
           // live data, not a state delta; route to the thinking store, skip refetch.
           if (data.reason === "agent:delta") { applyDelta(data.payload ?? {}); return; }

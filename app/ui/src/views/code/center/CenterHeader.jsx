@@ -8,6 +8,7 @@ import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { PanePresets } from "./PanePresets.jsx";
 import { SplitEmptyButton } from "./SplitEmptyButton.jsx";
 import { FollowButton } from "./FollowButton.jsx";
+import { TerminalToggleButton } from "./TerminalToggleButton.jsx";
 
 export function CenterHeader({ live }) {
   const ui = useUi();
@@ -76,6 +77,7 @@ export function CenterHeader({ live }) {
         )}
       </div>
       <div className="right">
+        <TerminalToggleButton />
         <FollowButton />
         <SplitEmptyButton />
         <PanePresets />

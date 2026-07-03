@@ -91,6 +91,13 @@ export const ROUTES = {
   workerTerminal: (id) => `/workers/${id}/terminal`,
   terminal: "/terminal",
   terminalKill: (runId) => `/terminal/${runId}/kill`,
+  // Interactive multi-tab PTY sessions (the embedded terminal panel). Distinct
+  // from the one-shot `!` terminal above — own `/pty*` namespace + bus events.
+  pty: "/pty",
+  ptySession: (id) => `/pty/${id}`,
+  ptyInput: (id) => `/pty/${id}/input`,
+  ptyResize: (id) => `/pty/${id}/resize`,
+  ptyBuffer: (id) => `/pty/${id}/buffer`,
   workerTryState: (id) => `/workers/${id}/try/state`,
   workerTry: (id) => `/workers/${id}/try`,
   workerTryKeep: (id) => `/workers/${id}/try/keep`,

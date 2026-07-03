@@ -1,6 +1,8 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { subscribe, getArchive } from "../../state/archiveStore.js";
+import { subscribe as subscribePty, getPtyPanel } from "../../state/ptyPanelStore.js";
+import { TerminalPanel } from "../../components/terminal/TerminalPanel.jsx";
 import { useAgentSwitchHotkeys } from "../../hooks/useAgentSwitchHotkeys.js";
 import { usePaneFocusHotkeys } from "../../hooks/usePaneFocusHotkeys.js";
 import { useArchiveAgentHotkey } from "../../hooks/useArchiveAgentHotkey.js";
@@ -20,6 +22,7 @@ import { ArchiveContextMenu } from "../archive/ArchiveContextMenu.jsx";
 export function CodeView({ live }) {
   const ui = useUi();
   const { archiveMode } = useSyncExternalStore(subscribe, getArchive);
+  const { panelOpen } = useSyncExternalStore(subscribePty, getPtyPanel);
 
   // One capture-phase window listener for every keymap binding below (and any
   // future view binding) — replaces the per-hook listeners one at a time.
@@ -123,11 +126,12 @@ export function CodeView({ live }) {
   // The right panels dock as a sibling surface immediately right of the FOCUSED
   // pane, INSIDE the pane grid (see PaneGrid/SinglePane) — not the window's right
   // column — so the window grid never resizes for a panel. Only `split` remains.
-  const gridClass = ui.paneCount > 1 ? "split" : "";
+  const gridClass = [ui.paneCount > 1 ? "split" : "", panelOpen ? "pty-open" : ""].filter(Boolean).join(" ");
 
   return (
     <AppLayout
       gridClass={gridClass}
+      rightPanel={panelOpen ? <TerminalPanel /> : null}
       sidebar={(variant) => <CodeSidebar live={live} variant={variant} />}
       main={
         archiveMode ? (
