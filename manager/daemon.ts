@@ -34,6 +34,8 @@ import { createMemoCommandRunner } from "../infra/src/goalcheck/MemoCommandRunne
 import { appendSynthesized } from "./shared/synthesized-events.ts";
 import { GoalLoopService } from "./services/GoalLoopService.ts";
 import { ReportGapService } from "./services/ReportGapService.ts";
+import { ContextThresholdService } from "./services/ContextThresholdService.ts";
+import { suspendWorker } from "./commands/handlers/suspend-worker.ts";
 import { makePermissionAskPush } from "./services/permission-ask-push.ts";
 import { reArmLoops, stopLoopForExitedWorker } from "./services/loop-rearm.ts";
 import { reArmWorkflows } from "./services/workflow-rearm.ts";
@@ -220,6 +222,21 @@ const reportGap = new ReportGapService({
 });
 reportGap.start();
 
+// Context-budget watcher (R3/R4). Sibling of reportGap: rides the same IDLE edge
+// and, when a worker crosses ~90%/~95% of its model context window, notifies the
+// worker's parent (system_message) and — at full — auto-suspends the worker with
+// its worktree preserved. Exactly-once per crossing via the persistent latch.
+const contextThreshold = new ContextThresholdService({
+  workers: c.workers,
+  marks: c.contextMarks,
+  contextWindowFor: (model) => c.modelCatalog.contextWindowFor(model),
+  dispatch: (input) => dispatchMessage(dispatchDeps(c), input),
+  suspend: (id, reason) => suspendWorker(c, id, reason),
+  warnRatio: c.config.context.warnRatio,
+  fullRatio: c.config.context.fullRatio,
+  log: c.log,
+});
+
 const draining = new Set<string>();
 const drainFor = (workerId: string): void => {
   if (draining.has(workerId)) return;
@@ -259,6 +276,9 @@ const drainFor = (workerId: string): void => {
       // reported this life. Self-excludes looped and already-reported workers,
       // so at most one of these two fires.
       reportGap.checkOnIdle(workerId);
+      // Sibling of the report-gap nudge: warn the parent at ~90% context and
+      // auto-suspend the worker at ~95% (worktree preserved). Latched exactly-once.
+      contextThreshold.checkOnIdle(workerId);
     }
   });
 };

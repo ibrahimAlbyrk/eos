@@ -66,6 +66,7 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
   private readonly stmtInsert;
   private readonly stmtFindById;
   private readonly stmtFindActiveByWorker;
+  private readonly stmtFindAnyByWorker;
   private readonly stmtListActive;
   private readonly stmtSetStatus;
   private readonly stmtAmend;
@@ -88,6 +89,9 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
     this.stmtFindById = db.prepare("SELECT * FROM worker_loops WHERE id = ?");
     this.stmtFindActiveByWorker = db.prepare(
       "SELECT * FROM worker_loops WHERE worker_id = ? AND status = 'active' LIMIT 1",
+    );
+    this.stmtFindAnyByWorker = db.prepare(
+      "SELECT * FROM worker_loops WHERE worker_id = ? ORDER BY started_at DESC LIMIT 1",
     );
     this.stmtListActive = db.prepare("SELECT * FROM worker_loops WHERE status = 'active' ORDER BY started_at ASC");
     this.stmtSetStatus = db.prepare("UPDATE worker_loops SET status = ?, updated_at = ? WHERE id = ?");
@@ -135,6 +139,11 @@ export class SqliteLoopStateRepo implements LoopStateRepo {
 
   findActiveByWorker(workerId: string): LoopRow | null {
     const r = this.stmtFindActiveByWorker.get(workerId) as Row | undefined;
+    return r ? toLoopRow(r) : null;
+  }
+
+  findAnyByWorker(workerId: string): LoopRow | null {
+    const r = this.stmtFindAnyByWorker.get(workerId) as Row | undefined;
     return r ? toLoopRow(r) : null;
   }
 

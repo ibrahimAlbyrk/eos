@@ -340,6 +340,17 @@ export const MIGRATIONS: Migration[] = [
   // Orthogonal archive flag (epoch ms; NULL = not archived). NULL default keeps
   // every pre-feature row live; no index — the table holds tens of rows (ADR-6).
   { id: "056_workers_add_archived_at", sql: "ALTER TABLE workers ADD COLUMN archived_at INTEGER" },
+  // Exactly-once latch for context-threshold notifications (R3/R4). The composite
+  // PK gives one row per (worker, stage), so an INSERT ... ON CONFLICT DO NOTHING
+  // fires the warn/full heads-up at most once per context epoch (cleared on reset).
+  { id: "057_worker_context_marks", sql: `
+    CREATE TABLE IF NOT EXISTS worker_context_marks (
+      worker_id TEXT NOT NULL,
+      stage TEXT NOT NULL,
+      marked_at INTEGER NOT NULL,
+      PRIMARY KEY (worker_id, stage)
+    )
+  ` },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

@@ -138,6 +138,10 @@ export interface SpawnWorkerDeps {
   /** Capability lookup for effort normalization. Absent (unit tests,
    *  standalone) → requested effort passes through unchanged. */
   caps?: ModelCapabilities;
+  /** True while an intentional suspend for this worker is in flight. When set,
+   *  onExit skips markDone so the SUSPENDED state survives the session stop's
+   *  async process exit (see SuspendGuardService). Absent → normal markDone. */
+  isSuspending?(workerId: string): boolean;
 }
 
 // Classify who authored the boot prompt and wrap it in that sender's tag. Pure
@@ -273,7 +277,10 @@ export async function spawnWorker(
   // it here.
   const onExit = (code: number | null): void => {
     const now = deps.clock.now();
-    deps.workers.markDone(id, now, code);
+    // An intentional suspend already set SUSPENDED — don't let this stop-driven
+    // exit clobber it back to DONE. The exit event + bus signal still fire so the
+    // process death is recorded and downstream cleanup (loops, peers) runs.
+    if (!deps.isSuspending?.(id)) deps.workers.markDone(id, now, code);
     deps.events.append(id, now, "exit", { code });
     deps.bus.publish("worker:exit", { workerId: id, code });
   };

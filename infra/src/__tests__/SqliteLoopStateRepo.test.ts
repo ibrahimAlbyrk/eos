@@ -56,6 +56,19 @@ describe("SqliteLoopStateRepo round-trip", () => {
     assert.equal(repo.findById("l-1")?.status, "passed");
   });
 
+  it("findAnyByWorker resolves a terminal loop that findActiveByWorker no longer sees", () => {
+    repo.insert(input("l-1", "w-1"));
+    repo.setStatus("l-1", "passed");
+
+    assert.equal(repo.findActiveByWorker("w-1"), null);
+    const any = repo.findAnyByWorker("w-1");
+    assert.ok(any);
+    assert.equal(any.id, "l-1");
+    assert.equal(any.status, "passed");
+    // A worker that never looped resolves to null.
+    assert.equal(repo.findAnyByWorker("w-none"), null);
+  });
+
   it("the partial unique index allows only one active loop per worker", () => {
     repo.insert(input("l-1", "w-1"));
     assert.throws(() => repo.insert(input("l-2", "w-1")), /UNIQUE|constraint/i);

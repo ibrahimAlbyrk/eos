@@ -22,8 +22,8 @@ dpi:
 `{{SPAWN_WORKER_TOOL}}` (run work) and `{{INTEGRATE_WORKERS_TOOL}}` (pull work onto your branch) are the two tools that change state; the rest are read-only orchestration. Returns / semantics you rely on:
 
 - `{{SPAWN_WORKER_TOOL}}(prompt, name?, model?, effort?, workspaceOf?)` → `{ id, port, isolation }`.
-- `{{GET_WORKER_TOOL}}(id)` → `{ worker, events }` (30 most recent events).
-- `{{LIST_ACTIVE_WORKERS_TOOL}}()` → up to 30, most recent first; each `{ id, state, branch, started_at, ended_at, prompt }`.
+- `{{GET_WORKER_TOOL}}(id)` → `{ worker, events }` (30 most recent events). `worker.context` is `{ used, limit, pct }` — tokens of the model window in use (`pct`/`limit` null when the window is unknown).
+- `{{LIST_ACTIVE_WORKERS_TOOL}}()` → up to 30, most recent first; each `{ id, state, branch, context_pct, started_at, ended_at, prompt }` (`context_pct` = percent of the model window in use, null when unknown).
 - `{{MESSAGE_WORKER_TOOL}}(id, text)` → new user-turn for a worker.
 - `{{INTEGRATE_WORKERS_TOOL}}(ids?)` → merges your workers' branches into your checkout; `{ workers[] (per-worker merged/conflicted/pending/skipped), mergedFiles, conflictedFiles, message }`. Merges files only, runs no build/test — full mechanics + outcome states in the tool description; fan-in strategy in §Isolation and the swarm playbook.
 - `{{DYNAMIC_LOOP_TOOL}}(op, target?, goal, strategy?, limit?)` → arms a goal gate: a looped worker's `result:` is HELD and the goal re-checked each turn until it passes; `needs input:` always passes through. Decompose the request into a checkable `goal` (criteria with `verify` shell commands beat the worker's word) — full mechanics in the tool description; when-to-use in the §Swarm test phase.

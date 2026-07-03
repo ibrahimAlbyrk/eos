@@ -75,6 +75,19 @@ describe("DPI assembles per-role system prompts", () => {
     assert.doesNotMatch(r.text, /\{\{[A-Z]/); // no unresolved {{UPPER_SNAKE}} tool var
   });
 
+  it("orchestrator → context-awareness fragment embedded; absent from worker prompt", async () => {
+    const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "orchestrator", parentId: null });
+    assert.ok(r.activeFragmentIds.includes("role/orchestrator/09b-context-awareness"));
+    assert.match(r.text, /## Worker context budgets/); // embedded
+    assert.match(r.text, /context_threshold/); // threshold system_message named
+    assert.match(r.text, /get_worker_messages/); // handoff tool named (literal — no {{var}})
+    assert.match(r.text, /`get_worker`/); // {{GET_WORKER_TOOL}} resolved
+    assert.doesNotMatch(r.text, /\{\{[A-Z]/); // no unresolved {{UPPER_SNAKE}} var
+    // Orchestrator-only: a plain worker must NOT carry it.
+    const worker = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker" });
+    assert.ok(!worker.activeFragmentIds.includes("role/orchestrator/09b-context-awareness"));
+  });
+
   it("orchestrator → workflows guidance embedded; absent from worker + subagent prompts", async () => {
     const orch = await assembleSystemPrompt(deps(), { ...baseCtx, role: "orchestrator", parentId: null });
     assert.ok(orch.activeFragmentIds.includes("role/orchestrator/17-workflows"));

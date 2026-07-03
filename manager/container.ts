@@ -59,6 +59,7 @@ import { SqliteMessageQueueRepo } from "../infra/src/persistence/SqliteMessageQu
 import { SqlitePendingRepo } from "../infra/src/persistence/SqlitePendingRepo.ts";
 import { SqliteWorktreeRemovalQueue } from "../infra/src/persistence/SqliteWorktreeRemovalQueue.ts";
 import { SqliteLoopStateRepo } from "../infra/src/persistence/SqliteLoopStateRepo.ts";
+import { SqliteContextMarkRepo } from "../infra/src/persistence/SqliteContextMarkRepo.ts";
 import { SqliteWorkflowRunRepo } from "../infra/src/persistence/SqliteWorkflowRunRepo.ts";
 import { SqliteWorkflowStepRepo } from "../infra/src/persistence/SqliteWorkflowStepRepo.ts";
 import { SqliteRuntimeWorkflowDefinitionStore } from "../infra/src/persistence/SqliteRuntimeWorkflowDefinitionStore.ts";
@@ -149,6 +150,7 @@ import { assembleSystemPrompt } from "../core/src/use-cases/AssembleSystemPrompt
 import { TOOL_NAME_VARS } from "./prompt-tool-names.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
+import { SuspendGuardService } from "./services/SuspendGuardService.ts";
 import { TurnOutputTrackerService } from "./services/TurnOutputTracker.ts";
 import { StartupBackupService } from "./services/StartupBackupService.ts";
 import { FilePromptSource } from "../infra/src/prompt/FilePromptSource.ts";
@@ -212,6 +214,7 @@ export function buildContainer() {
   const messageQueue = new SqliteMessageQueueRepo(db);
   const worktreeRemovals = new SqliteWorktreeRemovalQueue(db);
   const loops = new SqliteLoopStateRepo(db);
+  const contextMarks = new SqliteContextMarkRepo(db, systemClock);
   // Goal-check strategies (command/judge/hybrid) are constructed later, after the
   // appendless judge backend + git port exist (see strategyFor below).
   // Dispatched ledger rows only feed the idempotency window + forensics —
@@ -596,6 +599,9 @@ export function buildContainer() {
   };
 
   const turnSettle = new TurnSettleService(systemClock);
+  // Intentional-suspend guard: suspendWorker marks a worker here before stopping
+  // its session so the CLI/SDK onExit → markDone race can't clobber SUSPENDED.
+  const suspendGuard = new SuspendGuardService(systemClock);
   // Per-worker "did this turn produce output yet?" — fed by the onAgentEvent
   // delta sink below, reset at dispatch (DispatchMessage), read by the interrupt
   // handler's recall decision. Never sourced from the durable log (deltas aren't logged).
@@ -1363,6 +1369,7 @@ export function buildContainer() {
     messageQueue,
     worktreeRemovals,
     loops,
+    contextMarks,
     strategyFor,
     judgeBackend,
     microTasks,
@@ -1404,6 +1411,7 @@ export function buildContainer() {
     backendResolver,
     authResolver,
     turnSettle,
+    suspendGuard,
     pendingQuestions,
     backgroundActivity,
     pendingPeerRequests,

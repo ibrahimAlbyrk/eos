@@ -20,6 +20,18 @@ const TTL_MS = 6 * 60 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 3000;
 const MODELS_URL = "https://api.anthropic.com/v1/models?limit=100";
 
+// Server-side twin of the web baseline (app/ui/src/lib/models.js): the window a
+// model gets when the live catalog is cold or doesn't know it. Big Claude
+// families carry the 1M window; haiku and everything unknown fall back to 200k.
+const CONTEXT_WINDOW_FALLBACK = 200_000;
+
+function baselineWindowFor(model: string): number {
+  const lower = model.toLowerCase();
+  if (lower.includes("haiku")) return 200_000;
+  if (lower.includes("sonnet") || lower.includes("opus") || lower.includes("fable")) return 1_000_000;
+  return CONTEXT_WINDOW_FALLBACK;
+}
+
 const CacheFileSchema = z.object({
   fetchedAt: z.number(),
   models: z.array(CatalogModelSchema),
@@ -56,6 +68,15 @@ export class ModelCatalogService {
    * (fail open); [] = the model has no effort support at all. */
   async effortLevelsFor(model: string): Promise<string[] | null> {
     return resolveCatalogModel(await this.get(), model)?.effortLevels ?? null;
+  }
+
+  /** The model's context-window size in tokens. Sync (no await per worker read):
+   * reads the warm in-memory catalog, falling back to the server baseline when
+   * the catalog is cold or the model is unknown. Twin of effortLevelsFor. */
+  contextWindowFor(model: string | null | undefined): number | null {
+    if (!model) return CONTEXT_WINDOW_FALLBACK;
+    const hit = resolveCatalogModel(this.cache?.models ?? [], model);
+    return hit?.maxInputTokens ?? baselineWindowFor(model);
   }
 
   private refresh(): Promise<void> {

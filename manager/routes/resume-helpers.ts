@@ -27,6 +27,7 @@ export function resumeWorkerVia(c: Container, row: WorkerRow): Promise<{ id: str
       backend: c.backends.has(kind) ? c.backends.get(kind) : c.claudeCliBackend,
       onAgentEvent: c.onAgentEvent,
       isLive: (id) => isWorkerLive(c, id),
+      isSuspending: (id) => c.suspendGuard.isSuspending(id),
       pathExists: existsSync,
     },
     { workerId: row.id, spec },
@@ -62,8 +63,9 @@ export async function resumeIfDead(c: Container, row: WorkerRow): Promise<void> 
 
 // Stop a worker's live session WITHOUT deleting its row (unlike KillWorker):
 // CLI → escalate the supervised PTY child; in-process → stop the backend session.
-// Mirrors KillWorker's branch but keeps the identity for a respawn.
-function stopWorkerSession(c: Container, id: string): void {
+// Mirrors KillWorker's branch but keeps the identity for a respawn. Shared by the
+// backend switch and the suspend command (DRY).
+export function stopWorkerSession(c: Container, id: string): void {
   if (c.supervisor.has(id)) { c.supervisor.escalateKill(id); return; }
   const kind = c.workers.findById(id)?.backend_kind;
   if (kind && c.backends.has(kind)) c.backends.get(kind).attach(id, { kind: "inproc", ref: id }).stop();

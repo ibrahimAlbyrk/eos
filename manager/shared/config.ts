@@ -125,6 +125,16 @@ export interface DaemonConfig {
     // (Fix 6f). Kept, not removed, to avoid churning the config schema.
     judge: { model: string; temperature: number };
   };
+  // Context-window occupancy thresholds (R3/R4). warnRatio: the fraction of a
+  // worker's model window at which its parent gets a one-time 90% heads-up;
+  // fullRatio: the fraction at which the worker is auto-suspended (worktree
+  // preserved) and the parent notified. Ratios of the per-model window resolved
+  // by ModelCatalogService; tunable so an operator can match an observed
+  // auto-compaction point.
+  context: {
+    warnRatio: number;
+    fullRatio: number;
+  };
   // Deterministic workflow-orchestration engine (daemon-resident). `enabled`
   // gates the run path; `maxConcurrentSteps` is the per-run leaf-spawn cap fed to
   // the engine's ConcurrencyGate; `defaultStepTimeoutMs` is the per-step hang
@@ -382,6 +392,10 @@ export function defaults(): DaemonConfig {
       retryOnFailed: false,
       judge: { model: "sonnet", temperature: 0.1 },
     },
+    context: {
+      warnRatio: 0.9,
+      fullRatio: 0.95,
+    },
     workflow: {
       enabled: true,
       maxConcurrentSteps: 8,
@@ -521,6 +535,10 @@ export const DaemonConfigOverrideSchema = z.object({
     stopOnNoProgress: z.boolean(),
     retryOnFailed: z.boolean(),
     judge: z.object({ model: z.string(), temperature: z.number() }).partial(),
+  }).partial().optional(),
+  context: z.object({
+    warnRatio: z.number().positive().max(1),
+    fullRatio: z.number().positive().max(1),
   }).partial().optional(),
   workflow: z.object({
     enabled: z.boolean(),

@@ -34,6 +34,7 @@ import {
   type OpenInRequest,
 } from "../../contracts/src/http.ts";
 import type { WorkerRow } from "../../contracts/src/worker.ts";
+import { computeContextPct } from "../../core/src/domain/context-usage.ts";
 import type { AgentBackend, WorkerHandle } from "../../core/src/ports/AgentBackend.ts";
 
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
@@ -124,6 +125,18 @@ function resumeLoopOnInput(c: Container, workerId: string): void {
   if (loop?.awaitingInput) c.loops.setAwaitingInput(loop.id, false);
 }
 
+// Surface a worker's context-window occupancy { used, limit, pct } — the
+// server-computed budget get_worker / list_active_workers read. limit comes from
+// the model catalog window (contextWindowFor); used is the daemon-stamped
+// last_context_tokens. Synchronous, so it doesn't force the handlers async.
+function withContext(c: Container, rows: WorkerRow[]): WorkerRow[] {
+  return rows.map((w) => {
+    const limit = c.modelCatalog.contextWindowFor(w.model);
+    const used = w.last_context_tokens ?? 0;
+    return { ...w, context: { used, limit, pct: computeContextPct(used, limit) } };
+  });
+}
+
 // Surface a worker's active dynamic loop. Ungated on state — a loop sits IDLE
 // between iterations, so attach it whenever findActiveByWorker is non-null.
 function withLoopState(c: Container, rows: WorkerRow[]): WorkerRow[] {
@@ -169,7 +182,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const rows = parentId
       ? c.workers.listByParent(parentId).filter((w) => w.archived_at == null)
       : c.workers.listActive();
-    writeJson(res, 200, withLoopState(c, withBackgroundActivity(c, rows)));
+    writeJson(res, 200, withContext(c, withLoopState(c, withBackgroundActivity(c, rows))));
   });
 
   // Dedicated archived-only listing, consumed ONLY by the dashboard Archive
@@ -203,7 +216,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     // invisible to agents, so answer exactly as if the row were gone. The
     // dashboard (no actorId) still reads archived detail for the Archive view.
     if (actorId && row.archived_at != null) { writeJson(res, 404, { error: "not found" }); return; }
-    writeJson(res, 200, withLoopState(c, [row])[0]);
+    writeJson(res, 200, withContext(c, withLoopState(c, [row]))[0]);
   });
 
   // worker.kill (DELETE /workers/:id) is served by the command catalog —

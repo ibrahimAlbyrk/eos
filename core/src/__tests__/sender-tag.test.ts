@@ -227,4 +227,41 @@ describe("senderTagForEnvelope — envelope metadata → attributes", () => {
       '<agent_message from="alice" worker-id="w2" branch="eos-x">\nbody\n</agent_message>',
     );
   });
+
+  it("context_threshold is system", () => {
+    assert.equal(senderClassOf({ kind: "context_threshold", stage: "warn90", fromWorker: "w1" }), "system");
+    assert.equal(senderClassOf({ kind: "context_threshold", stage: "full", fromWorker: "w1" }), "system");
+  });
+
+  it("context_threshold warn90 → system with stage/name/id + pct", () => {
+    assert.deepEqual(
+      senderTagForEnvelope({ kind: "context_threshold", stage: "warn90", fromWorker: "w7", workerName: "alice", pct: 90 }),
+      { cls: "system", attrs: { kind: "context_threshold", stage: "warn90", from: "alice", "worker-id": "w7", pct: "90" } },
+    );
+  });
+
+  it("context_threshold full → system with stage/name/id; pct dropped when absent", () => {
+    assert.deepEqual(
+      senderTagForEnvelope({ kind: "context_threshold", stage: "full", fromWorker: "w7", workerName: "alice" }),
+      { cls: "system", attrs: { kind: "context_threshold", stage: "full", from: "alice", "worker-id": "w7", pct: undefined } },
+    );
+  });
+
+  it("context_threshold falls back to fromWorker when unnamed", () => {
+    const t = senderTagForEnvelope({ kind: "context_threshold", stage: "warn90", fromWorker: "w7", pct: 91 })!;
+    assert.equal(t.attrs.from, "w7");
+  });
+
+  it("context_threshold renders <system_message kind=\"context_threshold\" stage=…>", () => {
+    const warn = senderTagForEnvelope({ kind: "context_threshold", stage: "warn90", fromWorker: "w7", workerName: "alice", pct: 90 })!;
+    assert.equal(
+      applySenderTag("dolmak üzere", warn.cls, warn.attrs),
+      '<system_message kind="context_threshold" stage="warn90" from="alice" worker-id="w7" pct="90">\ndolmak üzere\n</system_message>',
+    );
+    const full = senderTagForEnvelope({ kind: "context_threshold", stage: "full", fromWorker: "w7", workerName: "alice" })!;
+    assert.equal(
+      applySenderTag("durduruldu", full.cls, full.attrs),
+      '<system_message kind="context_threshold" stage="full" from="alice" worker-id="w7">\ndurduruldu\n</system_message>',
+    );
+  });
 });

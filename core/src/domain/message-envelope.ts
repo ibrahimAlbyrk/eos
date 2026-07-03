@@ -56,4 +56,17 @@ export type DispatchEnvelope =
       toolName: string;
       inputSummary?: string;
       expiresAt?: number;
+    }
+  // A daemon-injected heads-up to a worker's DIRECT parent when the worker crosses
+  // a context-window occupancy threshold: "warn90" (≈90% full, still running) or
+  // "full" (auto-suspended, worktree preserved). Rendered as a <system_message
+  // kind="context_threshold" stage="…"> so the orchestrator can plan a handoff.
+  // fromWorker identifies the worker whose context filled; pct rides as an attr
+  // on the warn stage.
+  | {
+      kind: "context_threshold";
+      stage: "warn90" | "full";
+      fromWorker: string;
+      workerName?: string;
+      pct?: number;
     };

@@ -14,6 +14,17 @@ import { LoopStatusSchema } from "./loop.ts";
 export const NameSourceSchema = z.enum(["default", "auto", "user"]);
 export type NameSource = z.infer<typeof NameSourceSchema>;
 
+// Server-computed context-window occupancy for a worker: `used` tokens against
+// the model's `limit` window, and the `pct` in use. limit/pct are null when the
+// model window is unknown (fail open). Route-enriched (see WorkerRowSchema
+// below), never persisted.
+export const WorkerContextSchema = z.object({
+  used: z.number(),
+  limit: z.number().nullable(),
+  pct: z.number().nullable(),
+});
+export type WorkerContext = z.infer<typeof WorkerContextSchema>;
+
 export const WorkerRowSchema = z.object({
   id: z.string(),
   state: WorkerStateSchema,
@@ -69,6 +80,12 @@ export const WorkerRowSchema = z.object({
     // card/badge shows what the loop is driving toward, not just the last reason.
     goalSummary: z.string().nullable(),
   }).optional(),
+  // Context-window occupancy { used, limit, pct }. NOT a DB column —
+  // route-enriched from last_context_tokens + the model catalog window
+  // (ModelCatalogService.contextWindowFor) on worker list/detail reads, so
+  // get_worker / list_active_workers can surface remaining budget. Absent on
+  // rows that weren't HTTP-enriched.
+  context: WorkerContextSchema.optional(),
   is_orchestrator: z.number().nullable().optional(),
   tool_calls: z.number().nullable().optional(),
   permission_mode: z.string().nullable().optional(),

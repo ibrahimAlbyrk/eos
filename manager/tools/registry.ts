@@ -18,6 +18,7 @@ import { dynamicLoopDef } from "./defs/dynamic_loop.ts";
 import { currentDatetimeDef } from "./defs/current_datetime.ts";
 import { workflowDef } from "./defs/workflow.ts";
 import { workflowStepOutputDef } from "./defs/workflow_step_output.ts";
+import { getWorkerMessagesDef } from "./defs/get_worker_messages.ts";
 
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
@@ -36,6 +37,7 @@ export const orchestratorDefs: ToolDefinition[] = [
   dynamicLoopDef,
   currentDatetimeDef,
   workflowDef,
+  getWorkerMessagesDef,
 ];
 
 // Always registered on a worker.

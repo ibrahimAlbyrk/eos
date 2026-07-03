@@ -29,6 +29,7 @@ export function senderClassOf(env: DispatchEnvelope | undefined): SenderClass {
     case "loop":
     case "report_reminder":
     case "permission_ask":
+    case "context_threshold":
       return "system";
     default:
       return "operator";
@@ -136,6 +137,17 @@ export function senderTagForEnvelope(
           summary: env.inputSummary,
           "pending-id": env.pendingId,
           "expires-at": env.expiresAt != null ? String(env.expiresAt) : undefined,
+        },
+      };
+    case "context_threshold":
+      return {
+        cls,
+        attrs: {
+          kind: "context_threshold",
+          stage: env.stage,
+          from: env.workerName ?? env.fromWorker,
+          "worker-id": env.fromWorker,
+          pct: env.pct != null ? String(env.pct) : undefined,
         },
       };
   }

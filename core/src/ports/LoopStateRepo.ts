@@ -80,6 +80,10 @@ export interface LoopStateRepo {
   insert(input: InsertLoopInput): void;
   findById(id: string): LoopRow | null;
   findActiveByWorker(workerId: string): LoopRow | null;
+  // Any loop row for the worker regardless of status (active or terminal), newest
+  // first. Unlike findActiveByWorker this still resolves after a loop passes/
+  // exhausts/stops, so a snapshot (export) can tell a worker ran under a goal-loop.
+  findAnyByWorker(workerId: string): LoopRow | null;
   listActive(): LoopRow[];
   setStatus(id: string, status: LoopStatus): void;
   // Goal renegotiation: replace the provided fields of an active loop's goal spec.

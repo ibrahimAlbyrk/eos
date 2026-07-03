@@ -500,6 +500,27 @@
       ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "get_worker_messages": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Worker id, e.g. 'w-abcd1234'"
+        },
+        "n": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 50,
+          "default": 5,
+          "description": "How many of the worker's most recent messages to return (5 = last five, 1 = just the latest)."
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   "worker": {

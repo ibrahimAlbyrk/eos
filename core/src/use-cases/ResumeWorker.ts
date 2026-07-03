@@ -29,6 +29,9 @@ export interface ResumeWorkerDeps {
   /** Routes a resumed in-process backend's canonical events into the daemon
    *  pipeline (claude-sdk). Unused by out-of-process (claude-cli) resume. */
   onAgentEvent?(workerId: string, event: AgentEvent): void;
+  /** True while an intentional suspend for this worker is in flight — onExit
+   *  then skips markDone so SUSPENDED survives the stop (see SuspendGuardService). */
+  isSuspending?(workerId: string): boolean;
 }
 
 export interface ResumeWorkerInput {
@@ -66,7 +69,8 @@ export async function resumeWorker(
   // Same daemon bookkeeping as SpawnWorker's onExit.
   const onExit = (code: number | null): void => {
     const now = deps.clock.now();
-    deps.workers.markDone(w.id, now, code);
+    // Skip markDone while an intentional suspend holds SUSPENDED (see SpawnWorker).
+    if (!deps.isSuspending?.(w.id)) deps.workers.markDone(w.id, now, code);
     deps.events.append(w.id, now, "exit", { code });
     deps.bus.publish("worker:exit", { workerId: w.id, code });
   };
