@@ -40,4 +40,20 @@ export type DispatchEnvelope =
   // A daemon-injected safety-net nudge to a worker that went IDLE having never
   // reported this life. Rendered as a <system_message kind="report_reminder">;
   // no payload — the body is the rendered reminder template.
-  | { kind: "report_reminder" };
+  | { kind: "report_reminder" }
+  // A daemon-injected push to a worker's DIRECT parent when one of its children's
+  // permission asks is created (a tool call parked on a policy `ask` rule).
+  // Rendered as a <system_message kind="permission_ask"> so a pending ask no longer
+  // goes unnoticed; the asker (id + name), the tool, a brief input summary, the
+  // pending id and its expiry ride as tag attributes. The push carries NO
+  // resolve/expiry follow-up — by the time it lands the ask may already be
+  // resolved or expired, so the receiver must confirm via list_pending_permissions.
+  | {
+      kind: "permission_ask";
+      pendingId: string;
+      fromWorker: string;
+      workerName?: string;
+      toolName: string;
+      inputSummary?: string;
+      expiresAt?: number;
+    };

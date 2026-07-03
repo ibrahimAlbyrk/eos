@@ -34,6 +34,7 @@ import { createMemoCommandRunner } from "../infra/src/goalcheck/MemoCommandRunne
 import { appendSynthesized } from "./shared/synthesized-events.ts";
 import { GoalLoopService } from "./services/GoalLoopService.ts";
 import { ReportGapService } from "./services/ReportGapService.ts";
+import { makePermissionAskPush } from "./services/permission-ask-push.ts";
 import { reArmLoops, stopLoopForExitedWorker } from "./services/loop-rearm.ts";
 import { reArmWorkflows } from "./services/workflow-rearm.ts";
 
@@ -345,6 +346,21 @@ c.bus.subscribe("loop:change", (msg) => {
   const p = msg.payload as { workerId?: string; status?: string };
   if (p?.workerId && p.status === "active") goalLoop.loopTickFor(p.workerId);
 });
+
+// Permission-ask push — a child worker parking on a policy `ask` rule publishes
+// "pending:created"; nudge its DIRECT parent (the session that can act on the ask)
+// so a pending decision doesn't sit unnoticed. Same injector shape as the
+// dynamic-loop / report-reminder pushes: dispatch through the shared chokepoint,
+// queued if the parent is mid-turn, idempotent per pending id.
+const permissionAskPush = makePermissionAskPush({
+  findWorker: (id) => c.workers.findById(id),
+  findPending: (id) => c.pending.findById(id),
+  dispatch: (input) => dispatchMessage(dispatchDeps(c), input),
+  log: c.log,
+});
+c.bus.subscribe("pending:created", (msg) =>
+  permissionAskPush(msg.payload as { id?: string; workerId?: string }),
+);
 
 // Micro-task subsystem — subscribes its triggers (auto-name fires on an
 // orchestrator's first WORKING transition). Mirrors the goal-loop bus wiring.

@@ -17,3 +17,15 @@ describe("MessageRecordSchema report_reminder", () => {
     assert.ok(!MessageRecordSchema.safeParse({ as: "report_nudge" }).success);
   });
 });
+
+describe("MessageRecordSchema permission_ask", () => {
+  it("accepts a permission_ask record with displayText + sentAt", () => {
+    const r = MessageRecordSchema.safeParse({ as: "permission_ask", displayText: "worker asking", sentAt: 7 });
+    assert.ok(r.success);
+    assert.equal(r.success && r.data.as, "permission_ask");
+  });
+
+  it("accepts a bare permission_ask record (both optionals absent)", () => {
+    assert.ok(MessageRecordSchema.safeParse({ as: "permission_ask" }).success);
+  });
+});

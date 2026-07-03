@@ -55,6 +55,8 @@ function buildMessageRecord(
       return { as: "loop_continuation", ...display, sentAt };
     case "report_reminder":
       return { as: "report_reminder", ...display, sentAt };
+    case "permission_ask":
+      return { as: "permission_ask", ...display, sentAt };
     default:
       return { as: "user_message", ...display, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}), sentAt };
   }
@@ -87,6 +89,9 @@ function appendChatEvent(
       return;
     case "report_reminder":
       events.append(workerId, ts, "report_reminder", { text });
+      return;
+    case "permission_ask":
+      events.append(workerId, ts, "permission_ask", { text });
       return;
     default:
       events.append(workerId, ts, "user_message", { text, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}) });

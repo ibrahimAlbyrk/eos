@@ -64,6 +64,11 @@ export const WorkerEventTypeSchema = z.enum([
   // A daemon-injected nudge to a worker that went IDLE having never reported this
   // life — rendered as a "report_reminder" system message, not a user bubble.
   "report_reminder",
+  // A daemon-injected push to a worker's DIRECT parent when one of its children's
+  // permission asks is created — rendered as a "permission_ask" system message, not
+  // a user bubble (mirrors report_reminder). Distinct from "permission_pending",
+  // which marks the ASKING worker's OWN timeline when the ask is created.
+  "permission_ask",
   // One per-attempt goal-check verdict — the durable scrollback record of a loop
   // tick's outcome (met/outcome/reason). Payload: LoopCheckEventSchema (loop.ts).
   // Distinct from the transient "loop:check" bus topic, which is never persisted.

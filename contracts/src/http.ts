@@ -156,6 +156,9 @@ export const MessageRecordSchema = z.union([
   // A daemon-injected nudge to a worker that went IDLE having never reported this
   // life; rendered as a <system_message kind="report_reminder"> (not a user bubble).
   z.object({ as: z.literal("report_reminder"), displayText: z.string().optional(), sentAt: z.number().optional() }),
+  // A daemon-injected push to a worker's DIRECT parent when a child's permission ask
+  // is created; rendered as a <system_message kind="permission_ask"> (not a user bubble).
+  z.object({ as: z.literal("permission_ask"), displayText: z.string().optional(), sentAt: z.number().optional() }),
 ]);
 export type MessageRecord = z.infer<typeof MessageRecordSchema>;
 
