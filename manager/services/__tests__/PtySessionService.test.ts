@@ -74,21 +74,24 @@ describe("PtySessionService", () => {
     assert.equal(s.cwd, "/other");
   });
 
-  it("batches onData into a pty:data frame, bumps seq, and mirrors the ring buffer", async () => {
+  it("publishes the first output on the leading edge, then coalesces the trailing window", async () => {
     const { svc, published, hosts } = harness();
     const s = svc.create({ cols: 80, rows: 24 });
-    hosts[0].emit("hello");
-    await wait(260);
-    hosts[0].emit("world");
-    await wait(260);
+    hosts[0].emit("prompt$ "); // leading edge → on the bus with NO batch delay
+    let frames = dataFrames(published);
+    assert.equal(frames.length, 1, "first output publishes immediately");
+    assert.deepEqual(frames[0].payload, { sessionId: s.sessionId, number: 1, seq: 1, data: "prompt$ " });
 
-    const frames = dataFrames(published);
+    hosts[0].emit("a"); // inside the window → buffered
+    hosts[0].emit("b"); // inside the window → buffered
+    assert.equal(dataFrames(published).length, 1, "sustained burst stays batched until the window closes");
+    await wait(260);
+    frames = dataFrames(published);
     assert.equal(frames.length, 2);
-    assert.deepEqual(frames[0].payload, { sessionId: s.sessionId, number: 1, seq: 1, data: "hello" });
-    assert.deepEqual(frames[1].payload, { sessionId: s.sessionId, number: 1, seq: 2, data: "world" });
+    assert.deepEqual(frames[1].payload, { sessionId: s.sessionId, number: 1, seq: 2, data: "ab" });
 
     // Buffer replays the flushed output through the current seq.
-    assert.deepEqual(svc.buffer(s.sessionId), { seq: 2, data: "helloworld" });
+    assert.deepEqual(svc.buffer(s.sessionId), { seq: 2, data: "prompt$ ab" });
   });
 
   it("input writes raw bytes to the host", () => {
@@ -113,22 +116,44 @@ describe("PtySessionService", () => {
     assert.equal(hosts[0].killed, true);
   });
 
-  it("onExit publishes pty:exit, drains trailing output first, and drops the session", () => {
+  it("onExit drains window-buffered output ahead of the exit frame, then drops the session", () => {
     const { svc, published, hosts } = harness();
     const s = svc.create({ cols: 80, rows: 24 });
-    hosts[0].emit("bye"); // still pending (no flush yet)
-    hosts[0].fireExit(7);
+    hosts[0].emit("x"); // leading edge → published immediately (seq 1)
+    hosts[0].emit("y"); // arrives inside the window → buffered, not yet flushed
+    hosts[0].fireExit(7); // exit drains "y" (seq 2) before the exit frame
 
-    const topics = published.map((p) => p.topic);
-    // Trailing output drains ahead of the exit frame.
-    assert.deepEqual(topics, ["pty:data", "pty:exit"]);
-    assert.deepEqual(published[0].payload, { sessionId: s.sessionId, number: 1, seq: 1, data: "bye" });
-    assert.deepEqual(published[1].payload, { sessionId: s.sessionId, number: 1, exitCode: 7 });
+    assert.deepEqual(published.map((p) => p.topic), ["pty:data", "pty:data", "pty:exit"]);
+    assert.deepEqual(published[0].payload, { sessionId: s.sessionId, number: 1, seq: 1, data: "x" });
+    assert.deepEqual(published[1].payload, { sessionId: s.sessionId, number: 1, seq: 2, data: "y" });
+    assert.deepEqual(published[2].payload, { sessionId: s.sessionId, number: 1, exitCode: 7 });
 
     // Session is gone: buffer/list/input all report absence.
     assert.equal(svc.buffer(s.sessionId), null);
     assert.deepEqual(svc.list(), []);
     assert.equal(svc.input(s.sessionId, "x"), false);
+  });
+
+  it("resets tab numbering to 1 once the registry empties, but not while a tab remains", () => {
+    const { svc, hosts } = harness();
+    svc.create({ cols: 80, rows: 24 }); // 1
+    const b = svc.create({ cols: 80, rows: 24 }); // 2
+    assert.equal(b.number, 2);
+    hosts[0].fireExit(0); // tab 1 gone, tab 2 still open → NO reset
+    assert.equal(svc.create({ cols: 80, rows: 24 }).number, 3); // no reuse while non-empty
+    hosts[1].fireExit(0); // tab 2 gone
+    hosts[2].fireExit(0); // tab 3 gone → registry empty → reset
+    assert.deepEqual(svc.list(), []);
+    assert.equal(svc.create({ cols: 80, rows: 24 }).number, 1); // reopened from zero → Terminal 1
+  });
+
+  it("keeps climbing while tabs remain and only resets when all close (operator scenario)", () => {
+    const { svc, hosts } = harness();
+    for (let i = 0; i < 27; i++) svc.create({ cols: 80, rows: 24 }); // numbers 1..27
+    assert.equal(svc.create({ cols: 80, rows: 24 }).number, 28);
+    for (const h of hosts) h.fireExit(0); // close all 28
+    assert.deepEqual(svc.list(), []);
+    assert.equal(svc.create({ cols: 80, rows: 24 }).number, 1);
   });
 
   it("unknown session ids return absence, not throws", () => {

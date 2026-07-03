@@ -5,8 +5,10 @@ import type { PtySession } from "../../contracts/src/http.ts";
 
 // Interactive multi-tab PTY sessions (the `pty` feature). Each session is a
 // long-lived login shell in a real PTY. Output is BATCHED onto the bus as
-// pty:data (200ms / 8KB, the TerminalRunService idiom — a keystroke-echo
-// firehose otherwise) and mirrored into a per-session rolling ring buffer that
+// pty:data (LEADING-EDGE: the first bytes of a window publish immediately so
+// the prompt paints with ~0 added latency, then a 200ms / 8KB trailing batch
+// coalesces sustained bursts — the keystroke-echo firehose otherwise) and
+// mirrored into a per-session rolling ring buffer that
 // GET /pty/:id/buffer replays on reattach; the client dedups live frames with
 // seq <= its last-seen seq. Distinct from TerminalRunService, the one-shot `!`
 // runner — see the naming note in contracts/src/http.ts.
@@ -38,8 +40,10 @@ export class PtyCapError extends Error {}
 
 export class PtySessionService {
   private sessions = new Map<string, Session>();
-  // Monotonic tab counter — assigned at create, NEVER reused (server-owned).
-  // Resets to 1 on daemon restart, when every session dies anyway.
+  // Tab counter: monotonic (never reused) WHILE any session is open, so two
+  // live tabs never share a number. Resets to 1 whenever the registry empties
+  // (last tab closed / shell exited) — reopening from zero tabs is "Terminal 1"
+  // again, not an ever-climbing count. Also resets on daemon restart.
   private nextNumber = 1;
   private bus: EventBus;
   private spawn: SpawnPtyHost;
@@ -108,30 +112,46 @@ export class PtySessionService {
     const s = this.sessions.get(id);
     if (!s) return;
     s.pending += data;
-    if (s.pending.length >= FLUSH_BYTES) this.flush(id);
-    else if (!s.flushTimer) s.flushTimer = setTimeout(() => this.flush(id), FLUSH_MS);
+    // A full 8KB batch flushes at once regardless of window.
+    if (s.pending.length >= FLUSH_BYTES) { this.publishPending(s); this.openBatchWindow(s); return; }
+    // Inside an open window: just accumulate — the trailing timer drains it.
+    if (s.flushTimer) return;
+    // Leading edge (no window open, nothing flushed recently): publish now so
+    // the first prompt bytes hit the bus immediately, then open the window.
+    this.publishPending(s);
+    this.openBatchWindow(s);
   }
 
-  private flush(id: string): void {
-    const s = this.sessions.get(id);
-    if (!s) return;
-    if (s.flushTimer) { clearTimeout(s.flushTimer); s.flushTimer = null; }
+  // Opens (or re-opens) the 200ms trailing-batch window. When it closes, any
+  // output that accumulated during the window is drained in one frame; if none
+  // did, the next byte starts a fresh leading-edge publish.
+  private openBatchWindow(s: Session): void {
+    if (s.flushTimer) clearTimeout(s.flushTimer);
+    s.flushTimer = setTimeout(() => {
+      s.flushTimer = null;
+      if (s.pending) this.publishPending(s);
+    }, FLUSH_MS);
+  }
+
+  private publishPending(s: Session): void {
     if (!s.pending) return;
     const data = s.pending;
     s.pending = "";
     s.seq += 1;
     s.buffer += data;
     if (s.buffer.length > BUFFER_CAP) s.buffer = s.buffer.slice(s.buffer.length - BUFFER_CAP);
-    this.bus.publish("pty:data", { sessionId: id, number: s.number, seq: s.seq, data });
+    this.bus.publish("pty:data", { sessionId: s.id, number: s.number, seq: s.seq, data });
   }
 
   private onExit(id: string, exitCode: number): void {
     const s = this.sessions.get(id);
     if (!s) return;
-    this.flush(id); // drain trailing output ahead of the exit frame
+    this.publishPending(s); // drain trailing output ahead of the exit frame
     s.alive = false;
     if (s.flushTimer) { clearTimeout(s.flushTimer); s.flushTimer = null; }
     this.sessions.delete(id);
+    // Registry emptied → reopen numbering from 1 (see nextNumber above).
+    if (this.sessions.size === 0) this.nextNumber = 1;
     this.bus.publish("pty:exit", { sessionId: id, number: s.number, exitCode });
   }
 }
