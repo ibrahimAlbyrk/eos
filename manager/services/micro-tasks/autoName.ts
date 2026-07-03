@@ -33,6 +33,13 @@ export const MIN_WORDS = 2;
 export const MIN_DISTINCT_LETTERS = 3;
 // A first line longer than this many words is answer-shaped, not a topic label.
 export const MAX_TOPIC_WORDS = 6;
+// Below this word count, a model line matches the prompt's requested 2-4 word
+// shape and is exempt from the echo check below — a short distilled topic can
+// legitimately open with the same words as the request (e.g. "Pending
+// Permission Tool" from a request that leads with "pending permission
+// tool'u..."). Only the 5-6 word parrot-shaped zone (lines >MAX_TOPIC_WORDS
+// are already rejected separately) is subject to the common-prefix check.
+export const ECHO_CHECK_MIN_WORDS = 5;
 
 const SUFFIX = "Orchestrator";
 const MAX_TOPIC_CHARS = 48;
@@ -128,15 +135,17 @@ function truncate(s: string, n: number): string {
 // Validate an untrusted model line into a safe "<Topic> Orchestrator" name, or
 // null when it isn't a real topic. Layers, in order: (1) first non-empty line +
 // control/quote/markdown scrub; (2) the NO_TITLE sentinel; (3) a refusal/preamble
-// opener; (4) a near-verbatim echo of the request; (5) an answer-shaped (too many
-// words) line; (6) the structural title-case + suffix + clamp step.
+// opener; (4) for lines at/above ECHO_CHECK_MIN_WORDS, a near-verbatim echo of
+// the request; (5) an answer-shaped (too many words) line; (6) the structural
+// title-case + suffix + clamp step.
 export function interpretModelOutput(raw: string, userInput: string): string | null {
   const line = firstScrubbedLine(raw);
   if (!line) return null;
   if (line === NO_TITLE_SENTINEL) return null;
   if (REFUSAL_RE.test(line)) return null;
-  if (isEcho(line, userInput)) return null;
-  if (line.split(/\s+/).filter(Boolean).length > MAX_TOPIC_WORDS) return null;
+  const wordCount = line.split(/\s+/).filter(Boolean).length;
+  if (wordCount >= ECHO_CHECK_MIN_WORDS && isEcho(line, userInput)) return null;
+  if (wordCount > MAX_TOPIC_WORDS) return null;
   return structureName(line) || null;
 }
 
@@ -172,8 +181,10 @@ function structureName(s: string): string {
 
 // True when the model line is a near-verbatim echo of the request rather than a
 // distilled topic — compared on lowercased alphanumerics, flagged when they share
-// a long common prefix (the model reproduced the request from its start). A
-// genuine topic selects/reorders words, so it won't match the opening ~12 chars.
+// a long common prefix (the model reproduced the request from its start). Only
+// called for lines at/above ECHO_CHECK_MIN_WORDS: a short (≤4 word) line is the
+// requested distilled-topic shape and may legitimately open with the request's
+// own words when the request itself leads with the topic, so it's exempt.
 // (Substring containment is deliberately NOT an echo signal: a real distilled
 // topic like "Kafka Consumer" often appears verbatim inside the request.)
 function isEcho(line: string, userInput: string): boolean {

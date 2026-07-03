@@ -114,8 +114,21 @@ describe("auto-name interpretModelOutput", () => {
     assert.equal(interpretModelOutput("I'm sorry, I can't do that", ""), null);
   });
 
-  it("a near-verbatim echo of the request → null", () => {
-    assert.equal(interpretModelOutput("Refactor the payment", "Refactor the payment module"), null);
+  it("a near-verbatim echo of the request (5+ words) → null", () => {
+    assert.equal(
+      interpretModelOutput("Refactor The Payment Module System", "Refactor the payment module system for production release"),
+      null,
+    );
+  });
+
+  it("a short distilled topic (≤4 words) that opens with the request's own words is NOT an echo", () => {
+    assert.equal(
+      interpretModelOutput(
+        "Pending Permission Tool",
+        "pending permission tool'u anlamsız: pending permission varsa agent'a bildirim gönderilmediği için bu tool'u kullanmaya karar bile vermez.",
+      ),
+      "Pending Permission Tool Orchestrator",
+    );
   });
 
   it("an answer-shaped line (> MAX_TOPIC_WORDS) → null", () => {
