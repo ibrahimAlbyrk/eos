@@ -146,6 +146,11 @@
     transition: background .15s ease;
   }
   .wtab.orch .wdot { background: var(--amber); }
+  .wloop {
+    font: 400 .82rem/1 'JetBrains Mono', ui-monospace, monospace;
+    color: var(--t3);
+    flex-shrink: 0;
+  }
   .wcount {
     font: 400 .68rem/1 'JetBrains Mono', ui-monospace, monospace;
     font-variant-numeric: tabular-nums;
@@ -188,6 +193,19 @@
   .panel-badge.orch {
     color: var(--amber);
     border-color: color-mix(in oklch, var(--amber) 40%, var(--line));
+  }
+  /* a worker that ran under a goal-loop — the ↻ glyph reads at a glance */
+  .panel-badge.loop {
+    display: inline-flex;
+    align-items: center;
+    gap: .5em;
+    color: var(--t1);
+    border-color: var(--line);
+  }
+  .panel-badge.loop::before {
+    content: '\21BB';
+    font-size: 1.15em;
+    line-height: 0;
   }
 
   /* ── the timeline & its spine ────────────────────────────────────── */
@@ -519,7 +537,7 @@
   The JSON shape:
   {
     "exported_at": "ISO-8601 timestamp string",
-    "workers": { "<worker_id>": { "name": "...", "is_orchestrator": true|false }, ... },
+    "workers": { "<worker_id>": { "name": "...", "is_orchestrator": true|false, "loop": { "status": "active|passed|exhausted|stopped" } | null }, ... },
     "events": [ <event>, <event>, ... ]
   }
 
@@ -527,7 +545,7 @@
   This template renders TWO event shapes — mix them freely:
 
   A) FLAT typed events — payload holds the fields directly:
-       user_message       payload.text
+       user_message       payload.text            (markdown)
        assistant_message  payload.text            (markdown)
        thinking           payload.text
        tool_call          payload.name, payload.input
@@ -582,6 +600,15 @@
   }
 
   /* ── minimal markdown renderer ───────────────────────────────────── */
+  // Only http(s)/mailto and relative/anchor links survive — javascript: and
+  // other active schemes are dropped (mirrors the app's DOMPurify href policy).
+  function safeUrl(u) {
+    var s = String(u).trim();
+    if (/^(https?:|mailto:)/i.test(s)) return s;
+    if (/^[/#.?]/.test(s)) return s;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(s)) return '#';
+    return s;
+  }
   function inlineMd(raw) {
     var slots = [];
     var s = raw.replace(/`([^`\n]+)`/g, function(_, code) {
@@ -597,7 +624,9 @@
     s = s.replace(/__(.+?)__/g,'<strong>$1</strong>');
     s = s.replace(/\*([^*\n]+?)\*/g,'<em>$1</em>');
     s = s.replace(/_([^_\n]+?)_/g,'<em>$1</em>');
-    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2" target="_blank" rel="noopener">$1</a>');
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, label, url) {
+      return '<a href="' + escHtml(safeUrl(url)) + '" target="_blank" rel="noopener">' + label + '</a>';
+    });
     s = s.replace(/\x00(\d+)\x00/g, function(_, i) { return slots[+i]; });
     return s;
   }
@@ -751,7 +780,8 @@
       return '<div class="event ev-user">' + timeEl +
         '<span class="event-marker m-user"></span>' +
         '<div class="event-body"><div class="event-body-inner">' +
-          '<span class="role-label">User</span>' + escHtml(text) +
+          '<span class="role-label">User</span>' +
+          '<div class="msg-text md-body">' + md(text) + '</div>' +
         '</div></div>' +
         '</div>';
     }
@@ -817,6 +847,7 @@
       ' data-target="' + panelId + '" title="' + escHtml((worker.name || workerId) + ' · ' + roleText) + '">' +
       '<span class="wdot"></span>' +
       '<span class="wname">' + escHtml(worker.name || workerId) + '</span>' +
+      (worker.loop ? '<span class="wloop" title="Ran under a goal-loop">↻</span>' : '') +
       '<span class="wcount">' + count + '</span>' +
       '</button>';
   }
@@ -830,6 +861,7 @@
       '<div class="panel-head">' +
         '<span class="panel-name">' + escHtml(worker.name || workerId) + '</span>' +
         '<span class="' + badgeClass + '">' + badgeText + '</span>' +
+        (worker.loop ? '<span class="panel-badge loop">Loop · ' + escHtml(worker.loop.status) + '</span>' : '') +
       '</div>' +
       '<div class="timeline">' + bodyHtml + '</div>' +
       '</section>';

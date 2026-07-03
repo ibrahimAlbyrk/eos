@@ -11,6 +11,7 @@ function containerWith(opts: {
   workers: Record<string, { name?: string | null; is_orchestrator?: number | null; parent_id?: string | null }>;
   children: Record<string, string[]>;
   events: Record<string, WorkerEventRow[]>;
+  loops?: Record<string, string>;
 }) {
   const c = {
     workers: {
@@ -23,6 +24,12 @@ function containerWith(opts: {
     },
     events: {
       list: (q: { workerId: string }) => opts.events[q.workerId] ?? [],
+    },
+    loops: {
+      findAnyByWorker: (workerId: string) => {
+        const status = opts.loops?.[workerId];
+        return status ? { workerId, status } : null;
+      },
     },
   } as unknown as Container;
   return { c };
@@ -115,6 +122,30 @@ describe("export routes", () => {
     assert.ok(out.body.includes("read"));
     // worker count in JSON data should be 3
     assert.ok(out.body.includes('"workers"'));
+  });
+
+  it("looped worker → export data carries loop status; unlooped worker has none", async () => {
+    const { c } = containerWith({
+      workers: {
+        looped: { name: "looped-worker", is_orchestrator: 0 },
+        plain: { name: "plain-worker", is_orchestrator: 0 },
+      },
+      children: {},
+      events: {
+        looped: [{ id: 1, worker_id: "looped", ts: 1000, type: "user_message", payload: '{"text":"go"}' }],
+        plain: [{ id: 2, worker_id: "plain", ts: 1000, type: "user_message", payload: '{"text":"go"}' }],
+      },
+      loops: { looped: "passed" },
+    });
+
+    const looped = await dispatch(c, "GET", "/workers/looped/export?tree=false");
+    assert.equal(looped.status, 200);
+    // The injected JSON must mark the looped worker with its loop status.
+    assert.ok(looped.body.includes('"loop":{"status":"passed"}'));
+
+    const plain = await dispatch(c, "GET", "/workers/plain/export?tree=false");
+    assert.equal(plain.status, 200);
+    assert.ok(plain.body.includes('"loop":null'));
   });
 
   it("export non-existent worker → 404", async () => {

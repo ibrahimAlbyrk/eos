@@ -5,6 +5,7 @@ import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import type { WorkerEventRow } from "../../contracts/src/events.ts";
+import type { LoopStatus } from "../../contracts/src/loop.ts";
 import { sanitizeForDisplay } from "../shared/display-sanitize.ts";
 
 // Read template once at module load
@@ -23,6 +24,9 @@ function getTemplate(): string {
 interface ExportWorkerMeta {
   name: string;
   is_orchestrator: boolean;
+  // Present only for a worker that ran under a goal-loop (dynamic_loop / arm-at-
+  // spawn). Carries the loop's status so the export can badge it; null/absent = no loop.
+  loop?: { status: LoopStatus } | null;
 }
 
 interface ExportEvent {
@@ -82,9 +86,11 @@ export function registerExportRoutes(r: Router, c: Container): void {
       const w = c.workers.findById(wid);
       if (!w) continue;
 
+      const loopRow = c.loops.findAnyByWorker(wid);
       workers[wid] = {
         name: w.name ?? wid,
         is_orchestrator: w.is_orchestrator === 1,
+        loop: loopRow ? { status: loopRow.status } : null,
       };
 
       const rows = c.events.list({ workerId: wid, since: 0, limit: 1_000_000, order: "asc" });
