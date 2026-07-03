@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  senderClassOf, applySenderTag, escapeTagBody, senderTagForEnvelope,
+  senderClassOf, applySenderTag, escapeTagBody, senderTagForEnvelope, stripSenderTags,
 } from "../domain/sender-tag.ts";
 import type { DispatchEnvelope } from "../domain/message-envelope.ts";
 
@@ -17,6 +17,13 @@ describe("senderClassOf — classification from envelope data", () => {
 
   it("report_reminder is system", () => {
     assert.equal(senderClassOf({ kind: "report_reminder" }), "system");
+  });
+
+  it("permission_ask is system", () => {
+    assert.equal(
+      senderClassOf({ kind: "permission_ask", pendingId: "p1", fromWorker: "w1", toolName: "Bash" }),
+      "system",
+    );
   });
 
   it("worker_report provenance drives class; absent provenance is agent", () => {
@@ -86,6 +93,54 @@ describe("escapeTagBody — spoof-proofing", () => {
   });
 });
 
+describe("stripSenderTags — display inverse of applySenderTag", () => {
+  it("no-ops on untagged operator text", () => {
+    assert.equal(stripSenderTags("just a plain message"), "just a plain message");
+    assert.equal(stripSenderTags("if a < b and c > d"), "if a < b and c > d");
+    assert.equal(stripSenderTags(""), "");
+  });
+
+  it("leaves a non-reserved lookalike tag alone", () => {
+    assert.equal(stripSenderTags("<agent_messages>x</agent_messages>"), "<agent_messages>x</agent_messages>");
+  });
+
+  it("round-trips applySenderTag output back to the bare body", () => {
+    for (const body of ["do it", "", "\nleading newline", "trailing newline\n", "multi\nline\nbody"]) {
+      assert.equal(stripSenderTags(applySenderTag(body, "agent", { from: "boss", "from-id": "o1" })), body);
+      assert.equal(stripSenderTags(applySenderTag(body, "system", { kind: "dynamic_loop", attempt: "2" })), body);
+    }
+  });
+
+  it("round-trips a body whose own quoted wrappers were escaped", () => {
+    const body = "quote: <agent_message>hi</agent_message> and </system_message> end";
+    assert.equal(stripSenderTags(applySenderTag(body, "agent", { from: "boss" })), body);
+  });
+
+  it("strips a wrapper appearing mid-text (model echo)", () => {
+    assert.equal(
+      stripSenderTags('before <agent_message from="x">\nhi\n</agent_message> after'),
+      "before hi after",
+    );
+  });
+
+  it("strips a single-line echo with no added newlines", () => {
+    assert.equal(stripSenderTags('<agent_message from="x">hi</agent_message>'), "hi");
+  });
+
+  it("strips multiple occurrences of both kinds", () => {
+    assert.equal(
+      stripSenderTags("<agent_message>a</agent_message> mid <system_message kind=\"loop\">b</system_message>"),
+      "a mid b",
+    );
+  });
+
+  it("unwraps an operator body carried inside a system wrapper", () => {
+    const wrapped = applySenderTag("report now", "system", { kind: "report_reminder" });
+    assert.equal(stripSenderTags(wrapped), "report now");
+    assert.ok(!stripSenderTags(wrapped).includes("system_message"));
+  });
+});
+
 describe("senderTagForEnvelope — envelope metadata → attributes", () => {
   it("operator envelope (absent) → null", () => {
     assert.equal(senderTagForEnvelope(undefined), null);
@@ -138,6 +193,29 @@ describe("senderTagForEnvelope — envelope metadata → attributes", () => {
     assert.equal(
       applySenderTag("report now", t.cls, t.attrs),
       '<system_message kind="report_reminder">\nreport now\n</system_message>',
+    );
+  });
+
+  it("permission_ask → system with asker/tool/pending attrs; empties dropped", () => {
+    assert.deepEqual(
+      senderTagForEnvelope({
+        kind: "permission_ask", pendingId: "p9", fromWorker: "w7", workerName: "alice",
+        toolName: "Bash", inputSummary: "git push origin main", expiresAt: 1234,
+      }),
+      { cls: "system", attrs: {
+        kind: "permission_ask", from: "alice", "worker-id": "w7", tool: "Bash",
+        summary: "git push origin main", "pending-id": "p9", "expires-at": "1234",
+      } },
+    );
+  });
+
+  it("permission_ask renders a <system_message kind=\"permission_ask\"> wrapper", () => {
+    const t = senderTagForEnvelope({
+      kind: "permission_ask", pendingId: "p9", fromWorker: "w7", toolName: "Bash",
+    })!;
+    assert.equal(
+      applySenderTag("ask body", t.cls, t.attrs),
+      '<system_message kind="permission_ask" from="w7" worker-id="w7" tool="Bash" pending-id="p9">\nask body\n</system_message>',
     );
   });
 

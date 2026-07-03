@@ -5,6 +5,7 @@ import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import type { WorkerEventRow } from "../../contracts/src/events.ts";
+import { sanitizeForDisplay } from "../shared/display-sanitize.ts";
 
 // Read template once at module load
 let cachedTemplate: string | null = null;
@@ -94,6 +95,7 @@ export function registerExportRoutes(r: Router, c: Container): void {
         } catch {
           payload = row.payload;
         }
+        payload = sanitizeForDisplay(payload);
         allEvents.push({
           worker_id: wid,
           worker_name: w.name ?? wid,

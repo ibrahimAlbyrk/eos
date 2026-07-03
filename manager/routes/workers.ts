@@ -50,6 +50,7 @@ import { resumeWorkerVia, resumeIfDead, switchWorkerBackend } from "./resume-hel
 import { dispatchDeps } from "./dispatch-deps.ts";
 import { reportHoldGate, stepOutputHoldGate } from "./report-hold.ts";
 import { workerReportEnvelope } from "../shared/worker-report.ts";
+import { sanitizeEventRowForDisplay } from "../shared/display-sanitize.ts";
 import { safeStringify } from "../../infra/src/util/json.ts";
 import { resolveWorkerAction } from "../services/worker-actions.ts";
 import { pushBranch } from "../../core/src/use-cases/PushBranch.ts";
@@ -217,7 +218,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       afterId: url.searchParams.get("afterId") ?? undefined,
     });
     const rows = c.events.list({ workerId: params.id, since: q.since, limit: q.limit, order: q.order, beforeId: q.beforeId, afterId: q.afterId });
-    writeJson(res, 200, rows);
+    writeJson(res, 200, rows.map(sanitizeEventRowForDisplay));
   });
 
   r.post(/^\/workers\/(?<id>[^/]+)\/events$/, async ({ params, req, res }) => {

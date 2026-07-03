@@ -28,6 +28,7 @@ export function senderClassOf(env: DispatchEnvelope | undefined): SenderClass {
       return env.provenance === "system" ? "system" : "agent";
     case "loop":
     case "report_reminder":
+    case "permission_ask":
       return "system";
     default:
       return "operator";
@@ -76,6 +77,32 @@ export function applySenderTag(
   return `<${tag}${renderAttrs(attrs)}>\n${escapeTagBody(body)}\n</${tag}>`;
 }
 
+// The inverse of applySenderTag, for DISPLAY egress. applySenderTag is the only
+// producer of these wrappers, but no user-visible surface should ever render one
+// — not the chat, an HTML export, an MCP tool result (get_worker's raw timeline),
+// nor the live SSE stream. The model can also echo a wrapper into its own output.
+// stripSenderTags removes every agent_message/system_message wrapper — at the
+// start, end, or MID-text, one occurrence or many — and unwraps the inner body,
+// reversing escapeTagBody's entity-escape. Untagged text passes through unchanged.
+// Display-only: callers run it on a COPY, never on stored rows.
+const SENDER_TAG_WRAPPER = /<(agent_message|system_message)\b[^>]*>([\s\S]*?)<\/\1>/g;
+const ESCAPED_RESERVED_TAG = /&lt;(\/?(?:agent_message|system_message)\b)/g;
+
+export function stripSenderTags(text: string): string {
+  if (!text || (!text.includes("<agent_message") && !text.includes("<system_message"))) {
+    return text;
+  }
+  return text.replace(SENDER_TAG_WRAPPER, (_m, _tag, body: string) => {
+    // applySenderTag renders the body as `>\n${escapeTagBody(body)}\n</` — drop the
+    // one leading and one trailing newline it added, then reverse the escape so the
+    // body's own quoted tags come back as literal text.
+    let inner = body;
+    if (inner.startsWith("\n")) inner = inner.slice(1);
+    if (inner.endsWith("\n")) inner = inner.slice(0, -1);
+    return inner.replace(ESCAPED_RESERVED_TAG, "<$1");
+  });
+}
+
 // The single place envelope routing metadata becomes tag attributes. Returns the
 // class + attribute map for an agent/system envelope, or null for the operator
 // (an absent envelope, delivered untagged). `from` is the primary attribute for
@@ -98,5 +125,18 @@ export function senderTagForEnvelope(
       return { cls, attrs: { kind: "dynamic_loop", attempt: env.attempt != null ? String(env.attempt) : undefined } };
     case "report_reminder":
       return { cls, attrs: { kind: "report_reminder" } };
+    case "permission_ask":
+      return {
+        cls,
+        attrs: {
+          kind: "permission_ask",
+          from: env.workerName ?? env.fromWorker,
+          "worker-id": env.fromWorker,
+          tool: env.toolName,
+          summary: env.inputSummary,
+          "pending-id": env.pendingId,
+          "expires-at": env.expiresAt != null ? String(env.expiresAt) : undefined,
+        },
+      };
   }
 }

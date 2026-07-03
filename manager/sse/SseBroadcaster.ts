@@ -5,6 +5,7 @@
 
 import type { ServerResponse } from "node:http";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
+import { sanitizeForDisplay } from "../shared/display-sanitize.ts";
 
 export interface SseBroadcasterOptions {
   bus: EventBus;
@@ -48,7 +49,9 @@ export class SseBroadcaster {
 
   broadcast(reason: string, payload?: unknown): void {
     if (this.clients.size === 0) return;
-    const msg = `event: change\ndata: ${JSON.stringify({ reason, ts: Date.now(), payload })}\n\n`;
+    // Sanitize a display copy — live text payloads (agent:delta, model echoes)
+    // must never stream a sender-tag wrapper to a connected client.
+    const msg = `event: change\ndata: ${JSON.stringify({ reason, ts: Date.now(), payload: sanitizeForDisplay(payload) })}\n\n`;
     for (const res of this.clients) {
       try { res.write(msg); } catch { this.clients.delete(res); }
     }

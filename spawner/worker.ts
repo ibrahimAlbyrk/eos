@@ -14,6 +14,7 @@ import { spawn as ptySpawn } from "@homebridge/node-pty-prebuilt-multiarch";
 import { WORKER_EXIT, mcpReadyFlagName } from "../contracts/src/util.ts";
 import { isEosControlTool, isBlockedBuiltinTool, blockedBuiltinToolMessage } from "../contracts/src/tool-scope.ts";
 import { buildSubscriptionChildEnv } from "../core/src/domain/env-allowlist.ts";
+import { stripSenderTags } from "../core/src/domain/sender-tag.ts";
 import { parseWorkerOptions, expectsMcpReady } from "./options.ts";
 import { createDaemonEventClient } from "./events.ts";
 import { setupWorktree, teardownWorktree } from "./worktree.ts";
@@ -529,7 +530,9 @@ const ingest = startIngestServer(opts.port, {
     const now = Date.now();
     state.lastUserMsgTs = now;
     state.lastJsonlActivityTs = now;
-    evt.emit("lifecycle", { phase: "message_received", text: text.slice(0, 200) });
+    // Defense-in-depth: store the BARE preview, never the <agent_message>/
+    // <system_message> wrapper the model received — this row is a display surface.
+    evt.emit("lifecycle", { phase: "message_received", text: stripSenderTags(text).slice(0, 200) });
     // Cap-evicted entries lost their chance at a transcript sighting — emit
     // them now (early-ordered beats silently missing).
     if (record) {
