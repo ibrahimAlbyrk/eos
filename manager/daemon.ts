@@ -40,6 +40,7 @@ import { reArmWorkflows } from "./services/workflow-rearm.ts";
 import { registerHealthRoutes } from "./routes/health.ts";
 import { registerStreamRoutes } from "./routes/stream.ts";
 import { registerWorkerRoutes } from "./routes/workers.ts";
+import { registerPtyRoutes } from "./routes/pty.ts";
 import { registerOrchestratorRoutes } from "./routes/orchestrators.ts";
 import { registerLoopRoutes } from "./routes/loops.ts";
 import { registerWorkflowRoutes } from "./routes/workflows.ts";
@@ -103,6 +104,7 @@ registerCommandCatalog(router, c);
 // Workflow-orchestration: run-control + read surface.
 registerWorkflowRoutes(router, c);
 registerWorkerRoutes(router, c);
+registerPtyRoutes(router, c);
 registerExportRoutes(router, c);
 registerOrchestratorRoutes(router, c);
 registerLoopRoutes(router, c);

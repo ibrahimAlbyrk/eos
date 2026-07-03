@@ -167,6 +167,7 @@ import { SqliteRuntimeWorkerDefinitionStore } from "../infra/src/persistence/Sql
 import { BackgroundActivityService } from "./services/BackgroundActivityService.ts";
 import { PendingPeerRequestService } from "./services/PendingPeerRequestService.ts";
 import { TerminalRunService } from "./services/TerminalRunService.ts";
+import { PtySessionService } from "./services/PtySessionService.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
 export { randomOrchestratorName } from "./shared/names.ts";
@@ -603,6 +604,9 @@ export function buildContainer() {
   const backgroundActivity = new BackgroundActivityService(systemClock);
   const pendingPeerRequests = new PendingPeerRequestService(randomIdGenerator, systemClock, config.collaborate.awaitTimeoutMs);
   const terminalRuns = new TerminalRunService({ bus, events, clock: systemClock, log });
+  // Interactive multi-tab PTY sessions (the `pty` feature). Default cwd = the
+  // daemon project root; a create request may override it.
+  const ptySessions = new PtySessionService({ bus, defaultCwd: config.paths.repoRoot });
   // Centralized prompt system (Layer 1) + DPI (Layer 2). Built-in library lives
   // in config.paths.promptsDir; ~/.eos/prompts overrides/extends it. Reads fresh
   // per reload so prompt edits apply on the next spawn without a daemon restart.
@@ -1404,6 +1408,7 @@ export function buildContainer() {
     backgroundActivity,
     pendingPeerRequests,
     terminalRuns,
+    ptySessions,
     prompts,
     promptRegistry,
     listWorkerDefinitionRecords,

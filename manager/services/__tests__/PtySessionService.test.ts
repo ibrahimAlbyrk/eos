@@ -1,0 +1,148 @@
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+import type { EventBus, EventBusMessage, EventBusTopic } from "../../../core/src/ports/EventBus.ts";
+import type { PtyHost, SpawnPtyHost } from "../../../spawner/pty-host.ts";
+import { PtySessionService, PtyCapError } from "../PtySessionService.ts";
+
+interface FakeHost extends PtyHost {
+  emit(data: string): void;
+  fireExit(code: number): void;
+  writes: string[];
+  resizes: Array<[number, number]>;
+  killed: boolean;
+}
+
+function harness() {
+  const published: { topic: EventBusTopic; payload: Record<string, unknown> }[] = [];
+  const bus: EventBus = {
+    publish(topic: EventBusTopic, payload: unknown): void {
+      published.push({ topic, payload: payload as Record<string, unknown> });
+    },
+    subscribe(_t: EventBusTopic | "*", _fn: (m: EventBusMessage) => void): () => void { return () => {}; },
+  };
+  const hosts: FakeHost[] = [];
+  const spawn: SpawnPtyHost = () => {
+    let onData: (d: string) => void = () => {};
+    let onExit: (c: number) => void = () => {};
+    const host: FakeHost = {
+      onData: (cb) => { onData = cb; },
+      onExit: (cb) => { onExit = cb; },
+      write: (d) => { host.writes.push(d); },
+      resize: (c, r) => { host.resizes.push([c, r]); },
+      kill: () => { host.killed = true; },
+      emit: (d) => onData(d),
+      fireExit: (c) => onExit(c),
+      writes: [], resizes: [], killed: false,
+    };
+    hosts.push(host);
+    return host;
+  };
+  const svc = new PtySessionService({ bus, defaultCwd: "/proj", spawn });
+  return { svc, bus, published, hosts };
+}
+
+const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+const dataFrames = (p: { topic: EventBusTopic }[]) => p.filter((x) => x.topic === "pty:data");
+
+describe("PtySessionService", () => {
+  it("assigns a monotonic tab number at create and never reuses it", () => {
+    const { svc, hosts } = harness();
+    const a = svc.create({ cols: 80, rows: 24 });
+    const b = svc.create({ cols: 80, rows: 24 });
+    assert.equal(a.number, 1);
+    assert.equal(b.number, 2);
+    // Kill+exit tab 1, then create again — the next number is 3, not a reuse of 1.
+    svc.kill(a.sessionId);
+    hosts[0].fireExit(0);
+    const c = svc.create({ cols: 80, rows: 24 });
+    assert.equal(c.number, 3);
+  });
+
+  it("create returns the public session shape with the requested dims + default cwd", () => {
+    const { svc } = harness();
+    const s = svc.create({ cols: 100, rows: 40 });
+    assert.equal(s.cwd, "/proj");
+    assert.equal(s.cols, 100);
+    assert.equal(s.rows, 40);
+    assert.equal(s.alive, true);
+    assert.equal(typeof s.sessionId, "string");
+  });
+
+  it("honors an explicit cwd override", () => {
+    const { svc } = harness();
+    const s = svc.create({ cols: 80, rows: 24, cwd: "/other" });
+    assert.equal(s.cwd, "/other");
+  });
+
+  it("batches onData into a pty:data frame, bumps seq, and mirrors the ring buffer", async () => {
+    const { svc, published, hosts } = harness();
+    const s = svc.create({ cols: 80, rows: 24 });
+    hosts[0].emit("hello");
+    await wait(260);
+    hosts[0].emit("world");
+    await wait(260);
+
+    const frames = dataFrames(published);
+    assert.equal(frames.length, 2);
+    assert.deepEqual(frames[0].payload, { sessionId: s.sessionId, number: 1, seq: 1, data: "hello" });
+    assert.deepEqual(frames[1].payload, { sessionId: s.sessionId, number: 1, seq: 2, data: "world" });
+
+    // Buffer replays the flushed output through the current seq.
+    assert.deepEqual(svc.buffer(s.sessionId), { seq: 2, data: "helloworld" });
+  });
+
+  it("input writes raw bytes to the host", () => {
+    const { svc, hosts } = harness();
+    const s = svc.create({ cols: 80, rows: 24 });
+    assert.equal(svc.input(s.sessionId, "ls\r"), true);
+    assert.deepEqual(hosts[0].writes, ["ls\r"]);
+  });
+
+  it("resize forwards to the host and updates the stored dims", () => {
+    const { svc, hosts } = harness();
+    const s = svc.create({ cols: 80, rows: 24 });
+    assert.equal(svc.resize(s.sessionId, 120, 30), true);
+    assert.deepEqual(hosts[0].resizes, [[120, 30]]);
+    assert.deepEqual(svc.list().map((x) => [x.cols, x.rows]), [[120, 30]]);
+  });
+
+  it("kill signals the host", () => {
+    const { svc, hosts } = harness();
+    const s = svc.create({ cols: 80, rows: 24 });
+    assert.equal(svc.kill(s.sessionId), true);
+    assert.equal(hosts[0].killed, true);
+  });
+
+  it("onExit publishes pty:exit, drains trailing output first, and drops the session", () => {
+    const { svc, published, hosts } = harness();
+    const s = svc.create({ cols: 80, rows: 24 });
+    hosts[0].emit("bye"); // still pending (no flush yet)
+    hosts[0].fireExit(7);
+
+    const topics = published.map((p) => p.topic);
+    // Trailing output drains ahead of the exit frame.
+    assert.deepEqual(topics, ["pty:data", "pty:exit"]);
+    assert.deepEqual(published[0].payload, { sessionId: s.sessionId, number: 1, seq: 1, data: "bye" });
+    assert.deepEqual(published[1].payload, { sessionId: s.sessionId, number: 1, exitCode: 7 });
+
+    // Session is gone: buffer/list/input all report absence.
+    assert.equal(svc.buffer(s.sessionId), null);
+    assert.deepEqual(svc.list(), []);
+    assert.equal(svc.input(s.sessionId, "x"), false);
+  });
+
+  it("unknown session ids return absence, not throws", () => {
+    const { svc } = harness();
+    assert.equal(svc.input("nope", "x"), false);
+    assert.equal(svc.resize("nope", 80, 24), false);
+    assert.equal(svc.buffer("nope"), null);
+    assert.equal(svc.kill("nope"), false);
+  });
+
+  it("caps concurrent sessions at 32", () => {
+    const { svc } = harness();
+    for (let i = 0; i < 32; i++) svc.create({ cols: 80, rows: 24 });
+    assert.throws(() => svc.create({ cols: 80, rows: 24 }), PtyCapError);
+    assert.equal(svc.list().length, 32);
+  });
+});

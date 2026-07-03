@@ -314,6 +314,52 @@ export const WorkspaceTerminalRunRequestSchema = z.object({
 });
 export type WorkspaceTerminalRunRequest = z.infer<typeof WorkspaceTerminalRunRequestSchema>;
 
+// ---- PTY sessions ----------------------------------------------------------
+// Interactive multi-tab terminal (distinct from the one-shot `!` composer
+// runner above). Each session is a long-lived login shell in a real PTY;
+// output rides the /stream SSE via pty:data bus events, input/resize/kill
+// arrive over POST. "Terminal N" is the user-facing tab label; `number` is the
+// server-owned monotonic tab counter (never reused). All routes UI-token gated
+// — a raw shell is arbitrary exec, off-limits to agents holding EOS_DAEMON_URL.
+
+export const PtyCreateRequestSchema = z.object({
+  cols: z.number().int().positive().max(1000),
+  rows: z.number().int().positive().max(1000),
+  cwd: z.string().min(1).optional(),
+});
+export type PtyCreateRequest = z.infer<typeof PtyCreateRequestSchema>;
+
+export const PtySessionSchema = z.object({
+  sessionId: z.string(),
+  number: z.number().int().positive(),
+  cwd: z.string(),
+  cols: z.number().int().positive(),
+  rows: z.number().int().positive(),
+  alive: z.boolean(),
+});
+export type PtySession = z.infer<typeof PtySessionSchema>;
+
+export const PtyCreateResponseSchema = PtySessionSchema;
+export type PtyCreateResponse = z.infer<typeof PtyCreateResponseSchema>;
+
+export const PtyListResponseSchema = z.object({ sessions: z.array(PtySessionSchema) });
+export type PtyListResponse = z.infer<typeof PtyListResponseSchema>;
+
+export const PtyInputRequestSchema = z.object({ data: z.string() });
+export type PtyInputRequest = z.infer<typeof PtyInputRequestSchema>;
+
+export const PtyResizeRequestSchema = z.object({
+  cols: z.number().int().positive().max(1000),
+  rows: z.number().int().positive().max(1000),
+});
+export type PtyResizeRequest = z.infer<typeof PtyResizeRequestSchema>;
+
+export const PtyBufferResponseSchema = z.object({
+  seq: z.number().int().nonnegative(),
+  data: z.string(),
+});
+export type PtyBufferResponse = z.infer<typeof PtyBufferResponseSchema>;
+
 // ---- POST /workers/:id/open --------------------------------------------------
 // Open the agent's working directory (worktree dir when isolated, else cwd)
 // in a host app. UI-token gated like /terminal — launching host apps is a UI
@@ -1922,6 +1968,12 @@ export const ROUTES = {
   workerTerminal: (id: string): string => `/workers/${id}/terminal`,
   terminal: "/terminal",
   terminalKill: (runId: string): string => `/terminal/${runId}/kill`,
+  // ---- Interactive multi-tab PTY (literal /pty before the :id regexes) ----
+  pty: "/pty",
+  ptySession: (id: string): string => `/pty/${id}`,
+  ptyInput: (id: string): string => `/pty/${id}/input`,
+  ptyResize: (id: string): string => `/pty/${id}/resize`,
+  ptyBuffer: (id: string): string => `/pty/${id}/buffer`,
   workerTryPreview: (id: string): string => `/workers/${id}/try/preview`,
   workerTryState: (id: string): string => `/workers/${id}/try/state`,
   workerTry: (id: string): string => `/workers/${id}/try`,

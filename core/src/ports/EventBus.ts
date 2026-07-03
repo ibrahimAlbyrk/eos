@@ -16,6 +16,11 @@ export type EventBusTopic =
   | "notification:fire"
   | "terminal:chunk"
   | "terminal:done"
+  // Interactive multi-tab PTY output/exit (the `pty` feature; NOT terminal:*).
+  // Relayed to SSE like terminal:chunk; never persisted, never drives worker
+  // state. pty:data is batched (200ms/8KB); the client dedups by seq.
+  | "pty:data"
+  | "pty:exit"
   // Ephemeral live reasoning/text deltas (claude-sdk, in-process). Relayed to
   // SSE like terminal:chunk; never persisted, never drives worker state.
   | "agent:delta"
