@@ -5,7 +5,7 @@
 // we depend on, verified against @anthropic-ai/claude-agent-sdk 0.3.x + the
 // validated Python probes (content_block_delta -> thinking_delta/text_delta).
 
-import type { AgentEvent, ContentBlock, CanonicalUsage } from "../../../contracts/src/canonical.ts";
+import type { AgentEvent, ContentBlock, CanonicalUsage, SubagentUsage } from "../../../contracts/src/canonical.ts";
 import { contextTokensOf, parseStructuredPatch } from "../../../contracts/src/canonical.ts";
 
 // --- the SDK message subset we read (structural) ---------------------------
@@ -18,6 +18,8 @@ interface RawStreamEvent { type: string; index?: number; delta?: RawDelta; conte
 // aggregate → billing) AND on each `assistant` message (that one request → the
 // context-window footprint). Same shape, read from two places.
 interface SdkUsage { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number; cache_creation?: { ephemeral_5m_input_tokens?: number; ephemeral_1h_input_tokens?: number } }
+// Background-task usage rides system/task_notification with its own shape.
+interface SdkTaskUsage { total_tokens?: number; tool_uses?: number; duration_ms?: number }
 interface SdkMsg {
   type: string;
   subtype?: string;
@@ -25,8 +27,18 @@ interface SdkMsg {
   session_id?: string;
   event?: RawStreamEvent;
   message?: { id?: string; content?: RawBlock[] | string; usage?: SdkUsage };
-  usage?: SdkUsage;
+  // Anthropic usage on `result` messages; task usage on system/task_notification.
+  // Intersection (all fields optional) so both readers stay type-safe.
+  usage?: SdkUsage & SdkTaskUsage;
   model?: string;
+  // system task_notification / task_started fields (SDKTaskNotificationMessage /
+  // SDKTaskStartedMessage). task_id IS the background agent's agentId — verified
+  // against the async_launched stub's agentId at runtime.
+  task_id?: string;
+  tool_use_id?: string;
+  status?: string;
+  output_file?: string;
+  summary?: string;
   // Set on a subagent's (Task/Agent tool) internal messages — the parent Agent
   // tool_use id. Drives subagent attribution: inner tools surface as parented
   // activity grouped under the agentRun, not as top-level main-stream blocks.
@@ -68,6 +80,77 @@ function blockText(content: unknown): string {
     return content.map((c) => (c && typeof c === "object" && "text" in c ? String((c as RawBlock).text ?? "") : "")).join("");
   }
   return "";
+}
+
+// --- background-subagent carriers -------------------------------------------
+// A background Agent launch resolves its tool_result to the async_launched stub.
+// The structured AgentOutput rides the SDKUserMessage tool_use_result sidecar
+// (preferred); the result block itself carries only rendered stub TEXT, parsed
+// as a fallback (adapters may normalize raw carriers; the UI never will).
+
+interface AsyncStub { agentId: string; description?: string; outputFile?: string }
+
+function parseAsyncStubSidecar(tur: unknown): AsyncStub | null {
+  if (!tur || typeof tur !== "object") return null;
+  const o = tur as { status?: unknown; agentId?: unknown; description?: unknown; outputFile?: unknown };
+  if (o.status !== "async_launched" || typeof o.agentId !== "string") return null;
+  return {
+    agentId: o.agentId,
+    ...(typeof o.description === "string" ? { description: o.description } : {}),
+    ...(typeof o.outputFile === "string" ? { outputFile: o.outputFile } : {}),
+  };
+}
+
+function parseAsyncStubText(text: string): AsyncStub | null {
+  if (!text.startsWith("Async agent launched")) return null;
+  const agentId = /\bagentId:\s*([\w-]+)/.exec(text)?.[1];
+  if (!agentId) return null;
+  const outputFile = /\boutput_file:\s*(\S+)/.exec(text)?.[1];
+  return { agentId, ...(outputFile ? { outputFile } : {}) };
+}
+
+// The true completion also rides an injected plain user turn (<task-notification>
+// XML, origin kind "task-notification") — the only carrier of the agent's FULL
+// final text (<result>). One turn can batch several notification blocks.
+interface NotificationCarrier { taskId: string; toolUseId?: string; status: "completed" | "failed" | "stopped"; outputFile?: string; summary?: string; result?: string }
+
+function normalizeTaskStatus(s: string | undefined): "completed" | "failed" | "stopped" {
+  return s === "failed" || s === "stopped" ? s : "completed";
+}
+
+function parseNotificationCarriers(text: string): NotificationCarrier[] {
+  const out: NotificationCarrier[] = [];
+  for (const m of text.matchAll(/<task-notification>([\s\S]*?)<\/task-notification>/g)) {
+    const block = m[1];
+    const tag = (name: string): string | undefined => new RegExp(`<${name}>([\\s\\S]*?)</${name}>`).exec(block)?.[1].trim();
+    const taskId = tag("task-id");
+    if (!taskId) continue;
+    // <result> greedy to its LAST close tag — the agent's final text may itself
+    // contain markup; the short fields stay non-greedy.
+    const result = /<result>([\s\S]*)<\/result>/.exec(block)?.[1].trim();
+    const toolUseId = tag("tool-use-id");
+    const outputFile = tag("output-file");
+    const summary = tag("summary");
+    out.push({
+      taskId,
+      status: normalizeTaskStatus(tag("status")),
+      ...(toolUseId ? { toolUseId } : {}),
+      ...(outputFile ? { outputFile } : {}),
+      ...(summary ? { summary } : {}),
+      ...(result ? { result } : {}),
+    });
+  }
+  return out;
+}
+
+function toSubagentUsage(u: SdkTaskUsage | undefined): SubagentUsage | undefined {
+  if (!u) return undefined;
+  const usage: SubagentUsage = {
+    ...(u.total_tokens !== undefined ? { totalTokens: u.total_tokens } : {}),
+    ...(u.tool_uses !== undefined ? { toolUses: u.tool_uses } : {}),
+    ...(u.duration_ms !== undefined ? { durationMs: u.duration_ms } : {}),
+  };
+  return Object.keys(usage).length ? usage : undefined;
 }
 
 // Map a complete assistant content block to a canonical block, stamping the SAME
@@ -120,6 +203,40 @@ export function createSdkEventMapper(): SdkEventMapper {
   // durable blockIds match the streamed content_block indices. Cleared per turn.
   const msgBlockCount = new Map<string, number>();
 
+  // Background-subagent correlation. agentCallIds: top-level Agent/Task tool_use
+  // ids — the gate that keeps non-subagent task notifications (background Bash,
+  // Monitor, workflows share the task system) from emitting subagent events.
+  // bgAgents: agentId (≡ task_id) → spawn info. pendingSummary marks a completion
+  // already reported from the system notification (summary-only) so the injected
+  // user-turn carrier upgrades it with the full <result> instead of re-reporting.
+  interface BgEntry { callId: string | null; outputFile?: string; usage?: SubagentUsage; pendingSummary?: boolean }
+  const agentCallIds = new Set<string>();
+  const bgAgents = new Map<string, BgEntry>();
+
+  const pushCompleted = (out: AgentEvent[], agentId: string, entry: BgEntry, c: { callId?: string | null; status: "completed" | "failed" | "stopped"; result?: string; outputFile?: string; usage?: SubagentUsage }): void => {
+    out.push({
+      type: "subagent_completed",
+      agentId,
+      callId: c.callId ?? entry.callId,
+      status: c.status,
+      ...(c.result ? { result: c.result } : {}),
+      ...(c.outputFile ?? entry.outputFile ? { outputFile: (c.outputFile ?? entry.outputFile)! } : {}),
+      ...(c.usage ?? entry.usage ? { usage: (c.usage ?? entry.usage)! } : {}),
+    });
+  };
+
+  // Resolve (or, when the spawning call is a known Agent/Task tool_use, create)
+  // the bgAgents entry a completion carrier refers to — creation covers a stub
+  // the mapper missed (e.g. unparseable text with no sidecar).
+  const resolveBgEntry = (taskId: string, toolUseId: string | undefined): BgEntry | undefined => {
+    const entry = bgAgents.get(taskId);
+    if (entry) return entry;
+    if (!toolUseId || !agentCallIds.has(toolUseId)) return undefined;
+    const fresh: BgEntry = { callId: toolUseId };
+    bgAgents.set(taskId, fresh);
+    return fresh;
+  };
+
   const startTurn = (out: AgentEvent[]): void => {
     if (!turnActive) { turnActive = true; out.push({ type: "turn", phase: "started" }); }
   };
@@ -134,6 +251,28 @@ export function createSdkEventMapper(): SdkEventMapper {
       switch (msg.type) {
         case "system":
           if (msg.subtype === "init") out.push({ type: "session", phase: "ready", sessionId: msg.session_id });
+          // Background-task true completion (SDKTaskNotificationMessage) — fires
+          // out-of-band the moment the task stops. Carries summary + usage only;
+          // the full final text follows on the injected user-turn carrier, which
+          // upgrades this event (see the plain-user branch of the "user" case).
+          else if (msg.subtype === "task_notification" && msg.task_id) {
+            const entry = resolveBgEntry(msg.task_id, msg.tool_use_id);
+            if (entry) {
+              entry.usage = toSubagentUsage(msg.usage) ?? entry.usage;
+              if (msg.output_file) entry.outputFile = msg.output_file;
+              entry.pendingSummary = true;
+              pushCompleted(out, msg.task_id, entry, {
+                callId: msg.tool_use_id,
+                status: normalizeTaskStatus(msg.status),
+                ...(msg.summary ? { result: msg.summary } : {}),
+              });
+            }
+          }
+          // task_started only backfills the task_id→callId map (a stub the mapper
+          // missed); it never emits events — subagent_started comes from the stub.
+          else if (msg.subtype === "task_started" && msg.task_id && msg.tool_use_id) {
+            resolveBgEntry(msg.task_id, msg.tool_use_id);
+          }
           return out;
 
         case "stream_event": {
@@ -210,6 +349,11 @@ export function createSdkEventMapper(): SdkEventMapper {
           // no standalone block.
           const blocks = durableBlocks(msgId, content, startIdx);
           if (blocks.length) out.push({ type: "message", role: "assistant", blocks });
+          // Remember top-level subagent-spawning callIds — the gate for mapping
+          // this call's async stub / task notifications to subagent events.
+          for (const b of content) {
+            if (b.type === "tool_use" && b.id && (b.name === "Agent" || b.name === "Task")) agentCallIds.add(b.id);
+          }
           // Context-window occupancy: this top-level assistant message carries its
           // own API request's usage (BetaMessage.usage). Its prompt footprint
           // (in + cacheRead + cacheWrite) IS the live context occupancy; emit it
@@ -230,7 +374,31 @@ export function createSdkEventMapper(): SdkEventMapper {
           // no tool_result and rides user_message instead).
           const content = Array.isArray(msg.message?.content) ? (msg.message!.content as RawBlock[]) : [];
           const results = content.filter((b) => b.type === "tool_result");
-          if (!results.length) return out;
+          if (!results.length) {
+            // Plain user turns are otherwise dropped — but the injected
+            // <task-notification> carrier (the CLI's turn-start delivery of a
+            // background task's completion) is the only source of the agent's
+            // FULL final text. Mine it: upgrade a summary-only completion already
+            // emitted from the system notification, or report the completion
+            // outright if that notification never arrived on the stream.
+            if (msg.parent_tool_use_id) return out;
+            const text = blockText(msg.message?.content);
+            if (!text.includes("<task-notification>")) return out;
+            for (const c of parseNotificationCarriers(text)) {
+              const entry = resolveBgEntry(c.taskId, c.toolUseId);
+              if (!entry) continue; // not a subagent task (background Bash/Monitor/workflow)
+              const alreadyReported = entry.pendingSummary === true;
+              entry.pendingSummary = false;
+              if (alreadyReported && !c.result) continue; // nothing to add over the summary
+              pushCompleted(out, c.taskId, entry, {
+                callId: c.toolUseId,
+                status: c.status,
+                ...(c.result ?? c.summary ? { result: (c.result ?? c.summary)! } : {}),
+                ...(c.outputFile ? { outputFile: c.outputFile } : {}),
+              });
+            }
+            return out;
+          }
           // Edit/Write's absolute-line-number patch rides the message-level
           // tool_use_result sidecar (not the result block). Parse defensively —
           // undefined for non-Edit tools or an unexpected sidecar shape.
@@ -248,6 +416,24 @@ export function createSdkEventMapper(): SdkEventMapper {
               out.push({ type: "activity", kind: "tool_finished", callId: r.tool_use_id ?? null, result: blockText(r.content), isError: !!r.is_error, parentCallId: msg.parent_tool_use_id });
             } else {
               out.push({ type: "message", role: "tool", blocks: [{ type: "tool_result", callId: r.tool_use_id ?? "", isError: !!r.is_error, content: blockText(r.content), ...(patch ? { patch } : {}) }] });
+              // Background launch: the stub result confirms the async spawn. The
+              // structured sidecar is authoritative; stub-text parse is the
+              // fallback, gated on a known Agent/Task call so arbitrary tool text
+              // can't fake a spawn. Foreground runs (status "completed") match
+              // neither and emit nothing.
+              const stub = parseAsyncStubSidecar(msg.tool_use_result)
+                ?? (agentCallIds.has(r.tool_use_id ?? "") ? parseAsyncStubText(blockText(r.content)) : null);
+              if (stub && r.tool_use_id && !bgAgents.has(stub.agentId)) {
+                bgAgents.set(stub.agentId, { callId: r.tool_use_id, ...(stub.outputFile ? { outputFile: stub.outputFile } : {}) });
+                out.push({
+                  type: "subagent_started",
+                  callId: r.tool_use_id,
+                  agentId: stub.agentId,
+                  background: true,
+                  ...(stub.description ? { description: stub.description } : {}),
+                  ...(stub.outputFile ? { outputFile: stub.outputFile } : {}),
+                });
+              }
             }
           }
           return out;
