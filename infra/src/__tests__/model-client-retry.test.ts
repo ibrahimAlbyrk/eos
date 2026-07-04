@@ -65,16 +65,52 @@ describe("model-client retry / backoff (MJ3)", () => {
     assert.equal(call, 3, "initial + 2 retries");
   });
 
-  it("a thrown fetch (connection refusal) is NOT retried — propagates to a typed error", async () => {
+  it("a transient network throw (fetch failed) is retried, then succeeds (turn does NOT end)", async () => {
+    const sleeps: number[] = [];
+    let call = 0;
+    const fetchImpl = (async () => {
+      call++;
+      if (call === 1) throw new TypeError("fetch failed");
+      return res(200, { choices: [{ message: { content: "ok" }, finish_reason: "stop" }] });
+    }) as unknown as typeof fetch;
+    const caps: ProviderCapabilities = { ...OPENAI_NOSTREAM, retry: { maxRetries: 4, baseMs: 10, capMs: 50 } };
+    const client = createOpenAIModelClient({ apiKey: "k", model: "m", capabilities: caps, fetchImpl, sleepImpl: async (ms) => { sleeps.push(ms); } });
+    const turn = await client.createTurn([{ role: "user", content: "hi" }]);
+    assert.equal(turn.stopReason, "end_turn");
+    assert.equal(turn.text, "ok");
+    assert.equal(call, 2, "network throw retried once");
+    assert.deepEqual(sleeps, [10], "backoff before the retry (no Retry-After header on a throw)");
+  });
+
+  it("a sustained network throw is bounded — gives up after maxRetries with the same error shape", async () => {
     let call = 0;
     const errs: unknown[] = [];
     const fetchImpl = (async () => { call++; throw new Error("ECONNREFUSED"); }) as unknown as typeof fetch;
-    const client = createOpenAIModelClient({ apiKey: "", model: "m", baseUrl: "http://localhost:1", capabilities: OPENAI_NOSTREAM, fetchImpl, sleepImpl: async () => {}, onProviderError: (e) => errs.push(e) });
+    const caps: ProviderCapabilities = { ...OPENAI_NOSTREAM, retry: { maxRetries: 2, baseMs: 1, capMs: 5 } };
+    const client = createOpenAIModelClient({ apiKey: "", model: "m", baseUrl: "http://localhost:1", capabilities: caps, fetchImpl, sleepImpl: async () => {}, onProviderError: (e) => errs.push(e) });
     const turn = await client.createTurn([{ role: "user", content: "hi" }]);
     assert.equal(turn.stopReason, "error");
     assert.match(turn.error ?? "", /ECONNREFUSED/);
-    assert.equal(call, 1, "a network throw is terminal, not retried");
-    assert.deepEqual(errs, [{ transport: "network", detail: "ECONNREFUSED" }]);
+    assert.equal(call, 3, "initial + 2 retries, then give up");
+    assert.deepEqual(errs, [{ transport: "network", detail: "ECONNREFUSED" }], "onProviderError fires once, on the final give-up");
+  });
+
+  it("withRetry does NOT retry an aborted turn or an AbortError throw (fail fast)", async () => {
+    // A cancelled turn flips signal.aborted — a network throw mid-cancel must not retry.
+    let calls = 0;
+    await assert.rejects(
+      withRetry(async () => { calls++; throw new Error("fetch failed"); }, { maxRetries: 4, baseMs: 1, capMs: 5 }, async () => {}, { aborted: true }),
+      /fetch failed/,
+    );
+    assert.equal(calls, 1, "aborted signal → no retry");
+
+    // A real AbortSignal-tied fetch throws an AbortError — also terminal.
+    let calls2 = 0;
+    await assert.rejects(
+      withRetry(async () => { calls2++; const e = new Error("The operation was aborted"); e.name = "AbortError"; throw e; }, { maxRetries: 4, baseMs: 1, capMs: 5 }, async () => {}),
+      /aborted/,
+    );
+    assert.equal(calls2, 1, "AbortError → no retry");
   });
 
   it("Anthropic shares the same wrapper (529 overloaded → retry → success)", async () => {

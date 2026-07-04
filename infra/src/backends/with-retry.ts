@@ -53,9 +53,22 @@ async function discard(resp: Response): Promise<void> {
   }
 }
 
-// Run doFetch, retrying retryable statuses with exponential backoff (Retry-After
-// wins when present, clamped to capMs). A thrown fetch (network/refusal) is NOT
-// retried — it propagates so the client maps it to a typed provider error.
+// A thrown fetch is the transport:"network" class the clients already report (undici
+// "fetch failed", connection reset/refused, DNS, timeout) — transient, so retry it.
+// The ONE exception that must fail fast: an abort. A cancelled turn flips signal.aborted;
+// a fetch tied to a real AbortSignal throws an AbortError. Retrying a cancel is a bug,
+// so both short-circuit. (Auth throws / request-construction errors never reach here:
+// auth surfaces as a non-OK Response, and the body is built before doFetch runs.)
+function isAbort(e: unknown, signal?: { aborted: boolean }): boolean {
+  if (signal?.aborted) return true;
+  return typeof e === "object" && e !== null && (e as { name?: unknown }).name === "AbortError";
+}
+
+// Run doFetch, retrying with bounded exponential backoff. Two retryable failures share
+// ONE policy: a retryable HTTP status (Retry-After wins when present, clamped to capMs)
+// and a thrown transient network error (backoff only — no response to read a header from).
+// A non-retryable status falls through to the client's !resp.ok mapping; an exhausted or
+// aborted throw re-propagates so the client maps it to a typed provider error.
 export async function withRetry(
   doFetch: () => Promise<Response>,
   policy: RetryPolicy,
@@ -64,7 +77,15 @@ export async function withRetry(
 ): Promise<Response> {
   let attempt = 0;
   for (;;) {
-    const resp = await doFetch();
+    let resp: Response;
+    try {
+      resp = await doFetch();
+    } catch (e) {
+      if (isAbort(e, signal) || attempt >= policy.maxRetries) throw e;
+      await sleep(Math.min(policy.capMs, policy.baseMs * 2 ** attempt));
+      attempt++;
+      continue;
+    }
     if (!RETRYABLE_STATUS.has(resp.status) || attempt >= policy.maxRetries) return resp;
     if (signal?.aborted) return resp;
     const ra = retryAfterMs(resp);
