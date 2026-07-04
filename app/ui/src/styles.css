@@ -81,6 +81,12 @@ kbd {
   /* floating side/right islands: thin gap + radius; the center stays a
      full-bleed background layer underneath */
   --shell-gap: 6px;
+  /* Single source of the visible gap BETWEEN tiled dock panels: the tiled-island
+     inset, doubled at each shared boundary → the v/col gap is 2× this. Split docks
+     use it as-is; single-pane docks use 2× (they carry the full frame themselves,
+     no adjacent island — see .pane-dock viewer inset). Halve here to halve both
+     axes' gaps in one place. */
+  --dock-tile-inset: 1.5px;
   --panel-radius: 12px;
   /* transcript rhythm: .messages flex gap owns ALL inter-block spacing —
      block roots carry no outer margins. Must stay ≥ --msg-actions-h + its
@@ -754,7 +760,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    it. */
 .terminal-viewer, .file-viewer, .diff-viewer, .commits-viewer, .agent-viewer, .conflict-viewer, .memory-viewer {
   position: absolute;
-  inset: 3px;
+  inset: var(--dock-tile-inset);
   display: flex;
   flex-direction: column;
   background: var(--surface-2, var(--bg));
@@ -997,9 +1003,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .pane-dock .commits-viewer, .pane-dock .agent-viewer, .pane-dock .conflict-viewer,
 .pane-dock .memory-viewer {
   /* Full-height sibling of the transcript column: the pane header caps the
-     transcript only, so the dock spans the pane top-to-bottom with the same
-     --shell-gap frame on every edge (no rise over the slim window strip). */
-  inset: var(--shell-gap);
+     transcript only, so the dock spans the pane top-to-bottom. Single-pane docks
+     carry the full frame themselves (no adjacent island), so they use 2× the
+     tiled-island inset — half the old --shell-gap, in step with the split docks. */
+  inset: calc(var(--dock-tile-inset) * 2);
 }
 .pane {
   position: absolute;
