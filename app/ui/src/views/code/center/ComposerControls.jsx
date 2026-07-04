@@ -143,21 +143,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             cwd={selected ? (selected.cwd ?? selected.worktree_from) : (ui.composer.cwd ?? live.recents[0] ?? null)}
           />
         </div>
-        <div className="mem-wrap" style={{ position: "relative" }}>
-          <button
-            className="iconbtn"
-            title={selected ? "Project memory" : "Select an agent to view its project memory"}
-            disabled={!selected}
-            onClick={() => { if (selected) ui.openMemoryViewer(selected.id); }}
-          >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <ellipse cx="8" cy="4" rx="5" ry="2" />
-              <path d="M3 4v8c0 1.1 2.2 2 5 2s5-.9 5-2V4" />
-              <path d="M3 8c0 1.1 2.2 2 5 2s5-.9 5-2" />
-            </svg>
-          </button>
-        </div>
-        <div className="tpl-wrap" style={{ position: "relative" }}>
+<div className="tpl-wrap" style={{ position: "relative" }}>
           <button
             className="iconbtn"
             title="Prompt templates"

@@ -102,8 +102,6 @@ export function useUi() {
   const closeCommitsViewer = useCallback(() => closePanelIn(scopeRef.current, "commits"), [closePanelIn]);
   const openConflictResolver = useCallback((workerId) => openScoped("conflict", { workerId }), [openScoped]);
   const closeConflictResolver = useCallback(() => closePanelIn(scopeRef.current, "conflict"), [closePanelIn]);
-  const openMemoryViewer = useCallback((workerId) => openScoped("memory", { workerId }), [openScoped]);
-  const closeMemoryViewer = useCallback(() => closePanelIn(scopeRef.current, "memory"), [closePanelIn]);
   const openTerminalViewer = useCallback(() => openScoped("terminal", {}), [openScoped]);
   const closeTerminalViewer = useCallback(() => closePanelIn(scopeRef.current, "terminal"), [closePanelIn]);
   const setDockRatio = useCallback((key, value) => setDockRatioIn(scopeRef.current, key, value), [setDockRatioIn]);
@@ -122,14 +120,12 @@ export function useUi() {
       diffViewer: panelDataIn(scopePane, "diff"),
       commitsViewer: panelDataIn(scopePane, "commits"),
       conflictViewer: panelDataIn(scopePane, "conflict"),
-      memoryViewer: panelDataIn(scopePane, "memory"),
       terminalViewer: panelDataIn(scopePane, "terminal"),
       openFileViewer, closeFileViewer,
       openAgentViewer, closeAgentViewer, syncAgentViewer,
       openDiffViewer, closeDiffViewer,
       openCommitsViewer, closeCommitsViewer,
       openConflictResolver, closeConflictResolver,
-      openMemoryViewer, closeMemoryViewer,
       openTerminalViewer, closeTerminalViewer,
     };
     return {
@@ -153,7 +149,7 @@ export function useUi() {
     openPopoverIn, openPop, closeAllPops,
     openFileViewer, closeFileViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     openDiffViewer, closeDiffViewer, openCommitsViewer, closeCommitsViewer,
-    openConflictResolver, closeConflictResolver, openMemoryViewer, closeMemoryViewer,
+    openConflictResolver, closeConflictResolver,
     openTerminalViewer, closeTerminalViewer,
   ]);
 }
