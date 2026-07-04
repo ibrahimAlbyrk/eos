@@ -56,7 +56,7 @@ function FileViewerInner({ path }) {
   const showMarkdownPreview = isMarkdown && inPreview;
 
   useEffect(() => {
-    setViewMode(fileKind(path) === "html" ? "preview" : "source");
+    setViewMode(fileKind(path) === "html" || isMarkdownPath(path) ? "preview" : "source");
     setFrameGen(0);
     setBinaryMeta(null);
   }, [path]);
