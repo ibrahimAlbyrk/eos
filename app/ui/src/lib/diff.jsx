@@ -98,16 +98,24 @@ export function computeLCS(a, b) {
   return result.reverse();
 }
 
-export function inlineDiff(oldText, newText) {
+// Char offsets of the changed span on each side (common prefix/suffix trimmed).
+// Shared by inlineDiff (JSX spans) and the git diff panel, which overlays the
+// same word-level highlight onto its per-token syntax highlighting.
+export function inlineDiffRanges(oldText, newText) {
   let prefix = 0;
   while (prefix < oldText.length && prefix < newText.length && oldText[prefix] === newText[prefix]) prefix++;
   let suffixO = oldText.length, suffixN = newText.length;
   while (suffixO > prefix && suffixN > prefix && oldText[suffixO - 1] === newText[suffixN - 1]) { suffixO--; suffixN--; }
+  return { delStart: prefix, delEnd: suffixO, addStart: prefix, addEnd: suffixN };
+}
 
-  const common1 = oldText.slice(0, prefix);
-  const delPart = oldText.slice(prefix, suffixO);
-  const addPart = newText.slice(prefix, suffixN);
-  const common2 = oldText.slice(suffixO);
+export function inlineDiff(oldText, newText) {
+  const { delStart, delEnd, addStart, addEnd } = inlineDiffRanges(oldText, newText);
+
+  const common1 = oldText.slice(0, delStart);
+  const delPart = oldText.slice(delStart, delEnd);
+  const addPart = newText.slice(addStart, addEnd);
+  const common2 = oldText.slice(delEnd);
 
   const delSegs = (
     <>

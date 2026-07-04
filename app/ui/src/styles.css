@@ -1552,12 +1552,10 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .messages {
   max-width: 1260px;
   margin: 0 auto;
-  /* Bottom padding = the hover actions row (--msg-actions-h + its 4px offset),
-     nothing more: at rest (pinned) the last text sits that far above the composer,
-     dissolving inside the bottom fade instead of stopping above it. The actions
-     row of the LAST message must fit inside this box — any smaller and its
-     absolutely-positioned overflow extends scrollHeight, recreating the gap. */
-  padding: 24px 32px calc(var(--msg-actions-h) + 4px);
+  /* Bottom padding = resting breathing room between the last message/thinking
+     indicator and the composer when pinned to bottom. Does not affect the scroll
+     cutoff point (viewport clip, not this padding, sets that edge). */
+  padding: 24px 32px 28px;
   display: flex;
   flex-direction: column;
   gap: var(--block-gap);
@@ -3110,7 +3108,7 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
      waste horizontal space. */
   align-items: center;
   gap: 6px;
-  padding: 8px 14px 12px;
+  padding: 0 14px 12px;
   flex-shrink: 0;
 }
 /* Top fade above the composer — sits at the transcript's bottom edge (bottom:100%
@@ -3122,7 +3120,7 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   left: 0;
   right: 14px;
   bottom: 100%;
-  height: 48px;
+  height: 0;
   background: linear-gradient(to bottom, transparent, var(--bg));
   pointer-events: none;
   z-index: 1;
@@ -7489,22 +7487,33 @@ html:not([data-theme="light"]) .fv-editor--md {
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
 }
-.dv-title {
-  font-size: var(--text-base);
-  font-weight: 500;
-  color: var(--fg);
-}
-.dv-totals {
+/* Header breadcrumb: folder icon + <base> → <head>. The arrow is a subtle
+   separator; the head ref carries the accent so it reads as the current side. */
+.dv-crumb {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  min-width: 0;
   font-family: var(--font-mono);
   font-size: var(--text-sm);
+  color: var(--fg);
 }
+.dv-crumb-icon { color: var(--fg-dim); flex-shrink: 0; }
+.dv-crumb-ref { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dv-crumb-arrow { color: var(--fg-faint); flex-shrink: 0; }
+.dv-crumb-head { color: var(--accent); }
 .dv-add { color: var(--ok); }
 .dv-del { color: var(--err); }
-.dv-count { color: var(--fg-dim); }
 .dv-grow { flex: 1; }
+
+/* Muted sub-row under the header — shown only for large (collapsed) diffs. */
+.dv-hint {
+  padding: 6px 14px;
+  font-size: var(--text-xs);
+  color: var(--fg-dim);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
 
 /* dv-head action buttons: Verify / Try / Apply / conflict escalation */
 .dv-act {
@@ -7528,10 +7537,8 @@ html:not([data-theme="light"]) .fv-editor--md {
 .dv-list {
   flex: 1;
   overflow-y: auto;
-  padding: 10px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
 }
 .dv-empty {
   padding: 24px;
@@ -7540,17 +7547,15 @@ html:not([data-theme="light"]) .fv-editor--md {
   color: var(--fg-dim);
 }
 
-/* Flat file card — --bg well recessed into the island (same tone as the
-   center editor), hairline border, panel-radius corners, no shadow/glass.
-   Status color lives only in the small badge (--st-color per status class).
-   content-visibility skips layout/paint of offscreen cards in long lists. */
+/* Flat, dense file row — full-bleed with a hairline separator instead of a
+   bordered card, so the list reads like a GitHub PR file tree. The block itself
+   is transparent (equals the panel --surface-2); only the clickable title row
+   below is lifted to --surface-3, so the expanded diff body reads as the panel
+   background. content-visibility skips layout/paint of offscreen cards. */
 .dv-file {
   position: relative;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--panel-radius);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
-  overflow: hidden;
   content-visibility: auto;
   contain-intrinsic-size: auto 35px;
 }
@@ -7564,13 +7569,15 @@ html:not([data-theme="light"]) .fv-editor--md {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 6px 14px;
   cursor: pointer;
-  background: none;
+  background: var(--surface-3);
   border: 0;
   text-align: left;
 }
-.dv-row:hover { background: var(--surface); }
+/* Only the title row is lifted to --surface-3; hover layers a neutral --tint
+   overlay ON TOP so it reads a touch lighter still in dark (darker in light). */
+.dv-row:hover { background: linear-gradient(rgba(var(--tint), 0.05), rgba(var(--tint), 0.05)), var(--surface-3); }
 .dv-chev {
   color: var(--fg-faint);
   flex-shrink: 0;
@@ -7649,8 +7656,11 @@ html:not([data-theme="light"]) .fv-editor--md {
 .dv-discard-no:hover { background: var(--surface); }
 
 .dv-patch {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: 1.6;
   border-top: 1px solid var(--border);
-  padding-top: 4px;
+  padding: 4px 0 6px;
 }
 /* content-visibility skips layout/paint of offscreen hunks — a huge expanded
    diff costs only its on-screen window. The intrinsic-size estimate comes
@@ -7667,6 +7677,37 @@ html:not([data-theme="light"]) .fv-editor--md {
   padding: 3px 14px;
   margin: 4px 0 2px;
 }
+
+/* GitHub-PR diff rows — a single line-number gutter, a bright colored left-edge
+   bar and a tinted background on changed rows; context rows stay plain. Base
+   text keeps --fg so per-token syntax highlighting shows through, and the
+   .ed-hl-* word-diff brights overlay on top. Scoped under .dv-patch so the
+   shared .ed-* tool-view rows are untouched. */
+.dvr {
+  display: flex;
+  min-height: 20px;
+  border-left: 2px solid transparent;
+}
+.dvr-num {
+  flex: 0 0 auto;
+  width: 44px;
+  padding: 0 12px 0 6px;
+  text-align: right;
+  color: var(--fg-faint);
+  user-select: none;
+}
+.dvr-code {
+  flex: 1;
+  min-width: 0;
+  padding-right: 12px;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--fg);
+}
+.dvr-add { background: var(--hl-ins-bg); border-left-color: var(--ok); }
+.dvr-del { background: var(--hl-del-bg); border-left-color: var(--err); }
+.dvr-add .dvr-num { color: var(--hl-ins-fg); }
+.dvr-del .dvr-num { color: var(--hl-del-fg); }
 .dv-patch-note {
   padding: 10px 14px;
   font-size: var(--text-xs);
@@ -7674,7 +7715,6 @@ html:not([data-theme="light"]) .fv-editor--md {
   border-top: 1px solid var(--border);
 }
 .dv-patch-err { color: var(--err); }
-.diff-viewer .ed-num { width: 42px; }
 
 /* Standalone code-highlight spans (lib/highlightTokens.js) — same palette as
    the CodeMirror editor (--hl-* tokens, theme-aware). */

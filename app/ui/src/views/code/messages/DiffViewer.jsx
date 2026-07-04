@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { parsePatch } from "../../../lib/patch.js";
+import { inlineDiffRanges } from "../../../lib/diff.jsx";
 import { highlightAsync } from "../../../lib/asyncHighlight.js";
 import { spawnMergeGitAgent } from "../../../lib/spawnMergeGitAgent.js";
 import { useWorkerVerdict } from "../../../hooks/useWorkerVerdict.js";
@@ -17,7 +18,9 @@ import { PanelCloseButton } from "./PanelCloseButton.jsx";
 const MAX_ROWS = 300;
 const CHUNK_ROWS = 400;
 
-const STATUS_LABEL = { M: "M", A: "A", D: "D", R: "R" };
+// Above this many changed lines a diff counts as "large": every file starts
+// collapsed and the hint row appears. Small diffs stay expanded by default.
+const LARGE_DIFF_LINES = 1000;
 
 function splitPath(path) {
   const i = path.lastIndexOf("/");
@@ -41,10 +44,24 @@ function DiffViewerInner({ workerId, live }) {
   // Cached snapshot renders synchronously; revalidation + SSE debounce live
   // in the diffStore (stale-while-revalidate).
   const { changes, patches, loadPatch, refresh } = useWorkerChanges(workerId, live);
-  // Files are expanded by default; the set tracks what the user collapsed.
+  // The set tracks what is collapsed. Small diffs start empty (all expanded);
+  // large diffs start with every file collapsed (see the init effect below).
   const [collapsed, setCollapsed] = useState(() => new Set());
   const [discardErr, setDiscardErr] = useState(null);
   useEffect(() => { setCollapsed(new Set()); setDiscardErr(null); }, [workerId]);
+
+  const totalChanged = (changes?.insertions || 0) + (changes?.deletions || 0);
+  const isLargeDiff = totalChanged >= LARGE_DIFF_LINES;
+
+  // Once the first changes snapshot for a worker arrives, collapse every file
+  // when the diff is large. Keyed by workerId so later SSE refreshes keep the
+  // user's manual expand/collapse state instead of re-collapsing.
+  const initedFor = useRef(null);
+  useEffect(() => {
+    if (!changes || initedFor.current === workerId) return;
+    initedFor.current = workerId;
+    if (isLargeDiff) setCollapsed(new Set((changes.files || []).map((f) => f.path)));
+  }, [changes, workerId, isLargeDiff]);
 
   // Load the patch of every open file that has none yet — covers the initial
   // list, files arriving via SSE refresh, and re-expanding after an error.
@@ -101,17 +118,27 @@ function DiffViewerInner({ workerId, live }) {
     setDiscardErr(r.body?.error || "Discard failed");
   }, [workerId, refresh]);
 
+  const base = worker?.worktree_from;
+  const head = worker?.branch;
+
   return (
     <>
       <div className="dv-head">
-        <span className="dv-title">Changes</span>
-        {changes && files.length > 0 && (
-          <span className="dv-totals">
-            <span className="dv-add">+{changes.insertions.toLocaleString()}</span>
-            <span className="dv-del">−{changes.deletions.toLocaleString()}</span>
-            <span className="dv-count">{files.length} {files.length === 1 ? "file" : "files"}</span>
-          </span>
-        )}
+        <span className="dv-crumb" title={base ? `${base} → ${head}` : undefined}>
+          <svg className="dv-crumb-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+            <path d="M2 5a1 1 0 0 1 1-1h3l2 2h5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" />
+          </svg>
+          {base && head ? (
+            <>
+              <span className="dv-crumb-ref">{base}</span>
+              <span className="dv-crumb-arrow">→</span>
+              <span className="dv-crumb-ref dv-crumb-head">{head}</span>
+            </>
+          ) : (
+            <span className="dv-crumb-ref">{head || "Changes"}</span>
+          )}
+        </span>
+        <span className="dv-grow" />
         {showVerdict && (
           <span className={"git-chip verdict-chip verdict-" + verdict.verdict} title={verdict.command ? `verified by: ${verdict.command}` : undefined}>
             <span className="lbl">{verdict.verdict}</span>
@@ -123,7 +150,6 @@ function DiffViewerInner({ workerId, live }) {
           </span>
         )}
         {discardErr && <span className="dv-act-err" title={discardErr}>{discardErr}</span>}
-        <span className="dv-grow" />
         {isolated && (
           <TryApplyButton
             tryState={tryState}
@@ -159,6 +185,9 @@ function DiffViewerInner({ workerId, live }) {
         )}
         <PanelCloseButton onClose={ui.closeDiffViewer} />
       </div>
+      {isLargeDiff && (
+        <div className="dv-hint">Large diff — files start collapsed. Click a file header to expand it.</div>
+      )}
       <div className="dv-list">
         {!ready && <div className="dv-empty">Loading...</div>}
         {ready && files.length === 0 && <div className="dv-empty">Working tree clean</div>}
@@ -201,18 +230,14 @@ const FileCard = memo(function FileCard({ file, isOpen, patch, onToggle, onOpenF
         <svg className="dv-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="m6 4 4 4-4 4" />
         </svg>
-        <span className={"dv-st dv-st-" + file.status.toLowerCase()} title={file.oldPath ? `${file.oldPath} → ${file.path}` : undefined}>
-          {STATUS_LABEL[file.status]}
-        </span>
         <span
           className={"dv-path" + (openable ? " dv-openable" : "")}
-          title={openable ? "Open file" : undefined}
+          title={file.oldPath ? `${file.oldPath} → ${file.path}` : (openable ? "Open file" : undefined)}
           onClick={openable ? (e) => { e.stopPropagation(); onOpenFile(file); } : undefined}
         >
           {dir && <span className="dv-dir">{dir}</span>}
           <span className="dv-base">{base}</span>
         </span>
-        <span className="dv-grow" />
         <span className="dv-counts">
           {file.untracked ? (
             <span className="dv-new">new</span>
@@ -225,6 +250,7 @@ const FileCard = memo(function FileCard({ file, isOpen, patch, onToggle, onOpenF
             </>
           )}
         </span>
+        <span className="dv-grow" />
         {onDiscard && (
           confirming ? (
             <span className="dv-discard-confirm">
@@ -261,8 +287,60 @@ function alignRich(hunk, oldHL, newHL) {
   });
 }
 
-function renderTokens(tokens) {
-  return tokens.map((tok, k) => (tok.c ? <span key={k} className={tok.c}>{tok.t}</span> : tok.t));
+// Word-level intra-line highlight: pair each hunk's contiguous del-run with the
+// following add-run (index-wise, same as buildDiffHunks) and record the changed
+// char span per row. Returned parallel to hunk.rows; null where nothing changed.
+function wordRangesFor(rows) {
+  const ranges = new Array(rows.length).fill(null);
+  let i = 0;
+  while (i < rows.length) {
+    if (rows[i].type !== "del") { i++; continue; }
+    const delStart = i;
+    while (i < rows.length && rows[i].type === "del") i++;
+    const addStart = i;
+    while (i < rows.length && rows[i].type === "add") i++;
+    const pairs = Math.min(addStart - delStart, i - addStart);
+    for (let p = 0; p < pairs; p++) {
+      const d = rows[delStart + p], a = rows[addStart + p];
+      const { delStart: ds, delEnd: de, addStart: as, addEnd: ae } = inlineDiffRanges(d.text, a.text);
+      if (de > ds) ranges[delStart + p] = { start: ds, end: de };
+      if (ae > as) ranges[addStart + p] = { start: as, end: ae };
+    }
+  }
+  return ranges;
+}
+
+// Render syntax tokens for one line, overlaying a single continuous word-diff
+// background across [hlStart, hlEnd). Syntax color stays on the inner spans, so
+// both highlights compose. `tokens` may be the plain single-token fallback
+// ([{ t: text }]) when the async syntax pass has not answered yet.
+function renderTokens(tokens, hlStart, hlEnd, hlClass) {
+  if (hlStart == null) {
+    return tokens.map((tok, k) => (tok.c ? <span key={k} className={tok.c}>{tok.t}</span> : tok.t));
+  }
+  const pre = [], mid = [], post = [];
+  let pos = 0;
+  tokens.forEach((tok, k) => {
+    const text = tok.t ?? "";
+    if (!text) return;
+    const start = pos, end = pos + text.length;
+    pos = end;
+    const emit = (bucket, s, e, tag) => {
+      if (e <= s) return;
+      const slice = text.slice(s - start, e - start);
+      bucket.push(tok.c ? <span key={String(k) + tag} className={tok.c}>{slice}</span> : slice);
+    };
+    emit(pre, start, Math.min(end, hlStart), "a");
+    emit(mid, Math.max(start, hlStart), Math.min(end, hlEnd), "b");
+    emit(post, Math.max(start, hlEnd), end, "c");
+  });
+  return (
+    <>
+      {pre}
+      {mid.length > 0 && <span className={hlClass}>{mid}</span>}
+      {post}
+    </>
+  );
 }
 
 function PatchBody({ file, patch }) {
@@ -271,6 +349,7 @@ function PatchBody({ file, patch }) {
     () => (data && !data.binary ? parsePatch(data.patch) : []),
     [data],
   );
+  const wordRanges = useMemo(() => hunks.map((h) => wordRangesFor(h.rows)), [hunks]);
 
   // rich.perHunk[i][j] = token line for hunks[i].rows[j]; arrives async from
   // the highlight worker — rows paint as plain text immediately and colorize
@@ -324,7 +403,7 @@ function PatchBody({ file, patch }) {
   let left = budget;
 
   return (
-    <div className="dv-patch edit-diff">
+    <div className="dv-patch">
       {hunks.map((h, i) => {
         if (left <= 0) return null;
         const rows = h.rows.length > left ? h.rows.slice(0, left) : h.rows;
@@ -336,13 +415,19 @@ function PatchBody({ file, patch }) {
             style={{ containIntrinsicSize: `auto ${rows.length * 21 + 26}px` }}
           >
             <div className="dv-hunk">{h.header}</div>
-            {rows.map((r, j) => (
-              <div className={"ed-line ed-" + r.type} key={j}>
-                <span className="ed-num">{r.num}</span>
-                <span className="ed-sign">{r.type === "del" ? "-" : r.type === "add" ? "+" : " "}</span>
-                <span className="ed-text">{perHunk?.[i]?.[j] ? renderTokens(perHunk[i][j]) : r.text}</span>
-              </div>
-            ))}
+            {rows.map((r, j) => {
+              const tokens = perHunk?.[i]?.[j] ?? [{ t: r.text }];
+              const range = wordRanges[i]?.[j];
+              const hlClass = r.type === "del" ? "ed-hl-del" : "ed-hl-add";
+              return (
+                <div className={"dvr dvr-" + r.type} key={j}>
+                  <span className="dvr-num">{r.num}</span>
+                  <span className="dvr-code">
+                    {renderTokens(tokens, range?.start ?? null, range?.end, hlClass)}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         );
       })}
