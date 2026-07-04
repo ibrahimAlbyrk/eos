@@ -13,10 +13,15 @@ import { markExited } from "../../state/ptyPanelStore.js";
 // written straight through in SSE order — no seq dedup. Wiring: xterm.onData →
 // POST /pty/:id/input (coalescing send queue); pty:data → term.write.
 //
-// Open path is deferred to avoid open-time jank: xterm.open()+the first fit run
-// in a rAF (out of the React commit frame that starts the island's width/opacity
-// transition), and every fit is debounced so the ResizeObserver firing per-frame
-// during the transition settles into ONE fit + one resize POST, not a reflow storm.
+// Open path is settle-gated to avoid open-time jank: the island's open animates
+// the dock's width (flex-basis / slot rect, 240ms) on the main thread, and
+// xterm's mount (term.open + first render/fit/focus) is a 60-130ms block — run
+// mid-transition it freezes the slide (measured in WebKit, the app shell's
+// engine). So the mount polls the host's width each rAF and runs only once the
+// geometry has stopped changing: the slide owns the frame budget, the mount
+// block lands after motion stops (where it's invisible), and the first fit
+// happens at the final size — one render at the right cols/rows. Later fits
+// (divider drags, panel switches) stay debounced behind a ResizeObserver.
 export function TerminalView({ sessionId, active }) {
   const hostRef = useRef(null);
   const ctl = useRef(null); // { scheduleFit, focus } — for the active-tab effect
@@ -90,17 +95,27 @@ export function TerminalView({ sessionId, active }) {
       markExited(sessionId);
     });
 
-    // Defer the mount past the frame that kicks off the island open transition —
-    // term.open()+fit force a synchronous reflow, which mid-commit is the hitch.
-    const raf = requestAnimationFrame(() => {
+    // Mount once the host's width is stable for 2 consecutive frames (strict
+    // equality — sub-pixel movement near the ease's tail keeps it "unstable"
+    // until the transition truly ends). A hidden host (width 0: inactive tab,
+    // buried panel) never settles, so the mount also waits for visibility.
+    let raf = 0;
+    let lastW = -1;
+    let stableFrames = 0;
+    const openWhenSettled = () => {
+      const w = host.getBoundingClientRect().width;
+      stableFrames = w > 0 && w === lastW ? stableFrames + 1 : 0;
+      lastW = w;
+      if (stableFrames < 2) { raf = requestAnimationFrame(openWhenSettled); return; }
       term.open(host);
       opened = true;
+      settleFit();
       for (const d of pending) term.write(d);
       pending.length = 0;
       onDataDisposable = term.onData((data) => { inputBuf += data; flushInput(); });
-      scheduleFit();
       if (active) term.focus();
-    });
+    };
+    raf = requestAnimationFrame(openWhenSettled);
 
     ctl.current = { scheduleFit, focus: () => { if (opened) term.focus(); } };
 
