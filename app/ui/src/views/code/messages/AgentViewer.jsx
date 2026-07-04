@@ -5,12 +5,13 @@ import { MarkdownView } from "./MarkdownView.jsx";
 import { ScrollHoldContext } from "./scrollHoldContext.js";
 import { ToolItem } from "./ToolItem.jsx";
 import { verbFor } from "../../../lib/messageParser.js";
+import { PanelCloseButton } from "./PanelCloseButton.jsx";
 
 export function AgentViewer() {
   const ui = useUi();
   const open = !!ui.agentViewer;
   return (
-    <div className={"agent-viewer" + (ui.topPanelType === "agent" ? " av-open" : "")}>
+    <div className="agent-viewer av-open">
       {open && <AgentViewerInner block={ui.agentViewer} />}
     </div>
   );
@@ -36,11 +37,7 @@ function AgentViewerInner({ block }) {
     <>
       <div className="av-header">
         <span className="av-title">{block.description || "Agent"}</span>
-        <button className="av-close" onClick={ui.closeAgentViewer} title="Close">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="m4 4 8 8M12 4l-8 8" />
-          </svg>
-        </button>
+        <PanelCloseButton onClose={ui.closeAgentViewer} className="av-close" />
       </div>
 
       <ScrollHoldContext.Provider value={stick.hold}>

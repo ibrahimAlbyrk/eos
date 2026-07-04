@@ -48,8 +48,8 @@ function ChildIntegrationRow({ child, ui, live, onDirty }) {
   const passed = verdict?.verdict === "passed";
   if (!dirty) return null;
 
-  // Top-only: a buried diff panel's badge must hoist on click, not close it.
-  const viewing = ui.topPanelType === "diff" && ui.diffViewer?.workerId === child.id;
+  // The diff panel is "viewing" this child when it's open for that worker.
+  const viewing = ui.isPanelOpen("diff") && ui.diffViewer?.workerId === child.id;
   return (
     <div className="child-int-row">
       <span className="cir-name" title={child.branch ?? undefined}><AgentName worker={child} /></span>

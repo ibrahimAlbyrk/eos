@@ -3,6 +3,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { highlightAsync } from "../../../lib/asyncHighlight.js";
 import { useWorkerConflicts } from "../../../hooks/useWorkerConflicts.js";
+import { PanelCloseButton } from "./PanelCloseButton.jsx";
 
 // Whole-file keep/remove choices for the markerless add/delete kinds. The
 // `side` matches the server's takeSide() contract; `danger` flags the
@@ -280,11 +281,7 @@ function ConflictResolverInner({ workerId, live }) {
             </svg>
           </button>
         )}
-        <button className="fv-icon-btn fv-close" onClick={ui.closeConflictResolver} title="Close">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="m4 4 8 8M12 4l-8 8" />
-          </svg>
-        </button>
+        <PanelCloseButton onClose={ui.closeConflictResolver} />
       </div>
       <div className="cr-list">
         {!ready && <div className="dv-empty">Loading…</div>}
@@ -314,7 +311,7 @@ export function ConflictResolver({ live }) {
   // pushed on top); visible only when on top.
   const open = Boolean(ui.conflictViewer);
   return (
-    <div className={"conflict-viewer" + (ui.topPanelType === "conflict" ? " cr-open" : "")}>
+    <div className="conflict-viewer cr-open">
       {open && <ConflictResolverInner workerId={ui.conflictViewer.workerId} live={live} />}
     </div>
   );

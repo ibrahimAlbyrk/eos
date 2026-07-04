@@ -946,6 +946,48 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .panel-resize-handle:hover::after { background: rgba(255, 255, 255, 0.15); }
 .panel-resize-handle:active::after,
 .pane-dock.is-resizing .panel-resize-handle::after { background: #fff; }
+
+/* ── Tiling dock (PanelDock) ─────────────────────────────────────────────────
+   A pane's dock hosts up to 3 panels tiled by the pure engine (lib/panelTiling):
+   1 fills · 2 stack (top/bottom) · 3 = left column (stacked pair) + full-height
+   right column. The grid fills the .pane-panel-slot / .pane-dock; each panel sits
+   in an absolute %-rect slot so a reflow only animates rects — the viewer subtree
+   (e.g. a live xterm) is never re-parented, so PTY scrollback survives. */
+.panel-dock-grid { position: absolute; inset: 0; }
+/* Eased reflow of each tile's rect (mirrors .pane-slot); off during a divider drag
+   so the resize tracks the pointer 1:1. The viewer island inside keeps its own
+   inset frame (.file-viewer et al), so gaps read like the panes. */
+.panel-tile-slot {
+  position: absolute;
+  transition:
+    left 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    top 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    width 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    height 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.panel-dock-grid.is-resizing .panel-tile-slot { transition: none; }
+/* Intra-dock split dividers — the same pill idiom as the dock-edge handle
+   (.panel-resize-handle): a slim hit strip with a centered pill that lights on
+   hover/drag. --v = vertical divider (column split, ew-resize); --h = horizontal
+   (stack split, ns-resize). */
+.panel-divider { position: absolute; z-index: 6; touch-action: none; }
+.panel-divider--v { width: 8px; transform: translateX(-50%); cursor: ew-resize; }
+.panel-divider--h { height: 8px; transform: translateY(-50%); cursor: ns-resize; }
+.panel-divider::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: transparent;
+  transition: background 120ms;
+}
+.panel-divider--v::after { width: 2px; height: 40px; }
+.panel-divider--h::after { width: 40px; height: 2px; }
+.panel-divider:hover::after { background: rgba(255, 255, 255, 0.15); }
+.panel-divider:active::after,
+.panel-dock-grid.is-resizing .panel-divider::after { background: #fff; }
 /* Single-view docked panel: unlike the split-view slots it has no --shell-gap/2
    grid padding (it is kept zero-width when closed — padding a border-box element
    would leave a permanent sliver), so its viewer carries the full --shell-gap
@@ -1085,6 +1127,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 
 @media (prefers-reduced-motion: reduce) {
   .pane-slot { transition: none; }
+  .panel-tile-slot { transition: none; }
   .pane { animation: none; }
   .drag-affordance-pill { transition: none; }
   .pane-drop-preview { transition: none; }

@@ -6,7 +6,7 @@ import { killAllSessions } from "../../../state/ptyPanelStore.js";
 // diff viewers). Uses the shared pane-split-btn + is-active button idiom.
 export function TerminalToggleButton() {
   const ui = useUi();
-  const open = ui.topPanelType === "terminal";
+  const open = ui.isPanelOpen("terminal");
 
   return (
     <button

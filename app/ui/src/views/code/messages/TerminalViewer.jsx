@@ -20,7 +20,7 @@ export function TerminalViewer({ live }) {
   const cwd = projectPathFor(live?.workers ?? [], ui.selectedId) ?? undefined;
   const closePanel = () => { killAllSessions(); ui.closeTerminalViewer(); };
   return (
-    <div className={"terminal-viewer" + (ui.topPanelType === "terminal" ? " tv-open" : "")}>
+    <div className="terminal-viewer tv-open">
       {open && <TerminalViewerInner cwd={cwd} onClosePanel={closePanel} />}
     </div>
   );

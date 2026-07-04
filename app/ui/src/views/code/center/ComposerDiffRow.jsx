@@ -226,10 +226,10 @@ export function ComposerDiffRow({ live, worker, wtStatus }) {
       {showSync && (
         <button
           ref={syncChipRef}
-          className={"git-chip sync-chip sync-chip-btn" + (ui.topPanelType === "commits" ? " on" : "") + (pushFx ? " " + pushFx : "")}
+          className={"git-chip sync-chip sync-chip-btn" + (ui.isPanelOpen("commits") ? " on" : "") + (pushFx ? " " + pushFx : "")}
           title="Show unpushed commits"
           onClick={() => {
-            if (ui.topPanelType === "commits") { ui.closeCommitsViewer(); return; }
+            if (ui.isPanelOpen("commits")) { ui.closeCommitsViewer(); return; }
             const dir = workerGitDir(selected);
             if (dir) ui.openCommitsViewer(dir);
           }}
@@ -266,9 +266,9 @@ export function ComposerDiffRow({ live, worker, wtStatus }) {
       )}
       {conflicts > 0 && (
         <button
-          className={"git-chip conflict-chip conflict-chip-btn" + (ui.topPanelType === "conflict" ? " on" : "")}
+          className={"git-chip conflict-chip conflict-chip-btn" + (ui.isPanelOpen("conflict") ? " on" : "")}
           title="Resolve merge conflicts"
-          onClick={() => (ui.topPanelType === "conflict" ? ui.closeConflictResolver() : ui.openConflictResolver(selected.id))}
+          onClick={() => (ui.isPanelOpen("conflict") ? ui.closeConflictResolver() : ui.openConflictResolver(selected.id))}
         >
           <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M7 1.5L13 12H1L7 1.5z" />
@@ -281,9 +281,9 @@ export function ComposerDiffRow({ live, worker, wtStatus }) {
       )}
       {dirty && (
         <button
-          className={"diff-badge diff-badge-btn" + (ui.topPanelType === "diff" ? " on" : "")}
+          className={"diff-badge diff-badge-btn" + (ui.isPanelOpen("diff") ? " on" : "")}
           title="View changes"
-          onClick={() => (ui.topPanelType === "diff" ? ui.closeDiffViewer() : ui.openDiffViewer(selected.id))}
+          onClick={() => (ui.isPanelOpen("diff") ? ui.closeDiffViewer() : ui.openDiffViewer(selected.id))}
         >
           {diff.insertions > 0 || diff.deletions > 0 ? (
             <>

@@ -11,6 +11,7 @@ import { EditView } from "./EditViewLazy.jsx";
 import { MarkdownPreview } from "./MarkdownPreview.jsx";
 import { PreviewToggle } from "./PreviewToggle.jsx";
 import { getFileViewer } from "./fileViewers.jsx";
+import { PanelCloseButton } from "./PanelCloseButton.jsx";
 
 // Above this size the editor opens read-only with the lightweight extension
 // set — editing affordances (history, autocomplete) cost too much on huge docs.
@@ -20,7 +21,7 @@ export function FileViewer() {
   const ui = useUi();
   const open = !!ui.fileViewer;
   return (
-    <div className={"file-viewer" + (ui.topPanelType === "file" ? " fv-open" : "")}>
+    <div className="file-viewer fv-open">
       {open && <FileViewerInner path={ui.fileViewer.path} />}
     </div>
   );
@@ -119,14 +120,14 @@ function FileViewerInner({ path }) {
   useKeybinding({
     match: combo("mod+f"),
     priority: 10,
-    when: () => isText && ui.topPanelType === "file" && paneFocused && ui.focusedRegion === "panel",
+    when: () => isText && ui.isPanelOpen("file") && paneFocused && ui.focusedRegion === "panel",
     run: (ctx, e) => {
       e.preventDefault();
       setShowOpenWith(false);
       setShowFind(true);
       requestAnimationFrame(() => { findRef.current?.focus(); findRef.current?.select(); });
     },
-  }, [isText, ui.topPanelType, paneFocused, ui.focusedRegion]);
+  }, [isText, ui.isPanelOpen, paneFocused, ui.focusedRegion]);
 
   const togglePreview = () => {
     setViewMode((m) => (m === "preview" ? "source" : "preview"));
@@ -141,11 +142,7 @@ function FileViewerInner({ path }) {
     <>
       <div className="fv-row1">
         <span className="fv-title">File</span>
-        <button className="fv-icon-btn fv-close" onClick={ui.closeFileViewer} title="Close">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="m4 4 8 8M12 4l-8 8" />
-          </svg>
-        </button>
+        <PanelCloseButton onClose={ui.closeFileViewer} />
       </div>
       <div className="fv-row2">
         <span className="fv-path">{shortPath}</span>

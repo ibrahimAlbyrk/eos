@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
+import { PanelCloseButton } from "./PanelCloseButton.jsx";
 
 // Right-panel viewer over a project's Claude file-based memory
 // (~/.claude/projects/<encoded-cwd>/memory), resolved per-worker to its project
@@ -13,7 +14,7 @@ export function MemoryViewer() {
   const ui = useUi();
   const open = !!ui.memoryViewer;
   return (
-    <div className={"memory-viewer" + (ui.topPanelType === "memory" ? " mv-open" : "")}>
+    <div className="memory-viewer mv-open">
       {open && <MemoryViewerInner workerId={ui.memoryViewer.workerId} />}
     </div>
   );
@@ -46,11 +47,7 @@ function MemoryViewerInner({ workerId }) {
     <>
       <div className="fv-row1">
         <span className="fv-title">Memory</span>
-        <button className="fv-icon-btn fv-close" onClick={ui.closeMemoryViewer} title="Close">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="m4 4 8 8M12 4l-8 8" />
-          </svg>
-        </button>
+        <PanelCloseButton onClose={ui.closeMemoryViewer} />
       </div>
       {dir && (
         <div className="fv-row2">

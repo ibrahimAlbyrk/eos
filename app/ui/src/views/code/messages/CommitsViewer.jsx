@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { subscribeGitChange, COMMITS_KINDS, GIT_FALLBACK_POLL_MS } from "../../../state/gitChangeBus.js";
+import { PanelCloseButton } from "./PanelCloseButton.jsx";
 
 const STATUS_LABEL = { M: "M", A: "A", D: "D", R: "R" };
 
@@ -22,7 +23,7 @@ export function CommitsViewer() {
   const ui = useUi();
   const open = Boolean(ui.commitsViewer);
   return (
-    <div className={"commits-viewer" + (ui.topPanelType === "commits" ? " cv-open" : "")}>
+    <div className="commits-viewer cv-open">
       {open && <CommitsViewerInner cwd={ui.commitsViewer.cwd} />}
     </div>
   );
@@ -82,11 +83,7 @@ function CommitsViewerInner({ cwd }) {
           </span>
         )}
         <span className="dv-grow" />
-        <button className="fv-icon-btn fv-close" onClick={ui.closeCommitsViewer} title="Close">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="m4 4 8 8M12 4l-8 8" />
-          </svg>
-        </button>
+        <PanelCloseButton onClose={ui.closeCommitsViewer} />
       </div>
       <div className="cv-list">
         {commits === null && <div className="dv-empty">Loading...</div>}

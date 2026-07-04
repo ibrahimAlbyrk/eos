@@ -10,6 +10,7 @@ import { useTryState } from "../../../hooks/useTryState.js";
 import { workerGitDir } from "../../../lib/workerGitDir.js";
 import { TryApplyButton } from "./TryApplyButton.jsx";
 import { notify } from "../../../lib/notify.js";
+import { PanelCloseButton } from "./PanelCloseButton.jsx";
 
 // Initial row budget per file; further rows stream in as the sentinel below
 // the rendered window scrolls into reach — no all-at-once "Show all" commit.
@@ -29,7 +30,7 @@ export function DiffViewer({ live }) {
   // pushed on top); visible only when on top.
   const open = Boolean(ui.diffViewer);
   return (
-    <div className={"diff-viewer" + (ui.topPanelType === "diff" ? " dv-open" : "")}>
+    <div className="diff-viewer dv-open">
       {open && <DiffViewerInner workerId={ui.diffViewer.workerId} live={live} />}
     </div>
   );
@@ -156,11 +157,7 @@ function DiffViewerInner({ workerId, live }) {
             </svg>
           </button>
         )}
-        <button className="fv-icon-btn fv-close" onClick={ui.closeDiffViewer} title="Close">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="m4 4 8 8M12 4l-8 8" />
-          </svg>
-        </button>
+        <PanelCloseButton onClose={ui.closeDiffViewer} />
       </div>
       <div className="dv-list">
         {!ready && <div className="dv-empty">Loading...</div>}
