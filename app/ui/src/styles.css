@@ -9572,13 +9572,17 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   font-size: var(--text-sm);
   cursor: grab;
   touch-action: pan-y; /* keep vertical page scroll; we own the horizontal axis */
-  animation: toast-in 220ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  animation: toast-in 220ms cubic-bezier(0.2, 0.7, 0.3, 1) backwards;
   transition: transform 220ms cubic-bezier(0.2, 0.7, 0.3, 1), opacity 220ms;
 }
 .toast.dragging { cursor: grabbing; transition: none; } /* 1:1 finger tracking */
-/* animation:none is load-bearing: toast-in's `both` fill keeps applying its `to`
-   transform/opacity after it ends, and a filling animation outranks the class
-   transition — without this the slide-out is overridden and the card just vanishes. */
+/* `backwards` fill (not `both`) is load-bearing: a forwards-filling animation
+   outranks BOTH the class transition and the inline drag transform in the cascade,
+   so a retained toast-in would pin the card at translateX(0) — the exit snaps
+   instead of sliding, and a drag can't track the finger. Without forwards fill,
+   transform reverts to the normal cascade once enter ends, so both work. The
+   animation:none below still cancels a mid-entrance enter if a toast is dismissed
+   within the 220ms enter window. */
 .toast.leaving { animation: none; transform: translateX(120%); opacity: 0; } /* slide-out-to-right */
 
 .toast--info { --tone: var(--accent); }
