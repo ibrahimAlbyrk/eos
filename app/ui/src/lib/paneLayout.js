@@ -279,7 +279,7 @@ export function dropZoneFromPoint(fx, fy, edge = 0.3) {
 // Width the docked viewer claims of its OWNING pane's rect, per panel type. The
 // panel opens as a sibling surface immediately right of the focused pane, so the
 // room comes out of that pane's own rect — neighbouring panes never move.
-const PANEL_FRAC = { file: 0.6, agent: 0.4, diff: 0.6, commits: 0.6, conflict: 0.6, memory: 0.6, terminal: 0.6 };
+const PANEL_FRAC = { file: 0.6, agent: 0.4, diff: 0.6, commits: 0.6, conflict: 0.6, memory: 0.6, terminal: 0.4 };
 
 // Carve the focused pane's rect into [shrunk pane | adjacent panel]. `type` is
 // the open panel type (ui.topPanelType) or null/undefined when nothing is open →

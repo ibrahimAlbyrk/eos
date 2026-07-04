@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { breadcrumbFor } from "../../../lib/breadcrumb.js";
 import { statusFromState } from "../../../lib/format.js";
@@ -7,15 +7,9 @@ import { RenameInput } from "../../../components/RenameInput.jsx";
 import { api } from "../../../api/client.js";
 import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { TerminalToggleButton } from "../center/TerminalToggleButton.jsx";
-import { FollowButton } from "../center/FollowButton.jsx";
-import { SplitEmptyButton } from "../center/SplitEmptyButton.jsx";
-import { PanePresets } from "../center/PanePresets.jsx";
 
-// Per-pane top bar — element-for-element the original global bar (CenterHeader
-// @ 979c81c^): breadcrumb + agent menu on the left, terminal / follow / split /
-// presets on the right. Follow + presets act globally but render in every
-// pane's header so N=1 is the exact original and splits stay consistent.
-// Owned by each pane and rendered INSIDE its PaneScopeContext.Provider, so
+// Per-pane top bar: breadcrumb + agent menu on the left, terminal toggle on the
+// right. Owned by each pane and rendered INSIDE its PaneScopeContext.Provider, so
 // every scoped ui read/action (openPop, terminal toggle) targets THIS pane with
 // no prop-drilling. The breadcrumb + rename + agent menu are keyed off the
 // pane's OWN agent, not the focused selection — so each pane shows its own
@@ -29,6 +23,10 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   // changes so a stale editor never carries over to a different worker.
   const [renaming, setRenaming] = useState(false);
   useEffect(() => { setRenaming(false); }, [worker?.id]);
+  // Anchor for the portal'd agent menu (see HeaderAgentMenu): the crumb clips
+  // (overflow:hidden) and split panes paint-contain, so the menu can't render
+  // in place — it measures this wrap and portals to <body> instead.
+  const vWrapRef = useRef(null);
 
   const status = worker ? statusFromState(worker.state) : null;
 
@@ -45,7 +43,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   const insetEl = topLeft ? <span className="pane-head-inset" data-window-drag aria-hidden="true" /> : null;
 
   // No agent: the single-pane new-session state shows the "new orchestrator"
-  // breadcrumb (+ split); a split empty pane keeps today's hover-to-pick hint.
+  // breadcrumb; a split empty pane keeps today's hover-to-pick hint.
   if (!worker) {
     if (newSession) {
       const { project } = breadcrumbFor(live.workers, null, ui.composer.cwd);
@@ -59,9 +57,6 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
           </div>
           <div className="pane-head-actions">
             <TerminalToggleButton />
-            <FollowButton />
-            <SplitEmptyButton />
-            <PanePresets />
           </div>
         </div>
       );
@@ -112,13 +107,13 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
             </Fragment>
           );
         })}
-        <span className="v-wrap">
+        <span className="v-wrap" ref={vWrapRef}>
           <button className="v" data-popover-trigger="head-menu" onClick={toggleMenu} aria-label="Agent menu">
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="m4 6 4 4 4-4" />
             </svg>
           </button>
-          <HeaderAgentMenu live={live} agent={worker} onRename={startRename} />
+          <HeaderAgentMenu live={live} agent={worker} onRename={startRename} anchor={vWrapRef} />
         </span>
       </div>
       {split && (needsInput
@@ -128,9 +123,6 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
           : <span className="pane-status">{status.label}</span>)}
       <div className="pane-head-actions">
         <TerminalToggleButton />
-        <FollowButton />
-        <SplitEmptyButton />
-        <PanePresets />
         {canClose && <CloseButton onClose={onClose} />}
       </div>
     </div>

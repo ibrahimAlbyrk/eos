@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { useInputNeeded } from "../../../hooks/useInputNeeded.js";
 import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, splitRectForPanel, MAX_PANES } from "../../../lib/paneLayout.js";
@@ -102,6 +102,46 @@ function DropPreview({ zone }) {
   return <div className={"pane-drop-preview pane-drop-preview--" + (zone.kind === "split" ? zone.edge : "replace")} />;
 }
 
+// Ephemeral panel-width override, as a fraction of the OWNING pane's rect (same
+// unit as PANEL_FRAC). Never persisted — cleared when the panel closes.
+const PANEL_MIN_FRAC = 0.15;
+const PANEL_MAX_FRAC = 0.6;
+const clampPanelFrac = (f) => Math.min(PANEL_MAX_FRAC, Math.max(PANEL_MIN_FRAC, f));
+
+// splitRectForPanel with the override applied on top of its result, keeping the
+// layout function itself pure. frac == null → default PANEL_FRAC geometry.
+function panelSplit(rect, type, frac) {
+  const split = splitRectForPanel(rect, type);
+  if (!type || frac == null) return split;
+  const pw = rect.width * frac;
+  return {
+    paneRect: { ...rect, width: rect.width - pw },
+    panelRect: { ...split.panelRect, left: rect.left + rect.width - pw, width: pw },
+  };
+}
+
+// Drag handle on a docked panel's left edge (Divider idiom: pointer capture,
+// ratio computed in the owning pane's rect). rect is the pane's FULL rect in
+// containerRef's % frame; onFrac receives the clamped panel fraction.
+function PanelResizeHandle({ containerRef, rect, onFrac, onResizeStart, onResizeEnd }) {
+  const start = (e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); onResizeStart?.(); };
+  const move = (e) => {
+    if (!(e.buttons & 1)) return;
+    const g = containerRef.current?.getBoundingClientRect();
+    if (!g) return;
+    const x = ((e.clientX - g.left) / g.width) * 100;
+    onFrac(clampPanelFrac((rect.left + rect.width - x) / rect.width));
+  };
+  return (
+    <div
+      className="panel-resize-handle"
+      onPointerDown={start}
+      onPointerMove={move}
+      onLostPointerCapture={onResizeEnd}
+    />
+  );
+}
+
 // Split view: a BSP tree (ui.tree) rendered as a FLAT set of absolutely-
 // positioned panes (computeRects) + one divider per split (computeDividers).
 // Panes are keyed by leaf id, decoupled from the tree's nesting, so a structural
@@ -129,7 +169,17 @@ export function PaneGrid({ live }) {
   // a pane with an open panel yields its right edge to it, carved out of that
   // pane's own rect so neighbours never move — two panes can show their panels at
   // once. ui.topPanelTypeIn(id) reads that pane's stack directly (keyed map).
-  const paneRectOf = (id, rect) => splitRectForPanel(rect, ui.topPanelTypeIn(id)).paneRect;
+  // Ephemeral per-pane panel-width overrides (paneId → fraction of pane rect).
+  // Dropped whenever that pane's panel is closed, so reopening snaps back to the
+  // PANEL_FRAC default. Bail-out keeps the no-op case reference-stable.
+  const [panelFracs, setPanelFracs] = useState({});
+  useEffect(() => {
+    setPanelFracs((m) => {
+      const kept = Object.keys(m).filter((id) => ui.topPanelTypeIn(id));
+      return kept.length === Object.keys(m).length ? m : Object.fromEntries(kept.map((id) => [id, m[id]]));
+    });
+  });
+  const paneRectOf = (id, rect) => panelSplit(rect, ui.topPanelTypeIn(id), panelFracs[id]).paneRect;
 
   // One slot renderer for both live panes and the leaving ghosts. A ghost keeps
   // the same key (leaf id) and element shape so React keeps the real Pane mounted
@@ -198,24 +248,36 @@ export function PaneGrid({ live }) {
           viewers read THAT pane's stack (independent per pane). Zero-width when
           that pane has nothing open, but kept mounted (stable key) so a buried
           panel keeps its fetched state and its rect animates on reflow. */}
-      {rects.map(({ id, rect }) => (
-        <div
-          key={`panel:${id}`}
-          // at-top: this pane hugs the grid's top row, so its docked panel may rise
-          // over the top bar (see .pane-panel-slot.at-top in styles). A panel beside
-          // a lower-row pane keeps its normal top so it can't overlap the pane above.
-          className={"pane-slot pane-panel-slot" + (rect.top === 0 ? " at-top" : "")}
-          style={pctStyle(splitRectForPanel(rect, ui.topPanelTypeIn(id)).panelRect)}
-          // The slot is a grid SIBLING of its pane, so the Pane's focus capture
-          // never sees clicks here. Focus the owning pane, then claim the panel
-          // region for ⌘F (after focusLeaf — it resets the region to transcript).
-          onMouseDownCapture={() => { ui.focusLeaf(id); ui.setFocusedRegion("panel"); }}
-        >
-          <PaneScopeContext.Provider value={id}>
-            <PaneViewers live={live} />
-          </PaneScopeContext.Provider>
-        </div>
-      ))}
+      {rects.map(({ id, rect }) => {
+        const panelType = ui.topPanelTypeIn(id);
+        return (
+          <div
+            key={`panel:${id}`}
+            // at-top: this pane hugs the grid's top row, so its docked panel may rise
+            // over the top bar (see .pane-panel-slot.at-top in styles). A panel beside
+            // a lower-row pane keeps its normal top so it can't overlap the pane above.
+            className={"pane-slot pane-panel-slot" + (rect.top === 0 ? " at-top" : "")}
+            style={pctStyle(panelSplit(rect, panelType, panelFracs[id]).panelRect)}
+            // The slot is a grid SIBLING of its pane, so the Pane's focus capture
+            // never sees clicks here. Focus the owning pane, then claim the panel
+            // region for ⌘F (after focusLeaf — it resets the region to transcript).
+            onMouseDownCapture={() => { ui.focusLeaf(id); ui.setFocusedRegion("panel"); }}
+          >
+            {panelType && (
+              <PanelResizeHandle
+                containerRef={gridRef}
+                rect={rect}
+                onFrac={(f) => setPanelFracs((m) => ({ ...m, [id]: f }))}
+                onResizeStart={() => setResizing(true)}
+                onResizeEnd={() => setResizing(false)}
+              />
+            )}
+            <PaneScopeContext.Provider value={id}>
+              <PaneViewers live={live} />
+            </PaneScopeContext.Provider>
+          </div>
+        );
+      })}
       {dividers.map((d) => (
         <Divider
           key={d.id}
@@ -246,8 +308,16 @@ export function SinglePane({ live }) {
   // context it renders in without a panel — so it never collapses. Closed → the
   // panel is zero-basis but kept mounted (keep-alive).
   const { panelRect } = splitRectForPanel({ left: 0, top: 0, width: 100, height: 100 }, ui.topPanelType);
+  // Ephemeral panel-width override (fraction of the full row) — reset on close so
+  // reopening snaps back to PANEL_FRAC. is-resizing kills the flex-basis ease so
+  // the drag tracks the pointer 1:1.
+  const rootRef = useRef(null);
+  const [panelFrac, setPanelFrac] = useState(null);
+  const [panelResizing, setPanelResizing] = useState(false);
+  useEffect(() => { if (!ui.topPanelType) setPanelFrac(null); }, [ui.topPanelType]);
+  const dockWidth = ui.topPanelType && panelFrac != null ? panelFrac * 100 : panelRect.width;
   return (
-    <div className="single-pane" {...handlers}>
+    <div className="single-pane" ref={rootRef} {...handlers}>
       {zone && <DropPreview zone={zone} />}
       {zone && pointer && <DragAffordance pointer={pointer} zone={zone} />}
       {/* Transcript + its per-pane composer stack in a column; the docked panel
@@ -277,10 +347,19 @@ export function SinglePane({ live }) {
         </PaneScopeContext.Provider>
       </div>
       <div
-        className="pane-panel-slot pane-dock"
-        style={{ flexBasis: `${panelRect.width}%` }}
+        className={"pane-panel-slot pane-dock" + (panelResizing ? " is-resizing" : "")}
+        style={{ flexBasis: `${dockWidth}%` }}
         onMouseDownCapture={() => ui.setFocusedRegion("panel")}
       >
+        {ui.topPanelType && (
+          <PanelResizeHandle
+            containerRef={rootRef}
+            rect={{ left: 0, width: 100 }}
+            onFrac={setPanelFrac}
+            onResizeStart={() => setPanelResizing(true)}
+            onResizeEnd={() => setPanelResizing(false)}
+          />
+        )}
         <PaneViewers live={live} />
       </div>
     </div>

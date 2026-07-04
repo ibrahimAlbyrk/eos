@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { useUi } from "../../../state/ui.jsx";
 import { useSettings } from "../../../state/settings.jsx";
 import { useArchiveAgent, useKillAgent } from "../../../hooks/useArchiveAgent.js";
@@ -12,7 +13,13 @@ import { MenuList } from "./MenuList.jsx";
 
 // Breadcrumb chevron dropdown — acts on the pane's agent (passed in by the
 // PaneHeader that owns it), scoped to that pane's popover state.
-export function HeaderAgentMenu({ live, agent, onRename }) {
+// Portal'd to <body> (BranchContextMenu idiom): rendered in place it is clipped
+// by the crumb's overflow:hidden truncation and, in split view, by the pane
+// island's contain:paint — which no z-index or overflow relaxing can escape.
+// `anchor` is the crumb's .v-wrap; the menu opens at its old CSS spot
+// (bottom + 10, left − 10) measured at open time. data-popover stays on the
+// portal root so the global outside-click handler still sees clicks as inside.
+export function HeaderAgentMenu({ live, agent, onRename, anchor }) {
   const ui = useUi();
   const { settings, setSetting } = useSettings();
   const archiveAgent = useArchiveAgent(live);
@@ -62,12 +69,19 @@ export function HeaderAgentMenu({ live, agent, onRename }) {
     { id: "delete", label: "Delete", danger: true, run: () => (shouldConfirmDelete(settings) ? setConfirming(true) : killAgent(agent.id)) },
   ];
 
+  const rect = anchor?.current?.getBoundingClientRect();
+  const pos = rect && {
+    left: Math.min(rect.left - 10, window.innerWidth - 210),
+    top: rect.bottom + 10,
+  };
+
   return (
     <>
-      {open && (
-        <div className="head-menu" data-popover="head-menu">
+      {open && pos && createPortal(
+        <div className="head-menu" data-popover="head-menu" style={pos}>
           <MenuList items={items} onClose={ui.closeAllPops} />
-        </div>
+        </div>,
+        document.body,
       )}
       {confirming && (
         <DeleteConfirmDialog

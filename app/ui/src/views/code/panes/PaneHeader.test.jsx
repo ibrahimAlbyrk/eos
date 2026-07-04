@@ -56,10 +56,15 @@ describe("PaneHeader", () => {
     expect(renderHeader({ canClose: true, split: true, topRow: true })).toContain("pane-head--toprow");
   });
 
-  it("renders the original right cluster: terminal, follow, split, presets", () => {
+  it("renders the terminal toggle in the right cluster", () => {
     const html = renderHeader({ canClose: false });
-    for (const label of ["Toggle terminal panel", "Follow orchestrator children", "Open empty split", "Saved layouts"]) {
-      expect(html).toContain(label);
+    expect(html).toContain("Toggle terminal panel");
+  });
+
+  it("no longer renders the removed follow / split / presets controls", () => {
+    const html = renderHeader({ canClose: false });
+    for (const label of ["Follow orchestrator children", "Open empty split", "Saved layouts"]) {
+      expect(html).not.toContain(label);
     }
   });
 });

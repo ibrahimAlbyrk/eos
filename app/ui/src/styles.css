@@ -917,6 +917,34 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   flex-shrink: 0;
   transition: flex-basis 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
+/* During a panel-handle drag the ease is off so the width tracks the pointer. */
+.pane-dock.is-resizing { transition: none; }
+/* Drag handle on a docked panel's left edge: a slim hit zone with a centered
+   pill that fades in on hover/drag (pane-divider idiom, panel-scoped). */
+.panel-resize-handle {
+  position: absolute;
+  left: -2px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 6;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.panel-resize-handle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: transparent;
+  transition: background 120ms;
+}
+.panel-resize-handle:hover::after,
+.panel-resize-handle:active::after { background: rgba(255, 255, 255, 0.15); }
 /* Single-view docked panel: unlike the split-view slots it has no --shell-gap/2
    grid padding (it is kept zero-width when closed — padding a border-box element
    would leave a permanent sliver), so its viewer carries the full --shell-gap
@@ -1061,89 +1089,6 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   .pane-drop-preview { transition: none; }
 }
 
-/* Saved-layout presets — header trigger + popover (reuses .glass-pop surface). */
-.pane-presets-wrap { position: relative; display: inline-flex; --app-region: no-drag; }
-.pane-presets-btn {
-  width: 24px;
-  height: 24px;
-  border-radius: 5px;
-  color: var(--fg-faint);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.pane-presets-btn:hover { background: rgba(var(--tint), 0.06); color: var(--fg-dim); }
-
-/* Specificity bump (parent selector) so position:absolute wins over .glass-pop's
-   position:relative, which is defined later in the file. Without it the popover
-   stays in flow and stretches the header. */
-.pane-presets-wrap .pane-presets-pop {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  width: 240px;
-  padding: 8px;
-  z-index: 300;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-.pp-save { display: flex; gap: 6px; align-items: center; }
-.pp-input {
-  flex: 1;
-  min-width: 0;
-  background: rgba(var(--tint), 0.04);
-  border: 1px solid rgba(var(--tint), 0.10);
-  border-radius: 5px;
-  color: var(--fg);
-  font-size: var(--text-sm);
-  font-family: inherit;
-  padding: 5px 8px;
-  outline: none;
-}
-.pp-input:focus { border-color: var(--accent); }
-.pp-save-btn {
-  flex-shrink: 0;
-  padding: 5px 10px;
-  border-radius: 5px;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  background: var(--accent);
-  color: var(--on-accent);
-  border: 1px solid transparent;
-}
-.pp-save-btn:disabled { opacity: 0.4; }
-.pp-empty { color: var(--fg-faint); font-size: var(--text-sm); padding: 6px 4px; text-align: center; }
-.pp-list { display: flex; flex-direction: column; gap: 2px; max-height: 240px; overflow-y: auto; }
-.pp-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: var(--text-sm);
-}
-.pp-item:hover { background: rgba(var(--tint), 0.06); }
-/* Reorder drop indicator: a line at the top of the hovered item (no layout
-   change → no reflow/flicker). The source card stays put; its ghost follows the
-   cursor. */
-.pp-item.pp-over { box-shadow: inset 0 2px 0 var(--accent); }
-.pp-item .ag-rename-input { flex: 1; min-width: 0; width: auto; }
-.pp-name { flex: 1; min-width: 0; color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pp-count { flex-shrink: 0; color: var(--fg-faint); font-family: var(--font-mono); font-size: var(--text-xs); }
-.pp-del {
-  flex-shrink: 0;
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  color: var(--fg-faint);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.pp-del:hover { background: rgba(var(--tint), 0.08); color: var(--err); }
-
 /* A non-focused pane whose agent finished a turn with unseen output: gently
    pulse the edge so it catches the eye while you're looking elsewhere. Focusing
    the pane marks it viewed (PaneGrid drops the class). Only ever applies to
@@ -1211,9 +1156,11 @@ html.native .pane-head {
 }
 html.native .pane-head--toprow { padding-top: 4px; } /* 7px chrome + 4 + 12 = 23 */
 /* Below-bar fade scrim (ported from the original .head::after): veils the
-   transcript's top 48px as it scrolls under the bar. Hidden while scrolled to
-   the very top (msgs-at-top, toggled by Messages) and in split mode, where each
-   pane is its own island and the panes carry their own chrome. */
+   transcript's top 48px as it scrolls under the bar, mirroring the composer's
+   bottom fade. Hidden while scrolled to the very top (msgs-at-top, toggled by
+   Messages). z-index:2 (not 1): the header precedes the transcript in DOM, and
+   the single-view transcript pane (.tx-pane.on) is itself z-index:1 — a tie the
+   later-in-DOM transcript would win, hiding the scrim. 2 out-stacks it. */
 .pane-head::after {
   content: "";
   position: absolute;
@@ -1223,11 +1170,10 @@ html.native .pane-head--toprow { padding-top: 4px; } /* 7px chrome + 4 + 12 = 23
   height: 48px;
   background: linear-gradient(to top, transparent, var(--bg));
   pointer-events: none;
-  z-index: 1;
+  z-index: 2;
   transition: opacity 160ms ease;
 }
 .center.msgs-at-top .pane-head::after { opacity: 0; }
-.app.split .pane-head::after { content: none; }
 /* The source pane dims while its header is dragged (set in PaneGrid). Static
    opacity, not an animation, so no reduced-motion handling is needed. */
 .pane--dragging { opacity: 0.55; }
@@ -1518,7 +1464,7 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   .pane-picker, .pane-picker-hint { transition: none; }
 }
 
-/* "Open empty split" header button — mirrors .pane-presets-btn (sits beside it). */
+/* Shared square header toggle button (e.g. the terminal-panel toggle). */
 .pane-split-btn {
   width: 24px;
   height: 24px;
@@ -1531,7 +1477,7 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .pane-split-btn:hover { background: rgba(var(--tint), 0.06); color: var(--fg-dim); }
 .pane-split-btn:disabled { opacity: 0.4; cursor: default; }
 .pane-split-btn:disabled:hover { background: transparent; color: var(--fg-faint); }
-/* "Follow" toggle ON — accent so the live-tracking state reads at a glance. */
+/* Active toggle state (e.g. terminal panel open) — accent so it reads at a glance. */
 .pane-split-btn.is-active { background: var(--accent-soft); color: var(--accent); }
 .pane-split-btn.is-active:hover { background: var(--accent-soft); color: var(--accent-hover); }
 
@@ -1558,12 +1504,16 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   /* none (not contain): contain still allows rubber-band overscroll in WKWebView,
      so high-momentum wheels (free-spin) push content past the bottom edge */
   overscroll-behavior-y: none;
-  padding: 0 0 8px;
 }
 .messages {
   max-width: 1260px;
   margin: 0 auto;
-  padding: 24px 32px 32px;
+  /* Bottom padding = the hover actions row (--msg-actions-h + its 4px offset),
+     nothing more: at rest (pinned) the last text sits that far above the composer,
+     dissolving inside the bottom fade instead of stopping above it. The actions
+     row of the LAST message must fit inside this box — any smaller and its
+     absolutely-positioned overflow extends scrollHeight, recreating the gap. */
+  padding: 24px 32px calc(var(--msg-actions-h) + 4px);
   display: flex;
   flex-direction: column;
   gap: var(--block-gap);
@@ -5400,12 +5350,11 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 }
 
 /* ============== Header breadcrumb menu (chevron dropdown) ============== */
-/* Reuses .ctx-menu row styling; .head-menu anchors the pane under the
-   chevron (.v-wrap) instead of the ctx-menu's fixed cursor position. */
+/* Reuses .ctx-menu row styling. Portal'd to <body> at fixed coords measured
+   from the chevron's .v-wrap (HeaderAgentMenu) — in place it was clipped by
+   the crumb's overflow:hidden and the split pane's contain:paint. */
 .head-menu {
-  position: absolute;
-  top: calc(100% + 10px);
-  left: -10px;
+  position: fixed;
   z-index: 400;
   --app-region: no-drag;
 }
