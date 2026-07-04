@@ -943,8 +943,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   background: transparent;
   transition: background 120ms;
 }
-.panel-resize-handle:hover::after,
-.panel-resize-handle:active::after { background: rgba(255, 255, 255, 0.15); }
+.panel-resize-handle:hover::after { background: rgba(255, 255, 255, 0.15); }
+.panel-resize-handle:active::after,
+.pane-dock.is-resizing .panel-resize-handle::after { background: #fff; }
 /* Single-view docked panel: unlike the split-view slots it has no --shell-gap/2
    grid padding (it is kept zero-width when closed — padding a border-box element
    would leave a permanent sliver), so its viewer carries the full --shell-gap
@@ -1968,6 +1969,9 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   border-radius: 4px;
 }
 .md-prose tbody tr:hover td { background: var(--surface-3); }
+/* panel viewers sit on --surface-2, so step cell bg up one level to stay visible */
+.fv-preview.md-prose td { background: var(--surface-3); }
+.fv-preview.md-prose th { background: color-mix(in srgb, var(--fg) 8%, var(--surface-3)); }
 .md-prose blockquote {
   margin: 8px 0 12px;
   padding: 6px 14px;
