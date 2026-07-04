@@ -105,7 +105,7 @@ function DropPreview({ zone }) {
 // Ephemeral panel-width override, as a fraction of the OWNING pane's rect (same
 // unit as PANEL_FRAC). Never persisted — cleared when the panel closes.
 const PANEL_MIN_FRAC = 0.15;
-const PANEL_MAX_FRAC = 0.6;
+const PANEL_MAX_FRAC = 0.8;
 const clampPanelFrac = (f) => Math.min(PANEL_MAX_FRAC, Math.max(PANEL_MIN_FRAC, f));
 
 // splitRectForPanel with the override applied on top of its result, keeping the
