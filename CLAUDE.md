@@ -53,6 +53,7 @@ Deploy: `eos build` converges only what changed (content-hash stamps; `--dry-run
 - **`spawner/worker.ts` is Node-only** (Bun + node-pty is broken); the **gateway is Bun**; the claude-sdk lane runs in the daemon (Node).
 - **`~/.eos` is non-regenerable user data** (manifest in `manager/shared/user-data.ts`) — never `rm`/`mv` it by hand; template deletes are soft (`templates/.trash/`).
 - **Don't run `eos build` / `eos restart` while developing Eos** — it restarts the daemon and crashes every running worker. Verify with lint + tests.
+- **UI toast notifications.** `notify.info/.warning/.error(message, opts?)` from `app/ui/src/lib/notify.js` — callable from React and non-React code (api client, SSE handlers, stores). Backed by `app/ui/src/state/toastStore.js` (same module-singleton idiom as `ptyPanelStore`); single `<ToastViewport>` in `App.jsx`. Use instead of `alert()`/silent `console.error` for user-relevant feedback. Design: `app/ui/NOTIFICATION_SYSTEM_DESIGN.md`; integration map: `app/ui/NOTIFICATION_USAGE_MAP.md`.
 
 ## Style notes
 
