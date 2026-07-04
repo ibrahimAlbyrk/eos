@@ -140,7 +140,19 @@ export function resolveCombinedModel(
 // Materialize the tool surface (string globs) into a ToolScope value. Baked once
 // at spawn so the gate hot path never re-resolves the type.
 export function materializeToolScope(t: WorkerDefinition): ToolScope {
-  return { allow: t.toolsAllow ?? [], deny: t.toolsDeny ?? [], editRegex: t.editRegex ?? null };
+  return { allow: t.toolsAllow ?? [], deny: t.toolsDeny ?? [], editRegex: normalizeEditRegex(t.editRegex ?? null) };
+}
+
+// editRegex is tested against the ABSOLUTE file_path values Claude Code sends, but
+// authors naturally write repo-relative anchors like `^src/` — which can never match
+// an absolute path. Rewrite `^pattern` → `(^|/)pattern` (match at string start OR a
+// path-segment boundary). Absolute-anchored `^/…`, unanchored (substring) and
+// already-`(^|/)`-normalized patterns are untouched, as is null. Normalized at spawn
+// time so stored tool_scope rows are unaffected until re-spawn.
+function normalizeEditRegex(pattern: string | null): string | null {
+  if (pattern === null) return null;
+  if (pattern.startsWith("^") && !pattern.startsWith("^/")) return `(^|/)${pattern.slice(1)}`;
+  return pattern;
 }
 
 // True when a materialized scope actually restricts anything (worth persisting +

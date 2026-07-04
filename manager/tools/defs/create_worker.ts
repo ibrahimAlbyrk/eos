@@ -16,7 +16,7 @@ export const createWorkerDef: ToolDefinition = {
     collaborate: z.boolean().optional().describe("Default the peer-mesh opt-in."),
     toolsAllow: z.array(z.string()).optional().describe("Tool allowlist (globs, e.g. 'Read', 'mcp__*'). Empty/omit ⇒ inherit all tools."),
     toolsDeny: z.array(z.string()).optional().describe("Tool denylist (globs). Always subtracts, even from an allowlist."),
-    editRegex: z.string().optional().describe("Restrict file edits to paths matching this regex (e.g. 'src/.*\\\\.ts$')."),
+    editRegex: z.string().optional().describe("Restrict file edits to paths matching this regex (e.g. '(^|/)src/.*\\\\.ts$'). Claude Code passes ABSOLUTE file paths, so anchor with `(^|/)path`, not `^path` (a `^`-anchored relative pattern never matches)."),
     extends: z.string().optional().describe("Base worker name to inherit unset fields from."),
     body: z.string().describe("This worker's role-instructions body (string). What to put in it / what NOT to (never restate the signal protocol / report / Handover) → create_worker's description and §Available workers."),
   },

@@ -180,6 +180,21 @@ describe("PolicyGatewayService — worker-definition tool scope (rung 2.5)", () 
     assert.equal((await svc.decide({ workerId: "w1", toolName: "Read", input: { file_path: "/repo/app/ui/b.ts" } })).behavior, "allow");
   });
 
+  it("(^|/)-anchored editRegex matches an absolute worktree path and denies outside src", async () => {
+    // The bug this guards: relative-anchored `^src/` never matched the absolute
+    // file_path Claude Code sends. The normalized `(^|/)src/` form must match a
+    // deep absolute worktree path and still deny siblings outside src.
+    const scope: ToolScope = { allow: [], deny: [], editRegex: "(^|/)src/.*\\.ts$" };
+    const { svc } = buildService({ scope });
+    assert.equal(
+      (await svc.decide({ workerId: "w1", toolName: "Edit", input: { file_path: "/Users/foo/.eos/worktrees/eos-x9/src/a.ts" } })).behavior,
+      "allow",
+    );
+    const d = await svc.decide({ workerId: "w1", toolName: "Write", input: { file_path: "/Users/foo/.eos/worktrees/eos-x9/manager/b.ts" } });
+    assert.equal(d.behavior, "deny");
+    assert.ok("message" in d && String(d.message).includes("allowed paths"));
+  });
+
   it("invalid editRegex is ignored (fails open on the regex axis, not bricking edits)", async () => {
     const scope: ToolScope = { allow: [], deny: [], editRegex: "(unclosed" };
     const { svc } = buildService({ scope });

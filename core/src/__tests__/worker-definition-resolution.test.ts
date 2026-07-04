@@ -1,8 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { resolveDefinitionName, resolveWorkerDefinitionByName, splitProviderModel, resolveCombinedModel } from "../domain/worker-definition-resolution.ts";
+import { resolveDefinitionName, resolveWorkerDefinitionByName, splitProviderModel, resolveCombinedModel, materializeToolScope } from "../domain/worker-definition-resolution.ts";
 import { DEFAULT_WORKER_DEFINITION } from "../../../contracts/src/worker-definition.ts";
-import type { WorkerDefinitionRecord } from "../../../contracts/src/worker-definition.ts";
+import type { WorkerDefinition, WorkerDefinitionRecord } from "../../../contracts/src/worker-definition.ts";
 
 describe("splitProviderModel — combined provider/model form", () => {
   const configured = new Set(["deepseek", "kimi"]);
@@ -70,6 +70,21 @@ describe("resolveCombinedModel — profile-aware combined-form normalization", (
 
   it("a missing model returns undefined model + the pinned profile", () => {
     assert.deepEqual(resolveCombinedModel(undefined, "deepseek", configured), { model: undefined, backendProfile: "deepseek" });
+  });
+});
+
+describe("materializeToolScope — editRegex absolute-path normalization", () => {
+  const def = (editRegex?: string): WorkerDefinition => ({ name: "t", description: "", whenToUse: "", body: "", editRegex });
+
+  it("rewrites a `^`-anchored relative pattern to `(^|/)` (matches absolute file_path)", () => {
+    assert.equal(materializeToolScope(def("^src/.*")).editRegex, "(^|/)src/.*");
+  });
+
+  it("leaves null, already-normalized, absolute-anchored, and unanchored patterns untouched", () => {
+    assert.equal(materializeToolScope(def(undefined)).editRegex, null);
+    assert.equal(materializeToolScope(def("(^|/)src/.*")).editRegex, "(^|/)src/.*");
+    assert.equal(materializeToolScope(def("^/abs/path")).editRegex, "^/abs/path");
+    assert.equal(materializeToolScope(def("src/.*\\.ts$")).editRegex, "src/.*\\.ts$");
   });
 });
 
