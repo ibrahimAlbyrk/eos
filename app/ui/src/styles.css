@@ -1479,8 +1479,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .pane-split-btn:disabled { opacity: 0.4; cursor: default; }
 .pane-split-btn:disabled:hover { background: transparent; color: var(--fg-faint); }
 /* Active toggle state (e.g. terminal panel open) — accent so it reads at a glance. */
-.pane-split-btn.is-active { background: var(--accent-soft); color: var(--accent); }
-.pane-split-btn.is-active:hover { background: var(--accent-soft); color: var(--accent-hover); }
+.pane-split-btn.is-active { background: transparent; color: var(--accent); }
+.pane-split-btn.is-active:hover { background: rgba(var(--tint), 0.06); color: var(--accent-hover); }
 
 /* The composer now lives INSIDE each pane, so its own ::before fade sits exactly
    at that pane's transcript bottom (above the input) — it IS the per-pane bottom
