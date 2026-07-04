@@ -9,7 +9,7 @@ const promptsDir = join(import.meta.dirname, "..", "..", "prompts");
 describe("renderToolDescriptions", () => {
   it("renders MCP tool descriptions from the prompt library with tool-name vars resolved", async () => {
     const d = await renderToolDescriptions(promptsDir, ["spawn_worker", "send_message_to_parent"]);
-    assert.match(d.spawn_worker, /Spawn a new background Claude worker/);
+    assert.match(d.spawn_worker, /Spawn a new background worker/);
     assert.match(d.spawn_worker, /get_worker/); // {{GET_WORKER_TOOL}} resolved from globals
     assert.doesNotMatch(d.spawn_worker, /\{\{/); // no unresolved variables
     assert.ok(d.send_message_to_parent.length > 100);

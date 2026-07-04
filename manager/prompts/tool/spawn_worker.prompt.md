@@ -12,7 +12,7 @@ variables:
   - CREATE_WORKER_TOOL
 ---
 
-Spawn a new background Claude worker to do concrete work. In a git repository the worker runs in an ISOLATED git worktree on its own eos-* branch — NOT in your project directory; its changes stay invisible to the user's checkout until the user integrates them via the dashboard. Outside a git repo it runs directly in your cwd. The user can disable worktrees in settings — the result's `isolation` field ("worktree" or "cwd") is authoritative for where the worker actually runs; with "cwd" its edits land directly in the user's checkout, so avoid parallel workers touching the same files.
+Spawn a new background worker to do concrete work. In a git repository the worker runs in an ISOLATED git worktree on its own eos-* branch — NOT in your project directory; its changes stay invisible to the user's checkout until the user integrates them via the dashboard. Outside a git repo it runs directly in your cwd. The user can disable worktrees in settings — the result's `isolation` field ("worktree" or "cwd") is authoritative for where the worker actually runs; with "cwd" its edits land directly in the user's checkout, so avoid parallel workers touching the same files.
 
 When to use: every time the user requests code edits, builds, tests, refactors, investigations, or any other concrete action. You never do the work yourself; you spawn workers to do it.
 

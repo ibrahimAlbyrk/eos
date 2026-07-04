@@ -13,7 +13,7 @@
         },
         "model": {
           "type": "string",
-          "description": "Claude model alias ('opus'|'sonnet'|'haiku') or a cross-provider model in combined 'provider/model' form (e.g. 'deepseek/deepseek-v4-pro'). The combined form is sugar for backendProfile=<provider> + model=<rest> — the prefix is split off and never reaches the API raw. A bare cross-provider model MUST use the combined form, or it will be rejected. When in doubt, omit (defaults to opus)."
+          "description": "Model power tier: 'high' | 'medium' | 'low', mapped to the active provider's models. Also accepts a concrete model id or 'provider/model' sugar (e.g. 'deepseek/deepseek-v4-pro' — sugar for backendProfile=<provider> + model=<rest>, the prefix split off before the API). A bare cross-provider model MUST use the combined form, or it will be rejected. Omit ⇒ the provider's default tier."
         },
         "effort": {
           "type": "string",
@@ -24,7 +24,7 @@
             "xhigh",
             "max"
           ],
-          "description": "Reasoning effort enum. Pass ONLY for models that support it — opus and sonnet do, haiku does NOT (omit there). Which level fits which work → §Model. When in doubt, omit (defaults to xhigh)."
+          "description": "Reasoning effort. Honored only when the active provider exposes an effort lever; ignored otherwise. Which level fits which work → §Model. Omit ⇒ default."
         },
         "workspaceOf": {
           "type": "string",
@@ -294,7 +294,7 @@
         },
         "model": {
           "type": "string",
-          "description": "Default model (opus/sonnet/haiku). Omit ⇒ inherit."
+          "description": "Default model power tier: 'high' | 'medium' | 'low', mapped to the active provider's models. Also accepts a concrete model id or 'provider/model' sugar. Omit ⇒ inherit."
         },
         "effort": {
           "type": "string",
@@ -305,7 +305,7 @@
             "xhigh",
             "max"
           ],
-          "description": "Default reasoning effort. Omit ⇒ inherit."
+          "description": "Default reasoning effort. Honored only when the active provider exposes an effort lever; ignored otherwise. Omit ⇒ inherit."
         },
         "permissionMode": {
           "type": "string",

@@ -5,6 +5,7 @@ variables:
   - AVAILABLE_WORKERS_CATALOG
   - LIST_AVAILABLE_WORKERS_TOOL
   - CREATE_WORKER_TOOL
+  - EFFORT_SUPPORTED
 dpi:
   layer: role
   priority: 75
@@ -104,7 +105,7 @@ per dimension):
 create_worker({
   name: "research-specialist",
   whenToUse: "One dimension of a multi-angle research swarm; writes cited evidence to a shared dir.",
-  model: "opus", effort: "high",
+  model: "high"{{#if EFFORT_SUPPORTED}}, effort: "high"{{/if}},
   toolsAllow: ["Read","Grep","Glob","WebSearch","WebFetch","Write","Edit","Task"],
   body: `
 You are one dimension of a parallel research swarm. Upstream: the orchestrator

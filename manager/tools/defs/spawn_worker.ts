@@ -16,10 +16,10 @@ export const spawnWorkerDef: ToolDefinition = {
       "Friendly slug for the worker (kebab-case). Should describe the outcome, not the action. Good: 'refactor-auth-tokens', 'add-billing-tests'. Bad: 'worker-1', 'fix-stuff', 'task'.",
     ),
     model: z.string().optional().describe(
-      "Claude model alias ('opus'|'sonnet'|'haiku') or a cross-provider model in combined 'provider/model' form (e.g. 'deepseek/deepseek-v4-pro'). The combined form is sugar for backendProfile=<provider> + model=<rest> — the prefix is split off and never reaches the API raw. A bare cross-provider model MUST use the combined form, or it will be rejected. When in doubt, omit (defaults to opus).",
+      "Model power tier: 'high' | 'medium' | 'low', mapped to the active provider's models. Also accepts a concrete model id or 'provider/model' sugar (e.g. 'deepseek/deepseek-v4-pro' — sugar for backendProfile=<provider> + model=<rest>, the prefix split off before the API). A bare cross-provider model MUST use the combined form, or it will be rejected. Omit ⇒ the provider's default tier.",
     ),
     effort: z.enum(EFFORT_LEVELS).optional().describe(
-      "Reasoning effort enum. Pass ONLY for models that support it — opus and sonnet do, haiku does NOT (omit there). Which level fits which work → §Model. When in doubt, omit (defaults to xhigh).",
+      "Reasoning effort. Honored only when the active provider exposes an effort lever; ignored otherwise. Which level fits which work → §Model. Omit ⇒ default.",
     ),
     workspaceOf: z.string().optional().describe(
       "Spawn this worker INSIDE an existing worker's isolated worktree instead of a fresh one, for direct file access (to review, continue, or fix that worker's work). Pass the id of a worker you spawned (attaching to another orchestrator's worker is rejected). Only allowed while that worker is idle (fails with a conflict while it is busy).",

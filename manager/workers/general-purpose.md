@@ -2,7 +2,7 @@
 name: general-purpose
 description: Default worker for any task with no better-matching specialist.
 whenToUse: Use when no specialist worker's whenToUse matches the task.
-# All axes omitted ⇒ inherit (model = request/opus, effort = request/xhigh,
+# All axes omitted ⇒ inherit (model = request/high, effort = request/xhigh,
 # permission mode = inherit from parent, tools = inherit-all).
 ---
 
