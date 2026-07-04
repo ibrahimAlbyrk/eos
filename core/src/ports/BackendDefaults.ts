@@ -5,6 +5,7 @@
 import type { BackendKind } from "../../../contracts/src/canonical.ts";
 import type { AuthRef } from "../../../contracts/src/backend.ts";
 import type { ProviderCapabilities } from "../../../contracts/src/provider-capabilities.ts";
+import type { ProviderIdentity } from "../domain/model-tier.ts";
 
 // A fully materialized backend choice for a worker.
 export interface ResolvedBackend {
@@ -20,6 +21,10 @@ export interface ResolvedBackend {
   params?: Record<string, unknown>;
   // Declared per-provider quirks (contextWindow etc.) carried from the profile.
   capabilities?: ProviderCapabilities;
+  // The resolved provider identity (persona + tier→model map). Attached by
+  // resolveSpawnBackend so the route can thread it onto the spawn spec; `model`
+  // above is ALREADY tier-resolved to a concrete id against this identity.
+  providerIdentity?: ProviderIdentity;
 }
 
 export interface BackendDefaults {

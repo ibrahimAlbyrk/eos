@@ -19,7 +19,7 @@ export const WorkerDefinitionSchema = z.object({
   whenToUse: z.string().default(""),
 
   // --- per-axis defaults (applied where the spawn request left a field unset) ---
-  model: z.string().optional(),                    // "opus"|"sonnet"|"haiku"|"fable"|full id; omit ⇒ inherit
+  model: z.string().optional(),                    // "high"|"medium"|"low"|concrete id; omit ⇒ inherit
   effort: z.enum(EFFORT_LEVELS).optional(),
   permissionMode: PermissionModeSchema.optional(), // "acceptEdits"|"bypassPermissions"
   backendKind: z.string().optional(),              // "claude-cli"|"claude-sdk"; omit ⇒ resolver default

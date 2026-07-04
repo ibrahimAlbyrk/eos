@@ -13,6 +13,7 @@ import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
 import { appendSynthesized } from "../../shared/synthesized-events.ts";
 import { resolveSpawnBackend, spawnBackendError, modelMatchesFamily } from "../../shared/spawn-backend.ts";
+import { resolveTier, CLAUDE_IDENTITY } from "../../../core/src/domain/model-tier.ts";
 
 export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, SpawnWorkerResponse> = {
   def: spawnWorkerCommand,
@@ -135,11 +136,18 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       : (requestHas("backendProfile") ? bodyModel : def.model);
     const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind ?? dd.backendKind, explicitProfileName, explicitModel, parentId: body.parentId ?? null, isOrchestrator: false });
     let backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
+    // Provider tier gate — the ONE-WAY resolution boundary for the request/definition
+    // model. Resolve the tier name / legacy alias to this backend's concrete id BEFORE
+    // the family guard + persistence, so nothing downstream sees a tier name. (Profile-
+    // model providers carry rb.model, already gated in resolveSpawnBackend.)
+    const identity = rb.providerIdentity ?? CLAUDE_IDENTITY;
+    const requestModel = dd.model ?? bodyModel;
+    const resolvedRequestModel = requestModel !== undefined ? resolveTier(requestModel, identity) : undefined;
     // Belt-and-suspenders: after backend resolution, if the backend takes a request
     // model and the final model doesn't match the backend's model family, fail loud
     // — never send a known-bad model upstream. PREFER REPAIR: if a bare model
     // unambiguously belongs to exactly one other configured backend, route there.
-    const finalModel = dd.model ?? (bodyModel !== undefined ? bodyModel : body.model);
+    const finalModel = resolvedRequestModel;
     if (backend.descriptor.modelSource === "request" && finalModel && !modelMatchesFamily(finalModel, backend.descriptor.models.kind)) {
       const matching = c.backends.descriptors().filter((d) =>
         d.enabled && d.kind !== backend.kind && d.modelSource === "request" && modelMatchesFamily(finalModel, d.models.kind),
@@ -170,11 +178,11 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       carryUncommitted: c.userSettings.read()["git.carryUncommitted"] === true,
       hydrateEnv: c.config.worker.hydrateEnvFiles,
       claudePermissionMode,
-      // Explicit model from the request (split if combined form), then definition
-      // defaults — only the axes the request left unset (applyWorkerDefinitionDefaults
-      // already dropped request-set fields, so these never override an explicit
-      // request value).
-      ...((bodyModel !== undefined || dd.model !== undefined) ? { model: dd.model ?? bodyModel } : {}),
+      // Explicit model from the request (split if combined form, then tier-resolved),
+      // then definition defaults — only the axes the request left unset
+      // (applyWorkerDefinitionDefaults already dropped request-set fields, so these
+      // never override an explicit request value).
+      ...(resolvedRequestModel !== undefined ? { model: resolvedRequestModel } : {}),
       ...(dd.effort !== undefined ? { effort: dd.effort } : {}),
       ...(dd.persistent !== undefined ? { persistent: dd.persistent } : {}),
       ...(dd.collaborate !== undefined ? { collaborate: dd.collaborate } : {}),
@@ -190,6 +198,8 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       backendBaseUrl: rb.baseUrl,
       backendParams: rb.params,
       backendCapabilities: rb.capabilities,
+      // Own-backend identity, threaded to DPI assembly for the persona/tier vars.
+      providerIdentity: rb.providerIdentity,
       // Carry the resolved definition onto the spec: persisted (worker_definition
       // column) and surfaced as the DPI workerDefinition fact + the role/20 fragment.
       // def is always resolved now (defaults to general-purpose; unknown ⇒ thrown above).

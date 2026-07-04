@@ -147,6 +147,9 @@ import { SqlBackedBackendResolver } from "../core/src/services/SqlBackedBackendR
 import { PromptRegistry } from "../core/src/services/PromptRegistry.ts";
 import { PromptService } from "../core/src/services/PromptService.ts";
 import { assembleSystemPrompt } from "../core/src/use-cases/AssembleSystemPrompt.ts";
+import { resolveTier, CLAUDE_IDENTITY, type ProviderIdentity } from "../core/src/domain/model-tier.ts";
+import { resolveProviderIdentity } from "./shared/provider-identity.ts";
+import { renderModelTierTable, renderEffortSection, defaultEffortFor } from "./shared/tier-prompt-render.ts";
 import { TOOL_NAME_VARS } from "./prompt-tool-names.ts";
 import { SseBroadcaster } from "./sse/SseBroadcaster.ts";
 import { TurnSettleService } from "./services/TurnSettleService.ts";
@@ -737,6 +740,11 @@ export function buildContainer() {
       role === "orchestrator"
         ? renderWorkflowDefinitionCatalog(listWorkflowDefinitionRecords(lookupCwd, id))
         : "";
+    // The session's OWN backend identity — spec.providerIdentity when the spawn route
+    // attached it, else recompute from the backend profile (resume/legacy paths). No
+    // worker-default lookup: an unpinned worker inherits its parent's backend, so the
+    // session's own resolved backend IS what its children run under.
+    const identity = identityForSpec(spec);
     const { text } = assembleSystemPrompt(
       { registry: promptRegistry, prompts },
       {
@@ -744,7 +752,7 @@ export function buildContainer() {
         parentId: spec.parentId ?? null,
         name: spec.name ?? id,
         workerId: id,
-        model: spec.model ?? "opus",
+        model: resolveTier(spec.model ?? "high", identity),
         effort: spec.effort ?? null,
         permissionMode: spec.claudePermissionMode ?? "acceptEdits",
         cwd: spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null,
@@ -758,10 +766,23 @@ export function buildContainer() {
         workerDefinitionCatalog,
         workflowDefinitionCatalog,
         workflowCapabilityCatalog,
+        personaName: identity.persona,
+        modelTierTable: renderModelTierTable(identity),
+        effortSection: renderEffortSection(identity),
+        defaultEffort: defaultEffortFor(identity),
+        effortSupported: identity.effortSupported,
       },
       extra,
     );
     return text.trim() ? text : null;
+  };
+  // A spec's own-backend identity: the route-attached identity, else recomputed from
+  // the persisted backend profile (resume/legacy). No profile ⇒ a claude lane.
+  const identityForSpec = (spec: SpawnWorkerSpec): ProviderIdentity => {
+    if (spec.providerIdentity) return spec.providerIdentity;
+    const profile = spec.backendProfile ? config.backends[spec.backendProfile] : undefined;
+    const descriptor = profile && backends.has(profile.kind) ? backends.get(profile.kind).descriptor : null;
+    return descriptor ? resolveProviderIdentity(descriptor, profile) : CLAUDE_IDENTITY;
   };
   // DPI text + the memory this backend kind does NOT load itself
   // (selectInjectableMemory drops sources whose assumeNativeFor includes the kind).

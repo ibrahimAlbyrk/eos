@@ -15,6 +15,7 @@ import { resumeIfDead } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
 import { resolveSpawnBackend, spawnBackendError } from "../shared/spawn-backend.ts";
 import { resolveCombinedModel } from "../../core/src/domain/worker-definition-resolution.ts";
+import { resolveTier, CLAUDE_IDENTITY } from "../../core/src/domain/model-tier.ts";
 
 export function registerOrchestratorRoutes(r: Router, c: Container): void {
   r.get("/orchestrators", ({ res }) => {
@@ -60,12 +61,19 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         fixedId: id,
         persistent: true,
         claudePermissionMode: body.permissionMode ?? "acceptEdits",
-        // Profile-model providers carry their own model; request-model providers
-        // (claude-sdk/claude-cli) run the user-picked Claude model.
-        model: backend.descriptor.modelSource === "profile" ? rb.model : (split.model ?? "opus"),
+        // Profile-model providers carry their own (already tier-resolved) model;
+        // request-model providers (claude-sdk/claude-cli) run the user-picked model,
+        // routed through the provider tier gate (default "high") so a tier name /
+        // legacy alias resolves to a concrete id before it is persisted.
+        model: resolveTier(
+          backend.descriptor.modelSource === "profile" ? rb.model : (split.model ?? "high"),
+          rb.providerIdentity ?? CLAUDE_IDENTITY,
+        ),
         effort: body.effort ?? "xhigh",
         isOrchestrator: true,
         backendProfile: rb.profileName ?? undefined,
+        // Own-backend identity, threaded to DPI assembly for the persona/tier vars.
+        providerIdentity: rb.providerIdentity,
         // Resolved launch references for the in-process lane (creds by reference,
         // origin baseUrl, provider params/capabilities) — so an orchestrator-on-GLM
         // reaches its endpoint with its key + the full DPI prompt.

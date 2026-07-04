@@ -140,3 +140,43 @@ describe("assembleSystemPrompt (§8 worked examples)", () => {
     assert.ok(!r.activeFragmentIds.includes("env/worktree"));
   });
 });
+
+describe("assembleSystemPrompt — own-backend identity vars", () => {
+  const fragments: RawPrompt[] = [
+    {
+      id: "role/model",
+      body: "You are {{PERSONA_NAME}}.\n{{MODEL_TIER_TABLE}}\n{{#if EFFORT_SUPPORTED}}{{EFFORT_SECTION}}{{/if}}{{#unless EFFORT_SUPPORTED}}{{EFFORT_SECTION}}{{/unless}}\ndefault {{DEFAULT_EFFORT}}",
+      frontmatter: { variables: ["PERSONA_NAME", "MODEL_TIER_TABLE", "EFFORT_SECTION", "DEFAULT_EFFORT", "EFFORT_SUPPORTED"], dpi: { layer: "role", priority: 10 } },
+    },
+  ];
+  function build() {
+    const registry = new PromptRegistry(src(fragments), noopLogger);
+    return { registry, prompts: new PromptService(registry) };
+  }
+  const ctx: SessionSpawnContext = {
+    role: "worker", parentId: null, name: "t", workerId: null, model: "deepseek-v4-pro",
+    effort: null, permissionMode: "acceptEdits", cwd: "/x", worktreeDir: null, branch: null,
+    repoRoot: null, isAttached: false, hasMcp: false, canCollaborate: false,
+    workerDefinition: "", workerDefinitionCatalog: "",
+  };
+
+  it("interpolates the persona + tier table and gates EFFORT_SECTION on EFFORT_SUPPORTED", () => {
+    const r = assembleSystemPrompt(build(), {
+      ...ctx,
+      personaName: "DeepSeek",
+      modelTierTable: "| high | deepseek-v4-pro |",
+      effortSection: "no reasoning-effort lever",
+      defaultEffort: "high",
+      effortSupported: false,
+    });
+    assert.match(r.text, /You are DeepSeek\./);
+    assert.match(r.text, /deepseek-v4-pro/);
+    assert.match(r.text, /no reasoning-effort lever/);
+    assert.match(r.text, /default high/);
+  });
+
+  it("empty (defaulted) identity vars render as blanks (unchanged output when a fragment omits them)", () => {
+    const r = assembleSystemPrompt(build(), ctx);
+    assert.match(r.text, /You are \./); // PERSONA_NAME defaults to ""
+  });
+});

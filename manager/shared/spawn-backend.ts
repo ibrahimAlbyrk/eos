@@ -14,6 +14,8 @@ import { meteredNeedsBilledIntent } from "../../core/src/domain/backend-billing.
 // The provider-family predicate lives in core domain (shared with the runtime
 // model-switch guard); re-exported so existing callers keep their import site.
 import { modelMatchesFamily } from "../../core/src/domain/model-provider.ts";
+import { resolveTier, CLAUDE_IDENTITY, type ProviderIdentity } from "../../core/src/domain/model-tier.ts";
+import { resolveProviderIdentity } from "./provider-identity.ts";
 export { modelMatchesFamily };
 
 export async function resolveSpawnBackend(c: Container, input: ResolveBackendInput): Promise<ResolvedBackend> {
@@ -29,7 +31,10 @@ export async function resolveSpawnBackend(c: Container, input: ResolveBackendInp
     // Don't fabricate a "billed" opt-in for a bare metered kind pick — leave
     // costMode unset so spawnBackendError rejects it (the opt-in must come from a
     // costMode:"billed" profile). Subscription picks are exempt.
-    rb = { kind: d.kind as BackendKind, model: "opus", profileName: null, ...(d.billing === "subscription" ? { costMode: "included" as const } : {}) };
+    // Bare-kind default is the "high" TIER; the tier gate below resolves it to the
+    // provider's concrete flagship (Claude ⇒ opus). Request-model lanes ignore this
+    // model at the route (the composer's pick wins), but it seeds the gate uniformly.
+    rb = { kind: d.kind as BackendKind, model: "high", profileName: null, ...(d.billing === "subscription" ? { costMode: "included" as const } : {}) };
   } else {
     rb = c.backendResolver.resolveForNewWorker(input);
   }
@@ -60,11 +65,29 @@ export async function resolveSpawnBackend(c: Container, input: ResolveBackendInp
       const pty = c.backends.descriptors().find((x) => x.billing === "subscription" && x.processModel === "out-of-process");
       if (pty) {
         c.log.warn("sdk_auth_unavailable_fell_back_to_pty", { kind: rb.kind });
-        return { kind: pty.kind as BackendKind, model: "opus", profileName: null, costMode: "included" };
+        rb = { kind: pty.kind as BackendKind, model: "high", profileName: null, costMode: "included" };
       }
     }
   }
-  return rb;
+
+  // The provider tier gate — the ONE-WAY resolution boundary. Compute this worker's
+  // own provider identity, resolve its model (a tier name / legacy alias) to a
+  // concrete id, and attach the identity so the route can thread it onto the spawn
+  // spec. Everything downstream (DB row, spawner, price lookup) sees only the
+  // concrete model — never a tier name.
+  const identity = identityFor(c, rb);
+  return { ...rb, model: resolveTier(rb.model, identity), providerIdentity: identity };
+}
+
+// This backend's provider identity, from the resolved descriptor + config profile
+// (the profile carries the origin the preset matches on). Falls back to the Claude
+// identity when the kind has no registered descriptor (defensive; unreached in
+// practice since a resolved kind is always registered).
+function identityFor(c: Container, rb: ResolvedBackend): ProviderIdentity {
+  const descriptor = c.backends.has(rb.kind) ? c.backends.get(rb.kind).descriptor : null;
+  if (!descriptor) return CLAUDE_IDENTITY;
+  const profile = (rb.profileName ? c.config.backends[rb.profileName] : undefined) ?? rb;
+  return resolveProviderIdentity(descriptor, profile);
 }
 
 // Spawn-time backend guard shared by the worker + orchestrator routes. Returns an

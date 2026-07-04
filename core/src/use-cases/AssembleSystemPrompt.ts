@@ -42,6 +42,15 @@ export interface SessionSpawnContext {
   // and the registry-derived capability VOCABULARY (node-type + transform-fn names).
   workflowDefinitionCatalog?: string;
   workflowCapabilityCatalog?: string;
+  // Own-backend provider identity, pre-rendered (interpolation variables, optional).
+  // The composition root computes these from the session's OWN backend (persona,
+  // per-tier model table, effort guidance). effortSupported is a boolean var usable
+  // by {{#if EFFORT_SUPPORTED}} in a fragment body.
+  personaName?: string;
+  modelTierTable?: string;
+  effortSection?: string;
+  defaultEffort?: string;
+  effortSupported?: boolean;
 }
 
 export interface AssembleDeps {
@@ -114,5 +123,10 @@ function sessionVars(ctx: SessionSpawnContext): VariableScope {
     AVAILABLE_WORKERS_CATALOG: ctx.workerDefinitionCatalog ?? "",
     AVAILABLE_WORKFLOWS_CATALOG: ctx.workflowDefinitionCatalog ?? "",
     WORKFLOW_CAPABILITY_CATALOG: ctx.workflowCapabilityCatalog ?? "",
+    PERSONA_NAME: ctx.personaName ?? "",
+    MODEL_TIER_TABLE: ctx.modelTierTable ?? "",
+    EFFORT_SECTION: ctx.effortSection ?? "",
+    DEFAULT_EFFORT: ctx.defaultEffort ?? "",
+    EFFORT_SUPPORTED: ctx.effortSupported ?? false,
   };
 }

@@ -74,7 +74,8 @@ function fakeContainer(profile: ResolvedBackend): Container {
   const backendResolver = new SqlBackedBackendResolver(workers, defaults);
   const authResolver = { resolve: async () => ({ scheme: "none" as const }) };
   const log = { warn: () => {}, info: () => {}, error: () => {}, debug: () => {} };
-  return { backends, backendResolver, authResolver, log } as unknown as Container;
+  const config = { backends: {} };
+  return { backends, backendResolver, authResolver, log, config } as unknown as Container;
 }
 
 describe("resolveSpawnBackend — explicit profile pick", () => {

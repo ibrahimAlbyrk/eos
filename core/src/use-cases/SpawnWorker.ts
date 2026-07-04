@@ -19,6 +19,7 @@ import type { ToolScope } from "../../../contracts/src/worker-definition.ts";
 import type { NameSource } from "../../../contracts/src/worker.ts";
 import type { AuthRef } from "../../../contracts/src/backend.ts";
 import type { ProviderCapabilities } from "../../../contracts/src/provider-capabilities.ts";
+import type { ProviderIdentity } from "../domain/model-tier.ts";
 import { resolveEffort } from "../domain/effort.ts";
 import { applySenderTag } from "../domain/sender-tag.ts";
 import { assertOwnedBy } from "../services/WorkerOwnership.ts";
@@ -84,6 +85,11 @@ export interface SpawnWorkerSpec {
   backendBaseUrl?: string;
   backendParams?: Record<string, unknown>;
   backendCapabilities?: ProviderCapabilities;
+  /** The resolved provider identity (persona + tier→model map) for THIS worker's
+   * own backend — attached by the spawn route from resolveSpawnBackend. Read by DPI
+   * assembly to build the persona/tier prompt vars without recomputation. NOT
+   * persisted (re-derived from the backend profile on resume). */
+  providerIdentity?: ProviderIdentity;
   /** Resolved worker-definition name. Persisted to worker_definition; surfaced as the
    * immutable DPI `workerDefinition` fact. "" / absent ⇒ untyped base worker. The
    * spawn handler resolves it — the use-case only carries + persists. */

@@ -1717,7 +1717,7 @@ export const PromptPreviewRequestSchema = z.object({
   parentId: z.string().nullable().default(null),
   name: z.string().default("preview"),
   workerId: z.string().nullable().default(null),
-  model: z.string().default("opus"),
+  model: z.string().default("high"),
   effort: z.string().nullable().default(null),
   permissionMode: z.string().default("acceptEdits"),
   cwd: z.string().nullable().default(null),
