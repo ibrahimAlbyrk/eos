@@ -20,4 +20,4 @@ When NOT to use:
 - The worker just reported and the operator might want a follow-up — wait for the exchange to conclude first.
 - During an active permission ask (worker in {{LIST_PENDING_PERMISSIONS_TOOL}}) — decide the permission first.
 
-Returns `{ id, name, was_state, removed, killed[] }` — `was_state` is what the worker was doing at SIGTERM; `removed: true` means its worktree (and any un-integrated work) is gone.
+Returns `{ id, name, was_state, removed }` — `was_state` is what the worker was doing at SIGTERM; `removed: true` means its worktree (and any un-integrated work) is gone.

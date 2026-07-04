@@ -9,7 +9,7 @@ Merge your workers' worktree branches into your OWN checkout in one pass. Worker
 
 Pass no arguments to integrate every worker; pass `ids` to integrate a subset.
 
-Returns `{ workers[], mergedFiles, conflictedFiles, message }`. Each worker's `outcome` is one of:
+Returns `{ ok, branch, workers[], message }`. Each worker carries its own `files[]` (merged or conflicted); `outcome` is one of:
 - `merged` — its work is now on your branch.
 - `conflicted` — it overlapped another worker; its files carry conflict markers and need resolution.
 - `pending` — a conflict ahead of it blocks it (git resolves one at a time); resolve the conflict, then call this tool again to land the rest.

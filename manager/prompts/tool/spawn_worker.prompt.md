@@ -30,4 +30,4 @@ Goal loop: when "done" has a concrete, checkable definition, pass `loop` to arm 
 
 The worker automatically inherits the project's worker system prompt, which already covers reporting structure, the result:/needs input:/failed: signal protocol, and the worktree Handover line — do not repeat those in `prompt`.
 
-Returns { id, port, isolation }. Use that id with {{GET_WORKER_TOOL}}, {{MESSAGE_WORKER_TOOL}}, and {{KILL_WORKER_TOOL}}.
+Returns { id, isolation }. Use that id with {{GET_WORKER_TOOL}}, {{MESSAGE_WORKER_TOOL}}, and {{KILL_WORKER_TOOL}}.

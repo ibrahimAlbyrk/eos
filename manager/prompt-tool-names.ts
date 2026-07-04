@@ -7,6 +7,7 @@ import type { VariableScope } from "../core/src/domain/prompt.ts";
 import { spawnWorkerDef } from "./tools/defs/spawn_worker.ts";
 import { listActiveWorkersDef } from "./tools/defs/list_active_workers.ts";
 import { getWorkerDef } from "./tools/defs/get_worker.ts";
+import { getWorkerMessagesDef } from "./tools/defs/get_worker_messages.ts";
 import { killWorkerDef } from "./tools/defs/kill_worker.ts";
 import { messageWorkerDef } from "./tools/defs/message_worker.ts";
 import { listPendingPermissionsDef } from "./tools/defs/list_pending_permissions.ts";
@@ -27,6 +28,7 @@ export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
   LIST_ACTIVE_WORKERS_TOOL: listActiveWorkersDef.name,
   GET_WORKER_TOOL: getWorkerDef.name,
+  GET_WORKER_MESSAGES_TOOL: getWorkerMessagesDef.name,
   KILL_WORKER_TOOL: killWorkerDef.name,
   MESSAGE_WORKER_TOOL: messageWorkerDef.name,
   LIST_PENDING_PERMISSIONS_TOOL: listPendingPermissionsDef.name,
