@@ -3,7 +3,7 @@ import { killAllSessions } from "../../../state/ptyPanelStore.js";
 
 // Top-right toolbar toggle for the embedded terminal panel. Opens/closes the
 // "terminal" docked panel on the focused pane (same panel stack as the file/
-// diff viewers). Mirrors the FollowButton idiom (pane-split-btn + is-active).
+// diff viewers). Uses the shared pane-split-btn + is-active button idiom.
 export function TerminalToggleButton() {
   const ui = useUi();
   const open = ui.topPanelType === "terminal";
