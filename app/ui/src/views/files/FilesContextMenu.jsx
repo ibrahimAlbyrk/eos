@@ -1,5 +1,6 @@
 import { useUi } from "../../state/ui.jsx";
 import { api } from "../../api/client.js";
+import { notify } from "../../lib/notify.js";
 import { explorer } from "../../state/explorerStore.js";
 import { parentDir } from "../../lib/explorerApi.js";
 
@@ -24,7 +25,11 @@ export function FilesContextMenu() {
   const open = () => act(() => (primaryIsDir ? explorer.toggleExpand(primary) : explorer.openFilePath(primary)));
   const rename = () => act(() => explorer.startRename(primary));
   const reveal = () => act(() => api.revealFile(primary));
-  const copyPath = () => act(() => navigator.clipboard?.writeText(paths.join("\n")));
+  const copyPath = async () => {
+    await navigator.clipboard?.writeText(paths.join("\n"));
+    notify.info(paths.length > 1 ? `${paths.length} paths copied` : 'Path copied');
+    close();
+  };
   const newFile = () => act(() => explorer.startDraft(targetDir, "file"));
   const newFolder = () => act(() => explorer.startDraft(targetDir, "directory"));
   const del = () => act(() => explorer.trashEntries(paths));

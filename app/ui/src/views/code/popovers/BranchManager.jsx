@@ -9,6 +9,7 @@ import {
   PlusIcon, FetchIcon, TrashIcon, PencilIcon, CopyIcon,
   CloudIcon, CheckIcon, SpinnerIcon,
 } from "../../../lib/gitIconKit.jsx";
+import { notify } from "../../../lib/notify.js";
 
 const EMPTY = { branches: [], remoteBranches: [], remotes: [], current: null };
 
@@ -67,7 +68,8 @@ export function BranchManager({ live, cwd }) {
   };
 
   const copyName = async (label) => {
-    try { await navigator.clipboard.writeText(label); } catch { /* clipboard unavailable */ }
+    try { await navigator.clipboard.writeText(label); notify.info('Branch name copied'); }
+    catch { notify.error('Copy failed'); }
   };
 
   const checkout = async (label, isRemote) => {

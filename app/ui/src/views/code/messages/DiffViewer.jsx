@@ -9,6 +9,7 @@ import { useWorkerChanges } from "../../../hooks/useWorkerChanges.js";
 import { useTryState } from "../../../hooks/useTryState.js";
 import { workerGitDir } from "../../../lib/workerGitDir.js";
 import { TryApplyButton } from "./TryApplyButton.jsx";
+import { notify } from "../../../lib/notify.js";
 
 // Initial row budget per file; further rows stream in as the sentinel below
 // the rendered window scrolls into reach — no all-at-once "Show all" commit.
@@ -147,7 +148,7 @@ function DiffViewerInner({ workerId, live }) {
           <button
             className="fv-icon-btn"
             title="Copy workspace path"
-            onClick={() => navigator.clipboard?.writeText(gitDir)}
+            onClick={async () => { await navigator.clipboard?.writeText(gitDir); notify.info('Workspace path copied'); }}
           >
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
               <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
