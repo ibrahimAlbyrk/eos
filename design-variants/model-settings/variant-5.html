@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eos · Settings · Model — Variant 5 (Tile Mosaic + Command Bar)</title>
+<style>
+/* ============================================================
+   Eos design tokens — copied from app/ui/src/styles.css :root.
+   Webfont names resolve to system fallbacks; zero network.
+   ============================================================ */
+:root {
+  color-scheme: dark;
+  --font-ui: "Plus Jakarta Sans Variable", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono Variable", ui-monospace, SFMono-Regular, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-xl: 1.0625rem;
+  --blur-sm: 8px;
+  --blur-lg: 22px;
+  --bg: #1a1a1a;
+  --surface: #1f1f1f;
+  --border: #262626;
+  --fg: #ebebeb;
+  --fg-mid: #c4c4c4;
+  --fg-dim: #8a8a8a;
+  --fg-faint: #5a5a5a;
+  --accent: #6ea4e8;
+  --accent-soft: color-mix(in srgb, var(--accent) 13%, transparent);
+  --accent-hover: #8ab9f0;
+  --on-accent: #0a0a0a;
+  --ok: #67c084;
+  --warn: #d4a55a;
+  --err: #d97670;
+  --violet: #c8a2ff;
+  --amber: #e8a838;
+  --tint: 255, 255, 255;
+  --glass: 30, 30, 30;
+  --rim: 255, 255, 255;
+  --solid-btn-bg: #e8e8e8;
+  --solid-btn-fg: #1a1a1a;
+  --solid-btn-bg-hover: #fff;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+button { font: inherit; color: inherit; background: none; border: none; cursor: pointer; }
+input { font: inherit; color: inherit; background: none; border: none; outline: none; }
+
+html { font-size: 16px; }
+body {
+  font-family: var(--font-ui);
+  background: #101010;
+  color: var(--fg);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* faux dashboard behind the settings overlay, so the glass has depth */
+.backdrop-fx {
+  position: fixed; inset: 0; pointer-events: none;
+  background:
+    radial-gradient(560px 300px at 18% 12%, rgba(110, 164, 232, 0.07), transparent 68%),
+    radial-gradient(640px 360px at 84% 88%, rgba(200, 162, 255, 0.05), transparent 70%),
+    radial-gradient(420px 260px at 70% 20%, rgba(103, 192, 132, 0.04), transparent 70%);
+}
+.backdrop-fx::after {
+  content: ""; position: absolute; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.028) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(70% 70% at 50% 45%, #000 30%, transparent 100%);
+}
+.overlay-veil {
+  position: fixed; inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(var(--blur-sm));
+  -webkit-backdrop-filter: blur(var(--blur-sm));
+}
+
+/* ============================================================
+   Settings modal shell — mirrors .stg-modal / .stg-nav / .stg-body
+   ============================================================ */
+.stg-modal {
+  position: relative;
+  width: min(760px, calc(100vw - 48px));
+  height: min(560px, calc(100vh - 96px));
+  display: flex;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(var(--glass), 0.88);
+  backdrop-filter: blur(40px) saturate(170%);
+  -webkit-backdrop-filter: blur(40px) saturate(170%);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.25);
+  animation: pop-in 160ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.stg-modal::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 5;
+  border-radius: inherit; padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(var(--rim), 0.28), rgba(var(--rim), 0.06) 38%,
+    rgba(var(--rim), 0.06) 62%, rgba(var(--rim), 0.16)) border-box;
+  -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+@keyframes pop-in { from { opacity: 0; transform: scale(0.985) translateY(4px); } }
+
+.stg-nav {
+  width: 188px; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 10px;
+  border-right: 1px solid rgba(var(--tint), 0.07);
+  z-index: 1;
+}
+.stg-nav__label {
+  padding: 4px 9px 5px;
+  font-size: var(--text-xs);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  font-family: var(--font-mono);
+  color: var(--fg-faint);
+}
+.stg-nav__item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px; border-radius: 7px;
+  font-size: var(--text-base); color: var(--fg-dim); text-align: left;
+}
+.stg-nav__item svg { flex-shrink: 0; }
+.stg-nav__item:hover { background: rgba(var(--tint), 0.06); color: var(--fg); }
+.stg-nav__item.is-active { background: rgba(var(--tint), 0.08); color: var(--fg); }
+
+.stg-body {
+  position: relative;
+  flex: 1; min-width: 0;
+  overflow-y: auto; overflow-x: hidden;
+  padding: 22px 26px;
+  z-index: 1;
+}
+.stg-title {
+  margin: 0 0 4px;
+  font-size: var(--text-xl); font-weight: 600;
+  letter-spacing: -0.01em; color: var(--fg);
+}
+.stg-sub {
+  font-size: var(--text-sm); color: var(--fg-faint);
+  margin-bottom: 16px;
+}
+.stg-sub b { color: var(--fg-dim); font-weight: 500; }
+
+/* ============================================================
+   Command bar — the add/search field that owns the panel
+   ============================================================ */
+.cmdbar {
+  position: relative;
+  display: flex; align-items: center; gap: 9px;
+  padding: 0 10px 0 13px;
+  height: 42px;
+  border-radius: 10px;
+  background: rgba(var(--tint), 0.045);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.08);
+  transition: box-shadow 140ms ease, background 140ms ease;
+}
+.cmdbar:hover { background: rgba(var(--tint), 0.06); }
+.cmdbar:focus-within {
+  background: rgba(var(--tint), 0.05);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 50%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+.cmdbar svg.lens { color: var(--fg-faint); flex-shrink: 0; transition: color 140ms ease; }
+.cmdbar:focus-within svg.lens { color: var(--accent); }
+.cmdbar input {
+  flex: 1; min-width: 0;
+  font-size: var(--text-base); color: var(--fg);
+}
+.cmdbar input::placeholder { color: var(--fg-faint); }
+.cmdbar kbd {
+  flex-shrink: 0;
+  font-family: var(--font-mono); font-size: var(--text-xs);
+  color: var(--fg-faint);
+  padding: 2px 6px; border-radius: 5px;
+  background: rgba(var(--tint), 0.06);
+  box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.3), inset 0 0 0 1px rgba(var(--tint), 0.05);
+}
+
+/* preset suggestions strip, anchored under the command bar */
+.presets {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 30;
+  border-radius: 10px; padding: 4px;
+  background: rgba(var(--glass), 0.92);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.2);
+  animation: rise 140ms ease-out;
+  display: none;
+}
+.presets.is-open { display: block; }
+.presets::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  border-radius: inherit; padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(var(--rim), 0.3), rgba(var(--rim), 0.06) 40%,
+    rgba(var(--rim), 0.06) 60%, rgba(var(--rim), 0.18)) border-box;
+  -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.presets__label {
+  padding: 6px 10px 4px;
+  font-size: var(--text-xs); font-family: var(--font-mono);
+  text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--fg-faint);
+}
+.preset-row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 7px 10px; border-radius: 7px;
+  text-align: left; font-size: var(--text-sm); color: var(--fg);
+}
+.preset-row:hover { background: rgba(var(--tint), 0.07); }
+.preset-row .plus {
+  width: 20px; height: 20px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.preset-row .hint {
+  margin-left: auto;
+  font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ============================================================
+   Tile mosaic
+   ============================================================ */
+.mosaic {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+}
+.tile {
+  position: relative;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 7px;
+  padding: 10px 11px 9px;
+  border-radius: 10px;
+  background: rgba(var(--tint), 0.035);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.06);
+  text-align: left;
+  overflow: hidden;
+  transition: background 130ms ease, box-shadow 130ms ease, transform 130ms ease;
+  animation: rise 260ms cubic-bezier(0.2, 0.8, 0.3, 1) backwards;
+}
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } }
+.tile:hover {
+  background: rgba(var(--tint), 0.065);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.12), 0 4px 14px rgba(0, 0, 0, 0.22);
+  transform: translateY(-1px);
+}
+.tile.is-selected {
+  background: rgba(var(--tint), 0.07);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent),
+    0 4px 14px rgba(0, 0, 0, 0.22);
+}
+/* auth-state accent edge along the tile's left rim */
+.tile::before {
+  content: ""; position: absolute; left: 0; top: 8px; bottom: 8px;
+  width: 2px; border-radius: 2px;
+  background: transparent;
+  transition: background 160ms ease, box-shadow 160ms ease;
+}
+.tile[data-auth="key"]::before { background: var(--ok); box-shadow: 0 0 8px color-mix(in srgb, var(--ok) 55%, transparent); }
+.tile[data-auth="sub"]::before { background: var(--violet); box-shadow: 0 0 8px color-mix(in srgb, var(--violet) 55%, transparent); }
+.tile[data-auth="none"] { box-shadow: inset 0 0 0 1px transparent; }
+.tile[data-auth="none"]::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  border-radius: inherit;
+  border: 1px dashed rgba(var(--tint), 0.13);
+}
+.tile[data-auth="none"] .monogram { filter: saturate(0.25) brightness(0.8); }
+.tile[data-auth="none"] .t-name { color: var(--fg-dim); }
+
+.t-top { display: flex; align-items: center; gap: 8px; width: 100%; }
+.monogram {
+  width: 24px; height: 24px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 7px;
+  font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.02em;
+  color: var(--m-hue);
+  background: color-mix(in srgb, var(--m-hue) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--m-hue) 22%, transparent);
+  transition: filter 160ms ease;
+}
+/* status dot pinned top-right; subscription pulses gently */
+.t-dot {
+  margin-left: auto;
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: rgba(var(--tint), 0.14);
+}
+.tile[data-auth="key"] .t-dot { background: var(--ok); box-shadow: 0 0 7px color-mix(in srgb, var(--ok) 65%, transparent); }
+.tile[data-auth="sub"] .t-dot {
+  background: var(--violet);
+  box-shadow: 0 0 7px color-mix(in srgb, var(--violet) 65%, transparent);
+  animation: dot-pulse 2.6s ease-in-out infinite;
+}
+@keyframes dot-pulse { 50% { box-shadow: 0 0 3px color-mix(in srgb, var(--violet) 30%, transparent); opacity: 0.72; } }
+
+.t-name {
+  font-size: var(--text-sm); font-weight: 600; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.t-model {
+  font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+.tile[data-auth="none"] .t-model { font-family: var(--font-ui); font-style: normal; }
+.tile[data-auth="none"]:hover .t-model { color: var(--accent); }
+
+/* legend under the mosaic */
+.legend {
+  margin-top: 14px;
+  display: flex; align-items: center; gap: 16px;
+  font-size: var(--text-xs); color: var(--fg-faint);
+}
+.legend i {
+  display: inline-block; width: 6px; height: 6px; border-radius: 50%;
+  margin-right: 6px; vertical-align: 0.5px;
+}
+.legend .l-key i { background: var(--ok); }
+.legend .l-sub i { background: var(--violet); }
+.legend .l-none i { background: transparent; box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.3); }
+.legend .count { margin-left: auto; font-family: var(--font-mono); }
+
+.mosaic-empty {
+  padding: 32px 0; text-align: center;
+  color: var(--fg-faint); font-size: var(--text-sm);
+  grid-column: 1 / -1;
+}
+
+/* ============================================================
+   Anchored editor popover — .q-card glass recipe
+   ============================================================ */
+.pop {
+  position: absolute; z-index: 40;
+  width: 312px;
+  border-radius: 12px;
+  background: rgba(var(--glass), 0.92);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.38), 0 2px 6px rgba(0, 0, 0, 0.2);
+  padding: 13px 14px 11px;
+  animation: rise 170ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.pop::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  border-radius: inherit; padding: 1px;
+  background: linear-gradient(135deg,
+    rgba(var(--rim), 0.36), rgba(var(--rim), 0.07) 38%,
+    rgba(var(--rim), 0.07) 62%, rgba(var(--rim), 0.22)) border-box;
+  -webkit-mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.pop > * { position: relative; z-index: 1; }
+.pop .caret {
+  position: absolute; top: -5px; width: 10px; height: 10px; z-index: 0;
+  background: rgba(var(--glass), 0.92);
+  border-left: 1px solid rgba(var(--rim), 0.22);
+  border-top: 1px solid rgba(var(--rim), 0.22);
+  transform: rotate(45deg);
+}
+.pop.is-above .caret {
+  top: auto; bottom: -5px;
+  border: none;
+  border-right: 1px solid rgba(var(--rim), 0.18);
+  border-bottom: 1px solid rgba(var(--rim), 0.18);
+}
+
+.pop-head { display: flex; align-items: center; gap: 9px; margin-bottom: 11px; }
+.pop-head .monogram { width: 26px; height: 26px; border-radius: 8px; font-size: 0.75rem; }
+.pop-head .p-name { font-size: var(--text-base); font-weight: 600; }
+.p-status {
+  margin-left: auto;
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: var(--text-xs); font-family: var(--font-mono);
+  padding: 2px 7px; border-radius: 999px;
+  color: var(--fg-dim);
+  background: rgba(var(--tint), 0.06);
+}
+.p-status i { width: 5px; height: 5px; border-radius: 50%; background: rgba(var(--tint), 0.25); }
+.p-status.s-key { color: var(--ok); background: color-mix(in srgb, var(--ok) 11%, transparent); }
+.p-status.s-key i { background: var(--ok); }
+.p-status.s-sub { color: var(--violet); background: color-mix(in srgb, var(--violet) 11%, transparent); }
+.p-status.s-sub i { background: var(--violet); }
+
+/* auth method switch — segmented, full width */
+.authseg {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 2px;
+  padding: 2px; border-radius: 8px;
+  background: rgba(var(--tint), 0.05);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.07);
+  margin-bottom: 11px;
+}
+.authseg button {
+  padding: 5px 0; border-radius: 6px;
+  font-size: var(--text-xs); font-weight: 600;
+  color: var(--fg-dim);
+  transition: background 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+.authseg button:hover { color: var(--fg); }
+.authseg button.is-active {
+  color: var(--fg);
+  background: rgba(var(--tint), 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(var(--rim), 0.2),
+    inset 0 0 0 1px rgba(var(--tint), 0.06),
+    0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.pane { display: none; }
+.pane.is-active { display: block; }
+
+.f-label {
+  font-size: var(--text-xs); font-family: var(--font-mono);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  color: var(--fg-faint);
+  margin: 10px 0 5px;
+}
+.f-label:first-child { margin-top: 0; }
+
+.f-input {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 5px 0 10px;
+  border-radius: 8px;
+  background: rgba(var(--tint), 0.04);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.08);
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+.f-input:hover { background: rgba(var(--tint), 0.07); }
+.f-input:focus-within {
+  background: rgba(var(--tint), 0.05);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.f-input input {
+  flex: 1; min-width: 0; padding: 6px 0;
+  font-size: var(--text-xs); font-family: var(--font-mono); color: var(--fg);
+}
+.f-input input::placeholder { color: var(--fg-faint); }
+.f-input .eye {
+  width: 22px; height: 22px; flex-shrink: 0; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--fg-dim);
+}
+.f-input .eye:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
+
+/* configured-key chip: masked value + replace */
+.key-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 7px 10px; border-radius: 8px;
+  background: color-mix(in srgb, var(--ok) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 20%, transparent);
+  font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-mid);
+}
+.key-chip svg { color: var(--ok); flex-shrink: 0; }
+.key-chip .swap {
+  margin-left: auto; flex-shrink: 0;
+  font-family: var(--font-ui); font-size: var(--text-xs); font-weight: 600;
+  color: var(--fg-dim); padding: 2px 7px; border-radius: 5px;
+}
+.key-chip .swap:hover { background: rgba(var(--tint), 0.09); color: var(--fg); }
+
+/* subscription pane */
+.sub-cta {
+  width: 100%;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 8px 0; border-radius: 8px;
+  font-size: var(--text-sm); font-weight: 600;
+  color: var(--solid-btn-fg); background: var(--solid-btn-bg);
+  transition: background 130ms ease, transform 130ms ease;
+}
+.sub-cta:hover { background: var(--solid-btn-bg-hover); }
+.sub-cta:active { transform: scale(0.985); }
+.sub-cta[disabled] { opacity: 0.7; cursor: default; }
+.sub-note { margin-top: 7px; font-size: var(--text-xs); color: var(--fg-faint); line-height: 1.45; }
+
+.sub-acct {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: 8px;
+  background: color-mix(in srgb, var(--violet) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--violet) 20%, transparent);
+}
+.sub-acct .avatar {
+  width: 22px; height: 22px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 0.625rem; font-weight: 700;
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 16%, transparent);
+}
+.sub-acct .who { min-width: 0; }
+.sub-acct .who b {
+  display: block; font-size: var(--text-xs); font-weight: 600; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sub-acct .who span {
+  display: block; font-size: var(--text-xs); color: var(--fg-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sub-acct .out {
+  margin-left: auto; flex-shrink: 0;
+  font-size: var(--text-xs); font-weight: 600; color: var(--fg-dim);
+  padding: 3px 8px; border-radius: 5px;
+}
+.sub-acct .out:hover { background: rgba(var(--tint), 0.09); color: var(--err); }
+
+/* action row */
+.pop-actions {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 12px; padding-top: 10px;
+  border-top: 1px solid rgba(var(--tint), 0.06);
+}
+.btn-save {
+  padding: 5px 12px; border-radius: 7px;
+  font-size: var(--text-xs); font-weight: 600;
+  color: var(--accent); background: var(--accent-soft);
+  transition: background 120ms ease;
+}
+.btn-save:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
+.btn-save[disabled] { opacity: 0.45; cursor: default; }
+.btn-done {
+  margin-left: auto;
+  padding: 5px 12px; border-radius: 7px;
+  font-size: var(--text-xs); font-weight: 600; color: var(--fg-dim);
+}
+.btn-done:hover { background: rgba(var(--tint), 0.07); color: var(--fg); }
+.btn-rm {
+  font-size: var(--text-xs); color: var(--fg-faint);
+  padding: 5px 7px; border-radius: 7px;
+}
+.btn-rm:hover { color: var(--err); background: color-mix(in srgb, var(--err) 9%, transparent); }
+.btn-rm.confirm { color: var(--err); background: color-mix(in srgb, var(--err) 12%, transparent); }
+
+.saved-flash { font-size: var(--text-xs); color: var(--ok); display: inline-flex; align-items: center; gap: 4px; }
+
+/* variant badge */
+.badge {
+  position: fixed; right: 14px; bottom: 12px; z-index: 100;
+  font-family: var(--font-mono); font-size: var(--text-xs);
+  color: var(--fg-dim);
+  padding: 5px 10px; border-radius: 7px;
+  background: rgba(var(--glass), 0.85);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.1);
+  backdrop-filter: blur(var(--blur-sm));
+  -webkit-backdrop-filter: blur(var(--blur-sm));
+}
+.badge b { color: var(--accent); font-weight: 600; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+.spin { animation: spin 0.7s linear infinite; transform-origin: center; }
+</style>
+</head>
+<body>
+<div class="backdrop-fx"></div>
+<div class="overlay-veil"></div>
+
+<div class="stg-modal">
+  <nav class="stg-nav">
+    <div class="stg-nav__label">Settings</div>
+    <button class="stg-nav__item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="2.6"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4"/></svg>General</button>
+    <button class="stg-nav__item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.8a6.2 6.2 0 1 0 6.2 6.2c0-1-1-1.4-1.8-1-1.6.7-3.4-.5-3.4-2.3 0-.8.4-1.5-.2-2.2A6 6 0 0 0 8 1.8z"/></svg>Appearance</button>
+    <button class="stg-nav__item is-active"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4.5" width="12" height="8" rx="1.5"/><path d="M5.5 8h.01M8 8h.01M10.5 8h.01M5 1.5l1.5 3M11 1.5l-1.5 3"/></svg>Model</button>
+    <button class="stg-nav__item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.5l5.5 2.3v3.4c0 3.4-2.3 6-5.5 7.3-3.2-1.3-5.5-3.9-5.5-7.3V3.8L8 1.5z"/></svg>Permissions</button>
+    <button class="stg-nav__item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="5" cy="5" r="2.2"/><circle cx="11" cy="11" r="2.2"/><path d="M5 7.5v3A2.5 2.5 0 0 0 7.5 13h1M11 8.5v-3A2.5 2.5 0 0 0 8.5 3h-1"/></svg>Workers</button>
+    <button class="stg-nav__item"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M2 4.5h12M2 8h12M2 11.5h7"/></svg>Advanced</button>
+  </nav>
+
+  <div class="stg-body" id="body">
+    <h2 class="stg-title">Providers</h2>
+    <div class="stg-sub" id="summary"></div>
+
+    <div class="cmdbar">
+      <svg class="lens" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.4"/><path d="M10.4 10.4L14 14"/></svg>
+      <input id="cmd" type="text" placeholder="Add or search providers…" spellcheck="false" autocomplete="off">
+      <kbd>⌘K</kbd>
+      <div class="presets" id="presets"></div>
+    </div>
+
+    <div class="mosaic" id="mosaic"></div>
+
+    <div class="legend">
+      <span class="l-key"><i></i>API key</span>
+      <span class="l-sub"><i></i>Subscription</span>
+      <span class="l-none"><i></i>Not configured</span>
+      <span class="count" id="count"></span>
+    </div>
+  </div>
+</div>
+
+<div class="badge"><b>V5</b> · Tile Mosaic + Command Bar</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// mock state — realistic provider set, three auth states represented
+// ---------------------------------------------------------------------------
+const ACCOUNT = { name: "ibrahim albayrak", mail: "ibrahim…@gmail.com" };
+
+let providers = [
+  { id: "anthropic", name: "Anthropic Claude", mono: "AC", hue: "#d97757", endpoint: "api.anthropic.com",                  model: "claude-fable-5",          auth: "sub", key: null },
+  { id: "deepseek",  name: "DeepSeek",         mono: "DS", hue: "#5f7de8", endpoint: "api.deepseek.com",                   model: "deepseek-v4-flash",       auth: "key", key: "sk-…9f2a" },
+  { id: "openai",    name: "OpenAI",           mono: "OA", hue: "#4fae8d", endpoint: "api.openai.com",                     model: "gpt-5.5",                 auth: "key", key: "sk-…k41d" },
+  { id: "gemini",    name: "Google Gemini",    mono: "GG", hue: "#8ab4f8", endpoint: "generativelanguage.googleapis.com",  model: "gemini-3.1-pro-preview",  auth: "sub", key: null },
+  { id: "qwen",      name: "Alibaba Qwen",     mono: "QW", hue: "#e8874d", endpoint: "dashscope-intl.aliyuncs.com",        model: "qwen3.7-max",             auth: "key", key: "sk-…77qe" },
+  { id: "kimi",      name: "Moonshot Kimi",    mono: "KM", hue: "#c8a2ff", endpoint: "api.moonshot.ai",                    model: "kimi-k2.6",               auth: "none", key: null },
+  { id: "glm",       name: "Zhipu GLM",        mono: "GL", hue: "#5cb8c4", endpoint: "api.z.ai",                           model: "glm-5.2",                 auth: "none", key: null },
+  { id: "grok",      name: "xAI Grok",         mono: "XG", hue: "#c4c4c4", endpoint: "api.x.ai",                           model: "grok-4.2",                auth: "none", key: null },
+];
+
+let extraPresets = [
+  { id: "mistral",    name: "Mistral",     mono: "MI", hue: "#e8a838", endpoint: "api.mistral.ai",    model: "mistral-large-3" },
+  { id: "openrouter", name: "OpenRouter",  mono: "OR", hue: "#c8a2ff", endpoint: "openrouter.ai",     model: "auto" },
+  { id: "ollama",     name: "Ollama",      mono: "OL", hue: "#ebebeb", endpoint: "localhost:11434",   model: "llama4:70b" },
+];
+
+const AUTH_LABEL = { none: "Not configured", key: "API key", sub: "Subscription" };
+
+const $ = (s, r) => (r || document).querySelector(s);
+const body = $("#body"), mosaic = $("#mosaic"), cmd = $("#cmd"), presetsEl = $("#presets");
+let selected = null;   // provider id with open popover
+let popEl = null;
+
+// ---------------------------------------------------------------------------
+// mosaic rendering
+// ---------------------------------------------------------------------------
+function statusLine(p) {
+  if (p.auth === "none") return "Set up →";
+  return p.model;
+}
+
+function renderMosaic(filter) {
+  const q = (filter || "").trim().toLowerCase();
+  const list = q
+    ? providers.filter(p => (p.name + " " + p.model + " " + p.endpoint).toLowerCase().includes(q))
+    : providers;
+
+  mosaic.innerHTML = list.map((p, i) => `
+    <button class="tile${p.id === selected ? " is-selected" : ""}" data-id="${p.id}" data-auth="${p.auth}"
+            style="--m-hue:${p.hue}; animation-delay:${i * 28}ms"
+            title="${p.name} — ${AUTH_LABEL[p.auth]}">
+      <span class="t-top">
+        <span class="monogram">${p.mono}</span>
+        <span class="t-dot"></span>
+      </span>
+      <span class="t-name">${p.name}</span>
+      <span class="t-model">${statusLine(p)}</span>
+    </button>
+  `).join("") || `<div class="mosaic-empty">No providers match “${filter}” — press ↵ to add it as a custom provider.</div>`;
+
+  const n = providers.length, c = providers.filter(p => p.auth !== "none").length;
+  $("#count").textContent = `${c}/${n} connected`;
+  $("#summary").innerHTML =
+    `<b>${c} of ${n}</b> providers ready · select a tile to edit keys, subscription login, endpoint and model`;
+}
+
+// ---------------------------------------------------------------------------
+// command bar: filter + add-preset suggestions
+// ---------------------------------------------------------------------------
+function renderPresets() {
+  const q = cmd.value.trim().toLowerCase();
+  const hits = q ? extraPresets.filter(p => p.name.toLowerCase().includes(q)) : extraPresets;
+  if (!q && document.activeElement !== cmd) { presetsEl.classList.remove("is-open"); return; }
+  if (!hits.length) { presetsEl.classList.remove("is-open"); return; }
+  presetsEl.innerHTML = `<div class="presets__label">Add a provider</div>` + hits.map(p => `
+    <button class="preset-row" data-preset="${p.id}">
+      <span class="plus"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg></span>
+      ${p.name}
+      <span class="hint">${p.endpoint} · ${p.model}</span>
+    </button>`).join("");
+  presetsEl.classList.add("is-open");
+}
+
+function addPreset(id) {
+  const idx = extraPresets.findIndex(p => p.id === id);
+  if (idx < 0) return;
+  const p = { ...extraPresets[idx], auth: "none", key: null };
+  extraPresets.splice(idx, 1);
+  providers.push(p);
+  cmd.value = "";
+  presetsEl.classList.remove("is-open");
+  renderMosaic();
+  openPopover(p.id);
+}
+
+function addCustom(name) {
+  const id = "custom-" + name.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  if (providers.some(p => p.id === id)) return;
+  providers.push({ id, name, mono: name.slice(0, 2).toUpperCase(), hue: "#8a8a8a",
+                   endpoint: "api.example.com", model: "default", auth: "none", key: null });
+  cmd.value = "";
+  renderMosaic();
+  openPopover(id);
+}
+
+cmd.addEventListener("input", () => { renderMosaic(cmd.value); renderPresets(); });
+cmd.addEventListener("focus", renderPresets);
+cmd.addEventListener("keydown", e => {
+  if (e.key === "Enter") {
+    const q = cmd.value.trim();
+    const hit = extraPresets.find(p => p.name.toLowerCase().includes(q.toLowerCase()));
+    if (hit) addPreset(hit.id);
+    else if (q && !providers.some(p => p.name.toLowerCase().includes(q.toLowerCase()))) addCustom(q);
+  }
+  if (e.key === "Escape") { cmd.blur(); presetsEl.classList.remove("is-open"); renderMosaic(); }
+});
+presetsEl.addEventListener("mousedown", e => {
+  const row = e.target.closest("[data-preset]");
+  if (row) { e.preventDefault(); addPreset(row.dataset.preset); }
+});
+document.addEventListener("keydown", e => {
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); cmd.focus(); cmd.select(); }
+});
+
+// ---------------------------------------------------------------------------
+// anchored editor popover
+// ---------------------------------------------------------------------------
+const EYE = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>`;
+const CHECK = `<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.5 3.5L13 5"/></svg>`;
+const KEYIC = `<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="10.5" r="3"/><path d="M7.8 8.2L13.5 2.5M11 5l2 2M9 7l1.5 1.5"/></svg>`;
+const SPIN = `<svg class="spin" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 2a6 6 0 1 0 6 6" stroke-opacity="0.35"/><path d="M8 2a6 6 0 0 1 6 6" stroke-dasharray="9 28"/></svg>`;
+
+function popHTML(p, mode, opts) {
+  const o = opts || {};
+  const st = p.auth === "key" ? "s-key" : p.auth === "sub" ? "s-sub" : "";
+  const keyPane = p.auth === "key" && !o.replacing
+    ? `<div class="key-chip">${KEYIC}<span>${p.key}</span><button class="swap" data-act="replace">Replace</button></div>`
+    : `<div class="f-input"><input id="keyin" type="password" placeholder="Paste API key…" spellcheck="false" autocomplete="new-password">
+         <button class="eye" data-act="eye" title="Show">${EYE}</button></div>`;
+  const subPane = p.auth === "sub"
+    ? `<div class="sub-acct">
+         <span class="avatar">${ACCOUNT.name.split(" ").map(w => w[0]).join("").toUpperCase()}</span>
+         <span class="who"><b>${ACCOUNT.mail}</b><span>Connected · billed to plan</span></span>
+         <button class="out" data-act="disconnect">Disconnect</button>
+       </div>`
+    : o.connecting
+      ? `<button class="sub-cta" disabled>${SPIN} Connecting…</button>
+         <div class="sub-note">Waiting for ${p.name} sign-in to complete…</div>`
+      : `<button class="sub-cta" data-act="connect">
+           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 10l6.5-6.5M9.5 3.5h3v3"/><path d="M12.5 9.5v3a1 1 0 0 1-1 1h-8a1 1 0 0 1-1-1v-8a1 1 0 0 1 1-1h3"/></svg>
+           Login with Subscription
+         </button>
+         <div class="sub-note">Opens ${p.name} sign-in — usage billed to your existing plan, no API key needed.</div>`;
+
+  return `
+    <div class="caret" id="caret"></div>
+    <div class="pop-head">
+      <span class="monogram" style="--m-hue:${p.hue}">${p.mono}</span>
+      <span class="p-name">${p.name}</span>
+      <span class="p-status ${st}"><i></i>${AUTH_LABEL[p.auth]}</span>
+    </div>
+    <div class="authseg">
+      <button class="${mode === "key" ? "is-active" : ""}" data-mode="key">API key</button>
+      <button class="${mode === "sub" ? "is-active" : ""}" data-mode="sub">Subscription</button>
+    </div>
+    <div class="pane ${mode === "key" ? "is-active" : ""}">
+      <div class="f-label">API key</div>
+      ${keyPane}
+    </div>
+    <div class="pane ${mode === "sub" ? "is-active" : ""}">
+      ${subPane}
+    </div>
+    <div class="f-label">Endpoint</div>
+    <div class="f-input"><input id="ep" value="${p.endpoint}" spellcheck="false"></div>
+    <div class="f-label">Default model</div>
+    <div class="f-input"><input id="mdl" value="${p.model}" spellcheck="false"></div>
+    <div class="pop-actions">
+      <button class="btn-rm" data-act="remove">Remove</button>
+      ${o.saved ? `<span class="saved-flash">${CHECK} Saved</span>` : ""}
+      <button class="btn-done" data-act="done">Done</button>
+      <button class="btn-save" data-act="save">Save</button>
+    </div>`;
+}
+
+function positionPop(tile) {
+  const pop = popEl;
+  const bodyRect = { w: body.clientWidth, pad: 26 };
+  const tLeft = tile.offsetLeft, tTop = tile.offsetTop, tW = tile.offsetWidth, tH = tile.offsetHeight;
+  let left = Math.round(tLeft + tW / 2 - pop.offsetWidth / 2);
+  left = Math.max(bodyRect.pad, Math.min(left, bodyRect.w - pop.offsetWidth - 8));
+  const below = tTop + tH + 9;
+  const fitsBelow = below + pop.offsetHeight < body.scrollTop + body.clientHeight - 6;
+  const above = tTop - pop.offsetHeight - 9;
+  const useAbove = !fitsBelow && above > body.scrollTop + 4;
+  pop.style.left = left + "px";
+  pop.style.top = (useAbove ? above : below) + "px";
+  pop.classList.toggle("is-above", useAbove);
+  const caret = $("#caret", pop);
+  if (caret) {
+    let cx = Math.round(tLeft + tW / 2 - left - 5);
+    caret.style.left = Math.max(14, Math.min(cx, pop.offsetWidth - 24)) + "px";
+  }
+  if (!useAbove) pop.scrollIntoView({ block: "nearest" });
+}
+
+function openPopover(id, mode, opts) {
+  const p = providers.find(x => x.id === id);
+  if (!p) return;
+  closePopover(true);
+  selected = id;
+  renderMosaic(cmd.value);
+  const tile = $(`.tile[data-id="${id}"]`);
+  if (!tile) { selected = null; return; }
+
+  popEl = document.createElement("div");
+  popEl.className = "pop";
+  popEl.innerHTML = popHTML(p, mode || (p.auth === "sub" ? "sub" : "key"), opts);
+  body.appendChild(popEl);
+  positionPop(tile);
+  wirePopover(p, mode || (p.auth === "sub" ? "sub" : "key"));
+}
+
+function closePopover(soft) {
+  if (popEl) { popEl.remove(); popEl = null; }
+  selected = null;
+  if (!soft) renderMosaic(cmd.value);
+}
+
+function wirePopover(p, mode) {
+  popEl.addEventListener("mousedown", e => e.stopPropagation());
+  popEl.addEventListener("click", e => {
+    const modeBtn = e.target.closest("[data-mode]");
+    if (modeBtn) { openPopover(p.id, modeBtn.dataset.mode); return; }
+    const act = e.target.closest("[data-act]");
+    if (!act) return;
+
+    switch (act.dataset.act) {
+      case "eye": {
+        const inp = $("#keyin", popEl);
+        if (inp) { inp.type = inp.type === "password" ? "text" : "password"; inp.focus(); }
+        break;
+      }
+      case "replace":
+        openPopover(p.id, "key", { replacing: true });
+        $("#keyin", popEl) && $("#keyin", popEl).focus();
+        break;
+      case "connect": {
+        openPopover(p.id, "sub", { connecting: true });
+        setTimeout(() => {
+          if (selected !== p.id) return;
+          p.auth = "sub"; p.key = null;
+          openPopover(p.id, "sub");
+        }, 900);
+        break;
+      }
+      case "disconnect":
+        p.auth = p.key ? "key" : "none";
+        openPopover(p.id, "sub");
+        break;
+      case "save": {
+        const inp = $("#keyin", popEl);
+        const ep = $("#ep", popEl), mdl = $("#mdl", popEl);
+        if (ep) p.endpoint = ep.value.trim() || p.endpoint;
+        if (mdl) p.model = mdl.value.trim() || p.model;
+        const curMode = $(".authseg .is-active", popEl).dataset.mode;
+        if (inp && inp.value.trim()) {
+          p.key = "sk-…" + inp.value.trim().slice(-4);
+          p.auth = "key";
+        }
+        openPopover(p.id, curMode, { saved: true });
+        break;
+      }
+      case "remove":
+        if (!act.classList.contains("confirm")) {
+          act.classList.add("confirm");
+          act.textContent = "Remove — sure?";
+        } else {
+          providers = providers.filter(x => x.id !== p.id);
+          if (["mistral", "openrouter", "ollama"].includes(p.id) || p.id.startsWith("custom-")) {
+            extraPresets.push({ id: p.id, name: p.name, mono: p.mono, hue: p.hue, endpoint: p.endpoint, model: p.model });
+          }
+          closePopover();
+        }
+        break;
+      case "done":
+        closePopover();
+        break;
+    }
+  });
+}
+
+// tile click → popover; outside click / Esc → close
+mosaic.addEventListener("click", e => {
+  const tile = e.target.closest(".tile");
+  if (!tile) return;
+  e.stopPropagation();
+  if (selected === tile.dataset.id) closePopover();
+  else openPopover(tile.dataset.id);
+});
+document.addEventListener("mousedown", e => {
+  if (popEl && !popEl.contains(e.target) && !e.target.closest(".tile")) closePopover();
+  if (!e.target.closest(".cmdbar")) presetsEl.classList.remove("is-open");
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && popEl) closePopover(); });
+window.addEventListener("resize", () => { if (popEl) closePopover(); });
+
+renderMosaic();
+</script>
+</body>
+</html>

@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Eos · Settings › Model — Variant 2 · Compact card grid</title>
+<style>
+/* ============================================================
+   Eos design tokens (mirrored from app/ui/src/styles.css :root)
+   Fonts fall back to the app's own system-stack fallbacks —
+   zero network requests by design.
+   ============================================================ */
+:root {
+  color-scheme: dark;
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-xl: 1.0625rem;
+  --bg: #1a1a1a;
+  --surface: #1f1f1f;
+  --border: #262626;
+  --border-strong: #353535;
+  --fg: #ebebeb;
+  --fg-mid: #c4c4c4;
+  --fg-dim: #8a8a8a;
+  --fg-faint: #5a5a5a;
+  --accent: #6ea4e8;
+  --accent-hover: #8ab9f0;
+  --on-accent: #0a0a0a;
+  --ok: #67c084;
+  --warn: #d4a55a;
+  --err: #d97670;
+  --violet: #c8a2ff;
+  --tint: 255, 255, 255;
+  --glass: 30, 30, 30;
+}
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: 1.55;
+  letter-spacing: -0.005em;
+  -webkit-font-smoothing: antialiased;
+}
+button { font-family: inherit; cursor: pointer; background: none; border: 0; color: inherit; padding: 0; }
+input { font-family: inherit; color: inherit; background: none; border: 0; outline: none; }
+input::placeholder { color: var(--fg-faint); }
+
+/* faint fake dashboard behind the overlay, so the glass reads correctly */
+.backdrop {
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(1200px 500px at 20% -10%, rgba(110, 164, 232, 0.05), transparent 60%),
+    linear-gradient(#161616, #1a1a1a);
+}
+.backdrop::before, .backdrop::after {
+  content: ""; position: absolute; border-radius: 12px;
+  background: #1f1f1f; box-shadow: inset 0 0 0 1px #262626;
+}
+.backdrop::before { left: 6px; top: 6px; bottom: 6px; width: 230px; }
+.backdrop::after { right: 6px; top: 6px; bottom: 6px; width: 300px; }
+
+.overlay {
+  position: fixed; inset: 0; z-index: 450;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: fade 120ms ease-out;
+}
+@keyframes fade { from { opacity: 0; } }
+@keyframes pop { from { opacity: 0; transform: scale(0.98); } }
+
+.modal {
+  width: min(760px, calc(100vw - 48px));
+  height: min(560px, calc(100vh - 96px));
+  display: flex; overflow: hidden;
+  border-radius: 12px;
+  background: rgba(var(--glass), 0.88);
+  backdrop-filter: blur(40px) saturate(170%);
+  -webkit-backdrop-filter: blur(40px) saturate(170%);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.08), 0 24px 60px rgba(0, 0, 0, 0.45);
+  animation: pop 140ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+/* ---- nav (context only) ---- */
+.nav {
+  width: 188px; flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px 10px;
+  border-right: 1px solid rgba(var(--tint), 0.07);
+}
+.search {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 9px; margin-bottom: 10px;
+  border-radius: 7px;
+  background: rgba(var(--tint), 0.05);
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
+}
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 9px; border-radius: 7px;
+  font-size: var(--text-base); color: var(--fg-dim); text-align: left;
+}
+.nav-item:hover { background: rgba(var(--tint), 0.06); color: var(--fg); }
+.nav-item.is-active { background: rgba(var(--tint), 0.08); color: var(--fg); }
+.nav-item svg { flex-shrink: 0; }
+
+.body { flex: 1; min-width: 0; overflow-y: auto; padding: 22px 26px; position: relative; }
+* { scrollbar-width: thin; scrollbar-color: rgba(var(--tint), 0.14) transparent; }
+*::-webkit-scrollbar { width: 10px; }
+*::-webkit-scrollbar-thumb {
+  background: rgba(var(--tint), 0.14); border-radius: 100px;
+  border: 3px solid transparent; background-clip: padding-box;
+}
+.close {
+  position: absolute; top: 12px; right: 12px;
+  width: 26px; height: 26px; border-radius: 6px; color: var(--fg-faint);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.close:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
+
+.title { margin: 0 0 4px; font-size: var(--text-xl); font-weight: 600; letter-spacing: -0.01em; }
+.subtitle { margin: 0 0 16px; font-size: var(--text-sm); color: var(--fg-faint); }
+.subtitle b { color: var(--fg-dim); font-weight: 500; }
+
+/* ============================================================
+   THE GRID — variant 2's core: 2-col compact provider cards
+   ============================================================ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@media (max-width: 720px) { .grid { grid-template-columns: 1fr; } }
+
+.card {
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  background: rgba(var(--tint), 0.03);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.07);
+  transition: background 120ms ease, box-shadow 120ms ease;
+  cursor: pointer;
+  animation: card-in 240ms cubic-bezier(0.2, 0.8, 0.3, 1) both;
+}
+.card:nth-child(2) { animation-delay: 20ms; } .card:nth-child(3) { animation-delay: 40ms; }
+.card:nth-child(4) { animation-delay: 60ms; } .card:nth-child(5) { animation-delay: 80ms; }
+.card:nth-child(6) { animation-delay: 100ms; } .card:nth-child(7) { animation-delay: 120ms; }
+.card:nth-child(8) { animation-delay: 140ms; } .card:nth-child(9) { animation-delay: 160ms; }
+@keyframes card-in { from { opacity: 0; transform: translateY(4px); } }
+.card:hover { background: rgba(var(--tint), 0.06); box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.12); }
+.card.is-open {
+  grid-column: 1 / -1;
+  flex-direction: column; align-items: stretch; gap: 0;
+  cursor: default;
+  background: rgba(var(--tint), 0.04);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
+  animation: pop 140ms cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+.card.is-none .name { color: var(--fg-dim); }
+.card.is-none .mark { opacity: 0.55; filter: saturate(0.4); }
+
+.mark {
+  width: 30px; height: 30px; flex-shrink: 0;
+  border-radius: 8px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 13px;
+  background: color-mix(in srgb, var(--mk) 14%, transparent);
+  color: var(--mk);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mk) 22%, transparent);
+}
+.card-text { min-width: 0; flex: 1; }
+.name {
+  font-size: var(--text-sm); font-weight: 500; color: var(--fg); line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.meta {
+  font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.5;
+}
+.meta .mdl { color: var(--fg-dim); }
+
+/* status badge — fades out when hover actions slide in */
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  flex-shrink: 0;
+  font-family: var(--font-mono); font-size: 10px;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  padding: 3px 8px; border-radius: 999px;
+  transition: opacity 120ms ease;
+}
+.badge .dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.badge.b-key { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.badge.b-sub { color: var(--violet); background: color-mix(in srgb, var(--violet) 10%, transparent); }
+.badge.b-none { color: var(--fg-faint); background: rgba(var(--tint), 0.05); }
+.badge.b-none .dot { background: none; box-shadow: inset 0 0 0 1px currentColor; }
+
+.actions {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%) translateX(4px);
+  display: flex; gap: 2px; align-items: center;
+  opacity: 0; pointer-events: none;
+  padding: 2px; border-radius: 8px;
+  background: rgba(var(--glass), 0.92);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.08);
+  transition: opacity 120ms ease, transform 120ms ease;
+}
+.card:not(.is-open):hover .actions { opacity: 1; pointer-events: auto; transform: translateY(-50%); }
+.card:not(.is-open):hover .badge { opacity: 0; }
+.act {
+  width: 24px; height: 24px; border-radius: 6px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--fg-dim);
+  transition: background 120ms ease, color 120ms ease;
+}
+.act:hover { background: rgba(var(--tint), 0.09); color: var(--fg); }
+.act.danger:hover { background: color-mix(in srgb, var(--err) 16%, transparent); color: var(--err); }
+
+/* ---- add tile ---- */
+.add-tile {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px;
+  border-radius: 10px;
+  color: var(--fg-faint); font-size: var(--text-sm);
+  background: none;
+  border: 1px dashed rgba(var(--tint), 0.14);
+  transition: color 120ms ease, border-color 120ms ease, background 120ms ease;
+}
+.add-tile:hover { color: var(--fg-mid); border-color: rgba(var(--tint), 0.28); background: rgba(var(--tint), 0.03); }
+
+/* ============================================================
+   in-card editor (expanded state)
+   ============================================================ */
+.ed-head { display: flex; align-items: center; gap: 10px; }
+.ed-close {
+  width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--fg-faint);
+}
+.ed-close:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
+
+.seg {
+  display: inline-flex; gap: 2px; padding: 2px; flex-shrink: 0;
+  border-radius: 8px;
+  background: rgba(var(--tint), 0.05);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.07);
+}
+.seg-btn {
+  padding: 3px 10px; border-radius: 6px;
+  font-size: var(--text-xs); color: var(--fg-dim);
+  transition: background 120ms ease, color 120ms ease;
+}
+.seg-btn:hover { color: var(--fg); }
+.seg-btn.is-active {
+  color: var(--fg); background: rgba(var(--tint), 0.10);
+  box-shadow: inset 0 1px 0 rgba(var(--tint), 0.20), 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.ed-body { padding: 12px 2px 2px 40px; display: flex; flex-direction: column; gap: 8px; }
+.frow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.flabel {
+  font-family: var(--font-mono); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 0.09em; color: var(--fg-faint);
+}
+.finput {
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 5px 0 10px; border-radius: 8px;
+  background: rgba(var(--tint), 0.04);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.08);
+  transition: background 120ms ease, box-shadow 120ms ease;
+}
+.finput:hover { background: rgba(var(--tint), 0.07); }
+.finput:focus-within {
+  background: rgba(var(--tint), 0.05);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.finput input { flex: 1; min-width: 0; padding: 6px 0; font-size: var(--text-sm); font-family: var(--font-mono); }
+.eye {
+  width: 24px; height: 24px; border-radius: 6px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--fg-dim);
+}
+.eye:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
+.saved-chip {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: 10px;
+  color: var(--ok); padding: 1px 7px; border-radius: 5px;
+  background: color-mix(in srgb, var(--ok) 10%, transparent);
+}
+
+.ed-foot { display: flex; align-items: center; gap: 10px; padding-top: 4px; }
+.btn-primary {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px; border-radius: 8px;
+  font-size: var(--text-sm); font-weight: 600;
+  color: var(--on-accent); background: var(--accent);
+  transition: background 120ms ease, opacity 120ms ease;
+}
+.btn-primary:hover { background: var(--accent-hover); }
+.btn-ghost {
+  padding: 6px 12px; border-radius: 8px;
+  font-size: var(--text-sm); color: var(--fg-dim);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.10);
+  transition: background 120ms ease, color 120ms ease;
+}
+.btn-ghost:hover { background: rgba(var(--tint), 0.06); color: var(--fg); }
+.remove-link {
+  margin-left: auto; font-size: var(--text-xs); color: var(--fg-faint);
+  padding: 4px 8px; border-radius: 6px;
+  transition: color 120ms ease, background 120ms ease;
+}
+.remove-link:hover { color: var(--err); background: color-mix(in srgb, var(--err) 10%, transparent); }
+
+/* subscription pane */
+.sub-connected {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 12px; border-radius: 8px;
+  background: color-mix(in srgb, var(--violet) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--violet) 18%, transparent);
+  font-size: var(--text-sm);
+}
+.sub-connected .who { color: var(--fg-mid); font-family: var(--font-mono); font-size: var(--text-xs); }
+.sub-connected svg { color: var(--violet); flex-shrink: 0; }
+.btn-sub {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 14px; border-radius: 8px;
+  font-size: var(--text-sm); font-weight: 600;
+  color: var(--violet);
+  background: color-mix(in srgb, var(--violet) 11%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--violet) 28%, transparent);
+  transition: background 120ms ease;
+}
+.btn-sub:hover { background: color-mix(in srgb, var(--violet) 18%, transparent); }
+.sub-hint { font-size: var(--text-xs); color: var(--fg-faint); }
+
+/* variant badge */
+.variant-badge {
+  position: fixed; right: 14px; bottom: 14px; z-index: 999;
+  font-family: var(--font-mono); font-size: 11px; color: var(--fg-dim);
+  padding: 5px 12px; border-radius: 999px;
+  background: rgba(var(--glass), 0.92);
+  box-shadow: inset 0 0 0 1px rgba(var(--tint), 0.12);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.variant-badge b { color: var(--accent); font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="backdrop"></div>
+<div class="overlay">
+  <div class="modal">
+    <nav class="nav">
+      <div class="search">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="M10.5 10.5L14 14"/></svg>
+        Search settings…
+      </div>
+      <button class="nav-item">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="2.4"/><path d="M8 1.8v2M8 12.2v2M1.8 8h2M12.2 8h2M3.6 3.6l1.4 1.4M11 11l1.4 1.4M12.4 3.6L11 5M5 11l-1.4 1.4"/></svg>
+        General
+      </button>
+      <button class="nav-item is-active">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="3.5" y="3.5" width="9" height="9" rx="2"/><path d="M6 1.5v2M10 1.5v2M6 12.5v2M10 12.5v2M1.5 6h2M1.5 10h2M12.5 6h2M12.5 10h2"/></svg>
+        Model
+      </button>
+      <button class="nav-item">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 4.5L2 8l3.5 3.5M10.5 4.5L14 8l-3.5 3.5"/></svg>
+        Code
+      </button>
+    </nav>
+    <main class="body">
+      <button class="close" title="Close">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+      </button>
+      <h2 class="title">Providers</h2>
+      <p class="subtitle" id="summary"></p>
+      <div class="grid" id="grid"></div>
+    </main>
+  </div>
+</div>
+<div class="variant-badge"><b>Variant 2</b> · compact card grid — hover a card for actions, click to edit in place</div>
+
+<script>
+// ---------------------------------------------------------------------------
+// state — realistic provider data. auth: "sub" | "key" | "none"
+// ---------------------------------------------------------------------------
+const providers = [
+  { id: "anthropic", name: "Anthropic Claude", mk: "#d97757", mark: "A", host: "api.anthropic.com",                   model: "claude-opus-4-8",        auth: "sub",  account: "ibrahim…812@gmail.com", keySaved: false },
+  { id: "deepseek",  name: "DeepSeek",         mk: "#5b76f7", mark: "D", host: "api.deepseek.com",                    model: "deepseek-v4-flash",      auth: "key",  keySaved: true, keyTail: "9f2c" },
+  { id: "openai",    name: "OpenAI",           mk: "#dedede", mark: "O", host: "api.openai.com",                      model: "gpt-5.5",                auth: "key",  keySaved: true, keyTail: "k3aq" },
+  { id: "gemini",    name: "Google Gemini",    mk: "#6ea4e8", mark: "G", host: "generativelanguage.googleapis.com",   model: "gemini-3.1-pro-preview", auth: "key",  keySaved: true, keyTail: "77vd" },
+  { id: "qwen",      name: "Alibaba Qwen",     mk: "#b07cff", mark: "Q", host: "dashscope-intl.aliyuncs.com",         model: "qwen3.7-max",            auth: "key",  keySaved: true, keyTail: "x1m8" },
+  { id: "kimi",      name: "Moonshot Kimi",    mk: "#4fd2c2", mark: "K", host: "api.moonshot.ai",                     model: "kimi-k2.6",              auth: "sub",  account: "ibrahim…812@gmail.com", keySaved: false },
+  { id: "glm",       name: "Zhipu GLM",        mk: "#5b8cff", mark: "Z", host: "api.z.ai",                            model: "glm-5.2",                auth: "none", keySaved: false },
+  { id: "grok",      name: "xAI Grok",         mk: "#cfcfcf", mark: "X", host: "api.x.ai",                            model: "grok-4.2",               auth: "none", keySaved: false },
+];
+
+let openId = null;        // provider id whose editor is open, or "__add"
+let openTab = "key";      // "key" | "sub" — auth tab inside the open editor
+
+const BADGE = {
+  key:  '<span class="badge b-key" title="API key configured"><span class="dot"></span>key</span>',
+  sub:  '<span class="badge b-sub" title="Connected via subscription"><span class="dot"></span>sub</span>',
+  none: '<span class="badge b-none" title="Not configured"><span class="dot"></span>not set</span>',
+};
+const ICONS = {
+  edit:  '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11.2 2.3l2.5 2.5L5.5 13H3v-2.5l8.2-8.2z"/></svg>',
+  unplug:'<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4V1.5M10 4V1.5M4.5 4h7v3a3.5 3.5 0 0 1-7 0V4zM8 10.5V14"/></svg>',
+  trash: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h10M6 5V3.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 .5.5V5M5 5v7.5a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1V5M6.5 8v3M9.5 8v3"/></svg>',
+  eye:   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/><path d="M4 4l16 16"/></svg>',
+  check: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5l3.5 3.5L13 5"/></svg>',
+  x:     '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M4 4l8 8M12 4l-8 8"/></svg>',
+  plus:  '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
+  spark: '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5l1.6 4.3L14 7.4l-4.4 1.6L8 13.5 6.4 9 2 7.4l4.4-1.6L8 1.5z"/></svg>',
+};
+
+const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+function metaLine(p) {
+  if (p.auth === "sub") return `<span class="mdl">${esc(p.model)}</span> · subscription`;
+  return `${esc(p.host)} · <span class="mdl">${esc(p.model)}</span>`;
+}
+
+function cardActions(p) {
+  const disc = p.auth === "sub"
+    ? `<button class="act" data-act="disconnect" title="Disconnect subscription">${ICONS.unplug}</button>` : "";
+  const rm = p.auth !== "none"
+    ? `<button class="act danger" data-act="remove" title="Remove ${esc(p.name)}">${ICONS.trash}</button>` : "";
+  return `<div class="actions">
+    <button class="act" data-act="edit" title="${p.auth === "none" ? "Set up" : "Edit"} ${esc(p.name)}">${ICONS.edit}</button>
+    ${disc}${rm}
+  </div>`;
+}
+
+function editorHTML(p) {
+  const tab = openTab;
+  const keyPane = `
+    <div class="frow">
+      <div class="field"><span class="flabel">Endpoint</span>
+        <div class="finput"><input value="${esc(p.host)}" spellcheck="false"></div></div>
+      <div class="field"><span class="flabel">Default model</span>
+        <div class="finput"><input value="${esc(p.model)}" spellcheck="false"></div></div>
+    </div>
+    <div class="field"><span class="flabel">API key</span>
+      <div class="finput">
+        <input type="password" data-role="key" spellcheck="false" autocomplete="new-password"
+          placeholder="${p.keySaved ? `sk-••••••••••••${esc(p.keyTail || "")} — paste to replace` : "Paste your API key…"}">
+        ${p.keySaved ? `<span class="saved-chip">saved</span>` : ""}
+        <button class="eye" data-act="eye" title="Show">${ICONS.eye}</button>
+      </div>
+    </div>
+    <div class="ed-foot">
+      <button class="btn-primary" data-act="save">${ICONS.check} Test &amp; Save</button>
+      <button class="btn-ghost" data-act="close">Cancel</button>
+      ${p.auth !== "none" ? `<button class="remove-link" data-act="remove">Remove provider</button>` : ""}
+    </div>`;
+  const subPane = p.auth === "sub" ? `
+    <div class="sub-connected">
+      ${ICONS.spark}
+      <div>Connected via subscription <div class="who">${esc(p.account || "")}</div></div>
+    </div>
+    <div class="ed-foot">
+      <button class="btn-ghost" data-act="disconnect">Disconnect</button>
+      <button class="btn-ghost" data-act="close">Done</button>
+      <button class="remove-link" data-act="remove">Remove provider</button>
+    </div>` : `
+    <div class="sub-hint">Uses your ${esc(p.name)} plan — no API key, billed to your subscription.</div>
+    <div class="ed-foot">
+      <button class="btn-sub" data-act="sub-login">${ICONS.spark} Login with Subscription</button>
+      <button class="btn-ghost" data-act="close">Cancel</button>
+      ${p.auth !== "none" ? `<button class="remove-link" data-act="remove">Remove provider</button>` : ""}
+    </div>`;
+  return `
+    <div class="ed-head">
+      <span class="mark" style="--mk:${p.mk}">${esc(p.mark)}</span>
+      <div class="card-text"><div class="name">${esc(p.name)}</div><div class="meta">${metaLine(p)}</div></div>
+      <div class="seg">
+        <button class="seg-btn ${tab === "key" ? "is-active" : ""}" data-act="tab-key">API key</button>
+        <button class="seg-btn ${tab === "sub" ? "is-active" : ""}" data-act="tab-sub">Subscription</button>
+      </div>
+      <button class="ed-close" data-act="close" title="Close">${ICONS.x}</button>
+    </div>
+    <div class="ed-body">${tab === "key" ? keyPane : subPane}</div>`;
+}
+
+function addFormHTML() {
+  return `
+    <div class="ed-head">
+      <span class="mark" style="--mk:#8a8a8a">+</span>
+      <div class="card-text"><div class="name">Add provider</div><div class="meta">any OpenAI-compatible endpoint</div></div>
+      <button class="ed-close" data-act="close" title="Close">${ICONS.x}</button>
+    </div>
+    <div class="ed-body">
+      <div class="frow">
+        <div class="field"><span class="flabel">Name</span>
+          <div class="finput"><input data-role="new-name" placeholder="Mistral" spellcheck="false"></div></div>
+        <div class="field"><span class="flabel">Default model</span>
+          <div class="finput"><input data-role="new-model" placeholder="mistral-large-3" spellcheck="false"></div></div>
+      </div>
+      <div class="frow">
+        <div class="field"><span class="flabel">Endpoint</span>
+          <div class="finput"><input data-role="new-host" placeholder="api.mistral.ai" spellcheck="false"></div></div>
+        <div class="field"><span class="flabel">API key</span>
+          <div class="finput"><input type="password" data-role="key" placeholder="Paste your API key…" autocomplete="new-password">
+          <button class="eye" data-act="eye" title="Show">${ICONS.eye}</button></div></div>
+      </div>
+      <div class="ed-foot">
+        <button class="btn-primary" data-act="add-save">${ICONS.check} Test &amp; Add</button>
+        <button class="btn-ghost" data-act="close">Cancel</button>
+      </div>
+    </div>`;
+}
+
+function render() {
+  const grid = document.getElementById("grid");
+  grid.innerHTML = providers.map(p => {
+    if (openId === p.id) {
+      return `<div class="card is-open" data-id="${p.id}">${editorHTML(p)}</div>`;
+    }
+    return `<div class="card ${p.auth === "none" ? "is-none" : ""}" data-id="${p.id}" tabindex="0" role="button"
+        aria-label="${esc(p.name)}, ${p.auth === "none" ? "not configured" : p.auth === "sub" ? "subscription connected" : "API key set"}">
+      <span class="mark" style="--mk:${p.mk}">${esc(p.mark)}</span>
+      <div class="card-text"><div class="name">${esc(p.name)}</div><div class="meta">${metaLine(p)}</div></div>
+      ${BADGE[p.auth]}
+      ${cardActions(p)}
+    </div>`;
+  }).join("")
+  + (openId === "__add"
+      ? `<div class="card is-open" data-id="__add">${addFormHTML()}</div>`
+      : `<button class="add-tile" data-id="__add">${ICONS.plus} Add provider</button>`);
+
+  const subs = providers.filter(p => p.auth === "sub").length;
+  const keys = providers.filter(p => p.auth === "key").length;
+  document.getElementById("summary").innerHTML =
+    `<b>${subs + keys}</b> of ${providers.length} configured — ${subs} via subscription, ${keys} via API key`;
+}
+
+// ---------------------------------------------------------------------------
+// interactions — one delegated listener
+// ---------------------------------------------------------------------------
+document.getElementById("grid").addEventListener("click", (e) => {
+  const actBtn = e.target.closest("[data-act]");
+  const cardEl = e.target.closest("[data-id]");
+  if (!cardEl) return;
+  const id = cardEl.dataset.id;
+  const p = providers.find(x => x.id === id);
+
+  if (!actBtn) {
+    // plain card click → open editor (default tab follows current auth)
+    if (openId !== id) {
+      openId = id;
+      openTab = p && p.auth === "sub" ? "sub" : "key";
+      render();
+    }
+    return;
+  }
+
+  const act = actBtn.dataset.act;
+  if (act === "edit") { openId = id; openTab = p && p.auth === "sub" ? "sub" : "key"; render(); }
+  else if (act === "close") { openId = null; render(); }
+  else if (act === "tab-key") { openTab = "key"; render(); }
+  else if (act === "tab-sub") { openTab = "sub"; render(); }
+  else if (act === "eye") {
+    const input = actBtn.closest(".finput").querySelector("input");
+    const show = input.type === "password";
+    input.type = show ? "text" : "password";
+    actBtn.innerHTML = show ? ICONS.eyeOff : ICONS.eye;
+    e.stopPropagation();
+  }
+  else if (act === "sub-login") {
+    // fake OAuth hop: brief "connecting…" then flip to connected
+    actBtn.textContent = "Connecting…";
+    setTimeout(() => { p.auth = "sub"; p.account = "ibrahim…812@gmail.com"; render(); }, 550);
+  }
+  else if (act === "disconnect") {
+    p.auth = p.keySaved ? "key" : "none";
+    render();
+  }
+  else if (act === "remove") {
+    p.auth = "none"; p.keySaved = false; p.keyTail = "";
+    openId = null; render();
+  }
+  else if (act === "save") {
+    const keyInput = cardEl.querySelector('[data-role="key"]');
+    if (keyInput && keyInput.value.trim()) { p.keySaved = true; p.keyTail = keyInput.value.trim().slice(-4); }
+    if (p.keySaved) p.auth = p.auth === "sub" ? "sub" : "key";
+    openId = null; render();
+  }
+  else if (act === "add-save") {
+    const val = (role) => (cardEl.querySelector(`[data-role="${role}"]`) || {}).value || "";
+    const name = val("new-name").trim() || "Custom provider";
+    providers.push({
+      id: "custom-" + Date.now(), name, mk: "#9aa7b8", mark: name[0].toUpperCase(),
+      host: val("new-host").trim() || "api.example.com",
+      model: val("new-model").trim() || "default",
+      auth: val("key").trim() ? "key" : "none",
+      keySaved: !!val("key").trim(), keyTail: val("key").trim().slice(-4),
+    });
+    openId = null; render();
+  }
+  if (act !== "eye") e.stopPropagation();
+});
+
+document.getElementById("grid").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && e.target.classList.contains("card")) e.target.click();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && openId) { openId = null; render(); }
+});
+
+render();
+</script>
+</body>
+</html>
