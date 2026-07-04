@@ -28,17 +28,13 @@ function regionCentroid(rect, zone) {
 
 const clamp = (v, max) => Math.max(EDGE_MARGIN, Math.min(max - EDGE_MARGIN, v));
 
-export function DragAffordance({ pointer, zone, paneDrag = false }) {
+export function DragAffordance({ pointer, zone }) {
   if (!pointer || !zone) return null;
   const c = regionCentroid(pointer.rect, zone);
   const px = clamp(c.x, window.innerWidth);
   const py = clamp(c.y, window.innerHeight);
-  // Repositioning a pane reuses the same zone geometry but reads as swap/move
-  // rather than splitting in a new agent.
-  const pill = zone.kind === "split"
-    ? (paneDrag ? "Move here" : "Add split")
-    : (paneDrag ? "Swap" : "Open here");
-  const label = paneDrag ? "Move pane" : "Open in split";
+  const pill = zone.kind === "split" ? "Add split" : "Open here";
+  const label = "Open in split";
   return createPortal(
     <>
       <div

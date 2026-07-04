@@ -1160,9 +1160,9 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 
 /* Geometry ported 1:1 from the original global top bar (.head @ 979c81c^): 60px
    tall, padding 18px 16px 0 (top-padding + bottom:0 + align-items:center place the
-   breadcrumb at the same low center-y ~39px), gap 8px, borderless. Only the drag
-   semantics differ from the original — the per-pane header is a pane-move handle
-   (--app-region:no-drag, cursor:grab), not the window-drag strip it replaced. */
+   breadcrumb at the same low center-y ~39px), gap 8px, borderless. The header IS
+   the native window-drag strip (--app-region:drag): dragging it moves the window
+   and double-click zooms, like a standard titlebar. Buttons/inputs opt back out. */
 .pane-head {
   position: relative;
   display: flex;
@@ -1172,13 +1172,11 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   flex-shrink: 0;
   padding: 18px 16px 0;
   font-size: var(--text-sm);
-  --app-region: no-drag;
+  --app-region: drag;
   -webkit-user-select: none;
-  /* The header is the drag handle for repositioning the pane (drop on another
-     pane to swap, on its edge to move). */
-  cursor: grab;
 }
-.pane-head:active { cursor: grabbing; }
+.pane-head button,
+.pane-head input { --app-region: no-drag; }
 /* native: compact auto-height bar (ported from the original html.native .head) —
    the breadcrumb row sits at the traffic-light/toggle center-y instead of the
    web bar's lower 60px-strip centerline. */
@@ -1218,9 +1216,6 @@ html.native .pane-head--toprow { padding-top: 4px; } /* 7px chrome + 4 + 12 = 23
   transition: opacity 160ms ease;
 }
 .center.msgs-at-top .pane-head::after { opacity: 0; }
-/* The source pane dims while its header is dragged (set in PaneGrid). Static
-   opacity, not an animation, so no reduced-motion handling is needed. */
-.pane--dragging { opacity: 0.55; }
 .pane-head .ag-dot { flex-shrink: 0; }
 
 /* Top-left pane header: the native window chrome (traffic lights + sidebar
@@ -1229,16 +1224,15 @@ html.native .pane-head--toprow { padding-top: 4px; } /* 7px chrome + 4 + 12 = 23
    .head strip's collapsed padding-left put it (52 web / 126 native / 46
    native-fullscreen): the bar keeps its 16px base padding and the flex row adds
    an 8px gap after the inset, so each width is the original minus those 24px.
-   The inset is a real element (not padding) so it can opt back into the window-
-   drag region: --app-region: drag, and data-window-drag keeps the pane-move drag
-   from arming on it. Only present while collapsed, so it adds no gap otherwise. */
+   The inset is a real element (not padding); it inherits the header's window-drag
+   region so this left zone drags the window too. Only present while collapsed, so
+   it adds no gap otherwise. */
 .pane-head-inset { display: none; }
 .app.side-collapsed .pane-head--topleft .pane-head-inset {
   display: block;
   flex-shrink: 0;
   align-self: stretch;
   width: 28px;
-  --app-region: drag;
 }
 html.native .app.side-collapsed .pane-head--topleft .pane-head-inset { width: 102px; }
 html.native.fullscreen .app.side-collapsed .pane-head--topleft .pane-head-inset { width: 22px; }

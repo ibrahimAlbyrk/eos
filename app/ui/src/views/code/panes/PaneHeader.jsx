@@ -12,11 +12,11 @@ import { TerminalToggleButton } from "../center/TerminalToggleButton.jsx";
 // every scoped ui read/action (openPop, terminal toggle) targets THIS pane with
 // no prop-drilling. The breadcrumb + rename + agent menu are keyed off the
 // pane's OWN agent, not the focused selection — so each pane shows its own
-// chain in split view. dragProps (from PaneGrid) carry the drag-to-reposition
-// wiring onto the root; the single-pane view omits them. `split` adds the only
-// extras the old mini pane-head had over the global bar: the status dot/label
-// (or needs-input / attention cue) and the close button — never shown at N=1.
-export function PaneHeader({ worker, live, attention, needsInput, canClose, onClose, dragProps, newSession, topLeft, topRow, split }) {
+// chain in split view. The header itself is the native window-drag strip
+// (--app-region: drag in CSS); its buttons/inputs opt back out. `split` adds the
+// only extras the old mini pane-head had over the global bar: the status
+// dot/label (or needs-input / attention cue) and the close button — never at N=1.
+export function PaneHeader({ worker, live, attention, needsInput, canClose, onClose, newSession, topLeft, topRow, split }) {
   const ui = useUi();
   // Header-local rename (breadcrumb inline edit), reset when the pane's agent
   // changes so a stale editor never carries over to a different worker.
@@ -29,15 +29,13 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
 
   // The top-left pane (rect touches 0,0) is the one under the native window chrome
   // once the strip is gone. When the sidebar is collapsed its header reserves a
-  // left inset (CSS) so the breadcrumb clears the traffic lights + sidebar toggle;
-  // that inset zone is also the window-drag region (data-window-drag opts it back
-  // into --app-region: drag, and out of the pane-move arming in PaneGrid).
+  // left inset (CSS) so the breadcrumb clears the traffic lights + sidebar toggle.
   // --toprow: split panes on the grid's top row compensate the island chrome
   // above them so the bar content sits at the N=1 window-y (see styles.css).
   const rootClass = ["pane-head", topRow ? "pane-head--toprow" : "", topLeft ? "pane-head--topleft" : ""]
     .filter(Boolean)
     .join(" ");
-  const insetEl = topLeft ? <span className="pane-head-inset" data-window-drag aria-hidden="true" /> : null;
+  const insetEl = topLeft ? <span className="pane-head-inset" aria-hidden="true" /> : null;
 
   // No agent: the single-pane new-session state shows the "new orchestrator"
   // breadcrumb; a split empty pane keeps today's hover-to-pick hint.
@@ -45,7 +43,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
     if (newSession) {
       const { project } = breadcrumbFor(live.workers, null, ui.composer.cwd);
       return (
-        <div className={rootClass} {...dragProps}>
+        <div className={rootClass}>
           {insetEl}
           <div className="crumb">
             <span className="scope">{project}</span>
@@ -59,7 +57,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
       );
     }
     return (
-      <div className={rootClass} {...dragProps}>
+      <div className={rootClass}>
         {insetEl}
         <span className="pane-name">Empty — hover to pick an agent</span>
         {canClose && <CloseButton onClose={onClose} />}
@@ -76,7 +74,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   };
 
   return (
-    <div className={rootClass} {...dragProps}>
+    <div className={rootClass}>
       {insetEl}
       <div className="crumb">
         <span className="scope">{project}</span>
