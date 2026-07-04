@@ -231,12 +231,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     // Menu-bar status indicator — owned for the process lifetime so the retained
     // NSStatusItem is never dropped (a dropped owner removes it from the bar).
     private var statusBar: StatusBarCoordinator?
+    // The real mouse-down NSEvent behind a titlebar drag. performDrag needs the
+    // originating mouse-down, but the titlebarDrag message arrives async from the
+    // web content process — by then NSApp.currentEvent may be a later mousemove,
+    // which performDrag ignores. A local monitor caches every leftMouseDown as it
+    // is pulled from the queue, so the handler always has the right one.
+    private var lastMouseDown: NSEvent?
 
     func applicationDidFinishLaunching(_: Notification) {
         setupNotifications()
         setupWindow()
         ensureDaemon()
         setupStatusBar()
+        NSEvent.addLocalMonitorForEvents(matching: .leftMouseDown) { [weak self] event in
+            self?.lastMouseDown = event
+            return event
+        }
     }
 
     private func setupWindow() {
@@ -282,17 +292,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
         )
         // WKWebView ignores `-webkit-app-region`, so the titlebar drag/zoom is driven
         // from JS: on mousedown over an `--app-region: drag` element we ask native to
-        // move the window (performWindowDragWithEvent). Double-click (detail>=2) zooms
-        // instead — handled in the same mousedown so the native drag loop can't eat it.
+        // move the window (performWindowDrag). We track double-click via timestamps
+        // because performWindowDrag runs a modal loop that resets WebKit's click-count,
+        // making e.detail unreliable for the second click.
         let titlebarJS = """
         (function () {
             function appRegion(el) {
                 return el ? getComputedStyle(el).getPropertyValue('--app-region').trim() : '';
             }
+            var lastDragClick = 0;
             document.addEventListener('mousedown', function (e) {
                 if (e.button !== 0 || appRegion(e.target) !== 'drag') return;
-                const handler = e.detail >= 2 ? 'titlebarDblClick' : 'titlebarDrag';
-                window.webkit.messageHandlers[handler].postMessage(null);
+                var now = Date.now();
+                var isDbl = (now - lastDragClick) < 400;
+                lastDragClick = isDbl ? 0 : now;
+                window.webkit.messageHandlers[isDbl ? 'titlebarDblClick' : 'titlebarDrag'].postMessage(null);
             }, true);
         })();
         """
@@ -991,7 +1005,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
             return
         }
         if message.name == "titlebarDrag" {
-            if let event = NSApp.currentEvent {
+            if let event = lastMouseDown ?? NSApp.currentEvent {
                 window.performDrag(with: event)
             }
             return
