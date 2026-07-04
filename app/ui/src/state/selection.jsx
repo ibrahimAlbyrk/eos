@@ -1,6 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
-import { topTypeIn, dataIn, openIn, closeIn, popIn, updateDataIn, clearPane, retainPanes } from "../lib/panelMap.js";
+import {
+  emptyDock, openPanelTile, closePanelTile, updatePanelTileData,
+  hasPanelTile, panelTileData, panelTypes, setDockRatio,
+} from "../lib/panelTiling.js";
+import { getPanel } from "../lib/panelRegistry.js";
+import { loadPanelDocks, savePanelDocks } from "../lib/panelPersist.js";
 import { loadCollapsedNodes, saveCollapsedNodes } from "../lib/collapseMemory.js";
 
 const SelectionContext = createContext(null);
@@ -42,25 +47,87 @@ export function SelectionProvider({ children }) {
   const [collapsedNodes, setCollapsedNodes] = useState(() => loadCollapsedNodes());
   useEffect(() => { saveCollapsedNodes(collapsedNodes); }, [collapsedNodes]);
   const [expandedTools, setExpandedTools] = useState(() => new Set());
-  // Right-panel navigation stacks, now keyed by paneId: { [leafId]: stack }
-  // (see lib/panelMap, which reuses lib/panelStack per pane). Each viewer is
-  // owned by its originating pane and docks to that pane's right edge. The
-  // pane-aware reads/wrappers live in useUi (it knows the originating pane via
+  // Right-panel docks, keyed by paneId: { [leafId]: dock } where a dock is the
+  // { slots, nextSeq, ratios } object lib/panelTiling manages. Each pane owns its
+  // own dock (see PanelDock); the tiling engine lays its ≤3 open panels out. The
+  // pane-aware reads/wrappers live in useUi (it resolves the pane via
   // PaneScopeContext); this provider owns the map + the raw paneId-explicit ops.
-  // A buried entry stays MOUNTED so its fetched data/expand state survive a
-  // viewer pushed on top, exactly as the single global stack did before.
-  const [panelsByPane, setPanelsByPane] = useState({});
-  const panelsRef = useRef(panelsByPane);
-  panelsRef.current = panelsByPane;
-  const topPanelTypeIn = useCallback((paneId) => topTypeIn(panelsRef.current, paneId), []);
-  const panelDataIn = useCallback((paneId, type) => dataIn(panelsRef.current, paneId, type), []);
-  const openPanelIn = useCallback((paneId, type, data) => setPanelsByPane((m) => openIn(m, paneId, type, data)), []);
-  const closePanelIn = useCallback((paneId, type) => setPanelsByPane((m) => closeIn(m, paneId, type)), []);
-  const popPanelIn = useCallback((paneId) => setPanelsByPane((m) => popIn(m, paneId)), []);
-  const updatePanelDataIn = useCallback((paneId, type, updater) => setPanelsByPane((m) => updateDataIn(m, paneId, type, updater)), []);
+  // Slot structure + ratios persist across reloads (cm:panelDocks); terminal is
+  // session-only and stripped on save.
+  const [docksByPane, setDocksByPane] = useState(loadPanelDocks);
+  const docksRef = useRef(docksByPane);
+  docksRef.current = docksByPane;
+  useEffect(() => { savePanelDocks(docksByPane); }, [docksByPane]);
+  const dockOf = (paneId) => docksRef.current[paneId] ?? emptyDock();
+  // topPanelType compat: the most-recently-opened type (max seq), or null. Used by
+  // shared chrome that only needs "is a panel open / which is active" (monitor,
+  // Escape-pops-a-panel), NOT for per-panel visibility (the dock shows all open).
+  const topPanelTypeIn = useCallback((paneId) => {
+    if (paneId == null) return null;
+    const { slots } = dockOf(paneId);
+    if (!slots.length) return null;
+    let m = slots[0];
+    for (const s of slots) if (s.seq > m.seq) m = s;
+    return m.type;
+  }, []);
+  const openPanelTypesIn = useCallback((paneId) => (paneId == null ? [] : panelTypes(dockOf(paneId))), []);
+  const hasPanelIn = useCallback((paneId, type) => paneId != null && hasPanelTile(dockOf(paneId), type), []);
+  const hasAnyPanelIn = useCallback((paneId) => paneId != null && dockOf(paneId).slots.length > 0, []);
+  const panelDataIn = useCallback((paneId, type) => (paneId == null ? null : panelTileData(dockOf(paneId), type)), []);
+  const dockRatiosIn = useCallback((paneId) => (paneId == null ? emptyDock().ratios : dockOf(paneId).ratios), []);
+  const openPanelIn = useCallback((paneId, type, data) => {
+    if (paneId == null) return;
+    setDocksByPane((m) => {
+      const { dock, evicted } = openPanelTile(m[paneId] ?? emptyDock(), type, data);
+      if (evicted) getPanel(evicted)?.dispose?.(); // e.g. terminal → kill sessions
+      return { ...m, [paneId]: dock };
+    });
+  }, []);
+  const closePanelIn = useCallback((paneId, type) => {
+    if (paneId == null) return;
+    setDocksByPane((m) => {
+      const dock = m[paneId];
+      if (!dock) return m;
+      const { dock: next, closed } = closePanelTile(dock, type);
+      return closed ? { ...m, [paneId]: next } : m;
+    });
+  }, []);
+  // Escape closes the most-recently-opened panel in the focused pane's dock.
+  const popPanelIn = useCallback((paneId) => {
+    const type = topPanelTypeIn(paneId);
+    if (type) closePanelIn(paneId, type);
+  }, [topPanelTypeIn, closePanelIn]);
+  const updatePanelDataIn = useCallback((paneId, type, updater) => {
+    if (paneId == null) return;
+    setDocksByPane((m) => {
+      const dock = m[paneId];
+      if (!dock) return m;
+      const next = updatePanelTileData(dock, type, updater);
+      return next === dock ? m : { ...m, [paneId]: next };
+    });
+  }, []);
+  const setDockRatioIn = useCallback((paneId, key, value) => {
+    if (paneId == null) return;
+    setDocksByPane((m) => {
+      const dock = m[paneId] ?? emptyDock();
+      const next = setDockRatio(dock, key, value);
+      return next === dock ? m : { ...m, [paneId]: next };
+    });
+  }, []);
   // Clear-on-rebuild hooks, driven by PaneProvider (which owns the tree).
-  const clearPanelsIn = useCallback((paneId) => setPanelsByPane((m) => clearPane(m, paneId)), []);
-  const retainPanelsFor = useCallback((liveIds) => setPanelsByPane((m) => retainPanes(m, liveIds)), []);
+  const clearPanelsIn = useCallback((paneId) => setDocksByPane((m) => {
+    if (!(paneId in m)) return m;
+    const next = { ...m };
+    delete next[paneId];
+    return next;
+  }), []);
+  const retainPanelsFor = useCallback((liveIds) => setDocksByPane((m) => {
+    const keys = Object.keys(m);
+    if (keys.every((k) => liveIds.has(k))) return m;
+    const next = {};
+    for (const k of keys) if (liveIds.has(k)) next[k] = m[k];
+    return next;
+  }), []);
   // Escape pops the FOCUSED pane's stack. The keydown lives here but this
   // provider can't see pane focus, so PaneProvider registers a focus-aware
   // popper (mirrors registerEscapeGitMode). Returns true when it consumed Esc.
@@ -186,9 +253,9 @@ export function SelectionProvider({ children }) {
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
     verdict, setVerdict,
     // Raw paneId-explicit panel ops + reads. useUi wraps these into the
-    // scope-aware openFileViewer/topPanelType/... that every consumer calls.
-    topPanelTypeIn, panelDataIn,
-    openPanelIn, closePanelIn, popPanelIn, updatePanelDataIn,
+    // scope-aware openFileViewer/isPanelOpen/... that every consumer calls.
+    topPanelTypeIn, panelDataIn, openPanelTypesIn, hasPanelIn, hasAnyPanelIn, dockRatiosIn,
+    openPanelIn, closePanelIn, popPanelIn, updatePanelDataIn, setDockRatioIn,
     clearPanelsIn, retainPanelsFor, registerEscapePanel,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
@@ -196,11 +263,11 @@ export function SelectionProvider({ children }) {
   }), [
     selectedId, setSelectedId, takePreviousSelection,
     sideCollapsed, openPopoverByPane, popoverPos, popoverData,
-    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, panelsByPane,
+    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, docksByPane,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPopoverIn, openPopIn, closePopsIn, closeAllPopsEverywhere, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
-    topPanelTypeIn, panelDataIn,
-    openPanelIn, closePanelIn, popPanelIn, updatePanelDataIn,
+    topPanelTypeIn, panelDataIn, openPanelTypesIn, hasPanelIn, hasAnyPanelIn, dockRatiosIn,
+    openPanelIn, closePanelIn, popPanelIn, updatePanelDataIn, setDockRatioIn,
     clearPanelsIn, retainPanelsFor, registerEscapePanel,
     registerEscapeIdle,
     registerEscapeGitMode,

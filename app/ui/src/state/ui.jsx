@@ -7,6 +7,10 @@ import { ComposerProvider, useComposer } from "./composer.jsx";
 import { AttentionProvider, useAttention } from "./attention.jsx";
 import { SearchProvider, useSearch } from "./search.jsx";
 import { SettingsProvider, useSettings } from "./settings.jsx";
+import { canFitColumns } from "../lib/panelTiling.js";
+import { panelMinSize } from "../lib/panelRegistry.js";
+import { getDockWidth } from "./dockMetrics.js";
+import { notify } from "../lib/notify.js";
 
 export { useNavigation } from "./navigation.jsx";
 export { useSelection } from "./selection.jsx";
@@ -55,8 +59,29 @@ export function useUi() {
   const scopeRef = useRef(scopePane);
   scopeRef.current = scopePane;
 
-  const { topPanelTypeIn, panelDataIn, openPanelIn, closePanelIn, updatePanelDataIn } = selection;
+  const { topPanelTypeIn, panelDataIn, openPanelTypesIn, hasPanelIn, hasAnyPanelIn, dockRatiosIn } = selection;
+  const { openPanelIn, closePanelIn, updatePanelDataIn, setDockRatioIn } = selection;
   const { openPopoverIn, openPopIn, closePopsIn } = selection;
+
+  // Open into the scoped pane's dock, with the settled degenerate guard: a NEW
+  // distinct type that would become the 3rd panel needs two side-by-side columns
+  // (left = the existing stacked pair, right = the newcomer). Refuse + notify when
+  // the dock can't fit both at their min widths (like splitLeaf at MAX_PANES). A
+  // reuse (same type) or a 4th-that-evicts never adds a column, so it's unguarded.
+  const openScoped = useCallback((type, data) => {
+    const paneId = scopeRef.current;
+    const types = openPanelTypesIn(paneId);
+    if (!types.includes(type) && types.length === 2) {
+      const w = getDockWidth(paneId);
+      const leftMin = Math.max(panelMinSize(types[0]).minW, panelMinSize(types[1]).minW);
+      const rightMin = panelMinSize(type).minW;
+      if (w > 0 && !canFitColumns(w, leftMin, rightMin)) {
+        notify.warning("Not enough room for a third panel — close one first.");
+        return;
+      }
+    }
+    openPanelIn(paneId, type, data);
+  }, [openPanelTypesIn, openPanelIn]);
 
   // Scope-aware popover open/close: a composer targets its OWN pane, chrome the
   // focused pane. Keeps every call site (ui.openPop(id)/ui.closeAllPops()) intact
@@ -66,26 +91,32 @@ export function useUi() {
 
   // Scope-aware actions. Read scope from a ref so identities stay stable across
   // renders — some viewers list these in useCallback deps.
-  const openFileViewer = useCallback((path) => openPanelIn(scopeRef.current, "file", { path }), [openPanelIn]);
+  const openFileViewer = useCallback((path) => openScoped("file", { path }), [openScoped]);
   const closeFileViewer = useCallback(() => closePanelIn(scopeRef.current, "file"), [closePanelIn]);
-  const openAgentViewer = useCallback((block) => openPanelIn(scopeRef.current, "agent", block), [openPanelIn]);
+  const openAgentViewer = useCallback((block) => openScoped("agent", block), [openScoped]);
   const closeAgentViewer = useCallback(() => closePanelIn(scopeRef.current, "agent"), [closePanelIn]);
   const syncAgentViewer = useCallback((block) => updatePanelDataIn(scopeRef.current, "agent", (prev) => prev.toolUseId === block.toolUseId ? block : prev), [updatePanelDataIn]);
-  const openDiffViewer = useCallback((workerId) => openPanelIn(scopeRef.current, "diff", { workerId }), [openPanelIn]);
+  const openDiffViewer = useCallback((workerId) => openScoped("diff", { workerId }), [openScoped]);
   const closeDiffViewer = useCallback(() => closePanelIn(scopeRef.current, "diff"), [closePanelIn]);
-  const openCommitsViewer = useCallback((cwd) => openPanelIn(scopeRef.current, "commits", { cwd }), [openPanelIn]);
+  const openCommitsViewer = useCallback((cwd) => openScoped("commits", { cwd }), [openScoped]);
   const closeCommitsViewer = useCallback(() => closePanelIn(scopeRef.current, "commits"), [closePanelIn]);
-  const openConflictResolver = useCallback((workerId) => openPanelIn(scopeRef.current, "conflict", { workerId }), [openPanelIn]);
+  const openConflictResolver = useCallback((workerId) => openScoped("conflict", { workerId }), [openScoped]);
   const closeConflictResolver = useCallback(() => closePanelIn(scopeRef.current, "conflict"), [closePanelIn]);
-  const openMemoryViewer = useCallback((workerId) => openPanelIn(scopeRef.current, "memory", { workerId }), [openPanelIn]);
+  const openMemoryViewer = useCallback((workerId) => openScoped("memory", { workerId }), [openScoped]);
   const closeMemoryViewer = useCallback(() => closePanelIn(scopeRef.current, "memory"), [closePanelIn]);
-  const openTerminalViewer = useCallback(() => openPanelIn(scopeRef.current, "terminal", {}), [openPanelIn]);
+  const openTerminalViewer = useCallback(() => openScoped("terminal", {}), [openScoped]);
   const closeTerminalViewer = useCallback(() => closePanelIn(scopeRef.current, "terminal"), [closePanelIn]);
+  const setDockRatio = useCallback((key, value) => setDockRatioIn(scopeRef.current, key, value), [setDockRatioIn]);
 
   return useMemo(() => {
-    // Per-pane resolved reads (recompute when the panel map or scope changes).
+    // Per-pane resolved reads (recompute when the dock map or scope changes).
     const panels = {
       topPanelType: topPanelTypeIn(scopePane),
+      openPanelTypes: openPanelTypesIn(scopePane),
+      isPanelOpen: (type) => hasPanelIn(scopePane, type),
+      hasAnyPanelIn,
+      dockRatios: dockRatiosIn(scopePane),
+      setDockRatio,
       fileViewer: panelDataIn(scopePane, "file"),
       agentViewer: panelDataIn(scopePane, "agent"),
       diffViewer: panelDataIn(scopePane, "diff"),
@@ -118,7 +149,8 @@ export function useUi() {
     };
   }, [
     navigation, selection, pane, composer, attention, search, settings, scopePane,
-    topPanelTypeIn, panelDataIn, openPopoverIn, openPop, closeAllPops,
+    topPanelTypeIn, panelDataIn, openPanelTypesIn, hasPanelIn, hasAnyPanelIn, dockRatiosIn, setDockRatio,
+    openPopoverIn, openPop, closeAllPops,
     openFileViewer, closeFileViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     openDiffViewer, closeDiffViewer, openCommitsViewer, closeCommitsViewer,
     openConflictResolver, closeConflictResolver, openMemoryViewer, closeMemoryViewer,
