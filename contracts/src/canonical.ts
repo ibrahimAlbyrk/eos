@@ -176,6 +176,45 @@ export const ActivityEventSchema = z.object({
   isError: z.boolean().optional(),
 });
 
+// --- background-subagent lifecycle ------------------------------------------
+// Emitted ONLY for background Task/Agent subagents (the immediate tool_result
+// is an async_launched stub; the true completion arrives later). Foreground
+// subagents get NO subagent_* events — their existing tool_result path is
+// unchanged. Correlation rule: primary key is callId (the spawning tool_use
+// id); fallback is agentId when callId is not derivable from the carrier.
+
+// Fired the moment a lane adapter confirms a background launch (the
+// async_launched stub in the spawning tool's result).
+export const SubagentStartedEventSchema = z.object({
+  type: z.literal("subagent_started"),
+  callId: z.string(), // spawning Agent/Task tool_use id
+  agentId: z.string(),
+  background: z.boolean(), // always true today; explicit so a foreground lane can never emit it silently
+  agentType: z.string().optional(),
+  description: z.string().optional(),
+  outputFile: z.string().optional(),
+});
+
+export const SubagentUsageSchema = z.object({
+  totalTokens: z.number().nonnegative().optional(),
+  toolUses: z.number().nonnegative().optional(),
+  durationMs: z.number().nonnegative().optional(),
+});
+export type SubagentUsage = z.infer<typeof SubagentUsageSchema>;
+
+// Fired when the lane sees the true completion carrier (claude-sdk: the
+// "task_notification" system message; claude-cli: the <task-notification>
+// XML inside queue-operation/queued_command jsonl lines).
+export const SubagentCompletedEventSchema = z.object({
+  type: z.literal("subagent_completed"),
+  agentId: z.string(),
+  callId: z.string().nullable().optional(), // correlation — present whenever derivable
+  status: z.enum(["completed", "failed", "stopped"]),
+  result: z.string().optional(), // final output text
+  outputFile: z.string().optional(),
+  usage: SubagentUsageSchema.optional(),
+});
+
 // Cumulative billing usage for a unit of work (one request, or a whole turn for
 // backends that only report at turn end). The daemon SUMS these into the cost +
 // token ledger. Do NOT read this for context-window occupancy — use ContextEvent.
@@ -241,6 +280,8 @@ export const AgentEventSchema = z.discriminatedUnion("type", [
   DeltaEventSchema,
   TurnEventSchema,
   ActivityEventSchema,
+  SubagentStartedEventSchema,
+  SubagentCompletedEventSchema,
   UsageEventSchema,
   ContextEventSchema,
   SessionEventSchema,
