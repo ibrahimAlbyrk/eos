@@ -209,6 +209,15 @@ describe("buildBlocks main-agent tool_done fallback", () => {
   });
 });
 
+// Canonical background-subagent lifecycle rows (SubagentStarted/CompletedEventSchema),
+// as persisted by both lanes — arrive as agent_event and pass through normalizeEvents.
+function subagentStarted(callId, agentId, ts) {
+  return { type: "agent_event", ts, payload: { type: "subagent_started", callId, agentId, background: true } };
+}
+function subagentCompleted(agentId, ts, extra = {}) {
+  return { type: "agent_event", ts, payload: { type: "subagent_completed", agentId, status: "completed", ...extra } };
+}
+
 describe("buildBlocks lifecycle barriers", () => {
   const stop = (ts) => ({ type: "hook", ts, payload: { event: "Stop" } });
   const idle = (ts, reason) => ({ type: "state", ts, payload: { state: "IDLE", from: "WORKING", reason } });
@@ -242,7 +251,8 @@ describe("buildBlocks lifecycle barriers", () => {
   it("keeps background-agent inner tools running across a turn end", () => {
     const events = [
       agentRow("AG", 100),
-      mainToolResult("AG", 101, "Async agent launched successfully"),
+      subagentStarted("AG", "a1", 101),
+      mainToolResult("AG", 101, "launch stub"),
       toolRunning("I1", 102, "AG"),
       stop(103),
     ];
@@ -254,7 +264,8 @@ describe("buildBlocks lifecycle barriers", () => {
   it("closes a background agent and its inner tools on worker exit", () => {
     const events = [
       agentRow("AG", 100),
-      mainToolResult("AG", 101, "Async agent launched successfully"),
+      subagentStarted("AG", "a1", 101),
+      mainToolResult("AG", 101, "launch stub"),
       toolRunning("I1", 102, "AG"),
       exit(103),
     ];
@@ -263,15 +274,15 @@ describe("buildBlocks lifecycle barriers", () => {
     expect(run.tools[0].running).toBe(false);
   });
 
-  it("completes a background agent when all inner tools are done", () => {
+  it("keeps a background agent running after its inner tools finish (only the completion event closes it)", () => {
     const events = [
       agentRow("AG", 100),
-      mainToolResult("AG", 101, "Async agent launched successfully"),
+      subagentStarted("AG", "a1", 101),
       toolRunning("I1", 102, "AG"),
       mainToolDone("I1", 103, "ok", "Bash"),
     ];
     const run = buildBlocks(events).find((b) => b.kind === "agentRun");
-    expect(run.status).toBe("completed");
+    expect(run.status).toBe("running");
   });
 
   it("closes a foreground agent killed mid-run", () => {
@@ -294,10 +305,113 @@ describe("buildBlocks foreground agentRun closes on its tool_result (SDK lane)",
     expect(run.background).toBe(false);
   });
 
-  it("flags a background agent (Async) so the running header stays 'Background agent started'", () => {
-    const events = [agentRow("AG", 100), mainToolResult("AG", 101, "Async agent launched successfully")];
+  it("flags a background agent from its subagent_started event, ignoring the stub result", () => {
+    const events = [agentRow("AG", 100), subagentStarted("AG", "a1", 101), mainToolResult("AG", 101, "launch stub")];
     const run = buildBlocks(events).find((b) => b.kind === "agentRun");
     expect(run.background).toBe(true);
+    expect(run.status).toBe("running"); // the stub tool_result does not close it
+    expect(run.result).toBe(null); // stub text stays suppressed
+  });
+});
+
+describe("buildBlocks canonical background-subagent lifecycle", () => {
+  const stop = (ts) => ({ type: "hook", ts, payload: { event: "Stop" } });
+  const exit = (ts) => ({ type: "exit", ts, payload: { code: 0 } });
+
+  it("stays running through stub result, finished tools and turn end; flips only at subagent_completed", () => {
+    const before = [
+      agentRow("AG", 100),
+      subagentStarted("AG", "a1", 101),
+      mainToolResult("AG", 101, "launch stub"),
+      toolRunning("I1", 102, "AG"),
+      mainToolDone("I1", 103, "ok", "Bash"),
+      stop(104),
+    ];
+    const running = buildBlocks(before).find((b) => b.kind === "agentRun");
+    expect(running.status).toBe("running");
+    expect(running.result).toBe(null);
+
+    const done = buildBlocks([...before, subagentCompleted("a1", 200, { callId: "AG", result: "final agent output" })])
+      .find((b) => b.kind === "agentRun");
+    expect(done.status).toBe("completed");
+    expect(done.result).toBe("final agent output");
+  });
+
+  it("takes the LATEST completion when two arrive for one callId (SDK summary → full-text upgrade)", () => {
+    const events = [
+      agentRow("AG", 100),
+      subagentStarted("AG", "a1", 101),
+      subagentCompleted("a1", 200, { callId: "AG", result: "short summary" }),
+      subagentCompleted("a1", 210, { callId: "AG", result: "full final text" }),
+    ];
+    const runs = buildBlocks(events).filter((b) => b.kind === "agentRun");
+    expect(runs).toHaveLength(1); // closed once — no duplicate block from the second event
+    expect(runs[0].status).toBe("completed");
+    expect(runs[0].result).toBe("full final text");
+  });
+
+  it("freezes the tool list after completion — late strays no longer attach by timestamp", () => {
+    const events = [
+      agentRow("AG", 100),
+      subagentStarted("AG", "a1", 101),
+      toolRunning("I1", 102, "AG"),
+      subagentCompleted("a1", 200, { callId: "AG", result: "out" }),
+      toolRunning("STRAY", 300),
+    ];
+    const blocks = buildBlocks(events);
+    expect(toolsOf(blocks, "AG")).toEqual(["I1"]);
+    // the stray renders in the main stream instead
+    expect(blocks.some((b) => b.kind === "tool" && b.tool.id === "STRAY")).toBe(true);
+  });
+
+  it("correlates a completion by agentId when callId is absent", () => {
+    const events = [
+      agentRow("AG", 100),
+      subagentStarted("AG", "a1", 101),
+      subagentCompleted("a1", 200, { result: "matched via agentId" }),
+    ];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun");
+    expect(run.status).toBe("completed");
+    expect(run.result).toBe("matched via agentId");
+  });
+
+  it("passes a failed status through to the block", () => {
+    const events = [
+      agentRow("AG", 100),
+      subagentStarted("AG", "a1", 101),
+      subagentCompleted("a1", 200, { callId: "AG", status: "failed", result: "boom" }),
+    ];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun");
+    expect(run.status).toBe("failed");
+    expect(run.result).toBe("boom");
+  });
+
+  it("closes at session exit when no completion ever arrives", () => {
+    const events = [
+      agentRow("AG", 100),
+      subagentStarted("AG", "a1", 101),
+      toolRunning("I1", 102, "AG"),
+      exit(300),
+    ];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun");
+    expect(run.status).toBe("completed");
+  });
+
+  it("completes with a null result when the event carries no result text", () => {
+    const events = [
+      agentRow("AG", 100),
+      subagentStarted("AG", "a1", 101),
+      subagentCompleted("a1", 200, { callId: "AG" }),
+    ];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun");
+    expect(run.status).toBe("completed");
+    expect(run.result).toBe(null);
+  });
+
+  it("leaves the foreground path untouched — no subagent events, tool_result closes and carries the output", () => {
+    const events = [agentRow("AG", 100), mainToolResult("AG", 101, "fg summary")];
+    const run = buildBlocks(events).find((b) => b.kind === "agentRun");
+    expect(run).toMatchObject({ status: "completed", background: false, result: "fg summary" });
   });
 });
 

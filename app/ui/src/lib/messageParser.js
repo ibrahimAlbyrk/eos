@@ -172,6 +172,8 @@ function normalizeEvents(events) {
       if (e.phase === "error") out.push({ type: "turn_error", ts, payload: { reason: e.reason ?? "" } });
     } else if (e?.type === "session" && e.phase === "ended") {
       out.push({ type: "exit", ts, payload: {} }); // exit barrier — closes every open tool
+    } else if (e?.type === "subagent_started" || e?.type === "subagent_completed") {
+      out.push({ type: e.type, ts, payload: e }); // background-subagent lifecycle (see buildBlocks)
     }
     // role:"user" → rendered via the synthesized user_message event (no double);
     // delta/usage/permission_request/question_request: no content/lifecycle here.
@@ -186,10 +188,29 @@ export function buildBlocks(rawEvents) {
   const lc = deriveToolLifecycle(events);
   const toolUseIds = new Set();
   const agentSpans = new Map();
+  // Background-subagent lifecycle (SubagentStarted/CompletedEventSchema in
+  // contracts): a span is background iff a subagent_started names its callId;
+  // the matching subagent_completed carries the true status + final output and
+  // bounds the span. Foreground subagents get NO subagent_* events.
+  const subagentStartCallIds = new Set();
+  const callIdByAgentId = new Map();
+  const subagentCompletions = [];
   // A Skill's injected SKILL.md body arrives as its own jsonl event, keyed to
   // the Skill tool_use id — collect it up front so the tool block can carry it.
   const skillBodyById = new Map();
   for (const ev of events) {
+    if (ev.type === "subagent_started") {
+      const p = parsePayload(ev.payload);
+      if (p.callId) {
+        subagentStartCallIds.add(p.callId);
+        if (p.agentId) callIdByAgentId.set(p.agentId, p.callId);
+      }
+      continue;
+    }
+    if (ev.type === "subagent_completed") {
+      subagentCompletions.push({ p: parsePayload(ev.payload), ts: ev.ts });
+      continue;
+    }
     if (ev.type !== "jsonl") continue;
     const p = parsePayload(ev.payload);
     if (p.kind === "tool_use" && p.id) {
@@ -201,16 +222,27 @@ export function buildBlocks(rawEvents) {
       skillBodyById.set(p.toolUseId, parseSkillBody(p.text));
     }
   }
+  for (const callId of subagentStartCallIds) {
+    const span = agentSpans.get(callId);
+    if (span) span.background = true;
+  }
+  // Correlation: callId when present, else agentId via the started event's mapping.
+  const completionByCallId = new Map();
+  for (const { p, ts } of subagentCompletions) {
+    const callId = p.callId ?? callIdByAgentId.get(p.agentId);
+    if (!callId) continue;
+    completionByCallId.set(callId, { status: p.status ?? "completed", result: p.result ?? null });
+    const span = agentSpans.get(callId);
+    if (span) span.endTs = ts;
+  }
   for (const ev of events) {
     if (ev.type !== "jsonl") continue;
     const p = parsePayload(ev.payload);
     if (p.kind === "tool_result" && p.toolUseId && agentSpans.has(p.toolUseId)) {
-      const isBackground = (p.text ?? "").includes("Async agent launched");
-      if (isBackground) {
-        agentSpans.get(p.toolUseId).background = true;
-      } else {
-        agentSpans.get(p.toolUseId).endTs = ev.ts;
-      }
+      const span = agentSpans.get(p.toolUseId);
+      // A background span's tool_result is only the async-launch stub — its end
+      // comes from the completion event above.
+      if (!span.background) span.endTs = ev.ts;
     }
   }
 
@@ -244,6 +276,8 @@ export function buildBlocks(rawEvents) {
         bestAgent = agentId;
         break;
       }
+      // A completed background span is frozen — late strays must not attach.
+      if (span.background && ev.ts > span.endTs) continue;
       if (ev.ts > span.startTs && (ev.ts - span.startTs) < bestDist) {
         bestDist = ev.ts - span.startTs;
         bestAgent = agentId;
@@ -519,16 +553,17 @@ export function buildBlocks(rawEvents) {
       lastAsst = null;
       if (isSubagentToolUse(p)) {
         flushTools();
-        const result = lc.resultOf(p.id);
-        const isBackground = result && (result.text ?? "").includes("Async agent launched");
-        const cleanResult = isBackground ? null : (result?.text ?? null);
+        const isBackground = subagentStartCallIds.has(p.id);
+        const completion = isBackground ? completionByCallId.get(p.id) : undefined;
+        // Background: the tool_result is only the launch stub — the completion
+        // event carries the real output. Foreground: the tool_result IS the output.
+        const cleanResult = isBackground ? (completion?.result ?? null) : (lc.resultOf(p.id)?.text ?? null);
         const tools = agentToolMap.get(p.id) ?? [];
-        const allToolsDone = tools.length > 0 && tools.every((t) => t.done);
-        // Background agents outlive turns: only their inner tools completing or
+        // Background agents outlive turns: only their subagent_completed event or
         // the worker exiting can close them. Foreground agents close like any
         // tool — result, or a turn/exit barrier (kill mid-agent).
         const closed = isBackground
-          ? allToolsDone || lc.exitAfter(evIdx)
+          ? completion != null || lc.exitAfter(evIdx)
           : lc.isClosed(p.id, evIdx);
         out.push({
           kind: "agentRun",
@@ -537,7 +572,7 @@ export function buildBlocks(rawEvents) {
           prompt: p.input?.prompt ?? "",
           model: p.input?.model ?? p.parentModel ?? null,
           subagentType: p.input?.subagent_type ?? null,
-          status: closed ? "completed" : "running",
+          status: closed ? (completion?.status ?? "completed") : "running",
           background: isBackground,
           result: cleanResult,
           tools,

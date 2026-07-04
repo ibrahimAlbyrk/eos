@@ -21,7 +21,7 @@ function AgentViewerInner({ block }) {
   const ui = useUi();
   const stick = useStickToBottom({ threshold: 30 });
   useLayoutEffect(() => { stick.write(Infinity, { pin: true }); }, []);
-  const isDone = block.status === "completed";
+  const isDone = block.status !== "running";
 
   const tools = (block.tools || []).map((t) => ({
     id: t.id,
@@ -63,6 +63,10 @@ function AgentViewerInner({ block }) {
 
           {!isDone && tools.length === 0 && !block.result && (
             <div className="av-running-hint">Agent is running...</div>
+          )}
+
+          {isDone && block.background && !block.result && (
+            <div className="av-running-hint">No output captured.</div>
           )}
         </div>
       </div>
