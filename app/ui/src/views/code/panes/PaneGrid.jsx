@@ -1,14 +1,14 @@
 import { useState, useRef, useEffect } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { useInputNeeded } from "../../../hooks/useInputNeeded.js";
-import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, splitRectForPanel, MAX_PANES } from "../../../lib/paneLayout.js";
+import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, MAX_PANES } from "../../../lib/paneLayout.js";
 import { usePaneTransitions } from "../../../hooks/usePaneTransitions.js";
 import { Messages } from "../messages/Messages.jsx";
 import { TranscriptHost } from "../messages/TranscriptHost.jsx";
 import { Composer } from "../center/Composer.jsx";
 import { AgentPickerOverlay } from "./AgentPickerOverlay.jsx";
 import { DragAffordance } from "./DragAffordance.jsx";
-import { PaneViewers } from "./PaneViewers.jsx";
+import { PanelDock } from "./PanelDock.jsx";
 import { PaneHeader } from "./PaneHeader.jsx";
 import { PaneScopeContext } from "../../../state/paneScope.js";
 
@@ -102,21 +102,23 @@ function DropPreview({ zone }) {
   return <div className={"pane-drop-preview pane-drop-preview--" + (zone.kind === "split" ? zone.edge : "replace")} />;
 }
 
-// Ephemeral panel-width override, as a fraction of the OWNING pane's rect (same
-// unit as PANEL_FRAC). Never persisted — cleared when the panel closes.
+// Ephemeral dock-width override, as a fraction of the OWNING pane's rect. Never
+// persisted — cleared when the pane's dock closes. This is the dock-edge (dock vs
+// transcript) handle only; the intra-dock v/col ratios live in the dock store.
 const PANEL_MIN_FRAC = 0.15;
 const PANEL_MAX_FRAC = 0.8;
 const clampPanelFrac = (f) => Math.min(PANEL_MAX_FRAC, Math.max(PANEL_MIN_FRAC, f));
 
-// splitRectForPanel with the override applied on top of its result, keeping the
-// layout function itself pure. frac == null → default PANEL_FRAC geometry.
-function panelSplit(rect, type, frac) {
-  const split = splitRectForPanel(rect, type);
-  if (!type || frac == null) return split;
-  const pw = rect.width * frac;
+// Carve the owning pane's rect into [shrunk transcript | dock]. The dock claims a
+// single width whatever it tiles inside (PanelDock lays its panels out); closed →
+// zero-width but kept in flow. `open` = the pane has ≥1 docked panel.
+const DOCK_DEFAULT_FRAC = 0.5;
+function dockSplit(rect, open, frac) {
+  const f = open ? (frac ?? DOCK_DEFAULT_FRAC) : 0;
+  const pw = rect.width * f;
   return {
     paneRect: { ...rect, width: rect.width - pw },
-    panelRect: { ...split.panelRect, left: rect.left + rect.width - pw, width: pw },
+    panelRect: { left: rect.left + rect.width - pw, top: rect.top, width: pw, height: rect.height },
   };
 }
 
@@ -175,11 +177,11 @@ export function PaneGrid({ live }) {
   const [panelFracs, setPanelFracs] = useState({});
   useEffect(() => {
     setPanelFracs((m) => {
-      const kept = Object.keys(m).filter((id) => ui.topPanelTypeIn(id));
+      const kept = Object.keys(m).filter((id) => ui.hasAnyPanelIn(id));
       return kept.length === Object.keys(m).length ? m : Object.fromEntries(kept.map((id) => [id, m[id]]));
     });
   });
-  const paneRectOf = (id, rect) => panelSplit(rect, ui.topPanelTypeIn(id), panelFracs[id]).paneRect;
+  const paneRectOf = (id, rect) => dockSplit(rect, ui.hasAnyPanelIn(id), panelFracs[id]).paneRect;
 
   // One slot renderer for both live panes and the leaving ghosts. A ghost keeps
   // the same key (leaf id) and element shape so React keeps the real Pane mounted
@@ -249,7 +251,7 @@ export function PaneGrid({ live }) {
           that pane has nothing open, but kept mounted (stable key) so a buried
           panel keeps its fetched state and its rect animates on reflow. */}
       {rects.map(({ id, rect }) => {
-        const panelType = ui.topPanelTypeIn(id);
+        const open = ui.hasAnyPanelIn(id);
         return (
           <div
             key={`panel:${id}`}
@@ -257,13 +259,18 @@ export function PaneGrid({ live }) {
             // over the top bar (see .pane-panel-slot.at-top in styles). A panel beside
             // a lower-row pane keeps its normal top so it can't overlap the pane above.
             className={"pane-slot pane-panel-slot" + (rect.top === 0 ? " at-top" : "")}
-            style={pctStyle(panelSplit(rect, panelType, panelFracs[id]).panelRect)}
+            style={pctStyle(dockSplit(rect, open, panelFracs[id]).panelRect)}
             // The slot is a grid SIBLING of its pane, so the Pane's focus capture
             // never sees clicks here. Focus the owning pane, then claim the panel
             // region for ⌘F (after focusLeaf — it resets the region to transcript).
             onMouseDownCapture={() => { ui.focusLeaf(id); ui.setFocusedRegion("panel"); }}
           >
-            {panelType && (
+            <PaneScopeContext.Provider value={id}>
+              <PanelDock live={live} paneId={id} />
+            </PaneScopeContext.Provider>
+            {/* Dock-edge (dock vs transcript) width handle, rendered AFTER the dock
+                so its left-edge hit zone stays grabbable over the grid. */}
+            {open && (
               <PanelResizeHandle
                 containerRef={gridRef}
                 rect={rect}
@@ -272,9 +279,6 @@ export function PaneGrid({ live }) {
                 onResizeEnd={() => setResizing(false)}
               />
             )}
-            <PaneScopeContext.Provider value={id}>
-              <PaneViewers live={live} />
-            </PaneScopeContext.Provider>
           </div>
         );
       })}
@@ -303,19 +307,18 @@ export function SinglePane({ live }) {
     else ui.dropReplace(leafId, aid);
   });
   // One pane spans the whole center: a horizontal flex row holds the transcript
-  // (flex:1) and its docked panel (flex-basis = its share of the width). The
-  // transcript stays a flex-1 child of a flex-column (.sp-body) — the same layout
-  // context it renders in without a panel — so it never collapses. Closed → the
-  // panel is zero-basis but kept mounted (keep-alive).
-  const { panelRect } = splitRectForPanel({ left: 0, top: 0, width: 100, height: 100 }, ui.topPanelType);
-  // Ephemeral panel-width override (fraction of the full row) — reset on close so
-  // reopening snaps back to PANEL_FRAC. is-resizing kills the flex-basis ease so
+  // (flex:1) and its dock (flex-basis = its share of the width). The transcript
+  // stays a flex-1 child of a flex-column so it never collapses. Closed → the dock
+  // is zero-basis but kept in flow.
+  const dockOpen = ui.openPanelTypes.length > 0;
+  // Ephemeral dock-width override (fraction of the full row) — reset on close so
+  // reopening snaps back to the default. is-resizing kills the flex-basis ease so
   // the drag tracks the pointer 1:1.
   const rootRef = useRef(null);
   const [panelFrac, setPanelFrac] = useState(null);
   const [panelResizing, setPanelResizing] = useState(false);
-  useEffect(() => { if (!ui.topPanelType) setPanelFrac(null); }, [ui.topPanelType]);
-  const dockWidth = ui.topPanelType && panelFrac != null ? panelFrac * 100 : panelRect.width;
+  useEffect(() => { if (!dockOpen) setPanelFrac(null); }, [dockOpen]);
+  const dockWidth = dockOpen ? (panelFrac != null ? panelFrac * 100 : DOCK_DEFAULT_FRAC * 100) : 0;
   return (
     <div className="single-pane" ref={rootRef} {...handlers}>
       {zone && <DropPreview zone={zone} />}
@@ -351,7 +354,10 @@ export function SinglePane({ live }) {
         style={{ flexBasis: `${dockWidth}%` }}
         onMouseDownCapture={() => ui.setFocusedRegion("panel")}
       >
-        {ui.topPanelType && (
+        <PaneScopeContext.Provider value={leafId}>
+          <PanelDock live={live} paneId={leafId} />
+        </PaneScopeContext.Provider>
+        {dockOpen && (
           <PanelResizeHandle
             containerRef={rootRef}
             rect={{ left: 0, width: 100 }}
@@ -360,7 +366,6 @@ export function SinglePane({ live }) {
             onResizeEnd={() => setPanelResizing(false)}
           />
         )}
-        <PaneViewers live={live} />
       </div>
     </div>
   );
