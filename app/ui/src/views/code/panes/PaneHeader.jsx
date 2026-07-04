@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { breadcrumbFor } from "../../../lib/breadcrumb.js";
-import { statusFromState } from "../../../lib/format.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { api } from "../../../api/client.js";
@@ -27,8 +26,6 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   // (overflow:hidden) and split panes paint-contain, so the menu can't render
   // in place — it measures this wrap and portals to <body> instead.
   const vWrapRef = useRef(null);
-
-  const status = worker ? statusFromState(worker.state) : null;
 
   // The top-left pane (rect touches 0,0) is the one under the native window chrome
   // once the strip is gone. When the sidebar is collapsed its header reserves a
@@ -81,7 +78,6 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   return (
     <div className={rootClass} {...dragProps}>
       {insetEl}
-      {split && <span className={`ag-dot ${status.dot}`} />}
       <div className="crumb">
         <span className="scope">{project}</span>
         {chain.map((seg, i) => {
@@ -120,7 +116,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
         ? <span className="pane-input-label" title="Needs your input — click the pane to answer">needs input</span>
         : attention
           ? <span className="ag-notify" aria-label="finished with new output" title="finished with new output" />
-          : <span className="pane-status">{status.label}</span>)}
+          : null)}
       <div className="pane-head-actions">
         <TerminalToggleButton />
         {canClose && <CloseButton onClose={onClose} />}

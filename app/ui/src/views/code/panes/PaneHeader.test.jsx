@@ -42,15 +42,6 @@ describe("PaneHeader", () => {
     expect(renderHeader({ canClose: true })).toContain("Close pane");
   });
 
-  it("shows the status dot + label only in split panes (never at N=1)", () => {
-    const solo = renderHeader({ canClose: false });
-    expect(solo).not.toContain("pane-status");
-    expect(solo).not.toContain("ag-dot");
-    const split = renderHeader({ canClose: true, split: true });
-    expect(split).toContain("pane-status");
-    expect(split).toContain("ag-dot");
-  });
-
   it("marks top-row split panes with --toprow, never the default (N=1) header", () => {
     expect(renderHeader({ canClose: false })).not.toContain("pane-head--toprow");
     expect(renderHeader({ canClose: true, split: true, topRow: true })).toContain("pane-head--toprow");
