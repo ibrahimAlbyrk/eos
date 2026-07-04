@@ -1,5 +1,5 @@
 import { useUi } from "../../../state/ui.jsx";
-import { killAllSessions } from "../../../state/ptyPanelStore.js";
+import { killPaneSessions } from "../../../state/ptyPanelStore.js";
 
 // Top-right toolbar toggle for the embedded terminal panel. Opens/closes the
 // "terminal" docked panel on the focused pane (same panel stack as the file/
@@ -11,7 +11,7 @@ export function TerminalToggleButton() {
   return (
     <button
       className={"pane-split-btn" + (open ? " is-active" : "")}
-      onClick={() => (open ? (killAllSessions(), ui.closeTerminalViewer()) : ui.openTerminalViewer())}
+      onClick={() => (open ? (killPaneSessions(ui.paneId), ui.closeTerminalViewer()) : ui.openTerminalViewer())}
       title={open ? "Hide terminal" : "Show terminal"}
       aria-label="Toggle terminal panel"
       aria-pressed={open}

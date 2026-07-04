@@ -109,6 +109,9 @@ export function useUi() {
   return useMemo(() => {
     // Per-pane resolved reads (recompute when the dock map or scope changes).
     const panels = {
+      // The resolved pane this consumer renders in — for pane-keyed stores
+      // (ptyPanelStore) and registry close handlers.
+      paneId: scopePane,
       topPanelType: topPanelTypeIn(scopePane),
       openPanelTypes: openPanelTypesIn(scopePane),
       isPanelOpen: (type) => hasPanelIn(scopePane, type),

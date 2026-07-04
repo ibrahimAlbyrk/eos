@@ -10,7 +10,7 @@
 // descriptor: { type, label, Component, close, minW, minH }
 //   Component — the viewer, rendered by PanelDock inside a positioned frame.
 //   close(ui) — the single close authority: runs the type's scoped close action
-//               plus any side-effect (terminal → killAllSessions). Used by the
+//               plus any side-effect (terminal → killPaneSessions). Used by the
 //               viewer chrome AND by eviction, so a panel always leaves the dock
 //               the same way.
 //   minW/minH — px minimums the resize clamps honor (keeps xterm fit valid, etc.).

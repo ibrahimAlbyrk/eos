@@ -5,7 +5,7 @@
 // dock or the tiling engine (open/closed).
 
 import { registerPanel } from "../../../lib/panelRegistry.js";
-import { killAllSessions } from "../../../state/ptyPanelStore.js";
+import { killPaneSessions } from "../../../state/ptyPanelStore.js";
 import { FileViewer } from "../messages/FileViewer.jsx";
 import { AgentViewer } from "../messages/AgentViewer.jsx";
 import { DiffViewer } from "../messages/DiffViewer.jsx";
@@ -19,5 +19,5 @@ registerPanel({ type: "diff", label: "Diff", Component: DiffViewer, close: (ui) 
 registerPanel({ type: "commits", label: "Commits", Component: CommitsViewer, close: (ui) => ui.closeCommitsViewer(), minW: 280, minH: 140 });
 registerPanel({ type: "conflict", label: "Conflicts", Component: ConflictResolver, close: (ui) => ui.closeConflictResolver(), minW: 300, minH: 160 });
 // dispose runs when a terminal panel leaves the dock via EVICTION (not the ×,
-// which routes through close): kill the sessions the same way today's close does.
-registerPanel({ type: "terminal", label: "Terminal", Component: TerminalViewer, close: (ui) => { killAllSessions(); ui.closeTerminalViewer(); }, dispose: killAllSessions, minW: 280, minH: 160 });
+// which routes through close): kill the evicted pane's sessions only.
+registerPanel({ type: "terminal", label: "Terminal", Component: TerminalViewer, close: (ui) => { killPaneSessions(ui.paneId); ui.closeTerminalViewer(); }, dispose: killPaneSessions, minW: 280, minH: 160 });

@@ -1,7 +1,7 @@
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { projectPathFor } from "../../../lib/breadcrumb.js";
-import { subscribe, getPtyPanel, openTab, killAllSessions } from "../../../state/ptyPanelStore.js";
+import { subscribe, getPtyPanel, openTab, killPaneSessions, reapUntrackedSessions } from "../../../state/ptyPanelStore.js";
 import { TerminalTabBar } from "../../../components/terminal/TerminalTabBar.jsx";
 import { TerminalView } from "../../../components/terminal/TerminalView.jsx";
 
@@ -10,45 +10,52 @@ import { TerminalView } from "../../../components/terminal/TerminalView.jsx";
 // viewer list). Mounted whenever "terminal" is in this pane's panel stack; only
 // visible (tv-open) when it's the top panel.
 //
-// Lifecycle: ALWAYS opens clean — on mount it kills any stale server sessions,
-// then spawns one fresh tab (in the selected orchestrator's project path).
-// Closing the panel (far-right ×) terminates every session. No reattach/replay.
+// Lifecycle: ALWAYS opens clean — on mount it reaps server sessions no pane
+// tracks, then spawns one fresh tab (in the selected orchestrator's project
+// path). Closing the panel terminates THIS pane's sessions only; each pane's
+// terminal is independent (pane-keyed ptyPanelStore). No reattach/replay.
 export function TerminalViewer({ live }) {
   const ui = useUi();
+  const paneId = ui.paneId;
   const open = !!ui.terminalViewer;
   // undefined (not null) when unknown, so it's dropped from the POST body.
   const cwd = projectPathFor(live?.workers ?? [], ui.selectedId) ?? undefined;
-  const closePanel = () => { killAllSessions(); ui.closeTerminalViewer(); };
+  const closePanel = () => { killPaneSessions(paneId); ui.closeTerminalViewer(); };
   return (
     <div className="terminal-viewer tv-open">
-      {open && <TerminalViewerInner cwd={cwd} onClosePanel={closePanel} />}
+      {open && <TerminalViewerInner paneId={paneId} cwd={cwd} onClosePanel={closePanel} />}
     </div>
   );
 }
 
-function TerminalViewerInner({ cwd, onClosePanel }) {
-  const { tabs, activeId } = useSyncExternalStore(subscribe, getPtyPanel);
+function TerminalViewerInner({ paneId, cwd, onClosePanel }) {
+  const { tabs, activeId } = useSyncExternalStore(
+    useCallback((cb) => subscribe(paneId, cb), [paneId]),
+    useCallback(() => getPtyPanel(paneId), [paneId]),
+  );
   // Latest selected-project cwd, read at open-time only — switching orchestrators
   // never retro-changes already-open tabs; the next new tab picks up the change.
   const cwdRef = useRef(cwd);
   cwdRef.current = cwd;
 
-  // Clean open: reap any stale server sessions (e.g. app quit while open), then
-  // spawn one fresh Terminal in the selected project path.
+  // Clean open: reap sessions no pane tracks (e.g. app quit while open), then
+  // spawn one fresh Terminal in the selected project path. The unmount kill
+  // covers exits that skip the close click (pane removed, agent switch): nothing
+  // else reaps tracked sessions, and there is no reattach path to preserve.
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      await killAllSessions();
+      await reapUntrackedSessions();
       if (cancelled) return;
-      await openTab({ cwd: cwdRef.current });
+      await openTab(paneId, { cwd: cwdRef.current });
+      if (cancelled) await killPaneSessions(paneId);
     })();
-    return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    return () => { cancelled = true; killPaneSessions(paneId); };
+  }, [paneId]);
 
   return (
     <div className="pty-panel">
-      <TerminalTabBar tabs={tabs} activeId={activeId} cwd={cwd} onClosePanel={onClosePanel} />
+      <TerminalTabBar paneId={paneId} tabs={tabs} activeId={activeId} cwd={cwd} onClosePanel={onClosePanel} />
       <div className="pty-body">
         {tabs.map((t) => (
           <TerminalView key={t.sessionId} sessionId={t.sessionId} active={t.sessionId === activeId} />

@@ -79,7 +79,7 @@ export function SelectionProvider({ children }) {
     if (paneId == null) return;
     setDocksByPane((m) => {
       const { dock, evicted } = openPanelTile(m[paneId] ?? emptyDock(), type, data);
-      if (evicted) getPanel(evicted)?.dispose?.(); // e.g. terminal → kill sessions
+      if (evicted) getPanel(evicted)?.dispose?.(paneId); // e.g. terminal → kill that pane's sessions
       return { ...m, [paneId]: dock };
     });
   }, []);

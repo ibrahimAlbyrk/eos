@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  getPtyPanel, openTab, closeTab, switchTab,
-  killAllSessions, markExited, _resetPtyPanel,
+  subscribe, getPtyPanel, openTab, closeTab, switchTab,
+  killPaneSessions, reapUntrackedSessions, markExited, _resetPtyPanel,
 } from "./ptyPanelStore.js";
 
 // A tiny in-memory PTY daemon: POST /pty mints a server-numbered session, DELETE
@@ -27,88 +27,136 @@ function mockServer() {
   });
 }
 
+const serverIds = async (fetchMock) => {
+  const r = await fetchMock("http://127.0.0.1:7400/pty");
+  return (await r.json()).sessions.map((s) => s.sessionId);
+};
+
 beforeEach(() => _resetPtyPanel());
 afterEach(() => vi.unstubAllGlobals());
 
-describe("ptyPanelStore", () => {
-  it("openTab pushes a server-numbered tab and activates it; switchTab moves active", async () => {
+describe("ptyPanelStore (pane-keyed)", () => {
+  it("openTab pushes a server-numbered tab and activates it in ITS pane only", async () => {
     vi.stubGlobal("fetch", mockServer());
-    await openTab();
-    let s = getPtyPanel();
-    expect(s.tabs).toHaveLength(1);
-    expect(s.tabs[0].number).toBe(1);
-    expect(s.activeId).toBe(s.tabs[0].sessionId);
+    await openTab("A");
+    await openTab("B");
+    const a = getPtyPanel("A");
+    const b = getPtyPanel("B");
+    expect(a.tabs).toHaveLength(1);
+    expect(b.tabs).toHaveLength(1);
+    expect(a.tabs[0].sessionId).not.toBe(b.tabs[0].sessionId);
+    expect(a.activeId).toBe(a.tabs[0].sessionId);
+    expect(b.activeId).toBe(b.tabs[0].sessionId);
+  });
 
-    await openTab();
-    s = getPtyPanel();
-    expect(s.tabs).toHaveLength(2);
-    expect(s.tabs[1].number).toBe(2);
-    expect(s.activeId).toBe(s.tabs[1].sessionId); // newest tab is active
+  it("switchTab moves active within one pane and rejects another pane's session", async () => {
+    vi.stubGlobal("fetch", mockServer());
+    await openTab("A"); await openTab("A");
+    await openTab("B");
+    const first = getPtyPanel("A").tabs[0].sessionId;
+    switchTab("A", first);
+    expect(getPtyPanel("A").activeId).toBe(first);
+    // B's session id is unknown to pane A — no cross-pane switching.
+    switchTab("A", getPtyPanel("B").tabs[0].sessionId);
+    expect(getPtyPanel("A").activeId).toBe(first);
+  });
 
-    const first = s.tabs[0].sessionId;
-    switchTab(first);
-    expect(getPtyPanel().activeId).toBe(first);
+  it("subscribe is pane-scoped: pane A's mutations never notify pane B", async () => {
+    vi.stubGlobal("fetch", mockServer());
+    const aCalls = vi.fn();
+    const bCalls = vi.fn();
+    subscribe("A", aCalls);
+    subscribe("B", bCalls);
+    await openTab("A");
+    expect(aCalls).toHaveBeenCalled();
+    expect(bCalls).not.toHaveBeenCalled();
   });
 
   it("closeTab removes the tab and re-picks a neighbor when the active one closes", async () => {
     vi.stubGlobal("fetch", mockServer());
-    await openTab(); await openTab(); await openTab();
-    const ids = getPtyPanel().tabs.map((t) => t.sessionId);
-    await closeTab(ids[2]); // active (newest) closed
-    const s = getPtyPanel();
+    await openTab("A"); await openTab("A"); await openTab("A");
+    const ids = getPtyPanel("A").tabs.map((t) => t.sessionId);
+    await closeTab("A", ids[2]); // active (newest) closed
+    const s = getPtyPanel("A");
     expect(s.tabs.map((t) => t.sessionId)).toEqual([ids[0], ids[1]]);
     expect(s.activeId).toBe(ids[1]);
   });
 
-  it("closing the LAST remaining tab immediately opens a fresh one (never zero tabs)", async () => {
+  it("closing the pane's LAST tab immediately opens a fresh one (never zero tabs)", async () => {
     vi.stubGlobal("fetch", mockServer());
-    await openTab();
-    const only = getPtyPanel().tabs[0].sessionId;
-    await closeTab(only);
-    const s = getPtyPanel();
+    await openTab("A");
+    const only = getPtyPanel("A").tabs[0].sessionId;
+    await closeTab("A", only);
+    const s = getPtyPanel("A");
     expect(s.tabs).toHaveLength(1);
     expect(s.tabs[0].sessionId).not.toBe(only); // a brand-new session
     expect(s.activeId).toBe(s.tabs[0].sessionId);
   });
 
-  it("killAllSessions terminates every session and clears the tab list (panel close)", async () => {
+  it("closing a tab in pane A leaves pane B untouched", async () => {
     const fetchMock = mockServer();
     vi.stubGlobal("fetch", fetchMock);
-    await openTab(); await openTab();
-    expect(getPtyPanel().tabs).toHaveLength(2);
-
-    await killAllSessions();
-    expect(getPtyPanel().tabs).toEqual([]);
-    expect(getPtyPanel().activeId).toBe(null);
-    // Server-side too: no live sessions remain.
-    const r = await fetchMock("http://127.0.0.1:7400/pty");
-    expect(await r.json()).toEqual({ sessions: [] });
+    await openTab("A"); await openTab("A");
+    await openTab("B");
+    const bId = getPtyPanel("B").tabs[0].sessionId;
+    await closeTab("A", getPtyPanel("A").tabs[0].sessionId);
+    expect(getPtyPanel("B").tabs.map((t) => t.sessionId)).toEqual([bId]);
+    expect(await serverIds(fetchMock)).toContain(bId);
   });
 
-  it("killAllSessions reaps stale server sessions the client never tracked (quit-while-open)", async () => {
+  it("killPaneSessions terminates ONLY that pane's sessions (panel close)", async () => {
     const fetchMock = mockServer();
     vi.stubGlobal("fetch", fetchMock);
-    await openTab(); await openTab();  // server holds s1, s2
-    _resetPtyPanel();                   // fresh mount: client store empty, server still holds them
-    await killAllSessions();            // clean-open path reaps whatever the server lists
-    const r = await fetchMock("http://127.0.0.1:7400/pty");
-    expect(await r.json()).toEqual({ sessions: [] });
+    await openTab("A"); await openTab("A");
+    await openTab("B");
+    const bId = getPtyPanel("B").tabs[0].sessionId;
+
+    await killPaneSessions("A");
+    expect(getPtyPanel("A").tabs).toEqual([]);
+    expect(getPtyPanel("A").activeId).toBe(null);
+    expect(getPtyPanel("B").tabs).toHaveLength(1);
+    expect(await serverIds(fetchMock)).toEqual([bId]); // B's session survives server-side
   });
 
-  it("markExited flags the matching tab without removing it", async () => {
+  it("reapUntrackedSessions kills stale server sessions and leaves every pane's tracked ones alone", async () => {
+    const fetchMock = mockServer();
+    vi.stubGlobal("fetch", fetchMock);
+    await openTab("A");
+    await openTab("B");
+    const tracked = [getPtyPanel("A").tabs[0].sessionId, getPtyPanel("B").tabs[0].sessionId];
+    // A stale server session no pane tracks (e.g. app quit while open).
+    await fetchMock("http://127.0.0.1:7400/pty", { method: "POST", body: "{}" });
+
+    await reapUntrackedSessions();
+    expect((await serverIds(fetchMock)).sort()).toEqual(tracked.sort());
+    expect(getPtyPanel("A").tabs).toHaveLength(1);
+    expect(getPtyPanel("B").tabs).toHaveLength(1);
+  });
+
+  it("reapUntrackedSessions reaps everything when no pane tracks anything (quit-while-open)", async () => {
+    const fetchMock = mockServer();
+    vi.stubGlobal("fetch", fetchMock);
+    await openTab("A"); await openTab("A"); // server holds s1, s2
+    _resetPtyPanel();                        // fresh mount: store empty, server still holds them
+    await reapUntrackedSessions();
+    expect(await serverIds(fetchMock)).toEqual([]);
+  });
+
+  it("markExited flags the matching tab in its owning pane without removing it", async () => {
     vi.stubGlobal("fetch", mockServer());
-    await openTab();
-    const id = getPtyPanel().tabs[0].sessionId;
+    await openTab("A");
+    await openTab("B");
+    const id = getPtyPanel("B").tabs[0].sessionId;
     markExited(id);
-    const s = getPtyPanel();
-    expect(s.tabs[0].exited).toBe(true);
-    expect(s.tabs).toHaveLength(1);
+    expect(getPtyPanel("B").tabs[0].exited).toBe(true);
+    expect(getPtyPanel("B").tabs).toHaveLength(1);
+    expect(getPtyPanel("A").tabs[0].exited).toBe(false);
   });
 
   it("tab numbers come straight from the server response — no client-side counter", async () => {
     vi.stubGlobal("fetch", mockServer());
-    await openTab(); await openTab();
-    expect(getPtyPanel().tabs.map((t) => t.number)).toEqual([1, 2]);
+    await openTab("A"); await openTab("A");
+    expect(getPtyPanel("A").tabs.map((t) => t.number)).toEqual([1, 2]);
   });
 
   it("openTab forwards cwd to POST /pty when given, and omits it when absent", async () => {
@@ -123,13 +171,14 @@ describe("ptyPanelStore", () => {
       }
       return { ok: true, status: 200, json: async () => ({ ok: true }) };
     }));
-    await openTab({ cwd: "/proj/alpha" });
-    await openTab();
+    await openTab("A", { cwd: "/proj/alpha" });
+    await openTab("A");
     expect(bodies[0].cwd).toBe("/proj/alpha");
     expect("cwd" in bodies[1]).toBe(false); // undefined cwd is dropped from the payload
   });
 
   it("getPtyPanel returns a stable reference between emits (useSyncExternalStore contract)", () => {
-    expect(getPtyPanel()).toBe(getPtyPanel());
+    expect(getPtyPanel("A")).toBe(getPtyPanel("A"));
+    expect(getPtyPanel("never-opened")).toBe(getPtyPanel("never-opened"));
   });
 });
