@@ -9466,7 +9466,7 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 6px;
+  padding: 6px 6px 4px;
   background: var(--pty-bg);
   flex-shrink: 0;
 }
@@ -9500,7 +9500,7 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
 .pty-tab:not(.is-active):hover { color: var(--fg); background: rgba(var(--tint), 0.06); }
 .pty-tab.is-active {
   color: var(--fg);
-  background: rgba(var(--tint), 0.04);
+  background: rgba(var(--tint), 0.12);
   border-color: rgba(var(--tint), 0.24);
 }
 .pty-tab.is-exited .pty-tab__label { opacity: 0.55; text-decoration: line-through; }
