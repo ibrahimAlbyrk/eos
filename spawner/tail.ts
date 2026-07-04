@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { homedir } from "node:os";
 
 import chokidar from "chokidar";
-import { parseJsonlLine } from "./jsonl-parser.ts";
+import { parseJsonlLine, createSubagentParseState } from "./jsonl-parser.ts";
 import { LineFramer } from "./line-framer.ts";
 import { encodeCwd } from "./worktree.ts";
 
@@ -73,6 +73,9 @@ export function startJsonlTail(ctx: TailContext): TailHandle {
   // and the offset advances past the half-written line — without the carry
   // buffer that line would parse as broken JSON once and be lost forever.
   const framer = new LineFramer();
+  // Background-subagent correlation/dedupe spans lines — one state per tail
+  // (a /clear swaps to a fresh transcript AND a fresh tail, so this resets too).
+  const subagents = createSubagentParseState();
   const readNew = (): void => {
     if (!existsSync(jsonlPath)) return;
     const stat = statSync(jsonlPath);
@@ -86,7 +89,7 @@ export function startJsonlTail(ctx: TailContext): TailHandle {
         parseJsonlLine(line, (type, payload) => {
           ctx.onEvent(type, payload);
           if (type === "jsonl") {
-            const p = payload as { kind: string; name?: string; text?: string; isError?: boolean };
+            const p = payload as { kind: string; name?: string; text?: string; isError?: boolean; agentId?: string; status?: string };
             if (p.kind === "assistant_text") {
               console.log(`[${ctx.name}][jsonl] assistant ${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
             } else if (p.kind === "tool_use") {
@@ -95,12 +98,16 @@ export function startJsonlTail(ctx: TailContext): TailHandle {
               console.log(`[${ctx.name}][jsonl] thinking ${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
             } else if (p.kind === "tool_result") {
               console.log(`[${ctx.name}][jsonl] tool_result ${p.isError ? "ERR " : ""}${(p.text ?? "").slice(0, 80).replace(/\s+/g, " ")}`);
+            } else if (p.kind === "subagent_started") {
+              console.log(`[${ctx.name}][jsonl] subagent_started ${p.agentId}`);
+            } else if (p.kind === "subagent_completed") {
+              console.log(`[${ctx.name}][jsonl] subagent_completed ${p.agentId} ${p.status}`);
             }
             if (p.kind === "assistant_text" || p.kind === "tool_use" || p.kind === "thinking") {
               ctx.onActivity?.();
             }
           }
-        }, ctx.defaultModel);
+        }, ctx.defaultModel, subagents);
       }
     } finally {
       closeSync(fd);

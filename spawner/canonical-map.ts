@@ -78,6 +78,33 @@ function jsonlToCanonical(p: Rec): AgentEvent[] {
         role: "assistant",
         blocks: [{ type: "skill", callId: str(p.toolUseId) ?? "", text: str(p.text) ?? "" }],
       }];
+    case "subagent_started": {
+      const agentType = str(p.agentType);
+      const description = str(p.description);
+      const outputFile = str(p.outputFile);
+      return [{
+        type: "subagent_started",
+        callId: str(p.toolUseId) ?? "",
+        agentId: str(p.agentId) ?? "",
+        background: p.background === true,
+        ...(agentType !== undefined ? { agentType } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(outputFile !== undefined ? { outputFile } : {}),
+      }];
+    }
+    case "subagent_completed": {
+      const status = str(p.status);
+      const result = str(p.result);
+      const outputFile = str(p.outputFile);
+      return [{
+        type: "subagent_completed",
+        agentId: str(p.agentId) ?? "",
+        callId: str(p.toolUseId) ?? null,
+        status: status === "failed" || status === "stopped" ? status : "completed",
+        ...(result !== undefined ? { result } : {}),
+        ...(outputFile !== undefined ? { outputFile } : {}),
+      }];
+    }
     default:
       return [];
   }

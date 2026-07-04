@@ -24,8 +24,10 @@ export interface JsonlPayload {
   // conversation order. "skill_body" carries a Skill's injected SKILL.md body,
   // keyed by toolUseId — the only place that content exists for built-in/plugin
   // skills (those live inside the claude binary / plugin cache, not resolvable
-  // by name on disk).
-  kind: "assistant_text" | "tool_use" | "tool_result" | "thinking" | "user_text" | "skill_body";
+  // by name on disk). "subagent_started"/"subagent_completed" are the
+  // background-subagent lifecycle (launch stub / task-notification carrier);
+  // toolUseId doubles as the canonical callId for them.
+  kind: "assistant_text" | "tool_use" | "tool_result" | "thinking" | "user_text" | "skill_body" | "subagent_started" | "subagent_completed";
   text?: string;
   id?: string;
   name?: string;
@@ -33,6 +35,13 @@ export interface JsonlPayload {
   toolUseId?: string;
   isError?: boolean;
   patch?: PatchHunk[];
+  agentId?: string;
+  background?: boolean;
+  agentType?: string;
+  description?: string;
+  outputFile?: string;
+  status?: "completed" | "failed" | "stopped";
+  result?: string;
   // The transcript entry's own `timestamp` (epoch ms) = entry CREATION time.
   // The CLI batch-flushes lines at step boundaries, so daemon receipt time
   // lags creation by 150ms–2.5s — this field is the only ordering domain in
@@ -43,6 +52,28 @@ export interface JsonlPayload {
 export type EmitFn =
   | ((type: "usage", payload: UsagePayload) => void)
   | ((type: "jsonl", payload: JsonlPayload) => void);
+
+// --- background-subagent parse state -----------------------------------------
+// A background Task/Agent launch produces its signals on DIFFERENT transcript
+// lines: the immediate stub tool_result (toolUseResult.status "async_launched" /
+// "teammate_spawned"), then — much later — a <task-notification> XML carrier
+// riding a queue-operation enqueue line and a duplicate queued_command
+// attachment. Correlation (callId↔agentId) and carrier dedupe therefore need
+// state that outlives a single parseJsonlLine call; tail.ts owns one instance
+// per tailed transcript.
+
+export interface SubagentParseState {
+  /** Agent/Task tool_use input by tool_use id — enriches subagent_started. */
+  spawnInputs: Map<string, { description?: string; agentType?: string }>;
+  /** callId → agentId learned from launch stubs (carrier fallback). */
+  agentIdByCallId: Map<string, string>;
+  /** Dedupe keys (callId, else agentId) of already-emitted completions. */
+  completedKeys: Set<string>;
+}
+
+export function createSubagentParseState(): SubagentParseState {
+  return { spawnInputs: new Map(), agentIdByCallId: new Map(), completedKeys: new Set() };
+}
 
 /**
  * Parses a single JSONL transcript line and invokes `emit(type, payload)`
@@ -56,11 +87,16 @@ export type EmitFn =
  * @param emit          Callback receiving (eventType, payload) tuples.
  * @param defaultModel  Fallback model name when the assistant message itself
  *                      doesn't carry one (used for the `usage` event).
+ * @param subagents     Cross-line background-subagent state. The default (a
+ *                      fresh throwaway) keeps single-line callers working, but
+ *                      correlation and dedupe only hold when the caller passes
+ *                      one instance for the whole transcript.
  */
 export function parseJsonlLine(
   line: string,
   emit: (type: string, payload: unknown) => void,
   defaultModel = "opus",
+  subagents: SubagentParseState = createSubagentParseState(),
 ): void {
   let e: Record<string, unknown>;
   try { e = JSON.parse(line); } catch { return; }
@@ -109,6 +145,15 @@ export function parseJsonlLine(
           toolEvt.spawnsSubagent = true;
           if (msg.model) toolEvt.parentModel = msg.model;
         }
+        if (block.name === "Agent" || block.name === "Task") {
+          // Remember the spawn input — the launch stub arrives on a later line
+          // and its subagent_started wants description/agentType from here.
+          const input = (block.input ?? {}) as Record<string, unknown>;
+          subagents.spawnInputs.set(block.id, {
+            ...(typeof input.description === "string" ? { description: input.description } : {}),
+            ...(typeof input.subagent_type === "string" ? { agentType: input.subagent_type } : {}),
+          });
+        }
         emit("jsonl", toolEvt);
       } else if (block.type === "thinking") {
         const thinkText = block.thinking ?? block.text;
@@ -129,6 +174,10 @@ export function parseJsonlLine(
       return;
     }
     const userBlocks = Array.isArray(msg.content) ? msg.content as Array<Record<string, unknown>> : [];
+    // The top-level toolUseResult pairs with a line's single tool_result — the
+    // flag keeps a (hypothetical) multi-result line from emitting the launch
+    // stub once per block.
+    let subagentStubChecked = false;
     for (const block of userBlocks) {
       if (block.type === "text") {
         if (typeof block.text !== "string" || block.text.trim() === "") continue;
@@ -158,8 +207,26 @@ export function parseJsonlLine(
           text,
           ...(patch ? { patch } : {}),
         });
+        // A background launch's stub result additionally announces the subagent;
+        // foreground results (status "completed") never match.
+        if (!subagentStubChecked && e.toolUseResult && typeof e.toolUseResult === "object") {
+          subagentStubChecked = true;
+          const started = subagentStartedPayload(e.toolUseResult as Record<string, unknown>, block.tool_use_id, subagents);
+          if (started) {
+            subagents.agentIdByCallId.set(block.tool_use_id, started.agentId);
+            emit("jsonl", { ...started, ...stamp });
+          }
+        }
       }
     }
+    return;
+  }
+
+  // Background-subagent completion never arrives as a second tool_result — it
+  // rides a <task-notification> XML inside a queue-operation enqueue line (and
+  // a duplicate queued_command attachment, handled in the attachment branch).
+  if (e.type === "queue-operation") {
+    if (e.operation === "enqueue") emitTaskNotification(e.content, emit, subagents, stamp);
     return;
   }
 
@@ -173,6 +240,12 @@ export function parseJsonlLine(
   // fallback when the hook itself failed.
   if (e.type === "attachment") {
     const a = e.attachment as Record<string, unknown> | undefined;
+    if (a?.type === "queued_command") {
+      // Companion duplicate of the queue-operation carrier above — the dedupe
+      // in emitTaskNotification keeps the pair to one subagent_completed.
+      emitTaskNotification(a.prompt, emit, subagents, stamp);
+      return;
+    }
     if (a?.type === "hook_success") {
       const exitCode = typeof a.exitCode === "number" ? a.exitCode : 0;
       const isError = exitCode >= 400;
@@ -196,6 +269,112 @@ export function parseJsonlLine(
     const c = e.content as Array<{ text?: string }> | undefined;
     emit("jsonl", { kind: "tool_result", isError: !!e.isError, text: String(c?.[0]?.text ?? "") });
   }
+}
+
+// A background launch's immediate tool_result is a stub — the structured
+// toolUseResult is the detector (never a text match when the field exists):
+//   { isAsync:true, status:"async_launched", agentId, description?, outputFile? }
+// or the named-agent variant
+//   { status:"teammate_spawned", agent_id, agent_type, name, ... }
+// Returns the subagent_started payload, or null for everything else
+// (foreground results carry status:"completed" with content).
+function subagentStartedPayload(
+  tur: Record<string, unknown>,
+  callId: string,
+  subagents: SubagentParseState,
+): { kind: "subagent_started"; toolUseId: string; agentId: string; background: true } & Record<string, unknown> | null {
+  const spawn = subagents.spawnInputs.get(callId);
+  if (tur.status === "async_launched" || (tur.status === undefined && tur.isAsync === true)) {
+    if (typeof tur.agentId !== "string" || tur.agentId === "") return null;
+    return {
+      kind: "subagent_started",
+      toolUseId: callId,
+      agentId: tur.agentId,
+      background: true,
+      ...(typeof tur.description === "string" ? { description: tur.description }
+        : spawn?.description ? { description: spawn.description } : {}),
+      ...(spawn?.agentType ? { agentType: spawn.agentType } : {}),
+      ...(typeof tur.outputFile === "string" ? { outputFile: tur.outputFile } : {}),
+    };
+  }
+  if (tur.status === "teammate_spawned") {
+    if (typeof tur.agent_id !== "string" || tur.agent_id === "") return null;
+    return {
+      kind: "subagent_started",
+      toolUseId: callId,
+      agentId: tur.agent_id,
+      background: true,
+      ...(typeof tur.agent_type === "string" ? { agentType: tur.agent_type }
+        : spawn?.agentType ? { agentType: spawn.agentType } : {}),
+      ...(spawn?.description ? { description: spawn.description } : {}),
+    };
+  }
+  return null;
+}
+
+// Parse a <task-notification> carrier and emit subagent_completed exactly once
+// per callId (else agentId). Non-terminal notifications — Monitor events (no
+// <status>) and "running" progress pings — are skipped without consuming the
+// dedupe slot.
+function emitTaskNotification(
+  content: unknown,
+  emit: (type: string, payload: unknown) => void,
+  subagents: SubagentParseState,
+  stamp: Record<string, unknown>,
+): void {
+  if (typeof content !== "string") return;
+  const xml = content.trimStart();
+  if (!xml.startsWith("<task-notification>")) return;
+  // Scalar fields precede <result> in the carrier — scanning only the head
+  // keeps a result body that quotes XML from matching. <result> itself is
+  // greedy so a body containing "</result>" stays intact.
+  const resultMatch = /<result>([\s\S]*)<\/result>/.exec(xml);
+  const head = resultMatch ? xml.slice(0, resultMatch.index) : xml;
+  const field = (tag: string): string | undefined => {
+    const m = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`).exec(head);
+    return m ? m[1] : undefined;
+  };
+  const status = normalizeSubagentStatus(field("status"));
+  if (!status) return;
+  const callId = field("tool-use-id");
+  const outputFile = field("output-file");
+  const agentId = field("task-id")
+    ?? (callId ? subagents.agentIdByCallId.get(callId) : undefined)
+    ?? agentIdFromOutputFile(outputFile);
+  if (!agentId) {
+    console.log(`[jsonl-parser] task-notification without derivable agentId — skipped (callId=${callId ?? "?"})`);
+    return;
+  }
+  const key = callId ?? agentId;
+  if (subagents.completedKeys.has(key)) return;
+  subagents.completedKeys.add(key);
+  emit("jsonl", {
+    kind: "subagent_completed",
+    agentId,
+    status,
+    ...(callId ? { toolUseId: callId } : {}),
+    ...(resultMatch ? { result: resultMatch[1] } : {}),
+    ...(outputFile ? { outputFile } : {}),
+    ...stamp,
+  });
+}
+
+// Observed carrier statuses: completed / failed / stopped / killed / running.
+// "killed" is a terminal stop; "running" (and anything unknown) is not a
+// completion — never invent one.
+function normalizeSubagentStatus(s: string | undefined): "completed" | "failed" | "stopped" | undefined {
+  if (s === "completed" || s === "failed" || s === "stopped") return s;
+  if (s === "killed") return "stopped";
+  return undefined;
+}
+
+// Last-resort agentId: the output file is <...>/tasks/<agentId>.output.
+function agentIdFromOutputFile(outputFile: string | undefined): string | undefined {
+  if (!outputFile) return undefined;
+  const base = outputFile.split("/").pop();
+  if (!base) return undefined;
+  const dot = base.lastIndexOf(".");
+  return dot > 0 ? base.slice(0, dot) : base || undefined;
 }
 
 // Transcript timestamps are ISO strings; tolerate epoch numbers from older
