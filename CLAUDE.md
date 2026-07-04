@@ -41,6 +41,8 @@ bash app/build.sh                 # native macOS app → /Applications/Eos.app
 
 Single test: `cd manager && npx tsx --test --test-name-pattern="config" shared/__tests__/config.test.ts` · `cd app/ui && npx vitest run match`.
 
+Preview a prompt: `bash scripts/preview-prompt.sh <orchestrator|worker> [--provider <claude|preset>]` — renders the real assembled system prompt offline (no daemon).
+
 Deploy: `eos build` converges only what changed (content-hash stamps; `--dry-run` to preview). `eos restart` (+`--db` wipes state). `eos help` for the CLI.
 
 ## Key design decisions
