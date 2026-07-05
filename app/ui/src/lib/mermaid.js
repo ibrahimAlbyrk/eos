@@ -12,6 +12,63 @@ function loadMermaid() {
   return mermaidPromise;
 }
 
+// --- Source normalization -------------------------------------------------
+// Pure, single-responsibility layer that neutralizes agent-authored Mermaid
+// quirks BEFORE mermaid ever sees the source. Kept as an ordered list of small
+// src->src rules so a future breakage slots in as one more rule, never a
+// rewrite. Runs in exactly one place (renderMermaid + parseMermaid), so both
+// surfaces — the rendered message and the live preview — and the SVG cache all
+// see the same normalized text.
+
+// Encode only a BARE ';' as the entity '#59;' (mermaid renders it as a literal
+// ';'). Existing entities ('&amp;', '#59;', '#lt;' …) are matched whole and
+// returned untouched so we never double-encode a ';' that already terminates
+// one.
+function neutralizeSemicolons(text) {
+  return text.replace(/&#?\w+;|#\w+;|;/g, (m) => (m === ";" ? "#59;" : m));
+}
+
+const SEQ_HEADER = /^\s*sequenceDiagram\b/m;
+// An actor-arrow-actor message line, capturing everything up to and including
+// the first ':' (the structural prefix) separately from the descriptive text.
+// Arrow alternation is longest-first so e.g. '-->>' wins over '->'.
+const SEQ_MESSAGE =
+  /^(\s*[A-Za-z0-9_]+\s*(?:<<-->>|<<->>|-->>|->>|--x|-x|--\)|-\)|-->|->)[+-]?\s*[A-Za-z0-9_]+\s*:)(.*)$/;
+// A note line: 'Note (left of|right of|over) <actors>: text'.
+const SEQ_NOTE = /^(\s*[Nn]ote\s+(?:left of|right of|over)\s+[^:\n]+:)(.*)$/;
+
+// Rule 1 — a bare ';' in sequence descriptive text. Mermaid 11 treats ';' as a
+// global statement separator, so a ';' in a message body splits the statement
+// and the trailing prose fails to parse. We rewrite ONLY the ';' that follows
+// the ':' on a message/note line, and ONLY inside a sequenceDiagram — so
+// flowchart terminators (`graph TD; A-->B;`), state-diagram labels, class
+// members, etc. are provably untouched (non-sequence sources are returned
+// byte-identical).
+//
+// Known trade-off: the rare `A->>B: x ; C->>D: y` form, where the author meant
+// the ';' to separate TWO messages on one line, is instead rendered as a single
+// message with a literal ';'. Prose semicolons in agent output vastly outnumber
+// this inline-statement style, so the conservative win is worth it.
+function fixSequenceSemicolons(src) {
+  if (!SEQ_HEADER.test(src)) return src;
+  return src
+    .split("\n")
+    .map((line) => {
+      const msg = SEQ_MESSAGE.exec(line);
+      if (msg) return msg[1] + neutralizeSemicolons(msg[2]);
+      const note = SEQ_NOTE.exec(line);
+      if (note) return note[1] + neutralizeSemicolons(note[2]);
+      return line;
+    })
+    .join("\n");
+}
+
+const RULES = [fixSequenceSemicolons];
+
+export function sanitizeMermaidSource(src) {
+  return RULES.reduce((s, rule) => rule(s), src);
+}
+
 // khroma (Mermaid's color engine) needs concrete colors, not var(--x): resolve
 // the Eos design tokens to their computed hex/rgb off <html> at init time so the
 // diagram inherits whatever the active theme actually painted.
@@ -118,11 +175,14 @@ const MAX_CACHE = 200;
 const cache = new Map();
 
 export async function renderMermaid(id, src, theme) {
-  const key = theme + "\x00" + src;
+  // Normalize before the cache lookup so the key reflects what mermaid actually
+  // parses — two raw sources that normalize identically share one cache entry.
+  const normalized = sanitizeMermaidSource(src);
+  const key = theme + "\x00" + normalized;
   const hit = cache.get(key);
   if (hit !== undefined) return { svg: hit };
   const mermaid = await ensureInit(theme);
-  const { svg } = await mermaid.render(id, src, ensureMeasureHost());
+  const { svg } = await mermaid.render(id, normalized, ensureMeasureHost());
   if (svgCollapsed(svg)) throw new Error("Diagram rendered with zero size");
   if (cache.size >= MAX_CACHE) cache.delete(cache.keys().next().value);
   cache.set(key, svg);
@@ -133,5 +193,5 @@ export async function renderMermaid(id, src, theme) {
 // "does this parse yet" during streaming without a try/catch around render.
 export async function parseMermaid(src) {
   const mermaid = await loadMermaid();
-  return mermaid.parse(src, { suppressErrors: true });
+  return mermaid.parse(sanitizeMermaidSource(src), { suppressErrors: true });
 }
