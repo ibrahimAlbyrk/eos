@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api/client.js";
 import { useUi } from "../../state/ui.jsx";
-import { explorer, useExternalChange, useOpenPath, useReveal } from "../../state/explorerStore.js";
+import { explorer, useCanGoBack, useExternalChange, useOpenPath, useReveal } from "../../state/explorerStore.js";
 import { findAll, shortenHome } from "../../lib/fileUtils.jsx";
 import { fileKind } from "../../lib/fileKind.js";
 import { isMarkdownPath } from "../../lib/markdownPreview.js";
@@ -38,6 +38,7 @@ function EditorInner({ path }) {
   const ui = useUi();
   const externalChange = useExternalChange();
   const reveal = useReveal();
+  const canGoBack = useCanGoBack();
   const [content, setContent] = useState(null);
   const [editContent, setEditContent] = useState("");
   const [binaryMeta, setBinaryMeta] = useState(null);
@@ -139,6 +140,11 @@ function EditorInner({ path }) {
   return (
     <div className="fx-editor">
       <div className="fv-row2 fx-ed-head">
+        {canGoBack && (
+          <button className="fv-icon-btn fx-ed-back" onClick={() => explorer.goBack()} title="Back">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="m10 3-5 5 5 5" /></svg>
+          </button>
+        )}
         <span className="fv-path" title={path}>
           {shortenHome(path)}
           {dirty && <span className="fx-ed-dirty" title="Unsaved changes" />}
@@ -199,7 +205,7 @@ function EditorInner({ path }) {
             {content === null && !error && <div className="fv-loading">Loading…</div>}
             {content !== null && (
               showMarkdownPreview ? (
-                <MarkdownPreview content={content} />
+                <MarkdownPreview content={content} path={path} />
               ) : (
                 <EditView
                   editContent={editContent}

@@ -38,6 +38,9 @@ const state = {
   // seq is monotonic so the editor re-reveals even when the line is unchanged.
   reveal: null,
   openPath: null,
+  // In-memory markdown nav history (session-only, not persisted). The top of the
+  // stack always equals openPath; Back pops it. Tree/search/go-to-def reset it.
+  openStack: [],
   dirtyPaths: new Set(),
   draft: null, // { parentDir, type } — inline new-file/folder row
   renaming: null, // path being renamed inline
@@ -111,6 +114,7 @@ async function setRoot(root, { expanded = [], open = null } = {}) {
   state.refs = null;
   state.reveal = null;
   state.openPath = open || null;
+  state.openStack = open ? [open] : [];
   state.dirtyPaths = new Set();
   state.draft = null;
   state.renaming = null;
@@ -257,8 +261,30 @@ function setSearchMode(mode) {
 
 // ---- open file + dirty -----------------------------------------------------
 
-function openFilePath(path) { state.openPath = path; state.reveal = null; persistOpen(); emit(); }
-function closeFile() { state.openPath = null; persistOpen(); emit(); }
+function openFilePath(path) { state.openPath = path; state.openStack = [path]; state.reveal = null; persistOpen(); emit(); }
+function closeFile() { state.openPath = null; state.openStack = []; persistOpen(); emit(); }
+
+// Following a relative .md link inside the preview: push onto the session nav
+// stack. Re-clicking the current doc is a no-op.
+function pushFilePath(path) {
+  if (!path || path === state.openPath) return;
+  state.openStack = [...state.openStack, path];
+  state.openPath = path;
+  state.reveal = null;
+  persistOpen();
+  emit();
+}
+
+// Back: pop to the previously-open doc. No-op at the bottom of the stack.
+function goBack() {
+  if (state.openStack.length <= 1) return;
+  const next = state.openStack.slice(0, -1);
+  state.openStack = next;
+  state.openPath = next[next.length - 1];
+  state.reveal = null;
+  persistOpen();
+  emit();
+}
 function markDirty(path, dirty) {
   const ds = new Set(state.dirtyPaths);
   dirty ? ds.add(path) : ds.delete(path);
@@ -276,6 +302,7 @@ function openAt(path, line, column) {
   revealSeq += 1;
   state.reveal = { path, line: line || 1, column: column || 1, seq: revealSeq };
   state.openPath = path;
+  state.openStack = [path]; // go-to-def is a fresh nav — reset the md history
   persistOpen();
   emit();
 }
@@ -337,7 +364,14 @@ async function renameEntry(pathAbs, newName) {
   const res = await api.renameEntry(state.root, pathAbs, newName);
   if (res.ok) {
     await loadDir(parentDir(pathAbs), { quiet: true });
-    if (state.openPath === pathAbs) openFilePath(joinPath(parentDir(pathAbs), newName));
+    const newPath = joinPath(parentDir(pathAbs), newName);
+    let changed = false;
+    if (state.openStack.includes(pathAbs)) {
+      state.openStack = state.openStack.map((p) => (p === pathAbs ? newPath : p));
+      changed = true;
+    }
+    if (state.openPath === pathAbs) { state.openPath = newPath; state.reveal = null; persistOpen(); changed = true; }
+    if (changed) emit();
   }
   return res;
 }
@@ -345,7 +379,12 @@ async function renameEntry(pathAbs, newName) {
 async function trashEntries(pathsAbs) {
   const res = await api.trashEntries(state.root, pathsAbs);
   for (const d of new Set(pathsAbs.map(parentDir))) await loadDir(d, { quiet: true });
-  if (state.openPath && pathsAbs.includes(state.openPath)) closeFile();
+  if (state.openPath && pathsAbs.includes(state.openPath)) {
+    closeFile();
+  } else {
+    const filtered = state.openStack.filter((p) => !pathsAbs.includes(p));
+    if (filtered.length !== state.openStack.length) { state.openStack = filtered; emit(); }
+  }
   clearSelection();
   return res;
 }
@@ -367,7 +406,7 @@ export const explorer = {
   reconcileFsChange, resubscribeWatches, pauseWatches, resumeWatches,
   selectOnly, toggleSelect, setSelection, clearSelection,
   setSearchQuery, setSearchMode,
-  openFilePath, closeFile, markDirty, consumeExternalChange,
+  openFilePath, closeFile, pushFilePath, goBack, markDirty, consumeExternalChange,
   openAt, findReferences, goToDefinition, closeRefs,
   startDraft, cancelDraft, startRename, cancelRename,
   createEntry, renameEntry, trashEntries, moveEntries,
@@ -384,6 +423,7 @@ export function _resetForTest() {
   state.refs = null;
   state.reveal = null;
   state.openPath = null;
+  state.openStack = [];
   emit();
 }
 
@@ -398,6 +438,7 @@ export const useSearchMode = () => useSyncExternalStore(subscribe, () => state.s
 export const useRefsPanel = () => useSyncExternalStore(subscribe, () => state.refs);
 export const useReveal = () => useSyncExternalStore(subscribe, () => state.reveal);
 export const useOpenPath = () => useSyncExternalStore(subscribe, () => state.openPath);
+export const useCanGoBack = () => useSyncExternalStore(subscribe, () => state.openStack.length > 1);
 export const useDirtyPaths = () => useSyncExternalStore(subscribe, () => state.dirtyPaths);
 export const useDraft = () => useSyncExternalStore(subscribe, () => state.draft);
 export const useRenaming = () => useSyncExternalStore(subscribe, () => state.renaming);
