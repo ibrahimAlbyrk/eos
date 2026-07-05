@@ -960,6 +960,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    in an absolute %-rect slot so a reflow only animates rects — the viewer subtree
    (e.g. a live xterm) is never re-parented, so PTY scrollback survives. */
 .panel-dock-grid { position: absolute; inset: 0; }
+/* Split-pane mode: dock-grid sits inside a .pane-slot (already offset 3px by the
+   pane-grid margin). Adding --dock-tile-inset here makes outer-edge total match
+   panes: 3px (margin) + 1.5px (grid) + 1.5px (viewer) = 6px. */
+.pane-grid .panel-dock-grid { inset: var(--dock-tile-inset); }
 /* Eased reflow of each tile's rect (mirrors .pane-slot); off during a divider drag
    so the resize tracks the pointer 1:1. The viewer island inside keeps its own
    inset frame (.file-viewer et al), so gaps read like the panes. */
