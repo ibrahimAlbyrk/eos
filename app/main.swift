@@ -852,9 +852,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
 
     func webView(_: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
-        if let url = action.request.url, action.navigationType == .linkActivated,
-           url.host != "127.0.0.1" {
-            NSWorkspace.shared.open(url)
+        // A user-clicked link must NEVER navigate the SPA's own frame: a full-frame
+        // load of the app's own eos:// scheme would replace the running UI with a
+        // dead scheme-handler page recoverable only by relaunch. External links
+        // (http/https/mailto) open in the OS browser; the app's own eos:// links are
+        // handled in-app (the markdown preview intercepts them in JS) so any that
+        // reach here are simply cancelled. Non-link navigations — the initial SPA
+        // load and any programmatic/JS navigation — are still allowed.
+        if action.navigationType == .linkActivated {
+            if let url = action.request.url, url.scheme != "eos", url.host != "127.0.0.1" {
+                NSWorkspace.shared.open(url)
+            }
             decisionHandler(.cancel); return
         }
         decisionHandler(.allow)
