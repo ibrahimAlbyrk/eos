@@ -209,7 +209,10 @@ export function createSdkEventMapper(): SdkEventMapper {
   // bgAgents: agentId (≡ task_id) → spawn info. pendingSummary marks a completion
   // already reported from the system notification (summary-only) so the injected
   // user-turn carrier upgrades it with the full <result> instead of re-reporting.
-  interface BgEntry { callId: string | null; outputFile?: string; usage?: SubagentUsage; pendingSummary?: boolean }
+  // announced marks subagent_started as emitted — the entry may pre-exist it
+  // (system task_started beats the stub on the live stream), so entry existence
+  // alone must not suppress the announcement.
+  interface BgEntry { callId: string | null; outputFile?: string; usage?: SubagentUsage; pendingSummary?: boolean; announced?: boolean }
   const agentCallIds = new Set<string>();
   const bgAgents = new Map<string, BgEntry>();
 
@@ -268,8 +271,10 @@ export function createSdkEventMapper(): SdkEventMapper {
               });
             }
           }
-          // task_started only backfills the task_id→callId map (a stub the mapper
-          // missed); it never emits events — subagent_started comes from the stub.
+          // task_started only backfills the task_id→callId map — live it routinely
+          // arrives BEFORE the stub. It never emits events (it also fires for
+          // foreground subagents); subagent_started comes from the async_launched
+          // stub, which is background-only.
           else if (msg.subtype === "task_started" && msg.task_id && msg.tool_use_id) {
             resolveBgEntry(msg.task_id, msg.tool_use_id);
           }
@@ -423,16 +428,22 @@ export function createSdkEventMapper(): SdkEventMapper {
               // neither and emit nothing.
               const stub = parseAsyncStubSidecar(msg.tool_use_result)
                 ?? (agentCallIds.has(r.tool_use_id ?? "") ? parseAsyncStubText(blockText(r.content)) : null);
-              if (stub && r.tool_use_id && !bgAgents.has(stub.agentId)) {
-                bgAgents.set(stub.agentId, { callId: r.tool_use_id, ...(stub.outputFile ? { outputFile: stub.outputFile } : {}) });
-                out.push({
-                  type: "subagent_started",
-                  callId: r.tool_use_id,
-                  agentId: stub.agentId,
-                  background: true,
-                  ...(stub.description ? { description: stub.description } : {}),
-                  ...(stub.outputFile ? { outputFile: stub.outputFile } : {}),
-                });
+              if (stub && r.tool_use_id) {
+                const entry = bgAgents.get(stub.agentId) ?? { callId: r.tool_use_id };
+                if (!entry.announced) {
+                  entry.callId = r.tool_use_id;
+                  if (stub.outputFile) entry.outputFile = stub.outputFile;
+                  entry.announced = true;
+                  bgAgents.set(stub.agentId, entry);
+                  out.push({
+                    type: "subagent_started",
+                    callId: r.tool_use_id,
+                    agentId: stub.agentId,
+                    background: true,
+                    ...(stub.description ? { description: stub.description } : {}),
+                    ...(stub.outputFile ? { outputFile: stub.outputFile } : {}),
+                  });
+                }
               }
             }
           }
