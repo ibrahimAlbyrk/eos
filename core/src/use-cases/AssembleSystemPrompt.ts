@@ -48,6 +48,7 @@ export interface SessionSpawnContext {
   // by {{#if EFFORT_SUPPORTED}} in a fragment body.
   personaName?: string;
   modelTierTable?: string;
+  defaultTier?: string;
   effortSection?: string;
   defaultEffort?: string;
   effortSupported?: boolean;
@@ -125,6 +126,7 @@ function sessionVars(ctx: SessionSpawnContext): VariableScope {
     WORKFLOW_CAPABILITY_CATALOG: ctx.workflowCapabilityCatalog ?? "",
     PERSONA_NAME: ctx.personaName ?? "",
     MODEL_TIER_TABLE: ctx.modelTierTable ?? "",
+    DEFAULT_TIER: ctx.defaultTier ?? "",
     EFFORT_SECTION: ctx.effortSection ?? "",
     DEFAULT_EFFORT: ctx.defaultEffort ?? "",
     EFFORT_SUPPORTED: ctx.effortSupported ?? false,

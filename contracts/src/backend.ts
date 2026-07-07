@@ -38,6 +38,19 @@ export const BackendProfileSchema = z
     // contextWindow). Omitted ⇒ defaulted per kind. Read by the in-process model
     // clients (capability-not-kind discipline); only contextWindow is consumed in M1.
     capabilities: ProviderCapabilitiesSchema.optional(),
+    // Operator-defined power-tier vocabulary: an ORDERED list (strongest-first) of
+    // {name, model} the spawn tier gate resolves against. Omitted ⇒ the code preset
+    // (by origin) / CLAUDE_IDENTITY seed — zero config reproduces today's
+    // high/medium/low. `.min(1)` rejects a zero-tier profile at load. NOT the effort
+    // axis (that's the separate EFFORT_LEVELS enum).
+    tiers: z
+      .array(z.object({ name: z.string().min(1), model: z.string().min(1), hint: z.string().optional() }))
+      .min(1)
+      .optional(),
+    // Which tier is the default when a spawn requests none. Omitted ⇒ tiers[0] (the
+    // strongest). Lets a config pick a non-first default (e.g. keep opus default while
+    // exposing a stronger max tier). Validated at spawn against the resolved vocabulary.
+    defaultTier: z.string().min(1).optional(),
   })
   .strict();
 export type BackendProfile = z.infer<typeof BackendProfileSchema>;

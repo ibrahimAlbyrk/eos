@@ -27,6 +27,43 @@ describe("BackendProfileSchema", () => {
   it("rejects unknown top-level keys (strict)", () => {
     assert.throws(() => BackendProfileSchema.parse({ kind: "codex", model: "x", secret: "nope" }));
   });
+
+  it("accepts an operator-defined tier vocabulary (ordered, with optional hints)", () => {
+    const p = BackendProfileSchema.parse({
+      kind: "openai",
+      model: "gpt-5.5",
+      tiers: [
+        { name: "max", model: "gpt-5.5-pro", hint: "hardest work" },
+        { name: "high", model: "gpt-5.5" },
+        { name: "low", model: "gpt-5.4-nano" },
+      ],
+    });
+    assert.equal(p.tiers?.length, 3);
+    assert.equal(p.tiers?.[0].name, "max");
+    assert.equal(p.tiers?.[0].hint, "hardest work");
+  });
+
+  it("rejects a zero-tier vocabulary at load (.min(1))", () => {
+    assert.throws(() => BackendProfileSchema.parse({ kind: "openai", model: "gpt-5.5", tiers: [] }));
+  });
+
+  it("rejects a tier missing name or model", () => {
+    assert.throws(() => BackendProfileSchema.parse({ kind: "openai", model: "x", tiers: [{ name: "high" }] }));
+    assert.throws(() => BackendProfileSchema.parse({ kind: "openai", model: "x", tiers: [{ model: "gpt" }] }));
+  });
+
+  it("accepts an optional defaultTier alongside the tiers array", () => {
+    const p = BackendProfileSchema.parse({
+      kind: "openai",
+      model: "gpt-5.5",
+      tiers: [{ name: "max", model: "gpt-5.5-pro" }, { name: "high", model: "gpt-5.5" }],
+      defaultTier: "high",
+    });
+    assert.equal(p.defaultTier, "high");
+    // Omitted defaultTier stays undefined (⇒ tiers[0]) — zero-config unchanged.
+    const q = BackendProfileSchema.parse({ kind: "claude-cli", model: "opus" });
+    assert.equal(q.defaultTier, undefined);
+  });
 });
 
 describe("AuthRefSchema", () => {
