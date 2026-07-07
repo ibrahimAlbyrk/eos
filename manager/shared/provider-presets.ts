@@ -14,7 +14,7 @@
 import type { BackendKind } from "../../contracts/src/canonical.ts";
 import { ProviderCapabilitiesSchema, type ProviderCapabilities } from "../../contracts/src/provider-capabilities.ts";
 import { normalizeBaseOrigin } from "../../infra/src/backends/base-url.ts";
-import type { TierMap } from "../../core/src/domain/model-tier.ts";
+import type { TierSpec } from "../../core/src/domain/model-tier.ts";
 
 export interface ProviderPreset {
   id: string;          // slug + config.backends key suggestion (e.g. "gemini")
@@ -27,10 +27,10 @@ export interface ProviderPreset {
   fallbackModels: string[]; // flagship + key tiers, picker fallback when live list fails
   // How this provider's model refers to itself in its own prompt (drives PERSONA_NAME).
   persona: string;
-  // The concrete model id each provider-agnostic tier resolves to (strongest = high,
-  // weakest = low). Fewer real tiers ⇒ ids repeat to collapse. Derived from the
-  // fallbackModels ordering; ids are drawn from that list.
-  tiers: TierMap;
+  // The provider's ordered tier vocabulary, strongest-first (tiers[0] = default).
+  // Fewer real tiers ⇒ ids repeat to collapse. Derived from the fallbackModels
+  // ordering; ids are drawn from that list.
+  tiers: TierSpec[];
 }
 
 // All seven speak OpenAI Chat Completions; defaults fill the rest of the schema.
@@ -54,7 +54,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     }),
     fallbackModels: ["gpt-5.5", "gpt-5.5-pro", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.3-codex"],
     persona: "GPT",
-    tiers: { high: "gpt-5.5", medium: "gpt-5.4", low: "gpt-5.4-nano" },
+    tiers: [
+      { name: "high", model: "gpt-5.5" },
+      { name: "medium", model: "gpt-5.4" },
+      { name: "low", model: "gpt-5.4-nano" },
+    ],
   },
   {
     id: "gemini",
@@ -74,7 +78,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     }),
     fallbackModels: ["gemini-3.1-pro-preview", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-pro", "gemini-2.5-flash"],
     persona: "Gemini",
-    tiers: { high: "gemini-3.1-pro-preview", medium: "gemini-3.5-flash", low: "gemini-3.1-flash-lite" },
+    tiers: [
+      { name: "high", model: "gemini-3.1-pro-preview" },
+      { name: "medium", model: "gemini-3.5-flash" },
+      { name: "low", model: "gemini-3.1-flash-lite" },
+    ],
   },
   {
     id: "xai",
@@ -89,7 +97,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     }),
     fallbackModels: ["grok-4.3", "grok-4.20-0309-reasoning", "grok-4.20-0309-non-reasoning", "grok-build-0.1"],
     persona: "Grok",
-    tiers: { high: "grok-4.3", medium: "grok-4.20-0309-reasoning", low: "grok-4.20-0309-non-reasoning" },
+    tiers: [
+      { name: "high", model: "grok-4.3" },
+      { name: "medium", model: "grok-4.20-0309-reasoning" },
+      { name: "low", model: "grok-4.20-0309-non-reasoning" },
+    ],
   },
   {
     id: "qwen",
@@ -106,7 +118,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     }),
     fallbackModels: ["qwen3.7-max", "qwen3.7-plus", "qwen3-coder-plus", "qwen3.6-flash"],
     persona: "Qwen",
-    tiers: { high: "qwen3.7-max", medium: "qwen3.7-plus", low: "qwen3.6-flash" },
+    tiers: [
+      { name: "high", model: "qwen3.7-max" },
+      { name: "medium", model: "qwen3.7-plus" },
+      { name: "low", model: "qwen3.6-flash" },
+    ],
   },
   {
     id: "moonshot",
@@ -121,7 +137,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     }),
     fallbackModels: ["kimi-k2.6", "kimi-k2.7-code", "kimi-k2.5"],
     persona: "Kimi",
-    tiers: { high: "kimi-k2.6", medium: "kimi-k2.6", low: "kimi-k2.5" },
+    tiers: [
+      { name: "high", model: "kimi-k2.6" },
+      { name: "medium", model: "kimi-k2.6" },
+      { name: "low", model: "kimi-k2.5" },
+    ],
   },
   {
     id: "zhipu",
@@ -139,7 +159,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     }),
     fallbackModels: ["glm-5.2", "glm-4.7", "glm-4.7-flash"],
     persona: "GLM",
-    tiers: { high: "glm-5.2", medium: "glm-4.7", low: "glm-4.7-flash" },
+    tiers: [
+      { name: "high", model: "glm-5.2" },
+      { name: "medium", model: "glm-4.7" },
+      { name: "low", model: "glm-4.7-flash" },
+    ],
   },
   {
     id: "deepseek",
@@ -160,7 +184,11 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
     }),
     fallbackModels: ["deepseek-v4-flash", "deepseek-v4-pro"],
     persona: "DeepSeek",
-    tiers: { high: "deepseek-v4-pro", medium: "deepseek-v4-pro", low: "deepseek-v4-flash" },
+    tiers: [
+      { name: "high", model: "deepseek-v4-pro" },
+      { name: "medium", model: "deepseek-v4-pro" },
+      { name: "low", model: "deepseek-v4-flash" },
+    ],
   },
 ];
 

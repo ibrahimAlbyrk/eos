@@ -14,6 +14,11 @@ describe("provider presets", () => {
       assert.ok(p.fallbackModels.length > 0, `${p.id} has a fallback list`);
       assert.ok(p.fallbackModels.includes(p.defaultModel), `${p.id} default model is in its fallback list`);
       assert.ok(p.authRef.startsWith("eos-"), `${p.id} authRef`);
+      // Tiers are an ordered array (strongest-first), each a {name, model}. Every
+      // built-in keeps the baseline triple so legacy high/medium/low requests resolve.
+      assert.ok(Array.isArray(p.tiers) && p.tiers.length >= 1, `${p.id} tiers is a non-empty array`);
+      assert.deepEqual(p.tiers.map((t) => t.name), ["high", "medium", "low"], `${p.id} baseline tier names`);
+      for (const t of p.tiers) assert.ok(t.name && t.model, `${p.id} tier has name + model`);
     }
   });
 
