@@ -13,7 +13,7 @@ import { errMsg } from "../../../contracts/src/util.ts";
 import { expandPath } from "../../shared/path.ts";
 import { appendSynthesized } from "../../shared/synthesized-events.ts";
 import { resolveSpawnBackend, spawnBackendError, modelMatchesFamily } from "../../shared/spawn-backend.ts";
-import { resolveTier, CLAUDE_IDENTITY } from "../../../core/src/domain/model-tier.ts";
+import { resolveTier, tierNames, CLAUDE_IDENTITY } from "../../../core/src/domain/model-tier.ts";
 
 export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, SpawnWorkerResponse> = {
   def: spawnWorkerCommand,
@@ -145,8 +145,11 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
     const resolvedRequestModel = requestModel !== undefined ? resolveTier(requestModel, identity) : undefined;
     // Belt-and-suspenders: after backend resolution, if the backend takes a request
     // model and the final model doesn't match the backend's model family, fail loud
-    // — never send a known-bad model upstream. PREFER REPAIR: if a bare model
-    // unambiguously belongs to exactly one other configured backend, route there.
+    // — never send a known-bad model upstream. This is also the unsupported-TIER gate
+    // (Risk 1): an undefined tier passes through resolveTier as a bogus id, lands here
+    // as a non-family string, and is rejected with the valid tiers named rather than
+    // 400-ing at the API. PREFER REPAIR: if a bare model unambiguously belongs to
+    // exactly one other configured backend, route there.
     const finalModel = resolvedRequestModel;
     if (backend.descriptor.modelSource === "request" && finalModel && !modelMatchesFamily(finalModel, backend.descriptor.models.kind)) {
       const matching = c.backends.descriptors().filter((d) =>
@@ -161,7 +164,7 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       }
       if (!modelMatchesFamily(finalModel, backend.descriptor.models.kind)) {
         throw new ValidationError(
-          `model "${finalModel}" doesn't belong to provider "${backend.descriptor.models.kind ?? backend.descriptor.kind}" — pass it as "<provider>/<model>"`,
+          `model "${finalModel}" isn't a tier or a model of provider "${backend.descriptor.models.kind ?? backend.descriptor.kind}" — use one of its tiers (${tierNames(identity).join(", ")}) or a "<provider>/<model>" id`,
         );
       }
     }

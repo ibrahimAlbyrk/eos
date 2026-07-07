@@ -16,7 +16,7 @@ export const spawnWorkerDef: ToolDefinition = {
       "Friendly slug for the worker (kebab-case). Should describe the outcome, not the action. Good: 'refactor-auth-tokens', 'add-billing-tests'. Bad: 'worker-1', 'fix-stuff', 'task'.",
     ),
     model: z.string().optional().describe(
-      "Model power tier: 'high' | 'medium' | 'low', mapped to the active provider's models. Also accepts a concrete model id or 'provider/model' sugar (e.g. 'deepseek/deepseek-v4-pro' — sugar for backendProfile=<provider> + model=<rest>, the prefix split off before the API). A bare cross-provider model MUST use the combined form, or it will be rejected. Omit ⇒ the provider's default tier.",
+      "Model power tier — one of the tiers the active provider defines (listed strongest-first in your §Model table), mapped to that provider's own models. Also accepts a concrete model id or 'provider/model' sugar (e.g. 'deepseek/deepseek-v4-pro' — sugar for backendProfile=<provider> + model=<rest>, the prefix split off before the API). A tier the provider does not define is rejected. A bare cross-provider model MUST use the combined form, or it will be rejected. Omit ⇒ the provider's default tier.",
     ),
     effort: z.enum(EFFORT_LEVELS).optional().describe(
       "Reasoning effort. Honored only when the active provider exposes an effort lever; ignored otherwise. Which level fits which work → §Model. Omit ⇒ default.",

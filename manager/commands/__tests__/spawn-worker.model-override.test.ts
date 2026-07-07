@@ -250,3 +250,34 @@ describe("spawnWorkerHandler — belt-and-suspenders cross-provider rejection (P
     assert.ok(err.message.includes("claude"));
   });
 });
+
+// Unsupported-tier reject (Risk 1): an undefined tier ("ultra" on Claude, whose
+// vocabulary is high/medium/low) passes resolveTier through untouched, then the same
+// spawn-time gate rejects it — naming the valid tiers — instead of sending the bogus
+// id to the API.
+describe("spawnWorkerHandler — unsupported-tier rejection (PART F)", () => {
+  const runReject = async (def: Partial<WorkerDefinitionRecord>, body: Record<string, unknown>): Promise<ValidationError> => {
+    const record = { name: "w", description: "", whenToUse: "", body: "", source: "project", ...def } as WorkerDefinitionRecord;
+    const sink: StartSink = {};
+    const c = fakeContainer(record, sink) as Record<string, unknown>;
+    try {
+      await spawnWorkerHandler.run({}, { prompt: "go", cwd: "/repo", from: "w", ...body } as never, { c, requestId: "t" } as never);
+      throw new Error("expected ValidationError but handler completed");
+    } catch (e) {
+      if (e instanceof ValidationError) return e;
+      if (e instanceof Error && e.message === SENTINEL) throw new Error("expected rejection but the undefined tier reached the backend", { cause: e });
+      throw e;
+    }
+  };
+
+  it("rejects an undefined tier 'ultra' on the Claude backend, naming the valid tiers", async () => {
+    const err = await runReject({}, { model: "ultra" });
+    assert.ok(err.message.includes("ultra"));
+    assert.ok(err.message.includes("high, medium, low"));
+  });
+
+  it("allows a defined tier 'medium' through to the backend (resolves to sonnet)", async () => {
+    const sink = await run({}, { model: "medium" });
+    assert.equal(sink.model, "sonnet");
+  });
+});

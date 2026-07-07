@@ -13,7 +13,7 @@
         },
         "model": {
           "type": "string",
-          "description": "Model power tier: 'high' | 'medium' | 'low', mapped to the active provider's models. Also accepts a concrete model id or 'provider/model' sugar (e.g. 'deepseek/deepseek-v4-pro' — sugar for backendProfile=<provider> + model=<rest>, the prefix split off before the API). A bare cross-provider model MUST use the combined form, or it will be rejected. Omit ⇒ the provider's default tier."
+          "description": "Model power tier — one of the tiers the active provider defines (listed strongest-first in your §Model table), mapped to that provider's own models. Also accepts a concrete model id or 'provider/model' sugar (e.g. 'deepseek/deepseek-v4-pro' — sugar for backendProfile=<provider> + model=<rest>, the prefix split off before the API). A tier the provider does not define is rejected. A bare cross-provider model MUST use the combined form, or it will be rejected. Omit ⇒ the provider's default tier."
         },
         "effort": {
           "type": "string",
@@ -54,7 +54,7 @@
         },
         "editRegex": {
           "type": "string",
-          "description": "Confine THIS one-off worker's file edits to paths matching this regex (e.g. 'src/.*\\\\.ts$'). Enforced at the gate. Wins over a `from` definition's editRegex."
+          "description": "Confine THIS one-off worker's file edits to paths matching this regex (e.g. '(^|/)src/.*\\\\.ts$'). Claude Code passes ABSOLUTE file paths, so anchor with `(^|/)path`, not `^path` (a `^`-anchored relative pattern never matches). Enforced at the gate. Wins over a `from` definition's editRegex."
         },
         "loop": {
           "type": "object",
@@ -294,7 +294,7 @@
         },
         "model": {
           "type": "string",
-          "description": "Default model power tier: 'high' | 'medium' | 'low', mapped to the active provider's models. Also accepts a concrete model id or 'provider/model' sugar. Omit ⇒ inherit."
+          "description": "Default model power tier — one of the tiers the active provider defines (listed in your §Model table), mapped to that provider's own models. Also accepts a concrete model id or 'provider/model' sugar. Omit ⇒ inherit."
         },
         "effort": {
           "type": "string",
@@ -339,7 +339,7 @@
         },
         "editRegex": {
           "type": "string",
-          "description": "Restrict file edits to paths matching this regex (e.g. 'src/.*\\\\.ts$')."
+          "description": "Restrict file edits to paths matching this regex (e.g. '(^|/)src/.*\\\\.ts$'). Claude Code passes ABSOLUTE file paths, so anchor with `(^|/)path`, not `^path` (a `^`-anchored relative pattern never matches)."
         },
         "extends": {
           "type": "string",

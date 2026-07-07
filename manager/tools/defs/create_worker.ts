@@ -9,7 +9,7 @@ export const createWorkerDef: ToolDefinition = {
     name: z.string().describe("Identity, kebab-case (e.g. 'perf-profiler')."),
     description: z.string().optional().describe("Human-facing label for this worker."),
     whenToUse: z.string().optional().describe("Routing signal: when should a task be dispatched to this worker."),
-    model: z.string().optional().describe("Default model power tier: 'high' | 'medium' | 'low', mapped to the active provider's models. Also accepts a concrete model id or 'provider/model' sugar. Omit ⇒ inherit."),
+    model: z.string().optional().describe("Default model power tier — one of the tiers the active provider defines (listed in your §Model table), mapped to that provider's own models. Also accepts a concrete model id or 'provider/model' sugar. Omit ⇒ inherit."),
     effort: z.enum(EFFORT_LEVELS).optional().describe("Default reasoning effort. Honored only when the active provider exposes an effort lever; ignored otherwise. Omit ⇒ inherit."),
     permissionMode: z.enum(["acceptEdits", "bypassPermissions"]).optional().describe("Default permission mode."),
     persistent: z.boolean().optional().describe("Stay alive after a turn (conversational session)."),

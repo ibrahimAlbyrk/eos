@@ -7,7 +7,7 @@ import { PromptRegistry } from "../../../core/src/services/PromptRegistry.ts";
 import { PromptService } from "../../../core/src/services/PromptService.ts";
 import { assembleSystemPrompt } from "../../../core/src/use-cases/AssembleSystemPrompt.ts";
 import { TOOL_NAME_VARS } from "../../prompt-tool-names.ts";
-import { CLAUDE_IDENTITY } from "../../../core/src/domain/model-tier.ts";
+import { CLAUDE_IDENTITY, defaultTierName } from "../../../core/src/domain/model-tier.ts";
 import { renderModelTierTable, renderEffortSection, defaultEffortFor } from "../../shared/tier-prompt-render.ts";
 import type { Logger } from "../../../core/src/ports/Logger.ts";
 import type { SessionSpawnContext } from "../../../core/src/use-cases/AssembleSystemPrompt.ts";
@@ -29,6 +29,7 @@ function deps() {
 const claudeIdentityVars = {
   personaName: CLAUDE_IDENTITY.persona,
   modelTierTable: renderModelTierTable(CLAUDE_IDENTITY),
+  defaultTier: defaultTierName(CLAUDE_IDENTITY),
   effortSection: renderEffortSection(CLAUDE_IDENTITY),
   defaultEffort: defaultEffortFor(CLAUDE_IDENTITY),
   effortSupported: CLAUDE_IDENTITY.effortSupported,
@@ -62,12 +63,14 @@ describe("Claude-lane tier/persona vocabulary renders byte-equivalent", () => {
     assert.doesNotMatch(r.text, /\{\{/);              // no unresolved variables leak
   });
 
-  it("orchestrator §Model renders the tier table high→opus / medium→sonnet / low→haiku on the Claude lane", async () => {
+  it("orchestrator §Model renders Claude's 4-tier table with high marked default (not the stronger max)", async () => {
     const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "orchestrator", parentId: null });
-    assert.match(r.text, /\| high \| opus \|/);
+    assert.match(r.text, /\| max \| fable \|/); // strongest tier, not the default
+    assert.match(r.text, /\| high \(default\) \| opus \|/); // default stays high=opus, decoupled from tiers[0]
     assert.match(r.text, /\| medium \| sonnet \|/);
     assert.match(r.text, /\| low \| haiku \|/);
-    // The effort table (Claude supports the lever) and tier-vocabulary default.
+    // The effort table (Claude supports the lever) and the tier-vocabulary default —
+    // {{DEFAULT_TIER}} resolves to "high" (opus), NOT the strongest "max".
     assert.match(r.text, /xhigh \(default\)/);
     assert.match(r.text, /the \*\*high\*\* tier at \*\*xhigh\*\* effort/);
     // No unresolved {{UPPER_SNAKE}} var (the §Workflows fragment keeps literal

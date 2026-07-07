@@ -147,7 +147,7 @@ import { SqlBackedBackendResolver } from "../core/src/services/SqlBackedBackendR
 import { PromptRegistry } from "../core/src/services/PromptRegistry.ts";
 import { PromptService } from "../core/src/services/PromptService.ts";
 import { assembleSystemPrompt } from "../core/src/use-cases/AssembleSystemPrompt.ts";
-import { resolveTier, CLAUDE_IDENTITY, type ProviderIdentity } from "../core/src/domain/model-tier.ts";
+import { resolveTier, defaultTierName, CLAUDE_IDENTITY, type ProviderIdentity } from "../core/src/domain/model-tier.ts";
 import { resolveProviderIdentity } from "./shared/provider-identity.ts";
 import { renderModelTierTable, renderEffortSection, defaultEffortFor } from "./shared/tier-prompt-render.ts";
 import { TOOL_NAME_VARS } from "./prompt-tool-names.ts";
@@ -752,7 +752,7 @@ export function buildContainer() {
         parentId: spec.parentId ?? null,
         name: spec.name ?? id,
         workerId: id,
-        model: resolveTier(spec.model ?? "high", identity),
+        model: resolveTier(spec.model ?? defaultTierName(identity), identity),
         effort: spec.effort ?? null,
         permissionMode: spec.claudePermissionMode ?? "acceptEdits",
         cwd: spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null,
@@ -768,6 +768,7 @@ export function buildContainer() {
         workflowCapabilityCatalog,
         personaName: identity.persona,
         modelTierTable: renderModelTierTable(identity),
+        defaultTier: defaultTierName(identity),
         effortSection: renderEffortSection(identity),
         defaultEffort: defaultEffortFor(identity),
         effortSupported: identity.effortSupported,
@@ -782,7 +783,7 @@ export function buildContainer() {
     if (spec.providerIdentity) return spec.providerIdentity;
     const profile = spec.backendProfile ? config.backends[spec.backendProfile] : undefined;
     const descriptor = profile && backends.has(profile.kind) ? backends.get(profile.kind).descriptor : null;
-    return descriptor ? resolveProviderIdentity(descriptor, profile) : CLAUDE_IDENTITY;
+    return descriptor ? resolveProviderIdentity(descriptor, profile, log) : CLAUDE_IDENTITY;
   };
   // DPI text + the memory this backend kind does NOT load itself
   // (selectInjectableMemory drops sources whose assumeNativeFor includes the kind).

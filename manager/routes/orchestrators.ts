@@ -15,7 +15,7 @@ import { resumeIfDead } from "./resume-helpers.ts";
 import { dispatchDeps } from "./dispatch-deps.ts";
 import { resolveSpawnBackend, spawnBackendError } from "../shared/spawn-backend.ts";
 import { resolveCombinedModel } from "../../core/src/domain/worker-definition-resolution.ts";
-import { resolveTier, CLAUDE_IDENTITY } from "../../core/src/domain/model-tier.ts";
+import { resolveTier, defaultTierName, CLAUDE_IDENTITY } from "../../core/src/domain/model-tier.ts";
 
 export function registerOrchestratorRoutes(r: Router, c: Container): void {
   r.get("/orchestrators", ({ res }) => {
@@ -66,7 +66,9 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         // routed through the provider tier gate (default "high") so a tier name /
         // legacy alias resolves to a concrete id before it is persisted.
         model: resolveTier(
-          backend.descriptor.modelSource === "profile" ? rb.model : (split.model ?? "high"),
+          backend.descriptor.modelSource === "profile"
+            ? rb.model
+            : (split.model ?? defaultTierName(rb.providerIdentity ?? CLAUDE_IDENTITY)),
           rb.providerIdentity ?? CLAUDE_IDENTITY,
         ),
         effort: body.effort ?? "xhigh",
