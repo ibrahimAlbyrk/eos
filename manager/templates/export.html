@@ -349,6 +349,20 @@
     font-size: .8125rem; line-height: 1.65;
   }
 
+  /* ── mermaid diagrams ────────────────────────────────────────────── */
+  /* Before the post-render pass runs, a .mermaid-block holds its raw
+     <pre><code> fallback (styled by the rules above). On success the pass
+     swaps that for the SVG and flips .mermaid-rendered. */
+  .mermaid-block { margin: .9em 0; overflow-x: auto; }
+  .mermaid-block.mermaid-rendered {
+    text-align: center;
+    background: var(--inset);
+    border: 1px solid var(--line-soft);
+    border-radius: var(--r-md);
+    padding: 1rem 1.2rem;
+  }
+  .mermaid-block.mermaid-rendered svg { max-width: 100%; height: auto; }
+
   /* ── collapsibles: one shared quiet shape ────────────────────────── */
   details summary { list-style: none; cursor: pointer; }
   summary::-webkit-details-marker { display: none; }
@@ -644,7 +658,16 @@
         i++;
         while (i < lines.length && !/^```/.test(lines[i])) { code.push(lines[i]); i++; }
         i++;
-        out += '<pre><code' + (lang ? ' class="lang-' + escHtml(lang) + '"' : '') + '>' + escHtml(code.join('\n')) + '</code></pre>';
+        var codeHtml = escHtml(code.join('\n'));
+        // A ```mermaid fence becomes a placeholder whose fallback IS the raw
+        // <pre><code>. The post-render pass reads the source back off the
+        // <code>'s textContent, renders an SVG, and replaces the block on
+        // success — a parse/load failure just leaves the fallback in place.
+        if (/^mermaid$/i.test(lang)) {
+          out += '<div class="mermaid-block"><pre><code class="lang-mermaid">' + codeHtml + '</code></pre></div>';
+          continue;
+        }
+        out += '<pre><code' + (lang ? ' class="lang-' + escHtml(lang) + '"' : '') + '>' + codeHtml + '</code></pre>';
         continue;
       }
       var hm = line.match(/^(#{1,3})\s+(.+)$/);
@@ -675,6 +698,160 @@
       if (para.length) out += '<p>' + inlineMd(para.join(' ')) + '</p>';
     }
     return out;
+  }
+
+  /* ── mermaid (lazy, CDN) ─────────────────────────────────────────── */
+  // The standalone export can't bundle mermaid from node_modules like the live
+  // app does, so we load the v11 UMD build from a CDN (same posture as the
+  // Google Fonts <link> in <head>; no CSP meta blocks it). Loaded lazily — only
+  // when a transcript actually contains a ```mermaid fence — so a mermaid-free
+  // export pays nothing.
+  var MERMAID_CDN = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+  var mermaidPromise = null;
+  function loadMermaid() {
+    if (mermaidPromise) return mermaidPromise;
+    mermaidPromise = new Promise(function(resolve, reject) {
+      if (window.mermaid) { resolve(window.mermaid); return; }
+      var s = document.createElement('script');
+      s.src = MERMAID_CDN;
+      s.onload = function() {
+        if (window.mermaid) resolve(window.mermaid);
+        else reject(new Error('mermaid global missing after load'));
+      };
+      s.onerror = function() { reject(new Error('mermaid failed to load')); };
+      document.head.appendChild(s);
+    });
+    return mermaidPromise;
+  }
+
+  // Source normalization — ported verbatim (in behavior) from
+  // app/ui/src/lib/mermaid.js. Encode a BARE ';' as the entity '#59;' so a
+  // semicolon in a sequence message body isn't treated as a statement
+  // separator; existing entities are matched whole and left untouched.
+  function neutralizeSemicolons(text) {
+    return text.replace(/&#?\w+;|#\w+;|;/g, function(m) { return m === ';' ? '#59;' : m; });
+  }
+  var SEQ_HEADER = /^\s*sequenceDiagram\b/m;
+  var SEQ_MESSAGE =
+    /^(\s*[A-Za-z0-9_]+\s*(?:<<-->>|<<->>|-->>|->>|--x|-x|--\)|-\)|-->|->)[+-]?\s*[A-Za-z0-9_]+\s*:)(.*)$/;
+  var SEQ_NOTE = /^(\s*[Nn]ote\s+(?:left of|right of|over)\s+[^:\n]+:)(.*)$/;
+  function fixSequenceSemicolons(src) {
+    if (!SEQ_HEADER.test(src)) return src;
+    return src.split('\n').map(function(line) {
+      var msg = SEQ_MESSAGE.exec(line);
+      if (msg) return msg[1] + neutralizeSemicolons(msg[2]);
+      var note = SEQ_NOTE.exec(line);
+      if (note) return note[1] + neutralizeSemicolons(note[2]);
+      return line;
+    }).join('\n');
+  }
+  function sanitizeMermaidSource(src) { return fixSequenceSemicolons(src); }
+
+  // khroma (mermaid's color engine) rejects oklch()/var() — it needs concrete
+  // rgb. getComputedStyle no longer down-converts oklch in current browsers, so
+  // paint the token onto a 1×1 canvas and read the rasterized pixel back as
+  // rgb(a). (A browser that can't paint these oklch tokens couldn't paint the
+  // page's own background either, so this is the same capability floor.)
+  var colorCtx = null;
+  function resolveColor(val) {
+    if (!val) return val;
+    try {
+      if (!colorCtx) colorCtx = document.createElement('canvas').getContext('2d');
+      colorCtx.clearRect(0, 0, 1, 1);
+      colorCtx.fillStyle = '#000';
+      colorCtx.fillStyle = val;
+      colorCtx.fillRect(0, 0, 1, 1);
+      var d = colorCtx.getImageData(0, 0, 1, 1).data;
+      return d[3] < 255
+        ? 'rgba(' + d[0] + ',' + d[1] + ',' + d[2] + ',' + (d[3] / 255) + ')'
+        : 'rgb(' + d[0] + ',' + d[1] + ',' + d[2] + ')';
+    } catch (e) {
+      return val;
+    }
+  }
+  // Map mermaid themeVariables from THIS template's own design tokens (--bg,
+  // --surface, --t1…, --amber, --rust — NOT the live app's --surface-* names),
+  // so diagrams inherit the export's palette. Read at render time off <html>.
+  function mermaidThemeVars() {
+    var s = getComputedStyle(document.documentElement);
+    var v = function(name) { return resolveColor(s.getPropertyValue(name).trim()); };
+    return {
+      background: v('--surface'),
+      mainBkg: v('--surface-2'),
+      primaryColor: v('--surface-2'),
+      secondaryColor: v('--surface'),
+      tertiaryColor: v('--inset'),
+      primaryTextColor: v('--t1'),
+      textColor: v('--t1'),
+      nodeTextColor: v('--t1'),
+      titleColor: v('--t1'),
+      primaryBorderColor: v('--line'),
+      nodeBorder: v('--line'),
+      lineColor: v('--t3'),
+      edgeLabelBackground: v('--surface-2'),
+      fontFamily: "'Hanken Grotesk', system-ui, sans-serif",
+      activeTaskBkgColor: v('--amber'),
+      errorBkgColor: v('--rust'),
+      errorTextColor: v('--rust'),
+      successColor: v('--amber')
+    };
+  }
+
+  // WKWebView measures diagram text via getBBox, which returns 0 unless the
+  // render target is attached and laid out — pass a persistent offscreen host
+  // (position-offset, NOT display:none) as render()'s 3rd arg.
+  var measureHost = null;
+  function ensureMeasureHost() {
+    if (measureHost && measureHost.isConnected) { measureHost.innerHTML = ''; return measureHost; }
+    measureHost = document.createElement('div');
+    measureHost.setAttribute('aria-hidden', 'true');
+    measureHost.style.cssText =
+      'position:absolute;left:-99999px;top:0;width:1000px;height:auto;visibility:hidden;pointer-events:none;';
+    document.body.appendChild(measureHost);
+    return measureHost;
+  }
+  // A diagram whose text couldn't be measured collapses to viewBox "0 0 0 0";
+  // detect it so we keep the raw fallback instead of showing a blank box.
+  function svgCollapsed(svg) {
+    var m = /viewBox="([^"]*)"/i.exec(svg);
+    if (!m) return false;
+    var parts = m[1].trim().split(/[\s,]+/).map(Number);
+    var w = parts[2], h = parts[3];
+    return !(w > 0 && h > 0);
+  }
+
+  // Post-render pass: replace each .mermaid-block's raw fallback with its SVG.
+  // Any failure (CDN load, parse error, zero-size) leaves that block's
+  // <pre><code> fallback untouched and never breaks the rest of the page.
+  function renderMermaidBlocks(root) {
+    var blocks = root.querySelectorAll('.mermaid-block');
+    if (!blocks.length) return;
+    loadMermaid().then(function(mermaid) {
+      mermaid.initialize({
+        startOnLoad: false,
+        securityLevel: 'strict',
+        theme: 'base',
+        htmlLabels: false,
+        flowchart: { htmlLabels: false },
+        themeVariables: mermaidThemeVars()
+      });
+      var chain = Promise.resolve();
+      for (var i = 0; i < blocks.length; i++) {
+        (function(block, idx) {
+          var codeEl = block.querySelector('code');
+          var src = (codeEl ? codeEl.textContent : block.textContent) || '';
+          var normalized = sanitizeMermaidSource(src);
+          chain = chain.then(function() {
+            return mermaid.render('export-mermaid-' + idx, normalized, ensureMeasureHost());
+          }).then(function(out) {
+            if (out && out.svg && !svgCollapsed(out.svg)) {
+              block.innerHTML = out.svg;
+              block.classList.add('mermaid-rendered');
+            }
+          }).catch(function() { /* keep the raw <pre><code> fallback */ });
+        })(blocks[i], i);
+      }
+    }).catch(function() { /* CDN load failed — every block keeps its fallback */ });
   }
 
   /* ── header ──────────────────────────────────────────────────────── */
@@ -936,6 +1113,9 @@
     }
     html += '<footer class="archive-footer">Eos · <a href="https://github.com/ibrahimalbyrk/eos">github.com/ibrahimalbyrk/eos</a></footer>';
     container.innerHTML = html;
+
+    // Mermaid needs real DOM nodes, so render diagrams AFTER injection.
+    renderMermaidBlocks(container);
 
     // Switcher: show the selected worker's panel, hide the rest.
     var tabs = container.querySelectorAll('.wtab');
