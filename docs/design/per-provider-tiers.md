@@ -78,7 +78,7 @@ them**: no reuse of `EFFORT_LEVELS` for tiers, no change to the effort enum or
 ## Decision 1 — Data model: ordered array of `{ name, model }`
 
 **Recommendation:** replace `TierMap` with an ordered array of tier specs, stored
-**strongest-first**, where `tiers[0]` is by invariant the provider's default tier.
+**strongest-first**. The default tier is `defaultTier` when set, else `tiers[0]`.
 
 ```
 // core/src/domain/model-tier.ts (shape only — design)
@@ -90,9 +90,23 @@ export interface TierSpec {
 export interface ProviderIdentity {
   persona: string;
   tiers: TierSpec[];        // ordered strongest→weakest, length ≥ 1
+  defaultTier?: string;     // default tier name; omitted ⇒ tiers[0] (the strongest)
   effortSupported: boolean;
 }
 ```
+
+**Default is `defaultTier ?? tiers[0]` (decoupled from "strongest").** `tiers[0]` is
+the strongest tier, and for most providers it is also the default — so `defaultTier`
+is omitted and `defaultTierName()` falls back to `tiers[0]` (fully back-compatible).
+It exists so a provider can list a stronger tier WITHOUT silently upgrading every
+unspecified spawn: Claude ships strongest-first `[max=fable, high=opus, medium=sonnet,
+low=haiku]` but sets `defaultTier: "high"`, so an unspecified spawn still resolves to
+opus, not fable. `defaultTier` MUST name an existing tier (`defaultTierIsValid()` is a
+dev-time guard; a config-supplied `defaultTier` that names no tier is ignored with a
+warn at resolution, never a throw). The config `BackendProfile` carries an optional
+`defaultTier` alongside `tiers` so an operator can pick a non-first default too. Since
+the default is no longer guaranteed to be `tiers[0]`, `renderModelTierTable` marks the
+default row explicitly ("(default)").
 
 **Why an array over the alternatives:**
 
@@ -104,20 +118,21 @@ export interface ProviderIdentity {
 - Named fields `{high, medium, low}` (today): fixed length by construction — the
   exact thing we're removing. Fails OCP: adding "max"/"ultra" edits the type.
 - **Ordered array**: order = ranking (explicit, JSON-stable, survives config
-  round-trip), variable length is native, and the `tiers[0] = default` invariant
-  removes any need for a separate `defaultTier` field. Name→model is an O(n) find
-  with n ≤ ~6 — negligible. Optional `hint` rides each entry cleanly. This is the
-  clean-architecture / OCP fit: adding a tier is data, never a type edit.
+  round-trip), variable length is native, and `tiers[0]` is the strongest tier (the
+  default in the common case). Name→model is an O(n) find with n ≤ ~6 — negligible.
+  Optional `hint` rides each entry cleanly. This is the clean-architecture / OCP fit:
+  adding a tier is data, never a type edit. (A later revision added an OPTIONAL
+  `defaultTier` — see above — to decouple the default from `tiers[0]` when a provider
+  exposes a stronger tier than its default; omitted, the `tiers[0]` default holds.)
 
 **Order direction:** strongest-first (descending capability). Justification: it
-makes "the default tier is `tiers[0]`" a pure structural invariant (no marker
-field), it matches the existing render order (high, medium, low top-down at
-`tier-prompt-render.ts:16-18`), and it matches how an operator authors a config
-("flagship first"). The word "ranked low→high" in the requirement describes that
-tiers ARE ranked, not a storage direction; the array is self-describing either
-way. If ascending authoring is ever preferred, the alternative is an ascending
-array + an explicit `defaultTier?: name` field — recommend against it (the extra
-field is a second source of truth for "which is default").
+makes `tiers[0]` the strongest tier (the default in the common case), it matches the
+existing render order (high, medium, low top-down at `tier-prompt-render.ts`), and it
+matches how an operator authors a config ("flagship first"). The word "ranked low→high"
+in the requirement describes that tiers ARE ranked, not a storage direction; the array
+is self-describing either way. The optional `defaultTier` (added later) is the marker
+that lets the default diverge from `tiers[0]` — used when a provider lists a tier
+stronger than the one it wants as its default (Claude's `max`).
 
 **Effort stays untouched** — see the confirmation above. `effortSupported`
 remains a boolean; `EFFORT_LEVELS` is not involved.
