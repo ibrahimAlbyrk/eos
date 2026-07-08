@@ -5,11 +5,11 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, rmSync, realpathSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, realpathSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
-import { childProcessGitInfo as gitInfo, parseLogRecords } from "../git/ChildProcessGitInfo.ts";
+import { childProcessGitInfo as gitInfo, parseLogRecords, parseStashRecords } from "../git/ChildProcessGitInfo.ts";
 import { attachPatches, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES } from "../git/changes-parse.ts";
 import type { ChangedFile } from "../../../contracts/src/http.ts";
 
@@ -42,7 +42,28 @@ describe("parseLogRecords", () => {
   });
 });
 
-describe("log / defaultBranch / mergeBaseWith / revParse (real repo)", () => {
+describe("parseStashRecords", () => {
+  it("parses records, position = stash index, ts in ms", () => {
+    const out = "aaa111\x1f1700000000\x1fWIP on main: 1234abc fix thing\x1e" +
+      "bbb222\x1f1700000100\x1fOn feat/x: my custom message\x1e";
+    assert.deepEqual(parseStashRecords(out), [
+      { index: 0, sha: "aaa111", ts: 1700000000000, subject: "WIP on main: 1234abc fix thing", branch: "main" },
+      { index: 1, sha: "bbb222", ts: 1700000100000, subject: "On feat/x: my custom message", branch: "feat/x" },
+    ]);
+  });
+
+  it("branch is null when the subject has no WIP-on/On prefix", () => {
+    const [s] = parseStashRecords("ccc333\x1f1700000000\x1fautostash\x1e");
+    assert.equal(s.branch, null);
+    assert.equal(s.subject, "autostash");
+  });
+
+  it("returns [] for empty output", () => {
+    assert.deepEqual(parseStashRecords(""), []);
+  });
+});
+
+describe("log / revParse (real repo)", () => {
   let repo: string;
 
   before(() => {
@@ -73,48 +94,6 @@ describe("log / defaultBranch / mergeBaseWith / revParse (real repo)", () => {
       assert.deepEqual(await gitInfo.log(dir, { limit: 10, skip: 0 }), []);
     } finally {
       rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("defaultBranch falls back to a local main/master without origin/HEAD", async () => {
-    assert.equal(await gitInfo.defaultBranch(repo), "main");
-  });
-
-  it("defaultBranch prefers the origin/HEAD symref when present", async () => {
-    // Simulate a clone whose remote default is `trunk` (not main).
-    git(repo, "branch", "trunk");
-    assert.equal(git(repo, "update-ref", "refs/remotes/origin/trunk", "HEAD").code, 0);
-    assert.equal(git(repo, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk").code, 0);
-    try {
-      assert.equal(await gitInfo.defaultBranch(repo), "trunk");
-    } finally {
-      git(repo, "symbolic-ref", "--delete", "refs/remotes/origin/HEAD");
-      git(repo, "update-ref", "-d", "refs/remotes/origin/trunk");
-      git(repo, "branch", "-D", "trunk");
-    }
-  });
-
-  it("defaultBranch is null on a non-repo", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "eos-norepo-"));
-    try {
-      assert.equal(await gitInfo.defaultBranch(dir), null);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it("mergeBaseWith finds the in-repo fork point; bad ref → null", async () => {
-    const forkPoint = git(repo, "rev-parse", "HEAD").out.trim();
-    git(repo, "checkout", "-qb", "feature");
-    writeFileSync(join(repo, "g.txt"), "feature\n");
-    git(repo, "add", "-A");
-    git(repo, "commit", "-qm", "feature work");
-    try {
-      assert.equal(await gitInfo.mergeBaseWith(repo, "main"), forkPoint);
-      assert.equal(await gitInfo.mergeBaseWith(repo, "no-such-ref"), null);
-    } finally {
-      git(repo, "checkout", "-q", "main");
-      git(repo, "branch", "-D", "feature");
     }
   });
 
@@ -180,6 +159,16 @@ describe("commitPatch / commitFileDiff / blobs (real repo)", () => {
     assert.deepEqual(r, { path: "a.txt", patch: "", binary: false, truncated: false });
   });
 
+  // Regression lock: single-parent commits keep their exact pre-first-parent
+  // behavior (the flag only changes how MERGE commits are diffed).
+  it("commitDetail on a single-parent commit lists per-file changes as before", async () => {
+    const detail = await gitInfo.commitDetail(repo, sha);
+    assert.ok(detail);
+    assert.deepEqual(detail!.files.map((f) => f.path), ["a.txt", "b.txt"]);
+    assert.equal(detail!.insertions, 2);
+    assert.equal(detail!.deletions, 2);
+  });
+
   it("blobSizeAtRef + blobAtRef read exact bytes at a ref; missing → null", async () => {
     assert.equal(await gitInfo.blobSizeAtRef(repo, sha, "a.txt"), "alpha changed\n".length);
     const bytes = await gitInfo.blobAtRef(repo, sha, "a.txt");
@@ -188,5 +177,142 @@ describe("commitPatch / commitFileDiff / blobs (real repo)", () => {
 
     assert.equal(await gitInfo.blobSizeAtRef(repo, sha, "nope.txt"), null);
     assert.equal(await gitInfo.blobAtRef(repo, sha, "nope.txt"), null);
+  });
+});
+
+// Stash entries are merge commits — the CRITICAL case /fs/changes?sha= must
+// handle. Default `git show` renders merges empty; first-parent must surface
+// the stashed files in stats, whole patch, and single-file diff.
+describe("stashList + merge-commit diffs (real repo)", () => {
+  let repo: string;
+  let stashSha: string;
+
+  before(() => {
+    repo = initRepo("eos-stash-");
+    writeFileSync(join(repo, "tracked.txt"), "one\n");
+    git(repo, "add", "-A");
+    assert.equal(git(repo, "commit", "-qm", "init").code, 0);
+    // Stash a tracked edit + an untracked file (so the stash has the third
+    // parent too) — then the stash commit is a merge over HEAD.
+    writeFileSync(join(repo, "tracked.txt"), "one\ntwo\n");
+    writeFileSync(join(repo, "untracked.txt"), "brand new\n");
+    assert.equal(git(repo, "stash", "push", "-u", "-m", "my work").code, 0);
+    stashSha = git(repo, "rev-parse", "--short", "stash@{0}").out.trim();
+  });
+
+  after(() => {
+    try { rmSync(repo, { recursive: true, force: true }); } catch {}
+  });
+
+  it("stashList reports index/sha/subject/branch newest first", async () => {
+    const stashes = await gitInfo.stashList(repo);
+    assert.equal(stashes.length, 1);
+    assert.equal(stashes[0].index, 0);
+    assert.ok(stashes[0].sha.length >= 4);
+    assert.equal(stashes[0].branch, "main");
+    assert.match(stashes[0].subject, /my work/);
+    assert.ok(stashes[0].ts > 0);
+  });
+
+  it("stashList → [] on a non-repo", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "eos-norepo-"));
+    try {
+      assert.deepEqual(await gitInfo.stashList(dir), []);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // First-parent = the stash's tracked working-tree changes vs pre-stash HEAD.
+  // (Untracked files stashed with -u live in the stash's third parent, so they
+  // are correctly absent from this diff — matching `git stash show`.)
+  it("commitDetail on a stash merge lists the stashed files (first-parent)", async () => {
+    const detail = await gitInfo.commitDetail(repo, stashSha);
+    assert.ok(detail);
+    const paths = detail!.files.map((f) => f.path);
+    assert.ok(paths.includes("tracked.txt"), `expected tracked.txt in ${paths}`);
+    assert.ok(detail!.insertions >= 1);
+  });
+
+  it("commitPatch on a stash merge emits per-file hunks (not an empty combined diff)", async () => {
+    const patch = await gitInfo.commitPatch(repo, stashSha);
+    assert.ok(patch);
+    assert.match(patch!, /^\+two$/m);
+    assert.match(patch!, /diff --git a\/tracked\.txt/);
+  });
+
+  it("commitFileDiff on a stash merge isolates one file", async () => {
+    const r = await gitInfo.commitFileDiff(repo, stashSha, "tracked.txt");
+    assert.equal(r.binary, false);
+    assert.match(r.patch, /^\+two$/m);
+    assert.doesNotMatch(r.patch, /brand new/);
+  });
+
+  it("revParse(`${stashSha}^`) resolves to the first parent (pre-stash HEAD)", async () => {
+    const firstParent = await gitInfo.revParse(repo, `${stashSha}^`);
+    const headBefore = git(repo, "rev-parse", "--short", `${stashSha}^1`).out.trim();
+    assert.equal(firstParent, headBefore);
+  });
+});
+
+describe("stashApply / stashDrop (real repo)", () => {
+  // Fresh repo per test: one commit ("base\n") + one stash that changed the
+  // tracked file to "stashed\n", leaving the working tree back at base.
+  function repoWithStash(): string {
+    const repo = initRepo("eos-stashmut-");
+    writeFileSync(join(repo, "f.txt"), "base\n");
+    git(repo, "add", "-A");
+    assert.equal(git(repo, "commit", "-qm", "init").code, 0);
+    writeFileSync(join(repo, "f.txt"), "stashed\n");
+    assert.equal(git(repo, "stash", "push", "-m", "work").code, 0);
+    return repo;
+  }
+
+  it("stashApply restores the stashed changes and keeps the entry", async () => {
+    const repo = repoWithStash();
+    try {
+      const r = await gitInfo.stashApply(repo, 0);
+      assert.deepEqual(r, { ok: true });
+      assert.equal(readFileSync(join(repo, "f.txt"), "utf8"), "stashed\n");
+      assert.equal((await gitInfo.stashList(repo)).length, 1); // apply keeps it
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("stashDrop removes the entry (stashList count decreases)", async () => {
+    const repo = repoWithStash();
+    try {
+      assert.equal((await gitInfo.stashList(repo)).length, 1);
+      const r = await gitInfo.stashDrop(repo, 0);
+      assert.deepEqual(r, { ok: true });
+      assert.equal((await gitInfo.stashList(repo)).length, 0);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("stashApply returns { ok:false, error } on conflict — no throw", async () => {
+    const repo = repoWithStash();
+    try {
+      // Dirty the same line the stash touches → apply conflicts.
+      writeFileSync(join(repo, "f.txt"), "working divergent\n");
+      const r = await gitInfo.stashApply(repo, 0);
+      assert.equal(r.ok, false);
+      assert.ok(r.error && r.error.length > 0, "expected git stderr in error");
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it("stashDrop on a bad index returns { ok:false, error }", async () => {
+    const repo = repoWithStash();
+    try {
+      const r = await gitInfo.stashDrop(repo, 99);
+      assert.equal(r.ok, false);
+      assert.ok(r.error && r.error.length > 0);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 });

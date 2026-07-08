@@ -7,11 +7,11 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { readFile } from "node:fs/promises";
 import { join, isAbsolute, resolve } from "node:path";
-import type { GitInfo, DiffStat, SyncStatus, ConflictEntry, GitDirs } from "../../../core/src/ports/GitInfo.ts";
+import type { GitInfo, DiffStat, SyncStatus, ConflictEntry, GitDirs, StashOpResult } from "../../../core/src/ports/GitInfo.ts";
 import type { PushState } from "../../../core/src/domain/push-plan.ts";
 import type { PullState } from "../../../core/src/domain/pull-plan.ts";
 import { isUnmergedCode } from "../../../core/src/domain/conflict.ts";
-import type { ChangedFile, CommitDetail, CommitFile, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
+import type { ChangedFile, CommitDetail, CommitFile, FileDiffResponse, FsStashEntry, UnpushedCommit } from "../../../contracts/src/http.ts";
 import { PATCH_MAX_BYTES, mergeChanges, mergeChangesWithBase, parseNameStatusZ, parseNumstatZ, parsePorcelainZ, truncatePatch } from "./changes-parse.ts";
 
 const exec = promisify(execFile);
@@ -61,6 +61,41 @@ export function parseLogRecords(out: string): UnpushedCommit[] {
 }
 
 const LOG_FORMAT = "--format=%h%x1f%an%x1f%ct%x1f%s%x1e";
+
+// %h%x1f%ct%x1f%gs%x1e stash-list records → FsStashEntry[]. Position IS the
+// stash index (stash@{0} first). The branch rides in git's conventional
+// reflog-subject prefix; custom messages without it yield branch null.
+export function parseStashRecords(out: string): FsStashEntry[] {
+  return out
+    .split("\x1e")
+    .map((r) => r.trim())
+    .filter((rec) => rec.split("\x1f")[0]?.length)
+    .map((rec, index) => {
+      const [sha, ct, subject] = rec.split("\x1f");
+      const m = /^(?:WIP on|On) ([^:]+):/.exec(subject ?? "");
+      return {
+        index,
+        sha: sha ?? "",
+        subject: subject ?? "",
+        ts: (Number.parseInt(ct ?? "", 10) || 0) * 1000,
+        branch: m ? m[1] : null,
+      };
+    });
+}
+
+// Stash entries are MERGE commits (working tree merged over index state) —
+// default `git show` renders merges as combined/empty diffs and numstat lists
+// no files. first-parent diffs a merge against the pre-stash HEAD and leaves
+// regular single-parent (and root) commits exactly as before.
+const FIRST_PARENT_DIFF = "--diff-merges=first-parent";
+
+// A rejected execFile carries git's stderr (and stdout) on the error object.
+// Prefer stderr (the real message), fall back to the error message.
+function gitErr(e: unknown): string {
+  const stderr = (e as { stderr?: string }).stderr;
+  if (typeof stderr === "string" && stderr.trim()) return stderr.trim();
+  return e instanceof Error ? e.message : String(e);
+}
 
 function parseShortStat(line: string): DiffStat {
   // Examples: " 3 files changed, 12 insertions(+), 4 deletions(-)"
@@ -319,29 +354,6 @@ export const childProcessGitInfo: GitInfo = {
     }
   },
 
-  async defaultBranch(cwd: string): Promise<string | null> {
-    try {
-      const out = (await runGit(cwd, ["rev-parse", "--abbrev-ref", "origin/HEAD"])).trim();
-      const name = out.replace(/^origin\//, "");
-      if (name && name !== "HEAD") return name;
-    } catch {}
-    // No origin/HEAD symref (common in fresh clones and local-only repos) —
-    // fall back to the conventional names if a local branch exists.
-    const branches = await childProcessGitInfo.listBranches(cwd);
-    if (branches.includes("main")) return "main";
-    if (branches.includes("master")) return "master";
-    return null;
-  },
-
-  async mergeBaseWith(cwd: string, ref: string): Promise<string | null> {
-    try {
-      const out = (await runGit(cwd, ["merge-base", "HEAD", ref])).trim();
-      return out || null;
-    } catch {
-      return null;
-    }
-  },
-
   async revParse(cwd: string, ref: string): Promise<string | null> {
     try {
       const out = (await runGit(cwd, ["rev-parse", "--short", ref])).trim();
@@ -355,7 +367,7 @@ export const childProcessGitInfo: GitInfo = {
     try {
       // Same 32MB buffer as fullDiff — one commit's whole patch. Overflow
       // rejects → null → the route falls back to per-file diffs.
-      const { stdout } = await exec("git", ["-C", cwd, "show", sha, "--format=", "--patch", "--ignore-submodules=dirty"], {
+      const { stdout } = await exec("git", ["-C", cwd, "show", sha, FIRST_PARENT_DIFF, "--format=", "--patch", "--ignore-submodules=dirty"], {
         maxBuffer: 32 * 1024 * 1024,
       });
       return stdout;
@@ -366,7 +378,7 @@ export const childProcessGitInfo: GitInfo = {
 
   async commitFileDiff(cwd: string, sha: string, path: string, oldPath?: string): Promise<FileDiffResponse> {
     try {
-      const out = await runGit(cwd, ["show", sha, "--format=", "--", ...(oldPath ? [path, oldPath] : [path])]);
+      const out = await runGit(cwd, ["show", sha, FIRST_PARENT_DIFF, "--format=", "--", ...(oldPath ? [path, oldPath] : [path])]);
       if (/^Binary files .* differ$/m.test(out)) {
         return { path, patch: "", binary: true, truncated: false };
       }
@@ -408,8 +420,8 @@ export const childProcessGitInfo: GitInfo = {
       // Reuse the -z parsers: name-status gives per-file status letters,
       // numstat the per-file line counts.
       const [nameStatus, numstat] = await Promise.all([
-        runGit(cwd, ["show", sha, "--name-status", "-z", "--format="]),
-        runGit(cwd, ["show", sha, "--numstat", "-z", "--format="]),
+        runGit(cwd, ["show", sha, FIRST_PARENT_DIFF, "--name-status", "-z", "--format="]),
+        runGit(cwd, ["show", sha, FIRST_PARENT_DIFF, "--numstat", "-z", "--format="]),
       ]);
       const counts = new Map(parseNumstatZ(numstat).map((n) => [n.path, n]));
       const files: CommitFile[] = parseNameStatusZ(nameStatus).map((e) => ({
@@ -441,6 +453,33 @@ export const childProcessGitInfo: GitInfo = {
       return trimmed ? trimmed.split("\n").length : 0;
     } catch {
       return 0;
+    }
+  },
+
+  async stashList(cwd: string): Promise<FsStashEntry[]> {
+    try {
+      const out = await runGit(cwd, ["stash", "list", "--format=%h%x1f%ct%x1f%gs%x1e"]);
+      return parseStashRecords(out);
+    } catch {
+      return [];
+    }
+  },
+
+  async stashApply(cwd: string, index: number): Promise<StashOpResult> {
+    try {
+      await runGit(cwd, ["stash", "apply", `stash@{${index}}`]);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: gitErr(e) };
+    }
+  },
+
+  async stashDrop(cwd: string, index: number): Promise<StashOpResult> {
+    try {
+      await runGit(cwd, ["stash", "drop", `stash@{${index}}`]);
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, error: gitErr(e) };
     }
   },
 

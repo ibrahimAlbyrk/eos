@@ -706,8 +706,8 @@ export type FsLogResponse = z.infer<typeof FsLogResponseSchema>;
 const HexShaSchema = z.string().regex(/^[0-9a-f]{4,40}$/i);
 
 // ---- GET /fs/changes ---------------------------------------------------------
-// Working-tree changes vs the branch scope (merge-base with the default branch),
-// or one commit's changes when ?sha= is given. Response schema lives after
+// Local uncommitted changes vs HEAD (staged + unstaged + untracked), or one
+// commit's changes when ?sha= is given. Response schema lives after
 // WorkerChangesResponseSchema (it extends it).
 
 export const FsChangesQuerySchema = z.object({
@@ -727,6 +727,49 @@ export const FsChangesFileQuerySchema = z.object({
   sha: HexShaSchema.optional(),
 });
 export type FsChangesFileQuery = z.infer<typeof FsChangesFileQuerySchema>;
+
+// ---- GET /fs/stashes -----------------------------------------------------------
+// The repo's stash entries, newest first (index 0 = most recent). branch is
+// parsed from the "WIP on <branch>:" / "On <branch>:" reflog-subject prefix —
+// null when the subject doesn't carry one. sha is the stash commit's short sha,
+// usable directly as /fs/changes?sha= (stash entries are merge commits; the
+// server diffs them against the first parent).
+
+export const FsStashesQuerySchema = z.object({ cwd: z.string().min(1) });
+export type FsStashesQuery = z.infer<typeof FsStashesQuerySchema>;
+
+export const FsStashEntrySchema = z.object({
+  index: z.number().int().nonnegative(),
+  sha: z.string(),
+  subject: z.string(),
+  // Stash time, epoch ms.
+  ts: z.number(),
+  branch: z.string().nullable(),
+});
+export type FsStashEntry = z.infer<typeof FsStashEntrySchema>;
+
+export const FsStashesResponseSchema = z.object({
+  stashes: z.array(FsStashEntrySchema),
+});
+export type FsStashesResponse = z.infer<typeof FsStashesResponseSchema>;
+
+// ---- POST /fs/stash/apply · /fs/stash/drop ------------------------------------
+// UI-token-gated stash mutations for the Stashes section's Apply/Delete menu.
+// index addresses stash@{index}. Both return the shared FsCheckoutResponse
+// shape ({ ok, error? }) — apply surfaces a conflict as { ok:false, error }
+// rather than throwing.
+
+export const FsStashApplyRequestSchema = z.object({
+  cwd: z.string().min(1),
+  index: z.number().int().nonnegative(),
+});
+export type FsStashApplyRequest = z.infer<typeof FsStashApplyRequestSchema>;
+
+export const FsStashDropRequestSchema = z.object({
+  cwd: z.string().min(1),
+  index: z.number().int().nonnegative(),
+});
+export type FsStashDropRequest = z.infer<typeof FsStashDropRequestSchema>;
 
 // ---- GET /fs/blob --------------------------------------------------------------
 // Raw file bytes at a ref (image previews in the Git Diff panel). ref is hex-only
@@ -934,6 +977,19 @@ export const SymbolsSearchResponseSchema = z.object({
 });
 export type SymbolsSearchResponse = z.infer<typeof SymbolsSearchResponseSchema>;
 
+// GET /symbols/file — enumerate every definition in ONE file (one parse). Powers
+// CodeLens (per-definition reference counts + go-to). `path` resolves within root.
+export const SymbolsFileQuerySchema = z.object({
+  root: z.string().min(1),
+  path: z.string().min(1),
+});
+export type SymbolsFileQuery = z.infer<typeof SymbolsFileQuerySchema>;
+
+export const SymbolsFileResponseSchema = z.object({
+  occurrences: z.array(SymbolOccurrenceSchema),
+});
+export type SymbolsFileResponse = z.infer<typeof SymbolsFileResponseSchema>;
+
 // ---- GET /fs/image ---------------------------------------------------------
 // Binary response (image bytes); only the query is schematized.
 
@@ -1140,13 +1196,15 @@ export type WorkerChangesResponse = z.infer<typeof WorkerChangesResponseSchema>;
 // GET /fs/changes response — the worker changes shape plus the resolved diff
 // scope, so the panel can label what it's comparing. Declared here (not with
 // FsChangesQuerySchema) because it extends WorkerChangesResponseSchema.
-// baseSha null = root commit (sha mode) or no base scope (working-tree mode on
-// the default branch); headSha null = working tree.
+// baseSha null = root commit (sha mode); headSha null = working tree.
+// repoLabel is the repo directory name (git toplevel basename), null when
+// resolution fails.
 export const FsChangesResponseSchema = WorkerChangesResponseSchema.extend({
   baseSha: z.string().nullable(),
   headSha: z.string().nullable(),
   baseLabel: z.string().nullable(),
   headLabel: z.string(),
+  repoLabel: z.string().nullable(),
 });
 export type FsChangesResponse = z.infer<typeof FsChangesResponseSchema>;
 
@@ -2021,6 +2079,9 @@ export const ROUTES = {
   fsChanges: "/fs/changes",
   fsChangesFile: "/fs/changes/file",
   fsBlob: "/fs/blob",
+  fsStashes: "/fs/stashes",
+  fsStashApply: "/fs/stash/apply",
+  fsStashDrop: "/fs/stash/drop",
   fsRecents: "/fs/recents",
   fsReveal: "/fs/reveal",
   fsRead: "/fs/read",
@@ -2049,6 +2110,7 @@ export const ROUTES = {
   // (want=definitions|references); search serves symbol-name search.
   symbolsLookup: "/symbols/lookup",
   symbolsSearch: "/symbols/search",
+  symbolsFile: "/symbols/file",
   workerName: (id: string): string => `/workers/${id}/name`,
   workerRenameIntent: (id: string): string => `/workers/${id}/rename-intent`,
   workerOpen: (id: string): string => `/workers/${id}/open`,

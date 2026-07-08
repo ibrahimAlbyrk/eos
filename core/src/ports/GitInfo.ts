@@ -2,7 +2,7 @@
 // shells out to the `git` binary; we keep the interface narrow so any future
 // libgit2 implementation can plug in without disturbing callers.
 
-import type { ChangedFile, CommitDetail, FileDiffResponse, UnpushedCommit } from "../../../contracts/src/http.ts";
+import type { ChangedFile, CommitDetail, FileDiffResponse, FsStashEntry, UnpushedCommit } from "../../../contracts/src/http.ts";
 import type { PushState } from "../domain/push-plan.ts";
 import type { PullState } from "../domain/pull-plan.ts";
 
@@ -15,6 +15,14 @@ export interface DiffStat {
 export interface SyncStatus {
   ahead: number;
   behind: number;
+}
+
+// Result of a stash mutation (apply/drop). Never throws — a git failure
+// (conflict on apply, bad index on drop) comes back as { ok:false, error }
+// with git's stderr, which the route maps straight to the HTTP body.
+export interface StashOpResult {
+  ok: boolean;
+  error?: string;
 }
 
 // One unmerged file in the working tree. `xy` is the raw porcelain code
@@ -66,6 +74,17 @@ export interface GitInfo {
   remoteUrl(cwd: string): Promise<string | null>;
   syncStatus(cwd: string): Promise<SyncStatus | null>;
   stashCount(cwd: string): Promise<number>;
+  /** Stash entries newest first (index 0 = most recent). branch parsed from
+   *  the "WIP on <b>:" / "On <b>:" subject prefix, null when absent. Empty on
+   *  error / no stashes. */
+  stashList(cwd: string): Promise<FsStashEntry[]>;
+  /** `git stash apply stash@{index}` — restore a stash's changes onto the
+   *  working tree, leaving the entry in place. A conflict comes back as
+   *  { ok:false, error } (git applied it with markers), never a throw. */
+  stashApply(cwd: string, index: number): Promise<StashOpResult>;
+  /** `git stash drop stash@{index}` — remove a stash entry. A bad index comes
+   *  back as { ok:false, error }. */
+  stashDrop(cwd: string, index: number): Promise<StashOpResult>;
   conflictCount(cwd: string): Promise<number>;
   /** Unmerged files in the working tree (porcelain XY in the unmerged set).
    *  Empty when the tree has no conflicts. conflictCount === conflictList.length
@@ -91,12 +110,6 @@ export interface GitInfo {
    *  compute hasMore by comparing length against limit. Empty on error /
    *  unborn HEAD. */
   log(cwd: string, opts: { limit: number; skip: number }): Promise<UnpushedCommit[]>;
-  /** The repo's default branch: origin/HEAD when set, else "main"/"master" if
-   *  a local branch by that name exists. Null when neither resolves. */
-  defaultBranch(cwd: string): Promise<string | null>;
-  /** Merge-base of HEAD and a ref in THIS repo (unlike mergeBase, which spans
-   *  two working trees). Null when either side can't resolve. */
-  mergeBaseWith(cwd: string, ref: string): Promise<string | null>;
   /** Short sha a ref resolves to. Null when it doesn't resolve. */
   revParse(cwd: string, ref: string): Promise<string | null>;
   /** One commit's whole patch (`git show --patch`) — feeds the batched

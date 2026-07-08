@@ -1,3 +1,4 @@
+import { basename } from "node:path";
 import type { Router } from "./Router.ts";
 import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
@@ -15,6 +16,9 @@ import {
   FsChangesQuerySchema,
   FsChangesFileQuerySchema,
   FsBlobQuerySchema,
+  FsStashesQuerySchema,
+  FsStashApplyRequestSchema,
+  FsStashDropRequestSchema,
   type ChangedFile,
 } from "../../contracts/src/http.ts";
 import { guardMutation, isSafeAbsPath, repoRelative, IMAGE_MIME } from "./fs-shared.ts";
@@ -87,14 +91,13 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
 
   // ---- Git Diff panel reads --------------------------------------------------
   // Un-gated GETs like the other /fs reads: safe absolute cwd, no UI token.
+  // Working-tree scope is LOCAL CHANGES ONLY: staged + unstaged + untracked vs
+  // HEAD — committed work never appears (the log/commit views cover it).
 
-  // The panel's working-tree scope: diff against the merge-base with the
-  // default branch (what this branch changed), degenerating to HEAD-only
-  // (base null) when ON the default branch or no default resolves.
-  const workingScope = async (cwd: string): Promise<{ head: string | null; def: string | null; base: string | null }> => {
-    const [head, def] = await Promise.all([c.git.currentBranch(cwd), c.git.defaultBranch(cwd)]);
-    const base = def && def !== head ? await c.git.mergeBaseWith(cwd, def) : null;
-    return { head, def, base };
+  // Repo directory name for the panel header — null when cwd isn't a repo.
+  const repoLabelOf = async (cwd: string): Promise<string | null> => {
+    const dirs = await c.git.gitDirs(cwd);
+    return dirs ? basename(dirs.toplevel) : null;
   };
 
   r.get("/fs/log", async ({ url, res }) => {
@@ -109,6 +112,14 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
     writeJson(res, 200, { commits: rows.slice(0, q.limit), hasMore: rows.length > q.limit });
   });
 
+  r.get("/fs/stashes", async ({ url, res }) => {
+    const q = validate(FsStashesQuerySchema, {
+      cwd: url.searchParams.get("cwd") ?? undefined,
+    });
+    if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
+    writeJson(res, 200, { stashes: await c.git.stashList(q.cwd) });
+  });
+
   r.get("/fs/changes", async ({ url, res }) => {
     const q = validate(FsChangesQuerySchema, {
       cwd: url.searchParams.get("cwd") ?? undefined,
@@ -121,10 +132,11 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
       const detail = await c.git.commitDetail(q.cwd, q.sha);
       if (!detail) { writeJson(res, 404, { error: "commit not found" }); return; }
       const files: ChangedFile[] = detail.files.map((f) => ({ ...f, untracked: false }));
-      const [full, baseSha] = await Promise.all([
+      const [full, baseSha, repoLabel] = await Promise.all([
         wantPatches ? c.git.commitPatch(q.cwd, q.sha) : Promise.resolve(null),
         // Null parent = root commit — the panel renders "everything added".
         c.git.revParse(q.cwd, `${q.sha}^`),
+        repoLabelOf(q.cwd),
       ]);
       if (full !== null) attachPatches(files, full, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES);
       writeJson(res, 200, {
@@ -135,16 +147,17 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
         headSha: detail.sha,
         baseLabel: null,
         headLabel: detail.sha,
+        repoLabel,
       });
       return;
     }
 
-    const { head, def, base } = await workingScope(q.cwd);
-    const [files, full, baseSha, headFallback] = await Promise.all([
-      c.git.changedFiles(q.cwd, base ?? undefined),
-      wantPatches ? c.git.fullDiff(q.cwd, base ?? undefined) : Promise.resolve(null),
-      c.git.revParse(q.cwd, base ?? "HEAD"),
-      head ? Promise.resolve(null) : c.git.revParse(q.cwd, "HEAD"),
+    const [files, full, baseSha, head, repoLabel] = await Promise.all([
+      c.git.changedFiles(q.cwd),
+      wantPatches ? c.git.fullDiff(q.cwd) : Promise.resolve(null),
+      c.git.revParse(q.cwd, "HEAD"),
+      c.git.currentBranch(q.cwd),
+      repoLabelOf(q.cwd),
     ]);
     if (full !== null) attachPatches(files, full, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES);
     writeJson(res, 200, {
@@ -153,8 +166,10 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
       deletions: files.reduce((n, f) => n + (f.deletions ?? 0), 0),
       baseSha,
       headSha: null, // working tree, not a commit
-      baseLabel: base ? def : null,
-      headLabel: head ?? headFallback ?? "HEAD",
+      baseLabel: null,
+      // Detached HEAD has no branch name — fall back to the short HEAD sha.
+      headLabel: head ?? baseSha ?? "HEAD",
+      repoLabel,
     });
   });
 
@@ -170,8 +185,8 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
       writeJson(res, 200, await c.git.commitFileDiff(q.cwd, q.sha, q.path, q.oldPath));
       return;
     }
-    const { base } = await workingScope(q.cwd);
-    writeJson(res, 200, await c.git.fileDiff(q.cwd, q.path, q.oldPath, base ?? undefined));
+    // Same local-changes-only scope as /fs/changes: no base ref → diff vs HEAD.
+    writeJson(res, 200, await c.git.fileDiff(q.cwd, q.path, q.oldPath));
   });
 
   r.get("/fs/blob", async ({ url, res }) => {
@@ -206,6 +221,21 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
     const body = validate(FsCheckoutRequestSchema, await readBody(req));
     if (!guardMutation(req, res, body.cwd, c.uiToken)) return;
     writeJson(res, 200, await checkoutBranch({ git: c.git }, body.cwd, body.branch, { stash: body.stash }));
+  });
+
+  // Stash apply/drop for the Git Diff panel's Stashes menu. UI-token gated like
+  // the other mutations; both return { ok, error? } — apply reports a conflict
+  // inline (never throws) so the UI can surface git's message.
+  r.post("/fs/stash/apply", async ({ req, res }) => {
+    const body = validate(FsStashApplyRequestSchema, await readBody(req));
+    if (!guardMutation(req, res, body.cwd, c.uiToken)) return;
+    writeJson(res, 200, await c.git.stashApply(body.cwd, body.index));
+  });
+
+  r.post("/fs/stash/drop", async ({ req, res }) => {
+    const body = validate(FsStashDropRequestSchema, await readBody(req));
+    if (!guardMutation(req, res, body.cwd, c.uiToken)) return;
+    writeJson(res, 200, await c.git.stashDrop(body.cwd, body.index));
   });
 
   // ---- Branch admin + remote sync (UI-token gated) --------------------------
