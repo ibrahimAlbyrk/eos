@@ -390,6 +390,14 @@ export const api = {
     const params = new URLSearchParams({ cwd, ref, path });
     return `${DAEMON}${ROUTES.fsBlob}?${params}`;
   },
+  async getGitStashes(cwd) {
+    try {
+      const r = await getJson(`${ROUTES.fsStashes}?cwd=${encodeURIComponent(cwd)}`);
+      return r.ok ? r.body : { stashes: [] };
+    } catch {
+      return { stashes: [] };
+    }
+  },
   async listRecents() {
     try {
       const r = await getJson(ROUTES.fsRecents);
@@ -493,6 +501,19 @@ export const api = {
     try {
       const r = await getJson(`${ROUTES.symbolsSearch}?${params.toString()}`);
       return r.ok ? (r.body ?? { symbols: [] }) : null;
+    } catch {
+      return null;
+    }
+  },
+  // All definitions in one file — anchors the CodeLens chips. Fail-soft: a
+  // missing/errored endpoint or unsupported/non-tracked file resolves to null so
+  // the editor renders no chips rather than throwing.
+  async symbolsFile(root, path) {
+    if (!root || !path) return null;
+    const params = new URLSearchParams({ root, path });
+    try {
+      const r = await getJson(`${ROUTES.symbolsFile}?${params.toString()}`);
+      return r.ok ? (r.body ?? { occurrences: [] }) : null;
     } catch {
       return null;
     }

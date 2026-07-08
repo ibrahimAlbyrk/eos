@@ -12,6 +12,10 @@ import { panelMinSize } from "../lib/panelRegistry.js";
 import { getDockWidth } from "./dockMetrics.js";
 import { notify } from "../lib/notify.js";
 
+// Monotonic reveal token: a scroll-to-line target carries a seq so re-navigating
+// to the same file+line still re-centers the editor (see EditView revealSeq).
+let revealSeq = 0;
+
 export { useNavigation } from "./navigation.jsx";
 export { useSelection } from "./selection.jsx";
 export { usePane } from "./pane.jsx";
@@ -91,7 +95,11 @@ export function useUi() {
 
   // Scope-aware actions. Read scope from a ref so identities stay stable across
   // renders — some viewers list these in useCallback deps.
-  const openFileViewer = useCallback((path) => openScoped("file", { path }), [openScoped]);
+  // reveal (optional) = { line, column } → scroll the editor to that spot on open.
+  // A fresh seq each call re-fires the editor's reveal even for the same target.
+  const openFileViewer = useCallback((path, reveal) => openScoped("file", reveal
+    ? { path, reveal: { line: reveal.line, column: reveal.column, seq: ++revealSeq } }
+    : { path }), [openScoped]);
   const closeFileViewer = useCallback(() => closePanelIn(scopeRef.current, "file"), [closePanelIn]);
   const openAgentViewer = useCallback((block) => openScoped("agent", block), [openScoped]);
   const closeAgentViewer = useCallback(() => closePanelIn(scopeRef.current, "agent"), [closePanelIn]);
@@ -100,10 +108,11 @@ export function useUi() {
   const closeDiffViewer = useCallback(() => closePanelIn(scopeRef.current, "diff"), [closePanelIn]);
   const openCommitsViewer = useCallback((cwd) => openScoped("commits", { cwd }), [openScoped]);
   const closeCommitsViewer = useCallback(() => closePanelIn(scopeRef.current, "commits"), [closePanelIn]);
-  const openGitDiffViewer = useCallback((cwd) => openScoped("gitdiff", { cwd }), [openScoped]);
+  // workerId is optional — carried alongside cwd so the folded conflicts section
+  // can reach the worker-scoped resolve endpoints; absent when opened on a bare
+  // dir (a new-session pane), where the conflicts section stays hidden.
+  const openGitDiffViewer = useCallback((cwd, workerId) => openScoped("gitdiff", { cwd, workerId }), [openScoped]);
   const closeGitDiffViewer = useCallback(() => closePanelIn(scopeRef.current, "gitdiff"), [closePanelIn]);
-  const openConflictResolver = useCallback((workerId) => openScoped("conflict", { workerId }), [openScoped]);
-  const closeConflictResolver = useCallback(() => closePanelIn(scopeRef.current, "conflict"), [closePanelIn]);
   const openTerminalViewer = useCallback(() => openScoped("terminal", {}), [openScoped]);
   const closeTerminalViewer = useCallback(() => closePanelIn(scopeRef.current, "terminal"), [closePanelIn]);
   const setDockRatio = useCallback((key, value) => setDockRatioIn(scopeRef.current, key, value), [setDockRatioIn]);
@@ -125,14 +134,12 @@ export function useUi() {
       diffViewer: panelDataIn(scopePane, "diff"),
       commitsViewer: panelDataIn(scopePane, "commits"),
       gitDiffViewer: panelDataIn(scopePane, "gitdiff"),
-      conflictViewer: panelDataIn(scopePane, "conflict"),
       terminalViewer: panelDataIn(scopePane, "terminal"),
       openFileViewer, closeFileViewer,
       openAgentViewer, closeAgentViewer, syncAgentViewer,
       openDiffViewer, closeDiffViewer,
       openCommitsViewer, closeCommitsViewer,
       openGitDiffViewer, closeGitDiffViewer,
-      openConflictResolver, closeConflictResolver,
       openTerminalViewer, closeTerminalViewer,
     };
     return {
@@ -157,7 +164,6 @@ export function useUi() {
     openFileViewer, closeFileViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     openDiffViewer, closeDiffViewer, openCommitsViewer, closeCommitsViewer,
     openGitDiffViewer, closeGitDiffViewer,
-    openConflictResolver, closeConflictResolver,
     openTerminalViewer, closeTerminalViewer,
   ]);
 }

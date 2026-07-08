@@ -108,6 +108,40 @@ describe("archive wire contract (frozen backend contract)", () => {
   });
 });
 
+describe("gitdiff read glue", () => {
+  const okFetch = (body) =>
+    vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => body });
+
+  it("getGitStashes GETs /fs/stashes with the cwd and returns the body", async () => {
+    const body = { stashes: [{ index: 0, sha: "abc1234", subject: "WIP", ts: 1, branch: "dev" }] };
+    const fetchMock = okFetch(body);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const out = await api.getGitStashes("/repo/x");
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain(ROUTES.fsStashes);
+    expect(url).toContain(`cwd=${encodeURIComponent("/repo/x")}`);
+    expect(opts?.method).toBeUndefined();
+    expect(out).toEqual(body);
+  });
+
+  it("getGitStashes degrades to an empty list on a non-ok response", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => null });
+    vi.stubGlobal("fetch", fetchMock);
+
+    expect(await api.getGitStashes("/repo/x")).toEqual({ stashes: [] });
+  });
+
+  it("gitBlobUrl builds an /fs/blob URL with cwd, ref, path", () => {
+    const url = api.gitBlobUrl("/repo/x", "deadbee", "assets/logo.png");
+    expect(url).toContain(ROUTES.fsBlob);
+    expect(url).toContain(`cwd=${encodeURIComponent("/repo/x")}`);
+    expect(url).toContain("ref=deadbee");
+    expect(url).toContain(`path=${encodeURIComponent("assets/logo.png")}`);
+  });
+});
+
 describe("deduped GETs survive concurrent callers", () => {
   // Real Response bodies are single-read — json() rejects on the second read.
   // The re-readable mocks above hide that, so model it explicitly here.

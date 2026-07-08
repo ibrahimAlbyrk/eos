@@ -65,6 +65,9 @@ function TreeNode({ node, depth, closedDirs, onToggleDir, selectedPath, onSelect
         <svg className={"gd-tree-chev" + (open ? " open" : "")} width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="m6 4 4 4-4 4" />
         </svg>
+        <svg className="gd-tree-folder" width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <path d="M2 5a1 1 0 0 1 1-1h3l2 2h5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" />
+        </svg>
         <span className="gd-tree-label gd-tree-dir">{node.label}</span>
         <Counts ins={node.ins} del={node.del} hasBinary={node.hasBinary} />
       </button>

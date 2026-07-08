@@ -758,7 +758,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    stacking); only the open one is visible. The slot is anchored beside the
    focused pane (PaneGrid/SinglePane), so no pane head or bottom-fade ever clips
    it. */
-.terminal-viewer, .file-viewer, .diff-viewer, .commits-viewer, .agent-viewer, .conflict-viewer, .memory-viewer, .gitdiff-viewer {
+.terminal-viewer, .file-viewer, .diff-viewer, .commits-viewer, .agent-viewer, .memory-viewer, .gitdiff-viewer {
   position: absolute;
   inset: var(--dock-tile-inset);
   display: flex;
@@ -780,7 +780,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 }
 /* Open = top of the focused pane's stack. Enter motion is compositor-only
    (opacity + transform); close snaps instantly (no transition on the base state). */
-.terminal-viewer.tv-open, .file-viewer.fv-open, .diff-viewer.dv-open, .commits-viewer.cv-open, .agent-viewer.av-open, .conflict-viewer.cr-open, .memory-viewer.mv-open, .gitdiff-viewer.gdv-open {
+.terminal-viewer.tv-open, .file-viewer.fv-open, .diff-viewer.dv-open, .commits-viewer.cv-open, .agent-viewer.av-open, .memory-viewer.mv-open, .gitdiff-viewer.gdv-open {
   opacity: 1;
   pointer-events: auto;
   transform: none;
@@ -901,6 +901,25 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    message area would paint over a panel docked in the same pane. The drop-preview
    (z-index:3) still sits above the panel. */
 .pane-panel-slot { min-width: 0; min-height: 0; z-index: 2; }
+/* Panel-head vertical alignment. Every docked panel header centres its content
+   on the pane-head line — native 23px (the macOS traffic-light row), web 39px
+   (the drag-strip centre) — so panel titles/buttons sit level with the left
+   pane's breadcrumb. A fixed height + align-items:center hits that line no
+   matter how tall each panel's own tabs/buttons are (terminal tabs are shorter
+   than diff buttons). The height cancels the panel island's own top offset
+   (inset + border), which differs by dock layout, and by pane row:
+     single-pane dock (.pane-dock):        2×1.5 inset + 1 border      = 4px  → line 23/39
+     split top-row dock (.pane-slot.at-top): 3 grid + 1.5+1.5 + 1      = 7px  → line 23/39
+     split lower dock (.pane-slot):          same 7px offset, but level with
+                                             that lower pane's own head (30/46)
+   height = 2 × (line − offset). Web rules first, native (html.native) after so
+   the running macOS app wins on specificity. */
+.pane-panel-slot                  { --ph-h: 70px; } /* web · single:      2×(39−4) */
+.pane-panel-slot.pane-slot        { --ph-h: 78px; } /* web · split lower:  2×(46−7) */
+.pane-panel-slot.pane-slot.at-top { --ph-h: 64px; } /* web · split top:    2×(39−7) */
+html.native .pane-panel-slot                  { --ph-h: 38px; } /* native · single:     2×(23−4) */
+html.native .pane-panel-slot.pane-slot        { --ph-h: 46px; } /* native · split lower: 2×(30−7) */
+html.native .pane-panel-slot.pane-slot.at-top { --ph-h: 32px; } /* native · split top:   2×(23−7) */
 /* Single-pane transcript region — a flex-1 column so <TranscriptHost> (.tx-host,
    flex:1) fills it exactly as it does with no panel open; yields row width to the
    docked panel when one opens. (Named .pane-tx, NOT .sp-body — that class is
@@ -1009,7 +1028,7 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
    itself: 6px on the outer edges AND the transcript-facing edge (one panel, no
    adjacent island to double the gap with). */
 .pane-dock .terminal-viewer, .pane-dock .file-viewer, .pane-dock .diff-viewer,
-.pane-dock .commits-viewer, .pane-dock .agent-viewer, .pane-dock .conflict-viewer,
+.pane-dock .commits-viewer, .pane-dock .agent-viewer,
 .pane-dock .memory-viewer, .pane-dock .gitdiff-viewer {
   /* Full-height sibling of the transcript column: the pane header caps the
      transcript only, so the dock spans the pane top-to-bottom. Single-pane docks
@@ -7042,7 +7061,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
+  padding: 0 12px;
+  height: var(--ph-h, 38px);
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
 }
@@ -7262,6 +7282,71 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   background: color-mix(in srgb, var(--accent) 50%, transparent);
   outline: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
 }
+
+/* CodeLens — a reference-count chip block-rendered above each definition. */
+.fv-editor .cm-codelens {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin: 2px 0 0 18px;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--fg-faint);
+  cursor: pointer;
+  user-select: none;
+  width: max-content;
+}
+.fv-editor .cm-codelens:hover { color: var(--accent); }
+.cm-codelens-glyph { font-family: var(--font-mono); opacity: 0.8; }
+.cm-codelens-label.is-loading { opacity: 0.5; }
+
+/* References drawer — bottom panel in the File viewer. Own fv- chrome; the
+   grouping/path shaping is shared with the Files view via lib/symbols.js. */
+.fv-symrefs {
+  flex: 0 0 auto;
+  max-height: 42%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2, var(--bg));
+}
+.fv-symrefs-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+.fv-symrefs-title { flex: 1; min-width: 0; font-size: var(--text-sm); color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fv-symrefs-title b { font-family: var(--font-mono); font-weight: 600; }
+.fv-symrefs-count {
+  margin-left: 6px; padding: 0 5px; border-radius: 8px;
+  font-size: var(--text-xs); color: var(--fg-faint); background: rgba(var(--tint), 0.08);
+}
+.fv-symrefs-body { overflow-y: auto; min-height: 0; padding-bottom: 6px; }
+.fv-symrefs-hint { padding: 4px 10px; font-size: var(--text-xs); color: var(--fg-faint); font-style: italic; }
+.fv-symrefs-group { margin-bottom: 4px; }
+.fv-symrefs-file {
+  padding: 3px 10px; font-family: var(--font-mono); font-size: var(--text-xs);
+  color: var(--fg-mid); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fv-symrefs-row { display: flex; align-items: center; gap: 8px; padding: 2px 10px 2px 18px; cursor: pointer; }
+.fv-symrefs-row:hover { background: rgba(var(--tint), 0.06); }
+.fv-symrefs-row.on { background: rgba(var(--tint), 0.10); }
+.fv-symrefs-line {
+  flex: 0 0 auto; min-width: 26px; text-align: right;
+  font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint);
+}
+.fv-symrefs-text {
+  flex: 1; min-width: 0; font-family: var(--font-mono); font-size: var(--text-xs);
+  color: var(--fg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.fv-symrefs-badge {
+  flex: 0 0 auto; padding: 0 4px; border-radius: 3px;
+  font-size: var(--text-xs); color: var(--accent); background: var(--accent-soft);
+}
+.fv-symrefs-empty { padding: 12px 10px; font-size: var(--text-xs); color: var(--fg-faint); }
 
 /* Open With popover */
 .fv-openwith {
@@ -7655,7 +7740,8 @@ html:not([data-theme="light"]) .fv-editor--md {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 8px 12px;
+  padding: 0 12px;
+  height: var(--ph-h, 38px);
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
 }
@@ -7909,7 +7995,8 @@ html:not([data-theme="light"]) .fv-editor--md {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 0 14px;
+  height: var(--ph-h, 38px);
   flex-shrink: 0;
   position: relative;
   z-index: 1;
@@ -9725,7 +9812,8 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 6px 4px;
+  padding: 0 6px;
+  height: var(--ph-h, 38px);
   background: var(--pty-bg);
   flex-shrink: 0;
 }
@@ -9916,14 +10004,34 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen .dock-
 
 /* ---- Git Diff panel (gd-) -------------------------------------------------
    Panel internals only — the island shell (.gitdiff-viewer) rides the shared
-   docked-viewer selector lists above; counts and patch internals reuse dv-*. */
+   docked-viewer selector lists above; counts and patch internals reuse dv-*.
+   The panel root is also a size container so the narrow-mode query below can
+   react to the PANEL's width, not the window's. */
+.gitdiff-viewer { container: gitdiff / inline-size; }
+/* Very narrow panel: only the diff list fits — hide the tree sidebar and its
+   header toggle. display:none keeps the React subtree (treeOpen, dir state)
+   mounted, so widening restores exactly what the user had open. */
+@container gitdiff (max-width: 480px) {
+  .gd-side, .gd-tree-btn { display: none; }
+}
 .gd-tree-btn.on { color: var(--accent); }
+.gd-crumb-sep { color: var(--fg-faint); flex-shrink: 0; }
+.gd-tree-folder { color: var(--fg-dim); flex-shrink: 0; }
 
 .gd-main {
   flex: 1;
   display: flex;
   min-height: 0;
   min-width: 0;
+}
+/* Content column right of the sidebar: an optional conflicts section stacked
+   above the scrollable file list. */
+.gd-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
 }
 .gd-side {
   width: 240px;
@@ -9933,6 +10041,38 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen .dock-
   min-height: 0;
   border-right: 1px solid var(--border);
 }
+
+/* Conflicts section — folded-in merge resolver, above the file list. Amber
+   accent marks it as needing action; caps at ~55% so the file list stays
+   reachable, scrolls internally. Row internals reuse the ported cr-* styles. */
+.gd-conflicts {
+  flex-shrink: 0;
+  max-height: 55%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-bottom: 1px solid var(--border);
+  background: color-mix(in srgb, var(--warn) 6%, transparent);
+}
+.gd-conflicts-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  flex-shrink: 0;
+  color: var(--warn);
+  border-bottom: 1px solid color-mix(in srgb, var(--warn) 30%, var(--border));
+}
+.gd-conflicts-title { font-size: var(--text-sm); font-weight: 600; }
+.gd-conflicts-count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--warn) 20%, transparent);
+}
+.gd-conflicts-list { overflow-y: auto; min-height: 0; }
 
 /* File tree */
 .gd-tree {

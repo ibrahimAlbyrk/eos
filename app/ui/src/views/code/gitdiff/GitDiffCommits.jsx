@@ -9,8 +9,9 @@ const LOG_LIMIT_MAX = 100;
 
 const shortSha = (sha) => sha.slice(0, 7);
 
-// Sidebar-bottom commit history. "All changes" restores the working-tree
-// scope; a commit row scopes the panel to that single commit. New commits
+// Sidebar-bottom commit history. "Local changes" restores the working-tree
+// scope (staged+unstaged+untracked vs HEAD); a commit row scopes the panel to
+// that single commit. New commits
 // land via the git-change bus (head/refs) with the poll as backstop
 // (CommitsViewer idiom); a refresh re-reads the already-loaded window so
 // "show more" pages survive it.
@@ -63,7 +64,7 @@ export function GitDiffCommits({ cwd, scope, onScope }) {
           className={"gd-commit" + (scope.kind !== "commit" ? " on" : "")}
           onClick={() => onScope({ kind: "all" })}
         >
-          <span className="gd-commit-subject">All changes</span>
+          <span className="gd-commit-subject">Local changes</span>
         </button>
         {commits === null && <div className="gd-commits-note">Loading...</div>}
         {commits !== null && commits.length === 0 && <div className="gd-commits-note">No commits</div>}

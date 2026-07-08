@@ -26,6 +26,7 @@ export const BRANCH_KINDS = ["head", "refs"];                      // config-row
 // Git Diff panel working-tree scope: diffs against the merge-base with the
 // default branch, so commits/checkouts (head/refs) move it too.
 export const GITDIFF_KINDS = ["worktree", "index", "head", "refs"];
+export const STASH_KINDS = ["stash"];                              // gitdiff stashes section
 
 // Subscribe to a dir's git changes, filtered to `wantedKinds`. `cb` is called
 // (no args) whenever a matching change arrives. An event with no kinds is

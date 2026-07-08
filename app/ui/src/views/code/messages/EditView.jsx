@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { EditorState, StateEffect, StateField } from "@codemirror/state";
 import {
-  EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, Decoration,
+  EditorView, ViewPlugin, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, Decoration,
 } from "@codemirror/view";
 import { indentOnInput, indentUnit, bracketMatching } from "@codemirror/language";
 import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
@@ -9,6 +9,7 @@ import { autocompletion, closeBrackets, closeBracketsKeymap } from "@codemirror/
 import { cmLanguageFor } from "../../../lib/cmLang.js";
 import { detectIndentUnit } from "../../../lib/indentDetect.js";
 import { fvSyntaxHighlight } from "../../../lib/cmHighlight.js";
+import { setCodeLensDeco, codeLensField, buildCodeLensDeco, visibleDefNames } from "../../../lib/cmCodeLens.js";
 
 const setFindDeco = StateEffect.define();
 const findDecoField = StateField.define({
@@ -33,7 +34,7 @@ function wordAtEvent(view, e) {
   return view.state.sliceDoc(range.from, range.to);
 }
 
-export function EditView({ editContent, setEditContent, findQuery, currentMatch, matches, filePath, readOnly = false, symbolNav = null, revealLine, revealColumn, revealSeq }) {
+export function EditView({ editContent, setEditContent, findQuery, currentMatch, matches, filePath, readOnly = false, symbolNav = null, revealLine, revealColumn, revealSeq, codeLens = null, onCodeLensClick = null, onVisibleDefs = null }) {
   const hostRef = useRef(null);
   const viewRef = useRef(null);
   const docRef = useRef(editContent);
@@ -47,6 +48,16 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
   const symbolNavRef = useRef(symbolNav);
   symbolNavRef.current = symbolNav;
   const symbolNavEnabled = Boolean(symbolNav);
+  // CodeLens chips + lazy viewport-count reporting, all read through refs so the
+  // extension closure and per-widget click stay stable across count updates.
+  const codeLensRef = useRef(codeLens);
+  codeLensRef.current = codeLens;
+  const onCodeLensClickRef = useRef(onCodeLensClick);
+  onCodeLensClickRef.current = onCodeLensClick;
+  const onVisibleDefsRef = useRef(onVisibleDefs);
+  onVisibleDefsRef.current = onVisibleDefs;
+  const codeLensEnabled = Boolean(onCodeLensClick);
+  const lensClick = (def) => onCodeLensClickRef.current?.(def);
 
   useEffect(() => {
     const doc = contentRef.current;
@@ -74,6 +85,24 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
         return true;
       },
     })] : [];
+    // CodeLens: the block-widget field plus a debounced viewport reporter that
+    // asks the parent to resolve reference counts only for the defs on screen.
+    const codeLensExt = codeLensEnabled ? [
+      codeLensField,
+      ViewPlugin.fromClass(class {
+        constructor(view) { this.view = view; this.timer = null; this.schedule(); }
+        update(u) { if (u.viewportChanged || u.geometryChanged || u.docChanged) this.schedule(); }
+        schedule() {
+          clearTimeout(this.timer);
+          this.timer = setTimeout(() => {
+            const cb = onVisibleDefsRef.current;
+            const names = visibleDefNames(this.view, codeLensRef.current);
+            if (cb && names.length) cb(names);
+          }, 250);
+        }
+        destroy() { clearTimeout(this.timer); }
+      }),
+    ] : [];
     // Heavy docs open read-only with the minimal set: viewport rendering and
     // syntax stay, editing affordances (history, autocomplete, brackets) go.
     let extensions;
@@ -84,6 +113,7 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
         fvSyntaxHighlight,
         findDecoField,
         ...symbolNavExt,
+        ...codeLensExt,
         keymap.of(defaultKeymap),
         ...(lang ? [lang] : []),
       ];
@@ -103,6 +133,7 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
         fvSyntaxHighlight,
         findDecoField,
         ...symbolNavExt,
+        ...codeLensExt,
         keymap.of([...closeBracketsKeymap, ...defaultKeymap, ...historyKeymap, indentWithTab]),
         ...(lang ? [lang] : []),
         EditorView.updateListener.of((u) => {
@@ -119,8 +150,13 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
     });
     docRef.current = doc;
     viewRef.current = view;
+    // Seed a freshly-created view with the current chips (a remount — file switch
+    // or readOnly flip — otherwise starts with an empty CodeLens field).
+    if (codeLensEnabled) {
+      view.dispatch({ effects: setCodeLensDeco.of(buildCodeLensDeco(view.state, codeLensRef.current ?? [], lensClick)) });
+    }
     return () => { view.destroy(); viewRef.current = null; };
-  }, [filePath, readOnly, symbolNavEnabled]);
+  }, [filePath, readOnly, symbolNavEnabled, codeLensEnabled]);
 
   // Scroll-to-line for go-to-definition / reference navigation. Keyed off
   // revealSeq so re-navigating to the same line still re-centers.
@@ -164,6 +200,17 @@ export function EditView({ editContent, setEditContent, findQuery, currentMatch,
     }
     view.dispatch({ effects });
   }, [findQuery, currentMatch, matches]);
+
+  // Re-render chips whenever the def list or a resolved count changes, then ask
+  // for counts of any defs currently on screen (covers the first load, where
+  // defs arrive after mount and the viewport reporter hasn't fired yet).
+  useEffect(() => {
+    const view = viewRef.current;
+    if (!view || !codeLensEnabled) return;
+    view.dispatch({ effects: setCodeLensDeco.of(buildCodeLensDeco(view.state, codeLens ?? [], lensClick)) });
+    const names = visibleDefNames(view, codeLens ?? []);
+    if (names.length && onVisibleDefsRef.current) onVisibleDefsRef.current(names);
+  }, [codeLens, codeLensEnabled]);
 
   const isMd = /\.(md|mdx|markdown)$/i.test(filePath ?? "");
   return <div className={"fv-editor" + (isMd ? " fv-editor--md" : "")} ref={hostRef} />;

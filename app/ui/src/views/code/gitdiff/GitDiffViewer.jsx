@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { basename } from "../../../lib/path.js";
+import { truncateBranch } from "../../../lib/branchDisplay.js";
 import { useGitScopeChanges } from "../../../hooks/useGitScopeChanges.js";
 import { scopeKeyOf } from "../../../state/gitDiffStore.js";
 import { subscribe as subscribeDockFullscreen, isDockFullscreen, setDockFullscreen } from "../../../state/dockFullscreenStore.js";
@@ -7,27 +9,29 @@ import { PanelCloseButton } from "../messages/PanelCloseButton.jsx";
 import { DockChromeInset } from "../../../components/DockChromeInset.jsx";
 import { GitDiffTree } from "./GitDiffTree.jsx";
 import { GitDiffCommits } from "./GitDiffCommits.jsx";
+import { GitDiffStashes } from "./GitDiffStashes.jsx";
+import { GitDiffConflicts } from "./GitDiffConflicts.jsx";
 import { GitDiffBody } from "./GitDiffBody.jsx";
 
 // Above this many changed lines a diff counts as "large": every file starts
 // collapsed and the hint row appears (DiffViewer's threshold).
 const LARGE_DIFF_LINES = 1000;
 
-// Git Diff docked panel — any repo dir's changes at the working-tree scope
-// (vs the merge-base with the default branch) or one commit's scope, with a
-// file-tree + commit-history sidebar. Read-only; worker-specific actions
+// Git Diff docked panel — any repo dir's local changes (staged+unstaged+
+// untracked vs HEAD) or one commit's scope, with a file-tree + commit-history
+// sidebar. Read-only; worker-specific actions
 // (discard/Try/Apply/verdict) live in the DiffViewer.
-export function GitDiffViewer() {
+export function GitDiffViewer({ live }) {
   const ui = useUi();
   const open = Boolean(ui.gitDiffViewer);
   return (
     <div className="gitdiff-viewer gdv-open">
-      {open && <GitDiffViewerInner cwd={ui.gitDiffViewer.cwd} paneId={ui.paneId} />}
+      {open && <GitDiffViewerInner cwd={ui.gitDiffViewer.cwd} workerId={ui.gitDiffViewer.workerId} paneId={ui.paneId} live={live} />}
     </div>
   );
 }
 
-function GitDiffViewerInner({ cwd, paneId }) {
+function GitDiffViewerInner({ cwd, workerId, paneId, live }) {
   const ui = useUi();
   const [scope, setScope] = useState({ kind: "all" });
   const [treeOpen, setTreeOpen] = useState(false);
@@ -69,7 +73,9 @@ function GitDiffViewerInner({ cwd, paneId }) {
     setSelectedPath(null);
   }, []);
 
-  const baseLabel = changes?.baseLabel;
+  // "repo · branch" like the composer git ribbon (an arrow would falsely imply
+  // a ref range — the "all" scope is now local changes vs HEAD).
+  const repoLabel = changes?.repoLabel ?? basename(cwd);
   const headLabel = changes?.headLabel;
 
   return (
@@ -92,14 +98,16 @@ function GitDiffViewerInner({ cwd, paneId }) {
               <span className="dv-crumb-ref">{scope.sha.slice(0, 7)}</span>
               <span className="dv-crumb-ref dv-crumb-head">{scope.subject}</span>
             </>
-          ) : baseLabel ? (
-            <>
-              <span className="dv-crumb-ref">{baseLabel}</span>
-              <span className="dv-crumb-arrow">→</span>
-              <span className="dv-crumb-ref dv-crumb-head">{headLabel}</span>
-            </>
           ) : (
-            <span className="dv-crumb-ref">{headLabel ?? "Changes"}</span>
+            <>
+              <span className="dv-crumb-ref">{repoLabel}</span>
+              {headLabel && (
+                <>
+                  <span className="gd-crumb-sep">·</span>
+                  <span className="dv-crumb-ref dv-crumb-head" title={headLabel}>{truncateBranch(headLabel)}</span>
+                </>
+              )}
+            </>
           )}
         </span>
         <span className="dv-grow" />
@@ -128,21 +136,25 @@ function GitDiffViewerInner({ cwd, paneId }) {
         {treeOpen && (
           <div className="gd-side">
             <GitDiffTree files={changes?.files ?? []} selectedPath={selectedPath} onSelect={setSelectedPath} />
+            <GitDiffStashes cwd={cwd} scope={scope} onScope={onScope} />
             <GitDiffCommits cwd={cwd} scope={scope} onScope={onScope} />
           </div>
         )}
-        <GitDiffBody
-          files={changes?.files ?? (changes ? [] : null)}
-          patches={patches}
-          collapsed={collapsed}
-          onToggle={toggle}
-          loadPatch={loadPatch}
-          selectedPath={selectedPath}
-          cwd={cwd}
-          baseSha={changes?.baseSha ?? null}
-          headSha={changes?.headSha ?? null}
-          scope={scope}
-        />
+        <div className="gd-content">
+          {workerId && scope.kind === "all" && <GitDiffConflicts workerId={workerId} live={live} />}
+          <GitDiffBody
+            files={changes?.files ?? (changes ? [] : null)}
+            patches={patches}
+            collapsed={collapsed}
+            onToggle={toggle}
+            loadPatch={loadPatch}
+            selectedPath={selectedPath}
+            cwd={cwd}
+            baseSha={changes?.baseSha ?? null}
+            headSha={changes?.headSha ?? null}
+            scope={scope}
+          />
+        </div>
       </div>
     </>
   );

@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../api/client.js";
 import { useUi } from "../../state/ui.jsx";
-import { explorer, useCanGoBack, useExternalChange, useOpenPath, useReveal } from "../../state/explorerStore.js";
+import { explorer, useCanGoBack, useExplorerRoot, useExternalChange, useOpenPath, useReveal } from "../../state/explorerStore.js";
+import { useCodeLens } from "../../hooks/useCodeLens.js";
 import { findAll, shortenHome } from "../../lib/fileUtils.jsx";
 import { fileKind } from "../../lib/fileKind.js";
 import { isMarkdownPath } from "../../lib/markdownPreview.js";
@@ -67,6 +68,17 @@ function EditorInner({ path }) {
     onContextMenu: ({ word, x, y }) => ui.openPop("fx-sym-ctx", { x, y, data: { word, path } }),
   }), [path, ui]);
   const revealForPath = reveal?.path === path ? reveal : null;
+
+  // CodeLens chips over the same explorer root the tree/search already use. A
+  // chip click reuses Phase 0's references panel (explorer.refs, shown in the
+  // tree column) rather than a second panel — toggling it off when re-clicked.
+  const root = useExplorerRoot();
+  const { codeLens, requestCounts } = useCodeLens({ root, path, enabled: isText && content !== null });
+  const onCodeLensClick = useCallback((def) => {
+    const cur = explorer.getState().refs;
+    if (cur && cur.name === def.name && cur.want === "references") { explorer.closeRefs(); return; }
+    explorer.findReferences(def.name, path);
+  }, [path]);
 
   useEffect(() => {
     if (!wantsText) return;
@@ -216,6 +228,9 @@ function EditorInner({ path }) {
                   filePath={path}
                   readOnly={content.length > HEAVY_TEXT_CHARS}
                   symbolNav={symbolNav}
+                  codeLens={codeLens}
+                  onCodeLensClick={onCodeLensClick}
+                  onVisibleDefs={requestCounts}
                   revealLine={revealForPath?.line}
                   revealColumn={revealForPath?.column}
                   revealSeq={revealForPath?.seq}

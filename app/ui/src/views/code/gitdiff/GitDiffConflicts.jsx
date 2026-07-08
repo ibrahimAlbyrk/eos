@@ -1,9 +1,15 @@
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
-import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { highlightAsync } from "../../../lib/asyncHighlight.js";
 import { useWorkerConflicts } from "../../../hooks/useWorkerConflicts.js";
-import { PanelCloseButton } from "./PanelCloseButton.jsx";
+
+// Merge-conflict resolution, folded into the Git Diff panel as a prominent
+// section above the file list. Ported verbatim from the former standalone
+// ConflictResolver panel — same worker-scoped data source (useWorkerConflicts /
+// conflictStore) and the same resolve contract; only the shell changed. The
+// section is worker-scoped because resolution writes a `git add` + a
+// conflict_resolved event to that worker's transcript; it renders only when the
+// panel was opened from a worker context and the repo actually has conflicts.
 
 // Whole-file keep/remove choices for the markerless add/delete kinds. The
 // `side` matches the server's takeSide() contract; `danger` flags the
@@ -34,7 +40,7 @@ function HighlightedLines({ lines, path }) {
     <div className="cr-lines">
       {lines.map((ln, i) => (
         <div className="cr-line" key={i}>
-          <span className="cr-line-text">{hl?.[i] ? renderTokens(hl[i]) : (ln.replace(/\r$/, "") || " ")}</span>
+          <span className="cr-line-text">{hl?.[i] ? renderTokens(hl[i]) : (ln.replace(/\r$/, "") || " ")}</span>
         </div>
       ))}
     </div>
@@ -49,7 +55,7 @@ function ContextBlock({ lines }) {
   }
   return (
     <div className="cr-context">
-      {lines.map((ln, i) => <div className="cr-line" key={i}><span className="cr-line-text">{ln.replace(/\r$/, "") || " "}</span></div>)}
+      {lines.map((ln, i) => <div className="cr-line" key={i}><span className="cr-line-text">{ln.replace(/\r$/, "") || " "}</span></div>)}
     </div>
   );
 }
@@ -259,38 +265,27 @@ const ConflictFileCard = memo(function ConflictFileCard({ workerId, file, docEnt
   );
 });
 
-function ConflictResolverInner({ workerId, live }) {
-  const ui = useUi();
+// Conflicts section for the Git Diff panel. Renders nothing until the list has
+// loaded and only when there is at least one conflict — so it costs no vertical
+// space in the common clean-tree case.
+export function GitDiffConflicts({ workerId, live }) {
   const { list, docs, refresh, loadDoc } = useWorkerConflicts(workerId, live);
-  const worker = live.workers.find((w) => w.id === workerId);
-  const gitDir = worker?.worktree_dir ?? worker?.cwd ?? worker?.worktree_from ?? null;
 
-  const ready = list !== null;
-  const files = list ?? [];
+  if (!list || list.length === 0) return null;
 
   return (
-    <>
-      <div className="dv-head">
-        <span className="dv-title">Conflicts</span>
-        {files.length > 0 && <span className="dv-count">{files.length}</span>}
-        <span className="dv-grow" />
-        {gitDir && (
-          <button className="fv-icon-btn" title="Reveal workspace in Finder" onClick={() => api.revealFile(gitDir)}>
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <path d="M2 5a1 1 0 0 1 1-1h3l2 2h5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" />
-            </svg>
-          </button>
-        )}
-        <PanelCloseButton onClose={ui.closeConflictResolver} />
+    <div className="gd-conflicts">
+      <div className="gd-conflicts-head">
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M7 1.5L13 12H1L7 1.5z" />
+          <line x1="7" y1="5.5" x2="7" y2="8.5" />
+          <circle cx="7" cy="10.3" r="0.4" fill="currentColor" stroke="none" />
+        </svg>
+        <span className="gd-conflicts-title">Conflicts</span>
+        <span className="gd-conflicts-count">{list.length}</span>
       </div>
-      <div className="cr-list">
-        {!ready && <div className="dv-empty">Loading…</div>}
-        {ready && files.length === 0 && (
-          <div className="dv-empty">
-            No conflicts. Once everything is resolved, commit to conclude the merge.
-          </div>
-        )}
-        {ready && files.map((f) => (
+      <div className="gd-conflicts-list">
+        {list.map((f) => (
           <ConflictFileCard
             key={f.path}
             workerId={workerId}
@@ -301,18 +296,6 @@ function ConflictResolverInner({ workerId, live }) {
           />
         ))}
       </div>
-    </>
-  );
-}
-
-export function ConflictResolver({ live }) {
-  const ui = useUi();
-  // Mounted whenever it's anywhere in the panel stack (state survives a viewer
-  // pushed on top); visible only when on top.
-  const open = Boolean(ui.conflictViewer);
-  return (
-    <div className="conflict-viewer cr-open">
-      {open && <ConflictResolverInner workerId={ui.conflictViewer.workerId} live={live} />}
     </div>
   );
 }

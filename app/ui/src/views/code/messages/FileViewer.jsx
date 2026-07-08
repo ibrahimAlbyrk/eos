@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { useOriginPane } from "../../../state/paneScope.js";
 import { combo } from "../../../keymap/index.js";
@@ -7,28 +7,31 @@ import { api } from "../../../api/client.js";
 import { findAll, shortenHome } from "../../../lib/fileUtils.jsx";
 import { fileKind } from "../../../lib/fileKind.js";
 import { isMarkdownPath } from "../../../lib/markdownPreview.js";
+import { repoRootForPath } from "../../../lib/symbolRoot.js";
+import { useCodeLens } from "../../../hooks/useCodeLens.js";
 import { EditView } from "./EditViewLazy.jsx";
 import { MarkdownPreview } from "./MarkdownPreview.jsx";
 import { PreviewToggle } from "./PreviewToggle.jsx";
 import { getFileViewer } from "./fileViewers.jsx";
 import { PanelCloseButton } from "./PanelCloseButton.jsx";
+import { SymbolRefsPanel } from "./SymbolRefsPanel.jsx";
 import { useFileWatch } from "../../../state/fileWatchStore.js";
 
 // Above this size the editor opens read-only with the lightweight extension
 // set — editing affordances (history, autocomplete) cost too much on huge docs.
 const HEAVY_TEXT_CHARS = 2 * 1024 * 1024;
 
-export function FileViewer() {
+export function FileViewer({ live }) {
   const ui = useUi();
   const open = !!ui.fileViewer;
   return (
     <div className="file-viewer fv-open">
-      {open && <FileViewerInner path={ui.fileViewer.path} />}
+      {open && <FileViewerInner path={ui.fileViewer.path} live={live} />}
     </div>
   );
 }
 
-function FileViewerInner({ path }) {
+function FileViewerInner({ path, live }) {
   const ui = useUi();
   const [content, setContent] = useState(null);
   const [editContent, setEditContent] = useState("");
@@ -82,6 +85,58 @@ function FileViewerInner({ path }) {
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
   }, [path, wantsText, reloadTick]);
+
+  // ---- symbol intelligence (CodeLens · references · go-to-def) --------------
+  // Root = the worker worktree/cwd that contains this file; null → no symbol UI.
+  const root = useMemo(() => repoRootForPath(path, live?.workers), [path, live?.workers]);
+  const rootRef = useRef(root);
+  rootRef.current = root;
+  const [refs, setRefs] = useState(null); // { name, occurrences, loading } | null
+  const refsRef = useRef(refs);
+  refsRef.current = refs;
+  const revealTarget = ui.fileViewer?.reveal;
+
+  // Definitions + lazy reference counts come from the shared hook (also used by
+  // the Files-tab editor); the references drawer + go-to-def stay local here.
+  const { codeLens, requestCounts } = useCodeLens({ root, path, enabled: isText && content !== null });
+
+  useEffect(() => { setRefs(null); }, [path]); // drop the drawer when the file changes
+
+  // Open the references drawer for a symbol (chip click / right-click find-refs).
+  const fetchRefs = useCallback((name) => {
+    if (!root) return;
+    setRefs({ name, occurrences: [], loading: true });
+    api.symbolsLookup(root, name, "references", path).then((res) => {
+      if (rootRef.current !== root) return;
+      if (!res) { setRefs((prev) => (prev?.name === name ? null : prev)); return; }
+      const occ = res.occurrences ?? [];
+      setRefs((prev) => (prev?.name === name ? { name, occurrences: occ, loading: false } : prev));
+    }).catch(() => setRefs((prev) => (prev?.name === name ? null : prev)));
+  }, [root, path]);
+
+  const onCodeLensClick = useCallback((def) => {
+    if (refsRef.current?.name === def.name) { setRefs(null); return; } // toggle off
+    fetchRefs(def.name);
+  }, [fetchRefs]);
+
+  // Cmd/Ctrl-click → go to definition: navigate to the top-ranked hit.
+  const goToDef = useCallback((word) => {
+    if (!root) return;
+    api.symbolsLookup(root, word, "definitions", path).then((res) => {
+      const occ = res?.occurrences ?? [];
+      if (occ.length) ui.openFileViewer(occ[0].path, { line: occ[0].line, column: occ[0].column });
+    }).catch(() => {});
+  }, [root, path, ui.openFileViewer]);
+
+  const symbolNav = useMemo(() => (root ? {
+    onDefinition: goToDef,
+    onContextMenu: ({ word }) => fetchRefs(word),
+  } : null), [root, goToDef, fetchRefs]);
+
+  const openOccurrence = useCallback(
+    (occ) => ui.openFileViewer(occ.path, { line: occ.line, column: occ.column }),
+    [ui.openFileViewer],
+  );
 
   const handleSave = async () => {
     setSaving(true);
@@ -252,12 +307,28 @@ function FileViewerInner({ path }) {
                   matches={findMatches}
                   filePath={path}
                   readOnly={content.length > HEAVY_TEXT_CHARS}
+                  symbolNav={symbolNav}
+                  codeLens={codeLens}
+                  onCodeLensClick={onCodeLensClick}
+                  onVisibleDefs={requestCounts}
+                  revealLine={revealTarget?.line}
+                  revealColumn={revealTarget?.column}
+                  revealSeq={revealTarget?.seq}
                 />
               )
             )}
           </>
         )}
       </div>
+      {refs && root && (
+        <SymbolRefsPanel
+          refs={refs}
+          root={root}
+          currentPath={path}
+          onOpen={openOccurrence}
+          onClose={() => setRefs(null)}
+        />
+      )}
     </>
   );
 }

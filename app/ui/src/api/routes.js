@@ -49,6 +49,7 @@ export const ROUTES = {
   fsChanges: "/fs/changes",
   fsChangesFile: "/fs/changes/file",
   fsBlob: "/fs/blob",
+  fsStashes: "/fs/stashes",
   fsCheckout: "/fs/checkout",
   fsBranchCreate: "/fs/branch/create",
   fsBranchRename: "/fs/branch/rename",
@@ -72,6 +73,7 @@ export const ROUTES = {
   // Symbols search mode. Reads are un-gated GETs like /fs/read.
   symbolsLookup: "/symbols/lookup",
   symbolsSearch: "/symbols/search",
+  symbolsFile: "/symbols/file",
   workerName: (id) => `/workers/${id}/name`,
   workerRenameIntent: (id) => `/workers/${id}/rename-intent`,
   workerOpen: (id) => `/workers/${id}/open`,

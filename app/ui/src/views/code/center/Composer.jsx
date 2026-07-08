@@ -497,8 +497,7 @@ export function Composer({ live, worker, paneId, focused }) {
   });
 
   // Shared text-prep for a normal (non-term) send: resolve @paths + pending
-  // attachments, clear the input, return display/agent text. Single-send and
-  // broadcast both use it so they stay identical.
+  // attachments, clear the input, return display/agent text.
   const prepareMessage = async () => {
     const t = text.trim();
     let agentText = t;
@@ -535,18 +534,6 @@ export function Composer({ live, worker, paneId, focused }) {
       outbox.settleSend(worker.id, itemId, { ok: false });
       console.error("send failed:", e);
     }
-  };
-
-  // Broadcast the current message to every agent shown in a split pane.
-  const sendBroadcast = async () => {
-    const t = text.trim();
-    if (!t || gitMode || termMode) return;
-    const ids = [...new Set((ui.paneAgents ?? []).filter(Boolean))];
-    const targets = ids.map((id) => live.workers.find((w) => w.id === id)).filter(Boolean);
-    if (targets.length === 0) return;
-    history.push({ text: t, mode: composerMode({ gitMode, termMode }) });
-    const { displayText, agentText } = await prepareMessage();
-    for (const w of targets) dispatchTo(w, displayText, agentText);
   };
 
   const send = async () => {
@@ -694,14 +681,6 @@ export function Composer({ live, worker, paneId, focused }) {
   };
 
   const onKey = (e) => {
-    // Cmd+Enter → broadcast to all split panes (normal mode only; an open
-    // question banner keeps Cmd+Enter for answering).
-    if (e.key === "Enter" && e.metaKey && !e.shiftKey && !ui.pendingQuestion
-        && ui.paneCount > 1 && !gitMode && !termMode) {
-      e.preventDefault();
-      sendBroadcast();
-      return;
-    }
     // Undo / redo — the contentEditable's native history is wiped by every
     // re-color (innerHTML rebuild), so we drive our own debounced stack.
     if ((e.key === "z" || e.key === "Z") && (e.metaKey || e.ctrlKey) && !e.altKey) {
@@ -1158,14 +1137,6 @@ export function Composer({ live, worker, paneId, focused }) {
               onPointerOut={onEditorPointerOut}
               onKeyUp={() => { const el = editorRef.current; if (el) setCursorPos(getCursorOffset(el)); }}
             />
-            {focused && ui.paneCount > 1 && !gitMode && !termMode && (
-              <button className="submit broadcast-btn" title={`Send to all ${ui.paneCount} panes`} onClick={sendBroadcast}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="8" cy="8" r="1.6" fill="currentColor" stroke="none" />
-                  <path d="M4.6 4.6a4.8 4.8 0 0 0 0 6.8M11.4 4.6a4.8 4.8 0 0 1 0 6.8" />
-                </svg>
-              </button>
-            )}
             <SubmitButton
               stop={showStop}
               onClick={showStop ? () => live.interruptAgent(selected.id) : send}
