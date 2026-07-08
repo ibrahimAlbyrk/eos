@@ -19,6 +19,7 @@ import { currentDatetimeDef } from "./defs/current_datetime.ts";
 import { workflowDef } from "./defs/workflow.ts";
 import { workflowStepOutputDef } from "./defs/workflow_step_output.ts";
 import { getWorkerMessagesDef } from "./defs/get_worker_messages.ts";
+import { schedulePromptDef } from "./defs/schedule_prompt.ts";
 
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
@@ -38,6 +39,7 @@ export const orchestratorDefs: ToolDefinition[] = [
   currentDatetimeDef,
   workflowDef,
   getWorkerMessagesDef,
+  schedulePromptDef,
 ];
 
 // Always registered on a worker.
