@@ -371,6 +371,18 @@ export type PtyBufferResponse = z.infer<typeof PtyBufferResponseSchema>;
 export const OpenInRequestSchema = z.object({ target: z.enum(["vscode", "finder"]) });
 export type OpenInRequest = z.infer<typeof OpenInRequestSchema>;
 
+// ---- POST /fs/open-in --------------------------------------------------------
+// Path-based "open in" for the Git Diff panel's file rows: reveal an arbitrary
+// absolute path in Finder or open it in VS Code. Unlike /workers/:id/open (dir
+// resolved server-side), the caller supplies the path. finder = reveal (same
+// as /fs/reveal); vscode = open the file in the editor.
+
+export const FsOpenInRequestSchema = z.object({
+  path: z.string().min(1),
+  target: z.enum(["finder", "vscode"]),
+});
+export type FsOpenInRequest = z.infer<typeof FsOpenInRequestSchema>;
+
 // ---- GET /workers/:id/events ----------------------------------------------
 
 export const EventsQuerySchema = z.object({
@@ -2084,6 +2096,7 @@ export const ROUTES = {
   fsStashDrop: "/fs/stash/drop",
   fsRecents: "/fs/recents",
   fsReveal: "/fs/reveal",
+  fsOpenIn: "/fs/open-in",
   fsRead: "/fs/read",
   fsList: "/fs/list",
   fsImage: "/fs/image",

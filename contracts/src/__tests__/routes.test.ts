@@ -11,7 +11,7 @@ const EXPECTED_KEYS = [
   "pending", "pendingDecision", "metrics", "datetime", "scheduledPrompts", "scheduledPrompt", "uiConfig",
   "pickDirectory", "pickFile", "fsDefaultApp", "fsOpen", "fsIcon",
   "fsBranches", "fsUnpushed", "fsCommit", "fsLog", "fsChanges", "fsChangesFile", "fsBlob", "fsStashes", "fsStashApply", "fsStashDrop",
-  "fsRecents", "fsReveal", "fsRead", "fsList", "fsImage",
+  "fsRecents", "fsReveal", "fsOpenIn", "fsRead", "fsList", "fsImage",
   "fsRaw", "pdfjs",
   "fsCheckout", "fsBranchCreate", "fsBranchRename", "fsBranchDelete", "fsFetch", "fsRemoteBranchDelete",
   "fsWrite", "fsPaste", "fsStat", "fsCreate", "fsRename", "fsMove", "fsTrash", "fsWatch", "fsUnwatch",
