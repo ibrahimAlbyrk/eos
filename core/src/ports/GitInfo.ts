@@ -87,6 +87,30 @@ export interface GitInfo {
   /** Commits the upstream doesn't have (@{u}..HEAD), newest first. Empty when
    *  there's no upstream. */
   unpushedCommits(cwd: string): Promise<UnpushedCommit[]>;
+  /** Paged HEAD history, newest first. Fetches limit+1 rows so callers can
+   *  compute hasMore by comparing length against limit. Empty on error /
+   *  unborn HEAD. */
+  log(cwd: string, opts: { limit: number; skip: number }): Promise<UnpushedCommit[]>;
+  /** The repo's default branch: origin/HEAD when set, else "main"/"master" if
+   *  a local branch by that name exists. Null when neither resolves. */
+  defaultBranch(cwd: string): Promise<string | null>;
+  /** Merge-base of HEAD and a ref in THIS repo (unlike mergeBase, which spans
+   *  two working trees). Null when either side can't resolve. */
+  mergeBaseWith(cwd: string, ref: string): Promise<string | null>;
+  /** Short sha a ref resolves to. Null when it doesn't resolve. */
+  revParse(cwd: string, ref: string): Promise<string | null>;
+  /** One commit's whole patch (`git show --patch`) — feeds the batched
+   *  per-file patches of /fs/changes?sha&patches=1. Null when unavailable
+   *  (huge patch overflowing the buffer, bad sha). */
+  commitPatch(cwd: string, sha: string): Promise<string | null>;
+  /** One file's diff within one commit — the ?sha= twin of fileDiff. */
+  commitFileDiff(cwd: string, sha: string, path: string, oldPath?: string): Promise<FileDiffResponse>;
+  /** Blob size in bytes at ref:path — the pre-flight cap check before
+   *  blobAtRef. Null when the blob doesn't exist. */
+  blobSizeAtRef(cwd: string, ref: string, path: string): Promise<number | null>;
+  /** Raw blob bytes at ref:path (Uint8Array keeps core Node-free). Null when
+   *  the blob doesn't exist or overflows the buffer. */
+  blobAtRef(cwd: string, ref: string, path: string): Promise<Uint8Array | null>;
   /** Full detail of one commit (message body + per-file changes). Null when
    *  the sha doesn't resolve. */
   commitDetail(cwd: string, sha: string): Promise<CommitDetail | null>;

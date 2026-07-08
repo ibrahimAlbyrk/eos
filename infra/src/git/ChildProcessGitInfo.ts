@@ -41,6 +41,27 @@ async function runGitDiffNoIndex(cwd: string, path: string): Promise<string> {
   }
 }
 
+// %h%x1f%an%x1f%ct%x1f%s%x1e log records (unit-separated fields, record-
+// terminated) → UnpushedCommit[]. Shared by unpushedCommits and log.
+export function parseLogRecords(out: string): UnpushedCommit[] {
+  return out
+    .split("\x1e")
+    .map((r) => r.trim())
+    .filter(Boolean)
+    .map((rec) => {
+      const [sha, author, ct, subject] = rec.split("\x1f");
+      return {
+        sha: sha ?? "",
+        author: author ?? "",
+        ts: (Number.parseInt(ct ?? "", 10) || 0) * 1000,
+        subject: subject ?? "",
+      };
+    })
+    .filter((c) => c.sha.length > 0);
+}
+
+const LOG_FORMAT = "--format=%h%x1f%an%x1f%ct%x1f%s%x1e";
+
 function parseShortStat(line: string): DiffStat {
   // Examples: " 3 files changed, 12 insertions(+), 4 deletions(-)"
   //           " 1 file changed, 2 insertions(+)"
@@ -281,23 +302,101 @@ export const childProcessGitInfo: GitInfo = {
     try {
       // Unit separators keep subjects with any punctuation parseable; record
       // separator terminates each commit. No upstream → git errors → [].
-      const out = await runGit(cwd, ["log", "@{u}..HEAD", "--format=%h%x1f%an%x1f%ct%x1f%s%x1e"]);
-      return out
-        .split("\x1e")
-        .map((r) => r.trim())
-        .filter(Boolean)
-        .map((rec) => {
-          const [sha, author, ct, subject] = rec.split("\x1f");
-          return {
-            sha: sha ?? "",
-            author: author ?? "",
-            ts: (Number.parseInt(ct ?? "", 10) || 0) * 1000,
-            subject: subject ?? "",
-          };
-        })
-        .filter((c) => c.sha.length > 0);
+      const out = await runGit(cwd, ["log", "@{u}..HEAD", LOG_FORMAT]);
+      return parseLogRecords(out);
     } catch {
       return [];
+    }
+  },
+
+  async log(cwd: string, opts: { limit: number; skip: number }): Promise<UnpushedCommit[]> {
+    try {
+      // limit+1 so the route can answer hasMore without a second git call.
+      const out = await runGit(cwd, ["log", "HEAD", "-n", String(opts.limit + 1), `--skip=${opts.skip}`, LOG_FORMAT]);
+      return parseLogRecords(out);
+    } catch {
+      return [];
+    }
+  },
+
+  async defaultBranch(cwd: string): Promise<string | null> {
+    try {
+      const out = (await runGit(cwd, ["rev-parse", "--abbrev-ref", "origin/HEAD"])).trim();
+      const name = out.replace(/^origin\//, "");
+      if (name && name !== "HEAD") return name;
+    } catch {}
+    // No origin/HEAD symref (common in fresh clones and local-only repos) —
+    // fall back to the conventional names if a local branch exists.
+    const branches = await childProcessGitInfo.listBranches(cwd);
+    if (branches.includes("main")) return "main";
+    if (branches.includes("master")) return "master";
+    return null;
+  },
+
+  async mergeBaseWith(cwd: string, ref: string): Promise<string | null> {
+    try {
+      const out = (await runGit(cwd, ["merge-base", "HEAD", ref])).trim();
+      return out || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async revParse(cwd: string, ref: string): Promise<string | null> {
+    try {
+      const out = (await runGit(cwd, ["rev-parse", "--short", ref])).trim();
+      return out || null;
+    } catch {
+      return null;
+    }
+  },
+
+  async commitPatch(cwd: string, sha: string): Promise<string | null> {
+    try {
+      // Same 32MB buffer as fullDiff — one commit's whole patch. Overflow
+      // rejects → null → the route falls back to per-file diffs.
+      const { stdout } = await exec("git", ["-C", cwd, "show", sha, "--format=", "--patch", "--ignore-submodules=dirty"], {
+        maxBuffer: 32 * 1024 * 1024,
+      });
+      return stdout;
+    } catch {
+      return null;
+    }
+  },
+
+  async commitFileDiff(cwd: string, sha: string, path: string, oldPath?: string): Promise<FileDiffResponse> {
+    try {
+      const out = await runGit(cwd, ["show", sha, "--format=", "--", ...(oldPath ? [path, oldPath] : [path])]);
+      if (/^Binary files .* differ$/m.test(out)) {
+        return { path, patch: "", binary: true, truncated: false };
+      }
+      const t = truncatePatch(out, PATCH_MAX_BYTES);
+      return { path, patch: t.patch, binary: false, truncated: t.truncated };
+    } catch {
+      return { path, patch: "", binary: false, truncated: false };
+    }
+  },
+
+  async blobSizeAtRef(cwd: string, ref: string, path: string): Promise<number | null> {
+    try {
+      const out = (await runGit(cwd, ["cat-file", "-s", `${ref}:${path}`])).trim();
+      const n = Number.parseInt(out, 10);
+      return Number.isNaN(n) ? null : n;
+    } catch {
+      return null;
+    }
+  },
+
+  async blobAtRef(cwd: string, ref: string, path: string): Promise<Uint8Array | null> {
+    try {
+      // encoding:"buffer" — blob bytes are opaque (images), never utf8-decode.
+      const { stdout } = await exec("git", ["-C", cwd, "cat-file", "blob", `${ref}:${path}`], {
+        maxBuffer: 32 * 1024 * 1024,
+        encoding: "buffer",
+      });
+      return stdout;
+    } catch {
+      return null;
     }
   },
 

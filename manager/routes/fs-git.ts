@@ -11,12 +11,22 @@ import {
   BranchDeleteRequestSchema,
   FetchRequestSchema,
   RemoteBranchDeleteRequestSchema,
+  FsLogQuerySchema,
+  FsChangesQuerySchema,
+  FsChangesFileQuerySchema,
+  FsBlobQuerySchema,
+  type ChangedFile,
 } from "../../contracts/src/http.ts";
-import { guardMutation, isSafeAbsPath } from "./fs-shared.ts";
+import { guardMutation, isSafeAbsPath, repoRelative, IMAGE_MIME } from "./fs-shared.ts";
+import { attachPatches, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES } from "../../infra/src/git/changes-parse.ts";
 import { createBranch } from "../../core/src/use-cases/CreateBranch.ts";
 import { renameBranch } from "../../core/src/use-cases/RenameBranch.ts";
 import { checkoutBranch } from "../../core/src/use-cases/CheckoutBranch.ts";
 import { orderBranches } from "../../core/src/domain/branch-order.ts";
+
+// /fs/blob cap — matches the /fs/paste upload limit; anything bigger gets a
+// 413 so the panel can degrade to a size note instead of streaming a huge file.
+const BLOB_MAX_BYTES = 20 * 1024 * 1024;
 
 export function registerFsGitRoutes(r: Router, c: Container): void {
   // Mutating git routes operate on an arbitrary cwd, so they require both a safe
@@ -73,6 +83,119 @@ export function registerFsGitRoutes(r: Router, c: Container): void {
     const detail = await c.git.commitDetail(q.cwd, sha);
     if (!detail) { writeJson(res, 404, { error: "commit not found" }); return; }
     writeJson(res, 200, detail);
+  });
+
+  // ---- Git Diff panel reads --------------------------------------------------
+  // Un-gated GETs like the other /fs reads: safe absolute cwd, no UI token.
+
+  // The panel's working-tree scope: diff against the merge-base with the
+  // default branch (what this branch changed), degenerating to HEAD-only
+  // (base null) when ON the default branch or no default resolves.
+  const workingScope = async (cwd: string): Promise<{ head: string | null; def: string | null; base: string | null }> => {
+    const [head, def] = await Promise.all([c.git.currentBranch(cwd), c.git.defaultBranch(cwd)]);
+    const base = def && def !== head ? await c.git.mergeBaseWith(cwd, def) : null;
+    return { head, def, base };
+  };
+
+  r.get("/fs/log", async ({ url, res }) => {
+    const q = validate(FsLogQuerySchema, {
+      cwd: url.searchParams.get("cwd") ?? undefined,
+      limit: url.searchParams.get("limit") ?? undefined,
+      skip: url.searchParams.get("skip") ?? undefined,
+    });
+    if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
+    // log() fetches limit+1 rows — the overflow row only answers hasMore.
+    const rows = await c.git.log(q.cwd, { limit: q.limit, skip: q.skip });
+    writeJson(res, 200, { commits: rows.slice(0, q.limit), hasMore: rows.length > q.limit });
+  });
+
+  r.get("/fs/changes", async ({ url, res }) => {
+    const q = validate(FsChangesQuerySchema, {
+      cwd: url.searchParams.get("cwd") ?? undefined,
+      sha: url.searchParams.get("sha") ?? undefined,
+    });
+    if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
+    const wantPatches = url.searchParams.get("patches") === "1";
+
+    if (q.sha) {
+      const detail = await c.git.commitDetail(q.cwd, q.sha);
+      if (!detail) { writeJson(res, 404, { error: "commit not found" }); return; }
+      const files: ChangedFile[] = detail.files.map((f) => ({ ...f, untracked: false }));
+      const [full, baseSha] = await Promise.all([
+        wantPatches ? c.git.commitPatch(q.cwd, q.sha) : Promise.resolve(null),
+        // Null parent = root commit — the panel renders "everything added".
+        c.git.revParse(q.cwd, `${q.sha}^`),
+      ]);
+      if (full !== null) attachPatches(files, full, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES);
+      writeJson(res, 200, {
+        files,
+        insertions: detail.insertions,
+        deletions: detail.deletions,
+        baseSha,
+        headSha: detail.sha,
+        baseLabel: null,
+        headLabel: detail.sha,
+      });
+      return;
+    }
+
+    const { head, def, base } = await workingScope(q.cwd);
+    const [files, full, baseSha, headFallback] = await Promise.all([
+      c.git.changedFiles(q.cwd, base ?? undefined),
+      wantPatches ? c.git.fullDiff(q.cwd, base ?? undefined) : Promise.resolve(null),
+      c.git.revParse(q.cwd, base ?? "HEAD"),
+      head ? Promise.resolve(null) : c.git.revParse(q.cwd, "HEAD"),
+    ]);
+    if (full !== null) attachPatches(files, full, PATCH_MAX_BYTES, PATCHES_TOTAL_MAX_BYTES);
+    writeJson(res, 200, {
+      files,
+      insertions: files.reduce((n, f) => n + (f.insertions ?? 0), 0),
+      deletions: files.reduce((n, f) => n + (f.deletions ?? 0), 0),
+      baseSha,
+      headSha: null, // working tree, not a commit
+      baseLabel: base ? def : null,
+      headLabel: head ?? headFallback ?? "HEAD",
+    });
+  });
+
+  r.get("/fs/changes/file", async ({ url, res }) => {
+    const q = validate(FsChangesFileQuerySchema, {
+      cwd: url.searchParams.get("cwd") ?? undefined,
+      path: url.searchParams.get("path") ?? undefined,
+      oldPath: url.searchParams.get("oldPath") ?? undefined,
+      sha: url.searchParams.get("sha") ?? undefined,
+    });
+    if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
+    if (q.sha) {
+      writeJson(res, 200, await c.git.commitFileDiff(q.cwd, q.sha, q.path, q.oldPath));
+      return;
+    }
+    const { base } = await workingScope(q.cwd);
+    writeJson(res, 200, await c.git.fileDiff(q.cwd, q.path, q.oldPath, base ?? undefined));
+  });
+
+  r.get("/fs/blob", async ({ url, res }) => {
+    const q = validate(FsBlobQuerySchema, {
+      cwd: url.searchParams.get("cwd") ?? undefined,
+      ref: url.searchParams.get("ref") ?? undefined,
+      path: url.searchParams.get("path") ?? undefined,
+    });
+    if (!isSafeAbsPath(q.cwd)) { writeJson(res, 400, { error: "cwd must be absolute" }); return; }
+    if (!repoRelative(q.path)) { writeJson(res, 400, { error: "path must be repo-relative" }); return; }
+    const size = await c.git.blobSizeAtRef(q.cwd, q.ref, q.path);
+    if (size !== null && size > BLOB_MAX_BYTES) {
+      writeJson(res, 413, { error: `blob too large (${size} bytes, limit ${BLOB_MAX_BYTES})` });
+      return;
+    }
+    const data = await c.git.blobAtRef(q.cwd, q.ref, q.path);
+    if (data === null) { writeJson(res, 404, { error: "blob not found" }); return; }
+    const ext = q.path.split(".").pop()?.toLowerCase() ?? "";
+    res.writeHead(200, {
+      "content-type": IMAGE_MIME[ext] ?? "application/octet-stream",
+      // Hex-ref-addressed content never changes — safe to cache immutably.
+      "cache-control": "public, max-age=86400, immutable",
+    });
+    res.end(data);
   });
 
   // Checkout resolves a remote-tracking label (origin/x) to a local tracking

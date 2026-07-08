@@ -8,7 +8,7 @@ import type { Container } from "../container.ts";
 import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
-import { isSafeAbsPath, resolveWithinRoot, searchProject, uiTokenOk } from "./fs-shared.ts";
+import { IMAGE_MIME, isSafeAbsPath, resolveWithinRoot, searchProject, uiTokenOk } from "./fs-shared.ts";
 import { FsWriteRequestSchema } from "../../contracts/src/http.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 
@@ -43,13 +43,8 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
     try {
       const data = readFileSync(qPath);
       const ext = qPath.split(".").pop()?.toLowerCase() ?? "";
-      const mimeMap: Record<string, string> = {
-        png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg",
-        gif: "image/gif", webp: "image/webp", svg: "image/svg+xml",
-        bmp: "image/bmp", ico: "image/x-icon",
-      };
       res.writeHead(200, {
-        "content-type": mimeMap[ext] ?? "application/octet-stream",
+        "content-type": IMAGE_MIME[ext] ?? "application/octet-stream",
         "cache-control": "public, max-age=86400",
       });
       res.end(data);
