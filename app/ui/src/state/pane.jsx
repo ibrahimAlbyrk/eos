@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { useSelection } from "./selection.jsx";
+import { isDockFullscreen, setDockFullscreen } from "./dockFullscreenStore.js";
 import {
   MAX_PANES, leaf, leaves, leafCount, findLeaf, leafOfAgent, isValidTree,
   splitLeaf, removeLeaf, setRatio, setLeafAgent, removeDeadLeaves,
@@ -72,7 +73,11 @@ export function PaneProvider({ children }) {
   useEffect(() => {
     registerEscapePanel(() => {
       const id = focusedRef.current;
-      if (id && topPanelTypeIn(id)) { popPanelIn(id); return true; }
+      if (!id) return false;
+      // A fullscreen dock eats the first Esc (exit fullscreen); a second Esc
+      // then falls through to the normal panel-close chain below.
+      if (isDockFullscreen(id)) { setDockFullscreen(id, false); return true; }
+      if (topPanelTypeIn(id)) { popPanelIn(id); return true; }
       return false;
     });
   }, [registerEscapePanel, topPanelTypeIn, popPanelIn]);

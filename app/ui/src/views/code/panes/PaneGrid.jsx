@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
+import { subscribe as subscribeDockFullscreen, isDockFullscreen, setDockFullscreen } from "../../../state/dockFullscreenStore.js";
 import { useInputNeeded } from "../../../hooks/useInputNeeded.js";
 import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, MAX_PANES } from "../../../lib/paneLayout.js";
 import { usePaneTransitions } from "../../../hooks/usePaneTransitions.js";
@@ -107,6 +108,53 @@ function PanelResizeHandle({ containerRef, rect, onFrac, onResizeStart, onResize
   );
 }
 
+// One pane's docked-panel slot. Subscribes to that pane's dockFullscreenStore so
+// a dock fullscreen toggle re-renders ONLY this slot: fullscreen overrides the
+// slot rect to fill the whole grid (the .pane-slot 240ms geometry transition
+// animates the grow/shrink) and makes the dock-edge handle inert.
+function PanelSlot({ id, rect, live, gridRef, open, frac, onFrac, onResizeStart, onResizeEnd, onFocusPanel }) {
+  const fullscreen = useSyncExternalStore(
+    useCallback((cb) => subscribeDockFullscreen(id, cb), [id]),
+    useCallback(() => isDockFullscreen(id), [id]),
+  );
+  // Dock emptied → drop fullscreen so the slot can't stay maximized empty.
+  useEffect(() => {
+    if (!open && fullscreen) setDockFullscreen(id, false);
+  }, [open, fullscreen, id]);
+  const slotRect = fullscreen
+    ? { left: 0, top: 0, width: 100, height: 100 }
+    : dockSplit(rect, open, frac).panelRect;
+  return (
+    <div
+      // at-top: this pane hugs the grid's top row, so its docked panel may rise
+      // over the top bar (see .pane-panel-slot.at-top in styles). A panel beside
+      // a lower-row pane keeps its normal top so it can't overlap the pane above.
+      className={"pane-slot pane-panel-slot" + (rect.top === 0 ? " at-top" : "")}
+      style={pctStyle(slotRect)}
+      // The slot is a grid SIBLING of its pane, so the Pane's focus capture
+      // never sees clicks here. Focus the owning pane, then claim the panel
+      // region for ⌘F (after focusLeaf — it resets the region to transcript).
+      onMouseDownCapture={onFocusPanel}
+    >
+      <PaneScopeContext.Provider value={id}>
+        <PanelDock live={live} paneId={id} />
+      </PaneScopeContext.Provider>
+      {/* Dock-edge (dock vs transcript) width handle, rendered AFTER the dock so
+          its left-edge hit zone stays grabbable over the grid. Inert in fullscreen
+          (the slot spans the grid — there is no transcript edge to drag). */}
+      {open && !fullscreen && (
+        <PanelResizeHandle
+          containerRef={gridRef}
+          rect={rect}
+          onFrac={onFrac}
+          onResizeStart={onResizeStart}
+          onResizeEnd={onResizeEnd}
+        />
+      )}
+    </div>
+  );
+}
+
 // Split view: a BSP tree (ui.tree) rendered as a FLAT set of absolutely-
 // positioned panes (computeRects) + one divider per split (computeDividers).
 // Panes are keyed by leaf id, decoupled from the tree's nesting, so a structural
@@ -208,38 +256,21 @@ export function PaneGrid({ live }) {
           viewers read THAT pane's stack (independent per pane). Zero-width when
           that pane has nothing open, but kept mounted (stable key) so a buried
           panel keeps its fetched state and its rect animates on reflow. */}
-      {rects.map(({ id, rect }) => {
-        const open = ui.hasAnyPanelIn(id);
-        return (
-          <div
-            key={`panel:${id}`}
-            // at-top: this pane hugs the grid's top row, so its docked panel may rise
-            // over the top bar (see .pane-panel-slot.at-top in styles). A panel beside
-            // a lower-row pane keeps its normal top so it can't overlap the pane above.
-            className={"pane-slot pane-panel-slot" + (rect.top === 0 ? " at-top" : "")}
-            style={pctStyle(dockSplit(rect, open, panelFracs[id]).panelRect)}
-            // The slot is a grid SIBLING of its pane, so the Pane's focus capture
-            // never sees clicks here. Focus the owning pane, then claim the panel
-            // region for ⌘F (after focusLeaf — it resets the region to transcript).
-            onMouseDownCapture={() => { ui.focusLeaf(id); ui.setFocusedRegion("panel"); }}
-          >
-            <PaneScopeContext.Provider value={id}>
-              <PanelDock live={live} paneId={id} />
-            </PaneScopeContext.Provider>
-            {/* Dock-edge (dock vs transcript) width handle, rendered AFTER the dock
-                so its left-edge hit zone stays grabbable over the grid. */}
-            {open && (
-              <PanelResizeHandle
-                containerRef={gridRef}
-                rect={rect}
-                onFrac={(f) => setPanelFracs((m) => ({ ...m, [id]: f }))}
-                onResizeStart={() => setResizing(true)}
-                onResizeEnd={() => setResizing(false)}
-              />
-            )}
-          </div>
-        );
-      })}
+      {rects.map(({ id, rect }) => (
+        <PanelSlot
+          key={`panel:${id}`}
+          id={id}
+          rect={rect}
+          live={live}
+          gridRef={gridRef}
+          open={ui.hasAnyPanelIn(id)}
+          frac={panelFracs[id]}
+          onFrac={(f) => setPanelFracs((m) => ({ ...m, [id]: f }))}
+          onResizeStart={() => setResizing(true)}
+          onResizeEnd={() => setResizing(false)}
+          onFocusPanel={() => { ui.focusLeaf(id); ui.setFocusedRegion("panel"); }}
+        />
+      ))}
       {dividers.map((d) => (
         <Divider
           key={d.id}
@@ -276,7 +307,18 @@ export function SinglePane({ live }) {
   const [panelFrac, setPanelFrac] = useState(null);
   const [panelResizing, setPanelResizing] = useState(false);
   useEffect(() => { if (!dockOpen) setPanelFrac(null); }, [dockOpen]);
-  const dockWidth = dockOpen ? (panelFrac != null ? panelFrac * 100 : DOCK_DEFAULT_FRAC * 100) : 0;
+  // Dock fullscreen for this pane: the dock claims the full row (flex-basis
+  // →100%), .sp-main collapses, and the existing flex-basis ease animates it. The
+  // stored panelFrac is untouched, so exiting fullscreen restores the prior split.
+  const fullscreen = useSyncExternalStore(
+    useCallback((cb) => subscribeDockFullscreen(leafId, cb), [leafId]),
+    useCallback(() => isDockFullscreen(leafId), [leafId]),
+  );
+  // Dock emptied → drop fullscreen so the row can't stay maximized empty.
+  useEffect(() => {
+    if (!dockOpen && fullscreen) setDockFullscreen(leafId, false);
+  }, [dockOpen, fullscreen, leafId]);
+  const dockWidth = fullscreen ? 100 : (dockOpen ? (panelFrac != null ? panelFrac * 100 : DOCK_DEFAULT_FRAC * 100) : 0);
   return (
     <div className="single-pane" ref={rootRef} {...handlers}>
       {zone && <DropPreview zone={zone} />}
@@ -308,14 +350,14 @@ export function SinglePane({ live }) {
         </PaneScopeContext.Provider>
       </div>
       <div
-        className={"pane-panel-slot pane-dock" + (panelResizing ? " is-resizing" : "")}
+        className={"pane-panel-slot pane-dock" + (panelResizing ? " is-resizing" : "") + (fullscreen ? " is-fullscreen" : "")}
         style={{ flexBasis: `${dockWidth}%` }}
         onMouseDownCapture={() => ui.setFocusedRegion("panel")}
       >
         <PaneScopeContext.Provider value={leafId}>
           <PanelDock live={live} paneId={leafId} />
         </PaneScopeContext.Provider>
-        {dockOpen && (
+        {dockOpen && !fullscreen && (
           <PanelResizeHandle
             containerRef={rootRef}
             rect={{ left: 0, width: 100 }}

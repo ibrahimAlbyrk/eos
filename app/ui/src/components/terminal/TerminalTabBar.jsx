@@ -3,7 +3,7 @@ import { openTab, closeTab, switchTab } from "../../state/ptyPanelStore.js";
 // Tab bar for ONE pane's PTY panel: pill tabs each with its own ×, a
 // trailing "+" to open a new session, and a FAR-RIGHT × that closes the whole
 // panel. Store actions are pane-keyed, so tabs/labels are this pane's only.
-export function TerminalTabBar({ paneId, tabs, activeId, cwd, onClosePanel }) {
+export function TerminalTabBar({ paneId, tabs, activeId, cwd, fullscreen, onToggleFullscreen, onClosePanel }) {
   return (
     <div className="pty-tabbar">
       <div className="pty-tabs">
@@ -37,6 +37,22 @@ export function TerminalTabBar({ paneId, tabs, activeId, cwd, onClosePanel }) {
           </svg>
         </button>
       </div>
+      <button
+        className="pty-panel__fullscreen"
+        onClick={onToggleFullscreen}
+        aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen terminal"}
+        title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+      >
+        {fullscreen ? (
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13 7H9V3M7 13V9H3M9 7l5-5M7 9l-5 5" />
+          </svg>
+        ) : (
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 3h4v4M7 13H3V9M8 8l5-5M8 8l-5 5" />
+          </svg>
+        )}
+      </button>
       <button
         className="pty-panel__close"
         onClick={onClosePanel}

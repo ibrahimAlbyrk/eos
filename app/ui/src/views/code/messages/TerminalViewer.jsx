@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { projectPathFor } from "../../../lib/breadcrumb.js";
 import { subscribe, getPtyPanel, openTab, killPaneSessions, reapUntrackedSessions } from "../../../state/ptyPanelStore.js";
+import { subscribe as subscribeDockFullscreen, isDockFullscreen, setDockFullscreen } from "../../../state/dockFullscreenStore.js";
 import { TerminalTabBar } from "../../../components/terminal/TerminalTabBar.jsx";
 import { TerminalView } from "../../../components/terminal/TerminalView.jsx";
 
@@ -33,6 +34,10 @@ function TerminalViewerInner({ paneId, cwd, onClosePanel }) {
     useCallback((cb) => subscribe(paneId, cb), [paneId]),
     useCallback(() => getPtyPanel(paneId), [paneId]),
   );
+  const fullscreen = useSyncExternalStore(
+    useCallback((cb) => subscribeDockFullscreen(paneId, cb), [paneId]),
+    useCallback(() => isDockFullscreen(paneId), [paneId]),
+  );
   // Latest selected-project cwd, read at open-time only — switching orchestrators
   // never retro-changes already-open tabs; the next new tab picks up the change.
   const cwdRef = useRef(cwd);
@@ -55,7 +60,15 @@ function TerminalViewerInner({ paneId, cwd, onClosePanel }) {
 
   return (
     <div className="pty-panel">
-      <TerminalTabBar paneId={paneId} tabs={tabs} activeId={activeId} cwd={cwd} onClosePanel={onClosePanel} />
+      <TerminalTabBar
+        paneId={paneId}
+        tabs={tabs}
+        activeId={activeId}
+        cwd={cwd}
+        fullscreen={fullscreen}
+        onToggleFullscreen={() => setDockFullscreen(paneId, !fullscreen)}
+        onClosePanel={onClosePanel}
+      />
       <div className="pty-body">
         {tabs.map((t) => (
           <TerminalView key={t.sessionId} sessionId={t.sessionId} active={t.sessionId === activeId} />
