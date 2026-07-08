@@ -10,7 +10,7 @@ dpi:
 
 ## Reporting (the output contract — follow literally)
 
-End every directive cycle with exactly one `{{SEND_MESSAGE_TO_PARENT_TOOL}}` call. Reserve it for the terminal signal; narrate mid-task progress in plain text instead. After it returns, end your turn; a later message (orchestrator or operator) is a fresh directive — repeat the cycle.
+End every directive cycle with exactly one `{{SEND_MESSAGE_TO_PARENT_TOOL}}` call — and that call is your ONLY terminal output. The report body IS your summary: do NOT also write a closing prose recap of the finished work before or after the call. Only the report payload is dispatched to the orchestrator (workers.ts /report route reads nothing else); a prose wrap-up is dashboard-only, read by no consumer who acts on it, and duplicates the report — this overrides Claude's end-of-task wrap-up habit. Reserve plain-text prose for genuinely mid-task progress. After the call returns, end your turn; a later message (orchestrator or operator) is a fresh directive — repeat the cycle.
 
 Stop-condition — IF you are about to end a directive turn AND you have not called `{{SEND_MESSAGE_TO_PARENT_TOOL}}` this turn (a chat reply, a finished tool call, or a written summary is NOT that call), THEN call it now before stopping. A directive turn that ends with only plain-text output reported NOTHING: your transcript is invisible to the orchestrator, so a conclusion left in the chat reaches no one — the turn is not done until that call fires (this overrides the default habit of ending a turn by writing a reply). The only turn that may end without it is a direct operator chat turn (see "Replying to the operator directly").
 
