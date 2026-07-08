@@ -23,12 +23,10 @@ export function GitDiffToggleButton({ worker }) {
       aria-pressed={open}
     >
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="4.2" cy="3.8" r="1.8" />
-        <circle cx="11.8" cy="12.2" r="1.8" />
-        <path d="M11.8 10.4V7.5A2.5 2.5 0 0 0 9.3 5H6.9" />
-        <path d="M8.5 3.4 6.9 5l1.6 1.6" />
-        <path d="M4.2 5.6v2.9A2.5 2.5 0 0 0 6.7 11h2.4" />
-        <path d="M7.5 12.6 9.1 11 7.5 9.4" />
+        <rect x="2" y="2" width="12" height="12" rx="2.5" />
+        <path d="M8 4.4v3" />
+        <path d="M6.5 5.9h3" />
+        <path d="M6.5 10.6h3" />
       </svg>
     </button>
   );
