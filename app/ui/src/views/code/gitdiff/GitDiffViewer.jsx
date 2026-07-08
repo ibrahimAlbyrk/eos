@@ -12,6 +12,7 @@ import { GitDiffCommits } from "./GitDiffCommits.jsx";
 import { GitDiffStashes } from "./GitDiffStashes.jsx";
 import { GitDiffConflicts } from "./GitDiffConflicts.jsx";
 import { GitDiffBody } from "./GitDiffBody.jsx";
+import { GitDiffFileMenu } from "./GitDiffFileMenu.jsx";
 
 // Above this many changed lines a diff counts as "large": every file starts
 // collapsed and the hint row appears (DiffViewer's threshold).
@@ -72,6 +73,14 @@ function GitDiffViewerInner({ cwd, workerId, paneId, live }) {
     setScope(next);
     setSelectedPath(null);
   }, []);
+
+  // Right-click on a file row (tree or diff-card header) → shared file menu,
+  // positioned at the cursor. Data carries cwd + the repo-relative path so the
+  // menu can build the absolute path for Copy path / Open in.
+  const onFileContextMenu = useCallback((e, path) => {
+    e.preventDefault();
+    ui.openPop("gitdiff-file-ctx", { x: e.clientX, y: e.clientY, data: { cwd, path } });
+  }, [ui, cwd]);
 
   // "repo · branch" like the composer git ribbon (an arrow would falsely imply
   // a ref range — the "all" scope is now local changes vs HEAD).
@@ -135,7 +144,7 @@ function GitDiffViewerInner({ cwd, workerId, paneId, live }) {
       <div className="gd-main">
         {treeOpen && (
           <div className="gd-side">
-            <GitDiffTree files={changes?.files ?? []} selectedPath={selectedPath} onSelect={setSelectedPath} />
+            <GitDiffTree files={changes?.files ?? []} selectedPath={selectedPath} onSelect={setSelectedPath} onFileContextMenu={onFileContextMenu} />
             <GitDiffStashes cwd={cwd} scope={scope} onScope={onScope} />
             <GitDiffCommits cwd={cwd} scope={scope} onScope={onScope} />
           </div>
@@ -153,9 +162,11 @@ function GitDiffViewerInner({ cwd, workerId, paneId, live }) {
             baseSha={changes?.baseSha ?? null}
             headSha={changes?.headSha ?? null}
             scope={scope}
+            onFileContextMenu={onFileContextMenu}
           />
         </div>
       </div>
+      <GitDiffFileMenu />
     </>
   );
 }

@@ -4,7 +4,7 @@ import { buildFileTree } from "./buildFileTree.js";
 // File-tree sidebar: compressed dir chains with aggregate counts, file rows
 // with per-file counts. Selecting a file tells the viewer, which expands and
 // scrolls its card. Dir collapse state is local — it's pure navigation.
-export function GitDiffTree({ files, selectedPath, onSelect }) {
+export function GitDiffTree({ files, selectedPath, onSelect, onFileContextMenu }) {
   const tree = useMemo(() => buildFileTree(files ?? []), [files]);
   const [closedDirs, setClosedDirs] = useState(() => new Set());
 
@@ -27,6 +27,7 @@ export function GitDiffTree({ files, selectedPath, onSelect }) {
           onToggleDir={toggleDir}
           selectedPath={selectedPath}
           onSelect={onSelect}
+          onFileContextMenu={onFileContextMenu}
         />
       ))}
     </div>
@@ -43,7 +44,7 @@ function Counts({ ins, del, hasBinary }) {
   );
 }
 
-function TreeNode({ node, depth, closedDirs, onToggleDir, selectedPath, onSelect }) {
+function TreeNode({ node, depth, closedDirs, onToggleDir, selectedPath, onSelect, onFileContextMenu }) {
   const pad = { paddingLeft: 10 + depth * 12 };
   if (node.type === "file") {
     return (
@@ -52,6 +53,7 @@ function TreeNode({ node, depth, closedDirs, onToggleDir, selectedPath, onSelect
         style={pad}
         title={node.path}
         onClick={() => onSelect(node.path)}
+        onContextMenu={onFileContextMenu ? (e) => onFileContextMenu(e, node.path) : undefined}
       >
         <span className="gd-tree-label">{node.label}</span>
         <Counts ins={node.ins} del={node.del} />
@@ -80,6 +82,7 @@ function TreeNode({ node, depth, closedDirs, onToggleDir, selectedPath, onSelect
           onToggleDir={onToggleDir}
           selectedPath={selectedPath}
           onSelect={onSelect}
+          onFileContextMenu={onFileContextMenu}
         />
       ))}
     </>

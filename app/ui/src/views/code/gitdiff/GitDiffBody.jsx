@@ -6,7 +6,7 @@ import { isImagePath } from "./GitDiffImage.jsx";
 // file that has none yet (DiffViewer idiom — embedded ?patches=1 responses may
 // truncate past the payload budget; the per-file fetch covers the rest), and
 // answers a tree selection by expanding + scrolling the file's card into view.
-export function GitDiffBody({ files, patches, collapsed, onToggle, loadPatch, selectedPath, cwd, baseSha, headSha, scope }) {
+export function GitDiffBody({ files, patches, collapsed, onToggle, loadPatch, selectedPath, cwd, baseSha, headSha, scope, onFileContextMenu }) {
   const rowRefs = useRef(new Map());
 
   useEffect(() => {
@@ -43,6 +43,7 @@ export function GitDiffBody({ files, patches, collapsed, onToggle, loadPatch, se
           patch={patches.get(f.path)}
           onToggle={onToggle}
           imageCtx={imageCtx}
+          onContextMenu={onFileContextMenu}
           cardRef={(el) => {
             if (el) rowRefs.current.set(f.path, el);
             else rowRefs.current.delete(f.path);

@@ -12,11 +12,15 @@ function splitPath(path) {
 // inside the panel's scroll container (.gd-list), so the card root must never
 // gain overflow or containment. cardRef lets the body scroll a selected file
 // into view.
-export const GitDiffFileCard = memo(function GitDiffFileCard({ file, isOpen, patch, onToggle, imageCtx, cardRef }) {
+export const GitDiffFileCard = memo(function GitDiffFileCard({ file, isOpen, patch, onToggle, imageCtx, cardRef, onContextMenu }) {
   const [dir, base] = splitPath(file.path);
   return (
     <div className={"gd-file" + (isOpen ? " open" : "")} ref={cardRef}>
-      <button className="gd-row" onClick={() => onToggle(file.path)}>
+      <button
+        className="gd-row"
+        onClick={() => onToggle(file.path)}
+        onContextMenu={onContextMenu ? (e) => onContextMenu(e, file.path) : undefined}
+      >
         <svg className="dv-chev" width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="m6 4 4 4-4 4" />
         </svg>
