@@ -351,6 +351,25 @@ export const MIGRATIONS: Migration[] = [
       PRIMARY KEY (worker_id, stage)
     )
   ` },
+  // Scheduled prompts — a prompt queued to fire into a worker's chat at fire_at
+  // (epoch ms). status is 'pending' until the SchedulerService dispatches it
+  // ('fired') or it is cancelled ('cancelled'). The (status, fire_at) index
+  // serves the due-selection scan (pending rows whose fire_at has passed). meta
+  // is JSON TEXT for fire-time annotations (e.g. late flag).
+  { id: "058_scheduled_prompts", sql: `
+    CREATE TABLE IF NOT EXISTS scheduled_prompts (
+      id TEXT PRIMARY KEY,
+      worker_id TEXT NOT NULL,
+      text TEXT NOT NULL,
+      fire_at INTEGER NOT NULL,
+      status TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      fired_at INTEGER,
+      meta TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_scheduled_prompts_due ON scheduled_prompts(status, fire_at);
+    CREATE INDEX IF NOT EXISTS idx_scheduled_prompts_worker ON scheduled_prompts(worker_id);
+  ` },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {
