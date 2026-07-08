@@ -12,14 +12,14 @@ import type { AuthResolver, ResolvedAuth } from "../../../core/src/ports/AuthRes
 
 const NONE: ResolvedAuth = { scheme: "none" };
 
-// Prefer the long-lived setup-token from CLAUDE_CODE_OAUTH_TOKEN (`claude
-// setup-token`) — it survives even when interactive `claude` never runs, which is
-// the case for a daemon that REPLACES the PTY. Else fall back to the CLI's cached
-// OAuth access token (macOS Keychain "Claude Code-credentials" /
-// ~/.claude/.credentials.json), refreshed whenever a session runs.
-function readSubscriptionToken(): string | null {
-  const setupToken = process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim();
-  if (setupToken) return setupToken;
+type TokenReader = () => string | null;
+
+// Read the CLI's cached OAuth access token from the live credential store (macOS
+// Keychain "Claude Code-credentials" / ~/.claude/.credentials.json). This is read
+// FIRST on every resolve so a subscription switched after daemon launch is picked
+// up without a restart. Expired store tokens are rejected (return null) so a valid
+// env token can shadow them.
+function readStoreSubscriptionToken(): string | null {
   try {
     const raw =
       process.platform === "darwin"
@@ -34,6 +34,17 @@ function readSubscriptionToken(): string | null {
   } catch {
     return null;
   }
+}
+
+// The long-lived setup-token from CLAUDE_CODE_OAUTH_TOKEN (`claude setup-token`).
+// Frozen at daemon launch, so it is the FALLBACK — used only when the live store
+// yields nothing (non-mac / CI with no keychain or credentials file).
+function readEnvSubscriptionToken(): string | null {
+  return process.env.CLAUDE_CODE_OAUTH_TOKEN?.trim() || null;
+}
+
+function readSubscriptionToken(readStore: TokenReader = readStoreSubscriptionToken): string | null {
+  return readStore() ?? readEnvSubscriptionToken();
 }
 
 function readKeychainSecret(service: string): string | null {
@@ -61,12 +72,12 @@ export function writeKeychainSecret(service: string, secret: string): void {
   execFileSync("security", ["add-generic-password", "-U", "-s", service, "-a", service, "-w", secret], { encoding: "utf8" });
 }
 
-export function createSubscriptionAuthResolver(): AuthResolver {
+export function createSubscriptionAuthResolver(deps?: { readStore?: TokenReader }): AuthResolver {
   return {
     async resolve(auth: AuthRef | undefined): Promise<ResolvedAuth> {
       const kind = auth?.kind ?? "subscription";
       if (kind === "subscription") {
-        const token = readSubscriptionToken();
+        const token = readSubscriptionToken(deps?.readStore);
         return token ? { scheme: "oauth", token } : NONE;
       }
       if (kind === "env") {

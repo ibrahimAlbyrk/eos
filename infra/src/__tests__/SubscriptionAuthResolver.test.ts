@@ -17,9 +17,17 @@ describe("SubscriptionAuthResolver", () => {
     for (const k of Object.keys(saved)) delete saved[k];
   });
 
-  it("subscription -> oauth from CLAUDE_CODE_OAUTH_TOKEN (the long-lived setup-token)", async () => {
+  it("subscription -> live store token wins over the env fast-path", async () => {
+    setEnv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-env-stale");
+    const readStore = () => "sk-ant-oat01-store-fresh";
+    const r = await createSubscriptionAuthResolver({ readStore }).resolve(undefined);
+    assert.deepEqual(r, { scheme: "oauth", token: "sk-ant-oat01-store-fresh" });
+  });
+
+  it("subscription -> falls back to CLAUDE_CODE_OAUTH_TOKEN when the store is empty", async () => {
     setEnv("CLAUDE_CODE_OAUTH_TOKEN", "sk-ant-oat01-deterministic");
-    const r = await createSubscriptionAuthResolver().resolve(undefined);
+    const readStore = () => null;
+    const r = await createSubscriptionAuthResolver({ readStore }).resolve(undefined);
     assert.deepEqual(r, { scheme: "oauth", token: "sk-ant-oat01-deterministic" });
   });
 
