@@ -1,6 +1,8 @@
 // Pure keyboard-binding registry — mirrors search/registry.js. A binding is a
 // plain object:
-//   { match(e) -> bool, when?(ctx) -> bool, priority?=0, run(ctx, e) }
+//   { match(e) -> bool, when?(ctx) -> bool, priority?=0, terminalSafe?=false, run(ctx, e) }
+// terminalSafe: still fires while the right-panel terminal is focused (default:
+// app hotkeys yield to the terminal — see resolve()).
 // The single global listener (useGlobalKeymap) routes every keydown here; each
 // binding site stays decoupled (Open/Closed: add a hotkey by registering a
 // binding — the listener never changes). No DOM here: events are matched as
@@ -68,6 +70,9 @@ export function createKeymap() {
       let best = null;
       for (const b of bindings) {
         if (!b.match(e)) continue;
+        // A focused terminal owns the keyboard: app hotkeys yield unless they opt
+        // in via terminalSafe (e.g. pane navigation stays live from the terminal).
+        if (ctx.terminalFocused && !b.terminalSafe) continue;
         if (b.when && !b.when(ctx)) continue;
         if (!best || (b.priority || 0) >= (best.priority || 0)) best = b;
       }

@@ -9,6 +9,8 @@ import { combo } from "../keymap/index.js";
 export function useOpenEmptySplitHotkey() {
   const { openEmptySplit } = useUi();
   useKeybinding({
+    // Layout shortcut stays live even from inside a focused terminal.
+    terminalSafe: true,
     match: combo("mod+ctrl+t", { code: true }),
     run: (ctx, e) => {
       e.preventDefault();

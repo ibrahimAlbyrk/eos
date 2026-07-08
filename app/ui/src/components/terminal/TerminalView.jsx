@@ -5,6 +5,7 @@ import "@xterm/xterm/css/xterm.css";
 import { api } from "../../api/client.js";
 import { onPtyData, onPtyExit } from "../../state/ptyBus.js";
 import { markExited } from "../../state/ptyPanelStore.js";
+import { registerTerminal } from "./terminalBridge.js";
 
 // ONE xterm.js instance per PTY session. Stays MOUNTED while inactive (parent
 // hides it with display:none) so scrollback survives tab switches client-side.
@@ -50,6 +51,32 @@ export function TerminalView({ sessionId, active }) {
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+
+    // Clipboard shortcuts inside the terminal. On macOS ⌘ is the clipboard
+    // modifier (Ctrl+C/V stay control bytes for the shell), so only intercept
+    // plain ⌘; returning false stops xterm from also sending the key. In the
+    // packaged app the Edit menu consumes these before xterm sees them and the
+    // native selectors (main.swift) drive the same paths — this is the
+    // browser/dev fallback.
+    term.attachCustomKeyEventHandler((e) => {
+      if (e.type !== "keydown") return true;
+      if (!(e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey)) return true;
+      const key = e.key.toLowerCase();
+      if (key === "c" || key === "x") {
+        if (!term.hasSelection()) return true; // nothing to copy → let it pass
+        navigator.clipboard?.writeText(term.getSelection());
+        e.preventDefault(); // buffer is read-only, so ⌘X behaves as copy
+        return false;
+      }
+      if (key === "v") {
+        navigator.clipboard?.readText().then((t) => term.paste(t)).catch(() => {});
+        e.preventDefault();
+        return false;
+      }
+      if (key === "a") { term.selectAll(); e.preventDefault(); return false; }
+      return true;
+    });
+    const unregisterTerm = registerTerminal({ term, host });
 
     let opened = false;
     let fitTimer = null;
@@ -126,6 +153,7 @@ export function TerminalView({ sessionId, active }) {
       cancelAnimationFrame(raf);
       if (fitTimer) clearTimeout(fitTimer);
       ro.disconnect();
+      unregisterTerm();
       offData();
       offExit();
       onDataDisposable?.dispose();

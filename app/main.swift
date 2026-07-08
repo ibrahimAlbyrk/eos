@@ -958,6 +958,63 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     @objc func eosUndo(_: Any?) { webView.evaluateJavaScript("window.__eosUndo?.()", completionHandler: nil) }
     @objc func eosRedo(_: Any?) { webView.evaluateJavaScript("window.__eosRedo?.()", completionHandler: nil) }
 
+    // ⌘C/⌘X/⌘V/⌘A are likewise consumed by the Edit menu before the WebView's
+    // keydown, so (like ⌘Z) they route through custom selectors. When the
+    // right-panel terminal is focused the clipboard is xterm's — it renders to a
+    // canvas, so WebKit's DOM copy/paste sees nothing — and window.__eosTerm
+    // drives it; otherwise we forward the standard editing action down the
+    // responder chain so the composer and dialog fields keep working natively.
+    @objc func eosCopy(_ sender: Any?) {
+        webView.evaluateJavaScript("window.__eosTerm?.getSelectionIfFocused() ?? null") { [weak self] result, _ in
+            guard let self else { return }
+            if let text = result as? String {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            } else {
+                _ = NSApp.sendAction(#selector(NSText.copy(_:)), to: nil, from: sender)
+            }
+        }
+    }
+
+    // Terminal buffer is read-only, so a "cut" there is just a copy.
+    @objc func eosCut(_ sender: Any?) {
+        webView.evaluateJavaScript("window.__eosTerm?.getSelectionIfFocused() ?? null") { [weak self] result, _ in
+            guard let self else { return }
+            if let text = result as? String {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            } else {
+                _ = NSApp.sendAction(#selector(NSText.cut(_:)), to: nil, from: sender)
+            }
+        }
+    }
+
+    @objc func eosPaste(_ sender: Any?) {
+        webView.evaluateJavaScript("window.__eosTerm?.isFocused() === true") { [weak self] result, _ in
+            guard let self else { return }
+            if (result as? Bool) == true {
+                // navigator.clipboard.readText is permission-gated in WKWebView,
+                // so read the pasteboard natively and hand the bytes (base64) to xterm.
+                let text = NSPasteboard.general.string(forType: .string) ?? ""
+                let b64 = Data(text.utf8).base64EncodedString()
+                self.webView.evaluateJavaScript("window.__eosTerm.pasteBase64('\(b64)')", completionHandler: nil)
+            } else {
+                _ = NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: sender)
+            }
+        }
+    }
+
+    @objc func eosSelectAll(_ sender: Any?) {
+        webView.evaluateJavaScript("window.__eosTerm?.isFocused() === true") { [weak self] result, _ in
+            guard let self else { return }
+            if (result as? Bool) == true {
+                self.webView.evaluateJavaScript("window.__eosTerm.selectAll()", completionHandler: nil)
+            } else {
+                _ = NSApp.sendAction(#selector(NSText.selectAll(_:)), to: nil, from: sender)
+            }
+        }
+    }
+
     // Cmd+V path lookup: the web paste handler awaits this when the clipboard
     // carries files, so Finder copies paste as path references (folders too).
     func userContentController(_: WKUserContentController, didReceive message: WKScriptMessage,
@@ -1297,10 +1354,20 @@ let redoItem = NSMenuItem(title: "Redo", action: #selector(AppDelegate.eosRedo(_
 redoItem.target = del
 em.addItem(redoItem)
 em.addItem(.separator())
-em.addItem(NSMenuItem(title: "Cut",        action: #selector(NSText.cut(_:)),       keyEquivalent: "x"))
-em.addItem(NSMenuItem(title: "Copy",       action: #selector(NSText.copy(_:)),      keyEquivalent: "c"))
-em.addItem(NSMenuItem(title: "Paste",      action: #selector(NSText.paste(_:)),     keyEquivalent: "v"))
-em.addItem(NSMenuItem(title: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a"))
+// Custom selectors (target del) so a focused terminal gets xterm clipboard while
+// text fields keep native editing — see AppDelegate.eosCopy/eosCut/eosPaste.
+let cutItem = NSMenuItem(title: "Cut", action: #selector(AppDelegate.eosCut(_:)), keyEquivalent: "x")
+cutItem.target = del
+em.addItem(cutItem)
+let copyItem = NSMenuItem(title: "Copy", action: #selector(AppDelegate.eosCopy(_:)), keyEquivalent: "c")
+copyItem.target = del
+em.addItem(copyItem)
+let pasteItem = NSMenuItem(title: "Paste", action: #selector(AppDelegate.eosPaste(_:)), keyEquivalent: "v")
+pasteItem.target = del
+em.addItem(pasteItem)
+let selectAllItem = NSMenuItem(title: "Select All", action: #selector(AppDelegate.eosSelectAll(_:)), keyEquivalent: "a")
+selectAllItem.target = del
+em.addItem(selectAllItem)
 ei.submenu = em
 
 let vi = NSMenuItem(); menu.addItem(vi)

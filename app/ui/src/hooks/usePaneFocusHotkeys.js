@@ -8,6 +8,8 @@ import { useKeybinding } from "../keymap/useKeymap.js";
 export function usePaneFocusHotkeys() {
   const ui = useUi();
   useKeybinding({
+    // Pane navigation stays live even from inside a focused terminal.
+    terminalSafe: true,
     match: (e) => e.metaKey && e.ctrlKey && !e.altKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code),
     run: (ctx, e) => {
       const n = parseInt(/^Digit([1-9])$/.exec(e.code)[1], 10);

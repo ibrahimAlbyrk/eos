@@ -91,6 +91,21 @@ describe("createKeymap", () => {
     expect(runs).toEqual(["chat", "panel", "chat"]);
   });
 
+  it("a focused terminal suppresses app hotkeys unless terminalSafe", () => {
+    const km = createKeymap();
+    const runs = [];
+    km.register({ match: combo("mod+w"), run: () => runs.push("archive") });
+    km.register({ match: combo("mod+ctrl+t", { code: true }), terminalSafe: true, run: () => runs.push("split") });
+    const cmdW = ev({ metaKey: true, key: "w" });
+    const cmdCtrlT = ev({ metaKey: true, ctrlKey: true, key: "t", code: "KeyT" });
+    // Terminal focused: guarded binding yields, terminalSafe one still fires.
+    expect(km.handle(cmdW, { terminalFocused: true })).toBe(false);
+    expect(km.handle(cmdCtrlT, { terminalFocused: true })).toBe(true);
+    // Terminal not focused: both fire as normal.
+    expect(km.handle(cmdW, { terminalFocused: false })).toBe(true);
+    expect(runs).toEqual(["split", "archive"]);
+  });
+
   it("run receives (ctx, event)", () => {
     const km = createKeymap();
     let seen = null;

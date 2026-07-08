@@ -8,6 +8,7 @@ import { useGitModeHotkey } from "../../hooks/useGitModeHotkey.js";
 import { useOpenEmptySplitHotkey } from "../../hooks/useOpenEmptySplitHotkey.js";
 import { useGlobalKeymap, useKeybinding } from "../../keymap/useKeymap.js";
 import { combo } from "../../keymap/index.js";
+import { isTerminalFocused } from "../../components/terminal/terminalBridge.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { PaneGrid, SinglePane } from "./panes/PaneGrid.jsx";
@@ -21,8 +22,9 @@ export function CodeView({ live }) {
   const { archiveMode } = useSyncExternalStore(subscribe, getArchive);
 
   // One capture-phase window listener for every keymap binding below (and any
-  // future view binding) — replaces the per-hook listeners one at a time.
-  useGlobalKeymap();
+  // future view binding) — replaces the per-hook listeners one at a time. The
+  // terminalFocused fact lets app hotkeys yield to a focused right-panel terminal.
+  useGlobalKeymap(() => ({ terminalFocused: isTerminalFocused() }));
 
   // Cmd+1..9 → select Nth visible agent in the sidebar.
   useAgentSwitchHotkeys(live);
