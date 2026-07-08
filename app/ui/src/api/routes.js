@@ -45,6 +45,10 @@ export const ROUTES = {
   fsBranches: "/fs/branches",
   fsUnpushed: "/fs/unpushed",
   fsCommit: "/fs/commit",
+  fsLog: "/fs/log",
+  fsChanges: "/fs/changes",
+  fsChangesFile: "/fs/changes/file",
+  fsBlob: "/fs/blob",
   fsCheckout: "/fs/checkout",
   fsBranchCreate: "/fs/branch/create",
   fsBranchRename: "/fs/branch/rename",
@@ -125,6 +129,10 @@ export const ROUTES = {
   // Endpoint already exists daemon-side (manager/routes/worker-definitions.ts).
   workerExport: (id) => `/workers/${id}/export`,
   workerDefinitions: "/worker-definitions",
+  // Scheduled prompts — deferred messages the daemon fires at fireAt. List is
+  // scoped by ?workerId=; cancel targets one row by id.
+  scheduledPrompts: "/scheduled-prompts",
+  scheduledPrompt: (id) => `/scheduled-prompts/${id}`,
   templates: "/api/templates",
   template: (name) => `/api/templates/${name}`,
   settings: "/api/settings",

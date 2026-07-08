@@ -12,6 +12,7 @@ import { MarkdownPreview } from "./MarkdownPreview.jsx";
 import { PreviewToggle } from "./PreviewToggle.jsx";
 import { getFileViewer } from "./fileViewers.jsx";
 import { PanelCloseButton } from "./PanelCloseButton.jsx";
+import { useFileWatch } from "../../../state/fileWatchStore.js";
 
 // Above this size the editor opens read-only with the lightweight extension
 // set — editing affordances (history, autocomplete) cost too much on huge docs.
@@ -42,6 +43,7 @@ function FileViewerInner({ path }) {
   const [defaultApp, setDefaultApp] = useState(null);
   const [viewMode, setViewMode] = useState("source");
   const [frameGen, setFrameGen] = useState(0);
+  const [reloadTick, setReloadTick] = useState(0);
   const findRef = useRef(null);
 
   const baseKind = fileKind(path);
@@ -79,7 +81,7 @@ function FileViewerInner({ path }) {
       })
       .catch((e) => { if (!cancelled) setError(e.message); });
     return () => { cancelled = true; };
-  }, [path, wantsText]);
+  }, [path, wantsText, reloadTick]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -137,6 +139,13 @@ function FileViewerInner({ path }) {
 
   const shortPath = shortenHome(path);
   const dirty = isText && content !== null && editContent !== content;
+
+  // Live-refresh on a disk change of THIS file (agent edit, git op, …). Refetch
+  // unless the buffer is dirty or a save is in flight; close the panel on unlink.
+  useFileWatch(path, {
+    onChange: () => { if (!dirty && !saving) setReloadTick((t) => t + 1); },
+    onRemove: () => ui.closeFileViewer(),
+  });
 
   return (
     <>

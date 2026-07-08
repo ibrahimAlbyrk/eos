@@ -100,6 +100,8 @@ export function useUi() {
   const closeDiffViewer = useCallback(() => closePanelIn(scopeRef.current, "diff"), [closePanelIn]);
   const openCommitsViewer = useCallback((cwd) => openScoped("commits", { cwd }), [openScoped]);
   const closeCommitsViewer = useCallback(() => closePanelIn(scopeRef.current, "commits"), [closePanelIn]);
+  const openGitDiffViewer = useCallback((cwd) => openScoped("gitdiff", { cwd }), [openScoped]);
+  const closeGitDiffViewer = useCallback(() => closePanelIn(scopeRef.current, "gitdiff"), [closePanelIn]);
   const openConflictResolver = useCallback((workerId) => openScoped("conflict", { workerId }), [openScoped]);
   const closeConflictResolver = useCallback(() => closePanelIn(scopeRef.current, "conflict"), [closePanelIn]);
   const openTerminalViewer = useCallback(() => openScoped("terminal", {}), [openScoped]);
@@ -122,12 +124,14 @@ export function useUi() {
       agentViewer: panelDataIn(scopePane, "agent"),
       diffViewer: panelDataIn(scopePane, "diff"),
       commitsViewer: panelDataIn(scopePane, "commits"),
+      gitDiffViewer: panelDataIn(scopePane, "gitdiff"),
       conflictViewer: panelDataIn(scopePane, "conflict"),
       terminalViewer: panelDataIn(scopePane, "terminal"),
       openFileViewer, closeFileViewer,
       openAgentViewer, closeAgentViewer, syncAgentViewer,
       openDiffViewer, closeDiffViewer,
       openCommitsViewer, closeCommitsViewer,
+      openGitDiffViewer, closeGitDiffViewer,
       openConflictResolver, closeConflictResolver,
       openTerminalViewer, closeTerminalViewer,
     };
@@ -152,6 +156,7 @@ export function useUi() {
     openPopoverIn, openPop, closeAllPops,
     openFileViewer, closeFileViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
     openDiffViewer, closeDiffViewer, openCommitsViewer, closeCommitsViewer,
+    openGitDiffViewer, closeGitDiffViewer,
     openConflictResolver, closeConflictResolver,
     openTerminalViewer, closeTerminalViewer,
   ]);

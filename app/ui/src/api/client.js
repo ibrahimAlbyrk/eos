@@ -359,6 +359,37 @@ export const api = {
     if (!r.ok) throw new Error(r.body?.error ?? `commit → ${r.status}`);
     return r.body;
   },
+
+  // Git Diff panel reads — arbitrary-cwd equivalents of the worker changes API.
+  async getGitLog(cwd, { limit = 30, skip = 0 } = {}) {
+    try {
+      const params = new URLSearchParams({ cwd, limit: String(limit), skip: String(skip) });
+      const r = await getJson(`${ROUTES.fsLog}?${params}`);
+      return r.ok ? r.body : { commits: [], hasMore: false };
+    } catch {
+      return { commits: [], hasMore: false };
+    }
+  },
+  async getGitChanges(cwd, { sha, patches } = {}) {
+    const params = new URLSearchParams({ cwd });
+    if (sha) params.set("sha", sha);
+    if (patches) params.set("patches", "1");
+    const r = await getJson(`${ROUTES.fsChanges}?${params}`);
+    if (!r.ok) throw new Error(r.body?.error ?? `changes → ${r.status}`);
+    return r.body;
+  },
+  async getGitFileDiff(cwd, path, { oldPath, sha } = {}) {
+    const params = new URLSearchParams({ cwd, path });
+    if (oldPath) params.set("oldPath", oldPath);
+    if (sha) params.set("sha", sha);
+    const r = await getJson(`${ROUTES.fsChangesFile}?${params}`);
+    if (!r.ok) throw new Error(r.body?.error ?? `fileDiff → ${r.status}`);
+    return r.body;
+  },
+  gitBlobUrl(cwd, ref, path) {
+    const params = new URLSearchParams({ cwd, ref, path });
+    return `${DAEMON}${ROUTES.fsBlob}?${params}`;
+  },
   async listRecents() {
     try {
       const r = await getJson(ROUTES.fsRecents);
@@ -532,6 +563,26 @@ export const api = {
     const q = owner ? `?owner=${encodeURIComponent(owner)}` : "";
     const r = await getJson(`${ROUTES.workerDefinitions}${q}`);
     return r.ok ? r.body : [];
+  },
+
+  // Scheduled prompts — deferred messages fired at fireAt. List is fail-soft
+  // (returns [] on error); the endpoint returns { items: [...] }, with a
+  // bare-array fallback kept for robustness. Cancel resolves the DELETE
+  // envelope: `.ok` false with status 404 means the row already fired/cancelled.
+  async listScheduledPrompts(workerId) {
+    try {
+      const r = await getJson(`${ROUTES.scheduledPrompts}?workerId=${encodeURIComponent(workerId)}`);
+      if (!r.ok) return [];
+      return Array.isArray(r.body) ? r.body : (r.body?.items ?? []);
+    } catch {
+      return [];
+    }
+  },
+  async createScheduledPrompt({ workerId, text, fireAt }) {
+    return postJson(ROUTES.scheduledPrompts, { workerId, text, fireAt });
+  },
+  async cancelScheduledPrompt(id) {
+    return del(ROUTES.scheduledPrompt(id));
   },
 
   // Prompt templates
