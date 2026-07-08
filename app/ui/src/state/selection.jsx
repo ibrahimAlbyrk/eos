@@ -58,6 +58,33 @@ export function SelectionProvider({ children }) {
   const docksRef = useRef(docksByPane);
   docksRef.current = docksByPane;
   useEffect(() => { savePanelDocks(docksByPane); }, [docksByPane]);
+  // Closing a dock's LAST panel lingers one width-transition (COLLAPSE_MS) with the
+  // viewer STILL mounted, so the dock shrinks out in sync with the space closing
+  // instead of the panel vanishing and THEN the empty space collapsing. The panel
+  // stays in docksByPane (content keeps rendering) while `collapsingPanes` marks the
+  // pane; layout geometry treats a collapsing pane as closed (useUi.isDockCollapsing
+  // → PaneGrid), so the width animates to 0 around the live viewer. The slot leaves
+  // state when the timer fires; any later open/close on the pane finalizes it early.
+  const COLLAPSE_MS = 240;
+  const [collapsingPanes, setCollapsingPanes] = useState(() => new Set());
+  const collapsingRef = useRef(collapsingPanes);
+  collapsingRef.current = collapsingPanes;
+  const collapseTimers = useRef(new Map()); // paneId -> { timer, type }
+  const isDockCollapsing = useCallback((paneId) => paneId != null && collapsingRef.current.has(paneId), []);
+  // Apply a pane's deferred last-panel removal now (also the collapse timer's body).
+  const flushCollapse = useCallback((paneId) => {
+    const pending = collapseTimers.current.get(paneId);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    collapseTimers.current.delete(paneId);
+    setCollapsingPanes((s) => { if (!s.has(paneId)) return s; const n = new Set(s); n.delete(paneId); return n; });
+    setDocksByPane((m) => {
+      const dock = m[paneId];
+      if (!dock) return m;
+      const { dock: next, closed } = closePanelTile(dock, pending.type);
+      return closed ? { ...m, [paneId]: next } : m;
+    });
+  }, []);
   const dockOf = (paneId) => docksRef.current[paneId] ?? emptyDock();
   // topPanelType compat: the most-recently-opened type (max seq), or null. Used by
   // shared chrome that only needs "is a panel open / which is active" (monitor,
@@ -77,21 +104,33 @@ export function SelectionProvider({ children }) {
   const dockRatiosIn = useCallback((paneId) => (paneId == null ? emptyDock().ratios : dockOf(paneId).ratios), []);
   const openPanelIn = useCallback((paneId, type, data) => {
     if (paneId == null) return;
+    flushCollapse(paneId); // a (re)open supersedes an in-flight collapse of this pane
     setDocksByPane((m) => {
       const { dock, evicted } = openPanelTile(m[paneId] ?? emptyDock(), type, data);
       if (evicted) getPanel(evicted)?.dispose?.(paneId); // e.g. terminal → kill that pane's sessions
       return { ...m, [paneId]: dock };
     });
-  }, []);
+  }, [flushCollapse]);
   const closePanelIn = useCallback((paneId, type) => {
     if (paneId == null) return;
+    if (collapsingRef.current.has(paneId)) return; // already animating closed
+    const dock = docksRef.current[paneId];
+    if (!dock || !hasPanelTile(dock, type)) return;
+    // Last open panel → defer removal so the dock width can animate to 0 with the
+    // viewer still mounted; a multi-panel close reflows the remaining tiles at once.
+    if (dock.slots.length === 1) {
+      setCollapsingPanes((s) => { const n = new Set(s); n.add(paneId); return n; });
+      const timer = setTimeout(() => flushCollapse(paneId), COLLAPSE_MS);
+      collapseTimers.current.set(paneId, { timer, type });
+      return;
+    }
     setDocksByPane((m) => {
-      const dock = m[paneId];
-      if (!dock) return m;
-      const { dock: next, closed } = closePanelTile(dock, type);
+      const d = m[paneId];
+      if (!d) return m;
+      const { dock: next, closed } = closePanelTile(d, type);
       return closed ? { ...m, [paneId]: next } : m;
     });
-  }, []);
+  }, [flushCollapse]);
   // Escape closes the most-recently-opened panel in the focused pane's dock.
   const popPanelIn = useCallback((paneId) => {
     const type = topPanelTypeIn(paneId);
@@ -254,7 +293,7 @@ export function SelectionProvider({ children }) {
     verdict, setVerdict,
     // Raw paneId-explicit panel ops + reads. useUi wraps these into the
     // scope-aware openFileViewer/isPanelOpen/... that every consumer calls.
-    topPanelTypeIn, panelDataIn, openPanelTypesIn, hasPanelIn, hasAnyPanelIn, dockRatiosIn,
+    topPanelTypeIn, panelDataIn, openPanelTypesIn, hasPanelIn, hasAnyPanelIn, dockRatiosIn, isDockCollapsing,
     openPanelIn, closePanelIn, popPanelIn, updatePanelDataIn, setDockRatioIn,
     clearPanelsIn, retainPanelsFor, registerEscapePanel,
     rewindPanel, openRewindPanel, closeRewindPanel,
@@ -263,7 +302,7 @@ export function SelectionProvider({ children }) {
   }), [
     selectedId, setSelectedId, takePreviousSelection,
     sideCollapsed, openPopoverByPane, popoverPos, popoverData,
-    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, docksByPane,
+    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, docksByPane, collapsingPanes,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPopoverIn, openPopIn, closePopsIn, closeAllPopsEverywhere, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
     topPanelTypeIn, panelDataIn, openPanelTypesIn, hasPanelIn, hasAnyPanelIn, dockRatiosIn,

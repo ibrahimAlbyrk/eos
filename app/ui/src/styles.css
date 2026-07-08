@@ -944,11 +944,27 @@ html.native .pane-panel-slot.pane-slot.at-top { --ph-h: 32px; } /* native · spl
 }
 /* During a panel-handle drag the ease is off so the width tracks the pointer. */
 .pane-dock.is-resizing { transition: none; }
-/* Terminal fullscreen (single-pane): the dock grows to the full row (flex-basis
-   →100% inline) and .sp-main collapses beside it, both eased by the flex-basis
-   transition above — a smooth grow/shrink, not a jump. z-index keeps the maximized
-   dock painting over the collapsing transcript edge. */
+/* Terminal fullscreen (single-pane): the dock KEEPS its normal in-flow width so
+   .sp-main never reflows. Its .panel-dock-grid OVERLAYS the content area by growing
+   left+width past the dock box (--fs-left/--fs-width from JS) — a transition on
+   those animates the grow/shrink to match the split-pane .pane-slot geometry ease,
+   so it slides "over the top" instead of snapping. The flex-item z-index:3 keeps the
+   overlay painting above the transcript (z-index:1) it now covers. */
 .pane-dock.is-fullscreen { z-index: 3; }
+/* Single-pane dock grid: pin an explicit left+width (so both endpoints are lengths
+   the fullscreen rule can transition to/from) and ease them like .pane-slot. Scoped
+   to .pane-dock, so the split-pane dock grid (inset-based) is untouched. */
+.pane-dock .panel-dock-grid {
+  right: auto;
+  width: 100%;
+  transition:
+    left 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    width 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.pane-dock.is-fullscreen .panel-dock-grid {
+  left: var(--fs-left, 0);
+  width: var(--fs-width, 100%);
+}
 /* Drag handle on a docked panel's left edge: a slim hit zone with a centered
    pill that fades in on hover/drag (pane-divider idiom, panel-scoped). */
 .panel-resize-handle {
@@ -9817,26 +9833,28 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   background: var(--pty-bg);
   flex-shrink: 0;
 }
-/* A fullscreen dock panel sits at the window top-left; with the sidebar collapsed
-   its header (terminal tab bar, git diff branch row, …) would otherwise render
-   under the macOS traffic lights + sidebar-expand toggle. <DockChromeInset/> is a
-   left spacer that reserves the SAME clearance the top-left pane header uses
-   (.pane-head-inset) — identical class signals and widths. Normalizing the
-   header's left padding to 16px + the inset's 4px margin land the first control
-   at the collapsed breadcrumb's x (each header keeps its own flex gap on top).
-   Hidden in every other state (sidebar open, non-fullscreen) so layout is
-   untouched; shared by every fullscreen-capable dock header. */
+/* Only a fullscreen dock panel in the TOP-LEFT pane (.at-top-left — always true for
+   the single pane, only the origin pane in a split) sits under the window chrome;
+   with the sidebar collapsed its header (terminal tab bar, git diff branch row, …)
+   would otherwise render under the macOS traffic lights + sidebar-expand toggle.
+   <DockChromeInset/> is a left spacer that reserves the SAME clearance the top-left
+   pane header uses (.pane-head-inset) — identical class signals and widths.
+   Normalizing the header's left padding to 16px + the inset's 4px margin land the
+   first control at the collapsed breadcrumb's x (each header keeps its own flex gap
+   on top). Hidden in every other state (sidebar open, non-fullscreen, a fullscreen
+   panel in a non-top-left split pane) so layout is untouched; shared by every
+   fullscreen-capable dock header. */
 .dock-chrome-inset { display: none; }
-.app.side-collapsed .pane-panel-slot.is-fullscreen :is(.pty-tabbar, .dv-head) { padding-left: 16px; }
-.app.side-collapsed .pane-panel-slot.is-fullscreen .dock-chrome-inset {
+.app.side-collapsed .pane-panel-slot.is-fullscreen.at-top-left :is(.pty-tabbar, .dv-head) { padding-left: 16px; }
+.app.side-collapsed .pane-panel-slot.is-fullscreen.at-top-left .dock-chrome-inset {
   display: block;
   flex-shrink: 0;
   align-self: stretch;
   width: 28px;
   margin-right: 4px;
 }
-html.native .app.side-collapsed .pane-panel-slot.is-fullscreen .dock-chrome-inset { width: 102px; }
-html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen .dock-chrome-inset { width: 22px; }
+html.native .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top-left .dock-chrome-inset { width: 102px; }
+html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top-left .dock-chrome-inset { width: 22px; }
 .pty-tabs {
   display: flex;
   align-items: center;
@@ -10181,6 +10199,11 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen .dock-
   overflow-y: auto;
   display: flex;
   flex-direction: column;
+  /* Horizontal gutter mirrors the left Agents list (.agents-section: 8px) so
+     file rows inset from the panel edge by the same amount instead of running
+     full-bleed. Rows + their patch bodies share this gutter, so the sticky
+     .gd-row still fully covers content scrolling under it. */
+  padding-inline: 8px;
 }
 .gd-file {
   border-bottom: 1px solid var(--border);
@@ -10194,7 +10217,7 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen .dock-
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 6px 14px;
+  padding: 6px 6px;
   cursor: pointer;
   border: 0;
   text-align: left;

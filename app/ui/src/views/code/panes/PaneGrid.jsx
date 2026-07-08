@@ -110,8 +110,9 @@ function PanelResizeHandle({ containerRef, rect, onFrac, onResizeStart, onResize
 
 // One pane's docked-panel slot. Subscribes to that pane's dockFullscreenStore so
 // a dock fullscreen toggle re-renders ONLY this slot: fullscreen overrides the
-// slot rect to fill the whole grid (the .pane-slot 240ms geometry transition
-// animates the grow/shrink) and makes the dock-edge handle inert.
+// slot rect to fill its OWN pane's rect (not the whole grid, so sibling panes stay
+// uncovered) — the .pane-slot 240ms geometry transition animates the grow/shrink —
+// and makes the dock-edge handle inert.
 function PanelSlot({ id, rect, live, gridRef, open, frac, onFrac, onResizeStart, onResizeEnd, onFocusPanel }) {
   const fullscreen = useSyncExternalStore(
     useCallback((cb) => subscribeDockFullscreen(id, cb), [id]),
@@ -122,15 +123,16 @@ function PanelSlot({ id, rect, live, gridRef, open, frac, onFrac, onResizeStart,
     if (!open && fullscreen) setDockFullscreen(id, false);
   }, [open, fullscreen, id]);
   const slotRect = fullscreen
-    ? { left: 0, top: 0, width: 100, height: 100 }
+    ? rect
     : dockSplit(rect, open, frac).panelRect;
   return (
     <div
       // at-top: this pane hugs the grid's top row, so its docked panel may rise
       // over the top bar (see .pane-panel-slot.at-top in styles). A panel beside
       // a lower-row pane keeps its normal top so it can't overlap the pane above.
-      // is-fullscreen also drives the tab bar's native-chrome inset (styles.css).
-      className={"pane-slot pane-panel-slot" + (rect.top === 0 ? " at-top" : "") + (fullscreen ? " is-fullscreen" : "")}
+      // at-top-left: only the grid-origin pane sits under the window chrome when
+      // fullscreen, so it alone gets the tab bar's native-chrome inset (styles.css).
+      className={"pane-slot pane-panel-slot" + (rect.top === 0 ? " at-top" : "") + (rect.left === 0 && rect.top === 0 ? " at-top-left" : "") + (fullscreen ? " is-fullscreen" : "")}
       style={pctStyle(slotRect)}
       // The slot is a grid SIBLING of its pane, so the Pane's focus capture
       // never sees clicks here. Focus the owning pane, then claim the panel
@@ -142,7 +144,7 @@ function PanelSlot({ id, rect, live, gridRef, open, frac, onFrac, onResizeStart,
       </PaneScopeContext.Provider>
       {/* Dock-edge (dock vs transcript) width handle, rendered AFTER the dock so
           its left-edge hit zone stays grabbable over the grid. Inert in fullscreen
-          (the slot spans the grid — there is no transcript edge to drag). */}
+          (the slot spans its whole pane — there is no transcript edge to drag). */}
       {open && !fullscreen && (
         <PanelResizeHandle
           containerRef={gridRef}
@@ -193,7 +195,11 @@ export function PaneGrid({ live }) {
       return kept.length === Object.keys(m).length ? m : Object.fromEntries(kept.map((id) => [id, m[id]]));
     });
   });
-  const paneRectOf = (id, rect) => dockSplit(rect, ui.hasAnyPanelIn(id), panelFracs[id]).paneRect;
+  // A pane whose dock is open counts as open for geometry UNLESS it is collapsing
+  // (last panel just closed): then the transcript reclaims its rect while the still-
+  // mounted viewer shrinks out with the panel slot (see PanelSlot / dockFullscreen).
+  const dockOpenGeom = (id) => ui.hasAnyPanelIn(id) && !ui.isDockCollapsing(id);
+  const paneRectOf = (id, rect) => dockSplit(rect, dockOpenGeom(id), panelFracs[id]).paneRect;
 
   // One slot renderer for both live panes and the leaving ghosts. A ghost keeps
   // the same key (leaf id) and element shape so React keeps the real Pane mounted
@@ -264,7 +270,7 @@ export function PaneGrid({ live }) {
           rect={rect}
           live={live}
           gridRef={gridRef}
-          open={ui.hasAnyPanelIn(id)}
+          open={dockOpenGeom(id)}
           frac={panelFracs[id]}
           onFrac={(f) => setPanelFracs((m) => ({ ...m, [id]: f }))}
           onResizeStart={() => setResizing(true)}
@@ -308,9 +314,12 @@ export function SinglePane({ live }) {
   const [panelFrac, setPanelFrac] = useState(null);
   const [panelResizing, setPanelResizing] = useState(false);
   useEffect(() => { if (!dockOpen) setPanelFrac(null); }, [dockOpen]);
-  // Dock fullscreen for this pane: the dock claims the full row (flex-basis
-  // →100%), .sp-main collapses, and the existing flex-basis ease animates it. The
-  // stored panelFrac is untouched, so exiting fullscreen restores the prior split.
+  // Dock fullscreen for this pane: the dock KEEPS its normal in-flow width (so the
+  // transcript beside it never reflows) and its .panel-dock-grid OVERLAYS the whole
+  // single-pane by expanding left+width past the dock box (--fs-left/--fs-width,
+  // computed below). A transition on those two animates the grow/shrink to match the
+  // split-pane .pane-slot geometry ease. panelFrac is untouched, so exiting restores
+  // the prior split.
   const fullscreen = useSyncExternalStore(
     useCallback((cb) => subscribeDockFullscreen(leafId, cb), [leafId]),
     useCallback(() => isDockFullscreen(leafId), [leafId]),
@@ -319,7 +328,16 @@ export function SinglePane({ live }) {
   useEffect(() => {
     if (!dockOpen && fullscreen) setDockFullscreen(leafId, false);
   }, [dockOpen, fullscreen, leafId]);
-  const dockWidth = fullscreen ? 100 : (dockOpen ? (panelFrac != null ? panelFrac * 100 : DOCK_DEFAULT_FRAC * 100) : 0);
+  // A collapsing pane (its last panel just closed) animates its width to 0 with the
+  // viewer still mounted, so treat it as closed for geometry and suppress fullscreen.
+  const collapsing = ui.isDockCollapsing(leafId);
+  const fs = fullscreen && !collapsing;
+  const dockWidth = (dockOpen && !collapsing) ? (panelFrac != null ? panelFrac * 100 : DOCK_DEFAULT_FRAC * 100) : 0;
+  // Fullscreen overlay geometry for .panel-dock-grid, expressed in the dock's OWN
+  // width frame so left+width can transition: shift left back over .sp-main and
+  // widen to the full row, landing the grid flush over .single-pane (0…100%).
+  const fsLeft = dockWidth > 0 ? `${-((100 - dockWidth) / dockWidth) * 100}%` : "0%";
+  const fsWidth = dockWidth > 0 ? `${10000 / dockWidth}%` : "100%";
   return (
     <div className="single-pane" ref={rootRef} {...handlers}>
       {zone && <DropPreview zone={zone} />}
@@ -351,14 +369,16 @@ export function SinglePane({ live }) {
         </PaneScopeContext.Provider>
       </div>
       <div
-        className={"pane-panel-slot pane-dock" + (panelResizing ? " is-resizing" : "") + (fullscreen ? " is-fullscreen" : "")}
-        style={{ flexBasis: `${dockWidth}%` }}
+        // at-top-left: the single pane always spans the content area from its top-
+        // left, so its fullscreen dock always takes the native-chrome inset.
+        className={"pane-panel-slot pane-dock at-top-left" + (panelResizing ? " is-resizing" : "") + (fs ? " is-fullscreen" : "")}
+        style={{ flexBasis: `${dockWidth}%`, "--fs-left": fsLeft, "--fs-width": fsWidth }}
         onMouseDownCapture={() => ui.setFocusedRegion("panel")}
       >
         <PaneScopeContext.Provider value={leafId}>
           <PanelDock live={live} paneId={leafId} />
         </PaneScopeContext.Provider>
-        {dockOpen && !fullscreen && (
+        {dockOpen && !collapsing && !fullscreen && (
           <PanelResizeHandle
             containerRef={rootRef}
             rect={{ left: 0, width: 100 }}
