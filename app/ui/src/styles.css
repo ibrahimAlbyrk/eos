@@ -6743,6 +6743,11 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   padding: 4px 6px;
   font-size: var(--text-xs);
 }
+/* Suppress WebKit's native calendar dropdown: it always opens DOWNWARD and, with
+   the composer pinned to the screen bottom, spills past the window over the dock.
+   Hiding the indicator leaves inline segment editing (type the date/time parts),
+   with the quick chips covering the common cases. */
+.schedule-pop-custom input::-webkit-calendar-picker-indicator { display: none; }
 
 /* template editor modal extras (reuses spawn-modal shell) */
 /* Content surface: an input-styled box wrapping the reused composer-editor
