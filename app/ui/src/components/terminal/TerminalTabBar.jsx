@@ -1,4 +1,5 @@
 import { openTab, closeTab, switchTab } from "../../state/ptyPanelStore.js";
+import { DockChromeInset } from "../DockChromeInset.jsx";
 
 // Tab bar for ONE pane's PTY panel: pill tabs each with its own ×, a
 // trailing "+" to open a new session, and a FAR-RIGHT × that closes the whole
@@ -6,6 +7,7 @@ import { openTab, closeTab, switchTab } from "../../state/ptyPanelStore.js";
 export function TerminalTabBar({ paneId, tabs, activeId, cwd, fullscreen, onToggleFullscreen, onClosePanel }) {
   return (
     <div className="pty-tabbar">
+      <DockChromeInset />
       <div className="pty-tabs">
         {tabs.map((t) => {
           const isActive = t.sessionId === activeId;

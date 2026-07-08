@@ -9724,6 +9724,26 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   background: var(--pty-bg);
   flex-shrink: 0;
 }
+/* A fullscreen dock panel sits at the window top-left; with the sidebar collapsed
+   its header (terminal tab bar, git diff branch row, …) would otherwise render
+   under the macOS traffic lights + sidebar-expand toggle. <DockChromeInset/> is a
+   left spacer that reserves the SAME clearance the top-left pane header uses
+   (.pane-head-inset) — identical class signals and widths. Normalizing the
+   header's left padding to 16px + the inset's 4px margin land the first control
+   at the collapsed breadcrumb's x (each header keeps its own flex gap on top).
+   Hidden in every other state (sidebar open, non-fullscreen) so layout is
+   untouched; shared by every fullscreen-capable dock header. */
+.dock-chrome-inset { display: none; }
+.app.side-collapsed .pane-panel-slot.is-fullscreen :is(.pty-tabbar, .dv-head) { padding-left: 16px; }
+.app.side-collapsed .pane-panel-slot.is-fullscreen .dock-chrome-inset {
+  display: block;
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 28px;
+  margin-right: 4px;
+}
+html.native .app.side-collapsed .pane-panel-slot.is-fullscreen .dock-chrome-inset { width: 102px; }
+html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen .dock-chrome-inset { width: 22px; }
 .pty-tabs {
   display: flex;
   align-items: center;

@@ -4,6 +4,7 @@ import { useGitScopeChanges } from "../../../hooks/useGitScopeChanges.js";
 import { scopeKeyOf } from "../../../state/gitDiffStore.js";
 import { subscribe as subscribeDockFullscreen, isDockFullscreen, setDockFullscreen } from "../../../state/dockFullscreenStore.js";
 import { PanelCloseButton } from "../messages/PanelCloseButton.jsx";
+import { DockChromeInset } from "../../../components/DockChromeInset.jsx";
 import { GitDiffTree } from "./GitDiffTree.jsx";
 import { GitDiffCommits } from "./GitDiffCommits.jsx";
 import { GitDiffBody } from "./GitDiffBody.jsx";
@@ -74,6 +75,7 @@ function GitDiffViewerInner({ cwd, paneId }) {
   return (
     <>
       <div className="dv-head">
+        <DockChromeInset />
         <button
           className={"fv-icon-btn gd-tree-btn" + (treeOpen ? " on" : "")}
           title={treeOpen ? "Hide file tree" : "Show file tree"}
