@@ -9,12 +9,14 @@ import { EffortPopover } from "../popovers/EffortPopover.jsx";
 import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
+import { SchedulePopover } from "../popovers/SchedulePopover.jsx";
+import { formatFireAt } from "../../../lib/scheduleTime.js";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
 import { providerChoices, providerName, runningProviderLabel, runningProviderChoice, hasProviderSwitchTarget } from "../../../lib/backendCaps.js";
 import { pickerLocked, modelPickerLocked, workerBusy } from "../../../lib/composerPickerLock.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
-export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAttach, historyNav, demoted, wtStatus }) {
+export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAttach, historyNav, demoted, wtStatus, schedule }) {
   const ui = useUi();
   // The pane's own worker (null on the no-agent spawn composer), not the global
   // selection — a non-focused pane's controls must read ITS agent's config.
@@ -89,6 +91,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   };
 
   return (
+    <>
     <div className="c-row3">
       <div className="left">
         <div className="accept-wrap" style={{ position: "relative" }}>
@@ -158,6 +161,22 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
           </button>
           <TemplatePickerPopover />
         </div>
+        {selected && schedule && (
+          <div className="schedule-wrap" style={{ position: "relative" }}>
+            <button
+              className={"iconbtn" + (schedule.at ? " on" : "")}
+              title="Zamanla — mesajı ileri bir saatte gönder"
+              onClick={(e) => toggle("schedule", e)}
+              data-popover-trigger="schedule"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="8" cy="8.5" r="5.5" />
+                <path d="M8 5.5V8.5l2 1.5M8 1.5h0" />
+              </svg>
+            </button>
+            <SchedulePopover onPick={(at) => schedule.set(at)} />
+          </div>
+        )}
         {historyNav && (
           <div className="history-badge">history {historyNav.pos}/{historyNav.total}</div>
         )}
@@ -260,6 +279,13 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
         )}
       </div>
     </div>
+    {selected && schedule?.at && (
+      <div className="schedule-mini">
+        <span>⏱ {formatFireAt(schedule.at)}'da gönderilecek</span>
+        <button className="schedule-mini-x" title="Zamanlamayı iptal et" onClick={() => schedule.set(null)}>×</button>
+      </div>
+    )}
+    </>
   );
 }
 

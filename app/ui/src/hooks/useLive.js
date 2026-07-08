@@ -22,6 +22,9 @@ import { cancelQueued, retract } from "../state/outboxStore.js";
 import { setRecall } from "../state/recallStore.js";
 import { explorer } from "../state/explorerStore.js";
 import { emitGitChange } from "../state/gitChangeBus.js";
+import { emitFsChange } from "../state/fsChangeBus.js";
+import { resubscribe as resubscribeFileWatches } from "../state/fileWatchStore.js";
+import { refreshScheduled } from "../state/scheduledStore.js";
 
 const POLL_MS = 4000;
 const SSE_DEBOUNCE_MS = 80;
@@ -114,7 +117,7 @@ export function useLive() {
   // SSE
   useEffect(() => {
     const s = createReconnectingStream({
-      onOpen: () => { setHealth(true); explorer.resubscribeWatches(); },
+      onOpen: () => { setHealth(true); explorer.resubscribeWatches(); resubscribeFileWatches(); },
       onChange: (e) => {
         try {
           const data = JSON.parse(e.data);
@@ -122,7 +125,7 @@ export function useLive() {
           if (data.reason === "update:available") { api.updateStatus().then((u) => u && setUpdate(u)).catch(() => {}); return; }
           // Filesystem changes (Files tab) — surgically reconcile the affected
           // dir in the explorer store; not a worker delta, so skip the refetch.
-          if (data.reason === "fs:change") { explorer.reconcileFsChange(data.payload ?? {}); return; }
+          if (data.reason === "fs:change") { explorer.reconcileFsChange(data.payload ?? {}); emitFsChange(data.payload ?? {}); return; }
           // Git state changed on disk (commit / edit / checkout / stash, from any
           // source) — fan out to the dir-keyed git views; not a worker delta, so
           // no workers refetch.
@@ -156,6 +159,16 @@ export function useLive() {
               setRecall(p.workerId, p.text ?? "");
             }
             return;
+          }
+          // Scheduled-prompt deltas: refresh that worker's list. created/cancelled
+          // don't change worker state (skip the workers refetch); fired turns the
+          // prompt into a real message, so fall through to the refetch too.
+          if (data.reason === "scheduled_prompt:created" || data.reason === "scheduled_prompt:cancelled") {
+            if (data.payload?.workerId) refreshScheduled(data.payload.workerId);
+            return;
+          }
+          if (data.reason === "scheduled_prompt:fired" && data.payload?.workerId) {
+            refreshScheduled(data.payload.workerId);
           }
           scheduleRefetch();
           if (data.payload?.workerId) {

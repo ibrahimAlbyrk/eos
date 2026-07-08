@@ -3,6 +3,7 @@ import { TabBar } from "../../../components/TabBar.jsx";
 import { SettingsFooter } from "../../../components/SettingsFooter.jsx";
 import { SidebarHead } from "./SidebarHead.jsx";
 import { AgentsTree } from "./AgentsTree.jsx";
+import { ScheduledList } from "./ScheduledList.jsx";
 import { ArchiveSidebar } from "../../archive/ArchiveSidebar.jsx";
 import { ArchiveToggle } from "../../archive/ArchiveToggle.jsx";
 import { buildAgentTree } from "../../../lib/tree.js";
@@ -38,6 +39,8 @@ export function CodeSidebar({ live, variant = "full" }) {
   return (
     <>
       <div className="side-island side-island--agents">{body}</div>
+
+      {!archiveMode && <ScheduledList />}
 
       <div className="side-island side-island--status">
         <span className="lab">Daemon</span>
