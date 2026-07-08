@@ -398,6 +398,20 @@ export const api = {
       return { stashes: [] };
     }
   },
+  // Stash mutations (Stashes section Apply/Delete). UI-token gated like the
+  // other fs mutations. Resolve { ok, error? } — a conflicting apply comes back
+  // ok:false with git's reason, never a throw.
+  async stashApply(cwd, index) {
+    return postJson(ROUTES.fsStashApply, { cwd, index }, uiTokenHeader());
+  },
+  async stashDrop(cwd, index) {
+    return postJson(ROUTES.fsStashDrop, { cwd, index }, uiTokenHeader());
+  },
+  // Open an absolute path in Finder (reveal) or VS Code, for the Git Diff
+  // panel's file-row menu. UI-token gated like /workers/:id/open.
+  async openPathIn(path, target) {
+    return postJson(ROUTES.fsOpenIn, { path, target }, uiTokenHeader());
+  },
   async listRecents() {
     try {
       const r = await getJson(ROUTES.fsRecents);

@@ -140,6 +140,42 @@ describe("gitdiff read glue", () => {
     expect(url).toContain("ref=deadbee");
     expect(url).toContain(`path=${encodeURIComponent("assets/logo.png")}`);
   });
+
+  it("stashApply POSTs { cwd, index } to /fs/stash/apply", async () => {
+    const fetchMock = okFetch({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.stashApply("/repo/x", 2);
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain(ROUTES.fsStashApply);
+    expect(opts.method).toBe("POST");
+    expect(JSON.parse(opts.body)).toEqual({ cwd: "/repo/x", index: 2 });
+  });
+
+  it("stashDrop POSTs { cwd, index } to /fs/stash/drop", async () => {
+    const fetchMock = okFetch({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.stashDrop("/repo/x", 0);
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain(ROUTES.fsStashDrop);
+    expect(opts.method).toBe("POST");
+    expect(JSON.parse(opts.body)).toEqual({ cwd: "/repo/x", index: 0 });
+  });
+
+  it("openPathIn POSTs { path, target } to /fs/open-in", async () => {
+    const fetchMock = okFetch({ ok: true });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await api.openPathIn("/repo/x/a.ts", "vscode");
+
+    const [url, opts] = fetchMock.mock.calls[0];
+    expect(url).toContain(ROUTES.fsOpenIn);
+    expect(opts.method).toBe("POST");
+    expect(JSON.parse(opts.body)).toEqual({ path: "/repo/x/a.ts", target: "vscode" });
+  });
 });
 
 describe("deduped GETs survive concurrent callers", () => {
