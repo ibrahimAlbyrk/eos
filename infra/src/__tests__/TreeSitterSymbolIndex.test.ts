@@ -57,6 +57,17 @@ describe("TreeSitterSymbolIndex", () => {
     assert.ok(refs.some((o) => o.role === "reference"));
   });
 
+  it("definitionsInFile() returns only that file's definitions, no references, no cross-file", async () => {
+    const defs = await index.definitionsInFile(root, alpha());
+    assert.ok(defs.every((o) => o.role === "definition"), "all occurrences are definitions");
+    assert.ok(defs.every((o) => o.path === alpha()), "all occurrences are from the queried file");
+    const names = defs.map((o) => o.name);
+    assert.ok(names.includes("classifyReport"), "includes the function definition");
+    assert.ok(names.includes("Widget"), "includes the class definition");
+    // Foo is defined only in beta.py — a single-file enumeration must not leak it.
+    assert.ok(!names.includes("Foo"), "excludes cross-file definitions");
+  });
+
   it("searchSymbols() ranks by name match (exact/prefix/substring)", async () => {
     const hits = await index.searchSymbols(root, "classify", 10);
     assert.ok(hits.some((o) => o.name === "classifyReport"));

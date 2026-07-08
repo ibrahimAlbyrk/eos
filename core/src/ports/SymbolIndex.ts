@@ -27,6 +27,10 @@ export interface SymbolQuery {
   definitions(root: string, name: string, fromPath?: string): Promise<SymbolOccurrence[]>;
   references(root: string, name: string): Promise<SymbolOccurrence[]>;
   searchSymbols(root: string, query: string, limit: number): Promise<SymbolOccurrence[]>;
+  // Every definition occurrence in a single file (one parse) — no symbol name
+  // needed. The CodeLens surface: enumerate the open file's functions/classes/etc.
+  // `path` is absolute.
+  definitionsInFile(root: string, path: string): Promise<SymbolOccurrence[]>;
 }
 
 // ISP: lifecycle surface. Container/wiring depends on this; routes do not.

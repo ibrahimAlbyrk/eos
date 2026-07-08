@@ -31,6 +31,20 @@ export function registerSymbolRoutes(r: Router, c: Container): void {
     }
   });
 
+  r.get("/symbols/file", async ({ url, res }) => {
+    const root = url.searchParams.get("root");
+    const pathRaw = url.searchParams.get("path");
+    if (!isSafeAbsPath(root)) { writeJson(res, 400, { error: "root must be absolute" }); return; }
+    const abs = pathRaw ? resolveWithinRoot(root, pathRaw) : null;
+    if (!abs) { writeJson(res, 400, { error: "path must resolve within root" }); return; }
+    try {
+      const occurrences = await c.symbolIndex.definitionsInFile(root, abs);
+      writeJson(res, 200, { occurrences });
+    } catch (e) {
+      writeJson(res, 500, { error: errMsg(e) });
+    }
+  });
+
   r.get("/symbols/search", async ({ url, res }) => {
     const root = url.searchParams.get("root");
     if (!isSafeAbsPath(root)) { writeJson(res, 400, { error: "root must be absolute" }); return; }

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Router } from "../Router.ts";
@@ -19,6 +19,7 @@ function fakeContainer() {
     definitions: async (...args: unknown[]) => { calls.push({ fn: "definitions", args }); return [DEF]; },
     references: async (...args: unknown[]) => { calls.push({ fn: "references", args }); return [DEF, REF]; },
     searchSymbols: async (...args: unknown[]) => { calls.push({ fn: "searchSymbols", args }); return [DEF]; },
+    definitionsInFile: async (...args: unknown[]) => { calls.push({ fn: "definitionsInFile", args }); return [DEF]; },
     invalidate: async () => {},
     release: () => {},
   };
@@ -79,6 +80,46 @@ describe("GET /symbols/lookup", () => {
       const { c: c2, calls: calls2 } = fakeContainer();
       await get(c2, `/symbols/lookup?root=${encodeURIComponent(root)}&name=foo&fromPath=${encodeURIComponent("/etc/passwd")}`);
       assert.deepEqual(calls2[1], { fn: "definitions", args: [root, "foo", undefined] });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("GET /symbols/file", () => {
+  it("resolves an in-root path → definitionsInFile(root, abs), returns occurrences", async () => {
+    const root = mkdtempSync(join(tmpdir(), "eos-symfile-"));
+    mkdirSync(join(root, "src"));
+    writeFileSync(join(root, "src", "a.ts"), "x");
+    try {
+      const inRoot = join(root, "src", "a.ts");
+      // The handler passes the sandbox-resolved (realpath'd) abs path to the port.
+      const resolvedAbs = join(realpathSync(root), "src", "a.ts");
+      const { c, calls } = fakeContainer();
+      const out = await get(c, `/symbols/file?root=${encodeURIComponent(root)}&path=${encodeURIComponent(inRoot)}`);
+      assert.equal(out.status, 200);
+      assert.deepEqual(out.payload, { occurrences: [DEF] });
+      assert.deepEqual(calls[0], { fn: "definitionsInFile", args: [root, resolvedAbs] });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a non-absolute root (400) and a path escaping root (400)", async () => {
+    const root = mkdtempSync(join(tmpdir(), "eos-symfile-"));
+    try {
+      assert.equal((await get(fakeContainer().c, "/symbols/file?root=rel&path=/x")).status, 400);
+      const escape = await get(fakeContainer().c, `/symbols/file?root=${encodeURIComponent(root)}&path=${encodeURIComponent("/etc/passwd")}`);
+      assert.equal(escape.status, 400);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a missing path (400)", async () => {
+    const root = mkdtempSync(join(tmpdir(), "eos-symfile-"));
+    try {
+      assert.equal((await get(fakeContainer().c, `/symbols/file?root=${encodeURIComponent(root)}`)).status, 400);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

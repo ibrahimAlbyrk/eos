@@ -124,6 +124,21 @@ export class TreeSitterSymbolIndex implements SymbolIndex {
     return this.indexes.get(root)?.byName.get(name) ?? [];
   }
 
+  // Enumerate every definition in one file with a single parse — reuses the same
+  // tags extraction as the whole-root build, without forcing a full-root index
+  // (CodeLens on one open file shouldn't index the whole repo). `root` is unused
+  // in the syntactic tier; a semantic adapter would use it for project resolution.
+  async definitionsInFile(_root: string, path: string): Promise<SymbolOccurrence[]> {
+    await this.ensureGrammars();
+    const parser = new Parser();
+    try {
+      const occ = this.parseFile(parser, path);
+      return (occ ?? []).filter((o) => o.role === "definition");
+    } finally {
+      parser.delete?.();
+    }
+  }
+
   async searchSymbols(root: string, query: string, limit: number): Promise<SymbolOccurrence[]> {
     await this.ensureIndexed(root);
     const idx = this.indexes.get(root);
