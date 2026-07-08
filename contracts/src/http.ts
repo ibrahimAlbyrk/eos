@@ -684,6 +684,62 @@ export const CommitDetailSchema = z.object({
 });
 export type CommitDetail = z.infer<typeof CommitDetailSchema>;
 
+// ---- GET /fs/log -------------------------------------------------------------
+// Paged commit history of HEAD (the Git Diff panel's log). The route fetches
+// limit+1 rows to compute hasMore without a second git call.
+
+export const FsLogQuerySchema = z.object({
+  cwd: z.string().min(1),
+  limit: z.coerce.number().int().positive().max(100).default(30),
+  skip: z.coerce.number().int().nonnegative().default(0),
+});
+export type FsLogQuery = z.infer<typeof FsLogQuerySchema>;
+
+export const FsLogResponseSchema = z.object({
+  commits: z.array(UnpushedCommitSchema),
+  hasMore: z.boolean(),
+});
+export type FsLogResponse = z.infer<typeof FsLogResponseSchema>;
+
+// Abbreviated or full hex sha — never a symbolic ref (branch names etc. are
+// resolved by the server, not accepted from the client).
+const HexShaSchema = z.string().regex(/^[0-9a-f]{4,40}$/i);
+
+// ---- GET /fs/changes ---------------------------------------------------------
+// Working-tree changes vs the branch scope (merge-base with the default branch),
+// or one commit's changes when ?sha= is given. Response schema lives after
+// WorkerChangesResponseSchema (it extends it).
+
+export const FsChangesQuerySchema = z.object({
+  cwd: z.string().min(1),
+  sha: HexShaSchema.optional(),
+});
+export type FsChangesQuery = z.infer<typeof FsChangesQuerySchema>;
+
+// ---- GET /fs/changes/file ------------------------------------------------------
+// One file's diff within the same scope as /fs/changes. Response reuses
+// FileDiffResponseSchema.
+
+export const FsChangesFileQuerySchema = z.object({
+  cwd: z.string().min(1),
+  path: z.string().min(1),
+  oldPath: z.string().optional(),
+  sha: HexShaSchema.optional(),
+});
+export type FsChangesFileQuery = z.infer<typeof FsChangesFileQuerySchema>;
+
+// ---- GET /fs/blob --------------------------------------------------------------
+// Raw file bytes at a ref (image previews in the Git Diff panel). ref is hex-only
+// so `${ref}:${path}` can never smuggle options or symbolic tricks into git.
+// Response is raw bytes with a content-type header — no schema.
+
+export const FsBlobQuerySchema = z.object({
+  cwd: z.string().min(1),
+  ref: HexShaSchema,
+  path: z.string().min(1),
+});
+export type FsBlobQuery = z.infer<typeof FsBlobQuerySchema>;
+
 // ---- POST /fs/checkout -----------------------------------------------------
 
 export const FsCheckoutRequestSchema = z.object({
@@ -1080,6 +1136,19 @@ export const WorkerChangesResponseSchema = z.object({
   deletions: z.number().int().nonnegative(),
 });
 export type WorkerChangesResponse = z.infer<typeof WorkerChangesResponseSchema>;
+
+// GET /fs/changes response — the worker changes shape plus the resolved diff
+// scope, so the panel can label what it's comparing. Declared here (not with
+// FsChangesQuerySchema) because it extends WorkerChangesResponseSchema.
+// baseSha null = root commit (sha mode) or no base scope (working-tree mode on
+// the default branch); headSha null = working tree.
+export const FsChangesResponseSchema = WorkerChangesResponseSchema.extend({
+  baseSha: z.string().nullable(),
+  headSha: z.string().nullable(),
+  baseLabel: z.string().nullable(),
+  headLabel: z.string(),
+});
+export type FsChangesResponse = z.infer<typeof FsChangesResponseSchema>;
 
 // ---- GET /workers/:id/changes/file -------------------------------------------
 
@@ -1870,6 +1939,40 @@ export const CurrentDateTimeResponseSchema = z.object({
 });
 export type CurrentDateTimeResponse = z.infer<typeof CurrentDateTimeResponseSchema>;
 
+// ---- Scheduled prompts -----------------------------------------------------
+// A prompt queued to fire into a worker's chat at a wall-clock instant. The
+// SchedulerService ticks, finds due pending rows, and dispatches each as a
+// normal turn (origin "scheduled"). fireAt/createdAt/firedAt are epoch ms; meta
+// carries fire-time annotations (e.g. { late: true } when the tick ran well
+// after fireAt). Row shape is the single source for the route + MCP tool.
+
+export const ScheduledPromptStatusSchema = z.enum(["pending", "fired", "cancelled"]);
+export type ScheduledPromptStatus = z.infer<typeof ScheduledPromptStatusSchema>;
+
+export const CreateScheduledPromptRequestSchema = z.object({
+  workerId: z.string().min(1),
+  text: z.string().min(1),
+  fireAt: z.number().int().nonnegative(),
+});
+export type CreateScheduledPromptRequest = z.infer<typeof CreateScheduledPromptRequestSchema>;
+
+export const ScheduledPromptSchema = z.object({
+  id: z.string(),
+  workerId: z.string(),
+  text: z.string(),
+  fireAt: z.number(),
+  status: ScheduledPromptStatusSchema,
+  createdAt: z.number(),
+  firedAt: z.number().nullable(),
+  meta: z.record(z.unknown()).nullable(),
+});
+export type ScheduledPrompt = z.infer<typeof ScheduledPromptSchema>;
+
+export const ScheduledPromptListResponseSchema = z.object({
+  items: z.array(ScheduledPromptSchema),
+});
+export type ScheduledPromptListResponse = z.infer<typeof ScheduledPromptListResponseSchema>;
+
 export const ROUTES = {
   health: "/health",
   stream: "/stream",
@@ -1903,6 +2006,8 @@ export const ROUTES = {
   pendingDecision: (id: string): string => `/pending/${id}/decision`,
   metrics: "/metrics",
   datetime: "/datetime",
+  scheduledPrompts: "/scheduled-prompts",
+  scheduledPrompt: (id: string): string => `/scheduled-prompts/${id}`,
   uiConfig: "/api/ui-config",
   pickDirectory: "/pick-directory",
   pickFile: "/pick-file",
@@ -1912,6 +2017,10 @@ export const ROUTES = {
   fsBranches: "/fs/branches",
   fsUnpushed: "/fs/unpushed",
   fsCommit: "/fs/commit",
+  fsLog: "/fs/log",
+  fsChanges: "/fs/changes",
+  fsChangesFile: "/fs/changes/file",
+  fsBlob: "/fs/blob",
   fsRecents: "/fs/recents",
   fsReveal: "/fs/reveal",
   fsRead: "/fs/read",

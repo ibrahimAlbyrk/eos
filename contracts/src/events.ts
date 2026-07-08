@@ -115,6 +115,13 @@ export const WorkerEventTypeSchema = z.enum([
   // {fromWorker,status,output,reason} so the boot re-arm recovers the completion
   // (typed object, faithful status) instead of re-spawning a finished node.
   "workflow_step_output",
+  // Scheduled-prompt lifecycle appended to the target worker's timeline: created
+  // when a prompt is scheduled, fired when the SchedulerService dispatches it,
+  // cancelled when a pending one is removed before firing. Colon-form (like the
+  // SSE topic names) is deliberate — the dashboard keys its timeline on it.
+  "scheduled_prompt:created",
+  "scheduled_prompt:fired",
+  "scheduled_prompt:cancelled",
 ]);
 export type WorkerEventType = z.infer<typeof WorkerEventTypeSchema>;
 
