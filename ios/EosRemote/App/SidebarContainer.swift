@@ -55,6 +55,9 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
             sidebarContent
                 .frame(width: drawerWidth)
                 .frame(maxHeight: .infinity, alignment: .top)
+                // Fully hidden while closed — the top-chrome gradients over the main content are
+                // deliberately translucent (§E1), so a live drawer layer would ghost through them.
+                .opacity(progress > 0 ? 1 : 0)
                 .accessibilityFocused($focusInSidebar)
                 .accessibilityHidden(!sidebar.isOpen)
 

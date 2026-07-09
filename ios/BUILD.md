@@ -11,8 +11,9 @@ yourself with your own Apple signing — there is no App Store / TestFlight (des
 - **Live end-to-end PROVEN over the relay.** The Simulator client paired with and controlled a
   real Node daemon through the live relay: SIGMA handshake → sealed welcome (durable bearer +
   resumption ticket) → `GET /workers` (200) → per-action Secure-Enclave **step-up** verified.
-- **Screens:** Fleet, Worker detail (live transcript + composer), Pending decisions, ask_user
-  sheet, Spawn sheet; QR-scan pairing; deep links (`eos://worker/…`, `eos://pending/…`).
+- **Screens:** Code list (agents tree + Archived), Conversation (live transcript + composer +
+  permission banners), New session, Devices (+ device switcher); QR-scan pairing; deep links
+  (`eos://worker/…`, `eos://pending/…`).
 
 ## Prerequisites
 

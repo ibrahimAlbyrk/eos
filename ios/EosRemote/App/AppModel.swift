@@ -38,7 +38,7 @@ enum DeviceConnState {
 // instant — the target's Store is already live and just becomes the mirror source.
 //
 // The control-action + transcript API (sendMessage/interrupt/openWorker/…) is preserved 1:1 — each
-// method forwards to the active DeviceConnection, so RootView/FleetView/WorkerDetailView are
+// method forwards to the active DeviceConnection, so RootView/CodeListView/WorkerDetailView are
 // unchanged. `needsPairing` now means "no devices at all"; a single device with bad creds surfaces
 // as that device's lastError, not global needsPairing.
 @MainActor

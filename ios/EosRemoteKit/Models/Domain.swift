@@ -1,7 +1,7 @@
 import Foundation
 
 // Thin typed views over the daemon's resource JSON (kept verbatim in `raw`). The fields here
-// are the ones the Fleet / detail screens read; anything else stays reachable via `raw[...]`.
+// are the ones the Code list / detail screens read; anything else stays reachable via `raw[...]`.
 public struct Worker: Identifiable, Sendable, Equatable {
     public let raw: JSONValue
     public var id: String { raw["id"]?.stringValue ?? "" }

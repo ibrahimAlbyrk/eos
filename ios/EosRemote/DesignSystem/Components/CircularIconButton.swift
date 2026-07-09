@@ -5,7 +5,7 @@ import SwiftUI
 //  · content (default): opaque `surface` circle + hairline — per-message action icons, sit on content.
 //  · `glass: true`: drops the fill + hairline, applies `.glassEffect(in: .circle)` — the top-chrome
 //    hamburger/interrupt floating over the scrolling transcript.
-//  · `filled: true`: a brand-tinted PROMINENT glass button (the composer send/voice primary).
+//  · `filled: true`: a brand-tinted PROMINENT glass button (the composer send/interrupt primary).
 // Every instance requires an explicit accessibilityLabel (icons alone are meaningless to VoiceOver).
 struct CircularIconButton: View {
     let systemName: String
@@ -18,7 +18,7 @@ struct CircularIconButton: View {
     var body: some View {
         Group {
             if filled {
-                // Brand-tinted prominent glass — the primary action (send/voice).
+                // Brand-tinted prominent glass — the primary action (send/interrupt).
                 Button(action: action) {
                     Image(systemName: systemName)
                         .font(.system(size: diameter * 0.42, weight: .semibold))
@@ -63,8 +63,8 @@ struct CircularIconButton: View {
 #Preview("CircularIconButton") {
     HStack(spacing: EosSpacing.lg) {
         CircularIconButton(systemName: "line.3.horizontal", glass: true, accessibilityLabel: "Menu") {}
-        CircularIconButton(systemName: "plus", diameter: 32, accessibilityLabel: "Spawn options") {}
-        CircularIconButton(systemName: "waveform", diameter: 44, filled: true, accessibilityLabel: "Voice input") {}
+        CircularIconButton(systemName: "plus", diameter: 32, accessibilityLabel: "Attach") {}
+        CircularIconButton(systemName: "stop.fill", diameter: 44, filled: true, accessibilityLabel: "Interrupt") {}
         CircularIconButton(systemName: "arrow.up", diameter: 52, filled: true, accessibilityLabel: "Send") {}
     }
     .padding()

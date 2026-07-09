@@ -1,7 +1,7 @@
 import SwiftUI
 
-// One drawer nav row (spec 02 §2.5): thin line-icon + label, an optional count badge (Pending), and
-// a selected state (coral icon + subtle coral wash).
+// One drawer nav row (spec 02 §2.5): thin line-icon + label, an optional count badge, and a
+// selected state (coral icon + subtle coral wash).
 struct SidebarRow: View {
     let icon: String
     let title: String
@@ -48,10 +48,8 @@ struct SidebarRow: View {
 
 #Preview("SidebarRow") {
     VStack(alignment: .leading, spacing: 2) {
-        SidebarRow("square.stack.3d.up", "Fleet", isSelected: true) {}
-        SidebarRow("exclamationmark.bubble", "Pending", isSelected: false, badge: 3) {}
-        SidebarRow("laptopcomputer", "Devices", isSelected: false) {}
-        SidebarRow("gearshape", "Settings", isSelected: false) {}
+        SidebarRow("chevron.left.forwardslash.chevron.right", "Code", isSelected: true) {}
+        SidebarRow("laptopcomputer", "Devices", isSelected: false, badge: 3) {}
     }
     .padding(EosSpacing.md)
     .frame(maxWidth: .infinity, alignment: .leading)

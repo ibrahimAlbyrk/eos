@@ -26,7 +26,7 @@ enum PermissionModeUI: String {
 }
 
 // Composer mode pill (contract §C3, ref IMG_4429 "</> Accept edits"): code glyph + current
-// permission-mode label, tap opens ModeSheet. Content-on-glass, same capsule idiom as ModelPill.
+// permission-mode label, tap opens ModeSheet. Content-on-glass capsule.
 struct ModePill: View {
     let mode: PermissionModeUI
     let action: () -> Void

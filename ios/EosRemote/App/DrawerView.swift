@@ -4,8 +4,9 @@ import EosRemoteKit
 // Drawer contents (contract §C1, ref IMG_4423 — no avatar, no spawn pill): serif wordmark, the
 // active-device chip (opens the device switcher), Code / Devices nav rows, a Recents list of the
 // active device's workers, and a floating "New session" pill bottom-right. Full-height edge-to-edge
-// (§E3): paints its own opaque bg, ignores the safe area, and re-applies the insets manually.
-// Navigation + sheet presentation live in RootView (callbacks).
+// (§E3): the opaque bg ignores the safe area while the content stays inside it (reading
+// geo.safeAreaInsets under .ignoresSafeArea() returns zeros and lands content in the status-bar/
+// home strips). Navigation + sheet presentation live in RootView (callbacks).
 struct DrawerView: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var sidebar: SidebarState
@@ -25,63 +26,60 @@ struct DrawerView: View {
     }
 
     var body: some View {
-        GeometryReader { geo in
-            VStack(alignment: .leading, spacing: 0) {
-                Text("eos")
-                    .font(EosFont.titleSerif)
-                    .tracking(-0.5)
-                    .foregroundStyle(EosColor.ink)
-                    .padding(.top, geo.safeAreaInsets.top + EosSpacing.lg)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("eos")
+                .font(EosFont.titleSerif)
+                .tracking(-0.5)
+                .foregroundStyle(EosColor.ink)
+                .padding(.top, EosSpacing.lg)
+                .padding(.horizontal, EosSpacing.md)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityFocused($wordmarkFocused)
+
+            // Hidden when no devices — the pairing sheet auto-presents instead (§C1.2).
+            if let device = model.activeDevice {
+                CurrentDeviceChip(label: device.label,
+                                  state: model.connectionState(for: device.id),
+                                  action: onDeviceChip)
+                    .padding(.top, EosSpacing.xs)
                     .padding(.horizontal, EosSpacing.md)
-                    .accessibilityAddTraits(.isHeader)
-                    .accessibilityFocused($wordmarkFocused)
+            }
 
-                // Hidden when no devices — the pairing sheet auto-presents instead (§C1.2).
-                if let device = model.activeDevice {
-                    CurrentDeviceChip(label: device.label,
-                                      state: model.connectionState(for: device.id),
-                                      action: onDeviceChip)
-                        .padding(.top, EosSpacing.xs)
-                        .padding(.horizontal, EosSpacing.md)
-                }
+            VStack(spacing: 0) {
+                SidebarRow("chevron.left.forwardslash.chevron.right", "Code",
+                           isSelected: sidebar.section == .code) { select(.code) }
+                SidebarRow("laptopcomputer", "Devices",
+                           isSelected: sidebar.section == .devices) { select(.devices) }
+            }
+            .padding(.top, EosSpacing.md)
+            .padding(.horizontal, EosSpacing.xs)
 
-                VStack(spacing: 0) {
-                    SidebarRow("chevron.left.forwardslash.chevron.right", "Code",
-                               isSelected: sidebar.section == .code) { select(.code) }
-                    SidebarRow("laptopcomputer", "Devices",
-                               isSelected: sidebar.section == .devices) { select(.devices) }
-                }
-                .padding(.top, EosSpacing.md)
-                .padding(.horizontal, EosSpacing.xs)
-
-                if recentWorkers.isEmpty {
-                    Spacer(minLength: 0)
-                } else {
-                    SectionCaption("Recents")
-                        .padding(.horizontal, EosSpacing.xs)
-                    ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 2) {
-                            ForEach(recentWorkers) { w in
-                                SidebarRecentRow(name: w.name, state: w.state) {
-                                    onOpenWorker(w.id)
-                                    sidebar.isOpen = false
-                                }
+            if recentWorkers.isEmpty {
+                Spacer(minLength: 0)
+            } else {
+                SectionCaption("Recents")
+                    .padding(.horizontal, EosSpacing.xs)
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        ForEach(recentWorkers) { w in
+                            SidebarRecentRow(name: w.name, state: w.state) {
+                                onOpenWorker(w.id)
+                                sidebar.isOpen = false
                             }
                         }
-                        .padding(.horizontal, EosSpacing.xs)
-                        .padding(.bottom, geo.safeAreaInsets.bottom + 72)   // clear the floating pill
                     }
+                    .padding(.horizontal, EosSpacing.xs)
+                    .padding(.bottom, 72)   // clear the floating pill
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .overlay(alignment: .bottomTrailing) {
-                newSessionPill
-                    .padding(.trailing, EosSpacing.md)
-                    .padding(.bottom, geo.safeAreaInsets.bottom + EosSpacing.md)
-            }
         }
-        .background(EosColor.bg)
-        .ignoresSafeArea()
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .overlay(alignment: .bottomTrailing) {
+            newSessionPill
+                .padding(.trailing, EosSpacing.md)
+                .padding(.bottom, EosSpacing.md)
+        }
+        .background(EosColor.bg.ignoresSafeArea())
         .onChange(of: sidebar.isOpen) { _, open in if open { wordmarkFocused = true } }
     }
 
