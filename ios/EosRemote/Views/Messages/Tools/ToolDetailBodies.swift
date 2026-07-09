@@ -200,11 +200,23 @@ struct GenericToolCardView: View {
     }
 
     private func sectionHeader(_ title: String, copyText: String) -> some View {
+        SectionCopyHeader(title: title, copyText: copyText)
+    }
+}
+
+// The generic-card section header (Parameters / Output): a uppercase caption + a copy button. Kept as
+// its own view so the copy button owns per-section `@State` — a shared `.constant(false)` binding would
+// freeze it on `doc.on.doc` and never show the §6.5 checkmark.
+private struct SectionCopyHeader: View {
+    let title: String
+    let copyText: String
+    @State private var copied = false
+    var body: some View {
         HStack {
             Text(title).font(EosFont.captionSmall).fontWeight(.bold)
                 .foregroundStyle(EosColor.inkTertiary).textCase(.uppercase)        // gd-section text-xs 700 (§10)
             Spacer(minLength: 0)
-            CopyButtonMini(text: copyText, copied: .constant(false))
+            CopyButtonMini(text: copyText, copied: $copied)                        // real checkmark 1.5s (§6.5)
         }
     }
 }

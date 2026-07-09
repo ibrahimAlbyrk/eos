@@ -30,9 +30,10 @@ struct MessageGalleryView: View {
                         MessageView(block: block).id(block.id)
                         Divider().opacity(0.4)
                     }
-                    loopShowcase.id("loops")                 // terminal + loop-status + goal-check surfaces (4c-i)
+                    loopShowcase.id("loops")                 // terminal + loop-status + goal-check surfaces
                     detailShowcase.id("details")            // expanded detail bodies (diff / preview / generic)
-                    registryShowcase.id("registry")         // 4c-ii Tier-2 tool-registry cards
+                    registryShowcase.id("registry")         // Tier-2 tool-registry cards
+                    tier3Showcase.id("tier3")               // Tier-3 long tail (system / git / worktree)
                     Color.clear.frame(height: 1).id("end")   // scroll target for verifying the fold
                 }
                 .padding(.horizontal, EosSpacing.screenInset)
@@ -98,7 +99,7 @@ struct MessageGalleryView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    // Phase 4c-ii: the Tier-2 TOOL-REGISTRY cards. A representative sample of each new family —
+    // The Tier-2 TOOL-REGISTRY cards. A representative sample of each new family —
     // worker/create/peer/task/workflow/ask/notify/skill/datetime/etc — rendered as real ToolItemViews
     // (collapsed rows, tap to expand) plus the top-of-transcript TaskFrom header and the workflow report.
     @ViewBuilder private var registryShowcase: some View {
@@ -149,6 +150,36 @@ struct MessageGalleryView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    // The Tier-3 long tail (§8.3) rendered directly, each under a label, so the final full-transcript
+    // proof shows the system markers, git records, and worktree card grouped and titled. These also
+    // appear inline in the top `blocks` scroll; this section is the labeled reference view.
+    private var tier3Showcase: some View {
+        VStack(alignment: .leading, spacing: EosSpacing.sm) {
+            Text("Tier-3 long tail").font(EosFont.heading).foregroundStyle(EosColor.ink)
+
+            galleryLabel("deliveryFailed — SystemLineView (§1 #13)")
+            SystemLineView(kind: .deliveryFailed(text: "run the audit and report back"))
+
+            galleryLabel("cleared — centered divider (§1 #14)")
+            SystemLineView(kind: .cleared)
+
+            galleryLabel("turnError — humanized provider error (§1 #15)")
+            SystemLineView(kind: .turnError(message: providerErrorMessage("insufficient_credits")))
+
+            galleryLabel("push [ok] — GitLineView (§1 #16)")
+            GitLineView(direction: .push, ok: true, message: "Pushed 3 commits", branch: "eos-task-cards")
+
+            galleryLabel("pull [err] — GitLineView (§1 #17)")
+            GitLineView(direction: .pull, ok: false,
+                        message: "Pull failed: local changes would be overwritten", branch: "main")
+
+            galleryLabel("worktreePreserved — Reveal copies path (§1 #18)")
+            WorktreePreservedView(path: "/Users/dev/.eos/worktrees/eos-task-cards", branch: "eos-task-cards",
+                                  diffStat: " a.swift | 3 +\n b.swift | 9 +-\n c.yml | 1 +")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private func galleryLabel(_ text: String) -> some View {
         Text(text).font(EosFont.captionSmall).foregroundStyle(EosColor.inkTertiary)
     }
@@ -164,7 +195,7 @@ enum MessageGallerySamples {
               payload: .thinking(text: thinkingSample)),
         Block(id: "a-1", workerId: "w-demo", ts: base - 100_000,
               payload: .assistant(text: assistantSample)),
-        // Phase 4b-ii tool/agent/report tier (spec gallery acceptance list).
+        // Tool / agent / report tier (spec gallery acceptance list).
         Block(id: "t-read", workerId: "w-demo", ts: base - 90_000, payload: .tool(readTool)),
         Block(id: "t-edit", workerId: "w-demo", ts: base - 80_000, payload: .tool(editTool)),
         Block(id: "t-bash", workerId: "w-demo", ts: base - 70_000, payload: .tool(bashTool)),
@@ -176,7 +207,7 @@ enum MessageGallerySamples {
         Block(id: "ag-1", workerId: "w-demo", ts: base - 30_000, payload: .agentRun(agentRunSample)),
         Block(id: "rep-1", workerId: "w-demo", ts: base - 20_000,
               payload: .report(text: reportSample, fromWorker: nil, workerName: "refactor-auth")),
-        // Phase 4c-i: the Terminal card (running / done ✓ / failed ✗ 1) + the Loop family (§ gallery
+        // The Terminal card (running / done ✓ / failed ✗ 1) + the Loop family (§ gallery
         // acceptance list). The live terminal is flagged live=true so the running head + spinner render.
         Block(id: "term-run", workerId: "w-demo", ts: base - 18_000, live: true, payload: .terminal(terminalRunning)),
         Block(id: "term-ok", workerId: "w-demo", ts: base - 16_000, payload: .terminal(terminalDone)),
@@ -184,6 +215,23 @@ enum MessageGallerySamples {
         Block(id: "loop-1", workerId: "w-demo", ts: base - 12_000, payload: .loop(text: loopRetrigger)),
         Block(id: "lc-met", workerId: "w-demo", ts: base - 10_000, payload: .loopCheck(loopCheckMet)),
         Block(id: "lc-unmet", workerId: "w-demo", ts: base - 8_000, payload: .loopCheck(loopCheckUnmet)),
+        // The Tier-3 long tail (§8.3 / §1 #13–#18). System markers (deliveryFailed / cleared /
+        // turnError → SystemLineView), the git records (push [ok] / pull [err] → GitLineView), and the
+        // preserved-worktree card (→ WorktreePreservedView). This completes the Block.Payload coverage.
+        Block(id: "df-1", workerId: "w-demo", ts: base - 7_000,
+              payload: .deliveryFailed(text: "run the audit and report back")),
+        Block(id: "clr-1", workerId: "w-demo", ts: base - 6_500, payload: .cleared),
+        Block(id: "te-1", workerId: "w-demo", ts: base - 6_000,
+              payload: .turnError(reason: "insufficient_credits",
+                                  message: providerErrorMessage("insufficient_credits"))),
+        Block(id: "push-ok", workerId: "w-demo", ts: base - 5_500,
+              payload: .gitPush(ok: true, message: "Pushed 3 commits", branch: "eos-task-cards")),
+        Block(id: "pull-err", workerId: "w-demo", ts: base - 5_000,
+              payload: .gitPull(ok: false, message: "Pull failed: local changes would be overwritten", branch: "main")),
+        Block(id: "wt-1", workerId: "w-demo", ts: base - 4_500,
+              payload: .worktreePreserved(path: "/Users/dev/.eos/worktrees/eos-task-cards",
+                                          branch: "eos-task-cards",
+                                          diffStat: " ios/EosRemote/Views/BlockView.swift  | 12 +-\n ios/EosRemote/Views/Messages/Tools/GitLineView.swift | 48 ++++\n ios/project.yml | 2 +")),
     ]
 
     // Exposed for the loop showcase (the non-block LoopStatus card + live GoalCheck line).
