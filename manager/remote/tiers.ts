@@ -29,7 +29,9 @@ const R = (method: string, path: string, tier: RemoteTier, uiToken = false): Tie
 const RULES: TierRule[] = [
   // ---- READ ----
   ...[
-    "/workers", "/workers/:id", "/workers/:id/events", "/workers/:id/queue",
+    // /workers/archived MUST stay above /workers/:id — it also matches the :id
+    // pattern; the explicit entry keeps the intent stable across reshuffles.
+    "/workers", "/workers/archived", "/workers/:id", "/workers/:id/events", "/workers/:id/queue",
     "/workers/:id/diff", "/workers/:id/changes", "/workers/:id/changes/file",
     "/workers/:id/conflicts", "/workers/:id/conflicts/file", "/workers/:id/push-state",
     "/workers/:id/memory", "/workers/:id/peers", "/workers/:id/rewind-targets",
@@ -54,6 +56,8 @@ const RULES: TierRule[] = [
   R("POST", "/workers/:id/interrupt", "LOW"),
   R("POST", "/workers/:id/resume", "LOW"),
   R("POST", "/workers/:id/notify", "LOW"),
+  R("POST", "/workers/:id/archive", "LOW"),
+  R("POST", "/workers/:id/restore", "LOW"),
   R("POST", "/orchestrators/:id/message", "LOW"),
   R("POST", "/orchestrators/:id/loop", "LOW"),
   R("POST", "/orchestrators/:id/loop/stop", "LOW"),
@@ -92,6 +96,7 @@ const RULES: TierRule[] = [
   R("POST", "/fs/move", "HIGH", true),
   R("POST", "/fs/trash", "HIGH", true),
   R("POST", "/fs/paste", "HIGH", true),
+  R("POST", "/fs/paste-b64", "HIGH", true),
   R("POST", "/fs/watch", "HIGH", true),
   R("POST", "/fs/unwatch", "HIGH", true),
   R("POST", "/fs/checkout", "HIGH", true),

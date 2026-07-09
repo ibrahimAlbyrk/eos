@@ -9,10 +9,12 @@ import { writeJson } from "../middleware/errorHandler.ts";
 import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 import { IMAGE_MIME, isSafeAbsPath, resolveWithinRoot, searchProject, uiTokenOk } from "./fs-shared.ts";
-import { FsWriteRequestSchema } from "../../contracts/src/http.ts";
+import { FsPasteB64RequestSchema, FsWriteRequestSchema } from "../../contracts/src/http.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 
 const PASTE_MAX_BYTES = 20 * 1024 * 1024;
+// base64 inflates 3→4, plus headroom for the JSON envelope around dataB64.
+const PASTE_B64_MAX_BODY_BYTES = Math.ceil((PASTE_MAX_BYTES / 3) * 4) + 64 * 1024;
 const TEXT_MAX_BYTES = 8 * 1024 * 1024;
 
 function readRawBody(req: IncomingMessage, maxBytes: number): Promise<Buffer> {
@@ -174,6 +176,25 @@ export function registerFsReadRoutes(r: Router, c: Container): void {
       writeJson(res, 200, { path: dest });
     } catch (e) {
       writeJson(res, 500, { error: e instanceof Error ? e.message : String(e) });
+    }
+  });
+
+  // JSON twin of /fs/paste for the remote-control tunnel, which can only carry
+  // JSON bodies (no raw octet-stream / custom headers). Same decoded-size cap.
+  r.post("/fs/paste-b64", async ({ req, res }) => {
+    const body = validate(FsPasteB64RequestSchema, await readBody(req, PASTE_B64_MAX_BODY_BYTES));
+    const buf = Buffer.from(body.dataB64, "base64");
+    if (buf.length > PASTE_MAX_BYTES) {
+      writeJson(res, 413, { error: `payload too large (${buf.length} bytes, limit ${PASTE_MAX_BYTES})` });
+      return;
+    }
+    try {
+      const dir = mkdtempSync(join(tmpdir(), "eos-paste-"));
+      const dest = join(dir, body.name.replace(/[/\0]/g, "_"));
+      writeFileSync(dest, buf);
+      writeJson(res, 200, { path: dest });
+    } catch (e) {
+      writeJson(res, 500, { error: errMsg(e) });
     }
   });
 }

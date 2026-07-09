@@ -24,6 +24,13 @@ describe("classifyTier (§8)", () => {
     }
   });
 
+  it("classifies the relay additions: archive/restore, archived list, paste-b64", () => {
+    assert.deepEqual(classifyTier("POST", "/workers/abc/archive"), { tier: "LOW", uiToken: false });
+    assert.deepEqual(classifyTier("POST", "/workers/abc/restore"), { tier: "LOW", uiToken: false });
+    assert.deepEqual(classifyTier("GET", "/workers/archived"), { tier: "READ", uiToken: false });
+    assert.deepEqual(classifyTier("POST", "/fs/paste-b64"), { tier: "HIGH", uiToken: true });
+  });
+
   it("classifies on the path portion, ignoring the query string (§4.2)", () => {
     assert.deepEqual(classifyTier("GET", "/fs/read?path=/a/b.txt"), { tier: "READ", uiToken: false });
     assert.deepEqual(classifyTier("GET", "/workers/abc/changes/file?p=x&y=1"), { tier: "READ", uiToken: false });

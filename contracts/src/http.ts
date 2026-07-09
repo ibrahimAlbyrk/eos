@@ -1020,6 +1020,20 @@ export const FsWriteRequestSchema = z.object({
 });
 export type FsWriteRequest = z.infer<typeof FsWriteRequestSchema>;
 
+// ---- POST /fs/paste-b64 ----------------------------------------------------
+// JSON twin of POST /fs/paste (raw octet-stream + x-filename header): the
+// remote-control tunnel can only carry JSON bodies, so binary uploads from a
+// joined device ride base64 through this route instead. Same 20 MB decoded cap
+// as the raw route.
+export const FsPasteB64RequestSchema = z.object({
+  name: z.string().min(1),
+  dataB64: z.string().min(1),
+});
+export type FsPasteB64Request = z.infer<typeof FsPasteB64RequestSchema>;
+
+export const FsPasteB64ResponseSchema = z.object({ path: z.string() });
+export type FsPasteB64Response = z.infer<typeof FsPasteB64ResponseSchema>;
+
 // ---- GET /fs/stat ----------------------------------------------------------
 // Per-entry detail (size/mtime/readonly) fetched lazily by the explorer for the
 // selected row + the editor header — kept out of the bulk listing for speed.
@@ -2111,6 +2125,7 @@ export const ROUTES = {
   fsRemoteBranchDelete: "/fs/remote-branch/delete",
   fsWrite: "/fs/write",
   fsPaste: "/fs/paste",
+  fsPasteB64: "/fs/paste-b64",
   fsStat: "/fs/stat",
   fsCreate: "/fs/create",
   fsRename: "/fs/rename",

@@ -14,7 +14,7 @@ const EXPECTED_KEYS = [
   "fsRecents", "fsReveal", "fsOpenIn", "fsRead", "fsList", "fsImage",
   "fsRaw", "pdfjs",
   "fsCheckout", "fsBranchCreate", "fsBranchRename", "fsBranchDelete", "fsFetch", "fsRemoteBranchDelete",
-  "fsWrite", "fsPaste", "fsStat", "fsCreate", "fsRename", "fsMove", "fsTrash", "fsWatch", "fsUnwatch",
+  "fsWrite", "fsPaste", "fsPasteB64", "fsStat", "fsCreate", "fsRename", "fsMove", "fsTrash", "fsWatch", "fsUnwatch",
   "symbolsLookup", "symbolsSearch", "symbolsFile",
   "workerName", "workerRenameIntent", "workerOpen", "workerPermission",
   "workerModel", "workerBackend", "workerDiff", "workerChanges", "workerFileDiff", "workerChangesDiscard",
