@@ -24,7 +24,7 @@ struct MessageGalleryView: View {
                     Text("Message Render Gallery")
                         .font(EosFont.titleSerif).foregroundStyle(EosColor.ink)
                         .padding(.top, EosSpacing.md)
-                    Text("code font: \(EosFont.codeFontIsJetBrains ? "JetBrains Mono" : "SF Mono (fallback)") · highlight theme: \(CodeHighlighter.themeName)")
+                    Text("ui font: \(EosFont.uiFontIsJakarta ? "Plus Jakarta Sans" : "SF Pro (fallback)") · code font: \(EosFont.codeFontIsJetBrains ? "JetBrains Mono" : "SF Mono (fallback)") · highlight theme: \(CodeHighlighter.themeName)")
                         .font(EosFont.captionSmall).foregroundStyle(EosColor.inkTertiary)
                     ForEach(MessageGallerySamples.blocks) { block in
                         MessageView(block: block).id(block.id)

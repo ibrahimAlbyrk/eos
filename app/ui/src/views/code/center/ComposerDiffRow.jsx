@@ -9,6 +9,7 @@ import { useGitStatus } from "../../../hooks/useGitStatus.js";
 import { hasUnintegratedWork } from "../../../lib/workState.js";
 import { truncateBranch } from "../../../lib/branchDisplay.js";
 import { gitAgentName } from "../../../lib/gitAgentName.js";
+import { requestStashFocus } from "../../../state/gitDiffIntent.js";
 
 const PR_OPTIONS = [
   { id: "pr", label: "Create PR", icon: "pr" },
@@ -254,7 +255,15 @@ export function ComposerDiffRow({ live, worker, wtStatus }) {
         </button>
       )}
       {stash > 0 && (
-        <span className="git-chip stash-chip">
+        <button
+          className={"git-chip stash-chip stash-chip-btn" + (ui.isPanelOpen("gitdiff") ? " on" : "")}
+          title="View stashes"
+          onClick={() => {
+            if (ui.isPanelOpen("gitdiff")) { ui.closeGitDiffViewer(); return; }
+            requestStashFocus();
+            ui.openGitDiffViewer(workerGitDir(selected) ?? ui.composer.cwd, selected.id);
+          }}
+        >
           <svg width="11" height="11" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
             <rect x="2" y="5.5" width="10" height="6.5" rx="1" />
             <line x1="3.5" y1="3.5" x2="10.5" y2="3.5" />
@@ -262,7 +271,7 @@ export function ComposerDiffRow({ live, worker, wtStatus }) {
           </svg>
           <span className="num">{stash}</span>
           <span className="lbl">stashed</span>
-        </span>
+        </button>
       )}
       {conflicts > 0 && (
         <button

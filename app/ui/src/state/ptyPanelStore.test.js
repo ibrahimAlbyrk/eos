@@ -153,10 +153,30 @@ describe("ptyPanelStore (pane-keyed)", () => {
     expect(getPtyPanel("A").tabs[0].exited).toBe(false);
   });
 
-  it("tab numbers come straight from the server response — no client-side counter", async () => {
+  it("tab numbers are derived from the pane's live list, not the server counter", async () => {
     vi.stubGlobal("fetch", mockServer());
-    await openTab("A"); await openTab("A");
-    expect(getPtyPanel("A").tabs.map((t) => t.number)).toEqual([1, 2]);
+    await openTab("A"); await openTab("A"); await openTab("A");
+    expect(getPtyPanel("A").tabs.map((t) => t.number)).toEqual([1, 2, 3]);
+  });
+
+  it("tab number restarts at 1 when the pane empties, even as the server counter climbs", async () => {
+    vi.stubGlobal("fetch", mockServer());
+    await openTab("A"); await openTab("A"); await openTab("A"); // [1,2,3]
+    // Close every tab; closing the last auto-opens a fresh one (never zero tabs).
+    for (const id of getPtyPanel("A").tabs.map((t) => t.sessionId)) {
+      await closeTab("A", id);
+    }
+    // Server minted s4/number 4 for the reopen, but the label restarts at 1.
+    expect(getPtyPanel("A").tabs.map((t) => t.number)).toEqual([1]);
+  });
+
+  it("a new tab fills the lowest free number gap", async () => {
+    vi.stubGlobal("fetch", mockServer());
+    await openTab("A"); await openTab("A"); await openTab("A"); // [1,2,3]
+    const mid = getPtyPanel("A").tabs[1].sessionId; // number 2
+    await closeTab("A", mid); // [1,3]
+    await openTab("A"); // fills the gap → 2
+    expect(getPtyPanel("A").tabs.map((t) => t.number).sort()).toEqual([1, 2, 3]);
   });
 
   it("openTab forwards cwd to POST /pty when given, and omits it when absent", async () => {

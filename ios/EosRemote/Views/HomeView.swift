@@ -15,6 +15,7 @@ struct HomeView: View {
     @State private var draft = ""
     @State private var killTarget: Worker?
     @State private var showModelPicker = false
+    @FocusState private var composerFocused: Bool
 
     var body: some View {
         List {
@@ -40,7 +41,8 @@ struct HomeView: View {
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
-        .background(EosColor.bg)
+        .scrollDismissesKeyboard(.interactively)   // bug 3
+        .background(EosColor.bg.ignoresSafeArea())  // dark claims the full screen (bug 1)
         .safeAreaInset(edge: .bottom) {
             Composer(text: $draft, placeholder: "Spawn a worker…",
                      model: defaultModel, effort: defaultEffort,
@@ -48,9 +50,16 @@ struct HomeView: View {
                      onPlus: onSpawnSheet, onMic: nil,
                      trailing: draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         ? .voice({})
-                        : .send(submitSpawn, enabled: true))
+                        : .send(submitSpawn, enabled: true),
+                     focused: $composerFocused)
                 .padding(.horizontal, EosSpacing.screenInset)
                 .padding(.bottom, EosSpacing.xs)
+        }
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { composerFocused = false }
+            }
         }
         .confirmationDialog("Kill this worker?", isPresented: .constant(killTarget != nil),
                             titleVisibility: .visible, presenting: killTarget) { w in
@@ -67,8 +76,7 @@ struct HomeView: View {
 
     private var hero: some View {
         VStack(spacing: EosSpacing.lg) {
-            Sunburst().fill(EosColor.coral).frame(width: 56, height: 56)
-                .accessibilityHidden(true)
+            DawnStar(size: 56)
             Text("Hey there, \(AccountLabel.firstName)")
                 .font(EosFont.display).tracking(-0.4)
                 .foregroundStyle(EosColor.ink)
@@ -95,6 +103,7 @@ struct HomeView: View {
         let prompt = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !prompt.isEmpty else { return }
         draft = ""
+        composerFocused = false   // release focus on send (bug 3)
         let body: JSONValue = .object([
             "prompt": .string(prompt),
             "model": .string(defaultModel),

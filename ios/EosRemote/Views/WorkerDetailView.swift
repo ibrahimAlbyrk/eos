@@ -9,6 +9,7 @@ struct WorkerDetailView: View {
     @EnvironmentObject var model: AppModel
     let workerId: String
     @State private var draft = ""
+    @FocusState private var composerFocused: Bool
     // Blur-in ledger (spec 03 §6.1): seeds the loaded history as already-revealed so only output
     // arriving after entry animates. Bound to workerId so each transcript seeds its own history.
     @StateObject private var reveal = RevealLedger()
@@ -58,6 +59,7 @@ struct WorkerDetailView: View {
         // Bottom anchor lands the newest message on open and holds the bottom-relative position on
         // growth (follows the tail at the bottom, leaves the reading spot when scrolled up).
         .defaultScrollAnchor(.bottom)
+        .scrollDismissesKeyboard(.interactively)   // drag the keyboard down (bug 3, doc 04 §4.4)
         .task(id: workerId) {
             reveal.bind(sessionId: workerId)
             await model.openWorker(workerId)
@@ -68,7 +70,7 @@ struct WorkerDetailView: View {
         .onDisappear { model.closeWorker(workerId) }
         .background(EosColor.bg)
         .eosTopChrome {
-            CircularIconButton(systemName: "stop.circle", diameter: 40, accessibilityLabel: "Interrupt") {
+            CircularIconButton(systemName: "stop.circle", diameter: 40, glass: true, accessibilityLabel: "Interrupt") {
                 Task { await model.interrupt(workerId) }
             }
         }
@@ -78,9 +80,17 @@ struct WorkerDetailView: View {
                      onModelTap: {}, onPlus: {}, onMic: nil,
                      trailing: draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                         ? .voice({})
-                        : .send(send, enabled: true))
+                        : .send(send, enabled: true),
+                     focused: $composerFocused)
                 .padding(.horizontal, EosSpacing.screenInset)
                 .padding(.bottom, EosSpacing.xs)
+        }
+        // Explicit keyboard dismissal alongside the interactive scroll gesture (bug 3, doc 04 §4.4).
+        .toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Done") { composerFocused = false }
+            }
         }
     }
 
@@ -88,6 +98,7 @@ struct WorkerDetailView: View {
         let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         draft = ""
+        composerFocused = false   // release focus on send (bug 3)
         Task { await model.sendMessage(to: workerId, text: text) }
     }
 }
@@ -97,8 +108,7 @@ struct WorkerDetailView: View {
 struct TranscriptFoot: View {
     var body: some View {
         HStack(spacing: EosSpacing.xxs) {
-            Sunburst().fill(EosColor.coral).frame(width: 13, height: 13)
-                .accessibilityHidden(true)
+            DawnStar(size: 13)
             Text("Eos runs autonomous agents and can make mistakes. Review actions before approving.")
                 .font(EosFont.caption)
                 .foregroundStyle(EosColor.inkTertiary)

@@ -31,9 +31,12 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
     @State private var containerWidth: CGFloat = 0
 
     private var drawerWidth: CGFloat { min(containerWidth * 0.82, 340) }
+    // The revealed main content rounds to ≈ the physical screen corner so the peek edge sits
+    // concentric with the device (bug 2, §3.1). 39 is a safe modern-iPhone value.
+    private let deviceCornerRadius: CGFloat = 39
 
     // Offset while dragging is clamped to the drawer's width; when open (not dragging) it rests at
-    // the full width. Progress 0…1 drives scrim alpha, corner radius, and the peek scale.
+    // the full width. Progress 0…1 drives scrim alpha and the (progress-driven) corner radius.
     private var currentOffset: CGFloat {
         if dragX != 0 { return min(max(dragX, 0), drawerWidth) }
         return sidebar.isOpen ? drawerWidth : 0
@@ -42,21 +45,25 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            // 1) SIDEBAR — underneath, pinned left, fixed width.
+            // 0) BASE — dark bleeds under the notch/home-indicator even before content paints (bug 1).
+            EosColor.bg.ignoresSafeArea()
+
+            // 1) DRAWER — one Liquid Glass panel, pinned left, fixed width; its rows are content on the
+            //    glass (no glass-on-glass). The dimmed main content shows through (doc 04 §3.4).
             sidebarContent
                 .frame(width: drawerWidth)
                 .frame(maxHeight: .infinity, alignment: .top)
+                .glassEffect(.regular, in: .rect(cornerRadius: 24, style: .continuous))
                 .accessibilityFocused($focusInSidebar)
                 .accessibilityHidden(!sidebar.isOpen)
 
-            // 2) MAIN — offset right when open, corner-rounded + scrim + subtle peek scale.
+            // 2) MAIN — offset right when open, corner rounds AS it opens (progress-driven), scrim on
+            //    top. Scale dropped (decision #2) — the glass drawer reads cleaner without the seam.
             content
-                .background(EosColor.bg)
-                .clipShape(RoundedRectangle(cornerRadius: sidebar.isOpen || dragX != 0 ? 24 : 0, style: .continuous))
+                .clipShape(RoundedRectangle(cornerRadius: deviceCornerRadius * progress, style: .continuous))
                 .overlay(scrim)
-                .shadow(color: .black.opacity(0.12), radius: 16, x: -4)
+                .shadow(color: .black.opacity(0.35), radius: 16, x: -4)
                 .offset(x: currentOffset)
-                .scaleEffect(reduceMotion ? 1 : 1 - 0.03 * progress, anchor: .trailing)
                 .accessibilityHidden(sidebar.isOpen)
         }
         .background(GeometryReader { geo in

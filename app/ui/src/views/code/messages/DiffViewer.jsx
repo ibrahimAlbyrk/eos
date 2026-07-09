@@ -8,7 +8,7 @@ import { useTryState } from "../../../hooks/useTryState.js";
 import { workerGitDir } from "../../../lib/workerGitDir.js";
 import { TryApplyButton } from "./TryApplyButton.jsx";
 import { notify } from "../../../lib/notify.js";
-import { PanelCloseButton } from "./PanelCloseButton.jsx";
+import { PanelShell } from "../panes/PanelShell.jsx";
 import { PatchBody } from "./PatchBody.jsx";
 
 // Above this many changed lines a diff counts as "large": every file starts
@@ -22,14 +22,8 @@ function splitPath(path) {
 
 export function DiffViewer({ live }) {
   const ui = useUi();
-  // Mounted while anywhere in the panel stack (state survives a file viewer
-  // pushed on top); visible only when on top.
-  const open = Boolean(ui.diffViewer);
-  return (
-    <div className="diff-viewer dv-open">
-      {open && <DiffViewerInner workerId={ui.diffViewer.workerId} live={live} />}
-    </div>
-  );
+  if (!ui.diffViewer) return <PanelShell type="diff" />;
+  return <DiffViewerInner workerId={ui.diffViewer.workerId} live={live} />;
 }
 
 function DiffViewerInner({ workerId, live }) {
@@ -114,70 +108,74 @@ function DiffViewerInner({ workerId, live }) {
   const base = worker?.worktree_from;
   const head = worker?.branch;
 
-  return (
+  const crumb = (
+    <span className="dv-crumb" title={base ? `${base} → ${head}` : undefined}>
+      <svg className="dv-crumb-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+        <path d="M2 5a1 1 0 0 1 1-1h3l2 2h5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" />
+      </svg>
+      {base && head ? (
+        <>
+          <span className="dv-crumb-ref">{base}</span>
+          <span className="dv-crumb-arrow">→</span>
+          <span className="dv-crumb-ref dv-crumb-head">{head}</span>
+        </>
+      ) : (
+        <span className="dv-crumb-ref">{head || "Changes"}</span>
+      )}
+    </span>
+  );
+
+  const headerActions = (
     <>
-      <div className="dv-head">
-        <span className="dv-crumb" title={base ? `${base} → ${head}` : undefined}>
-          <svg className="dv-crumb-icon" width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
+      {showVerdict && (
+        <span className={"git-chip verdict-chip verdict-" + verdict.verdict} title={verdict.command ? `verified by: ${verdict.command}` : undefined}>
+          <span className="lbl">{verdict.verdict}</span>
+        </span>
+      )}
+      {isolated && (appliedHere || kept) && (
+        <span className="git-chip applied-chip" title={kept ? "These changes were applied to your checkout and kept" : "These changes are currently applied in your checkout (Keep/Discard in the banner)"}>
+          <span className="lbl">applied</span>
+        </span>
+      )}
+      {discardErr && <span className="dv-act-err" title={discardErr}>{discardErr}</span>}
+      {isolated && (
+        <TryApplyButton
+          tryState={tryState}
+          applied={applied}
+          syncable={syncable}
+          syncFiles={syncFiles}
+          onApply={applyTry}
+          onResolveConflicts={() => spawnMergeGitAgent(worker, live, ui)}
+        />
+      )}
+      {gitDir && (
+        <button
+          className="fv-icon-btn"
+          title="Reveal workspace in Finder"
+          onClick={() => api.revealFile(gitDir)}
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
             <path d="M2 5a1 1 0 0 1 1-1h3l2 2h5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" />
           </svg>
-          {base && head ? (
-            <>
-              <span className="dv-crumb-ref">{base}</span>
-              <span className="dv-crumb-arrow">→</span>
-              <span className="dv-crumb-ref dv-crumb-head">{head}</span>
-            </>
-          ) : (
-            <span className="dv-crumb-ref">{head || "Changes"}</span>
-          )}
-        </span>
-        <span className="dv-grow" />
-        {showVerdict && (
-          <span className={"git-chip verdict-chip verdict-" + verdict.verdict} title={verdict.command ? `verified by: ${verdict.command}` : undefined}>
-            <span className="lbl">{verdict.verdict}</span>
-          </span>
-        )}
-        {isolated && (appliedHere || kept) && (
-          <span className="git-chip applied-chip" title={kept ? "These changes were applied to your checkout and kept" : "These changes are currently applied in your checkout (Keep/Discard in the banner)"}>
-            <span className="lbl">applied</span>
-          </span>
-        )}
-        {discardErr && <span className="dv-act-err" title={discardErr}>{discardErr}</span>}
-        {isolated && (
-          <TryApplyButton
-            tryState={tryState}
-            applied={applied}
-            syncable={syncable}
-            syncFiles={syncFiles}
-            onApply={applyTry}
-            onResolveConflicts={() => spawnMergeGitAgent(worker, live, ui)}
-          />
-        )}
-        {gitDir && (
-          <button
-            className="fv-icon-btn"
-            title="Reveal workspace in Finder"
-            onClick={() => api.revealFile(gitDir)}
-          >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <path d="M2 5a1 1 0 0 1 1-1h3l2 2h5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" />
-            </svg>
-          </button>
-        )}
-        {gitDir && (
-          <button
-            className="fv-icon-btn"
-            title="Copy workspace path"
-            onClick={async () => { await navigator.clipboard?.writeText(gitDir); notify.info('Workspace path copied'); }}
-          >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-              <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
-              <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
-            </svg>
-          </button>
-        )}
-        <PanelCloseButton onClose={ui.closeDiffViewer} />
-      </div>
+        </button>
+      )}
+      {gitDir && (
+        <button
+          className="fv-icon-btn"
+          title="Copy workspace path"
+          onClick={async () => { await navigator.clipboard?.writeText(gitDir); notify.info('Workspace path copied'); }}
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+            <rect x="5.5" y="5.5" width="8" height="8" rx="1.5" />
+            <path d="M10.5 5.5v-2a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2" />
+          </svg>
+        </button>
+      )}
+    </>
+  );
+
+  return (
+    <PanelShell type="diff" title={crumb} actions={headerActions}>
       {isLargeDiff && (
         <div className="dv-hint">Large diff — files start collapsed. Click a file header to expand it.</div>
       )}
@@ -196,7 +194,7 @@ function DiffViewerInner({ workerId, live }) {
           />
         ))}
       </div>
-    </>
+    </PanelShell>
   );
 }
 

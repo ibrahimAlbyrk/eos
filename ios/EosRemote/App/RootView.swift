@@ -1,10 +1,10 @@
 import SwiftUI
 import EosRemoteKit
 
-// Root shell (spec 02 §3.1/§3.4): the existing NavigationStack wrapped in a SidebarContainer drawer,
-// with custom circular top chrome replacing the system toolbar. Deep-link routing (eos://worker/… ,
-// eos://pending), the connection banner overlay, scene-phase resume, and the sheet presentations are
-// all preserved.
+// Root shell (spec 05 §3.1): the existing NavigationStack wrapped in a SidebarContainer drawer, with
+// glass circular top chrome replacing the system toolbar. Deep-link routing (eos://worker/… ,
+// eos://pending), scene-phase resume, and the sheet presentations are preserved. The old "Not
+// connected" connection banner is removed (bug 4) — connection surfaces via the drawer device-chip dot.
 struct RootView: View {
     @StateObject private var model = AppModel()
     @StateObject private var sidebar = SidebarState()
@@ -32,7 +32,6 @@ struct RootView: View {
                         }
                     }
             }
-            .overlay(alignment: .bottom) { connectionBanner }
         }
         .environmentObject(model)
         .environmentObject(sidebar)
@@ -71,7 +70,7 @@ struct RootView: View {
     // Top-right on Home (spec 02 §3.4): Pending decisions with a coral badge dot when pending > 0.
     private var pendingTrailing: some View {
         ZStack(alignment: .topTrailing) {
-            CircularIconButton(systemName: "exclamationmark.bubble", diameter: 40,
+            CircularIconButton(systemName: "exclamationmark.bubble", diameter: 40, glass: true,
                                accessibilityLabel: "Pending decisions") { sidebar.section = .pending }
             if model.pending.count > 0 {
                 Circle().fill(EosColor.coral).frame(width: 9, height: 9)
@@ -85,24 +84,6 @@ struct RootView: View {
     private func openWorker(_ id: String) {
         sidebar.section = .fleet
         path.append(id)
-    }
-
-    @ViewBuilder private var connectionBanner: some View {
-        if model.connected {
-            EmptyView()
-        } else if model.needsPairing {
-            banner("Not connected — tap to pair") { showPairing = true }
-        } else if model.connecting {
-            banner("Connecting…", action: nil)
-        } else {
-            banner(model.lastError ?? "Disconnected — tap to reconnect") { Task { await model.enterForeground() } }
-        }
-    }
-
-    @ViewBuilder private func banner(_ text: String, action: (() -> Void)?) -> some View {
-        let label = Text(text).font(EosFont.caption).foregroundStyle(EosColor.ink).padding(EosSpacing.xs)
-            .frame(maxWidth: .infinity).background(EosColor.surface)
-        if let action { Button(action: action) { label } .buttonStyle(.plain) } else { label }
     }
 
     private func route(_ url: URL) {

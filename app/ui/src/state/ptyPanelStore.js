@@ -8,8 +8,10 @@
 // Lifecycle: a pane's panel ALWAYS opens clean — there is no reattach/scrollback-
 // replay path. Closing a pane's panel terminates ITS sessions (killPaneSessions);
 // opening one reaps server sessions no pane tracks (reapUntrackedSessions), then
-// spawns one fresh tab. The tab NUMBER is server-owned (mirrors the daemon's
-// PtySession.number); the server counter resets when its registry empties.
+// spawns one fresh tab. The tab NUMBER is the human-facing label only: it is
+// derived from THIS pane's live tab list (lowest free gap; restarts at 1 when
+// the pane empties) — never a monotonic counter. The stable id used for React
+// keys and PTY routing is sessionId (a server UUID): unique and never reused.
 
 import { api } from "../api/client.js";
 
@@ -41,15 +43,25 @@ export function getPtyPanel(paneId) {
   return panes.get(paneId)?.snapshot ?? EMPTY;
 }
 
-// Open a new session in a pane: POST /pty → push the server-numbered tab →
-// activate it. cols/rows seed the PTY; TerminalView re-fits and POSTs the real
-// size on mount.
+// Human-facing tab number: the lowest positive integer not currently used by a
+// tab in this pane. Restarts at 1 when the pane is empty and fills the lowest
+// free gap otherwise — derived from the live list, never a monotonic counter.
+function nextTabNumber(tabs) {
+  const used = new Set(tabs.map((t) => t.number));
+  let n = 1;
+  while (used.has(n)) n += 1;
+  return n;
+}
+
+// Open a new session in a pane: POST /pty → push a tab numbered from THIS pane's
+// live list → activate it. cols/rows seed the PTY; TerminalView re-fits and
+// POSTs the real size on mount.
 export async function openTab(paneId, { cols = 80, rows = 24, cwd } = {}) {
   const r = await api.createPty({ cols, rows, cwd });
   const s = r?.body;
   if (!r?.ok || !s?.sessionId) return null;
   const p = paneOf(paneId);
-  p.tabs = [...p.tabs, { sessionId: s.sessionId, number: s.number, exited: false }];
+  p.tabs = [...p.tabs, { sessionId: s.sessionId, number: nextTabNumber(p.tabs), exited: false }];
   p.activeId = s.sessionId;
   emit(p);
   return s;

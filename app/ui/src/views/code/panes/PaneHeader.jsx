@@ -17,7 +17,7 @@ import { GitDiffToggleButton } from "../center/GitDiffToggleButton.jsx";
 // (--app-region: drag in CSS); its buttons/inputs opt back out. `split` adds the
 // only extras the old mini pane-head had over the global bar: the status
 // dot/label (or needs-input / attention cue) and the close button — never at N=1.
-export function PaneHeader({ worker, live, attention, needsInput, canClose, onClose, newSession, topLeft, topRow, split }) {
+export function PaneHeader({ worker, live, attention, needsInput, canClose, onClose, topLeft, topRow, split }) {
   const ui = useUi();
   // Header-local rename (breadcrumb inline edit), reset when the pane's agent
   // changes so a stale editor never carries over to a different worker.
@@ -38,31 +38,25 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
     .join(" ");
   const insetEl = topLeft ? <span className="pane-head-inset" aria-hidden="true" /> : null;
 
-  // No agent: the single-pane new-session state shows the "new orchestrator"
-  // breadcrumb; a split empty pane keeps today's hover-to-pick hint.
+  // No agent → the new-session state: the "new orchestrator" breadcrumb plus the
+  // pane actions. Split panes (canClose) keep their close button; the single pane
+  // (canClose false) has none. The input bar itself lives in the pane body below —
+  // PaneGrid renders the no-agent Composer there, same as the single-pane flow.
   if (!worker) {
-    if (newSession) {
-      const { project } = breadcrumbFor(live.workers, null, ui.composer.cwd);
-      return (
-        <div className={rootClass}>
-          {insetEl}
-          <div className="crumb">
-            <span className="scope">{project}</span>
-            <span className="sep">/</span>
-            <span className="cur">new orchestrator</span>
-          </div>
-          <div className="pane-head-actions">
-            <TerminalToggleButton />
-            <GitDiffToggleButton />
-          </div>
-        </div>
-      );
-    }
+    const { project } = breadcrumbFor(live.workers, null, ui.composer.cwd);
     return (
       <div className={rootClass}>
         {insetEl}
-        <span className="pane-name">Empty — hover to pick an agent</span>
-        {canClose && <CloseButton onClose={onClose} />}
+        <div className="crumb">
+          <span className="scope">{project}</span>
+          <span className="sep">/</span>
+          <span className="cur">new orchestrator</span>
+        </div>
+        <div className="pane-head-actions">
+          <TerminalToggleButton />
+          <GitDiffToggleButton />
+          {canClose && <CloseButton onClose={onClose} />}
+        </div>
       </div>
     );
   }

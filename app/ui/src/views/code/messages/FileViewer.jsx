@@ -13,7 +13,7 @@ import { EditView } from "./EditViewLazy.jsx";
 import { MarkdownPreview } from "./MarkdownPreview.jsx";
 import { PreviewToggle } from "./PreviewToggle.jsx";
 import { getFileViewer } from "./fileViewers.jsx";
-import { PanelCloseButton } from "./PanelCloseButton.jsx";
+import { PanelShell } from "../panes/PanelShell.jsx";
 import { SymbolRefsPanel } from "./SymbolRefsPanel.jsx";
 import { useFileWatch } from "../../../state/fileWatchStore.js";
 
@@ -23,12 +23,8 @@ const HEAVY_TEXT_CHARS = 2 * 1024 * 1024;
 
 export function FileViewer({ live }) {
   const ui = useUi();
-  const open = !!ui.fileViewer;
-  return (
-    <div className="file-viewer fv-open">
-      {open && <FileViewerInner path={ui.fileViewer.path} live={live} />}
-    </div>
-  );
+  if (!ui.fileViewer) return <PanelShell type="file" />;
+  return <FileViewerInner path={ui.fileViewer.path} live={live} />;
 }
 
 function FileViewerInner({ path, live }) {
@@ -203,11 +199,7 @@ function FileViewerInner({ path, live }) {
   });
 
   return (
-    <>
-      <div className="fv-row1">
-        <span className="fv-title">File</span>
-        <PanelCloseButton onClose={ui.closeFileViewer} />
-      </div>
+    <PanelShell type="file">
       <div className="fv-row2">
         <span className="fv-path">{shortPath}</span>
         {(isText || baseKind === "html") && (
@@ -329,6 +321,6 @@ function FileViewerInner({ path, live }) {
           onClose={() => setRefs(null)}
         />
       )}
-    </>
+    </PanelShell>
   );
 }

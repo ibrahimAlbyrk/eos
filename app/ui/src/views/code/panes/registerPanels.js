@@ -1,4 +1,4 @@
-// Composition root for the panel registry: imports the seven viewers and records
+// Composition root for the panel registry: imports the six viewers and records
 // each type's descriptor. Importing this module runs the registrations (import
 // side-effect). PanelDock imports it so the registry is populated before it reads.
 // Adding a panel type touches only this file + the type's open action — never the

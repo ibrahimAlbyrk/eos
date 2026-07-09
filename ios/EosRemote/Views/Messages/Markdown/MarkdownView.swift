@@ -145,7 +145,7 @@ private struct MarkdownTableView: View {
             .foregroundStyle(EosColor.ink)
             .padding(.horizontal, 14).padding(.vertical, 6)            // th/td pad 6×14 (§10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(isHeader ? EosColor.bgSunken : EosColor.surface)
+            .background(isHeader ? EosColor.surface3 : EosColor.surface)        // header raised on dark (surface-3)
             .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))  // th/td radius 4 (§10)
     }
 }

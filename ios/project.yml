@@ -60,6 +60,11 @@ targets:
           - JetBrainsMono-Medium.ttf
           - JetBrainsMono-SemiBold.ttf
           - JetBrainsMono-Bold.ttf
+          - PlusJakartaSans-Regular.ttf
+          - PlusJakartaSans-Medium.ttf
+          - PlusJakartaSans-SemiBold.ttf
+          - PlusJakartaSans-Bold.ttf
+          - PlusJakartaSans-Italic.ttf
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.eos.remote.app

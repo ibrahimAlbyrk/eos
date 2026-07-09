@@ -49,10 +49,44 @@ struct Sunburst: Shape {
     }
 }
 
+// Dawn-star mark (spec 05 §1.2) — the Sunburst shape filled with the SVG's radial star gradient
+// (white → #e8f1ff → #a9cdf6 → #5f93dd → #3f6fb5) plus a soft cornflower halo behind it. This is the
+// composed brand mark; the bare `Sunburst` above is kept for the doc-03 processing spark (recolored
+// to `coral`). The tiny caption-scale foot instance drops the halo (size < 20) to avoid a fuzzy glow.
+struct DawnStar: View {
+    var size: CGFloat = 56
+    private static let starStops: [Gradient.Stop] = [
+        .init(color: Color(hex: 0xFFFFFF), location: 0.0),
+        .init(color: Color(hex: 0xE8F1FF), location: 0.2),
+        .init(color: Color(hex: 0xA9CDF6), location: 0.5),
+        .init(color: Color(hex: 0x5F93DD), location: 0.8),
+        .init(color: Color(hex: 0x3F6FB5), location: 1.0),
+    ]
+    var body: some View {
+        ZStack {
+            if size >= 20 {
+                // Halo: cornflower glow, ~1.7× the mark, behind.
+                Circle()
+                    .fill(RadialGradient(colors: [Color(hex: 0x6EA4E8).opacity(0.5),
+                                                  Color(hex: 0x6EA4E8).opacity(0.13),
+                                                  Color(hex: 0x6EA4E8).opacity(0)],
+                                         center: .center, startRadius: 0, endRadius: size * 0.85))
+                    .frame(width: size * 1.7, height: size * 1.7)
+                    .accessibilityHidden(true)
+            }
+            Sunburst(spokes: 8)
+                .fill(RadialGradient(stops: Self.starStops, center: .center,
+                                     startRadius: 0, endRadius: size * 0.5))
+                .frame(width: size, height: size)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
 #Preview("Sunburst") {
     VStack(spacing: EosSpacing.xl) {
-        Sunburst().fill(EosColor.coral).frame(width: 56, height: 56)
-        Sunburst().fill(EosColor.coral).frame(width: 13, height: 13)
+        DawnStar(size: 56)
+        DawnStar(size: 13)
         HStack(spacing: EosSpacing.lg) {
             Sunburst(spokes: 8).fill(EosColor.coral).frame(width: 40, height: 40)
             Sunburst(spokes: 12).fill(EosColor.coralPressed).frame(width: 40, height: 40)

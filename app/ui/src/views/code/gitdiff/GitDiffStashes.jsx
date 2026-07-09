@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
@@ -15,11 +15,22 @@ import { BranchConfirmDialog } from "../popovers/BranchConfirmDialog.jsx";
 // Refreshes on the git-change bus "stash" kind with the shared poll backstop;
 // also re-fetches immediately after an Apply/Delete so the row updates even if
 // the bus lags.
-export function GitDiffStashes({ cwd, scope, onScope }) {
+export function GitDiffStashes({ cwd, scope, onScope, focusOnMount }) {
   const ui = useUi();
   const [stashes, setStashes] = useState(null);
   const [confirm, setConfirm] = useState(null); // { index, subject }
   const [busy, setBusy] = useState(false);
+  const rootRef = useRef(null);
+
+  // Opened via the composer stash chip: scroll this section into view once its
+  // rows have rendered, then clear the one-shot ref so a later refresh doesn't
+  // yank the scroll back.
+  useEffect(() => {
+    if (focusOnMount?.current && stashes && stashes.length > 0) {
+      focusOnMount.current = false;
+      rootRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [stashes, focusOnMount]);
 
   const refetch = useCallback(async () => {
     const r = await api.getGitStashes(cwd);
@@ -69,7 +80,7 @@ export function GitDiffStashes({ cwd, scope, onScope }) {
   if (!stashes || stashes.length === 0) return null;
 
   return (
-    <div className="gd-commits">
+    <div className="gd-commits" ref={rootRef}>
       <div className="gd-commits-title">Stashes</div>
       <div className="gd-commits-list">
         {stashes.map((s) => (

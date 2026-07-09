@@ -5,20 +5,15 @@ import { MarkdownView } from "./MarkdownView.jsx";
 import { ScrollHoldContext } from "./scrollHoldContext.js";
 import { ToolItem } from "./ToolItem.jsx";
 import { verbFor } from "../../../lib/messageParser.js";
-import { PanelCloseButton } from "./PanelCloseButton.jsx";
+import { PanelShell } from "../panes/PanelShell.jsx";
 
 export function AgentViewer() {
   const ui = useUi();
-  const open = !!ui.agentViewer;
-  return (
-    <div className="agent-viewer av-open">
-      {open && <AgentViewerInner block={ui.agentViewer} />}
-    </div>
-  );
+  if (!ui.agentViewer) return <PanelShell type="agent" />;
+  return <AgentViewerInner block={ui.agentViewer} />;
 }
 
 function AgentViewerInner({ block }) {
-  const ui = useUi();
   const stick = useStickToBottom({ threshold: 30 });
   useLayoutEffect(() => { stick.write(Infinity, { pin: true }); }, []);
   const isDone = block.status !== "running";
@@ -34,12 +29,7 @@ function AgentViewerInner({ block }) {
   }));
 
   return (
-    <>
-      <div className="av-header">
-        <span className="av-title">{block.description || "Agent"}</span>
-        <PanelCloseButton onClose={ui.closeAgentViewer} className="av-close" />
-      </div>
-
+    <PanelShell type="agent" title={block.description || "Agent"}>
       <ScrollHoldContext.Provider value={stick.hold}>
       <div className="av-scroll" ref={stick.scrollerRef}>
         <div ref={stick.contentRef}>
@@ -71,6 +61,6 @@ function AgentViewerInner({ block }) {
         </div>
       </div>
       </ScrollHoldContext.Provider>
-    </>
+    </PanelShell>
   );
 }

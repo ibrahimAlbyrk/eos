@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { basename } from "../../../lib/path.js";
 import { truncateBranch } from "../../../lib/branchDisplay.js";
 import { useGitScopeChanges } from "../../../hooks/useGitScopeChanges.js";
 import { scopeKeyOf } from "../../../state/gitDiffStore.js";
-import { subscribe as subscribeDockFullscreen, isDockFullscreen, setDockFullscreen } from "../../../state/dockFullscreenStore.js";
-import { PanelCloseButton } from "../messages/PanelCloseButton.jsx";
-import { DockChromeInset } from "../../../components/DockChromeInset.jsx";
+import { consumeStashFocus } from "../../../state/gitDiffIntent.js";
+import { PanelShell } from "../panes/PanelShell.jsx";
 import { GitDiffTree } from "./GitDiffTree.jsx";
 import { GitDiffCommits } from "./GitDiffCommits.jsx";
 import { GitDiffStashes } from "./GitDiffStashes.jsx";
@@ -24,28 +23,22 @@ const LARGE_DIFF_LINES = 1000;
 // (discard/Try/Apply/verdict) live in the DiffViewer.
 export function GitDiffViewer({ live }) {
   const ui = useUi();
-  const open = Boolean(ui.gitDiffViewer);
-  return (
-    <div className="gitdiff-viewer gdv-open">
-      {open && <GitDiffViewerInner cwd={ui.gitDiffViewer.cwd} workerId={ui.gitDiffViewer.workerId} paneId={ui.paneId} live={live} />}
-    </div>
-  );
+  if (!ui.gitDiffViewer) return <PanelShell type="gitdiff" />;
+  return <GitDiffViewerInner cwd={ui.gitDiffViewer.cwd} workerId={ui.gitDiffViewer.workerId} live={live} />;
 }
 
-function GitDiffViewerInner({ cwd, workerId, paneId, live }) {
+function GitDiffViewerInner({ cwd, workerId, live }) {
   const ui = useUi();
   const [scope, setScope] = useState({ kind: "all" });
-  const [treeOpen, setTreeOpen] = useState(false);
+  // Opened via the composer stash chip → reveal the sidebar (where Stashes
+  // lives) and flag the section to scroll itself into view once it renders.
+  const focusStashes = useRef(consumeStashFocus());
+  const [treeOpen, setTreeOpen] = useState(focusStashes.current);
   const [collapsed, setCollapsed] = useState(() => new Set());
   const [selectedPath, setSelectedPath] = useState(null);
   useEffect(() => { setScope({ kind: "all" }); setSelectedPath(null); }, [cwd]);
 
   const { changes, patches, loadPatch } = useGitScopeChanges(cwd, scope);
-
-  const fullscreen = useSyncExternalStore(
-    useCallback((cb) => subscribeDockFullscreen(paneId, cb), [paneId]),
-    useCallback(() => isDockFullscreen(paneId), [paneId]),
-  );
 
   const totalChanged = (changes?.insertions || 0) + (changes?.deletions || 0);
   const isLargeDiff = totalChanged >= LARGE_DIFF_LINES;
@@ -87,57 +80,41 @@ function GitDiffViewerInner({ cwd, workerId, paneId, live }) {
   const repoLabel = changes?.repoLabel ?? basename(cwd);
   const headLabel = changes?.headLabel;
 
-  return (
+  const heading = (
     <>
-      <div className="dv-head">
-        <DockChromeInset />
-        <button
-          className={"fv-icon-btn gd-tree-btn" + (treeOpen ? " on" : "")}
-          title={treeOpen ? "Hide file tree" : "Show file tree"}
-          aria-pressed={treeOpen}
-          onClick={() => setTreeOpen((v) => !v)}
-        >
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-            <path d="M2 5a1 1 0 0 1 1-1h3l2 2h5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" />
-          </svg>
-        </button>
-        <span className="dv-crumb" title={cwd}>
-          {scope.kind === "commit" ? (
-            <>
-              <span className="dv-crumb-ref">{scope.sha.slice(0, 7)}</span>
-              <span className="dv-crumb-ref dv-crumb-head">{scope.subject}</span>
-            </>
-          ) : (
-            <>
-              <span className="dv-crumb-ref">{repoLabel}</span>
-              {headLabel && (
-                <>
-                  <span className="gd-crumb-sep">·</span>
-                  <span className="dv-crumb-ref dv-crumb-head" title={headLabel}>{truncateBranch(headLabel)}</span>
-                </>
-              )}
-            </>
-          )}
-        </span>
-        <span className="dv-grow" />
-        <button
-          className="fv-icon-btn"
-          title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
-          aria-label={fullscreen ? "Exit fullscreen" : "Fullscreen git diff"}
-          onClick={() => setDockFullscreen(paneId, !fullscreen)}
-        >
-          {fullscreen ? (
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M13 7H9V3M7 13V9H3M9 7l5-5M7 9l-5 5" />
-            </svg>
-          ) : (
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 3h4v4M7 13H3V9M8 8l5-5M8 8l-5 5" />
-            </svg>
-          )}
-        </button>
-        <PanelCloseButton onClose={ui.closeGitDiffViewer} />
-      </div>
+      <button
+        className={"fv-icon-btn gd-tree-btn" + (treeOpen ? " on" : "")}
+        title={treeOpen ? "Hide file tree" : "Show file tree"}
+        aria-pressed={treeOpen}
+        onClick={() => setTreeOpen((v) => !v)}
+      >
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+          <path d="M2 5a1 1 0 0 1 1-1h3l2 2h5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" />
+        </svg>
+      </button>
+      <span className="dv-crumb" title={cwd}>
+        {scope.kind === "commit" ? (
+          <>
+            <span className="dv-crumb-ref">{scope.sha.slice(0, 7)}</span>
+            <span className="dv-crumb-ref dv-crumb-head">{scope.subject}</span>
+          </>
+        ) : (
+          <>
+            <span className="dv-crumb-ref">{repoLabel}</span>
+            {headLabel && (
+              <>
+                <span className="gd-crumb-sep">·</span>
+                <span className="dv-crumb-ref dv-crumb-head" title={headLabel}>{truncateBranch(headLabel)}</span>
+              </>
+            )}
+          </>
+        )}
+      </span>
+    </>
+  );
+
+  return (
+    <PanelShell type="gitdiff" title={heading}>
       {isLargeDiff && (
         <div className="dv-hint">Files are collapsed for large diffs. Select a file to expand it.</div>
       )}
@@ -145,7 +122,7 @@ function GitDiffViewerInner({ cwd, workerId, paneId, live }) {
         {treeOpen && (
           <div className="gd-side">
             <GitDiffTree files={changes?.files ?? []} selectedPath={selectedPath} onSelect={setSelectedPath} onFileContextMenu={onFileContextMenu} />
-            <GitDiffStashes cwd={cwd} scope={scope} onScope={onScope} />
+            <GitDiffStashes cwd={cwd} scope={scope} onScope={onScope} focusOnMount={focusStashes} />
             <GitDiffCommits cwd={cwd} scope={scope} onScope={onScope} />
           </div>
         )}
@@ -167,6 +144,6 @@ function GitDiffViewerInner({ cwd, workerId, paneId, live }) {
         </div>
       </div>
       <GitDiffFileMenu />
-    </>
+    </PanelShell>
   );
 }

@@ -19,8 +19,9 @@ struct SidebarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Eos")
+            Text("eos")
                 .font(EosFont.titleSerif)
+                .tracking(-0.5)
                 .foregroundStyle(EosColor.ink)
                 .padding(.horizontal, EosSpacing.md)
                 .padding(.top, EosSpacing.xl)
@@ -74,7 +75,7 @@ struct SidebarView: View {
             .padding(EosSpacing.md)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(EosColor.bg)          // same paper; the shadow from MAIN separates them
+        // No background — the drawer panel's Liquid Glass (SidebarContainer) is the surface (§3.1).
         .onChange(of: sidebar.isOpen) { _, open in if open { wordmarkFocused = true } }
     }
 

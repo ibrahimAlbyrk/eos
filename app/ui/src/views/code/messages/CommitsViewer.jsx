@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { subscribeGitChange, COMMITS_KINDS, GIT_FALLBACK_POLL_MS } from "../../../state/gitChangeBus.js";
-import { PanelCloseButton } from "./PanelCloseButton.jsx";
+import { PanelShell } from "../panes/PanelShell.jsx";
 
 const STATUS_LABEL = { M: "M", A: "A", D: "D", R: "R" };
 
@@ -21,12 +21,8 @@ function ago(ts) {
 // stays an agent action.
 export function CommitsViewer() {
   const ui = useUi();
-  const open = Boolean(ui.commitsViewer);
-  return (
-    <div className="commits-viewer cv-open">
-      {open && <CommitsViewerInner cwd={ui.commitsViewer.cwd} />}
-    </div>
-  );
+  if (!ui.commitsViewer) return <PanelShell type="commits" />;
+  return <CommitsViewerInner cwd={ui.commitsViewer.cwd} />;
 }
 
 function CommitsViewerInner({ cwd }) {
@@ -73,18 +69,19 @@ function CommitsViewerInner({ cwd }) {
     });
   };
 
-  return (
+  const heading = (
     <>
-      <div className="dv-head">
-        <span className="dv-title">Unpushed commits</span>
-        {commits && commits.length > 0 && (
-          <span className="dv-totals">
-            <span className="dv-count">{commits.length} commit{commits.length === 1 ? "" : "s"}</span>
-          </span>
-        )}
-        <span className="dv-grow" />
-        <PanelCloseButton onClose={ui.closeCommitsViewer} />
-      </div>
+      <span className="dv-title">Unpushed commits</span>
+      {commits && commits.length > 0 && (
+        <span className="dv-totals">
+          <span className="dv-count">{commits.length} commit{commits.length === 1 ? "" : "s"}</span>
+        </span>
+      )}
+    </>
+  );
+
+  return (
+    <PanelShell type="commits" title={heading}>
       <div className="cv-list">
         {commits === null && <div className="dv-empty">Loading...</div>}
         {commits !== null && commits.length === 0 && <div className="dv-empty">Nothing to push</div>}
@@ -107,7 +104,7 @@ function CommitsViewerInner({ cwd }) {
           </div>
         ))}
       </div>
-    </>
+    </PanelShell>
   );
 }
 

@@ -2,14 +2,13 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { projectPathFor } from "../../../lib/breadcrumb.js";
 import { subscribe, getPtyPanel, openTab, killPaneSessions, reapUntrackedSessions } from "../../../state/ptyPanelStore.js";
-import { subscribe as subscribeDockFullscreen, isDockFullscreen, setDockFullscreen } from "../../../state/dockFullscreenStore.js";
+import { PanelShell } from "../panes/PanelShell.jsx";
 import { TerminalTabBar } from "../../../components/terminal/TerminalTabBar.jsx";
 import { TerminalView } from "../../../components/terminal/TerminalView.jsx";
 
 // Terminal docked-panel viewer — one of the pane's right-side island panels
-// (same chrome/geometry as FileViewer/DiffViewer et al; see styles.css .file-
-// viewer list). Mounted whenever "terminal" is in this pane's panel stack; only
-// visible (tv-open) when it's the top panel.
+// (chrome via the shared PanelShell; the tab strip rides the shell header's
+// title slot). Mounted whenever "terminal" is in this pane's panel stack.
 //
 // Lifecycle: ALWAYS opens clean — on mount it reaps server sessions no pane
 // tracks, then spawns one fresh tab (in the selected orchestrator's project
@@ -17,26 +16,16 @@ import { TerminalView } from "../../../components/terminal/TerminalView.jsx";
 // terminal is independent (pane-keyed ptyPanelStore). No reattach/replay.
 export function TerminalViewer({ live }) {
   const ui = useUi();
-  const paneId = ui.paneId;
-  const open = !!ui.terminalViewer;
   // undefined (not null) when unknown, so it's dropped from the POST body.
   const cwd = projectPathFor(live?.workers ?? [], ui.selectedId) ?? undefined;
-  const closePanel = () => { killPaneSessions(paneId); ui.closeTerminalViewer(); };
-  return (
-    <div className="terminal-viewer tv-open">
-      {open && <TerminalViewerInner paneId={paneId} cwd={cwd} onClosePanel={closePanel} />}
-    </div>
-  );
+  if (!ui.terminalViewer) return <PanelShell type="terminal" />;
+  return <TerminalViewerInner paneId={ui.paneId} cwd={cwd} />;
 }
 
-function TerminalViewerInner({ paneId, cwd, onClosePanel }) {
+function TerminalViewerInner({ paneId, cwd }) {
   const { tabs, activeId } = useSyncExternalStore(
     useCallback((cb) => subscribe(paneId, cb), [paneId]),
     useCallback(() => getPtyPanel(paneId), [paneId]),
-  );
-  const fullscreen = useSyncExternalStore(
-    useCallback((cb) => subscribeDockFullscreen(paneId, cb), [paneId]),
-    useCallback(() => isDockFullscreen(paneId), [paneId]),
   );
   // Latest selected-project cwd, read at open-time only — switching orchestrators
   // never retro-changes already-open tabs; the next new tab picks up the change.
@@ -59,21 +48,12 @@ function TerminalViewerInner({ paneId, cwd, onClosePanel }) {
   }, [paneId]);
 
   return (
-    <div className="pty-panel">
-      <TerminalTabBar
-        paneId={paneId}
-        tabs={tabs}
-        activeId={activeId}
-        cwd={cwd}
-        fullscreen={fullscreen}
-        onToggleFullscreen={() => setDockFullscreen(paneId, !fullscreen)}
-        onClosePanel={onClosePanel}
-      />
+    <PanelShell type="terminal" title={<TerminalTabBar paneId={paneId} tabs={tabs} activeId={activeId} cwd={cwd} />}>
       <div className="pty-body">
         {tabs.map((t) => (
           <TerminalView key={t.sessionId} sessionId={t.sessionId} active={t.sessionId === activeId} />
         ))}
       </div>
-    </div>
+    </PanelShell>
   );
 }

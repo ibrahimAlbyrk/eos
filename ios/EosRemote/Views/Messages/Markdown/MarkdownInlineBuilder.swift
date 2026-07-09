@@ -10,10 +10,10 @@ enum MarkdownInlineBuilder {
 
         var font: Font {
             switch self {
-            case .body:        return EosFont.bodySerif                          // text-base serif
-            case .heading1:    return .system(size: 19, design: .serif).weight(.semibold)  // text-2xl
-            case .heading2:    return .system(size: 17, design: .serif).weight(.semibold)  // text-xl
-            case .heading3:    return .system(size: 15, design: .serif).weight(.semibold)  // text-md
+            case .body:        return EosFont.bodySerif                          // text-base PJS prose
+            case .heading1:    return Font.custom("PlusJakartaSans-SemiBold", size: 19, relativeTo: .title3)   // text-2xl
+            case .heading2:    return Font.custom("PlusJakartaSans-SemiBold", size: 17, relativeTo: .headline) // text-xl
+            case .heading3:    return Font.custom("PlusJakartaSans-SemiBold", size: 15, relativeTo: .subheadline) // text-md
             case .heading4:    return EosFont.bodySerifEmph                       // text-base semibold
             case .tableHeader: return EosFont.bodySerifEmph
             }
@@ -65,13 +65,14 @@ enum MarkdownInlineBuilder {
     }
 
     // Inline code span (§10 code: mono text-sm, pad 2×5, bg surface-2, radius 3). AttributedString has
-    // no run padding/corner-radius, so we approximate with a bgSunken run background + hair-spaces for
-    // the horizontal inset — close to the Mac's chip without a separate view per span.
+    // no run padding/corner-radius, so we approximate with a surface2 run background + hair-spaces for
+    // the horizontal inset — close to the Mac's chip without a separate view per span. (Dark: surface2
+    // #252525 is the inline-code tone; bgSunken would read too dark, spec 05 §1.6.2.)
     private static func codeRun(_ code: String) -> AttributedString {
         var run = AttributedString("\u{200A}\(code)\u{200A}")
         run.font = EosFont.code
         run.foregroundColor = EosColor.ink
-        run.backgroundColor = EosColor.bgSunken
+        run.backgroundColor = EosColor.surface2
         return run
     }
 }

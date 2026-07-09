@@ -2,12 +2,11 @@ import { useState, useRef, useEffect, useCallback, useSyncExternalStore } from "
 import { useUi } from "../../../state/ui.jsx";
 import { subscribe as subscribeDockFullscreen, isDockFullscreen, setDockFullscreen } from "../../../state/dockFullscreenStore.js";
 import { useInputNeeded } from "../../../hooks/useInputNeeded.js";
-import { computeRects, computeDividers, dropZoneFromPoint, leafOfAgent, MAX_PANES } from "../../../lib/paneLayout.js";
+import { computeRects, computeDividers, dropZoneFromPoint, MAX_PANES } from "../../../lib/paneLayout.js";
 import { usePaneTransitions } from "../../../hooks/usePaneTransitions.js";
 import { Messages } from "../messages/Messages.jsx";
 import { TranscriptHost } from "../messages/TranscriptHost.jsx";
 import { Composer } from "../center/Composer.jsx";
-import { AgentPickerOverlay } from "./AgentPickerOverlay.jsx";
 import { DragAffordance } from "./DragAffordance.jsx";
 import { PanelDock } from "./PanelDock.jsx";
 import { PaneHeader } from "./PaneHeader.jsx";
@@ -177,9 +176,6 @@ export function PaneGrid({ live }) {
   const { leaving, setNode } = usePaneTransitions(rects);
   const canClose = rects.length > 1;
   const canSplit = rects.length < MAX_PANES;
-  // Agents already shown in some pane — the empty-pane picker dims these and
-  // focuses their existing pane instead of duplicating them.
-  const shownAgentIds = new Set(rects.map((r) => r.agentId).filter(Boolean));
 
   // Each pane owns its OWN docked panel (independent open/close + file per pane):
   // a pane with an open panel yields its right edge to it, carved out of that
@@ -231,19 +227,11 @@ export function PaneGrid({ live }) {
           focused={focused}
           topLeft={topLeft}
           topRow={topRow}
-          excludeIds={shownAgentIds}
           attention={pulseOn && !focused && !!worker && ui.needsAttentionRaw(worker)}
           canClose={canClose}
           canSplit={canSplit}
           onFocus={() => ui.focusLeaf(id)}
           onClose={() => ui.closeLeaf(id)}
-          onPick={(aid) => {
-            // Dedup: if the agent is already in another pane, focus that pane
-            // instead of duplicating it; otherwise fill this empty pane.
-            const existing = leafOfAgent(ui.tree, aid);
-            if (existing && existing.id !== id) ui.focusLeaf(existing.id);
-            else ui.dropReplace(id, aid);
-          }}
           onDropZone={(zone, aid) => {
             if (zone.kind === "split") ui.splitWithAgent(id, zone.dir, zone.side, aid);
             else ui.dropReplace(id, aid);
@@ -359,7 +347,6 @@ export function SinglePane({ live }) {
             needsInput={false}
             canClose={false}
             onClose={() => {}}
-            newSession
             topLeft
           />
           <div className="pane-tx">
@@ -421,7 +408,7 @@ function Divider({ d, gridRef, onRatio, onResizeStart, onResizeEnd }) {
   );
 }
 
-function Pane({ id, agentId, worker, live, focused, topLeft, topRow, excludeIds, attention, canClose, canSplit, onFocus, onClose, onPick, onDropZone }) {
+function Pane({ id, agentId, worker, live, focused, topLeft, topRow, attention, canClose, canSplit, onFocus, onClose, onDropZone }) {
   // Blocked-on-input cue for non-focused panes: an open ask_user question
   // (per-agent store) or a pending permission (live.pendingPermissions). The
   // focused pane needs none — its banner is in the shared composer.
@@ -462,16 +449,14 @@ function Pane({ id, agentId, worker, live, focused, topLeft, topRow, excludeIds,
           topRow={topRow}
           split
         />
-        {worker ? (
-          // Every split pane is rendered on screen regardless of focus, so all are
-          // visible (and may animate); only the focused one is isActive (shared UI).
-          <>
-            <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
-            <Composer live={live} worker={worker} paneId={id} focused={focused} />
-          </>
-        ) : (
-          <AgentPickerOverlay live={live} excludeIds={excludeIds} focused={focused} dragActive={!!zone} onPick={onPick} />
-        )}
+        {/* Every split pane is rendered on screen regardless of focus, so all are
+            visible (and may animate); only the focused one is isActive (shared UI).
+            An EMPTY pane (no agent) shows the SAME new-session transcript + composer
+            as the single-pane new-session state: agentId/worker are null, so the
+            composer drops into its no-agent spawn flow — type a prompt and it spawns
+            an orchestrator into this (focused) pane. No separate agent picker. */}
+        <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
+        <Composer live={live} worker={worker} paneId={id} focused={focused} />
       </PaneScopeContext.Provider>
     </div>
   );
