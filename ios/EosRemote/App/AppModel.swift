@@ -3,602 +3,210 @@ import SwiftUI
 import OSLog
 import EosRemoteKit
 
-// Surfaced in Console.app / `log stream --predicate 'subsystem == "dev.eos.remote"'` so the
-// resume → cold-connect → pair fallback can be diagnosed on a device that isn't Xcode-attached.
+// Surfaced in Console.app / `log stream --predicate 'subsystem == "dev.eos.remote"'`.
 private let eosLog = Logger(subsystem: "dev.eos.remote", category: "connect")
 
-// The @MainActor bridge between the live store/transport (EosRemoteKit) and SwiftUI. It is the
-// WSConnection delegate: server frames land here, fold into the Store actor, and surface as
-// @Published arrays the screens observe. Control actions tunnel REST over the WS.
+// The @MainActor coordinator over N paired Macs (Phase 5a). Each device has its own live
+// DeviceConnection (its own WS connection + Store + transcript pipeline + backoff); AppModel holds
+// them keyed by id and MIRRORS the ACTIVE device's fields into the @Published arrays the screens
+// observe. All paired devices' connections stay alive in the background, so switchDevice(id) is
+// instant — the target's Store is already live and just becomes the mirror source.
+//
+// The control-action + transcript API (sendMessage/interrupt/openWorker/…) is preserved 1:1 — each
+// method forwards to the active DeviceConnection, so RootView/FleetView/WorkerDetailView are
+// unchanged. `needsPairing` now means "no devices at all"; a single device with bad creds surfaces
+// as that device's lastError, not global needsPairing.
 @MainActor
 final class AppModel: ObservableObject {
+    // Mirror of the active device (published to the views).
     @Published var workers: [Worker] = []
     @Published var pending: [Pending] = []
     @Published var connected = false
     @Published var connecting = false
-    // True when there are no usable stored credentials (never paired, or the ticket expired / was
-    // rejected) — the UI shows the Pair screen instead of a dead "disconnected" banner.
     @Published var needsPairing = false
     @Published var lastError: String?
-    private var resumeRetries = 0
-    // Last handshake step the active coordinator reported (join-ack / RES-1 / CONNECT-3 / …). Captured
-    // so a failure can name exactly where it died — surfaced on screen since on-device log capture
-    // needs root. Updated off the main actor by the coordinator's log closure.
-    private var lastStep = ""
-    private let maxResumeRetries = 6
-    // True while a socket teardown is deliberate (background/disconnect), so the delegate's
-    // connected=false doesn't kick off a reconnect we don't want.
-    private var intentionalStop = false
-
-    // Live transcript of the currently-open worker (design §5.2, port of eventsStore+thinkingStore).
-    // Durable rows page in via control GET /workers/:id/events; agent:delta overlays live
-    // streaming text/thinking until the durable block lands; a worker:change nudge pulls new rows.
     @Published var transcript: [Block] = []
     @Published var loadingOlder = false
+
+    // Devices UI surface (Phase 5b consumes these). `devices` is the ordered paired list;
+    // `activeDeviceId` selects which device the mirror + all control actions target.
+    @Published private(set) var devices: [Device] = []
+    @Published private(set) var activeDeviceId: String?
+
     private(set) var hasOlder = false
 
-    private var openId: String?
-    // The full-scan parser (buildBlocks) needs the whole row set together (lifecycle barriers, agent
-    // spans, lane grouping cross rows), so we retain the raw durable rows id-keyed and re-run the
-    // pipeline on recompute — not per-row normalized blocks.
-    private var durableRows: [String: JSONValue] = [:]  // row id → raw event row
-    private var durableBlockIds: Set<String> = []      // blockIds with a durable block (live drop guard)
-    private var liveBuffers: [String: LiveBuffer] = [:] // blockId → streaming overlay
-    private var newestRowId = 0
-    private var oldestRowId = 0
-    private var deltaFetching = false
-    private var deltaPending = false
+    private let deviceStore: DeviceStore
+    private var connections: [String: DeviceConnection] = [:]
 
-    // Optimistic user bubbles (spec 03 §4.10 #1): a just-sent message shows immediately as a dimmed
-    // user(optimistic:true) block, keyed by clientMsgId, until its durable user_message row lands and
-    // recompute() prunes it by matching text.
-    private struct OptimisticBubble { let text: String; let clientMsgId: String; let ts: Double; let workerId: String }
-    private var optimisticBubbles: [OptimisticBubble] = []
+    private var active: DeviceConnection? { activeDeviceId.flatMap { connections[$0] } }
 
-    // Live terminal overlay (spec 03 §4.10 #2, port of terminalStore.js): a `terminal:chunk`/`:done`
-    // run for the open worker with no durable `terminal` block → a terminal(live:true) block, dropped
-    // once the durable row lands. Kept as main-actor-local state (the same idiom as `liveBuffers`) so
-    // recompute() reads it synchronously. Keyed by runId.
-    private struct LiveTerminal { var runId: String; var command: String; var output: String; var done: Bool; var exitCode: Int; var note: String?; var ts: Double }
-    private var liveTerminals: [String: LiveTerminal] = [:]
-
-    // Live goal-check overlay (spec 03 §4.10 #4): the transient loop:check progress for the open worker,
-    // surfaced as GoalCheckLineView in the foot region while the worker idles under an active check. The
-    // canonical store contract is LoopCheckBuffer (StreamingBuffers); this mirrors its current value for
-    // synchronous reads by the view (a fresh "started" phase resets the elapsed anchor).
-    private var liveCheck: LoopCheckProgress?
-
-    // Per-worker durable transcript, retained across close/reopen so reopening never reloads from
-    // scratch: openWorker restores instantly from here, then fetches ONLY rows after newestRowId.
-    private var caches: [String: TranscriptCache] = [:]
-    private struct TranscriptCache {
-        var durableRows: [String: JSONValue]
-        var durableBlockIds: Set<String>
-        var newestRowId: Int
-        var oldestRowId: Int
-        var hasOlder: Bool
+    init(deviceStore: DeviceStore = DeviceStore()) {
+        self.deviceStore = deviceStore
     }
 
-    // Smaller first page → fast first paint; older history backfills on scroll-up via loadOlder.
-    private let initialPageSize = 120
-    private let olderPageSize = 500
+    // MARK: bootstrap — load the paired list (migrating the legacy single device on first launch)
 
-    private struct LiveBuffer { var blockId: String; var channel: String; var text: String; var ts: Double }
-
-    let store = Store()
-    private var connection: WSConnection?
-    private var session: SessionState?
-
-    init() {
-        Task { await store.setOnChange { [weak self] in Task { @MainActor in await self?.refresh() } } }
-    }
-
-    private func refresh() async {
-        workers = await store.workerList.sorted { $0.id < $1.id }
-        pending = await store.pendingList.sorted { $0.id < $1.id }
-    }
-
-    var orchestrators: [Worker] { workers.filter { $0.isOrchestrator } }
-    var plainWorkers: [Worker] { workers.filter { !$0.isOrchestrator } }
-
-    // Is a worker actively taking a turn? Drives the ProcessingLineView spark (spec 03 §6.2) — animated
-    // + elapsed while WORKING/SPAWNING/ENDING, static (frozen peak) when idle.
-    func isBusy(_ id: String) -> Bool {
-        guard let w = workers.first(where: { $0.id == id }) else { return false }
-        switch w.state { case "WORKING", "SPAWNING", "ENDING", "KILLING": return true; default: return false }
-    }
-
-    // MARK: control actions (tunneled REST)
-
-    func sendMessage(to id: String, text: String, queueWhenBusy: Bool = true) async {
-        let clientMsgId = UUID().uuidString
-        // Optimistic bubble: show the sent text instantly (dimmed) while the durable row round-trips.
-        if openId == id {
-            optimisticBubbles.append(OptimisticBubble(text: text, clientMsgId: clientMsgId,
-                                                      ts: Date().timeIntervalSince1970 * 1000, workerId: id))
-            recompute()
-        }
-        let body: JSONValue = .object([
-            "text": .string(text),
-            "clientMsgId": .string(clientMsgId),
-            "queueWhenBusy": .bool(queueWhenBusy),
-        ])
-        await control("POST", "/workers/\(id)/message", body)
-        // Pull the just-logged user_message row so the sent message appears immediately, without
-        // waiting for the worker:change nudge to round-trip.
-        if openId == id { scheduleDelta() }
-    }
-
-    func interrupt(_ id: String) async { await control("POST", "/workers/\(id)/interrupt", .object([:])) }
-
-    func answerQuestion(workerId: String, toolUseId: String, answers: [String]) async {
-        let body: JSONValue = .object([
-            "toolUseId": .string(toolUseId),
-            "answers": .array(answers.map { .string($0) }),
-        ])
-        await control("POST", "/workers/\(workerId)/question-answer", body)
-    }
-
-    // High-risk verbs (kill/spawn/decision). There is no per-action step-up: possession of the room
-    // capability grants full authority, so these dispatch like any other control.
-    func kill(_ id: String) async { await control("DELETE", "/workers/\(id)", .object([:])) }
-
-    // Message rewind (spec 03 §5.2) — user-bubble affordance, PTY lane only (gated on backendCaps).
-    // Resolve the bubble's transcript target by matching its text against GET /rewind-targets, then
-    // POST the uuid (conversation mode). Full fuzzy matching (rewindMatch.js) is 4b-ii; here we match
-    // on exact/normalized text, which covers the common case. Returns true on a dispatched rewind.
-    @discardableResult
-    func rewind(workerId: String, text: String) async -> Bool {
-        guard let connection else { lastError = "not connected"; return false }
-        let reply = try? await connection.sendControl(method: "GET",
-            path: "/workers/\(workerId)/rewind-targets", bodyData: Data("{}".utf8))
-        let targets = reply?.body?["targets"]?.arrayValue ?? []
-        let want = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        let match = targets.last { t in
-            let tt = (t["text"]?.stringValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            let dd = (t["display"]?.stringValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            return tt == want || dd == want
-        } ?? targets.last
-        guard let uuid = match?["uuid"]?.stringValue else { lastError = "no rewind target"; return false }
-        await control("POST", "/workers/\(workerId)/rewind",
-                      .object(["uuid": .string(uuid), "mode": .string("conversation")]))
-        if openId == workerId { scheduleDelta() }
-        return true
-    }
-
-    func spawnWorker(body: JSONValue) async { await control("POST", "/workers", body) }
-    func approve(pendingId: String, allow: Bool) async {
-        await control("POST", "/pending/\(pendingId)/decision",
-                      .object(["decision": .string(allow ? "allow" : "deny")]))
-    }
-
-    // Serialize the body EXACTLY ONCE → the daemon dispatches these exact bytes as the opaque body
-    // string (§5.2.3), so there is nothing for the two ends to disagree on.
-    private func encodeOnce(_ body: JSONValue) -> Data {
-        (try? JSONEncoder().encode(body)) ?? Data("{}".utf8)
-    }
-
-    private func control(_ method: String, _ path: String, _ body: JSONValue) async {
-        guard let connection else { lastError = "not connected"; return }
-        do { _ = try await connection.sendControl(method: method, path: path, bodyData: encodeOnce(body)) }
-        catch { lastError = error.localizedDescription }
-    }
-
-    // MARK: pairing + bootstrap
-
-    // First connect (§6.1): the scanned v3 QR carries the whole credential (relay, room, bearer).
-    // Persist the three Keychain items, then run the collapsed open → join → live connector. No
-    // enrollment handshake — the bearer IS the join credential.
-    func startPairing(qr: QRPayload) async {
-        do {
-            guard let relayURL = qr.relayURL else { throw PairingError.noRelayURL }
-            guard let bearer = qr.bearer else { throw PairingError.noBearer }
-            let conn = WSConnection(url: relayURL, delegate: self)
-            let result = try await Connector(
-                connection: conn, room: qr.room, bearer: bearer, log: stepLogger()).run()
-            self.connection = conn
-            self.session = result.session
-            // Everything a reconnect needs: the three room-capability values.
-            try? KeychainStore.set(KeychainStore.relayURL, Data(relayURL.absoluteString.utf8))
-            try? KeychainStore.set(KeychainStore.room, Data(qr.room.utf8))
-            try? KeychainStore.set(KeychainStore.bearer, Data(bearer.utf8))
-            needsPairing = false; resumeRetries = 0; intentionalStop = false
-            connected = true
-            await bootstrap()
-        } catch { lastError = "pairing failed: \(error)" }
-    }
-
-    // MARK: persistent connection — one path, two terminal states (§6)
-
-    // Called on launch and every foreground. ONE connect path used identically every time (§6.2):
-    // read the three room-capability values from the Keychain and run open → join → live. There is
-    // no handshake, so "resume" and "connect" are the same code path. Face-ID-free, no QR unless the
-    // relay rejects the bearer.
-    //   success                       → CONNECTED
-    //   authRejected (BEARER_DENIED)  → NEEDS_PAIRING (room/bearer rotated; show QR)
-    //   transient (net/room-gone)     → bounded backoff → manual Reconnect (never an infinite loop)
+    // Called once on launch (RootView.task) and every foreground. Loads persisted devices, folds the
+    // legacy single-device creds into a Device the first time, spins up a live connection per device,
+    // and connects them all so switching is immediate.
     func resumeIfPossible() async {
-        guard !connected, !connecting else { return }
-        guard let relayURL = storedRelayURL(), let room = storedRoom(), let bearer = storedBearer()
-        else { eosLog.info("connect: no stored credential → show QR"); needsPairing = true; return }
-
-        connecting = true; needsPairing = false; intentionalStop = false
-        defer { connecting = false }
-        let conn = WSConnection(url: relayURL, delegate: self)
-        do {
-            let result = try await Connector(connection: conn, room: room, bearer: bearer,
-                                             log: stepLogger()).run()
-            self.connection = conn
-            self.session = result.session
-            resumeRetries = 0; connected = true
-            eosLog.info("connect: OK")
-            await bootstrap()
-        } catch Connector.ConnectError.authRejected {
-            await conn.stop()
-            eosLog.error("connect: BEARER_DENIED (rotated) → show QR")
-            lastError = "This device is no longer paired. Pair again."
+        _ = deviceStore.migrateLegacyIfNeeded()
+        reloadDevices()
+        guard !devices.isEmpty else {
+            eosLog.info("connect: no paired devices → show QR")
             needsPairing = true
-        } catch {
-            await conn.stop()
-            eosLog.error("connect: transient \(String(describing: error), privacy: .public) → retry")
-            lastError = diag("connect", error); scheduleResumeRetry()
-        }
-    }
-
-    // A @Sendable step recorder for the connector — folds each step marker onto the main actor so a
-    // later failure can report the exact step it reached.
-    private func stepLogger() -> @Sendable (String) -> Void {
-        { [weak self] s in Task { @MainActor in self?.lastStep = s } }
-    }
-
-    // One human-readable diagnostic line: phase + the step it died on + the cause + retry count.
-    private func diag(_ phase: String, _ error: Error) -> String {
-        let code: String
-        switch error {
-        case Connector.ConnectError.authRejected: code = "auth rejected"
-        case Connector.ConnectError.transient(let c): code = c
-        case WSConnection.WSError.timeout: code = "timeout (no daemon reply)"
-        default: code = String(describing: error)
-        }
-        return "\(phase) failed at [\(lastStep)]: \(code) — try \(resumeRetries)/\(maxResumeRetries)"
-    }
-
-    private func storedRelayURL() -> URL? {
-        guard let d = KeychainStore.get(KeychainStore.relayURL),
-              let s = String(data: d, encoding: .utf8) else { return nil }
-        return URL(string: s)
-    }
-
-    private func storedRoom() -> String? {
-        guard let d = KeychainStore.get(KeychainStore.room) else { return nil }
-        return String(data: d, encoding: .utf8)
-    }
-
-    private func storedBearer() -> String? {
-        guard let d = KeychainStore.get(KeychainStore.bearer) else { return nil }
-        return String(data: d, encoding: .utf8)
-    }
-
-    // Backoff for transient resume failures (network flaky). Reset on success / fresh foreground.
-    // Bounded: once the budget is spent the loop CONVERGES to an actionable terminal state — the Pair
-    // sheet (also always reachable from the toolbar) — rather than cycling reconnecting↔connecting
-    // forever. A fresh foreground resets the budget and tries again, so a transient outage recovers.
-    private func scheduleResumeRetry() {
-        guard resumeRetries < maxResumeRetries else {
-            connecting = false
-            needsPairing = true   // RootView auto-presents the Pair sheet — a re-pair that works
-            if lastError == nil { lastError = "Couldn't reconnect. Pair again." }
             return
         }
-        let delay = min(pow(2.0, Double(resumeRetries)), 30.0)   // 1,2,4,8,16,30s
-        resumeRetries += 1
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-            if !connected { await resumeIfPossible() }
+        needsPairing = false
+        if activeDeviceId == nil { activeDeviceId = deviceStore.activeId() ?? devices.first?.id }
+        for device in devices { ensureConnection(for: device) }
+        mirrorActive()
+        // Connect every device (idempotent) so all paired Macs are live in the background.
+        for conn in connections.values { await conn.connect() }
+        mirrorActive()
+    }
+
+    // Rebuild `devices` from the store; prune connections for devices that are gone.
+    private func reloadDevices() {
+        devices = deviceStore.load()
+        let ids = Set(devices.map(\.id))
+        for id in Array(connections.keys) where !ids.contains(id) {
+            let conn = connections.removeValue(forKey: id)
+            Task { await conn?.teardown() }
         }
     }
 
-    func enterForeground() async { resumeRetries = 0; await resumeIfPossible() }
-
-    // Dropping the socket on background is fine — foreground re-resumes via the ticket.
-    func enterBackground() async {
-        intentionalStop = true
-        await connection?.stop()
-        connection = nil
-        connected = false
+    @discardableResult
+    private func ensureConnection(for device: Device) -> DeviceConnection {
+        if let existing = connections[device.id] { return existing }
+        let conn = DeviceConnection(device: device)
+        conn.onChange = { [weak self, weak conn] in
+            guard let self, let conn, conn.deviceId == self.activeDeviceId else { return }
+            self.mirrorActive()
+        }
+        connections[device.id] = conn
+        return conn
     }
 
-    // Explicit Disconnect/Unpair (§6.3): tear down the session and forget the three room-capability
-    // Keychain items. Next launch → NEEDS_PAIRING (show QR).
+    // Copy the active device's fields into the published mirror. Called on activation + on any
+    // active-device change (via onChange). Devices with no active member fall back to empty/needsPairing.
+    private func mirrorActive() {
+        guard let a = active else {
+            workers = []; pending = []; transcript = []
+            connected = false; connecting = false; lastError = nil
+            hasOlder = false; loadingOlder = false
+            needsPairing = devices.isEmpty
+            return
+        }
+        workers = a.workers
+        pending = a.pending
+        connected = a.connected
+        connecting = a.connecting
+        lastError = a.lastError
+        transcript = a.transcript
+        hasOlder = a.hasOlder
+        loadingOlder = a.loadingOlder
+        needsPairing = false
+    }
+
+    // MARK: device management (Phase 5b API)
+
+    // Switch the active device. INSTANT: the target's connection is already live, so we just re-point
+    // the mirror at its cached state (no reconnect, no reload). Re-opens the same worker if one is open.
+    func switchDevice(_ id: String) async {
+        guard id != activeDeviceId, connections[id] != nil else { return }
+        // Remember what the outgoing device had open so we can hand focus to the incoming one cleanly.
+        activeDeviceId = id
+        deviceStore.setActiveId(id)
+        mirrorActive()
+        // Ensure the target is connecting if it dropped while backgrounded.
+        if let conn = active, !conn.connected, !conn.connecting { await conn.connect() }
+    }
+
+    // Pair a NEW device from a scanned v3 QR: mint a Device, persist it, connect, append, make active.
+    func addDevice(qr: QRPayload) async {
+        guard let relayURL = qr.relayURL else { lastError = "pairing failed: no relay url"; return }
+        let device = Device(id: Device.newId(), label: Device.label(fromRelay: qr.relay),
+                            relayUrl: relayURL.absoluteString, room: qr.room, bearer: qr.bearer,
+                            lastActive: Date().timeIntervalSince1970)
+        deviceStore.upsert(device)
+        deviceStore.setActiveId(device.id)
+        reloadDevices()
+        activeDeviceId = device.id
+        let conn = ensureConnection(for: device)
+        needsPairing = false
+        mirrorActive()
+        await conn.connect()
+        deviceStore.touch(device.id)
+        mirrorActive()
+    }
+
+    // Remove a device: tear down its connection, wipe its creds, drop it. If it was active, fall back
+    // to another device (or needsPairing when none remain).
+    func removeDevice(_ id: String) async {
+        if let conn = connections.removeValue(forKey: id) { await conn.teardown() }
+        let newActive = deviceStore.remove(id)
+        reloadDevices()
+        if activeDeviceId == id { activeDeviceId = newActive }
+        if devices.isEmpty { needsPairing = true }
+        mirrorActive()
+    }
+
+    // The first-device pairing entry point used by the existing Pair sheet. Identical UX to before:
+    // scan → this adds the FIRST device and connects it. (addDevice covers subsequent devices too.)
+    func startPairing(qr: QRPayload) async { await addDevice(qr: qr) }
+
+    // Explicit Disconnect/Unpair from the (stub) Devices screen. With multiple devices this removes
+    // the ACTIVE one — matching the old single-device "forget these creds" semantics.
     func disconnect() async {
-        intentionalStop = true
-        await connection?.stop()
-        connection = nil; session = nil
-        connected = false; connecting = false
-        openId = nil; transcript = []
-        for key in [KeychainStore.relayURL, KeychainStore.room, KeychainStore.bearer] {
-            KeychainStore.delete(key)
-        }
-        needsPairing = true
+        guard let id = activeDeviceId else { needsPairing = true; return }
+        await removeDevice(id)
     }
 
-    // Cold-start state pull: READ-tier GETs feed a synthetic snapshot until snapshot-on-hello lands.
-    private func bootstrap() async {
-        guard let connection else { return }
-        async let w = try? connection.sendControl(method: "GET", path: "/workers", bodyData: Data("{}".utf8))
-        async let p = try? connection.sendControl(method: "GET", path: "/pending", bodyData: Data("{}".utf8))
-        let workers = (await w)?.body?.arrayValue ?? []
-        let pending = (await p)?.body?.arrayValue ?? []
-        await store.applyBootstrap(workers: workers, pending: pending)
+    // MARK: scene lifecycle — fan out to every device
+
+    func enterForeground() async {
+        _ = deviceStore.migrateLegacyIfNeeded()
+        reloadDevices()
+        guard !devices.isEmpty else { needsPairing = true; mirrorActive(); return }
+        needsPairing = false
+        if activeDeviceId == nil { activeDeviceId = deviceStore.activeId() ?? devices.first?.id }
+        for device in devices { ensureConnection(for: device) }
+        for conn in connections.values { await conn.enterForeground() }
+        mirrorActive()
     }
 
-    private enum PairingError: Error { case noRelayURL, noBearer }
-
-    // MARK: live transcript
-
-    // Open a worker's transcript. On reopen, restore the cached durable blocks for an INSTANT paint,
-    // then fetch only the rows appended since (afterId = newestRowId). First-ever open pages in the
-    // newest events. Live deltas + worker:change nudges keep it current until closeWorker.
-    func openWorker(_ id: String) async {
-        openId = id
-        liveBuffers = [:]
-        liveTerminals = [:]
-        liveCheck = nil
-        optimisticBubbles.removeAll { $0.workerId != id }
-        if let c = caches[id] {
-            durableRows = c.durableRows; durableBlockIds = c.durableBlockIds
-            newestRowId = c.newestRowId; oldestRowId = c.oldestRowId; hasOlder = c.hasOlder
-            recompute()                 // instant render from cache — no reload-from-scratch
-            await fetchDelta()          // append only the new rows
-        } else {
-            durableRows = [:]; durableBlockIds = []
-            newestRowId = 0; oldestRowId = 0; hasOlder = false
-            transcript = []
-            await fetchNewest()
-        }
+    func enterBackground() async {
+        for conn in connections.values { await conn.enterBackground() }
+        mirrorActive()
     }
 
-    // Snapshot the durable transcript into the cache so the next open is instant; keep the cache.
-    func closeWorker(_ id: String) {
-        guard openId == id else { return }
-        caches[id] = TranscriptCache(durableRows: durableRows, durableBlockIds: durableBlockIds,
-                                     newestRowId: newestRowId, oldestRowId: oldestRowId, hasOlder: hasOlder)
-        openId = nil
-        liveBuffers = [:]
-        liveTerminals = [:]
-        liveCheck = nil
-    }
+    // MARK: forwarded control actions (target the active device)
 
-    // Scroll-to-top backward paging.
-    func loadOlder() async {
-        guard let id = openId, hasOlder, oldestRowId > 0, !loadingOlder else { return }
-        loadingOlder = true
-        defer { loadingOlder = false }
-        guard let rows = await fetchEvents("order=desc&beforeId=\(oldestRowId)&limit=\(olderPageSize)"),
-              openId == id else { return }
-        hasOlder = rows.count >= olderPageSize
-        ingest(rows, workerId: id)
-    }
+    var orchestrators: [Worker] { active?.orchestrators ?? [] }
+    var plainWorkers: [Worker] { active?.plainWorkers ?? [] }
+    func isBusy(_ id: String) -> Bool { active?.isBusy(id) ?? false }
 
-    private func fetchEvents(_ query: String) async -> [JSONValue]? {
-        guard let connection, let id = openId else { return nil }
-        let reply = try? await connection.sendControl(method: "GET",
-            path: "/workers/\(id)/events?\(query)", bodyData: Data("{}".utf8))
-        return reply?.body?.arrayValue
+    func sendMessage(to id: String, text: String, queueWhenBusy: Bool = true) async {
+        await active?.sendMessage(to: id, text: text, queueWhenBusy: queueWhenBusy)
     }
+    func interrupt(_ id: String) async { await active?.interrupt(id) }
+    func answerQuestion(workerId: String, toolUseId: String, answers: [String]) async {
+        await active?.answerQuestion(workerId: workerId, toolUseId: toolUseId, answers: answers)
+    }
+    func kill(_ id: String) async { await active?.kill(id) }
+    @discardableResult
+    func rewind(workerId: String, text: String) async -> Bool {
+        await active?.rewind(workerId: workerId, text: text) ?? false
+    }
+    func spawnWorker(body: JSONValue) async { await active?.spawnWorker(body: body) }
+    func approve(pendingId: String, allow: Bool) async { await active?.approve(pendingId: pendingId, allow: allow) }
 
-    private func fetchNewest() async {
-        guard let id = openId,
-              let rows = await fetchEvents("limit=\(initialPageSize)&order=desc"), openId == id else { return }
-        hasOlder = rows.count >= initialPageSize
-        ingest(rows, workerId: id)
-    }
+    // MARK: forwarded transcript actions (target the active device)
 
-    // Forward delta: only the rows appended after the highest loaded id (afterId overrides order).
-    private func fetchDelta() async {
-        guard let id = openId else { return }
-        if newestRowId == 0 { await fetchNewest(); return }
-        guard let rows = await fetchEvents("afterId=\(newestRowId)&limit=500"), openId == id, !rows.isEmpty else { return }
-        ingest(rows, workerId: id)
-    }
-
-    // Coalesce a burst of worker:change nudges into one in-flight delta fetch.
-    private func scheduleDelta() {
-        if deltaFetching { deltaPending = true; return }
-        deltaFetching = true
-        Task { @MainActor in
-            await fetchDelta()
-            deltaFetching = false
-            if deltaPending { deltaPending = false; scheduleDelta() }
-        }
-    }
-
-    private func ingest(_ rows: [JSONValue], workerId: String) {
-        for r in rows {
-            guard let rid = r["id"]?.intValue else { continue }
-            newestRowId = max(newestRowId, rid)
-            oldestRowId = oldestRowId == 0 ? rid : min(oldestRowId, rid)
-            durableRows[String(rid)] = r
-        }
-        recompute()
-    }
-
-    // The durable blockIds present in the loaded rows — drops the matching live buffer so the
-    // live→durable handoff is flicker-free (an agent_event message block or a jsonl block carries it).
-    private func collectDurableBlockIds() {
-        for r in durableRows.values {
-            let p = (r["payload"].flatMap { if case .string(let s) = $0 { return JSONValue.parse(s) } else { return $0 } }) ?? .null
-            if p["type"]?.stringValue == "message" {
-                for b in p["blocks"]?.arrayValue ?? [] {
-                    if let bid = b["blockId"]?.stringValue { durableBlockIds.insert(bid); liveBuffers[bid] = nil }
-                }
-            } else if let bid = p["blockId"]?.stringValue {
-                durableBlockIds.insert(bid); liveBuffers[bid] = nil
-            }
-        }
-    }
-
-    // agent:delta payload {workerId, blockId, channel, phase, text} — append to the live overlay.
-    private func applyDelta(_ payload: JSONValue?) {
-        guard let id = openId,
-              payload?["workerId"]?.stringValue == id,
-              let blockId = payload?["blockId"]?.stringValue,
-              !durableBlockIds.contains(blockId) else { return }   // durable already landed
-        if let phase = payload?["phase"]?.stringValue, phase == "stop" || phase == "end" { return }
-        let channel = payload?["channel"]?.stringValue ?? "reasoning"
-        var buf = liveBuffers[blockId] ?? LiveBuffer(blockId: blockId, channel: channel, text: "",
-                                                     ts: Date().timeIntervalSince1970 * 1000)
-        buf.channel = channel
-        buf.text += payload?["text"]?.stringValue ?? ""
-        liveBuffers[blockId] = buf
-        recompute()
-    }
-
-    @MainActor private func handleTranscriptEvent(_ event: EventFrame) {
-        switch event.reason {
-        case "agent:delta": applyDelta(event.payload)
-        case "worker:change": if event.payload?["workerId"]?.stringValue == openId { scheduleDelta() }
-        case "terminal:chunk": applyTerminalChunk(event.payload)
-        case "terminal:done": applyTerminalDone(event.payload)
-        case "loop:check": applyLoopCheck(event.payload)
-        default: break
-        }
-    }
-
-    // terminal:chunk payload {workerId, runId, command, data} — append to the live terminal overlay.
-    // Only the open worker's runs matter (the transcript renders one worker); others are ignored.
-    private func applyTerminalChunk(_ payload: JSONValue?) {
-        guard let id = openId, payload?["workerId"]?.stringValue == id,
-              let runId = payload?["runId"]?.stringValue else { return }
-        var run = liveTerminals[runId] ?? LiveTerminal(runId: runId, command: "", output: "", done: false,
-                                                       exitCode: 0, note: nil, ts: Date().timeIntervalSince1970 * 1000)
-        if let cmd = payload?["command"]?.stringValue, !cmd.isEmpty { run.command = cmd }
-        run.output += payload?["data"]?.stringValue ?? ""
-        liveTerminals[runId] = run
-        recompute()
-    }
-
-    // terminal:done payload {runId, exitCode, note} — close the live run (its card flips to the exit
-    // badge). It stays overlaid until the durable `terminal` row lands, which recompute() drops.
-    private func applyTerminalDone(_ payload: JSONValue?) {
-        guard let runId = payload?["runId"]?.stringValue, var run = liveTerminals[runId] else { return }
-        run.done = true
-        run.exitCode = payload?["exitCode"]?.intValue ?? 0
-        run.note = payload?["note"]?.stringValue
-        liveTerminals[runId] = run
-        recompute()
-    }
-
-    // loop:check payload (LoopCheckProgressSchema) — the transient live goal-check for the open worker.
-    // A fresh "started" phase resets the elapsed clock; the verdict phase clears shortly after so the
-    // line doesn't linger. Surfaced in the foot region via activeGoalCheck(for:).
-    private func applyLoopCheck(_ payload: JSONValue?) {
-        guard let id = openId, payload?["workerId"]?.stringValue == id,
-              let phase = payload?["phase"]?.stringValue else { return }
-        let now = Date().timeIntervalSince1970 * 1000
-        let startedAt = phase == "started" ? now : (liveCheck?.startedAt ?? now)
-        liveCheck = LoopCheckProgress(
-            workerId: id, attempt: payload?["attempt"]?.intValue ?? 0, maxAttempts: payload?["maxAttempts"]?.intValue,
-            strategy: payload?["strategy"]?.stringValue, phase: phase, criterionId: payload?["criterionId"]?.stringValue,
-            met: payload?["met"]?.boolValue, outcome: payload?["outcome"]?.stringValue,
-            reason: payload?["reason"]?.stringValue, startedAt: startedAt)
-        if phase == "verdict" {
-            // Let the outcome linger ~4s, then clear (mirrors loopCheckStore's verdict linger timer).
-            let captured = liveCheck
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 4_000_000_000)
-                if self.liveCheck?.startedAt == captured?.startedAt { self.liveCheck = nil; self.objectWillChange.send() }
-            }
-        }
-        objectWillChange.send()
-    }
-
-    // The live goal-check for a worker, shown ONLY while it idles under a still-running check (spec 03
-    // §4.10 #4): a pre-verdict entry on a non-IDLE worker missed its verdict (SSE gap) → suppressed so
-    // the line can't stick on "checking" (mirrors loopCheckStore.reconcile). A busy continuation hands
-    // off to the normal ProcessingLine spark.
-    func activeGoalCheck(for id: String) -> LoopCheckProgress? {
-        guard let c = liveCheck, c.workerId == id else { return nil }
-        return isBusy(id) ? nil : c
-    }
-
-    // The durable per-attempt loop_check verdicts in the current transcript, oldest→newest — the
-    // history the LoopStatusCardView aggregates into its last-5 attempt rows.
-    func loopHistory(for id: String) -> [LoopCheck] {
-        transcript.compactMap { b in
-            guard b.workerId == id, case let .loopCheck(check) = b.payload else { return nil }
-            return check
-        }
-    }
-
-    // Run the full event→block pipeline over ALL durable rows (spec 03 §4), then overlay the live
-    // streaming buffers at render time (§4.10). Phase 4b-i wired the LIVE THINKING overlay (§4.10 #3):
-    // a reasoning-channel buffer with no durable block → a thinking(live:true) block whose streaming
-    // tail blur-ins in ThinkingLineView. (The reasoning channel is overlaid; the assistant text channel
-    // stays overlaid here as a live block only until its durable row lands — §4.10 #3 notes the durable
-    // assistant block is what blurs in.) 4b-ii wired the OPTIMISTIC-USER overlay (§4.10 #1): a just-sent
-    // bubble renders dimmed until its durable user_message row lands. 4c-i wires the LIVE-TERMINAL
-    // overlay (§4.10 #2): a live run with no durable `terminal` block → a terminal(live:true) block,
-    // dropped once the durable lands. The live goal-check (#4) is NOT a block — it renders in the foot
-    // region via activeGoalCheck(for:).
-    private func recompute() {
-        durableBlockIds = []
-        collectDurableBlockIds()
-        let rows = Array(durableRows.values)
-        var all = MessageNormalizer.buildBlocks(rows, workerId: openId ?? "")
-        for buf in liveBuffers.values where !durableBlockIds.contains(buf.blockId) {
-            let payload: Block.Payload = buf.channel == "reasoning"
-                ? .thinking(text: buf.text) : .assistant(text: buf.text)
-            all.append(Block(id: "live:\(buf.blockId)", workerId: openId ?? "", blockId: buf.blockId,
-                             ts: buf.ts, live: true, payload: payload))
-        }
-        // Live-terminal overlay (§4.10 #2): drop any run whose durable `terminal` block has landed
-        // (matched by runId), then overlay the rest as terminal(live:true) blocks.
-        let durableRunIds = Set(all.compactMap { b -> String? in
-            if case let .terminal(t) = b.payload { return t.runId }
-            return nil
-        })
-        for runId in Array(liveTerminals.keys) where durableRunIds.contains(runId) { liveTerminals[runId] = nil }
-        for run in liveTerminals.values {
-            all.append(Block(id: "live-term:\(run.runId)", workerId: openId ?? "", ts: run.ts, live: true,
-                             payload: .terminal(Terminal(runId: run.runId, command: run.command, output: run.output,
-                                                         exitCode: run.exitCode, note: run.note, truncated: false,
-                                                         done: run.done))))
-        }
-        // Prune optimistic bubbles whose durable user block has arrived (matched by trimmed text), then
-        // overlay the rest as dimmed user(optimistic:true) blocks (§4.10 #1).
-        let durableUserTexts = Set(all.compactMap { b -> String? in
-            if case let .user(t, _) = b.payload { return t.trimmingCharacters(in: .whitespacesAndNewlines) }
-            return nil
-        })
-        optimisticBubbles.removeAll { durableUserTexts.contains($0.text.trimmingCharacters(in: .whitespacesAndNewlines)) }
-        for bubble in optimisticBubbles where bubble.workerId == openId {
-            all.append(Block(id: "optimistic:\(bubble.clientMsgId)", workerId: bubble.workerId,
-                             ts: bubble.ts, payload: .user(text: bubble.text, optimistic: true)))
-        }
-        transcript = sortBlocksByTs(all)
-    }
-}
-
-// WSConnection delegate — fold incoming frames into the store on the main actor.
-extension AppModel: WSConnectionDelegate {
-    nonisolated func wsDidReceive(snapshot: SnapshotFrame) async { await store.applySnapshot(snapshot) }
-    nonisolated func wsDidReceive(patch: PatchFrame) async { _ = await store.applyPatch(patch) }
-    nonisolated func wsDidReceive(event: EventFrame) async {
-        _ = await store.applyEvent(event)
-        await handleTranscriptEvent(event)
-    }
-    nonisolated func wsDidReceive(error: ErrorFrame) async {
-        await MainActor.run { self.lastError = "\(error.code): \(error.message ?? "")" }
-    }
-    nonisolated func wsConnectionStateChanged(connected: Bool) async {
-        await MainActor.run {
-            self.connected = connected
-            // Unexpected drop while in the foreground → auto-reconnect via the ticket with backoff.
-            if !connected && !self.intentionalStop && !self.connecting {
-                self.resumeRetries = 0
-                self.scheduleResumeRetry()
-            }
-        }
-    }
+    func openWorker(_ id: String) async { await active?.openWorker(id); mirrorActive() }
+    func closeWorker(_ id: String) { active?.closeWorker(id) }
+    func loadOlder() async { await active?.loadOlder(); mirrorActive() }
+    func activeGoalCheck(for id: String) -> LoopCheckProgress? { active?.activeGoalCheck(for: id) }
+    func loopHistory(for id: String) -> [LoopCheck] { active?.loopHistory(for: id) ?? [] }
 }
