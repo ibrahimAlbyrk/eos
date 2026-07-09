@@ -53,6 +53,11 @@ final class AppModel: ObservableObject {
     @Published var transcript: [Block] = []
     @Published var loadingOlder = false
 
+    // Redesign data surface (§H P2): the active device's ui-config (model sheet source) and
+    // archived list (Code list's Archived filter). Mirrored per device like workers/pending.
+    @Published var uiConfig: UiConfig?
+    @Published var archived: [Worker] = []
+
     // Devices UI surface (Phase 5b consumes these). `devices` is the ordered paired list;
     // `activeDeviceId` selects which device the mirror + all control actions target.
     @Published private(set) var devices: [Device] = []
@@ -129,6 +134,7 @@ final class AppModel: ObservableObject {
             workers = []; pending = []; transcript = []
             connected = false; connecting = false; lastError = nil
             hasOlder = false; loadingOlder = false
+            uiConfig = nil; archived = []
             needsPairing = devices.isEmpty
             return
         }
@@ -140,7 +146,10 @@ final class AppModel: ObservableObject {
         transcript = a.transcript
         hasOlder = a.hasOlder
         loadingOlder = a.loadingOlder
+        uiConfig = a.uiConfig
+        archived = a.archived
         needsPairing = false
+        seedAttention(workers)
     }
 
     // MARK: device management (Phase 5b API)
@@ -153,8 +162,13 @@ final class AppModel: ObservableObject {
         activeDeviceId = id
         deviceStore.setActiveId(id)
         mirrorActive()
-        // Ensure the target is connecting if it dropped while backgrounded.
-        if let conn = active, !conn.connected, !conn.connecting { await conn.connect() }
+        // Ensure the target is connecting if it dropped while backgrounded; when it is already
+        // live, refetch ui-config on the switch (C6 — connect()'s bootstrap covers the cold path).
+        if let conn = active, !conn.connected, !conn.connecting {
+            await conn.connect()
+        } else if let conn = active, conn.connected {
+            await conn.fetchUiConfig()
+        }
     }
 
     // Pair a NEW device from a scanned v3 QR: mint a Device, persist it, connect, append, make active.
@@ -189,6 +203,15 @@ final class AppModel: ObservableObject {
     // The first-device pairing entry point used by the existing Pair sheet. Identical UX to before:
     // scan → this adds the FIRST device and connects it. (addDevice covers subsequent devices too.)
     func startPairing(qr: QRPayload) async { await addDevice(qr: qr) }
+
+    // C11: client-side rename — the label lives in the phone's device index, never on the Mac.
+    // UI reads labels from `devices` only (DeviceConnection.device.label stays stale until reconnect).
+    func renameDevice(_ id: String, label: String) {
+        guard var device = devices.first(where: { $0.id == id }) else { return }
+        device.label = label
+        deviceStore.upsert(device)
+        reloadDevices()
+    }
 
     // The live connection state of one device (Phase 5b) — the Devices list dot + sidebar chip read
     // this per row, since only the ACTIVE device is mirrored into `connected`/`connecting`. Reads the
@@ -248,4 +271,73 @@ final class AppModel: ObservableObject {
     func loadOlder() async { await active?.loadOlder(); mirrorActive() }
     func activeGoalCheck(for id: String) -> LoopCheckProgress? { active?.activeGoalCheck(for: id) }
     func loopHistory(for id: String) -> [LoopCheck] { active?.loopHistory(for: id) ?? [] }
+
+    // MARK: redesign data surface (§H P2) — forwarders to the active device
+
+    @discardableResult
+    func fetchUiConfig() async -> UiConfig? {
+        let config = await active?.fetchUiConfig()
+        mirrorActive()
+        return config
+    }
+    @discardableResult
+    func fetchArchived() async -> [Worker] {
+        let rows = await active?.fetchArchived() ?? []
+        mirrorActive()
+        return rows
+    }
+    func archive(_ id: String) async -> Bool { await active?.archive(id) ?? false }
+    func restore(_ id: String) async -> Bool { await active?.restore(id) ?? false }
+    func setModel(_ id: String, model: String, effort: String) async -> Bool {
+        await active?.setModel(id, model: model, effort: effort) ?? false
+    }
+    func setPermissionMode(_ id: String, mode: String) async -> Bool {
+        await active?.setPermissionMode(id, mode: mode) ?? false
+    }
+    func setName(_ id: String, name: String?) async -> Bool {
+        await active?.setName(id, name: name) ?? false
+    }
+    func renameIntent(_ id: String, active flag: Bool) async {
+        await active?.renameIntent(id, active: flag)
+    }
+    func spawnOrchestrator(cwd: String, model: String?, effort: String?, prompt: String,
+                           permissionMode: String, backendProfile: String?) async -> String? {
+        await active?.spawnOrchestrator(cwd: cwd, model: model, effort: effort, prompt: prompt,
+                                        permissionMode: permissionMode, backendProfile: backendProfile)
+    }
+    func fetchRecents() async -> [String] { await active?.fetchRecents() ?? [] }
+    func listDirectories(cwd: String, dir: String?) async -> [FsDirEntry] {
+        await active?.listDirectories(cwd: cwd, dir: dir) ?? []
+    }
+    func uploadAttachment(name: String, data: Data) async -> String? {
+        await active?.uploadAttachment(name: name, data: data)
+    }
+
+    // MARK: attention ledger (§D4) — in-memory, per-launch
+
+    // Seeded at first sight of a worker (never flag pre-existing output — Mac rule); markViewed
+    // re-seats the signature on conversation open AND close.
+    private var lastViewedSig: [String: String] = [:]
+
+    private func seedAttention(_ workers: [Worker]) {
+        for w in workers where lastViewedSig[w.id] == nil { lastViewedSig[w.id] = AgentTree.sigOf(w) }
+    }
+
+    func markViewed(_ id: String) {
+        guard let w = workers.first(where: { $0.id == id }) else { return }
+        lastViewedSig[id] = AgentTree.sigOf(w)
+        objectWillChange.send()
+    }
+
+    func needsAttention(_ w: Worker) -> Bool {
+        AgentTree.needsAttention(lastViewedSig: lastViewedSig[w.id], worker: w)
+    }
+}
+
+// One GET /fs/list row as the repo-picker's directory browser consumes it (directories only).
+struct FsDirEntry: Identifiable, Sendable, Equatable {
+    let name: String
+    let absolutePath: String
+    let relativePath: String
+    var id: String { absolutePath }
 }

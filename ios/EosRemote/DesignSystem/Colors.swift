@@ -33,6 +33,8 @@ enum EosColor {
     // actions
     static let danger    = Color(hex: 0xD97670)    // destructive (Kill, Deny) — aligns to state-failed red
     static var focusRing: Color { coral.opacity(0.45) }
+    // attention dot — agent stopped with unviewed output; matches Mac .ag-notify blue
+    static let attention = State.queuedDot
 
     // run-state (dot = saturated, soft = dark tinted fill) — spec 05 §1.1. "Soft" on dark is the dot
     // hue baked over #1a1a1a at low alpha, kept as literals for grep-ability.

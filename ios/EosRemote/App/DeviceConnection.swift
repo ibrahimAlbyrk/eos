@@ -31,6 +31,11 @@ final class DeviceConnection: NSObject {
     private(set) var loadingOlder = false
     private(set) var hasOlder = false
 
+    // Redesign data surface (§H P2), mirrored like workers/pending: the ui-config cache (fetched
+    // per connect + on demand) and the archived list (fetched lazily by the Archived filter).
+    private(set) var uiConfig: UiConfig?
+    private(set) var archived: [Worker] = []
+
     // Notify the owner (AppModel) that this device's mirrored state changed.
     var onChange: (() -> Void)?
 
@@ -117,7 +122,9 @@ final class DeviceConnection: NSObject {
             "clientMsgId": .string(clientMsgId),
             "queueWhenBusy": .bool(queueWhenBusy),
         ])
-        await control("POST", "/workers/\(id)/message", body)
+        // D-10 route split: orchestrators message via their own resource, plain workers as before.
+        let isOrchestrator = workers.first(where: { $0.id == id })?.isOrchestrator == true
+        await control("POST", isOrchestrator ? "/orchestrators/\(id)/message" : "/workers/\(id)/message", body)
         if openId == id { scheduleDelta() }
     }
 
@@ -163,9 +170,103 @@ final class DeviceConnection: NSObject {
     }
 
     private func control(_ method: String, _ path: String, _ body: JSONValue) async {
-        guard let connection else { setError("not connected"); return }
-        do { _ = try await connection.sendControl(method: method, path: path, bodyData: encodeOnce(body)) }
-        catch { setError(error.localizedDescription) }
+        _ = await controlReply(method, path, body)
+    }
+
+    // Reply-returning variant for calls that read the body or the success bit. nil = transport
+    // error or non-2xx (sendControl throws controlFailed on those); the error is surfaced.
+    private func controlReply(_ method: String, _ path: String, _ body: JSONValue) async -> ReplyFrame? {
+        guard let connection else { setError("not connected"); return nil }
+        do { return try await connection.sendControl(method: method, path: path, bodyData: encodeOnce(body)) }
+        catch { setError(error.localizedDescription); return nil }
+    }
+
+    // MARK: redesign data surface (§H P2) — new tunneled endpoints
+
+    @discardableResult
+    func fetchUiConfig() async -> UiConfig? {                     // GET /api/ui-config
+        guard let body = (await controlReply("GET", "/api/ui-config", .object([:])))?.body,
+              let config = UiConfig(raw: body) else { return nil }
+        uiConfig = config
+        onChange?()
+        return config
+    }
+
+    func fetchArchived() async -> [Worker] {                      // GET /workers/archived
+        let rows = (await controlReply("GET", "/workers/archived", .object([:])))?.body?.arrayValue ?? []
+        archived = rows.map(Worker.init(raw:))
+        onChange?()
+        return archived
+    }
+
+    func archive(_ id: String) async -> Bool {                    // POST /workers/:id/archive
+        await controlReply("POST", "/workers/\(id)/archive", .object([:])) != nil
+    }
+
+    func restore(_ id: String) async -> Bool {                    // POST /workers/:id/restore
+        await controlReply("POST", "/workers/\(id)/restore", .object([:])) != nil
+    }
+
+    func setModel(_ id: String, model: String, effort: String) async -> Bool {   // PUT /workers/:id/model
+        await controlReply("PUT", "/workers/\(id)/model",
+                           .object(["model": .string(model), "effort": .string(effort)])) != nil
+    }
+
+    func setPermissionMode(_ id: String, mode: String) async -> Bool {           // PUT /workers/:id/permission
+        await controlReply("PUT", "/workers/\(id)/permission", .object(["mode": .string(mode)])) != nil
+    }
+
+    func setName(_ id: String, name: String?) async -> Bool {     // PUT /workers/:id/name — null resets to auto-name
+        await controlReply("PUT", "/workers/\(id)/name",
+                           .object(["name": name.map(JSONValue.string) ?? .null])) != nil
+    }
+
+    func renameIntent(_ id: String, active: Bool) async {         // PUT /workers/:id/rename-intent
+        await control("PUT", "/workers/\(id)/rename-intent", .object(["active": .bool(active)]))
+    }
+
+    func spawnOrchestrator(cwd: String, model: String?, effort: String?, prompt: String,
+                           permissionMode: String, backendProfile: String?) async -> String? {  // POST /orchestrators
+        var body: [String: JSONValue] = [
+            "cwd": .string(cwd),
+            "prompt": .string(prompt),
+            "permissionMode": .string(permissionMode),
+        ]
+        if let model { body["model"] = .string(model) }
+        if let effort { body["effort"] = .string(effort) }
+        if let backendProfile { body["backendProfile"] = .string(backendProfile) }
+        return (await controlReply("POST", "/orchestrators", .object(body)))?.body?["id"]?.stringValue
+    }
+
+    func fetchRecents() async -> [String] {                       // GET /fs/recents
+        let paths = (await controlReply("GET", "/fs/recents", .object([:])))?.body?["paths"]?.arrayValue ?? []
+        return paths.compactMap(\.stringValue)
+    }
+
+    func listDirectories(cwd: String, dir: String?) async -> [FsDirEntry] {      // GET /fs/list, dirs only
+        var query = "cwd=\(queryEscape(cwd))&limit=200"
+        if let dir, !dir.isEmpty { query += "&dir=\(queryEscape(dir))" }
+        let entries = (await controlReply("GET", "/fs/list?\(query)", .object([:])))?.body?["entries"]?.arrayValue ?? []
+        return entries.compactMap { e in
+            guard e["type"]?.stringValue == "directory",
+                  let name = e["name"]?.stringValue,
+                  let abs = e["absolutePath"]?.stringValue,
+                  let rel = e["relativePath"]?.stringValue else { return nil }
+            return FsDirEntry(name: name, absolutePath: abs, relativePath: rel)
+        }
+    }
+
+    func uploadAttachment(name: String, data: Data) async -> String? {           // POST /fs/paste-b64
+        let body: JSONValue = .object(["name": .string(name), "dataB64": .string(data.base64EncodedString())])
+        return (await controlReply("POST", "/fs/paste-b64", body))?.body?["path"]?.stringValue
+    }
+
+    // Absolute paths ride the query string ("/Users/x/dev repo"); urlQueryAllowed keeps &/=/+, so
+    // strip those too or a path containing them would split the params server-side.
+    private func queryEscape(_ s: String) -> String {
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=?+")
+        return s.addingPercentEncoding(withAllowedCharacters: allowed) ?? s
     }
 
     // MARK: connect / resume — one path, ported verbatim but per-device
@@ -260,6 +361,8 @@ final class DeviceConnection: NSObject {
         let workers = (await w)?.body?.arrayValue ?? []
         let pending = (await p)?.body?.arrayValue ?? []
         await store.applyBootstrap(workers: workers, pending: pending)
+        // C6: ui-config is fetched once per connect (covers reconnects too) and cached above.
+        await fetchUiConfig()
     }
 
     private func setError(_ message: String) { lastError = message; onChange?() }

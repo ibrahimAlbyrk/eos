@@ -12,12 +12,17 @@ enum EosSpacing {
     static let xl:  CGFloat = 32
     static let xxl: CGFloat = 48   // vertical breathing around the Home hero
     static let screenInset: CGFloat = 20   // left/right page margin (Claude runs generous)
+    static let grabberW: CGFloat = 36   // sheet grabber capsule
+    static let grabberH: CGFloat = 5
 }
 
 enum EosRadius {
     static let chip:     CGFloat = 8
     static let card:     CGFloat = 16   // decision cards, message wells
+    static let menu:     CGFloat = 20   // anchored menus / dialogs
+    static let banner:   CGFloat = 20   // permission banner card
     static let composer: CGFloat = 28   // the big rounded composer card
+    static let sheet:    CGFloat = 32   // bottom-sheet top corners
     static let pill:     CGFloat = 999  // fully rounded (model pill, Spawn pill, circular buttons via frame)
 }
 

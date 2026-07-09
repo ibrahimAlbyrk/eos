@@ -24,6 +24,22 @@ public struct Worker: Identifiable, Sendable, Equatable {
     // LoopStatusCardView (spec 03 §1 LoopStatus). Absent when the worker has no active loop.
     public var loop: WorkerLoop? { WorkerLoop(raw: raw["loop"]) }
 
+    // Redesign data surface (REDESIGN_CONTRACT §H P2) — typed views over the WorkerRow columns the
+    // Code list / conversation screens read. All optional-safe over `raw`.
+    public var startedAt: Double { raw["started_at"]?.doubleValue ?? 0 }
+    public var turnStartedAt: Double? { raw["turn_started_at"]?.doubleValue }
+    public var endedAt: Double? { raw["ended_at"]?.doubleValue }
+    public var archivedAt: Double? { raw["archived_at"]?.doubleValue }
+    public var cwd: String? { raw["cwd"]?.stringValue }
+    public var permissionMode: String? { raw["permission_mode"]?.stringValue }
+    public var tokensIn: Int? { raw["tokens_in"]?.intValue }
+    public var tokensOut: Int? { raw["tokens_out"]?.intValue }
+    public var toolCalls: Int? { raw["tool_calls"]?.intValue }
+    public var workerDefinition: String? { raw["worker_definition"]?.stringValue }
+    public var agentRole: String? { raw["agent_role"]?.stringValue }
+    // D-5: a worker's "last active" instant — turn clock when it ever ran a turn, else spawn time.
+    public var recencyKey: Double { max(turnStartedAt ?? 0, startedAt) }
+
     public init(raw: JSONValue) { self.raw = raw }
     public static func == (a: Worker, b: Worker) -> Bool { a.raw == b.raw }
 }
@@ -70,6 +86,12 @@ public struct Pending: Identifiable, Sendable, Equatable {
     public var tool: String? { raw["tool"]?.stringValue ?? raw["toolName"]?.stringValue }
     public var summary: String? { raw["summary"]?.stringValue ?? raw["input_summary"]?.stringValue }
     public var ttl: Double? { raw["ttl"]?.doubleValue ?? raw["expiresAt"]?.doubleValue }
+
+    // Redesign data surface (§H P2). `toolName` prefers the wire column (PendingPermissionRow.
+    // tool_name) and falls back to the legacy keys `tool` already reads; `inputRaw` is the
+    // permission input verbatim — a JSON STRING the banner parses for command/file_path/….
+    public var toolName: String? { raw["tool_name"]?.stringValue ?? tool }
+    public var inputRaw: String? { raw["input"]?.stringValue }
 
     public init(raw: JSONValue) { self.raw = raw }
     public static func == (a: Pending, b: Pending) -> Bool { a.raw == b.raw }
