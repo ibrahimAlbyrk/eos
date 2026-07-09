@@ -18,7 +18,15 @@ public enum MessageNormalizer {
     // The full pipeline for one worker's rows. `bootPromptOffset` = 1 when an orchestrator-spawned
     // worker's boot prompt has no event (see applyRewinds).
     public static func buildBlocks(_ rows: [JSONValue], workerId: String = "", bootPromptOffset: Int = 0) -> [Block] {
-        let evs = rows.map(toEv)
+        buildBlocks(evs: rows.map(toEv), workerId: workerId, bootPromptOffset: bootPromptOffset)
+    }
+
+    // Same pipeline over ALREADY-PARSED event rows. The JSON-string decode in `toEv` dominates
+    // buildBlocks (measured ~51ms of ~51ms for a 2000-row transcript); the caller (DeviceConnection)
+    // caches one `Ev` per durable row at ingest so a live burst never re-decodes the whole window.
+    // Parsing this way is behavior-identical: `toEv` is a pure row→Ev map, so pre-mapping is the same
+    // input to the same staged pipeline.
+    public static func buildBlocks(evs: [Ev], workerId: String = "", bootPromptOffset: Int = 0) -> [Block] {
         let cleared = applyClears(evs)
         let rewound = applyRewinds(cleared, bootPromptOffset: bootPromptOffset)
         let recalled = applyRecalls(rewound)
@@ -33,7 +41,9 @@ public enum MessageNormalizer {
 }
 
 // A raw event row → Ev { type, ts, payload }. Durable rows carry ts and a JSON-string payload.
-func toEv(_ row: JSONValue) -> Ev {
+// Public so the transcript pipeline can parse a row ONCE at ingest and cache the result (the JSON
+// string decode here is the buildBlocks hotspot).
+public func toEv(_ row: JSONValue) -> Ev {
     let type = row["type"]?.stringValue ?? row["kind"]?.stringValue ?? ""
     let ts = row["ts"]?.doubleValue ?? row["created_at"]?.doubleValue ?? 0
     // The row-id is needed by applyRecalls; stash it on the payload object so decode can read it.

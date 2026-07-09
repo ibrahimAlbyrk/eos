@@ -42,13 +42,20 @@ final class DeviceConnection: NSObject {
 
     // MARK: transcript pipeline (per-device; ported verbatim from AppModel)
     private var openId: String?
-    private var durableRows: [String: JSONValue] = [:]
+    // Durable rows are cached as PARSED `Ev`s keyed by rowId. The JSON-string payload decode in toEv
+    // is the buildBlocks hotspot (~51ms of ~51ms for 2000 rows); parsing once at ingest instead of on
+    // every recompute is the core Phase-6 win. Rows are append-only, so a cached Ev never goes stale.
+    private var durableEvs: [String: Ev] = [:]
     private var durableBlockIds: Set<String> = []
     private var liveBuffers: [String: LiveBuffer] = [:]
     private var newestRowId = 0
     private var oldestRowId = 0
     private var deltaFetching = false
     private var deltaPending = false
+    // Recompute coalescing: a burst of live frames (agent:delta / terminal:chunk / newest ingest)
+    // collapses to ONE reparse+merge on the next runloop tick, mirroring the Mac's scheduleDelta
+    // coalescing intent. recomputeScheduled guards re-entrancy inside a single burst.
+    private var recomputeScheduled = false
 
     private struct OptimisticBubble { let text: String; let clientMsgId: String; let ts: Double; let workerId: String }
     private var optimisticBubbles: [OptimisticBubble] = []
@@ -60,7 +67,7 @@ final class DeviceConnection: NSObject {
 
     private var caches: [String: TranscriptCache] = [:]
     private struct TranscriptCache {
-        var durableRows: [String: JSONValue]
+        var durableEvs: [String: Ev]
         var durableBlockIds: Set<String>
         var newestRowId: Int
         var oldestRowId: Int
@@ -264,14 +271,15 @@ final class DeviceConnection: NSObject {
         liveBuffers = [:]
         liveTerminals = [:]
         liveCheck = nil
+        invalidateDurableBlocks()   // switching workers swaps durableEvs — drop the previous scan
         optimisticBubbles.removeAll { $0.workerId != id }
         if let c = caches[id] {
-            durableRows = c.durableRows; durableBlockIds = c.durableBlockIds
+            durableEvs = c.durableEvs; durableBlockIds = c.durableBlockIds
             newestRowId = c.newestRowId; oldestRowId = c.oldestRowId; hasOlder = c.hasOlder
-            recompute()
+            recompute()   // immediate: cached-first paint on open, no debounce
             await fetchDelta()
         } else {
-            durableRows = [:]; durableBlockIds = []
+            durableEvs = [:]; durableBlockIds = []
             newestRowId = 0; oldestRowId = 0; hasOlder = false
             transcript = []
             await fetchNewest()
@@ -280,7 +288,7 @@ final class DeviceConnection: NSObject {
 
     func closeWorker(_ id: String) {
         guard openId == id else { return }
-        caches[id] = TranscriptCache(durableRows: durableRows, durableBlockIds: durableBlockIds,
+        caches[id] = TranscriptCache(durableEvs: durableEvs, durableBlockIds: durableBlockIds,
                                      newestRowId: newestRowId, oldestRowId: oldestRowId, hasOlder: hasOlder)
         openId = nil
         liveBuffers = [:]
@@ -330,26 +338,41 @@ final class DeviceConnection: NSObject {
     }
 
     private func ingest(_ rows: [JSONValue], workerId: String) {
+        var changed = false
         for r in rows {
             guard let rid = r["id"]?.intValue else { continue }
             newestRowId = max(newestRowId, rid)
             oldestRowId = oldestRowId == 0 ? rid : min(oldestRowId, rid)
-            durableRows[String(rid)] = r
+            durableEvs[String(rid)] = toEv(r)   // JSON-string decode happens ONCE, here
+            changed = true
         }
-        recompute()
+        if changed { invalidateDurableBlocks() }
+        scheduleRecompute()
     }
 
-    private func collectDurableBlockIds() {
-        for r in durableRows.values {
-            let p = (r["payload"].flatMap { if case .string(let s) = $0 { return JSONValue.parse(s) } else { return $0 } }) ?? .null
+    // Durable-blocks memo: buildBlocks over the durable set is the expensive scan. Most live frames
+    // (agent:delta, terminal:chunk) mutate ONLY the overlays, not durableEvs — so the durable blocks
+    // are cached and reused, and recompute re-merges the cheap live overlays on top. Invalidated
+    // whenever the durable set changes (ingest).
+    private var durableBlocksCache: [Block]?
+    private var durableBlockIdsCache: Set<String>?
+    private func invalidateDurableBlocks() { durableBlocksCache = nil; durableBlockIdsCache = nil }
+
+    // The set of blockIds carried by durable rows (used to drop live buffers whose durable canonical
+    // block has landed). Reads the ALREADY-PARSED Ev payloads — no re-decode of the JSON string.
+    private func computeDurableBlockIds() -> Set<String> {
+        var ids: Set<String> = []
+        for ev in durableEvs.values {
+            let p = ev.payload
             if p["type"]?.stringValue == "message" {
                 for b in p["blocks"]?.arrayValue ?? [] {
-                    if let bid = b["blockId"]?.stringValue { durableBlockIds.insert(bid); liveBuffers[bid] = nil }
+                    if let bid = b["blockId"]?.stringValue { ids.insert(bid) }
                 }
             } else if let bid = p["blockId"]?.stringValue {
-                durableBlockIds.insert(bid); liveBuffers[bid] = nil
+                ids.insert(bid)
             }
         }
+        return ids
     }
 
     private func applyDelta(_ payload: JSONValue?) {
@@ -364,7 +387,7 @@ final class DeviceConnection: NSObject {
         buf.channel = channel
         buf.text += payload?["text"]?.stringValue ?? ""
         liveBuffers[blockId] = buf
-        recompute()
+        scheduleRecompute()
     }
 
     func handleTranscriptEvent(_ event: EventFrame) {
@@ -386,7 +409,7 @@ final class DeviceConnection: NSObject {
         if let cmd = payload?["command"]?.stringValue, !cmd.isEmpty { run.command = cmd }
         run.output += payload?["data"]?.stringValue ?? ""
         liveTerminals[runId] = run
-        recompute()
+        scheduleRecompute()
     }
 
     private func applyTerminalDone(_ payload: JSONValue?) {
@@ -395,7 +418,7 @@ final class DeviceConnection: NSObject {
         run.exitCode = payload?["exitCode"]?.intValue ?? 0
         run.note = payload?["note"]?.stringValue
         liveTerminals[runId] = run
-        recompute()
+        scheduleRecompute()
     }
 
     private func applyLoopCheck(_ payload: JSONValue?) {
@@ -430,11 +453,33 @@ final class DeviceConnection: NSObject {
         }
     }
 
+    // Coalesce a burst of live frames into ONE recompute on the next runloop tick. A streaming turn
+    // fires many agent:delta frames; without this each one drove a full recompute+publish. The tick
+    // is sub-millisecond, so the tail still feels live — it just no longer reparses per frame.
+    private func scheduleRecompute() {
+        guard !recomputeScheduled else { return }
+        recomputeScheduled = true
+        Task { @MainActor in
+            recomputeScheduled = false
+            guard openId != nil else { return }
+            recompute()
+        }
+    }
+
     private func recompute() {
-        durableBlockIds = []
-        collectDurableBlockIds()
-        let rows = Array(durableRows.values)
-        var all = MessageNormalizer.buildBlocks(rows, workerId: openId ?? "")
+        // Durable blocks + their blockIds are memoized; only a durableEvs change (ingest) invalidates
+        // them. Overlay-only frames reuse the cached scan and just re-merge the cheap live overlays.
+        let durableBlocks: [Block]
+        if let cached = durableBlocksCache, let cachedIds = durableBlockIdsCache {
+            durableBlocks = cached; durableBlockIds = cachedIds
+        } else {
+            durableBlockIds = computeDurableBlockIds()
+            durableBlocks = MessageNormalizer.buildBlocks(evs: Array(durableEvs.values), workerId: openId ?? "")
+            durableBlocksCache = durableBlocks; durableBlockIdsCache = durableBlockIds
+        }
+        // A durable block landing supersedes its live buffer (flicker-free handoff).
+        for bid in durableBlockIds { liveBuffers[bid] = nil }
+        var all = durableBlocks
         for buf in liveBuffers.values where !durableBlockIds.contains(buf.blockId) {
             let payload: Block.Payload = buf.channel == "reasoning"
                 ? .thinking(text: buf.text) : .assistant(text: buf.text)
