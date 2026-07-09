@@ -1,8 +1,8 @@
 import Foundation
 
-// Inner frames (§4.2): the AEAD plaintext is exactly one UTF-8 JSON object, tagged by `t`.
-// Decoded after open(); encoded before seal(). Handshake `hs`/`resume` frames live separately
-// in Pairing/ since they pre-date the traffic keys.
+// Inner frames (§5): a `data` envelope's payload is exactly one plaintext UTF-8 JSON object, tagged
+// by `t`. In v3 there is no AEAD and no handshake frame family (no `hs`/`resume`/`challenge`) — the
+// relay join is the only handshake; every server frame below is plaintext.
 
 public enum ServerFrame {
     case event(EventFrame)
@@ -10,7 +10,6 @@ public enum ServerFrame {
     case snapshot(SnapshotFrame)
     case reply(ReplyFrame)
     case ka(ts: Double)
-    case challenge(ChallengeFrame)
     case error(ErrorFrame)
 
     // Single decode entrypoint: peek `t`, then decode the concrete shape.
@@ -23,7 +22,6 @@ public enum ServerFrame {
         case "snapshot":  return .snapshot(try d.decode(SnapshotFrame.self, from: data))
         case "reply":     return .reply(try d.decode(ReplyFrame.self, from: data))
         case "ka":        return .ka(ts: (try? d.decode(KaFrame.self, from: data).ts) ?? 0)
-        case "challenge": return .challenge(try d.decode(ChallengeFrame.self, from: data))
         case "error":     return .error(try d.decode(ErrorFrame.self, from: data))
         default: throw FrameError.unknownTag(tag)
         }
@@ -65,16 +63,9 @@ public struct ReplyFrame: Codable, Sendable {
     public let body: JSONValue?
 }
 
-public struct ChallengeFrame: Codable, Sendable {
-    public let t: String
-    public let challengeNonce: String   // b64u(16)
-    public let expiresAt: Double
-    public let correlationId: String?   // present when issued as a response to POST /stepup/challenge
-}
-
 public struct ErrorFrame: Codable, Sendable {
     public let t: String
-    public let code: String             // §7.2 LOCKED enum
+    public let code: String             // §5.5 error-code enum
     public let message: String?
     public let correlationId: String?
 }
@@ -83,8 +74,6 @@ public struct ErrorFrame: Codable, Sendable {
 public struct HelloFrame: Codable, Sendable {
     public var t = "hello"
     public var lastContentId: Int?
-    public var resumptionTicket: String?
-    public var resumeEphemeralPub: String?
 }
 
 public struct ControlFrame: Codable, Sendable {
@@ -92,23 +81,11 @@ public struct ControlFrame: Codable, Sendable {
     public var correlationId: String
     public var method: String
     public var path: String
-    // OPAQUE JSON string (contract `body: string`, §3.4): the request body serialized exactly
-    // ONCE. bodyHash signs the UTF-8 of THIS string's content; the daemon hashes the decoded
-    // string verbatim (no re-serialize), so key-order/number-format can never diverge.
+    // OPAQUE JSON string (contract `body: string`, §5.2.3): the request body serialized exactly
+    // ONCE and carried verbatim so the daemon dispatches the exact transmitted bytes.
     public var body: String
-    public var stepUp: StepUpField?
 
-    public init(correlationId: String, method: String, path: String, body: String, stepUp: StepUpField? = nil) {
-        self.correlationId = correlationId; self.method = method; self.path = path
-        self.body = body; self.stepUp = stepUp
-    }
-}
-
-public struct StepUpField: Codable, Sendable {
-    public let challengeNonce: String   // b64u(16)
-    public let ts: Int64
-    public let sig: String              // b64u(64-byte raw r‖s)
-    public init(challengeNonce: String, ts: Int64, sig: String) {
-        self.challengeNonce = challengeNonce; self.ts = ts; self.sig = sig
+    public init(correlationId: String, method: String, path: String, body: String) {
+        self.correlationId = correlationId; self.method = method; self.path = path; self.body = body
     }
 }

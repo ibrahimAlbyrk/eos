@@ -1,9 +1,9 @@
 import SwiftUI
 import EosRemoteKit
 
-// Pairing flow shell (design §4.3): scan the QR → decode (§6) → generate the SE device key → run
-// the PAIR handshake (no Face ID) → store {bearer, devId} + first ticket. The transport choreography
-// is driven by the Connector (Noise_IK enrollment); this view is the entry/scan/status surface.
+// Pairing flow shell (§6.1): scan the v3 QR → decode → store (relay, room, bearer) → run the
+// collapsed open → join → live connector (no Face ID, no handshake). This view is the
+// entry/scan/status surface.
 struct PairingView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
@@ -42,13 +42,9 @@ struct PairingView: View {
         status = "Validating pairing code…"
         do {
             let qr = try QRPayload.decode(Data(value.utf8), now: Date().timeIntervalSince1970)
-            guard let relay = qr.relay else {
-                status = "This QR has no relay transport (LAN-direct pairing is Faz 2)."
-                return
-            }
             status = "Pairing over relay…"
             Task {
-                await model.startPairing(qr: qr, room: relay.room, enrollToken: qr.enroll)
+                await model.startPairing(qr: qr)
                 if model.connected { dismiss() }
                 else { status = model.lastError ?? "Pairing did not complete."; scanning = true }
             }

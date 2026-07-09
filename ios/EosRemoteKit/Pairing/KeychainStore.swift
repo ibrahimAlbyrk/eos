@@ -1,12 +1,11 @@
 import Foundation
 import Security
 
-// Durable secret storage (connection v2). The entire device credential is a single
-// X25519 static secret; alongside it sit the pinned Mac static public key and the
-// relay coordinates. Accessibility is AfterFirstUnlockThisDeviceOnly (NOT
-// WhenUnlocked) and carries NO biometric ACL, so a reconnect triggered right after
-// a reboot, or in the background, can read the key once the user has unlocked once
-// — the property that makes "open the app → connected, every time" true (§3.1).
+// Durable secret storage (§8). The entire credential is the room capability: the relay URL, the
+// ≥32-byte room id, and the room-join bearer — exactly three items. Accessibility is
+// AfterFirstUnlockThisDeviceOnly (NOT WhenUnlocked) and carries NO biometric ACL, so a reconnect
+// triggered right after a reboot, or in the background, can read them once the user has unlocked
+// once — the property that makes "open the app → connected, every time" true.
 public enum KeychainStore {
     public enum KeychainError: Error { case status(OSStatus) }
 
@@ -47,9 +46,8 @@ public enum KeychainStore {
         ] as CFDictionary)
     }
 
-    // Well-known item keys (connection v2).
-    public static let deviceStaticSec = "device.static.sec" // 32-byte X25519 secret — the whole credential
-    public static let macStaticPub = "mac.static.pub"       // 32-byte pinned Mac static public key (from the QR)
-    public static let relayURL = "relay.url"
-    public static let room = "relay.room"
+    // Well-known item keys (§8) — the three room-capability values.
+    public static let relayURL = "relay.url"     // wss://relay…/ from the QR
+    public static let room = "relay.room"        // b64url ≥32-byte room capability
+    public static let bearer = "relay.bearer"    // b64url room-join capability
 }

@@ -1,5 +1,12 @@
 import Foundation
 
+// Frame direction on the outer envelope (moved here from the deleted Crypto/Nonce.swift; it is a
+// wire field, not a crypto input). c2s = device → Mac, s2c = Mac → device.
+public enum Direction: UInt8, Sendable {
+    case c2s = 0x00 // device → Mac
+    case s2c = 0x01 // Mac → device
+}
+
 public enum EnvelopeType: UInt8, Sendable {
     case data = 0x01
     case register = 0x02
@@ -9,8 +16,11 @@ public enum EnvelopeType: UInt8, Sendable {
     case error = 0x06
 }
 
-// Outer envelope (§4.1): relay-visible, binary, big-endian. One envelope = one WS binary message.
+// Outer envelope (§4.4): relay-visible, binary, big-endian. One envelope = one WS binary message.
+// Byte-identical to the desktop manager/remote/envelope.ts.
 //   ver(1) type(1) dir(1) epoch(1) seq(8 BE) roomLen(1) room(R) clientId(16) payload(..)
+// For type=data(0x01) the payload is plaintext inner-frame JSON (§5) — no AEAD; epoch/seq are set
+// to 0 and never validated (they lost their crypto role in v3).
 public struct Envelope: Sendable {
     public static let version: UInt8 = 0x01
     public static let maxSize = 5 * 1024 * 1024
@@ -65,24 +75,5 @@ public struct Envelope: Sendable {
         let payload = data.subdata(in: (clientIdStart + 16)..<data.count)
         return Envelope(type: type, dir: dir, epoch: epoch, seq: seq,
                         room: room, clientId: clientId, payload: payload)
-    }
-
-    // AAD authenticated by the AEAD (§1.5): the exact outer-header fields a relay could tamper with.
-    //   ver(1) epoch(1) dir(1) seq(8 BE) roomLen(1) room(R) clientId(16)
-    public static func aad(epoch: UInt8, dir: Direction, seq: UInt64, room: Data, clientId: Data) -> Data {
-        var ad = Data()
-        ad.append(version)
-        ad.append(epoch)
-        ad.append(dir.rawValue)
-        var beSeq = seq.bigEndian
-        withUnsafeBytes(of: &beSeq) { ad.append(contentsOf: $0) }
-        ad.append(UInt8(room.count))
-        ad.append(room)
-        ad.append(clientId)
-        return ad
-    }
-
-    public func aad() -> Data {
-        Envelope.aad(epoch: epoch, dir: dir, seq: seq, room: room, clientId: clientId)
     }
 }

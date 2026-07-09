@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import UIKit
 import OSLog
 import EosRemoteKit
 
@@ -67,8 +66,6 @@ final class AppModel: ObservableObject {
     let store = Store()
     private var connection: WSConnection?
     private var session: SessionState?
-    // The entire device credential (connection v2): one X25519 static keypair.
-    private var deviceStatic: NoiseDH.Keypair?
 
     init() {
         Task { await store.setOnChange { [weak self] in Task { @MainActor in await self?.refresh() } } }
@@ -106,8 +103,8 @@ final class AppModel: ObservableObject {
         await control("POST", "/workers/\(workerId)/question-answer", body)
     }
 
-    // High-risk verbs (kill/spawn/decision). v2 has no per-action step-up: every connection is a
-    // full mutual-auth Noise_IK session holding all capabilities, so these dispatch like any control.
+    // High-risk verbs (kill/spawn/decision). There is no per-action step-up: possession of the room
+    // capability grants full authority, so these dispatch like any other control.
     func kill(_ id: String) async { await control("DELETE", "/workers/\(id)", .object([:])) }
     func spawnWorker(body: JSONValue) async { await control("POST", "/workers", body) }
     func approve(pendingId: String, allow: Bool) async {
@@ -115,8 +112,8 @@ final class AppModel: ObservableObject {
                       .object(["decision": .string(allow ? "allow" : "deny")]))
     }
 
-    // Serialize the body EXACTLY ONCE → these bytes are both transmitted (as the opaque body
-    // string) and, for step-up, hashed. One serialization = nothing for the two ends to disagree on.
+    // Serialize the body EXACTLY ONCE → the daemon dispatches these exact bytes as the opaque body
+    // string (§5.2.3), so there is nothing for the two ends to disagree on.
     private func encodeOnce(_ body: JSONValue) -> Data {
         (try? JSONEncoder().encode(body)) ?? Data("{}".utf8)
     }
@@ -129,28 +126,22 @@ final class AppModel: ObservableObject {
 
     // MARK: pairing + bootstrap
 
-    // Run the one-time enrollment over a fresh relay connection (Noise_IK msg-1 carries the QR's
-    // enrollment token), persist the pinned Mac key + relay coordinates, then bootstrap. The device
-    // static key is generated + stored by DeviceStatic on first use.
-    func startPairing(qr: QRPayload, room: String, enrollToken: String) async {
+    // First connect (§6.1): the scanned v3 QR carries the whole credential (relay, room, bearer).
+    // Persist the three Keychain items, then run the collapsed open → join → live connector. No
+    // enrollment handshake — the bearer IS the join credential.
+    func startPairing(qr: QRPayload) async {
         do {
-            let relayURL = try relayWSURL(qr)
-            guard let macStaticPub = Bytes.fromB64u(qr.macStatic), macStaticPub.count == 32 else {
-                lastError = "pairing failed: bad Mac key"; return
-            }
-            let device = try DeviceStatic.loadOrCreate()
-            self.deviceStatic = device
-            let conn = WSConnection(url: relayURL, mode: .relay(bearer: enrollToken), delegate: self)
+            guard let relayURL = qr.relayURL else { throw PairingError.noRelayURL }
+            guard let bearer = qr.bearer else { throw PairingError.noBearer }
+            let conn = WSConnection(url: relayURL, delegate: self)
             let result = try await Connector(
-                connection: conn, mode: .enroll(token: enrollToken, label: UIDevice.current.name),
-                deviceStatic: device, macStaticPub: macStaticPub, room: room, log: stepLogger()).run()
+                connection: conn, room: qr.room, bearer: bearer, log: stepLogger()).run()
             self.connection = conn
             self.session = result.session
-            // Everything a reconnect needs: the pinned Mac static key + relay coordinates. (The device
-            // static secret is already persisted by DeviceStatic.loadOrCreate.)
-            try? KeychainStore.set(KeychainStore.macStaticPub, macStaticPub)
+            // Everything a reconnect needs: the three room-capability values.
             try? KeychainStore.set(KeychainStore.relayURL, Data(relayURL.absoluteString.utf8))
-            try? KeychainStore.set(KeychainStore.room, Data(room.utf8))
+            try? KeychainStore.set(KeychainStore.room, Data(qr.room.utf8))
+            try? KeychainStore.set(KeychainStore.bearer, Data(bearer.utf8))
             needsPairing = false; resumeRetries = 0; intentionalStop = false
             connected = true
             await bootstrap()
@@ -159,26 +150,24 @@ final class AppModel: ObservableObject {
 
     // MARK: persistent connection — one path, two terminal states (§6)
 
-    // Called on launch and every foreground. ONE connect path used identically every time: if the
-    // device is enrolled (static key + pinned Mac key + relay coords present), run the single Noise_IK
-    // handshake. Face-ID-free, no QR unless genuinely de-enrolled.
-    //   success                  → CONNECTED
-    //   AUTH_REJECTED (the Mac)   → NEEDS_PAIRING (genuine de-enrollment; show QR)
-    //   transient (net/relay)     → bounded backoff → manual Reconnect (never an infinite loop)
+    // Called on launch and every foreground. ONE connect path used identically every time (§6.2):
+    // read the three room-capability values from the Keychain and run open → join → live. There is
+    // no handshake, so "resume" and "connect" are the same code path. Face-ID-free, no QR unless the
+    // relay rejects the bearer.
+    //   success                       → CONNECTED
+    //   authRejected (BEARER_DENIED)  → NEEDS_PAIRING (room/bearer rotated; show QR)
+    //   transient (net/room-gone)     → bounded backoff → manual Reconnect (never an infinite loop)
     func resumeIfPossible() async {
         guard !connected, !connecting else { return }
-        guard let relayURL = storedRelayURL(), let room = storedRoom(),
-              let macStaticPub = KeychainStore.get(KeychainStore.macStaticPub), macStaticPub.count == 32,
-              let device = DeviceStatic.existing()
-        else { eosLog.info("connect: device not enrolled → show QR"); needsPairing = true; return }
-        self.deviceStatic = device
+        guard let relayURL = storedRelayURL(), let room = storedRoom(), let bearer = storedBearer()
+        else { eosLog.info("connect: no stored credential → show QR"); needsPairing = true; return }
 
         connecting = true; needsPairing = false; intentionalStop = false
         defer { connecting = false }
-        let conn = WSConnection(url: relayURL, mode: .relay(bearer: NoiseIdentity.relayDeviceId(device.pub)), delegate: self)
+        let conn = WSConnection(url: relayURL, delegate: self)
         do {
-            let result = try await Connector(connection: conn, mode: .steady, deviceStatic: device,
-                                             macStaticPub: macStaticPub, room: room, log: stepLogger()).run()
+            let result = try await Connector(connection: conn, room: room, bearer: bearer,
+                                             log: stepLogger()).run()
             self.connection = conn
             self.session = result.session
             resumeRetries = 0; connected = true
@@ -186,7 +175,7 @@ final class AppModel: ObservableObject {
             await bootstrap()
         } catch Connector.ConnectError.authRejected {
             await conn.stop()
-            eosLog.error("connect: AUTH_REJECTED (de-enrolled) → show QR")
+            eosLog.error("connect: BEARER_DENIED (rotated) → show QR")
             lastError = "This device is no longer paired. Pair again."
             needsPairing = true
         } catch {
@@ -225,6 +214,11 @@ final class AppModel: ObservableObject {
         return String(data: d, encoding: .utf8)
     }
 
+    private func storedBearer() -> String? {
+        guard let d = KeychainStore.get(KeychainStore.bearer) else { return nil }
+        return String(data: d, encoding: .utf8)
+    }
+
     // Backoff for transient resume failures (network flaky). Reset on success / fresh foreground.
     // Bounded: once the budget is spent the loop CONVERGES to an actionable terminal state — the Pair
     // sheet (also always reachable from the toolbar) — rather than cycling reconnecting↔connecting
@@ -254,15 +248,15 @@ final class AppModel: ObservableObject {
         connected = false
     }
 
-    // Explicit Disconnect/Unpair: tear down the session and forget all stored credentials.
+    // Explicit Disconnect/Unpair (§6.3): tear down the session and forget the three room-capability
+    // Keychain items. Next launch → NEEDS_PAIRING (show QR).
     func disconnect() async {
         intentionalStop = true
         await connection?.stop()
-        connection = nil; session = nil; deviceStatic = nil
+        connection = nil; session = nil
         connected = false; connecting = false
         openId = nil; transcript = []
-        for key in [KeychainStore.deviceStaticSec, KeychainStore.macStaticPub,
-                    KeychainStore.relayURL, KeychainStore.room] {
+        for key in [KeychainStore.relayURL, KeychainStore.room, KeychainStore.bearer] {
             KeychainStore.delete(key)
         }
         needsPairing = true
@@ -278,11 +272,7 @@ final class AppModel: ObservableObject {
         await store.applyBootstrap(workers: workers, pending: pending)
     }
 
-    private enum PairingError: Error { case noRelayURL }
-    private func relayWSURL(_ qr: QRPayload) throws -> URL {
-        guard let s = qr.relay?.url, let u = URL(string: s) else { throw PairingError.noRelayURL }
-        return u
-    }
+    private enum PairingError: Error { case noRelayURL, noBearer }
 
     // MARK: live transcript
 
@@ -420,7 +410,6 @@ extension AppModel: WSConnectionDelegate {
         _ = await store.applyEvent(event)
         await handleTranscriptEvent(event)
     }
-    nonisolated func wsDidReceive(challenge: ChallengeFrame) async { /* delivered inline via reply */ }
     nonisolated func wsDidReceive(error: ErrorFrame) async {
         await MainActor.run { self.lastError = "\(error.code): \(error.message ?? "")" }
     }
