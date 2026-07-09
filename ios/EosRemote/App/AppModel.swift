@@ -38,7 +38,10 @@ final class AppModel: ObservableObject {
     private(set) var hasOlder = false
 
     private var openId: String?
-    private var durableBlocks: [String: Block] = [:]   // display id → block
+    // The full-scan parser (buildBlocks) needs the whole row set together (lifecycle barriers, agent
+    // spans, lane grouping cross rows), so we retain the raw durable rows id-keyed and re-run the
+    // pipeline on recompute — not per-row normalized blocks.
+    private var durableRows: [String: JSONValue] = [:]  // row id → raw event row
     private var durableBlockIds: Set<String> = []      // blockIds with a durable block (live drop guard)
     private var liveBuffers: [String: LiveBuffer] = [:] // blockId → streaming overlay
     private var newestRowId = 0
@@ -50,7 +53,7 @@ final class AppModel: ObservableObject {
     // scratch: openWorker restores instantly from here, then fetches ONLY rows after newestRowId.
     private var caches: [String: TranscriptCache] = [:]
     private struct TranscriptCache {
-        var durableBlocks: [String: Block]
+        var durableRows: [String: JSONValue]
         var durableBlockIds: Set<String>
         var newestRowId: Int
         var oldestRowId: Int
@@ -283,12 +286,12 @@ final class AppModel: ObservableObject {
         openId = id
         liveBuffers = [:]
         if let c = caches[id] {
-            durableBlocks = c.durableBlocks; durableBlockIds = c.durableBlockIds
+            durableRows = c.durableRows; durableBlockIds = c.durableBlockIds
             newestRowId = c.newestRowId; oldestRowId = c.oldestRowId; hasOlder = c.hasOlder
             recompute()                 // instant render from cache — no reload-from-scratch
             await fetchDelta()          // append only the new rows
         } else {
-            durableBlocks = [:]; durableBlockIds = []
+            durableRows = [:]; durableBlockIds = []
             newestRowId = 0; oldestRowId = 0; hasOlder = false
             transcript = []
             await fetchNewest()
@@ -298,7 +301,7 @@ final class AppModel: ObservableObject {
     // Snapshot the durable transcript into the cache so the next open is instant; keep the cache.
     func closeWorker(_ id: String) {
         guard openId == id else { return }
-        caches[id] = TranscriptCache(durableBlocks: durableBlocks, durableBlockIds: durableBlockIds,
+        caches[id] = TranscriptCache(durableRows: durableRows, durableBlockIds: durableBlockIds,
                                      newestRowId: newestRowId, oldestRowId: oldestRowId, hasOlder: hasOlder)
         openId = nil
         liveBuffers = [:]
@@ -353,12 +356,24 @@ final class AppModel: ObservableObject {
             guard let rid = r["id"]?.intValue else { continue }
             newestRowId = max(newestRowId, rid)
             oldestRowId = oldestRowId == 0 ? rid : min(oldestRowId, rid)
-        }
-        for b in MessageNormalizer.normalize(rows, workerId: workerId) {
-            durableBlocks[b.id] = b
-            if let bid = b.blockId { durableBlockIds.insert(bid); liveBuffers[bid] = nil } // flicker-free handoff
+            durableRows[String(rid)] = r
         }
         recompute()
+    }
+
+    // The durable blockIds present in the loaded rows — drops the matching live buffer so the
+    // live→durable handoff is flicker-free (an agent_event message block or a jsonl block carries it).
+    private func collectDurableBlockIds() {
+        for r in durableRows.values {
+            let p = (r["payload"].flatMap { if case .string(let s) = $0 { return JSONValue.parse(s) } else { return $0 } }) ?? .null
+            if p["type"]?.stringValue == "message" {
+                for b in p["blocks"]?.arrayValue ?? [] {
+                    if let bid = b["blockId"]?.stringValue { durableBlockIds.insert(bid); liveBuffers[bid] = nil }
+                }
+            } else if let bid = p["blockId"]?.stringValue {
+                durableBlockIds.insert(bid); liveBuffers[bid] = nil
+            }
+        }
     }
 
     // agent:delta payload {workerId, blockId, channel, phase, text} — append to the live overlay.
@@ -385,21 +400,23 @@ final class AppModel: ObservableObject {
         }
     }
 
+    // Run the full event→block pipeline over ALL durable rows (spec 03 §4), then overlay the live
+    // streaming buffers. The overlay MERGE is the Phase-4b render-time step (§4.10) — for now only
+    // live thinking/text is appended (optimistic bubbles / live terminal / goal-check land in 4b);
+    // this is where the full StreamingBuffers merge plugs in.
     private func recompute() {
-        var all = Array(durableBlocks.values)
-        for buf in liveBuffers.values {
+        durableBlockIds = []
+        collectDurableBlockIds()
+        let rows = Array(durableRows.values)
+        var all = MessageNormalizer.buildBlocks(rows, workerId: openId ?? "")
+        for buf in liveBuffers.values where !durableBlockIds.contains(buf.blockId) {
+            let payload: Block.Payload = buf.channel == "reasoning"
+                ? .thinking(text: buf.text) : .assistant(text: buf.text)
             all.append(Block(id: "live:\(buf.blockId)", workerId: openId ?? "", blockId: buf.blockId,
-                             kind: buf.channel == "reasoning" ? .thinking : .assistant,
-                             ts: buf.ts, text: buf.text, raw: .null))
+                             ts: buf.ts, live: true, payload: payload))
         }
-        transcript = all.sorted { a, b in
-            if a.ts != b.ts { return a.ts < b.ts }
-            let an = rowNum(a.id), bn = rowNum(b.id)
-            return an != bn ? an < bn : a.id < b.id
-        }
+        transcript = sortBlocksByTs(all)
     }
-
-    private func rowNum(_ id: String) -> Int { Int(id.prefix(while: { $0.isNumber })) ?? 0 }
 }
 
 // WSConnection delegate — fold incoming frames into the store on the main actor.

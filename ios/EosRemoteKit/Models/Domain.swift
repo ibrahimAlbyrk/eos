@@ -29,24 +29,4 @@ public struct Pending: Identifiable, Sendable, Equatable {
     public static func == (a: Pending, b: Pending) -> Bool { a.raw == b.raw }
 }
 
-// One normalized transcript block — the union of both event taxonomies (design §5.2,
-// port of messageParser.js normalizeEvents). `kind` drives the ~16 render variants.
-public struct Block: Identifiable, Sendable, Equatable {
-    public enum Kind: String, Sendable {
-        case user, assistant, thinking, tool, toolGroup, agentRun, report, directive
-        case peerRequest, loop, terminal, deliveryFailed, cleared, push, pull, worktreePreserved
-        case hook, exit, jsonl, unknown
-    }
-    public let id: String
-    public let workerId: String
-    public let blockId: String?
-    public let kind: Kind
-    public let ts: Double
-    public let text: String?
-    public let raw: JSONValue
-
-    public init(id: String, workerId: String, blockId: String?, kind: Kind, ts: Double, text: String?, raw: JSONValue) {
-        self.id = id; self.workerId = workerId; self.blockId = blockId
-        self.kind = kind; self.ts = ts; self.text = text; self.raw = raw
-    }
-}
+// The transcript `Block` model lives in Block.swift (spec 03 §4.2 — the typed-payload rewrite).

@@ -22,7 +22,7 @@ struct WorkerDetailView: View {
                         .padding(.vertical, EosSpacing.xs)
                         .onAppear { Task { await model.loadOlder() } }
                 }
-                ForEach(model.transcript) { BlockView(block: $0).id($0.id) }
+                ForEach(model.transcript) { MessageView(block: $0).id($0.id) }
                 TranscriptFoot()
             }
             .padding(.horizontal, EosSpacing.screenInset)
