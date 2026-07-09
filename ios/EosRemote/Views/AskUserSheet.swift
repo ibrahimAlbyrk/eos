@@ -18,17 +18,20 @@ struct AskUserSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section { Text(question).font(.body) }
+                Section { Text(question).font(EosFont.bodySerif).foregroundStyle(EosColor.ink) }
                 if !options.isEmpty {
                     Section("Options") {
                         ForEach(options, id: \.self) { opt in
                             Button { toggle(opt) } label: {
                                 HStack {
-                                    Text(opt)
+                                    Text(opt).font(EosFont.body).foregroundStyle(EosColor.ink)
                                     Spacer()
-                                    if selected.contains(opt) { Image(systemName: "checkmark") }
+                                    if selected.contains(opt) {
+                                        Image(systemName: "checkmark").foregroundStyle(EosColor.coral)
+                                    }
                                 }
                             }
+                            .accessibilityAddTraits(selected.contains(opt) ? [.isSelected] : [])
                         }
                     }
                 }
@@ -36,19 +39,27 @@ struct AskUserSheet: View {
                     TextField("Free text…", text: $freeText, axis: .vertical).lineLimit(1...5)
                 }
             }
-            .navigationTitle("Question")
+            .scrollContentBackground(.hidden)
+            .background(EosColor.bg)
+            .navigationTitle("")
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Question").font(EosFont.titleSerif).foregroundStyle(EosColor.ink)
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Send") {
+                    PillButton("Send", style: .primary) {
                         var answers = Array(selected)
                         if !freeText.trimmingCharacters(in: .whitespaces).isEmpty { answers.append(freeText) }
                         Task { await model.answerQuestion(workerId: workerId, toolUseId: toolUseId, answers: answers) }
                         dismiss()
-                    }.disabled(selected.isEmpty && freeText.trimmingCharacters(in: .whitespaces).isEmpty)
+                    }
+                    .opacity(selected.isEmpty && freeText.trimmingCharacters(in: .whitespaces).isEmpty ? 0.35 : 1)
+                    .disabled(selected.isEmpty && freeText.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
         }
+        .presentationBackground(EosColor.bg)
     }
 
     private func toggle(_ opt: String) {

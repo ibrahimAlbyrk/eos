@@ -1,59 +1,74 @@
 import SwiftUI
 import EosRemoteKit
 
-// Worker detail (design §5.3): live transcript + streaming thinking, inline Approve/Deny + ask_user
-// card, a composer → POST message, interrupt. Transcript blocks render the ~16 normalized kinds.
+// Worker detail (spec 02 §3.5): paper background, the transcript body (the lightly-recolored BlockView
+// — the full Phase-4 renderer is NOT this phase), and the Composer primitive in place of the old
+// composer. Keeps AppModel.openWorker/closeWorker, backward paging, and .defaultScrollAnchor(.bottom).
+// Top chrome here is hamburger + Interrupt (stop.circle).
 struct WorkerDetailView: View {
     @EnvironmentObject var model: AppModel
     let workerId: String
     @State private var draft = ""
 
     private var worker: Worker? { model.workers.first { $0.id == workerId } }
+    private var name: String { worker?.name ?? workerId }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 8) {
-                    if model.hasOlder {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .onAppear { Task { await model.loadOlder() } }
-                    }
-                    ForEach(model.transcript) { BlockView(block: $0).id($0.id) }
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: EosSpacing.md) {
+                if model.hasOlder {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, EosSpacing.xs)
+                        .onAppear { Task { await model.loadOlder() } }
                 }
-                .padding(.horizontal)
+                ForEach(model.transcript) { BlockView(block: $0).id($0.id) }
+                TranscriptFoot()
             }
-            // Bottom anchor lands the newest message on open (framework computes the offset at layout,
-            // so it survives the LazyVStack incremental race the old runloop hack lost to) and, on growth,
-            // holds the bottom-relative position: follows new tail messages when parked at the bottom,
-            // but leaves the reading spot untouched when scrolled up into history.
-            .defaultScrollAnchor(.bottom)
-            .task(id: workerId) { await model.openWorker(workerId) }
-            composer
+            .padding(.horizontal, EosSpacing.screenInset)
         }
-        .navigationTitle(worker?.name ?? workerId)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { Task { await model.interrupt(workerId) } } label: { Image(systemName: "stop.circle") }
-            }
-        }
+        // Bottom anchor lands the newest message on open and holds the bottom-relative position on
+        // growth (follows the tail at the bottom, leaves the reading spot when scrolled up).
+        .defaultScrollAnchor(.bottom)
+        .task(id: workerId) { await model.openWorker(workerId) }
         .onDisappear { model.closeWorker(workerId) }
+        .background(EosColor.bg)
+        .eosTopChrome {
+            CircularIconButton(systemName: "stop.circle", diameter: 40, accessibilityLabel: "Interrupt") {
+                Task { await model.interrupt(workerId) }
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            Composer(text: $draft, placeholder: "Reply to \(name)",
+                     model: worker?.model ?? "", effort: worker?.effort,
+                     onModelTap: {}, onPlus: {}, onMic: nil,
+                     trailing: draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ? .voice({})
+                        : .send(send, enabled: true))
+                .padding(.horizontal, EosSpacing.screenInset)
+                .padding(.bottom, EosSpacing.xs)
+        }
     }
 
-    private var composer: some View {
-        HStack(spacing: 8) {
-            TextField("Message…", text: $draft, axis: .vertical)
-                .textFieldStyle(.roundedBorder)
-                .lineLimit(1...4)
-            Button {
-                let text = draft; draft = ""
-                Task { await model.sendMessage(to: workerId, text: text) }
-            } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
-                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    private func send() {
+        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        draft = ""
+        Task { await model.sendMessage(to: workerId, text: text) }
+    }
+}
+
+// Transcript foot (spec 02 §3.5): the small Sunburst + an Eos-domain AI disclaimer (the risk here is
+// actions taken, not answers).
+struct TranscriptFoot: View {
+    var body: some View {
+        HStack(spacing: EosSpacing.xxs) {
+            Sunburst().fill(EosColor.coral).frame(width: 13, height: 13)
+                .accessibilityHidden(true)
+            Text("Eos runs autonomous agents and can make mistakes. Review actions before approving.")
+                .font(EosFont.caption)
+                .foregroundStyle(EosColor.inkTertiary)
         }
-        .padding(8)
-        .background(.thinMaterial)
+        .padding(.vertical, EosSpacing.md)
     }
 }

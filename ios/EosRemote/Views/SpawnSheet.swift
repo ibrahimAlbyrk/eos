@@ -39,15 +39,22 @@ struct SpawnSheet: View {
                     TextField("toolsDeny (comma-sep)", text: $toolsDeny)
                 }
             }
-            .navigationTitle("Spawn")
+            .scrollContentBackground(.hidden)
+            .background(EosColor.bg)
+            .navigationTitle("")
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Spawn worker").font(EosFont.titleSerif).foregroundStyle(EosColor.ink)
+                }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Spawn") { Task { await spawn() }; dismiss() }
+                    PillButton("Spawn", style: .primary) { Task { await spawn() }; dismiss() }
+                        .opacity(prompt.trimmingCharacters(in: .whitespaces).isEmpty ? 0.35 : 1)
                         .disabled(prompt.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
             }
         }
+        .presentationBackground(EosColor.bg)
     }
 
     private func spawn() async {

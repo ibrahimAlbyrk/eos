@@ -21,12 +21,18 @@ struct PairingView: View {
                     ProgressView().padding()
                 }
                 Text(status)
-                    .font(.callout).foregroundStyle(.secondary)
+                    .font(EosFont.caption).foregroundStyle(EosColor.inkSecondary)
                     .multilineTextAlignment(.center).padding()
             }
-            .navigationTitle("Pair device")
+            .background(EosColor.bg)
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text("Pair device").font(EosFont.titleSerif).foregroundStyle(EosColor.ink)
+                }
+                ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } }
+            }
             // Show why reconnect fell back to pairing (exact step + wire code), since on-device log
             // capture needs root. Reportable straight off the screen.
             .onAppear {
