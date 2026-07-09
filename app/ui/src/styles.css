@@ -7756,7 +7756,10 @@ html:not([data-theme="light"]) .fv-editor--md {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 12px;
+  /* 14px matches the left Agents sidebar's content column (.agents-section 8px
+     gutter + .agents-row 6px = 14px) so the header icon/text line up with the
+     panel's file-row text below, instead of hugging the edge at 12px. */
+  padding: 0 14px;
   height: var(--ph-h, 38px);
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
