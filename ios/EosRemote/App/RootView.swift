@@ -27,6 +27,8 @@ struct RootView: View {
                             PendingListView().eosTopChrome { EmptyView() }.navigationBarHidden(true)
                         } else {
                             WorkerDetailView(workerId: id).navigationBarHidden(true)
+                                // AgentLink taps (spec 03 §9) push the referenced worker onto the stack.
+                                .environment(\.selectWorker) { openWorker($0) }
                         }
                     }
             }

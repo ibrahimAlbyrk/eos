@@ -1,10 +1,11 @@
 import SwiftUI
 import EosRemoteKit
 
-// Transcript dispatcher (spec 03 §1). Switches on the typed `Block.Payload`. Phase 4b-i wires the
-// three TEXT centerpiece kinds — user / assistant / thinking — to their rich views (§5.1/5.5, blur-in
-// §6.1). The remaining kinds (tool / toolGroup / agentRun / report / …) stay CRUDE and keep their
-// `// Phase 4b:` markers for 4b-ii.
+// Transcript dispatcher (spec 03 §1). Switches on the typed `Block.Payload`. Phase 4b-i wired the three
+// TEXT centerpiece kinds (user / assistant / thinking); 4b-ii wires the Tier-1 TOOL / AGENT / REPORT
+// tier — the universal tool chrome + detail bodies, diff hunks, tool groups, agent blocks, and the
+// report/directive/peer rows (§5.3, §2.1/2.7, §5.8, §1 #4/#6/#7/#8/#9). The remaining kinds
+// (terminal / loopCheck / git / system / worktree) stay CRUDE with `// Phase 4c:` markers.
 struct MessageView: View {
     let block: Block
 
@@ -17,78 +18,49 @@ struct MessageView: View {
         case .thinking:
             ThinkingLineView(block: block)                              // §1 #3 · mono streaming reveal
         case .tool(let tool):
-            toolRow(tool)                                       // Phase 4b: ToolItemView chrome + Detail bodies
+            ToolItemView(tool: tool)                                    // §1 #5 · §5.3 chrome + Detail bodies
         case .toolGroup(_, let summary, let tools):
-            toolGroup(summary, tools)                           // Phase 4b: ToolGroupView disclosure
+            ToolGroupView(summary: summary, tools: tools)               // §1 #4 · §5.3 group disclosure
         case .agentRun(let run):
-            agentRun(run)                                       // Phase 4b: AgentBlockView + AgentViewerSheet
-        case .report(let text, _, let workerName):
-            labeledRow("doc.text", "Report" + (workerName.map { " from \($0)" } ?? ""), text, EosColor.State.runningDot)
-        case .directive(let text, _, let parentName):
-            labeledRow("arrow.down.circle", "Message" + (parentName.map { " from \($0)" } ?? ""), text, EosColor.coral)
-        case .peerRequest(let text, _, let fromName):
-            labeledRow("person.2", "Peer request" + (fromName.map { " from \($0)" } ?? ""), text, EosColor.State.infoDot)
+            AgentBlockView(run: run)                                    // §1 #6 · AgentBlock + AgentViewerSheet
+        case .report(let text, let fromWorker, let workerName):
+            MessageRowView(ts: block.ts, copyText: text, workerId: block.workerId) {
+                MessageReportView(mode: .report, text: text,
+                                  agent: AgentRef(id: fromWorker, name: workerName))  // §1 #7
+            }
+        case .directive(let text, let fromParent, let parentName):
+            MessageRowView(ts: block.ts, copyText: text, workerId: block.workerId) {
+                MessageReportView(mode: .directive, text: text,
+                                  agent: AgentRef(id: fromParent, name: parentName))  // §1 #8
+            }
+        case .peerRequest(let text, let fromWorker, let fromName):
+            MessageRowView(ts: block.ts, copyText: text, workerId: block.workerId) {
+                MessageReportView(mode: .peerRequest, text: text,
+                                  agent: AgentRef(id: fromWorker, name: fromName))    // §1 #9
+            }
         case .loop(let text):
+            // Phase 4c: MessageLoopView collapsible system row (§1 #10).
             labeledRow("arrow.triangle.2.circlepath", "Dynamic loop", text, EosColor.State.waitingDot)
         case .loopCheck(let check):
-            loopCheckLine(check)
+            loopCheckLine(check)                                        // Phase 4c: LoopCheckLineView (§1 #11)
         case .terminal(let term):
-            terminalCard(term)                                  // Phase 4b: TerminalCardView live-tail + spinner
+            terminalCard(term)                                         // Phase 4c: TerminalCardView live-tail (§1 #12)
         case .deliveryFailed(let text):
-            systemLine("exclamationmark.triangle", "message was not delivered — \"\(text)\"", EosColor.State.failedDot)
+            systemLine("exclamationmark.triangle", "message was not delivered — \"\(text)\"", EosColor.State.failedDot)  // Phase 4c
         case .cleared:
-            systemLine("scissors", "conversation cleared", EosColor.inkTertiary)
+            systemLine("scissors", "conversation cleared", EosColor.inkTertiary)                                        // Phase 4c
         case .turnError(_, let message):
-            systemLine("exclamationmark.triangle", message, EosColor.State.failedDot)
+            systemLine("exclamationmark.triangle", message, EosColor.State.failedDot)                                   // Phase 4c
         case .gitPush(let ok, let message, let branch):
-            gitLine(ok ? "arrow.up" : "exclamationmark.triangle", message, branch, ok)
+            gitLine(ok ? "arrow.up" : "exclamationmark.triangle", message, branch, ok)                                  // Phase 4c
         case .gitPull(let ok, let message, let branch):
-            gitLine(ok ? "arrow.down" : "exclamationmark.triangle", message, branch, ok)
+            gitLine(ok ? "arrow.down" : "exclamationmark.triangle", message, branch, ok)                                // Phase 4c
         case .worktreePreserved(let path, let branch, let diffStat):
-            worktreePreserved(path, branch, diffStat)
+            worktreePreserved(path, branch, diffStat)                  // Phase 4c: WorktreePreservedView (§1 #18)
         }
     }
 
-    // A single tool: verb + name + running/failed hint. Phase 4b upgrades to the full chrome.
-    private func toolRow(_ tool: Tool) -> some View {
-        let failed = failureKind(tool)
-        return HStack(spacing: EosSpacing.xxs) {
-            Image(systemName: "wrench.and.screwdriver").foregroundStyle(EosColor.State.infoDot).font(.caption)
-            Text(tool.running ? "Running" : "Used").foregroundStyle(EosColor.inkSecondary)
-            Text(toolDisplayName(tool.name)).fontWeight(.semibold).foregroundStyle(EosColor.ink)
-            if let failed { Text(failed.rawValue.uppercased()).font(EosFont.captionSmall).foregroundStyle(EosColor.State.failedDot) }
-            Spacer(minLength: 0)
-        }
-        .font(EosFont.caption)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // A tool group: the summary line + a crude list of member tools.
-    private func toolGroup(_ summary: String, _ tools: [Tool]) -> some View {
-        VStack(alignment: .leading, spacing: EosSpacing.xxs) {
-            Label(summary.isEmpty ? "\(tools.count) tools" : summary, systemImage: "wrench.and.screwdriver")
-                .font(EosFont.caption).foregroundStyle(EosColor.inkSecondary)
-            ForEach(tools) { t in
-                Text("· \(toolDisplayName(t.name))")
-                    .font(EosFont.captionSmall).foregroundStyle(EosColor.inkTertiary)
-                    .padding(.leading, EosSpacing.sm)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func agentRun(_ run: AgentRun) -> some View {
-        VStack(alignment: .leading, spacing: EosSpacing.xxs) {
-            Label(run.status == "running" ? "Running agent \(run.description)" : "Ran agent \(run.description)",
-                  systemImage: "sparkles")
-                .font(EosFont.caption).foregroundStyle(EosColor.inkSecondary)
-            if let result = run.result, !result.isEmpty {
-                Text(result).font(EosFont.caption).foregroundStyle(EosColor.inkSecondary)
-                    .lineLimit(3).padding(.leading, EosSpacing.sm)
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
+    // MARK: - Phase 4c crude renderers (kept until the Tier-2/3 cards land)
 
     private func loopCheckLine(_ check: LoopCheck) -> some View {
         let icon = check.met ? "checkmark" : (check.outcome == "escalated" ? "exclamationmark" : "circle.fill")
@@ -125,7 +97,6 @@ struct MessageView: View {
         .background(EosColor.surface, in: RoundedRectangle(cornerRadius: EosRadius.chip, style: .continuous))
     }
 
-    // A labeled report/directive/peer/loop row: bold label + body beneath.
     private func labeledRow(_ icon: String, _ label: String, _ body: String, _ color: Color) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Label(label, systemImage: icon).font(EosFont.caption).foregroundStyle(color)
@@ -151,13 +122,5 @@ struct MessageView: View {
         }
         .font(EosFont.mono)
         .frame(maxWidth: .infinity, alignment: .center)
-    }
-
-    // Humanize an MCP tool name for the crude row (Phase 4b: the real per-tool label registry).
-    private func toolDisplayName(_ name: String) -> String {
-        if let last = name.components(separatedBy: "__").last, name.hasPrefix("mcp__") {
-            return last.replacingOccurrences(of: "_", with: " ")
-        }
-        return name
     }
 }

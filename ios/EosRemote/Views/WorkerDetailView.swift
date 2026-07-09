@@ -26,6 +26,10 @@ struct WorkerDetailView: View {
                         .onAppear { Task { await model.loadOlder() } }
                 }
                 ForEach(model.transcript) { MessageView(block: $0).id($0.id) }
+                // Activity anchor under the latest reply (spec 03 §6.2): animated spark + elapsed while
+                // busy, static when idle.
+                ProcessingLineView(busy: model.isBusy(workerId))
+                    .padding(.top, EosSpacing.xxs)
                 TranscriptFoot()
             }
             .padding(.horizontal, EosSpacing.screenInset)

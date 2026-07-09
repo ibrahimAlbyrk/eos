@@ -49,6 +49,12 @@ final class AppModel: ObservableObject {
     private var deltaFetching = false
     private var deltaPending = false
 
+    // Optimistic user bubbles (spec 03 §4.10 #1): a just-sent message shows immediately as a dimmed
+    // user(optimistic:true) block, keyed by clientMsgId, until its durable user_message row lands and
+    // recompute() prunes it by matching text. Live-terminal (#2) + goal-check (#4) overlays stay for 4c.
+    private struct OptimisticBubble { let text: String; let clientMsgId: String; let ts: Double; let workerId: String }
+    private var optimisticBubbles: [OptimisticBubble] = []
+
     // Per-worker durable transcript, retained across close/reopen so reopening never reloads from
     // scratch: openWorker restores instantly from here, then fetches ONLY rows after newestRowId.
     private var caches: [String: TranscriptCache] = [:]
@@ -82,12 +88,26 @@ final class AppModel: ObservableObject {
     var orchestrators: [Worker] { workers.filter { $0.isOrchestrator } }
     var plainWorkers: [Worker] { workers.filter { !$0.isOrchestrator } }
 
+    // Is a worker actively taking a turn? Drives the ProcessingLineView spark (spec 03 §6.2) — animated
+    // + elapsed while WORKING/SPAWNING/ENDING, static (frozen peak) when idle.
+    func isBusy(_ id: String) -> Bool {
+        guard let w = workers.first(where: { $0.id == id }) else { return false }
+        switch w.state { case "WORKING", "SPAWNING", "ENDING", "KILLING": return true; default: return false }
+    }
+
     // MARK: control actions (tunneled REST)
 
     func sendMessage(to id: String, text: String, queueWhenBusy: Bool = true) async {
+        let clientMsgId = UUID().uuidString
+        // Optimistic bubble: show the sent text instantly (dimmed) while the durable row round-trips.
+        if openId == id {
+            optimisticBubbles.append(OptimisticBubble(text: text, clientMsgId: clientMsgId,
+                                                      ts: Date().timeIntervalSince1970 * 1000, workerId: id))
+            recompute()
+        }
         let body: JSONValue = .object([
             "text": .string(text),
-            "clientMsgId": .string(UUID().uuidString),
+            "clientMsgId": .string(clientMsgId),
             "queueWhenBusy": .bool(queueWhenBusy),
         ])
         await control("POST", "/workers/\(id)/message", body)
@@ -309,6 +329,7 @@ final class AppModel: ObservableObject {
     func openWorker(_ id: String) async {
         openId = id
         liveBuffers = [:]
+        optimisticBubbles.removeAll { $0.workerId != id }
         if let c = caches[id] {
             durableRows = c.durableRows; durableBlockIds = c.durableBlockIds
             newestRowId = c.newestRowId; oldestRowId = c.oldestRowId; hasOlder = c.hasOlder
@@ -429,8 +450,9 @@ final class AppModel: ObservableObject {
     // a reasoning-channel buffer with no durable block → a thinking(live:true) block whose streaming
     // tail blur-ins in ThinkingLineView. (The reasoning channel is overlaid; the assistant text channel
     // stays overlaid here as a live block only until its durable row lands — §4.10 #3 notes the durable
-    // assistant block is what blurs in.) Optimistic-user (#1) and live-terminal (#2) overlays are 4b-ii,
-    // wired once the terminal card + outbox land; this is their plug point.
+    // assistant block is what blurs in.) 4b-ii also wires the OPTIMISTIC-USER overlay (§4.10 #1): a
+    // just-sent bubble renders dimmed until its durable user_message row lands. Live-terminal (#2) +
+    // goal-check (#4) overlays stay for Phase 4c; this is their plug point.
     private func recompute() {
         durableBlockIds = []
         collectDurableBlockIds()
@@ -441,6 +463,17 @@ final class AppModel: ObservableObject {
                 ? .thinking(text: buf.text) : .assistant(text: buf.text)
             all.append(Block(id: "live:\(buf.blockId)", workerId: openId ?? "", blockId: buf.blockId,
                              ts: buf.ts, live: true, payload: payload))
+        }
+        // Prune optimistic bubbles whose durable user block has arrived (matched by trimmed text), then
+        // overlay the rest as dimmed user(optimistic:true) blocks (§4.10 #1).
+        let durableUserTexts = Set(all.compactMap { b -> String? in
+            if case let .user(t, _) = b.payload { return t.trimmingCharacters(in: .whitespacesAndNewlines) }
+            return nil
+        })
+        optimisticBubbles.removeAll { durableUserTexts.contains($0.text.trimmingCharacters(in: .whitespacesAndNewlines)) }
+        for bubble in optimisticBubbles where bubble.workerId == openId {
+            all.append(Block(id: "optimistic:\(bubble.clientMsgId)", workerId: bubble.workerId,
+                             ts: bubble.ts, payload: .user(text: bubble.text, optimistic: true)))
         }
         transcript = sortBlocksByTs(all)
     }
