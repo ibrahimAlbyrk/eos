@@ -20,8 +20,9 @@ import { WsBridge, type RemoteSession, type ServerFrame } from "./WsBridge.ts";
 import type { RemoteAuditLog } from "./audit.ts";
 
 // Every relay session holds the full capability set — "mutate" gates the local
-// ui-token for ✦ routes, "highrisk" gates HIGH routes. There is no step-up tier
-// to withhold anymore (no SE key), so a joined device gets them all.
+// ui-token for ✦ routes. "highrisk" is retained for completeness but is no longer
+// checked in dispatch (HIGH routes pass for any joined session); there is no
+// step-up tier to withhold anymore (no SE key), so a joined device gets them all.
 export const SESSION_CAPS = ["read", "lowrisk", "mutate", "highrisk"] as const;
 
 export interface GatewayDeps {

@@ -64,14 +64,6 @@ export class RelayConnector {
     return true;
   }
 
-  allowAdd(hash: string): void { this.relayctl("allow-add", hash); }
-  allowRemove(hash: string): void { this.relayctl("allow-remove", hash); }
-
-  private relayctl(t: "allow-add" | "allow-remove", hash: string): void {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
-    this.ws.send(encodeJsonEnvelope({ type: FrameType.relayctl, room: this.deps.room, json: { t, room: this.deps.room, hash } }));
-  }
-
   private dial(): void {
     if (this.state === "stopped") return;
     this.state = "connecting";

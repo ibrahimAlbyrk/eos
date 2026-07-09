@@ -202,13 +202,6 @@ final class AppModel: ObservableObject {
         return .disconnected
     }
 
-    // Explicit Disconnect/Unpair from the (stub) Devices screen. With multiple devices this removes
-    // the ACTIVE one — matching the old single-device "forget these creds" semantics.
-    func disconnect() async {
-        guard let id = activeDeviceId else { needsPairing = true; return }
-        await removeDevice(id)
-    }
-
     // MARK: scene lifecycle — fan out to every device
 
     func enterForeground() async {
