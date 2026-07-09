@@ -93,10 +93,10 @@ async function del(path, extraHeaders) {
   return { ok: r.ok, status: r.status, body: parsed };
 }
 
-async function putJson(path, body) {
+async function putJson(path, body, extraHeaders) {
   const r = await fetch(`${DAEMON}${path}`, {
     method: "PUT",
-    headers: JSON_HEADERS,
+    headers: extraHeaders ? { ...JSON_HEADERS, ...extraHeaders } : JSON_HEADERS,
     body: JSON.stringify(body ?? {}),
   });
   let parsed = null;
@@ -656,6 +656,24 @@ export const api = {
   },
   async patchArchiveConfig(patch) {
     return putJson(ROUTES.settingsArchive, patch);
+  },
+
+  // Remote access (iOS relay v3) — all four routes are loopback + ui-token gated.
+  // status is a read; setRemoteConfig persists config.remote to config.json, arm
+  // reloads+reconciles the edge live, pair mints the v3 QR from the armed room.
+  // getJson takes a headers override; the mutations ride putJson/postJson + token.
+  async getRemoteStatus() {
+    const r = await getJson(ROUTES.remoteStatus, { headers: uiTokenHeader() });
+    return r.ok ? r.body : { enabled: false, armed: false };
+  },
+  async setRemoteConfig({ enabled, relay }) {
+    return putJson(ROUTES.remoteConfig, { enabled, relay }, uiTokenHeader());
+  },
+  async armRemote() {
+    return postJson(ROUTES.remoteArm, {}, uiTokenHeader());
+  },
+  async pairRemote() {
+    return postJson(ROUTES.remotePair, {}, uiTokenHeader());
   },
 
   // Auto-update — status is an open read; apply is uiToken-gated (an agent must

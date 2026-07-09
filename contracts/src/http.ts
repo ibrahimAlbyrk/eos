@@ -2214,6 +2214,10 @@ export const ROUTES = {
   remotePair: "/api/remote/pair",
   remoteStatus: "/api/remote/status",
   remoteArm: "/api/remote/arm",
+  // Persist config.remote ({ enabled, relay:{url} }) into ~/.eos/config.json — the
+  // app-facing WRITE the Settings toggle uses before arming (arm() reads config
+  // from disk). Field-merges into the `remote` key, then reloads.
+  remoteConfig: "/api/remote/config",
   // Add-provider write route: normalizes baseUrl to origin-only, requires a price
   // for a billed profile, writes the API key (by reference) to the Keychain, then
   // persists the profile to ~/.eos/config.json + reloads.

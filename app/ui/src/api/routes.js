@@ -142,6 +142,12 @@ export const ROUTES = {
   template: (name) => `/api/templates/${name}`,
   settings: "/api/settings",
   settingsArchive: "/api/settings/archive",
+  // Remote access (iOS relay v3) — loopback + ui-token only. status read; config
+  // write (persist config.remote); arm (reload+reconcile the edge); pair (mint QR).
+  remoteStatus: "/api/remote/status",
+  remoteConfig: "/api/remote/config",
+  remoteArm: "/api/remote/arm",
+  remotePair: "/api/remote/pair",
   updateStatus: "/api/updates/status",
   updateCheck: "/api/updates/check",
   updateApply: "/api/updates/apply",

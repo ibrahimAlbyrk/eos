@@ -11,6 +11,7 @@
 // of `groups` to render fully custom content.
 
 import { ModelSettings, MODEL_SETTING_DEFAULTS } from "./ModelSettings.jsx";
+import { RemoteSettings, REMOTE_SETTING_DEFAULTS } from "./RemoteSettings.jsx";
 
 const GeneralIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -51,6 +52,13 @@ const ModelIcon = () => (
     <rect x="5" y="5" width="14" height="14" rx="2" />
     <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
     <path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" />
+  </svg>
+);
+
+const RemoteIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 12.55a11 11 0 0 1 14 0M8.5 16.1a6 6 0 0 1 7 0M2 8.82a15 15 0 0 1 20 0" />
+    <path d="M12 20h.01" />
   </svg>
 );
 
@@ -177,6 +185,15 @@ export const SETTINGS_SECTIONS = [
     Component: ModelSettings,
   },
   {
+    id: "remote",
+    label: "Remote",
+    Icon: RemoteIcon,
+    // Custom Component: the iOS remote-access toggle + pairing QR. Drives the
+    // manager remote routes directly (config write → arm → pair); owns no
+    // settings.json keys (config.remote lives in config.json).
+    Component: RemoteSettings,
+  },
+  {
     id: "code",
     label: "Code",
     Icon: CodeIcon,
@@ -267,4 +284,6 @@ export const SETTING_DEFAULTS = {
   // The model section is a custom Component (no groups items), so its keys'
   // defaults are merged in explicitly.
   ...MODEL_SETTING_DEFAULTS,
+  // The remote section is likewise a custom Component (owns no settings.json keys).
+  ...REMOTE_SETTING_DEFAULTS,
 };

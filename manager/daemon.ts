@@ -124,6 +124,7 @@ registerRemoteRoutes(router, {
   getConfig: () => c.config,
   getGateway: () => remoteController?.current() ?? null,
   arm: () => { c.reloadConfig(); return remoteController?.reconcile() ?? { enabled: false, armed: false }; },
+  reloadConfig: () => c.reloadConfig(),
 });
 
 // Queue drain — queued dashboard messages dispatch when their worker reaches

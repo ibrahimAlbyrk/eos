@@ -33,7 +33,7 @@ const EXPECTED_KEYS = [
   "workflows", "workflowCatalog", "workflowDefinitions", "workflowRuns", "workflowRun",
   "workflowRunSteps", "workflowDefinition", "settings", "settingsArchive",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
-  "remotePair", "remoteStatus", "remoteArm",
+  "remotePair", "remoteStatus", "remoteArm", "remoteConfig",
   "apiBackends", "apiBackendPresets", "apiBackendModels", "apiBackendTest", "apiBackendDelete",
 ] as const;
 
