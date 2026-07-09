@@ -4,7 +4,7 @@ import SwiftUI
 struct EosRemoteApp: App {
     var body: some Scene {
         WindowGroup {
-            RootView()
+            RootView().eosTheme()
         }
     }
 }
