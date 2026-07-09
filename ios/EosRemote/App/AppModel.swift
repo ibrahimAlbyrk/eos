@@ -256,12 +256,10 @@ final class AppModel: ObservableObject {
     func answerQuestion(workerId: String, toolUseId: String, answers: [String]) async {
         await active?.answerQuestion(workerId: workerId, toolUseId: toolUseId, answers: answers)
     }
-    func kill(_ id: String) async { await active?.kill(id) }
     @discardableResult
     func rewind(workerId: String, text: String) async -> Bool {
         await active?.rewind(workerId: workerId, text: text) ?? false
     }
-    func spawnWorker(body: JSONValue) async { await active?.spawnWorker(body: body) }
     func approve(pendingId: String, allow: Bool) async { await active?.approve(pendingId: pendingId, allow: allow) }
 
     // MARK: forwarded transcript actions (target the active device)
@@ -294,6 +292,7 @@ final class AppModel: ObservableObject {
     func setPermissionMode(_ id: String, mode: String) async -> Bool {
         await active?.setPermissionMode(id, mode: mode) ?? false
     }
+    func addPolicyRule(tool: String) async { await active?.addPolicyRule(tool: tool) }
     func setName(_ id: String, name: String?) async -> Bool {
         await active?.setName(id, name: name) ?? false
     }

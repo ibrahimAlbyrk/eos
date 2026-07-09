@@ -138,8 +138,6 @@ final class DeviceConnection: NSObject {
         await control("POST", "/workers/\(workerId)/question-answer", body)
     }
 
-    func kill(_ id: String) async { await control("DELETE", "/workers/\(id)", .object([:])) }
-
     @discardableResult
     func rewind(workerId: String, text: String) async -> Bool {
         guard let connection else { setError("not connected"); return false }
@@ -159,7 +157,6 @@ final class DeviceConnection: NSObject {
         return true
     }
 
-    func spawnWorker(body: JSONValue) async { await control("POST", "/workers", body) }
     func approve(pendingId: String, allow: Bool) async {
         await control("POST", "/pending/\(pendingId)/decision",
                       .object(["decision": .string(allow ? "allow" : "deny")]))
@@ -214,6 +211,11 @@ final class DeviceConnection: NSObject {
 
     func setPermissionMode(_ id: String, mode: String) async -> Bool {           // PUT /workers/:id/permission
         await controlReply("PUT", "/workers/\(id)/permission", .object(["mode": .string(mode)])) != nil
+    }
+
+    func addPolicyRule(tool: String) async {                      // POST /api/policy/rule — "Always allow"
+        await control("POST", "/api/policy/rule",
+                      .object(["tool": .string(tool), "behavior": .string("allow")]))
     }
 
     func setName(_ id: String, name: String?) async -> Bool {     // PUT /workers/:id/name — null resets to auto-name

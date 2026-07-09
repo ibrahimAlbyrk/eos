@@ -1,20 +1,22 @@
 import SwiftUI
 
-// Which root surface the drawer selects (spec 02 §3.1/§3.2). Drives RootView's root content.
-enum SidebarSection: String { case fleet, pending, devices, settings }
+// Which root surface the drawer selects (contract §B1). Drives RootView's root content.
+enum SidebarSection: String { case code, devices }
 
 // Presentational-only shell state shared between the drawer, its container, and the per-screen top
-// chrome (spec 02 §3.4 shows `sidebar.isOpen = true`). Kept separate from AppModel — this holds no
-// domain data, only which section is selected and whether the drawer is open.
+// chrome. Kept separate from AppModel — this holds no domain data, only which section is selected
+// and whether the drawer is open.
 @MainActor final class SidebarState: ObservableObject {
     @Published var isOpen = false
-    @Published var section: SidebarSection = .fleet
+    @Published var section: SidebarSection = .code
 }
 
-// The left drawer that slides the current screen right, revealing a rounded-corner "peek" behind a
-// dim scrim (spec 02 §3.1). Not a NavigationSplitView — a custom overlay wrapping the existing
-// NavigationStack. Edge-gated drag-to-open that does NOT steal NavigationStack back-swipes or List
-// scrolls; interactive spring with a Reduce-Motion fallback.
+// The left drawer that slides the current screen right, revealing the drawer behind a dim scrim.
+// Contract §C1/D-18: the drawer is opaque and full-height edge-to-edge — no glass panel, no corner
+// radius on the drawer itself (DrawerView paints its own bg and handles the safe area, §E3). Main
+// content offsets right by the drawer width, clipped to a progress-driven corner + scrim. Edge-gated
+// drag-to-open that does NOT steal NavigationStack back-swipes or List scrolls; interactive spring
+// with a Reduce-Motion fallback.
 struct SidebarContainer<Sidebar: View, Content: View>: View {
     @EnvironmentObject private var sidebar: SidebarState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -30,9 +32,9 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
     @State private var dragX: CGFloat = 0
     @State private var containerWidth: CGFloat = 0
 
-    private var drawerWidth: CGFloat { min(containerWidth * 0.82, 340) }
+    private var drawerWidth: CGFloat { min(containerWidth * 0.85, 360) }
     // The revealed main content rounds to ≈ the physical screen corner so the peek edge sits
-    // concentric with the device (bug 2, §3.1). 39 is a safe modern-iPhone value.
+    // concentric with the device. 39 is a safe modern-iPhone value.
     private let deviceCornerRadius: CGFloat = 39
 
     // Offset while dragging is clamped to the drawer's width; when open (not dragging) it rests at
@@ -45,20 +47,19 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            // 0) BASE — dark bleeds under the notch/home-indicator even before content paints (bug 1).
+            // 0) BASE — dark bleeds under the notch/home-indicator even before content paints.
             EosColor.bg.ignoresSafeArea()
 
-            // 1) DRAWER — one Liquid Glass panel, pinned left, fixed width; its rows are content on the
-            //    glass (no glass-on-glass). The dimmed main content shows through (doc 04 §3.4).
+            // 1) DRAWER — opaque, pinned left, fixed width, full-height edge-to-edge (§C1). The
+            //    DrawerView ignores the safe area itself and re-applies the insets manually (§E3).
             sidebarContent
                 .frame(width: drawerWidth)
                 .frame(maxHeight: .infinity, alignment: .top)
-                .glassEffect(.regular, in: .rect(cornerRadius: 24, style: .continuous))
                 .accessibilityFocused($focusInSidebar)
                 .accessibilityHidden(!sidebar.isOpen)
 
             // 2) MAIN — offset right when open, corner rounds AS it opens (progress-driven), scrim on
-            //    top. Scale dropped (decision #2) — the glass drawer reads cleaner without the seam.
+            //    top. No scale — the drawer reads cleaner without the seam.
             content
                 .clipShape(RoundedRectangle(cornerRadius: deviceCornerRadius * progress, style: .continuous))
                 .overlay(scrim)
@@ -71,10 +72,10 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
                 .onChange(of: geo.size.width) { _, w in containerWidth = w }
         })
         .gesture(edgeDrag)
-        .animation(reduceMotion ? .none : .interactiveSpring(response: 0.35, dampingFraction: 0.86), value: sidebar.isOpen)
-        .animation(reduceMotion ? .none : .interactiveSpring(response: 0.35, dampingFraction: 0.86), value: dragX)
+        .animation(reduceMotion ? .none : EosSpring.drawer, value: sidebar.isOpen)
+        .animation(reduceMotion ? .none : EosSpring.drawer, value: dragX)
         .onChange(of: sidebar.isOpen) { _, open in
-            // Move VoiceOver focus into the drawer on open (spec 02 §4.2 focus management).
+            // Move VoiceOver focus into the drawer on open.
             if open { DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { focusInSidebar = true } }
         }
     }
@@ -90,7 +91,7 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
 
     // Edge-gated: only translate when the drag starts in the screen-left gutter (< 24pt) or the
     // drawer is already open. Otherwise pass through so NavigationStack back-swipes and List scrolls
-    // keep working (spec 02 §3.1).
+    // keep working.
     private var edgeDrag: some Gesture {
         DragGesture(minimumDistance: 10)
             .onChanged { value in
