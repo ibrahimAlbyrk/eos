@@ -15,6 +15,11 @@ public struct Worker: Identifiable, Sendable, Equatable {
     // Backend lane (claude-cli / claude-sdk / metered). Drives capability gates (rewind, §5.2).
     public var backendKind: String { raw["backend_kind"]?.stringValue ?? raw["backendKind"]?.stringValue ?? "claude-cli" }
 
+    // The spawning orchestrator's id + this worker's boot prompt (WorkerRowSchema.parent_id/prompt).
+    // Together they gate the top-of-transcript TaskFromView (spec 03 §1 MessageTask).
+    public var parentId: String? { raw["parent_id"]?.stringValue ?? raw["parentId"]?.stringValue }
+    public var prompt: String? { raw["prompt"]?.stringValue }
+
     // Active dynamic-loop status (WorkerRowSchema.loop, HTTP-enriched). Drives the top-of-transcript
     // LoopStatusCardView (spec 03 §1 LoopStatus). Absent when the worker has no active loop.
     public var loop: WorkerLoop? { WorkerLoop(raw: raw["loop"]) }

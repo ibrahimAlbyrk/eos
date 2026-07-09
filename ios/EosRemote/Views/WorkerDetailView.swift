@@ -25,6 +25,14 @@ struct WorkerDetailView: View {
                         .padding(.vertical, EosSpacing.xs)
                         .onAppear { Task { await model.loadOlder() } }
                 }
+                // Top-of-transcript task card (spec 03 §1 MessageTask): "Task from {parent}" + the boot
+                // prompt, shown when this worker was spawned by an orchestrator (parent_id + prompt).
+                if let worker, let parentId = worker.parentId, let prompt = worker.prompt, !prompt.isEmpty {
+                    TaskFromView(prompt: prompt,
+                                 parent: AgentRef(id: parentId,
+                                                  name: model.workers.first { $0.id == parentId }?.name ?? "orchestrator"))
+                        .padding(.bottom, EosSpacing.xs)
+                }
                 // Top-of-transcript status card for a worker's active dynamic loop (spec 03 §1 LoopStatus):
                 // status + attempt + goal + last reason + last-5 attempt history. Absent when no loop.
                 if let loop = worker?.loop {

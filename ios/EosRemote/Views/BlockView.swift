@@ -25,9 +25,15 @@ struct MessageView: View {
         case .agentRun(let run):
             AgentBlockView(run: run)                                    // §1 #6 · AgentBlock + AgentViewerSheet
         case .report(let text, let fromWorker, let workerName):
-            MessageRowView(ts: block.ts, copyText: text, workerId: block.workerId) {
-                MessageReportView(mode: .report, text: text,
-                                  agent: AgentRef(id: fromWorker, name: workerName))  // §1 #7
+            // A workflow run-completion report (workerName == "workflow") renders as the standalone
+            // WorkflowReportView (§3), NOT the AgentLink report row.
+            if workerName == "workflow" {
+                WorkflowReportView(text: text)
+            } else {
+                MessageRowView(ts: block.ts, copyText: text, workerId: block.workerId) {
+                    MessageReportView(mode: .report, text: text,
+                                      agent: AgentRef(id: fromWorker, name: workerName))  // §1 #7
+                }
             }
         case .directive(let text, let fromParent, let parentName):
             MessageRowView(ts: block.ts, copyText: text, workerId: block.workerId) {

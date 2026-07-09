@@ -29,6 +29,13 @@ enum TextSegmenter {
         return segments.reduce(into: AttributedString()) { $0.append($1.rendered) }
     }
 
+    // URL-only decoration (spec §1 MessageTask / MessageReport bodies: "verbatim plain text,
+    // URL-linkified only") — no cwd/paste/slash rules, just coral tappable links.
+    static func urlLinkified(_ raw: String) -> AttributedString {
+        apply([.plain(raw)], regex: urlRE) { .link($0) }
+            .reduce(into: AttributedString()) { $0.append($1.rendered) }
+    }
+
     private static func shortenCwd(_ text: String, cwd: String?) -> String {
         guard let cwd, !cwd.isEmpty else { return text }
         let needle = cwd.hasSuffix("/") ? cwd : cwd + "/"

@@ -32,6 +32,7 @@ struct MessageGalleryView: View {
                     }
                     loopShowcase.id("loops")                 // terminal + loop-status + goal-check surfaces (4c-i)
                     detailShowcase.id("details")            // expanded detail bodies (diff / preview / generic)
+                    registryShowcase.id("registry")         // 4c-ii Tier-2 tool-registry cards
                     Color.clear.frame(height: 1).id("end")   // scroll target for verifying the fold
                 }
                 .padding(.horizontal, EosSpacing.screenInset)
@@ -42,8 +43,13 @@ struct MessageGalleryView: View {
                 reveal.bind(sessionId: "gallery")
                 reveal.markEntrySettled()   // static gallery → post-seed blocks reveal on first paint
                 if let anchor = scrollAnchor {
-                    try? await Task.sleep(nanoseconds: 400_000_000)
-                    withAnimation { proxy.scrollTo(anchor, anchor: anchor == "end" ? .bottom : .top) }
+                    // Re-scroll a few times: the LazyVStack materializes below-fold sections on demand,
+                    // so a single scrollTo to a far anchor undershoots. Converge after content loads.
+                    let edge: UnitPoint = anchor == "end" ? .bottom : .top
+                    for _ in 0..<6 {
+                        try? await Task.sleep(nanoseconds: 250_000_000)
+                        proxy.scrollTo(anchor, anchor: edge)
+                    }
                 }
             }
         }
@@ -90,6 +96,61 @@ struct MessageGalleryView: View {
             GenericToolCardView(tool: MessageGallerySamples.unknownToolSample)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // Phase 4c-ii: the Tier-2 TOOL-REGISTRY cards. A representative sample of each new family —
+    // worker/create/peer/task/workflow/ask/notify/skill/datetime/etc — rendered as real ToolItemViews
+    // (collapsed rows, tap to expand) plus the top-of-transcript TaskFrom header and the workflow report.
+    @ViewBuilder private var registryShowcase: some View {
+        VStack(alignment: .leading, spacing: EosSpacing.sm) {
+            Text("Tier-2 tool registry (4c-ii)").font(EosFont.heading).foregroundStyle(EosColor.ink)
+
+            galleryLabel("TaskFrom header (top-of-transcript)")
+            TaskFromView(prompt: MessageGallerySamples.taskFromPrompt,
+                         parent: AgentRef(id: "orch", name: "orchestrator"))
+
+            galleryLabel("Tool rows — tap to expand")
+            ForEach(MessageGallerySamples.registryTools, id: \.id) { tool in
+                ToolItemView(tool: tool)
+            }
+
+            galleryLabel("TaskUpdate (expanded)")
+            TaskUpdateDetailView(tool: MessageGallerySamples.taskUpdateTool)
+
+            galleryLabel("TaskList (expanded)")
+            TaskListDetailView(tool: MessageGallerySamples.taskListTool)
+
+            galleryLabel("workflow tool card (expanded)")
+            WorkflowToolDetailView(tool: MessageGallerySamples.workflowTool)
+
+            galleryLabel("workflow completion report")
+            WorkflowReportView(text: MessageGallerySamples.workflowReportText)
+
+            galleryLabel("available workers (expanded)")
+            AvailableWorkersDetailView(tool: MessageGallerySamples.availableWorkersTool)
+
+            // The higher-value expanded cards sit adjacent to the bottom `end` anchor so a launch with
+            // `-eosGalleryScroll end` reliably lands on them (the LazyVStack converges on .bottom).
+            galleryLabel("spawn_worker w/ loop badge (expanded)").id("registry-expanded")
+            WorkerToolBodyView(tool: MessageGallerySamples.spawnWorkerTool)
+
+            galleryLabel("ask_user Q&A (expanded)")
+            AskUserDetailView(tool: MessageGallerySamples.askUserTool)
+
+            galleryLabel("peer ask (expanded)")
+            PeerAskDetailView(tool: MessageGallerySamples.peerAskTool)
+
+            galleryLabel("TodoWrite (expanded)")
+            TodoWriteDetailView(tool: MessageGallerySamples.todoWriteTool)
+
+            galleryLabel("create_worker blueprint (expanded)")
+            CreateWorkerDetailView(tool: MessageGallerySamples.createWorkerTool)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func galleryLabel(_ text: String) -> some View {
+        Text(text).font(EosFont.captionSmall).foregroundStyle(EosColor.inkTertiary)
     }
 }
 
@@ -243,6 +304,150 @@ enum MessageGallerySamples {
 
     private static let thinkingSample =
         "The user wants the parser inspected. I should read messageParser.js first, then cross-check the block kinds against the spec. The table rendering path needs a closer look — GFM tables map to a Grid here."
+
+    // MARK: 4c-ii Tier-2 registry samples
+
+    static let taskFromPrompt =
+        "Phase 4c-ii: implement the Tier-2 tool-registry cards for the iOS transcript. Follow docs/mobile-redesign/03 §2.2–2.6 and §3. See https://example.com/spec for the full table. Touch only ios/."
+
+    // The collapsed tool rows (each dispatches through getToolView → its bespoke label/badge/detail).
+    static var registryTools: [Tool] { [
+        spawnWorkerTool, killWorkerTool, createWorkerTool, listActiveWorkersTool,
+        notifyTool, skillTool, sendToParentTool, peerAskTool,
+        taskCreateTool, taskUpdateTool, todoWriteTool, workflowTool, datetimeTool, scheduleWakeupTool,
+    ] }
+
+    // spawn_worker w/ arm-at-spawn loop → the "loop" header badge + loop-detail line + prompt.
+    static let spawnWorkerTool = Tool(
+        id: "sw1", name: "mcp__orchestrator__spawn_worker", verb: "spawn",
+        input: .object([
+            "prompt": .string("Port the §2.5 task detail views (TaskCreate/Update/Get/List/TodoWrite) and register them in getToolView. Match §10 geometry."),
+            "loop": .object([
+                "goal": .object(["summary": .string("build green + task cards render")]),
+                "strategy": .string("hybrid"), "limit": .number(5),
+            ]),
+        ]),
+        result: mkResult("{\"id\":\"w-task\",\"name\":\"task-cards\",\"state\":\"WORKING\"}"),
+        running: false, done: true, ts: base)
+
+    static let killWorkerTool = Tool(
+        id: "kw1", name: "mcp__orchestrator__kill_worker", verb: "kill",
+        input: .object(["id": .string("w-stale")]),
+        result: mkResult("{\"id\":\"w-stale\",\"name\":\"stale-probe\",\"state\":\"KILLING\",\"branch\":\"eos-stale-probe\"}"),
+        running: false, done: true, ts: base)
+
+    static let listActiveWorkersTool = Tool(
+        id: "lw1", name: "mcp__orchestrator__list_active_workers", verb: "list",
+        input: .object([:]),
+        result: mkResult("[{\"id\":\"w-a\",\"name\":\"parser-audit\",\"state\":\"IDLE\",\"prompt\":\"Cross-check block kinds against spec 03 §1.\"},{\"id\":\"w-b\",\"name\":\"task-cards\",\"state\":\"WORKING\",\"prompt\":\"Port the task detail views.\"}]"),
+        running: false, done: true, ts: base)
+
+    static let createWorkerTool = Tool(
+        id: "cw1", name: "mcp__orchestrator__create_worker", verb: "create",
+        input: .object([
+            "name": .string("perf-profiler"),
+            "description": .string("Profiles a hot path and reports the top offenders with flamegraph deltas."),
+            "model": .string("sonnet"), "effort": .string("high"), "permissionMode": .string("acceptEdits"),
+            "persistent": .bool(true),
+            "whenToUse": .string("Dispatch when a change regresses latency and you need a ranked culprit list."),
+            "toolsAllow": .array([.string("Read"), .string("Bash"), .string("mcp__*")]),
+            "toolsDeny": .array([.string("Write")]),
+            "editRegex": .string("(^|/)src/.*\\.ts$"),
+            "body": .string("You are a performance profiler.\nProfile the named entry point.\nReport the top 5 offenders.\nInclude a before/after delta.\nDo not refactor — measure only.\nUse the repo's bench harness.\nKeep the report evidence-light.\nOne headline finding per line.\nCite the file:line for each.\nStop when the goal criteria pass.\nNever edit outside src/.\nFail loudly on a missing harness.\nExtra line 13 to trigger the +N more."),
+        ]),
+        result: mkResult("{\"name\":\"perf-profiler\"}"), running: false, done: true, ts: base)
+
+    static let notifyTool = Tool(
+        id: "nt1", name: "mcp__orchestrator__notify_user", verb: "notify",
+        input: .object(["title": .string("Task complete"),
+                        "body": .string("Tier-2 registry cards landed across worker/task/workflow — review ready.")]),
+        result: mkResult(""), running: false, done: true, ts: base)
+
+    static let skillTool = Tool(
+        id: "sk1", name: "Skill", verb: "skill",
+        input: .object(["skill": .string("code-review")]),
+        result: mkResult("Launching skill: code-review"),
+        running: false, done: true, ts: base,
+        skillBody: "Base directory for this skill: /Users/dev/.claude/skills/code-review\n\n# Code Review\n\nReview the current diff for correctness bugs and cleanups.\nStart broad, then narrow to the changed lines.\nReport findings with a file:line and a one-line fix.",
+        skillPath: "/Users/dev/.claude/skills/code-review")
+
+    static let sendToParentTool = Tool(
+        id: "mp1", name: "mcp__worker__send_message_to_parent", verb: "report",
+        input: .object(["text": .string("Done. §2.3 worker cards + §2.5 task cards + §3 workflow surfaces are wired and the build is green on iPhone 17 / iOS 26.5.")]),
+        result: mkResult("{\"ok\":true}"), running: false, done: true, ts: base)
+
+    static let peerAskTool = Tool(
+        id: "pa1", name: "mcp__worker__ask_peer", verb: "ask",
+        input: .object(["peerName": .string("parser-audit"),
+                        "question": .string("Does attachAskUserAnswers fold the answer for a multi-question AskUserQuestion, or only the first?")]),
+        result: mkResult("It folds all questions — parseAskAnswers maps every question to its arrow-list answer, nil for any it can't correlate."),
+        running: false, done: true, ts: base,
+        peerTo: AgentRef(id: "w-a", name: "parser-audit"))
+
+    static let askUserTool = Tool(
+        id: "au1", name: "mcp__orchestrator__ask_user", verb: "ask",
+        input: .object(["questions": .array([
+            .object(["question": .string("Bundle JetBrains Mono for code fences?"), "header": .string("Font")]),
+            .object(["question": .string("Which highlight theme?"), "header": .string("Theme")]),
+        ])]),
+        result: mkResult("{\"answers\":{\"Bundle JetBrains Mono for code fences?\":\"Yes — bundle it\",\"Which highlight theme?\":\"github-dark-dimmed\"}}"),
+        running: false, done: true, ts: base)
+
+    static let taskCreateTool = Tool(
+        id: "tc1", name: "TaskCreate", verb: "task",
+        input: .object(["subject": .string("Wire the workflow report branch"),
+                        "description": .string("A report block whose workerName == workflow renders as WorkflowReportView, not the AgentLink report row.")]),
+        result: mkResult("Task #7 created (status: pending)."), running: false, done: true, ts: base)
+
+    static let taskUpdateTool = Tool(
+        id: "tu2", name: "TaskUpdate", verb: "task",
+        input: .object(["taskId": .string("7"), "status": .string("in_progress"),
+                        "description": .string("Branch added in MessageView; now wiring the status chip parse."),
+                        "owner": .string("task-cards"),
+                        "addBlockedBy": .array([.number(3)])]),
+        result: mkResult("Updated task #7 status, owner."), running: false, done: true, ts: base)
+
+    static let taskListTool = Tool(
+        id: "tl1", name: "TaskList", verb: "task",
+        input: .object([:]),
+        result: mkResult("#5 [completed] Port the diff-hunk helpers\n#6 [in_progress] Register the Tier-2 tools (task-cards)\n#7 [pending] Wire the workflow report branch [blocked by #3]"),
+        running: false, done: true, ts: base)
+
+    static let todoWriteTool = Tool(
+        id: "tw1", name: "TodoWrite", verb: "todo",
+        input: .object(["todos": .array([
+            .object(["content": .string("Register worker tools"), "activeForm": .string("Registering worker tools"), "status": .string("completed")]),
+            .object(["content": .string("Register task tools"), "activeForm": .string("Registering task tools"), "status": .string("in_progress")]),
+            .object(["content": .string("Extend the gallery"), "activeForm": .string("Extending the gallery"), "status": .string("pending")]),
+        ])]),
+        result: mkResult(""), running: false, done: true, ts: base)
+
+    static let workflowTool = Tool(
+        id: "wf1", name: "mcp__orchestrator__workflow", verb: "workflow",
+        input: .object(["mode": .string("run-stored"), "from": .string("nightly-audit")]),
+        result: mkResult("{\"runId\":\"run-8a2f\",\"status\":\"passed\",\"message\":\"All 4 steps completed.\",\"output\":{\"steps\":4,\"passed\":4,\"durationMs\":18240}}"),
+        running: false, done: true, ts: base)
+
+    static let workflowReportText =
+        "[workflow run-8a2f] completed (status: passed):\n{\"steps\":4,\"passed\":4,\"failed\":0,\"durationMs\":18240,\"summary\":\"nightly audit green\"}"
+
+    static let datetimeTool = Tool(
+        id: "dt1", name: "mcp__orchestrator__current_datetime", verb: "datetime",
+        input: .object([:]),
+        result: mkResult("{\"formatted\":\"2026-07-09 14:32:05 UTC+03:00 (Europe/Istanbul)\",\"timeZone\":\"Europe/Istanbul\"}"),
+        running: false, done: true, ts: base)
+
+    static let scheduleWakeupTool = Tool(
+        id: "sched1", name: "ScheduleWakeup", verb: "schedule",
+        input: .object(["delaySeconds": .number(2700), "reason": .string("Re-check the deploy"),
+                        "prompt": .string("Poll the CI status for run-8a2f; if green, message the parent that the nightly audit passed.")]),
+        result: mkResult("{\"id\":\"wake-1\"}"), running: false, done: true, ts: base)
+
+    static let availableWorkersTool = Tool(
+        id: "aw1", name: "mcp__orchestrator__list_available_workers", verb: "list",
+        input: .object([:]),
+        result: mkResult("[{\"name\":\"general-purpose\",\"source\":\"builtin\",\"whenToUse\":\"Catch-all for any concrete work.\"},{\"name\":\"perf-profiler\",\"source\":\"user\",\"whenToUse\":\"Rank latency culprits after a regression.\"},{\"name\":\"schema-migrator\",\"source\":\"project\",\"description\":\"Runs a reversible DB migration and verifies it.\"}]"),
+        running: false, done: true, ts: base)
 
     private static let assistantSample = """
 # Rendering map overview
