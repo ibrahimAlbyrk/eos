@@ -3,8 +3,9 @@ import { bearerAllowed, ownerHashMatches, sha256Hex } from "./admission.ts";
 import { RelayError, type RelayErrorCode } from "./errors.ts";
 import { CLIENT_ID_LEN } from "./envelope.ts";
 
-// In-memory room registry — protocol §5. No plaintext, no keys, no content is
-// persisted; the relay forwards opaque ciphertext and is protocol-version-independent.
+// In-memory room registry — protocol §5. No keys, no content is persisted; the
+// relay forwards opaque application-byte payloads verbatim and is protocol-
+// version-independent (blind to whether they are plaintext or encrypted).
 
 export type RelaySocket = { send(data: Buffer): void };
 
@@ -91,7 +92,7 @@ export class RoomRegistry {
     return { ok: true };
   }
 
-  // Forward an opaque data frame verbatim (§5.4). c2s -> Mac, s2c -> devices[clientId].
+  // Forward an opaque data frame verbatim (§4.3). c2s -> Mac, s2c -> devices[clientId].
   routeData(room: string, dir: number, clientIdHex: string, rawFrame: Buffer): Ok<{}> | Err {
     const r = this.rooms.get(room);
     if (!r) return { ok: false, code: RelayError.ROOM_NOT_FOUND };

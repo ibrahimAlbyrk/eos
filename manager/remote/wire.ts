@@ -1,26 +1,23 @@
-// Remote-gateway composition for the daemon. Arms the /ws edge ONLY when
-// config.remote.mode != off (default off ⇒ this is a no-op and nothing remote
-// runs). LAN mode mounts the /ws upgrade on the daemon's listener; relay mode
+// Remote-gateway composition for the daemon (relay v3). Arms the outbound relay
+// leg ONLY when config.remote.enabled AND config.remote.relay.url is set (default
+// disabled ⇒ this is a no-op and nothing remote runs). Relay-only: the daemon
 // dials out via RelayConnector and demuxes per-device sessions through the same
-// GatewayConnection driver. Either way the loopback-lock keeps every non-/ws
-// REST surface off-box.
+// GatewayConnection driver. There is no LAN-direct /ws lane in v3.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
-import type { IncomingMessage } from "node:http";
-import type { Duplex } from "node:stream";
 
-import { MacIdentity, DeviceKeyring } from "./keyring.ts";
+import { RoomSecrets, sha256Hex } from "./keyring.ts";
 import { RemoteAuditLog } from "./audit.ts";
-import { PairingManager } from "./pairing.ts";
+import { generatePairing } from "./qr.ts";
 import { makeRouteDispatch } from "./virtual-dispatch.ts";
-import { createLanGateway, GatewayConnection, type GatewayDeps } from "./gateway.ts";
+import { GatewayConnection, type GatewayDeps } from "./gateway.ts";
 import { WsBridge } from "./WsBridge.ts";
 import { RelayConnector } from "./RelayConnector.ts";
 import type { Router } from "../routes/Router.ts";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
-import type { RemoteConfig } from "../../contracts/src/remote.ts";
+import type { RemoteConfig, PairingQr } from "../../contracts/src/remote.ts";
 
 // Structural subset of the daemon container wire.ts needs — keeps this module
 // decoupled from the (inferred) Container type.
@@ -32,23 +29,14 @@ export interface RemoteWiringDeps {
 }
 
 export interface PairArmOptions {
-  lan?: string[];
-  lanSpki?: string | null;
-  relay?: { url: string; room: string } | null;
-  ttlMs?: number; // offer/QR otsExp window; default 120s
+  ttlMs?: number; // QR display-window; default 120s
 }
 
 export interface RemoteGatewayHandle {
   stop(): void;
-  pairing: PairingManager;
-  // LAN mode only: the /ws upgrade handler. The RemoteController attaches this to
-  // its persistent server "upgrade" listener while armed; relay mode dials out and
-  // leaves this undefined (no LAN /ws surface).
-  onUpgrade?: (req: IncomingMessage, socket: Duplex, head: Buffer) => void;
-  // Arm a one-time pairing offer and return the §6 QR payload. In relay mode the
-  // pairing-bearer hash is added to the relay allowlist so a NEW (unenrolled)
-  // device can join the room for the pairing window.
-  armPairing(opts: PairArmOptions): import("../../contracts/src/remote.ts").PairingQr;
+  // Mint the §2 QR from the already-armed room + bearer. There is no server-held
+  // one-time token in v3 — the bearer IS the join credential.
+  armPairing(opts: PairArmOptions): PairingQr;
 }
 
 function loadOwnerSecret(remoteDir: string): string {
@@ -59,61 +47,42 @@ function loadOwnerSecret(remoteDir: string): string {
   return secret;
 }
 
-// Build the remote gateway for the CURRENT config and return a runtime handle,
-// or null when remote is off (the common case) or relay config is missing. Pure
-// build step — it does NOT touch the HTTP server; the RemoteController owns the
-// persistent /ws upgrade listener and the LAN handle's `onUpgrade` is attached
-// there. Re-callable at runtime (arm/disarm), not only at boot.
+// Build the remote gateway for the CURRENT config and return a runtime handle, or
+// null when remote is disabled (the common case) or relay.url is missing. Pure
+// build step — it does NOT touch the HTTP server (relay-only; no /ws upgrade).
+// Re-callable at runtime (arm/disarm), not only at boot.
 export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteGatewayHandle | null {
-  const mode = c.config.remote.mode;
-  if (mode === "off") return null;
+  if (!c.config.remote.enabled) return null;
+
+  const relayUrl = c.config.remote.relay?.url;
+  if (!relayUrl) {
+    c.log.warn("remote enabled but relay.url missing — not armed", {});
+    return null;
+  }
 
   const remoteDir = join(c.config.daemon.home, "remote");
   mkdirSync(remoteDir, { recursive: true });
-  const identity = new MacIdentity(remoteDir);
-  const keyring = new DeviceKeyring(remoteDir);
+  const secrets = new RoomSecrets(remoteDir); // mint/load room.id + bearer.secret (0600)
+  const owner = loadOwnerSecret(remoteDir);
   const audit = new RemoteAuditLog(remoteDir);
   const now = (): number => Date.now();
-  const pairing = new PairingManager(identity, now);
-  const baseDeps: Omit<GatewayDeps, "room"> = {
-    identity, keyring, audit, uiToken: c.uiToken,
-    routeDispatch: makeRouteDispatch(router), bus: c.bus, now, pairing,
+  const room = secrets.room;
+
+  const deps: GatewayDeps = {
+    audit, uiToken: c.uiToken, routeDispatch: makeRouteDispatch(router),
+    bus: c.bus, room, now,
     log: (m, x) => c.log.info(`[remote] ${m}`, x ?? {}),
   };
 
-  if (mode === "lan") {
-    const lan = createLanGateway({ ...baseDeps, room: "lan" });
-    c.log.info("remote gateway armed", { mode, surface: "/ws" });
-    // LAN: the /ws upgrade admits the pairing bearer directly (gateway
-    // bearerAdmitted reads pairing.pairingBearerHash()), so arming is just the
-    // offer — no relay allowlist to update.
-    return { stop: lan.stop, onUpgrade: lan.onUpgrade, pairing, armPairing: (opts) => pairing.arm(opts) };
-  }
-
-  // relay
-  const relayUrl = c.config.remote.relay?.url;
-  const room = c.config.remote.relay?.room;
-  if (!relayUrl || !room) {
-    c.log.warn("remote relay mode set but relay.url/room missing — not armed", {});
-    return null;
-  }
-  const owner = loadOwnerSecret(remoteDir);
-  const deps: GatewayDeps = { ...baseDeps, room };
   const bridge = new WsBridge({ bus: c.bus, now });
   bridge.start();
   const conns = new Map<string, GatewayConnection>();
   const connector = new RelayConnector({
     url: relayUrl, room, owner,
-    // §4.3: on every (re)connect the connector re-registers with the FULL allowlist
-    // read fresh here — SHA-256 of every enrolled relayDeviceId — so the relay's
-    // admission cache self-heals and can never drift from the persisted truth. The
-    // armed enrollment token is included so a dropped relay socket mid-pairing
-    // doesn't lock out the joining (not-yet-enrolled) device.
-    allow: () => {
-      const hashes = keyring.admissionHashes();
-      const enroll = pairing.enrollTokenHash();
-      return enroll ? [...hashes, enroll] : hashes;
-    },
+    // §4.1: on every (re)connect re-register with the FULL allowlist so the relay's
+    // admission cache self-heals. In v3 that is exactly [ sha256Hex(bearer) ] — one
+    // room-join capability, not a per-device list.
+    allow: () => [sha256Hex(secrets.bearer)],
     onJoined: (clientId) => {
       const hex = clientId.toString("hex");
       const conn = new GatewayConnection({
@@ -128,22 +97,12 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
     onError: (code, message) => c.log.warn("relay error", { code, message }),
     now, log: (m, x) => c.log.info(`[relay] ${m}`, x ?? {}),
   });
-  // Enrollment is the only allowlist mutation (§4.3): add SHA-256(relayDeviceId)
-  // so the freshly-enrolled device's next reopen (which joins on that id) is
-  // admitted. No per-connect rotation, no allow-remove churn.
-  deps.onEnrolled = (hash) => connector.allowAdd(hash);
   connector.start();
-  c.log.info("remote gateway armed", { mode, relayUrl, room });
+  c.log.info("remote gateway armed", { relayUrl, room });
   return {
     stop: () => { connector.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
-    pairing,
-    armPairing: (opts) => {
-      const qr = pairing.arm(opts);
-      // Add SHA-256(enrollment token) to the relay allowlist so the not-yet-
-      // enrolled device can join the room for the pairing window (§5.2).
-      const hash = pairing.enrollTokenHash();
-      if (hash) connector.allowAdd(hash);
-      return qr;
-    },
+    // Pairing is just "mint the QR from the armed room + bearer" — no allowlist
+    // mutation (the bearer hash is already in the room's allow from register).
+    armPairing: (opts) => generatePairing({ relayUrl, room, bearer: secrets.bearer, now: now(), ttlMs: opts.ttlMs }),
   };
 }

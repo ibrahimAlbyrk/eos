@@ -1,13 +1,15 @@
 # eos-relay
 
-A small, standalone **dumb unicast forwarder** for Eos iOS remote control (Mode B,
-self-hosted relay). It routes purely on a cleartext outer envelope and forwards opaque
-end-to-end-encrypted payloads it never parses or decrypts. Compromise is bounded to
-metadata + denial-of-service — all confidentiality/authentication is E2E between phone
-and Mac.
+A small, standalone **dumb unicast forwarder** for Eos iOS remote control
+(self-hosted relay). It routes purely on a cleartext outer envelope and forwards
+opaque `data` payloads it never parses. In protocol v3 those payloads are
+**plaintext inner-frame JSON** (transport encryption was removed) — the relay,
+which you self-host, can therefore see content, so **TLS at the relay edge
+(Caddy/ACME) is the only confidentiality layer**. The room id + bearer are the
+capability: admission is `SHA-256(bearer)` hash-membership, unchanged.
 
-See `docs/ios-remote-control-design.md` §7 and `docs/ios-remote-protocol.md` §4–§5 for
-the authoritative contract.
+See `docs/mobile-redesign/01-plaintext-relay-protocol.md` §4–§5 for the
+authoritative contract.
 
 ## What it does
 
@@ -17,8 +19,9 @@ the authoritative contract.
 - Per-device unicast routing keyed by a relay-assigned 16-byte `clientId`.
 - Opt-in APNs egress — a **no-op stub** unless the operator supplies their own APNs key.
 
-It does **no E2E crypto** (SHA-256 only) and is **protocol-version-independent**: it never
-parses inner frames, so Eos protocol changes require no relay upgrade.
+It does **no payload crypto** (SHA-256 only, for admission) and is
+**protocol-version-independent**: it never parses inner frames, so Eos protocol
+changes (including the v2→v3 plaintext switch) require no relay upgrade.
 
 ## Run locally
 

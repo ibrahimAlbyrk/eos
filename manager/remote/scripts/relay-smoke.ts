@@ -3,7 +3,7 @@
 // /health rooms count incremented. Run:  npx tsx remote/scripts/relay-smoke.ts
 //
 // The relay URL is the deployed box (silver-giraffe-71764.zap.cloud, real
-// Let's Encrypt cert). In production this comes from config.remote.relayUrl.
+// Let's Encrypt cert). In production this comes from config.remote.relay.url.
 
 import { randomBytes } from "node:crypto";
 import { RelayConnector } from "../RelayConnector.ts";

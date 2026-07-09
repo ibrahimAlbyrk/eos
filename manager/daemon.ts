@@ -123,7 +123,7 @@ registerRemoteRoutes(router, {
   uiToken: c.uiToken,
   getConfig: () => c.config,
   getGateway: () => remoteController?.current() ?? null,
-  arm: () => { c.reloadConfig(); return remoteController?.reconcile() ?? { mode: "off", armed: false }; },
+  arm: () => { c.reloadConfig(); return remoteController?.reconcile() ?? { enabled: false, armed: false }; },
 });
 
 // Queue drain — queued dashboard messages dispatch when their worker reaches
@@ -492,13 +492,12 @@ function makeHandler(router: Router, opts: { cors?: boolean } = {}) {
 
 const server = createServer(makeHandler(router, { cors: true }));
 
-// Remote edge (iOS). The controller installs ONE persistent /ws upgrade listener
-// and arms the gateway live: the initial reconcile() arms ONLY when
-// config.remote.mode != off (default off ⇒ no surface, /ws 503s). Enabling later
-// via POST /api/remote/arm is restart-free — no reboot needed. Off-box
-// reachability stays bounded to the authenticated /ws upgrade by the loopback-lock
-// middleware above.
-remoteController = new RemoteController(c, router, server);
+// Remote edge (iOS, relay v3). The controller arms the outbound relay leg live:
+// the initial reconcile() arms ONLY when config.remote.enabled AND relay.url is
+// set (default disabled ⇒ no surface). Enabling later via POST /api/remote/arm is
+// restart-free — no reboot needed. Relay-only: the daemon dials out; there is no
+// LAN /ws surface, so nothing is bound on the HTTP server here.
+remoteController = new RemoteController(c, router);
 remoteController.reconcile();
 
 // Raw-content origin: arbitrary disk bytes + the vendored pdf.js viewer on a

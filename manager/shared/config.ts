@@ -13,7 +13,7 @@ import { z } from "zod";
 import { McpServerDefSchema } from "../../contracts/src/shared.ts";
 import { type BackendProfile, BackendProfileSchema } from "../../contracts/src/backend.ts";
 import { MemorySourceSchema, type MemorySourceSpec } from "../../contracts/src/memory.ts";
-import { RemoteConfigSchema, type RemoteConfig, type RemoteMode } from "../../contracts/src/remote.ts";
+import { RemoteConfigSchema, type RemoteConfig } from "../../contracts/src/remote.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
 import type { ArchiveRetention } from "../../core/src/use-cases/PurgeExpiredArchives.ts";
@@ -177,8 +177,9 @@ export interface DaemonConfig {
     purgeOnAppClose: boolean;
     cmdW: "archive" | "delete";
   };
-  // iOS remote-control edge (design §6). OFF by default — absent config = no
-  // remote surface. The crypto/wire contract is docs/ios-remote-protocol.md.
+  // iOS remote-control edge (relay v3). OFF by default — absent config = no
+  // remote surface. The wire contract is
+  // docs/mobile-redesign/01-plaintext-relay-protocol.md.
   remote: RemoteConfig;
 }
 
@@ -418,17 +419,39 @@ export function defaults(): DaemonConfig {
       cmdW: "archive",
     },
     remote: {
-      // OFF by default. The rate-limit + lease defaults below only take effect
-      // once an operator arms remote (mode=lan|relay) in ~/.eos/config.json.
-      mode: parseRemoteMode(envStr("EOS_REMOTE_MODE", "off")),
+      // OFF by default (relay-only, v3). The rate-limit + lease defaults below
+      // only take effect once an operator arms remote (enabled + relay.url) in
+      // ~/.eos/config.json. relay.url has no default — remote stays disarmed
+      // until the operator (or EOS_REMOTE_RELAY_URL) provides one.
+      enabled: envStr("EOS_REMOTE_ENABLED", "") === "1",
+      ...(process.env.EOS_REMOTE_RELAY_URL ? { relay: { url: process.env.EOS_REMOTE_RELAY_URL } } : {}),
       inactivityLeaseMs: envNum("EOS_REMOTE_LEASE_MS", 30 * 60 * 1000),
       rateLimit: { perDevicePerMin: 120, globalPerMin: 600, pairingPerMin: 5 },
     },
   };
 }
 
-function parseRemoteMode(v: string): RemoteMode {
-  return v === "lan" || v === "relay" ? v : "off";
+// Migrate a legacy on-disk `remote` block (v2: `{ mode, relay:{url,room}, lan }`)
+// to the v3 shape (`{ enabled, relay:{url} }`) BEFORE it hits
+// RemoteConfigSchema.partial().parse(), so a legacy config.json loads without a
+// hard parse error. Rules (spec §3.3): mode→enabled (lan|relay ⇒ true, off/absent
+// ⇒ false); discard the old low-entropy relay.room (the daemon mints a fresh
+// ≥32-byte room at arm); drop the lan block entirely (relay-only).
+export function migrateRemoteConfig(raw: unknown): unknown {
+  if (!raw || typeof raw !== "object") return raw;
+  const r = { ...(raw as Record<string, unknown>) };
+  if ("mode" in r) {
+    const mode = r.mode;
+    r.enabled = mode === "lan" || mode === "relay";
+    delete r.mode;
+  }
+  if (r.relay && typeof r.relay === "object") {
+    const { url } = r.relay as Record<string, unknown>;
+    r.relay = typeof url === "string" ? { url } : undefined;
+    if (r.relay === undefined) delete r.relay;
+  }
+  delete r.lan;
+  return r;
 }
 
 // A flat price override: any subset of the 5 rate fields (partial) so a config
@@ -570,8 +593,9 @@ export const DaemonConfigOverrideSchema = z.object({
     purgeOnAppClose: z.boolean(),
     cmdW: z.enum(["archive", "delete"]),
   }).partial().optional(),
-  // mode optional on override (.partial) so a config.json may set just relay
-  // topology without restating mode; mergeConfig field-merges over the default.
+  // v3 shape (.partial) so a config.json may set just `relay.url` without
+  // restating `enabled`; mergeConfig field-merges over the default. Legacy v2
+  // blocks are normalized by migrateRemoteConfig in loadConfig BEFORE this parse.
   remote: RemoteConfigSchema.partial().optional(),
 }).passthrough();
 
@@ -688,6 +712,11 @@ export function loadConfig(): DaemonConfig {
   if (existsSync(path)) {
     try {
       const raw = JSON.parse(readFileSync(path, "utf8"));
+      // Normalize a legacy v2 `remote` block (mode/lan/relay.room) to the v3
+      // shape before the schema parse, so an existing config.json isn't rejected.
+      if (raw && typeof raw === "object" && "remote" in raw) {
+        (raw as Record<string, unknown>).remote = migrateRemoteConfig((raw as Record<string, unknown>).remote);
+      }
       const result = DaemonConfigOverrideSchema.safeParse(raw);
       if (!result.success) {
         console.log(`[config] invalid config in ${path}: ${result.error.message} — ignoring`);

@@ -12,9 +12,10 @@ import {
 import { errorPayload, RelayError, type RelayErrorCode } from "./errors.ts";
 import { sendPushIntent, type PushIntent } from "./apns.ts";
 
-// The dumb unicast forwarder (design §7, protocol §5). A single plain-ws listener
-// fronted by Caddy (which owns TLS/ACME). The relay parses only the outer header and
-// the relay-control JSON; `data` payloads are opaque ciphertext forwarded verbatim.
+// The dumb unicast forwarder (protocol §4). A single plain-ws listener fronted by
+// Caddy (which owns TLS/ACME). The relay parses only the outer header and the
+// relay-control JSON; `data` payloads are opaque application bytes forwarded
+// verbatim (plaintext inner-frame JSON since v3 — the relay never inspects them).
 
 function asBuffer(data: unknown): Buffer | null {
   if (Buffer.isBuffer(data)) return data;
@@ -95,10 +96,10 @@ function handleMessage(ws: WebSocket, raw: Buffer, registry: RoomRegistry): void
         sendError(ws, room, res.code, "join rejected");
         return;
       }
-      // §5.3 mandates BOTH deliveries: notify the Mac to start its per-device E2E
-      // handshake, and ack the joining device so it learns the clientId it must stamp
-      // (and AAD-bind) on every outgoing frame. The device MUST NOT send hs/resume/data
-      // before this join-ack arrives.
+      // §4.2 mandates BOTH deliveries: notify the Mac so it spins up the per-client
+      // session, and ack the joining device so it learns the clientId it must stamp
+      // on every outgoing frame. The device MUST NOT send a data frame before this
+      // join-ack arrives (there is no handshake in v3 — join-ack ⇒ live).
       notifyJoined(res.mac, room, res.clientId);
       notifyJoined(ws, room, res.clientId);
       return;

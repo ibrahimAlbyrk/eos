@@ -1,12 +1,14 @@
-// Control ↔ REST capability tiers (protocol §8). A remote control{method,path}
-// is classified here BEFORE it is dispatched into the real route handler:
-//   READ    — pure reads, no step-up
-//   LOW     — non-RCE mutations, no step-up
-//   HIGH    — RCE / externally-visible → per-action Secure-Enclave step-up (§7.3)
+// Control ↔ REST capability tiers (§5.2.3). A remote control{method,path} is
+// classified here BEFORE it is dispatched into the real route handler. The ONLY
+// tier that gates dispatch in v3 is REFUSED (never remote-reachable). READ / LOW /
+// HIGH survive as route classification (audit + a stable map) but no longer imply
+// a step-up — every joined device is dispatched at full capability (§5.1).
+//   READ    — pure reads
+//   LOW     — non-RCE mutations
+//   HIGH    — RCE / externally-visible (dispatched, not step-up-gated in v3)
 //   REFUSED — never dispatched remotely (worker-ingest plane, raw server, pickers)
 // Unknown (method,path) FAILS CLOSED to REFUSED. `uiToken: true` marks the ✦
-// routes whose local x-eos-ui-token the gateway supplies only to a device that
-// holds the "mutate" capability (§4.5).
+// routes whose local x-eos-ui-token the gateway supplies to a joined device.
 
 import type { RemoteTier } from "../../contracts/src/remote.ts";
 

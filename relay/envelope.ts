@@ -1,6 +1,8 @@
-// Outer envelope codec — protocol §4.1. This is the ONLY structure the relay
-// understands. For `data` frames the payload is opaque AEAD ciphertext the relay
-// forwards verbatim and never decrypts; the relay-control types carry a JSON payload.
+// Outer envelope codec — protocol §4.4. This is the ONLY structure the relay
+// understands. For `data` frames the payload is opaque application bytes the relay
+// forwards verbatim and never parses (plaintext inner-frame JSON since protocol
+// v3; the relay is blind to its contents either way); the relay-control types
+// carry a JSON payload the relay does parse.
 
 export const ENVELOPE_VER = 0x01;
 

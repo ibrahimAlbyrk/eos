@@ -1,8 +1,10 @@
-// Outer envelope codec — protocol §4.1. The ONLY structure the relay parses.
-// Byte-for-byte identical to relay/envelope.ts (confirmed with relay-impl): a
-// 13-byte fixed big-endian header, then room + clientId(16) + payload. For
-// type=0x01 data the payload is opaque AEAD ciphertext the relay forwards
-// verbatim; relay-control types carry UTF-8 JSON the relay does parse.
+// Outer envelope codec — §4.4. The ONLY structure the relay parses. Byte-for-byte
+// identical to relay/envelope.ts (confirmed with relay-impl): a 13-byte fixed
+// big-endian header, then room + clientId(16) + payload. For type=0x01 data the
+// payload is now plaintext inner-frame JSON (§5) the relay forwards verbatim;
+// relay-control types carry UTF-8 JSON the relay does parse. `epoch`/`seq` are
+// kept in the header for wire-compat but lost their crypto role — set to 0 and
+// not validated (§4.4).
 //
 // This file duplicates the relay's tiny codec intentionally — the byte layout
 // is the cross-impl contract, not shared code (the relay is a separate package).

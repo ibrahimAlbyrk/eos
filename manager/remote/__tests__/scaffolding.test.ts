@@ -1,11 +1,10 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { MacIdentity, DeviceKeyring, sha256Hex } from "../keyring.ts";
-import { relayDeviceId } from "../identity.ts";
+import { RoomSecrets, sha256Hex } from "../keyring.ts";
 import { RemoteAuditLog } from "../audit.ts";
 import { WsBridge, type RemoteSession, type ServerFrame } from "../WsBridge.ts";
 import type { EventBus, EventBusSubscriber, EventBusTopic } from "../../../core/src/ports/EventBus.ts";
@@ -14,60 +13,34 @@ function tmp(): string {
   return mkdtempSync(join(tmpdir(), "eos-remote-"));
 }
 
-describe("MacIdentity", () => {
-  it("generates once and reloads the same X25519 static key", () => {
+describe("RoomSecrets (relay v3 capability)", () => {
+  it("mints room.id + bearer.secret once and reloads the same values", () => {
     const dir = tmp();
     try {
-      const a = new MacIdentity(dir);
-      const pub1 = a.publicKey();
-      assert.equal(pub1.length, 32);
-      const b = new MacIdentity(dir); // reload from disk, no regen
-      assert.equal(b.publicKey().toString("hex"), pub1.toString("hex"));
-    } finally { rmSync(dir, { recursive: true, force: true }); }
-  });
-});
-
-describe("DeviceKeyring", () => {
-  it("records, matches by static key, lists, builds the admission allowlist, and revokes", () => {
-    const dir = tmp();
-    try {
-      const kr = new DeviceKeyring(dir);
-      const deviceStaticPub = Buffer.alloc(32, 0xab);
-      const id = relayDeviceId(deviceStaticPub);
-      const rec = kr.record(deviceStaticPub, "phone", 1);
-      assert.equal(rec.relayDeviceId, id);
-      assert.equal(rec.deviceStaticPub, deviceStaticPub.toString("hex"));
-      assert.deepEqual(kr.findByStaticPub(deviceStaticPub), rec);
-      // An unknown static key is not admitted.
-      assert.equal(kr.findByStaticPub(Buffer.alloc(32, 0xcd)), null);
-      assert.equal(kr.list().length, 1);
-      assert.deepEqual(kr.admissionHashes(), [sha256Hex(id)]);
-      assert.equal(kr.revoke(id), true);
-      assert.equal(kr.findByStaticPub(deviceStaticPub), null);
-      assert.equal(kr.revoke(id), false);
+      const a = new RoomSecrets(dir);
+      assert.ok(a.room.length >= 43, "room is b64url(>=32 bytes)");
+      assert.ok(a.bearer.length >= 43, "bearer is b64url(>=32 bytes)");
+      assert.notEqual(a.room, a.bearer);
+      const b = new RoomSecrets(dir); // reload from disk, no regen
+      assert.equal(b.room, a.room);
+      assert.equal(b.bearer, a.bearer);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it("ignores leftover v1 records instead of crashing admissionHashes", () => {
+  it("persists the secret files 0600", () => {
     const dir = tmp();
     try {
-      const kr = new DeviceKeyring(dir);
-      // A real v2 device + a stale v1 record (no relayDeviceId field).
-      kr.record(Buffer.alloc(32, 0xab), "phone", 1);
-      writeFileSync(join(dir, "devices", "v1-legacy.json"),
-        JSON.stringify({ devId: "v1-legacy", iDevPubSec1: "04ff", bearerHashHex: "deadbeef" }));
-      // Must not throw on sha256Hex(undefined); returns only the valid v2 entry.
-      const hashes = kr.admissionHashes();
-      assert.equal(hashes.length, 1);
-      assert.equal(hashes[0], sha256Hex(relayDeviceId(Buffer.alloc(32, 0xab))));
+      new RoomSecrets(dir);
+      assert.equal(statSync(join(dir, "room.id")).mode & 0o777, 0o600);
+      assert.equal(statSync(join(dir, "bearer.secret")).mode & 0o777, 0o600);
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
-  it("refuses a relayDeviceId that could escape the directory", () => {
+  it("bearerHash() is SHA-256(bearer) — the relay admission entry", () => {
     const dir = tmp();
     try {
-      const kr = new DeviceKeyring(dir);
-      assert.throws(() => kr.revoke("../escape"));
+      const s = new RoomSecrets(dir);
+      assert.equal(s.bearerHash(), sha256Hex(s.bearer));
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 });
@@ -110,7 +83,7 @@ class CaptureSession implements RemoteSession {
   close(): void { this.closed = true; }
 }
 
-describe("WsBridge skeleton", () => {
+describe("WsBridge fan-out", () => {
   let bus: FakeBus;
   let bridge: WsBridge;
   beforeEach(() => {

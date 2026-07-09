@@ -60,10 +60,12 @@ describe("RelayConnector ↔ mock relay", () => {
     }));
     assert.equal((await joined.promise).toString("hex"), clientId.toString("hex"));
 
-    // Relay → Mac: a device data frame (opaque payload forwarded verbatim).
-    const payload = Buffer.from("ciphertext-bytes");
+    // Relay → Mac: a device data frame (opaque payload forwarded verbatim). In v3
+    // the payload is plaintext inner-frame JSON, but the relay/connector are blind
+    // to its contents either way.
+    const payload = Buffer.from("plaintext-bytes");
     serverSocket!.send(encodeEnvelope({ type: FrameType.data, dir: Dir.c2s, epoch: 0, seq: 0n, room, clientId, payload }));
-    assert.equal((await data.promise).toString("utf8"), "ciphertext-bytes");
+    assert.equal((await data.promise).toString("utf8"), "plaintext-bytes");
 
     conn.stop();
     await new Promise<void>((r) => wss.close(() => r()));

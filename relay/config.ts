@@ -6,8 +6,9 @@ export type RelayConfig = {
   port: number;
   // Optional operator pre-pin of the room-owner hash. When set, a room's first
   // registration MUST present an owner whose SHA-256 equals this; otherwise the
-  // first valid registration pins the owner (TOFU). E2E already bounds relay
-  // compromise to metadata+DoS, so TOFU is acceptable for self-host (design §12.3).
+  // first valid registration pins the owner (TOFU). You self-host this relay, and
+  // in protocol v3 it forwards PLAINTEXT frames (no E2E), so a relay compromise
+  // reveals content — TOFU is acceptable for a self-hosted box (protocol §1).
   ownerHashPin: string | null;
   maxRoomDevices: number;
 };

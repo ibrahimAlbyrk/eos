@@ -63,7 +63,7 @@ test("register → join → bidirectional opaque forwarding", async () => {
     const devIn = new Inbox(dev);
     dev.send(encodeJsonEnvelope({ type: FrameType.join, room: ROOM, dir: Dir.c2s, json: { t: "join", room: ROOM, bearer: "dev-bearer" } }));
 
-    // Mac is notified to start E2E; device is acked with its assigned clientId.
+    // Mac is notified to spin up the client session; device is acked with its clientId.
     const macJoined = parseEnvelope(await macIn.next());
     assert.equal(macJoined.type, FrameType.relayctl);
     const macBody = JSON.parse(macJoined.payload.toString("utf8"));

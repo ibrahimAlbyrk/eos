@@ -1,12 +1,14 @@
-// RelayConnector — Mode B outbound leg (design §6.3, protocol §5). The daemon
+// RelayConnector — the daemon's outbound relay leg (relay v3, §4). The daemon
 // dials OUT to the self-hosted relay (no inbound NAT hole), registers/owns its
 // room (TOFU), and thereafter the relay is a dumb unicast pipe: it forwards our
-// per-device ciphertexts by clientId and never sees plaintext.
+// per-device frames by clientId + dir. Payloads are now PLAINTEXT UTF-8 JSON —
+// the relay (which you self-host) can see content; TLS at the relay edge is the
+// only confidentiality layer (§1, decision 1).
 //
 // This owns ONLY the relay transport: dial, register, reconnect (1s→60s), and
-// envelope in/out. Per-device E2E (handshake + record codec + dispatch) is the
-// caller's job, driven by the onJoined / onData callbacks. relayUrl is always
-// config-driven (config.remote.relayUrl) — never hardcoded here.
+// envelope in/out. Per-device session + dispatch is the caller's job, driven by
+// the onJoined / onData callbacks. relayUrl is always config-driven
+// (config.remote.relay.url) — never hardcoded here.
 
 import WebSocket from "ws";
 import { encodeJsonEnvelope, parseEnvelope, FrameType, type Envelope } from "./envelope.ts";
@@ -15,11 +17,11 @@ const BACKOFF_MIN_MS = 1_000;
 const BACKOFF_MAX_MS = 60_000;
 
 export interface RelayConnectorDeps {
-  url: string; // wss://<relay>/  — from config.remote.relayUrl
-  room: string; // b64u22 routing key
+  url: string; // wss://<relay>/  — from config.remote.relay.url
+  room: string; // b64url(>=32 bytes) routing key + capability
   owner: string; // b64u room-owner secret (relay stores only its SHA-256)
-  allow: () => string[]; // current device bearer-hash allowlist (hex)
-  onJoined: (clientId: Buffer) => void; // a device joined → start its handshake
+  allow: () => string[]; // the room's admission allowlist (hex) — in v3 [ sha256Hex(bearer) ]
+  onJoined: (clientId: Buffer) => void; // a device joined → go live for it
   onData: (env: Envelope) => void; // incoming c2s data frame for a device session
   onError?: (code: string, message: string) => void;
   onRegistered?: () => void;
@@ -55,7 +57,7 @@ export class RelayConnector {
 
   isRegistered(): boolean { return this.state === "registered"; }
 
-  // Send an outgoing s2c data envelope (already sealed + framed by the session).
+  // Send an outgoing s2c data envelope (plaintext inner frame, framed by the session).
   sendData(envelope: Buffer): boolean {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return false;
     this.ws.send(envelope);

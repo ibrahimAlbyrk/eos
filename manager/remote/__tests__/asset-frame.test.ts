@@ -9,9 +9,8 @@ import { Router } from "../../routes/Router.ts";
 import { classifyTier } from "../tiers.ts";
 import { makeRouteDispatch } from "../virtual-dispatch.ts";
 import { ControlDispatcher, type DispatchSession } from "../dispatch.ts";
-import { RemoteSessionCodec } from "../session.ts";
-import { ENVELOPE_VER, parseEnvelope } from "../envelope.ts";
-import { Dir, makeNonce, makeAad, aeadOpen } from "../crypto.ts";
+import { encodeServerFrame } from "../framer.ts";
+import { Dir, parseEnvelope } from "../envelope.ts";
 import type { RemoteAuditLog } from "../audit.ts";
 import type { ServerFrame } from "../WsBridge.ts";
 import { AssetFrameSchema, type ControlFrame } from "../../../contracts/src/remote.ts";
@@ -123,26 +122,15 @@ describe("ControlDispatcher — frames binary as `asset`, oversize as FRAME_TOO_
   });
 });
 
-describe("asset frame round-trips through the session codec (C6)", () => {
-  it("seals s2c and re-opens to the exact bytes the device will decode", () => {
-    const key = randomBytes(32);
+describe("asset frame round-trips through the plaintext framer (C6)", () => {
+  it("frames s2c and re-parses to the exact bytes the device will decode", () => {
     const clientId = randomBytes(16);
     const room = "asset-room";
-    const codec = new RemoteSessionCodec({
-      clientId, room, devId: "dev", caps: [], sessionTH: Buffer.alloc(32),
-      keys: { kC2sFinal: key, kS2cFinal: key },
-    });
     const frame: ServerFrame = { t: "asset", correlationId: "c-9", status: 200, mime: "image/png", bytesB64: BIN.toString("base64") };
-    const env = parseEnvelope(codec.seal(frame));
+    const env = parseEnvelope(encodeServerFrame({ room, clientId, frame }));
     assert.equal(env.dir, Dir.s2c);
-    const plain = aeadOpen(
-      key,
-      makeNonce(0, Dir.s2c, 0n),
-      makeAad(ENVELOPE_VER, 0, Dir.s2c, 0n, room, clientId),
-      env.payload,
-    );
-    assert.ok(plain, "sealed asset frame must open under the s2c key");
-    const decoded = AssetFrameSchema.parse(JSON.parse(plain!.toString("utf8")));
+    // Plaintext payload — no key needed. The device reads the raw JSON directly.
+    const decoded = AssetFrameSchema.parse(JSON.parse(env.payload.toString("utf8")));
     assert.equal(decoded.mime, "image/png");
     assert.deepEqual(Buffer.from(decoded.bytesB64, "base64"), BIN);
   });

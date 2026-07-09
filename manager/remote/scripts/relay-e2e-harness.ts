@@ -1,11 +1,11 @@
-// Relay-mode E2E harness — MANUAL, NOT part of npm test. Boots the FULL Mac-side
-// remote stack (gateway + RelayConnector + handshake + dispatch) in mode=relay
-// against the LIVE relay, arms a one-time pairing offer (adding the pairing
-// bearer to the relay allowlist), and emits the §6 pairing payload to stdout AND
-// a file so ios-impl's Simulator can join + pair + control THROUGH the live relay
-// — a real cross-process, cross-language end-to-end proof. Control frames hit
-// harness-local READ routes (real fleet control comes when the operator arms
-// config.remote + restarts Eos; this never touches the prod daemon state).
+// Relay E2E harness — MANUAL, NOT part of npm test. Boots the FULL Mac-side
+// remote stack (RelayConnector + gateway session + dispatch) against the LIVE
+// relay (relay v3, plaintext), mints the v3 pairing QR from the daemon's armed
+// room + bearer, and emits it to stdout AND a file so ios-impl's Simulator can
+// join + control THROUGH the live relay — a real cross-process, cross-language
+// end-to-end proof. Control frames hit harness-local READ routes (real fleet
+// control comes when the operator arms config.remote + restarts Eos; this never
+// touches the prod daemon state).
 //
 // Run:  npx tsx remote/scripts/relay-e2e-harness.ts
 // Stop: Ctrl-C. Payload also written to $EOS_PAIR_OUT (default /tmp/eos-pair.json).
@@ -13,7 +13,6 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { randomBytes } from "node:crypto";
 
 import { createInMemoryEventBus } from "../../../infra/src/eventbus/InMemoryEventBus.ts";
 import { Router } from "../../routes/Router.ts";
@@ -43,41 +42,39 @@ function harnessRouter(): Router {
 
 function main(): void {
   const home = mkdtempSync(join(tmpdir(), "eos-relay-harness-"));
-  const room = randomBytes(16).toString("base64url"); // fresh room per run
   const bus = createInMemoryEventBus();
   const log = {
     info: (m: string, f?: Record<string, unknown>) => console.log(`[harness] ${m}`, f ?? ""),
     warn: (m: string, f?: Record<string, unknown>) => console.warn(`[harness] ${m}`, f ?? ""),
   };
   const c: RemoteWiringDeps = {
-    config: { remote: { mode: "relay", relay: { url: RELAY, room } }, daemon: { home, port: 7400 } },
+    config: { remote: { enabled: true, relay: { url: RELAY } }, daemon: { home, port: 7400 } },
     uiToken: "harness", bus, log,
   };
 
-  // Relay mode dials out (RelayConnector); the build step never touches a server.
+  // Relay-only: dials out (RelayConnector) and mints a fresh room + bearer under
+  // <home>/remote. The build step never touches a server.
   const gateway = startRemoteGateway(c, harnessRouter());
   if (!gateway) { console.error("FAILED to arm gateway"); process.exit(1); }
 
-  // Give the connector a moment to dial + register, then arm pairing + emit.
+  // Give the connector a moment to dial + register, then mint the pairing QR + emit.
   setTimeout(() => {
-    // Generous offer window so cross-process coordination latency can't expire it
-    // (the server enforces no ots expiry; this is the advisory otsExp the device
-    // checks). The armed pairing bearer survives a relay reconnect via wire.ts's
-    // allow() now including it.
-    const qr = gateway.armPairing({ relay: { url: RELAY, room }, ttlMs: TTL_MS });
+    // Generous display window so cross-process coordination latency can't expire it
+    // (the room/bearer stay valid until re-armed; exp is only the QR UX guard).
+    const qr = gateway.armPairing({ ttlMs: TTL_MS });
     const payload = JSON.stringify(qr, null, 2);
     writeFileSync(OUT, payload + "\n");
     console.log("\n===== PAIRING PAYLOAD (scan or consume programmatically) =====");
     console.log(payload);
     console.log(`===== written to ${OUT}  (ttl ${Math.round(TTL_MS / 1000)}s) =====\n`);
-    console.log("[harness] waiting for a device to join + pair through the relay… (Ctrl-C to stop)");
+    console.log("[harness] waiting for a device to join + control through the relay… (Ctrl-C to stop)");
   }, 1500);
 
   // Keep the process alive indefinitely: a relay-dropped idle socket triggers an
   // unref'd reconnect timer, which alone would let the event loop drain and exit.
   const heartbeat = setInterval(() => {}, 30_000);
 
-  process.on("SIGINT", () => { clearInterval(heartbeat); gateway.stop(); server.close(); process.exit(0); });
+  process.on("SIGINT", () => { clearInterval(heartbeat); gateway.stop(); process.exit(0); });
 }
 
 main();

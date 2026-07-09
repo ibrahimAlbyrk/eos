@@ -1,13 +1,12 @@
-// Control-dispatch shim (protocol §8, connection v2). A decrypted client
-// control{method,path,body} is tier-classified, ui-token-gated, then dispatched
-// into the EXISTING route handlers via an injected virtual-response dispatcher.
+// Control-dispatch shim (§5.2.3). A client control{method,path,body} (plaintext
+// inner frame) is tier-classified, ui-token-gated, then dispatched into the
+// EXISTING route handlers via an injected virtual-response dispatcher.
 //
-// v2 note: there is no per-action step-up. v1's step-up was a fresh Secure-Enclave
-// P-256 signature; v2 deletes the SE/P-256 key entirely and there is no longer a
-// reduced-capability (resumed) session — every connection is a full mutual-auth
-// Noise_IK session holding all capabilities. HIGH-tier routes are therefore
-// dispatched for any authenticated session; the meaningful gate that remains is
-// REFUSED (never exposed remotely) + the ✦ ui-token gate.
+// v3 note: there is no per-action step-up and no reduced-capability session — the
+// relay `join` bearer is the whole auth step, and every joined device is
+// dispatched at full capability. HIGH-tier routes are therefore dispatched for
+// any joined session; the meaningful gates that remain are REFUSED (never exposed
+// remotely) + the ✦ ui-token gate.
 
 import { classifyTier } from "./tiers.ts";
 import { MAX_ENVELOPE_BYTES } from "./envelope.ts";
@@ -28,9 +27,9 @@ export interface RouteDispatch {
   (input: { method: string; path: string; body: unknown; uiToken?: string }): Promise<RouteDispatchResult>;
 }
 
-// Headroom reserved above the asset frame's JSON plaintext for the AEAD tag (16)
-// and the outer envelope header (13 + roomLen≤255 + clientId 16). 512 covers the
-// worst case so the sealed envelope cannot exceed the relay's §4.1 limit.
+// Headroom reserved above the asset frame's JSON plaintext for the outer envelope
+// header (13 + roomLen≤255 + clientId 16). 512 covers the worst case so the framed
+// envelope cannot exceed the relay's §4.4 limit.
 const ASSET_FRAME_OVERHEAD = 512;
 
 export interface DispatchSession {
@@ -60,15 +59,13 @@ export class ControlDispatcher {
     const { tier, uiToken } = classifyTier(method, path);
     if (tier === "REFUSED") return this.deny(session, frame, "ROUTE_REFUSED", "route not exposed remotely");
 
-    // ✦ routes need the "mutate working tree" capability (§4.5).
+    // ✦ routes need the local ui-token, supplied only to a session that holds the
+    // "mutate" capability (every joined device does in v3 — there is no step-up).
     if (uiToken && !session.hasCap("mutate")) {
       return this.deny(session, frame, "CAP_DENIED", "device lacks the mutate capability");
     }
-    if (tier === "HIGH" && !session.hasCap("highrisk")) {
-      return this.deny(session, frame, "CAP_DENIED", "session capability tier does not permit high-risk");
-    }
 
-    // body is an opaque JSON string on the wire (§3.4). GET ⇒ "{}".
+    // body is an opaque JSON string on the wire (§5.2.3). GET ⇒ "{}".
     const bodyStr = frame.body ?? "{}";
     let parsedBody: unknown;
     try { parsedBody = JSON.parse(bodyStr); } catch { return this.deny(session, frame, "INTERNAL", "control body is not valid JSON"); }

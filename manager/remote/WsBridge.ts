@@ -1,33 +1,31 @@
-// WsBridge — the remote edge's EventBus↔frame fan-out (design §6.2). This is the
-// SKELETON: it mirrors SseBroadcaster (subscribe to the bus "*" fan-out, push to
-// every connected remote session) but adds the monotonic `seq` cursor the
-// resumable WS contract needs, and emits typed inner frames (§4.2) instead of
-// SSE `change` events.
-//
-// NOT YET WIRED: the per-session AEAD codec, the SIGMA handshake, and the
-// control-dispatch shim into manager/routes/* all land in the next phase. A
-// RemoteSession here is the post-handshake abstraction — WsBridge hands it
-// plaintext inner frames; the session is responsible for sealing + framing.
+// WsBridge — the remote edge's EventBus↔frame fan-out (§5.4). It mirrors
+// SseBroadcaster (subscribe to the bus "*" fan-out, push to every connected
+// remote session) but adds the monotonic `seq` cursor the resumable contract
+// needs, and emits typed plaintext inner frames (§5.4) instead of SSE `change`
+// events. A RemoteSession here is the live per-device peer — WsBridge hands it a
+// server frame; the session serializes it into a `data` envelope (framer.ts).
 
 import type { EventBus, EventBusMessage } from "../../core/src/ports/EventBus.ts";
-import type { AssetFrame } from "../../contracts/src/remote.ts";
+import type { AssetFrame, RemoteErrorCode } from "../../contracts/src/remote.ts";
 
-// One server→client inner frame (§4.2), pre-encryption. `seq` is stamped by the
-// bridge; the session adds the AEAD/envelope layer. `asset` carries binary route
-// reads out-of-band as base64 (design §4 / C6) — it is correlationId-addressed
-// like `reply`, not seq-stamped like the fan-out frames.
+// One server→client inner frame (§5.4), plaintext. `seq` is stamped by the
+// bridge; the session wraps it in the outer envelope. `asset` carries binary
+// route reads out-of-band as base64 (§5.4.5) — it is correlationId-addressed
+// like `reply`, not seq-stamped like the fan-out frames. `error` fails a specific
+// pending control (with correlationId) or the session (without).
 export type ServerFrame =
   | { t: "event"; seq: number; reason: string; ts: number; payload: unknown }
   | { t: "patch"; seq: number; resource: string; op: "upsert" | "remove"; data: unknown }
   | { t: "snapshot"; seq: number; workers: unknown; pending: unknown }
   | { t: "reply"; correlationId: string; status: number; body: unknown }
   | AssetFrame
+  | { t: "error"; code: RemoteErrorCode; message?: string; correlationId?: string }
   | { t: "ka"; ts: number };
 
-// A handshake-complete remote peer. The codec/transport is the session's job;
-// the bridge only feeds it plaintext frames.
+// A live remote peer. The transport/framing is the session's job; the bridge only
+// feeds it plaintext frames.
 export interface RemoteSession {
-  readonly id: string; // clientId (relay-assigned or daemon-assigned on LAN)
+  readonly id: string; // clientId (relay-assigned)
   send(frame: ServerFrame): void;
   close(reason?: string): void;
 }
@@ -47,8 +45,8 @@ export class WsBridge {
     this.opts = opts;
   }
 
-  // Arm the bus subscription. Called when remote is enabled (mode != off); idle
-  // and allocation-free while no sessions are connected.
+  // Arm the bus subscription. Called when remote is enabled; idle and
+  // allocation-free while no sessions are connected.
   start(): void {
     if (this.unsubscribe) return;
     this.unsubscribe = this.opts.bus.subscribe("*", (msg) => this.onBusMessage(msg));
@@ -67,8 +65,8 @@ export class WsBridge {
   size(): number { return this.sessions.size; }
 
   // Monotonic per-bridge content cursor. The seq lets a reconnecting device
-  // detect a gap (SEQ_GAP → request a snapshot) — distinct from the per-frame
-  // AEAD seq, which is per-(direction,epoch).
+  // detect a gap (missed events → request a snapshot). Ordering only, not a
+  // security boundary (§5.4.1).
   nextSeq(): number { return ++this.seq; }
   currentSeq(): number { return this.seq; }
 

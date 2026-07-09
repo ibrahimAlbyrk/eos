@@ -412,3 +412,70 @@ describe("priceForModel — built-in manual provider prices (Zhipu flat, Qwen ti
     assert.deepEqual([selectTierPrice(coder, 900_000).in, selectTierPrice(coder, 900_000).out], [6.0, 60.0]);
   });
 });
+
+// ---- config.remote v2→v3 migration (plaintext relay) -----------------------
+describe("migrateRemoteConfig — legacy v2 remote block → v3", () => {
+  it("maps mode:relay → enabled:true, keeps relay.url, discards relay.room + lan", async () => {
+    const { migrateRemoteConfig } = await import("../config.ts");
+    const out = migrateRemoteConfig({
+      mode: "relay",
+      relay: { url: "wss://relay.example/", room: "OLD16BYTEROOM" },
+      lan: { host: "0.0.0.0" },
+      inactivityLeaseMs: 60000,
+    }) as Record<string, unknown>;
+    assert.equal(out.enabled, true);
+    assert.equal("mode" in out, false);
+    assert.equal("lan" in out, false);
+    assert.deepEqual(out.relay, { url: "wss://relay.example/" }); // room dropped
+    assert.equal(out.inactivityLeaseMs, 60000);                   // carried over
+  });
+
+  it("maps mode:lan → enabled:true and mode:off → enabled:false", async () => {
+    const { migrateRemoteConfig } = await import("../config.ts");
+    assert.equal((migrateRemoteConfig({ mode: "lan" }) as Record<string, unknown>).enabled, true);
+    assert.equal((migrateRemoteConfig({ mode: "off" }) as Record<string, unknown>).enabled, false);
+  });
+
+  it("drops relay entirely when the legacy block had no relay.url", async () => {
+    const { migrateRemoteConfig } = await import("../config.ts");
+    const out = migrateRemoteConfig({ mode: "lan", relay: { room: "OLD" } }) as Record<string, unknown>;
+    assert.equal(out.enabled, true);
+    assert.equal("relay" in out, false);
+  });
+});
+
+describe("loadConfig — remote v2 config.json migrates without a parse error", () => {
+  let tmpHome: string;
+  beforeEach(async () => {
+    const fs = await import("node:fs");
+    tmpHome = (process.env.TMPDIR ?? "/tmp") + `/cfg-remote-${Date.now()}-${Math.random()}`;
+    fs.mkdirSync(tmpHome, { recursive: true });
+    process.env.EOS_HOME = tmpHome;
+  });
+  afterEach(async () => {
+    delete process.env.EOS_HOME;
+    try { (await import("node:fs")).rmSync(tmpHome, { recursive: true, force: true }); } catch {}
+  });
+
+  it("{ mode:'relay', relay:{url,room} } loads as { enabled:true, relay:{url} }", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({
+      remote: { mode: "relay", relay: { url: "wss://r.example/", room: "AAAAAAAAAAAAAAAAAAAAAA" }, lan: { host: "0.0.0.0" } },
+    }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.remote.enabled, true);
+    assert.equal(cfg.remote.relay?.url, "wss://r.example/");
+    assert.equal((cfg.remote.relay as Record<string, unknown> | undefined)?.room, undefined);
+    assert.equal((cfg.remote as Record<string, unknown>).mode, undefined);
+    assert.equal((cfg.remote as Record<string, unknown>).lan, undefined);
+  });
+
+  it("{ mode:'off' } loads as { enabled:false }", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ remote: { mode: "off" } }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.remote.enabled, false);
+  });
+});
