@@ -1,21 +1,21 @@
 import SwiftUI
 import EosRemoteKit
 
-// Minimal transcript dispatcher (spec 03 §1, Phase 4a). Switches on the typed `Block.Payload` and
-// renders each case CRUDELY — just enough to show correct content and compile. The rich renderers
-// (serif Markdown, syntax highlight, tool cards, diff hunks, agent viewer, live overlays) are
-// Phase 4b; each deferral is marked `// Phase 4b:`.
+// Transcript dispatcher (spec 03 §1). Switches on the typed `Block.Payload`. Phase 4b-i wires the
+// three TEXT centerpiece kinds — user / assistant / thinking — to their rich views (§5.1/5.5, blur-in
+// §6.1). The remaining kinds (tool / toolGroup / agentRun / report / …) stay CRUDE and keep their
+// `// Phase 4b:` markers for 4b-ii.
 struct MessageView: View {
     let block: Block
 
     var body: some View {
         switch block.payload {
-        case .user(let text, _):
-            userBubble(text)                                    // Phase 4b: rich-text segmenter, attachments, action row
-        case .assistant(let text):
-            assistantProse(text)                                // Phase 4b: serif Markdown + code highlight + blur-in
-        case .thinking(let text):
-            thinkingLine(text)                                  // Phase 4b: mono streaming reveal + spark
+        case .user:
+            UserMessageView(block: block, workerId: block.workerId)     // §1 #1 · §5.5 rich-text + rewind
+        case .assistant:
+            AssistantMessageView(block: block)                          // §1 #2 · §5.1 serif Markdown + blur-in
+        case .thinking:
+            ThinkingLineView(block: block)                              // §1 #3 · mono streaming reveal
         case .tool(let tool):
             toolRow(tool)                                       // Phase 4b: ToolItemView chrome + Detail bodies
         case .toolGroup(_, let summary, let tools):
@@ -47,35 +47,6 @@ struct MessageView: View {
         case .worktreePreserved(let path, let branch, let diffStat):
             worktreePreserved(path, branch, diffStat)
         }
-    }
-
-    // Assistant: full-width serif prose, no bubble — the heart of the aesthetic (spec 02 §3.7).
-    private func assistantProse(_ text: String) -> some View {
-        Text(text)
-            .font(EosFont.bodySerif)
-            .lineSpacing(4)
-            .foregroundStyle(EosColor.ink)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // User: right-aligned coral-wash bubble.
-    private func userBubble(_ text: String) -> some View {
-        HStack {
-            Spacer(minLength: 32)
-            Text(text)
-                .font(EosFont.body)
-                .foregroundStyle(EosColor.ink)
-                .padding(EosSpacing.sm)
-                .background(EosColor.coralWash, in: RoundedRectangle(cornerRadius: EosRadius.card, style: .continuous))
-        }
-    }
-
-    // Thinking: no bubble, mono, tertiary ink.
-    private func thinkingLine(_ text: String) -> some View {
-        Text(text)
-            .font(EosFont.mono)
-            .foregroundStyle(EosColor.inkTertiary)
-            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // A single tool: verb + name + running/failed hint. Phase 4b upgrades to the full chrome.

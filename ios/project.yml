@@ -6,6 +6,17 @@ options:
     iOS: "26.0"
   createIntermediateGroups: true
 
+# Highlightr wraps highlight.js (same engine + github-dark-dimmed theme as the Mac) → exact-match
+# code highlighting. swift-markdown is cmark-gfm (the GFM family the Mac's Marked uses); it only
+# ships toolchain snapshot tags, so it's pinned to an immutable revision for a reproducible build.
+packages:
+  Highlightr:
+    url: https://github.com/raspu/Highlightr.git
+    from: "2.2.0"
+  swift-markdown:
+    url: https://github.com/apple/swift-markdown.git
+    revision: c519011e10582d5585f20b2b38dfb4920ae03b13
+
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -35,16 +46,32 @@ targets:
     platform: iOS
     sources:
       - path: EosRemote
+    # A generated Info.plist so UIAppFonts (an array) can register the bundled JetBrains Mono.
+    # The keys the root settings' GENERATE_INFOPLIST_FILE used to inject are declared here instead.
+    info:
+      path: EosRemote/Info.plist
+      properties:
+        UILaunchScreen: {}
+        NSCameraUsageDescription: "Scan the pairing QR shown by the Eos Mac app."
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UIAppFonts:
+          - JetBrainsMono-Regular.ttf
+          - JetBrainsMono-Medium.ttf
+          - JetBrainsMono-SemiBold.ttf
+          - JetBrainsMono-Bold.ttf
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.eos.remote.app
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        INFOPLIST_KEY_UILaunchScreen_Generation: "YES"
-        INFOPLIST_KEY_NSCameraUsageDescription: "Scan the pairing QR shown by the Eos Mac app."
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
+        GENERATE_INFOPLIST_FILE: "NO"
         TARGETED_DEVICE_FAMILY: "1,2"
     dependencies:
       - target: EosRemoteKit
+      - package: Highlightr
+        product: Highlightr
+      - package: swift-markdown
+        product: Markdown
 
   EosRemoteKitTests:
     type: bundle.unit-test

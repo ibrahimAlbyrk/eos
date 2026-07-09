@@ -109,6 +109,30 @@ final class AppModel: ObservableObject {
     // High-risk verbs (kill/spawn/decision). There is no per-action step-up: possession of the room
     // capability grants full authority, so these dispatch like any other control.
     func kill(_ id: String) async { await control("DELETE", "/workers/\(id)", .object([:])) }
+
+    // Message rewind (spec 03 §5.2) — user-bubble affordance, PTY lane only (gated on backendCaps).
+    // Resolve the bubble's transcript target by matching its text against GET /rewind-targets, then
+    // POST the uuid (conversation mode). Full fuzzy matching (rewindMatch.js) is 4b-ii; here we match
+    // on exact/normalized text, which covers the common case. Returns true on a dispatched rewind.
+    @discardableResult
+    func rewind(workerId: String, text: String) async -> Bool {
+        guard let connection else { lastError = "not connected"; return false }
+        let reply = try? await connection.sendControl(method: "GET",
+            path: "/workers/\(workerId)/rewind-targets", bodyData: Data("{}".utf8))
+        let targets = reply?.body?["targets"]?.arrayValue ?? []
+        let want = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let match = targets.last { t in
+            let tt = (t["text"]?.stringValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let dd = (t["display"]?.stringValue ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return tt == want || dd == want
+        } ?? targets.last
+        guard let uuid = match?["uuid"]?.stringValue else { lastError = "no rewind target"; return false }
+        await control("POST", "/workers/\(workerId)/rewind",
+                      .object(["uuid": .string(uuid), "mode": .string("conversation")]))
+        if openId == workerId { scheduleDelta() }
+        return true
+    }
+
     func spawnWorker(body: JSONValue) async { await control("POST", "/workers", body) }
     func approve(pendingId: String, allow: Bool) async {
         await control("POST", "/pending/\(pendingId)/decision",
@@ -401,9 +425,12 @@ final class AppModel: ObservableObject {
     }
 
     // Run the full event→block pipeline over ALL durable rows (spec 03 §4), then overlay the live
-    // streaming buffers. The overlay MERGE is the Phase-4b render-time step (§4.10) — for now only
-    // live thinking/text is appended (optimistic bubbles / live terminal / goal-check land in 4b);
-    // this is where the full StreamingBuffers merge plugs in.
+    // streaming buffers at render time (§4.10). Phase 4b-i wires the LIVE THINKING overlay (§4.10 #3):
+    // a reasoning-channel buffer with no durable block → a thinking(live:true) block whose streaming
+    // tail blur-ins in ThinkingLineView. (The reasoning channel is overlaid; the assistant text channel
+    // stays overlaid here as a live block only until its durable row lands — §4.10 #3 notes the durable
+    // assistant block is what blurs in.) Optimistic-user (#1) and live-terminal (#2) overlays are 4b-ii,
+    // wired once the terminal card + outbox land; this is their plug point.
     private func recompute() {
         durableBlockIds = []
         collectDurableBlockIds()

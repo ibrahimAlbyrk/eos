@@ -9,6 +9,9 @@ struct WorkerDetailView: View {
     @EnvironmentObject var model: AppModel
     let workerId: String
     @State private var draft = ""
+    // Blur-in ledger (spec 03 §6.1): seeds the loaded history as already-revealed so only output
+    // arriving after entry animates. Bound to workerId so each transcript seeds its own history.
+    @StateObject private var reveal = RevealLedger()
 
     private var worker: Worker? { model.workers.first { $0.id == workerId } }
     private var name: String { worker?.name ?? workerId }
@@ -27,10 +30,17 @@ struct WorkerDetailView: View {
             }
             .padding(.horizontal, EosSpacing.screenInset)
         }
+        .environmentObject(reveal)
         // Bottom anchor lands the newest message on open and holds the bottom-relative position on
         // growth (follows the tail at the bottom, leaves the reading spot when scrolled up).
         .defaultScrollAnchor(.bottom)
-        .task(id: workerId) { await model.openWorker(workerId) }
+        .task(id: workerId) {
+            reveal.bind(sessionId: workerId)
+            await model.openWorker(workerId)
+            // Let the first page paint, then open the animation window so only later output blurs in.
+            try? await Task.sleep(nanoseconds: 350_000_000)
+            reveal.markEntrySettled()
+        }
         .onDisappear { model.closeWorker(workerId) }
         .background(EosColor.bg)
         .eosTopChrome {

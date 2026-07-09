@@ -12,9 +12,24 @@ public struct Worker: Identifiable, Sendable, Equatable {
     public var effort: String? { raw["effort"]?.stringValue }
     public var tokens: Int? { raw["tokens"]?.intValue ?? raw["total_tokens"]?.intValue }
     public var costUSD: Double? { raw["cost"]?.doubleValue ?? raw["cost_usd"]?.doubleValue }
+    // Backend lane (claude-cli / claude-sdk / metered). Drives capability gates (rewind, §5.2).
+    public var backendKind: String { raw["backend_kind"]?.stringValue ?? raw["backendKind"]?.stringValue ?? "claude-cli" }
 
     public init(raw: JSONValue) { self.raw = raw }
     public static func == (a: Worker, b: Worker) -> Bool { a.raw == b.raw }
+}
+
+// Capabilities the UI gates controls on (spec 03 §5.2, port of backendCaps.js). Only the fields this
+// phase needs: rewind (message rewind is a PTY-only affordance). claude-cli drives Claude's native TUI
+// rewind via keystrokes → true; the SDK lane and metered providers have no keystroke channel → false.
+public struct BackendCaps: Sendable {
+    public let rewind: Bool
+    public static func of(_ kind: String) -> BackendCaps {
+        switch kind {
+        case "claude-cli": return BackendCaps(rewind: true)
+        default:           return BackendCaps(rewind: false)   // claude-sdk, anthropic-api, openai, codex
+        }
+    }
 }
 
 public struct Pending: Identifiable, Sendable, Equatable {
