@@ -42,7 +42,21 @@ export function RemoteSettings() {
     if (loaded.current) return;
     loaded.current = true;
     api.getRemoteStatus()
-      .then((s) => { setArmed(!!s?.armed); })
+      .then(async (s) => {
+        setArmed(!!s?.armed);
+        // Already armed (a migrated config auto-arms on daemon boot), so no toggle
+        // round-trip happens: fetch the QR now and prefill the relay URL from the
+        // pair payload, otherwise the panel shows "Armed" with no QR below it.
+        if (s?.armed) {
+          try {
+            const pairRes = await api.pairRemote();
+            if (pairRes.ok) {
+              setQr(pairRes.body);
+              if (pairRes.body?.relay) setRelayUrl(pairRes.body.relay);
+            }
+          } catch { /* leave QR unfetched; toggling off/on will retry */ }
+        }
+      })
       .catch(() => {});
   }, []);
 
