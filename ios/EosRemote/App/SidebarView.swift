@@ -24,9 +24,18 @@ struct SidebarView: View {
                 .foregroundStyle(EosColor.ink)
                 .padding(.horizontal, EosSpacing.md)
                 .padding(.top, EosSpacing.xl)
-                .padding(.bottom, EosSpacing.lg)
+                .padding(.bottom, EosSpacing.xs)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($wordmarkFocused)
+
+            if let device = model.activeDevice {
+                CurrentDeviceChip(label: device.label,
+                                  state: model.connectionState(for: device.id)) { select(.devices) }
+                    .padding(.horizontal, EosSpacing.md)
+                    .padding(.bottom, EosSpacing.lg)
+            } else {
+                Color.clear.frame(height: EosSpacing.lg)
+            }
 
             Group {
                 SidebarRow("square.stack.3d.up", "Fleet", isSelected: sidebar.section == .fleet) { select(.fleet) }
@@ -72,6 +81,40 @@ struct SidebarView: View {
     private func select(_ s: SidebarSection) {
         sidebar.section = s
         sidebar.isOpen = false
+    }
+}
+
+// Compact active-device chip under the wordmark (spec 02 §3.2 Devices) — the label + a live StateDot
+// + a chevron, so the user always sees which Mac they control and can jump to Devices to switch.
+// Subtle and caption-scale to sit quietly beneath the "Eos" mark.
+struct CurrentDeviceChip: View {
+    let label: String
+    let state: DeviceConnState
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: EosSpacing.xs) {
+                StateDot(state: state.dotState)
+                Text(label)
+                    .font(EosFont.caption)
+                    .foregroundStyle(EosColor.inkSecondary)
+                    .lineLimit(1)
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(EosColor.inkTertiary)
+                Spacer(minLength: 0)
+            }
+            .padding(.vertical, EosSpacing.xxs)
+            .padding(.horizontal, EosSpacing.xs)
+            .background(EosColor.surface, in: Capsule())
+            .overlay(Capsule().strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .fixedSize(horizontal: true, vertical: false)
+        .accessibilityLabel("Current device: \(label), \(state.label)")
+        .accessibilityHint("Switch devices")
     }
 }
 

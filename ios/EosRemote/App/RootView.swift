@@ -62,7 +62,7 @@ struct RootView: View {
         case .pending:
             PendingListView().eosTopChrome { EmptyView() }
         case .devices:
-            DevicesView(onPair: { showPairing = true }).eosTopChrome { EmptyView() }
+            DevicesView(onSwitched: { sidebar.section = .fleet }).eosTopChrome { EmptyView() }
         case .settings:
             SettingsView().eosTopChrome { EmptyView() }
         }

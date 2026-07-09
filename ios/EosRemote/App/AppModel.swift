@@ -6,6 +6,31 @@ import EosRemoteKit
 // Surfaced in Console.app / `log stream --predicate 'subsystem == "dev.eos.remote"'`.
 private let eosLog = Logger(subsystem: "dev.eos.remote", category: "connect")
 
+// A device's live connection state as the Devices UI needs it (Phase 5b). `dotState` maps onto the
+// StateDot vocabulary so the same paper palette drives the device dots (connected→green, connecting→
+// amber, error→brick, disconnected→gray).
+enum DeviceConnState {
+    case connected, connecting, disconnected, error
+
+    var dotState: String {
+        switch self {
+        case .connected:    return "RUNNING"
+        case .connecting:   return "WAITING"
+        case .error:        return "FAILED"
+        case .disconnected: return "IDLE"
+        }
+    }
+
+    var label: String {
+        switch self {
+        case .connected:    return "Connected"
+        case .connecting:   return "Connecting…"
+        case .error:        return "Error"
+        case .disconnected: return "Disconnected"
+        }
+    }
+}
+
 // The @MainActor coordinator over N paired Macs (Phase 5a). Each device has its own live
 // DeviceConnection (its own WS connection + Store + transcript pipeline + backoff); AppModel holds
 // them keyed by id and MIRRORS the ACTIVE device's fields into the @Published arrays the screens
@@ -34,6 +59,9 @@ final class AppModel: ObservableObject {
     @Published private(set) var activeDeviceId: String?
 
     private(set) var hasOlder = false
+
+    // The active device row (Phase 5b) — the sidebar chip + Devices highlight read it.
+    var activeDevice: Device? { activeDeviceId.flatMap { id in devices.first { $0.id == id } } }
 
     private let deviceStore: DeviceStore
     private var connections: [String: DeviceConnection] = [:]
@@ -81,8 +109,14 @@ final class AppModel: ObservableObject {
         if let existing = connections[device.id] { return existing }
         let conn = DeviceConnection(device: device)
         conn.onChange = { [weak self, weak conn] in
-            guard let self, let conn, conn.deviceId == self.activeDeviceId else { return }
-            self.mirrorActive()
+            guard let self, let conn else { return }
+            if conn.deviceId == self.activeDeviceId {
+                self.mirrorActive()
+            } else {
+                // A background device's connection state changed — the Devices list + sidebar chip
+                // show its live dot, so re-publish even though it is not the mirror source.
+                self.objectWillChange.send()
+            }
         }
         connections[device.id] = conn
         return conn
@@ -155,6 +189,18 @@ final class AppModel: ObservableObject {
     // The first-device pairing entry point used by the existing Pair sheet. Identical UX to before:
     // scan → this adds the FIRST device and connects it. (addDevice covers subsequent devices too.)
     func startPairing(qr: QRPayload) async { await addDevice(qr: qr) }
+
+    // The live connection state of one device (Phase 5b) — the Devices list dot + sidebar chip read
+    // this per row, since only the ACTIVE device is mirrored into `connected`/`connecting`. Reads the
+    // background connection kept alive by 5a; unknown ids read as disconnected.
+    func connectionState(for id: String) -> DeviceConnState {
+        guard let conn = connections[id] else { return .disconnected }
+        if conn.connected { return .connected }
+        if conn.authRejected { return .error }
+        if conn.connecting { return .connecting }
+        if conn.lastError != nil { return .error }
+        return .disconnected
+    }
 
     // Explicit Disconnect/Unpair from the (stub) Devices screen. With multiple devices this removes
     // the ACTIVE one — matching the old single-device "forget these creds" semantics.
