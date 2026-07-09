@@ -52,6 +52,53 @@ public actor TerminalBuffers {
     public func run(_ runId: String) -> Run? { runs[runId] }
 }
 
+// Transient live goal-check progress for one worker (spec 03 §4.5 / §4.10 #4, port of the transient
+// LoopCheckProgress payload — contracts/src/loop.ts LoopCheckProgressSchema). The daemon publishes
+// "loop:check" phase updates (started → verifying|judging → verdict) while it runs a looped worker's
+// goal check on its idle edge — the otherwise-silent window. `startedAt` is the local elapsed anchor
+// (reset on a fresh "started" phase); only the verdict phase carries met/outcome/reason.
+public struct LoopCheckProgress: Sendable, Equatable {
+    public let workerId: String
+    public let attempt: Int
+    public let maxAttempts: Int?
+    public let strategy: String?
+    public let phase: String            // started | verifying | judging | verdict
+    public let criterionId: String?
+    public let met: Bool?
+    public let outcome: String?
+    public let reason: String?
+    public let startedAt: Double        // elapsed anchor (ms)
+
+    public init(workerId: String, attempt: Int, maxAttempts: Int?, strategy: String?, phase: String,
+                criterionId: String?, met: Bool?, outcome: String?, reason: String?, startedAt: Double) {
+        self.workerId = workerId; self.attempt = attempt; self.maxAttempts = maxAttempts
+        self.strategy = strategy; self.phase = phase; self.criterionId = criterionId
+        self.met = met; self.outcome = outcome; self.reason = reason; self.startedAt = startedAt
+    }
+}
+
+// Live goal-check buffer (spec 03 §0.2 / §4.10 #4, port of loopCheckStore.js). Keyed by workerId; a
+// "started" phase resets the elapsed clock, later phases keep it. The verdict entry lingers briefly so
+// its outcome is readable, then clears; a non-IDLE worker holding a pre-verdict entry (a missed
+// verdict, e.g. an SSE gap) is reconciled away so the line can't stick on "checking" forever.
+public actor LoopCheckBuffer {
+    private var checks: [String: LoopCheckProgress] = [:]
+    public init() {}
+
+    // from a "loop:check" event payload. `now` is the elapsed anchor supplied by the caller (main-actor
+    // clock) so the actor stays free of Date().
+    public func apply(_ progress: LoopCheckProgress, now: Double) {
+        let startedAt = progress.phase == "started" ? now : (checks[progress.workerId]?.startedAt ?? now)
+        checks[progress.workerId] = LoopCheckProgress(
+            workerId: progress.workerId, attempt: progress.attempt, maxAttempts: progress.maxAttempts,
+            strategy: progress.strategy, phase: progress.phase, criterionId: progress.criterionId,
+            met: progress.met, outcome: progress.outcome, reason: progress.reason, startedAt: startedAt)
+    }
+
+    public func check(_ workerId: String) -> LoopCheckProgress? { checks[workerId] }
+    public func clear(_ workerId: String) { checks[workerId] = nil }
+}
+
 // Transcript paging window (port of eventsStore.js): newest-first (order:desc limit 500), older
 // via beforeId, live via afterId; an id-keyed union merge sorted by (ts, id). Pulled via tunneled
 // control GET /workers/:id/events, not a snapshot field.

@@ -2,12 +2,13 @@ import SwiftUI
 import EosRemoteKit
 
 // Transcript dispatcher (spec 03 §1). Switches on the typed `Block.Payload`. Phase 4b-i wired the three
-// TEXT centerpiece kinds (user / assistant / thinking); 4b-ii wires the Tier-1 TOOL / AGENT / REPORT
-// tier — the universal tool chrome + detail bodies, diff hunks, tool groups, agent blocks, and the
-// report/directive/peer rows (§5.3, §2.1/2.7, §5.8, §1 #4/#6/#7/#8/#9). The remaining kinds
-// (terminal / loopCheck / git / system / worktree) stay CRUDE with `// Phase 4c:` markers.
+// TEXT centerpiece kinds (user / assistant / thinking); 4b-ii wired the Tier-1 TOOL / AGENT / REPORT
+// tier; 4c-i wires the Terminal card + the Loop family (loop / loopCheck) — the terminal live-tail card
+// (§1 #12 / §6.6) and the collapsible dynamic-loop row + the inline goal-check verdict marker
+// (§1 #10/#11). The remaining kinds (git / system / worktree) stay CRUDE with `// Phase 4d:` markers.
 struct MessageView: View {
     let block: Block
+    @EnvironmentObject private var model: AppModel
 
     var body: some View {
         switch block.payload {
@@ -39,53 +40,33 @@ struct MessageView: View {
                                   agent: AgentRef(id: fromWorker, name: fromName))    // §1 #9
             }
         case .loop(let text):
-            // Phase 4c: MessageLoopView collapsible system row (§1 #10).
-            labeledRow("arrow.triangle.2.circlepath", "Dynamic loop", text, EosColor.State.waitingDot)
+            MessageLoopView(text: text)                                // §1 #10 · collapsible dynamic-loop row
         case .loopCheck(let check):
-            loopCheckLine(check)                                        // Phase 4c: LoopCheckLineView (§1 #11)
+            LoopCheckLineView(check: check)                            // §1 #11 · inline goal-check verdict marker
         case .terminal(let term):
-            terminalCard(term)                                         // Phase 4c: TerminalCardView live-tail (§1 #12)
+            // §1 #12 / §6.6 · mono card w/ live-tail + spinner. The stop button is best-effort → the
+            // worker-interrupt path (no terminal-kill route on the iOS control tunnel); it only shows
+            // while live+running. Fresh live blocks blur in (§6.1), matching the Mac's .fresh entrance.
+            TerminalCardView(terminal: term, isLive: block.live,
+                             onStop: block.live && !term.done
+                                ? { Task { await model.interrupt(block.workerId) } } : nil)
+                .blurInReveal(blockKey: block.id, isLive: block.live)
         case .deliveryFailed(let text):
-            systemLine("exclamationmark.triangle", "message was not delivered — \"\(text)\"", EosColor.State.failedDot)  // Phase 4c
+            systemLine("exclamationmark.triangle", "message was not delivered — \"\(text)\"", EosColor.State.failedDot)  // Phase 4d
         case .cleared:
-            systemLine("scissors", "conversation cleared", EosColor.inkTertiary)                                        // Phase 4c
+            systemLine("scissors", "conversation cleared", EosColor.inkTertiary)                                        // Phase 4d
         case .turnError(_, let message):
-            systemLine("exclamationmark.triangle", message, EosColor.State.failedDot)                                   // Phase 4c
+            systemLine("exclamationmark.triangle", message, EosColor.State.failedDot)                                   // Phase 4d
         case .gitPush(let ok, let message, let branch):
-            gitLine(ok ? "arrow.up" : "exclamationmark.triangle", message, branch, ok)                                  // Phase 4c
+            gitLine(ok ? "arrow.up" : "exclamationmark.triangle", message, branch, ok)                                  // Phase 4d
         case .gitPull(let ok, let message, let branch):
-            gitLine(ok ? "arrow.down" : "exclamationmark.triangle", message, branch, ok)                                // Phase 4c
+            gitLine(ok ? "arrow.down" : "exclamationmark.triangle", message, branch, ok)                                // Phase 4d
         case .worktreePreserved(let path, let branch, let diffStat):
-            worktreePreserved(path, branch, diffStat)                  // Phase 4c: WorktreePreservedView (§1 #18)
+            worktreePreserved(path, branch, diffStat)                  // Phase 4d: WorktreePreservedView (§1 #18)
         }
     }
 
-    // MARK: - Phase 4c crude renderers (kept until the Tier-2/3 cards land)
-
-    private func loopCheckLine(_ check: LoopCheck) -> some View {
-        let icon = check.met ? "checkmark" : (check.outcome == "escalated" ? "exclamationmark" : "circle.fill")
-        let color = check.met ? EosColor.State.runningDot : (check.outcome == "escalated" ? EosColor.State.waitingDot : EosColor.inkTertiary)
-        let attempt = check.attempt.map { a in "attempt \(a)" + (check.maxAttempts.map { "/\($0)" } ?? "") } ?? ""
-        return HStack(spacing: EosSpacing.xxs) {
-            Image(systemName: icon).foregroundStyle(color).font(.caption2)
-            Text("Goal check\(attempt.isEmpty ? "" : " · \(attempt)")\(check.outcome.map { " · \($0)" } ?? "")")
-            if !check.reason.isEmpty { Text("· \(check.reason)").foregroundStyle(EosColor.inkTertiary) }
-        }
-        .font(EosFont.mono).foregroundStyle(EosColor.inkSecondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func terminalCard(_ term: Terminal) -> some View {
-        VStack(alignment: .leading, spacing: EosSpacing.xxs) {
-            Text("❯ \(term.command)").font(EosFont.mono).foregroundStyle(EosColor.ink)
-            if !term.output.isEmpty {
-                Text(term.output).font(EosFont.mono).foregroundStyle(EosColor.inkSecondary).lineLimit(8)
-            }
-        }
-        .padding(EosSpacing.xs)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(EosColor.surface, in: RoundedRectangle(cornerRadius: EosRadius.chip, style: .continuous))
-    }
+    // MARK: - Phase 4d crude renderers (kept until the Tier-3 system/git/worktree cards land)
 
     private func worktreePreserved(_ path: String, _ branch: String, _ diffStat: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -95,14 +76,6 @@ struct MessageView: View {
         .padding(EosSpacing.xs)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(EosColor.surface, in: RoundedRectangle(cornerRadius: EosRadius.chip, style: .continuous))
-    }
-
-    private func labeledRow(_ icon: String, _ label: String, _ body: String, _ color: Color) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Label(label, systemImage: icon).font(EosFont.caption).foregroundStyle(color)
-            if !body.isEmpty { Text(body).font(EosFont.body).foregroundStyle(EosColor.ink) }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func gitLine(_ icon: String, _ message: String, _ branch: String?, _ ok: Bool) -> some View {

@@ -25,11 +25,23 @@ struct WorkerDetailView: View {
                         .padding(.vertical, EosSpacing.xs)
                         .onAppear { Task { await model.loadOlder() } }
                 }
+                // Top-of-transcript status card for a worker's active dynamic loop (spec 03 §1 LoopStatus):
+                // status + attempt + goal + last reason + last-5 attempt history. Absent when no loop.
+                if let loop = worker?.loop {
+                    LoopStatusCardView(loop: loop, history: model.loopHistory(for: workerId))
+                        .padding(.bottom, EosSpacing.xs)
+                }
                 ForEach(model.transcript) { MessageView(block: $0).id($0.id) }
-                // Activity anchor under the latest reply (spec 03 §6.2): animated spark + elapsed while
-                // busy, static when idle.
-                ProcessingLineView(busy: model.isBusy(workerId))
-                    .padding(.top, EosSpacing.xxs)
+                // Foot activity anchor: the live goal-check line while a looped worker idles under an
+                // active check (spec 03 §4.10 #4 / §1 GoalCheckLine); otherwise the ProcessingLine spark
+                // (§6.2) — animated + elapsed while busy, static when idle.
+                if let check = model.activeGoalCheck(for: workerId) {
+                    GoalCheckLineView(check: check)
+                        .padding(.top, EosSpacing.xxs)
+                } else {
+                    ProcessingLineView(busy: model.isBusy(workerId))
+                        .padding(.top, EosSpacing.xxs)
+                }
                 TranscriptFoot()
             }
             .padding(.horizontal, EosSpacing.screenInset)

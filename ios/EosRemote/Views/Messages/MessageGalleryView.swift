@@ -30,6 +30,7 @@ struct MessageGalleryView: View {
                         MessageView(block: block).id(block.id)
                         Divider().opacity(0.4)
                     }
+                    loopShowcase.id("loops")                 // terminal + loop-status + goal-check surfaces (4c-i)
                     detailShowcase.id("details")            // expanded detail bodies (diff / preview / generic)
                     Color.clear.frame(height: 1).id("end")   // scroll target for verifying the fold
                 }
@@ -46,6 +47,32 @@ struct MessageGalleryView: View {
                 }
             }
         }
+    }
+
+    // The transcript-top LoopStatus card (active / passed / exhausted tints) + the live GoalCheck line
+    // — surfaces that aren't Block payloads, so they're rendered directly here (4c-i acceptance list).
+    private var loopShowcase: some View {
+        VStack(alignment: .leading, spacing: EosSpacing.sm) {
+            Text("Loop surfaces").font(EosFont.heading).foregroundStyle(EosColor.ink)
+            Text("LoopStatus — active").font(EosFont.captionSmall).foregroundStyle(EosColor.inkTertiary)
+            LoopStatusCardView(loop: MessageGallerySamples.loopStatusSample,
+                               history: MessageGallerySamples.loopHistorySample)
+            Text("LoopStatus — passed").font(EosFont.captionSmall).foregroundStyle(EosColor.inkTertiary)
+            LoopStatusCardView(loop: WorkerLoop(raw: .object([
+                "status": .string("passed"), "attempt": .number(4), "maxAttempts": .number(5),
+                "lastReason": .string("All criteria satisfied."),
+                "goalSummary": .string("Ship the Terminal card + Loop family."),
+            ]))!, history: MessageGallerySamples.loopHistorySample)
+            Text("LoopStatus — exhausted (unbounded)").font(EosFont.captionSmall).foregroundStyle(EosColor.inkTertiary)
+            LoopStatusCardView(loop: WorkerLoop(raw: .object([
+                "status": .string("exhausted"), "attempt": .number(8), "maxAttempts": .null,
+                "lastReason": .string("Attempt budget spent without meeting the goal."),
+                "goalSummary": .string("Ship the Terminal card + Loop family."),
+            ]))!, history: MessageGallerySamples.loopHistorySample)
+            Text("GoalCheckLine — live (idle under a check)").font(EosFont.captionSmall).foregroundStyle(EosColor.inkTertiary)
+            GoalCheckLineView(check: MessageGallerySamples.goalCheckSample)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     // The expanded tool DETAIL bodies rendered directly (a tap-free view of the diff hunks, code
@@ -88,7 +115,65 @@ enum MessageGallerySamples {
         Block(id: "ag-1", workerId: "w-demo", ts: base - 30_000, payload: .agentRun(agentRunSample)),
         Block(id: "rep-1", workerId: "w-demo", ts: base - 20_000,
               payload: .report(text: reportSample, fromWorker: nil, workerName: "refactor-auth")),
+        // Phase 4c-i: the Terminal card (running / done ✓ / failed ✗ 1) + the Loop family (§ gallery
+        // acceptance list). The live terminal is flagged live=true so the running head + spinner render.
+        Block(id: "term-run", workerId: "w-demo", ts: base - 18_000, live: true, payload: .terminal(terminalRunning)),
+        Block(id: "term-ok", workerId: "w-demo", ts: base - 16_000, payload: .terminal(terminalDone)),
+        Block(id: "term-fail", workerId: "w-demo", ts: base - 14_000, payload: .terminal(terminalFailed)),
+        Block(id: "loop-1", workerId: "w-demo", ts: base - 12_000, payload: .loop(text: loopRetrigger)),
+        Block(id: "lc-met", workerId: "w-demo", ts: base - 10_000, payload: .loopCheck(loopCheckMet)),
+        Block(id: "lc-unmet", workerId: "w-demo", ts: base - 8_000, payload: .loopCheck(loopCheckUnmet)),
     ]
+
+    // Exposed for the loop showcase (the non-block LoopStatus card + live GoalCheck line).
+    static var loopStatusSample: WorkerLoop { WorkerLoop(raw: loopStatusRaw)! }
+    static var goalCheckSample: LoopCheckProgress { goalCheckProgress }
+    static var loopHistorySample: [LoopCheck] { [loopCheckMet, loopCheckUnmet, loopCheckEscalated] }
+
+    // MARK: terminal samples
+
+    private static let terminalRunning = Terminal(
+        runId: "run-1", command: "npm run build && npm test",
+        output: "> build\n> vite build\n\nvite v5.2.0 building for production...\n✓ 214 modules transformed.\ndist/index.html   0.62 kB\nrendering chunks...",
+        exitCode: 0, note: nil, truncated: false, done: false)
+
+    private static let terminalDone = Terminal(
+        runId: "run-2", command: "cd ios && xcodebuild build -scheme EosRemote",
+        output: "Build settings from command line:\n    SDKROOT = iphonesimulator26.5\n\n** BUILD SUCCEEDED **",
+        exitCode: 0, note: nil, truncated: false, done: true)
+
+    private static let terminalFailed = Terminal(
+        runId: "run-3", command: "swift build",
+        output: "Compiling EosRemoteKit MessageNormalizer.swift\nerror: cannot find 'LoopCheckBuffer' in scope\n  1 error generated.",
+        exitCode: 1, note: "exit 1", truncated: true, done: true)
+
+    // MARK: loop samples
+
+    private static let loopRetrigger =
+        "Goal not yet met (2/5). Keep going: the diff-stats chip is still missing on the MultiEdit header, and the terminal auto-tail needs a fixture. Re-run the check when both land."
+
+    private static let loopCheckMet = LoopCheck(
+        attempt: 3, maxAttempts: 5, strategy: "hybrid", met: true, outcome: "released",
+        reason: "All criteria satisfied: build green, tests pass, gallery screenshots present.")
+
+    private static let loopCheckUnmet = LoopCheck(
+        attempt: 2, maxAttempts: 5, strategy: "hybrid", met: false, outcome: "continued",
+        reason: "Terminal auto-tail fixture missing; loop-status card not yet wired.")
+
+    private static let loopCheckEscalated = LoopCheck(
+        attempt: 4, maxAttempts: 5, strategy: "judge", met: false, outcome: "escalated",
+        reason: "Judge paused the loop and surfaced the unverified report to the parent for a decision.")
+
+    private static let loopStatusRaw: JSONValue = .object([
+        "status": .string("active"), "attempt": .number(3), "maxAttempts": .number(5),
+        "lastReason": .string("Terminal auto-tail fixture missing; loop-status card not yet wired."),
+        "goalSummary": .string("Ship the Terminal card + Loop family with the live overlays wired and a green build."),
+    ])
+
+    private static let goalCheckProgress = LoopCheckProgress(
+        workerId: "w-demo", attempt: 3, maxAttempts: 5, strategy: "hybrid", phase: "verifying",
+        criterionId: "build-green", met: nil, outcome: nil, reason: nil,
+        startedAt: Date().timeIntervalSince1970 * 1000 - 37_000)
 
     private static let base = Date().timeIntervalSince1970 * 1000
 

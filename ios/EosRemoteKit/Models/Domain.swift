@@ -15,8 +15,34 @@ public struct Worker: Identifiable, Sendable, Equatable {
     // Backend lane (claude-cli / claude-sdk / metered). Drives capability gates (rewind, §5.2).
     public var backendKind: String { raw["backend_kind"]?.stringValue ?? raw["backendKind"]?.stringValue ?? "claude-cli" }
 
+    // Active dynamic-loop status (WorkerRowSchema.loop, HTTP-enriched). Drives the top-of-transcript
+    // LoopStatusCardView (spec 03 §1 LoopStatus). Absent when the worker has no active loop.
+    public var loop: WorkerLoop? { WorkerLoop(raw: raw["loop"]) }
+
     public init(raw: JSONValue) { self.raw = raw }
     public static func == (a: Worker, b: Worker) -> Bool { a.raw == b.raw }
+}
+
+// A worker's active dynamic-loop state (contracts WorkerRowSchema.loop). `maxAttempts` is nil for an
+// unbounded loop; `status` is active | passed | exhausted | stopped.
+public struct WorkerLoop: Sendable, Equatable {
+    public let status: String
+    public let attempt: Int
+    public let maxAttempts: Int?
+    public let lastReason: String?
+    public let goalSummary: String?
+
+    public init?(raw: JSONValue?) {
+        guard let raw, case .object = raw, let status = raw["status"]?.stringValue else { return nil }
+        self.status = status
+        self.attempt = raw["attempt"]?.intValue ?? 0
+        self.maxAttempts = raw["maxAttempts"]?.intValue
+        self.lastReason = raw["lastReason"]?.stringValue
+        self.goalSummary = raw["goalSummary"]?.stringValue
+    }
+
+    // "N/M" when bounded, "N" when unbounded (port of loopAttemptText).
+    public var attemptText: String { maxAttempts.map { "\(attempt)/\($0)" } ?? String(attempt) }
 }
 
 // Capabilities the UI gates controls on (spec 03 §5.2, port of backendCaps.js). Only the fields this

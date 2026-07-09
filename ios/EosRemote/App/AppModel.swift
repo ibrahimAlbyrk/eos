@@ -51,9 +51,22 @@ final class AppModel: ObservableObject {
 
     // Optimistic user bubbles (spec 03 §4.10 #1): a just-sent message shows immediately as a dimmed
     // user(optimistic:true) block, keyed by clientMsgId, until its durable user_message row lands and
-    // recompute() prunes it by matching text. Live-terminal (#2) + goal-check (#4) overlays stay for 4c.
+    // recompute() prunes it by matching text.
     private struct OptimisticBubble { let text: String; let clientMsgId: String; let ts: Double; let workerId: String }
     private var optimisticBubbles: [OptimisticBubble] = []
+
+    // Live terminal overlay (spec 03 §4.10 #2, port of terminalStore.js): a `terminal:chunk`/`:done`
+    // run for the open worker with no durable `terminal` block → a terminal(live:true) block, dropped
+    // once the durable row lands. Kept as main-actor-local state (the same idiom as `liveBuffers`) so
+    // recompute() reads it synchronously. Keyed by runId.
+    private struct LiveTerminal { var runId: String; var command: String; var output: String; var done: Bool; var exitCode: Int; var note: String?; var ts: Double }
+    private var liveTerminals: [String: LiveTerminal] = [:]
+
+    // Live goal-check overlay (spec 03 §4.10 #4): the transient loop:check progress for the open worker,
+    // surfaced as GoalCheckLineView in the foot region while the worker idles under an active check. The
+    // canonical store contract is LoopCheckBuffer (StreamingBuffers); this mirrors its current value for
+    // synchronous reads by the view (a fresh "started" phase resets the elapsed anchor).
+    private var liveCheck: LoopCheckProgress?
 
     // Per-worker durable transcript, retained across close/reopen so reopening never reloads from
     // scratch: openWorker restores instantly from here, then fetches ONLY rows after newestRowId.
@@ -329,6 +342,8 @@ final class AppModel: ObservableObject {
     func openWorker(_ id: String) async {
         openId = id
         liveBuffers = [:]
+        liveTerminals = [:]
+        liveCheck = nil
         optimisticBubbles.removeAll { $0.workerId != id }
         if let c = caches[id] {
             durableRows = c.durableRows; durableBlockIds = c.durableBlockIds
@@ -350,6 +365,8 @@ final class AppModel: ObservableObject {
                                      newestRowId: newestRowId, oldestRowId: oldestRowId, hasOlder: hasOlder)
         openId = nil
         liveBuffers = [:]
+        liveTerminals = [:]
+        liveCheck = nil
     }
 
     // Scroll-to-top backward paging.
@@ -441,18 +458,89 @@ final class AppModel: ObservableObject {
         switch event.reason {
         case "agent:delta": applyDelta(event.payload)
         case "worker:change": if event.payload?["workerId"]?.stringValue == openId { scheduleDelta() }
+        case "terminal:chunk": applyTerminalChunk(event.payload)
+        case "terminal:done": applyTerminalDone(event.payload)
+        case "loop:check": applyLoopCheck(event.payload)
         default: break
         }
     }
 
+    // terminal:chunk payload {workerId, runId, command, data} — append to the live terminal overlay.
+    // Only the open worker's runs matter (the transcript renders one worker); others are ignored.
+    private func applyTerminalChunk(_ payload: JSONValue?) {
+        guard let id = openId, payload?["workerId"]?.stringValue == id,
+              let runId = payload?["runId"]?.stringValue else { return }
+        var run = liveTerminals[runId] ?? LiveTerminal(runId: runId, command: "", output: "", done: false,
+                                                       exitCode: 0, note: nil, ts: Date().timeIntervalSince1970 * 1000)
+        if let cmd = payload?["command"]?.stringValue, !cmd.isEmpty { run.command = cmd }
+        run.output += payload?["data"]?.stringValue ?? ""
+        liveTerminals[runId] = run
+        recompute()
+    }
+
+    // terminal:done payload {runId, exitCode, note} — close the live run (its card flips to the exit
+    // badge). It stays overlaid until the durable `terminal` row lands, which recompute() drops.
+    private func applyTerminalDone(_ payload: JSONValue?) {
+        guard let runId = payload?["runId"]?.stringValue, var run = liveTerminals[runId] else { return }
+        run.done = true
+        run.exitCode = payload?["exitCode"]?.intValue ?? 0
+        run.note = payload?["note"]?.stringValue
+        liveTerminals[runId] = run
+        recompute()
+    }
+
+    // loop:check payload (LoopCheckProgressSchema) — the transient live goal-check for the open worker.
+    // A fresh "started" phase resets the elapsed clock; the verdict phase clears shortly after so the
+    // line doesn't linger. Surfaced in the foot region via activeGoalCheck(for:).
+    private func applyLoopCheck(_ payload: JSONValue?) {
+        guard let id = openId, payload?["workerId"]?.stringValue == id,
+              let phase = payload?["phase"]?.stringValue else { return }
+        let now = Date().timeIntervalSince1970 * 1000
+        let startedAt = phase == "started" ? now : (liveCheck?.startedAt ?? now)
+        liveCheck = LoopCheckProgress(
+            workerId: id, attempt: payload?["attempt"]?.intValue ?? 0, maxAttempts: payload?["maxAttempts"]?.intValue,
+            strategy: payload?["strategy"]?.stringValue, phase: phase, criterionId: payload?["criterionId"]?.stringValue,
+            met: payload?["met"]?.boolValue, outcome: payload?["outcome"]?.stringValue,
+            reason: payload?["reason"]?.stringValue, startedAt: startedAt)
+        if phase == "verdict" {
+            // Let the outcome linger ~4s, then clear (mirrors loopCheckStore's verdict linger timer).
+            let captured = liveCheck
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 4_000_000_000)
+                if self.liveCheck?.startedAt == captured?.startedAt { self.liveCheck = nil; self.objectWillChange.send() }
+            }
+        }
+        objectWillChange.send()
+    }
+
+    // The live goal-check for a worker, shown ONLY while it idles under a still-running check (spec 03
+    // §4.10 #4): a pre-verdict entry on a non-IDLE worker missed its verdict (SSE gap) → suppressed so
+    // the line can't stick on "checking" (mirrors loopCheckStore.reconcile). A busy continuation hands
+    // off to the normal ProcessingLine spark.
+    func activeGoalCheck(for id: String) -> LoopCheckProgress? {
+        guard let c = liveCheck, c.workerId == id else { return nil }
+        return isBusy(id) ? nil : c
+    }
+
+    // The durable per-attempt loop_check verdicts in the current transcript, oldest→newest — the
+    // history the LoopStatusCardView aggregates into its last-5 attempt rows.
+    func loopHistory(for id: String) -> [LoopCheck] {
+        transcript.compactMap { b in
+            guard b.workerId == id, case let .loopCheck(check) = b.payload else { return nil }
+            return check
+        }
+    }
+
     // Run the full event→block pipeline over ALL durable rows (spec 03 §4), then overlay the live
-    // streaming buffers at render time (§4.10). Phase 4b-i wires the LIVE THINKING overlay (§4.10 #3):
+    // streaming buffers at render time (§4.10). Phase 4b-i wired the LIVE THINKING overlay (§4.10 #3):
     // a reasoning-channel buffer with no durable block → a thinking(live:true) block whose streaming
     // tail blur-ins in ThinkingLineView. (The reasoning channel is overlaid; the assistant text channel
     // stays overlaid here as a live block only until its durable row lands — §4.10 #3 notes the durable
-    // assistant block is what blurs in.) 4b-ii also wires the OPTIMISTIC-USER overlay (§4.10 #1): a
-    // just-sent bubble renders dimmed until its durable user_message row lands. Live-terminal (#2) +
-    // goal-check (#4) overlays stay for Phase 4c; this is their plug point.
+    // assistant block is what blurs in.) 4b-ii wired the OPTIMISTIC-USER overlay (§4.10 #1): a just-sent
+    // bubble renders dimmed until its durable user_message row lands. 4c-i wires the LIVE-TERMINAL
+    // overlay (§4.10 #2): a live run with no durable `terminal` block → a terminal(live:true) block,
+    // dropped once the durable lands. The live goal-check (#4) is NOT a block — it renders in the foot
+    // region via activeGoalCheck(for:).
     private func recompute() {
         durableBlockIds = []
         collectDurableBlockIds()
@@ -463,6 +551,19 @@ final class AppModel: ObservableObject {
                 ? .thinking(text: buf.text) : .assistant(text: buf.text)
             all.append(Block(id: "live:\(buf.blockId)", workerId: openId ?? "", blockId: buf.blockId,
                              ts: buf.ts, live: true, payload: payload))
+        }
+        // Live-terminal overlay (§4.10 #2): drop any run whose durable `terminal` block has landed
+        // (matched by runId), then overlay the rest as terminal(live:true) blocks.
+        let durableRunIds = Set(all.compactMap { b -> String? in
+            if case let .terminal(t) = b.payload { return t.runId }
+            return nil
+        })
+        for runId in Array(liveTerminals.keys) where durableRunIds.contains(runId) { liveTerminals[runId] = nil }
+        for run in liveTerminals.values {
+            all.append(Block(id: "live-term:\(run.runId)", workerId: openId ?? "", ts: run.ts, live: true,
+                             payload: .terminal(Terminal(runId: run.runId, command: run.command, output: run.output,
+                                                         exitCode: run.exitCode, note: run.note, truncated: false,
+                                                         done: run.done))))
         }
         // Prune optimistic bubbles whose durable user block has arrived (matched by trimmed text), then
         // overlay the rest as dimmed user(optimistic:true) blocks (§4.10 #1).
