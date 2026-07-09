@@ -7304,12 +7304,15 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   outline: 1px solid color-mix(in srgb, var(--accent) 60%, transparent);
 }
 
-/* CodeLens — a reference-count chip block-rendered above each definition. */
+/* CodeLens — a reference-count chip block-rendered above each definition.
+   Block widget: must be block-level with NO vertical margins — CodeMirror
+   measures widget height via its border-box, so unmeasured margin/line-box
+   space accumulates and skews click→line mapping further down the file. */
 .fv-editor .cm-codelens {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 5px;
-  margin: 2px 0 0 18px;
+  padding: 2px 0 0 18px;
   font-size: var(--text-xs);
   line-height: 1.4;
   color: var(--fg-faint);
