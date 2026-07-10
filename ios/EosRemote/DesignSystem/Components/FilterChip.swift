@@ -1,8 +1,9 @@
 import SwiftUI
 
 // Code-list filter capsule with a count badge (contract §C2, ref IMG_4434): All n · Running n ·
-// Archived n. Selected flips to the light-on-dark fill (the reference's active chip). Fires
-// Haptics.tap itself — chip select is the one §A5 haptic no screen spec wires.
+// Archived n. Per the reference: the active chip is a solid near-black capsule with light text;
+// idle chips are translucent Liquid Glass. Fires Haptics.tap itself — chip select is the one §A5
+// haptic no screen spec wires.
 struct FilterChip: View {
     let label: String
     let count: Int
@@ -26,17 +27,15 @@ struct FilterChip: View {
                     .font(EosFont.label)
                 Text("\(count)")
                     .font(EosFont.captionSmall)
-                    .foregroundStyle(selected ? EosColor.black.opacity(0.6) : EosColor.inkTertiary)
+                    .foregroundStyle(selected ? EosColor.ink.opacity(0.6) : EosColor.inkTertiary)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, EosSpacing.xs)
-            .foregroundStyle(selected ? EosColor.black : EosColor.inkSecondary)
-            .background(selected ? EosColor.ink : EosColor.surface2, in: Capsule())
-            .overlay {
-                if !selected {
-                    Capsule().strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline)
-                }
+            .foregroundStyle(selected ? EosColor.ink : EosColor.inkSecondary)
+            .background {
+                if selected { Capsule().fill(EosColor.black) }
             }
+            .glassEffect(selected ? .identity : .regular.interactive(), in: .capsule)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)

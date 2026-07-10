@@ -65,6 +65,8 @@ struct RootView: View {
                 .environmentObject(model)
         }
         .onOpenURL { url in route(url) }
+        // Drag-to-open only on root screens — pushed screens keep the edge back-swipe.
+        .onChange(of: path) { _, p in sidebar.canDragOpen = p.isEmpty }
         .task { await model.resumeIfPossible() }
         .onChange(of: scenePhase) { _, phase in
             switch phase {

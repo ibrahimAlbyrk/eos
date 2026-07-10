@@ -102,7 +102,8 @@ struct RepoPickerSheet: View {
         .safeAreaInset(edge: .bottom) { searchField }
     }
 
-    // Search capsule pinned bottom (ref IMG_4436) — filters the recents list locally.
+    // Search capsule pinned bottom (ref IMG_4436) — filters the recents list locally. Floating
+    // Liquid Glass over the scrolling rows, not an opaque strip.
     private var searchField: some View {
         HStack(spacing: EosSpacing.xs) {
             Image(systemName: "magnifyingglass")
@@ -117,11 +118,9 @@ struct RepoPickerSheet: View {
         }
         .padding(.horizontal, EosSpacing.md)
         .padding(.vertical, EosSpacing.sm)
-        .background(EosColor.surface2, in: Capsule())
-        .overlay(Capsule().strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline))
+        .glassEffect(.regular, in: .capsule)
         .padding(.horizontal, EosSpacing.screenInset)
         .padding(.vertical, EosSpacing.xs)
-        .background(EosColor.surface)
     }
 
     private func basename(_ path: String) -> String {

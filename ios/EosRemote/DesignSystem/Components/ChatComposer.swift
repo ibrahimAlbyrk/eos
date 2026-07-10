@@ -96,19 +96,18 @@ struct ChatComposer: View {
         .animation(reduceMotion ? .none : EosSpring.chip, value: chips.map(\.id))
     }
 
+    // Ref IMG_4429/4435: the attach control is a solid near-black circle, send-sized (40pt).
     private var attachButton: some View {
         Menu {
             attachMenu()
         } label: {
             ZStack {
-                Circle()
-                    .fill(EosColor.surface)
-                    .overlay(Circle().strokeBorder(EosColor.hairline, lineWidth: EosLine.button))
+                Circle().fill(EosColor.black)
                 Image(systemName: "plus")
-                    .font(.system(size: 14, weight: .regular))
+                    .font(.system(size: 16, weight: .regular))
                     .foregroundStyle(EosColor.ink)
             }
-            .frame(width: 32, height: 32)
+            .frame(width: 40, height: 40)
             .contentShape(Circle())
         }
         .buttonStyle(.plain)

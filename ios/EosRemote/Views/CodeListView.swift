@@ -26,7 +26,8 @@ struct CodeListView: View {
     @State private var archivedLoading = false
 
     private var roots: [AgentNode] { AgentTree.buildTree(model.workers) }
-    private var runningRoots: [AgentNode] { roots.filter(AgentTree.subtreeRunning) }
+    // Running shows only running nodes plus their parent context — idle siblings pruned (§C2).
+    private var runningRoots: [AgentNode] { AgentTree.pruneRunning(roots) }
     // Direct pending-ask counts by worker id; rows show the subtree sum (§D3).
     private var directPending: [String: Int] {
         var out: [String: Int] = [:]
@@ -123,14 +124,13 @@ struct CodeListView: View {
         ForEach(Array(entries.enumerated()), id: \.element.id) { i, entry in
             Button { onOpenWorker(entry.worker.id) } label: {
                 HStack(alignment: .center, spacing: 0) {
-                    Group {
-                        if i == 0 {
-                            Image(systemName: "chevron.down")
-                                .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(EosColor.inkFaint)
-                        }
-                    }
-                    .frame(width: 24)
+                    // Hidden (not conditional) for i > 0: an `if` here removes the view AND its
+                    // 24pt frame, collapsing the indent gutter of every row after the first.
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(EosColor.inkFaint)
+                        .opacity(i == 0 ? 1 : 0)
+                        .frame(width: 24)
                     WorkerChildRow(worker: entry.worker,
                                    attention: model.needsAttention(entry.worker),
                                    pendingCount: entry.pendingCount)

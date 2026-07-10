@@ -4,7 +4,7 @@ import EosRemoteKit
 // Conversation (contract §C3, ref IMG_4429 — rewrite of the v1 worker detail, file kept). The
 // screen-local header (back / title / three-dot) floats over an §E1 gradient; the transcript
 // pipeline (TaskFromView, LoopStatusCard, MessageView list, GoalCheckLine/ProcessingLine,
-// TranscriptFoot, backward paging, bottom anchor) is re-hosted unchanged. New in v2: the stacked
+// backward paging, bottom anchor) is re-hosted unchanged. New in v2: the stacked
 // permission banner + ChatComposer in the bottom safeAreaInset (§E2 gradient), the interrupt
 // affordance as the send button's alternate (D-15), the attention ledger touch (§D4), and the
 // archived read-only state (Restore pill instead of composer).
@@ -92,7 +92,6 @@ struct WorkerDetailView: View {
                     ProcessingLineView(busy: model.isBusy(workerId))
                         .padding(.top, EosSpacing.xxs)
                 }
-                TranscriptFoot()
             }
             .padding(.horizontal, EosSpacing.screenInset)
         }
@@ -392,19 +391,5 @@ private struct ConversationBottomBar: View {
     private func deny(_ p: Pending) {
         Haptics.warning()
         Task { await model.approve(pendingId: p.id, allow: false) }
-    }
-}
-
-// Transcript foot (spec 02 §3.5): the small Sunburst + an Eos-domain AI disclaimer (the risk here is
-// actions taken, not answers).
-struct TranscriptFoot: View {
-    var body: some View {
-        HStack(spacing: EosSpacing.xxs) {
-            DawnStar(size: 13)
-            Text("Eos runs autonomous agents and can make mistakes. Review actions before approving.")
-                .font(EosFont.caption)
-                .foregroundStyle(EosColor.inkTertiary)
-        }
-        .padding(.vertical, EosSpacing.md)
     }
 }

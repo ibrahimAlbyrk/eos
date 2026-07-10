@@ -39,6 +39,14 @@ struct PairingView: View {
                 if !model.connected, let e = model.lastError {
                     status = "\(e)\n\nScan the QR shown in the Eos Mac app to pair again."
                 }
+                #if targetEnvironment(simulator)
+                // The Simulator has no camera: accept the v3 QR payload via launch environment
+                // (SIMCTL_CHILD_EOS_PAIR_JSON) so on-sim verification can pair against a live
+                // daemon. Simulator-only — same policy as the DEBUG software-P256 identity.
+                if let raw = ProcessInfo.processInfo.environment["EOS_PAIR_JSON"], !raw.isEmpty {
+                    handleScan(raw)
+                }
+                #endif
             }
         }
     }

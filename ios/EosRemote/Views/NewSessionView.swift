@@ -80,14 +80,14 @@ private struct NewSessionContent: View {
                     .frame(maxWidth: .infinity)
                 SectionCaption("Suggestions")
                 ForEach(suggestions, id: \.self) { suggestion in
+                    // Ref IMG_4435: suggestion chips are translucent glass, not opaque fills.
                     Button { text = suggestion } label: {
                         Text(suggestion)
                             .font(EosFont.body)
                             .foregroundStyle(EosColor.ink)
                             .padding(.horizontal, EosSpacing.md)
                             .padding(.vertical, EosSpacing.sm)
-                            .background(EosColor.surface, in: Capsule())
-                            .overlay(Capsule().strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline))
+                            .glassEffect(.regular.interactive(), in: .capsule)
                     }
                     .buttonStyle(.plain)
                 }
@@ -190,6 +190,7 @@ private struct NewSessionContent: View {
     private var deviceChip: some View {
         Group {
             if model.activeDevice != nil {
+                // Ref IMG_4435: the "Default" cloud chip is a glass capsule.
                 Button(action: onDeviceTap) {
                     HStack(spacing: 6) {
                         StateDot(state: connState.dotState)
@@ -199,8 +200,7 @@ private struct NewSessionContent: View {
                     }
                     .padding(.horizontal, EosSpacing.sm)
                     .padding(.vertical, EosSpacing.xs)
-                    .background(EosColor.surface, in: Capsule())
-                    .overlay(Capsule().strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline))
+                    .glassEffect(.regular.interactive(), in: .capsule)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Device: \(deviceLabel), \(connState.label)")
@@ -270,8 +270,7 @@ private struct NewSessionContent: View {
             }
             .padding(.horizontal, EosSpacing.sm)
             .padding(.vertical, EosSpacing.xs)
-            .background(EosColor.surface, in: Capsule())
-            .overlay(Capsule().strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline))
+            .glassEffect(.regular.interactive(), in: .capsule)   // ref IMG_4435 repo chip
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Repository: \(cwd.map(basename) ?? "none chosen")")

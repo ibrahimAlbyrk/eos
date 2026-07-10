@@ -40,6 +40,25 @@ final class AgentTreeTests: XCTestCase {
         XCTAssertEqual(root.subtreeSize, 4)
     }
 
+    // Round-2 repro: one orchestrator + several direct workers + a sub-worker — EVERY worker must
+    // nest (none promoted to root), sub-worker under its worker, siblings in started_at order.
+    func testAllDirectWorkersNestUnderOrchestrator() {
+        let tree = AgentTree.buildTree([
+            worker("o-rpoj70", state: "IDLE", started: 10),
+            worker("w-a", state: "SUSPENDED", parent: "o-rpoj70", started: 20),
+            worker("w-b", state: "IDLE", parent: "o-rpoj70", started: 30),
+            worker("w-c", state: "WORKING", parent: "o-rpoj70", started: 40),
+            worker("w-d", state: "IDLE", parent: "o-rpoj70", started: 50),
+            worker("w-sub", state: "IDLE", parent: "w-b", started: 60),
+        ])
+        XCTAssertEqual(tree.count, 1, "no worker may be promoted to root")
+        let root = tree[0]
+        XCTAssertEqual(root.id, "o-rpoj70")
+        XCTAssertEqual(root.children.map(\.id), ["w-a", "w-b", "w-c", "w-d"])
+        XCTAssertEqual(root.children[1].children.map(\.id), ["w-sub"])
+        XCTAssertEqual(root.subtreeSize, 6)
+    }
+
     func testMissingParentBecomesRoot() {
         let tree = AgentTree.buildTree([
             worker("a", started: 10),
@@ -56,6 +75,45 @@ final class AgentTreeTests: XCTestCase {
             worker("b", parent: "o1", started: 20),
         ])
         XCTAssertEqual(tree[0].children.map(\.id), ["a", "b", "c"])
+    }
+
+    // MARK: running filter (§C2)
+
+    func testPruneRunningDropsIdleSiblingsKeepsParentContext() {
+        let tree = AgentTree.buildTree([
+            worker("o1", state: "IDLE", started: 10),
+            worker("idle1", state: "SUSPENDED", parent: "o1", started: 20),
+            worker("busy", state: "WORKING", parent: "o1", started: 30),
+            worker("idle2", state: "IDLE", parent: "o1", started: 40),
+        ])
+        let pruned = AgentTree.pruneRunning(tree)
+        XCTAssertEqual(pruned.map(\.id), ["o1"], "idle root stays as parent context")
+        XCTAssertEqual(pruned[0].children.map(\.id), ["busy"], "idle siblings pruned")
+    }
+
+    func testPruneRunningKeepsAncestorChainOfDeepRunner() {
+        let tree = AgentTree.buildTree([
+            worker("o1", state: "IDLE", started: 10),
+            worker("mid", state: "IDLE", parent: "o1", started: 20),
+            worker("deep", state: "KILLING", parent: "mid", started: 30),
+            worker("other", state: "DONE", parent: "o1", started: 40),
+        ])
+        let pruned = AgentTree.pruneRunning(tree)
+        XCTAssertEqual(pruned.map(\.id), ["o1"])
+        XCTAssertEqual(pruned[0].children.map(\.id), ["mid"])
+        XCTAssertEqual(pruned[0].children[0].children.map(\.id), ["deep"])
+    }
+
+    func testPruneRunningDropsFullyIdleTreesAndIdleChildrenOfRunners() {
+        let tree = AgentTree.buildTree([
+            worker("o1", state: "IDLE", started: 10),
+            worker("w1", state: "DONE", parent: "o1", started: 20),
+            worker("o2", state: "SPAWNING", started: 30),
+            worker("w2", state: "IDLE", parent: "o2", started: 40),
+        ])
+        let pruned = AgentTree.pruneRunning(tree)
+        XCTAssertEqual(pruned.map(\.id), ["o2"], "fully idle tree dropped")
+        XCTAssertTrue(pruned[0].children.isEmpty, "idle child of a running node dropped")
     }
 
     // MARK: root comparator (§D2)

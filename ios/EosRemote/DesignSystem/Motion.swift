@@ -6,6 +6,8 @@ import UIKit
 // SidebarContainer pattern.
 enum EosSpring {
     static let drawer = Animation.interactiveSpring(response: 0.35, dampingFraction: 0.86)
+    // Near-immediate follow for finger-tracked drags (drawer pan) — light smoothing, no lag.
+    static let drawerTracking = Animation.interactiveSpring(response: 0.12, dampingFraction: 1)
     static let sheet  = Animation.spring(response: 0.4, dampingFraction: 0.9)   // sheet content transitions
     static let chip   = Animation.spring(response: 0.3, dampingFraction: 0.8)   // chip insert/remove, banner shuffle
 }

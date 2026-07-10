@@ -86,6 +86,16 @@ targets:
     dependencies:
       - target: EosRemoteKit
 
+  # On-simulator gesture tests (drawer drag physics) — need a paired app + reachable daemon, so
+  # they live in the EosRemote scheme's test action, not the unit-test scheme.
+  EosRemoteUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: EosRemoteUITests
+    dependencies:
+      - target: EosRemote
+
 schemes:
   EosRemote:
     build:
@@ -95,6 +105,7 @@ schemes:
     test:
       targets:
         - EosRemoteKitTests
+        - EosRemoteUITests
   EosRemoteKit:
     build:
       targets:

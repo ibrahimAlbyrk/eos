@@ -62,6 +62,16 @@ public enum AgentTree {
         return rootRows.map(build).sorted(by: rootCompare)
     }
 
+    // Running filter (§C2): keep only nodes that are themselves running or carry a running
+    // descendant — parents stay as context, idle siblings drop. Order is preserved.
+    public static func pruneRunning(_ nodes: [AgentNode]) -> [AgentNode] {
+        nodes.compactMap { n in
+            let kids = pruneRunning(n.children)
+            guard isRunningState(n.worker.state) || !kids.isEmpty else { return nil }
+            return AgentNode(worker: n.worker, children: kids)
+        }
+    }
+
     // MARK: attention policy (§D4, port of lib/agentAttention.js)
 
     public static func sigOf(_ w: Worker) -> String {

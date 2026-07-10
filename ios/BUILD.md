@@ -61,6 +61,28 @@ xcodebuild test -project EosRemote.xcodeproj -scheme EosRemote \
 
 Or just pick an iOS-26.5 simulator in Xcode and press **Run**.
 
+### Simulator pairing without a camera
+
+The Simulator can't scan the pairing QR. Simulator builds accept the v3 QR payload via launch
+environment instead: arm an offer (`POST /api/remote/pair` with the `x-eos-ui-token` header from
+`~/.eos/ui-token`), then
+
+```bash
+SIMCTL_CHILD_EOS_PAIR_JSON="$(curl -s -X POST -H "x-eos-ui-token: $(cat ~/.eos/ui-token)" \
+  http://127.0.0.1:7400/api/remote/pair)" xcrun simctl launch booted dev.eos.remote.app
+```
+
+### Drawer gesture UI tests (EosRemoteUITests)
+
+On-simulator XCUITests for the drawer drag physics live in the `EosRemote` scheme's test action.
+They need the simulator app already paired against a live daemon (above), so they are not part of
+the `EosRemoteKit` unit suite:
+
+```bash
+xcodebuild test -project EosRemote.xcodeproj -scheme EosRemote \
+  -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.5' -only-testing:EosRemoteUITests
+```
+
 ### Live relay E2E test (optional, requires a running daemon harness)
 
 `EosRemoteKitTests/LiveE2ETests` is **skipped by default**. It pairs + controls through a live
