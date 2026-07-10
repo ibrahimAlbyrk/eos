@@ -9,8 +9,8 @@ import { PanelCloseButton } from "../messages/PanelCloseButton.jsx";
 // island surface plus the header bar [chrome inset · title · viewer actions ·
 // fullscreen · close]. A viewer supplies only its slots:
 //   type     — registry type; resolves the default label and the close(ui)
-//              authority (registerPanels.js), so close side-effects (terminal →
-//              killPaneSessions) stay in ONE place.
+//              authority (registerPanels.js), so any close side-effects stay in
+//              ONE place.
 //   title    — optional; a string gets the standard label typography, a node
 //              renders as-is inside the flex title area (crumbs, tab strips).
 //              Defaults to the registry label.

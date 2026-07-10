@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   subscribe, getPtyPanel, openTab, closeTab, switchTab,
-  killPaneSessions, reapUntrackedSessions, markExited, _resetPtyPanel,
+  reapUntrackedSessions, markExited, _resetPtyPanel,
 } from "./ptyPanelStore.js";
 
 // A tiny in-memory PTY daemon: POST /pty mints a server-numbered session, DELETE
@@ -104,18 +104,26 @@ describe("ptyPanelStore (pane-keyed)", () => {
     expect(await serverIds(fetchMock)).toContain(bId);
   });
 
-  it("killPaneSessions terminates ONLY that pane's sessions (panel close)", async () => {
+  it("persists a pane's tabs + server session across a panel hide/reopen (no kill on hide)", async () => {
     const fetchMock = mockServer();
     vi.stubGlobal("fetch", fetchMock);
-    await openTab("A"); await openTab("A");
-    await openTab("B");
-    const bId = getPtyPanel("B").tabs[0].sessionId;
+    await openTab("A");
+    const id = getPtyPanel("A").tabs[0].sessionId;
+    // Hiding the panel no longer kills anything; reopening re-runs the mount reap,
+    // which leaves the tracked session alone — so the tab persists and reattaches.
+    await reapUntrackedSessions();
+    expect(getPtyPanel("A").tabs.map((t) => t.sessionId)).toEqual([id]);
+    expect(await serverIds(fetchMock)).toContain(id); // still alive to reattach to
+  });
 
-    await killPaneSessions("A");
-    expect(getPtyPanel("A").tabs).toEqual([]);
-    expect(getPtyPanel("A").activeId).toBe(null);
-    expect(getPtyPanel("B").tabs).toHaveLength(1);
-    expect(await serverIds(fetchMock)).toEqual([bId]); // B's session survives server-side
+  it("closeTab (a tab's ×) is the one kill that still removes the server session", async () => {
+    const fetchMock = mockServer();
+    vi.stubGlobal("fetch", fetchMock);
+    await openTab("A"); await openTab("A"); // two tabs so closing one doesn't auto-reopen
+    const [id0, id1] = getPtyPanel("A").tabs.map((t) => t.sessionId);
+    await closeTab("A", id1);
+    expect(await serverIds(fetchMock)).toEqual([id0]); // id1 gone server-side
+    expect(getPtyPanel("A").tabs.map((t) => t.sessionId)).toEqual([id0]);
   });
 
   it("reapUntrackedSessions kills stale server sessions and leaves every pane's tracked ones alone", async () => {

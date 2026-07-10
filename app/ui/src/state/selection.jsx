@@ -107,7 +107,7 @@ export function SelectionProvider({ children }) {
     flushCollapse(paneId); // a (re)open supersedes an in-flight collapse of this pane
     setDocksByPane((m) => {
       const { dock, evicted } = openPanelTile(m[paneId] ?? emptyDock(), type, data);
-      if (evicted) getPanel(evicted)?.dispose?.(paneId); // e.g. terminal → kill that pane's sessions
+      if (evicted) getPanel(evicted)?.dispose?.(paneId); // generic eviction hook; no panel type uses it today
       return { ...m, [paneId]: dock };
     });
   }, [flushCollapse]);

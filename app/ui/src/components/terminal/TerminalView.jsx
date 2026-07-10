@@ -6,13 +6,17 @@ import { api } from "../../api/client.js";
 import { onPtyData, onPtyExit } from "../../state/ptyBus.js";
 import { markExited } from "../../state/ptyPanelStore.js";
 import { registerTerminal } from "./terminalBridge.js";
+import { createReplayGate } from "./replayGate.js";
 
 // ONE xterm.js instance per PTY session. Stays MOUNTED while inactive (parent
 // hides it with display:none) so scrollback survives tab switches client-side.
 //
-// Sessions always open clean (no reattach/buffer replay), so incoming pty:data is
-// written straight through in SSE order — no seq dedup. Wiring: xterm.onData →
-// POST /pty/:id/input (coalescing send queue); pty:data → term.write.
+// REATTACH: a fresh xterm has no scrollback, so on mount we fetch the session's
+// server ring buffer (GET /pty/:id/buffer) and replay it, then feed live pty:data
+// through a replayGate that drops any frame the buffer already covers (seq <=
+// buffer seq) — so a reopened panel restores prior output with no duplicated
+// lines. Wiring: xterm.onData → POST /pty/:id/input (coalescing send queue);
+// pty:data → replayGate → term.write.
 //
 // Open path is settle-gated to avoid open-time jank: the island's open animates
 // the dock's width (flex-basis / slot rect, 240ms) on the main thread, and
@@ -110,13 +114,24 @@ export function TerminalView({ sessionId, active }) {
     };
     let onDataDisposable = null;
 
-    // Buffer bytes that arrive before xterm is mounted (the deferred open below),
-    // then write live directly. Not a scrollback replay — just the mount-timing gap.
+    // Single write sink: bytes queue in `pending` until xterm's deferred open
+    // (below), then flush in order. `disposed` guards the async buffer fetch
+    // resolving after unmount — the promise can't be cancelled.
+    let disposed = false;
     const pending = [];
-    const offData = onPtyData(sessionId, (f) => {
-      if (!opened) { pending.push(f.data ?? ""); return; }
-      term.write(f.data ?? "");
-    });
+    const writeBytes = (data) => {
+      if (disposed || !data) return;
+      if (opened) term.write(data);
+      else pending.push(data);
+    };
+    // Reattach: replay the server scrollback first, then live frames deduped by
+    // seq. Live frames arriving before the buffer resolves are held by the gate
+    // so scrollback never interleaves with (or double-renders) live output.
+    const gate = createReplayGate(writeBytes);
+    const offData = onPtyData(sessionId, (f) => gate.frame(f));
+    api.getPtyBuffer(sessionId)
+      .then((r) => gate.replay(r?.ok ? r.body : null))
+      .catch(() => gate.replay(null));
     const offExit = onPtyExit(sessionId, (f) => {
       term.write(`\r\n\x1b[2m[process exited${f?.exitCode != null ? ` (${f.exitCode})` : ""}]\x1b[0m\r\n`);
       markExited(sessionId);
@@ -150,6 +165,7 @@ export function TerminalView({ sessionId, active }) {
     ro.observe(host);
 
     return () => {
+      disposed = true;
       cancelAnimationFrame(raf);
       if (fitTimer) clearTimeout(fitTimer);
       ro.disconnect();

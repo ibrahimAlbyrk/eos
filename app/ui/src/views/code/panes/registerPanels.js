@@ -5,7 +5,6 @@
 // dock or the tiling engine (open/closed).
 
 import { registerPanel } from "../../../lib/panelRegistry.js";
-import { killPaneSessions } from "../../../state/ptyPanelStore.js";
 import { FileViewer } from "../messages/FileViewer.jsx";
 import { AgentViewer } from "../messages/AgentViewer.jsx";
 import { DiffViewer } from "../messages/DiffViewer.jsx";
@@ -18,6 +17,6 @@ registerPanel({ type: "agent", label: "Agent", Component: AgentViewer, close: (u
 registerPanel({ type: "diff", label: "Diff", Component: DiffViewer, close: (ui) => ui.closeDiffViewer(), minW: 300, minH: 160 });
 registerPanel({ type: "commits", label: "Commits", Component: CommitsViewer, close: (ui) => ui.closeCommitsViewer(), minW: 280, minH: 140 });
 registerPanel({ type: "gitdiff", label: "Git Diff", Component: GitDiffViewer, close: (ui) => ui.closeGitDiffViewer(), minW: 320, minH: 160 });
-// dispose runs when a terminal panel leaves the dock via EVICTION (not the ×,
-// which routes through close): kill the evicted pane's sessions only.
-registerPanel({ type: "terminal", label: "Terminal", Component: TerminalViewer, close: (ui) => { killPaneSessions(ui.paneId); ui.closeTerminalViewer(); }, dispose: killPaneSessions, minW: 280, minH: 160 });
+// Close/hide/evict keep the pane's PTY sessions alive (they persist and reattach
+// on reopen); no dispose kill. Only a tab's × or a shell exit ends a session.
+registerPanel({ type: "terminal", label: "Terminal", Component: TerminalViewer, close: (ui) => ui.closeTerminalViewer(), minW: 280, minH: 160 });

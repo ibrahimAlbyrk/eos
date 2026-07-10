@@ -5,13 +5,17 @@
 // body render across different subtrees and must share one source of truth; the
 // singleton pattern also survives duplicate mounts.
 //
-// Lifecycle: a pane's panel ALWAYS opens clean — there is no reattach/scrollback-
-// replay path. Closing a pane's panel terminates ITS sessions (killPaneSessions);
-// opening one reaps server sessions no pane tracks (reapUntrackedSessions), then
-// spawns one fresh tab. The tab NUMBER is the human-facing label only: it is
-// derived from THIS pane's live tab list (lowest free gap; restarts at 1 when
-// the pane empties) — never a monotonic counter. The stable id used for React
-// keys and PTY routing is sessionId (a server UUID): unique and never reused.
+// Lifecycle: sessions PERSIST across panel close/hide, agent switch, and pane
+// unmount. The server keeps each PTY alive (no idle reap) and this pane-keyed
+// singleton keeps its tab list across React unmount/remount, so a reopened panel
+// REATTACHES: TerminalViewer finds the pane's existing tabs and each TerminalView
+// replays its session's scrollback buffer, rather than opening clean. The ONLY
+// kills are closeTab (a tab's ×) and a real shell exit; reapUntrackedSessions
+// clears only server sessions NO pane tracks (the boot clean-slate after an app
+// quit). The tab NUMBER is the human-facing label only: derived from THIS pane's
+// live tab list (lowest free gap; restarts at 1 when the pane empties) — never a
+// monotonic counter. The stable id used for React keys and PTY routing is
+// sessionId (a server UUID): unique and never reused.
 
 import { api } from "../api/client.js";
 
@@ -97,21 +101,10 @@ export function switchTab(paneId, sessionId) {
   emit(p);
 }
 
-// Terminate ONE pane's sessions and clear its tab list — panel close, eviction,
-// and viewer unmount. Never touches another pane's live sessions.
-export async function killPaneSessions(paneId) {
-  const p = panes.get(paneId);
-  if (!p) return;
-  const ids = p.tabs.map((t) => t.sessionId);
-  p.tabs = [];
-  p.activeId = null;
-  emit(p);
-  await Promise.all(ids.map((id) => api.killPty(id).catch(() => {})));
-}
-
-// Clean-open reap: DELETE server sessions NO pane tracks (e.g. left over from an
-// app quit-while-open). Any pane's live tabs are never touched, so opening a
-// terminal in one pane can't kill another pane's sessions.
+// Boot clean-slate reap: DELETE server sessions NO pane tracks (e.g. left over
+// from an app quit-while-open). A persisted, still-tracked session is never
+// touched, so reopening a terminal never kills another pane's — or this pane's
+// own reattached — sessions.
 export async function reapUntrackedSessions() {
   let server;
   try {

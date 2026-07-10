@@ -106,6 +106,7 @@ export const ROUTES = {
   ptySession: (id) => `/pty/${id}`,
   ptyInput: (id) => `/pty/${id}/input`,
   ptyResize: (id) => `/pty/${id}/resize`,
+  ptyBuffer: (id) => `/pty/${id}/buffer`,
   workerTryState: (id) => `/workers/${id}/try/state`,
   workerTry: (id) => `/workers/${id}/try`,
   workerTryKeep: (id) => `/workers/${id}/try/keep`,
