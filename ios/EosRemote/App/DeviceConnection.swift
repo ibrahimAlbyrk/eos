@@ -3,6 +3,8 @@ import OSLog
 import EosRemoteKit
 
 private let eosLog = Logger(subsystem: "dev.eos.remote", category: "connect")
+// Transcript-pipeline diagnostics: which live frames actually drive a render.
+private let pipeLog = Logger(subsystem: "dev.eos.remote", category: "pipeline")
 
 // One device's live connection + state (Phase 5a). This is the per-device port of the old single
 // AppModel guts: it owns the WS connection, its own Store, the transcript pipeline (durable rows +
@@ -290,6 +292,9 @@ final class DeviceConnection: NSObject {
             resumeRetries = 0; connected = true; lastError = nil
             eosLog.info("connect[\(self.deviceId, privacy: .public)]: OK")
             await bootstrap()
+            // Reconnect with a conversation open: rows that landed during the gap
+            // never re-announce, so pull the transcript delta explicitly.
+            if openId != nil { scheduleDelta() }
         } catch Connector.ConnectError.authRejected {
             await conn.stop()
             eosLog.error("connect[\(self.deviceId, privacy: .public)]: BEARER_DENIED (rotated)")
@@ -443,6 +448,7 @@ final class DeviceConnection: NSObject {
     }
 
     private func ingest(_ rows: [JSONValue], workerId: String) {
+        pipeLog.info("ingest \(rows.count) rows for \(workerId, privacy: .public) (newest=\(self.newestRowId))")
         var changed = false
         for r in rows {
             guard let rid = r["id"]?.intValue else { continue }
@@ -504,6 +510,62 @@ final class DeviceConnection: NSObject {
         case "loop:check": applyLoopCheck(event.payload)
         default: break
         }
+    }
+
+    // MARK: list-state liveness (worker states, pending asks)
+
+    // Compat fallback for daemons that don't push §5.4.2 patches yet: change
+    // events carry only ids, so refetch the list they refer to (debounced).
+    // Stands down permanently once a patch/snapshot frame proves the daemon
+    // pushes state (Store.serverPushesState).
+    private var listRefreshScheduled = false
+    private var pendingRefreshWanted = false
+
+    func handleListEvent(_ event: EventFrame) async {
+        guard !(await store.serverPushesState) else { return }
+        switch event.reason {
+        case "worker:change", "worker:spawn", "worker:exit", "worker:removed":
+            scheduleListRefresh(includePending: false)
+        case "pending:created", "pending:resolved", "pending:ttl_expired":
+            scheduleListRefresh(includePending: true)
+        default: break
+        }
+    }
+
+    private func scheduleListRefresh(includePending: Bool) {
+        if includePending { pendingRefreshWanted = true }
+        guard !listRefreshScheduled else { return }
+        listRefreshScheduled = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            listRefreshScheduled = false
+            let wantPending = pendingRefreshWanted
+            pendingRefreshWanted = false
+            guard let connection, connected else { return }
+            if let rows = (try? await connection.sendControl(method: "GET", path: "/workers",
+                                                             bodyData: Data("{}".utf8)))?.body?.arrayValue {
+                await store.applyWorkers(rows)
+            }
+            if wantPending,
+               let rows = (try? await connection.sendControl(method: "GET", path: "/pending",
+                                                             bodyData: Data("{}".utf8)))?.body?.arrayValue {
+                await store.applyPending(rows)
+            }
+        }
+    }
+
+    // Seq-gap recovery (§5.2.2): frames were missed — ask for a fresh snapshot
+    // and, with a conversation open, pull the transcript delta too. Rate-limited;
+    // a pre-snapshot daemon ignores the hello and the fallback above still runs.
+    private var lastHelloAt: Double = 0
+
+    private func recoverFromGap() async {
+        let now = Date().timeIntervalSince1970
+        guard now - lastHelloAt > 5 else { return }
+        lastHelloAt = now
+        let cursor = await store.lastSeq
+        await connection?.sendHello(lastContentId: cursor)
+        if openId != nil { scheduleDelta() }
     }
 
     private func applyTerminalChunk(_ payload: JSONValue?) {
@@ -619,10 +681,13 @@ final class DeviceConnection: NSObject {
 // WSConnection delegate — fold this device's frames into ITS store on the main actor, then notify.
 extension DeviceConnection: WSConnectionDelegate {
     nonisolated func wsDidReceive(snapshot: SnapshotFrame) async { await store.applySnapshot(snapshot) }
-    nonisolated func wsDidReceive(patch: PatchFrame) async { _ = await store.applyPatch(patch) }
+    nonisolated func wsDidReceive(patch: PatchFrame) async {
+        if await store.applyPatch(patch) == .seqGap { await recoverFromGap() }
+    }
     nonisolated func wsDidReceive(event: EventFrame) async {
-        _ = await store.applyEvent(event)
+        if await store.applyEvent(event) == .seqGap { await recoverFromGap() }
         await handleTranscriptEvent(event)
+        await handleListEvent(event)
     }
     nonisolated func wsDidReceive(error: ErrorFrame) async {
         await MainActor.run { self.setError("\(error.code): \(error.message ?? "")") }

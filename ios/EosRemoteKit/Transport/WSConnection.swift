@@ -1,4 +1,9 @@
 import Foundation
+import OSLog
+
+// Frame-level wire diagnostics (Console.app: subsystem dev.eos.remote, category frames).
+private let frameLog = Logger(subsystem: "dev.eos.remote", category: "frames")
+private struct TagPeek: Decodable { let t: String }
 
 // Incoming server frames the connection can't answer itself (control replies are handled inline).
 public protocol WSConnectionDelegate: AnyObject, Sendable {
@@ -117,8 +122,13 @@ public actor WSConnection {
         guard let env = try? Envelope.decode(data) else { return }
         switch env.type {
         case .data:
-            guard let session,
-                  let frame = try? ServerFrame.decode(session.envelopeToJSON(env)) else { return }
+            guard let session else { frameLog.error("data frame before session attach — dropped"); return }
+            guard let frame = try? ServerFrame.decode(session.envelopeToJSON(env)) else {
+                // Tag + size only — payloads can embed transcript text.
+                let tag = (try? JSONDecoder().decode(TagPeek.self, from: env.payload))?.t ?? "?"
+                frameLog.error("undecodable inner frame — dropped (t=\(tag, privacy: .public), \(env.payload.count) bytes)")
+                return
+            }
             await dispatch(frame)
         default:
             break // relay-control frames are consumed by the join coordinator, not here
@@ -132,9 +142,15 @@ public actor WSConnection {
                 if (200..<300).contains(r.status) { cont.resume(returning: r) }
                 else { cont.resume(throwing: WSError.controlFailed(r.status)) }
             }
-        case .snapshot(let s): await delegate?.wsDidReceive(snapshot: s)
-        case .patch(let p): await delegate?.wsDidReceive(patch: p)
-        case .event(let e): await delegate?.wsDidReceive(event: e)
+        case .snapshot(let s):
+            frameLog.info("rx snapshot seq=\(s.seq) workers=\(s.workers.count)")
+            await delegate?.wsDidReceive(snapshot: s)
+        case .patch(let p):
+            frameLog.info("rx patch seq=\(p.seq) \(p.resource, privacy: .public)/\(p.op, privacy: .public)")
+            await delegate?.wsDidReceive(patch: p)
+        case .event(let e):
+            frameLog.info("rx event seq=\(e.seq) \(e.reason, privacy: .public)")
+            await delegate?.wsDidReceive(event: e)
         case .error(let e):
             if let cid = e.correlationId, let cont = pending.removeValue(forKey: cid) {
                 cont.resume(throwing: WSError.controlFailed(0))
@@ -204,6 +220,16 @@ public actor WSConnection {
         guard let session, let task else { return }
         let ka = KaFrame(t: "ka", ts: 0)
         guard let json = try? JSONEncoder().encode(ka) else { return }
+        task.send(.data(session.frameToEnvelope(json))) { _ in }
+    }
+
+    // §5.2.2 resume hint / §5.4.3 snapshot request. Fire-and-forget: the daemon
+    // answers with a `snapshot` frame on the normal push path (no correlation).
+    public func sendHello(lastContentId: Int) {
+        guard let session, let task else { return }
+        var hello = HelloFrame()
+        hello.lastContentId = lastContentId
+        guard let json = try? JSONEncoder().encode(hello) else { return }
         task.send(.data(session.frameToEnvelope(json))) { _ in }
     }
 }

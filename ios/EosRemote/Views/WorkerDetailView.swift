@@ -21,6 +21,15 @@ struct WorkerDetailView: View {
     @State private var showModelSheet = false
     @State private var showModeSheet = false
     @State private var showRename = false
+    // Bug-A guards (round 3): `landed` = the initial page has been explicitly
+    // scrolled to the tail (defaultScrollAnchor alone loses the race when the
+    // first page lands async and re-flows the LazyVStack estimates); until then
+    // transcript changes keep re-landing. `pagingArmed` holds the top loader off
+    // during that settle — before the fix it auto-fired on open and prepended a
+    // 500-row page mid-anchor-settle, which is what left the viewport off-content.
+    @State private var landed = false
+    @State private var pagingArmed = false
+    private static let tailAnchor = "transcript-tail"
     // Optimistic mode-pill state (§C3): set on pick, reverted on PUT failure, cleared when the
     // worker row catches up over SSE.
     @State private var modeOverride: PermissionModeUI?
@@ -61,13 +70,20 @@ struct WorkerDetailView: View {
     }
 
     var body: some View {
+        ScrollViewReader { proxy in scrollBody(proxy) }
+    }
+
+    private func scrollBody(_ proxy: ScrollViewProxy) -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: EosSpacing.md) {
                 if model.hasOlder {
                     ProgressView()
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, EosSpacing.xs)
-                        .onAppear { Task { await model.loadOlder() } }
+                        // Backward paging only after the open has settled; re-keyed on arm so
+                        // onAppear re-fires if the loader is already on screen at that moment.
+                        .id("older-pager-\(pagingArmed)")
+                        .onAppear { if pagingArmed { Task { await model.loadOlder() } } }
                 }
                 // Top-of-transcript task card (spec 03 §1 MessageTask): "Task from {parent}" + the
                 // boot prompt, shown when this worker was spawned by an orchestrator.
@@ -92,22 +108,30 @@ struct WorkerDetailView: View {
                     ProcessingLineView(busy: model.isBusy(workerId))
                         .padding(.top, EosSpacing.xxs)
                 }
+                Color.clear.frame(height: 1).id(Self.tailAnchor)
             }
             .padding(.horizontal, EosSpacing.screenInset)
         }
         .environmentObject(reveal)
+        .accessibilityIdentifier("transcript")
         // Bottom anchor lands the newest message on open and follows the tail at the bottom.
         .defaultScrollAnchor(.bottom)
         .scrollDismissesKeyboard(.interactively)
         // Tap-outside keyboard dismiss (§E4, master 17) alongside the interactive drag.
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
         .task(id: workerId) {
+            landed = false; pagingArmed = false
             reveal.bind(sessionId: workerId)
             await model.openWorker(workerId)
             model.markViewed(workerId)          // §D4: viewed on open
+            if !landed && !model.transcript.isEmpty { landTail(proxy) }
             // Let the first page paint, then open the animation window so only later output blurs in.
             try? await Task.sleep(nanoseconds: 350_000_000)
             reveal.markEntrySettled()
+        }
+        // Slow first page: the transcript lands after the open — land the tail then.
+        .onChange(of: model.transcript.count) {
+            if !landed && !model.transcript.isEmpty { landTail(proxy) }
         }
         .onDisappear {
             model.closeWorker(workerId)
@@ -259,6 +283,26 @@ struct WorkerDetailView: View {
     }
 
     // MARK: actions
+
+    // Land the viewport on the transcript tail. One scrollTo is not enough: the
+    // LazyVStack materializes cells in waves and each wave re-estimates heights
+    // (same pathology MessageGalleryView documents), so converge with re-passes
+    // before arming the top pager — un-gated, its onAppear fired during the
+    // settle and prepended a whole older page mid-layout (the blank-open bug).
+    private func landTail(_ proxy: ScrollViewProxy) {
+        landed = true
+        let target = workerId
+        proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
+        Task { @MainActor in
+            for delayMs in [150, 450] {
+                try? await Task.sleep(nanoseconds: UInt64(delayMs) * 1_000_000)
+                guard workerId == target else { return }
+                proxy.scrollTo(Self.tailAnchor, anchor: .bottom)
+            }
+            try? await Task.sleep(nanoseconds: 150_000_000)
+            if workerId == target { pagingArmed = true }
+        }
+    }
 
     private func applyMode(_ mode: PermissionModeUI) {
         modeOverride = mode                     // optimistic (§C3), reverted on error
