@@ -15,10 +15,11 @@ enum SidebarSection: String { case code, devices }
     init(section: SidebarSection = .code) {
         self.section = section
     }
-    // Root-screen flag mirrored by RootView (path.isEmpty): drag-to-open is disabled on pushed
-    // screens so the NavigationStack back-swipe keeps working. Read live by the pan's delegate —
-    // a value copy would go stale between SwiftUI update passes.
-    var canDragOpen = true
+    // Root-screen flag mirrored by RootView (path.isEmpty). On root screens drag-to-open works
+    // from anywhere; on pushed screens the left-edge strip is left to the NavigationStack
+    // back-swipe and only pans starting past it arm the drawer (round 10). Read live by the
+    // pan's delegate — a value copy would go stale between SwiftUI update passes.
+    var isAtRoot = true
 }
 
 // The revealed main content rounds to the physical screen corner so the peek edge sits concentric
@@ -32,13 +33,14 @@ enum SidebarSection: String { case code, devices }
     return r
 }()
 
-// The left drawer that slides the current screen right, revealing the drawer behind a dim scrim.
-// Contract §C1/D-18: the drawer is opaque and full-height edge-to-edge — no glass panel, no corner
-// radius on the drawer itself (DrawerView paints its own bg and handles the safe area, §E3). Main
-// content offsets right by the drawer width, clipped to a progress-driven corner + scrim. The panel
+// The left drawer that slides the current screen right, revealing the drawer as a darker surface
+// under the elevated card. Contract §C1/D-18: the drawer is opaque and full-height edge-to-edge —
+// no glass panel, no corner radius on the drawer itself (DrawerView paints its own bg and handles
+// the safe area, §E3). Main content offsets right by the drawer width, masked to the constant
+// device corner radius with a progress-faded rim + seam shadow (ref IMG_4423). The panel
 // tracks the finger 1:1 in both directions: closed, a horizontal-dominant rightward pan drags it
-// out (root screens only — `canDragOpen` keeps NavigationStack back-swipes working on pushed
-// screens); open, a horizontal pan anywhere drags it back. Release springs to the nearest state
+// out (on pushed screens the left-edge strip stays with the NavigationStack back-swipe — see the
+// delegate); open, a horizontal pan anywhere drags it back. Release springs to the nearest state
 // factoring release velocity. The pan is a UIKit recognizer (DrawerPan below), NOT a SwiftUI
 // DragGesture: recognition must CANCEL the touches a row Button is tracking, or every pan that
 // releases inside a full-width row also fires that row's push.
@@ -62,7 +64,7 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
 
     // Offset tracks the finger while a pan is live (isDragging — a plain `dragX != 0` sentinel
     // would snap the panel the instant a close-drag reaches exactly 0); at rest it sits at 0 or
-    // the full width. Progress 0…1 drives scrim alpha and the corner radius.
+    // the full width. Progress 0…1 drives the rim and seam-shadow alpha.
     private var currentOffset: CGFloat {
         if isDragging { return min(max(dragX, 0), drawerWidth) }
         return sidebar.isOpen ? drawerWidth : 0
@@ -72,35 +74,55 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
     var body: some View {
         ZStack(alignment: .leading) {
             // 0) BASE — dark bleeds under the notch/home-indicator even before content paints.
-            EosColor.bg.ignoresSafeArea()
+            //    Matches the drawer's bgSunken: the card's corner notches reveal this layer past
+            //    the drawer's right edge, and any other tone breaks the seam's continuity.
+            EosColor.bgSunken.ignoresSafeArea()
 
             // 1) DRAWER — opaque, pinned left, fixed width, full-height edge-to-edge (§C1). The
             //    DrawerView ignores the safe area itself and re-applies the insets manually (§E3).
             sidebarContent
                 .frame(width: drawerWidth)
                 .frame(maxHeight: .infinity, alignment: .top)
+                // Under-card dim that lifts as the drawer opens: darkest while the card covers it,
+                // normal brightness at full open — so closing visibly darkens the drawer and
+                // opening restores it.
+                .overlay {
+                    EosColor.black.opacity(min(1, 1.05 * (1 - progress)))
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                }
                 // Fully hidden while closed — the top-chrome gradients over the main content are
                 // deliberately translucent (§E1), so a live drawer layer would ghost through them.
                 .opacity(progress > 0 ? 1 : 0)
                 .accessibilityFocused($focusInSidebar)
                 .accessibilityHidden(!sidebar.isOpen)
 
-            // 2) MAIN — offset right when open, corner rounds AS it opens (progress-driven), scrim
-            //    UNDER the mask: overlaying it after would repaint the rounded corner cutouts as a
-            //    full-bleed square and hang the shadow on that square outline — reads as a straight
-            //    edge. No scale — the drawer reads cleaner without the seam. The rounding must be an
-            //    edge-to-edge mask, NOT a bounds clip: clipShape cuts at the safe-area rect, which
-            //    beheads every screen's §E1/E2 status-bar/home-strip bleed and lets the drop shadow
-            //    below darken the exposed strips (the visible seam).
+            // 2) MAIN — offset right when open. The card reads elevated OVER the darker drawer (ref
+            //    IMG_4423): the corner radius is the CONSTANT device radius — scaling it with
+            //    progress reads as a straight edge for most of the drag, and at rest the mask hides
+            //    under the physical bezel precisely because it is concentric. A 1px light rim traces
+            //    the rounded edge (the reference's corner shine) and the card is NOT dimmed — the
+            //    drawer behind is the darker surface. The rounding must be an edge-to-edge mask, NOT
+            //    a bounds clip: clipShape cuts at the safe-area rect, which beheads every screen's
+            //    §E1/E2 status-bar/home-strip bleed and lets the drop shadow below darken the
+            //    exposed strips (the visible seam).
             content
-                .overlay(scrim)
+                .overlay(closeTapLayer)
                 .mask {
-                    RoundedRectangle(cornerRadius: deviceCornerRadius * progress, style: .continuous)
+                    RoundedRectangle(cornerRadius: deviceCornerRadius, style: .continuous)
                         .ignoresSafeArea()
+                }
+                .overlay {
+                    RoundedRectangle(cornerRadius: deviceCornerRadius, style: .continuous)
+                        .strokeBorder(.white.opacity(0.14 * min(progress * 3, 1)), lineWidth: 1)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
                 }
                 // Shadow only while the drawer peeks: at rest it bleeds through the §E2 gradient's
                 // semi-transparent home-strip pixels and re-darkens the seam the mask just fixed.
-                .shadow(color: .black.opacity(0.35 * progress), radius: 16, x: -4)
+                // Tight and faint per ref IMG_4423 — a whisper of depth at the seam, not a spread
+                // gradient band over the drawer.
+                .shadow(color: .black.opacity(0.18 * progress), radius: 5, x: -2)
                 .offset(x: currentOffset)
                 .accessibilityHidden(sidebar.isOpen)
         }
@@ -134,9 +156,11 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
         }
     }
 
-    @ViewBuilder private var scrim: some View {
-        // Scrims darken (GlassDialog precedent) — ink here brightens the panel as it opens.
-        EosColor.black.opacity(0.28 * progress)
+    // Invisible tap-to-close target over the whole card (ref shows no dim on the card — the tone
+    // separation comes from the drawer's darker bg + the rim + the seam shadow).
+    @ViewBuilder private var closeTapLayer: some View {
+        Color.clear
+            .contentShape(Rectangle())
             .ignoresSafeArea()
             .allowsHitTesting(sidebar.isOpen)
             .onTapGesture { sidebar.isOpen = false }
@@ -148,9 +172,10 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
 // The drawer pan as a UIKit recognizer. Recognition cancels in-flight Button touches
 // (cancelsTouchesInView), so a pan that releases over a row never fires that row's action —
 // the failure mode a pure SwiftUI DragGesture cannot avoid. Begin rules (delegate):
-// horizontal-dominant only (vertical List scrolls stay untouched); closed → rightward + root
-// screens only (canDragOpen guards NavigationStack back-swipes); open → any horizontal pan;
-// declines when the touch sits inside a horizontally scrollable child (the filter-chips row).
+// horizontal-dominant only (vertical List scrolls stay untouched); closed → rightward, and on
+// pushed screens (!isAtRoot) only when the touch STARTED past the left-edge strip that belongs
+// to the NavigationStack back-swipe; open → any horizontal pan; declines when the touch sits
+// inside a horizontally scrollable child (filter chips, code blocks).
 private struct DrawerPan: UIGestureRecognizerRepresentable {
     let state: SidebarState
     let onChanged: (CGFloat) -> Void
@@ -181,24 +206,38 @@ private struct DrawerPan: UIGestureRecognizerRepresentable {
     }
 
     @MainActor final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        // Wider than the system's ~20pt interactive-pop zone so an edge back-swipe can never
+        // land in drawer territory.
+        private static let backSwipeEdgeWidth: CGFloat = 24
         private let state: SidebarState
         init(_ state: SidebarState) { self.state = state }
 
         func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
             guard let pan = g as? UIPanGestureRecognizer, let view = pan.view else { return false }
             let t = pan.translation(in: view)
-            guard abs(t.x) > abs(t.y) else { return false }
+            NSLog("EOSPAN shouldBegin t=(%.1f,%.1f) loc=(%.1f,%.1f) open=%d root=%d",
+                  t.x, t.y, pan.location(in: view).x, pan.location(in: view).y,
+                  state.isOpen ? 1 : 0, state.isAtRoot ? 1 : 0)
+            guard abs(t.x) > abs(t.y) else { NSLog("EOSPAN deny not-horizontal"); return false }
             if !state.isOpen {
-                guard state.canDragOpen, t.x > 0 else { return false }
+                guard t.x > 0 else { NSLog("EOSPAN deny leftward"); return false }
+                // Pushed screens: leave the left-edge strip to the nav back-swipe. The finger
+                // has already moved past the touch slop by shouldBegin, so subtract the
+                // translation to test where the touch went DOWN, not where it is now.
+                if !state.isAtRoot {
+                    guard pan.location(in: view).x - t.x > Self.backSwipeEdgeWidth else { NSLog("EOSPAN deny edge-strip"); return false }
+                }
             }
             // Leave horizontal child scrollers (filter chips) their own pans.
             var v = view.hitTest(pan.location(in: view), with: nil)
             while let cur = v, cur !== view {
                 if let sv = cur as? UIScrollView, sv.contentSize.width > sv.bounds.width + 1 {
+                    NSLog("EOSPAN deny h-scroller %@ cw=%.0f bw=%.0f", NSStringFromClass(type(of: sv)), sv.contentSize.width, sv.bounds.width)
                     return false
                 }
                 v = cur.superview
             }
+            NSLog("EOSPAN ALLOW")
             return true
         }
 

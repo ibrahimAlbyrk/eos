@@ -37,14 +37,20 @@ struct RootView: View {
         if CommandLine.arguments.contains("-eosResetUIState") { store.clearAll() }
         #endif
         let saved = store.state(for: DeviceStore().activeId())
-        _sidebar = StateObject(wrappedValue: SidebarState(
-            section: saved.section.flatMap(SidebarSection.init(rawValue:)) ?? .code))
+        let sidebarState = SidebarState(
+            section: saved.section.flatMap(SidebarSection.init(rawValue:)) ?? .code)
+        // onChange(of: path) never fires for the restored initial value — seed the root flag
+        // here or a restored conversation keeps root gesture rules (drawer pan would claim the
+        // left-edge strip that belongs to the back-swipe).
+        sidebarState.isAtRoot = saved.openWorkerId == nil
+        _sidebar = StateObject(wrappedValue: sidebarState)
         _path = State(initialValue: saved.openWorkerId.map { [Route.conversation($0)] } ?? [])
     }
 
     var body: some View {
         SidebarContainer {
-            DrawerView(onSelectSection: { select($0) },
+            DrawerView(selectedWorkerId: Self.restorableWorkerId(in: path),
+                       onSelectSection: { select($0) },
                        onOpenWorker: { openWorker($0) },
                        onNewSession: { path.append(Route.newSession) },
                        onDeviceChip: { showDeviceSwitcher = true })
@@ -83,10 +89,10 @@ struct RootView: View {
                 .environmentObject(model)
         }
         .onOpenURL { url in route(url) }
-        // Drag-to-open only on root screens — pushed screens keep the edge back-swipe.
-        // Persist what relaunch should reopen on every stack change (round 7).
+        // Root-screen flag for the drawer pan (pushed screens reserve the left edge for the
+        // back-swipe). Persist what relaunch should reopen on every stack change (round 7).
         .onChange(of: path) { _, p in
-            sidebar.canDragOpen = p.isEmpty
+            sidebar.isAtRoot = p.isEmpty
             model.saveUIState { $0.openWorkerId = Self.restorableWorkerId(in: p) }
         }
         .onChange(of: sidebar.section) { _, s in
@@ -115,8 +121,8 @@ struct RootView: View {
         }
     }
 
-    // What relaunch should reopen given this stack: a conversation on top persists; the Code
-    // list or a new-session screen persists nothing.
+    // The conversation on top of this stack, if any — drives both relaunch restoration and the
+    // drawer's selected-recent highlight; the Code list or a new-session screen yields nil.
     private static func restorableWorkerId(in path: [Route]) -> String? {
         guard case .conversation(let id)? = path.last else { return nil }
         return id

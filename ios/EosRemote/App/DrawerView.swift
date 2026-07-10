@@ -12,6 +12,9 @@ struct DrawerView: View {
     @EnvironmentObject var sidebar: SidebarState
     @AccessibilityFocusState private var wordmarkFocused: Bool
 
+    // The conversation currently on top of the nav stack, nil on root screens — its Recents row
+    // gets the selected wash so the drawer stays oriented when opened from inside a chat.
+    let selectedWorkerId: String?
     let onSelectSection: (SidebarSection) -> Void
     let onOpenWorker: (String) -> Void
     let onNewSession: () -> Void
@@ -62,7 +65,8 @@ struct DrawerView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 2) {
                         ForEach(recentWorkers) { w in
-                            SidebarRecentRow(name: w.name, state: w.state) {
+                            SidebarRecentRow(name: w.name, state: w.state,
+                                             isSelected: w.id == selectedWorkerId) {
                                 onOpenWorker(w.id)
                                 sidebar.isOpen = false
                             }
@@ -79,7 +83,9 @@ struct DrawerView: View {
                 .padding(.trailing, EosSpacing.md)
                 .padding(.bottom, EosSpacing.md)
         }
-        .background(EosColor.bg.ignoresSafeArea())
+        // bgSunken, not bg: the drawer is the RECESSED surface under the elevated content card
+        // (ref IMG_4423 — the card reads lighter than the drawer behind it).
+        .background(EosColor.bgSunken.ignoresSafeArea())
         .onChange(of: sidebar.isOpen) { _, open in if open { wordmarkFocused = true } }
     }
 
@@ -145,10 +151,12 @@ struct CurrentDeviceChip: View {
     }
 }
 
-// A plain sans row for a recent worker — a state dot + name (§C1.4).
+// A plain sans row for a recent worker — a state dot + name (§C1.4). Selected (= the open
+// conversation) gets the same wash the SidebarRow section rows use — no new chrome.
 struct SidebarRecentRow: View {
     let name: String
     let state: String
+    var isSelected = false
     let action: () -> Void
 
     var body: some View {
@@ -163,9 +171,12 @@ struct SidebarRecentRow: View {
             }
             .padding(.vertical, EosSpacing.xs)
             .padding(.horizontal, EosSpacing.xs)
+            .background(isSelected ? EosColor.coralWash : .clear,
+                        in: RoundedRectangle(cornerRadius: EosRadius.chip))
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(name), \(EosRunState.from(state).label)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
