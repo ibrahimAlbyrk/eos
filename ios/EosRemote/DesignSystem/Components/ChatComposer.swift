@@ -117,14 +117,29 @@ struct ChatComposer: View {
     @ViewBuilder private var trailingButton: some View {
         switch trailing {
         case .send(let enabled, let act):
-            CircularIconButton(systemName: "arrow.up", diameter: 40, filled: true,
-                               accessibilityLabel: "Send", action: act)
+            primaryButton("arrow.up", label: "Send", action: act)
                 .opacity(enabled ? 1 : 0.35)
                 .disabled(!enabled)
         case .interrupt(let act):
-            CircularIconButton(systemName: "stop.fill", diameter: 40, filled: true,
-                               accessibilityLabel: "Interrupt", action: act)
+            primaryButton("stop.fill", label: "Interrupt", action: act)
         }
+    }
+
+    // CircularIconButton's .glassProminent pads outside its 40pt label, rendering the primary
+    // visibly larger than the 40pt attach circle beside it — so the coral prominent-glass
+    // circle is built inline here at an exact 40pt.
+    private func primaryButton(_ systemName: String, label: String,
+                               action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(EosColor.ink)
+                .frame(width: 40, height: 40)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .glassEffect(.regular.tint(EosColor.coral).interactive(), in: .circle)
+        .accessibilityLabel(label)
     }
 }
 
