@@ -1,8 +1,9 @@
 import SwiftUI
 
 // Disclosure row (spec 03 §6.3, port of DisclosureRow.jsx). A content-sized tap target (fit-content
-// width, not the full row) that toggles `open`; a chevron rotates 90° on expand over 0.15s ease, and
-// the expanded content transitions in with opacity + a top move. No hover on iOS, so the Mac's
+// width, not the full row) that toggles `open`; a chevron rotates 90° on expand, and the expanded
+// content unfolds downward from the header's bottom edge — the body's top-move insertion is clipped
+// to its own container, so it never draws over the header text. No hover on iOS, so the Mac's
 // verb/chevron brightening is dropped. The header closure owns its own layout; this wrapper only adds
 // the trailing chevron and the collapse behavior.
 struct DisclosureRowView<Header: View, Content: View>: View {
@@ -10,6 +11,8 @@ struct DisclosureRowView<Header: View, Content: View>: View {
     var showChevron: Bool = true
     @ViewBuilder let header: () -> Header
     @ViewBuilder let content: () -> Content
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Round 5, item E: every transcript expansion funnels through this toggle. The
     // hosting scroll view (WorkerDetailView) listens so it can hold its size-change
@@ -21,7 +24,7 @@ struct DisclosureRowView<Header: View, Content: View>: View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
                 onDisclosureToggle()
-                withAnimation(.easeInOut(duration: 0.15)) { open.toggle() }
+                withAnimation(reduceMotion ? nil : EosSpring.chip) { open.toggle() }
             } label: {
                 HStack(spacing: 5) {                                    // .tool-item-header gap 5 (§10)
                     header()
@@ -44,10 +47,17 @@ struct DisclosureRowView<Header: View, Content: View>: View {
             .accessibilityElement(children: .combine)
             .accessibilityValue(showChevron ? (open ? "expanded" : "collapsed") : "")
 
-            if open {
-                content()
-                    .transition(.opacity.combined(with: .move(edge: .top)))  // §6.3 expanded transition
+            // The body gets its own clipped container: its height animates 0↔fit while the top-move
+            // insertion slides the content down inside it. The clip pins the reveal window to the
+            // header's bottom edge, so mid-animation the body emerges below the header instead of
+            // sliding through it; collapse mirrors the same path back up.
+            VStack(alignment: .leading, spacing: 0) {
+                if open {
+                    content()
+                        .transition(.opacity.combined(with: .move(edge: .top)))  // §6.3 expanded transition
+                }
             }
+            .clipped()
         }
     }
 }
