@@ -24,8 +24,10 @@ struct CodeListView: View {
 
     private enum Filter: String, CaseIterable { case all = "All", running = "Running", archived = "Archived" }
     @State private var filter: Filter
-    // Collapsed root ids — local, not persisted (§D3).
+    // Collapsed root ids — session-local. Persisting would grow RestorableUIState (EosRemoteKit,
+    // outside the round-11 row-rework scope), so deliberately not stored.
     @State private var collapsed: Set<String> = []
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var archivedLoading = false
 
     private var roots: [AgentNode] { AgentTree.buildTree(model.workers) }
@@ -121,7 +123,8 @@ struct CodeListView: View {
                             workerCount: node.subtreeSize - 1,
                             attention: model.needsAttention(node.worker),
                             pendingCount: subtreePending(node, direct: direct),
-                            onTileTap: node.children.isEmpty ? nil : { toggleCollapse(node.id) })
+                            isCollapsed: collapsed.contains(node.id),
+                            onToggleCollapse: node.children.isEmpty ? nil : { toggleCollapse(node.id) })
         }
         .buttonStyle(.plain)
         .listRowBackground(EosColor.bg)
@@ -136,25 +139,16 @@ struct CodeListView: View {
         }
     }
 
-    // Descendants flattened depth-first; the collapse chevron sits leading of the children block
-    // (§D3) — drawn in the indent gutter of the first child row.
+    // Descendants flattened depth-first, indented under the root card's name column — the
+    // collapse control lives inline on the root row (round 11), so no gutter chevron here.
     @ViewBuilder private func childRows(_ node: AgentNode, direct: [String: Int]) -> some View {
         let entries = flattenChildren(node, direct: direct)
-        ForEach(Array(entries.enumerated()), id: \.element.id) { i, entry in
+        ForEach(entries) { entry in
             Button { onOpenWorker(entry.worker.id) } label: {
-                HStack(alignment: .center, spacing: 0) {
-                    // Hidden (not conditional) for i > 0: an `if` here removes the view AND its
-                    // 24pt frame, collapsing the indent gutter of every row after the first.
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(EosColor.inkFaint)
-                        .opacity(i == 0 ? 1 : 0)
-                        .frame(width: 24)
-                    WorkerChildRow(worker: entry.worker,
-                                   attention: model.needsAttention(entry.worker),
-                                   pendingCount: entry.pendingCount)
-                        .padding(.leading, 32 + CGFloat(entry.depth - 1) * 16)
-                }
+                WorkerChildRow(worker: entry.worker,
+                               attention: model.needsAttention(entry.worker),
+                               pendingCount: entry.pendingCount)
+                    .padding(.leading, 28 + CGFloat(entry.depth - 1) * 16)
             }
             .buttonStyle(.plain)
             .listRowBackground(EosColor.bg)
@@ -189,7 +183,9 @@ struct CodeListView: View {
     }
 
     private func toggleCollapse(_ id: String) {
-        if collapsed.contains(id) { collapsed.remove(id) } else { collapsed.insert(id) }
+        withAnimation(reduceMotion ? nil : EosSpring.chip) {
+            if collapsed.contains(id) { collapsed.remove(id) } else { collapsed.insert(id) }
+        }
     }
 
     private func archive(_ id: String) {
@@ -316,7 +312,7 @@ struct CodeListView: View {
         ForEach(0..<3, id: \.self) { _ in
             RoundedRectangle(cornerRadius: EosRadius.card, style: .continuous)
                 .fill(EosColor.surface)
-                .frame(height: 68)
+                .frame(height: 50)
                 .listRowBackground(EosColor.bg)
                 .listRowSeparator(.hidden)
                 .listRowInsets(EdgeInsets(top: EosSpacing.xxs, leading: EosSpacing.screenInset,

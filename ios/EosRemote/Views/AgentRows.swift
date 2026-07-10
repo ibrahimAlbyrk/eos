@@ -40,17 +40,18 @@ enum CompactTime {
 // carries a label-size SemiBold, so it is derived locally (same pattern as PermissionBanner).
 private let labelSemi = Font.custom("PlusJakartaSans-SemiBold", size: 15, relativeTo: .subheadline)
 
-// Root card (§D3): 44pt folder tile with a state dot overlaid bottom-trailing, heavy title,
-// cwd-basename subtitle + worker count, trailing time + one status slot (pending chip > attention
-// dot > loop badge > nothing). The tile is its own button when children exist (collapse toggle);
-// `archived` forces the idle dot and drops the live status slot (§C2 Archived rows).
+// Root card (§C2, compacted round 11): no tile — inline 8pt state dot, heavy title with the
+// collapse chevron on the same line (rotates down↔up, own ≥44pt hit target), cwd-basename
+// subtitle + worker count, trailing status slot (pending chip > attention dot > loop badge) +
+// time on one line. `archived` forces the idle dot and drops the live status slot (§C2).
 struct OrchestratorRow: View {
     let worker: Worker
     var workerCount: Int = 0
     var archived: Bool = false
     var attention: Bool = false
     var pendingCount: Int = 0
-    var onTileTap: (() -> Void)? = nil
+    var isCollapsed: Bool = false
+    var onToggleCollapse: (() -> Void)? = nil
 
     private var runState: EosRunState { EosRunState.from(archived ? "IDLE" : worker.state) }
     private var timeMs: Double {
@@ -58,18 +59,19 @@ struct OrchestratorRow: View {
     }
 
     var body: some View {
-        HStack(spacing: EosSpacing.sm) {
-            if let onTileTap {
-                Button(action: onTileTap) { tile }.buttonStyle(.plain)
-                    .accessibilityLabel("Toggle workers")
-            } else {
-                tile
-            }
+        HStack(spacing: EosSpacing.xs) {
+            Circle()
+                .fill(runState.dot)
+                .frame(width: 8, height: 8)
+                .accessibilityLabel(runState.label)
             VStack(alignment: .leading, spacing: 2) {
-                Text(nameOf(worker))
-                    .font(labelSemi)
-                    .foregroundStyle(EosColor.ink)
-                    .lineLimit(1)
+                HStack(spacing: EosSpacing.xs) {
+                    Text(nameOf(worker))
+                        .font(labelSemi)
+                        .foregroundStyle(EosColor.ink)
+                        .lineLimit(1)
+                    if let onToggleCollapse { collapseChevron(onToggleCollapse) }
+                }
                 if let subtitle {
                     Text(subtitle)
                         .font(EosFont.caption)
@@ -78,37 +80,33 @@ struct OrchestratorRow: View {
                 }
             }
             Spacer(minLength: EosSpacing.xs)
-            VStack(alignment: .trailing, spacing: EosSpacing.xxs) {
-                Text(CompactTime.label(timeMs))
-                    .font(EosFont.caption)
-                    .foregroundStyle(EosColor.inkTertiary)
-                if !archived { statusSlot }
-            }
+            if !archived { statusSlot }
+            Text(CompactTime.label(timeMs))
+                .font(EosFont.caption)
+                .foregroundStyle(EosColor.inkTertiary)
         }
-        .padding(EosSpacing.sm)
+        .padding(.horizontal, EosSpacing.sm)
+        .padding(.vertical, EosSpacing.xs)
         .background(EosColor.surface, in: RoundedRectangle(cornerRadius: EosRadius.card, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: EosRadius.card, style: .continuous)
             .strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline))
         .contentShape(Rectangle())
     }
 
-    private var tile: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(EosColor.surface2)
-            Image(systemName: "folder")
-                .font(.system(size: 18, weight: .regular))
-                .foregroundStyle(EosColor.inkSecondary)
+    // Drawn small to keep the row compact; the inner 44pt frame overflows the 18pt layout
+    // footprint so the tap target stays finger-sized without inflating the row.
+    private func collapseChevron(_ toggle: @escaping () -> Void) -> some View {
+        Button(action: toggle) {
+            Image(systemName: "chevron.down")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(EosColor.inkTertiary)
+                .rotationEffect(.degrees(isCollapsed ? 180 : 0))
+                .frame(width: 44, height: 44)
+                .contentShape(Rectangle())
         }
-        .frame(width: 44, height: 44)
-        .overlay(alignment: .bottomTrailing) {
-            Circle()
-                .fill(runState.dot)
-                .frame(width: 10, height: 10)
-                .overlay(Circle().strokeBorder(EosColor.bg, lineWidth: 1.5))
-                .offset(x: 3, y: 3)
-                .accessibilityLabel(runState.label)
-        }
+        .buttonStyle(.plain)
+        .frame(width: 18, height: 18)
+        .accessibilityLabel(isCollapsed ? "Show workers" : "Hide workers")
     }
 
     private var subtitle: String? {
@@ -233,15 +231,15 @@ private struct PendingCountChip: View {
     return VStack(alignment: .leading, spacing: EosSpacing.sm) {
         OrchestratorRow(worker: w("o1", name: "Fix login flow", orch: true, state: "WORKING",
                                   cwd: "/Users/x/dev/eos"),
-                        workerCount: 3, pendingCount: 2, onTileTap: {})
+                        workerCount: 3, pendingCount: 2, onToggleCollapse: {})
         OrchestratorRow(worker: w("o2", orch: true, state: "IDLE", cwd: "/Users/x/dev/api"),
-                        attention: true)
+                        attention: true, isCollapsed: true, onToggleCollapse: {})
         OrchestratorRow(worker: w("o3", name: "Old session", orch: true, cwd: "/Users/x/dev/web"),
                         archived: true)
         WorkerChildRow(worker: w("w1", name: "refactor-auth", state: "WORKING", def: "code-reviewer"))
-            .padding(.leading, 56)
+            .padding(.leading, 28)
         WorkerChildRow(worker: w("w2", name: "land-branch", state: "IDLE", role: "git"), attention: true)
-            .padding(.leading, 56)
+            .padding(.leading, 28)
     }
     .padding(EosSpacing.screenInset)
     .frame(maxWidth: .infinity, maxHeight: .infinity)
