@@ -1,7 +1,7 @@
 import SwiftUI
 import EosRemoteKit
 
-// Drawer contents (contract §C1, ref IMG_4423 — no avatar, no spawn pill): centered wordmark as
+// Drawer contents (contract §C1, ref IMG_4423 — no avatar, no spawn pill): left-pinned wordmark as
 // the drawer's title mark, Code / Devices nav rows, a Recents list of the active device's workers,
 // and a floating footer row — device chip (opens the device switcher) leading, "+ New" pill
 // trailing. Full-height edge-to-edge (§E3): the opaque bg ignores the safe area while the content
@@ -35,7 +35,7 @@ struct DrawerView: View {
                 .font(EosFont.display)
                 .tracking(-0.4)
                 .foregroundStyle(EosColor.ink)
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, EosSpacing.md)   // aligns with the nav rows' content edge
                 .padding(.top, EosSpacing.lg)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityFocused($wordmarkFocused)

@@ -26,8 +26,8 @@ enum PermissionModeUI: String {
 }
 
 // Composer mode pill (contract §C3, ref IMG_4429 "</> Accept edits"): code glyph + current
-// permission-mode label, tap opens ModeSheet. Solid near-black capsule on the glass composer —
-// the reference pill is opaque black with light text, not a bordered surface.
+// permission-mode label, tap opens ModeSheet. Surface-tinted interactive glass on the composer
+// card — the same soft-dark tone as the attach circle beside it, not a pure-black solid.
 struct ModePill: View {
     let mode: PermissionModeUI
     let action: () -> Void
@@ -48,11 +48,11 @@ struct ModePill: View {
             }
             .padding(.horizontal, EosSpacing.sm)
             .padding(.vertical, EosSpacing.xs)
-            .background(EosColor.black, in: Capsule())
             .foregroundStyle(EosColor.ink)
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .glassEffect(.regular.tint(EosColor.surface3).interactive(), in: .capsule)
         .accessibilityLabel("Permission mode: \(mode.label)")
     }
 }
