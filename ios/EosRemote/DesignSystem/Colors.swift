@@ -32,7 +32,7 @@ enum EosColor {
     static let onDark = Color(hex: 0xEBEBEB)       // text on the (now rarely used) solid pill — matches ink
     // Soft elevated control fill over dark surfaces/glass (composer attach + mode pill, selected
     // filter chip). Ink-based so it clearly LIGHTENS: dark-gray tints read near-black on device.
-    static var controlWash: Color { ink.opacity(0.24) }
+    static var controlWash: Color { ink.opacity(0.19) }
     // actions
     static let danger    = Color(hex: 0xD97670)    // destructive (Kill, Deny) — aligns to state-failed red
     static var focusRing: Color { coral.opacity(0.45) }
