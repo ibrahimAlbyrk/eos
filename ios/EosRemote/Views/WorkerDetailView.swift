@@ -327,10 +327,12 @@ struct WorkerDetailView: View {
     // Floating "↓" over the transcript, centered just above the composer (§ round 20). Uses the
     // design-system glass circle so it reads as the same chrome as the top-bar buttons. Present only
     // when the viewport is more than a screen above the tail; fades with the DS spring (instant under
-    // reduce-motion). Offset lifts it clear of the composer's top edge.
+    // reduce-motion). Offset lifts it clear of the composer's top edge. Suppressed while the composer
+    // is focused: the keyboard's inset animation transiently reads as away-from-tail even when pinned
+    // at the bottom, and interactive dismiss brings the button back the moment a scroll starts.
     @ViewBuilder
     private var scrollToBottomButton: some View {
-        if awayFromTail {
+        if awayFromTail && !composerFocused {
             CircularIconButton(systemName: "arrow.down", diameter: 44, glass: true,
                                accessibilityLabel: "Scroll to latest") { scrollToTail() }
                 .accessibilityIdentifier("scroll-to-bottom")
