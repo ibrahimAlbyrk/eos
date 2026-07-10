@@ -36,6 +36,8 @@ struct WorkerDetailView: View {
     // and the top-pager's prepend stability (round-3 Bug A) exactly as before.
     @State private var disclosureHold = false
     @State private var disclosureHoldTask: Task<Void, Never>?
+    // In-flight guard for the gone-from-both-lists check (validatePresence below).
+    @State private var checkingPresence = false
     // Optimistic mode-pill state (§C3): set on pick, reverted on PUT failure, cleared when the
     // worker row catches up over SSE.
     @State private var modeOverride: PermissionModeUI?
@@ -152,10 +154,11 @@ struct WorkerDetailView: View {
             model.closeWorker(workerId)
             model.markViewed(workerId)          // §D4: viewed on close too
         }
-        // Worker gone from both lists while connected (killed/purged elsewhere) → pop (§C3).
-        .onChange(of: model.workers) {
-            if model.connected, !model.workers.isEmpty, worker == nil, archivedWorker == nil { dismiss() }
-        }
+        // Worker missing from both lists once the device is connected + loaded (killed/purged
+        // elsewhere, or a restored id that no longer exists — round 7): refresh archived once to
+        // rule out an archive we haven't fetched yet, then pop silently (§C3).
+        .onChange(of: model.workers) { validatePresence() }
+        .onChange(of: model.workersLoaded) { validatePresence() }
         .onChange(of: worker?.permissionMode) { _, mode in
             if let mode, mode == modeOverride?.rawValue { modeOverride = nil }
         }
@@ -327,6 +330,23 @@ struct WorkerDetailView: View {
             try? await Task.sleep(nanoseconds: 500_000_000)
             guard !Task.isCancelled else { return }
             disclosureHold = false
+        }
+    }
+
+    private var goneFromBothLists: Bool {
+        UIRestore.shouldClose(openId: workerId, connected: model.connected,
+                              workersLoaded: model.workersLoaded,
+                              workerIds: model.workers.map(\.id),
+                              archivedIds: model.archived.map(\.id))
+    }
+
+    private func validatePresence() {
+        guard goneFromBothLists, !checkingPresence else { return }
+        checkingPresence = true
+        Task {
+            _ = await model.fetchArchived()
+            if goneFromBothLists { dismiss() }
+            checkingPresence = false
         }
     }
 

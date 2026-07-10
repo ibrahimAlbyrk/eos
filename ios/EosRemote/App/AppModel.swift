@@ -321,6 +321,18 @@ final class AppModel: ObservableObject {
         await active?.fetchFile(path: path) ?? .failure("Not connected")
     }
 
+    // MARK: UI state restoration (round 7) — per-device keys, written on change
+
+    private let uiStateStore = UIStateStore()
+    // Before bootstrap resolves activeDeviceId, fall back to the persisted active id — the same
+    // device launch restoration read.
+    private var uiStateDeviceId: String? { activeDeviceId ?? deviceStore.activeId() }
+
+    func savedUIState() -> RestorableUIState { uiStateStore.state(for: uiStateDeviceId) }
+    func saveUIState(_ mutate: (inout RestorableUIState) -> Void) {
+        uiStateStore.update(for: uiStateDeviceId, mutate)
+    }
+
     // MARK: attention ledger (§D4) — in-memory, per-launch
 
     // Seeded at first sight of a worker (never flag pre-existing output — Mac rule); markViewed

@@ -17,10 +17,13 @@ struct CodeListView: View {
     init(onOpenWorker: @escaping (String) -> Void, onNewSession: @escaping () -> Void) {
         self.onOpenWorker = onOpenWorker
         self.onNewSession = onNewSession
+        // Launch restoration (round 7): the chip starts on the active device's saved filter.
+        let saved = UIStateStore().state(for: DeviceStore().activeId())
+        _filter = State(initialValue: saved.filter.flatMap(Filter.init(rawValue:)) ?? .all)
     }
 
     private enum Filter: String, CaseIterable { case all = "All", running = "Running", archived = "Archived" }
-    @State private var filter: Filter = .all
+    @State private var filter: Filter
     // Collapsed root ids — local, not persisted (§D3).
     @State private var collapsed: Set<String> = []
     @State private var archivedLoading = false
@@ -47,8 +50,18 @@ struct CodeListView: View {
             CircularIconButton(systemName: "plus", diameter: 40, filled: true,
                                accessibilityLabel: "New session") { onNewSession() }
         }
+        // A restored Archived chip lands before the connection is up — fetch once it connects.
+        .task { if filter == .archived { refreshArchived() } }
+        .onChange(of: model.connected) { _, connected in
+            if connected && filter == .archived { refreshArchived() }
+        }
         .onChange(of: filter) { _, f in
             if f == .archived { refreshArchived() }
+            model.saveUIState { $0.filter = f.rawValue }
+        }
+        // Device switch: the incoming device's own saved filter applies (round 7 per-device state).
+        .onChange(of: model.activeDeviceId) {
+            filter = model.savedUIState().filter.flatMap(Filter.init(rawValue:)) ?? .all
         }
     }
 

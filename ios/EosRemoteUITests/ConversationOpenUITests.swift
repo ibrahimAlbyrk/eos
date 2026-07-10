@@ -13,6 +13,9 @@ final class ConversationOpenUITests: XCTestCase {
 
     func testConversationOpensWithVisibleTranscript() throws {
         let app = XCUIApplication()
+        // Round 7 restores the previously open conversation on launch — reset so this
+        // test starts from the Code-list root it assumes.
+        app.launchArguments += ["-eosResetUIState"]
         app.launch()
 
         let menu = app.buttons["Menu"]
@@ -54,6 +57,9 @@ final class ConversationOpenUITests: XCTestCase {
     // then requires two representative queries to resolve inside a hard budget.
     func testLongTranscriptQueriesStayFast() throws {
         let app = XCUIApplication()
+        // Round 7 restores the previously open conversation on launch — reset so this
+        // test starts from the Code-list root it assumes.
+        app.launchArguments += ["-eosResetUIState"]
         app.launch()
 
         let menu = app.buttons["Menu"]

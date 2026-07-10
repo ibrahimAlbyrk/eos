@@ -9,7 +9,12 @@ enum SidebarSection: String { case code, devices }
 // and whether the drawer is open.
 @MainActor final class SidebarState: ObservableObject {
     @Published var isOpen = false
-    @Published var section: SidebarSection = .code
+    @Published var section: SidebarSection
+
+    // Restored section at launch (round 7); the drawer always relaunches closed.
+    init(section: SidebarSection = .code) {
+        self.section = section
+    }
     // Root-screen flag mirrored by RootView (path.isEmpty): drag-to-open is disabled on pushed
     // screens so the NavigationStack back-swipe keeps working. Read live by the pan's delegate —
     // a value copy would go stale between SwiftUI update passes.

@@ -11,6 +11,9 @@ final class DrawerDragUITests: XCTestCase {
 
     func testDrawerDragOpenReleaseAndClose() throws {
         let app = XCUIApplication()
+        // Round 7 restores the previously open conversation on launch — reset so this
+        // test starts from the Code-list root it assumes.
+        app.launchArguments += ["-eosResetUIState"]
         app.launch()
 
         // Root chrome up (Menu = the hamburger; hidden from accessibility while the drawer is open).

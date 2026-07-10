@@ -14,15 +14,33 @@ enum Route: Hashable {
 // (eos://worker/… , eos://pending), and scene-phase resume.
 struct RootView: View {
     @StateObject private var model = AppModel()
-    @StateObject private var sidebar = SidebarState()
+    @StateObject private var sidebar: SidebarState
     @Environment(\.scenePhase) private var scenePhase
-    @State private var path = NavigationPath()
+    // Typed path (not NavigationPath) so write-on-change persistence can see what's on top.
+    @State private var path: [Route]
     @State private var showPairing = false
     @State private var showAddDevice = false
     @State private var showDeviceSwitcher = false
     // "Pair new Mac…" chains through onDismiss — presenting a sibling sheet while the switcher is
     // still animating out gets dropped by SwiftUI.
     @State private var pairAfterSwitcher = false
+
+    // Launch restoration (round 7): reopen exactly as closed — the saved drawer section, and the
+    // conversation that was open pushed IMMEDIATELY (no waiting for bootstrap; the transcript
+    // loads in as usual, and WorkerDetailView pops back silently if the id turns out stale).
+    // State is scoped to the persisted active device; a half-typed new-session is ephemeral and
+    // relaunches to the Code list (its slot saves as nil).
+    init() {
+        let store = UIStateStore()
+        #if DEBUG
+        // UITest hook (-eosGallery pattern): start from a clean Code-list root.
+        if CommandLine.arguments.contains("-eosResetUIState") { store.clearAll() }
+        #endif
+        let saved = store.state(for: DeviceStore().activeId())
+        _sidebar = StateObject(wrappedValue: SidebarState(
+            section: saved.section.flatMap(SidebarSection.init(rawValue:)) ?? .code))
+        _path = State(initialValue: saved.openWorkerId.map { [Route.conversation($0)] } ?? [])
+    }
 
     var body: some View {
         SidebarContainer {
@@ -66,7 +84,14 @@ struct RootView: View {
         }
         .onOpenURL { url in route(url) }
         // Drag-to-open only on root screens — pushed screens keep the edge back-swipe.
-        .onChange(of: path) { _, p in sidebar.canDragOpen = p.isEmpty }
+        // Persist what relaunch should reopen on every stack change (round 7).
+        .onChange(of: path) { _, p in
+            sidebar.canDragOpen = p.isEmpty
+            model.saveUIState { $0.openWorkerId = Self.restorableWorkerId(in: p) }
+        }
+        .onChange(of: sidebar.section) { _, s in
+            model.saveUIState { $0.section = s.rawValue }
+        }
         .task { await model.resumeIfPossible() }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
@@ -90,10 +115,17 @@ struct RootView: View {
         }
     }
 
+    // What relaunch should reopen given this stack: a conversation on top persists; the Code
+    // list or a new-session screen persists nothing.
+    private static func restorableWorkerId(in path: [Route]) -> String? {
+        guard case .conversation(let id)? = path.last else { return nil }
+        return id
+    }
+
     // Section selection pops any pushed screens so the root actually shows.
     private func select(_ s: SidebarSection) {
         sidebar.section = s
-        path = NavigationPath()
+        path = []
     }
 
     private func openWorker(_ id: String) {
