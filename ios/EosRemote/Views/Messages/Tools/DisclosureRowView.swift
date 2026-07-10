@@ -30,12 +30,19 @@ struct DisclosureRowView<Header: View, Content: View>: View {
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(EosColor.inkTertiary)     // .ti-chev fg-faint (§10)
                             .rotationEffect(.degrees(open ? 90 : 0))   // rotate(90°) when expanded (§6.3)
+                            .accessibilityHidden(true)                 // decorative; state rides the value below
                     }
                 }
                 .contentShape(Rectangle())                             // content-sized hit area (§6.3)
             }
             .buttonStyle(.plain)
             .disabled(!showChevron)
+            // One AX element per header row (VoiceOver: one swipe stop reading the whole
+            // "verb file summary badge" line, instead of 5-7 fragments per tool row — which is
+            // also what ballooned the XCUITest snapshot tree on long transcripts). Child taps
+            // (AgentLink, file chip) surface as custom actions; expand state is the value.
+            .accessibilityElement(children: .combine)
+            .accessibilityValue(showChevron ? (open ? "expanded" : "collapsed") : "")
 
             if open {
                 content()

@@ -97,6 +97,7 @@ struct BashDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .padding(.horizontal, 14).padding(.bottom, 4)
+            .accessibilityElement(children: .combine)   // VoiceOver: "$ npm test" as one stop
             bashOutput
             if let kind = failureKind(tool) { FailureBanner(kind: kind, text: tool.result?.text ?? "") }
         }

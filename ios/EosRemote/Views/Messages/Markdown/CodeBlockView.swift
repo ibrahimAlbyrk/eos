@@ -1,4 +1,5 @@
 import SwiftUI
+import EosRemoteKit
 
 // A fenced code block (spec 03 §5.1/§5.4/§6.5): dark card (github-dark-dimmed palette), horizontally
 // scrollable, syntax-highlighted off the main actor + cached, with a copy button pinned top-right that
@@ -9,6 +10,7 @@ struct CodeBlockView: View {
     let code: String
 
     private var isMermaid: Bool { (language?.lowercased() == "mermaid") }
+    private var lineCount: Int { code.reduce(into: 1) { if $1 == "\n" { $0 += 1 } } }
 
     @State private var highlighted: AttributedString?
     @State private var copied = false
@@ -32,6 +34,12 @@ struct CodeBlockView: View {
                 .frame(minWidth: 0, alignment: .leading)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            // One AX element for the fence (VoiceOver: "swift code, 42 lines" then the code as the
+            // value — the selection-enabled highlighted runs otherwise fragment into many elements).
+            // Touch selection is unaffected; the copy button stays a real element.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(language ?? "code")\(isMermaid ? " diagram source" : " code"), \(lineCount) lines")
+            .accessibilityValue(clampText(code, 4000))
 
             copyButton
                 .padding(6)                                       // .code-copy-btn top6 right6 (§10)

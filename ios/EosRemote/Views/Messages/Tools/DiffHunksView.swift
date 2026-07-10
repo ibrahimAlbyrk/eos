@@ -33,6 +33,21 @@ struct DiffHunksView: View {
         }
         .padding(.vertical, 6)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // One AX element for the whole diff (VoiceOver: "diff, 3 added, 1 removed" then the
+        // content on demand — instead of 3 swipe stops per line, which is unusable at 200 lines
+        // and was the worst XCUITest tree multiplier when an Edit card is expanded).
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(axLabel)
+        .accessibilityValue(axValue)
+    }
+
+    private var axLabel: String {
+        let adds = hunks.filter { $0.type == .add }.count
+        let dels = hunks.filter { $0.type == .del }.count
+        return "diff, \(adds) added, \(dels) removed"
+    }
+    private var axValue: String {
+        clampText(hunks.map { "\(sign($0.type)) \($0.text)" }.joined(separator: "\n"), 4000)
     }
 
     // Text with the word-level changed span highlighted (ed-hl-add/del wash on the changed run).

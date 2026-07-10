@@ -115,6 +115,11 @@ struct CodePreview: View {
         }
         .padding(.vertical, 8).padding(.trailing, 14)
         .frame(maxWidth: .infinity, alignment: .leading)
+        // One AX element for the preview (VoiceOver: the lines read as one stop instead of a
+        // num/text pair per line; the gutter numbers are visual chrome, not content).
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(running && lines.isEmpty ? "Reading" : "file preview, first \(shown.count) lines")
+        .accessibilityValue(shown.map(\.text).joined(separator: "\n"))
     }
 
     // Markdown heading lines get the accent treatment (.hl-heading) — a `#`-prefixed source line.

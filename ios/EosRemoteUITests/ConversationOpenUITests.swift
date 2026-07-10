@@ -45,4 +45,47 @@ final class ConversationOpenUITests: XCTestCase {
         }
         XCTAssertTrue(visible, "transcript must be visible on open without a scroll nudge")
     }
+
+    // Round-6 regression gate (round-4 finding): XCUITest snapshot queries must stay fast on a LONG
+    // transcript. Before the accessibility flattening, every tool row exposed 5-7 elements and every
+    // diff line 3, so a deep transcript ballooned the AX tree until snapshot queries timed out
+    // (~15s+), killing conversation-flow tests. Opens the first root row, pages a chunk of history in
+    // by swiping toward the top (materializes more LazyVStack rows and fires the older-page loader),
+    // then requires two representative queries to resolve inside a hard budget.
+    func testLongTranscriptQueriesStayFast() throws {
+        let app = XCUIApplication()
+        app.launch()
+
+        let menu = app.buttons["Menu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 20), "Code list chrome should appear")
+        let firstRow = app.collectionViews.firstMatch.buttons.firstMatch
+        XCTAssertTrue(firstRow.waitForExistence(timeout: 10), "agent tree should have rows")
+        firstRow.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+
+        let transcript = app.scrollViews["transcript"]
+        XCTAssertTrue(transcript.waitForExistence(timeout: 10), "conversation should open")
+        RunLoop.current.run(until: Date().addingTimeInterval(2))   // let the initial page land
+
+        // Pull older history into the tree: each swipe materializes rows above the viewport; near the
+        // top the backward pager prepends another page — the worst realistic tree this device can show.
+        for _ in 0..<8 {
+            transcript.swipeDown()
+            RunLoop.current.run(until: Date().addingTimeInterval(0.4))
+        }
+
+        let t0 = Date()
+        let staticTextCount = transcript.staticTexts.allElementsBoundByIndex.count
+        let staticTextSecs = Date().timeIntervalSince(t0)
+
+        let t1 = Date()
+        let anyCount = app.descendants(matching: .any).count
+        let anySecs = Date().timeIntervalSince(t1)
+
+        print("[a11y-budget] staticTexts=\(staticTextCount) in \(String(format: "%.2f", staticTextSecs))s; " +
+              "descendants=\(anyCount) in \(String(format: "%.2f", anySecs))s")
+
+        XCTAssertGreaterThan(staticTextCount, 0, "long transcript should expose text content")
+        XCTAssertLessThan(staticTextSecs, 10, "staticTexts query must resolve well under the snapshot timeout")
+        XCTAssertLessThan(anySecs, 15, "full-tree query must not hit the snapshot timeout")
+    }
 }

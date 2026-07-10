@@ -44,6 +44,7 @@ struct AgentBlockView: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)   // one stop: "Ran agent haiku …" (opens viewer)
     }
 
     private var doneTitle: String {
@@ -68,6 +69,7 @@ struct AgentBlockView: View {
                 Spacer(minLength: 0)
                 Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(EosColor.inkTertiary)
+                    .accessibilityHidden(true)                                 // decorative affordance
             }
             .padding(.horizontal, 16).padding(.vertical, 12)                    // pad 12×16 (§10)
             .frame(maxWidth: 420, alignment: .leading)                         // max-width 420 (§10)
@@ -75,6 +77,7 @@ struct AgentBlockView: View {
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous)) // radius 12 (§10)
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)   // one stop: title + status (opens viewer)
     }
 
     private var cardTitle: String {
