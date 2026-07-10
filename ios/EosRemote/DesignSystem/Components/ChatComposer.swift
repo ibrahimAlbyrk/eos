@@ -117,8 +117,8 @@ struct ChatComposer: View {
         10 * tanh(translation / 120)
     }
 
-    // Send-sized (40pt) surface-tinted interactive glass — soft dark, not a pure-black solid,
-    // so it sits in the app's dark palette instead of punching a hole in the glass card.
+    // Send-sized (40pt) soft-lifted interactive glass — clearly lighter than the card, never a
+    // black hole. controlWash (ink-based) because dark-gray tints read near-black on device.
     private var attachButton: some View {
         Menu {
             attachMenu()
@@ -130,7 +130,7 @@ struct ChatComposer: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
-        .glassEffect(.regular.tint(EosColor.surface3).interactive(), in: .circle)
+        .glassEffect(.regular.tint(EosColor.controlWash).interactive(), in: .circle)
         .accessibilityLabel("Attach")
     }
 

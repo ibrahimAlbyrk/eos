@@ -1,8 +1,8 @@
 import SwiftUI
 
 // Code-list filter capsule with a count badge (contract §C2, ref IMG_4434): All n · Running n ·
-// Archived n. The active chip is a soft-dark surface capsule with light text; idle chips are
-// translucent Liquid Glass. Fires Haptics.tap itself — chip select is the one §A5 haptic no
+// Archived n. The active chip is a soft-lifted (controlWash) capsule with light text; idle chips
+// are translucent Liquid Glass. Fires Haptics.tap itself — chip select is the one §A5 haptic no
 // screen spec wires.
 struct FilterChip: View {
     let label: String
@@ -33,7 +33,7 @@ struct FilterChip: View {
             .padding(.vertical, EosSpacing.xs)
             .foregroundStyle(selected ? EosColor.ink : EosColor.inkSecondary)
             .background {
-                if selected { Capsule().fill(EosColor.surfaceHi) }
+                if selected { Capsule().fill(EosColor.controlWash) }
             }
             .glassEffect(selected ? .identity : .regular.interactive(), in: .capsule)
             .contentShape(Capsule())
