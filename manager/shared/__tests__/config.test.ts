@@ -442,6 +442,26 @@ describe("migrateRemoteConfig — legacy v2 remote block → v3", () => {
     assert.equal(out.enabled, true);
     assert.equal("relay" in out, false);
   });
+
+  it("explicit enabled:false wins over a stale mode:'relay' (mode never re-arms)", async () => {
+    const { migrateRemoteConfig } = await import("../config.ts");
+    const out = migrateRemoteConfig({ enabled: false, mode: "relay", relay: { url: "wss://r.example/" } }) as Record<string, unknown>;
+    assert.equal(out.enabled, false);
+    assert.equal("mode" in out, false);
+  });
+
+  it("explicit enabled:true is unaffected by mode:'off'", async () => {
+    const { migrateRemoteConfig } = await import("../config.ts");
+    const out = migrateRemoteConfig({ enabled: true, mode: "off" }) as Record<string, unknown>;
+    assert.equal(out.enabled, true);
+    assert.equal("mode" in out, false);
+  });
+
+  it("enabled absent + mode:'relay' still derives enabled:true (v2 back-compat)", async () => {
+    const { migrateRemoteConfig } = await import("../config.ts");
+    const out = migrateRemoteConfig({ mode: "relay", relay: { url: "wss://r.example/" } }) as Record<string, unknown>;
+    assert.equal(out.enabled, true);
+  });
 });
 
 describe("loadConfig — remote v2 config.json migrates without a parse error", () => {
@@ -477,5 +497,16 @@ describe("loadConfig — remote v2 config.json migrates without a parse error", 
     fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({ remote: { mode: "off" } }));
     const cfg = await freshLoad();
     assert.equal(cfg.remote.enabled, false);
+  });
+
+  it("{ enabled:false, mode:'relay', relay:{url} } loads DISABLED — written enabled wins", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    fs.writeFileSync(path.join(tmpHome, "config.json"), JSON.stringify({
+      remote: { enabled: false, mode: "relay", relay: { url: "wss://r.example/" } },
+    }));
+    const cfg = await freshLoad();
+    assert.equal(cfg.remote.enabled, false);
+    assert.equal(cfg.remote.relay?.url, "wss://r.example/");
   });
 });

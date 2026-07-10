@@ -435,14 +435,16 @@ export function defaults(): DaemonConfig {
 // to the v3 shape (`{ enabled, relay:{url} }`) BEFORE it hits
 // RemoteConfigSchema.partial().parse(), so a legacy config.json loads without a
 // hard parse error. Rules (spec §3.3): mode→enabled (lan|relay ⇒ true, off/absent
-// ⇒ false); discard the old low-entropy relay.room (the daemon mints a fresh
-// ≥32-byte room at arm); drop the lan block entirely (relay-only).
+// ⇒ false) ONLY when the block has no explicit v3 `enabled` — an operator's
+// written `enabled` always wins over a stale legacy `mode`; discard the old
+// low-entropy relay.room (the daemon mints a fresh ≥32-byte room at arm); drop
+// the lan block entirely (relay-only).
 export function migrateRemoteConfig(raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;
   const r = { ...(raw as Record<string, unknown>) };
   if ("mode" in r) {
     const mode = r.mode;
-    r.enabled = mode === "lan" || mode === "relay";
+    if (!("enabled" in r)) r.enabled = mode === "lan" || mode === "relay";
     delete r.mode;
   }
   if (r.relay && typeof r.relay === "object") {
