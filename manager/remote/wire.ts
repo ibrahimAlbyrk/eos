@@ -14,6 +14,7 @@ import { generatePairing } from "./qr.ts";
 import { makeRouteDispatch } from "./virtual-dispatch.ts";
 import { GatewayConnection, type GatewayDeps } from "./gateway.ts";
 import { WsBridge } from "./WsBridge.ts";
+import { StatePatcher } from "./patcher.ts";
 import { RelayConnector } from "./RelayConnector.ts";
 import type { Router } from "../routes/Router.ts";
 import type { EventBus } from "../../core/src/ports/EventBus.ts";
@@ -76,6 +77,13 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
 
   const bridge = new WsBridge({ bus: c.bus, now });
   bridge.start();
+  // §5.4.2: worker/pending change topics → per-row patch frames (the phone's
+  // live list state; `event` frames alone carry only ids).
+  const patcher = new StatePatcher({
+    bus: c.bus, bridge, routeDispatch: deps.routeDispatch,
+    log: (m, x) => c.log.info(`[remote] ${m}`, x ?? {}),
+  });
+  patcher.start();
   const conns = new Map<string, GatewayConnection>();
   const connector = new RelayConnector({
     url: relayUrl, room, owner,
@@ -100,7 +108,7 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
   connector.start();
   c.log.info("remote gateway armed", { relayUrl, room });
   return {
-    stop: () => { connector.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
+    stop: () => { connector.stop(); patcher.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
     // Pairing is just "mint the QR from the armed room + bearer" — no allowlist
     // mutation (the bearer hash is already in the room's allow from register).
     armPairing: (opts) => generatePairing({ relayUrl, room, bearer: secrets.bearer, now: now(), ttlMs: opts.ttlMs }),

@@ -58,6 +58,42 @@ export const ClientFrameSchema = z.discriminatedUnion("t", [
 ]);
 export type ClientFrame = z.infer<typeof ClientFrameSchema>;
 
+// ---- Server→client state-push frames (§5.4.1–5.4.3) ------------------------
+// Typed here as the emitter's source of truth (the daemon produces, the phone
+// consumes — the iOS decoder in InnerFrame.swift mirrors these shapes). `seq` is
+// the per-bridge monotonic content cursor (§5.4.1), ordering only.
+
+export const EventFrameSchema = z.object({
+  t: z.literal("event"),
+  seq: z.number().int(),
+  reason: z.string(), // EventBus topic verbatim
+  ts: z.number().int(),
+  payload: z.unknown(),
+});
+export type EventFrame = z.infer<typeof EventFrameSchema>;
+
+// §5.4.2 — one resource row changed. `data` is the row exactly as the matching
+// GET list route serves it ("workers" ⇒ a GET /workers row); a remove carries at
+// least { id } so the consumer can drop it.
+export const PatchFrameSchema = z.object({
+  t: z.literal("patch"),
+  seq: z.number().int(),
+  resource: z.enum(["workers", "pending"]),
+  op: z.enum(["upsert", "remove"]),
+  data: z.unknown(),
+});
+export type PatchFrame = z.infer<typeof PatchFrameSchema>;
+
+// §5.4.3 — full state re-seed, sent in answer to a client `hello` (resume /
+// seq-gap recovery). Rows are the GET /workers + GET /pending list shapes.
+export const SnapshotFrameSchema = z.object({
+  t: z.literal("snapshot"),
+  seq: z.number().int(),
+  workers: z.array(z.unknown()),
+  pending: z.array(z.unknown()),
+});
+export type SnapshotFrame = z.infer<typeof SnapshotFrameSchema>;
+
 // ---- Server→client asset frame (binary out-of-band, §5.4.5) ----------------
 // A binary route read (GET /fs/raw, /fs/image, /pdfjs) cannot ride the JSON
 // `reply` frame: its bytes would be corrupted by the utf-8 round-trip the reply

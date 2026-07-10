@@ -134,6 +134,43 @@ describe("GatewayConnection (relay v3 plaintext session)", () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
+  it("answers a hello frame with a full snapshot (§5.4.3)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "eos-gw-"));
+    try {
+      const bus = new FakeBus();
+      const bridge = new WsBridge({ bus, now: () => 0 });
+      bridge.start();
+      const clientId = randomBytes(16);
+      const out: Buffer[] = [];
+      const workers = [{ id: "w-1", state: "WORKING" }];
+      const pending = [{ id: "p-1", workerId: "w-1" }];
+      const deps: GatewayDeps = {
+        ...mkDeps(dir, bus),
+        routeDispatch: async ({ path }) => ({ status: 200, body: path === "/workers" ? workers : pending }),
+      };
+      const conn = new GatewayConnection({
+        deps, bridge, clientId, joinAck: false,
+        send: (buf) => out.push(buf), close: () => {},
+      });
+      conn.start();
+
+      // Advance the bridge cursor so the snapshot carries the live seq.
+      bus.publish("worker:change", { workerId: "w-1" });
+      conn.onEnvelope(parseEnvelope(c2s({ t: "hello", lastContentId: 0 }, clientId)));
+      await new Promise((r) => setTimeout(r, 10));
+
+      const snap = out.map(parseInner).find((m) => m.json.t === "snapshot");
+      assert.ok(snap, "a snapshot frame was sent");
+      assert.equal(snap!.env.dir, Dir.s2c);
+      assert.equal(snap!.json.seq, 1, "snapshot carries the bridge cursor");
+      assert.deepEqual(snap!.json.workers, workers);
+      assert.deepEqual(snap!.json.pending, pending);
+
+      conn.dispose();
+      bridge.stop();
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
   it("ignores a malformed inner frame without dispatching", async () => {
     const dir = mkdtempSync(join(tmpdir(), "eos-gw-"));
     try {

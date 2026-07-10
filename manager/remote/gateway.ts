@@ -107,11 +107,25 @@ export class GatewayConnection {
     const frame = decodeClientFrame(env);
     if (!frame) { this.deps.log?.("remote frame rejected (bad shape)", {}); return; }
     if (frame.t === "ka") return;
-    if (frame.t === "hello") return; // resume hint; snapshot/GET path re-seeds the store
+    if (frame.t === "hello") { await this.sendSnapshot(); return; } // §5.4.3: resume / seq-gap recovery
     const ds: DispatchSession = { devId: this.clientId.toString("hex"), hasCap: (c) => SESSION_CAPS.includes(c as typeof SESSION_CAPS[number]) };
     const reply = await this.dispatcher.handle(ds, frame);
     this.deps.log?.("remote control", { method: frame.method, path: frame.path, status: reply.t === "reply" ? reply.status : reply.t });
     this.session?.send(reply);
+  }
+
+  // Answer a `hello` with a full §5.4.3 snapshot: the device declared a resume
+  // cursor (reconnect) or detected a seq gap; either way a full re-seed from the
+  // authoritative list routes is the recovery. `seq` carries the bridge cursor at
+  // snapshot time so the device resumes gap detection from here.
+  private async sendSnapshot(): Promise<void> {
+    const [w, p] = await Promise.all([
+      this.deps.routeDispatch({ method: "GET", path: "/workers", body: {} }),
+      this.deps.routeDispatch({ method: "GET", path: "/pending", body: {} }),
+    ]);
+    const rows = (r: typeof w): unknown[] => ("body" in r && Array.isArray(r.body) ? r.body : []);
+    this.session?.send({ t: "snapshot", seq: this.bridge.currentSeq(), workers: rows(w), pending: rows(p) });
+    this.deps.log?.("remote snapshot sent", { workers: rows(w).length, pending: rows(p).length });
   }
 
   private fail(code: string): void {

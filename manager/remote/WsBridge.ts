@@ -6,7 +6,7 @@
 // server frame; the session serializes it into a `data` envelope (framer.ts).
 
 import type { EventBus, EventBusMessage } from "../../core/src/ports/EventBus.ts";
-import type { AssetFrame, RemoteErrorCode } from "../../contracts/src/remote.ts";
+import type { AssetFrame, EventFrame, PatchFrame, RemoteErrorCode, SnapshotFrame } from "../../contracts/src/remote.ts";
 
 // One server→client inner frame (§5.4), plaintext. `seq` is stamped by the
 // bridge; the session wraps it in the outer envelope. `asset` carries binary
@@ -14,9 +14,9 @@ import type { AssetFrame, RemoteErrorCode } from "../../contracts/src/remote.ts"
 // like `reply`, not seq-stamped like the fan-out frames. `error` fails a specific
 // pending control (with correlationId) or the session (without).
 export type ServerFrame =
-  | { t: "event"; seq: number; reason: string; ts: number; payload: unknown }
-  | { t: "patch"; seq: number; resource: string; op: "upsert" | "remove"; data: unknown }
-  | { t: "snapshot"; seq: number; workers: unknown; pending: unknown }
+  | EventFrame
+  | PatchFrame
+  | SnapshotFrame
   | { t: "reply"; correlationId: string; status: number; body: unknown }
   | AssetFrame
   | { t: "error"; code: RemoteErrorCode; message?: string; correlationId?: string }
@@ -69,6 +69,12 @@ export class WsBridge {
   // security boundary (§5.4.1).
   nextSeq(): number { return ++this.seq; }
   currentSeq(): number { return this.seq; }
+
+  // Broadcast one §5.4.2 patch to every live session (StatePatcher's emit hook).
+  pushPatch(resource: PatchFrame["resource"], op: PatchFrame["op"], data: unknown): void {
+    if (this.sessions.size === 0) return;
+    this.broadcast({ t: "patch", seq: this.nextSeq(), resource, op, data });
+  }
 
   private onBusMessage(msg: EventBusMessage): void {
     if (this.sessions.size === 0) return; // nothing to fan out to
