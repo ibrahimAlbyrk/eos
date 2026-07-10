@@ -43,13 +43,71 @@ struct EosSheetHeader: View {
 
 extension View {
     /// Shared bottom-sheet presentation chrome (§A3): opaque surface, 32pt top corners, hidden
-    /// system grabber (EosSheetHeader draws its own), caller-chosen detents.
+    /// system grabber (EosSheetHeader draws its own), caller-chosen detents. Bottom corners sit
+    /// CONCENTRIC with the device bezel (ref IMG_4430): the sheet platter's own corner
+    /// configuration is retuned per corner, because everything inside a sheet — content, masks,
+    /// custom presentation backgrounds — is clipped BY the platter, so no drawn shape can round
+    /// past it. `containerConcentric` tracks the device curve at whatever inset the system picks
+    /// (floating detents nest at deviceRadius − inset; edge-to-edge meets the full device
+    /// radius), floored at the contract's 32 so degenerate placements (iPad centered sheets)
+    /// keep the uniform §A3 rounding.
     func eosSheet(detents: Set<PresentationDetent>) -> some View {
         self
             .presentationDetents(detents)
             .presentationDragIndicator(.hidden)
             .presentationBackground(EosColor.surface)
-            .presentationCornerRadius(EosRadius.sheet)
+            .background(SheetPlatterCorners(topRadius: EosRadius.sheet))
+    }
+}
+
+// Zero-size reach-in that retunes the enclosing sheet's platter corners: fixed top radius,
+// container-concentric bottom. Applied from didMoveToWindow (presentation) and re-asserted on
+// layout so detent transitions that re-derive the platter's configuration can't stomp it.
+private struct SheetPlatterCorners: UIViewRepresentable {
+    let topRadius: CGFloat
+
+    func makeUIView(context: Context) -> TunerView { TunerView(topRadius: topRadius) }
+    func updateUIView(_ uiView: TunerView, context: Context) { uiView.apply() }
+
+    final class TunerView: UIView {
+        private let topRadius: CGFloat
+
+        init(topRadius: CGFloat) {
+            self.topRadius = topRadius
+            super.init(frame: .zero)
+            isUserInteractionEnabled = false
+        }
+
+        @available(*, unavailable)
+        required init?(coder: NSCoder) { fatalError("unused") }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            apply()
+        }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            apply()
+        }
+
+        func apply() {
+            guard let platter = enclosingViewController?.sheetPresentationController?.presentedView
+            else { return }
+            platter.cornerConfiguration = .uniformTopRadius(
+                .fixed(topRadius),
+                bottomLeftRadius: .containerConcentric(minimum: topRadius),
+                bottomRightRadius: .containerConcentric(minimum: topRadius))
+        }
+
+        private var enclosingViewController: UIViewController? {
+            var responder: UIResponder? = self
+            while let current = responder {
+                if let vc = current as? UIViewController { return vc }
+                responder = current.next
+            }
+            return nil
+        }
     }
 }
 
