@@ -21,6 +21,17 @@ enum SidebarSection: String { case code, devices }
     var canDragOpen = true
 }
 
+// The revealed main content rounds to the physical screen corner so the peek edge sits concentric
+// with the device (§C1). The bezel radius is only exposed via a private UIScreen key — guarded so a
+// removed key degrades to the fallback, never crashes. 39 (iPhone-X-class) is the explicit fallback
+// when the lookup is unavailable or returns 0 (square-corner screens still get a visible curve).
+@MainActor private let deviceCornerRadius: CGFloat = {
+    let key = "_displayCornerRadius"
+    guard UIScreen.main.responds(to: NSSelectorFromString(key)),
+          let r = UIScreen.main.value(forKey: key) as? CGFloat, r > 0 else { return 39 }
+    return r
+}()
+
 // The left drawer that slides the current screen right, revealing the drawer behind a dim scrim.
 // Contract §C1/D-18: the drawer is opaque and full-height edge-to-edge — no glass panel, no corner
 // radius on the drawer itself (DrawerView paints its own bg and handles the safe area, §E3). Main
@@ -48,9 +59,6 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
     @State private var containerWidth: CGFloat = 0
 
     private var drawerWidth: CGFloat { min(containerWidth * 0.85, 360) }
-    // The revealed main content rounds to ≈ the physical screen corner so the peek edge sits
-    // concentric with the device. 39 is a safe modern-iPhone value.
-    private let deviceCornerRadius: CGFloat = 39
 
     // Offset tracks the finger while a pan is live (isDragging — a plain `dragX != 0` sentinel
     // would snap the panel the instant a close-drag reaches exactly 0); at rest it sits at 0 or
@@ -77,17 +85,19 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
                 .accessibilityFocused($focusInSidebar)
                 .accessibilityHidden(!sidebar.isOpen)
 
-            // 2) MAIN — offset right when open, corner rounds AS it opens (progress-driven), scrim on
-            //    top. No scale — the drawer reads cleaner without the seam. The rounding must be an
+            // 2) MAIN — offset right when open, corner rounds AS it opens (progress-driven), scrim
+            //    UNDER the mask: overlaying it after would repaint the rounded corner cutouts as a
+            //    full-bleed square and hang the shadow on that square outline — reads as a straight
+            //    edge. No scale — the drawer reads cleaner without the seam. The rounding must be an
             //    edge-to-edge mask, NOT a bounds clip: clipShape cuts at the safe-area rect, which
             //    beheads every screen's §E1/E2 status-bar/home-strip bleed and lets the drop shadow
             //    below darken the exposed strips (the visible seam).
             content
+                .overlay(scrim)
                 .mask {
                     RoundedRectangle(cornerRadius: deviceCornerRadius * progress, style: .continuous)
                         .ignoresSafeArea()
                 }
-                .overlay(scrim)
                 // Shadow only while the drawer peeks: at rest it bleeds through the §E2 gradient's
                 // semi-transparent home-strip pixels and re-darkens the seam the mask just fixed.
                 .shadow(color: .black.opacity(0.35 * progress), radius: 16, x: -4)
@@ -125,7 +135,8 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
     }
 
     @ViewBuilder private var scrim: some View {
-        EosColor.ink.opacity(0.28 * progress)
+        // Scrims darken (GlassDialog precedent) — ink here brightens the panel as it opens.
+        EosColor.black.opacity(0.28 * progress)
             .ignoresSafeArea()
             .allowsHitTesting(sidebar.isOpen)
             .onTapGesture { sidebar.isOpen = false }
