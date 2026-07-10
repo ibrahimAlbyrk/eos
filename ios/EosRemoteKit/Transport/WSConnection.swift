@@ -22,6 +22,13 @@ public protocol WSConnectionDelegate: AnyObject, Sendable {
 public actor WSConnection {
     public enum WSError: Error { case notConnected, timeout, controlFailed(Int), badFrame, closed }
 
+    // A control's answer: JSON routes resolve as `reply`; binary asset routes (/fs/image, /fs/raw)
+    // resolve as the out-of-band base64 `asset` frame (§5.4.5).
+    public enum ControlResponse: Sendable {
+        case reply(ReplyFrame)
+        case asset(AssetFrame)
+    }
+
     private let url: URL
     private weak var delegate: WSConnectionDelegate?
     private var session: SessionState?
@@ -29,7 +36,7 @@ public actor WSConnection {
     private var task: URLSessionWebSocketTask?
     private var urlSession: URLSession?
 
-    private var pending: [String: CheckedContinuation<ReplyFrame, Error>] = [:]
+    private var pending: [String: CheckedContinuation<ControlResponse, Error>] = [:]
     private var backoffMs: UInt64 = 1000
     private let maxBackoffMs: UInt64 = 60_000
     private let keepaliveMs: UInt64 = 20_000
@@ -139,8 +146,13 @@ public actor WSConnection {
         switch frame {
         case .reply(let r):
             if let cont = pending.removeValue(forKey: r.correlationId) {
-                if (200..<300).contains(r.status) { cont.resume(returning: r) }
+                if (200..<300).contains(r.status) { cont.resume(returning: .reply(r)) }
                 else { cont.resume(throwing: WSError.controlFailed(r.status)) }
+            }
+        case .asset(let a):
+            if let cont = pending.removeValue(forKey: a.correlationId) {
+                if (200..<300).contains(a.status) { cont.resume(returning: .asset(a)) }
+                else { cont.resume(throwing: WSError.controlFailed(a.status)) }
             }
         case .snapshot(let s):
             frameLog.info("rx snapshot seq=\(s.seq) workers=\(s.workers.count)")
@@ -161,9 +173,18 @@ public actor WSConnection {
     }
 
     // Tunneled REST. `bodyData` is the body serialized EXACTLY ONCE (§5.2.3); it is carried verbatim
-    // as the opaque `body` string.
+    // as the opaque `body` string. JSON routes only — an asset answer is a badFrame here.
     public func sendControl(method: String, path: String, bodyData: Data,
                             timeoutMs: UInt64 = 30_000) async throws -> ReplyFrame {
+        guard case .reply(let r) = try await sendControlRaw(method: method, path: path,
+                                                            bodyData: bodyData, timeoutMs: timeoutMs)
+        else { throw WSError.badFrame }
+        return r
+    }
+
+    // Variant for routes that may answer with a binary `asset` frame (/fs/image).
+    public func sendControlRaw(method: String, path: String, bodyData: Data,
+                               timeoutMs: UInt64 = 30_000) async throws -> ControlResponse {
         guard let session, let task else { throw WSError.notConnected }
         let correlationId = UUID().uuidString
         let bodyStr = String(decoding: bodyData, as: UTF8.self)

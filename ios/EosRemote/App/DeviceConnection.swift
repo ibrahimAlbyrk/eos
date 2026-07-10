@@ -265,6 +265,55 @@ final class DeviceConnection: NSObject {
         return (await controlReply("POST", "/fs/paste-b64", body))?.body?["path"]?.stringValue
     }
 
+    // MARK: file viewer fetch (round 4) — GET /fs/stat → /fs/read | /fs/image
+
+    enum FileFetchResult: Sendable {
+        case text(content: String, lines: Int)
+        case image(Data)
+        case tooLarge(size: Int)
+        case binary(size: Int)
+        case failure(String)
+    }
+
+    func fetchFile(path: String) async -> FileFetchResult {
+        guard let connection, connected else { return .failure("Not connected") }
+        // Stat preflight caps what rides the tunnel (5 MB envelope; /fs/read ships up to 8 MB JSON).
+        let stat = try? await connection.sendControl(method: "GET",
+            path: "/fs/stat?path=\(queryEscape(path))", bodyData: Data("{}".utf8))
+        let size = stat?.body?["size"]?.intValue
+
+        if FileViewer.isImagePath(path) {
+            if let size, size > FileViewer.imageFetchCap { return .tooLarge(size: size) }
+            do {
+                let resp = try await connection.sendControlRaw(method: "GET",
+                    path: "/fs/image?path=\(queryEscape(path))", bodyData: Data("{}".utf8))
+                guard case .asset(let a) = resp, let data = Data(base64Encoded: a.bytesB64) else {
+                    return .failure("Unexpected image response")
+                }
+                return .image(data)
+            } catch { return .failure(fetchError(error)) }
+        }
+
+        if let size, size > FileViewer.textFetchCap { return .tooLarge(size: size) }
+        do {
+            let reply = try await connection.sendControl(method: "GET",
+                path: "/fs/read?path=\(queryEscape(path))", bodyData: Data("{}".utf8))
+            guard let body = reply.body, let payload = FileViewer.parseReadPayload(body) else {
+                return .failure("Unexpected read response")
+            }
+            switch payload {
+            case .text(let content, let lines): return .text(content: content, lines: lines)
+            case .binary(let size):             return .binary(size: size)
+            case .large(let size):              return .tooLarge(size: size)
+            }
+        } catch { return .failure(fetchError(error)) }
+    }
+
+    private func fetchError(_ error: Error) -> String {
+        if case WSConnection.WSError.controlFailed(404) = error { return "File not found" }
+        return error.localizedDescription
+    }
+
     // Absolute paths ride the query string ("/Users/x/dev repo"); urlQueryAllowed keeps &/=/+, so
     // strip those too or a path containing them would split the params server-side.
     private func queryEscape(_ s: String) -> String {

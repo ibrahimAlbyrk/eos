@@ -2,9 +2,11 @@ import SwiftUI
 import EosRemoteKit
 
 // AgentLink (spec 03 §9, port of AgentLink.jsx + agentName.js). A tappable coral reference to another
-// worker: single tap selects/navigates to it (iOS has no Cmd-click split — one behavior). The Mac
+// worker: single tap navigates to its conversation (iOS has no Cmd-click split — one behavior). The Mac
 // resolves a durable name + a "· {definition}" suffix; here the name comes from the ref, falling back
-// to a live-worker lookup, and the definition suffix renders faint when known.
+// to a live-worker lookup, and the definition suffix renders faint when known. Navigation only fires
+// for a ref that resolves in the LIVE worker list — an unknown/archived agent is a soft-haptic no-op
+// (round 4), never a push onto a dead conversation.
 struct AgentLinkView: View {
     let ref: AgentRef
     @EnvironmentObject private var model: AppModel
@@ -22,7 +24,8 @@ struct AgentLinkView: View {
 
     var body: some View {
         Button {
-            if let id = ref.id ?? worker?.id { selectWorker(id) }
+            if let id = worker?.id { selectWorker(id) }
+            else { UIImpactFeedbackGenerator(style: .soft).impactOccurred() }
         } label: {
             (Text(displayName).foregroundStyle(EosColor.coral).fontWeight(.semibold)
              + (definition.map { Text(" \($0)").foregroundStyle(EosColor.inkTertiary).fontWeight(.regular) }  // .ag-def (§10)
@@ -30,7 +33,6 @@ struct AgentLinkView: View {
                 .font(EosFont.label)
         }
         .buttonStyle(.plain)
-        .disabled((ref.id ?? worker?.id) == nil)
         .accessibilityLabel("Open \(displayName)")
     }
 }

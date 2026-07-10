@@ -9,6 +9,7 @@ public enum ServerFrame {
     case patch(PatchFrame)
     case snapshot(SnapshotFrame)
     case reply(ReplyFrame)
+    case asset(AssetFrame)
     case ka(ts: Double)
     case error(ErrorFrame)
 
@@ -21,6 +22,7 @@ public enum ServerFrame {
         case "patch":     return .patch(try d.decode(PatchFrame.self, from: data))
         case "snapshot":  return .snapshot(try d.decode(SnapshotFrame.self, from: data))
         case "reply":     return .reply(try d.decode(ReplyFrame.self, from: data))
+        case "asset":     return .asset(try d.decode(AssetFrame.self, from: data))
         case "ka":        return .ka(ts: (try? d.decode(KaFrame.self, from: data).ts) ?? 0)
         case "error":     return .error(try d.decode(ErrorFrame.self, from: data))
         default: throw FrameError.unknownTag(tag)
@@ -61,6 +63,16 @@ public struct ReplyFrame: Codable, Sendable {
     public let correlationId: String
     public let status: Int
     public let body: JSONValue?
+}
+
+// Binary route read (§5.4.5, contract AssetFrameSchema — FROZEN shape): a non-JSON response
+// (/fs/image, /fs/raw, /pdfjs) rides base64 out-of-band instead of the JSON `reply` frame.
+public struct AssetFrame: Codable, Sendable {
+    public let t: String
+    public let correlationId: String
+    public let status: Int
+    public let mime: String
+    public let bytesB64: String
 }
 
 public struct ErrorFrame: Codable, Sendable {

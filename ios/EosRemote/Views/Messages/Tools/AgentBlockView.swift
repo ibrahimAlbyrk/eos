@@ -9,6 +9,10 @@ import EosRemoteKit
 struct AgentBlockView: View {
     let run: AgentRun
     @State private var showViewer = false
+    // Sheets don't inherit the environment — re-inject the model + navigation for the inner
+    // ToolItemViews (AgentLinks close the viewer first, then push; RootView pattern).
+    @EnvironmentObject private var model: AppModel
+    @Environment(\.selectWorker) private var selectWorker
 
     private var isDone: Bool { run.status != "running" && run.status != "started" }
     private var hasResult: Bool { !(run.result ?? "").isEmpty }
@@ -18,7 +22,14 @@ struct AgentBlockView: View {
             if isDone && hasResult { doneLine } else { runningCard }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .sheet(isPresented: $showViewer) { AgentViewerSheet(run: run) }
+        .sheet(isPresented: $showViewer) {
+            AgentViewerSheet(run: run)
+                .environmentObject(model)
+                .environment(\.selectWorker) { id in
+                    showViewer = false
+                    selectWorker(id)
+                }
+        }
     }
 
     // .agent-done-text: one line, tap to open the viewer.
@@ -82,6 +93,10 @@ struct AgentBlockView: View {
 struct AgentViewerSheet: View {
     let run: AgentRun
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var model: AppModel
+    // Inner tool cards' file affordances present HERE (a second sheet can't stack on the
+    // conversation's host while this one is up).
+    @State private var viewedFile: ViewedFile?
 
     var body: some View {
         NavigationStack {
@@ -101,7 +116,11 @@ struct AgentViewerSheet: View {
             .background(EosColor.bg)
             .navigationTitle(run.description.isEmpty ? "Agent" : run.description)
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Close") { dismiss() } } }
+        }
+        .environment(\.openFile) { viewedFile = ViewedFile(path: $0) }
+        .sheet(item: $viewedFile) { file in
+            FileViewerSheet(path: file.path).environmentObject(model)
         }
     }
 

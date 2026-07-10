@@ -311,6 +311,9 @@ final class AppModel: ObservableObject {
     func uploadAttachment(name: String, data: Data) async -> String? {
         await active?.uploadAttachment(name: name, data: data)
     }
+    func fetchFile(path: String) async -> DeviceConnection.FileFetchResult {
+        await active?.fetchFile(path: path) ?? .failure("Not connected")
+    }
 
     // MARK: attention ledger (§D4) — in-memory, per-launch
 

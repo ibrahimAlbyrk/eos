@@ -29,17 +29,22 @@ extension View {
 }
 
 // .file-path-bar: flex space-between, pad 8×14, mono text-sm, fg-dim, with a copy button (opacity 0→1
-// on hover on the Mac; always-visible-muted on iOS). `~`-shortening is the caller's job.
+// on hover on the Mac; always-visible-muted on iOS). `~`-shortening is the caller's job. `openPath`
+// (the RAW absolute path, not the shortened display) makes the path tap-to-view (\.openFile).
 struct FilePathBar: View {
     let path: String
+    var openPath: String? = nil
     @State private var copied = false
+    @Environment(\.openFile) private var openFile
     var body: some View {
         HStack(spacing: EosSpacing.xs) {
             Text(path)
                 .font(EosFont.code)
                 .foregroundStyle(EosColor.inkSecondary)                            // fg-dim (§10)
                 .lineLimit(1).truncationMode(.middle)
+                .underline(openPath != nil, pattern: .solid)                       // .ti-link (§10)
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .onTapGesture { if let openPath { openFile(openPath) } }
             CopyButtonMini(text: path, copied: $copied)
         }
         .padding(.horizontal, 14).padding(.vertical, 8)                            // pad 8×14 (§10)

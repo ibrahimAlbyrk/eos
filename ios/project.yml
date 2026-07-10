@@ -55,6 +55,11 @@ targets:
         NSCameraUsageDescription: "Scan the pairing QR shown by the Eos Mac app."
         UIApplicationSceneManifest:
           UIApplicationSupportsMultipleScenes: false
+        # eos:// scheme registration — RootView routes eos://worker/:id and eos://pending.
+        CFBundleURLTypes:
+          - CFBundleURLName: dev.eos.remote.app
+            CFBundleURLSchemes:
+              - eos
         UIAppFonts:
           - JetBrainsMono-Regular.ttf
           - JetBrainsMono-Medium.ttf

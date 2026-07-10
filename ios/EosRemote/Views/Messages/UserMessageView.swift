@@ -9,6 +9,7 @@ import EosRemoteKit
 struct UserMessageView: View {
     let block: Block
     let workerId: String
+    @Environment(\.openFile) private var openFile
 
     var body: some View {
         let parsed = AttachmentTokens.parseAttachmentMessage(text)
@@ -33,21 +34,27 @@ struct UserMessageView: View {
         }
     }
 
+    // Chip tap opens the file viewer for viewable kinds (folders have no viewer).
     private func attachmentChips(_ attachments: [AttachmentTokens.ParsedAttachment]) -> some View {
         HStack(spacing: EosSpacing.xxs) {
             ForEach(Array(attachments.enumerated()), id: \.offset) { _, a in
-                HStack(spacing: 4) {
-                    Image(systemName: glyph(a.kind))
-                        .font(.system(size: 10, weight: .regular))
-                    Text(chipName(a))
-                        .font(EosFont.captionSmall)
-                        .lineLimit(1)
+                Button {
+                    if a.kind != "folder" { openFile(a.path) }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: glyph(a.kind))
+                            .font(.system(size: 10, weight: .regular))
+                        Text(chipName(a))
+                            .font(EosFont.captionSmall)
+                            .lineLimit(1)
+                    }
+                    .foregroundStyle(EosColor.inkSecondary)
+                    .padding(.horizontal, EosSpacing.xs)
+                    .padding(.vertical, 3)
+                    .background(EosColor.surface2, in: Capsule())
+                    .overlay(Capsule().strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline))
                 }
-                .foregroundStyle(EosColor.inkSecondary)
-                .padding(.horizontal, EosSpacing.xs)
-                .padding(.vertical, 3)
-                .background(EosColor.surface2, in: Capsule())
-                .overlay(Capsule().strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline))
+                .buttonStyle(.plain)
             }
         }
     }

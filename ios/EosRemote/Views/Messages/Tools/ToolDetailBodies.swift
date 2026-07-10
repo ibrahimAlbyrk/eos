@@ -17,7 +17,7 @@ struct ReadDetailView: View {
         let path = tool.input["file_path"]?.stringValue ?? tool.input["path"]?.stringValue ?? ""
         let lines = stripCatLineNumbers(tool.result?.text)
         ToolBodyCard {
-            if !path.isEmpty { FilePathBar(path: tildeShorten(path)) }
+            if !path.isEmpty { FilePathBar(path: tildeShorten(path), openPath: path) }
             if !path.isEmpty && (tool.running || !lines.isEmpty) {
                 CodePreview(lines: lines, limit: previewLimit, running: tool.running)
                     .toolSectionSeparator()
@@ -35,7 +35,7 @@ struct WriteDetailView: View {
         let lines = stripCatLineNumbers(content)
         ToolBodyCard {
             if let kind = failureKind(tool) { FailureBanner(kind: kind, text: tool.result?.text ?? "") }
-            if !path.isEmpty { FilePathBar(path: tildeShorten(path)).toolSectionSeparator() }
+            if !path.isEmpty { FilePathBar(path: tildeShorten(path), openPath: path).toolSectionSeparator() }
             if !lines.isEmpty {
                 CodePreview(lines: lines, limit: previewLimit).toolSectionSeparator()
             }
@@ -51,7 +51,7 @@ struct EditDetailView: View {
         let path = tool.input["file_path"]?.stringValue ?? ""
         ToolBodyCard {
             if let kind = failureKind(tool) { FailureBanner(kind: kind, text: tool.result?.text ?? "") }
-            if !path.isEmpty { FilePathBar(path: tildeShorten(path)).toolSectionSeparator() }
+            if !path.isEmpty { FilePathBar(path: tildeShorten(path), openPath: path).toolSectionSeparator() }
             let hunks = editHunks(tool)
             if !hunks.isEmpty { DiffHunksView(hunks: hunks).toolSectionSeparator() }
         }
@@ -66,7 +66,7 @@ struct MultiEditDetailView: View {
         let path = tool.input["file_path"]?.stringValue ?? ""
         ToolBodyCard {
             if let kind = failureKind(tool) { FailureBanner(kind: kind, text: tool.result?.text ?? "") }
-            if !path.isEmpty { FilePathBar(path: tildeShorten(path)).toolSectionSeparator() }
+            if !path.isEmpty { FilePathBar(path: tildeShorten(path), openPath: path).toolSectionSeparator() }
             if let patch = tool.result?.patch, !patchToHunks(patch).isEmpty {
                 DiffHunksView(hunks: patchToHunks(patch)).toolSectionSeparator()
             } else {

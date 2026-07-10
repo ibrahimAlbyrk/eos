@@ -5,12 +5,12 @@ import EosRemoteKit
 // [verb][file-chip | AgentLink][arg-summary][headerBadge][failure-badge][diff-stats][chevron]; the
 // body is the descriptor's Detail when expanded. The verb shimmers while running (§6.4); a failed tool
 // tints the whole row (failedSoft) and shows a denied/failed badge, striking through the file. The
-// file chip taps open a (deferred) FileViewerSheet; an AgentLink taps select the worker.
+// file chip taps open the FileViewerSheet (via \.openFile); an AgentLink taps select the worker.
 struct ToolItemView: View {
     let tool: Tool
 
     @State private var open = false
-    @State private var showFileSheet = false
+    @Environment(\.openFile) private var openFile
 
     private var descriptor: ToolDescriptor { getToolView(tool.name) }
     private var failure: FailureKind? { failureKind(tool) }
@@ -32,7 +32,6 @@ struct ToolItemView: View {
                 .fill(failure != nil ? EosColor.State.failedSoft : .clear)     // .ti-failed-state bg (§10)
         )
         .opacity(tool.running ? 0.7 : 1)                                        // .ti-running opacity 0.7 (§6.4)
-        .sheet(isPresented: $showFileSheet) { FileViewerSheet(path: descriptor.filePath(tool) ?? "") }
     }
 
     private var header: some View {
@@ -54,7 +53,7 @@ struct ToolItemView: View {
         }
     }
 
-    // file chip (tap → FileViewerSheet) OR AgentLink (tap → select worker) OR plain file text.
+    // file chip (tap → \.openFile viewer) OR AgentLink (tap → select worker) OR plain file text.
     @ViewBuilder private var fileOrAgent: some View {
         if let ref = descriptor.agentRef(tool) {
             AgentLinkView(ref: ref)
@@ -65,7 +64,7 @@ struct ToolItemView: View {
                 .foregroundStyle(EosColor.ink)                                  // .ti-file 600 fg (§10)
                 .strikethrough(failure != nil, color: EosColor.State.failedDot) // .ti-failed-state line-through err (§10)
                 .underline(path != nil, pattern: .solid)                        // .ti-link (§10)
-                .onTapGesture { if path != nil { showFileSheet = true } }
+                .onTapGesture { if let path { openFile(path) } }
         }
     }
 
@@ -97,32 +96,5 @@ struct ToolItemView: View {
             if stats.del > 0 { Text("-\(stats.del)").foregroundStyle(EosColor.State.failedDot) }
         }
         .font(EosFont.caption)
-    }
-}
-
-// Deferred file viewer (spec §7 / §5.3): the transcript backlog does not build the full viewer; a file
-// chip tap opens this lightweight sheet with the path + a copy affordance (no Finder on iOS).
-struct FileViewerSheet: View {
-    let path: String
-    @Environment(\.dismiss) private var dismiss
-    @State private var copied = false
-    var body: some View {
-        NavigationStack {
-            VStack(alignment: .leading, spacing: EosSpacing.md) {
-                Text(path).font(EosFont.code).foregroundStyle(EosColor.ink).textSelection(.enabled)
-                HStack(spacing: EosSpacing.sm) {
-                    CopyButtonMini(text: path, copied: $copied)
-                    Text("File viewer coming soon").font(EosFont.caption).foregroundStyle(EosColor.inkTertiary)
-                }
-                Spacer()
-            }
-            .padding(EosSpacing.screenInset)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(EosColor.bg)
-            .navigationTitle(basename(path))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Done") { dismiss() } } }
-        }
-        .presentationDetents([.medium])
     }
 }

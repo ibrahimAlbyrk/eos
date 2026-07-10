@@ -34,6 +34,9 @@ struct WorkerDetailView: View {
     // worker row catches up over SSE.
     @State private var modeOverride: PermissionModeUI?
     @State private var errorToast: String?
+    // File viewer host (round 4): every file affordance in the transcript funnels through
+    // \.openFile into this one sheet.
+    @State private var viewedFile: ViewedFile?
 
     private var worker: Worker? { model.workers.first { $0.id == workerId } }
     private var archivedWorker: Worker? { model.archived.first { $0.id == workerId } }
@@ -163,11 +166,9 @@ struct WorkerDetailView: View {
         .sheet(isPresented: $showModeSheet) {
             ModeSheet(current: currentMode, onPick: applyMode).environmentObject(model)
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
-                Button("Done") { composerFocused = false }
-            }
+        .environment(\.openFile) { viewedFile = ViewedFile(path: $0) }
+        .sheet(item: $viewedFile) { file in
+            FileViewerSheet(path: file.path).environmentObject(model)
         }
     }
 
