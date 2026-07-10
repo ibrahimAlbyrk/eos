@@ -185,7 +185,11 @@ struct WorkerDetailView: View {
         .onChange(of: worker?.permissionMode) { _, mode in
             if let mode, mode == modeOverride?.rawValue { modeOverride = nil }
         }
-        .background(EosColor.bg)
+        // App bg must ignore the keyboard region too: a plain color background is sized to the
+        // keyboard-avoided content, so the keyboard's rounded top-corner notches fall outside it
+        // and show the bare black window. Ignoring .keyboard keeps the bg edge-to-edge under and
+        // around the keyboard; the composer (safe-area inset) still avoids it.
+        .background(EosColor.bg.ignoresSafeArea().ignoresSafeArea(.keyboard, edges: .bottom))
         .safeAreaInset(edge: .top) { header }
         .safeAreaInset(edge: .bottom) {
             bottomStack

@@ -97,7 +97,10 @@ private struct NewSessionContent: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
-        .background(EosColor.bg)
+        // App bg must ignore the keyboard region too, else the keyboard's rounded top-corner
+        // notches fall outside the keyboard-avoided background and show the bare black window
+        // (see WorkerDetailView). The composer (safe-area inset) still avoids the keyboard.
+        .background(EosColor.bg.ignoresSafeArea().ignoresSafeArea(.keyboard, edges: .bottom))
         .safeAreaInset(edge: .top) { header }
         .safeAreaInset(edge: .bottom) { bottomStack }
         .navigationBarBackButtonHidden(true)
