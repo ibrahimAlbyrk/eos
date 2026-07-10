@@ -29,6 +29,7 @@ describe("classifyTier (§8)", () => {
     assert.deepEqual(classifyTier("POST", "/workers/abc/restore"), { tier: "LOW", uiToken: false });
     assert.deepEqual(classifyTier("GET", "/workers/archived"), { tier: "READ", uiToken: false });
     assert.deepEqual(classifyTier("POST", "/fs/paste-b64"), { tier: "HIGH", uiToken: true });
+    assert.deepEqual(classifyTier("GET", "/api/backends/deepseek/models"), { tier: "READ", uiToken: false });
   });
 
   it("classifies on the path portion, ignoring the query string (§4.2)", () => {
