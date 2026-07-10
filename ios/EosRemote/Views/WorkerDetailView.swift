@@ -11,6 +11,7 @@ import EosRemoteKit
 struct WorkerDetailView: View {
     @EnvironmentObject var model: AppModel
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let workerId: String
 
     @FocusState private var composerFocused: Bool
@@ -29,6 +30,15 @@ struct WorkerDetailView: View {
     // 500-row page mid-anchor-settle, which is what left the viewport off-content.
     @State private var landed = false
     @State private var pagingArmed = false
+    // Scroll-to-bottom affordance (round 20): true once the viewport drifts more than
+    // ~one screen up from the tail; the floating "↓" button above the composer reads it.
+    // Hidden at/near the tail so it never appears while pinned during live streaming.
+    @State private var awayFromTail = false
+    // Imperative scroll handle for the button tap. An idle ScrollPosition (no initial edge) so it
+    // only reflects position and never pins — its scrollTo(edge:) CANCELS in-flight deceleration,
+    // which proxy.scrollTo(id:) does not (a mid-momentum tap was otherwise ignored until the glide
+    // stopped). Landing/tail-follow still ride the proxy + defaultScrollAnchor below, untouched.
+    @State private var scrollPosition = ScrollPosition()
     private static let tailAnchor = "transcript-tail"
     // Round 5, item E: while a disclosure toggle animates, size changes anchor to
     // .top instead of .bottom so the expansion grows downward and the tapped row
@@ -127,11 +137,24 @@ struct WorkerDetailView: View {
         }
         .environmentObject(reveal)
         .accessibilityIdentifier("transcript")
+        .scrollPosition($scrollPosition)
         // Bottom anchor lands the newest message on open and follows the tail at the
         // bottom — except mid-disclosure, where size changes hold the top instead.
         .defaultScrollAnchor(.bottom, for: .initialOffset)
         .defaultScrollAnchor(.bottom, for: .alignment)
         .defaultScrollAnchor(disclosureHold ? .top : .bottom, for: .sizeChanges)
+        // Round 20: watch how far the viewport sits above the tail. The button appears once
+        // that gap exceeds one screen (tail-follow disengaged) and hides as it closes — reading
+        // geometry, not the anchors, so round-3/round-5 tail-follow is untouched.
+        .onScrollGeometryChange(for: Bool.self) { geo in
+            let gap = geo.contentSize.height + geo.contentInsets.bottom
+                - geo.contentOffset.y - geo.containerSize.height
+            return gap > geo.containerSize.height
+        } action: { _, away in
+            guard away != awayFromTail else { return }
+            if reduceMotion { awayFromTail = away }
+            else { withAnimation(EosSpring.chip) { awayFromTail = away } }
+        }
         .environment(\.onDisclosureToggle) { holdScrollForDisclosure() }
         .scrollDismissesKeyboard(.interactively)
         // Tap-outside keyboard dismiss (§E4, master 17) alongside the interactive drag.
@@ -164,7 +187,10 @@ struct WorkerDetailView: View {
         }
         .background(EosColor.bg)
         .safeAreaInset(edge: .top) { header }
-        .safeAreaInset(edge: .bottom) { bottomStack }
+        .safeAreaInset(edge: .bottom) {
+            bottomStack
+                .overlay(alignment: .top) { scrollToBottomButton }
+        }
         .overlay {
             if showRename {
                 RenameSessionDialog(workerId: workerId, currentName: title,
@@ -295,6 +321,34 @@ struct WorkerDetailView: View {
             .disabled(!model.connected)
             .opacity(model.connected ? 1 : 0.55)
             Spacer()
+        }
+    }
+
+    // Floating "↓" over the transcript, centered just above the composer (§ round 20). Uses the
+    // design-system glass circle so it reads as the same chrome as the top-bar buttons. Present only
+    // when the viewport is more than a screen above the tail; fades with the DS spring (instant under
+    // reduce-motion). Offset lifts it clear of the composer's top edge.
+    @ViewBuilder
+    private var scrollToBottomButton: some View {
+        if awayFromTail {
+            CircularIconButton(systemName: "arrow.down", diameter: 44, glass: true,
+                               accessibilityLabel: "Scroll to latest") { scrollToTail() }
+                .accessibilityIdentifier("scroll-to-bottom")
+                .offset(y: -(44 + EosSpacing.sm))
+                .transition(reduceMotion ? .identity : .opacity)
+        }
+    }
+
+    // Fast animated jump to the tail; re-engages tail-follow exactly as a manual scroll-to-bottom
+    // does (the .bottom alignment anchor resumes once the viewport lands there). scrollTo(edge:)
+    // cancels any in-flight deceleration, so a tap mid-glide lands immediately. Instant under
+    // reduce-motion.
+    private func scrollToTail() {
+        Haptics.tap()
+        if reduceMotion {
+            scrollPosition.scrollTo(edge: .bottom)
+        } else {
+            withAnimation(EosSpring.chip) { scrollPosition.scrollTo(edge: .bottom) }
         }
     }
 
