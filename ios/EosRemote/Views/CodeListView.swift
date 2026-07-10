@@ -74,7 +74,13 @@ struct CodeListView: View {
             }
             .padding(.horizontal, EosSpacing.screenInset)
         }
+        // No mask: a pressed chip's interactive-glass lens stretches past the row bounds; the
+        // ScrollView's default clip cut it off mid-drag like a broken layer (round 8).
+        .scrollClipDisabled()
         .padding(.vertical, EosSpacing.xs)
+        // Above siblings: the unclipped lens still drew in VStack order, so a longer drag slid it
+        // under the list / offline pill; keep the row's overflow on top (round 8b).
+        .zIndex(1)
     }
 
     @ViewBuilder private var list: some View {
