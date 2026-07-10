@@ -215,6 +215,14 @@ final class DeviceConnection: NSObject {
         await controlReply("POST", "/workers/\(id)/restore", .object([:])) != nil
     }
 
+    // GET /api/backends/:name/models — the model sheet's per-provider list. nil = transport/tier
+    // failure; the sheet falls back to the profile's pinned model (fail-soft, Mac idiom).
+    func fetchBackendModels(_ name: String) async -> BackendModels? {
+        guard let body = (await controlReply("GET", "/api/backends/\(queryEscape(name))/models",
+                                             .object([:])))?.body else { return nil }
+        return BackendModels(raw: body)
+    }
+
     func setModel(_ id: String, model: String, effort: String) async -> Bool {   // PUT /workers/:id/model
         await controlReply("PUT", "/workers/\(id)/model",
                            .object(["model": .string(model), "effort": .string(effort)])) != nil

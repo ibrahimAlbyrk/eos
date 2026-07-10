@@ -220,4 +220,58 @@ public enum ModelCatalog {
         }
         return "\(Int((Double(tokens) / 1000).rounded()))k"
     }
+
+    // MARK: provider selection (port of backendCaps.js providerChoices / runningProviderChoice)
+
+    // The Providers group rows: the operator's non-subscription profiles. Subscription-kind
+    // profiles collapse into the Claude group (Mac providerChoices rule).
+    public static func providerProfiles(for config: UiConfig?) -> [BackendProfile] {
+        guard let config else { return [] }
+        let subscriptionKinds = Set(config.backends.filter { $0.billing == "subscription" }.map(\.kind))
+        return config.backendProfiles.filter { !subscriptionKinds.contains($0.kind) }
+    }
+
+    // The profile whose model list a RUNNING worker browses: its configured non-subscription
+    // profile, else nil → the curated Claude catalog (Mac runningProviderChoice rule).
+    public static func workerProfile(named name: String?, in config: UiConfig?) -> BackendProfile? {
+        guard let name, let config,
+              let p = config.backendProfiles.first(where: { $0.name == name }) else { return nil }
+        let subscription = config.backends.contains { $0.kind == p.kind && $0.billing == "subscription" }
+        return subscription ? nil : p
+    }
+
+    // The committed model value: the Claude lane commits the family alias (Mac ModelPopover rule);
+    // a provider lane commits the raw provider id — alias resolution must never rewrite e.g. an
+    // OpenRouter "anthropic/claude-opus-…" id down to "opus".
+    public static func commitModel(profile: String?, model: String, in choices: [ModelChoice]) -> String {
+        guard profile == nil else { return model }
+        return resolve(model, in: choices)?.alias ?? model
+    }
+}
+
+// ---- GET /api/backends/:name/models (contracts BackendModelsResponseSchema) -------------------
+// A configured provider's model ids for the model sheet's per-provider list. FAIL-SOFT like the
+// Mac's useProviderModels: the caller falls back to the profile's pinned model on empty/error.
+public struct BackendModels: Sendable, Equatable {
+    public let models: [String]
+    public let error: String?
+
+    public init(models: [String], error: String? = nil) {
+        self.models = models
+        self.error = error
+    }
+
+    public init?(raw: JSONValue) {
+        guard case .object = raw else { return nil }
+        self.models = raw["models"]?.arrayValue?.compactMap(\.stringValue) ?? []
+        self.error = raw["error"]?.stringValue
+    }
+
+    // An empty fetched list falls back to the profile's pinned model so the picker is never
+    // a dead end (Mac useProviderModels rule).
+    public func modelIds(pinned: String?) -> [String] {
+        if !models.isEmpty { return models }
+        guard let pinned, !pinned.isEmpty else { return [] }
+        return [pinned]
+    }
 }

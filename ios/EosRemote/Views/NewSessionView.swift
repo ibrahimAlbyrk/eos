@@ -164,6 +164,8 @@ private struct NewSessionContent: View {
     private var modelTitle: String {
         if let name = draftProfile,
            let profile = model.uiConfig?.backendProfiles.first(where: { $0.name == name }) {
+            // The sheet writes the picked provider model into draftModel (pinned by default).
+            if !draftModel.isEmpty { return draftModel }
             return profile.model.isEmpty ? profile.label : profile.model
         }
         let choices = ModelCatalog.choices(for: model.uiConfig)

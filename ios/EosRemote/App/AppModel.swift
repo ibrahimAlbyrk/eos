@@ -292,6 +292,9 @@ final class AppModel: ObservableObject {
     }
     func archive(_ id: String) async -> Bool { await active?.archive(id) ?? false }
     func restore(_ id: String) async -> Bool { await active?.restore(id) ?? false }
+    func fetchBackendModels(_ name: String) async -> BackendModels? {
+        await active?.fetchBackendModels(name)
+    }
     func setModel(_ id: String, model: String, effort: String) async -> Bool {
         await active?.setModel(id, model: model, effort: effort) ?? false
     }
