@@ -215,29 +215,24 @@ private struct DrawerPan: UIGestureRecognizerRepresentable {
         func gestureRecognizerShouldBegin(_ g: UIGestureRecognizer) -> Bool {
             guard let pan = g as? UIPanGestureRecognizer, let view = pan.view else { return false }
             let t = pan.translation(in: view)
-            NSLog("EOSPAN shouldBegin t=(%.1f,%.1f) loc=(%.1f,%.1f) open=%d root=%d",
-                  t.x, t.y, pan.location(in: view).x, pan.location(in: view).y,
-                  state.isOpen ? 1 : 0, state.isAtRoot ? 1 : 0)
-            guard abs(t.x) > abs(t.y) else { NSLog("EOSPAN deny not-horizontal"); return false }
+            guard abs(t.x) > abs(t.y) else { return false }
             if !state.isOpen {
-                guard t.x > 0 else { NSLog("EOSPAN deny leftward"); return false }
+                guard t.x > 0 else { return false }
                 // Pushed screens: leave the left-edge strip to the nav back-swipe. The finger
                 // has already moved past the touch slop by shouldBegin, so subtract the
                 // translation to test where the touch went DOWN, not where it is now.
                 if !state.isAtRoot {
-                    guard pan.location(in: view).x - t.x > Self.backSwipeEdgeWidth else { NSLog("EOSPAN deny edge-strip"); return false }
+                    guard pan.location(in: view).x - t.x > Self.backSwipeEdgeWidth else { return false }
                 }
             }
             // Leave horizontal child scrollers (filter chips) their own pans.
             var v = view.hitTest(pan.location(in: view), with: nil)
             while let cur = v, cur !== view {
                 if let sv = cur as? UIScrollView, sv.contentSize.width > sv.bounds.width + 1 {
-                    NSLog("EOSPAN deny h-scroller %@ cw=%.0f bw=%.0f", NSStringFromClass(type(of: sv)), sv.contentSize.width, sv.bounds.width)
                     return false
                 }
                 v = cur.superview
             }
-            NSLog("EOSPAN ALLOW")
             return true
         }
 
