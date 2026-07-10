@@ -62,11 +62,19 @@ struct SidebarContainer<Sidebar: View, Content: View>: View {
                 .accessibilityHidden(!sidebar.isOpen)
 
             // 2) MAIN — offset right when open, corner rounds AS it opens (progress-driven), scrim on
-            //    top. No scale — the drawer reads cleaner without the seam.
+            //    top. No scale — the drawer reads cleaner without the seam. The rounding must be an
+            //    edge-to-edge mask, NOT a bounds clip: clipShape cuts at the safe-area rect, which
+            //    beheads every screen's §E1/E2 status-bar/home-strip bleed and lets the drop shadow
+            //    below darken the exposed strips (the visible seam).
             content
-                .clipShape(RoundedRectangle(cornerRadius: deviceCornerRadius * progress, style: .continuous))
+                .mask {
+                    RoundedRectangle(cornerRadius: deviceCornerRadius * progress, style: .continuous)
+                        .ignoresSafeArea()
+                }
                 .overlay(scrim)
-                .shadow(color: .black.opacity(0.35), radius: 16, x: -4)
+                // Shadow only while the drawer peeks: at rest it bleeds through the §E2 gradient's
+                // semi-transparent home-strip pixels and re-darkens the seam the mask just fixed.
+                .shadow(color: .black.opacity(0.35 * progress), radius: 16, x: -4)
                 .offset(x: currentOffset)
                 .accessibilityHidden(sidebar.isOpen)
         }
