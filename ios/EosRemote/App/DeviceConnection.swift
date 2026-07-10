@@ -25,6 +25,10 @@ final class DeviceConnection: NSObject {
     private(set) var pending: [Pending] = []
     private(set) var connected = false
     private(set) var connecting = false
+    // Bootstrap phase (round 5, item B): false until the first authoritative workers
+    // list lands (bootstrap GET / snapshot / fallback refresh). The Code list keeps
+    // its skeleton while this is false — an empty list is unknown, not "no sessions".
+    private(set) var workersLoaded = false
     private(set) var lastError: String?
     // Per-device authRejected latch: bad creds are a device-level error, NOT global needsPairing.
     private(set) var authRejected = false
@@ -37,6 +41,10 @@ final class DeviceConnection: NSObject {
     // per connect + on demand) and the archived list (fetched lazily by the Archived filter).
     private(set) var uiConfig: UiConfig?
     private(set) var archived: [Worker] = []
+
+    // Server-relative clock for the thinking/elapsed timer (round 5, item D):
+    // sampled from every event frame's daemon-stamped ts.
+    private(set) var turnClock = TurnClock()
 
     // Notify the owner (AppModel) that this device's mirrored state changed.
     var onChange: (() -> Void)?
@@ -99,6 +107,7 @@ final class DeviceConnection: NSObject {
     private func refresh() async {
         workers = await store.workerList.sorted { $0.id < $1.id }
         pending = await store.pendingList.sorted { $0.id < $1.id }
+        workersLoaded = await store.workersLoaded
         onChange?()
     }
 
@@ -414,9 +423,13 @@ final class DeviceConnection: NSObject {
         guard let connection else { return }
         async let w = try? connection.sendControl(method: "GET", path: "/workers", bodyData: Data("{}".utf8))
         async let p = try? connection.sendControl(method: "GET", path: "/pending", bodyData: Data("{}".utf8))
-        let workers = (await w)?.body?.arrayValue ?? []
+        let workers = (await w)?.body?.arrayValue
         let pending = (await p)?.body?.arrayValue ?? []
-        await store.applyBootstrap(workers: workers, pending: pending)
+        // A failed workers GET must not flip the loaded phase (or clobber a cached
+        // list with []) — skip; the patch/snapshot push or the next connect recovers.
+        if let workers {
+            await store.applyBootstrap(workers: workers, pending: pending)
+        }
         // C6: ui-config is fetched once per connect (covers reconnects too) and cached above.
         await fetchUiConfig()
     }
@@ -551,6 +564,9 @@ final class DeviceConnection: NSObject {
     }
 
     func handleTranscriptEvent(_ event: EventFrame) {
+        if let ts = event.ts, ts > 0 {
+            turnClock.sample(serverTsMs: ts, deviceNowMs: Date().timeIntervalSince1970 * 1000)
+        }
         switch event.reason {
         case "agent:delta": applyDelta(event.payload)
         case "worker:change": if event.payload?["workerId"]?.stringValue == openId { scheduleDelta() }

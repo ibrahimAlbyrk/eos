@@ -11,9 +11,16 @@ struct DisclosureRowView<Header: View, Content: View>: View {
     @ViewBuilder let header: () -> Header
     @ViewBuilder let content: () -> Content
 
+    // Round 5, item E: every transcript expansion funnels through this toggle. The
+    // hosting scroll view (WorkerDetailView) listens so it can hold its size-change
+    // anchor at .top for the animation — expansion grows DOWNWARD, the tapped row
+    // stays put. Fired BEFORE the state change so the anchor lands first.
+    @Environment(\.onDisclosureToggle) private var onDisclosureToggle
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
+                onDisclosureToggle()
                 withAnimation(.easeInOut(duration: 0.15)) { open.toggle() }
             } label: {
                 HStack(spacing: 5) {                                    // .tool-item-header gap 5 (§10)
@@ -35,5 +42,17 @@ struct DisclosureRowView<Header: View, Content: View>: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))  // §6.3 expanded transition
             }
         }
+    }
+}
+
+// Notifies the hosting scroll container that a disclosure is about to change the
+// transcript's height (default no-op: previews/gallery/sheets have no anchor to hold).
+private struct DisclosureToggleKey: EnvironmentKey {
+    static let defaultValue: @MainActor () -> Void = {}
+}
+extension EnvironmentValues {
+    var onDisclosureToggle: @MainActor () -> Void {
+        get { self[DisclosureToggleKey.self] }
+        set { self[DisclosureToggleKey.self] = newValue }
     }
 }

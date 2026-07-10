@@ -3,7 +3,7 @@ import EosRemoteKit
 
 // Drawer contents (contract §C1, ref IMG_4423 — no avatar, no spawn pill): serif wordmark, the
 // active-device chip (opens the device switcher), Code / Devices nav rows, a Recents list of the
-// active device's workers, and a floating "New session" pill bottom-right. Full-height edge-to-edge
+// active device's workers, and a floating "New agent" pill bottom-right. Full-height edge-to-edge
 // (§E3): the opaque bg ignores the safe area while the content stays inside it (reading
 // geo.safeAreaInsets under .ignoresSafeArea() returns zeros and lands content in the status-bar/
 // home strips). Navigation + sheet presentation live in RootView (callbacks).
@@ -92,7 +92,7 @@ struct DrawerView: View {
             HStack(spacing: EosSpacing.xs) {
                 Image(systemName: "plus")
                     .font(.system(size: 15, weight: .semibold))
-                Text("New session")
+                Text("New agent")
                     .font(EosFont.labelStrong)
             }
             .padding(.horizontal, EosSpacing.lg)
@@ -102,7 +102,7 @@ struct DrawerView: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("New session")
+        .accessibilityLabel("New agent")
     }
 
     private func select(_ s: SidebarSection) {

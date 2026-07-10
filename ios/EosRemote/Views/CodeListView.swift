@@ -264,8 +264,11 @@ struct CodeListView: View {
 
     // MARK: empty / loading states (§C2)
 
+    // Empty tree: until the active device's FIRST workers fetch resolves the truth is
+    // unknown — skeleton, never "No sessions yet" (round 5, item B). Covers first
+    // launch, reconnect, and switching to a device that hasn't bootstrapped yet.
     @ViewBuilder private var emptyState: some View {
-        if model.workers.isEmpty && !model.connected && model.connecting {
+        if !model.workersLoaded {
             skeletonRows
         } else if filter == .running {
             Text("No running sessions")

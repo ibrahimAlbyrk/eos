@@ -84,4 +84,33 @@ final class StoreFrameTests: XCTestCase {
         let pushes = await store.serverPushesState
         XCTAssertFalse(pushes, "a GET-driven refresh is not server push")
     }
+
+    // Bootstrap phase (round 5, item B): workersLoaded is false until the first
+    // authoritative workers list lands, then sticky — the Code list's skeleton vs
+    // empty-state gate hangs off this.
+    func testWorkersLoadedFlipsOnFirstAuthoritativeListOnly() async {
+        var store = Store()
+        var loaded = await store.workersLoaded
+        XCTAssertFalse(loaded, "nothing fetched yet — phase must read as loading")
+
+        // Patches and events alone are not a full list — the phase must not flip.
+        _ = await store.applyEvent(EventFrame(t: "event", seq: 1, reason: "worker:change", ts: 0, payload: nil))
+        loaded = await store.workersLoaded
+        XCTAssertFalse(loaded, "an event frame is not a workers list")
+
+        await store.applyBootstrap(workers: [], pending: [])
+        loaded = await store.workersLoaded
+        XCTAssertTrue(loaded, "an EMPTY bootstrap still resolves the phase — truly no sessions")
+
+        // Snapshot and fallback refresh count too, each from a fresh store.
+        store = Store()
+        await store.applySnapshot(SnapshotFrame(t: "snapshot", seq: 1, workers: [worker("w-1", state: "IDLE")], pending: []))
+        loaded = await store.workersLoaded
+        XCTAssertTrue(loaded, "a snapshot is an authoritative list")
+
+        store = Store()
+        await store.applyWorkers([worker("w-1", state: "IDLE")])
+        loaded = await store.workersLoaded
+        XCTAssertTrue(loaded, "the fallback list refresh is an authoritative list")
+    }
 }

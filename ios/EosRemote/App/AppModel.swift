@@ -48,6 +48,9 @@ final class AppModel: ObservableObject {
     @Published var pending: [Pending] = []
     @Published var connected = false
     @Published var connecting = false
+    // Active device's bootstrap phase (round 5, item B): false until its first
+    // workers list resolves — the Code list shows the skeleton, not the empty state.
+    @Published var workersLoaded = false
     @Published var needsPairing = false
     @Published var lastError: String?
     @Published var transcript: [Block] = []
@@ -133,6 +136,7 @@ final class AppModel: ObservableObject {
         guard let a = active else {
             workers = []; pending = []; transcript = []
             connected = false; connecting = false; lastError = nil
+            workersLoaded = false
             hasOlder = false; loadingOlder = false
             uiConfig = nil; archived = []
             needsPairing = devices.isEmpty
@@ -142,6 +146,7 @@ final class AppModel: ObservableObject {
         pending = a.pending
         connected = a.connected
         connecting = a.connecting
+        workersLoaded = a.workersLoaded
         lastError = a.lastError
         transcript = a.transcript
         hasOlder = a.hasOlder
@@ -248,6 +253,7 @@ final class AppModel: ObservableObject {
     var orchestrators: [Worker] { active?.orchestrators ?? [] }
     var plainWorkers: [Worker] { active?.plainWorkers ?? [] }
     func isBusy(_ id: String) -> Bool { active?.isBusy(id) ?? false }
+    var turnClock: TurnClock { active?.turnClock ?? TurnClock() }
 
     func sendMessage(to id: String, text: String, queueWhenBusy: Bool = true) async {
         await active?.sendMessage(to: id, text: text, queueWhenBusy: queueWhenBusy)

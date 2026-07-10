@@ -30,6 +30,12 @@ struct WorkerDetailView: View {
     @State private var landed = false
     @State private var pagingArmed = false
     private static let tailAnchor = "transcript-tail"
+    // Round 5, item E: while a disclosure toggle animates, size changes anchor to
+    // .top instead of .bottom so the expansion grows downward and the tapped row
+    // stays where it was. Outside the hold the .bottom anchor keeps tail-follow
+    // and the top-pager's prepend stability (round-3 Bug A) exactly as before.
+    @State private var disclosureHold = false
+    @State private var disclosureHoldTask: Task<Void, Never>?
     // Optimistic mode-pill state (§C3): set on pick, reverted on PUT failure, cleared when the
     // worker row catches up over SSE.
     @State private var modeOverride: PermissionModeUI?
@@ -108,7 +114,9 @@ struct WorkerDetailView: View {
                     GoalCheckLineView(check: check)
                         .padding(.top, EosSpacing.xxs)
                 } else {
-                    ProcessingLineView(busy: model.isBusy(workerId))
+                    ProcessingLineView(busy: model.isBusy(workerId),
+                                       turnStartedAt: worker?.turnStartedAt,
+                                       clock: model.turnClock)
                         .padding(.top, EosSpacing.xxs)
                 }
                 Color.clear.frame(height: 1).id(Self.tailAnchor)
@@ -117,8 +125,12 @@ struct WorkerDetailView: View {
         }
         .environmentObject(reveal)
         .accessibilityIdentifier("transcript")
-        // Bottom anchor lands the newest message on open and follows the tail at the bottom.
-        .defaultScrollAnchor(.bottom)
+        // Bottom anchor lands the newest message on open and follows the tail at the
+        // bottom — except mid-disclosure, where size changes hold the top instead.
+        .defaultScrollAnchor(.bottom, for: .initialOffset)
+        .defaultScrollAnchor(.bottom, for: .alignment)
+        .defaultScrollAnchor(disclosureHold ? .top : .bottom, for: .sizeChanges)
+        .environment(\.onDisclosureToggle) { holdScrollForDisclosure() }
         .scrollDismissesKeyboard(.interactively)
         // Tap-outside keyboard dismiss (§E4, master 17) alongside the interactive drag.
         .simultaneousGesture(TapGesture().onEnded { composerFocused = false })
@@ -302,6 +314,19 @@ struct WorkerDetailView: View {
             }
             try? await Task.sleep(nanoseconds: 150_000_000)
             if workerId == target { pagingArmed = true }
+        }
+    }
+
+    // Hold the size-change anchor at .top across the 0.15s disclosure animation
+    // (plus settle). Called synchronously from the toggle, so the anchor flips in
+    // the same update as the height change begins.
+    private func holdScrollForDisclosure() {
+        disclosureHold = true
+        disclosureHoldTask?.cancel()
+        disclosureHoldTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard !Task.isCancelled else { return }
+            disclosureHold = false
         }
     }
 

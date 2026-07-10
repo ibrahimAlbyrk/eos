@@ -17,7 +17,7 @@ final class DrawerDragUITests: XCTestCase {
         let menu = app.buttons["Menu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 20), "Code list chrome should appear")
         let window = app.windows.firstMatch
-        let newSession = app.buttons["New session"]
+        let newSession = app.buttons["New agent"]
 
         // 1) Partial rightward pan (to ~40% of the drawer width), hold, release: the panel must
         //    track the finger while held (screenshot taken mid-hold by the harness) and spring

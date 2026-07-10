@@ -11,6 +11,11 @@ public actor Store {
     // Flips true on the first patch/snapshot — the daemon speaks §5.4.2/3, so the
     // event-driven list refetch fallback (pre-patch daemons) can stand down.
     public private(set) var serverPushesState = false
+    // Flips true (sticky) once ANY authoritative workers list has landed —
+    // bootstrap GET, snapshot, or the fallback refresh. Until then an empty
+    // `workers` means "not loaded yet", not "no sessions": the Code list shows
+    // its skeleton, never the empty state (round 5, item B).
+    public private(set) var workersLoaded = false
 
     // Continuation-style change notification for the @MainActor view model.
     private var onChange: (@Sendable () -> Void)?
@@ -25,6 +30,7 @@ public actor Store {
     public func applyBootstrap(workers wkrs: [JSONValue], pending pend: [JSONValue]) {
         workers = Dictionary(uniqueKeysWithValues: wkrs.map { let w = Worker(raw: $0); return (w.id, w) })
         pending = Dictionary(uniqueKeysWithValues: pend.map { let p = Pending(raw: $0); return (p.id, p) })
+        workersLoaded = true
         notify()
     }
 
@@ -32,6 +38,7 @@ public actor Store {
     // without touching pending (the two lists refresh on independent triggers).
     public func applyWorkers(_ rows: [JSONValue]) {
         workers = Dictionary(uniqueKeysWithValues: rows.map { let w = Worker(raw: $0); return (w.id, w) })
+        workersLoaded = true
         notify()
     }
 
@@ -47,6 +54,7 @@ public actor Store {
         // going backwards here would fake a gap on the very next frame.
         lastSeq = max(lastSeq, snap.seq)
         serverPushesState = true
+        workersLoaded = true
         notify()
     }
 
