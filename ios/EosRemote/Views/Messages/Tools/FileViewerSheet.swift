@@ -15,7 +15,8 @@ struct FileViewerSheet: View {
 
     enum Phase {
         case loading
-        case text([Line])
+        case code(AttributedString)   // numbered, never wraps — scrolls both axes
+        case prose([Line])            // markdown/plain text — wraps at full width
         case image(UIImage)
         case note(String)      // terminal degrade: binary / too large
         case failure(String)   // retryable: offline / fetch error
@@ -42,8 +43,10 @@ struct FileViewerSheet: View {
         switch phase {
         case .loading:
             ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .text(let lines):
-            codeBody(lines)
+        case .code(let text):
+            codeBody(text)
+        case .prose(let lines):
+            proseBody(lines)
         case .image(let image):
             ZoomableImageView(image: image)
         case .note(let message):
@@ -66,10 +69,50 @@ struct FileViewerSheet: View {
         .background(EosColor.bg)
     }
 
-    // Numbered gutter + highlighted lines on the dark code card (CodeBlockView palette).
-    private func codeBody(_ lines: [Line]) -> some View {
+    // Prose (markdown / plain text with no highlight language) wraps at full width; code never
+    // wraps — long lines scroll horizontally, composing with vertical scroll.
+    private var wrapsLines: Bool {
+        let language = FileViewer.languageForPath(path)
+        return language == nil || language == "markdown"
+    }
+
+    // Code rides ONE attributed Text with the gutter baked in (the CodeBlockView idiom): a lazy
+    // stack can't self-measure its width under the two-axis ScrollView's unbounded proposal — it
+    // under-reports, the ScrollView centers the "small" content, and horizontal scrolling dies.
+    // A single Text sizes to its ideal (unwrapped) bounds, so both axes scroll correctly.
+    private func codeBody(_ text: AttributedString) -> some View {
+        ScrollView([.vertical, .horizontal], showsIndicators: true) {
+            Text(text)
+                .font(EosFont.code)
+                .foregroundStyle(CodeHighlighter.codeCardText)
+                .lineSpacing(2)
+                .textSelection(.enabled)
+                .padding(EdgeInsets(top: 10, leading: 12, bottom: 10, trailing: 14))
+        }
+        .defaultScrollAnchor(.topLeading)
+        .background(CodeHighlighter.codeCardBackground)
+    }
+
+    // Right-aligned faint line numbers joined inline, mono so the gutter column stays fixed-width.
+    private static func numbered(_ lines: [Line]) -> AttributedString {
+        let digits = String(lines.count).count
+        var out = AttributedString()
+        for line in lines {
+            let id = String(line.id)
+            var num = AttributedString(String(repeating: " ", count: digits - id.count) + id + "  ")
+            num.foregroundColor = CodeHighlighter.codeCardText.opacity(0.4)
+            out += num
+            out += line.text
+            if line.id < lines.count { out += AttributedString("\n") }
+        }
+        return out
+    }
+
+    // Numbered gutter + wrapping lines on the dark code card. The vertical-only ScrollView
+    // proposes the viewport width, so the text column wraps at full width here.
+    private func proseBody(_ lines: [Line]) -> some View {
         let gutterWidth = CGFloat(max(28, 12 + String(lines.count).count * 8))
-        return ScrollView([.vertical, .horizontal], showsIndicators: true) {
+        return ScrollView(.vertical, showsIndicators: true) {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(lines) { line in
                     HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -116,7 +159,8 @@ struct FileViewerSheet: View {
         phase = .loading
         switch await model.fetchFile(path: path) {
         case .text(let content, _):
-            phase = .text(await highlightLines(content))
+            let lines = await highlightLines(content)
+            phase = wrapsLines ? .prose(lines) : .code(Self.numbered(lines))
         case .image(let data):
             if let image = UIImage(data: data) { phase = .image(image) }
             else { phase = .note("Couldn't decode image") }
