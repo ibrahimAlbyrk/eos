@@ -39,11 +39,13 @@ enum CompactTime {
 // Orchestrators read heavier than workers (§D3 — the Mac's .ag-name.main); no EosFont token
 // carries a label-size SemiBold, so it is derived locally (same pattern as PermissionBanner).
 private let labelSemi = Font.custom("PlusJakartaSans-SemiBold", size: 15, relativeTo: .subheadline)
+private let countSemi = Font.custom("PlusJakartaSans-SemiBold", size: 13, relativeTo: .footnote)
 
-// Root card (§C2, compacted round 11): no tile — inline 8pt state dot, heavy title with the
-// collapse chevron on the same line (rotates down↔up, own ≥44pt hit target), cwd-basename
-// subtitle + worker count, trailing status slot (pending chip > attention dot > loop badge) +
-// time on one line. `archived` forces the idle dot and drops the live status slot (§C2).
+// Root card (§C2, round 16 "split card + stack peek"): no tile — inline 8pt state dot, heavy
+// title, cwd-basename subtitle, trailing status slot (pending chip > attention dot > loop badge)
+// + time. The expand control is its OWN full-height trailing segment (worker count + chevron on a
+// distinct fill, ≥44pt both ways); collapsed cards grow a stacked-card peek below the bottom edge
+// so containment reads at a glance. `archived` forces the idle dot and drops the status slot.
 struct OrchestratorRow: View {
     let worker: Worker
     var workerCount: Int = 0
@@ -57,6 +59,10 @@ struct OrchestratorRow: View {
     private var timeMs: Double {
         archived ? (worker.archivedAt ?? worker.recencyKey) : worker.recencyKey
     }
+    private var showsPeek: Bool { isCollapsed && onToggleCollapse != nil }
+
+    private let toggleWidth: CGFloat = 56
+    private let peekReach: CGFloat = 10   // how far the stacked layers extend past the card
 
     var body: some View {
         HStack(spacing: EosSpacing.xs) {
@@ -65,13 +71,10 @@ struct OrchestratorRow: View {
                 .frame(width: 8, height: 8)
                 .accessibilityLabel(runState.label)
             VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: EosSpacing.xs) {
-                    Text(nameOf(worker))
-                        .font(labelSemi)
-                        .foregroundStyle(EosColor.ink)
-                        .lineLimit(1)
-                    if let onToggleCollapse { collapseChevron(onToggleCollapse) }
-                }
+                Text(nameOf(worker))
+                    .font(labelSemi)
+                    .foregroundStyle(EosColor.ink)
+                    .lineLimit(1)
                 if let subtitle {
                     Text(subtitle)
                         .font(EosFont.caption)
@@ -85,35 +88,74 @@ struct OrchestratorRow: View {
                 .font(EosFont.caption)
                 .foregroundStyle(EosColor.inkTertiary)
         }
-        .padding(.horizontal, EosSpacing.sm)
+        .padding(.leading, EosSpacing.sm)
         .padding(.vertical, EosSpacing.xs)
+        .padding(.trailing, onToggleCollapse != nil ? toggleWidth + EosSpacing.xs : EosSpacing.sm)
+        .frame(minHeight: 44)
         .background(EosColor.surface, in: RoundedRectangle(cornerRadius: EosRadius.card, style: .continuous))
+        .overlay(alignment: .trailing) {
+            if let onToggleCollapse { toggleRegion(onToggleCollapse) }
+        }
         .overlay(RoundedRectangle(cornerRadius: EosRadius.card, style: .continuous)
             .strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline))
+        .background(alignment: .bottom) { if showsPeek { stackPeek } }
+        .padding(.bottom, showsPeek ? peekReach : 0)
         .contentShape(Rectangle())
     }
 
-    // Drawn small to keep the row compact; the inner 44pt frame overflows the 18pt layout
-    // footprint so the tap target stays finger-sized without inflating the row.
-    private func collapseChevron(_ toggle: @escaping () -> Void) -> some View {
+    // The expand affordance: a full-height trailing segment on its own fill, split off by an inset
+    // hairline — worker count + chevron. Full card height × 56pt keeps the target ≥44pt both ways.
+    private func toggleRegion(_ toggle: @escaping () -> Void) -> some View {
         Button(action: toggle) {
-            Image(systemName: "chevron.down")
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(EosColor.inkTertiary)
-                .rotationEffect(.degrees(isCollapsed ? 180 : 0))
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
+            HStack(spacing: 5) {
+                if workerCount > 0 {
+                    Text("\(workerCount)")
+                        .font(countSemi)
+                        .foregroundStyle(EosColor.inkSecondary)
+                }
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(EosColor.inkTertiary)
+                    .rotationEffect(.degrees(isCollapsed ? 0 : -180))
+            }
+            .frame(width: toggleWidth)
+            .frame(maxHeight: .infinity)
+            .background(EosColor.surface2, in: UnevenRoundedRectangle(
+                topLeadingRadius: 0, bottomLeadingRadius: 0,
+                bottomTrailingRadius: EosRadius.card, topTrailingRadius: EosRadius.card,
+                style: .continuous))
+            .overlay(alignment: .leading) {
+                EosColor.hairlineStrong
+                    .frame(width: EosLine.hairline)
+                    .padding(.vertical, EosSpacing.xs)
+            }
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .frame(width: 18, height: 18)
-        .accessibilityLabel(isCollapsed ? "Show workers" : "Hide workers")
+        .accessibilityLabel("\(isCollapsed ? "Show" : "Hide") \(workerCount) worker\(workerCount == 1 ? "" : "s")")
+    }
+
+    // Collapsed containment cue: two receding card layers peeking below the bottom edge — the
+    // stacked-cards idiom says "children folded inside" without reading any glyph. Drawn behind
+    // the card fill; the caller-side bottom padding reserves their reach in the list row.
+    private var stackPeek: some View {
+        ZStack(alignment: .bottom) {
+            RoundedRectangle(cornerRadius: EosRadius.card, style: .continuous)
+                .fill(EosColor.surface2.opacity(0.6))
+                .frame(height: 40)
+                .padding(.horizontal, EosSpacing.lg)
+                .offset(y: peekReach)
+            RoundedRectangle(cornerRadius: EosRadius.card, style: .continuous)
+                .fill(EosColor.surface2)
+                .frame(height: 40)
+                .padding(.horizontal, EosSpacing.sm)
+                .offset(y: peekReach / 2)
+        }
+        .accessibilityHidden(true)
     }
 
     private var subtitle: String? {
-        let base = worker.cwd.flatMap { $0.split(separator: "/").last.map(String.init) }
-        let count = workerCount > 0 ? "\(workerCount) worker\(workerCount == 1 ? "" : "s")" : nil
-        let parts = [base, count].compactMap { $0 }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        worker.cwd.flatMap { $0.split(separator: "/").last.map(String.init) }
     }
 
     @ViewBuilder private var statusSlot: some View {
@@ -233,7 +275,7 @@ private struct PendingCountChip: View {
                                   cwd: "/Users/x/dev/eos"),
                         workerCount: 3, pendingCount: 2, onToggleCollapse: {})
         OrchestratorRow(worker: w("o2", orch: true, state: "IDLE", cwd: "/Users/x/dev/api"),
-                        attention: true, isCollapsed: true, onToggleCollapse: {})
+                        workerCount: 2, attention: true, isCollapsed: true, onToggleCollapse: {})
         OrchestratorRow(worker: w("o3", name: "Old session", orch: true, cwd: "/Users/x/dev/web"),
                         archived: true)
         WorkerChildRow(worker: w("w1", name: "refactor-auth", state: "WORKING", def: "code-reviewer"))

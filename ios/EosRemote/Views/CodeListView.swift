@@ -140,7 +140,9 @@ struct CodeListView: View {
     }
 
     // Descendants flattened depth-first, indented under the root card's name column — the
-    // collapse control lives inline on the root row (round 11), so no gutter chevron here.
+    // collapse control is the root card's trailing segment (round 16), so no gutter chevron here.
+    // A hairline thread in the gutter ties the expanded children back to their card; it fades out
+    // on the last child so the group visibly ends.
     @ViewBuilder private func childRows(_ node: AgentNode, direct: [String: Int]) -> some View {
         let entries = flattenChildren(node, direct: direct)
         ForEach(entries) { entry in
@@ -149,6 +151,7 @@ struct CodeListView: View {
                                attention: model.needsAttention(entry.worker),
                                pendingCount: entry.pendingCount)
                     .padding(.leading, 28 + CGFloat(entry.depth - 1) * 16)
+                    .overlay(alignment: .leading) { thread(isLast: entry.id == entries.last?.id) }
             }
             .buttonStyle(.plain)
             .listRowBackground(EosColor.bg)
@@ -156,6 +159,25 @@ struct CodeListView: View {
             .listRowInsets(EdgeInsets(top: 0, leading: EosSpacing.screenInset,
                                       bottom: 0, trailing: EosSpacing.screenInset))
         }
+    }
+
+    // x = 15.5 centers the 1pt thread under the root card's 8pt state dot (12pt card inset + 4).
+    // The -8pt vertical padding overdraws into the List's inter-row spacing so the per-row
+    // segments join into one continuous line (rows don't clip).
+    @ViewBuilder private func thread(isLast: Bool) -> some View {
+        Group {
+            if isLast {
+                LinearGradient(colors: [EosColor.hairlineStrong, EosColor.hairlineStrong, .clear],
+                               startPoint: .top, endPoint: .bottom)
+            } else {
+                EosColor.hairlineStrong
+            }
+        }
+        .frame(width: EosLine.hairline)
+        .padding(.top, -8)
+        .padding(.bottom, isLast ? 0 : -8)
+        .padding(.leading, 15.5)
+        .accessibilityHidden(true)
     }
 
     private struct ChildEntry: Identifiable {
@@ -183,6 +205,7 @@ struct CodeListView: View {
     }
 
     private func toggleCollapse(_ id: String) {
+        Haptics.tap()
         withAnimation(reduceMotion ? nil : EosSpring.chip) {
             if collapsed.contains(id) { collapsed.remove(id) } else { collapsed.insert(id) }
         }
