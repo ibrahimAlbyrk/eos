@@ -33,6 +33,29 @@ export interface PairArmOptions {
   ttlMs?: number; // QR display-window; default 120s
 }
 
+// Stale-session pruning. The relay drops a disconnected device from its routing
+// table but never notifies the daemon (and its ROOM_NOT_FOUND error frames carry
+// no clientId, so they can't be attributed) — without a sweep the daemon fans
+// every event out to dead clientIds forever. The phone keepalives every 20s, so
+// 90s idle means at least four missed kas ⇒ the session is gone.
+export const SESSION_IDLE_TTL_MS = 90_000;
+const SESSION_SWEEP_INTERVAL_MS = 30_000;
+
+export function pruneStaleSessions(
+  conns: Map<string, GatewayConnection>,
+  nowMs: number,
+  ttlMs: number = SESSION_IDLE_TTL_MS,
+): string[] {
+  const pruned: string[] = [];
+  for (const [hex, conn] of conns) {
+    if (nowMs - conn.lastActivityAt() <= ttlMs) continue;
+    conn.dispose();
+    conns.delete(hex);
+    pruned.push(hex);
+  }
+  return pruned;
+}
+
 export interface RemoteGatewayHandle {
   stop(): void;
   // Mint the §2 QR from the already-armed room + bearer. There is no server-held
@@ -106,9 +129,15 @@ export function startRemoteGateway(c: RemoteWiringDeps, router: Router): RemoteG
     now, log: (m, x) => c.log.info(`[relay] ${m}`, x ?? {}),
   });
   connector.start();
+  const sweeper = setInterval(() => {
+    for (const hex of pruneStaleSessions(conns, now())) {
+      c.log.info("[remote] stale device session pruned (idle)", { clientId: hex });
+    }
+  }, SESSION_SWEEP_INTERVAL_MS);
+  sweeper.unref?.();
   c.log.info("remote gateway armed", { relayUrl, room });
   return {
-    stop: () => { connector.stop(); patcher.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
+    stop: () => { clearInterval(sweeper); connector.stop(); patcher.stop(); bridge.stop(); for (const conn of conns.values()) conn.dispose(); conns.clear(); },
     // Pairing is just "mint the QR from the armed room + bearer" — no allowlist
     // mutation (the bearer hash is already in the room's allow from register).
     armPairing: (opts) => generatePairing({ relayUrl, room, bearer: secrets.bearer, now: now(), ttlMs: opts.ttlMs }),

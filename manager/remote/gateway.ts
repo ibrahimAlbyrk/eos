@@ -47,6 +47,11 @@ export class GatewayConnection {
   private readonly dispatcher: ControlDispatcher;
   private session: RemoteSession | null = null;
   private readonly joinAck: boolean;
+  // The relay never tells the daemon a device left (its error frames carry no
+  // clientId), so liveness is inferred from inbound traffic: the phone sends a
+  // ka every 20s while its socket is open, and hello/control frames count too.
+  // wire.ts sweeps sessions whose lastActivityAt is older than the idle TTL.
+  private lastActivity: number;
 
   constructor(args: {
     deps: GatewayDeps; bridge: WsBridge;
@@ -59,6 +64,7 @@ export class GatewayConnection {
     this.close = args.close;
     this.clientId = args.clientId ?? randomBytes(16);
     this.joinAck = args.joinAck ?? true;
+    this.lastActivity = args.deps.now();
     this.dispatcher = new ControlDispatcher({
       routeDispatch: args.deps.routeDispatch, audit: args.deps.audit,
       uiToken: args.deps.uiToken, now: args.deps.now,
@@ -97,8 +103,11 @@ export class GatewayConnection {
     this.onEnvelope(env);
   }
 
+  lastActivityAt(): number { return this.lastActivity; }
+
   onEnvelope(env: Envelope): void {
     if (env.type !== FrameType.data) return; // gateway only consumes data-typed frames
+    this.lastActivity = this.deps.now();
     void this.onLiveFrame(env).catch((e) =>
       this.deps.log?.("remote dispatch error", { error: e instanceof Error ? e.message : String(e) }));
   }
