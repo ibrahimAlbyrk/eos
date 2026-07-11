@@ -509,4 +509,28 @@ describe("loadConfig — remote v2 config.json migrates without a parse error", 
     assert.equal(cfg.remote.enabled, false);
     assert.equal(cfg.remote.relay?.url, "wss://r.example/");
   });
+
+  // load → persist (writeDefaultConfig is the only whole-config writer): the
+  // migrated remote block keeps enabled + relay.url on disk — a persist after a
+  // legacy load must never drop relay fields.
+  it("writeDefaultConfig after a legacy v2 load persists enabled + relay.url", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const cfgPath = path.join(tmpHome, "config.json");
+    fs.writeFileSync(cfgPath, JSON.stringify({
+      remote: { mode: "relay", relay: { url: "wss://r.example/", room: "AAAAAAAAAAAAAAAAAAAAAA" }, lan: { host: "0.0.0.0" } },
+    }));
+    // Same cache-buster as freshLoad, but keep the module handle so
+    // writeDefaultConfig sees the just-loaded config.
+    const url = new URL(`../config.ts?t=${Date.now()}-${Math.random()}`, import.meta.url);
+    const mod = await import(url.href);
+    mod.loadConfig();
+    mod.writeDefaultConfig();
+    const onDisk = JSON.parse(fs.readFileSync(cfgPath, "utf8"));
+    assert.equal(onDisk.remote.enabled, true);
+    assert.equal(onDisk.remote.relay.url, "wss://r.example/");
+    // v2-only keys are gone by design (migrated), but nothing v3 was dropped.
+    assert.equal(onDisk.remote.mode, undefined);
+    assert.equal(onDisk.remote.lan, undefined);
+  });
 });

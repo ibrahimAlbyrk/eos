@@ -35,25 +35,23 @@ export function RemoteSettings() {
   const [qr, setQr] = useState(null); // the v3 pair payload object, or null
   const loaded = useRef(false);
 
-  // On mount: reflect the current enabled/armed state. The status route carries
-  // enabled/armed only (the relay URL isn't echoed there), so the URL field
-  // starts from the setting-less default and the operator confirms it.
+  // On mount: reflect the current enabled/armed state and prefill the URL field
+  // from the PERSISTED config (status echoes relayUrl) — armed or not, so a
+  // disarmed boot doesn't present an empty field that reads as "URL wiped".
   useEffect(() => {
     if (loaded.current) return;
     loaded.current = true;
     api.getRemoteStatus()
       .then(async (s) => {
         setArmed(!!s?.armed);
-        // Already armed (a migrated config auto-arms on daemon boot), so no toggle
-        // round-trip happens: fetch the QR now and prefill the relay URL from the
-        // pair payload, otherwise the panel shows "Armed" with no QR below it.
+        if (s?.relayUrl) setRelayUrl(s.relayUrl);
+        // Already armed (an enabled config auto-arms on daemon boot), so no toggle
+        // round-trip happens: fetch the QR now, otherwise the panel shows "Armed"
+        // with no QR below it.
         if (s?.armed) {
           try {
             const pairRes = await api.pairRemote();
-            if (pairRes.ok) {
-              setQr(pairRes.body);
-              if (pairRes.body?.relay) setRelayUrl(pairRes.body.relay);
-            }
+            if (pairRes.ok) setQr(pairRes.body);
           } catch { /* leave QR unfetched; toggling off/on will retry */ }
         }
       })
@@ -70,8 +68,9 @@ export function RemoteSettings() {
     }
     setBusy(true);
     try {
-      const relay = { url: relayUrl };
-      const saved = await api.setRemoteConfig({ enabled, relay });
+      // Disabling writes { enabled:false } ONLY — never the relay block — so the
+      // persisted URL can't be clobbered (and an empty field can't 400 the save).
+      const saved = await api.setRemoteConfig(enabled ? { enabled, relay: { url: relayUrl } } : { enabled });
       if (!saved.ok) { setError(saved.body?.error ?? `save failed (HTTP ${saved.status})`); return; }
 
       const armRes = await api.armRemote();

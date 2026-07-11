@@ -35,12 +35,13 @@ const armed = (): RemoteGatewayHandle => ({
 });
 
 describe("remote pairing-arm routes (v3)", () => {
-  it("GET /api/remote/status requires the ui-token and returns { enabled, armed }", async () => {
+  it("GET /api/remote/status requires the ui-token and returns { enabled, armed, relayUrl }", async () => {
     const d = setup(armed());
     assert.equal((await d({ method: "GET", path: "/api/remote/status", body: {} })).status, 403);
     const ok = await d({ method: "GET", path: "/api/remote/status", body: {}, uiToken: "TOK" });
     assert.equal(ok.status, 200);
-    assert.deepEqual(ok.body, { enabled: true, armed: true });
+    // relayUrl echoes the persisted config so Settings can prefill while disarmed.
+    assert.deepEqual(ok.body, { enabled: true, armed: true, relayUrl: "wss://r/" });
   });
 
   it("POST /api/remote/pair: 403 without token, 409 unarmed, v3 QR when armed", async () => {
@@ -107,6 +108,42 @@ describe("remote pairing-arm routes (v3)", () => {
       enabled: true,
       relay: { url: "wss://relay.example.com/" },
       inactivityLeaseMs: 42,
+    });
+  });
+
+  // The round-trip that bit in the field: an {enabled}-only toggle must never
+  // drop relay.url (and vice versa), and unknown sibling keys (a legacy `mode`)
+  // must survive the field-merge untouched.
+  it("PUT /api/remote/config: partial patches preserve unrelated remote fields on disk", async () => {
+    const home = mkdtempSync(join(tmpdir(), "eos-remote-"));
+    const cfgPath = join(home, "config.json");
+    writeFileSync(cfgPath, JSON.stringify({
+      remote: { mode: "relay", enabled: true, relay: { url: "wss://keep.example/" } },
+    }, null, 2));
+
+    const router = new Router();
+    registerRemoteRoutes(router, {
+      uiToken: "TOK",
+      getConfig: () => ({
+        remote: { enabled: true } as RemoteConfig, // routes read the path off daemon.home only
+        daemon: { port: 7400, home },
+      }),
+      getGateway: () => null,
+      arm: () => ({ enabled: false, armed: false }),
+      reloadConfig: () => {},
+    });
+    const d = makeRouteDispatch(router);
+
+    // Toggle off — {enabled}-only patch: relay.url and the legacy mode key survive.
+    await d({ method: "PUT", path: "/api/remote/config", body: { enabled: false }, uiToken: "TOK" });
+    assert.deepEqual(JSON.parse(readFileSync(cfgPath, "utf8")).remote, {
+      mode: "relay", enabled: false, relay: { url: "wss://keep.example/" },
+    });
+
+    // URL-only patch: the enabled flag survives.
+    await d({ method: "PUT", path: "/api/remote/config", body: { relay: { url: "wss://new.example/" } }, uiToken: "TOK" });
+    assert.deepEqual(JSON.parse(readFileSync(cfgPath, "utf8")).remote, {
+      mode: "relay", enabled: false, relay: { url: "wss://new.example/" },
     });
   });
 

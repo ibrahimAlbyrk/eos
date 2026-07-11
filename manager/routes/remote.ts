@@ -45,9 +45,13 @@ export function registerRemoteRoutes(router: Router, deps: RemoteRoutesDeps): vo
   const tokenOk = (req: { headers: Record<string, string | string[] | undefined> }): boolean =>
     constantTimeEqual(req.headers["x-eos-ui-token"], deps.uiToken);
 
+  // relayUrl echoes the PERSISTED config value so Settings can show it while
+  // disarmed — without it the saved URL is invisible after a reboot and looks
+  // wiped. Loopback + ui-token only; the pairing QR already carries this URL.
   router.get("/api/remote/status", ({ req, res }) => {
     if (!tokenOk(req)) { writeJson(res, 403, { error: "ui token required" }); return; }
-    writeJson(res, 200, { enabled: deps.getConfig().remote.enabled, armed: deps.getGateway() != null });
+    const remote = deps.getConfig().remote;
+    writeJson(res, 200, { enabled: remote.enabled, armed: deps.getGateway() != null, relayUrl: remote.relay?.url ?? null });
   });
 
   // Arm/disarm the remote edge for the config currently on disk — restart-free.
