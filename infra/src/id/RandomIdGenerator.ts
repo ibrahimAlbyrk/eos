@@ -13,5 +13,4 @@ export const randomIdGenerator: IdGenerator = {
   newRequestId: (): string => "r-" + rand(8),
   newLoopId: (): string => "l-" + rand(8),
   newSessionId: (): string => "s-" + rand(8),
-  newScheduledPromptId: (): string => "sp-" + rand(8),
 };

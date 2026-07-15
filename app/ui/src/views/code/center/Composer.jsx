@@ -3,9 +3,6 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { startRun } from "../../../state/terminalStore.js";
 import * as outbox from "../../../state/outboxStore.js";
-import { notify } from "../../../lib/notify.js";
-import { subscribe as subscribeScheduled, itemsFor as scheduledItemsFor, refreshScheduled } from "../../../state/scheduledStore.js";
-import { relativeUntil } from "../../../lib/scheduleTime.js";
 import { useCommands } from "../../../hooks/useCommands.js";
 import { useSlashItems } from "../../../hooks/useSlashItems.js";
 import { getRecall, subscribe as subscribeRecall, consumeRecall } from "../../../state/recallStore.js";
@@ -57,23 +54,6 @@ function QueuedPill({ text, onDismiss }) {
   );
 }
 
-// Amber cousin of QueuedPill: a message deferred to fireAt. Shows a preview, a
-// coarse countdown, and a cancel × (removes the still-pending scheduled row).
-function ScheduledPill({ text, eta, onCancel }) {
-  return (
-    <div className="scheduled-pill">
-      <span className="scheduled-pill-clock" aria-hidden>⏱</span>
-      <div className="scheduled-pill-text">{text}</div>
-      <span className="scheduled-pill-eta">{eta}</span>
-      <button className="scheduled-pill-x" onClick={onCancel} title="Zamanlanmış mesajı iptal et">
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M4 4l8 8M12 4l-8 8" />
-        </svg>
-      </button>
-    </div>
-  );
-}
-
 // Bounded backlog box: past the CSS max-height the pills scroll; the gradient
 // masks soften an edge only when more pills continue past it, and an enqueue
 // keeps the newest pill (bottom — next in dispatch order is the top) in view.
@@ -114,9 +94,6 @@ export function Composer({ live, worker, paneId, focused }) {
   // mode would send as chat instead of running a shell command).
   const [gitMode, setGitMode] = useState(false);
   const [termMode, setTermMode] = useState(false);
-  // Schedule mode: a chosen fireAt (epoch ms) defers the next send instead of
-  // dispatching it. Per-pane like git/term; cleared on send and on agent switch.
-  const [scheduleAt, setScheduleAt] = useState(null);
   const insertedPathsRef = useRef(new Map());
   // Collapsed long pastes: placeholder → full text. Held out-of-band (kept out
   // of the model string and the undo-snapshot bulk) and spliced back in at send,
@@ -154,17 +131,6 @@ export function Composer({ live, worker, paneId, focused }) {
     if (!selected?.id || live.eventSignal.workerId !== selected.id) return;
     outbox.syncQueue(selected.id);
   }, [live.eventSignal.tick]);
-
-  // Scheduled prompts mirror the store (useLive refreshes it on SSE deltas); we
-  // refetch on selection change so a freshly-focused agent shows its own list.
-  // Switching agents also drops any half-set schedule mode (it targets the old
-  // agent). live.now drives the pill countdowns.
-  const [, setSchedTick] = useState(0);
-  useEffect(() => subscribeScheduled(() => setSchedTick((t) => t + 1)), []);
-  useEffect(() => {
-    setScheduleAt(null);
-    if (selected?.id) refreshScheduled(selected.id);
-  }, [selected?.id]);
 
   // Escape exits git/terminal mode — but only the FOCUSED pane's composer owns
   // the selection provider's single Escape ref, so N mounted composers don't
@@ -555,22 +521,6 @@ export function Composer({ live, worker, paneId, focused }) {
     }
 
     history.push({ text: t, mode });
-
-    // Schedule mode: defer this message to a selected fireAt instead of sending
-    // it now. Gated to a normal message aimed at an existing worker (git/term
-    // spawn their own agents, and a deferred prompt needs a live target).
-    if (scheduleAt && selected && !gitMode && !termMode) {
-      const fireAt = scheduleAt;
-      setScheduleAt(null);
-      const { agentText } = await prepareMessage();
-      const r = await api.createScheduledPrompt({ workerId: selected.id, text: agentText, fireAt });
-      if (r?.ok) {
-        refreshScheduled(selected.id);
-      } else {
-        notify.error(r?.body?.error ?? "Mesaj zamanlanamadı.");
-      }
-      return;
-    }
 
     if (termMode) {
       setTextAndSync("", 0, "reset");
@@ -1004,16 +954,6 @@ export function Composer({ live, worker, paneId, focused }) {
   // semantics. Same action as the Esc key.
   const showStop = agentBusy && !text.trim() && !termMode && !gitMode;
   const queuedList = selected ? outbox.itemsFor(selected.id).filter((i) => i.state === "queued") : [];
-  // Pending scheduled prompts for this agent, soonest first — rendered as amber
-  // pills above the queued list.
-  const scheduledList = selected
-    ? scheduledItemsFor(selected.id).filter((s) => s.status === "pending").sort((a, b) => a.fireAt - b.fireAt)
-    : [];
-  const cancelScheduled = async (id) => {
-    const r = await api.cancelScheduledPrompt(id);
-    if (!r.ok) notify.error(r.status === 404 ? "Mesaj zaten gönderildi ya da iptal edildi." : (r.body?.error ?? "İptal başarısız."));
-    if (selected?.id) refreshScheduled(selected.id);
-  };
 
   // Priority slot: exactly one blocking banner holds the band, Permission first
   // (a mid-turn tool gate is more time-sensitive than an ask_user), then a
@@ -1040,18 +980,6 @@ export function Composer({ live, worker, paneId, focused }) {
     <div className="composer-wrap">
       <div className="composer-inner">
         <UpdateBanner update={live.update} onApply={live.applyUpdate} onDefer={live.deferUpdate} />
-        {scheduledList.length > 0 && (
-          <div className="scheduled-list">
-            {scheduledList.map((s) => (
-              <ScheduledPill
-                key={s.id}
-                text={s.text}
-                eta={relativeUntil(s.fireAt, live.now)}
-                onCancel={() => cancelScheduled(s.id)}
-              />
-            ))}
-          </div>
-        )}
         {queuedList.length > 0 && (
           <QueuedList
             items={queuedList}
@@ -1153,7 +1081,6 @@ export function Composer({ live, worker, paneId, focused }) {
           historyNav={history.nav && text === history.nav.entry.text ? history.nav : null}
           demoted={railYields}
           wtStatus={wtStatus}
-          schedule={{ at: scheduleAt, set: setScheduleAt }}
         />
       </div>
     </div>

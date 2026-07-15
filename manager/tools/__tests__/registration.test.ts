@@ -27,7 +27,7 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
       "spawn_worker", "list_active_workers", "get_worker", "kill_worker",
       "message_worker", "list_pending_permissions", "notify_user", "ask_user",
       "list_available_workers", "create_worker", "integrate_workers", "dynamic_loop",
-      "current_datetime", "workflow", "get_worker_messages", "schedule_prompt",
+      "current_datetime", "workflow", "get_worker_messages",
     ]);
   });
 

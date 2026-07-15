@@ -56,7 +56,6 @@ import { runMigrations, maybeVacuum } from "../infra/src/persistence/MigrationRu
 import { SqliteWorkerRepo } from "../infra/src/persistence/SqliteWorkerRepo.ts";
 import { SqliteEventRepo } from "../infra/src/persistence/SqliteEventRepo.ts";
 import { SqliteMessageQueueRepo } from "../infra/src/persistence/SqliteMessageQueueRepo.ts";
-import { SqliteScheduledPromptRepo } from "../infra/src/persistence/SqliteScheduledPromptRepo.ts";
 import { SqlitePendingRepo } from "../infra/src/persistence/SqlitePendingRepo.ts";
 import { SqliteWorktreeRemovalQueue } from "../infra/src/persistence/SqliteWorktreeRemovalQueue.ts";
 import { SqliteLoopStateRepo } from "../infra/src/persistence/SqliteLoopStateRepo.ts";
@@ -168,8 +167,6 @@ import { UserTemplateService } from "./services/UserTemplateService.ts";
 import { UserSettingsService } from "./services/UserSettingsService.ts";
 import { ModelCatalogService } from "./services/ModelCatalogService.ts";
 import { UpdateService } from "./services/UpdateService.ts";
-import { SchedulerService } from "./services/SchedulerService.ts";
-import { emitScheduledPromptEvent } from "./shared/scheduled-prompt-events.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
 import { SqliteRuntimeWorkerDefinitionStore } from "../infra/src/persistence/SqliteRuntimeWorkerDefinitionStore.ts";
 import { BackgroundActivityService } from "./services/BackgroundActivityService.ts";
@@ -221,7 +218,6 @@ export function buildContainer() {
   const worktreeRemovals = new SqliteWorktreeRemovalQueue(db);
   const loops = new SqliteLoopStateRepo(db);
   const contextMarks = new SqliteContextMarkRepo(db, systemClock);
-  const scheduledPrompts = new SqliteScheduledPromptRepo(db);
   // Goal-check strategies (command/judge/hybrid) are constructed later, after the
   // appendless judge backend + git port exist (see strategyFor below).
   // Dispatched ledger rows only feed the idempotency window + forensics —
@@ -1380,25 +1376,6 @@ export function buildContainer() {
     log,
   });
 
-  // Scheduled prompts — a 5s tick fires due pending rows into their target
-  // worker's chat via the shared dispatch path (self.c is late-bound; the tick
-  // only runs after boot). onFired stamps the fired event on the target's
-  // timeline. unref'd, so it never holds the process open.
-  const scheduler = new SchedulerService({
-    repo: scheduledPrompts,
-    clock: systemClock,
-    dispatch: (input) => dispatchMessage(dispatchDeps(self.c!), input),
-    onFired: (row) => emitScheduledPromptEvent(
-      { events, bus, clock: systemClock },
-      "scheduled_prompt:fired",
-      row.workerId,
-      row.id,
-      { fireAt: row.fireAt, ...(row.meta?.late ? { late: true } : {}) },
-    ),
-    log,
-  });
-  scheduler.start(5000);
-
   const container = {
     get config() { return config; },
     log,
@@ -1415,8 +1392,6 @@ export function buildContainer() {
     worktreeRemovals,
     loops,
     contextMarks,
-    scheduledPrompts,
-    scheduler,
     strategyFor,
     judgeBackend,
     microTasks,

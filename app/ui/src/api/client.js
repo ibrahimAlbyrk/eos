@@ -600,26 +600,6 @@ export const api = {
     return r.ok ? r.body : [];
   },
 
-  // Scheduled prompts — deferred messages fired at fireAt. List is fail-soft
-  // (returns [] on error); the endpoint returns { items: [...] }, with a
-  // bare-array fallback kept for robustness. Cancel resolves the DELETE
-  // envelope: `.ok` false with status 404 means the row already fired/cancelled.
-  async listScheduledPrompts(workerId) {
-    try {
-      const r = await getJson(`${ROUTES.scheduledPrompts}?workerId=${encodeURIComponent(workerId)}`);
-      if (!r.ok) return [];
-      return Array.isArray(r.body) ? r.body : (r.body?.items ?? []);
-    } catch {
-      return [];
-    }
-  },
-  async createScheduledPrompt({ workerId, text, fireAt }) {
-    return postJson(ROUTES.scheduledPrompts, { workerId, text, fireAt });
-  },
-  async cancelScheduledPrompt(id) {
-    return del(ROUTES.scheduledPrompt(id));
-  },
-
   // Prompt templates
   async listTemplates() {
     const r = await getJson(ROUTES.templates);

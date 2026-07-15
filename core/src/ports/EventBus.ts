@@ -50,13 +50,6 @@ export type EventBusTopic =
   | "workflow:step-output"
   | "fs:change"
   | "git:change"
-  // Scheduled-prompt lifecycle. Published from the manager (create/cancel routes
-  // + the SchedulerService onFired wiring) ALONGSIDE the persisted timeline
-  // event, so the wildcard SSE subscription relays it as its own reason and the
-  // web's scheduled list auto-refreshes. Never drives worker state.
-  | "scheduled_prompt:created"
-  | "scheduled_prompt:fired"
-  | "scheduled_prompt:cancelled"
   | "update:available";
 
 export interface EventBusMessage<T = unknown> {

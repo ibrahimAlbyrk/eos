@@ -2023,40 +2023,6 @@ export const CurrentDateTimeResponseSchema = z.object({
 });
 export type CurrentDateTimeResponse = z.infer<typeof CurrentDateTimeResponseSchema>;
 
-// ---- Scheduled prompts -----------------------------------------------------
-// A prompt queued to fire into a worker's chat at a wall-clock instant. The
-// SchedulerService ticks, finds due pending rows, and dispatches each as a
-// normal turn (origin "scheduled"). fireAt/createdAt/firedAt are epoch ms; meta
-// carries fire-time annotations (e.g. { late: true } when the tick ran well
-// after fireAt). Row shape is the single source for the route + MCP tool.
-
-export const ScheduledPromptStatusSchema = z.enum(["pending", "fired", "cancelled"]);
-export type ScheduledPromptStatus = z.infer<typeof ScheduledPromptStatusSchema>;
-
-export const CreateScheduledPromptRequestSchema = z.object({
-  workerId: z.string().min(1),
-  text: z.string().min(1),
-  fireAt: z.number().int().nonnegative(),
-});
-export type CreateScheduledPromptRequest = z.infer<typeof CreateScheduledPromptRequestSchema>;
-
-export const ScheduledPromptSchema = z.object({
-  id: z.string(),
-  workerId: z.string(),
-  text: z.string(),
-  fireAt: z.number(),
-  status: ScheduledPromptStatusSchema,
-  createdAt: z.number(),
-  firedAt: z.number().nullable(),
-  meta: z.record(z.unknown()).nullable(),
-});
-export type ScheduledPrompt = z.infer<typeof ScheduledPromptSchema>;
-
-export const ScheduledPromptListResponseSchema = z.object({
-  items: z.array(ScheduledPromptSchema),
-});
-export type ScheduledPromptListResponse = z.infer<typeof ScheduledPromptListResponseSchema>;
-
 export const ROUTES = {
   health: "/health",
   stream: "/stream",
@@ -2090,8 +2056,6 @@ export const ROUTES = {
   pendingDecision: (id: string): string => `/pending/${id}/decision`,
   metrics: "/metrics",
   datetime: "/datetime",
-  scheduledPrompts: "/scheduled-prompts",
-  scheduledPrompt: (id: string): string => `/scheduled-prompts/${id}`,
   uiConfig: "/api/ui-config",
   pickDirectory: "/pick-directory",
   pickFile: "/pick-file",
