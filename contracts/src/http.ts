@@ -2197,6 +2197,15 @@ export const ROUTES = {
   // app-facing WRITE the Settings toggle uses before arming (arm() reads config
   // from disk). Field-merges into the `remote` key, then reloads.
   remoteConfig: "/api/remote/config",
+  // Anthropic credentials for the claude-sdk lane (Settings > Anthropic). GET
+  // returns a REDACTED { apiKeySet, authTokenSet } — never the raw secrets; PUT
+  // field-merges { apiKey?, authToken? } into ~/.eos/config.json's `anthropic`
+  // key then reloads. Loopback + ui-token only (an agent can't self-write creds).
+  anthropicConfig: "/api/anthropic/config",
+  // Subscription usage snapshot (Settings > Usage). Open read like updateStatus —
+  // the daemon serves a cached-or-fresh UsageResponse (min 180s between upstream
+  // calls; the endpoint 429s aggressively) and never echoes the OAuth token.
+  usage: "/api/usage",
   // Add-provider write route: normalizes baseUrl to origin-only, requires a price
   // for a billed profile, writes the API key (by reference) to the Keychain, then
   // persists the profile to ~/.eos/config.json + reloads.

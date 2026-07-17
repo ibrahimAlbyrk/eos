@@ -509,6 +509,34 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.ok(events.some((e) => e.type === "turn" && e.phase === "aborted"));
   });
 
+  // Crash disposition ordering: on a query failure the exit callback fires BEFORE
+  // the `session ended (crashed)` event. The daemon's exit handler reads the row
+  // state to suspend a resumable session, and the ended event would flip it to
+  // ENDING first — a state SUSPENDED cannot be reached from. Regression guard for
+  // the suspend-instead-of-DONE flow.
+  it("a query crash fires onExit(1) BEFORE the session ended(crashed) event", async () => {
+    const q = {
+      [Symbol.asyncIterator]() { return { next: () => Promise.reject(new Error("boom")) }; },
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn: () => q as never,
+    });
+    const order: string[] = [];
+    let resolveEnded: () => void = () => {};
+    const ended = new Promise<void>((r) => { resolveEnded = r; });
+    await be.start(spec(), {
+      onEvent: (e) => { if (e.type === "session" && e.phase === "ended") { order.push(`ended:${e.outcome}`); resolveEnded(); } },
+      onExit: (c) => { order.push(`exit:${c}`); },
+    });
+    await ended;
+    assert.deepEqual(order, ["exit:1", "ended:crashed"]);
+  });
+
   // The SDK has no dedicated "interrupted" result subtype — a user-requested
   // interrupt ends the turn with subtype "error_during_execution", identical to
   // a genuine execution failure. The consume loop must translate that to

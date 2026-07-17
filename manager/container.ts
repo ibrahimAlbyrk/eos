@@ -33,7 +33,8 @@ import type { AgentEvent } from "../contracts/src/canonical.ts";
 import type { AgentBackend, AgentLaunchSpec } from "../core/src/ports/AgentBackend.ts";
 import { backendCollaborate, backendRole } from "../core/src/ports/AgentBackend.ts";
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
-import { createSubscriptionAuthResolver } from "../infra/src/auth/SubscriptionAuthResolver.ts";
+import { createSubscriptionAuthResolver, readSubscriptionTokenCandidates } from "../infra/src/auth/SubscriptionAuthResolver.ts";
+import { createClaudeUsageProvider } from "../infra/src/usage/ClaudeUsageProvider.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
 import { createInProcessEnvFactory, type SubagentRuntimeContext } from "./backends/in-process-env.ts";
 import { runTurn, type RuntimeTool } from "../core/src/use-cases/ToolRuntime.ts";
@@ -167,6 +168,7 @@ import { UserTemplateService } from "./services/UserTemplateService.ts";
 import { UserSettingsService } from "./services/UserSettingsService.ts";
 import { ModelCatalogService } from "./services/ModelCatalogService.ts";
 import { UpdateService } from "./services/UpdateService.ts";
+import { UsageService } from "./services/UsageService.ts";
 import { PendingQuestionService } from "./services/PendingQuestionService.ts";
 import { SqliteRuntimeWorkerDefinitionStore } from "../infra/src/persistence/SqliteRuntimeWorkerDefinitionStore.ts";
 import { BackgroundActivityService } from "./services/BackgroundActivityService.ts";
@@ -854,6 +856,31 @@ export function buildContainer() {
   // async in-process env factory resolves provider creds BY REFERENCE at start().
   // Shared with the claude-sdk lane below.
   const authResolver = createSubscriptionAuthResolver();
+
+  // Subscription usage (Settings > Usage). Token resolution mirrors the billing
+  // chain: an operator-set config.anthropic.authToken override wins, else the
+  // ambient subscription token (Keychain → CLAUDE_CODE_OAUTH_TOKEN) via the same
+  // resolver. Read live off `config` so a Settings write is picked up without a
+  // restart. The UsageService owns the cache + 180s upstream floor.
+  const usage = new UsageService({
+    providers: [
+      createClaudeUsageProvider({
+        // Ordered candidates: operator-set config override first, then the ambient
+        // subscription tokens (Keychain → env). The adapter walks them and skips a
+        // source whose token lacks the usage scope (403) for the next — so a
+        // scope-broken config token no longer blocks the working Keychain login.
+        getTokens: () => {
+          const override = config.anthropic?.authToken?.trim();
+          return [
+            ...(override ? [{ source: "config", token: override }] : []),
+            ...readSubscriptionTokenCandidates(),
+          ];
+        },
+      }),
+    ],
+    clock: systemClock,
+  });
+
   const makeToolContext = (spec: AgentLaunchSpec) => ({
     selfId: spec.workerId,
     cwd: spec.cwd,
@@ -1112,6 +1139,9 @@ export function buildContainer() {
     policy: sdkPolicy,
     toolHost: { orchestratorDefs, workerDefs, peerDefs, workflowWorkerDefs, renderDescriptions: renderInprocToolDescriptions },
     daemonUrl: sdkDaemonUrl,
+    // Read live (config is reassigned by reloadConfig) so a Settings > Anthropic
+    // save is picked up on the next spawn without restarting the daemon.
+    getAnthropicConfig: () => config.anthropic,
     makeToolContext,
     resolveSdkMcpServers,
     // Same DPI text the CLI lane writes to --append-system-prompt-file, plus the
@@ -1131,6 +1161,7 @@ export function buildContainer() {
     policy: sdkPolicy,
     toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], workflowWorkerDefs: [], renderDescriptions: () => ({}) },
     daemonUrl: sdkDaemonUrl,
+    getAnthropicConfig: () => config.anthropic,
     makeToolContext,
     // assembleAppendPrompt OMITTED → boots with only the stock claude_code preset.
     log,
@@ -1457,6 +1488,7 @@ export function buildContainer() {
     modelCatalog,
     modelPricing,
     updates,
+    usage,
     cleanupMcpConfig,
     // Kill/purge cascade leak cleanup: drop a session's ~/.eos conversation
     // transcript. Closure keeps core Node-free (DIP — wired at composition root).

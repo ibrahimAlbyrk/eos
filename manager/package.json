@@ -7,7 +7,7 @@
     "eos": "./cli.ts"
   },
   "scripts": {
-    "test": "tsx --test __tests__/*.test.ts shared/__tests__/*.test.ts services/__tests__/*.test.ts commands/__tests__/*.test.ts cli/commands/__tests__/*.test.ts builder/__tests__/*.test.ts routes/__tests__/*.test.ts tools/__tests__/*.test.ts backends/__tests__/*.test.ts backends/sdk/__tests__/*.test.ts remote/__tests__/*.test.ts ../core/src/__tests__/*.test.ts ../spawner/__tests__/*.test.ts"
+    "test": "tsx --test __tests__/*.test.ts sse/__tests__/*.test.ts shared/__tests__/*.test.ts services/__tests__/*.test.ts commands/__tests__/*.test.ts cli/commands/__tests__/*.test.ts builder/__tests__/*.test.ts routes/__tests__/*.test.ts tools/__tests__/*.test.ts backends/__tests__/*.test.ts backends/sdk/__tests__/*.test.ts remote/__tests__/*.test.ts ../core/src/__tests__/*.test.ts ../spawner/__tests__/*.test.ts"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.195",

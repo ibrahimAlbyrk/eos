@@ -656,6 +656,18 @@ export const api = {
     return postJson(ROUTES.remotePair, {}, uiTokenHeader());
   },
 
+  // Anthropic credentials for the claude-sdk lane (Settings > Anthropic) — both
+  // routes are loopback + ui-token gated. getAnthropicConfig reads the REDACTED
+  // set-state (never the secrets); setAnthropicConfig persists { apiKey?, authToken? }
+  // to config.json (a blank value clears that field) and returns the new set-state.
+  async getAnthropicConfig() {
+    const r = await getJson(ROUTES.anthropicConfig, { headers: uiTokenHeader() });
+    return r.ok ? r.body : { apiKeySet: false, authTokenSet: false };
+  },
+  async setAnthropicConfig(patch) {
+    return putJson(ROUTES.anthropicConfig, patch, uiTokenHeader());
+  },
+
   // Auto-update — status is an open read; apply is uiToken-gated (an agent must
   // not self-update the host). Returns the postJson envelope; the banner reads
   // `.body.started` via useLive.
@@ -668,6 +680,14 @@ export const api = {
   },
   async deferUpdate() {
     return postJson(ROUTES.updateDefer);
+  },
+
+  // Subscription usage (Settings > Usage) — open read like updateStatus. The
+  // daemon serves a cached-or-fresh UsageResponse (min 180s between upstream
+  // calls; the refresh button just re-hits this). Null on transport failure.
+  async getUsage() {
+    const r = await getJson(ROUTES.usage);
+    return r.ok ? r.body : null;
   },
 
   async getWorkerDiff(id, { signal } = {}) {

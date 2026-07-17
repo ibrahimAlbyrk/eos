@@ -145,6 +145,12 @@ export const ROUTES = {
   remoteConfig: "/api/remote/config",
   remoteArm: "/api/remote/arm",
   remotePair: "/api/remote/pair",
+  // Anthropic creds for the claude-sdk lane (Settings > Anthropic) — loopback +
+  // ui-token only. GET returns redacted { apiKeySet, authTokenSet }; PUT persists.
+  anthropicConfig: "/api/anthropic/config",
+  // Subscription usage snapshot (Settings > Usage) — open read; daemon serves a
+  // cached-or-fresh UsageResponse (min 180s between upstream calls).
+  usage: "/api/usage",
   updateStatus: "/api/updates/status",
   updateCheck: "/api/updates/check",
   updateApply: "/api/updates/apply",

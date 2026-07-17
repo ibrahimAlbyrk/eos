@@ -11,6 +11,8 @@
 // of `groups` to render fully custom content.
 
 import { ModelSettings, MODEL_SETTING_DEFAULTS } from "./ModelSettings.jsx";
+import { AnthropicSettings, ANTHROPIC_SETTING_DEFAULTS } from "./AnthropicSettings.jsx";
+import { UsageSettings, USAGE_SETTING_DEFAULTS } from "./UsageSettings.jsx";
 import { RemoteSettings, REMOTE_SETTING_DEFAULTS } from "./RemoteSettings.jsx";
 
 const GeneralIcon = () => (
@@ -52,6 +54,19 @@ const ModelIcon = () => (
     <rect x="5" y="5" width="14" height="14" rx="2" />
     <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
     <path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3" />
+  </svg>
+);
+
+const AnthropicIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2v20M2 12h20M5 5l14 14M19 5L5 19" />
+  </svg>
+);
+
+const UsageIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 3v18h18" />
+    <path d="M7 15l4-4 3 3 5-6" />
   </svg>
 );
 
@@ -185,6 +200,23 @@ export const SETTINGS_SECTIONS = [
     Component: ModelSettings,
   },
   {
+    id: "anthropic",
+    label: "Anthropic",
+    Icon: AnthropicIcon,
+    // Custom Component: two masked credential inputs (OAuth token + API key) for
+    // the claude-sdk lane. Owns no settings.json keys (config.anthropic lives in
+    // config.json); persisted via the /api/anthropic/config route.
+    Component: AnthropicSettings,
+  },
+  {
+    id: "usage",
+    label: "Usage",
+    Icon: UsageIcon,
+    // Custom Component: read-only subscription usage (plan limits + reset times),
+    // fetched live from /api/usage. Owns no settings.json keys.
+    Component: UsageSettings,
+  },
+  {
     id: "remote",
     label: "Remote",
     Icon: RemoteIcon,
@@ -284,6 +316,9 @@ export const SETTING_DEFAULTS = {
   // The model section is a custom Component (no groups items), so its keys'
   // defaults are merged in explicitly.
   ...MODEL_SETTING_DEFAULTS,
-  // The remote section is likewise a custom Component (owns no settings.json keys).
+  // The anthropic + remote sections are likewise custom Components (they own no
+  // settings.json keys — their state lives in config.json).
+  ...ANTHROPIC_SETTING_DEFAULTS,
+  ...USAGE_SETTING_DEFAULTS,
   ...REMOTE_SETTING_DEFAULTS,
 };

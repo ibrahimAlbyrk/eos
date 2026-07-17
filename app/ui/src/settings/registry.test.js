@@ -38,4 +38,18 @@ describe("settings registry", () => {
     expect(SETTING_DEFAULTS["model.provider"]).toBe("claude-sdk");
     expect(SETTING_DEFAULTS["model.default"]).toBe("opus");
   });
+
+  it("anthropic section renders a custom Component and owns no settings.json keys", () => {
+    const anthropic = section("anthropic");
+    expect(anthropic.groups).toBeUndefined();
+    expect(typeof anthropic.Component).toBe("function"); // AnthropicSettings — creds live in config.json
+    expect(keysOf(anthropic)).toEqual([]);
+  });
+
+  it("usage section renders a custom Component and owns no settings.json keys", () => {
+    const usage = section("usage");
+    expect(usage.groups).toBeUndefined();
+    expect(typeof usage.Component).toBe("function"); // UsageSettings — fetched live, never persisted
+    expect(keysOf(usage)).toEqual([]);
+  });
 });

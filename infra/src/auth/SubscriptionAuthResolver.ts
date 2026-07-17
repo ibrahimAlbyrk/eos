@@ -47,6 +47,27 @@ function readSubscriptionToken(readStore: TokenReader = readStoreSubscriptionTok
   return readStore() ?? readEnvSubscriptionToken();
 }
 
+// The ambient subscription tokens as an ORDERED, source-labelled candidate list
+// (Keychain first, env fallback) — present sources only. This is the usage path's
+// fallback surface: unlike readSubscriptionToken (which collapses to one winner for
+// the billing/spawn chain), the usage adapter needs to try each in turn so a
+// scope-broken token can be skipped for the next. The billing chain is untouched.
+export interface SubscriptionTokenCandidate {
+  source: "keychain" | "env";
+  token: string;
+}
+
+export function readSubscriptionTokenCandidates(
+  readStore: TokenReader = readStoreSubscriptionToken,
+): SubscriptionTokenCandidate[] {
+  const out: SubscriptionTokenCandidate[] = [];
+  const store = readStore();
+  if (store) out.push({ source: "keychain", token: store });
+  const env = readEnvSubscriptionToken();
+  if (env) out.push({ source: "env", token: env });
+  return out;
+}
+
 function readKeychainSecret(service: string): string | null {
   try {
     const v = execFileSync("security", ["find-generic-password", "-s", service, "-w"], { encoding: "utf8" }).trim();

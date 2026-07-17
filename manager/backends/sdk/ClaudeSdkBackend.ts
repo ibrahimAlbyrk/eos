@@ -83,6 +83,11 @@ export interface ClaudeSdkBackendDeps {
   policy: PolicyDecider;
   toolHost: SdkToolHostDeps;
   daemonUrl: string;
+  /** Operator-configured Anthropic credentials (~/.eos/config.json `anthropic`).
+   *  Read LIVE per spawn so a Settings save takes effect without a daemon restart.
+   *  authToken (OAuth) wins over apiKey; injected into the child env by
+   *  buildBillingGuardEnv. Omitted (tests/spikes) ⇒ no config-provided creds. */
+  getAnthropicConfig?: () => { apiKey?: string; authToken?: string };
   /** Build the per-spec ToolContext (identity bound from the spec, never
    *  process.env) — supplies the loopback `api` + cwd + git probe. */
   makeToolContext(spec: AgentLaunchSpec): ToolContext;
@@ -343,7 +348,8 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
     async start(spec: AgentLaunchSpec, cb?: AgentStartCallbacks): Promise<AgentSession> {
       const opts = spec.backendOptions ?? {};
       const auth = await deps.authResolver.resolve(opts.auth);
-      const env = buildBillingGuardEnv({ auth, workerId: spec.workerId, daemonUrl: deps.daemonUrl });
+      const anthropic = deps.getAnthropicConfig?.() ?? {};
+      const env = buildBillingGuardEnv({ auth, anthropic, workerId: spec.workerId, daemonUrl: deps.daemonUrl });
       const ctx = deps.makeToolContext(spec);
       // MCP servers are built PER LAUNCH, never shared across queries: the Eos
       // builtins are live McpServer instances (createSdkMcpServer), and the MCP
@@ -487,8 +493,13 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
               deps.log?.warn("claude-sdk query failed", { workerId: spec.workerId, error: e instanceof Error ? e.message : String(e) });
               rec.alive = false;
               live.delete(spec.workerId);
-              cb?.onEvent?.({ type: "session", phase: "ended", outcome: "crashed" });
+              // onExit BEFORE the ended event: the exit handler reads the row
+              // state to suspend a resumable session, and the ended event would
+              // flip it to ENDING first — a state SUSPENDED is unreachable from.
+              // The crash still logs as an agent_event; its late ENDING attempt
+              // is rejected against SUSPENDED, which is exactly the intent.
               cb?.onExit?.(1);
+              cb?.onEvent?.({ type: "session", phase: "ended", outcome: "crashed" });
             }
           }
         })();

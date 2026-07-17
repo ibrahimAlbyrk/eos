@@ -35,7 +35,7 @@ import { appendSynthesized } from "./shared/synthesized-events.ts";
 import { GoalLoopService } from "./services/GoalLoopService.ts";
 import { ReportGapService } from "./services/ReportGapService.ts";
 import { ContextThresholdService } from "./services/ContextThresholdService.ts";
-import { suspendWorker } from "./commands/handlers/suspend-worker.ts";
+import { suspendWorker, suspendResumableWorkersForShutdown } from "./commands/handlers/suspend-worker.ts";
 import { makePermissionAskPush } from "./services/permission-ask-push.ts";
 import { reArmLoops, stopLoopForExitedWorker } from "./services/loop-rearm.ts";
 import { reArmWorkflows } from "./services/workflow-rearm.ts";
@@ -60,7 +60,9 @@ import { registerMemoryRoutes } from "./routes/memory.ts";
 import { registerPromptRoutes } from "./routes/prompts.ts";
 import { registerWorkerDefinitionRoutes } from "./routes/worker-definitions.ts";
 import { registerSettingsRoutes } from "./routes/settings.ts";
+import { registerAnthropicRoutes } from "./routes/anthropic.ts";
 import { registerUpdateRoutes } from "./routes/updates.ts";
+import { registerUsageRoutes } from "./routes/usage.ts";
 import { registerMetricsRoutes } from "./routes/metrics.ts";
 import { registerExportRoutes } from "./routes/export.ts";
 import { registerDatetimeRoutes } from "./routes/datetime.ts";
@@ -100,7 +102,9 @@ registerMemoryRoutes(router, c);
 registerPromptRoutes(router, c);
 registerWorkerDefinitionRoutes(router, c);
 registerSettingsRoutes(router, c);
+registerAnthropicRoutes(router, c);
 registerUpdateRoutes(router, c);
+registerUsageRoutes(router, c);
 // Unified command catalog (worker.spawn, worker.kill, …) — registered before
 // the hand-written worker routes so a migrated path resolves here first.
 registerCommandCatalog(router, c);
@@ -553,6 +557,11 @@ function shutdown(sig: string): void {
   const ids = c.supervisor.listIds();
   c.log.info("shutting down", { signal: sig, workers: ids.length });
   try { remoteController?.disarm(); } catch {}
+  // Suspend resumable in-process sessions BEFORE killing children and closing
+  // the DB: their exit callbacks write rows, so this is the last safe moment —
+  // and it lands SUSPENDED deterministically instead of letting async exits
+  // fire into a closed DB. Crash(-9) still has ReconcileWorkersOnBoot as the net.
+  try { suspendResumableWorkersForShutdown(c); } catch {}
   for (const id of ids) c.supervisor.escalateKill(id, 0);
   try { unlinkSync(c.config.daemon.pidFile); } catch {}
   try { c.db.close(); } catch {}

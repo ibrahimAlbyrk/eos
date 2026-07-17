@@ -15,12 +15,33 @@ export interface BillingGuardInput {
   readonly auth: ResolvedAuth;
   readonly workerId: string;
   readonly daemonUrl: string;
+  /** Operator-configured Anthropic credentials (Settings > Anthropic). When set,
+   *  they win over the ambient resolved token — see anthropicCredentialEnv. */
+  readonly anthropic?: { apiKey?: string; authToken?: string };
+}
+
+// The ONE credential env var operator-set Anthropic creds contribute to the SDK
+// child. Priority: authToken (the Max/Pro OAuth setup-token → CLAUDE_CODE_OAUTH_TOKEN)
+// WINS over apiKey (the metered key → ANTHROPIC_API_KEY); with both set the API key
+// is never emitted, so it can't shadow OAuth onto the metered pool. Blank /
+// whitespace values count as unset. Only when authToken is absent does apiKey apply.
+export function anthropicCredentialEnv(creds: { apiKey?: string; authToken?: string }): Record<string, string> {
+  const authToken = creds.authToken?.trim();
+  if (authToken) return { CLAUDE_CODE_OAUTH_TOKEN: authToken };
+  const apiKey = creds.apiKey?.trim();
+  if (apiKey) return { ANTHROPIC_API_KEY: apiKey };
+  return {};
 }
 
 export function buildBillingGuardEnv(input: BillingGuardInput): Record<string, string> {
   return {
     ...buildSubscriptionChildEnv(process.env),
     ...(input.auth.scheme === "oauth" && input.auth.token ? { CLAUDE_CODE_OAUTH_TOKEN: input.auth.token } : {}),
+    // Operator-configured creds win over the resolved token: a config authToken
+    // overrides CLAUDE_CODE_OAUTH_TOKEN; a config apiKey re-introduces
+    // ANTHROPIC_API_KEY (stripped above) and, being a billing winner, moves the
+    // child onto the metered API. Spread AFTER the strip so the apiKey survives.
+    ...anthropicCredentialEnv(input.anthropic ?? {}),
     ENABLE_TOOL_SEARCH: "false",
     EOS_SPAWNED: "1",
     EOS_WORKER_ID: input.workerId,
