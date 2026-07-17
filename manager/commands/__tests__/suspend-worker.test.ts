@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { suspendWorker } from "../handlers/suspend-worker.ts";
+import { suspendWorker, suspendResumableWorkersForShutdown } from "../handlers/suspend-worker.ts";
 import { SuspendGuardService } from "../../services/SuspendGuardService.ts";
 import type { Container } from "../../container.ts";
 
@@ -94,5 +94,66 @@ describe("suspendWorker", () => {
     suspendWorker(h.c, "ghost", "context_full");
     assert.equal(h.calls.escalateKill, 0);
     assert.equal(h.calls.clearRuntime, 0);
+  });
+});
+
+// Daemon-shutdown sweep: only active workers on an in-process resumable backend
+// with a persisted session_id are suspended; everything else is left to the old
+// die-with-the-daemon + boot-reconcile path.
+describe("suspendResumableWorkersForShutdown", () => {
+  function shutdownHarness() {
+    const rows = [
+      { id: "sdk-live", state: "WORKING", session_id: "s1", backend_kind: "claude-sdk" },
+      { id: "sdk-nosession", state: "WORKING", session_id: null, backend_kind: "claude-sdk" },
+      { id: "sdk-done", state: "DONE", session_id: "s2", backend_kind: "claude-sdk" },
+      { id: "cli-live", state: "WORKING", session_id: "s3", backend_kind: "claude-cli" },
+      { id: "api-nonresumable", state: "IDLE", session_id: "s4", backend_kind: "fake-api" },
+    ];
+    const states = new Map(rows.map((r) => [r.id, r.state]));
+    // State observed at the moment stop() runs — must already be SUSPENDED, so a
+    // stop-driven `session ended` (metered lane) can't strand the row in ENDING.
+    const stopped: Array<{ id: string; stateAtStop: string | undefined }> = [];
+    const mkBackend = (processModel: string, resumable: boolean) => ({
+      descriptor: { processModel, capabilities: { resumable } },
+      attach: (id: string) => ({ stop: () => { stopped.push({ id, stateAtStop: states.get(id) }); }, isAlive: () => true }),
+    });
+    const backends = new Map([
+      ["claude-sdk", mkBackend("in-process", true)],
+      ["claude-cli", mkBackend("out-of-process", true)],
+      ["fake-api", mkBackend("in-process", false)],
+    ]);
+    const c = {
+      workers: {
+        listAll: () => rows.map((r) => ({ ...r, state: states.get(r.id) })),
+        findById: (id: string) => {
+          const r = rows.find((x) => x.id === id);
+          return r ? { ...r, state: states.get(id), pid: 1, port: 2 } : undefined;
+        },
+        updateState: (id: string, next: string) => states.set(id, next),
+        setTurnStartedAt: () => {},
+        clearRuntime: () => {},
+      },
+      events: { append: () => 1 },
+      bus: { publish: () => {} },
+      clock: { now: () => 1000 },
+      log: noopLog,
+      supervisor: { has: () => false, escalateKill: () => {} },
+      backends: { has: (k: string) => backends.has(k), get: (k: string) => backends.get(k) },
+      suspendGuard: new SuspendGuardService({ now: () => 1000 }),
+    } as unknown as Container;
+    return { c, states, stopped };
+  }
+
+  it("suspends only active in-process resumable workers with a session id — SUSPENDED set before stop", () => {
+    const h = shutdownHarness();
+    const n = suspendResumableWorkersForShutdown(h.c);
+    assert.equal(n, 1);
+    assert.equal(h.states.get("sdk-live"), "SUSPENDED");
+    assert.deepEqual(h.stopped, [{ id: "sdk-live", stateAtStop: "SUSPENDED" }]);
+    // Untouched: no session to resume, already at rest, PTY lane, non-resumable.
+    assert.equal(h.states.get("sdk-nosession"), "WORKING");
+    assert.equal(h.states.get("sdk-done"), "DONE");
+    assert.equal(h.states.get("cli-live"), "WORKING");
+    assert.equal(h.states.get("api-nonresumable"), "IDLE");
   });
 });

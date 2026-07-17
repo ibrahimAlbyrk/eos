@@ -163,3 +163,110 @@ describe("spawnWorker — in-process worktree bootstrap", () => {
     assert.equal(h.inserted[0].workspaceReady, true); // no worktreeFrom → ready
   });
 });
+
+// Exit disposition: an in-process resumable session with a persisted session_id
+// that dies without an intentional teardown (daemon-shutdown stop, sdk crash,
+// self-exit) must land SUSPENDED — resumable — not terminal DONE. Everything
+// else (no session, non-resumable caps, out-of-process, ENDING/KILLING) keeps
+// the old markDone path.
+describe("spawnWorker — exit disposition (suspend vs done)", () => {
+  function exitHarness(opts: {
+    resumable?: boolean;
+    processModel?: "in-process" | "out-of-process";
+    sessionId?: string | null;
+    stateAtExit?: string;
+    suspending?: boolean;
+  } = {}) {
+    const base = createFakeAgentBackend();
+    const backend = {
+      ...base,
+      descriptor: {
+        ...base.descriptor,
+        processModel: opts.processModel ?? "in-process",
+        capabilities: { ...base.descriptor.capabilities, ...(opts.resumable ? { resumable: true } : {}) },
+      },
+    };
+    const row = {
+      id: "w-fake",
+      state: opts.stateAtExit ?? "WORKING",
+      session_id: opts.sessionId === undefined ? "s-1" : opts.sessionId,
+    };
+    const calls = { markDone: 0, clearRuntime: 0, states: [] as string[] };
+    const appended: string[] = [];
+    const published: string[] = [];
+    const log = { info() {}, warn() {}, error() {}, child() { return log; } };
+    const deps = {
+      workers: {
+        insert: () => {},
+        updatePermissionMode: () => {},
+        setTurnStartedAt: () => {},
+        findById: (id: string) => (id === "w-fake" ? row : undefined),
+        updateState: (_id: string, next: string) => { calls.states.push(next); row.state = next; },
+        clearRuntime: () => { calls.clearRuntime++; },
+        markDone: () => { calls.markDone++; },
+      },
+      events: { append: (_id: unknown, _ts: unknown, type: string) => { appended.push(type); return 1; } },
+      bus: { publish: (topic: string) => { published.push(topic); } },
+      clock: { now: () => 1000 },
+      ids: { newWorkerId: () => "w-fake" },
+      log,
+      backend,
+      ...(opts.suspending ? { isSuspending: () => true } : {}),
+    } as unknown as SpawnWorkerDeps;
+    return { deps, backend: backend as unknown as ReturnType<typeof createFakeAgentBackend>, row, calls, appended, published };
+  }
+
+  it("in-process + resumable + session_id → SUSPENDED, runtime cleared, no markDone", async () => {
+    const h = exitHarness({ resumable: true });
+    await spawnWorker(h.deps, { prompt: "go", cwd: "/tmp" });
+    h.backend.exit("w-fake", 1);
+    assert.deepEqual(h.calls.states, ["SUSPENDED"]);
+    assert.equal(h.calls.clearRuntime, 1);
+    assert.equal(h.calls.markDone, 0);
+    // The process death is still recorded for downstream cleanup.
+    assert.ok(h.appended.includes("exit"));
+    assert.ok(h.published.includes("worker:exit"));
+  });
+
+  it("no persisted session_id → DONE unchanged", async () => {
+    const h = exitHarness({ resumable: true, sessionId: null });
+    await spawnWorker(h.deps, { prompt: "go", cwd: "/tmp" });
+    h.backend.exit("w-fake", 0);
+    assert.equal(h.calls.markDone, 1);
+    assert.deepEqual(h.calls.states, []);
+    assert.equal(h.calls.clearRuntime, 0);
+  });
+
+  it("non-resumable capabilities → DONE unchanged", async () => {
+    const h = exitHarness({ resumable: false });
+    await spawnWorker(h.deps, { prompt: "go", cwd: "/tmp" });
+    h.backend.exit("w-fake", 0);
+    assert.equal(h.calls.markDone, 1);
+    assert.deepEqual(h.calls.states, []);
+  });
+
+  it("out-of-process backend → DONE unchanged (PTY lane keeps its path)", async () => {
+    const h = exitHarness({ resumable: true, processModel: "out-of-process" });
+    await spawnWorker(h.deps, { prompt: "go", cwd: "/tmp" });
+    h.backend.exit("w-fake", 0);
+    assert.equal(h.calls.markDone, 1);
+    assert.deepEqual(h.calls.states, []);
+  });
+
+  it("ENDING at exit (intentional teardown) → DONE, never SUSPENDED", async () => {
+    const h = exitHarness({ resumable: true, stateAtExit: "ENDING" });
+    await spawnWorker(h.deps, { prompt: "go", cwd: "/tmp" });
+    h.backend.exit("w-fake", 0);
+    assert.equal(h.calls.markDone, 1);
+    assert.deepEqual(h.calls.states, []);
+  });
+
+  it("intentional suspend in flight → neither markDone nor a second transition; exit still recorded", async () => {
+    const h = exitHarness({ resumable: true, suspending: true });
+    await spawnWorker(h.deps, { prompt: "go", cwd: "/tmp" });
+    h.backend.exit("w-fake", 143);
+    assert.equal(h.calls.markDone, 0);
+    assert.deepEqual(h.calls.states, []);
+    assert.ok(h.appended.includes("exit"));
+  });
+});

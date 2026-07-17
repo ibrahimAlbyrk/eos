@@ -15,7 +15,7 @@ import type { AgentBackend } from "../ports/AgentBackend.ts";
 import type { AgentEvent } from "../../../contracts/src/canonical.ts";
 import { ConflictError, NotFoundError } from "../errors/index.ts";
 import { transitionState } from "./TransitionState.ts";
-import type { SpawnWorkerSpec } from "./SpawnWorker.ts";
+import { recordSessionExit, type SpawnWorkerSpec } from "./SpawnWorker.ts";
 
 export interface ResumeWorkerDeps {
   workers: WorkerRepo;
@@ -46,9 +46,9 @@ export async function resumeWorker(
 ): Promise<{ id: string; port: number }> {
   const w = deps.workers.findById(input.workerId);
   if (!w) throw new NotFoundError("worker", input.workerId);
-  // Resumability is gated by the recorded session_id below: only claude-cli
-  // (--resume) and claude-sdk (options.resume) persist one; the in-process API
-  // lanes do not, so they never reach here with a session to resume.
+  // Resumability is gated by the recorded session_id below — every lane persists
+  // one (claude-cli --resume, claude-sdk options.resume, and the metered
+  // in-process lanes via the ConversationStore since M3).
   if (w.state !== "SUSPENDED" && w.state !== "DONE") {
     throw new ConflictError(`worker is not resumable (state ${w.state})`);
   }
@@ -66,14 +66,9 @@ export async function resumeWorker(
 
   transitionState(deps, { workerId: w.id, next: "SPAWNING", reason: "resume" });
 
-  // Same daemon bookkeeping as SpawnWorker's onExit.
-  const onExit = (code: number | null): void => {
-    const now = deps.clock.now();
-    // Skip markDone while an intentional suspend holds SUSPENDED (see SpawnWorker).
-    if (!deps.isSuspending?.(w.id)) deps.workers.markDone(w.id, now, code);
-    deps.events.append(w.id, now, "exit", { code });
-    deps.bus.publish("worker:exit", { workerId: w.id, code });
-  };
+  // Same daemon bookkeeping as SpawnWorker's onExit (suspend-vs-done disposition
+  // in recordSessionExit).
+  const onExit = (code: number | null): void => recordSessionExit(deps, w.id, code);
 
   let session;
   try {

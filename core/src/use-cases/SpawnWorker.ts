@@ -23,6 +23,7 @@ import type { ProviderIdentity } from "../domain/model-tier.ts";
 import { resolveEffort } from "../domain/effort.ts";
 import { applySenderTag } from "../domain/sender-tag.ts";
 import { assertOwnedBy } from "../services/WorkerOwnership.ts";
+import { transitionState } from "./TransitionState.ts";
 import { ConflictError, NotFoundError } from "../errors/index.ts";
 
 export interface SpawnWorkerSpec {
@@ -171,6 +172,47 @@ function tagBootPrompt(deps: SpawnWorkerDeps, spec: SpawnWorkerSpec): string {
   return spec.prompt;
 }
 
+// Daemon bookkeeping for a session's process exit — the shared onExit body for
+// SpawnWorker and ResumeWorker. Default: markDone. Two exceptions:
+//   • an intentional suspend is in flight (isSuspending) — SUSPENDED is already
+//     set by suspendWorker; don't clobber it back to DONE.
+//   • an in-process resumable session with a persisted session_id ended without
+//     an intentional teardown (sdk crash, unexpected self-exit, a stop outside
+//     the kill flow) — the conversation survives on disk, so land SUSPENDED +
+//     clearRuntime instead of a terminal-looking DONE. ENDING/KILLING mean the
+//     exit was deliberate → DONE as before; so is any exit on the out-of-process
+//     (PTY) lane, on non-resumable capabilities, or with no recorded session.
+// The exit event + worker:exit publish fire on every path so the process death
+// is recorded and downstream cleanup (loops, peers) runs.
+export interface SessionExitDeps {
+  workers: WorkerRepo;
+  events: EventRepo;
+  bus: EventBus;
+  clock: Clock;
+  backend?: AgentBackend;
+  isSuspending?(workerId: string): boolean;
+}
+
+export function recordSessionExit(deps: SessionExitDeps, workerId: string, code: number | null): void {
+  const now = deps.clock.now();
+  if (!deps.isSuspending?.(workerId)) {
+    let suspend = false;
+    const d = deps.backend?.descriptor;
+    if (d?.processModel === "in-process" && d.capabilities?.resumable === true) {
+      const row = deps.workers.findById(workerId);
+      suspend = !!row?.session_id && row.state !== "ENDING" && row.state !== "KILLING";
+    }
+    if (suspend) {
+      transitionState(deps, { workerId, next: "SUSPENDED", reason: "session_exit" });
+      deps.workers.clearRuntime(workerId);
+    } else {
+      deps.workers.markDone(workerId, now, code);
+    }
+  }
+  deps.events.append(workerId, now, "exit", { code });
+  deps.bus.publish("worker:exit", { workerId, code });
+}
+
 export async function spawnWorker(
   deps: SpawnWorkerDeps,
   spec: SpawnWorkerSpec,
@@ -278,18 +320,11 @@ export async function spawnWorker(
     inProcForkBaseSha = created.forkBaseSha ?? null;
   }
 
-  // Daemon bookkeeping on child exit — shared by both spawn paths. The backend
+  // Daemon bookkeeping on child exit — shared by both spawn paths (see
+  // recordSessionExit above for the suspend-vs-done disposition). The backend
   // path releases the port itself (it owns allocation); the legacy path releases
   // it here.
-  const onExit = (code: number | null): void => {
-    const now = deps.clock.now();
-    // An intentional suspend already set SUSPENDED — don't let this stop-driven
-    // exit clobber it back to DONE. The exit event + bus signal still fire so the
-    // process death is recorded and downstream cleanup (loops, peers) runs.
-    if (!deps.isSuspending?.(id)) deps.workers.markDone(id, now, code);
-    deps.events.append(id, now, "exit", { code });
-    deps.bus.publish("worker:exit", { workerId: id, code });
-  };
+  const onExit = (code: number | null): void => recordSessionExit(deps, id, code);
 
   let port: number;
   let pid: number | null;

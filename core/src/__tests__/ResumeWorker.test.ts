@@ -16,17 +16,21 @@ interface RowSeed {
   backend_kind?: string | null;
 }
 
-function buildDeps(seed: RowSeed, opts: { live?: boolean; paths?: string[]; startFails?: boolean; inProcess?: boolean } = {}): {
+function buildDeps(seed: RowSeed, opts: { live?: boolean; paths?: string[]; startFails?: boolean; inProcess?: boolean; resumable?: boolean } = {}): {
   deps: ResumeWorkerDeps;
   row: RowSeed & { ended_at?: number };
   launches: AgentLaunchSpec[];
   reactivations: Array<{ id: string; pid: number | null; port: number }>;
   appended: Array<{ type: string; payload: unknown }>;
+  calls: { markDone: number; clearRuntime: number };
+  fireExit(code: number | null): void;
 } {
   const row = { session_id: "s-1", backend_kind: "claude-cli", ...seed };
   const launches: AgentLaunchSpec[] = [];
   const reactivations: Array<{ id: string; pid: number | null; port: number }> = [];
   const appended: Array<{ type: string; payload: unknown }> = [];
+  const calls = { markDone: 0, clearRuntime: 0 };
+  let onExit: ((code: number | null) => void) | undefined;
   const exists = new Set(opts.paths ?? ["/proj"]);
 
   const deps = {
@@ -34,7 +38,8 @@ function buildDeps(seed: RowSeed, opts: { live?: boolean; paths?: string[]; star
       findById: () => row as unknown as WorkerRow,
       updateState: (_id: string, next: WorkerState) => { row.state = next; },
       setTurnStartedAt: () => {},
-      markDone: () => {},
+      markDone: () => { calls.markDone++; },
+      clearRuntime: () => { calls.clearRuntime++; },
       reactivate: (id: string, rt: { pid: number | null; port: number }) => {
         reactivations.push({ id, ...rt });
       },
@@ -45,10 +50,13 @@ function buildDeps(seed: RowSeed, opts: { live?: boolean; paths?: string[]; star
     log: { info: () => {}, warn: () => {}, error: () => {} },
     backend: {
       kind: "claude-cli",
-      ...(opts.inProcess ? { descriptor: { processModel: "in-process" } } : {}),
-      start: async (spec: AgentLaunchSpec) => {
+      ...(opts.inProcess
+        ? { descriptor: { processModel: "in-process", ...(opts.resumable ? { capabilities: { resumable: true } } : {}) } }
+        : {}),
+      start: async (spec: AgentLaunchSpec, cb?: { onExit?: (code: number | null) => void }) => {
         if (opts.startFails) throw new Error("spawn blew up");
         launches.push(spec);
+        onExit = cb?.onExit;
         return opts.inProcess
           ? { handle: { kind: "inproc", ref: seed.id } }
           : { handle: { kind: "http", port: 7600, pid: 4242 } };
@@ -59,7 +67,7 @@ function buildDeps(seed: RowSeed, opts: { live?: boolean; paths?: string[]; star
     pathExists: (p: string) => exists.has(p),
   } as unknown as ResumeWorkerDeps;
 
-  return { deps, row, launches, reactivations, appended };
+  return { deps, row, launches, reactivations, appended, calls, fireExit: (code) => onExit?.(code) };
 }
 
 const SPEC: SpawnWorkerSpec = { prompt: "", cwd: "/proj", model: "haiku", effort: "low" };
@@ -141,5 +149,20 @@ describe("resumeWorker — happy path", () => {
     await assert.rejects(resumeWorker(deps, { workerId: "w1", spec: SPEC }), /spawn blew up/);
     assert.equal(row.state, "SUSPENDED");
     assert.deepEqual(reactivations, []);
+  });
+
+  // A resumed in-process resumable session that dies again (daemon-shutdown stop,
+  // sdk crash) must land back in SUSPENDED — same disposition as SpawnWorker's
+  // onExit — so the worker stays revivable instead of flipping terminal DONE.
+  it("suspends (not DONE) a resumable in-process session that dies after resume", async () => {
+    const { deps, row, calls, fireExit } = buildDeps(
+      { id: "w1", state: "SUSPENDED", backend_kind: "claude-sdk" },
+      { inProcess: true, resumable: true },
+    );
+    await resumeWorker(deps, { workerId: "w1", spec: SPEC }); // settles to IDLE
+    fireExit(1);
+    assert.equal(row.state, "SUSPENDED");
+    assert.equal(calls.markDone, 0);
+    assert.equal(calls.clearRuntime, 1);
   });
 });
