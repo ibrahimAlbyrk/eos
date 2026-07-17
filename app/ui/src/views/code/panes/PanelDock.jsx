@@ -47,6 +47,14 @@ export function PanelDock({ live, paneId }) {
     if (maxType && !openTypes.includes(maxType)) setDockFullscreen(paneId, false);
   }, [maxType, openTypes, paneId]);
 
+  // Suppress the tile's reflow ease for the ONE commit where fullscreen flips
+  // (either direction) so maximize/restore SNAPS instead of tweening. Detected in
+  // render (ref compare) so the no-transition class lands together with the rect
+  // change; the effect re-arms it for the next real reflow. Mirrors is-resizing.
+  const prevMaxRef = useRef(maximized);
+  const fsSwitching = prevMaxRef.current !== maximized;
+  useEffect(() => { prevMaxRef.current = maximized; }, [maximized]);
+
   const slots = openTypes.map((type) => ({ type }));
   const rects = computePanelRects(slots, ratios);
   const rectByType = new Map(rects.map((r) => [r.type, r.rect]));
@@ -69,7 +77,7 @@ export function PanelDock({ live, paneId }) {
   };
 
   return (
-    <div className={"panel-dock-grid" + (resizing ? " is-resizing" : "")} ref={rootRef}>
+    <div className={"panel-dock-grid" + (resizing ? " is-resizing" : "") + (fsSwitching ? " is-fs-switching" : "")} ref={rootRef}>
       {listPanels().filter((p) => rectByType.has(p.type)).map((p) => (
         <PanelFrame
           key={p.type}
