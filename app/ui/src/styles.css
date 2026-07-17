@@ -290,7 +290,7 @@ html.native .sb-section__title {
   color: var(--fg-dim);
   letter-spacing: 0.03em;
 }
-html.native .sb-section > .sb-iconbtn { margin-left: auto; }
+html.native .sb-section > .sb-iconbtn:first-of-type { margin-left: auto; }
 
 /* ============================================================================
    APP SHELL  ·  3-column grid: sidebar | center | (floating right island)
@@ -406,28 +406,29 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   z-index: 50;
 }
 
-/* Workspace tab bar — segmented control at the top of the sidebar's first card.
-   Track sits LIGHTER than the panel; the selected state is a single outlined
-   glass pill that slides between tabs (transform set inline by TabBar). */
+/* Workspace tab bar — one segmented pill control at the top of the sidebar.
+   Track sits LIGHTER than the panel; the active tab is a single raised pill
+   (lighter fill + subtle rim) that slides between tabs, inset inside the track
+   padding (geometry set inline by TabBar). Inactive tabs are borderless/muted. */
 .tabbar {
   position: relative;
   display: flex;
-  gap: 0;
-  margin: 10px 10px 2px;
-  padding: 0;
-  border-radius: 8px;
+  gap: 2px;
+  margin: 12px 10px 6px;
+  padding: 3px;
+  border-radius: 10px;
   background: var(--surface-3);
   flex-shrink: 0;
 }
 .tabbar__indicator {
   position: absolute;
-  top: 0;
-  bottom: 0;
+  top: 3px;
+  bottom: 3px;
   left: 0;
-  border-radius: 8px;
-  border: 0.5px solid rgba(var(--tint), 0.24);
-  background: rgba(var(--tint), 0.04);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  border-radius: 7px;
+  border: 0.5px solid rgba(var(--tint), 0.12);
+  background: rgba(var(--tint), 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
   transition: left 300ms cubic-bezier(0.4, 0, 0.2, 1), width 300ms cubic-bezier(0.4, 0, 0.2, 1);
   pointer-events: none;
   z-index: 0;
@@ -440,11 +441,11 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 6px;
+  padding: 7px 6px;
   border: none;
   background: transparent;
-  border-radius: 8px;
-  color: var(--fg-mid);
+  border-radius: 7px;
+  color: var(--fg-dim);
   font-family: inherit;
   font-size: var(--text-sm);
   font-weight: 500;
@@ -452,8 +453,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
   transition: color 160ms ease, background 160ms ease;
 }
 .tabbar__tab:not(.is-active):hover {
-  color: var(--fg);
-  background: rgba(var(--tint), 0.06);
+  color: var(--fg-mid);
+  background: rgba(var(--tint), 0.05);
 }
 .tabbar__tab.is-active { color: var(--fg); }
 .tabbar__tab svg { flex-shrink: 0; }
@@ -595,19 +596,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
     inset 0 0 0 1px rgba(var(--tint), 0.09);
 }
 
-/* Archive toggle — Code sidebar only, directly above the Settings footer
-   (same pill recipe). It carries the margin-top:auto that pins the footer
-   block to the bottom; the following .sb-settings must drop its own, or the
-   two auto margins would split the free space and separate the rows. */
-.sb-archive {
-  margin-top: auto;
-  display: flex;
-  align-items: center;
-  padding: 6px 10px 0;
-}
-.sb-archive + .sb-settings { margin-top: 0; }
-/* Active while in archived mode — the .modes .m.on recipe */
-.sb-archive .sb-settings__btn.on {
+/* Active state for archive icon button in the agents header */
+.sb-section .sb-iconbtn.on {
   background: var(--surface-3);
   color: var(--fg);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
@@ -906,6 +896,10 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 /* During a divider drag the slot transition is off so resize is 1:1 with the
    pointer (the eased geometry would otherwise lag the ratio writes). */
 .pane-grid.is-resizing .pane-slot { transition: none; }
+/* The docked right panel opens/closes/fullscreens with no geometry ease — its slot
+   snaps to its rect instantly. Sibling panes keep the .pane-slot reflow ease above;
+   this override is scoped to the panel slot only (higher specificity). */
+.pane-panel-slot.pane-slot { transition: none; }
 
 /* The docked panel slot: a .pane-slot sibling anchored beside the focused pane
    (PaneGrid via a computed rect, SinglePane via left/width). It is the positioned
@@ -950,32 +944,24 @@ html.native .pane-panel-slot.pane-slot.at-top { --ph-h: 32px; } /* native · spl
 }
 /* Single-pane docked panel — an in-flow flex sibling of the transcript. flexBasis
    (inline) is its share of the row width, 0 when closed; positioned so the viewer
-   islands (absolute inset:3px) frame inside it. Eased so open/close reflows the
-   transcript smoothly. */
+   islands (absolute inset:3px) frame inside it. Open/close snaps instantly (no ease). */
 .pane-dock {
   position: relative;
   flex-grow: 0;
   flex-shrink: 0;
-  transition: flex-basis 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
-/* During a panel-handle drag the ease is off so the width tracks the pointer. */
-.pane-dock.is-resizing { transition: none; }
 /* Terminal fullscreen (single-pane): the dock KEEPS its normal in-flow width so
    .sp-main never reflows. Its .panel-dock-grid OVERLAYS the content area by growing
-   left+width past the dock box (--fs-left/--fs-width from JS) — a transition on
-   those animates the grow/shrink to match the split-pane .pane-slot geometry ease,
-   so it slides "over the top" instead of snapping. The flex-item z-index:3 keeps the
-   overlay painting above the transcript (z-index:1) it now covers. */
+   left+width past the dock box (--fs-left/--fs-width from JS), snapping instantly.
+   The flex-item z-index:3 keeps the overlay painting above the transcript
+   (z-index:1) it now covers. */
 .pane-dock.is-fullscreen { z-index: 3; }
-/* Single-pane dock grid: pin an explicit left+width (so both endpoints are lengths
-   the fullscreen rule can transition to/from) and ease them like .pane-slot. Scoped
-   to .pane-dock, so the split-pane dock grid (inset-based) is untouched. */
+/* Single-pane dock grid: pin an explicit left+width for the fullscreen rule to
+   override (instantly, no ease). Scoped to .pane-dock, so the split-pane dock grid
+   (inset-based) is untouched. */
 .pane-dock .panel-dock-grid {
   right: auto;
   width: 100%;
-  transition:
-    left 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
-    width 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 .pane-dock.is-fullscreen .panel-dock-grid {
   left: var(--fs-left, 0);
@@ -1032,6 +1018,9 @@ html.native .pane-panel-slot.pane-slot.at-top { --ph-h: 32px; } /* native · spl
     height 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
 }
 .panel-dock-grid.is-resizing .panel-tile-slot { transition: none; }
+/* A maximized panel fills the dock; its siblings stay mounted (keep-alive: no
+   re-parent, live PTY scrollback survives) but are pulled out of paint. */
+.panel-tile-slot.is-hidden { display: none; }
 /* Intra-dock split dividers — the same pill idiom as the dock-edge handle
    (.panel-resize-handle): a slim hit strip with a centered pill that lights on
    hover/drag. --v = vertical divider (column split, ew-resize); --h = horizontal
@@ -1938,6 +1927,10 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
      a horizontal scrollbar on .messages-wrap. Inherited, so inline <code> wraps
      too; <pre> stays white-space:pre and keeps its own overflow-x:auto. */
   overflow-wrap: anywhere;
+  /* Query container so tables can react to the pane width (resizable split
+     pane), not the viewport — see the @container mdprose table rules. */
+  container-type: inline-size;
+  container-name: mdprose;
 }
 .md-prose > *:last-child { margin-bottom: 0; }
 .md-prose p { margin: 0 0 10px; }
@@ -2046,12 +2039,28 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   font-size: var(--text-sm);
   color: var(--err);
 }
+/* Block box (not display:table) so the table is its own horizontal scroll area:
+   when columns can't fit, it scrolls instead of pushing a scrollbar onto the
+   whole prose. Rows get wrapped in an anonymous table box, so column alignment
+   and border-spacing survive. Universal — not breakpoint-gated. */
 .md-prose table {
+  display: block;
   width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: separate;
   border-spacing: 2px;
   margin: 8px 0 12px;
   font-size: var(--text-base);
+}
+/* Cells inherit .md-prose's overflow-wrap:anywhere, which would break words
+   letter-by-letter as columns squeeze. Reset to normal so a word stays whole
+   (multi-word cells still wrap at spaces); when whole words no longer fit, the
+   table scrolls instead. min-width floors ultra-thin columns. */
+.md-prose th, .md-prose td {
+  overflow-wrap: normal;
+  word-break: normal;
+  min-width: 6ch;
 }
 .md-prose th {
   padding: 6px 14px;
@@ -2072,6 +2081,20 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 /* panel viewers sit on --surface-2, so step cell bg up one level to stay visible */
 .fv-preview.md-prose td { background: var(--surface-3); }
 .fv-preview.md-prose th { background: color-mix(in srgb, var(--fg) 8%, var(--surface-3)); }
+/* Only typography steps down as the pane narrows — the no-letter-wrap + scroll
+   behavior lives in the base table/cell rules above and applies at every width. */
+@container mdprose (max-width: 520px) {
+  .md-prose th, .md-prose td {
+    padding: 4px 10px;
+    font-size: var(--text-sm);
+  }
+}
+@container mdprose (max-width: 340px) {
+  .md-prose th, .md-prose td {
+    padding: 3px 8px;
+    font-size: var(--text-xs);
+  }
+}
 .md-prose blockquote {
   margin: 8px 0 12px;
   padding: 6px 14px;
@@ -2089,22 +2112,6 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .md-prose .ic { font-size: var(--text-sm); }
 .msg-user a, .msg-user .msg-link, .msg-task-body .msg-link { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
 .msg-user a:hover, .msg-task-body .msg-link:hover { opacity: 0.8; }
-
-/* blur-in reveal for freshly arrived agent text (lib/blurInReveal.js) */
-.blur-word,
-.blur-in {
-  opacity: 0;
-  animation: msg-blur-in 0.22s ease forwards;
-}
-.blur-word { display: inline-block; }
-@keyframes msg-blur-in {
-  from { opacity: 0; filter: blur(7px); transform: translateY(3px); }
-  to { opacity: 1; filter: blur(0); transform: translateY(0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .blur-word,
-  .blur-in { animation-duration: 0s; }
-}
 
 /* ── disclosure row — shared expand affordance (DisclosureRow.jsx) ── */
 /* hit-area hugs the content instead of the full column; hover brightens the
@@ -2295,11 +2302,6 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   background: var(--surface);
   font-family: var(--font-mono);
   font-size: var(--text-sm);
-}
-/* Only a freshly-arrived card animates; remount/agent-switch must not replay it
-   (Messages gates `fresh` off the same blur-in baseline as assistant text). */
-.terminal-card.fresh {
-  animation: msg-blur-in 0.22s ease forwards;
 }
 .tc-head {
   display: flex;
@@ -2885,6 +2887,13 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 /* Extra left margin only when a spark icon precedes the text (ProcessingLine).
    ThinkingLine has no spark — no extra indent needed. */
 .thinking-line .spark ~ .mono { margin-left: 4px; }
+/* Tail tag on a retained partial-thinking block whose turn was interrupted */
+.thinking-line .thinking-interrupted {
+  margin-left: 8px;
+  font-size: var(--text-xs);
+  color: var(--warn);
+  opacity: 0.7;
+}
 
 /* interrupted indicator — yellow dot outside the left edge of the last block */
 .msg-interrupted-wrap {
@@ -5046,11 +5055,11 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .sb-head {
   display: flex; align-items: center;
   gap: 8px;
-  padding: 14px 12px 12px;
+  padding: 12px 12px 8px;
 }
 .sb-head__title {
-  font-size: var(--text-base); font-weight: 600;
-  color: var(--fg); letter-spacing: -0.005em;
+  font-size: var(--text-sm); font-weight: 600;
+  color: var(--fg-dim); letter-spacing: 0;
   display: inline-flex; align-items: baseline; gap: 7px;
 }
 .sb-head__count {
@@ -5099,8 +5108,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .agents-row {
   display: flex; align-items: center;
   gap: 8px;
-  padding: 5px 6px;
-  border-radius: 4px;
+  padding: 8px 8px;
+  border-radius: 7px;
   cursor: pointer;
   font-size: var(--text-sm);
   position: relative;
@@ -7327,7 +7336,7 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 
 /* Markdown preview surface — reuses chat prose (.md-prose); owns only the
    reading padding + image fit so the panel chrome stays out of the typography. */
-.fv-preview { padding: 20px 24px; }
+.fv-preview { padding: 20px 24px; max-width: 1040px; margin-inline: auto; }
 .fv-preview img { max-width: 100%; border-radius: 6px; }
 
 /* Markdown rendered view — sub-agent results (MarkdownView / AgentViewer) */
@@ -8855,19 +8864,9 @@ html:not([data-theme="light"]) .fv-editor--md {
 
 /* ===================== FILES EXPLORER ===================== */
 
-/* The Files tab reuses the STANDARD collapsible sidebar (sidebar width is the
-   global 280px, same for every tab): this island mirrors .side-island--agents,
-   and the editor fills the center column. */
-.side-island--files {
-  flex: 1; min-height: 0;
-  display: flex; flex-direction: column;
-  gap: 6px;
-  overflow: visible;
-}
-.side-island--files .tabbar { flex: 0 0 auto; }
-/* Native app: clear the macOS traffic-light title bar (mirrors --agents). */
-html.native .side-island--files { padding-top: 30px; }
-html.native.fullscreen .side-island--files { padding-top: 16px; }
+/* Docked Files panel: toolbar / search / tree stack directly in the shell's
+   flex column; .fx-tree's flex:1 takes the slack and scrolls. */
+.panel-shell--files { gap: 6px; }
 
 /* Toolbar */
 .fx-toolbar { display: flex; align-items: center; gap: 4px; padding: 0 8px; position: relative; }
@@ -9011,17 +9010,6 @@ html.native.fullscreen .side-island--files { padding-top: 16px; }
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
-/* Editor (center column) */
-.fx-editor { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
-.fx-editor-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--fg-faint); font-size: var(--text-sm); }
-.fx-ed-head { border-bottom: 1px solid var(--border); }
-.fx-ed-dirty { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-left: 8px; vertical-align: middle; }
-/* Native app: when the sidebar is collapsed the editor spans the full width, so
-   shift the breadcrumb clear of the traffic lights (mirrors the Code .head). */
-html.native .fx-ed-head { transition: padding-left 280ms ease; }
-html.native .app.side-collapsed .fx-ed-head { padding-left: 126px; }
-html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
-
 /* ── Workflows tab: view host (Editor / Library / Runs sub-tabs) ──────────── */
 .wf-host { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }
 .wf-views { flex: 1; min-height: 0; display: flex; }
@@ -9070,7 +9058,11 @@ html.native.fullscreen .app.side-collapsed .fx-ed-head { padding-left: 46px; }
   display: flex; flex-direction: column; gap: 8px;
   padding: 12px 14px; border: 1px solid var(--border-strong); border-radius: 10px;
   background: var(--surface); box-shadow: 0 1px 2px rgba(0,0,0,0.18), 0 4px 14px rgba(0,0,0,0.10);
-  animation: msg-blur-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+  animation: wf-card-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+@keyframes wf-card-in {
+  from { opacity: 0; filter: blur(7px); transform: translateY(3px); }
+  to { opacity: 1; filter: blur(0); transform: translateY(0); }
 }
 .wf-lib-card--clickable { cursor: pointer; transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease; }
 .wf-lib-card--clickable:hover { border-color: var(--accent); box-shadow: 0 2px 6px rgba(0,0,0,0.22), 0 8px 20px rgba(0,0,0,0.14); transform: translateY(-1px); }

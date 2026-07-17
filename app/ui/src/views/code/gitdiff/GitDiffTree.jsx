@@ -71,7 +71,6 @@ function TreeNode({ node, depth, closedDirs, onToggleDir, selectedPath, onSelect
           <path d="M2 5a1 1 0 0 1 1-1h3l2 2h5a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V5z" />
         </svg>
         <span className="gd-tree-label gd-tree-dir">{node.label}</span>
-        <Counts ins={node.ins} del={node.del} hasBinary={node.hasBinary} />
       </button>
       {open && node.children.map((child) => (
         <TreeNode

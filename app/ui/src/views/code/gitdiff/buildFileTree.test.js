@@ -30,29 +30,6 @@ describe("buildFileTree", () => {
     expect(tree[0].children.map((n) => n.label)).toEqual(["hooks", "lib", "z.ts"]);
   });
 
-  it("aggregates insertions/deletions bottom-up", () => {
-    const tree = buildFileTree([
-      F("src/a.ts", { insertions: 3, deletions: 1 }),
-      F("src/deep/b.ts", { insertions: 5, deletions: 2 }),
-    ]);
-    expect(tree[0].ins).toBe(8);
-    expect(tree[0].del).toBe(3);
-    const deep = tree[0].children.find((n) => n.type === "dir");
-    expect([deep.ins, deep.del]).toEqual([5, 2]);
-  });
-
-  it("skips null counts of binary files and flags hasBinary up the chain", () => {
-    const tree = buildFileTree([
-      F("assets/img/logo.png", { insertions: null, deletions: null }),
-      F("assets/notes.txt", { insertions: 2, deletions: 0 }),
-    ]);
-    expect(tree[0].label).toBe("assets");
-    expect([tree[0].ins, tree[0].del, tree[0].hasBinary]).toEqual([2, 0, true]);
-    const img = tree[0].children.find((n) => n.type === "dir");
-    expect(img.hasBinary).toBe(true);
-    expect([img.ins, img.del]).toEqual([0, 0]);
-  });
-
   it("sorts dirs first, then files, both alphabetical", () => {
     const tree = buildFileTree([F("b.ts"), F("a.ts"), F("zdir/x.ts"), F("adir/y.ts")]);
     expect(tree.map((n) => [n.type, n.label])).toEqual([

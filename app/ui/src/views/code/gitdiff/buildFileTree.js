@@ -5,7 +5,7 @@
 // each level sorts dirs-first alphabetically.
 
 function newDir(label, path) {
-  return { type: "dir", label, path, ins: 0, del: 0, hasBinary: false, children: [], _dirs: new Map() };
+  return { type: "dir", label, path, children: [], _dirs: new Map() };
 }
 
 export function buildFileTree(files) {
@@ -33,7 +33,7 @@ export function buildFileTree(files) {
   return finalize(root).children;
 }
 
-// Compress chains, aggregate counts, sort — one bottom-up pass per dir.
+// Compress chains and sort — one bottom-up pass per dir.
 function finalize(dir) {
   const dirs = [...dir._dirs.values()].map(finalize);
   const files = dir.children;
@@ -48,13 +48,6 @@ function finalize(dir) {
   dirs.sort((a, b) => a.label.localeCompare(b.label));
   files.sort((a, b) => a.label.localeCompare(b.label));
   dir.children = [...dirs, ...files];
-
-  for (const c of dir.children) {
-    if (c.type === "file" && c.ins === null) { dir.hasBinary = true; continue; }
-    dir.ins += c.ins ?? 0;
-    dir.del += c.del ?? 0;
-    if (c.hasBinary) dir.hasBinary = true;
-  }
   delete dir._dirs;
   return dir;
 }

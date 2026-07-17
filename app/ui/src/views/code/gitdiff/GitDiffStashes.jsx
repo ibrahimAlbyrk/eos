@@ -22,15 +22,18 @@ export function GitDiffStashes({ cwd, scope, onScope, focusOnMount }) {
   const [busy, setBusy] = useState(false);
   const rootRef = useRef(null);
 
-  // Opened via the composer stash chip: scroll this section into view once its
-  // rows have rendered, then clear the one-shot ref so a later refresh doesn't
-  // yank the scroll back.
+  // Opened via the composer stash chip: select the most-recent stash (stash@{0})
+  // so this section reads as active — its row highlights and the panel shows its
+  // diff — then scroll it into view. One-shot: clear the ref so a later refresh
+  // doesn't re-select or yank the scroll back.
   useEffect(() => {
     if (focusOnMount?.current && stashes && stashes.length > 0) {
       focusOnMount.current = false;
+      const top = stashes[0];
+      onScope({ kind: "commit", sha: top.sha, subject: top.subject });
       rootRef.current?.scrollIntoView({ block: "nearest" });
     }
-  }, [stashes, focusOnMount]);
+  }, [stashes, focusOnMount, onScope]);
 
   const refetch = useCallback(async () => {
     const r = await api.getGitStashes(cwd);

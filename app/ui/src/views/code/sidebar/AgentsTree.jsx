@@ -38,6 +38,15 @@ export function AgentsTree({ roots, loaded = true, onRename, variant = "full" })
   );
 }
 
+// True when any descendant of `node` has the given id. Used to surface a
+// collapsed parent as selected when the real selection is hidden inside it.
+function subtreeHasId(node, id) {
+  for (const c of node.children) {
+    if (c.id === id || subtreeHasId(c, id)) return true;
+  }
+  return false;
+}
+
 function TreeNode({ node, onRename, variant = "full" }) {
   const ui = useUi();
   // A live goal-check on this worker flips the static "loop" badge to "checking".
@@ -48,8 +57,13 @@ function TreeNode({ node, onRename, variant = "full" }) {
   const cls = ["tree-node"];
   if (collapsed) cls.push("collapsed");
   const isSelected = ui.selectedId === node.id;
+  // When this group is collapsed and the actual selection lives inside it, wear
+  // the selected style so the user can see where their selection went. Purely
+  // visual — selectedId still points at the hidden worker.
+  const holdsCollapsedSelection =
+    collapsed && !isSelected && ui.selectedId != null && subtreeHasId(node, ui.selectedId);
   const rowCls = ["agents-row"];
-  if (isSelected) rowCls.push("on");
+  if (isSelected || holdsCollapsedSelection) rowCls.push("on");
   // Shown in another (non-focused) split pane — a quieter marker than the
   // focused selection's "on".
   else if (ui.paneCount > 1 && ui.paneAgents.includes(node.id)) rowCls.push("in-pane");
