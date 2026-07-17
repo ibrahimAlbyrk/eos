@@ -1,6 +1,6 @@
 // Live measured width (px) of each pane's dock content area, keyed by leaf id.
 // PanelDock publishes it from a ResizeObserver; the open-guard in ui.jsx reads it
-// to decide whether a 3rd panel's two columns can fit at their min widths. A tiny
+// to decide whether a newly opened column can fit at its min width. A tiny
 // module singleton (ptyBus idiom) because the writer (a component) and the reader
 // (the ui hook) live in different subtrees. Unknown width → the guard fails open.
 

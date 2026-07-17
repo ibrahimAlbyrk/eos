@@ -1,16 +1,25 @@
-// Persist the per-pane dock layout (slot structure + {v, col} ratios) across
-// reloads, keyed by leaf id like cm:paneTree. Terminal slots are session-only —
-// the PTY always opens clean and re-spawning one on every reload would surprise —
-// so they are stripped on save and never restored.
+// Persist the per-pane dock layout (slot structure + positional v{k}/c{k} ratios)
+// across reloads, keyed by leaf id like cm:paneTree. Terminal slots are session-
+// only — the PTY always opens clean and re-spawning one on every reload would
+// surprise — so they are stripped on save and never restored.
 
 const KEY = "cm:panelDocks";
-const DEFAULT_RATIOS = { v: 0.5, col: 0.5 };
+const RATIO_KEY = /^[vc]\d+$/;
 
+// Keep only the positional ratio keys (v{k}/c{k}); missing keys fall back to the
+// geometry's per-key defaults, so an empty object is fine. Legacy single-column
+// docks stored { v, col } — migrate them to { v0, c0 } so old layouts survive.
 function normRatios(r) {
-  return {
-    v: typeof r?.v === "number" ? r.v : DEFAULT_RATIOS.v,
-    col: typeof r?.col === "number" ? r.col : DEFAULT_RATIOS.col,
-  };
+  const out = {};
+  if (r && typeof r === "object") {
+    for (const [k, v] of Object.entries(r)) {
+      if (typeof v !== "number") continue;
+      if (k === "v") out.v0 = v;
+      else if (k === "col") out.c0 = v;
+      else if (RATIO_KEY.test(k)) out[k] = v;
+    }
+  }
+  return out;
 }
 
 export function loadPanelDocks() {

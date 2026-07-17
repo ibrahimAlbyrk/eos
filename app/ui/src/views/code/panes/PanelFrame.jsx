@@ -5,9 +5,12 @@
 // panel type never touches it (open/closed).
 const pctStyle = (r) => ({ left: `${r.left}%`, top: `${r.top}%`, width: `${r.width}%`, height: `${r.height}%` });
 
-export function PanelFrame({ rect, children }) {
+// `hidden` keeps the tile MOUNTED but out of paint (display:none) so a maximized
+// sibling can cover the dock without unmounting the others — the keep-alive /
+// no-re-parent invariant (live PTY scrollback) still holds.
+export function PanelFrame({ rect, hidden, children }) {
   return (
-    <div className="panel-tile-slot" style={pctStyle(rect)}>
+    <div className={"panel-tile-slot" + (hidden ? " is-hidden" : "")} style={pctStyle(rect)}>
       {children}
     </div>
   );

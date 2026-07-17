@@ -1,7 +1,7 @@
 import { useCallback, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { getPanel, closePanelType } from "../../../lib/panelRegistry.js";
-import { subscribe as subscribeDockFullscreen, isDockFullscreen, setDockFullscreen } from "../../../state/dockFullscreenStore.js";
+import { subscribe as subscribeDockFullscreen, fullscreenType, setDockFullscreen } from "../../../state/dockFullscreenStore.js";
 import { DockChromeInset } from "../../../components/DockChromeInset.jsx";
 import { PanelCloseButton } from "../messages/PanelCloseButton.jsx";
 
@@ -24,12 +24,16 @@ import { PanelCloseButton } from "../messages/PanelCloseButton.jsx";
 export function PanelShell({ type, title, actions, children }) {
   const ui = useUi();
   const paneId = ui.paneId;
-  const readFullscreen = useCallback(() => isDockFullscreen(paneId), [paneId]);
-  const fullscreen = useSyncExternalStore(
+  // This panel is "fullscreen" only when IT is the maximized one — so its own
+  // button reads Exit while every other panel's reads Fullscreen (and pressing
+  // another panel's button re-targets the maximize to that panel).
+  const readMaxType = useCallback(() => fullscreenType(paneId), [paneId]);
+  const maxType = useSyncExternalStore(
     useCallback((cb) => subscribeDockFullscreen(paneId, cb), [paneId]),
-    readFullscreen,
-    readFullscreen,
+    readMaxType,
+    readMaxType,
   );
+  const fullscreen = maxType === type;
   const label = getPanel(type)?.label ?? type;
   const heading = title ?? label;
   return (
@@ -44,7 +48,7 @@ export function PanelShell({ type, title, actions, children }) {
           className="fv-icon-btn"
           title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
           aria-label={fullscreen ? "Exit fullscreen" : `Fullscreen ${label} panel`}
-          onClick={() => setDockFullscreen(paneId, !fullscreen)}
+          onClick={() => setDockFullscreen(paneId, fullscreen ? false : type)}
         >
           {fullscreen ? (
             <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">

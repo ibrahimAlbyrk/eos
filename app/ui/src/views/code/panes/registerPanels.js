@@ -11,6 +11,7 @@ import { DiffViewer } from "../messages/DiffViewer.jsx";
 import { CommitsViewer } from "../messages/CommitsViewer.jsx";
 import { GitDiffViewer } from "../gitdiff/GitDiffViewer.jsx";
 import { TerminalViewer } from "../messages/TerminalViewer.jsx";
+import { FilesPanel } from "../../files/FilesPanel.jsx";
 
 registerPanel({ type: "file", label: "File", Component: FileViewer, close: (ui) => ui.closeFileViewer(), minW: 260, minH: 140 });
 registerPanel({ type: "agent", label: "Agent", Component: AgentViewer, close: (ui) => ui.closeAgentViewer(), minW: 240, minH: 160 });
@@ -20,3 +21,4 @@ registerPanel({ type: "gitdiff", label: "Git Diff", Component: GitDiffViewer, cl
 // Close/hide/evict keep the pane's PTY sessions alive (they persist and reattach
 // on reopen); no dispose kill. Only a tab's × or a shell exit ends a session.
 registerPanel({ type: "terminal", label: "Terminal", Component: TerminalViewer, close: (ui) => ui.closeTerminalViewer(), minW: 280, minH: 160 });
+registerPanel({ type: "files", label: "Files", Component: FilesPanel, close: (ui) => ui.closeFilesViewer(), minW: 220, minH: 160 });

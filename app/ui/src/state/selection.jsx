@@ -49,7 +49,7 @@ export function SelectionProvider({ children }) {
   const [expandedTools, setExpandedTools] = useState(() => new Set());
   // Right-panel docks, keyed by paneId: { [leafId]: dock } where a dock is the
   // { slots, nextSeq, ratios } object lib/panelTiling manages. Each pane owns its
-  // own dock (see PanelDock); the tiling engine lays its ≤3 open panels out. The
+  // own dock (see PanelDock); the tiling engine lays its ≤6 open panels out. The
   // pane-aware reads/wrappers live in useUi (it resolves the pane via
   // PaneScopeContext); this provider owns the map + the raw paneId-explicit ops.
   // Slot structure + ratios persist across reloads (cm:panelDocks); terminal is
