@@ -28,6 +28,18 @@ final class SSEAgentStatusSource: NSObject, AgentStatusSource, URLSessionDataDel
     private var sseSession: URLSession?
     private var sseTask: URLSessionDataTask?
     private var sseBuffer = Data()
+    // Consumed-prefix offset into sseBuffer (O(1) amortized line drain — see
+    // urlSession(_:dataTask:didReceive:)).
+    private var sseScan = 0
+    // SSE delegate callbacks run here, OFF main; only refetch scheduling and the
+    // connectivity/snapshot delivery hop to main. Serial to preserve line order
+    // and single-threaded buffer access.
+    private let sseQueue: OperationQueue = {
+        let q = OperationQueue()
+        q.maxConcurrentOperationCount = 1
+        q.name = "com.ibrahimalbyrk.eos.sse.statusbar"
+        return q
+    }()
     private var pollTimer: Timer?
     private var debounceItem: DispatchWorkItem?
     private var reconnectBackoff: TimeInterval = 1.0
@@ -62,19 +74,23 @@ final class SSEAgentStatusSource: NSObject, AgentStatusSource, URLSessionDataDel
     private func connectSSE() {
         sseTask?.cancel()
         sseBuffer = Data()
+        sseScan = 0
         guard let url = URL(string: "\(base)/stream") else { return }
         let cfg = URLSessionConfiguration.default
         cfg.timeoutIntervalForRequest = TimeInterval(INT_MAX)
         cfg.timeoutIntervalForResource = TimeInterval(INT_MAX)
-        sseSession = URLSession(configuration: cfg, delegate: self, delegateQueue: .main)
+        sseSession = URLSession(configuration: cfg, delegate: self, delegateQueue: sseQueue)
         var req = URLRequest(url: url)
         req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         sseTask = sseSession?.dataTask(with: req)
         sseTask?.resume()
     }
 
+    // Runs on sseQueue (off main). This consumer only acts on reason "worker:*";
+    // a raw-substring test (`"worker:` — the quoted JSON value) skips the JSON
+    // parse for every other frame before any allocation.
     private func handleSSELine(_ line: String) {
-        guard line.hasPrefix("data: ") else { return }
+        guard line.hasPrefix("data: "), line.contains("\"worker:") else { return }
         let json = String(line.dropFirst(6))
         guard let data = json.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -83,32 +99,52 @@ final class SSEAgentStatusSource: NSObject, AgentStatusSource, URLSessionDataDel
         scheduleRefetch()
     }
 
+    // debounceItem and the main-run-loop timer are main-affine, so the whole
+    // schedule hops to main even though the caller runs on sseQueue.
     private func scheduleRefetch() {
-        debounceItem?.cancel()
-        let item = DispatchWorkItem { [weak self] in self?.refetch() }
-        debounceItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + refetchDebounce, execute: item)
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.debounceItem?.cancel()
+            let item = DispatchWorkItem { [weak self] in self?.refetch() }
+            self.debounceItem = item
+            DispatchQueue.main.asyncAfter(deadline: .now() + self.refetchDebounce, execute: item)
+        }
     }
 
     func urlSession(_: URLSession, dataTask _: URLSessionDataTask, didReceive data: Data) {
         sseBuffer.append(data)
-        while let range = sseBuffer.range(of: Data("\n".utf8)) {
-            let lineData = sseBuffer.subdata(in: sseBuffer.startIndex..<range.lowerBound)
-            sseBuffer.removeSubrange(sseBuffer.startIndex...range.lowerBound)
-            if let line = String(data: lineData, encoding: .utf8), !line.isEmpty {
+        let lf = Data([0x0a])
+        var lineStart = sseBuffer.startIndex + sseScan
+        while let nl = sseBuffer.range(of: lf, in: lineStart..<sseBuffer.endIndex) {
+            if nl.lowerBound > lineStart,
+               let line = String(data: sseBuffer.subdata(in: lineStart..<nl.lowerBound), encoding: .utf8),
+               !line.isEmpty {
                 handleSSELine(line)
             }
+            lineStart = nl.upperBound
+        }
+        // Advance the consumed offset; compact only once the dead prefix is large,
+        // so a big line arriving in many chunks isn't re-shifted on every chunk.
+        sseScan = lineStart - sseBuffer.startIndex
+        if sseScan > 65_536 {
+            sseBuffer.removeSubrange(sseBuffer.startIndex..<lineStart)
+            sseScan = 0
         }
     }
 
     func urlSession(_: URLSession, task _: URLSessionTask, didCompleteWithError _: Error?) {
         guard started else { return }
-        setConnected(false)
-        let delay = reconnectBackoff
-        reconnectBackoff = min(reconnectBackoff * 2, 30)
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+        // setConnected → onConnectivity drives the AppKit status item; backoff +
+        // reconnect scheduling are main-affine too. Callback is on sseQueue now.
+        DispatchQueue.main.async { [weak self] in
             guard let self = self, self.started else { return }
-            self.connectSSE()
+            self.setConnected(false)
+            let delay = self.reconnectBackoff
+            self.reconnectBackoff = min(self.reconnectBackoff * 2, 30)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                guard let self = self, self.started else { return }
+                self.connectSSE()
+            }
         }
     }
 

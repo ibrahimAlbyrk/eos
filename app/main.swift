@@ -223,6 +223,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     private var sseSession: URLSession?
     private var sseTask: URLSessionDataTask?
     private var sseBuffer = Data()
+    // Consumed-prefix offset into sseBuffer: lines are handed off by advancing
+    // this instead of shifting the whole buffer forward per line (O(1) amortized
+    // drain); the consumed prefix is dropped in one shot once it grows large.
+    private var sseScan = 0
+    // SSE delegate callbacks run here, OFF the main thread, so token-rate
+    // thinking streams don't contend with UI work; only the actual notification
+    // hop touches AppKit, on main. Serial (maxConcurrent = 1) to preserve line
+    // ordering and single-threaded buffer access.
+    private let sseQueue: OperationQueue = {
+        let q = OperationQueue()
+        q.maxConcurrentOperationCount = 1
+        q.name = "com.ibrahimalbyrk.eos.sse.app"
+        return q
+    }()
     // loadWeb() runs on every (re)load — retry, relaunch, update. The token
     // user-script must be added only once; re-adding accumulates duplicate
     // WKUserScripts. (removeAllUserScripts is NOT an option — it would also drop
@@ -819,33 +833,39 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
     private func connectSSE() {
         sseTask?.cancel()
         sseBuffer = Data()
+        sseScan = 0
         guard let url = URL(string: "\(DAEMON)/stream") else { return }
         let cfg = URLSessionConfiguration.default
         cfg.timeoutIntervalForRequest = TimeInterval(INT_MAX)
         cfg.timeoutIntervalForResource = TimeInterval(INT_MAX)
-        sseSession = URLSession(configuration: cfg, delegate: self, delegateQueue: .main)
+        sseSession = URLSession(configuration: cfg, delegate: self, delegateQueue: sseQueue)
         var req = URLRequest(url: url)
         req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         sseTask = sseSession?.dataTask(with: req)
         sseTask?.resume()
     }
 
+    // Runs on sseQueue (off main). The ONLY frame this consumer acts on is
+    // reason "notification:fire"; a raw-substring test skips the JSON parse for
+    // every other line (thinking deltas etc.) before any allocation.
     private func handleSSELine(_ line: String) {
-        guard line.hasPrefix("data: ") else { return }
+        guard line.hasPrefix("data: "), line.contains("notification:fire") else { return }
         let json = String(line.dropFirst(6))
         guard let data = json.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let reason = obj["reason"] as? String,
               reason == "notification:fire" else { return }
 
-        guard !NSApp.isActive else { return }
-
         guard let payload = obj["payload"] as? [String: Any],
               let title = payload["title"] as? String,
               let body = payload["body"] as? String else { return }
 
         let workerId = payload["workerId"] as? String ?? ""
-        showNotification(title: title, body: body, workerId: workerId)
+        // NSApp.isActive + notification presentation are AppKit — main only.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, !NSApp.isActive else { return }
+            self.showNotification(title: title, body: body, workerId: workerId)
+        }
     }
 
     // MARK: - Navigation
@@ -936,12 +956,22 @@ class AppDelegate: NSObject, NSApplicationDelegate, WKNavigationDelegate, NSWind
 
     func urlSession(_: URLSession, dataTask _: URLSessionDataTask, didReceive data: Data) {
         sseBuffer.append(data)
-        while let range = sseBuffer.range(of: Data("\n".utf8)) {
-            let lineData = sseBuffer.subdata(in: sseBuffer.startIndex..<range.lowerBound)
-            sseBuffer.removeSubrange(sseBuffer.startIndex...range.lowerBound)
-            if let line = String(data: lineData, encoding: .utf8), !line.isEmpty {
+        let lf = Data([0x0a])
+        var lineStart = sseBuffer.startIndex + sseScan
+        while let nl = sseBuffer.range(of: lf, in: lineStart..<sseBuffer.endIndex) {
+            if nl.lowerBound > lineStart,
+               let line = String(data: sseBuffer.subdata(in: lineStart..<nl.lowerBound), encoding: .utf8),
+               !line.isEmpty {
                 handleSSELine(line)
             }
+            lineStart = nl.upperBound
+        }
+        // Advance the consumed offset; compact only once the dead prefix is large,
+        // so a big line arriving in many chunks isn't re-shifted on every chunk.
+        sseScan = lineStart - sseBuffer.startIndex
+        if sseScan > 65_536 {
+            sseBuffer.removeSubrange(sseBuffer.startIndex..<lineStart)
+            sseScan = 0
         }
     }
 
