@@ -1,8 +1,7 @@
 // RecallPendingTurn against the REAL SqliteEventRepo — the regression guard for
-// the wrong-message detection bug. The in-memory repo returns list({order:"desc"})
-// as a newest-N window re-sorted ASC, so a list().find() picked the OLDEST
-// user_message. These wire the actual use-case to the actual repo to prove
-// latestOfType picks the newest end-to-end.
+// the wrong-message recall bug: recall must resolve the exact row id the
+// dispatch attached (findById), never a "latest user_message" scan that an
+// agent-plane-started turn could point at an older, answered message.
 
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
@@ -14,7 +13,16 @@ import type { MessageQueueRepo } from "../../../core/src/ports/MessageQueueRepo.
 import type { TurnOutputTracker } from "../../../core/src/ports/TurnOutputTracker.ts";
 
 const noopLog = { debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, child: () => noopLog };
-const tracker = (seen: boolean): TurnOutputTracker => ({ reset: () => {}, markSeen: () => {}, seen: () => seen });
+const tracker = (seen: boolean, rowId: number | null): TurnOutputTracker => {
+  const state = { seen, rowId };
+  return {
+    reset: () => { state.seen = false; state.rowId = null; },
+    setRecallRow: (_w, id) => { state.rowId = id; },
+    markSeen: () => { state.seen = true; },
+    seen: () => state.seen,
+    recallRowId: () => state.rowId,
+  };
+};
 // The recall path only touches removeDispatchedByClientMsgId; the ledger-drop is
 // covered by the core unit tests, so a no-op queue is enough here.
 const noopQueue = { removeDispatchedByClientMsgId: () => {} } as unknown as MessageQueueRepo;
@@ -29,31 +37,43 @@ beforeEach(() => {
 });
 
 describe("recallPendingTurn against the real SqliteEventRepo", () => {
-  it("recalls the 3rd (latest) of three user_messages, not the oldest in the desc window", () => {
-    const id1 = repo.append("w1", 100, "user_message", userMsg("first", ["c0"]));
+  it("recalls exactly the tracked row among three user_messages", () => {
+    repo.append("w1", 100, "user_message", userMsg("first", ["c0"]));
     repo.append("w1", 101, "state", { state: "WORKING" });
-    const id2 = repo.append("w1", 102, "user_message", userMsg("second", ["c1"]));
-    repo.append("w1", 103, "state", { state: "WORKING" });
+    repo.append("w1", 102, "user_message", userMsg("second", ["c1"]));
     const id3 = repo.append("w1", 104, "user_message", userMsg("third", ["c2"]));
     repo.append("w1", 105, "state", { state: "WORKING" });
 
-    const r = recallPendingTurn({ events: repo, queue: noopQueue, turnOutput: tracker(false) }, "w1");
+    const r = recallPendingTurn({ events: repo, queue: noopQueue, turnOutput: tracker(false, id3) }, "w1");
     assert.deepEqual(r, { recalled: true, text: "third", clientMsgId: "c2", rowId: id3 });
-    assert.ok(id1 < id2 && id2 < id3, "sanity: ids ascend with insertion");
   });
 
-  it("finds the latest user_message past a >50-event window (SCAN_LIMIT is gone)", () => {
-    repo.append("w1", 1, "user_message", userMsg("stale", ["c0"]));
-    for (let i = 0; i < 60; i++) repo.append("w1", 2 + i, "state", { state: "WORKING" });
-    const latest = repo.append("w1", 100, "user_message", userMsg("fresh", ["cN"]));
+  // The bug's shape end-to-end: answered user_messages exist, but the current
+  // turn was agent-plane-started (no recall target) → nothing is recalled.
+  it("no recall target ⇒ no recall even with answered user_messages in the log", () => {
+    repo.append("w1", 100, "user_message", userMsg("answered", ["c0"]));
+    repo.append("w1", 101, "orchestrator_message", { text: "directive", fromParent: "o1" });
 
-    const r = recallPendingTurn({ events: repo, queue: noopQueue, turnOutput: tracker(false) }, "w1");
-    assert.deepEqual(r, { recalled: true, text: "fresh", clientMsgId: "cN", rowId: latest });
+    const r = recallPendingTurn({ events: repo, queue: noopQueue, turnOutput: tracker(false, null) }, "w1");
+    assert.deepEqual(r, { recalled: false });
   });
 
   it("turnOutput seen ⇒ no recall (the agent heard the message)", () => {
-    repo.append("w1", 100, "user_message", userMsg("hi", ["c1"]));
-    const r = recallPendingTurn({ events: repo, queue: noopQueue, turnOutput: tracker(true) }, "w1");
+    const id = repo.append("w1", 100, "user_message", userMsg("hi", ["c1"]));
+    const r = recallPendingTurn({ events: repo, queue: noopQueue, turnOutput: tracker(true, id) }, "w1");
     assert.deepEqual(r, { recalled: false });
+  });
+
+  it("tracked row deleted (prune/kill) ⇒ no recall", () => {
+    const id = repo.append("w1", 100, "user_message", userMsg("gone", ["c1"]));
+    repo.deleteByWorker("w1");
+    const r = recallPendingTurn({ events: repo, queue: noopQueue, turnOutput: tracker(false, id) }, "w1");
+    assert.deepEqual(r, { recalled: false });
+  });
+
+  it("findById is worker-scoped — a stale id never addresses another worker's row", () => {
+    const id = repo.append("w1", 100, "user_message", userMsg("mine", ["c1"]));
+    assert.equal(repo.findById("w2", id), null);
+    assert.equal(repo.findById("w1", id)?.id, id);
   });
 });

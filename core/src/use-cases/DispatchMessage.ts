@@ -66,6 +66,10 @@ function buildMessageRecord(
 // claude-sdk/anthropic-api). Mirrors EXACTLY the shapes the PTY worker emits at
 // its transcript sighting (spawner/worker.ts emitMessageEvent) so the web
 // renders agent-plane traffic identically across backends.
+//
+// Returns the appended row id ONLY for a plain user_message — the recall target
+// an interrupt may hide (RecallPendingTurn). Agent-plane kinds return null:
+// their turns must never recall anything.
 function appendChatEvent(
   events: EventRepo,
   workerId: string,
@@ -73,28 +77,28 @@ function appendChatEvent(
   env: DispatchEnvelope | undefined,
   text: string,
   clientMsgIds: string[] | undefined,
-): void {
+): number | null {
   switch (env?.kind) {
     case "orchestrator_message":
       events.append(workerId, ts, "orchestrator_message", { text, fromParent: env.fromParent, parentName: env.parentName ?? env.fromParent });
-      return;
+      return null;
     case "worker_report":
       events.append(workerId, ts, "worker_report", { text, fromWorker: env.fromWorker, workerName: env.workerName ?? env.fromWorker });
-      return;
+      return null;
     case "peer_request":
       events.append(workerId, ts, "peer_request", { text, fromWorker: env.fromWorker, fromName: env.fromName ?? env.fromWorker });
-      return;
+      return null;
     case "loop":
       events.append(workerId, ts, "loop_continuation", { text });
-      return;
+      return null;
     case "report_reminder":
       events.append(workerId, ts, "report_reminder", { text });
-      return;
+      return null;
     case "permission_ask":
       events.append(workerId, ts, "permission_ask", { text });
-      return;
+      return null;
     default:
-      events.append(workerId, ts, "user_message", { text, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}) });
+      return events.append(workerId, ts, "user_message", { text, ...(clientMsgIds && clientMsgIds.length > 0 ? { clientMsgIds } : {}) });
   }
 }
 
@@ -333,8 +337,11 @@ export async function dispatchMessage(
   // A real dispatch starts a genuine new turn — the settle window must not
   // suppress its WORKING lift or its first transcript events.
   deps.clearTurnSettle?.(input.workerId);
-  // Scope the recall window from this push: until the agent emits its first
-  // delta/message, an interrupt may recall this exact message.
+  // Scope the recall window from this push: clears seen AND the previous turn's
+  // recall target, so an interrupt can never recall an older, answered message.
+  // This turn's own target is attached after the append below (user dispatches
+  // only) — the row id doesn't exist yet, and a failed send must leave nothing
+  // recallable.
   deps.turnOutput?.reset(input.workerId);
 
   let result;
@@ -390,7 +397,10 @@ export async function dispatchMessage(
   }
 
   if (!selfReports) {
-    appendChatEvent(deps.events, input.workerId, deps.clock.now(), input.envelope, input.displayText ?? input.text, recordClientMsgIds);
+    const chatRowId = appendChatEvent(deps.events, input.workerId, deps.clock.now(), input.envelope, input.displayText ?? input.text, recordClientMsgIds);
+    // The recall target for this turn: exactly the user_message row just
+    // appended. The !seen gate covers the send→append microtask gap.
+    if (chatRowId != null) deps.turnOutput?.setRecallRow(input.workerId, chatRowId);
   }
   deps.bus.publish("worker:change", { workerId: input.workerId });
 

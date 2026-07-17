@@ -26,7 +26,7 @@ export class SqliteEventRepo implements EventRepo {
   private readonly stmtListDesc;
   private readonly stmtListDescBefore;
   private readonly stmtListAfter;
-  private readonly stmtLatestOfType;
+  private readonly stmtById;
   private readonly stmtDeleteByWorker;
   private readonly stmtPruneOlder;
   private readonly stmtDistinctWorkers;
@@ -60,12 +60,9 @@ export class SqliteEventRepo implements EventRepo {
     this.stmtListAfter = db.prepare(
       "SELECT * FROM events WHERE worker_id = ? AND id > ? ORDER BY id ASC LIMIT ?",
     );
-    // Newest single row of a type — direction-agnostic (no window to re-sort).
-    // Same ts/id tiebreak as the list queries so same-ms rows resolve by
-    // insertion order (the latest user_message a recall must pick).
-    this.stmtLatestOfType = db.prepare(
-      "SELECT * FROM events WHERE worker_id = ? AND type = ? ORDER BY ts DESC, id DESC LIMIT 1",
-    );
+    // Exact-row fetch — the recall path resolves the row id it remembered at
+    // dispatch. The worker_id guard keeps a stale id off another worker's row.
+    this.stmtById = db.prepare("SELECT * FROM events WHERE id = ? AND worker_id = ?");
     this.stmtDeleteByWorker = db.prepare("DELETE FROM events WHERE worker_id = ?");
     // Keep the newest `keepNewest` rows for a worker; delete everything older.
     // The subquery yields the id of the keepNewest-th newest row (the oldest one
@@ -131,8 +128,8 @@ export class SqliteEventRepo implements EventRepo {
     return stmt.all(q.workerId, q.since, q.limit) as unknown as WorkerEventRow[];
   }
 
-  latestOfType(workerId: string, type: string): WorkerEventRow | null {
-    return (this.stmtLatestOfType.get(workerId, type) as WorkerEventRow | undefined) ?? null;
+  findById(workerId: string, rowId: number): WorkerEventRow | null {
+    return (this.stmtById.get(rowId, workerId) as WorkerEventRow | undefined) ?? null;
   }
 
   deleteByWorker(workerId: string): void {

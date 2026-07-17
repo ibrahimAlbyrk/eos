@@ -5,6 +5,7 @@ import { drainQueuedMessages } from "../use-cases/DrainQueuedMessages.ts";
 import type { WorkerRow } from "../../../contracts/src/worker.ts";
 import type { AgentBackend, AgentSession } from "../ports/AgentBackend.ts";
 import type { MessageRecord } from "../ports/WorkerClient.ts";
+import type { TurnOutputTracker } from "../ports/TurnOutputTracker.ts";
 
 import { fakeQueue, type QueueRow } from "./helpers/fakeMessageQueue.ts";
 
@@ -233,6 +234,66 @@ describe("dispatchMessage — daemon-side queue + idempotency", () => {
     assert.equal(suspects.length, 1);
     // heuristic is log-only: both dispatches still went out
     assert.equal(clientSends.length, 2);
+  });
+});
+
+describe("dispatchMessage — turn-output tracker (recall window)", () => {
+  const spyTracker = () => {
+    const calls: Array<{ op: string; rowId?: number }> = [];
+    const tracker: TurnOutputTracker = {
+      reset: () => calls.push({ op: "reset" }),
+      setRecallRow: (_w, rowId) => calls.push({ op: "setRecallRow", rowId }),
+      markSeen: () => {},
+      seen: () => false,
+      recallRowId: () => null,
+    };
+    return { calls, tracker };
+  };
+  const withTracker = (built: ReturnType<typeof buildDeps>, tracker: TurnOutputTracker) => {
+    (built.deps as { turnOutput?: TurnOutputTracker }).turnOutput = tracker;
+    return built;
+  };
+
+  it("user dispatch (daemon-owned row): reset at the push, then the appended row attached", async () => {
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { calls, tracker } = spyTracker();
+    const { deps, events } = withTracker(buildDeps({ backend: fakeBackend("inproc", false, sends), backendKind: "inproc" }), tracker);
+    await dispatchMessage(deps, { workerId: "w1", text: "hello", clientMsgId: "c1" });
+    const rowId = events.findIndex((e) => e.type === "user_message") + 1;
+    assert.deepEqual(calls, [{ op: "reset" }, { op: "setRecallRow", rowId }]);
+  });
+
+  it("agent-plane dispatch: reset only — no recall target is ever attached", async () => {
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { calls, tracker } = spyTracker();
+    const { deps } = withTracker(buildDeps({ backend: fakeBackend("inproc", false, sends), backendKind: "inproc" }), tracker);
+    await dispatchMessage(deps, {
+      workerId: "w1", text: "do the thing",
+      envelope: { kind: "orchestrator_message", fromParent: "o1", parentName: "boss" },
+    });
+    assert.deepEqual(calls, [{ op: "reset" }]);
+  });
+
+  it("self-reporting lane (claude-cli): reset only — the daemon appends no row to target", async () => {
+    const sends: Array<{ text: string; record?: MessageRecord }> = [];
+    const { calls, tracker } = spyTracker();
+    const { deps } = withTracker(buildDeps({ backend: fakeBackend("claude-cli", true, sends) }), tracker);
+    await dispatchMessage(deps, { workerId: "w1", text: "hello", clientMsgId: "c1" });
+    assert.deepEqual(calls, [{ op: "reset" }]);
+  });
+
+  it("busy-hold enqueue is not a turn: the tracker is untouched", async () => {
+    const { calls, tracker } = spyTracker();
+    const { deps } = withTracker(buildDeps({ state: "WORKING" }), tracker);
+    await dispatchMessage(deps, { workerId: "w1", text: "later", clientMsgId: "c1", queueWhenBusy: true });
+    assert.deepEqual(calls, []);
+  });
+
+  it("failed send: the reset already closed the recall window, nothing attached", async () => {
+    const { calls, tracker } = spyTracker();
+    const { deps } = withTracker(buildDeps({ sendResult: { ok: false, status: 0, body: null } }), tracker);
+    await assert.rejects(() => dispatchMessage(deps, { workerId: "w1", text: "hi", clientMsgId: "c1" }));
+    assert.deepEqual(calls, [{ op: "reset" }]);
   });
 });
 

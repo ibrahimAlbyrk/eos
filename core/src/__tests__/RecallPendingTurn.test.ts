@@ -5,15 +5,20 @@ import type { EventRepo } from "../ports/EventRepo.ts";
 import type { TurnOutputTracker } from "../ports/TurnOutputTracker.ts";
 import { fakeQueue } from "./helpers/fakeMessageQueue.ts";
 
-const tracker = (seen: boolean): TurnOutputTracker => {
-  let s = seen;
-  return { reset: () => { s = false; }, markSeen: () => { s = true; }, seen: () => s };
+// Stateful tracker double mirroring TurnOutputTrackerService: {seen, recallRowId}
+// per the port — recall must consume the target via reset().
+const tracker = (init: { seen?: boolean; rowId?: number | null } = {}) => {
+  const state = { seen: init.seen ?? false, recallRowId: init.rowId ?? null };
+  const t: TurnOutputTracker = {
+    reset: () => { state.seen = false; state.recallRowId = null; },
+    setRecallRow: (_w, id) => { state.recallRowId = id; },
+    markSeen: () => { state.seen = true; },
+    seen: () => state.seen,
+    recallRowId: () => state.recallRowId,
+  };
+  return { t, state };
 };
 
-// In-memory EventRepo modeling the REAL SqliteEventRepo: list({order:"desc"})
-// returns the newest-N window re-sorted ASC (oldest-first), NOT true desc — the
-// shape that masked the old list().find() bug. latestOfType is the direction-
-// agnostic read the use-case actually depends on.
 const events = (rows: Array<{ id: number; type: string; payload: string | null }>): EventRepo => {
   const mapped = () => rows.map((r) => ({ id: r.id, worker_id: "w1", ts: r.id, type: r.type, payload: r.payload }));
   return {
@@ -23,10 +28,7 @@ const events = (rows: Array<{ id: number; type: string; payload: string | null }
       const asc = mapped();
       return order === "desc" ? asc.slice(-limit) : asc;
     },
-    latestOfType: (_workerId, type) => {
-      const matches = mapped().filter((r) => r.type === type);
-      return matches.length ? matches[matches.length - 1] : null;
-    },
+    findById: (_workerId, rowId) => mapped().find((r) => r.id === rowId) ?? null,
     deleteByWorker: () => {},
   };
 };
@@ -41,75 +43,81 @@ describe("recallPendingTurn", () => {
   it("output already seen this turn → no recall (normal interrupt)", () => {
     const queue = fakeQueue();
     const r = recallPendingTurn(
-      { events: events([userMsg(1, "hi", ["c1"])]), queue: queue.repo, turnOutput: tracker(true) },
+      { events: events([userMsg(1, "hi", ["c1"])]), queue: queue.repo, turnOutput: tracker({ seen: true, rowId: 1 }).t },
       "w1",
     );
     assert.deepEqual(r, { recalled: false });
   });
 
-  it("output empty → recalls the LATEST user_message (text + clientMsgId + rowId) and drops its dispatched ledger row", () => {
+  // The wrong-message bug: a turn started by an agent-plane dispatch
+  // (orchestrator_message / worker_report / loop / …) resets the tracker but
+  // attaches NO recall row — older, already-answered user_messages in the log
+  // must never be recalled, even though seen is false.
+  it("no recall target (agent-plane turn) → no recall despite older user_messages", () => {
+    const queue = fakeQueue();
+    queue.repo.insert({ workerId: "w1", clientMsgId: "c0", text: "old", createdAt: 1, dispatchedAt: 1 });
+    const r = recallPendingTurn(
+      { events: events([userMsg(1, "old", ["c0"]), { id: 2, type: "orchestrator_message", payload: "{}" }]), queue: queue.repo, turnOutput: tracker({ rowId: null }).t },
+      "w1",
+    );
+    assert.deepEqual(r, { recalled: false });
+    assert.equal(queue.rows.length, 1, "the old ledger row is untouched");
+  });
+
+  it("output empty + target set → recalls EXACTLY that row and drops its dispatched ledger row", () => {
     const queue = fakeQueue();
     // The dispatched claim row a keyed send leaves behind (DispatchMessage).
     queue.repo.insert({ workerId: "w1", clientMsgId: "c1", text: "hi", createdAt: 1, dispatchedAt: 1 });
     const r = recallPendingTurn(
-      { events: events([userMsg(1, "first", ["c0"]), userMsg(5, "hi", ["c1"])]), queue: queue.repo, turnOutput: tracker(false) },
+      { events: events([userMsg(1, "first", ["c0"]), userMsg(5, "hi", ["c1"])]), queue: queue.repo, turnOutput: tracker({ rowId: 5 }).t },
       "w1",
     );
     assert.deepEqual(r, { recalled: true, text: "hi", clientMsgId: "c1", rowId: 5 });
     assert.equal(queue.rows.length, 0, "the dispatched ledger row for c1 is dropped");
   });
 
+  // By-id, not by-position: even with user_messages before AND after in the log,
+  // only the tracker's row is recalled.
+  it("recalls the tracker's row, never a neighbor", () => {
+    const queue = fakeQueue();
+    const r = recallPendingTurn(
+      {
+        events: events([userMsg(1, "old", ["c0"]), userMsg(7, "mine", ["c1"]), userMsg(9, "other", ["c2"])]),
+        queue: queue.repo,
+        turnOutput: tracker({ rowId: 7 }).t,
+      },
+      "w1",
+    );
+    assert.deepEqual(r, { recalled: true, text: "mine", clientMsgId: "c1", rowId: 7 });
+  });
+
   it("keyless send → recalls text + rowId, no clientMsgId, leaves the unaddressable audit row", () => {
     const queue = fakeQueue();
     queue.repo.insert({ workerId: "w1", clientMsgId: null, text: "anon", createdAt: 1, dispatchedAt: 1 });
     const r = recallPendingTurn(
-      { events: events([userMsg(3, "anon")]), queue: queue.repo, turnOutput: tracker(false) },
+      { events: events([userMsg(3, "anon")]), queue: queue.repo, turnOutput: tracker({ rowId: 3 }).t },
       "w1",
     );
     assert.deepEqual(r, { recalled: true, text: "anon", rowId: 3 });
     assert.equal(queue.rows.length, 1, "the keyless audit row is left as a harmless breadcrumb");
   });
 
-  it("no user_message in the log → no recall", () => {
+  it("target row gone from the log (pruned) → no recall", () => {
     const queue = fakeQueue();
     const r = recallPendingTurn(
-      { events: events([{ id: 1, type: "state", payload: "{}" }]), queue: queue.repo, turnOutput: tracker(false) },
+      { events: events([{ id: 1, type: "state", payload: "{}" }]), queue: queue.repo, turnOutput: tracker({ rowId: 99 }).t },
       "w1",
     );
     assert.deepEqual(r, { recalled: false });
   });
 
-  // Regression: the fake now returns ASC (oldest-first), like the real repo. A
-  // list().find() would pick the OLDEST user_message here; latestOfType picks the
-  // newest even with later non-user (state) rows sitting after it.
-  it("picks the LATEST user_message against an ASC-ordered log", () => {
+  it("a recall consumes the target — a second interrupt recalls nothing", () => {
     const queue = fakeQueue();
-    const r = recallPendingTurn(
-      {
-        events: events([
-          userMsg(1, "old", ["c0"]),
-          userMsg(7, "newest", ["c1"]),
-          { id: 8, type: "state", payload: "{}" },
-          { id: 9, type: "state", payload: "{}" },
-        ]),
-        queue: queue.repo,
-        turnOutput: tracker(false),
-      },
-      "w1",
-    );
-    assert.deepEqual(r, { recalled: true, text: "newest", clientMsgId: "c1", rowId: 7 });
-  });
-
-  // Regression: the old SCAN_LIMIT=50 desc window could never see a user_message
-  // older than the newest 50 rows. latestOfType has no window.
-  it("finds the latest user_message beyond a 50-event window", () => {
-    const queue = fakeQueue();
-    const rows: Array<{ id: number; type: string; payload: string | null }> = [];
-    for (let i = 1; i <= 60; i++) rows.push(userMsg(i, `msg-${i}`, [`c${i}`]));
-    const r = recallPendingTurn(
-      { events: events(rows), queue: queue.repo, turnOutput: tracker(false) },
-      "w1",
-    );
-    assert.deepEqual(r, { recalled: true, text: "msg-60", clientMsgId: "c60", rowId: 60 });
+    const { t, state } = tracker({ rowId: 5 });
+    const deps = { events: events([userMsg(5, "hi", ["c1"])]), queue: queue.repo, turnOutput: t };
+    const first = recallPendingTurn(deps, "w1");
+    assert.equal(first.recalled, true);
+    assert.equal(state.recallRowId, null, "target consumed");
+    assert.deepEqual(recallPendingTurn(deps, "w1"), { recalled: false });
   });
 });
