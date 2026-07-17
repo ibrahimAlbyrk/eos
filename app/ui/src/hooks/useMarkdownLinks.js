@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { explorer } from "../state/explorerStore.js";
 import { decideLinkAction } from "../lib/mdLinkResolve.js";
 
 function decode(s) {
@@ -31,13 +30,13 @@ function scrollToFragment(container, rawHref) {
 // Intercepts anchor clicks inside a rendered markdown preview so cross-file
 // links resolve in-app instead of escaping to the OS (macOS "no application"
 // popup). Mirrors useMermaid's (ref, html, …) signature and re-runs on
-// html/path. A relative .md link pushes onto the explorer nav stack; an in-doc
-// #fragment scrolls to the target heading; everything else (external links,
-// non-.md relative links) is left to bubble as before.
-export function useMarkdownLinks(ref, html, path) {
+// html/path. A relative .md link opens via the caller's onOpenPath (the scoped
+// file viewer); an in-doc #fragment scrolls to the target heading; everything
+// else (external links, non-.md relative links) is left to bubble as before.
+export function useMarkdownLinks(ref, html, path, onOpenPath) {
   useEffect(() => {
     const el = ref.current;
-    if (!el || !path) return;
+    if (!el || !path || !onOpenPath) return;
     const onClick = (e) => {
       // The click target is frequently a nested node (<code>, <strong>, text)
       // inside the <a>, so resolve the anchor with closest, not target itself.
@@ -50,11 +49,12 @@ export function useMarkdownLinks(ref, html, path) {
       if (action === "ignore") return; // external / non-.md relative → let it bubble
       e.preventDefault();
       if (action === "fragment") scrollToFragment(el, href);
-      else explorer.pushFilePath(resolved);
+      else onOpenPath(resolved);
     };
     el.addEventListener("click", onClick);
     return () => el.removeEventListener("click", onClick);
-    // ref is a stable useRef container; html/path are the real triggers.
+    // ref is a stable useRef container; html/path are the real triggers
+    // (onOpenPath is a stable scoped action).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [html, path]);
 }

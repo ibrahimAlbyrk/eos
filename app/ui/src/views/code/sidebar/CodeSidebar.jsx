@@ -4,7 +4,6 @@ import { SettingsFooter } from "../../../components/SettingsFooter.jsx";
 import { SidebarHead } from "./SidebarHead.jsx";
 import { AgentsTree } from "./AgentsTree.jsx";
 import { ArchiveSidebar } from "../../archive/ArchiveSidebar.jsx";
-import { ArchiveToggle } from "../../archive/ArchiveToggle.jsx";
 import { buildAgentTree } from "../../../lib/tree.js";
 import { subscribe, getArchive } from "../../../state/archiveStore.js";
 
@@ -28,7 +27,6 @@ export function CodeSidebar({ live, variant = "full" }) {
           <AgentsTree roots={tree} loaded={live.loaded} onRename={live.renameAgent} variant={variant} />
         </>
       )}
-      <ArchiveToggle />
       <SettingsFooter />
     </>
   );

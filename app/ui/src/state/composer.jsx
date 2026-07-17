@@ -24,6 +24,10 @@ const DEFAULT_COMPOSER = {
   // {content, ts} queued by the rewind panel — the restored prompt; the
   // Composer consumes it (replaces the input, cursor at end) and clears.
   pendingText: null,
+  // {paths, ts} queued by the Files panel's "Attach as context" — absolute file
+  // paths the Composer inserts at the cursor as @ mentions (same bookkeeping as
+  // picking them from the @ menu) and clears.
+  pendingMention: null,
 };
 
 export function ComposerProvider({ children }) {

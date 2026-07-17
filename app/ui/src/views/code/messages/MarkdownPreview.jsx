@@ -7,7 +7,7 @@ import { useMarkdownLinks } from "../../../hooks/useMarkdownLinks.js";
 // robust renderer (marked GFM + DOMPurify, cached), NOT MarkdownView.jsx's weak
 // local parser. Renders into .md-prose — the SAME typography as a chat message
 // (MessageAssistant) — wrapped in .fv-preview, which owns only the panel padding.
-export function MarkdownPreview({ content, path }) {
+export function MarkdownPreview({ content, path, onOpenPath }) {
   const ref = useRef(null);
   const html = useMemo(() => renderMarkdown(content ?? ""), [content]);
   const theme = useResolvedTheme();
@@ -15,7 +15,7 @@ export function MarkdownPreview({ content, path }) {
   useMermaid(ref, html, theme);
   // Relative .md links and #fragments open in-preview (never escape to the OS);
   // external links keep bubbling to the browser.
-  useMarkdownLinks(ref, html, path);
+  useMarkdownLinks(ref, html, path, onOpenPath);
   return (
     <div
       ref={ref}

@@ -292,6 +292,38 @@ export function Composer({ live, worker, paneId, focused }) {
     editorRef.current?.focus();
   }, [focused, ui.composer.pendingText]);
 
+  // File paths queued by the Files panel's "Attach as context" — inserted at
+  // the cursor exactly as if picked from the @ menu: same display form
+  // (cwd-relative when under the cwd), same insertedPathsRef display→abs entry
+  // (send substitution + blue token coloring both read it), same trailing
+  // space. Singleton aimed at the selected agent = the focused pane, so only
+  // the focused composer consumes it.
+  useEffect(() => {
+    if (!focused) return;
+    const pm = ui.composer.pendingMention;
+    if (!pm) return;
+    ui.updateComposer({ pendingMention: null });
+    let inserted = "";
+    for (const abs of pm.paths ?? []) {
+      const display = cwd && abs.startsWith(cwd + "/") ? abs.slice(cwd.length + 1) : abs;
+      // Same overlap rule as selectFile: a nested/duplicate mention replaces
+      // the existing entry.
+      for (const [existing] of insertedPathsRef.current) {
+        if (display.startsWith(existing + "/") || existing.startsWith(display + "/") || existing === display) {
+          insertedPathsRef.current.delete(existing);
+        }
+      }
+      insertedPathsRef.current.set(display, abs);
+      inserted += "@" + display + " ";
+    }
+    if (!inserted) return;
+    let before = text.slice(0, cursorPos);
+    const after = text.slice(cursorPos);
+    if (before && !/\s$/.test(before)) before += " ";
+    setTextAndSync(before + inserted + after, before.length + inserted.length);
+    editorRef.current?.focus();
+  }, [focused, ui.composer.pendingMention]);
+
   // Recall (interrupt before the agent responded): the daemon returns the
   // just-sent, unanswered message's text. Consumed EXACTLY ONCE by the composer
   // that OWNS recall.workerId — single identity end-to-end (not the focused/

@@ -7,7 +7,7 @@ import { ComposerProvider, useComposer } from "./composer.jsx";
 import { AttentionProvider, useAttention } from "./attention.jsx";
 import { SearchProvider, useSearch } from "./search.jsx";
 import { SettingsProvider, useSettings } from "./settings.jsx";
-import { canFitColumns } from "../lib/panelTiling.js";
+import { canFitColumns, columnize, PANEL_CAP } from "../lib/panelTiling.js";
 import { panelMinSize } from "../lib/panelRegistry.js";
 import { getDockWidth } from "./dockMetrics.js";
 import { notify } from "../lib/notify.js";
@@ -67,20 +67,22 @@ export function useUi() {
   const { openPanelIn, closePanelIn, updatePanelDataIn, setDockRatioIn } = selection;
   const { openPopoverIn, openPopIn, closePopsIn } = selection;
 
-  // Open into the scoped pane's dock, with the settled degenerate guard: a NEW
-  // distinct type that would become the 3rd panel needs two side-by-side columns
-  // (left = the existing stacked pair, right = the newcomer). Refuse + notify when
-  // the dock can't fit both at their min widths (like splitLeaf at MAX_PANES). A
-  // reuse (same type) or a 4th-that-evicts never adds a column, so it's unguarded.
+  // Open into the scoped pane's dock, with the degenerate-fit guard: a NEW distinct
+  // type that STARTS a new column (an even count under cap → 2 opens column 2, 4
+  // opens column 3) needs every column to fit side by side at its min width. Refuse
+  // + notify when the dock can't (like splitLeaf at MAX_PANES). A reuse (same type),
+  // a stack into the last column (odd count), or an at-cap evict never adds a
+  // column, so those are unguarded.
   const openScoped = useCallback((type, data) => {
     const paneId = scopeRef.current;
     const types = openPanelTypesIn(paneId);
-    if (!types.includes(type) && types.length === 2) {
+    const n = types.length;
+    if (!types.includes(type) && n >= 2 && n < PANEL_CAP && n % 2 === 0) {
       const w = getDockWidth(paneId);
-      const leftMin = Math.max(panelMinSize(types[0]).minW, panelMinSize(types[1]).minW);
-      const rightMin = panelMinSize(type).minW;
-      if (w > 0 && !canFitColumns(w, leftMin, rightMin)) {
-        notify.warning("Not enough room for a third panel — close one first.");
+      const colMins = columnize(n).map((idxs) => Math.max(...idxs.map((i) => panelMinSize(types[i]).minW)));
+      colMins.push(panelMinSize(type).minW);
+      if (w > 0 && !canFitColumns(w, colMins)) {
+        notify.warning("Not enough room for another column — close a panel first.");
         return;
       }
     }
@@ -115,6 +117,8 @@ export function useUi() {
   const closeGitDiffViewer = useCallback(() => closePanelIn(scopeRef.current, "gitdiff"), [closePanelIn]);
   const openTerminalViewer = useCallback(() => openScoped("terminal", {}), [openScoped]);
   const closeTerminalViewer = useCallback(() => closePanelIn(scopeRef.current, "terminal"), [closePanelIn]);
+  const openFilesViewer = useCallback((cwd) => openScoped("files", { cwd }), [openScoped]);
+  const closeFilesViewer = useCallback(() => closePanelIn(scopeRef.current, "files"), [closePanelIn]);
   const setDockRatio = useCallback((key, value) => setDockRatioIn(scopeRef.current, key, value), [setDockRatioIn]);
 
   return useMemo(() => {
@@ -135,12 +139,14 @@ export function useUi() {
       commitsViewer: panelDataIn(scopePane, "commits"),
       gitDiffViewer: panelDataIn(scopePane, "gitdiff"),
       terminalViewer: panelDataIn(scopePane, "terminal"),
+      filesViewer: panelDataIn(scopePane, "files"),
       openFileViewer, closeFileViewer,
       openAgentViewer, closeAgentViewer, syncAgentViewer,
       openDiffViewer, closeDiffViewer,
       openCommitsViewer, closeCommitsViewer,
       openGitDiffViewer, closeGitDiffViewer,
       openTerminalViewer, closeTerminalViewer,
+      openFilesViewer, closeFilesViewer,
     };
     return {
       ...navigation,
@@ -165,5 +171,6 @@ export function useUi() {
     openDiffViewer, closeDiffViewer, openCommitsViewer, closeCommitsViewer,
     openGitDiffViewer, closeGitDiffViewer,
     openTerminalViewer, closeTerminalViewer,
+    openFilesViewer, closeFilesViewer,
   ]);
 }

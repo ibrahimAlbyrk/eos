@@ -1,4 +1,5 @@
 import { useUi } from "../../../state/ui.jsx";
+import { ArchiveToggle } from "../../archive/ArchiveToggle.jsx";
 
 function SpawnIcon() {
   return (
@@ -51,6 +52,7 @@ export function SidebarHead({ total, variant }) {
       {full && (
         <div className="sb-section">
           <span className="sb-section__title">Agents</span>
+          <ArchiveToggle />
           <button className="sb-iconbtn" title="New orchestrator" onClick={handleSpawn}>
             <SpawnIcon />
           </button>

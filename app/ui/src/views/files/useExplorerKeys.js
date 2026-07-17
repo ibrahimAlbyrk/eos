@@ -1,13 +1,24 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { useUi } from "../../state/ui.jsx";
+import { useOriginPane } from "../../state/paneScope.js";
 import { explorer } from "../../state/explorerStore.js";
 import { flattenVisible } from "../../lib/explorerNodes.js";
 import { parentDir } from "../../lib/explorerApi.js";
 
-// Tree keyboard navigation, scoped to when focus is NOT in an input or the
-// CodeMirror editor (so it never steals keys from rename/search/editing).
-// Selection changes drive the scroll-into-view effect in FileTree.
+// Tree keyboard navigation for the docked Files panel. Armed only while the
+// host pane is focused AND the panel region owns focus (FileViewer's ⌘F gate
+// idiom) — a window-level listener without that gate would hijack arrows/
+// Enter/Delete from the composer and every other pane. Also skipped when focus
+// is in an input or the CodeMirror editor (rename/search/editing).
 export function useExplorerKeys() {
+  const ui = useUi();
+  const paneId = useOriginPane() ?? ui.focusedLeafId;
+  const enabled = paneId === ui.focusedLeafId && ui.focusedRegion === "panel";
+  const openFileRef = useRef(ui.openFileViewer);
+  openFileRef.current = ui.openFileViewer;
+
   useEffect(() => {
+    if (!enabled) return;
     const onKey = (e) => {
       const t = e.target;
       if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable || t.closest?.(".cm-editor"))) return;
@@ -48,7 +59,7 @@ export function useExplorerKeys() {
           if (cur) {
             e.preventDefault();
             if (cur.type === "directory") explorer.toggleExpand(cur.path);
-            else explorer.openFilePath(cur.path);
+            else openFileRef.current(cur.path);
           }
           break;
         case "F2":
@@ -69,5 +80,5 @@ export function useExplorerKeys() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+  }, [enabled]);
 }

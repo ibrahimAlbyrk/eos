@@ -289,7 +289,7 @@ function FileViewerInner({ path, live }) {
             {content === null && !error && <div className="fv-loading">Loading...</div>}
             {content !== null && (
               showMarkdownPreview ? (
-                <MarkdownPreview content={content} />
+                <MarkdownPreview content={content} path={path} onOpenPath={ui.openFileViewer} />
               ) : (
                 <EditView
                   editContent={editContent}

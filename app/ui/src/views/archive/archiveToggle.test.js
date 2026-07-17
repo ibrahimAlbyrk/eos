@@ -4,6 +4,7 @@ import { describe, it, expect } from "vitest";
 // routed tab. Rendering components isn't feasible in the node test env, so the
 // wiring is asserted at the source level.
 import codeSidebarSrc from "../code/sidebar/CodeSidebar.jsx?raw";
+import sidebarHeadSrc from "../code/sidebar/SidebarHead.jsx?raw";
 import codeViewSrc from "../code/CodeView.jsx?raw";
 import toggleSrc from "./ArchiveToggle.jsx?raw";
 import registrySrc from "../registry.js?raw";
@@ -17,12 +18,15 @@ describe("archive is a sidebar toggle, not a tab", () => {
     }
   });
 
-  it("the toggle sits directly above the Settings footer in the Code sidebar", () => {
-    const toggleAt = codeSidebarSrc.indexOf("<ArchiveToggle />");
-    const settingsAt = codeSidebarSrc.indexOf("<SettingsFooter />");
+  it("the toggle is in the agents header, left of the spawn button", () => {
+    const toggleAt = sidebarHeadSrc.indexOf("<ArchiveToggle />");
+    // sb-section has two "New orchestrator" buttons; use the last one (the sb-section spawn)
+    const spawnAt = sidebarHeadSrc.lastIndexOf('title="New orchestrator"');
     expect(toggleAt).toBeGreaterThan(-1);
-    expect(settingsAt).toBeGreaterThan(-1);
-    expect(toggleAt).toBeLessThan(settingsAt);
+    expect(spawnAt).toBeGreaterThan(-1);
+    expect(toggleAt).toBeLessThan(spawnAt);
+    // no longer in the bottom area of CodeSidebar
+    expect(codeSidebarSrc).not.toContain("<ArchiveToggle />");
   });
 
   it("archive mode swaps the sidebar's agent tree for the archived list", () => {

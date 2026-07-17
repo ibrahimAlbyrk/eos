@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import {
-  explorer, useChildrenCache, useDirtyPaths, useDraft, useExpanded,
-  useExplorerRoot, useOpenPath, useRefsPanel, useRenaming, useSearchMode,
+  explorer, useChildrenCache, useDraft, useExpanded,
+  useExplorerRoot, useRenaming, useSearchMode,
   useSearchState, useSelection,
 } from "../../../state/explorerStore.js";
 import { flattenVisible } from "../../../lib/explorerNodes.js";
 import { isDescendant, parentDir } from "../../../lib/explorerApi.js";
 import { FileRow } from "./FileRow.jsx";
 import { FileIcon } from "../FileIcon.jsx";
-import { RefsPanel, SymbolSearchList } from "../SymbolResults.jsx";
+import { SymbolSearchList } from "../SymbolResults.jsx";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 
 export function FileTree() {
@@ -20,9 +20,7 @@ export function FileTree() {
   const selection = useSelection();
   const search = useSearchState();
   const searchMode = useSearchMode();
-  const refs = useRefsPanel();
-  const openPath = useOpenPath();
-  const dirty = useDirtyPaths();
+  const openPath = ui.fileViewer?.path ?? null;
   const draft = useDraft();
   const renaming = useRenaming();
 
@@ -48,10 +46,11 @@ export function FileTree() {
   const selRef = useRef(selection); selRef.current = selection;
   const dragRef = useRef([]);
   const openPopRef = useRef(ui.openPop); openPopRef.current = ui.openPop;
+  const openFileRef = useRef(ui.openFileViewer); openFileRef.current = ui.openFileViewer;
 
   const activate = useCallback((node) => {
     if (node.type === "directory") explorer.toggleExpand(node.path);
-    else explorer.openFilePath(node.path);
+    else openFileRef.current(node.path);
   }, []);
 
   const onRowClick = useCallback((path, e) => {
@@ -76,7 +75,12 @@ export function FileTree() {
     e.preventDefault();
     if (!selRef.current.ids.has(path)) explorer.selectOnly(path);
     const paths = selRef.current.ids.has(path) && selRef.current.ids.size > 0 ? [...selRef.current.ids] : [path];
-    openPopRef.current("fx-ctx", { x: e.clientX, y: e.clientY, data: { paths } });
+    // The plain-file subset, for "Attach as context" (the @ flow attaches only
+    // files, never directories). Context menus open on tree rows only, so every
+    // selected path resolves in the visible list.
+    const entries = visibleRef.current.filter((n) => n.kind === "entry");
+    const files = paths.filter((p) => entries.find((n) => n.path === p)?.type === "file");
+    openPopRef.current("fx-ctx", { x: e.clientX, y: e.clientY, data: { paths, files } });
   }, []);
 
   const onDragStart = useCallback((path, e) => {
@@ -110,7 +114,7 @@ export function FileTree() {
   const onRenameCancel = useCallback(() => explorer.cancelRename(), []);
   const onSearchOpen = useCallback((entry) => {
     if (entry.type === "directory") { explorer.setSearchQuery(""); explorer.selectOnly(entry.absolutePath); }
-    else explorer.openFilePath(entry.absolutePath);
+    else openFileRef.current(entry.absolutePath);
   }, []);
 
   if (!root) {
@@ -121,12 +125,8 @@ export function FileTree() {
     );
   }
 
-  // Editor-triggered symbol panels (find-references / go-to-def picker) take over
-  // the tree while open, ahead of any active filename/symbol search.
-  if (refs) return <RefsPanel refs={refs} root={root} openPath={openPath} />;
-
   if (inSearch && searchMode === "symbols") {
-    return <SymbolSearchList search={search} root={root} openPath={openPath} />;
+    return <SymbolSearchList search={search} root={root} />;
   }
 
   if (inSearch) {
@@ -175,7 +175,6 @@ export function FileTree() {
             selected={selection.ids.has(node.path)}
             anchor={selection.anchor === node.path}
             expanded={expanded.has(node.path)}
-            dirty={dirty.has(node.path)}
             renaming={renaming === node.path}
             dropTarget={dropTarget === node.path}
             onClick={onRowClick}
