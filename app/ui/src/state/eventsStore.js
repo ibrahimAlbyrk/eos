@@ -12,7 +12,6 @@
 // can never bleed into another's — the cross-agent thinking-leak class of bug.
 
 import { api } from "../api/client.js";
-import { dropWorker as dropRevealLedger } from "./animationLedger.js";
 
 export const PAGE_SIZE = 500;
 const POLL_MS = 5000;
@@ -213,31 +212,38 @@ export function loadOlder(workerId) {
   })();
 }
 
+// Fetch only the rows appended after the highest loaded id and merge them in.
+// Shared by the SSE delta fast path and the recurring poll — both want the tail
+// only, never the whole newest page (which balloons once thinking rows
+// accumulate). Best-effort: a transient failure is healed by the next poll's
+// own afterId fetch. A non-array/empty body is a no-op here (stale beats empty);
+// the leak-guard blanking lives in the full-page fetchNewest (attach/restart).
+async function fetchAfter(e, signal) {
+  let maxId = 0;
+  for (const ev of e.events) if (ev.id > maxId) maxId = ev.id;
+  try {
+    const rows = await api.getWorkerEvents(e.workerId, { afterId: maxId, limit: PAGE_SIZE, signal });
+    if (!Array.isArray(rows) || rows.length === 0) return;
+    const own = filterOwnRows(e.workerId, rows);
+    e.events = mergeEvents(e.events, own);
+    capWindow(e);
+    publish(e);
+    for (const cb of e.newestListeners) cb(e.workerId, own);
+  } catch {
+    // abort or transient; the next poll heals
+  }
+}
+
 // SSE fast path: pull only the rows appended after the highest loaded id.
-// Falls back to the newest-page fetch until a first page exists. Best-effort —
-// a missed delta is healed by the poll's newest-page merge. No abort signal
-// on purpose: the api client's in-flight dedup coalesces SSE bursts.
+// Falls back to the full newest-page fetch until a first page exists. No abort
+// signal on purpose: the api client's in-flight dedup coalesces SSE bursts.
 export function fetchDelta(workerId) {
   const e = entries.get(workerId);
   if (!e || !e.loaded || e.events.length === 0) {
     refetchNewest(workerId);
     return;
   }
-  let maxId = 0;
-  for (const ev of e.events) if (ev.id > maxId) maxId = ev.id;
-  void (async () => {
-    try {
-      const rows = await api.getWorkerEvents(workerId, { afterId: maxId, limit: PAGE_SIZE });
-      if (!Array.isArray(rows) || rows.length === 0) return;
-      const own = filterOwnRows(workerId, rows);
-      e.events = mergeEvents(e.events, own);
-      capWindow(e);
-      publish(e);
-      for (const cb of e.newestListeners) cb(workerId, own);
-    } catch {
-      // transient; poll heals
-    }
-  })();
+  void fetchAfter(e, undefined);
 }
 
 export function refetchNewest(workerId) {
@@ -246,11 +252,27 @@ export function refetchNewest(workerId) {
   void fetchNewest(e, e.pollAbort?.signal);
 }
 
+// The newest FULL page is fetched once here as the attach/restart baseline;
+// re-fetching it every 5s re-downloaded the entire window (tens of MB once a
+// session accumulates thinking rows, each re-read/sanitized/serialized daemon
+// side). The recurring tick pulls only the tail via afterId — see pollNewer.
 function startPoll(e) {
   stopPoll(e);
   e.pollAbort = new AbortController();
   void fetchNewest(e, e.pollAbort.signal);
-  e.pollTimer = setInterval(() => { void fetchNewest(e, e.pollAbort.signal); }, POLL_MS);
+  e.pollTimer = setInterval(() => { pollNewer(e); }, POLL_MS);
+}
+
+// Recurring poll tick. Incremental (afterId) once a baseline window exists;
+// falls back to a full newest page only if the baseline never established
+// (initial fetch failed, or the leak guard blanked the window).
+function pollNewer(e) {
+  const signal = e.pollAbort?.signal;
+  if (!e.loaded || e.events.length === 0) {
+    void fetchNewest(e, signal);
+    return;
+  }
+  void fetchAfter(e, signal);
 }
 
 function stopPoll(e) {
@@ -291,9 +313,6 @@ function evictDetached() {
   for (let i = 0; i <= detached.length - 1 - MAX_CACHED_WORKERS; i++) {
     const { workerId } = detached[i];
     entries.delete(workerId); // Map order = recency; oldest first
-    // Drop the reveal ledger with the cached window so it can't grow unbounded;
-    // a switch-back re-pages the transcript and re-seeds it as already-revealed.
-    dropRevealLedger(workerId);
   }
 }
 

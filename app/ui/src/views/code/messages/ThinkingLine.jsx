@@ -1,25 +1,62 @@
-import { useMemo, useRef } from "react";
-import { escapeHtml } from "../../../lib/markdown.js";
-import { useBlurInReveal } from "../../../hooks/useBlurInReveal.js";
+import { useLayoutEffect, useRef } from "react";
+import { subscribe as subscribeThinking, getBlock } from "../../../state/thinkingStore.js";
 
 // Inline reasoning line rendered as part of the assistant's turn — the raw
 // reasoning text only, with no "thinking" label/prefix (the activity anchor
 // under the latest message already signals motion).
 //
-// The text is set via innerHTML (escaped — reasoning is plain text, not markdown)
-// rather than a React-managed text node, so the blur-in word-wrap survives while
-// the text streams in token-by-token: React never reconciles inside
-// dangerouslySetInnerHTML, so applyBlurIn's DOM mutation isn't fought. The durable
-// block reuses this same instance by blockId, carrying the reveal state across the
-// live -> durable handoff with no reflash.
-export function ThinkingLine({ text, animate = false, sessionId, blockId, onSettle }) {
+// The content span is managed imperatively — React declares no children for it,
+// so it never reconciles inside. While the block streams (live), each store
+// flush appends ONLY the new tail as plain text nodes (reasoning is plain text,
+// and text nodes need no escaping). Per-flush cost is O(tail) — never an
+// innerHTML reset of the accumulated text. The durable block reuses this same
+// instance by blockId; when the streamed DOM already equals the durable text
+// the flip touches nothing, so the handoff has no reflash.
+export function ThinkingLine({ text, live = false, interrupted = false, streamId, sessionId }) {
   const ref = useRef(null);
-  const html = useMemo(() => (text ? escapeHtml(text) : ""), [text]);
-  useBlurInReveal(ref, html, animate, sessionId, blockId, onSettle);
+  const lenRef = useRef(0); // chars already appended to the DOM
+
+  // Live streaming: subscribe to the store's coalesced flushes, append the tail.
+  useLayoutEffect(() => {
+    if (!live) return;
+    const el = ref.current;
+    if (!el) return;
+    const pull = () => {
+      const full = getBlock(sessionId, streamId)?.text ?? "";
+      if (full.length <= lenRef.current) return;
+      const known = lenRef.current;
+      lenRef.current = full.length;
+      if (known === 0) {
+        // Mount catch-up (first flush, or a remount mid-stream): one-time full set.
+        el.textContent = full;
+      } else {
+        el.appendChild(document.createTextNode(full.slice(known)));
+      }
+    };
+    pull();
+    const unsub = subscribeThinking((wid) => { if (wid === sessionId) pull(); });
+    return () => unsub();
+  }, [live, sessionId, streamId]);
+
+  // Durable content — set imperatively so streamed nodes and durable text share
+  // one DOM owner. A flip whose text matches the streamed DOM leaves the nodes
+  // untouched (no reflash).
+  useLayoutEffect(() => {
+    if (live) return;
+    const el = ref.current;
+    if (!el) return;
+    const t = text ?? "";
+    if (el.textContent !== t) {
+      el.textContent = t;
+      lenRef.current = t.length;
+    }
+  }, [live, text]);
+
   return (
     <div className="thinking-line">
       <span className="mono">
-        {html ? <span ref={ref} dangerouslySetInnerHTML={{ __html: html }} /> : null}
+        <span ref={ref} />
+        {interrupted && <span className="thinking-interrupted">interrupted</span>}
       </span>
     </div>
   );

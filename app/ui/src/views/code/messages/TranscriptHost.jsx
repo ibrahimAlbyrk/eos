@@ -41,9 +41,7 @@ export function TranscriptHost({ live, activeId }) {
         const on = id === activeId;
         return (
           <div key={keyOf(id)} className={on ? "tx-pane on" : "tx-pane"} aria-hidden={!on}>
-            {/* visible = on: parked panes are content-visibility:hidden, so only
-                the active pane is on screen and may animate its blur-in reveal. */}
-            <Messages live={live} agentId={id} isActive={on} visible={on} />
+            <Messages live={live} agentId={id} isActive={on} />
           </div>
         );
       })}

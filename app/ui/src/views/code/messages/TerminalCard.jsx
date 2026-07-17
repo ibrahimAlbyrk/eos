@@ -5,7 +5,7 @@ import { api } from "../../../api/client.js";
 // terminal store while the command runs; the durable block renders from the
 // single `terminal` event the daemon appends on completion. Workspace runs
 // (no agent selected) stay live-only — they have no durable event.
-export function TerminalCard({ block, fresh = false, onSettle }) {
+export function TerminalCard({ block }) {
   const running = block.live && !block.done;
   const outRef = useRef(null);
 
@@ -14,20 +14,9 @@ export function TerminalCard({ block, fresh = false, onSettle }) {
     if (running && outRef.current) outRef.current.scrollTop = outRef.current.scrollHeight;
   }, [block.output, running]);
 
-  // The `.fresh` entrance is the same one-shot blur-in as agent text (0.22s).
-  // Mark it revealed once it finishes so a later visibility toggle (parked->on)
-  // can't drop and re-add the class and replay the animation on this same
-  // keep-alive element. Delayed past the animation so it isn't cut short.
-  useEffect(() => {
-    if (!fresh) return;
-    const t = setTimeout(() => onSettle?.(), 320);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fresh]);
-
   const ok = (block.exitCode ?? 0) === 0;
   return (
-    <div className={"terminal-card mono" + (fresh ? " fresh" : "")}>
+    <div className="terminal-card mono">
       <div className="tc-head">
         <span className="tc-prompt" aria-hidden>❯</span>
         <span className="tc-cmd">{block.command}</span>

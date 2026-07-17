@@ -15,7 +15,7 @@ import { applyDescriptors, applyProfiles } from "../lib/backendCaps.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
 import { emitPtyData, emitPtyExit } from "../state/ptyBus.js";
 import { markExited } from "../state/ptyPanelStore.js";
-import { applyDelta, dropWorker as dropThinking } from "../state/thinkingStore.js";
+import { applyDelta, dropWorker as dropThinking, finalizeWorker as finalizeThinking } from "../state/thinkingStore.js";
 import { isRunning } from "../lib/agentActivity.js";
 import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
 import { cancelQueued, retract } from "../state/outboxStore.js";
@@ -41,10 +41,18 @@ export function useLive() {
   const [eventSignal, setEventSignal] = useState({ tick: 0, workerId: null });
   const now = useClockTick();
   const [interruptedId, _setInterruptedId] = useState(() => localStorage.getItem("cm:interruptedId"));
-  const setInterruptedId = useCallback((id) => {
+  // The interrupted turn's turn_started_at rides along so the refetch clear can
+  // detect a restart (queue drain) that skipped the observable IDLE window.
+  const setInterruptedId = useCallback((id, turnStartedAt) => {
     _setInterruptedId(id);
-    if (id) localStorage.setItem("cm:interruptedId", id);
-    else localStorage.removeItem("cm:interruptedId");
+    if (id) {
+      localStorage.setItem("cm:interruptedId", id);
+      if (turnStartedAt != null) localStorage.setItem("cm:interruptedTurn", String(turnStartedAt));
+      else localStorage.removeItem("cm:interruptedTurn");
+    } else {
+      localStorage.removeItem("cm:interruptedId");
+      localStorage.removeItem("cm:interruptedTurn");
+    }
   }, []);
 
   // Monotonic guard for the workers snapshot. Every api.listWorkers() call takes
@@ -76,7 +84,12 @@ export function useLive() {
           const iid = localStorage.getItem("cm:interruptedId");
           if (iid) {
             const w = list.find((x) => x.id === iid);
-            if (!w || w.state === "DONE" || w.state === "IDLE") setInterruptedId(null);
+            // A busy worker on a NEWER turn than the one we interrupted means the
+            // queue drain restarted it before any refetch saw IDLE — the interrupt
+            // completed, so the optimistic mapping must clear or Esc goes dead.
+            const turn = localStorage.getItem("cm:interruptedTurn");
+            const newerTurn = turn != null && w?.turn_started_at != null && String(w.turn_started_at) !== turn;
+            if (!w || w.state === "DONE" || w.state === "IDLE" || newerTurn) setInterruptedId(null);
           }
         }
       } catch { setHealth(false); }
@@ -172,17 +185,19 @@ export function useLive() {
     return () => s.close();
   }, [scheduleRefetch]);
 
-  // Drop live reasoning/text buffers when a worker leaves the busy set — its turn
-  // ended (or errored/aborted via the terminal turn event), so a partial or errored
-  // turn's thinking line can't outlive the turn. A durable canonical block, when one
-  // landed, already replaced the live buffer by blockId; this clears any orphan an
-  // errored turn (no durable) left behind.
+  // Finalize live reasoning/text buffers when a worker leaves the busy set — its
+  // turn ended (or was interrupted/errored) with no durable block coming for the
+  // partial stream. Finalizing KEEPS the streamed text visible in the transcript
+  // (marked done+interrupted) instead of destroying it; stale finalized buffers
+  // drop at the next turn start (sendToAgent below, or the thinking store's
+  // new-block sweep for agent-plane turns). A durable canonical block, when one
+  // landed, already replaced its live buffer by blockId.
   const busyIdsRef = useRef(new Set());
   useEffect(() => {
     const nextBusy = new Set();
     for (const w of workers) if (isRunning(w)) nextBusy.add(w.id);
     for (const id of busyIdsRef.current) {
-      if (!nextBusy.has(id)) dropThinking(id);
+      if (!nextBusy.has(id)) finalizeThinking(id);
     }
     busyIdsRef.current = nextBusy;
   }, [workers]);
@@ -228,6 +243,8 @@ export function useLive() {
 
   const sendToAgent = useCallback(async (id, text, { clientMsgId, queueWhenBusy } = {}) => {
     setInterruptedId(null);
+    // New turn starting — retire the previous turn's finalized thinking buffers.
+    dropThinking(id);
     const worker = workersRef.current.find((w) => w.id === id);
     if (!worker) return { ok: false, status: 404, body: { error: "not found" } };
     const opts = { clientMsgId, queueWhenBusy };
@@ -239,7 +256,7 @@ export function useLive() {
   }, [scheduleRefetch, setInterruptedId]);
 
   const interruptAgent = useCallback(async (id) => {
-    setInterruptedId(id);
+    setInterruptedId(id, workersRef.current.find((w) => w.id === id)?.turn_started_at);
     // Esc cancels what the user queued — the daemon clears its pending rows
     // before the IDLE transition; mirror that on the pills instantly.
     cancelQueued(id);

@@ -43,7 +43,6 @@ import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceR
 import { subscribe as subscribeThinking, liveBlocksFor as liveThinkingFor, dropBlock as dropThinkingBlock } from "../../../state/thinkingStore.js";
 import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../../../state/loopCheckStore.js";
 import { setInputNeeded } from "../../../state/inputNeededStore.js";
-import { wasRevealed, markRevealed } from "../../../state/animationLedger.js";
 import * as outbox from "../../../state/outboxStore.js";
 
 const SCROLL_THRESHOLD = 40;
@@ -56,17 +55,13 @@ const MAX_RESTORE_PAGES = 3;
 // memos don't churn while a switch is in flight.
 const NO_EVENTS = [];
 
-export function Messages({ live, agentId, isActive = true, visible = true }) {
+export function Messages({ live, agentId, isActive = true }) {
   const ui = useUi();
   // This pane renders exactly ONE agent. The host passes agentId explicitly so
   // several panes can stay mounted at once (keep-alive); a lone <Messages> with
   // no host falls back to the global selection. isActive marks the focused pane —
   // only it drives shared UI state (question banner, verdict, agent viewer,
   // header scrim, ⌘F). Parked panes keep fetching/rendering but stay silent.
-  // visible = "rendered on screen" (the keep-alive `on` pane, or any split pane
-  // regardless of focus); it gates the blur-in reveal so hidden panes never
-  // animate. It is SEPARATE from isActive on purpose — a split's non-focused
-  // pane is visible but not active.
   const selectedId = agentId !== undefined ? agentId : ui.selectedId;
   const initialScrollDone = useRef(false);
   const lastTopRef = useRef(0);
@@ -116,7 +111,13 @@ export function Messages({ live, agentId, isActive = true, visible = true }) {
   }, [stick.scrollToBottom, selectedId]);
 
   const restorePagesRef = useRef(0);
-  useEffect(() => {
+  // Layout effect ON PURPOSE, and declared before the restore effect below:
+  // an in-place agent switch (split pane swaps agentId on this same instance)
+  // commits new content and must reset→restore within that one commit, before
+  // paint. As a passive effect this ran post-paint — the restore effect saw
+  // the previous agent's initialScrollDone=true, bailed, and the switch frame
+  // painted at the old/clamped scrollTop until attach()'s refetch landed.
+  useLayoutEffect(() => {
     initialScrollDone.current = false;
     restorePagesRef.current = 0;
     stick.reset();
@@ -235,8 +236,13 @@ export function Messages({ live, agentId, isActive = true, visible = true }) {
   // a tick subscription re-renders on every chunk.
   const [termTick, setTermTick] = useState(0);
   useEffect(() => subscribeTerminal(() => setTermTick((t) => t + 1)), []);
+  // Thinking flushes are keyed and classed: text growth (structural=false) is
+  // consumed by the streaming ThinkingLine's own subscription — the transcript
+  // re-renders only when THIS worker's live block list changes.
   const [thinkTick, setThinkTick] = useState(0);
-  useEffect(() => subscribeThinking(() => setThinkTick((t) => t + 1)), []);
+  useEffect(() => subscribeThinking((wid, structural) => {
+    if (structural && wid === selectedId) setThinkTick((t) => t + 1);
+  }), [selectedId]);
   // Live goal-check progress streams outside the event store too — re-render the
   // "checking" indicator on each phase update.
   const [loopCheckTick, setLoopCheckTick] = useState(0);
@@ -290,16 +296,15 @@ export function Messages({ live, agentId, isActive = true, visible = true }) {
     }
     // Overlay live REASONING (thinking) deltas as a streaming thinking line,
     // dropped by blockId once the durable lands. The assistant's TEXT answer is
-    // deliberately NOT overlaid live: it streams too fast for the per-token blur
-    // to register, and a live text block would suppress the durable block's
-    // blur-in (the shared blockId reuses the React instance, so its reveal state
-    // would carry over as already-revealed). Instead the durable assistant block
-    // blurs in on arrival — a clean reveal matching the thinking animation.
+    // deliberately NOT overlaid live — the durable assistant block renders on
+    // arrival.
     const durableBlockIds = new Set(base.filter((b) => b.blockId).map((b) => b.blockId));
     for (const lb of liveThinkingFor(selectedId)) {
       if (lb.channel === "text") continue;
       if (durableBlockIds.has(lb.blockId)) continue;
-      base.push({ kind: "thinking", text: lb.text, ts: lb.ts, blockId: lb.blockId, live: true });
+      // No text here on purpose: the live ThinkingLine reads its own text from
+      // the store, so token growth never invalidates this memo.
+      base.push({ kind: "thinking", ts: lb.ts, blockId: lb.blockId, live: true, interrupted: lb.interrupted });
     }
     // Conversation position is ts (creation domain), not append order — see
     // sortBlocksByTs for the clock-domain rationale.
@@ -356,29 +361,6 @@ export function Messages({ live, agentId, isActive = true, visible = true }) {
     // the panel stack (its block may have gone stale while buried).
   }, [blocks, ui.agentViewer, isActive]);
 
-  // Blur-in seeding: blocks already present when an agent's transcript first
-  // renders are seeded into the ledger as already-revealed, so history stays
-  // static; only blocks arriving afterwards animate. The ledger (module scope,
-  // keyed by sessionId:blockKey) is the single source of "already seen", so this
-  // holds across remount/park/switch/SSE — no per-instance baseline to rebuild.
-  const seededRef = useRef(null); // selectedId we have already seeded
-  useEffect(() => {
-    if (seededRef.current === selectedId || eventsFor !== selectedId || blocks.length === 0) return;
-    // Wait for the initial scroll/restore to settle before seeding. Restore can
-    // page in older history (loadOlder) AFTER the newest page lands — seeding too
-    // early leaves those older blocks unseeded, so on a first visit they blur-in
-    // as if freshly arrived. Settling first means every block loaded during entry
-    // is seeded (static); only output arriving AFTER entry animates.
-    // (initialScrollDone flips in the layout effect, which runs before this
-    // passive effect in the same commit.)
-    if (!initialScrollDone.current) return;
-    for (let i = 0; i < blocks.length; i++) markRevealed(selectedId, blockKey(blocks[i], i));
-    seededRef.current = selectedId;
-  }, [blocks, selectedId, eventsFor]);
-  // Gate animation until seeding has run for this session — otherwise the
-  // freshly-loaded transcript would flash its blur-in before the seed marks it.
-  const seeded = seededRef.current === selectedId;
-
   // expandedTools/settings in deps: expanding a tool mounts new text the ranges must cover.
   const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools, ui.settings], isActive);
 
@@ -409,10 +391,11 @@ export function Messages({ live, agentId, isActive = true, visible = true }) {
   // content flashes at the top and visibly jumps to the restored position.
   // Subsequent appends need no handling here — the hook's ResizeObserver
   // glides the view while pinned. A saved anchor that sits above the
-  // newest-page window pulls older pages (bounded) — the effect re-runs as
-  // rows land and retries the resolve; an anchor that never resolves (cleared
-  // or rewound transcript, or beyond the budget) drops its stale entry and
-  // falls back to the default bottom pin.
+  // newest-page window pulls older pages (bounded) while the view parks at
+  // the newest content — the effect re-runs as rows land and retries the
+  // resolve; an anchor that never resolves (cleared or rewound transcript, or
+  // beyond the budget) drops its stale entry and falls back to the default
+  // bottom pin.
   useLayoutEffect(() => {
     const el = wrapRef.current;
     if (!el || blocks.length === 0) return;
@@ -424,10 +407,19 @@ export function Messages({ live, agentId, isActive = true, visible = true }) {
       if (top != null) {
         initialScrollDone.current = true;
         stick.write(top);
+        // Sync the flip memory: a drop-replace switches agentId AND focus in
+        // one commit, running the parked→active effect right after this one —
+        // a stale lastTop there would clobber the restore just written.
+        lastTopRef.current = el.scrollTop;
         return;
       }
       if (hasOlder && !loadingOlder && restorePagesRef.current < MAX_RESTORE_PAGES) {
         restorePagesRef.current++;
+        // Park at the newest content while the hunt pages older rows in —
+        // without this write the hunt frames paint at the literal top. The
+        // resolve above snaps to the anchor once its page lands (write() is
+        // instant, never a glide).
+        stick.write(Infinity, { pin: true });
         loadOlder();
         return;
       }
@@ -485,24 +477,13 @@ export function Messages({ live, agentId, isActive = true, visible = true }) {
         {blocks.map((b, i) => {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
-          // Live reasoning/text blocks blur-in as tokens stream (applyBlurIn only
-          // animates the appended tail); durable blocks add terminal cards. The
-          // live -> durable handoff reuses the same instance by blockId, so the
-          // ledger's word count carries over without reflash. Unified gate: only
-          // on-screen panes (visible), only after seeding marked the loaded
-          // history static (seeded), and only once per block (ledger). On settle
-          // the block is marked revealed so it never re-animates on remount/switch.
-          const streamingKind = b.kind === "assistant" || b.kind === "thinking";
-          const canAnimate = b.live ? streamingKind : (streamingKind || b.kind === "terminal");
-          const animate = visible && seeded && canAnimate && !wasRevealed(selectedId, key);
-          const onSettle = () => markRevealed(selectedId, key);
           // Rewind is a backend CAPABILITY, decoupled from keystroke (claude-cli
           // realizes it via PTY choreography, claude-sdk via a native fork) — gate
           // it on the backend's `rewind` flag, never on keystroke or kind.
           const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).rewind
             ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
             : null;
-          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, animate, parentWorker, onRewind, agentBusy, selectedId, onSettle);
+          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId);
           if (!block) return null;
           // The wrapper carries the block's scroll-anchor identity
           // (lib/scrollAnchor.js) so every block kind is anchorable without
@@ -552,7 +533,7 @@ function blockKey(b, i) {
 // Such blocks must NOT get content-visibility, whose paint containment clips it.
 const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request", "loop", "assistant"]);
 
-function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewindDisabled, sessionId, onSettle) {
+function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled, sessionId) {
   switch (b.kind) {
     case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled}><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}>{b.workerName === "workflow" ? <WorkflowReport text={b.text} runId={b.fromWorker} /> : <MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" />}</MessageRow>;
@@ -560,8 +541,8 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
     case "peer-request": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.fromName} workers={workers} direction="in" label="Peer request from" /></MessageRow>;
     case "loop":      return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageLoop text={b.text} /></MessageRow>;
     case "loopCheck": return <LoopCheckBlock key={key} block={b} />;
-    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} animate={animate} sessionId={sessionId} blockId={key} onSettle={onSettle} /></MessageRow>;
-    case "thinking":  return <ThinkingLine key={key} text={b.text} animate={animate} sessionId={sessionId} blockId={key} onSettle={onSettle} />;
+    case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} /></MessageRow>;
+    case "thinking":  return <ThinkingLine key={key} text={b.text} live={b.live} interrupted={b.interrupted} streamId={b.blockId} sessionId={sessionId} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
       // expandedTools holds toggles against the settings-driven default (XOR)
@@ -570,7 +551,7 @@ function renderBlock(b, key, cwd, ui, workers, animate, parent, onRewind, rewind
         open={open} onToggle={() => ui.toggleToolExpanded(groupKey)} />;
     }
     case "tool":      return <ToolItem key={key} tool={b.tool} standalone cwd={cwd} workers={workers} parent={parent} />;
-    case "terminal":  return <TerminalCard key={key} block={b} fresh={animate} onSettle={onSettle} />;
+    case "terminal":  return <TerminalCard key={key} block={b} />;
     case "agentRun":  return <AgentBlock key={key} block={b} />;
     case "deliveryFailed":
       return (

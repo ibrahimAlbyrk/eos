@@ -7,7 +7,7 @@ vi.mock("../api/client.js", () => ({
 import { api } from "../api/client.js";
 import {
   PAGE_SIZE, mergeEvents, filterOwnRows,
-  attach, fetchDelta, getSnapshot, loadOlder, subscribe, setFollowing,
+  attach, fetchDelta, getSnapshot, loadOlder, refetchNewest, subscribe, setFollowing,
 } from "./eventsStore.js";
 
 const ev = (id, ts, type = "jsonl") => ({ id, ts, type });
@@ -166,6 +166,38 @@ describe("eventsStore", () => {
     detach();
   });
 
+  it("the recurring 5s poll fetches afterId, not a full newest page, after first load", async () => {
+    const id = freshId();
+    const all = rows(id, 1, 3);
+    api.getWorkerEvents.mockImplementation(pageServer(all));
+    const detach = attach(id);
+    await tick(); // initial attach → full newest page (order desc, no afterId)
+    expect(api.getWorkerEvents).toHaveBeenLastCalledWith(
+      id, expect.objectContaining({ order: "desc", limit: PAGE_SIZE }),
+    );
+    api.getWorkerEvents.mockClear();
+    all.push(row(4, id));
+    await tick(5000); // recurring poll fires once
+    expect(api.getWorkerEvents).toHaveBeenCalledTimes(1);
+    const [, opts] = api.getWorkerEvents.mock.calls[0];
+    expect(opts.afterId).toBe(3); // incremental: only rows past the loaded tail
+    expect(opts.order).toBeUndefined(); // not a newest-page refetch
+    expect(getSnapshot(id).events.map((e) => e.id)).toEqual([1, 2, 3, 4]);
+    detach();
+  });
+
+  it("the recurring afterId poll keeps the window on a non-array body (stale beats empty)", async () => {
+    const id = freshId();
+    api.getWorkerEvents.mockImplementation(pageServer(rows(id, 1, 3)));
+    const detach = attach(id);
+    await tick();
+    api.getWorkerEvents.mockResolvedValue({ error: "nope" });
+    await tick(5000); // afterId poll fires; a non-array delta is a no-op, not a blank
+    expect(getSnapshot(id).events).toHaveLength(3);
+    expect(getSnapshot(id).eventsFor).toBe(id);
+    detach();
+  });
+
   it("a network blip keeps the cached window (stale beats empty)", async () => {
     const id = freshId();
     api.getWorkerEvents.mockImplementation(pageServer(rows(id, 1, 3)));
@@ -178,13 +210,14 @@ describe("eventsStore", () => {
     detach();
   });
 
-  it("a non-array newest body blanks the window (leak guard)", async () => {
+  it("a non-array newest body blanks a loaded window (leak guard, full-page path)", async () => {
     const id = freshId();
     api.getWorkerEvents.mockImplementation(pageServer(rows(id, 1, 3)));
     const detach = attach(id);
     await tick();
     api.getWorkerEvents.mockResolvedValue({ error: "nope" });
-    await tick(5000);
+    refetchNewest(id); // restart/attach full-page refetch — where the leak guard lives
+    await tick();
     expect(getSnapshot(id).events).toHaveLength(0);
     expect(getSnapshot(id).eventsFor).toBeNull();
     detach();

@@ -42,7 +42,7 @@ function showError(block, src, err) {
 // Hydrates the placeholder <div class="mermaid-block"> nodes that renderMarkdown()
 // emits (source carried as escaped text content) into SVG, in place, after the
 // HTML is injected.
-// Mirrors useBlurInReveal's (ref, html, …) signature and re-runs on html/theme.
+// Re-runs on html/theme.
 //
 // opts.gate — a "settled" flag for streaming text. While false, a diagram that
 // fails to parse (still mid-stream) keeps its raw source visible and is retried
