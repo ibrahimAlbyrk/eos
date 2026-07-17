@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { shouldStick, nextPinned, followStep } from "./scrollStick.js";
+import { shouldStick, nextPinned, followStep, growthAction, settleStep } from "./scrollStick.js";
 
 describe("shouldStick", () => {
   it("is true when exactly at bottom (dist 0)", () => {
@@ -97,5 +97,50 @@ describe("followStep", () => {
     const next = followStep(1000, 0, 16);
     expect(next).toBeLessThan(1000);
     expect(next).toBeGreaterThan(0);
+  });
+});
+
+describe("growthAction", () => {
+  it("settling pinned growth snaps (instant write), never glides", () => {
+    expect(growthAction({ pinned: true, settling: true })).toBe("snap");
+  });
+
+  it("pinned growth outside settle glides — streaming behavior untouched", () => {
+    expect(growthAction({ pinned: true, settling: false })).toBe("follow");
+  });
+
+  it("unpinned growth does nothing, settling or not", () => {
+    expect(growthAction({ pinned: false, settling: true })).toBe("none");
+    expect(growthAction({ pinned: false, settling: false })).toBe("none");
+  });
+});
+
+describe("settleStep", () => {
+  it("starts from null state, not done on the first reading", () => {
+    expect(settleStep(null, 1000)).toEqual({ height: 1000, stable: 0, done: false });
+  });
+
+  it("ends after two consecutive stable readings (default)", () => {
+    let s = settleStep(null, 1000);
+    s = settleStep(s, 1000);
+    expect(s.done).toBe(false);
+    s = settleStep(s, 1000);
+    expect(s.done).toBe(true);
+  });
+
+  it("a height change resets the stability count", () => {
+    let s = settleStep(null, 1000);
+    s = settleStep(s, 1000); // stable 1
+    s = settleStep(s, 1400); // still materializing → start over
+    expect(s).toEqual({ height: 1400, stable: 0, done: false });
+    s = settleStep(s, 1400);
+    s = settleStep(s, 1400);
+    expect(s.done).toBe(true);
+  });
+
+  it("honors a custom stableFrames", () => {
+    let s = settleStep(null, 500, { stableFrames: 1 });
+    s = settleStep(s, 500, { stableFrames: 1 });
+    expect(s.done).toBe(true);
   });
 });

@@ -12,9 +12,16 @@
 // Growth detection is a ResizeObserver on the scroller AND the content
 // element, so anything that changes height (new blocks, ProcessingLine,
 // late-loading images) re-arms the glide without the component's help.
+//
+// A SETTLE phase follows every reset()/write(): freshly swapped content still
+// materializes its content-visibility height estimates over the next frames,
+// so a pinned glide would chase a receding bottom. While settling, pinned
+// growth snaps instantly instead; the phase ends on user scroll intent or
+// once the height holds still for a couple of frames — streaming growth
+// after that glides exactly as before.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { shouldStick, nextPinned, followStep } from "../lib/scrollStick.js";
+import { shouldStick, nextPinned, followStep, growthAction, settleStep } from "../lib/scrollStick.js";
 
 const SELF_MATCH_PX = 2;
 const SELF_FRESH_MS = 150;
@@ -61,6 +68,33 @@ export function useStickToBottom({
     el.scrollTop = clamped;
     prevTopRef.current = el.scrollTop;
   }, []);
+
+  const settlingRef = useRef(false);
+  const settleRafRef = useRef(0);
+
+  const endSettle = useCallback(() => {
+    settlingRef.current = false;
+    if (settleRafRef.current) cancelAnimationFrame(settleRafRef.current);
+    settleRafRef.current = 0;
+  }, []);
+
+  // Arm the settle phase and start its exit watcher (a rAF loop feeding
+  // settleStep). The watcher, not the ResizeObserver, decides "stable": the
+  // observer only fires ON change, so it can never see stillness.
+  const beginSettle = useCallback(() => {
+    endSettle();
+    settlingRef.current = true;
+    let state = null;
+    const tick = () => {
+      settleRafRef.current = 0;
+      const el = scrollerRef.current;
+      if (!el || !settlingRef.current) return;
+      state = settleStep(state, el.scrollHeight);
+      if (state.done) { settlingRef.current = false; return; }
+      settleRafRef.current = requestAnimationFrame(tick);
+    };
+    settleRafRef.current = requestAnimationFrame(tick);
+  }, [endSettle]);
 
   // Remember the block at the viewport top so a later width-driven reflow can
   // restore it. Only while reading history (unpinned) — a pinned view re-pins to
@@ -130,9 +164,13 @@ export function useStickToBottom({
       const now = nextPinned(was, { distance, deltaTop, isSelf, threshold });
       pinnedRef.current = now;
       if (now && !was) cbRef.current.onPinned?.();
-      if (!now && !isSelf) cbRef.current.onUserAway?.(top);
+      if (!now && !isSelf) { endSettle(); cbRef.current.onUserAway?.(top); }
       if (!now) stopFollow();
-      else if (distance > 1) startFollow();
+      // Same decision as the ResizeObserver: settling corrections are instant.
+      else if (distance > 1) {
+        if (settlingRef.current) ownWrite(el, el.scrollHeight);
+        else startFollow();
+      }
       updateBtn();
       cbRef.current.onScroll?.(el);
       captureAnchorToken();
@@ -142,6 +180,7 @@ export function useStickToBottom({
       if (e.deltaY >= 0 || !pinnedRef.current) return;
       if (el.scrollHeight - el.clientHeight <= 1) return;
       pinnedRef.current = false;
+      endSettle();
       stopFollow();
       cbRef.current.onUserAway?.(el.scrollTop);
       updateBtn();
@@ -156,7 +195,10 @@ export function useStickToBottom({
       // that path is owned by the host's parked→active restore.
       const widthChanged = w > 0 && lastWidthRef.current > 0 && Math.abs(w - lastWidthRef.current) > 0.5;
       lastWidthRef.current = w;
-      if (pinnedRef.current) {
+      const act = growthAction({ pinned: pinnedRef.current, settling: settlingRef.current });
+      if (act === "snap") {
+        ownWrite(el, el.scrollHeight);
+      } else if (act === "follow") {
         startFollow();
       } else if (widthChanged) {
         // Reflow at a new width: put the previously viewed block back at its old
@@ -177,12 +219,14 @@ export function useStickToBottom({
       el.removeEventListener("wheel", handleWheel);
       ro.disconnect();
       stopFollow();
+      endSettle();
     };
-  }, [threshold, startFollow, stopFollow, updateBtn, ownWrite, captureAnchorToken]);
+  }, [threshold, startFollow, stopFollow, updateBtn, ownWrite, captureAnchorToken, endSettle]);
 
   const scrollToBottom = useCallback(({ instant = false } = {}) => {
     const el = scrollerRef.current;
     if (!el) return;
+    endSettle(); // explicit user jump — the glide is the point
     const was = pinnedRef.current;
     pinnedRef.current = true;
     if (!was) cbRef.current.onPinned?.();
@@ -193,7 +237,7 @@ export function useStickToBottom({
       startFollow();
     }
     updateBtn();
-  }, [ownWrite, startFollow, stopFollow, updateBtn]);
+  }, [ownWrite, startFollow, stopFollow, updateBtn, endSettle]);
 
   // Owned write for positioning that is not "go to the bottom": initial
   // restore (pin:"auto" re-derives the pin from where we landed) and the
@@ -216,7 +260,8 @@ export function useStickToBottom({
     // re-pin even before the user scrolls.
     captureAnchorToken();
     updateBtn();
-  }, [ownWrite, stopFollow, updateBtn, threshold, captureAnchorToken]);
+    beginSettle();
+  }, [ownWrite, stopFollow, updateBtn, threshold, captureAnchorToken, beginSettle]);
 
   // Content-swap reset (agent switch). Unpinned by default so the swap's
   // resize churn doesn't glide anywhere before the initial write decides.
@@ -226,7 +271,8 @@ export function useStickToBottom({
     ledgerRef.current = null;
     anchorTokenRef.current = null;
     prevTopRef.current = scrollerRef.current?.scrollTop ?? 0;
-  }, [stopFollow]);
+    beginSettle();
+  }, [stopFollow, beginSettle]);
 
   // User intent like wheel-up, but from a disclosure toggle: the content is
   // about to grow under the user's click, so stop following and unpin —
@@ -236,10 +282,11 @@ export function useStickToBottom({
     if (!el || !pinnedRef.current) return;
     if (el.scrollHeight - el.clientHeight <= 1) return;
     pinnedRef.current = false;
+    endSettle();
     stopFollow();
     cbRef.current.onUserAway?.(el.scrollTop);
     updateBtn();
-  }, [stopFollow, updateBtn]);
+  }, [stopFollow, updateBtn, endSettle]);
 
   const isPinned = useCallback(() => pinnedRef.current, []);
 

@@ -26,3 +26,22 @@ export function followStep(current, target, dtMs, { tau = 100, snapPx = 1 } = {}
   if (Math.abs(dist) <= snapPx) return target;
   return current + dist * (1 - Math.exp(-dtMs / tau));
 }
+
+// What a height change does to a pinned view. While SETTLING (right after a
+// content swap/repositioning, when content-visibility block heights are still
+// correcting from their estimates) the view snaps straight to the bottom — a
+// glide would chase the receding target, the "slides down on agent switch"
+// artifact. Outside settling, pinned growth glides as usual (streaming).
+export function growthAction({ pinned, settling }) {
+  if (!pinned) return "none";
+  return settling ? "snap" : "follow";
+}
+
+// One per-frame reading of the settle watcher: settling is over once the
+// height held still for `stableFrames` consecutive readings. Pass null to
+// start; feed the returned state back in.
+export function settleStep(state, height, { stableFrames = 2 } = {}) {
+  if (state == null || height !== state.height) return { height, stable: 0, done: false };
+  const stable = state.stable + 1;
+  return { height, stable, done: stable >= stableFrames };
+}
