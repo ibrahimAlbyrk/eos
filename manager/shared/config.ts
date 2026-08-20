@@ -309,7 +309,7 @@ const DEFAULT_BACKENDS: Record<string, BackendProfile> = {
   // PTY (claude-cli) stays first-class and is the automatic fallback when the
   // subscription credential is absent (resolveSpawnBackend) — never silent metered billing.
   "claude-sdk-opus": {
-    kind: "claude-sdk", model: "claude-opus-4-8",
+    kind: "claude-sdk", model: "claude-opus-5",
     auth: { kind: "subscription" }, costMode: "included",
     params: { thinking: { type: "adaptive", display: "summarized" } },
   },

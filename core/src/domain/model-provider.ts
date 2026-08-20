@@ -11,7 +11,7 @@
 import type { BackendDescriptor, ModelCatalogRef } from "../ports/AgentBackend.ts";
 
 // A Claude-family model identifier: the tier aliases (opus/sonnet/haiku/fable)
-// optionally followed by a version suffix (e.g. "sonnet-5", "opus-4.8"), a
+// optionally followed by a version suffix (e.g. "sonnet-5", "opus-5"), a
 // concrete "claude-*" id, or an "anthropic/…" provider-routed id. The tier
 // name must be followed by a non-alpha char or end-of-string so "haikumaster"
 // etc. don't accidentally match. Anything else (deepseek-*, gpt-*, …) is false.
