@@ -8949,15 +8949,12 @@ html:not([data-theme="light"]) .fv-editor--md {
 }
 .fx-empty--sm { min-height: 40px; padding: 14px; }
 
-/* Search-mode toggle (Files | Symbols) — compact segmented control in the well */
-.fx-search-seg { flex: 0 0 auto; display: flex; gap: 1px; }
-.fx-seg-btn {
-  padding: 1px 6px; border-radius: 4px;
-  font-size: var(--text-xs); color: var(--fg-faint);
-  background: transparent; border: none; cursor: pointer; white-space: nowrap;
+/* Combined search results — section label above each group (Files / Symbols) */
+.fx-search-group {
+  padding: 8px 6px 3px; font-size: var(--text-xs); letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--fg-faint);
 }
-.fx-seg-btn:hover { color: var(--fg-mid); }
-.fx-seg-btn.on { color: var(--accent); background: var(--accent-soft); }
+.fx-search-group:first-child { padding-top: 4px; }
 
 /* Symbol panels (find-references / go-to-def picker, symbol search) */
 .fx-sym-head {

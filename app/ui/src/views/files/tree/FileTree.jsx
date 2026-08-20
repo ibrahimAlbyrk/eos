@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import {
   explorer, useChildrenCache, useDraft, useExpanded,
-  useExplorerRoot, useRenaming, useSearchMode,
+  useExplorerRoot, useRenaming,
   useSearchState, useSelection,
 } from "../../../state/explorerStore.js";
 import { flattenVisible } from "../../../lib/explorerNodes.js";
 import { isDescendant, parentDir } from "../../../lib/explorerApi.js";
+import { relToRoot, kindGlyph } from "../../../lib/symbols.js";
 import { FileRow } from "./FileRow.jsx";
 import { FileIcon } from "../FileIcon.jsx";
-import { SymbolSearchList } from "../SymbolResults.jsx";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 
 export function FileTree() {
@@ -19,7 +19,6 @@ export function FileTree() {
   const cache = useChildrenCache();
   const selection = useSelection();
   const search = useSearchState();
-  const searchMode = useSearchMode();
   const openPath = ui.fileViewer?.path ?? null;
   const draft = useDraft();
   const renaming = useRenaming();
@@ -125,19 +124,19 @@ export function FileTree() {
     );
   }
 
-  if (inSearch && searchMode === "symbols") {
-    return <SymbolSearchList search={search} root={root} />;
-  }
-
   if (inSearch) {
-    if (search.results.length === 0) {
-      return <div className="fx-tree"><div className="fx-empty fx-empty--sm">{search.loading ? "Searching…" : "No matches"}</div></div>;
+    const files = search.results.files ?? [];
+    const symbols = search.results.symbols ?? [];
+    if (files.length === 0 && symbols.length === 0) {
+      const msg = search.loading ? "Searching…" : "No matches";
+      return <div className="fx-tree"><div className="fx-empty fx-empty--sm">{msg}</div></div>;
     }
     return (
       <div className="fx-tree" role="tree">
-        {search.results.map((entry) => (
+        {files.length > 0 && <div className="fx-search-group">Files</div>}
+        {files.map((entry) => (
           <div
-            key={entry.absolutePath}
+            key={"f:" + entry.absolutePath}
             className={"fx-row fx-search-row" + (entry.absolutePath === openPath ? " on" : "")}
             onClick={() => onSearchOpen(entry)}
           >
@@ -146,6 +145,21 @@ export function FileTree() {
             <span className="fx-search-path">{entry.relativePath.includes("/") ? entry.relativePath.slice(0, entry.relativePath.lastIndexOf("/")) : ""}</span>
           </div>
         ))}
+        {symbols.length > 0 && <div className="fx-search-group">Symbols</div>}
+        {symbols.map((occ, i) => (
+          <div
+            key={`s:${occ.path}:${occ.line}:${occ.column}:${i}`}
+            className={"fx-row fx-search-row" + (occ.path === openPath ? " on" : "")}
+            onClick={() => openFileRef.current(occ.path, { line: occ.line, column: occ.column })}
+          >
+            <span className="fx-ic fx-sym-kind" title={occ.kind}>{kindGlyph(occ.kind)}</span>
+            <span className="fx-name">{occ.name}</span>
+            <span className="fx-search-path">{relToRoot(occ.path, root)}:{occ.line}</span>
+          </div>
+        ))}
+        {symbols.length === 0 && search.symbolsUnavailable && (
+          <div className="fx-empty fx-empty--sm">Symbol index unavailable</div>
+        )}
       </div>
     );
   }

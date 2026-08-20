@@ -25,37 +25,39 @@ beforeEach(() => {
 
 afterEach(() => vi.useRealTimers());
 
-describe("search mode routing", () => {
-  it("files mode routes the debounced query to listFiles", async () => {
+describe("combined search", () => {
+  it("queries both listFiles and symbolsSearch and stores both result sets", async () => {
+    vi.useFakeTimers();
+    api.listFiles.mockResolvedValue({ entries: [{ name: "x.ts", absolutePath: "/root/x.ts", relativePath: "x.ts", type: "file" }] });
+    api.symbolsSearch.mockResolvedValue({ symbols: [occ("/root/x.ts", 4, { role: "definition" })] });
+    explorer.setSearchQuery("x");
+    await vi.advanceTimersByTimeAsync(150);
+    expect(api.listFiles).toHaveBeenCalledWith(ROOT, "x", { includeHidden: true });
+    expect(api.symbolsSearch).toHaveBeenCalledWith(ROOT, "x");
+    const r = explorer.getState().search.results;
+    expect(r.files).toHaveLength(1);
+    expect(r.symbols).toHaveLength(1);
+    expect(r.symbols[0].line).toBe(4);
+  });
+
+  it("flags symbols unavailable when the backend returns null but keeps file matches", async () => {
+    vi.useFakeTimers();
+    api.listFiles.mockResolvedValue({ entries: [{ name: "x.ts", absolutePath: "/root/x.ts", relativePath: "x.ts", type: "file" }] });
+    api.symbolsSearch.mockResolvedValue(null);
+    explorer.setSearchQuery("x");
+    await vi.advanceTimersByTimeAsync(150);
+    const s = explorer.getState().search;
+    expect(s.results.symbols).toEqual([]);
+    expect(s.results.files).toHaveLength(1);
+    expect(s.symbolsUnavailable).toBe(true);
+  });
+
+  it("clearing the query resets results to null", async () => {
     vi.useFakeTimers();
     api.listFiles.mockResolvedValue({ entries: [{ name: "x.ts", absolutePath: "/root/x.ts", relativePath: "x.ts", type: "file" }] });
     explorer.setSearchQuery("x");
     await vi.advanceTimersByTimeAsync(150);
-    expect(api.listFiles).toHaveBeenCalledWith(ROOT, "x");
-    expect(api.symbolsSearch).not.toHaveBeenCalled();
-    expect(explorer.getState().search.results).toHaveLength(1);
-  });
-
-  it("symbols mode routes the debounced query to symbolsSearch", async () => {
-    vi.useFakeTimers();
-    api.symbolsSearch.mockResolvedValue({ symbols: [occ("/root/x.ts", 4, { role: "definition" })] });
-    explorer.setSearchMode("symbols");
-    explorer.setSearchQuery("foo");
-    await vi.advanceTimersByTimeAsync(150);
-    expect(api.symbolsSearch).toHaveBeenCalledWith(ROOT, "foo");
-    const s = explorer.getState().search;
-    expect(s.results).toHaveLength(1);
-    expect(s.results[0].line).toBe(4);
-  });
-
-  it("symbols mode marks results unavailable when the backend returns null", async () => {
-    vi.useFakeTimers();
-    api.symbolsSearch.mockResolvedValue(null);
-    explorer.setSearchMode("symbols");
-    explorer.setSearchQuery("foo");
-    await vi.advanceTimersByTimeAsync(150);
-    const s = explorer.getState().search;
-    expect(s.results).toEqual([]);
-    expect(s.unavailable).toBe(true);
+    explorer.setSearchQuery("");
+    expect(explorer.getState().search.results).toBeNull();
   });
 });

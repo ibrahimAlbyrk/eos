@@ -25,12 +25,13 @@ try { persistedExpanded = JSON.parse(lsGet(LS_EXPANDED) || "[]"); } catch { pers
 
 const state = {
   root: null,
-  showHidden: false, // dotfiles; mirrored from the durable daemon setting (FilesPanel)
+  showHidden: true, // dotfiles always shown (no visibility toggle)
   expanded: new Set(), // dir abs paths
   childrenCache: new Map(), // dir -> { state: "loading"|"ready"|"error", entries }
   selection: { anchor: null, ids: new Set() },
-  searchMode: "files", // "files" | "symbols" — the search-box mode toggle
-  search: { query: "", results: null, loading: false }, // results !== null ⇒ search mode
+  // results !== null ⇒ search mode; results is { files, symbols } (a single box
+  // queries both at once).
+  search: { query: "", results: null, loading: false },
   draft: null, // { parentDir, type } — inline new-file/folder row
   renaming: null, // path being renamed inline
 };
@@ -145,14 +146,30 @@ function collapseAll() {
   emit();
 }
 
-// Driven by the durable daemon setting (mirrored from FilesPanel). Re-lists every
-// loaded dir with the new visibility; search is git-based and needs no refresh.
-function setShowHidden(value) {
-  const v = value === true;
-  if (v === state.showHidden) return;
-  state.showHidden = v;
+// Expand every folder under the root: breadth-first, loading each directory and
+// marking all its subdirs expanded + watched (so live-update covers the whole
+// open tree). The tree reveals progressively as each dir loads.
+async function expandAll() {
+  if (!state.root) return;
+  const next = new Set(state.expanded);
+  const queue = [state.root];
+  const seen = new Set();
+  while (queue.length) {
+    const dir = queue.shift();
+    if (seen.has(dir)) continue;
+    seen.add(dir);
+    await loadDir(dir, { quiet: true });
+    const node = state.childrenCache.get(dir);
+    if (!node || node.state !== "ready") continue;
+    for (const e of node.entries) {
+      if (e.type !== "directory") continue;
+      if (!next.has(e.absolutePath)) { next.add(e.absolutePath); watch(e.absolutePath); }
+      queue.push(e.absolutePath);
+    }
+  }
+  state.expanded = next;
+  persistExpanded();
   emit();
-  for (const dir of state.childrenCache.keys()) loadDir(dir, { quiet: true });
 }
 
 // ---- live fs:change reconciliation -----------------------------------------
@@ -190,8 +207,9 @@ function clearSelection() {
 }
 
 // ---- search ----------------------------------------------------------------
-// One debounced pipeline, mode-switched: "files" hits the filename fuzzy search,
-// "symbols" hits the symbol-name index. Both replace the tree via search.results.
+// One debounced pipeline that queries BOTH filename search and the symbol-name
+// index at once; results is { files, symbols } so the tree can show combined
+// matches. symbolsUnavailable flags a missing/errored symbol backend.
 
 let searchTimer = null;
 function setSearchQuery(q) {
@@ -199,36 +217,20 @@ function setSearchQuery(q) {
   if (!q) { state.search = { query: "", results: null, loading: false }; emit(); return; }
   state.search = { query: q, results: state.search.results, loading: true };
   emit();
-  const mode = state.searchMode;
   searchTimer = setTimeout(async () => {
-    if (mode === "symbols") {
-      const res = await api.symbolsSearch(state.root, q);
-      if (state.search.query !== q || state.searchMode !== "symbols") return; // stale
-      state.search = { query: q, results: res?.symbols ?? [], loading: false, unavailable: res == null };
-    } else {
-      try {
-        const res = await api.listFiles(state.root, q);
-        if (state.search.query !== q) return; // stale
-        state.search = { query: q, results: res.entries ?? [], loading: false };
-      } catch {
-        if (state.search.query !== q) return;
-        state.search = { query: q, results: [], loading: false };
-      }
-    }
+    const [fileRes, symRes] = await Promise.all([
+      api.listFiles(state.root, q, { includeHidden: true }).catch(() => null),
+      api.symbolsSearch(state.root, q), // fail-soft: resolves null when unavailable
+    ]);
+    if (state.search.query !== q) return; // stale
+    state.search = {
+      query: q,
+      results: { files: fileRes?.entries ?? [], symbols: symRes?.symbols ?? [] },
+      loading: false,
+      symbolsUnavailable: symRes == null,
+    };
     emit();
   }, 150);
-}
-
-// Flip the search box between filename and symbol search; re-runs the pending
-// query under the new mode so the toggle takes effect immediately.
-function setSearchMode(mode) {
-  const m = mode === "symbols" ? "symbols" : "files";
-  if (m === state.searchMode) return;
-  state.searchMode = m;
-  const q = state.search.query;
-  state.search = { query: "", results: null, loading: false };
-  emit();
-  if (q) setSearchQuery(q);
 }
 
 // ---- inline draft / rename -------------------------------------------------
@@ -275,11 +277,11 @@ async function moveEntries(pathsAbs, destDirAbs) {
 // ---- public surface --------------------------------------------------------
 
 export const explorer = {
-  ensureRoot, setRoot, toggleExpand, expandDir, collapseAll, setShowHidden,
-  loadDir, refreshDir: (dir) => loadDir(dir, { quiet: true }),
+  ensureRoot, setRoot, toggleExpand, expandDir, collapseAll, expandAll,
+  loadDir,
   reconcileFsChange, resubscribeWatches, pauseWatches, resumeWatches,
   selectOnly, toggleSelect, setSelection, clearSelection,
-  setSearchQuery, setSearchMode,
+  setSearchQuery,
   startDraft, cancelDraft, startRename, cancelRename,
   createEntry, renameEntry, trashEntries, moveEntries,
   baseName,
@@ -290,7 +292,6 @@ export const explorer = {
 // `_reset` pattern). No effect on production code paths.
 export function _resetForTest() {
   state.root = null;
-  state.searchMode = "files";
   state.search = { query: "", results: null, loading: false };
   emit();
 }
@@ -302,6 +303,5 @@ export const useExpanded = () => useSyncExternalStore(subscribe, () => state.exp
 export const useChildrenCache = () => useSyncExternalStore(subscribe, () => state.childrenCache);
 export const useSelection = () => useSyncExternalStore(subscribe, () => state.selection);
 export const useSearchState = () => useSyncExternalStore(subscribe, () => state.search);
-export const useSearchMode = () => useSyncExternalStore(subscribe, () => state.searchMode);
 export const useDraft = () => useSyncExternalStore(subscribe, () => state.draft);
 export const useRenaming = () => useSyncExternalStore(subscribe, () => state.renaming);
