@@ -1,5 +1,7 @@
+import { useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { ArchiveToggle } from "../../archive/ArchiveToggle.jsx";
+import { subscribe, getArchive } from "../../../state/archiveStore.js";
 
 function SpawnIcon() {
   return (
@@ -12,6 +14,7 @@ function SpawnIcon() {
 export function SidebarHead({ total, variant }) {
   const ui = useUi();
   const full = variant === "full";
+  const { archiveMode } = useSyncExternalStore(subscribe, getArchive);
 
   const handleSpawn = (e) => {
     e.stopPropagation();
@@ -51,11 +54,11 @@ export function SidebarHead({ total, variant }) {
 
       {full && (
         <div className="sb-section">
-          <span className="sb-section__title">Agents</span>
-          <ArchiveToggle />
+          <span className="sb-section__title">{archiveMode ? "Archived Agents" : "Agents"}</span>
           <button className="sb-iconbtn" title="New orchestrator" onClick={handleSpawn}>
             <SpawnIcon />
           </button>
+          <ArchiveToggle />
         </div>
       )}
     </>

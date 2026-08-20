@@ -20,11 +20,6 @@ export function ArchiveSidebar() {
 
   return (
     <>
-      <div className="sb-head">
-        <div className="sb-head__title">
-          Archive {roots.length > 0 && <span className="sb-head__count">{roots.length}</span>}
-        </div>
-      </div>
       <div className="agents-section">
         {roots.length === 0 ? (
           <div className="empty-tree" style={{ padding: "24px 14px", color: "var(--fg-faint)", fontSize: "var(--text-sm)" }}>

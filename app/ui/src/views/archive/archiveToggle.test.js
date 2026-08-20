@@ -18,13 +18,13 @@ describe("archive is a sidebar toggle, not a tab", () => {
     }
   });
 
-  it("the toggle is in the agents header, left of the spawn button", () => {
+  it("the toggle is in the agents header, right of the spawn button", () => {
     const toggleAt = sidebarHeadSrc.indexOf("<ArchiveToggle />");
     // sb-section has two "New orchestrator" buttons; use the last one (the sb-section spawn)
     const spawnAt = sidebarHeadSrc.lastIndexOf('title="New orchestrator"');
     expect(toggleAt).toBeGreaterThan(-1);
     expect(spawnAt).toBeGreaterThan(-1);
-    expect(toggleAt).toBeLessThan(spawnAt);
+    expect(toggleAt).toBeGreaterThan(spawnAt);
     // no longer in the bottom area of CodeSidebar
     expect(codeSidebarSrc).not.toContain("<ArchiveToggle />");
   });
