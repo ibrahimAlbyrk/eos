@@ -11,6 +11,8 @@ import { DragAffordance } from "./DragAffordance.jsx";
 import { PanelDock } from "./PanelDock.jsx";
 import { PaneHeader } from "./PaneHeader.jsx";
 import { PaneScopeContext } from "../../../state/paneScope.js";
+import { panelDefaultFrac } from "../../../lib/panelRegistry.js";
+import { DOCK_DEFAULT_FRAC } from "./dockConfig.js";
 
 const pctStyle = (r) => ({ left: `${r.left}%`, top: `${r.top}%`, width: `${r.width}%`, height: `${r.height}%` });
 
@@ -74,10 +76,10 @@ const clampPanelFrac = (f) => Math.min(PANEL_MAX_FRAC, Math.max(PANEL_MIN_FRAC, 
 
 // Carve the owning pane's rect into [shrunk transcript | dock]. The dock claims a
 // single width whatever it tiles inside (PanelDock lays its panels out); closed →
-// zero-width but kept in flow. `open` = the pane has ≥1 docked panel.
-const DOCK_DEFAULT_FRAC = 0.5;
-function dockSplit(rect, open, frac) {
-  const f = open ? (frac ?? DOCK_DEFAULT_FRAC) : 0;
+// zero-width but kept in flow. `open` = the pane has ≥1 docked panel. defFrac is
+// the pane's resolved default width (type-aware — see defaultDockFrac).
+function dockSplit(rect, open, frac, defFrac = DOCK_DEFAULT_FRAC) {
+  const f = open ? (frac ?? defFrac) : 0;
   const pw = rect.width * f;
   return {
     paneRect: { ...rect, width: rect.width - pw },
@@ -112,7 +114,7 @@ function PanelResizeHandle({ containerRef, rect, onFrac, onResizeStart, onResize
 // slot rect to fill its OWN pane's rect (not the whole grid, so sibling panes stay
 // uncovered) — the .pane-slot 240ms geometry transition animates the grow/shrink —
 // and makes the dock-edge handle inert.
-function PanelSlot({ id, rect, live, gridRef, open, frac, onFrac, onResizeStart, onResizeEnd, onFocusPanel }) {
+function PanelSlot({ id, rect, live, gridRef, open, frac, defFrac, onFrac, onResizeStart, onResizeEnd, onFocusPanel }) {
   const fullscreen = useSyncExternalStore(
     useCallback((cb) => subscribeDockFullscreen(id, cb), [id]),
     useCallback(() => isDockFullscreen(id), [id]),
@@ -123,7 +125,7 @@ function PanelSlot({ id, rect, live, gridRef, open, frac, onFrac, onResizeStart,
   }, [open, fullscreen, id]);
   const slotRect = fullscreen
     ? rect
-    : dockSplit(rect, open, frac).panelRect;
+    : dockSplit(rect, open, frac, defFrac).panelRect;
   return (
     <div
       // at-top: this pane hugs the grid's top row, so its docked panel may rise
@@ -195,7 +197,13 @@ export function PaneGrid({ live }) {
   // (last panel just closed): then the transcript reclaims its rect while the still-
   // mounted viewer shrinks out with the panel slot (see PanelSlot / dockFullscreen).
   const dockOpenGeom = (id) => ui.hasAnyPanelIn(id) && !ui.isDockCollapsing(id);
-  const paneRectOf = (id, rect) => dockSplit(rect, dockOpenGeom(id), panelFracs[id]).paneRect;
+  // A dock showing ONLY the Files panel opens at Files' configured (narrower)
+  // default width; every other dock keeps the shared default.
+  const defaultDockFrac = (id) => {
+    const types = ui.openPanelTypesIn(id);
+    return (types.length === 1 ? panelDefaultFrac(types[0]) : null) ?? DOCK_DEFAULT_FRAC;
+  };
+  const paneRectOf = (id, rect) => dockSplit(rect, dockOpenGeom(id), panelFracs[id], defaultDockFrac(id)).paneRect;
 
   // One slot renderer for both live panes and the leaving ghosts. A ghost keeps
   // the same key (leaf id) and element shape so React keeps the real Pane mounted
@@ -260,6 +268,7 @@ export function PaneGrid({ live }) {
           gridRef={gridRef}
           open={dockOpenGeom(id)}
           frac={panelFracs[id]}
+          defFrac={defaultDockFrac(id)}
           onFrac={(f) => setPanelFracs((m) => ({ ...m, [id]: f }))}
           onResizeStart={() => setResizing(true)}
           onResizeEnd={() => setResizing(false)}
@@ -320,7 +329,11 @@ export function SinglePane({ live }) {
   // viewer still mounted, so treat it as closed for geometry and suppress fullscreen.
   const collapsing = ui.isDockCollapsing(leafId);
   const fs = fullscreen && !collapsing;
-  const dockWidth = (dockOpen && !collapsing) ? (panelFrac != null ? panelFrac * 100 : DOCK_DEFAULT_FRAC * 100) : 0;
+  // Files-only dock opens at Files' configured (narrower) default; other docks
+  // keep the shared default. Mirrors defaultDockFrac in the split-pane path.
+  const soleType = ui.openPanelTypes.length === 1 ? ui.openPanelTypes[0] : null;
+  const defFrac = (soleType ? panelDefaultFrac(soleType) : null) ?? DOCK_DEFAULT_FRAC;
+  const dockWidth = (dockOpen && !collapsing) ? (panelFrac != null ? panelFrac * 100 : defFrac * 100) : 0;
   // Fullscreen overlay geometry for .panel-dock-grid, expressed in the dock's OWN
   // width frame so left+width can transition: shift left back over .sp-main and
   // widen to the full row, landing the grid flush over .single-pane (0…100%).

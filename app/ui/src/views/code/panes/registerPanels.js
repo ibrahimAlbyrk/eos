@@ -5,6 +5,7 @@
 // dock or the tiling engine (open/closed).
 
 import { registerPanel } from "../../../lib/panelRegistry.js";
+import { FILES_PANEL_WIDTH_FRAC } from "./dockConfig.js";
 import { FileViewer } from "../messages/FileViewer.jsx";
 import { AgentViewer } from "../messages/AgentViewer.jsx";
 import { DiffViewer } from "../messages/DiffViewer.jsx";
@@ -21,4 +22,4 @@ registerPanel({ type: "gitdiff", label: "Git Diff", Component: GitDiffViewer, cl
 // Close/hide/evict keep the pane's PTY sessions alive (they persist and reattach
 // on reopen); no dispose kill. Only a tab's × or a shell exit ends a session.
 registerPanel({ type: "terminal", label: "Terminal", Component: TerminalViewer, close: (ui) => ui.closeTerminalViewer(), minW: 280, minH: 160 });
-registerPanel({ type: "files", label: "Files", Component: FilesPanel, close: (ui) => ui.closeFilesViewer(), minW: 220, minH: 160 });
+registerPanel({ type: "files", label: "Files", Component: FilesPanel, close: (ui) => ui.closeFilesViewer(), minW: 220, minH: 160, defaultFrac: FILES_PANEL_WIDTH_FRAC });

@@ -7,12 +7,14 @@
 // Module singleton (same idiom as ptyPanelStore/toastStore): registrations run as
 // a side-effect when the composition module (panes/registerPanels.js) is imported.
 //
-// descriptor: { type, label, Component, close, minW, minH }
+// descriptor: { type, label, Component, close, minW, minH, defaultFrac? }
 //   Component — the viewer, rendered by PanelDock inside a positioned frame.
 //   close(ui) — the single close authority: runs the type's scoped close action
 //               (plus any side-effect it declares). Used by the viewer chrome AND
 //               by eviction, so a panel always leaves the dock the same way.
 //   minW/minH — px minimums the resize clamps honor (keeps xterm fit valid, etc.).
+//   defaultFrac — optional dock-width fraction this panel opens at when it is the
+//               dock's only panel (config value; falls back to the shared default).
 
 const registry = new Map();
 
@@ -40,4 +42,10 @@ export function closePanelType(type, ui) {
 export function panelMinSize(type) {
   const d = registry.get(type);
   return { minW: d?.minW ?? DEFAULT_MIN_W, minH: d?.minH ?? DEFAULT_MIN_H };
+}
+
+// The dock-width fraction a panel type opens at when it is the dock's sole panel,
+// or null to use the shared dock default.
+export function panelDefaultFrac(type) {
+  return registry.get(type)?.defaultFrac ?? null;
 }
