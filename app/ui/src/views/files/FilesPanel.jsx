@@ -29,12 +29,6 @@ export function FilesPanel({ live }) {
     explorer.ensureRoot(cwd);
   }, [cwd]);
 
-  // Mirror the durable "show hidden files" setting (daemon-persisted, survives
-  // app restarts) into the explorer store.
-  useEffect(() => {
-    explorer.setShowHidden(ui.settings?.filesShowHidden === true);
-  }, [ui.settings?.filesShowHidden]);
-
   useEffect(() => {
     mounted += 1;
     if (mounted === 1) explorer.resumeWatches();
