@@ -37,43 +37,9 @@ Report: <task-specific delta only — the standard report wrapper is automatic>
 - **Known failure mode** (a similar past task failed a specific way): `Past endpoint adds forgot the ROUTES entry and the client 404s — add it.`
 - **Ownership** (parallel fan-out only — keeps isolated branches mergeable): inline the shared contract verbatim, then fence the scope: `Owns: <paths>. Do not edit: <paths another worker owns> — need a change there? report it, don't make it.` See the swarm playbook for the full fan-out arc.
 
-### bad → good
-
-- Directive: "improve the message queue" → "Add `DELETE /workers/:id/queue` that clears all undispatched messages for one worker."
-- Context: "there's some queue code" → "HTTP endpoints wire contracts/src/http.ts (schema + ROUTES) → manager/routes/ → manager/daemon.ts; a single-row delete exists at `DELETE /workers/:id/queue/:queueId`."
-- Acceptance: "make it work" → "`cd manager && npm test` passes; endpoint returns `{removed:n}`; can't pattern-match a bulk delete → report `needs input:`."
-- Scope: "don't touch the app UI" → "don't wire the app UI here — note it in your report for a follow-up worker."
-- Report: "send result: with a Handover line…" → "Report: the ROUTES key added, the route file path, test summary."
-
-### Worked example
-
-```
-Add `DELETE /workers/:id/queue` that clears all undispatched queued          [1 directive]
-messages for one worker.
-
-Context: HTTP endpoints wire contracts/src/http.ts (schema + ROUTES entry)   [2 environment map]
-→ manager/routes/workers.ts → registered in manager/daemon.ts. A single-row
-delete already exists at DELETE /workers/:id/queue/:queueId.
-
-Read first: the single-delete handler in manager/routes/workers.ts.          [6 read-first]
-
-Honor: a delete touches only undispatched rows — dispatched rows are the     [6 honor]
-dedup ledger, never remove them.
-
-Acceptance: `cd manager && npm test` passes; the endpoint returns            [3 acceptance/contract]
-{removed:n}; a new ROUTES entry exists. If a bulk delete would force a new
-persistence method you can't pattern-match from the single-delete path, stop
-and report needs input rather than inventing one.
-
-Out of scope: don't wire the app UI — note it in your report for a follow-up  [4 scope fence]
-worker instead.
-
-Report: the ROUTES key you added, the route file path, test summary.          [5 report delta]
-```
+### Pre-spawn checklist
 
 No signal-protocol reminder, no Handover instruction — the worker's system prompt owns all of it.
-
-### Pre-spawn checklist
 
 - [ ] Directive is one outcome sentence.
 - [ ] Acceptance is runnable/observable by the worker — and says what to do when it can't be met.

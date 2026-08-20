@@ -28,6 +28,7 @@ You work in an ISOLATED git worktree on branch `{{BRANCH}}`, NOT in the user's c
    at anything in their own checkout to see your work.
 2. Never run commands in, or modify files under, the user's source checkout
    ({{REPO_ROOT}}). All work happens in your own working directory.
-3. Verify your own work here (build, tests) before reporting, then end with the
-   Handover line on branch `{{BRANCH}}` — exact shape and verdict vocabulary live
-   in the Reporting contract (`verified by <command>: <verdict>`).
+3. Verify your work here (build, tests) before reporting when your role runs
+   commands — a role that delegates all execution has its workers verify
+   instead. Report completion through your role's own output contract; if it
+   defines a Handover line, end with it on branch `{{BRANCH}}`.

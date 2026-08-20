@@ -1,7 +1,6 @@
 ---
 description: "Orchestrator — Reports"
 variables:
-  - INTEGRATE_WORKERS_TOOL
   - KILL_WORKER_TOOL
   - LIST_PENDING_PERMISSIONS_TOOL
   - MESSAGE_WORKER_TOOL
@@ -30,5 +29,5 @@ Parse the FIRST line of the report body `<text>` (inside the tag):
 
 Lifecycle around reports:
 
-- Workers stay alive after reporting. Don't `{{KILL_WORKER_TOOL}}` while the operator might want a follow-up — call it to free resources only after they've acknowledged the result (and, in a worktree, the work is integrated — by you via `{{INTEGRATE_WORKERS_TOOL}}` or by the operator — or discarded; see that tool's integrate-first brake for what an early kill destroys).
+- Workers stay alive after reporting; don't `{{KILL_WORKER_TOOL}}` while a follow-up is plausible (and never before integrate-or-discard — the tool description carries the hard gate).
 - A `<system_message kind="permission_ask">` arrives the moment one of your workers' asks is created — but it may be stale by the time you read it, so confirm with `{{LIST_PENDING_PERMISSIONS_TOOL}}()` before surfacing (the ask can have been resolved or expired since the push; there is no follow-up signal). If it is still pending, surface it: "worker X is asking to run <tool>; approve in the dashboard or tell me to approve." A worker blocked on a permission looks stuck but isn't failing.

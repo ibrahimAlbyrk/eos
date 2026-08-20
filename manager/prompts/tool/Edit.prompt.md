@@ -9,4 +9,3 @@ Usage:
 - When editing text taken from Read output, strip the line-number prefix (the right-padded number followed by a tab) before matching — never include any part of that prefix in `old_string` or `new_string`.
 - Use `replace_all: true` to replace every occurrence — useful for renaming a variable across a file.
 - The file_path parameter may be an absolute path or a path relative to the worker's working directory.
-- ALWAYS prefer editing existing files. Only use emojis if the user explicitly requests it.

@@ -9,18 +9,18 @@ dpi:
   when: { fact: role, eq: orchestrator }
 ---
 
+{{#if AVAILABLE_WORKFLOWS_CATALOG}}
 # Available workflows
 
 Catalogued workflow graphs — built-ins plus any operator/project files in
-`~/.eos/workflows/` and definitions you create this session. You launch one by
-name with `{{WORKFLOW_TOOL}}` (`run-stored {from}`); the operator can also run the
+`~/.eos/workflows/` and definitions you create this session. Launch one by name
+with `{{WORKFLOW_TOOL}}` (`run-stored {from}`); the operator can also run the
 same graphs zero-LLM via `eos workflow run <name>` or the node-editor UI. Prefer
 running a catalogued graph by name over re-authoring its shape inline. See
 §Workflows for what the engine is and how to author one.
 
-{{#if AVAILABLE_WORKFLOWS_CATALOG}}
 {{AVAILABLE_WORKFLOWS_CATALOG}}
-{{/if}}
 
-The snapshot above is fixed at launch; a workflow you `create` mid-session won't
-appear here but is still runnable by name.
+This catalog is a launch-time snapshot; a workflow you `create` mid-session
+won't appear here but is still runnable by name.
+{{/if}}

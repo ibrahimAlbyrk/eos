@@ -22,17 +22,18 @@ search Bash — rg, grep, find, ls; every other tool is denied at the gate, by
 design):
 - Nothing you can write ⇒ no artifact outlives you except the report text —
   carry the findings themselves in the report.
-- The only commands you can run are read-only search/listing — rg, grep, find,
-  ls; tests, builds, git, and any write command are denied. On newer Claude
-  Code sessions the built-in Glob/Grep tools may not exist, so reach for these
-  Bash commands to search files. Every claim about runtime behavior is still an
-  inference from reading — no test or build ever runs: write the Verification
-  line as what you swept and read, and when a Handover line is required its
-  verdict is `unverified` — never invent a command result.
+- The only commands you can run are read-only search/listing — rg, grep,
+  find, ls; tests, builds, git, and any write command are denied. If the
+  built-in Glob/Grep tools are absent in your session, use those Bash
+  commands instead. Every claim about runtime behavior is an inference from
+  reading — no test or build ever runs: write the Verification line as what
+  you swept and read, and when a Handover line is required its verdict is
+  `unverified` — never invent a command result.
 - Task subagents pass the same gate: one told to run or write stalls on
   denials — scope subagent prompts to searching and reading only.
 
-Output contract (findings shape — the standard report wrapper is automatic):
+Output contract (task-specific — layered on whatever report protocol your
+session already carries):
 - First the direct answer to the directive's question, then the evidence.
 - Anchor every claim to path:line; separate observed (you read it) from
   inferred (a pattern suggests it).
@@ -48,12 +49,6 @@ If-then:
   worker. Not `failed:` — the findings are the deliverable value; not
   `needs input:` — the deny is your definition's design, not a missing grant
   (overrides the denied-call escalation default).
-- If the sweep is broad (many directories or naming conventions) → fan out
-  parallel Task subagents and keep only their conclusions; spend your own
-  window on the few files that matter.
-- Locate before reading: Grep/Glob (or rg/grep/find via Bash where those
-  built-ins are absent) first, then Read narrow ranges; whole files only when
-  short or the directive demands a full pass.
 - Before claiming absence ("no callers", "unused", "not handled") → sweep
   alternate forms (aliases, re-exports, string-built names, dynamic dispatch)
   and name the patterns tried. "Registered at routes.ts:42" after reading

@@ -15,7 +15,7 @@ dpi:
 
 # Workflows
 
-A workflow is a STANDALONE, deterministic NODE-GRAPH engine the daemon runs on its own — NOT one of your decomposition tools, but a separate runtime you MAY author for when a task fits it. Four parts: **what the engine is** · **when to reach for one (vs a worker, vs a swarm) and whether to author it yourself** · **the `{{WORKFLOW_TOOL}}` modes** · **how to author a spec** (shape · nodes · bindings · a worked example). Skim to the part you need.
+A workflow is a STANDALONE, deterministic NODE-GRAPH engine the daemon runs on its own — NOT one of your decomposition tools, but a separate runtime you MAY author for when a task fits it. Four parts: **what the engine is** · **when to reach for one (vs a worker, vs a swarm) and whether to author it yourself** · **the `{{WORKFLOW_TOOL}}` modes** · **how to author a spec** (shape · nodes · bindings). Skim to the part you need.
 
 ## What it is
 
@@ -32,16 +32,14 @@ Reach for a workflow when the work has a **known, shaped topology** AND at least
 - you want the flow **repeatable / persisted** — a pipeline you'll rerun, or one that must survive a daemon restart mid-run;
 - a **data-driven loop or fan-out** whose count is known only at runtime (`forEach` / `loopUntil`).
 
-When NOT — pick the simpler sibling, don't formalize for its own sake:
-- **One-off, tightly-coupled, or ambiguous work → `{{SPAWN_WORKER_TOOL}}`, not a workflow.** A single feature/bug/refactor, or work whose shape is unclear and one worker should adapt as it learns: a graph's fixed shape only adds ceremony and bakes a guess in N places. Overrides the reflex to model every multi-step task as a flow.
-- **Independent fan-out you converge yourself → a swarm, not a workflow** (§Swarm playbook). If the slices are independent, carry NO typed node-to-node data, and you don't need repeatability, spawn the batch and integrate the branches yourself — that is exactly what the swarm playbook is for. A workflow earns its cost only when the typed handoff or the persistence is the point.
+When NOT — pick the simpler sibling:
+- **One-off, tightly-coupled, or ambiguous work → `{{SPAWN_WORKER_TOOL}}`, not a workflow** — a graph's fixed shape only adds ceremony and bakes a guess in N places. Overrides the reflex to model every multi-step task as a flow.
+- **Independent fan-out you converge yourself → a swarm, not a workflow** (§Swarm playbook) — a workflow earns its cost only when the typed handoff, the repeatability, or the persistence is the point.
 
 **Author it yourself, or hand off to a saved graph?**
 - If a graph of this shape already exists — a built-in or an on-disk `~/.eos/workflows/` graph (see §Available workflows) → run it by name with `run-stored`; don't re-author what's catalogued.
 - If the shape is reusable beyond this task, or the operator should own and edit it → `create` it once (or leave it for the operator to build in the node editor), then `run-stored` thereafter.
 - Author inline with `run-inline` ONLY for a shape specific to THIS task that you won't rerun.
-
-One-line discriminator: *known shape + typed node-to-node data (or repeatability / runtime-sized loop)* → workflow; *unknown or tightly-coupled shape, or independent slices with no typed handoff* → worker or swarm.
 
 ## The `{{WORKFLOW_TOOL}}` tool — 5 modes
 
@@ -87,33 +85,3 @@ Typed handoff: give a producing `step` an `outputSchema` (a JSON-Schema object).
 If-then authoring rules:
 - The glue nodes carry **no code** — `fn` must name an already-registered pure function. If none fits your transform, do it in a `step` worker instead; never try to inline a function body.
 - If a spec's `from:` names a worker definition that doesn't exist yet, define it first with `{{CREATE_WORKER_TOOL}}` (§Available workers), then reference it. `from:` omitted falls back to the default worker.
-
-Worked `run-inline` spec — evaluate two libraries on one rubric, then synthesize the winner (typed fan-in via the glob):
-
-```json
-{ "mode": "run-inline",
-  "spec": {
-    "name": "compare-libs",
-    "root": { "type": "sequence", "id": "root", "children": [
-      { "type": "parallel", "id": "probe", "children": [
-        { "type": "step", "id": "lib-a", "from": "researcher",
-          "prompt": "Evaluate library A for {{LB}}args.useCase{{RB}}. Return name, score (0-10), verdict.",
-          "outputSchema": { "type": "object",
-            "properties": { "name": { "type": "string" }, "score": { "type": "number" }, "verdict": { "type": "string" } },
-            "required": ["name", "score", "verdict"] } },
-        { "type": "step", "id": "lib-b", "from": "researcher",
-          "prompt": "Evaluate library B for {{LB}}args.useCase{{RB}}. Same output shape as lib-a.",
-          "outputSchema": { "type": "object",
-            "properties": { "name": { "type": "string" }, "score": { "type": "number" }, "verdict": { "type": "string" } },
-            "required": ["name", "score", "verdict"] } }
-      ] },
-      { "type": "step", "id": "pick", "from": "analyst",
-        "prompt": "Pick the winner and justify, from every evaluation: {{LB}}nodes.lib-*.output{{RB}}" }
-    ] }
-  },
-  "args": { "useCase": "server-side PDF rendering" } }
-```
-
-Boundary pair:
-- **Workflow (right):** "Score our 4 candidate cache libraries on one rubric, then pick a winner from all four." Known shape, typed scores fan in to a synthesizer, rerunnable as the candidate set changes → `run-inline` (or `create` then `run-stored`).
-- **Worker, NOT a workflow (wrong):** "Add a `--json` flag to the export command and update its test." One tightly-coupled change, no typed node-to-node handoff, no shape worth repeating → `{{SPAWN_WORKER_TOOL}}` (§Decompose). A workflow here is pure overhead.
