@@ -103,7 +103,7 @@ export function SettingsProvider({ children }) {
     const onKey = (e) => {
       const meta = e.metaKey || e.ctrlKey;
       if (!meta || e.altKey || e.shiftKey) return;
-      if (e.key !== ",") return;
+      if (e.key !== "," && e.key !== "ö" && e.key !== "Ö") return;
       e.preventDefault();
       setSettingsOpen((v) => !v);
     };
