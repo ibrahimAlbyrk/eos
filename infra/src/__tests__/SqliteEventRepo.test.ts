@@ -48,6 +48,24 @@ describe("SqliteEventRepo afterId delta", () => {
   });
 });
 
+describe("SqliteEventRepo listByType", () => {
+  it("returns only rows of the given type for the worker, in insertion order", () => {
+    const u1 = repo.append("w1", 100, "user_message", { text: "a" });
+    repo.append("w1", 100, "jsonl", { kind: "thinking" });
+    repo.append("w2", 100, "user_message", { text: "other worker" });
+    const u2 = repo.append("w1", 101, "user_message", { text: "b" });
+    const rows = repo.listByType("w1", "user_message");
+    assert.deepEqual(rows.map((r) => r.id), [u1, u2]);
+    assert.deepEqual(rows.map((r) => r.type), ["user_message", "user_message"]);
+  });
+
+  it("honours opts.limit and returns [] for a type with no rows", () => {
+    for (let i = 0; i < 3; i++) repo.append("w1", 100 + i, "user_message", { text: String(i) });
+    assert.equal(repo.listByType("w1", "user_message", { limit: 2 }).length, 2);
+    assert.deepEqual(repo.listByType("w1", "worker_report"), []);
+  });
+});
+
 describe("SqliteEventRepo retention", () => {
   const allIds = (workerId: string) =>
     repo.list({ workerId, since: 0, limit: 100000, order: "asc", afterId: 0 }).map((r) => r.id);

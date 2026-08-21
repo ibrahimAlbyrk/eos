@@ -26,6 +26,7 @@ export class SqliteEventRepo implements EventRepo {
   private readonly stmtListDesc;
   private readonly stmtListDescBefore;
   private readonly stmtListAfter;
+  private readonly stmtListByType;
   private readonly stmtById;
   private readonly stmtDeleteByWorker;
   private readonly stmtPruneOlder;
@@ -59,6 +60,11 @@ export class SqliteEventRepo implements EventRepo {
     // id, not ts: same-ms rows would be skipped or duplicated with a ts cursor.
     this.stmtListAfter = db.prepare(
       "SELECT * FROM events WHERE worker_id = ? AND id > ? ORDER BY id ASC LIMIT ?",
+    );
+    // Every row of one type for a worker, id-ASC. LIMIT -1 = unbounded (SQLite);
+    // the attachments read walks all user_message rows, bounded by retention.
+    this.stmtListByType = db.prepare(
+      "SELECT * FROM events WHERE worker_id = ? AND type = ? ORDER BY id ASC LIMIT ?",
     );
     // Exact-row fetch — the recall path resolves the row id it remembered at
     // dispatch. The worker_id guard keeps a stale id off another worker's row.
@@ -126,6 +132,10 @@ export class SqliteEventRepo implements EventRepo {
     }
     const stmt = q.order === "asc" ? this.stmtListAsc : this.stmtListDesc;
     return stmt.all(q.workerId, q.since, q.limit) as unknown as WorkerEventRow[];
+  }
+
+  listByType(workerId: string, type: string, opts?: { limit?: number }): WorkerEventRow[] {
+    return this.stmtListByType.all(workerId, type, opts?.limit ?? -1) as unknown as WorkerEventRow[];
   }
 
   findById(workerId: string, rowId: number): WorkerEventRow | null {

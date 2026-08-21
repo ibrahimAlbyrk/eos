@@ -20,6 +20,11 @@ export interface EventRepo {
   /** Patches the payload of an existing row (used by usage delta-cost back-fill). */
   patchPayload(rowId: number, payload: unknown): void;
   list(q: EventQuery): WorkerEventRow[];
+  /** All rows of one type for a worker, id-ASC (insertion order). A full
+   *  per-worker scan bounded by the same maxPerWorker retention `list` relies
+   *  on. `opts.limit` caps the result (omit → every retained row). Used by the
+   *  attachments read to walk every user_message across the conversation. */
+  listByType(workerId: string, type: WorkerEventType, opts?: { limit?: number }): WorkerEventRow[];
   /** Exact-row fetch by id, or null when gone (pruned/deleted). The workerId
    *  guard keeps a stale id from ever addressing another worker's row. */
   findById(workerId: string, rowId: number): WorkerEventRow | null;
