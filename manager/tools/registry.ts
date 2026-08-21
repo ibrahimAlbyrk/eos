@@ -19,6 +19,44 @@ import { currentDatetimeDef } from "./defs/current_datetime.ts";
 import { workflowDef } from "./defs/workflow.ts";
 import { workflowStepOutputDef } from "./defs/workflow_step_output.ts";
 import { getWorkerMessagesDef } from "./defs/get_worker_messages.ts";
+import { browserNavigateDef } from "./defs/browser_navigate.ts";
+import { browserSnapshotDef } from "./defs/browser_snapshot.ts";
+import { browserFindDef } from "./defs/browser_find.ts";
+import { browserActDef } from "./defs/browser_act.ts";
+import { browserTypeDef } from "./defs/browser_type.ts";
+import { browserFillFormDef } from "./defs/browser_fill_form.ts";
+import { browserPressDef } from "./defs/browser_press.ts";
+import { browserScrollDef } from "./defs/browser_scroll.ts";
+import { browserWaitDef } from "./defs/browser_wait.ts";
+import { browserGetDef } from "./defs/browser_get.ts";
+import { browserScreenshotDef } from "./defs/browser_screenshot.ts";
+import { browserTabsDef } from "./defs/browser_tabs.ts";
+import { browserNewTabDef } from "./defs/browser_new_tab.ts";
+import { browserCloseTabDef } from "./defs/browser_close_tab.ts";
+import { browserMuteDef } from "./defs/browser_mute.ts";
+
+// Browser verbs (Phase 3) — appended to BOTH the worker and orchestrator
+// surfaces, in this order. They stay on the control-plane MCP servers (so the
+// subagent-deny guard holds) while remaining fenceable per worker definition:
+// isBrowserTool lifts the control-tool scope exemption, and permission-mode
+// gates them as browserRead/browserWrite.
+const browserDefs: ToolDefinition[] = [
+  browserNavigateDef,
+  browserSnapshotDef,
+  browserFindDef,
+  browserActDef,
+  browserTypeDef,
+  browserFillFormDef,
+  browserPressDef,
+  browserScrollDef,
+  browserWaitDef,
+  browserGetDef,
+  browserScreenshotDef,
+  browserTabsDef,
+  browserNewTabDef,
+  browserCloseTabDef,
+  browserMuteDef,
+];
 
 // Order matches the legacy tool-registry arrays exactly — registration order is
 // part of the byte-identical contract (see tools/__tests__/registration.test.ts).
@@ -38,10 +76,11 @@ export const orchestratorDefs: ToolDefinition[] = [
   currentDatetimeDef,
   workflowDef,
   getWorkerMessagesDef,
+  ...browserDefs,
 ];
 
 // Always registered on a worker.
-export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDatetimeDef];
+export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDatetimeDef, ...browserDefs];
 
 // Registered only when the worker was spawned with collaborate=true (the
 // worker-mcp entrypoint composes them in).

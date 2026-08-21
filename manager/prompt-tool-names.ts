@@ -23,6 +23,21 @@ import { integrateWorkersDef } from "./tools/defs/integrate_workers.ts";
 import { dynamicLoopDef } from "./tools/defs/dynamic_loop.ts";
 import { workflowDef } from "./tools/defs/workflow.ts";
 import { workflowStepOutputDef } from "./tools/defs/workflow_step_output.ts";
+import { browserNavigateDef } from "./tools/defs/browser_navigate.ts";
+import { browserSnapshotDef } from "./tools/defs/browser_snapshot.ts";
+import { browserFindDef } from "./tools/defs/browser_find.ts";
+import { browserActDef } from "./tools/defs/browser_act.ts";
+import { browserTypeDef } from "./tools/defs/browser_type.ts";
+import { browserFillFormDef } from "./tools/defs/browser_fill_form.ts";
+import { browserPressDef } from "./tools/defs/browser_press.ts";
+import { browserScrollDef } from "./tools/defs/browser_scroll.ts";
+import { browserWaitDef } from "./tools/defs/browser_wait.ts";
+import { browserGetDef } from "./tools/defs/browser_get.ts";
+import { browserScreenshotDef } from "./tools/defs/browser_screenshot.ts";
+import { browserTabsDef } from "./tools/defs/browser_tabs.ts";
+import { browserNewTabDef } from "./tools/defs/browser_new_tab.ts";
+import { browserCloseTabDef } from "./tools/defs/browser_close_tab.ts";
+import { browserMuteDef } from "./tools/defs/browser_mute.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
@@ -44,6 +59,21 @@ export const TOOL_NAME_VARS: VariableScope = {
   DYNAMIC_LOOP_TOOL: dynamicLoopDef.name,
   WORKFLOW_TOOL: workflowDef.name,
   WORKFLOW_STEP_OUTPUT_TOOL: workflowStepOutputDef.name,
+  BROWSER_NAVIGATE_TOOL: browserNavigateDef.name,
+  BROWSER_SNAPSHOT_TOOL: browserSnapshotDef.name,
+  BROWSER_FIND_TOOL: browserFindDef.name,
+  BROWSER_ACT_TOOL: browserActDef.name,
+  BROWSER_TYPE_TOOL: browserTypeDef.name,
+  BROWSER_FILL_FORM_TOOL: browserFillFormDef.name,
+  BROWSER_PRESS_TOOL: browserPressDef.name,
+  BROWSER_SCROLL_TOOL: browserScrollDef.name,
+  BROWSER_WAIT_TOOL: browserWaitDef.name,
+  BROWSER_GET_TOOL: browserGetDef.name,
+  BROWSER_SCREENSHOT_TOOL: browserScreenshotDef.name,
+  BROWSER_TABS_TOOL: browserTabsDef.name,
+  BROWSER_NEW_TAB_TOOL: browserNewTabDef.name,
+  BROWSER_CLOSE_TAB_TOOL: browserCloseTabDef.name,
+  BROWSER_MUTE_TOOL: browserMuteDef.name,
 
   // Literal mustache delimiters. The template engine is strict — a raw "{{…}}" in
   // a prompt body is always parsed as an interpolation token (and throws if it

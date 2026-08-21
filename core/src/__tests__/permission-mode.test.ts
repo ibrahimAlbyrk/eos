@@ -65,6 +65,35 @@ describe("classifyTool planFile", () => {
   });
 });
 
+describe("classifyTool browser verbs", () => {
+  it("classifies the read verbs as browserRead on both control servers", () => {
+    for (const verb of ["snapshot", "find", "get", "screenshot", "tabs"]) {
+      assert.equal(classifyTool(`mcp__worker__browser_${verb}`), "browserRead", verb);
+      assert.equal(classifyTool(`mcp__orchestrator__browser_${verb}`), "browserRead", verb);
+    }
+  });
+
+  it("classifies the acting verbs as browserWrite", () => {
+    const verbs = ["navigate", "act", "type", "fill_form", "press", "scroll", "eval", "new_tab", "close_tab", "mute"];
+    for (const verb of verbs) {
+      assert.equal(classifyTool(`mcp__worker__browser_${verb}`), "browserWrite", verb);
+    }
+  });
+
+  it("treats an unlisted verb as a write (fail closed)", () => {
+    assert.equal(classifyTool("mcp__worker__browser_wait"), "browserWrite");
+    assert.equal(classifyTool("mcp__worker__browser_something_new"), "browserWrite");
+  });
+
+  it("leaves every other mcp tool in the mcp category", () => {
+    assert.equal(classifyTool("mcp__worker__send_message_to_parent"), "mcp");
+    assert.equal(classifyTool("mcp__context7__query-docs"), "mcp");
+    // Only the Eos control servers host browser verbs — a lookalike on a user
+    // MCP server is an ordinary mcp tool.
+    assert.equal(classifyTool("mcp__github__browser_navigate"), "mcp");
+  });
+});
+
 describe("MODE_SPECS verdict table", () => {
   it("exposes exactly the two supported modes", () => {
     assert.deepEqual(Object.keys(MODE_SPECS).sort(), ["acceptEdits", "bypassPermissions"]);
@@ -79,9 +108,15 @@ describe("MODE_SPECS verdict table", () => {
     assert.equal(m.decide("other"), "ask");
   });
 
+  it("acceptEdits allows browserRead but asks before anything drives the page", () => {
+    const m = MODE_SPECS.acceptEdits;
+    assert.equal(m.decide("browserRead"), "allow");
+    assert.equal(m.decide("browserWrite"), "ask");
+  });
+
   it("bypassPermissions allows everything", () => {
     const m = MODE_SPECS.bypassPermissions;
-    for (const cat of ["fileEdit", "planFile", "shell", "read", "mcp", "network", "other"] as const) {
+    for (const cat of ["fileEdit", "planFile", "shell", "read", "mcp", "network", "other", "browserRead", "browserWrite"] as const) {
       assert.equal(m.decide(cat), "allow", cat);
     }
   });

@@ -12,6 +12,7 @@ import {
   READ_BUILTIN_TOOLS,
   NETWORK_BUILTIN_TOOLS,
 } from "../../../contracts/src/builtin-tools.ts";
+import { isBrowserTool } from "../../../contracts/src/tool-scope.ts";
 
 export type { PermissionMode };
 
@@ -20,6 +21,8 @@ export type ToolCategory =
   | "planFile"   // fileEdit targeting the Claude plans dir (~/.claude/plans) — plan artifact, always allowed
   | "shell"      // Bash, BashOutput, KillBash
   | "read"       // Read, Glob, Grep, LS
+  | "browserRead"  // browser_* verbs that only observe a page
+  | "browserWrite" // browser_* verbs that drive a real browser
   | "mcp"        // Any mcp__* tool — infrastructure, always allowed
   | "network"    // WebFetch, WebSearch
   | "other";     // Everything else — Task, TodoWrite, AskUserQuestion, etc.
@@ -37,6 +40,10 @@ const FILE_EDIT_TOOLS = new Set<string>(FILE_EDIT_BUILTIN_TOOLS);
 const SHELL_TOOLS = new Set<string>(SHELL_BUILTIN_TOOLS);
 const READ_TOOLS = new Set<string>(READ_BUILTIN_TOOLS);
 const NETWORK_TOOLS = new Set<string>(NETWORK_BUILTIN_TOOLS);
+
+// Browser verbs that only read the page. Everything else drives it, so a verb
+// added later classifies as a write until it is listed here (fail closed).
+const BROWSER_READ_VERBS = new Set(["snapshot", "find", "get", "screenshot", "tabs"]);
 
 // Pure segment-level resolution (core can't use node:path). Resolves "."/".."
 // so a traversal like plans/../../etc can't spoof the prefix check. Symlinks
@@ -66,6 +73,12 @@ export function classifyTool(
   input?: Record<string, unknown>,
   plansDir?: string,
 ): ToolCategory {
+  // Ahead of the mcp__ always-allow: browser verbs ride the control-plane MCP
+  // servers but drive a real browser, so they are gated on their own.
+  if (isBrowserTool(toolName)) {
+    const verb = toolName.slice(toolName.indexOf("browser_") + "browser_".length);
+    return BROWSER_READ_VERBS.has(verb) ? "browserRead" : "browserWrite";
+  }
   if (toolName.startsWith("mcp__")) return "mcp";
   if (FILE_EDIT_TOOLS.has(toolName)) {
     if (plansDir && input) {
@@ -83,13 +96,15 @@ export function classifyTool(
 // Per-mode verdict table. Read + MCP + planFile are always allowed across
 // modes — MCP because it's orchestration plumbing, read because it never
 // mutates, planFile because writing the plan artifact IS the planning work.
-// `acceptEdits` waves through file writes but still asks for shell/network;
+// `acceptEdits` waves through file writes but still asks for shell/network,
+// and for browser verbs that act on a live page (browserRead is just looking);
 // `bypassPermissions` (shown as "Full Access" in the UI) opens the floodgates.
 export const MODE_SPECS: Record<PermissionMode, ModeSpec> = {
   acceptEdits: {
     mode: "acceptEdits",
     decide(category) {
       if (category === "mcp" || category === "read" || category === "planFile") return "allow";
+      if (category === "browserRead") return "allow";
       if (category === "fileEdit") return "allow";
       return "ask";
     },

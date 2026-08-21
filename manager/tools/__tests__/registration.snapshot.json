@@ -521,6 +521,347 @@
       ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_navigate": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to drive; omit for the active tab"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "url",
+            "back",
+            "forward",
+            "reload"
+          ],
+          "description": "\"url\" loads `url`; back/forward walk history; reload refreshes"
+        },
+        "url": {
+          "type": "string",
+          "description": "Target URL — required when action is \"url\""
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_snapshot": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to read; omit for the active tab"
+        },
+        "interactiveOnly": {
+          "type": "boolean",
+          "default": true,
+          "description": "Only interactive elements (buttons, links, inputs) — keeps the tree small"
+        },
+        "selector": {
+          "type": "string",
+          "description": "Scope the tree to a CSS-selector subtree"
+        },
+        "depth": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "Limit tree depth"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_find": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to search; omit for the active tab"
+        },
+        "query": {
+          "type": "string",
+          "description": "Visible text to match, or /regex/ between slashes"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_act": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to act on; omit for the active tab"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Element ref (@eN) from browser_snapshot or browser_find"
+        },
+        "verb": {
+          "type": "string",
+          "enum": [
+            "click",
+            "hover",
+            "focus",
+            "check",
+            "uncheck"
+          ],
+          "description": "What to do to the element"
+        },
+        "includeSnapshot": {
+          "type": "boolean",
+          "default": false,
+          "description": "Return a fresh snapshot with the result (token-expensive — request only when you need to see the outcome)"
+        }
+      },
+      "required": [
+        "ref",
+        "verb"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_type": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to act on; omit for the active tab"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Element ref (@eN) of the input to type into"
+        },
+        "text": {
+          "type": "string",
+          "description": "Text to type"
+        },
+        "submit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Press Enter after typing"
+        },
+        "includeSnapshot": {
+          "type": "boolean",
+          "default": false,
+          "description": "Return a fresh snapshot with the result (token-expensive)"
+        }
+      },
+      "required": [
+        "ref",
+        "text"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_fill_form": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to act on; omit for the active tab"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "description": "Element ref (@eN) of the field"
+              },
+              "value": {
+                "type": "string",
+                "description": "Value to fill in"
+              }
+            },
+            "required": [
+              "ref",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Fields to fill, in order"
+        }
+      },
+      "required": [
+        "fields"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_press": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to act on; omit for the active tab"
+        },
+        "key": {
+          "type": "string",
+          "description": "Key or chord: \"Enter\", \"Tab\", \"Escape\", \"Control+a\""
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_scroll": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to scroll; omit for the active tab"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "up",
+            "down",
+            "top",
+            "bottom"
+          ],
+          "description": "up/down = one viewport; top/bottom = jump to the edge"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Scroll this container instead of the page"
+        }
+      },
+      "required": [
+        "direction"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_wait": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to watch; omit for the active tab"
+        },
+        "forText": {
+          "type": "string",
+          "description": "Wait until this text appears on the page (substring)"
+        },
+        "forRef": {
+          "type": "string",
+          "description": "Wait until this element ref (@eN) is visible"
+        },
+        "forMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "Wait a fixed number of milliseconds"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "default": 15000,
+          "description": "Give up after this long"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_get": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to read; omit for the active tab"
+        },
+        "what": {
+          "type": "string",
+          "enum": [
+            "text",
+            "url",
+            "title",
+            "value"
+          ],
+          "description": "\"url\"/\"title\" are page-level; \"text\"/\"value\" read one element and need `ref`"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Element ref (@eN) — required for \"text\" and \"value\""
+        }
+      },
+      "required": [
+        "what"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_screenshot": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to capture; omit for the active tab"
+        },
+        "fullPage": {
+          "type": "boolean",
+          "default": false,
+          "description": "Capture the whole page, not just the viewport"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_tabs": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_new_tab": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "URL to open the tab at; omit for the default start page"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_close_tab": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to close; omit for the active tab — pass it explicitly when several are open"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_mute": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to mute; omit for the active tab"
+        },
+        "muted": {
+          "type": "boolean",
+          "description": "true silences the tab, false restores audio"
+        }
+      },
+      "required": [
+        "muted"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   "worker": {
@@ -541,6 +882,347 @@
     "current_datetime": {
       "type": "object",
       "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_navigate": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to drive; omit for the active tab"
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "url",
+            "back",
+            "forward",
+            "reload"
+          ],
+          "description": "\"url\" loads `url`; back/forward walk history; reload refreshes"
+        },
+        "url": {
+          "type": "string",
+          "description": "Target URL — required when action is \"url\""
+        }
+      },
+      "required": [
+        "action"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_snapshot": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to read; omit for the active tab"
+        },
+        "interactiveOnly": {
+          "type": "boolean",
+          "default": true,
+          "description": "Only interactive elements (buttons, links, inputs) — keeps the tree small"
+        },
+        "selector": {
+          "type": "string",
+          "description": "Scope the tree to a CSS-selector subtree"
+        },
+        "depth": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "Limit tree depth"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_find": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to search; omit for the active tab"
+        },
+        "query": {
+          "type": "string",
+          "description": "Visible text to match, or /regex/ between slashes"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_act": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to act on; omit for the active tab"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Element ref (@eN) from browser_snapshot or browser_find"
+        },
+        "verb": {
+          "type": "string",
+          "enum": [
+            "click",
+            "hover",
+            "focus",
+            "check",
+            "uncheck"
+          ],
+          "description": "What to do to the element"
+        },
+        "includeSnapshot": {
+          "type": "boolean",
+          "default": false,
+          "description": "Return a fresh snapshot with the result (token-expensive — request only when you need to see the outcome)"
+        }
+      },
+      "required": [
+        "ref",
+        "verb"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_type": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to act on; omit for the active tab"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Element ref (@eN) of the input to type into"
+        },
+        "text": {
+          "type": "string",
+          "description": "Text to type"
+        },
+        "submit": {
+          "type": "boolean",
+          "default": false,
+          "description": "Press Enter after typing"
+        },
+        "includeSnapshot": {
+          "type": "boolean",
+          "default": false,
+          "description": "Return a fresh snapshot with the result (token-expensive)"
+        }
+      },
+      "required": [
+        "ref",
+        "text"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_fill_form": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to act on; omit for the active tab"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "description": "Element ref (@eN) of the field"
+              },
+              "value": {
+                "type": "string",
+                "description": "Value to fill in"
+              }
+            },
+            "required": [
+              "ref",
+              "value"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Fields to fill, in order"
+        }
+      },
+      "required": [
+        "fields"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_press": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to act on; omit for the active tab"
+        },
+        "key": {
+          "type": "string",
+          "description": "Key or chord: \"Enter\", \"Tab\", \"Escape\", \"Control+a\""
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_scroll": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to scroll; omit for the active tab"
+        },
+        "direction": {
+          "type": "string",
+          "enum": [
+            "up",
+            "down",
+            "top",
+            "bottom"
+          ],
+          "description": "up/down = one viewport; top/bottom = jump to the edge"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Scroll this container instead of the page"
+        }
+      },
+      "required": [
+        "direction"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_wait": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to watch; omit for the active tab"
+        },
+        "forText": {
+          "type": "string",
+          "description": "Wait until this text appears on the page (substring)"
+        },
+        "forRef": {
+          "type": "string",
+          "description": "Wait until this element ref (@eN) is visible"
+        },
+        "forMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "description": "Wait a fixed number of milliseconds"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "default": 15000,
+          "description": "Give up after this long"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_get": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to read; omit for the active tab"
+        },
+        "what": {
+          "type": "string",
+          "enum": [
+            "text",
+            "url",
+            "title",
+            "value"
+          ],
+          "description": "\"url\"/\"title\" are page-level; \"text\"/\"value\" read one element and need `ref`"
+        },
+        "ref": {
+          "type": "string",
+          "description": "Element ref (@eN) — required for \"text\" and \"value\""
+        }
+      },
+      "required": [
+        "what"
+      ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_screenshot": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to capture; omit for the active tab"
+        },
+        "fullPage": {
+          "type": "boolean",
+          "default": false,
+          "description": "Capture the whole page, not just the viewport"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_tabs": {
+      "type": "object",
+      "properties": {},
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_new_tab": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "description": "URL to open the tab at; omit for the default start page"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_close_tab": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to close; omit for the active tab — pass it explicitly when several are open"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_mute": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to mute; omit for the active tab"
+        },
+        "muted": {
+          "type": "boolean",
+          "description": "true silences the tab, false restores audio"
+        }
+      },
+      "required": [
+        "muted"
+      ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     }

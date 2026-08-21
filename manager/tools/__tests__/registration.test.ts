@@ -19,6 +19,15 @@ import { currentDatetimeDef } from "../defs/current_datetime.ts";
 
 const snapshot = JSON.parse(readFileSync(join(import.meta.dirname, "registration.snapshot.json"), "utf8"));
 
+// Browser verbs (Phase 3) — appended to BOTH the orchestrator and worker
+// surfaces in this order (registry.ts browserDefs).
+const BROWSER_TOOLS = [
+  "browser_navigate", "browser_snapshot", "browser_find", "browser_act",
+  "browser_type", "browser_fill_form", "browser_press", "browser_scroll",
+  "browser_wait", "browser_get", "browser_screenshot", "browser_tabs",
+  "browser_new_tab", "browser_close_tab", "browser_mute",
+];
+
 describe("tool registration — byte-identical to the legacy MCP modules", () => {
   it("orchestrator tools register the same names, order, and input schemas", () => {
     const fp = fingerprintModules(orchestratorDefs.map((d) => toMcpModule(d, orchestratorCtx)), FAKE_ORCH_SESSION);
@@ -28,13 +37,14 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
       "message_worker", "list_pending_permissions", "notify_user", "ask_user",
       "list_available_workers", "create_worker", "integrate_workers", "dynamic_loop",
       "current_datetime", "workflow", "get_worker_messages",
+      ...BROWSER_TOOLS,
     ]);
   });
 
   it("worker (always-on) tools match", () => {
     const fp = fingerprintModules(workerDefs.map((d) => toMcpModule(d, workerCtx)), FAKE_WORKER_SESSION);
     assert.deepEqual(fp, snapshot.worker);
-    assert.deepEqual(Object.keys(fp), ["send_message_to_parent", "current_datetime"]);
+    assert.deepEqual(Object.keys(fp), ["send_message_to_parent", "current_datetime", ...BROWSER_TOOLS]);
   });
 
   it("peer (collaborate-only) tools match", () => {

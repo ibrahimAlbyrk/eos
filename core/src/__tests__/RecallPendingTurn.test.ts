@@ -28,6 +28,10 @@ const events = (rows: Array<{ id: number; type: string; payload: string | null }
       const asc = mapped();
       return order === "desc" ? asc.slice(-limit) : asc;
     },
+    listByType: (_workerId, type, opts) => {
+      const rows = mapped().filter((r) => r.type === type);
+      return opts?.limit != null ? rows.slice(0, opts.limit) : rows;
+    },
     findById: (_workerId, rowId) => mapped().find((r) => r.id === rowId) ?? null,
     deleteByWorker: () => {},
   };

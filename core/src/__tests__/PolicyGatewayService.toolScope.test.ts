@@ -201,3 +201,50 @@ describe("PolicyGatewayService — worker-definition tool scope (rung 2.5)", () 
     assert.equal((await svc.decide({ workerId: "w1", toolName: "Edit", input: { file_path: "/x.ts" } })).behavior, "allow");
   });
 });
+
+const NAVIGATE = "mcp__worker__browser_navigate";
+const SNAPSHOT = "mcp__worker__browser_snapshot";
+const REPORT = "mcp__worker__send_message_to_parent";
+
+describe("PolicyGatewayService — browser verbs are inside the tool scope", () => {
+  it("a definition denylist fences off the browser, while control tools stay exempt", async () => {
+    const noBrowser: ToolScope = { allow: [], deny: ["mcp__worker__browser_*"], editRegex: null };
+    const { svc } = buildService({ scope: noBrowser });
+    for (const tool of [NAVIGATE, SNAPSHOT]) {
+      const d = await svc.decide({ workerId: "w1", toolName: tool, input: {} });
+      assert.equal(d.behavior, "deny", tool);
+      assert.ok("message" in d && String(d.message).includes("denied by this worker's definition"));
+    }
+    assert.equal((await svc.decide({ workerId: "w1", toolName: REPORT, input: {} })).behavior, "allow");
+  });
+
+  it("an allowlist that omits the browser denies it (read-only worker cannot look at a page)", async () => {
+    const { svc } = buildService({ scope: READONLY });
+    const d = await svc.decide({ workerId: "w1", toolName: SNAPSHOT, input: {} });
+    assert.equal(d.behavior, "deny");
+    assert.ok("message" in d && String(d.message).includes("not in this worker definition's allowed tools"));
+  });
+
+  it("bare worker under acceptEdits: read verb allowed, write verb asks", async () => {
+    const { svc } = buildService({ scope: null });
+    assert.equal((await svc.decide({ workerId: "w1", toolName: SNAPSHOT, input: {} })).behavior, "allow");
+
+    const asked = buildService({ scope: null });
+    void asked.svc.decide({ workerId: "w1", toolName: NAVIGATE, input: {} }); // parks on ask
+    assert.deepEqual(asked.policyEvents, [{ tool: NAVIGATE, decision: "ask" }]);
+  });
+
+  it("bypassPermissions allows both read and write verbs", async () => {
+    const { svc } = buildService({ scope: null, mode: "bypassPermissions" });
+    for (const tool of [NAVIGATE, SNAPSHOT]) {
+      assert.equal((await svc.decide({ workerId: "w1", toolName: tool, input: {} })).behavior, "allow", tool);
+    }
+  });
+
+  it("stays main-agent only: a subagent cannot drive the browser", async () => {
+    const { svc } = buildService({ scope: null, mode: "bypassPermissions" });
+    const d = await svc.decide({ workerId: "w1", toolName: SNAPSHOT, input: {}, agentId: "a1" });
+    assert.equal(d.behavior, "deny");
+    assert.ok("message" in d && String(d.message).includes("main-agent only"));
+  });
+});

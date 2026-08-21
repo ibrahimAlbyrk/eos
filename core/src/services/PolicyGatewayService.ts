@@ -16,6 +16,7 @@ import type { Policy } from "../domain/policy.ts";
 import { ruleMatches, evaluatePolicy } from "../domain/policy.ts";
 import { MODE_SPECS, classifyTool } from "../domain/permission-mode.ts";
 import { isEosControlTool, isBlockedBuiltinTool, blockedBuiltinToolMessage } from "../domain/tool-scope.ts";
+import { isBrowserTool } from "../../../contracts/src/tool-scope.ts";
 import { matchesAny } from "../domain/tool-glob.ts";
 import type { PendingRepo } from "../ports/PendingRepo.ts";
 import type { EventBus } from "../ports/EventBus.ts";
@@ -150,9 +151,12 @@ export class PolicyGatewayService implements PolicyGateway {
     // are gated by role/visibility + collaborate + caller-scope (above), never by the
     // worker's capability allow/deny — else a worker fenced to e.g. ["Read"] could never
     // report back. External MCP servers (mcp__github__*) are not control tools, so they
-    // stay fully governed by the allow/deny list.
+    // stay fully governed by the allow/deny list. The browser_* verbs live on the same
+    // control servers but drive a real browser rather than orchestration state, so they
+    // are pulled BACK under the scope check — `toolsDeny: ["mcp__worker__browser_*"]`
+    // must actually fence the browser off.
     const scope = this.deps.toolScopeResolver?.resolveFor(workerId);
-    if (scope && !isEosControlTool(toolName)) {
+    if (scope && (!isEosControlTool(toolName) || isBrowserTool(toolName))) {
       // Command-scoped patterns ("Bash(git push:*)") match against the tool's
       // command argument; name globs ignore it. For Bash-family tools that
       // argument is the command string.

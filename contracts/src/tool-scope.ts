@@ -16,6 +16,15 @@ export function isEosControlTool(toolName: string): boolean {
   return EOS_BUILTIN_MCP_SERVERS.some((server) => toolName.startsWith(`mcp__${server}__`));
 }
 
+// The browser_* verbs live on the worker/orchestrator control servers (so the
+// subagent-deny above still covers them), but they drive a real browser rather
+// than orchestration state. PolicyGatewayService singles them out so a worker
+// definition's tool scope can fence off the browser, while report/peer/spawn
+// stay scope-exempt.
+export function isBrowserTool(toolName: string): boolean {
+  return /^mcp__(worker|orchestrator)__browser_/.test(toolName);
+}
+
 // Built-in tools with no usable surface in Eos. AskUserQuestion's native TUI
 // menu has no reliable answer channel here — the operator answers through the
 // dashboard, which the orchestrator reaches via mcp__orchestrator__ask_user
