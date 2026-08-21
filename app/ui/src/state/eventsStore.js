@@ -12,6 +12,7 @@
 // can never bleed into another's — the cross-agent thinking-leak class of bug.
 
 import { api } from "../api/client.js";
+import { startPolling } from "../lib/pollInterval.js";
 
 export const PAGE_SIZE = 500;
 const POLL_MS = 5000;
@@ -88,7 +89,7 @@ function entryOf(workerId) {
       attachers: 0,
       subs: new Set(),
       newestListeners: new Set(),
-      pollTimer: null,
+      pollStop: null,
       pollAbort: null,
       snapshot: EMPTY_SNAPSHOT,
     };
@@ -260,7 +261,7 @@ function startPoll(e) {
   stopPoll(e);
   e.pollAbort = new AbortController();
   void fetchNewest(e, e.pollAbort.signal);
-  e.pollTimer = setInterval(() => { pollNewer(e); }, POLL_MS);
+  e.pollStop = startPolling(() => { pollNewer(e); }, POLL_MS);
 }
 
 // Recurring poll tick. Incremental (afterId) once a baseline window exists;
@@ -276,8 +277,8 @@ function pollNewer(e) {
 }
 
 function stopPoll(e) {
-  if (e.pollTimer) clearInterval(e.pollTimer);
-  e.pollTimer = null;
+  e.pollStop?.();
+  e.pollStop = null;
   e.pollAbort?.abort();
   e.pollAbort = null;
 }

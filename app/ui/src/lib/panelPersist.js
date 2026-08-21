@@ -46,7 +46,9 @@ export function savePanelDocks(docks) {
   try {
     const out = {};
     for (const [paneId, dock] of Object.entries(docks)) {
-      const slots = (dock.slots ?? []).filter((s) => s.type !== "terminal");
+      // Terminal + browser slots are session-only: their sessions/tabs live in
+      // daemon memory, so a restored slot would reattach to nothing.
+      const slots = (dock.slots ?? []).filter((s) => s.type !== "terminal" && s.type !== "browser");
       if (!slots.length) continue;
       out[paneId] = { slots, nextSeq: dock.nextSeq ?? slots.length, ratios: normRatios(dock.ratios) };
     }

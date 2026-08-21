@@ -117,8 +117,12 @@ export function useUi() {
   const closeGitDiffViewer = useCallback(() => closePanelIn(scopeRef.current, "gitdiff"), [closePanelIn]);
   const openTerminalViewer = useCallback(() => openScoped("terminal", {}), [openScoped]);
   const closeTerminalViewer = useCallback(() => closePanelIn(scopeRef.current, "terminal"), [closePanelIn]);
+  const openBrowserViewer = useCallback(() => openScoped("browser", {}), [openScoped]);
+  const closeBrowserViewer = useCallback(() => closePanelIn(scopeRef.current, "browser"), [closePanelIn]);
   const openFilesViewer = useCallback((cwd) => openScoped("files", { cwd }), [openScoped]);
   const closeFilesViewer = useCallback(() => closePanelIn(scopeRef.current, "files"), [closePanelIn]);
+  const openChatFilesViewer = useCallback((workerId) => openScoped("chatfiles", { workerId }), [openScoped]);
+  const closeChatFilesViewer = useCallback(() => closePanelIn(scopeRef.current, "chatfiles"), [closePanelIn]);
   const setDockRatio = useCallback((key, value) => setDockRatioIn(scopeRef.current, key, value), [setDockRatioIn]);
 
   return useMemo(() => {
@@ -140,6 +144,8 @@ export function useUi() {
       gitDiffViewer: panelDataIn(scopePane, "gitdiff"),
       terminalViewer: panelDataIn(scopePane, "terminal"),
       filesViewer: panelDataIn(scopePane, "files"),
+      chatFilesViewer: panelDataIn(scopePane, "chatfiles"),
+      browserViewer: panelDataIn(scopePane, "browser"),
       openFileViewer, closeFileViewer,
       openAgentViewer, closeAgentViewer, syncAgentViewer,
       openDiffViewer, closeDiffViewer,
@@ -147,6 +153,8 @@ export function useUi() {
       openGitDiffViewer, closeGitDiffViewer,
       openTerminalViewer, closeTerminalViewer,
       openFilesViewer, closeFilesViewer,
+      openChatFilesViewer, closeChatFilesViewer,
+      openBrowserViewer, closeBrowserViewer,
     };
     return {
       ...navigation,
@@ -172,5 +180,7 @@ export function useUi() {
     openGitDiffViewer, closeGitDiffViewer,
     openTerminalViewer, closeTerminalViewer,
     openFilesViewer, closeFilesViewer,
+    openChatFilesViewer, closeChatFilesViewer,
+    openBrowserViewer, closeBrowserViewer,
   ]);
 }

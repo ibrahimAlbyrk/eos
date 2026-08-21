@@ -19,6 +19,9 @@ export const ROUTES = {
   workerRestore: (id) => `/workers/${id}/restore`,
   workerPurge: (id) => `/workers/${id}/purge`,
   workerEvents: (id) => `/workers/${id}/events`,
+  // Whole-conversation "Files in Chat": every attachment referenced across the
+  // transcript, unioned by path server-side (earliest sighting wins).
+  workerAttachments: (id) => `/workers/${id}/attachments`,
   workerMessage: (id) => `/workers/${id}/message`,
   workerQueue: (id) => `/workers/${id}/queue`,
   workerQueueItem: (id, queueId) => `/workers/${id}/queue/${queueId}`,
@@ -166,4 +169,23 @@ export const ROUTES = {
   apiBackendTest: "/api/backends/test",
   // Delete a configured provider profile by name.
   apiBackendDelete: (name) => `/api/backends/${name}`,
+  // Browser panel — the daemon's single Chrome over CDP. Loopback + ui-token
+  // gated like /pty. Frames never come through here; they ride the binary
+  // WebSocket at /browser/stream.
+  browserStatus: "/browser/status",
+  browserLaunch: "/browser/launch",
+  browserTabs: "/browser/tabs",
+  // Omitted-tabId default: the active (foreground) tab. 200 { tabId } | 409.
+  browserActiveTab: "/browser/active-tab",
+  browserTab: (tabId) => `/browser/tabs/${tabId}`,
+  browserNavigate: (tabId) => `/browser/tabs/${tabId}/navigate`,
+  browserSnapshot: (tabId) => `/browser/tabs/${tabId}/snapshot`,
+  browserFind: (tabId) => `/browser/tabs/${tabId}/find`,
+  browserWait: (tabId) => `/browser/tabs/${tabId}/wait`,
+  browserAct: (tabId) => `/browser/tabs/${tabId}/act`,
+  browserGet: (tabId) => `/browser/tabs/${tabId}/get`,
+  browserCapture: (tabId) => `/browser/tabs/${tabId}/capture`,
+  browserDevice: (tabId) => `/browser/tabs/${tabId}/device`,
+  browserElements: (tabId) => `/browser/tabs/${tabId}/elements`,
+  browserMute: (tabId) => `/browser/tabs/${tabId}/mute`,
 };

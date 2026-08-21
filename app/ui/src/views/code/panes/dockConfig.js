@@ -7,3 +7,7 @@ export const DOCK_DEFAULT_FRAC = 0.5;
 
 // Files panel opens 40% narrower than the shared default (0.5 × 0.6 = 0.3).
 export const FILES_PANEL_WIDTH_FRAC = DOCK_DEFAULT_FRAC * 0.6;
+
+// "Files in Chat" is a compact list (like Files), so it opens at the same
+// narrower default rather than the shared half-width.
+export const CHAT_FILES_PANEL_WIDTH_FRAC = DOCK_DEFAULT_FRAC * 0.6;

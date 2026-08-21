@@ -190,6 +190,17 @@ export const api = {
     if (!r.ok) throw new Error(`getWorkerEvents → ${r.status}`);
     return r.body;
   },
+  // Whole-conversation attachment list ("Files in Chat"). Fail-soft like the
+  // other list getters: a missing/errored endpoint resolves to [] so the panel
+  // degrades to its empty state rather than throwing.
+  async getWorkerAttachments(id) {
+    try {
+      const r = await getJson(ROUTES.workerAttachments(id));
+      return r.ok ? (r.body?.attachments ?? []) : [];
+    } catch {
+      return [];
+    }
+  },
   async sendWorkerMessage(id, text, { clientMsgId, queueWhenBusy } = {}) {
     return postJson(ROUTES.workerMessage(id), { text, clientMsgId, queueWhenBusy });
   },

@@ -15,6 +15,7 @@ import { applyDescriptors, applyProfiles } from "../lib/backendCaps.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
 import { emitPtyData, emitPtyExit } from "../state/ptyBus.js";
 import { markExited } from "../state/ptyPanelStore.js";
+import { applyTabs as applyBrowserTabs, applyStatus as applyBrowserStatus } from "../state/browserPanelStore.js";
 import { applyDelta, dropWorker as dropThinking, finalizeWorker as finalizeThinking } from "../state/thinkingStore.js";
 import { isRunning } from "../lib/agentActivity.js";
 import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
@@ -24,6 +25,7 @@ import { explorer } from "../state/explorerStore.js";
 import { emitGitChange } from "../state/gitChangeBus.js";
 import { emitFsChange } from "../state/fsChangeBus.js";
 import { resubscribe as resubscribeFileWatches } from "../state/fileWatchStore.js";
+import { startPolling } from "../lib/pollInterval.js";
 
 const POLL_MS = 4000;
 const SSE_DEBOUNCE_MS = 80;
@@ -122,8 +124,7 @@ export function useLive() {
 
   // poll fallback
   useEffect(() => {
-    const t = setInterval(scheduleRefetch, POLL_MS);
-    return () => clearInterval(t);
+    return startPolling(scheduleRefetch, POLL_MS);
   }, [scheduleRefetch]);
 
   // SSE
@@ -151,6 +152,11 @@ export function useLive() {
           // pty:exit also flags the tab. Not a worker delta, so skip the refetch.
           if (data.reason === "pty:data") { emitPtyData(data.payload ?? {}); return; }
           if (data.reason === "pty:exit") { const p = data.payload ?? {}; emitPtyExit(p); if (p.sessionId) markExited(p.sessionId); return; }
+          // Browser panel: the daemon's shared-Chrome tab list and engine
+          // lifecycle. Panel state, not a worker delta — route to the pane-keyed
+          // browser store and skip the refetch. Frames never come this way.
+          if (data.reason === "browser:tabs") { applyBrowserTabs(data.payload?.tabs); return; }
+          if (data.reason === "browser:status") { applyBrowserStatus(data.payload); return; }
           // Live reasoning/text deltas (claude-sdk / in-process) — high-frequency
           // live data, not a state delta; route to the thinking store, skip refetch.
           if (data.reason === "agent:delta") { applyDelta(data.payload ?? {}); return; }

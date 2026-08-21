@@ -6,8 +6,10 @@ import { RenameInput } from "../../../components/RenameInput.jsx";
 import { api } from "../../../api/client.js";
 import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { TerminalToggleButton } from "../center/TerminalToggleButton.jsx";
+import { BrowserToggleButton } from "../center/BrowserToggleButton.jsx";
 import { GitDiffToggleButton } from "../center/GitDiffToggleButton.jsx";
 import { FilesToggleButton } from "../center/FilesToggleButton.jsx";
+import { ChatFilesToggleButton } from "../center/ChatFilesToggleButton.jsx";
 
 // Per-pane top bar: breadcrumb + agent menu on the left, terminal toggle on the
 // right. Owned by each pane and rendered INSIDE its PaneScopeContext.Provider, so
@@ -55,8 +57,10 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
         </div>
         <div className="pane-head-actions">
           <TerminalToggleButton />
+          <BrowserToggleButton />
           <GitDiffToggleButton />
           <FilesToggleButton />
+          <ChatFilesToggleButton />
           {canClose && <CloseButton onClose={onClose} />}
         </div>
       </div>
@@ -115,8 +119,10 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
           : null)}
       <div className="pane-head-actions">
         <TerminalToggleButton />
+        <BrowserToggleButton />
         <GitDiffToggleButton worker={worker} />
         <FilesToggleButton worker={worker} />
+        <ChatFilesToggleButton worker={worker} />
         {canClose && <CloseButton onClose={onClose} />}
       </div>
     </div>
