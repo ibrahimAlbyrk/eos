@@ -115,6 +115,9 @@ export const WorkerEventTypeSchema = z.enum([
   // {fromWorker,status,output,reason} so the boot re-arm recovers the completion
   // (typed object, faithful status) instead of re-spawning a finished node.
   "workflow_step_output",
+  // One agent-driven browser verb, so the operator's timeline shows what an
+  // agent did in the shared browser. Payload: { tabId, verb, url, ref?, name? }.
+  "browser_action",
 ]);
 export type WorkerEventType = z.infer<typeof WorkerEventTypeSchema>;
 

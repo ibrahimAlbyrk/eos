@@ -1,5 +1,6 @@
 export * from "./shared.ts";
 export * from "./prompt.ts";
+export * from "./attachments.ts";
 export * from "./events.ts";
 export * from "./canonical.ts";
 export * from "./backend.ts";
@@ -10,6 +11,7 @@ export * from "./workflow-node.ts";
 export * from "./workflow.ts";
 export * from "./workflow-graph.ts";
 export * from "./http.ts";
+export * from "./browser.ts";
 export * from "./hooks.ts";
 export * from "./ipc.ts";
 export * from "./remote.ts";

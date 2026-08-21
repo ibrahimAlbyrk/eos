@@ -6,6 +6,7 @@
 
 import { z } from "zod";
 import { UnknownRecordSchema } from "./shared.ts";
+import { ChatAttachmentSchema } from "./attachments.ts";
 import { WorkerRowSchema, PendingPermissionRowSchema, PermissionModeSchema } from "./worker.ts";
 import { DecisionSchema, ExternalDecisionSchema } from "./policy.ts";
 import { SessionFactsSchema } from "./prompt.ts";
@@ -397,6 +398,16 @@ export const EventsQuerySchema = z.object({
   afterId: z.coerce.number().int().nonnegative().optional(),
 });
 export type EventsQuery = z.infer<typeof EventsQuerySchema>;
+
+// ---- GET /workers/:id/attachments ------------------------------------------
+// Every attachment referenced across the whole conversation, unioned by path
+// (earliest occurrence wins) from the user_message events. ChatAttachmentSchema
+// lives in ./attachments.ts beside the shared parser.
+
+export const WorkerAttachmentsResponseSchema = z.object({
+  attachments: z.array(ChatAttachmentSchema),
+});
+export type WorkerAttachmentsResponse = z.infer<typeof WorkerAttachmentsResponseSchema>;
 
 // ---- POST /policy/decide ---------------------------------------------------
 
@@ -2038,6 +2049,7 @@ export const ROUTES = {
   workersArchivedAppClosed: "/workers/archived/app-closed",
   worker: (id: string): string => `/workers/${id}`,
   workerEvents: (id: string): string => `/workers/${id}/events`,
+  workerAttachments: (id: string): string => `/workers/${id}/attachments`,
   workerMessage: (id: string): string => `/workers/${id}/message`,
   workerQueue: (id: string): string => `/workers/${id}/queue`,
   workerQueueItem: (id: string, queueId: number): string => `/workers/${id}/queue/${queueId}`,
@@ -2220,4 +2232,33 @@ export const ROUTES = {
   apiBackendTest: "/api/backends/test",
   // Delete a configured provider profile by name.
   apiBackendDelete: (name: string): string => `/api/backends/${name}`,
+  // ---- browser ---------------------------------------------------------
+  // The daemon's single Chrome, over CDP. Loopback + ui-token gated like /pty:
+  // these are the panel's surface, and the browser_* MCP verbs' internal target
+  // (an agent reaches them through its tool → ctx.api(), already loopback).
+  // Frames never travel here — they ride the binary WS at /browser/stream.
+  browserStatus: "/browser/status",
+  browserLaunch: "/browser/launch",
+  // GET lists tabs; POST opens one.
+  browserTabs: "/browser/tabs",
+  // Resolve the omitted-tabId default: the active (foreground) tab. GET → 200
+  // { tabId } | 409 "no active tab". The browser_* tools call this instead of
+  // ever falling back to the first tab.
+  browserActiveTab: "/browser/active-tab",
+  browserTab: (tabId: string): string => `/browser/tabs/${tabId}`,
+  browserNavigate: (tabId: string): string => `/browser/tabs/${tabId}/navigate`,
+  browserSnapshot: (tabId: string): string => `/browser/tabs/${tabId}/snapshot`,
+  // Cheap locate (text | /regex/) — the read path an agent uses instead of a
+  // full snapshot.
+  browserFind: (tabId: string): string => `/browser/tabs/${tabId}/find`,
+  // Block on text / ref / elapsed-ms with a 15s default timeout.
+  browserWait: (tabId: string): string => `/browser/tabs/${tabId}/wait`,
+  // act/type/fill/press/scroll all land here — the verb is in the body.
+  browserAct: (tabId: string): string => `/browser/tabs/${tabId}/act`,
+  browserGet: (tabId: string): string => `/browser/tabs/${tabId}/get`,
+  browserCapture: (tabId: string): string => `/browser/tabs/${tabId}/capture`,
+  browserDevice: (tabId: string): string => `/browser/tabs/${tabId}/device`,
+  // Picker probe: { hover:[x,y] } | { at:[x,y] } → BrowserElement.
+  browserElements: (tabId: string): string => `/browser/tabs/${tabId}/elements`,
+  browserMute: (tabId: string): string => `/browser/tabs/${tabId}/mute`,
 } as const;

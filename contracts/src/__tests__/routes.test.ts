@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ROUTES } from "../http.ts";
 
 const EXPECTED_KEYS = [
-  "health", "stream", "workers", "workersArchived", "workersArchivedAppClosed", "worker", "workerEvents", "workerMessage",
+  "health", "stream", "workers", "workersArchived", "workersArchivedAppClosed", "worker", "workerEvents", "workerAttachments", "workerMessage",
   "workerQueue", "workerQueueItem",
   "workerAction", "workerPush", "workerPushState", "workerPull",
   "orchestrators", "orchestratorMessage", "orchestratorIntegrate",
@@ -36,6 +36,9 @@ const EXPECTED_KEYS = [
   "remotePair", "remoteStatus", "remoteArm", "remoteConfig",
   "anthropicConfig", "usage",
   "apiBackends", "apiBackendPresets", "apiBackendModels", "apiBackendTest", "apiBackendDelete",
+  "browserStatus", "browserLaunch", "browserTabs", "browserActiveTab", "browserTab", "browserNavigate",
+  "browserSnapshot", "browserFind", "browserWait", "browserAct", "browserGet",
+  "browserCapture", "browserDevice", "browserElements", "browserMute",
 ] as const;
 
 describe("ROUTES completeness", () => {
