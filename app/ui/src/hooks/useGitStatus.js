@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { getSnapshot, subscribe, revalidate } from "../state/gitStatusStore.js";
 import { subscribeGitChange, STATUS_KINDS, GIT_FALLBACK_POLL_MS } from "../state/gitChangeBus.js";
+import { startPolling } from "../lib/pollInterval.js";
 
 const noopSubscribe = () => () => {};
 const nullSnapshot = () => null;
@@ -26,8 +27,7 @@ export function useGitStatus(workerId, { gitDir } = {}) {
   useEffect(() => {
     if (!workerId) return;
     revalidate(workerId, gitDir);
-    const t = setInterval(() => revalidate(workerId, gitDir), GIT_FALLBACK_POLL_MS);
-    return () => clearInterval(t);
+    return startPolling(() => revalidate(workerId, gitDir), GIT_FALLBACK_POLL_MS);
   }, [workerId, gitDir]);
 
   useEffect(() => {

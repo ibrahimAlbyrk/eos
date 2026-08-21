@@ -6,6 +6,7 @@ import { notify } from "../../../lib/notify.js";
 import { subscribeGitChange, STASH_KINDS, GIT_FALLBACK_POLL_MS } from "../../../state/gitChangeBus.js";
 import { fmtTimeAgo } from "../../../lib/format.js";
 import { BranchConfirmDialog } from "../popovers/BranchConfirmDialog.jsx";
+import { startPolling } from "../../../lib/pollInterval.js";
 
 // Sidebar stashes section (near History). Each row scopes the panel to that
 // stash's diff via the commit-scope path (its sha diffs first-parent server
@@ -48,9 +49,9 @@ export function GitDiffStashes({ cwd, scope, onScope, focusOnMount }) {
       if (!cancelled) setStashes(r.stashes ?? []);
     };
     run();
-    const t = setInterval(run, GIT_FALLBACK_POLL_MS);
+    const stop = startPolling(run, GIT_FALLBACK_POLL_MS);
     const unsub = subscribeGitChange(cwd, STASH_KINDS, run);
-    return () => { cancelled = true; clearInterval(t); unsub(); };
+    return () => { cancelled = true; stop(); unsub(); };
   }, [cwd]);
 
   const openMenu = (e, s) => {

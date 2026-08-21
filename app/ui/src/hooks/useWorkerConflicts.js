@@ -2,6 +2,7 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { getSnapshot, subscribe, revalidate, notifyActivity, loadDoc } from "../state/conflictStore.js";
 import { subscribeGitChange, CONFLICT_KINDS, GIT_FALLBACK_POLL_MS } from "../state/gitChangeBus.js";
 import { workerGitDir } from "../lib/workerGitDir.js";
+import { startPolling } from "../lib/pollInterval.js";
 
 // Conflicted-file list + per-file parsed documents for one agent (conflictStore
 // cache). Mirrors useWorkerChanges: synchronous cached render, revalidate on
@@ -16,8 +17,7 @@ export function useWorkerConflicts(workerId, live) {
 
   useEffect(() => {
     revalidate(workerId);
-    const t = setInterval(() => revalidate(workerId), GIT_FALLBACK_POLL_MS);
-    return () => clearInterval(t);
+    return startPolling(() => revalidate(workerId), GIT_FALLBACK_POLL_MS);
   }, [workerId]);
 
   useEffect(() => {

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import { deriveVerdict } from "../lib/verdict.js";
+import { startPolling } from "../lib/pollInterval.js";
 
 const POLL_MS = 10000;
 
@@ -25,8 +26,8 @@ export function useWorkerVerdict(workerId, live, { enabled = true } = {}) {
     };
     fetchRef.current = fetchOnce;
     fetchOnce();
-    const t = setInterval(fetchOnce, POLL_MS);
-    return () => { cancelled = true; clearInterval(t); fetchRef.current = null; };
+    const stop = startPolling(fetchOnce, POLL_MS);
+    return () => { cancelled = true; stop(); fetchRef.current = null; };
   }, [workerId, enabled]);
 
   useEffect(() => {

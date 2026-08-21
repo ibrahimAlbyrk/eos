@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../../../api/client.js";
 import { subscribeGitChange, COMMITS_KINDS, GIT_FALLBACK_POLL_MS } from "../../../state/gitChangeBus.js";
 import { fmtTimeAgo } from "../../../lib/format.js";
+import { startPolling } from "../../../lib/pollInterval.js";
 
 // /fs/log caps limit at 100 — refreshes clamp their window to it.
 const PAGE = 30;
@@ -35,9 +36,9 @@ export function GitDiffCommits({ cwd, scope, onScope }) {
       countRef.current = (r.commits ?? []).length;
     };
     refetch();
-    const t = setInterval(refetch, GIT_FALLBACK_POLL_MS);
+    const stop = startPolling(refetch, GIT_FALLBACK_POLL_MS);
     const unsub = subscribeGitChange(cwd, COMMITS_KINDS, refetch);
-    return () => { cancelled = true; clearInterval(t); unsub(); };
+    return () => { cancelled = true; stop(); unsub(); };
   }, [cwd]);
 
   const showMore = async () => {

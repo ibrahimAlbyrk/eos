@@ -2,6 +2,7 @@ import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { getSnapshot, subscribe, revalidate, notifyActivity, loadPatch } from "../state/diffStore.js";
 import { subscribeGitChange, DIFF_KINDS, GIT_FALLBACK_POLL_MS } from "../state/gitChangeBus.js";
 import { workerGitDir } from "../lib/workerGitDir.js";
+import { startPolling } from "../lib/pollInterval.js";
 
 // Changed-file list + per-file patches for one agent (diffStore cache,
 // stale-while-revalidate). Renders the cached snapshot synchronously, then
@@ -17,8 +18,7 @@ export function useWorkerChanges(workerId, live) {
 
   useEffect(() => {
     revalidate(workerId);
-    const t = setInterval(() => revalidate(workerId), GIT_FALLBACK_POLL_MS);
-    return () => clearInterval(t);
+    return startPolling(() => revalidate(workerId), GIT_FALLBACK_POLL_MS);
   }, [workerId]);
 
   useEffect(() => {

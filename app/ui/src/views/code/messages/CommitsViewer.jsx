@@ -3,6 +3,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { subscribeGitChange, COMMITS_KINDS, GIT_FALLBACK_POLL_MS } from "../../../state/gitChangeBus.js";
 import { PanelShell } from "../panes/PanelShell.jsx";
+import { startPolling } from "../../../lib/pollInterval.js";
 
 const STATUS_LABEL = { M: "M", A: "A", D: "D", R: "R" };
 
@@ -44,9 +45,9 @@ function CommitsViewerInner({ cwd }) {
     fetchOnce();
     // Push path: a commit/push/reset in this repo (any source) refetches at once.
     // The interval is just the backstop now (was the only signal — SSE-blind).
-    const t = setInterval(fetchOnce, GIT_FALLBACK_POLL_MS);
+    const stop = startPolling(fetchOnce, GIT_FALLBACK_POLL_MS);
     const unsub = subscribeGitChange(cwd, COMMITS_KINDS, fetchOnce);
-    return () => { cancelled = true; clearInterval(t); unsub(); };
+    return () => { cancelled = true; stop(); unsub(); };
   }, [cwd]);
 
   // Load the detail of every open commit that has none yet — covers the

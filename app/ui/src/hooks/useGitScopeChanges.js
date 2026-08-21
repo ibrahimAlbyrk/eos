@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { gitDiffKey, getSnapshot, subscribe, revalidate, notifyActivity, loadPatch } from "../state/gitDiffStore.js";
 import { subscribeGitChange, GITDIFF_KINDS, GIT_FALLBACK_POLL_MS } from "../state/gitChangeBus.js";
+import { startPolling } from "../lib/pollInterval.js";
 
 // Changed-file list + per-file patches for one repo dir at one scope
 // (gitDiffStore cache, stale-while-revalidate). The working-tree scope
@@ -23,8 +24,7 @@ export function useGitScopeChanges(cwd, scope) {
   useEffect(() => {
     revalidate(cwd, stableScope);
     if (stableScope.kind === "commit") return;
-    const t = setInterval(() => revalidate(cwd, stableScope), GIT_FALLBACK_POLL_MS);
-    return () => clearInterval(t);
+    return startPolling(() => revalidate(cwd, stableScope), GIT_FALLBACK_POLL_MS);
   }, [cwd, stableScope]);
 
   useEffect(() => {
