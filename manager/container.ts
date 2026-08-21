@@ -3,6 +3,7 @@
 // into module-scope globals.
 
 import { DatabaseSync } from "node:sqlite";
+import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { randomBytes } from "node:crypto";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, realpathSync } from "node:fs";
@@ -175,6 +176,8 @@ import { BackgroundActivityService } from "./services/BackgroundActivityService.
 import { PendingPeerRequestService } from "./services/PendingPeerRequestService.ts";
 import { TerminalRunService } from "./services/TerminalRunService.ts";
 import { PtySessionService } from "./services/PtySessionService.ts";
+import { BrowserService } from "./services/BrowserService.ts";
+import { CdpBrowserAdapter } from "../infra/src/browser/CdpBrowserAdapter.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
 export { randomOrchestratorName } from "./shared/names.ts";
@@ -618,6 +621,23 @@ export function buildContainer() {
   // Interactive multi-tab PTY sessions (the `pty` feature). Default cwd = the
   // daemon project root; a create request may override it.
   const ptySessions = new PtySessionService({ bus, defaultCwd: config.paths.repoRoot });
+  // Browser panel subsystem — ONE shared out-of-process Chrome over CDP,
+  // opt-in via config.browser.enabled (routes/service refuse while off).
+  // persistProfile keeps logins in ~/.eos/browser/ across restarts; off → a
+  // throwaway per-boot profile in the OS temp dir.
+  const browserProfileDir = config.browser.persistProfile
+    ? join(config.daemon.home, "browser", "profile")
+    : join(tmpdir(), `eos-browser-${process.pid}`);
+  const browser = new BrowserService({
+    engine: new CdpBrowserAdapter({
+      chromePath: config.browser.chromePath,
+      profileDir: browserProfileDir,
+      notify: (msg, meta) => log.warn(msg, meta),
+    }),
+    getConfig: () => config.browser,
+    bus,
+    log,
+  });
   // Centralized prompt system (Layer 1) + DPI (Layer 2). Built-in library lives
   // in config.paths.promptsDir; ~/.eos/prompts overrides/extends it. Reads fresh
   // per reload so prompt edits apply on the next spawn without a daemon restart.
@@ -1470,6 +1490,7 @@ export function buildContainer() {
     pendingPeerRequests,
     terminalRuns,
     ptySessions,
+    browser,
     prompts,
     promptRegistry,
     listWorkerDefinitionRecords,

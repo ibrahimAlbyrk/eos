@@ -22,6 +22,9 @@ export const USER_DATA_ENTRIES = [
   // metered/API worker's transcript, replayed on resume. Non-regenerable: losing
   // it closes a SUSPENDED worker that could have resumed (M3 durability).
   "conversations",
+  // Browser panel profile (~/.eos/browser/) — cookies/logins for the shared
+  // Chrome session. Non-regenerable: losing it logs the user out everywhere.
+  "browser",
   "policy.yaml",
   "config.json",
   // Files-explorer trash fallback (used only when the macOS Finder Trash is

@@ -10,7 +10,7 @@
 // This file just boots the container, mounts routes onto a Router, attaches
 // the Router to an HTTP server, and handles process-level signals.
 
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { unlinkSync } from "node:fs";
 import { join } from "node:path";
 
@@ -43,6 +43,7 @@ import { reArmWorkflows } from "./services/workflow-rearm.ts";
 import { registerHealthRoutes } from "./routes/health.ts";
 import { registerStreamRoutes } from "./routes/stream.ts";
 import { registerWorkerRoutes } from "./routes/workers.ts";
+import { registerAttachmentRoutes } from "./routes/attachments.ts";
 import { registerPtyRoutes } from "./routes/pty.ts";
 import { registerOrchestratorRoutes } from "./routes/orchestrators.ts";
 import { registerLoopRoutes } from "./routes/loops.ts";
@@ -68,6 +69,8 @@ import { registerExportRoutes } from "./routes/export.ts";
 import { registerDatetimeRoutes } from "./routes/datetime.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
 import { registerBackendsRoutes } from "./routes/backends.ts";
+import { registerBrowserRoutes } from "./routes/browser.ts";
+import { makeBrowserUpgradeHandler } from "./browser-ws.ts";
 import { registerFsRawRoutes } from "./routes/fs-raw.ts";
 import { registerCommandCatalog } from "./commands/register.ts";
 import { fdStats } from "../infra/src/util/fd-stats.ts";
@@ -111,7 +114,9 @@ registerCommandCatalog(router, c);
 // Workflow-orchestration: run-control + read surface.
 registerWorkflowRoutes(router, c);
 registerWorkerRoutes(router, c);
+registerAttachmentRoutes(router, c);
 registerPtyRoutes(router, c);
+registerBrowserRoutes(router, c);
 registerExportRoutes(router, c);
 registerOrchestratorRoutes(router, c);
 registerLoopRoutes(router, c);
@@ -493,7 +498,23 @@ function makeHandler(router: Router, opts: { cors?: boolean } = {}) {
   };
 }
 
+function applyKeepAlive(s: Server): void {
+  s.keepAliveTimeout = 65_000;
+  s.headersTimeout = 70_000;
+}
+
 const server = createServer(makeHandler(router, { cors: true }));
+// Node's 5s default closes an idle keep-alive socket faster than the UI polls
+// (4s/5s/10s/30s loops), so every poll opened a NEW connection and burned an
+// ephemeral port that then sat in TIME_WAIT — enough of them and the local
+// port range saturates and *every* outbound connect fails with EADDRNOTAVAIL.
+// 65s outlives the slowest poll; headersTimeout must stay above it.
+applyKeepAlive(server);
+
+// Browser frame WebSocket (/browser/stream) — the only upgrade surface on the
+// app/API server (remote is relay-only and binds nothing here). Loopback +
+// ui-token gated inside the handler; unknown upgrade paths are destroyed.
+server.on("upgrade", makeBrowserUpgradeHandler({ browser: c.browser, uiToken: c.uiToken, log: c.log }));
 
 // Remote edge (iOS, relay v3). The controller arms the outbound relay leg live:
 // the initial reconcile() arms ONLY when config.remote.enabled AND relay.url is
@@ -510,6 +531,7 @@ remoteController.reconcile();
 const rawRouter = new Router();
 registerFsRawRoutes(rawRouter, c);
 const rawServer = createServer(makeHandler(rawRouter));
+applyKeepAlive(rawServer);
 
 server.listen(c.config.daemon.port, c.config.daemon.host, () => {
   c.log.info("listening", {
@@ -562,6 +584,9 @@ function shutdown(sig: string): void {
   // and it lands SUSPENDED deterministically instead of letting async exits
   // fire into a closed DB. Crash(-9) still has ReconcileWorkersOnBoot as the net.
   try { suspendResumableWorkersForShutdown(c); } catch {}
+  // Chrome is a plain child (not supervisor-managed) — kill it here or it
+  // outlives the daemon.
+  try { c.browser.dispose(); } catch {}
   for (const id of ids) c.supervisor.escalateKill(id, 0);
   try { unlinkSync(c.config.daemon.pidFile); } catch {}
   try { c.db.close(); } catch {}
