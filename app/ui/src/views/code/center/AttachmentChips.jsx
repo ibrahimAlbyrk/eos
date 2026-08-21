@@ -1,9 +1,21 @@
 import { api } from "../../../api/client.js";
 import { ImageLightbox } from "../ImageLightbox.jsx";
-import { labelTitle } from "../../../lib/attachmentTokens.js";
+import { labelTitle, elementSummary } from "../../../lib/attachmentTokens.js";
 
 function basename(path) {
   return path.split("/").pop() || path;
+}
+
+// Element chip: the picker's identity (tag + accessible name / locator) as text,
+// not a thumbnail — the compact payload rides in att.path (JSON).
+function ElementChipBody({ value, label }) {
+  const s = elementSummary(value) ?? { tag: labelTitle(label) ?? "element", detail: "" };
+  return (
+    <div className="att-element-body">
+      <span className="att-element-tag">{s.tag}</span>
+      {s.detail && <span className="att-element-detail">{s.detail}</span>}
+    </div>
+  );
 }
 
 export function AttachmentChips({ attachments, onRemove }) {
@@ -25,6 +37,8 @@ export function AttachmentChips({ attachments, onRemove }) {
             <ImageLightbox gallery={gallery} index={images.indexOf(att)}>
               <img src={api.imageUrl(att.path)} alt={basename(att.path)} className="att-thumb" />
             </ImageLightbox>
+          ) : att.kind === "element" ? (
+            <ElementChipBody value={att.path} label={att.label} />
           ) : (
             <div className="att-icon-wrap">
               {att.kind === "folder" ? (

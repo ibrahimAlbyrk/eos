@@ -85,49 +85,46 @@ export function reconcileAttachmentItems(prev, text, { usedLabels, paths, kinds,
   return [...kept, ...added];
 }
 
-// The "(kind)" annotation lets the message bubble pick the right chip icon
-// when re-parsing the sent text (a path alone can't distinguish folders).
-export function buildAttachmentSuffix(labels, paths, kinds) {
-  const lines = [];
-  for (const label of labels) {
-    const path = paths.get(label);
-    if (!path) continue;
-    const kind = kinds?.get(label);
-    lines.push(kind ? `- ${label} (${kind}): ${path}` : `- ${label}: ${path}`);
-  }
-  return lines.length ? `\n\nattachments:\n${lines.join("\n")}` : "";
-}
+// Canonical parser now lives in contracts/src/attachments.ts (shared with the
+// daemon's GET /workers/:id/attachments). Re-exported here so existing composer
+// / message-bubble consumers keep importing from this module unchanged.
+export { buildAttachmentSuffix, kindFromExt } from "../../../../contracts/src/attachments.ts";
+import { parseAttachmentMessage as parseAttachmentMessageBase } from "../../../../contracts/src/attachments.ts";
 
-const IMAGE_EXTS = new Set(["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]);
+// Element attachments (browser picker) carry an "(element)" annotation the
+// canonical parser doesn't recognize — its kind union is image/file/folder, and
+// the compact BrowserElement rides inline in the path-or-value slot:
+//   - [label] (element): {"ref":…,"tag":…,"role":…,"name":…,"locator":…}
+// So extend the parse here: pull element lines out, delegate the rest to the
+// shared parser (single source of truth for image/file/folder + display split),
+// then re-append the typed element entries. Non-element messages are delegated
+// whole, so behaviour is unchanged for every existing consumer.
+const ATTACH_MARKER = "\n\nattachments:\n";
+const ELEMENT_LINE = /^-\s*(\[[^\]]+\])\s+\(element\):\s*(.+)$/;
 
-function kindFromExt(path) {
-  const ext = path.split(".").pop()?.toLowerCase() ?? "";
-  return IMAGE_EXTS.has(ext) ? "image" : "file";
-}
-
-// Inverse of buildAttachmentSuffix — kept beside it so reader and writer never
-// drift. Splits the "attachments:" suffix off a sent message into the display
-// text + a typed list: { display, attachments: [{ label?, kind, path }] }.
-// Tolerates the legacy "{image #1}" / bare "image:" forms and infers kind from
-// the extension when the "(kind)" annotation is absent. Pure → testable, and
-// shared by the message bubble (render) and the composer (paste reconstruction).
 export function parseAttachmentMessage(text) {
-  const marker = "\n\nattachments:\n";
-  const idx = (text ?? "").indexOf(marker);
-  if (idx === -1) return { display: text ?? "", attachments: [] };
-  const display = text.slice(0, idx);
-  const attachments = text.slice(idx + marker.length)
-    .split("\n")
-    .map((line) => line.replace(/^- /, "").trim())
-    .filter(Boolean)
-    .map((raw) => {
-      const bracket = raw.match(/^(\[[^\]]+\])(?:\s+\((image|file|folder)\))?:\s*(.+)$/);
-      if (bracket) return { label: bracket[1], kind: bracket[2] ?? kindFromExt(bracket[3]), path: bracket[3] };
-      const labeled = raw.match(/^(\{(image|file|folder) #\d+\}):\s*(.+)$/);
-      if (labeled) return { label: labeled[1], kind: labeled[2], path: labeled[3] };
-      const bare = raw.match(/^(folder|file|image):\s*(.+)$/);
-      if (bare) return { kind: bare[1], path: bare[2] };
-      return { kind: kindFromExt(raw), path: raw };
-    });
-  return { display, attachments };
+  const src = text ?? "";
+  const idx = src.indexOf(ATTACH_MARKER);
+  if (idx === -1) return parseAttachmentMessageBase(src);
+  const elements = [];
+  const kept = [];
+  for (const line of src.slice(idx + ATTACH_MARKER.length).split("\n")) {
+    const m = ELEMENT_LINE.exec(line);
+    if (m) elements.push({ label: m[1], kind: "element", path: m[2].trim() });
+    else kept.push(line);
+  }
+  if (elements.length === 0) return parseAttachmentMessageBase(src);
+  const base = parseAttachmentMessageBase(src.slice(0, idx + ATTACH_MARKER.length) + kept.join("\n"));
+  return { display: base.display, attachments: [...base.attachments, ...elements] };
+}
+
+// Compact-JSON element value → a short { tag, detail } for the chip / bubble.
+// Null when the value isn't a parseable element payload.
+export function elementSummary(value) {
+  try {
+    const el = JSON.parse(value);
+    return { tag: el.tag || "element", detail: el.name || el.locator || el.role || "" };
+  } catch {
+    return null;
+  }
 }

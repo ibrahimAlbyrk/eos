@@ -6,6 +6,7 @@ import * as outbox from "../../../state/outboxStore.js";
 import { useCommands } from "../../../hooks/useCommands.js";
 import { useSlashItems } from "../../../hooks/useSlashItems.js";
 import { getRecall, subscribe as subscribeRecall, consumeRecall } from "../../../state/recallStore.js";
+import { getHandoff, subscribe as subscribeHandoff, consumeHandoff } from "../../../state/browserComposerHandoff.js";
 import { useContentEditableEditor, getCursorOffset, getFocusOffset, getSelectionOffsets, setSelectionOffsets, extendSelectionToOffset, scrollSelectionIntoView } from "../../../hooks/useContentEditableEditor.js";
 import { listContinuation, listIndent } from "../../../lib/markdownBlocks.js";
 import { useCompletion } from "../../../hooks/useCompletion.js";
@@ -341,6 +342,31 @@ export function Composer({ live, worker, paneId, focused }) {
     setTextAndSync(r.content, r.content.length);
     editorRef.current?.focus();
   }, [recallTick, selected?.id]);
+
+  // Browser annotation "Add to chat" (P6): the browser panel and this composer
+  // in one pane share the same paneId, so a marked-up image handed off for THIS
+  // pane lands here as an image attachment — same intake as a pasted screenshot.
+  // One-shot: consume clears the source the instant it applies, so a re-render
+  // never re-attaches it.
+  const [handoffTick, setHandoffTick] = useState(0);
+  useEffect(() => subscribeHandoff(() => setHandoffTick((t) => t + 1)), []);
+  useEffect(() => {
+    const h = getHandoff(paneId);
+    if (!h) return;
+    consumeHandoff(paneId, h.token);
+    // Element picks (P7) carry a pre-minted identity label + a compact JSON
+    // payload — addAttachments/addPath would mint a path-basename label, so they
+    // seat via addResolved (custom label + "element" kind) and insert their own
+    // token. Image/file hand-offs (P6) still ride the addAttachments path.
+    const media = h.attachments.filter((a) => a.type !== "element");
+    if (media.length) addAttachments(media);
+    for (const a of h.attachments) {
+      if (a.type !== "element") continue;
+      const remap = addResolved({ label: a.label, kind: "element", path: a.path });
+      intake.insertLabels([remap ? remap.to : a.label], cursorPos);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [handoffTick, paneId]);
 
   useEffect(() => { setMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [slashCtx?.query]);
   useEffect(() => { setFileMenuIndex(0); setMenuDismissed(recallRef.current || menuDismissedOnQueryChange()); }, [atCtx?.query]);

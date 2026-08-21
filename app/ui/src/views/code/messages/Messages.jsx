@@ -43,6 +43,7 @@ import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceR
 import { subscribe as subscribeThinking, liveBlocksFor as liveThinkingFor, dropBlock as dropThinkingBlock } from "../../../state/thinkingStore.js";
 import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../../../state/loopCheckStore.js";
 import { setInputNeeded } from "../../../state/inputNeededStore.js";
+import { onReveal } from "../../../state/transcriptReveal.js";
 import * as outbox from "../../../state/outboxStore.js";
 
 const SCROLL_THRESHOLD = 40;
@@ -54,6 +55,26 @@ const MAX_RESTORE_PAGES = 3;
 // Stable identity for the gated "not this agent's rows" case so downstream
 // memos don't churn while a switch is in flight.
 const NO_EVENTS = [];
+
+// Scroll the transcript to the user message that first carried `path` (a "Files
+// in Chat" jump). Matches on the rendered attachment's title (MessageUser sets
+// title={att.path}); the block may be outside the bounded live window, in which
+// case there is nothing to scroll to. Centers the block and flashes it, reusing
+// the usePageFind scroll math so stick-to-bottom unpins cleanly.
+function scrollToAttachment(wrap, content, path) {
+  if (!wrap || !content) return;
+  let el = null;
+  for (const att of content.querySelectorAll(".msg-att")) {
+    if (att.getAttribute("title") === path) { el = att.closest("[data-bkey]"); break; }
+  }
+  if (!el) return;
+  const rect = el.getBoundingClientRect();
+  const wrapRect = wrap.getBoundingClientRect();
+  const top = wrap.scrollTop + (rect.top - wrapRect.top) - wrap.clientHeight / 2;
+  wrap.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  el.classList.add("msg-jump-flash");
+  setTimeout(() => el.classList.remove("msg-jump-flash"), 1200);
+}
 
 export function Messages({ live, agentId, isActive = true }) {
   const ui = useUi();
@@ -109,6 +130,13 @@ export function Messages({ live, agentId, isActive = true }) {
     if (selectedId) clearScrollPos(selectedId);
     stick.scrollToBottom();
   }, [stick.scrollToBottom, selectedId]);
+
+  // "Files in Chat" jump-to-message: the panel signals this worker's transcript
+  // (which owns the scroller refs) to scroll a given attachment into view.
+  useEffect(() => {
+    if (!selectedId) return;
+    return onReveal(selectedId, (path) => scrollToAttachment(wrapRef.current, contentRef.current, path));
+  }, [selectedId, wrapRef, contentRef]);
 
   const restorePagesRef = useRef(0);
   // Layout effect ON PURPOSE, and declared before the restore effect below:

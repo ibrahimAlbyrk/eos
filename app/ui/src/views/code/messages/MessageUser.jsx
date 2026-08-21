@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { api } from "../../../api/client.js";
 import { ImageLightbox } from "../ImageLightbox.jsx";
-import { labelTitle, parseAttachmentMessage } from "../../../lib/attachmentTokens.js";
+import { labelTitle, parseAttachmentMessage, elementSummary } from "../../../lib/attachmentTokens.js";
 import { segment, URL_RE } from "../../../lib/richText.jsx";
 import { findSlashTokens } from "../../../lib/slashTokens.js";
 import { PASTE_RE } from "../../../lib/pasteTokens.js";
@@ -84,6 +84,16 @@ export function MessageUser({ text, cwd }) {
                 <ImageLightbox gallery={gallery} index={images.indexOf(att)}>
                   <img src={api.imageUrl(att.path)} alt={basename(att.path)} className="msg-att-img" />
                 </ImageLightbox>
+              ) : att.kind === "element" ? (
+                (() => {
+                  const s = elementSummary(att.path) ?? { tag: labelTitle(att.label) ?? "element", detail: "" };
+                  return (
+                    <div className="msg-att-element-body">
+                      <span className="msg-att-element-tag">{s.tag}</span>
+                      {s.detail && <span className="msg-att-element-detail">{s.detail}</span>}
+                    </div>
+                  );
+                })()
               ) : (
                 <div className="msg-att-icon">
                   {att.kind === "folder" ? (
