@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { hasPaintedFrame } from "./AnnotationLayer.jsx";
+import { renderToStaticMarkup } from "react-dom/server";
+import { AnnotationLayer, COLORS, hasPaintedFrame } from "./AnnotationLayer.jsx";
+import { beginStroke } from "./annotationExport.js";
 
 // The annotate overlay freezes the live .browser-canvas the instant pencil mode
 // starts. The guard below is what stops it committing a blank freeze — the bug
@@ -33,5 +35,46 @@ describe("hasPaintedFrame (freeze guard)", () => {
   it("is false when the pixels cannot be read (missing/tainted canvas)", () => {
     expect(hasPaintedFrame(null)).toBe(false);
     expect(hasPaintedFrame({ width: 1200, height: 800, getContext: () => { throw new Error("tainted"); } })).toBe(false);
+  });
+});
+
+describe("pencil colour palette", () => {
+  it("offers at least 9 distinct colours including black and white", () => {
+    expect(COLORS.length).toBeGreaterThanOrEqual(9);
+    expect(COLORS).toContain("#000000");
+    expect(COLORS).toContain("#ffffff");
+    expect(new Set(COLORS).size).toBe(COLORS.length); // no duplicates
+    for (const c of COLORS) expect(c).toMatch(/^#[0-9a-f]{6}$/); // all valid hex
+  });
+
+  it("renders one swatch per palette colour and marks the active colour selected", () => {
+    const html = renderToStaticMarkup(<AnnotationLayer paneId="A" tabId="t1" />);
+    // every colour has a swatch button carrying it as the --swatch custom prop
+    for (const c of COLORS) expect(html).toContain(`--swatch:${c}`);
+    expect((html.match(/--swatch:/g) ?? []).length).toBe(COLORS.length);
+    // the default colour (index 0, black) is the selected swatch; white is not
+    expect(html).toMatch(new RegExp(`annotation-swatch on"[^>]*--swatch:${COLORS[0]}[^>]*aria-pressed="true"`));
+    expect(html).toMatch(/--swatch:#ffffff[^>]*aria-pressed="false"/);
+  });
+
+  it("selecting a swatch is what colours the stroke (colour state feeds beginStroke)", () => {
+    // The swatch onClick sets the colour state; a stroke started with that colour
+    // carries it verbatim, so picking a swatch changes the drawn colour.
+    for (const c of ["#000000", "#ffffff", "#007aff"]) {
+      expect(beginStroke("pen", c, { x: 1, y: 1 }).color).toBe(c);
+    }
+  });
+});
+
+describe("text tool", () => {
+  it("offers a Text tool button in the toolbar so the tool is selectable", () => {
+    const html = renderToStaticMarkup(<AnnotationLayer paneId="A" tabId="t1" />);
+    expect(html).toContain('aria-label="Text"');
+    expect(html).toContain('title="Text"');
+  });
+
+  it("no text input is shown until a point is placed (textEdit starts null)", () => {
+    const html = renderToStaticMarkup(<AnnotationLayer paneId="A" tabId="t1" />);
+    expect(html).not.toContain("annotation-text-input");
   });
 });

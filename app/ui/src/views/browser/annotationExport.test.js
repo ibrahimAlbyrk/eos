@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { ROUTES } from "../../api/routes.js";
 import {
   beginStroke, extendStroke, makeText, undoStrokes, clearStrokes,
-  exportScale, drawStrokes, paintComposite, uploadAnnotation,
+  exportScale, drawStrokes, paintComposite, uploadAnnotation, TEXT_SIZE,
 } from "./annotationExport.js";
 
 // A stand-in 2D context that records every draw call and holds the mutable
@@ -17,7 +17,7 @@ function recordingCtx() {
   };
   for (const op of ["save", "restore", "beginPath", "moveTo", "lineTo", "stroke", "fill",
     "arc", "ellipse", "strokeRect", "fillText", "drawImage", "setTransform", "clearRect"]) {
-    ctx[op] = (...args) => calls.push({ op, args, lineWidth: ctx.lineWidth });
+    ctx[op] = (...args) => calls.push({ op, args, lineWidth: ctx.lineWidth, font: ctx.font });
   }
   return ctx;
 }
@@ -32,13 +32,22 @@ describe("stroke model", () => {
     expect(rect).toMatchObject({ tool: "rect", x0: 5, y0: 6, x1: 9, y1: 12 });
   });
 
-  it("makeText carries the point and string", () => {
-    expect(makeText("#00f", { x: 4, y: 7 }, "hi")).toMatchObject({ tool: "text", x: 4, y: 7, text: "hi" });
+  it("makeText carries the point, string, selected colour, and font size", () => {
+    expect(makeText("#00f", { x: 4, y: 7 }, "hi")).toMatchObject({
+      tool: "text", x: 4, y: 7, text: "hi", color: "#00f", fontSize: TEXT_SIZE,
+    });
   });
 
   it("undo drops the last stroke; clear empties", () => {
     expect(undoStrokes(["a", "b", "c"])).toEqual(["a", "b"]);
     expect(undoStrokes([])).toEqual([]);
+    expect(clearStrokes()).toEqual([]);
+  });
+
+  it("undo removes a text stroke like any other tool", () => {
+    const pen = beginStroke("pen", "#f00", { x: 0, y: 0 });
+    const text = makeText("#00f", { x: 1, y: 2 }, "note");
+    expect(undoStrokes([pen, text])).toEqual([pen]);
     expect(clearStrokes()).toEqual([]);
   });
 });
@@ -89,10 +98,12 @@ describe("drawStrokes geometry (scaled)", () => {
     expect([cx, cy, rx, ry]).toEqual([20, 40, 20, 40]); // centre (10,20)*2, radii (10,20)*2
   });
 
-  it("text draws at the scaled point", () => {
+  it("text draws at the scaled point and scaled font size", () => {
     const ctx = recordingCtx();
     drawStrokes(ctx, [makeText("#f00", { x: 5, y: 6 }, "hi")], S, S);
-    expect(ops(ctx, "fillText")[0].args).toEqual(["hi", 10, 12]);
+    const ft = ops(ctx, "fillText")[0];
+    expect(ft.args).toEqual(["hi", 10, 12]);          // point (5,6) * 2
+    expect(ft.font).toContain(`${TEXT_SIZE * S}px`);  // font size scaled by sy, not left at display px
   });
 });
 
@@ -107,6 +118,15 @@ describe("paintComposite", () => {
     expect(ops(ctx, "drawImage")[0].args).toEqual([base, 0, 0, 1280, 800]);
     // display 640→target 1280 ⇒ sx=2; rect size (100,50)*2 = (200,100)
     expect(ops(ctx, "strokeRect")[0].args).toEqual([0, 0, 200, 100]);
+  });
+
+  it("composites a text stroke at the scaled position and font size", () => {
+    const ctx = recordingCtx();
+    paintComposite(ctx, { BASE: true }, { width: 1280, height: 800 },
+      [makeText("#f00", { x: 5, y: 6 }, "hi")], { width: 640, height: 400 });
+    const ft = ops(ctx, "fillText")[0];
+    expect(ft.args).toEqual(["hi", 10, 12]);          // display 640→target 1280 ⇒ ×2
+    expect(ft.font).toContain(`${TEXT_SIZE * 2}px`);  // font size scales with the frame, not tiny
   });
 });
 

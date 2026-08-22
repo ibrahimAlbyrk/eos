@@ -4,10 +4,26 @@ import { notify } from "../../lib/notify.js";
 import { toggleMode, browserFetch } from "../../state/browserPanelStore.js";
 import { pushHandoff } from "../../state/browserComposerHandoff.js";
 import {
-  COLORS, TOOLS, TEXT_SIZE,
+  TOOLS, TEXT_SIZE,
   beginStroke, extendStroke, makeText, undoStrokes, clearStrokes,
   drawStrokes, exportAnnotation,
 } from "./annotationExport.js";
+
+// Pencil palette: the two neutrals (ink black, paper white) plus seven evenly
+// spaced hues, so every common annotation colour is one click away. Lives here
+// rather than in annotationExport — strokes keep whatever colour was picked, so
+// only the swatch row reads this list. Index 0 (black) is the default pen colour.
+export const COLORS = [
+  "#000000", // black
+  "#ffffff", // white
+  "#ff3b30", // red
+  "#ff9500", // orange
+  "#ffcc00", // yellow
+  "#34c759", // green
+  "#007aff", // blue
+  "#af52de", // purple
+  "#ff2d55", // pink
+];
 
 // AnnotationLayer — the pencil-mode overlay (plan §4 Phase 6). Architecture is
 // capture-then-draw, and the order is not negotiable: nothing the human draws
@@ -50,6 +66,7 @@ export function AnnotationLayer({ paneId, tabId }) {
   const exportBaseRef = useRef(null); // { image, width, height } — the high-q capture once it lands
   const draftRef = useRef(null); // stroke in progress during a drag
   const drawingRef = useRef(false);
+  const textEditRef = useRef(null); // event-time text value, so blur/Escape read the live text not a stale render closure
 
   const [tool, setTool] = useState("pen");
   const [color, setColor] = useState(COLORS[0]);
@@ -164,7 +181,7 @@ export function AnnotationLayer({ paneId, tabId }) {
   const onPointerDown = (e) => {
     if (e.button !== 0) return;
     const pt = pointAt(e);
-    if (tool === "text") { setTextEdit({ x: pt.x, y: pt.y, value: "" }); return; }
+    if (tool === "text") { openText(pt); return; }
     e.currentTarget.setPointerCapture(e.pointerId);
     drawingRef.current = true;
     draftRef.current = beginStroke(tool, color, pt);
@@ -185,12 +202,25 @@ export function AnnotationLayer({ paneId, tabId }) {
     if (draft) setStrokes((s) => [...s, draft]);
   };
 
+  // Text entry: a positioned <input> over the frozen frame; the stroke is
+  // recorded only on commit. textEditRef mirrors the value so blur (click-away
+  // commit) and Escape (cancel) read the live text, not a stale render closure.
+  const setText = (te) => { textEditRef.current = te; setTextEdit(te); };
+
   const commitText = () => {
-    if (!textEdit) return;
-    const v = textEdit.value.trim();
-    if (v) setStrokes((s) => [...s, makeText(color, { x: textEdit.x, y: textEdit.y }, v)]);
+    const te = textEditRef.current;
+    if (!te) return;
+    textEditRef.current = null;
+    const v = te.value.trim();
+    if (v) setStrokes((s) => [...s, makeText(color, { x: te.x, y: te.y }, v)]);
     setTextEdit(null);
   };
+
+  const cancelText = () => { textEditRef.current = null; setTextEdit(null); };
+
+  // Placing a new text point commits any in-progress one first, so clicking to
+  // place the next label never drops the current text.
+  const openText = (pt) => { commitText(); setText({ x: pt.x, y: pt.y, value: "" }); };
 
   const close = () => toggleMode(paneId, "annotate"); // annotate → view
 
@@ -229,6 +259,9 @@ export function AnnotationLayer({ paneId, tabId }) {
           ref={drawRef}
           className="annotation-draw"
           style={{ cursor: tool === "text" ? "text" : "crosshair" }}
+          // Keep focus on the text input: clicking this non-focusable canvas would
+          // otherwise move focus to <body> and blur (then tear down) the input.
+          onMouseDown={(e) => { if (tool === "text") e.preventDefault(); }}
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={endStroke}
@@ -241,10 +274,10 @@ export function AnnotationLayer({ paneId, tabId }) {
             autoFocus
             value={textEdit.value}
             style={{ left: textEdit.x, top: textEdit.y, color, fontSize: TEXT_SIZE }}
-            onChange={(e) => setTextEdit((t) => ({ ...t, value: e.target.value }))}
+            onChange={(e) => setText({ ...textEditRef.current, value: e.target.value })}
             onKeyDown={(e) => {
               if (e.key === "Enter") { e.preventDefault(); commitText(); }
-              if (e.key === "Escape") { e.preventDefault(); setTextEdit(null); }
+              else if (e.key === "Escape") { e.preventDefault(); cancelText(); }
             }}
             onBlur={commitText}
           />
