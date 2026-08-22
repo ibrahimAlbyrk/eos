@@ -288,9 +288,16 @@ export class CdpBrowserAdapter implements BrowserEngine {
 
   async openTab(url: string): Promise<string> {
     const cdp = this.mustCdp();
+    // A live screencast means a panel is watching. A plain createTarget makes
+    // the new target the foreground, and a BACKGROUND TARGET EMITS ZERO FRAMES
+    // — the watched panel would freeze/white out the moment any tab opens
+    // (bugfix harness 11-fgloss: frames drop to 0 instantly). Open in the
+    // background instead; a panel that switches to the new tab foregrounds it
+    // through its subscribe (startScreencast → bringToFront).
+    const watched = this.streamingTab() != null;
     // Start at about:blank so the audio guard is registered BEFORE the first
     // real document — late injection provably fails (audio spike).
-    const { targetId } = (await cdp.send("Target.createTarget", { url: "about:blank" })) as { targetId: string };
+    const { targetId } = (await cdp.send("Target.createTarget", { url: "about:blank", ...(watched ? { background: true } : {}) })) as { targetId: string };
     const { sessionId } = (await cdp.send("Target.attachToTarget", { targetId, flatten: true })) as { sessionId: string };
     await cdp.send("Page.enable", {}, sessionId);
     await cdp.send("DOM.enable", {}, sessionId);
@@ -314,8 +321,9 @@ export class CdpBrowserAdapter implements BrowserEngine {
       device: "responsive", viewport: { ...VIEWPORT }, audioGuardId: identifier,
     });
     if (willNavigate) await cdp.send("Page.navigate", { url }, sessionId);
-    // Target.createTarget foregrounds the new target.
-    this.foregroundTabId = tabId;
+    // Target.createTarget foregrounds the new target — unless a watched tab
+    // forced background creation, in which case the foreground never moved.
+    if (!watched) this.foregroundTabId = tabId;
     return tabId;
   }
 
@@ -396,6 +404,10 @@ export class CdpBrowserAdapter implements BrowserEngine {
     if (!tab || !tab.screencast) return;
     tab.display = display;
     if (tab.device !== "responsive") return;
+    // The subscribed tab may have lost the foreground; a restart alone stays at
+    // 0 frames on a background target (bugfix harness 11-fgloss), which is how
+    // a resize used to leave the last wide frame squished into the new box.
+    await this.bringToFront(tab);
     await this.applyStreamGeometry(tab, display);
     await this.mustCdp().send("Page.stopScreencast", {}, tab.sessionId).catch(() => {});
     await this.cdpStartScreencast(tab);
@@ -744,6 +756,16 @@ export class CdpBrowserAdapter implements BrowserEngine {
     // The UA only takes effect on the next document — reload so "Mobile"
     // genuinely produces the mobile DOM (spike §5). frameNavigated clears refs.
     await cdp.send("Page.reload", {}, tab.sessionId);
+    // The screencast survives the reload (bugfix harness 12-navreload) but on
+    // the OLD device's params; frames mid-switch arrive at transitional sizes
+    // (13-dims measured a 296x640 frame claiming 375x812). Restart on the new
+    // geometry now instead of waiting for the panel's resubscribe.
+    if (tab.screencast && tab.display) {
+      await this.bringToFront(tab);
+      await this.applyStreamGeometry(tab, tab.display);
+      await cdp.send("Page.stopScreencast", {}, tab.sessionId).catch(() => {});
+      await this.cdpStartScreencast(tab);
+    }
   }
 
   // ---- element picker --------------------------------------------------------
@@ -891,6 +913,13 @@ export class CdpBrowserAdapter implements BrowserEngine {
     for (const tab of this.tabs.values()) {
       if (tab.sessionId === sessionId) tab.loading = loading;
     }
+  }
+
+  // The tab a panel is currently streaming, if any — a live screencast is the
+  // signal that the foreground must not be stolen from under a viewer.
+  private streamingTab(): Tab | null {
+    for (const tab of this.tabs.values()) if (tab.screencast) return tab;
+    return null;
   }
 
   // Always sends — cheap and idempotent; the tracked id only drives capture's

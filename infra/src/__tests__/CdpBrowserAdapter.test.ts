@@ -220,8 +220,8 @@ test("CDP adapter against real Chrome", { timeout: 120_000 }, async (t) => {
     await sleep(700); // let the noise paint
     // Subscribe A again: the initial frame only arrives if the switch put A
     // back in the foreground (a background target would emit nothing).
-    const framesA: number[] = [];
-    await adapter.startScreencast(tabId, { cssWidth: 1280, cssHeight: 800, dpr: 2 }, () => framesA.push(Date.now()));
+    const framesA: BrowserFrame[] = [];
+    await adapter.startScreencast(tabId, { cssWidth: 1280, cssHeight: 800, dpr: 2 }, (f) => framesA.push(f));
     for (let i = 0; i < 20 && framesA.length === 0; i++) await sleep(250);
     assert.ok(framesA.length >= 1, "frames arrive after switching the subscription back to A");
     assert.equal(adapter.activeTabId(), tabId, "subscribing brings A back to the foreground — human view == agent default");
@@ -249,6 +249,39 @@ test("CDP adapter against real Chrome", { timeout: 120_000 }, async (t) => {
       restored = framesA.length > beforeCount;
     }
     assert.ok(restored, "frame stream returned to A after capturing background B");
+
+    // ---- regression: a new tab must NOT steal the watched tab's stream ------
+    // The white-screen bug: a plain createTarget foregrounds the new target,
+    // and a background target emits ZERO frames — the watched panel froze the
+    // moment any tab opened. While a screencast is live, openTab creates in
+    // the background and the foreground (and the stream) stays put.
+    const beforeOpen = framesA.length;
+    const tabC = await adapter.openTab("about:blank");
+    assert.equal(adapter.activeTabId(), tabId, "a watched tab keeps the foreground when a new tab opens");
+    let flowing = false;
+    for (let i = 0; i < 20 && !flowing; i++) {
+      // the tall page is idle — nudge damage so a healthy stream shows a frame
+      await adapter.dispatchInput(tabId, { kind: "mouse", type: "mouseWheel", x: 640, y: 400, button: "none", deltaX: 0, deltaY: i % 2 ? 120 : -120 });
+      await sleep(250);
+      flowing = framesA.length > beforeOpen;
+    }
+    assert.ok(flowing, "the watched tab keeps streaming after a new tab opens");
+    await adapter.closeTab(tabC);
+
+    // ---- regression: device switch mid-stream resumes at the new geometry ---
+    // The squish bug: setDevice's reload left the stream running on the old
+    // params and the panel painting transitional aspects. The stream must
+    // resume by itself and carry the mobile viewport's aspect.
+    const beforeDevice = framesA.length;
+    await adapter.setDevice(tabId, "mobile");
+    let mobileFrame: BrowserFrame | null = null;
+    for (let i = 0; i < 30 && !mobileFrame; i++) {
+      await sleep(250);
+      const f = framesA[framesA.length - 1];
+      if (framesA.length > beforeDevice && f && f.width > 0 && Math.abs(f.width / f.height - 375 / 812) < 0.02) mobileFrame = f;
+    }
+    assert.ok(mobileFrame, "frames resume after a device switch and carry the mobile aspect");
+
     await adapter.stopScreencast(tabId);
     await adapter.closeTab(tabB);
 
