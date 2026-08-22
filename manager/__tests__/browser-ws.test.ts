@@ -5,10 +5,12 @@ import {
   encodeFrameHeader,
   decodeFrameHeader,
   shouldDropFrame,
+  healWedgedWindow,
   displayFrom,
   FRAME_HEADER_BYTES,
   MAX_UNACKED_FRAMES,
   BACKPRESSURE_BYTES,
+  ACK_WINDOW_RESET_MS,
 } from "../browser-ws.ts";
 import { DISPLAY_DEFAULTS } from "../services/BrowserService.ts";
 
@@ -45,6 +47,25 @@ test("backpressure drop rule: unacked window", () => {
   assert.equal(shouldDropFrame({ bufferedAmount: 0, sentSeq: MAX_UNACKED_FRAMES, ackedSeq: 0 }), true);
   // acks reopen the window
   assert.equal(shouldDropFrame({ bufferedAmount: 0, sentSeq: 10, ackedSeq: 8 }), false);
+});
+
+// The white-screen wedge (harness 14-wedge-e2e): MAX_UNACKED_FRAMES missed acks
+// and the drop rule blocks every later frame forever — no frame ever reaches
+// the client to carry a newer ack, so the stall is permanent without this heal.
+test("healWedgedWindow reopens a window that stalled full, never a live one", () => {
+  const t0 = 1_000_000;
+  // Window full, no progress long enough → abandon the missing acks.
+  const wedged = { sentSeq: 10, ackedSeq: 10 - MAX_UNACKED_FRAMES, lastProgressAt: t0 };
+  assert.equal(healWedgedWindow(wedged, t0 + ACK_WINDOW_RESET_MS - 1), false, "not before the reset deadline");
+  assert.equal(wedged.ackedSeq, 10 - MAX_UNACKED_FRAMES);
+  assert.equal(healWedgedWindow(wedged, t0 + ACK_WINDOW_RESET_MS), true, "heals at the deadline");
+  assert.equal(wedged.ackedSeq, 10, "window reopened: the next frame sends");
+  assert.equal(shouldDropFrame({ bufferedAmount: 0, sentSeq: wedged.sentSeq, ackedSeq: wedged.ackedSeq }), false);
+  // A window that is not full never heals, no matter how old — normal acking
+  // clients are untouched.
+  const live = { sentSeq: 10, ackedSeq: 8, lastProgressAt: 0 };
+  assert.equal(healWedgedWindow(live, Number.MAX_SAFE_INTEGER), false);
+  assert.equal(live.ackedSeq, 8);
 });
 
 test("backpressure drop rule: socket buffer bytes", () => {

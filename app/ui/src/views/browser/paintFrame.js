@@ -33,6 +33,45 @@ export async function paintFrame(canvas, arrayBuffer) {
   return { ...header, bytes: arrayBuffer.byteLength - FRAME_HEADER_BYTES };
 }
 
+// The frame pump: latest-frame-wins decode+paint with an UNCONDITIONAL ack.
+// The daemon stops sending after MAX_UNACKED_FRAMES (3) unacked frames — a
+// single skipped ack permanently consumes a window slot, and three wedge the
+// stream forever while the page stays interactive (the white-screen bug). So
+// every frame that is dequeued is acked, paint success or not; a frame
+// superseded while a newer one was painting is covered by the newer, higher
+// seq (the daemon tracks only the max acked seq).
+export function makeFramePump({ getCanvas, send, paint = paintFrame }) {
+  let queued = null;
+  let painting = false;
+  let disposed = false;
+  const drain = async () => {
+    painting = true;
+    while (queued && !disposed) {
+      const buf = queued;
+      queued = null;
+      const { seq } = decodeFrameHeader(buf);
+      try {
+        await paint(getCanvas(), buf);
+      } catch {
+        // torn/undecodable frame or a mid-unmount paint — the next frame
+        // supersedes the picture; the ack below still goes out
+      }
+      send({ type: "ack", seq });
+    }
+    painting = false;
+  };
+  return {
+    push(arrayBuffer) {
+      if (disposed) return;
+      queued = arrayBuffer;
+      if (!painting) void drain();
+    },
+    dispose() {
+      disposed = true;
+    },
+  };
+}
+
 // Canvas→page translation (plan §3.4): the canvas CSS box shows the whole
 // viewport, so page coords are just the offset scaled by viewport/canvas CSS
 // size. Returns viewport CSS px, rounded, clamped inside the viewport.

@@ -67,6 +67,21 @@ export function shouldDropFrame(s: { bufferedAmount: number; sentSeq: number; ac
   return s.bufferedAmount > BACKPRESSURE_BYTES || s.sentSeq - s.ackedSeq >= MAX_UNACKED_FRAMES;
 }
 
+// Self-heal for a wedged ack window. Every missed ack permanently consumes a
+// window slot; MAX_UNACKED_FRAMES misses and the drop rule blocks every later
+// frame while the page stays interactive — the white-screen wedge (bugfix
+// harness 14-wedge-e2e). A window that has been full with no send/ack progress
+// for ACK_WINDOW_RESET_MS declares the missing acks lost and reopens; the byte
+// threshold still guards true socket backpressure.
+export const ACK_WINDOW_RESET_MS = 2000;
+export function healWedgedWindow(s: { sentSeq: number; ackedSeq: number; lastProgressAt: number }, now: number): boolean {
+  if (s.sentSeq - s.ackedSeq < MAX_UNACKED_FRAMES) return false;
+  if (now - s.lastProgressAt < ACK_WINDOW_RESET_MS) return false;
+  s.ackedSeq = s.sentSeq;
+  s.lastProgressAt = now;
+  return true;
+}
+
 interface Log {
   warn(msg: string, meta?: Record<string, unknown>): void;
 }
@@ -112,8 +127,7 @@ function attach(ws: WebSocket, deps: { browser: BrowserService; uiToken: string;
   const { browser, log, stats } = deps;
   let tabId: string | null = null;
   let unsubscribe: (() => void) | null = null;
-  let sentSeq = 0;
-  let ackedSeq = 0;
+  const flow = { sentSeq: 0, ackedSeq: 0, lastProgressAt: Date.now() };
   // The panel's last-reported display size — reused on resume so a paused/hidden
   // panel comes back at the same resolution it left.
   let lastDisplay: DisplaySize = { ...DISPLAY_DEFAULTS };
@@ -126,12 +140,14 @@ function attach(ws: WebSocket, deps: { browser: BrowserService; uiToken: string;
   const onFrame = (frame: { tabId: string; data: Uint8Array; width: number; height: number }): void => {
     if (stats) stats.received++;
     if (ws.readyState !== ws.OPEN) return;
-    if (shouldDropFrame({ bufferedAmount: ws.bufferedAmount, sentSeq, ackedSeq })) {
+    healWedgedWindow(flow, Date.now());
+    if (shouldDropFrame({ bufferedAmount: ws.bufferedAmount, sentSeq: flow.sentSeq, ackedSeq: flow.ackedSeq })) {
       if (stats) stats.dropped++;
       return;
     }
-    sentSeq++;
-    const header = encodeFrameHeader({ tabKey: fnv1a(frame.tabId), seq: sentSeq, width: frame.width, height: frame.height });
+    flow.sentSeq++;
+    flow.lastProgressAt = Date.now();
+    const header = encodeFrameHeader({ tabKey: fnv1a(frame.tabId), seq: flow.sentSeq, width: frame.width, height: frame.height });
     ws.send(Buffer.concat([header, frame.data]), { binary: true });
     if (stats) stats.sent++;
   };
@@ -189,7 +205,10 @@ function attach(ws: WebSocket, deps: { browser: BrowserService; uiToken: string;
         }
         return;
       case "ack":
-        if (typeof msg.seq === "number" && msg.seq > ackedSeq) ackedSeq = msg.seq;
+        if (typeof msg.seq === "number" && msg.seq > flow.ackedSeq) {
+          flow.ackedSeq = msg.seq;
+          flow.lastProgressAt = Date.now();
+        }
         return;
       case "input":
         if (tabId && msg.event) {

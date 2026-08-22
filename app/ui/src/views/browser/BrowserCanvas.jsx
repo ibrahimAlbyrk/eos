@@ -1,11 +1,14 @@
 import { useEffect, useRef } from "react";
-import { paintFrame, canvasToPage } from "./paintFrame.js";
+import { makeFramePump, canvasToPage } from "./paintFrame.js";
 
 // BrowserCanvas — paints the binary frame stream and forwards human input back
 // through the same socket. Paint path per plan §3.3: createImageBitmap →
 // drawImage → close, latest-frame-wins (an older undecoded frame is dropped
 // when a newer one lands mid-paint; the max-seq ack covers the skipped one).
-// Coordinate translation: page coords are viewport CSS px (canvasToPage).
+// Every dequeued frame is acked EVEN IF PAINT FAILS — the daemon stops sending
+// after 3 unacked frames, so a skipped ack wedges the stream permanently
+// (makeFramePump owns that contract). Coordinate translation: page coords are
+// viewport CSS px (canvasToPage).
 
 // CDP modifier bitmask: Alt=1, Ctrl=2, Meta=4, Shift=8.
 function modifiersOf(e) {
@@ -19,36 +22,23 @@ export function BrowserCanvas({ ws, viewport, fill }) {
   const viewportRef = useRef(viewport);
   viewportRef.current = viewport;
 
-  // Frame pump: paint the newest frame, ack what was painted. If frames arrive
-  // faster than decode+paint, only the latest queued one is painted — the
-  // daemon's unacked-window drop rule then throttles the stream to our pace.
+  // Frame pump: paint the newest frame, ack every frame we dequeue. If frames
+  // arrive faster than decode+paint, only the latest queued one is painted —
+  // the daemon's unacked-window drop rule then throttles the stream to our pace.
   useEffect(() => {
     if (!ws) return;
-    let painting = false;
-    let queued = null;
-    let disposed = false;
-    const drain = async () => {
-      painting = true;
-      while (queued && !disposed) {
-        const buf = queued;
-        queued = null;
-        try {
-          const info = await paintFrame(canvasRef.current, buf);
-          if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ack", seq: info.seq }));
-        } catch {
-          // torn/undecodable frame — the next repaint supersedes it
-        }
-      }
-      painting = false;
-    };
+    const pump = makeFramePump({
+      getCanvas: () => canvasRef.current,
+      send: (msg) => {
+        if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
+      },
+    });
     const onMessage = (ev) => {
-      if (!(ev.data instanceof ArrayBuffer)) return;
-      queued = ev.data;
-      if (!painting) void drain();
+      if (ev.data instanceof ArrayBuffer) pump.push(ev.data);
     };
     ws.addEventListener("message", onMessage);
     return () => {
-      disposed = true;
+      pump.dispose();
       ws.removeEventListener("message", onMessage);
     };
   }, [ws]);
