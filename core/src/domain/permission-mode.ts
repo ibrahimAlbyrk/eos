@@ -43,7 +43,7 @@ const NETWORK_TOOLS = new Set<string>(NETWORK_BUILTIN_TOOLS);
 
 // Browser verbs that only read the page. Everything else drives it, so a verb
 // added later classifies as a write until it is listed here (fail closed).
-const BROWSER_READ_VERBS = new Set(["snapshot", "find", "get", "screenshot", "tabs"]);
+const BROWSER_READ_VERBS = new Set(["snapshot", "find", "get", "screenshot", "tabs", "show"]);
 
 // Pure segment-level resolution (core can't use node:path). Resolves "."/".."
 // so a traversal like plans/../../etc can't spoof the prefix check. Symlinks

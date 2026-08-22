@@ -67,7 +67,7 @@ describe("classifyTool planFile", () => {
 
 describe("classifyTool browser verbs", () => {
   it("classifies the read verbs as browserRead on both control servers", () => {
-    for (const verb of ["snapshot", "find", "get", "screenshot", "tabs"]) {
+    for (const verb of ["snapshot", "find", "get", "screenshot", "tabs", "show"]) {
       assert.equal(classifyTool(`mcp__worker__browser_${verb}`), "browserRead", verb);
       assert.equal(classifyTool(`mcp__orchestrator__browser_${verb}`), "browserRead", verb);
     }
@@ -112,6 +112,13 @@ describe("MODE_SPECS verdict table", () => {
     const m = MODE_SPECS.acceptEdits;
     assert.equal(m.decide("browserRead"), "allow");
     assert.equal(m.decide("browserWrite"), "ask");
+  });
+
+  it("browser_show is browserRead — allowed in both modes, never 'ask' (present must not prompt)", () => {
+    assert.equal(classifyTool("mcp__worker__browser_show"), "browserRead");
+    assert.equal(classifyTool("mcp__orchestrator__browser_show"), "browserRead");
+    assert.equal(MODE_SPECS.acceptEdits.decide("browserRead"), "allow");
+    assert.equal(MODE_SPECS.bypassPermissions.decide("browserRead"), "allow");
   });
 
   it("bypassPermissions allows everything", () => {
