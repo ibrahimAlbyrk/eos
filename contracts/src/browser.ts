@@ -7,6 +7,14 @@
 
 import { z } from "zod";
 
+// ---- Session scoping -------------------------------------------------------
+// sessionKey is the id of a session's ROOT worker row (the parent_id-chain
+// root, usually an orchestrator o-…), or GLOBAL_SESSION for the no-session
+// context (empty pane / wave-1 compat / perSession=false). Whether a session
+// maps to a Chrome process or a CDP context is daemon-internal — this file
+// only ever sees the opaque key.
+export const GLOBAL_SESSION = "global";
+
 // ---- Tab identity ----------------------------------------------------------
 // tabId is Eos-minted and stable for the tab's life; the daemon maps it to the
 // CDP targetId (also stable per tab, but daemon-internal).
@@ -15,6 +23,7 @@ import { z } from "zod";
 
 export const BrowserTabSchema = z.object({
   tabId: z.string(),
+  sessionId: z.string(),                                  // owning session's key (GLOBAL_SESSION when unscoped)
   url: z.string(),
   title: z.string(),
   loading: z.boolean(),
@@ -41,6 +50,9 @@ export const BrowserStatusSchema = z.object({
   state: BrowserEngineStateSchema,
   chromePath: z.string().nullable(),
   tabCount: z.number(),
+  // Present when the panel fetched per-session engine state via ?session=.
+  // Optional for wave-1 compat; engine lifecycle itself is process-global.
+  sessionId: z.string().optional(),
 });
 export type BrowserStatus = z.infer<typeof BrowserStatusSchema>;
 
@@ -183,7 +195,10 @@ export const BrowserEvalRequestSchema = z.object({
 });
 export type BrowserEvalRequest = z.infer<typeof BrowserEvalRequestSchema>;
 
-export const BrowserTabsResponseSchema = z.object({ tabs: z.array(BrowserTabSchema) });
+export const BrowserTabsResponseSchema = z.object({
+  tabs: z.array(BrowserTabSchema),
+  sessionId: z.string().optional(),                       // present when the list is session-scoped
+});
 export type BrowserTabsResponse = z.infer<typeof BrowserTabsResponseSchema>;
 
 export const BrowserNewTabRequestSchema = z.object({ url: z.string().optional() });
@@ -220,3 +235,33 @@ export const BrowserGetResponseSchema = z.object({
   value: z.string(),
 });
 export type BrowserGetResponse = z.infer<typeof BrowserGetResponseSchema>;
+
+// ---- Present (browser_show) ------------------------------------------------
+// The agent's "look here now" verb: surfaces the panel showing tabId (default:
+// the caller session's active tab). Mutates no page state.
+export const BrowserShowRequestSchema = z.object({
+  tabId: z.string().optional(),                           // omit = the caller session's active tab
+});
+export type BrowserShowRequest = z.infer<typeof BrowserShowRequestSchema>;
+
+export const BrowserShowResponseSchema = z.object({
+  ok: z.literal(true),
+  tabId: z.string(),                                       // the tab actually presented
+});
+export type BrowserShowResponse = z.infer<typeof BrowserShowResponseSchema>;
+
+// ---- SSE browser:activity payload ------------------------------------------
+// Fire-and-forget "an agent acted" signal: "use" = a tab opened / navigated;
+// "present" = an explicit browser_show. Drives the panel's auto-open / badge /
+// bring-to-front rules.
+export const BrowserActivityKindSchema = z.enum(["use", "present"]);
+export type BrowserActivityKind = z.infer<typeof BrowserActivityKindSchema>;
+
+export const BrowserActivitySchema = z.object({
+  sessionId: z.string(),                                   // sessionKey the activity belongs to
+  workerId: z.string(),                                    // the agent that acted (x-eos-agent-id)
+  kind: BrowserActivityKindSchema,
+  tabId: z.string(),
+  url: z.string().optional(),
+});
+export type BrowserActivity = z.infer<typeof BrowserActivitySchema>;

@@ -2245,6 +2245,13 @@ export const ROUTES = {
   // { tabId } | 409 "no active tab". The browser_* tools call this instead of
   // ever falling back to the first tab.
   browserActiveTab: "/browser/active-tab",
+  // Present: an agent surfaces the panel showing a tab. POST BrowserShowRequest
+  // → BrowserShowResponse.
+  browserShow: "/browser/show",
+  // Session scoping adds NO new route keys: /browser/tabs, /browser/active-tab
+  // and /browser/status take a ?session=<sessionKey> query param for the human
+  // panel, and agents are attributed by the x-eos-agent-id header (never a
+  // body/query field). Do not invent per-session route keys.
   browserTab: (tabId: string): string => `/browser/tabs/${tabId}`,
   browserNavigate: (tabId: string): string => `/browser/tabs/${tabId}/navigate`,
   browserSnapshot: (tabId: string): string => `/browser/tabs/${tabId}/snapshot`,

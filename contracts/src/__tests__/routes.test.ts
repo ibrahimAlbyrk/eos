@@ -36,7 +36,7 @@ const EXPECTED_KEYS = [
   "remotePair", "remoteStatus", "remoteArm", "remoteConfig",
   "anthropicConfig", "usage",
   "apiBackends", "apiBackendPresets", "apiBackendModels", "apiBackendTest", "apiBackendDelete",
-  "browserStatus", "browserLaunch", "browserTabs", "browserActiveTab", "browserTab", "browserNavigate",
+  "browserStatus", "browserLaunch", "browserTabs", "browserActiveTab", "browserShow", "browserTab", "browserNavigate",
   "browserSnapshot", "browserFind", "browserWait", "browserAct", "browserGet",
   "browserCapture", "browserDevice", "browserElements", "browserMute",
 ] as const;
