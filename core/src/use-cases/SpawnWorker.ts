@@ -153,18 +153,13 @@ export interface SpawnWorkerDeps {
 
 // Classify who authored the boot prompt and wrap it in that sender's tag. Pure
 // DATA, no inference from prose:
-//   • a workflow STEP node carries role "workflow-worker" → system (the engine);
-//   • any other parented, non-orchestrator worker (a spawn_worker'd worker, and a
-//     workflow EXPERT, which the engine spawns under the run anchor without a role
-//     marker) → agent, attributed to its parent;
+//   • a parented, non-orchestrator worker (a spawn_worker'd worker) → agent,
+//     attributed to its parent;
 //   • a root orchestrator or an operator-spawned worker has no parent → the
 //     operator, delivered untagged.
 // An empty prompt (a persistent worker with no boot directive) is left untouched.
 function tagBootPrompt(deps: SpawnWorkerDeps, spec: SpawnWorkerSpec): string {
   if (!spec.prompt || !spec.prompt.trim()) return spec.prompt;
-  if (spec.role === "workflow-worker") {
-    return applySenderTag(spec.prompt, "system", { kind: "workflow_boot" });
-  }
   if (spec.parentId && !spec.isOrchestrator) {
     const parent = deps.workers.findById(spec.parentId);
     return applySenderTag(spec.prompt, "agent", { from: parent?.name ?? spec.parentId, "from-id": spec.parentId });
@@ -288,8 +283,7 @@ export async function spawnWorker(
       : undefined);
   // Boot-prompt sender tag — the SECOND upstream chokepoint (DispatchMessage is
   // the first, for runtime messages). The worker's FIRST turn is a directive from
-  // someone: a workflow node (step or expert) boots from the deterministic engine
-  // (system); a spawn_worker'd worker boots on its parent agent's directive
+  // someone: a spawn_worker'd worker boots on its parent agent's directive
   // (agent); a root orchestrator / operator-spawned worker boots on the operator's
   // own words (untagged). Tag ONCE here so it uniformly covers the PTY argv, the
   // post-boot paste, and the SDK initialPrompt. NEVER persisted — the row keeps

@@ -12,12 +12,6 @@ export const USER_DATA_ENTRIES = [
   // User-authored worker definitions (~/.eos/workers/*.md) — non-regenerable user
   // data; without this they fall outside every backup/migration safety net.
   "workers",
-  // User-authored workflow definitions (~/.eos/workflows/*.json|.md) — same
-  // non-regenerable user data as workers; must be inside the safety net.
-  "workflows",
-  // Operator-trusted local scripts a workflow `script` node may run (the
-  // allowlist root, ~/.eos/scripts) — non-regenerable user data (§ITEM 1).
-  "scripts",
   // Durable in-process conversations (~/.eos/conversations/<sessionId>.jsonl) — a
   // metered/API worker's transcript, replayed on resume. Non-regenerable: losing
   // it closes a SUSPENDED worker that could have resumed (M3 durability).

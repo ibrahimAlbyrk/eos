@@ -26,7 +26,6 @@ import { toolDisplayName } from "../../../lib/toolDisplayName.js";
 import { argsSummary } from "../../../lib/toolArgs.js";
 import { WORKER_TOOL_SPECS } from "../../../lib/workerTools.js";
 import { WorkerToolBody, workerIdentity, workerListCount, workerToolDetailText } from "./WorkerToolCard.jsx";
-import { WorkflowToolDetail, workflowLabel, workflowRunningLabel, workflowHeaderBadge } from "./WorkflowCard.jsx";
 import { spawnLoopDetails } from "../../../lib/loopDisplay.js";
 
 // Shared base that every registered (bespoke) view inherits via register().
@@ -176,13 +175,6 @@ function availableWorkersCount(t) {
     return null;
   }
 }
-
-register("mcp__orchestrator__workflow", {
-  label: workflowLabel,
-  runningLabel: workflowRunningLabel,
-  headerBadge: workflowHeaderBadge,
-  Detail: WorkflowToolDetail,
-});
 
 register("mcp__worker__send_message_to_parent", {
   label: () => ({ verb: "Sent report to", file: "orchestrator" }),

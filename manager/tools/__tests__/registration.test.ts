@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { orchestratorDefs, workerDefs, peerDefs, workflowWorkerDefs } from "../registry.ts";
+import { orchestratorDefs, workerDefs, peerDefs } from "../registry.ts";
 import { toMcpModule } from "../projections.ts";
 import { orchestratorCtx, workerCtx } from "../context.ts";
 import { fingerprintModules, FAKE_ORCH_SESSION, FAKE_WORKER_SESSION } from "./fingerprint.ts";
@@ -36,7 +36,7 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
       "spawn_worker", "list_active_workers", "get_worker", "kill_worker",
       "message_worker", "list_pending_permissions", "notify_user", "ask_user",
       "list_available_workers", "create_worker", "integrate_workers", "dynamic_loop",
-      "current_datetime", "workflow", "get_worker_messages",
+      "current_datetime", "get_worker_messages",
       ...BROWSER_TOOLS,
     ]);
   });
@@ -51,11 +51,6 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
     const fp = fingerprintModules(peerDefs.map((d) => toMcpModule(d, workerCtx)), FAKE_WORKER_SESSION);
     assert.deepEqual(fp, snapshot.peer);
     assert.deepEqual(Object.keys(fp), ["list_peers", "ask_peer", "respond_to_peer"]);
-  });
-
-  it("workflow-worker (node-only) tools are exactly the output tool + clock", () => {
-    const fp = fingerprintModules(workflowWorkerDefs.map((d) => toMcpModule(d, workerCtx)), FAKE_WORKER_SESSION);
-    assert.deepEqual(Object.keys(fp), ["workflow_step_output", "current_datetime"]);
   });
 });
 

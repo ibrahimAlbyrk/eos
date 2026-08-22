@@ -269,6 +269,21 @@ export const api = {
     return postJson(ROUTES.orchestratorMessage(id), { text, clientMsgId, queueWhenBusy });
   },
 
+  // Home — Claude-web-style single-agent sessions.
+  async listHomeSessions() {
+    const r = await getJson(ROUTES.home);
+    return r.ok ? r.body : [];
+  },
+  async spawnHome({ name, model, effort, prompt, permissionMode, backendKind, backendProfile } = {}) {
+    return postJson(ROUTES.home, { name, model, effort, prompt, permissionMode, backendKind, backendProfile });
+  },
+  async sendHomeMessage(id, text, { clientMsgId, queueWhenBusy } = {}) {
+    return postJson(ROUTES.homeMessage(id), { text, clientMsgId, queueWhenBusy });
+  },
+  async deleteHome(id) {
+    return del(ROUTES.homeDelete(id));
+  },
+
   // Pending
   async listPending() {
     const r = await getJson(ROUTES.pending);
@@ -551,57 +566,6 @@ export const api = {
     return r.body;
   },
 
-  // Workflow node-editor (Phase 5).
-  // Palette catalog: node kinds + their typed port shapes + live transform fns.
-  async getWorkflowCatalog() {
-    const r = await getJson(ROUTES.workflowCatalog);
-    if (!r.ok) throw new Error(`getWorkflowCatalog → ${r.status}`);
-    return r.body;
-  },
-  // SAVE: persist the authored v2 graph (PUT, owner=operator — the editor has no
-  // agent behind it; the daemon defaults an owner-less PUT to the operator owner).
-  async saveWorkflow(graph) {
-    return putJson(`${ROUTES.workflows}?owner=operator`, graph);
-  },
-  // STOP: the ONE run-write op the Runs view exposes — abort an active run
-  // (status→stopped, reaps the anchor subtree). Stays reachable even when the
-  // engine is disabled. Returns the postJson envelope; body = the lean run view.
-  async stopWorkflowRun(runId) {
-    return postJson(ROUTES.workflows, { mode: "stop", runId });
-  },
-  // DELETE a stored (runtime) definition by name — the symmetric mirror of save.
-  // The daemon rejects builtins (400) and unknown names (404); the Library only
-  // surfaces Delete for runtime defs, so the happy path is a runtime row. Owner
-  // rides the query (operator default), same as save.
-  async deleteWorkflow(name) {
-    return del(`${ROUTES.workflowDefinition(encodeURIComponent(name))}?owner=operator`);
-  },
-  // Read one run row (status + per-step rows) for the GET status read.
-  async getWorkflowRun(id) {
-    const r = await getJson(ROUTES.workflowRun(id));
-    return r.ok ? r.body : null;
-  },
-  // Phase-0 read endpoints (later phases — Library + Runs — consume these). All
-  // are thin GETs; each degrades to an empty list so a partial daemon never
-  // throws in render.
-  // Merged builtin+file+runtime definition records (Library cards + from/subGraph
-  // selectors). Owner rides the query (operator default), same as save/delete.
-  async listWorkflowDefinitions({ owner = "operator" } = {}) {
-    const r = await getJson(`${ROUTES.workflowDefinitions}?owner=${encodeURIComponent(owner)}`);
-    return r.ok ? r.body : [];
-  },
-  // Run list for the observation view: scope "active" (in-flight, cross-owner) or
-  // "recent" (capped most-recent history).
-  async listWorkflowRuns(scope = "active") {
-    const r = await getJson(`${ROUTES.workflowRuns}?scope=${encodeURIComponent(scope)}`);
-    return r.ok ? r.body : [];
-  },
-  // Per-node step rows for one run (run-detail step list + per-node coloring
-  // backfill on mount).
-  async getWorkflowRunSteps(id) {
-    const r = await getJson(ROUTES.workflowRunSteps(id));
-    return r.ok ? r.body : [];
-  },
   // Worker-definition names for the node `from` / expert `from` selectors. Owner
   // is optional (omitted ⇒ builtin+user+project; the operator editor has no agent
   // row behind it). Degrades to [] so a partial daemon never throws in render.

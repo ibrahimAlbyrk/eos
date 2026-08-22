@@ -95,7 +95,7 @@ describe("API-lane gating — blocked builtins are hard-denied before policy", (
     const { gate } = buildGate({ mode: "bypassPermissions" });
     const wf = await gate.decide("Workflow", {});
     assert.equal(wf.allow, false);
-    assert.match(wf.message ?? "", /mcp__orchestrator__workflow/);
+    assert.match(wf.message ?? "", /disabled in Eos/);
     const aq = await gate.decide("AskUserQuestion", {});
     assert.equal(aq.allow, false);
     assert.match(aq.message ?? "", /mcp__orchestrator__ask_user/);

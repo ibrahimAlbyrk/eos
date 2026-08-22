@@ -57,6 +57,7 @@ export interface WorkerRepo {
   listAll(): WorkerRow[];
   listByParent(parentId: string): WorkerRow[];
   listOrchestrators(): WorkerRow[];
+  listHome(): WorkerRow[];
   updateState(id: string, state: WorkerState): void;
   // Turn clock — stamped on every entry into the busy set (see TransitionState).
   setTurnStartedAt(id: string, ts: number): void;

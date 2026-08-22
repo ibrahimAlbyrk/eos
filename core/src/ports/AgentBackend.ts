@@ -141,7 +141,7 @@ export function backendCollaborate(opts: BackendLaunchOptions | undefined): bool
 }
 
 // The DPI role, resolved from the same canonical place as collaborate. Used by the
-// structured lanes to pick the tool surface (workflow-worker → workflowWorkerDefs).
+// structured lanes to pick the tool surface.
 export function backendRole(opts: BackendLaunchOptions | undefined): string | undefined {
   return opts?.spec?.role;
 }

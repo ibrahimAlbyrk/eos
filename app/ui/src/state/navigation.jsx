@@ -3,7 +3,7 @@ import { createContext, useCallback, useContext, useMemo, useState } from "react
 const NavigationContext = createContext(null);
 
 export function NavigationProvider({ children }) {
-  const [activeViewId, _setActiveViewId] = useState(() => localStorage.getItem("cm:activeView") || "code");
+  const [activeViewId, _setActiveViewId] = useState(() => localStorage.getItem("cm:activeView") || "home");
   const setActiveView = useCallback((id) => {
     _setActiveViewId(id);
     if (id) localStorage.setItem("cm:activeView", id);

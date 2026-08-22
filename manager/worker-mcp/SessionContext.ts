@@ -7,8 +7,8 @@ export interface WorkerSession {
   // daemon as EOS_COLLABORATE on the worker MCP child's env (container.ts), so
   // it's known synchronously at boot with no daemon round-trip.
   readonly collaborate: boolean;
-  // The DPI role (EOS_ROLE) → selects the tool surface. "workflow-worker" gets
-  // ONLY the workflow output tools; "" / absent ⇒ the general worker surface.
+  // The DPI role (EOS_ROLE) → selects the tool surface. "home" gets NO Eos
+  // control tools (built-ins only); "" / absent ⇒ the general worker surface.
   readonly role: string;
   api(method: string, path: string, body?: unknown): Promise<unknown>;
 }

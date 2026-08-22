@@ -88,23 +88,6 @@ describe("DPI assembles per-role system prompts", () => {
     assert.ok(!worker.activeFragmentIds.includes("role/orchestrator/09b-context-awareness"));
   });
 
-  it("orchestrator → workflows guidance embedded; absent from worker + subagent prompts", async () => {
-    const orch = await assembleSystemPrompt(deps(), { ...baseCtx, role: "orchestrator", parentId: null });
-    assert.ok(orch.activeFragmentIds.includes("role/orchestrator/17-workflows"));
-    assert.match(orch.text, /# Workflows/);
-    // The fan-out binding syntax renders LITERALLY (via the LB/RB escape), so the
-    // orchestrator learns the exact tokens it must emit in a spec.
-    assert.ok(orch.text.includes("{{nodes.<prefix>-*.output}}"));
-    assert.ok(orch.text.includes("{{args.<field>}}"));
-    assert.match(orch.text, /run-inline/); // the 5 modes are named
-    // Orchestrator-only: a plain worker and a collaborate subagent must NOT carry it.
-    const worker = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker" });
-    assert.ok(!worker.activeFragmentIds.includes("role/orchestrator/17-workflows"));
-    assert.doesNotMatch(worker.text, /# Workflows/);
-    const sub = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker", canCollaborate: true });
-    assert.ok(!sub.activeFragmentIds.includes("role/orchestrator/17-workflows"));
-  });
-
   it("git agent → worker preamble first, then only role/git/* fragments", async () => {
     const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "git" });
     assert.equal(r.activeFragmentIds[0], "system-preamble-worker");
@@ -113,18 +96,13 @@ describe("DPI assembles per-role system prompts", () => {
     assert.match(r.text, /# Git Agent/);
   });
 
-  it("workflow-worker → NO general preamble, only role/workflow-worker/*, output contract present, no parent-report machinery", async () => {
-    const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "workflow-worker" });
-    // Neither preamble fires (the worker preamble now gates on role in [worker,git]).
+  it("home agent → home preamble first, only role/home/*, no orchestration/report machinery", async () => {
+    const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "home" });
+    assert.equal(r.activeFragmentIds[0], "system-preamble-home");
     assert.ok(!r.activeFragmentIds.includes("system-preamble-worker"));
     assert.ok(!r.activeFragmentIds.includes("system-preamble-orchestrator"));
-    // Only the workflow-worker fragments are selected — the general-worker set excludes by role.
-    assert.ok(r.activeFragmentIds.length > 0);
-    assert.ok(r.activeFragmentIds.every((id) => id.startsWith("role/workflow-worker/")));
-    assert.ok(!r.activeFragmentIds.some((id) => id.startsWith("role/worker/")));
-    // The node contract is present; the general worker's report tool is not named.
-    assert.match(r.text, /# Workflow node/);
-    assert.match(r.text, /`workflow_step_output`/);
+    assert.ok(r.activeFragmentIds.slice(1).every((id) => id.startsWith("role/home/")));
+    assert.match(r.text, /# Home/);
     assert.doesNotMatch(r.text, /send_message_to_parent/);
     assert.doesNotMatch(r.text, /\{\{/); // no unresolved variables
   });

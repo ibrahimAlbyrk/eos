@@ -19,7 +19,6 @@ export function CommandPalette({ live }) {
   const ctx = useMemo(
     () => ({
       workers: live?.workers ?? [],
-      workflows: live?.workflows ?? [],
       templates,
       selectedId: ui.selectedId,
       setActiveView: ui.setActiveView,
@@ -28,7 +27,7 @@ export function CommandPalette({ live }) {
       openSettings: ui.openSettings,
       openDiffViewer: ui.openDiffViewer,
     }),
-    [live?.workers, live?.workflows, templates, ui.selectedId, ui.setActiveView, ui.setSelectedId, ui.updateComposer, ui.openSettings, ui.openDiffViewer],
+    [live?.workers, templates, ui.selectedId, ui.setActiveView, ui.setSelectedId, ui.updateComposer, ui.openSettings, ui.openDiffViewer],
   );
 
   const groups = useMemo(
@@ -102,7 +101,7 @@ export function CommandPalette({ live }) {
             className="cmdk__input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search agents, workflows and templates…"
+            placeholder="Search agents and templates…"
             spellCheck={false}
           />
           <button className="cmdk__close" title="Close (Esc)" onClick={() => ui.closeSearch()}>

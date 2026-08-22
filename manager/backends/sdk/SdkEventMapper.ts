@@ -205,7 +205,7 @@ export function createSdkEventMapper(): SdkEventMapper {
 
   // Background-subagent correlation. agentCallIds: top-level Agent/Task tool_use
   // ids — the gate that keeps non-subagent task notifications (background Bash,
-  // Monitor, workflows share the task system) from emitting subagent events.
+  // Monitor — they share the task system) from emitting subagent events.
   // bgAgents: agentId (≡ task_id) → spawn info. pendingSummary marks a completion
   // already reported from the system notification (summary-only) so the injected
   // user-turn carrier upgrades it with the full <result> instead of re-reporting.
@@ -391,7 +391,7 @@ export function createSdkEventMapper(): SdkEventMapper {
             if (!text.includes("<task-notification>")) return out;
             for (const c of parseNotificationCarriers(text)) {
               const entry = resolveBgEntry(c.taskId, c.toolUseId);
-              if (!entry) continue; // not a subagent task (background Bash/Monitor/workflow)
+              if (!entry) continue; // not a subagent task (background Bash/Monitor)
               const alreadyReported = entry.pendingSummary === true;
               entry.pendingSummary = false;
               if (alreadyReported && !c.result) continue; // nothing to add over the summary

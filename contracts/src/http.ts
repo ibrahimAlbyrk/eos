@@ -42,7 +42,7 @@ export const SpawnWorkerRequestSchema = z
     // to the run owner to reach that orchestrator's runtime definitions.
     definitionOwnerId: z.string().optional(),
     permissionMode: PermissionModeSchema.optional(),
-    role: z.enum(["git", "workflow-worker"]).optional(),
+    role: z.enum(["git"]).optional(),
     // Available worker to spawn from (built-in / file / runtime). Resolves to
     // per-axis defaults + an instructions body fragment at spawn. Absent ⇒ base worker.
     from: z.string().optional(),
@@ -108,6 +108,23 @@ export const SpawnOrchestratorResponseSchema = SpawnWorkerResponseSchema.extend(
   name: z.string().optional(),
 });
 export type SpawnOrchestratorResponse = z.infer<typeof SpawnOrchestratorResponseSchema>;
+
+// ---- POST /home (Claude-web-style single agent) ----------------------------
+// A Home session has NO caller-supplied cwd — the daemon auto-creates a private
+// working folder (~/.eos/home/<id>) and runs the agent there. Otherwise mirrors
+// the orchestrator spawn shape (name/model/effort/prompt/backend selection).
+export const SpawnHomeRequestSchema = z.object({
+  name: z.string().optional(),
+  model: z.string().optional(),
+  effort: z.string().optional(),
+  prompt: z.string().optional(),
+  permissionMode: PermissionModeSchema.optional(),
+  backendKind: z.string().optional(),
+  backendProfile: z.string().optional(),
+});
+export type SpawnHomeRequest = z.infer<typeof SpawnHomeRequestSchema>;
+
+export const HomeListResponseSchema = z.array(WorkerRowSchema);
 
 // ---- GET /workers, /orchestrators ------------------------------------------
 
@@ -1521,24 +1538,6 @@ export const ReportResponseSchema = z.object({
 });
 export type ReportResponse = z.infer<typeof ReportResponseSchema>;
 
-// ---- POST /workers/:id/step-output -----------------------------------------
-// The typed settle channel for a workflow step-worker (the workflow_step_output
-// tool). Distinct from /report: a deterministic node emits ONE typed output +
-// an explicit status; the route only decides the loop hold + publishes the bus
-// topic — never the parent dispatch / auto-apply the /report route runs.
-export const StepOutputRequestSchema = z.object({
-  output: z.unknown(),
-  status: z.enum(["done", "failed", "needs-input"]),
-  reason: z.string().optional(),
-});
-export type StepOutputRequest = z.infer<typeof StepOutputRequestSchema>;
-
-export const StepOutputResponseSchema = z.object({
-  ok: z.boolean(),
-  held: z.boolean().optional(),
-});
-export type StepOutputResponse = z.infer<typeof StepOutputResponseSchema>;
-
 // ---- POST /workers/:id/question --------------------------------------------
 //
 // The orchestrator's ask_user MCP tool registers a question for the operator,
@@ -2060,6 +2059,10 @@ export const ROUTES = {
   orchestrators: "/orchestrators",
   orchestratorMessage: (id: string): string => `/orchestrators/${id}/message`,
   orchestratorIntegrate: (id: string): string => `/orchestrators/${id}/integrate`,
+  // Home single-agent sessions (Claude-web-style chat).
+  home: "/home",
+  homeMessage: (id: string): string => `/home/${id}/message`,
+  homeDelete: (id: string): string => `/home/${id}`,
   orchestratorLoop: (id: string): string => `/orchestrators/${id}/loop`,
   orchestratorLoopStop: (id: string): string => `/orchestrators/${id}/loop/stop`,
   policyDecide: "/policy/decide",
@@ -2146,7 +2149,6 @@ export const ROUTES = {
   workerPeerResponse: (id: string): string => `/workers/${id}/peer-response`,
   workerNotify: (id: string): string => `/workers/${id}/notify`,
   workerReport: (id: string): string => `/workers/${id}/report`,
-  workerStepOutput: (id: string): string => `/workers/${id}/step-output`,
   workerRewindTargets: (id: string): string => `/workers/${id}/rewind-targets`,
   workerRewind: (id: string): string => `/workers/${id}/rewind`,
   workerTerminal: (id: string): string => `/workers/${id}/terminal`,
@@ -2170,27 +2172,6 @@ export const ROUTES = {
   promptPreview: "/api/prompts/preview",
   workerExport: (id: string): string => `/workers/${id}/export`,
   workerDefinitions: "/worker-definitions",
-  // Workflow-orchestration: /workflows is the catalog + run-control endpoint
-  // (POST a run / PUT a definition / GET runs); workflowRun(id) reads one run's
-  // status.
-  workflows: "/workflows",
-  // Structured node-kind palette catalog for the editor (node kinds + port
-  // shapes). Literal path — must be registered BEFORE the /workflows/:id regex.
-  workflowCatalog: "/workflows/catalog",
-  // Merged builtin+file+runtime definition records (Library + from/subGraph
-  // selectors). Literal path — registered BEFORE the /workflows/:id regex.
-  workflowDefinitions: "/workflows/definitions",
-  // Run list for the observation view: ?scope=active|recent. Literal path —
-  // registered BEFORE the /workflows/:id regex.
-  workflowRuns: "/workflows/runs",
-  workflowRun: (id: string): string => `/workflows/${id}`,
-  // Per-node step rows for one run (the read-only run canvas / step list). A
-  // two-segment path — no collision with the single-segment /workflows/:id regex.
-  workflowRunSteps: (id: string): string => `/workflows/${id}/steps`,
-  // DELETE a stored (runtime/SQLite) workflow definition by name — the symmetric
-  // mirror of PUT /workflows (create). Builtins are code and rejected; an unknown
-  // name is a clean 404.
-  workflowDefinition: (name: string): string => `/workflows/${name}`,
   settings: "/api/settings",
   // Archive lifecycle config — lives in ~/.eos/config.json (daemon sweeper +
   // app-closed purge read it live), so it bypasses the settings.json store.

@@ -16,8 +16,6 @@ import { createWorkerDef } from "./defs/create_worker.ts";
 import { integrateWorkersDef } from "./defs/integrate_workers.ts";
 import { dynamicLoopDef } from "./defs/dynamic_loop.ts";
 import { currentDatetimeDef } from "./defs/current_datetime.ts";
-import { workflowDef } from "./defs/workflow.ts";
-import { workflowStepOutputDef } from "./defs/workflow_step_output.ts";
 import { getWorkerMessagesDef } from "./defs/get_worker_messages.ts";
 import { browserNavigateDef } from "./defs/browser_navigate.ts";
 import { browserSnapshotDef } from "./defs/browser_snapshot.ts";
@@ -76,7 +74,6 @@ export const orchestratorDefs: ToolDefinition[] = [
   integrateWorkersDef,
   dynamicLoopDef,
   currentDatetimeDef,
-  workflowDef,
   getWorkerMessagesDef,
   ...browserDefs,
 ];
@@ -88,7 +85,6 @@ export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDate
 // worker-mcp entrypoint composes them in).
 export const peerDefs: ToolDefinition[] = [listPeersDef, askPeerDef, respondToPeerDef];
 
-// The ONLY tools a workflow-worker node sees (Part B / D1+D4): its typed output
-// emitter + the clock. No send_message_to_parent (it never reports to a parent),
-// no peers, no sub-spawn — a deterministic graph node, nothing else.
-export const workflowWorkerDefs: ToolDefinition[] = [workflowStepOutputDef, currentDatetimeDef];
+// A Home session (Claude-web-style single agent) gets NO Eos control tools — only
+// the standard built-ins are offered (assembled separately from the tool registry).
+export const homeDefs: ToolDefinition[] = [];

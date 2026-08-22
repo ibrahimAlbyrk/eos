@@ -23,9 +23,6 @@ import { resolveProviderIdentity } from "../manager/shared/provider-identity.ts"
 import { renderModelTierTable, renderEffortSection, defaultEffortFor } from "../manager/shared/tier-prompt-render.ts";
 import { PROVIDER_PRESETS, findPreset } from "../manager/shared/provider-presets.ts";
 import type { ProviderIdentity } from "../core/src/domain/model-tier.ts";
-import { InMemoryStepExecutorRegistry } from "../core/src/workflow/registry.ts";
-import { registerBuiltinExecutors } from "../core/src/workflow/register-builtins.ts";
-import { renderCapabilityCatalog } from "../core/src/domain/workflow-capability-catalog.ts";
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), "..");
 const promptsDir = join(REPO, "manager", "prompts");
@@ -35,14 +32,6 @@ const noopLogger = { debug() {}, info() {}, warn() {}, error() {}, child() { ret
 function deps() {
   const registry = new PromptRegistry(new FilePromptSource([promptsDir]), noopLogger);
   return { registry, prompts: new PromptService(registry, TOOL_NAME_VARS) };
-}
-
-// Deterministic daemon constant (container.ts) — reproduced offline from the builtin
-// executor/transform registries. Orchestrator-only var, harmless for workers.
-function workflowCapabilityCatalog(): string {
-  const reg = new InMemoryStepExecutorRegistry();
-  const { transforms } = registerBuiltinExecutors(reg);
-  return renderCapabilityCatalog(reg.types(), transforms.names());
 }
 
 // Resolve a provider name to its ProviderIdentity via the REAL resolver, branching on
@@ -62,7 +51,7 @@ export function resolveIdentity(provider: string): ProviderIdentity {
 }
 
 export interface PreviewOpts {
-  role: "orchestrator" | "worker";
+  role: "orchestrator" | "worker" | "home";
   provider: string;      // "claude" | preset id
   subagent: boolean;     // isSubagent fact
   worktree: boolean;     // isWorktree fact
@@ -88,8 +77,6 @@ export function renderPreview(opts: PreviewOpts) {
     canCollaborate: false,
     workerDefinition: opts.definition,
     workerDefinitionCatalog: "",       // runtime (disk + runtime defs) → assembler fallback ""
-    workflowDefinitionCatalog: "",     // runtime (disk + runtime defs) → assembler fallback ""
-    workflowCapabilityCatalog: workflowCapabilityCatalog(),
     personaName: identity.persona,
     modelTierTable: renderModelTierTable(identity),
     effortSection: renderEffortSection(identity),
@@ -114,8 +101,8 @@ function parseArgs(argv: string[]): PreviewOpts & { out: string | null } {
     else positional.push(a);
   }
   opts.role = positional[0] as any;
-  if (opts.role !== "orchestrator" && opts.role !== "worker") {
-    throw new Error(`role must be "orchestrator" or "worker" (got "${opts.role ?? ""}")`);
+  if (opts.role !== "orchestrator" && opts.role !== "worker" && opts.role !== "home") {
+    throw new Error(`role must be "orchestrator", "worker", or "home" (got "${opts.role ?? ""}")`);
   }
   // A worker is canonically a subagent — its role fragments require it. Default it on
   // unless caller is previewing the (near-empty) non-subagent case explicitly.

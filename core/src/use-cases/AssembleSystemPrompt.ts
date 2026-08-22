@@ -19,7 +19,7 @@ import { selectFragments } from "../services/fragment-select.ts";
 
 // What the daemon already knows about a spawn — the assembler's only input.
 export interface SessionSpawnContext {
-  role: "orchestrator" | "worker" | "git" | "workflow-worker";
+  role: "orchestrator" | "worker" | "git" | "home";
   parentId: string | null;
   name: string;
   workerId: string | null;
@@ -37,11 +37,6 @@ export interface SessionSpawnContext {
   // (interpolation variable). "" for untyped / non-orchestrator.
   workerDefinition: string;
   workerDefinitionCatalog: string;
-  // Orchestrator-facing workflow catalogs (interpolation variables, optional —
-  // absent ⇒ ""). The LIST of available workflow definitions (per-spawn, dynamic)
-  // and the registry-derived capability VOCABULARY (node-type + transform-fn names).
-  workflowDefinitionCatalog?: string;
-  workflowCapabilityCatalog?: string;
   // Own-backend provider identity, pre-rendered (interpolation variables, optional).
   // The composition root computes these from the session's OWN backend (persona,
   // per-tier model table, effort guidance). effortSupported is a boolean var usable
@@ -122,8 +117,6 @@ function sessionVars(ctx: SessionSpawnContext): VariableScope {
     EFFORT: ctx.effort ?? "",
     PERMISSION_MODE: ctx.permissionMode,
     AVAILABLE_WORKERS_CATALOG: ctx.workerDefinitionCatalog ?? "",
-    AVAILABLE_WORKFLOWS_CATALOG: ctx.workflowDefinitionCatalog ?? "",
-    WORKFLOW_CAPABILITY_CATALOG: ctx.workflowCapabilityCatalog ?? "",
     PERSONA_NAME: ctx.personaName ?? "",
     MODEL_TIER_TABLE: ctx.modelTierTable ?? "",
     DEFAULT_TIER: ctx.defaultTier ?? "",

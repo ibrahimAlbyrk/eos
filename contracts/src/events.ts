@@ -100,21 +100,6 @@ export const WorkerEventTypeSchema = z.enum([
   // processAgentSignal's logEvent; the row type is stored free-form so logging
   // already works, but the enum lists it so consumers are type-complete.
   "agent_event",
-  // Workflow-orchestration run/step transitions appended to the replayable
-  // timeline (§3.7). The engine's ProgressSink emits them keyed by the run's id.
-  "workflow_run_started",
-  "workflow_run_done",
-  "workflow_run_failed",
-  "workflow_step_started",
-  "workflow_step_done",
-  "workflow_step_failed",
-  // The durable recovery trace for a workflow step's TYPED settle (§3.7). The
-  // /step-output route appends it under the run anchor the instant a step emits
-  // its terminal (non-held) output, BEFORE the engine journals it `passed` —
-  // mirroring how /report's worker_report anchors recovery. Carries the structured
-  // {fromWorker,status,output,reason} so the boot re-arm recovers the completion
-  // (typed object, faithful status) instead of re-spawning a finished node.
-  "workflow_step_output",
   // One agent-driven browser verb, so the operator's timeline shows what an
   // agent did in the shared browser. Payload: { tabId, verb, url, ref?, name? }.
   "browser_action",

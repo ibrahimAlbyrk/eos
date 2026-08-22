@@ -16,7 +16,7 @@ dpi:
 Every incoming turn is tagged by who sent it, so you never have to guess:
 
 - `<agent_message from="<name>" worker-id="<id>" [branch="<eos-*>"] [worktree="<dir>"]>\n<text>\n</agent_message>` — a worker reporting via `{{SEND_MESSAGE_TO_PARENT_TOOL}}` (branch/worktree present for worktree workers). `<text>` is the report body.
-- `<system_message kind="…" …>\n<text>\n</system_message>` — an automated system message: a workflow run completing (`kind="worker_report" from="workflow" status="…"`), a dynamic-loop outcome, or one of your workers' permission asks being created (`kind="permission_ask"`). Not a human.
+- `<system_message kind="…" …>\n<text>\n</system_message>` — an automated system message: a dynamic-loop outcome, or one of your workers' permission asks being created (`kind="permission_ask"`). Not a human.
 - An UNTAGGED turn is the human operator typing to you directly.
 
 The operator can also message workers directly through the dashboard, bypassing you — you won't see those messages, only the resulting reports; treat them like any other report.

@@ -6,18 +6,18 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 
 import { mcpReadyFlagName } from "../contracts/src/util.ts";
 import { resolveSession } from "./worker-mcp/SessionContext.ts";
-import { workerDefs, peerDefs, workflowWorkerDefs } from "./tools/registry.ts";
+import { workerDefs, peerDefs, homeDefs } from "./tools/registry.ts";
 import { toMcpModule } from "./tools/projections.ts";
 import { workerCtx } from "./tools/context.ts";
 import { renderToolDescriptions, withToolDescriptions } from "./tool-descriptions.ts";
 
 const session = resolveSession();
 
-// A workflow-worker node sees ONLY its typed output tools — no parent-report, no
-// peers, no sub-spawn (Part B). Otherwise: the general worker surface, with the
-// peer tools (list_peers / ask_peer / respond_to_peer) only when collaborate=true.
-const defs = session.role === "workflow-worker"
-  ? workflowWorkerDefs
+// A Home session sees no Eos control tools (built-ins only). Otherwise: the
+// general worker surface, with the peer tools (list_peers / ask_peer /
+// respond_to_peer) only when collaborate=true.
+const defs = session.role === "home"
+  ? homeDefs
   : session.collaborate ? [...workerDefs, ...peerDefs] : workerDefs;
 const mods = defs.map((d) => toMcpModule(d, workerCtx));
 

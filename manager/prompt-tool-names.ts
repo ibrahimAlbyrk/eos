@@ -21,8 +21,6 @@ import { listAvailableWorkersDef } from "./tools/defs/list_available_workers.ts"
 import { createWorkerDef } from "./tools/defs/create_worker.ts";
 import { integrateWorkersDef } from "./tools/defs/integrate_workers.ts";
 import { dynamicLoopDef } from "./tools/defs/dynamic_loop.ts";
-import { workflowDef } from "./tools/defs/workflow.ts";
-import { workflowStepOutputDef } from "./tools/defs/workflow_step_output.ts";
 import { browserNavigateDef } from "./tools/defs/browser_navigate.ts";
 import { browserSnapshotDef } from "./tools/defs/browser_snapshot.ts";
 import { browserFindDef } from "./tools/defs/browser_find.ts";
@@ -58,8 +56,6 @@ export const TOOL_NAME_VARS: VariableScope = {
   CREATE_WORKER_TOOL: createWorkerDef.name,
   INTEGRATE_WORKERS_TOOL: integrateWorkersDef.name,
   DYNAMIC_LOOP_TOOL: dynamicLoopDef.name,
-  WORKFLOW_TOOL: workflowDef.name,
-  WORKFLOW_STEP_OUTPUT_TOOL: workflowStepOutputDef.name,
   BROWSER_NAVIGATE_TOOL: browserNavigateDef.name,
   BROWSER_SNAPSHOT_TOOL: browserSnapshotDef.name,
   BROWSER_FIND_TOOL: browserFindDef.name,

@@ -34,7 +34,7 @@ describe("PolicyToolGate — Lane B gate over the shared policy engine", () => {
     const r = await gate.decide("Workflow", {});
     assert.equal(r.allow, false);
     assert.equal(consulted, false);
-    assert.match(r.message ?? "", /mcp__orchestrator__workflow/);
+    assert.match(r.message ?? "", /disabled in Eos/);
   });
 
   it("passes the workerId + tool through to the policy", async () => {

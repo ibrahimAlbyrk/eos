@@ -28,7 +28,6 @@ import { dispatchDeps } from "./routes/dispatch-deps.ts";
 import { isWorkerLive } from "./routes/worker-liveness.ts";
 import { resumeIfDead } from "./routes/resume-helpers.ts";
 import { workerReportEnvelope } from "./shared/worker-report.ts";
-import { classifyReport, stepStatusOfSignal } from "../core/src/domain/report-signal.ts";
 import { worktreeStateHash } from "./shared/worktree-state-hash.ts";
 import { createMemoCommandRunner } from "../infra/src/goalcheck/MemoCommandRunner.ts";
 import { appendSynthesized } from "./shared/synthesized-events.ts";
@@ -38,7 +37,6 @@ import { ContextThresholdService } from "./services/ContextThresholdService.ts";
 import { suspendWorker, suspendResumableWorkersForShutdown } from "./commands/handlers/suspend-worker.ts";
 import { makePermissionAskPush } from "./services/permission-ask-push.ts";
 import { reArmLoops, stopLoopForExitedWorker } from "./services/loop-rearm.ts";
-import { reArmWorkflows } from "./services/workflow-rearm.ts";
 
 import { registerHealthRoutes } from "./routes/health.ts";
 import { registerStreamRoutes } from "./routes/stream.ts";
@@ -46,8 +44,8 @@ import { registerWorkerRoutes } from "./routes/workers.ts";
 import { registerAttachmentRoutes } from "./routes/attachments.ts";
 import { registerPtyRoutes } from "./routes/pty.ts";
 import { registerOrchestratorRoutes } from "./routes/orchestrators.ts";
+import { registerHomeRoutes } from "./routes/home.ts";
 import { registerLoopRoutes } from "./routes/loops.ts";
-import { registerWorkflowRoutes } from "./routes/workflows.ts";
 import { registerPolicyRoutes } from "./routes/policy.ts";
 import { registerPendingRoutes } from "./routes/pending.ts";
 import { registerFsPickerRoutes } from "./routes/fs-picker.ts";
@@ -111,14 +109,13 @@ registerUsageRoutes(router, c);
 // Unified command catalog (worker.spawn, worker.kill, …) — registered before
 // the hand-written worker routes so a migrated path resolves here first.
 registerCommandCatalog(router, c);
-// Workflow-orchestration: run-control + read surface.
-registerWorkflowRoutes(router, c);
 registerWorkerRoutes(router, c);
 registerAttachmentRoutes(router, c);
 registerPtyRoutes(router, c);
 registerBrowserRoutes(router, c);
 registerExportRoutes(router, c);
 registerOrchestratorRoutes(router, c);
+registerHomeRoutes(router, c);
 registerLoopRoutes(router, c);
 registerPolicyRoutes(router, c);
 registerPendingRoutes(router, c);
@@ -168,23 +165,9 @@ const goalLoop = new GoalLoopService({
   // session), build the same wrapper the report route uses, and queue it (fan-in
   // serialized) exactly like a direct report.
   releaseReport: async ({ workerId, parentId, text, provenance }) => {
-    // Read the structured held output BEFORE resumeIfDead may settle the loop —
-    // the loop is still active here (runLoopTick clears it only after this returns).
-    const heldOutput = c.loops.findActiveByWorker(workerId)?.heldOutput ?? null;
     const parent = c.workers.findById(parentId);
     if (parent) await resumeIfDead(c, parent);
     const w = c.workers.findById(workerId);
-    // Bridge the loop release to a waiting workflow step-join (§3.4 / D3): the
-    // /step-output route held the first output (workflow:step-output{held:true}) so
-    // the join waited; emit the terminal {held:false} so WorkerSpawnAdapter.onStepOutput
-    // resolves it. Republish the STRUCTURED held output VERBATIM — the typed object
-    // + its self-declared status — so a released looped step delivers its object
-    // (not a stringified body) and a failed step STAYS failed (no classifyReport
-    // status inversion, H2). A non-workflow loop has no held output → fall back to
-    // the text signal (harmless: the adapter is the sole subscriber, no step-join).
-    c.bus.publish("workflow:step-output", heldOutput
-      ? { workerId, parentId, output: heldOutput.output, status: heldOutput.status, reason: heldOutput.reason, held: false }
-      : { workerId, parentId, output: text, status: stepStatusOfSignal(classifyReport(text)), held: false });
     return dispatchMessage(dispatchDeps(c), {
       workerId: parentId,
       // Clean body; the <agent_message|system_message …> wrapper (with the
@@ -555,20 +538,6 @@ void reArmLoops({
   workers: c.workers,
   resume: (worker) => resumeIfDead(c, worker),
   loopTickFor: (id) => goalLoop.loopTickFor(id),
-  log: c.log,
-});
-
-// Boot re-arm — re-drive each non-terminal workflow run after a restart
-// (sibling of reArmLoops). ReconcileWorkersOnBoot already reconciled every
-// step-worker row (SUSPENDED/DONE) inside buildContainer; engine.resume replays
-// journaled steps from their memoized output and runs the first un-journaled node
-// live. Voided so a long-running run never blocks boot.
-void reArmWorkflows({
-  runs: c.workflowRuns,
-  steps: c.workflowSteps,
-  events: c.events,
-  queue: c.messageQueue,
-  resume: (runId) => c.workflowService.resume(runId),
   log: c.log,
 });
 

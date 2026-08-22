@@ -15,6 +15,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
   private readonly stmtListAll;
   private readonly stmtListByParent;
   private readonly stmtListOrchestrators;
+  private readonly stmtListHome;
   private readonly stmtUpdateState;
   private readonly stmtSetTurnStartedAt;
   private readonly stmtMarkDone;
@@ -50,6 +51,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
     this.stmtListAll = db.prepare("SELECT * FROM workers ORDER BY started_at DESC");
     this.stmtListByParent = db.prepare("SELECT * FROM workers WHERE parent_id = ? ORDER BY started_at DESC");
     this.stmtListOrchestrators = db.prepare("SELECT * FROM workers WHERE is_orchestrator = 1 ORDER BY started_at ASC");
+    this.stmtListHome = db.prepare("SELECT * FROM workers WHERE agent_role = 'home' AND parent_id IS NULL ORDER BY started_at DESC");
     this.stmtUpdateState = db.prepare("UPDATE workers SET state = ? WHERE id = ?");
     this.stmtSetTurnStartedAt = db.prepare("UPDATE workers SET turn_started_at = ? WHERE id = ?");
     this.stmtMarkDone = db.prepare("UPDATE workers SET state = 'DONE', ended_at = ?, exit_code = ? WHERE id = ?");
@@ -132,6 +134,10 @@ export class SqliteWorkerRepo implements WorkerRepo {
 
   listOrchestrators(): WorkerRow[] {
     return this.stmtListOrchestrators.all() as unknown as WorkerRow[];
+  }
+
+  listHome(): WorkerRow[] {
+    return this.stmtListHome.all() as unknown as WorkerRow[];
   }
 
   updateState(id: string, state: WorkerState): void {

@@ -29,8 +29,7 @@ export function isBrowserTool(toolName: string): boolean {
 // menu has no reliable answer channel here — the operator answers through the
 // dashboard, which the orchestrator reaches via mcp__orchestrator__ask_user
 // instead. Workflow is claude's built-in CLI/SDK orchestration harness, which
-// has no surface in Eos either — orchestration goes through the
-// mcp__orchestrator__workflow tool, so the built-in is removed entirely.
+// has no surface in Eos — it is removed entirely.
 // Enforced at every layer that can fire: auto-allow.sh (PermissionRequest),
 // spawner PreToolUse (the only gate under native bypassPermissions), and
 // PolicyGatewayService step 0 (ahead of user rules).
@@ -42,7 +41,7 @@ const BLOCKED_BUILTIN_TOOL_MESSAGES: Record<string, string> = {
     "Orchestrator: ask the operator via mcp__orchestrator__ask_user. " +
     "Worker: proceed on your best judgment or report `needs input: <ask>` to your parent.",
   Workflow:
-    "The built-in Workflow tool is disabled in Eos — orchestrate via the mcp__orchestrator__workflow tool instead.",
+    "The built-in Workflow tool is disabled in Eos.",
 };
 
 export function blockedBuiltinToolMessage(toolName: string): string {

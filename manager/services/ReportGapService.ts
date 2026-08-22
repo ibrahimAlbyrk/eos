@@ -14,7 +14,7 @@
 // checkOnIdle branches on agent_role/state/parent/loops — NEVER backend_kind.
 // The positive `agent_role === "worker"` gate is the runtime mirror of the DPI
 // obligation gate (role==worker ∧ isSubagent): it excludes orchestrators, git
-// agents, and workflow-worker nodes (none of which carry the report obligation)
+// agents, and home sessions (none of which carry the report obligation)
 // in one check, and a future role is excluded by default.
 
 import type { WorkerRepo } from "../../core/src/ports/WorkerRepo.ts";

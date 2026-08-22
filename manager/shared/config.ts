@@ -136,20 +136,6 @@ export interface DaemonConfig {
     warnRatio: number;
     fullRatio: number;
   };
-  // Deterministic workflow-orchestration engine (daemon-resident). `enabled`
-  // gates the run path; `maxConcurrentSteps` is the per-run leaf-spawn cap fed to
-  // the engine's ConcurrencyGate; `defaultStepTimeoutMs` is the per-step hang
-  // backstop the spawn-join arms — the fail-closed guarantee that a step which
-  // never calls workflow_step_output fails loudly instead of wedging the run, so
-  // it MUST be > 0 (the schema rejects 0, falling back to this default);
-  // `defaultScriptTimeoutMs` is the kill deadline a `script` node uses when it
-  // sets no `timeoutMs` of its own (§ITEM 1).
-  workflow: {
-    enabled: boolean;
-    maxConcurrentSteps: number;
-    defaultStepTimeoutMs: number;
-    defaultScriptTimeoutMs: number;
-  };
   // Peer collaboration (collaborate: true workers). awaitTimeoutMs: how long an
   // ask_peer consult to a not-yet-spawned peer waits for that peer to join
   // before it declines (so a consumer spawned before its providers blocks rather
@@ -416,12 +402,6 @@ export function defaults(): DaemonConfig {
       warnRatio: 0.9,
       fullRatio: 0.95,
     },
-    workflow: {
-      enabled: true,
-      maxConcurrentSteps: 8,
-      defaultStepTimeoutMs: 900000, // 15 min hang backstop (mandatory fail-closed; must be > 0)
-      defaultScriptTimeoutMs: 30000,
-    },
     collaborate: {
       awaitTimeoutMs: envNum("EOS_COLLABORATE_AWAIT_TIMEOUT_MS", 120000),
     },
@@ -594,15 +574,6 @@ export const DaemonConfigOverrideSchema = z.object({
     warnRatio: z.number().positive().max(1),
     fullRatio: z.number().positive().max(1),
   }).partial().optional(),
-  workflow: z.object({
-    enabled: z.boolean(),
-    maxConcurrentSteps: z.number().int().positive(),
-    // > 0, not nonnegative: the per-step hang backstop is the fail-closed
-    // guarantee. 0 would let a node that never emits its output hang the run
-    // forever, so a config setting it to 0 is rejected and the safe default holds.
-    defaultStepTimeoutMs: z.number().int().positive(),
-    defaultScriptTimeoutMs: z.number().int().nonnegative(),
-  }).partial().optional(),
   collaborate: z.object({
     awaitTimeoutMs: z.number().int().positive(),
   }).partial().optional(),
@@ -705,9 +676,6 @@ function mergeConfig(base: DaemonConfig, override: unknown): DaemonConfig {
       const { judge, ...rest } = incoming as Partial<DaemonConfig["loop"]>;
       Object.assign(out.loop, rest);
       if (judge) out.loop.judge = { ...out.loop.judge, ...judge };
-    } else if (k === "workflow") {
-      // Flat field merge (overriding just maxConcurrentSteps keeps enabled).
-      Object.assign(out.workflow, incoming as Partial<DaemonConfig["workflow"]>);
     } else if (k === "microTasks") {
       // Subsystem flags + per-task field merge (overriding just auto-name.model
       // keeps its delayMs/charLimit; a new task id supplies its own full config).

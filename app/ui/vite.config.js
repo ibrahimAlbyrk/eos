@@ -17,8 +17,8 @@ export default defineConfig({
             { name: "react", test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
             { name: "highlight", test: /node_modules[\\/]highlight\.js[\\/]/ },
             { name: "markdown", test: /node_modules[\\/](marked|dompurify|diff)[\\/]/ },
-            // CodeMirror (the Code view's editor + the workflow inspector's JSON
-            // fields) — one shared lazy chunk, kept out of the main bundle.
+            // CodeMirror (the Code view's editor) — one shared lazy chunk, kept
+            // out of the main bundle.
             { name: "codemirror", test: /node_modules[\\/](@codemirror|@lezer|crelt|style-mod|w3c-keyname)[\\/]/ },
           ],
         },

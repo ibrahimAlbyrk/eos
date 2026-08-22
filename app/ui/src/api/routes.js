@@ -31,6 +31,10 @@ export const ROUTES = {
   workerPull: (id) => `/workers/${id}/pull`,
   orchestrators: "/orchestrators",
   orchestratorMessage: (id) => `/orchestrators/${id}/message`,
+  // Home single-agent sessions (Claude-web-style chat).
+  home: "/home",
+  homeMessage: (id) => `/home/${id}/message`,
+  homeDelete: (id) => `/home/${id}`,
   policyDecide: "/policy/decide",
   pending: "/pending",
   pendingDecision: (id) => `/pending/${id}/decision`,
@@ -115,27 +119,6 @@ export const ROUTES = {
   workerTryKeep: (id) => `/workers/${id}/try/keep`,
   workerTryDiscard: (id) => `/workers/${id}/try/discard`,
   commands: "/commands",
-  // Workflow node-editor: catalog (palette), create/run-control (PUT/POST), run
-  // read (GET). Mirrors contracts ROUTES; the catalog is a literal path served
-  // before the /workflows/:id regex daemon-side.
-  workflows: "/workflows",
-  workflowCatalog: "/workflows/catalog",
-  // Merged builtin+file+runtime definition records (Library + from/subGraph
-  // selectors). Literal path — served before the /workflows/:id regex.
-  workflowDefinitions: "/workflows/definitions",
-  // Run list for the observation view: ?scope=active|recent. Literal path —
-  // served before the /workflows/:id regex.
-  workflowRuns: "/workflows/runs",
-  workflowRun: (id) => `/workflows/${id}`,
-  // DELETE a stored (runtime) definition by name — the symmetric mirror of the PUT
-  // save. Same single-segment shape as /workflows/:id; the daemon routes DELETE
-  // distinctly from GET, so no collision.
-  workflowDefinition: (name) => `/workflows/${name}`,
-  // Per-node step rows for one run (read-only run canvas / step list). Two-segment
-  // path — no collision with the single-segment /workflows/:id regex.
-  workflowRunSteps: (id) => `/workflows/${id}/steps`,
-  // Worker-definition catalog (names for the node `from` / expert `from` selectors).
-  // Endpoint already exists daemon-side (manager/routes/worker-definitions.ts).
   workerExport: (id) => `/workers/${id}/export`,
   workerDefinitions: "/worker-definitions",
   templates: "/api/templates",
