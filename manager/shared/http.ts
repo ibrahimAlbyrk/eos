@@ -19,6 +19,7 @@ export interface DaemonFetchResult {
  * @param method     HTTP method.
  * @param path       Path including leading slash.
  * @param body       Optional JSON body. Headers + serialization handled here.
+ * @param headers    Optional extra headers (e.g. x-eos-agent-id identity).
  * @returns A {@link DaemonFetchResult} describing success/failure.
  */
 export async function daemonFetch(
@@ -26,12 +27,14 @@ export async function daemonFetch(
   method: string,
   path: string,
   body?: unknown,
+  headers?: Record<string, string>,
 ): Promise<DaemonFetchResult> {
   let res: Response;
+  const merged = { ...(body ? { "content-type": "application/json" } : {}), ...(headers ?? {}) };
   try {
     res = await fetch(`${daemonUrl}${path}`, {
       method,
-      headers: body ? { "content-type": "application/json" } : undefined,
+      headers: Object.keys(merged).length ? merged : undefined,
       body: body ? JSON.stringify(body) : undefined,
     });
   } catch (e) {
@@ -60,8 +63,9 @@ export async function daemonApi(
   method: string,
   path: string,
   body?: unknown,
+  headers?: Record<string, string>,
 ): Promise<unknown> {
-  const r = await daemonFetch(daemonUrl, method, path, body);
+  const r = await daemonFetch(daemonUrl, method, path, body, headers);
   if (r.networkError) throw new Error(`daemon unreachable at ${daemonUrl}: ${r.networkError.message}`);
   if (!r.ok) throw new Error(`daemon ${r.status}: ${r.raw}`);
   return r.body;

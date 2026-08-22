@@ -22,7 +22,9 @@ export function resolveSession(): WorkerSession {
   }
   const collaborate = process.env.EOS_COLLABORATE === "1";
   const role = process.env.EOS_ROLE ?? "";
+  // Identity rides every daemon call — session-scoped routes (browser) derive
+  // the caller's session from this header, never from a body field.
   const api = (method: string, path: string, body?: unknown): Promise<unknown> =>
-    daemonApi(daemonUrl, method, path, body);
+    daemonApi(daemonUrl, method, path, body, { "x-eos-agent-id": selfId });
   return { selfId, daemonUrl, collaborate, role, api };
 }

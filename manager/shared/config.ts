@@ -186,16 +186,19 @@ export interface DaemonConfig {
   // Empty by default; when set, the SDK child env gets the OAuth token
   // (CLAUDE_CODE_OAUTH_TOKEN, preferred) or the metered key (ANTHROPIC_API_KEY).
   anthropic: AnthropicConfig;
-  // Browser panel subsystem (one shared Chrome over CDP). OFF by default —
-  // when disabled, every /browser route and browser tool refuses and no Chrome
-  // launches. chromePath null = auto-detect the installed Google Chrome;
-  // allowedOrigins is the Phase-4 per-navigation allowlist; persistProfile
-  // keeps logins in ~/.eos/browser/ across daemon restarts.
+  // Browser panel subsystem (one persistent Chrome per session over CDP,
+  // launched lazily on first use). OFF by default — when disabled, every
+  // /browser route and browser tool refuses and no Chrome launches. chromePath
+  // null = auto-detect the installed Google Chrome; allowedOrigins is the
+  // per-navigation agent allowlist; persistProfile keeps logins in
+  // ~/.eos/browser/ across daemon restarts; perSession=false restores the
+  // wave-1 single shared browser (everything maps to the global session).
   browser: {
     enabled: boolean;
     chromePath: string | null;
     allowedOrigins: string[];
     persistProfile: boolean;
+    perSession: boolean;
   };
 }
 
@@ -452,6 +455,7 @@ export function defaults(): DaemonConfig {
       chromePath: null,
       allowedOrigins: [],
       persistProfile: true,
+      perSession: true,
     },
   };
 }
@@ -632,6 +636,7 @@ export const DaemonConfigOverrideSchema = z.object({
     chromePath: z.string().nullable(),
     allowedOrigins: z.array(z.string()),
     persistProfile: z.boolean(),
+    perSession: z.boolean(),
   }).partial().optional(),
 }).passthrough();
 

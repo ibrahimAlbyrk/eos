@@ -20,8 +20,10 @@ export interface OrchestratorSession {
 export async function resolveSession(): Promise<OrchestratorSession> {
   const daemonUrl = process.env.EOS_DAEMON_URL ?? "http://127.0.0.1:7400";
   const selfId = process.env.EOS_WORKER_ID ?? "orchestrator";
+  // Identity rides every daemon call — session-scoped routes (browser) derive
+  // the caller's session from this header, never from a body field.
   const api = (method: string, path: string, body?: unknown): Promise<unknown> =>
-    daemonApi(daemonUrl, method, path, body);
+    daemonApi(daemonUrl, method, path, body, { "x-eos-agent-id": selfId });
 
   const self = (await api("GET", `/workers/${selfId}`)) as { cwd?: string | null };
   const cwd = (self.cwd ?? "").trim();
