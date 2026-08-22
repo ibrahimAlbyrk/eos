@@ -59,8 +59,8 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
           <TerminalToggleButton />
           <BrowserToggleButton />
           <GitDiffToggleButton />
-          <FilesToggleButton />
           <ChatFilesToggleButton />
+          <FilesToggleButton />
           {canClose && <CloseButton onClose={onClose} />}
         </div>
       </div>
@@ -121,8 +121,8 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
         <TerminalToggleButton />
         <BrowserToggleButton />
         <GitDiffToggleButton worker={worker} />
-        <FilesToggleButton worker={worker} />
         <ChatFilesToggleButton worker={worker} />
+        <FilesToggleButton worker={worker} />
         {canClose && <CloseButton onClose={onClose} />}
       </div>
     </div>
