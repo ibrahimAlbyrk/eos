@@ -7,8 +7,10 @@
 //   const id = notify.error("Push failed", { title: "Git", duration: 6000 });
 //   notify.dismiss(id);   // early, programmatic
 //
-// opts (all optional): { title, duration, dismissible }. push() returns the new
-// toast id so a caller can dismiss/replace it later.
+// opts (all optional): { title, duration, dismissible, action }. `action` is a
+// { label, onClick } pair the card renders as a clickable affordance (clicking
+// runs onClick then dismisses). push() returns the new toast id so a caller can
+// dismiss/replace it later.
 
 import { push, dismiss, clear } from "../state/toastStore.js";
 

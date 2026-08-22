@@ -5,7 +5,7 @@ import { notify } from "../lib/notify.js";
 import {
   subscribe, getBrowserPanel, patchBrowserPanel, refreshTabs, openTab, closeTab, switchTab,
   navigate, normalizeUrl, setUrlDraft, setMuted, toggleMode, resetPanelView, setDevice,
-  applyTabs, applyStatus, isBlankUrl, _resetBrowserPanel,
+  applyTabs, applyStatus, isBlankUrl, withSession, bindPaneSession, _resetBrowserPanel,
 } from "./browserPanelStore.js";
 
 const readSrc = (rel) => readFileSync(fileURLToPath(new URL(rel, import.meta.url)), "utf8");
@@ -21,9 +21,10 @@ function mockDaemon() {
   const res = (body, status = 200) => ({ ok: status < 400, status, json: async () => body });
   const fetchMock = vi.fn(async (url, opts = {}) => {
     const method = opts.method ?? "GET";
-    const path = new URL(url).pathname;
+    const u = new URL(url);
+    const path = u.pathname;
     const body = opts.body ? JSON.parse(opts.body) : null;
-    calls.push({ method, path, body });
+    calls.push({ method, path, body, session: u.searchParams.get("session") });
     if (path === "/browser/tabs" && method === "GET") return res({ tabs: tabs.map((t) => ({ ...t })) });
     if (path === "/browser/tabs" && method === "POST") {
       n += 1;
@@ -61,7 +62,7 @@ beforeEach(() => _resetBrowserPanel());
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe("browserPanelStore tabs", () => {
-  it("openTab POSTs /browser/tabs and activates the new tab in ITS pane only", async () => {
+  it("openTab POSTs /browser/tabs and activates the new tab in ITS session only", async () => {
     const { fetchMock, calls } = mockDaemon();
     vi.stubGlobal("fetch", fetchMock);
     await openTab("A");
@@ -71,11 +72,24 @@ describe("browserPanelStore tabs", () => {
     const b = getBrowserPanel("B");
     expect(a.activeTabId).toBe("t1");
     expect(b.activeTabId).toBe("t2");
-    // Both panes mirror the ONE daemon tab list (as of their last read), but
-    // each keeps its own active tab and URL bar.
+    // Each session keeps its own active tab and URL bar (the mock daemon has no
+    // session filtering, so both see the full list — the real one filters).
     expect(b.tabs.map((t) => t.tabId)).toEqual(["t1", "t2"]);
     expect(a.urlDraft).toBe("https://start.example/1");
     expect(b.urlDraft).toBe("https://start.example/2");
+  });
+
+  it("every daemon call declares its session (?session=), tab creation included", async () => {
+    const { fetchMock, calls } = mockDaemon();
+    vi.stubGlobal("fetch", fetchMock);
+    await openTab("A");
+    await navigate("A", { action: "reload" });
+    await setMuted("A", "t1", true);
+    await setDevice("A", "mobile");
+    await closeTab("A", "t1");
+    expect(calls.length).toBeGreaterThan(4);
+    expect(calls.every((c) => c.session === "A")).toBe(true);
+    expect(withSession("/browser/tabs", "global")).toBe("/browser/tabs?session=global");
   });
 
   it("openTab forwards a start url and omits the field when absent", async () => {
@@ -200,33 +214,42 @@ describe("browserPanelStore navigation", () => {
 describe("browserPanelStore SSE relay", () => {
   const TAB = (over) => ({ tabId: "t1", url: "https://one.example/", title: "One", loading: false, canGoBack: false, canGoForward: false, audible: false, muted: false, ...over });
 
-  it("browser:tabs lands in every open pane without a fetch", () => {
+  it("browser:tabs routes to the payload's OWNING session only, without a fetch", () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("the SSE relay must not refetch"); }));
     patchBrowserPanel("A", { activeTabId: "t1" });
-    patchBrowserPanel("B", { activeTabId: "t2" });
-    applyTabs([TAB(), TAB({ tabId: "t2", url: "https://two.example/", title: "Two" })]);
+    patchBrowserPanel("B", { activeTabId: "t2", tabs: [TAB({ tabId: "t2", url: "https://two.example/" })] });
+    applyTabs({ sessionId: "A", tabs: [TAB(), TAB({ tabId: "t9", title: "Nine" })] });
     expect(getBrowserPanel("A")).toMatchObject({ activeTabId: "t1", urlDraft: "https://one.example/" });
-    expect(getBrowserPanel("B")).toMatchObject({ activeTabId: "t2", urlDraft: "https://two.example/" });
-    expect(getBrowserPanel("A").tabs.map((t) => t.title)).toEqual(["One", "Two"]);
+    expect(getBrowserPanel("A").tabs.map((t) => t.title)).toEqual(["One", "Nine"]);
+    // another session's entry is untouched by A's payload
+    expect(getBrowserPanel("B").tabs.map((t) => t.tabId)).toEqual(["t2"]);
+  });
+
+  it("a payload without sessionId (wave-1 daemon) lands on the global session", () => {
+    patchBrowserPanel("global", { activeTabId: "t1" });
+    patchBrowserPanel("A", { tabs: [TAB({ tabId: "t2" })] });
+    applyTabs({ tabs: [TAB({ title: "Shared" })] });
+    expect(getBrowserPanel("global").tabs.map((t) => t.title)).toEqual(["Shared"]);
+    expect(getBrowserPanel("A").tabs.map((t) => t.tabId)).toEqual(["t2"]);
   });
 
   it("a page navigating itself updates the title and the URL bar, mid-typing text survives", () => {
     patchBrowserPanel("A", { activeTabId: "t1" });
-    applyTabs([TAB()]);
+    applyTabs({ sessionId: "A", tabs: [TAB()] });
     setUrlDraft("A", "some.other.host");
-    applyTabs([TAB({ title: "One (still)" })]); // title changed, url did not
+    applyTabs({ sessionId: "A", tabs: [TAB({ title: "One (still)" })] }); // title changed, url did not
     expect(getBrowserPanel("A")).toMatchObject({ urlDraft: "some.other.host" });
     expect(getBrowserPanel("A").tabs[0].title).toBe("One (still)");
-    applyTabs([TAB({ url: "https://one.example/deep", title: "Deep" })]); // the page moved
+    applyTabs({ sessionId: "A", tabs: [TAB({ url: "https://one.example/deep", title: "Deep" })] }); // the page moved
     expect(getBrowserPanel("A").urlDraft).toBe("https://one.example/deep");
   });
 
-  it("a closed tab relayed away re-picks the pane's active tab, and subscribers fire once", () => {
+  it("a closed tab relayed away re-picks the session's active tab, and subscribers fire once", () => {
     const cb = vi.fn();
     subscribe("A", cb);
     patchBrowserPanel("A", { activeTabId: "t2" });
     cb.mockClear();
-    applyTabs([TAB()]);
+    applyTabs({ sessionId: "A", tabs: [TAB()] });
     expect(getBrowserPanel("A").activeTabId).toBe("t1");
     expect(cb).toHaveBeenCalledTimes(1);
   });
@@ -234,10 +257,11 @@ describe("browserPanelStore SSE relay", () => {
   it("ignores a malformed browser:tabs payload", () => {
     patchBrowserPanel("A", { tabs: [TAB()] });
     applyTabs(undefined);
+    applyTabs({ sessionId: "A" });
     expect(getBrowserPanel("A").tabs).toHaveLength(1);
   });
 
-  it("browser:status records the engine state in every pane, and only on a change", () => {
+  it("browser:status records the engine state in every session, and only on a change", () => {
     const cb = vi.fn();
     subscribe("A", cb);
     patchBrowserPanel("A", {});
@@ -251,12 +275,22 @@ describe("browserPanelStore SSE relay", () => {
     expect(cb).toHaveBeenCalledTimes(1); // no re-emit for the same state
   });
 
-  it("useLive relays both browser reasons, and the panel no longer polls for tabs", () => {
+  it("useLive relays all three browser reasons, and the panel no longer polls for tabs", () => {
     const useLive = readSrc("../hooks/useLive.js");
     expect(useLive).toContain('data.reason === "browser:tabs"');
     expect(useLive).toContain('data.reason === "browser:status"');
+    expect(useLive).toContain('data.reason === "browser:activity"');
     const panel = readSrc("../views/browser/BrowserPanel.jsx");
     expect(panel).not.toMatch(/setInterval|startPolling/);
+  });
+
+  it("bindPaneSession aliases a pane id onto the session entry for the untouched chrome children", () => {
+    const unbind = bindPaneSession("l1", "A");
+    toggleMode("l1", "annotate"); // a chrome child keying by its pane id
+    expect(getBrowserPanel("A").mode).toBe("annotate");
+    expect(getBrowserPanel("l1").mode).toBe("annotate"); // reads resolve too
+    unbind();
+    expect(getBrowserPanel("l1").mode).toBe("view"); // unbound → its own (empty) entry
   });
 
   it("BrowserPanel reports its live pixel size on subscribe and on a debounced resize", () => {
@@ -283,10 +317,10 @@ describe("browserPanelStore blank tabs (empty state)", () => {
   it("a blank active tab leaves the address bar empty (its placeholder), not the literal about:blank", () => {
     const TAB = (url) => ({ tabId: "t1", url, title: "New tab", loading: false, canGoBack: false, canGoForward: false, audible: false, muted: false });
     patchBrowserPanel("A", { activeTabId: "t1" });
-    applyTabs([TAB("about:blank")]);
+    applyTabs({ sessionId: "A", tabs: [TAB("about:blank")] });
     expect(getBrowserPanel("A").urlDraft).toBe("");
     // once it navigates to a real page the bar follows (empty state disappears)
-    applyTabs([TAB("https://example.com/")]);
+    applyTabs({ sessionId: "A", tabs: [TAB("https://example.com/")] });
     expect(getBrowserPanel("A").urlDraft).toBe("https://example.com/");
   });
 
@@ -372,7 +406,7 @@ describe("browserPanelStore modes", () => {
     // The cleanup runs on unmount (panel close). It must reset the transient mode
     // alongside tearing down the socket, next to the connState reset.
     expect(panel).toContain("resetPanelView");
-    expect(panel).toMatch(/resetPanelView\(paneId\)[\s\S]*connState: "closed"/);
+    expect(panel).toMatch(/resetPanelView\(sessionKey\)[\s\S]*connState: "closed"/);
   });
 });
 

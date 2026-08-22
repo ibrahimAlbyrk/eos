@@ -10186,6 +10186,12 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top
   outline: none;
   background: #fff;
   cursor: default;
+  /* The backing store is sized to each incoming frame; the CSS box follows the
+     panel/device. When the two aspects diverge (mid resize/device switch, or a
+     stale frame after a stream hiccup) the bitmap must letterbox, never
+     stretch — a bare canvas scales to fill, and that is the squished-page bug.
+     Steady-state aspects match, so contain is invisible there. */
+  object-fit: contain;
 }
 /* Responsive: the frame now matches the panel aspect (the daemon emulates the
    panel's size), so the canvas fills the whole body with no fixed aspect and no
@@ -10362,6 +10368,9 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top
 }
 .annotation-tools,
 .annotation-colors { display: flex; align-items: center; gap: 2px; }
+/* 9 swatches: wrap onto a second row rather than overflow a narrow panel, so all
+   colours stay reachable; the toolbar itself already wraps its groups. */
+.annotation-colors { flex-wrap: wrap; justify-content: center; row-gap: 5px; }
 .annotation-sep { width: 1px; align-self: stretch; margin: 2px 3px; background: var(--border); }
 .annotation-spacer { width: 6px; }
 .annotation-swatch {
@@ -10369,11 +10378,21 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top
   height: 18px;
   border-radius: 50%;
   background: var(--swatch);
-  border: 2px solid transparent;
+  /* A mid-tone edge on every swatch, so black on the dark toolbar and white on
+     the light (#fff) toolbar never dissolve into the background. */
+  border: 1px solid var(--fg-faint);
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15) inset;
   cursor: pointer;
 }
-.annotation-swatch.on { border-color: var(--fg); }
+/* Selection reads on ANY swatch — including pure black and white — as an outer
+   accent ring set off by a gap in the toolbar colour, never a same-colour border
+   that would vanish on the extremes. */
+.annotation-swatch.on {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.15) inset,
+    0 0 0 2px var(--surface-3, var(--surface)),
+    0 0 0 4px var(--accent);
+}
 
 /* ---- Element picker overlay (P7) — appended after the annotation block ----- */
 /* Transparent surface pinned over the canvas box (top-pinned, full width, same
@@ -10508,5 +10527,20 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top
   font-size: var(--text-sm);
   color: var(--fg-dim);
   background: rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
+/* ---- Browser toggle unseen-activity badge (wave 2) — appended ------------ */
+/* Dot on the pane-header browser toggle: an agent used this session's browser
+   while the panel was closed. Cleared when the panel opens. */
+.browser-toggle { position: relative; }
+.browser-toggle__dot {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
   pointer-events: none;
 }

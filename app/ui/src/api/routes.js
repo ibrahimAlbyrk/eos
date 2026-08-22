@@ -177,6 +177,9 @@ export const ROUTES = {
   browserTabs: "/browser/tabs",
   // Omitted-tabId default: the active (foreground) tab. 200 { tabId } | 409.
   browserActiveTab: "/browser/active-tab",
+  // Present: an agent surfaces the panel showing a tab. Session scoping of the
+  // tabs/active-tab/status routes rides ?session= (no new keys).
+  browserShow: "/browser/show",
   browserTab: (tabId) => `/browser/tabs/${tabId}`,
   browserNavigate: (tabId) => `/browser/tabs/${tabId}/navigate`,
   browserSnapshot: (tabId) => `/browser/tabs/${tabId}/snapshot`,

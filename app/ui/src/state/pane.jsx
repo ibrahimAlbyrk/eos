@@ -5,6 +5,10 @@ import {
   MAX_PANES, leaf, leaves, leafCount, findLeaf, leafOfAgent, isValidTree,
   splitLeaf, removeLeaf, setRatio, setLeafAgent, removeDeadLeaves,
 } from "../lib/paneLayout.js";
+import { sessionRootOf } from "../lib/agentIndex.js";
+import {
+  stashBrowserSession, shouldRestoreBrowser, registerBrowserSessionUi,
+} from "./browserSessionState.js";
 
 // Split-view layout as a BSP tree (lib/paneLayout): leaves are panes (one agent
 // each), splits divide a region in two. The provider owns the tree + the focused
@@ -37,6 +41,7 @@ export function PaneProvider({ children }) {
   const {
     selectedId, setSelectedId,
     topPanelTypeIn, popPanelIn, clearPanelsIn, retainPanelsFor, registerEscapePanel,
+    hasPanelIn, openPanelIn,
   } = useSelection();
   const [tree, setTree] = useState(loadTree);
   const [focusedLeafId, setFocusedLeafId] = useState(() => loadFocusedLeaf(loadTree()));
@@ -95,6 +100,10 @@ export function PaneProvider({ children }) {
   // without nuking another pane's panel on a focus move. New panes (no prior
   // entry) and removed panes (handled above) are skipped; reuseLeafIds keeps
   // id↔agent stable across follow rebuilds so survivors don't churn.
+  // The BROWSER slot is exempt-by-restore: its open/tab state is remembered per
+  // SESSION (browserSessionState) — stashed before the clear, re-opened after
+  // when the arriving agent's session was last seen open (or owes its deferred
+  // first-use auto-open). Other panel types clear as before.
   const paneAgentsRef = useRef(null);
   useEffect(() => {
     const cur = new Map(leafList.map((l) => [l.id, l.agentId ?? null]));
@@ -102,9 +111,13 @@ export function PaneProvider({ children }) {
     paneAgentsRef.current = cur;
     if (!prev) return;
     for (const [id, agentId] of cur) {
-      if (prev.has(id) && prev.get(id) !== agentId) clearPanelsIn(id);
+      if (!prev.has(id) || prev.get(id) === agentId) continue;
+      stashBrowserSession(sessionRootOf(prev.get(id)), hasPanelIn(id, "browser"));
+      clearPanelsIn(id);
+      const sessionKey = sessionRootOf(agentId);
+      if (shouldRestoreBrowser(sessionKey)) openPanelIn(id, "browser", { sessionKey });
     }
-  }, [leafList, clearPanelsIn]);
+  }, [leafList, clearPanelsIn, hasPanelIn, openPanelIn]);
 
   const focusLeaf = useCallback((id) => {
     const l = findLeaf(treeRef.current, id);
@@ -167,6 +180,29 @@ export function PaneProvider({ children }) {
     }
     setSelectedId(id);
   }, [focusLeaf, setSelectedId]);
+
+  // Pane-layout bridge for the browser session store's activity rules (find the
+  // panes showing a session, open the browser panel there, and — for the
+  // clickable "present" toast — jump to a session not currently on screen).
+  // Stable ops + the live tree ref, so this registers once. Registered here,
+  // after selectAgent, so openSessionBrowser can reuse it.
+  useEffect(() => {
+    registerBrowserSessionUi({
+      panesShowing: (sessionKey) =>
+        leaves(treeRef.current).filter((l) => sessionRootOf(l.agentId) === sessionKey).map((l) => l.id),
+      isBrowserOpenIn: (paneId) => hasPanelIn(paneId, "browser"),
+      openBrowserIn: (paneId, sessionKey) => openPanelIn(paneId, "browser", { sessionKey }),
+      // Select the session's root agent (focusing an existing pane or writing it
+      // into the focused one), then open the browser panel there — on whichever
+      // pane now owns the session. The presented tab was already set on the
+      // session-keyed browserPanelStore by applyActivity before the toast fired.
+      openSessionBrowser: (sessionKey) => {
+        selectAgent(sessionKey);
+        const l = leafOfAgent(treeRef.current, sessionKey);
+        openPanelIn(l ? l.id : focusedRef.current, "browser", { sessionKey });
+      },
+    });
+  }, [hasPanelIn, openPanelIn, selectAgent]);
 
   // Cmd-click toggles an agent as a pane: remove it if shown (never the last),
   // else split the focused pane to add it (capped in splitLeaf).

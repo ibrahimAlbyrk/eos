@@ -4,8 +4,12 @@ import { api } from "../../api/client.js";
 import { notify } from "../../lib/notify.js";
 import {
   subscribe, getBrowserPanel, patchBrowserPanel, resetPanelView,
-  browserFetch, browserStreamUrl, refreshTabs, openTab, isBlankUrl,
+  browserFetch, browserStreamUrl, withSession, refreshTabs, openTab, isBlankUrl,
+  bindPaneSession,
 } from "../../state/browserPanelStore.js";
+import { notePanelOpened, seedRememberedTab } from "../../state/browserSessionState.js";
+import { sessionRootOf } from "../../lib/agentIndex.js";
+import { findLeaf } from "../../lib/paneLayout.js";
 import { PanelShell } from "../code/panes/PanelShell.jsx";
 import { BrowserCanvas } from "./BrowserCanvas.jsx";
 import { BrowserEmptyState } from "./BrowserEmptyState.jsx";
@@ -33,13 +37,18 @@ const LIVE_BLOCK = { disabled: "disabled", absent: "absent", crashed: "crashed" 
 export function BrowserPanel() {
   const ui = useUi();
   if (!ui.browserViewer) return <PanelShell type="browser" />;
-  return <BrowserPanelInner paneId={ui.paneId} />;
+  // The session whose browser this panel shows: carried on the panel slot data
+  // by whoever opened it, else resolved from the pane's shown agent ("global"
+  // for an empty pane).
+  const sessionKey = ui.browserViewer.sessionKey
+    ?? sessionRootOf(findLeaf(ui.tree, ui.paneId)?.agentId);
+  return <BrowserPanelInner paneId={ui.paneId} sessionKey={sessionKey} />;
 }
 
-function BrowserPanelInner({ paneId }) {
+function BrowserPanelInner({ paneId, sessionKey }) {
   const panel = useSyncExternalStore(
-    useCallback((cb) => subscribe(paneId, cb), [paneId]),
-    useCallback(() => getBrowserPanel(paneId), [paneId]),
+    useCallback((cb) => subscribe(sessionKey, cb), [sessionKey]),
+    useCallback(() => getBrowserPanel(sessionKey), [sessionKey]),
   );
   const [ws, setWs] = useState(null);
   const [viewport, setViewport] = useState(null);
@@ -58,11 +67,19 @@ function BrowserPanelInner({ paneId }) {
     return { cssWidth: el?.clientWidth ?? 0, cssHeight: el?.clientHeight ?? 0, dpr: window.devicePixelRatio || 1 };
   }, []);
 
+  // While mounted, the chrome children (tab strip, nav bar, overlays) key the
+  // store by this pane's id — alias it to the session entry.
+  useEffect(() => bindPaneSession(paneId, sessionKey), [paneId, sessionKey]);
+
   useEffect(() => {
     let cancelled = false;
-    patchBrowserPanel(paneId, { connState: "connecting" });
+    // The human is looking now: clear the unseen badge, latch the session's
+    // panel memory open, and re-apply its remembered tab if the store is fresh.
+    notePanelOpened(sessionKey);
+    seedRememberedTab(sessionKey);
+    patchBrowserPanel(sessionKey, { connState: "connecting" });
     (async () => {
-      const status = await browserFetch(api.routes.browserStatus);
+      const status = await browserFetch(withSession(api.routes.browserStatus, sessionKey));
       if (cancelled) return;
       if (status.body?.state === "disabled" || status.status === 409) { setBlocked("disabled"); return; }
       if (status.body?.state === "absent") { setBlocked("absent"); return; }
@@ -73,21 +90,21 @@ function BrowserPanelInner({ paneId }) {
         if (launched.status !== 409) notify.error(`Browser launch failed: ${launched.body?.error ?? launched.status}`);
         return;
       }
-      const tabs = await refreshTabs(paneId);
+      const tabs = await refreshTabs(sessionKey);
       if (cancelled) return;
       if (tabs && tabs.length === 0) {
         // A fresh tab opens BLANK (about:blank) — no auto-navigation to any
         // site; the empty state shows until the human types a URL.
-        await openTab(paneId);
+        await openTab(sessionKey);
         if (cancelled) return;
       }
-      if (!getBrowserPanel(paneId).activeTabId) { setBlocked("error"); return; }
+      if (!getBrowserPanel(sessionKey).activeTabId) { setBlocked("error"); return; }
 
       const socket = new WebSocket(browserStreamUrl());
       socket.binaryType = "arraybuffer";
       wsRef.current = socket;
       socket.addEventListener("open", () => {
-        patchBrowserPanel(paneId, { connState: "open" });
+        patchBrowserPanel(sessionKey, { connState: "open" });
         setWs(socket);
       });
       socket.addEventListener("message", (ev) => {
@@ -98,7 +115,7 @@ function BrowserPanelInner({ paneId }) {
           if (msg.type === "error") notify.warning(`Browser stream: ${msg.message}`);
         } catch { /* not a control message */ }
       });
-      socket.addEventListener("close", () => patchBrowserPanel(paneId, { connState: "closed" }));
+      socket.addEventListener("close", () => patchBrowserPanel(sessionKey, { connState: "closed" }));
     })().catch((e) => {
       if (cancelled) return;
       setBlocked("error");
@@ -110,10 +127,10 @@ function BrowserPanelInner({ paneId }) {
       wsRef.current = null;
       // Reopening must start in live view: drop annotate/pick so the overlay
       // (and its frozen frame) never remounts over a not-yet-painted canvas.
-      resetPanelView(paneId);
-      patchBrowserPanel(paneId, { connState: "closed" });
+      resetPanelView(sessionKey);
+      patchBrowserPanel(sessionKey, { connState: "closed" });
     };
-  }, [paneId]);
+  }, [paneId, sessionKey]);
 
   // Only the subscribed tab streams, so switching tabs re-subscribes on the same
   // socket (the daemon stops the previous tab's screencast). A device switch also
@@ -122,8 +139,10 @@ function BrowserPanelInner({ paneId }) {
   // without it the canvas aspect and canvas→page mapping would keep the old size.
   useEffect(() => {
     if (!ws || ws.readyState !== WebSocket.OPEN || !panel.activeTabId) return;
-    ws.send(JSON.stringify({ type: "subscribe", tabId: panel.activeTabId, ...readDisplay() }));
-  }, [ws, panel.activeTabId, panel.device, readDisplay]);
+    // sessionKey rides the subscribe for the daemon's per-session active-tab
+    // bookkeeping (what the human is looking at IS the session's foreground).
+    ws.send(JSON.stringify({ type: "subscribe", tabId: panel.activeTabId, sessionKey, ...readDisplay() }));
+  }, [ws, panel.activeTabId, panel.device, sessionKey, readDisplay]);
 
   // Panel resized → report the new pixel size (debounced ~150ms so a drag does
   // not spam CDP). The daemon re-emulates the Responsive viewport and restarts

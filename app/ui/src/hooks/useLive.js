@@ -16,6 +16,8 @@ import { applyChunk, applyDone } from "../state/terminalStore.js";
 import { emitPtyData, emitPtyExit } from "../state/ptyBus.js";
 import { markExited } from "../state/ptyPanelStore.js";
 import { applyTabs as applyBrowserTabs, applyStatus as applyBrowserStatus } from "../state/browserPanelStore.js";
+import { applyActivity as applyBrowserActivity } from "../state/browserSessionState.js";
+import { updateAgentIndex, updateAgentNames } from "../lib/agentIndex.js";
 import { applyDelta, dropWorker as dropThinking, finalizeWorker as finalizeThinking } from "../state/thinkingStore.js";
 import { isRunning } from "../lib/agentActivity.js";
 import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
@@ -67,6 +69,11 @@ export function useLive() {
   const applyWorkers = useCallback((seq, list) => {
     if (seq < appliedWorkersSeqRef.current) return false;
     appliedWorkersSeqRef.current = seq;
+    // Keep the id -> parent_id session index (and id -> name, for session labels
+    // like the present-fallback toast) in step with the snapshot, for non-React
+    // consumers (browser session routing, pane transitions).
+    updateAgentIndex(list);
+    updateAgentNames(list);
     setWorkers(list);
     setLoaded(true);
     return true;
@@ -152,11 +159,14 @@ export function useLive() {
           // pty:exit also flags the tab. Not a worker delta, so skip the refetch.
           if (data.reason === "pty:data") { emitPtyData(data.payload ?? {}); return; }
           if (data.reason === "pty:exit") { const p = data.payload ?? {}; emitPtyExit(p); if (p.sessionId) markExited(p.sessionId); return; }
-          // Browser panel: the daemon's shared-Chrome tab list and engine
-          // lifecycle. Panel state, not a worker delta — route to the pane-keyed
-          // browser store and skip the refetch. Frames never come this way.
-          if (data.reason === "browser:tabs") { applyBrowserTabs(data.payload?.tabs); return; }
+          // Browser panel: the daemon's tab lists (per session) and engine
+          // lifecycle. Panel state, not a worker delta — route to the session-
+          // keyed browser store and skip the refetch. Frames never come this way.
+          if (data.reason === "browser:tabs") { applyBrowserTabs(data.payload ?? {}); return; }
           if (data.reason === "browser:status") { applyBrowserStatus(data.payload); return; }
+          // An agent used (tab/navigate) or presented (browser_show) its
+          // session's browser — badge/auto-open rules live in the session store.
+          if (data.reason === "browser:activity") { applyBrowserActivity(data.payload ?? {}); return; }
           // Live reasoning/text deltas (claude-sdk / in-process) — high-frequency
           // live data, not a state delta; route to the thinking store, skip refetch.
           if (data.reason === "agent:delta") { applyDelta(data.payload ?? {}); return; }

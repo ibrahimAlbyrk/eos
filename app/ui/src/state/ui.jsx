@@ -117,7 +117,9 @@ export function useUi() {
   const closeGitDiffViewer = useCallback(() => closePanelIn(scopeRef.current, "gitdiff"), [closePanelIn]);
   const openTerminalViewer = useCallback(() => openScoped("terminal", {}), [openScoped]);
   const closeTerminalViewer = useCallback(() => closePanelIn(scopeRef.current, "terminal"), [closePanelIn]);
-  const openBrowserViewer = useCallback(() => openScoped("browser", {}), [openScoped]);
+  // data (optional) = { sessionKey } — which session's browser the panel shows;
+  // BrowserPanel falls back to resolving its pane's agent when absent.
+  const openBrowserViewer = useCallback((data) => openScoped("browser", data ?? {}), [openScoped]);
   const closeBrowserViewer = useCallback(() => closePanelIn(scopeRef.current, "browser"), [closePanelIn]);
   const openFilesViewer = useCallback((cwd) => openScoped("files", { cwd }), [openScoped]);
   const closeFilesViewer = useCallback(() => closePanelIn(scopeRef.current, "files"), [closePanelIn]);
