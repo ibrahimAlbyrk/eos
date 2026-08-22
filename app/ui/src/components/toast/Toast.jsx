@@ -17,7 +17,7 @@ const reduceMotion = () =>
 // One toast card. Owns its own clock (auto-dismiss, pause on hover/drag), its
 // right-only drag gesture, and its exit hand-off — SRP: the store owns the list,
 // this owns a single toast's lifecycle.
-export function Toast({ id, severity, message, title, duration, dismissible, leaving }) {
+export function Toast({ id, severity, message, title, duration, dismissible, action, leaving }) {
   const meta = SEVERITY[severity] ?? SEVERITY.info;
 
   // Timer kept in refs so hover/drag can pause it while preserving the leftover
@@ -124,6 +124,34 @@ export function Toast({ id, severity, message, title, duration, dismissible, lea
         {title && <div className="toast__title">{title}</div>}
         <div className="toast__msg">{message}</div>
       </div>
+      {action && (
+        // A real <button> keeps the card's status/alert live region intact (a
+        // clickable region role would swallow the announcement). Running the
+        // action then beginExit mirrors the close button's dismiss path.
+        <button
+          type="button"
+          className="toast__action"
+          onClick={() => { action.onClick?.(); beginExit(id); }}
+          // Ends a drag rather than starting one — same guard as the close button.
+          onPointerDown={(e) => e.stopPropagation()}
+          // styles.css's toast block is owned by another job this wave; inline the
+          // pill so the affordance is themed without editing that shared file.
+          style={{
+            flex: "none",
+            padding: "3px 9px",
+            border: "1px solid color-mix(in srgb, var(--tone) 45%, transparent)",
+            borderRadius: "6px",
+            background: "color-mix(in srgb, var(--tone) 14%, transparent)",
+            color: "var(--tone)",
+            font: "inherit",
+            fontWeight: 600,
+            whiteSpace: "nowrap",
+            cursor: "pointer",
+          }}
+        >
+          {action.label}
+        </button>
+      )}
       {dismissible && (
         <button
           type="button"

@@ -16,6 +16,15 @@ describe("toastStore", () => {
     expect(b).toMatchObject({ id: 2, severity: "error", message: "boom", duration: 6000 });
   });
 
+  it("carries an optional action and defaults it to null (backward compat)", () => {
+    const onClick = () => {};
+    push({ message: "plain" });
+    push({ message: "actionable", action: { label: "View", onClick } });
+    const [plain, actionable] = getToasts();
+    expect(plain.action).toBeNull();
+    expect(actionable.action).toEqual({ label: "View", onClick });
+  });
+
   it("getToasts returns a stable reference between non-mutating reads (useSyncExternalStore contract)", () => {
     push({ message: "x" });
     expect(getToasts()).toBe(getToasts());

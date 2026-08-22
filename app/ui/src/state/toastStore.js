@@ -9,7 +9,7 @@
 // so ids are deterministic and tests are stable, matching ptyPanelStore's
 // "the store never invents randomness" spirit.
 
-let toasts = []; // [{ id, severity, message, title, duration, dismissible, leaving }]
+let toasts = []; // [{ id, severity, message, title, duration, dismissible, action, leaving }]
 let snapshot = toasts; // stable ref between emits — useSyncExternalStore contract
 const subs = new Set();
 let seq = 0; // monotonic id source
@@ -40,9 +40,10 @@ export function push({
   title,
   duration = DEFAULT_MS,
   dismissible = true,
+  action = null, // optional { label, onClick } — a clickable affordance (Toast.jsx)
 } = {}) {
   const id = ++seq;
-  let next = [...toasts, { id, severity, message, title, duration, dismissible, leaving: false }];
+  let next = [...toasts, { id, severity, message, title, duration, dismissible, action, leaving: false }];
   if (next.length > MAX) next = next.slice(next.length - MAX);
   toasts = next;
   emit();
