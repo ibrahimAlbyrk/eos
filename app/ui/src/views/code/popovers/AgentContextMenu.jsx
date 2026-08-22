@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { useUi } from "../../../state/ui.jsx";
 import { useSettings } from "../../../state/settings.jsx";
 import { useArchiveAgent, useKillAgent } from "../../../hooks/useArchiveAgent.js";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog.jsx";
+import { NewGroupModal } from "./NewGroupModal.jsx";
+import { useCustomGroups, addGroup, moveAgent } from "../../../state/customGroupsStore.js";
 import { fanoutLayout } from "../../../lib/paneLayout.js";
 import { isRunning } from "../../../lib/agentActivity.js";
 import { subtreeIds } from "../../../lib/tree.js";
@@ -16,14 +19,21 @@ export function AgentContextMenu({ live }) {
   const { settings, setSetting } = useSettings();
   const archiveAgent = useArchiveAgent(live);
   const killAgent = useKillAgent(live);
+  const { groups: customGroups, assignments } = useCustomGroups();
   // Held OUTSIDE the popover-open gate: picking "Delete" closes the menu, and
-  // the confirm dialog must survive that close.
+  // the confirm dialog must survive that close. Same for the new-group modal.
   const [confirmId, setConfirmId] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [newGroupFor, setNewGroupFor] = useState(null);
+  // Anchor rect of the "Move to group" row when its flyout is open (null =
+  // closed). The flyout is portaled to <body> so it gets a real .glass-pop frost
+  // instead of a flat fill (nested backdrop-filter is dropped by WebKit).
+  const [moveAnchor, setMoveAnchor] = useState(null);
 
   const open = ui.openPopover === "ctx-menu";
   const doomed = confirmId ? live.workers.find((w) => w.id === confirmId) ?? null : null;
-  if (!open && !doomed) return null;
+  useEffect(() => { if (!open) setMoveAnchor(null); }, [open]);
+  if (!open && !doomed && !newGroupFor) return null;
 
   const confirmKill = async (dontAskAgain) => {
     if (!doomed || busy) return;
@@ -77,6 +87,7 @@ export function AgentContextMenu({ live }) {
     const top = Math.min(y, window.innerHeight - (canFanout ? 265 : 220));
 
     menu = (
+      <>
       <div
         className="ctx-menu glass-pop open"
         id="agentCtxMenu"
@@ -108,6 +119,19 @@ export function AgentContextMenu({ live }) {
           </svg>
           Export
         </button>
+        <button
+          className={`menu-item${moveAnchor ? " active" : ""}`}
+          onMouseEnter={(e) => setMoveAnchor(e.currentTarget.getBoundingClientRect())}
+          onClick={(e) => setMoveAnchor(moveAnchor ? null : e.currentTarget.getBoundingClientRect())}
+        >
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M2 4.5h4l1.5 1.5H14v6.5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
+          </svg>
+          Move to group
+          <svg className="sub-chev" width="9" height="9" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <path d="m6 4 4 4-4 4" />
+          </svg>
+        </button>
         <div className="menu-sep"></div>
         <button className="menu-item" onClick={archive}>
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -131,6 +155,38 @@ export function AgentContextMenu({ live }) {
           Delete
         </button>
       </div>
+      {moveAnchor && createPortal(
+        <div
+          className="ctx-menu glass-pop open"
+          data-popover="ctx-menu"
+          style={{
+            display: "block",
+            left: Math.min(moveAnchor.right + 4, window.innerWidth - 190),
+            top: Math.min(moveAnchor.top - 4, window.innerHeight - 200),
+          }}
+        >
+          {customGroups.map((g) => (
+            <button
+              key={g.id}
+              className={`menu-item${assignments[agentId] === g.id ? " on" : ""}`}
+              onClick={() => { moveAgent(agentId, g.id); ui.closeAllPops(); }}
+            >
+              {g.name}
+              {assignments[agentId] === g.id && (
+                <svg className="pr-menu-check" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="m3 8 3 3 7-7" />
+                </svg>
+              )}
+            </button>
+          ))}
+          {customGroups.length > 0 && <div className="menu-sep"></div>}
+          <button className="menu-item" onClick={() => { setNewGroupFor(agentId); ui.closeAllPops(); }}>
+            New group…
+          </button>
+        </div>,
+        document.body,
+      )}
+      </>
     );
   }
 
@@ -143,6 +199,12 @@ export function AgentContextMenu({ live }) {
           busy={busy}
           onConfirm={confirmKill}
           onCancel={() => { if (!busy) setConfirmId(null); }}
+        />
+      )}
+      {newGroupFor && (
+        <NewGroupModal
+          onSave={(name) => { const id = addGroup(name); if (id) moveAgent(newGroupFor, id); setNewGroupFor(null); }}
+          onCancel={() => setNewGroupFor(null)}
         />
       )}
     </>

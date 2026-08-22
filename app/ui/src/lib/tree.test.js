@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { agentIdAtIndex, subtreeIds } from "./tree.js";
+import { agentIdAtIndex, subtreeIds, groupRootsByProject } from "./tree.js";
 
 const w = (id, parent_id = null, started_at = 0) => ({ id, parent_id, started_at });
 
@@ -50,5 +50,51 @@ describe("subtreeIds", () => {
 
   it("ignores unrelated branches", () => {
     expect(subtreeIds(deep, "orchB")).toEqual(["orchB", "workerB1"]);
+  });
+});
+
+describe("groupRootsByProject", () => {
+  const root = (id, cwd, worktree_from = null) => ({ id, cwd, worktree_from });
+
+  it("groups roots by project dir and names groups by basename", () => {
+    const groups = groupRootsByProject([
+      root("a", "/Users/me/claude-manager"),
+      root("b", "/Users/me/dear-souls"),
+      root("c", "/Users/me/claude-manager"),
+    ]);
+    expect(groups.map((g) => g.name)).toEqual(["claude-manager", "dear-souls"]);
+    expect(groups[0].path).toBe("/Users/me/claude-manager");
+    expect(groups[0].roots.map((r) => r.id)).toEqual(["a", "c"]);
+    expect(groups[1].roots.map((r) => r.id)).toEqual(["b"]);
+  });
+
+  it("prefers worktree_from over cwd for the project key", () => {
+    const groups = groupRootsByProject([
+      root("a", "/tmp/worktrees/x", "/Users/me/proj"),
+    ]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].name).toBe("proj");
+    expect(groups[0].path).toBe("/Users/me/proj");
+  });
+
+  it("buckets roots with no project under 'Other', always last", () => {
+    const groups = groupRootsByProject([
+      root("a", null),
+      root("b", "/Users/me/proj"),
+      root("c", null),
+    ]);
+    expect(groups.map((g) => g.name)).toEqual(["proj", "Other"]);
+    const other = groups[groups.length - 1];
+    expect(other.path).toBeNull();
+    expect(other.roots.map((r) => r.id)).toEqual(["a", "c"]);
+  });
+
+  it("keeps group order by first appearance (stable, no churn)", () => {
+    const groups = groupRootsByProject([
+      root("a", "/p/second"),
+      root("b", "/p/first"),
+      root("c", "/p/second"),
+    ]);
+    expect(groups.map((g) => g.name)).toEqual(["second", "first"]);
   });
 });

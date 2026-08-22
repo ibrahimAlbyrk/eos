@@ -2,6 +2,34 @@
 // Roots are rows with no parent_id (or whose parent_id points to a missing
 // row). Children are sorted by started_at ASC inside each parent.
 
+import { basename } from "./path.js";
+
+// Roots with no known project directory land in this bucket, rendered last.
+const OTHER_GROUP_KEY = "__other__";
+
+// Partition top-level agent roots into project groups, keyed by their project
+// directory (worktree_from — the original project of a worktree agent — falling
+// back to cwd). Roots keep their incoming order (started_at ASC from
+// buildAgentTree); groups appear in the order their first root does, with the
+// "Other" bucket (no known project) always last. Deterministic — nothing
+// re-sorts as agent statuses change, so rows never jump around.
+export function groupRootsByProject(roots) {
+  const groups = new Map();
+  for (const r of roots) {
+    const path = r.worktree_from ?? r.cwd ?? null;
+    const key = path ?? OTHER_GROUP_KEY;
+    let g = groups.get(key);
+    if (!g) {
+      g = { key, path, name: path ? basename(path) : "Other", roots: [] };
+      groups.set(key, g);
+    }
+    g.roots.push(r);
+  }
+  return [...groups.values()].sort(
+    (a, b) => (a.key === OTHER_GROUP_KEY) - (b.key === OTHER_GROUP_KEY),
+  );
+}
+
 export function buildAgentTree(workers) {
   const byId = new Map();
   for (const w of workers) byId.set(w.id, { ...w, children: [] });

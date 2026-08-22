@@ -1,10 +1,15 @@
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { loopBadgeTitle } from "../../../lib/loopDisplay.js";
+import { groupAgents } from "../../../lib/agentGrouping.js";
+import { sortRoots } from "../../../lib/agentSorting.js";
+import { useSidebarPrefs } from "../../../state/sidebarPrefsStore.js";
+import { useCustomGroups } from "../../../state/customGroupsStore.js";
 import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../../../state/loopCheckStore.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
+import { ArchiveNode } from "./ArchiveNode.jsx";
 import { api } from "../../../api/client.js";
 
 // A fully transparent 1×1 image to suppress the browser's native drag ghost — the
@@ -16,7 +21,61 @@ if (TRANSPARENT_DRAG_IMG) {
     "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
 }
 
-export function AgentsTree({ roots, loaded = true, onRename, variant = "full" }) {
+function PlusIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M8 3v10M3 8h10" />
+    </svg>
+  );
+}
+
+// A project section: the project-name header with its own "+" (spawns a new
+// orchestrator pre-seated to this project's path) above that project's rows.
+// Rows are a MIX of live (TreeNode) and archived (ArchiveNode) agents — the
+// grouping/sort pipeline interleaves both kinds, and each root is dispatched to
+// its renderer by the __archived tag CodeSidebar stamps on it.
+function AgentGroup({ group, onRename, variant, archivedSelectedId }) {
+  const ui = useUi();
+  const onAdd = useCallback((e) => {
+    e.stopPropagation();
+    // Pre-seat the composer's cwd with this project's path, then enter spawn
+    // mode exactly like the global + (SidebarHead). ComposerConfigRow only
+    // auto-seeds cwd when unset, so this pre-selection survives the switch.
+    // "Other" (no path) just falls back to the global +'s behaviour.
+    if (group.path) ui.updateComposer({ cwd: group.path });
+    ui.setSelectedId(null);
+  }, [group.path, ui]);
+
+  return (
+    <div className="agents-group">
+      <div className="agents-group__head">
+        <span className="agents-group__name" title={group.path ?? undefined}>{group.name}</span>
+        {group.path && (
+          <button
+            className="sb-iconbtn agents-group__add"
+            title={`New orchestrator in ${group.name}`}
+            onClick={onAdd}
+          >
+            <PlusIcon />
+          </button>
+        )}
+      </div>
+      {group.roots.map((n) => (
+        n.__archived
+          ? <ArchiveNode key={n.id} node={n} selectedId={archivedSelectedId} isRoot />
+          : <TreeNode key={n.id} node={n} onRename={onRename} variant={variant} />
+      ))}
+    </div>
+  );
+}
+
+export function AgentsTree({ roots, loaded = true, onRename, variant = "full", archivedSelectedId = null, emptyLabel }) {
+  const prefs = useSidebarPrefs();
+  const { groups: customGroups, assignments } = useCustomGroups();
+  const groups = useMemo(() => {
+    const raw = groupAgents(roots, prefs.groupBy, { now: Date.now(), groups: customGroups, assignments });
+    return raw.map((g) => ({ ...g, roots: sortRoots(g.roots, prefs.sortBy) }));
+  }, [roots, prefs.groupBy, prefs.sortBy, customGroups, assignments]);
   if (roots.length === 0) {
     // `loaded` gates the definitive empty state: until the first /workers fetch
     // resolves (or after a swallowed failure) an empty list only means "still
@@ -24,15 +83,15 @@ export function AgentsTree({ roots, loaded = true, onRename, variant = "full" })
     return (
       <div className="agents-section">
         <div className="empty-tree" style={{ padding: "24px 14px", color: "var(--fg-faint)", fontSize: "var(--text-sm)" }}>
-          {loaded ? "No agents yet — click + to spawn an orchestrator" : "Loading agents…"}
+          {loaded ? (emptyLabel ?? "No agents yet — click + to spawn an orchestrator") : "Loading agents…"}
         </div>
       </div>
     );
   }
   return (
     <div className="agents-section">
-      {roots.map((n) => (
-        <TreeNode key={n.id} node={n} onRename={onRename} variant={variant} />
+      {groups.map((g) => (
+        <AgentGroup key={g.key} group={g} onRename={onRename} variant={variant} archivedSelectedId={archivedSelectedId} />
       ))}
     </div>
   );

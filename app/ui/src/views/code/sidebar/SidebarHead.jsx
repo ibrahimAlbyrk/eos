@@ -1,7 +1,4 @@
-import { useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { ArchiveToggle } from "../../archive/ArchiveToggle.jsx";
-import { subscribe, getArchive } from "../../../state/archiveStore.js";
 
 function SpawnIcon() {
   return (
@@ -11,14 +8,31 @@ function SpawnIcon() {
   );
 }
 
+// Sliders / adjustments — opens the sidebar settings popover (group by / sort by
+// / status). Replaces the standalone Archived toggle button.
+function SlidersIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+      <path d="M2 4.5h7M12 4.5h2M2 11.5h2M7 11.5h7" />
+      <circle cx="10.5" cy="4.5" r="1.6" />
+      <circle cx="5.5" cy="11.5" r="1.6" />
+    </svg>
+  );
+}
+
 export function SidebarHead({ total, variant }) {
   const ui = useUi();
   const full = variant === "full";
-  const { archiveMode } = useSyncExternalStore(subscribe, getArchive);
 
   const handleSpawn = (e) => {
     e.stopPropagation();
     ui.setSelectedId(null);
+  };
+
+  const handlePrefs = (e) => {
+    e.stopPropagation();
+    if (ui.openPopover === "sidebar-prefs") { ui.closeAllPops(); return; }
+    ui.openPop("sidebar-prefs", { x: e.clientX, y: e.clientY });
   };
 
   return (
@@ -33,6 +47,9 @@ export function SidebarHead({ total, variant }) {
           </button>
           {full && (
             <>
+              <button className="sb-iconbtn" title="Sidebar settings" data-popover-trigger="sidebar-prefs" onClick={handlePrefs}>
+                <SlidersIcon />
+              </button>
               <button className="sb-iconbtn" title="Collapse sidebar" onClick={() => ui.setSideCollapsed(true)}>
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
                   <rect x="2" y="3" width="12" height="10" rx="1.5" />
@@ -54,11 +71,13 @@ export function SidebarHead({ total, variant }) {
 
       {full && (
         <div className="sb-section">
-          <span className="sb-section__title">{archiveMode ? "Archived Agents" : "Agents"}</span>
+          <span className="sb-section__title">Agents</span>
           <button className="sb-iconbtn" title="New orchestrator" onClick={handleSpawn}>
             <SpawnIcon />
           </button>
-          <ArchiveToggle />
+          <button className="sb-iconbtn" title="Sidebar settings" data-popover-trigger="sidebar-prefs" onClick={handlePrefs}>
+            <SlidersIcon />
+          </button>
         </div>
       )}
     </>

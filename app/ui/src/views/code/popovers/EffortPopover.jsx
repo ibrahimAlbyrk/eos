@@ -8,7 +8,7 @@ import { UltraGridCanvas } from "./UltraGridCanvas.jsx";
 const INFO = {
   ultracode: {
     title: "Ultracode",
-    body: "Ultracode is xhigh effort plus workflows. Most thorough, slowest, and heaviest on your limits.",
+    body: "Ultracode is maximum effort. Most thorough, slowest, and heaviest on your limits.",
   },
   default: {
     title: "Effort",
@@ -16,13 +16,16 @@ const INFO = {
   },
 };
 
-export function EffortPopover({ live, worker }) {
+// `config`/`onPick`: see ModelPopover — a host with its own pre-spawn config
+// (the Home tab) passes {model, effort} + a setter; omitted keeps the Code
+// composer's ui.composer behaviour.
+export function EffortPopover({ live, worker, config, onPick }) {
   const ui = useUi();
   if (ui.openPopover !== "effort") return null;
-  return <EffortPanel live={live} ui={ui} worker={worker} />;
+  return <EffortPanel live={live} ui={ui} worker={worker} config={config} onPick={onPick} />;
 }
 
-function EffortPanel({ live, ui, worker }) {
+function EffortPanel({ live, ui, worker, config, onPick }) {
   const paneRef = useRef(null);
   const sliderRef = useRef(null);
   // Dragging is JS-driven (no CSS transition): a rAF loop chases the pointer
@@ -58,8 +61,8 @@ function EffortPanel({ live, ui, worker }) {
   // This pane's own worker (not the global selection) — slider position + the
   // setModel action must target THIS pane's agent.
   const selected = worker ?? null;
-  const currentModel = selected?.model ?? ui.composer.model;
-  const currentEffort = selected?.effort ?? ui.composer.effort;
+  const currentModel = selected?.model ?? config?.model ?? ui.composer.model;
+  const currentEffort = selected?.effort ?? config?.effort ?? ui.composer.effort;
   const levels = effortChoicesFor(currentModel);
 
   const found = levels.findIndex((l) => l.id === currentEffort);
@@ -86,6 +89,7 @@ function EffortPanel({ live, ui, worker }) {
     const l = levels[i];
     if (l.id === currentEffort) return;
     if (selected) live.setModel(selected.id, currentModel, l.id);
+    else if (onPick) onPick(l.id);
     else ui.updateComposer({ effort: l.id });
   };
 

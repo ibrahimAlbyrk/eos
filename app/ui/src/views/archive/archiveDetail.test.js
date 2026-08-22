@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 // detail view + menu actions are wiring contracts; rendering isn't feasible in
 // the node test env.
 import archiveViewSrc from "./ArchiveView.jsx?raw";
-import archiveSidebarSrc from "./ArchiveSidebar.jsx?raw";
+import archiveNodeSrc from "../code/sidebar/ArchiveNode.jsx?raw";
 import archiveCtxSrc from "./ArchiveContextMenu.jsx?raw";
 
 describe("archived selection renders the normal agent view", () => {
@@ -27,8 +27,8 @@ describe("archived selection renders the normal agent view", () => {
 
 describe("archived-row context menu", () => {
   it("sidebar rows open the archive context menu", () => {
-    expect(archiveSidebarSrc).toContain('openPop("archive-ctx"');
-    expect(archiveSidebarSrc).toContain("onContextMenu");
+    expect(archiveNodeSrc).toContain('openPop("archive-ctx"');
+    expect(archiveNodeSrc).toContain("onContextMenu");
   });
 
   it("Restore runs directly; permanent delete is confirm-gated and hits purge", () => {

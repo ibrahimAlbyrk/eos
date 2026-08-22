@@ -51,14 +51,26 @@ export async function refreshArchived() {
 }
 
 export function selectArchived(id) {
-  if (selectedId === id) return;
+  // Selecting an archived row means the user wants archived work in the main
+  // area (CodeView gates on archiveMode). Picking a live agent flips it back off
+  // via setArchiveViewing(false) in pane.jsx.
+  if (selectedId === id && archiveMode) return;
   selectedId = id;
+  archiveMode = true;
   emit();
 }
 
-// Sidebar toggle: swaps the agent tree for the archived list. Only the flag
-// flips — the Code view's own selection/pane state is never touched, so
-// toggling off lands back on the exact state the user left.
+// Drive the main-area archive view directly. The sidebar status filter and the
+// live/archived selection paths use this in place of the removed toggle button:
+// active selection → false, archived selection / archived status → true.
+export function setArchiveViewing(on) {
+  if (archiveMode === on) return;
+  archiveMode = on;
+  emit();
+}
+
+// Legacy sidebar toggle (no longer wired to a button; kept for the store's unit
+// test and any external caller). Flips the main-area archive view.
 export function toggleArchiveMode() {
   archiveMode = !archiveMode;
   emit();

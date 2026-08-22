@@ -13,6 +13,7 @@ import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { PaneGrid, SinglePane } from "./panes/PaneGrid.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
+import { SidebarPrefsMenu } from "./sidebar/SidebarPrefsMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
 import { ArchiveView } from "../archive/ArchiveView.jsx";
 import { ArchiveContextMenu } from "../archive/ArchiveContextMenu.jsx";
@@ -138,6 +139,7 @@ export function CodeView({ live }) {
     >
       <AgentContextMenu live={live} />
       <ArchiveContextMenu live={live} />
+      <SidebarPrefsMenu />
       {ui.rewindPanel && <RewindPanel live={live} />}
     </AppLayout>
   );

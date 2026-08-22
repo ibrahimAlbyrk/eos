@@ -5,18 +5,21 @@ import { MODELS } from "../../../lib/models.js";
 const matchesModel = (current, model) =>
   current === model.id || model.aliases.includes(current);
 
-export function ModelPopover({ live, worker }) {
+// `config`/`onPick` let a host that keeps its OWN pre-spawn model (the Home tab)
+// read and write that instead of ui.composer's spawn config. Omitted (the Code
+// composer) → unchanged: a selected worker's model, else ui.composer's.
+export function ModelPopover({ live, worker, config, onPick }) {
   const ui = useUi();
   if (ui.openPopover !== "model") return null;
-  return <ModelMenu live={live} ui={ui} worker={worker} />;
+  return <ModelMenu live={live} ui={ui} worker={worker} config={config} onPick={onPick} />;
 }
 
-function ModelMenu({ live, ui, worker }) {
+function ModelMenu({ live, ui, worker, config, onPick }) {
   const paneRef = useRef(null);
   // This pane's own worker (not the global selection) — the checkmark + the
   // setModel action must target THIS pane's agent, not the selected one.
   const selected = worker ?? null;
-  const currentModel = selected?.model ?? ui.composer.model;
+  const currentModel = selected?.model ?? config?.model ?? ui.composer.model;
   const [active, setActive] = useState(() =>
     Math.max(0, MODELS.findIndex((m) => matchesModel(currentModel, m))));
 
@@ -27,6 +30,7 @@ function ModelMenu({ live, ui, worker }) {
     // curated short id like "fable-5" is display-only and 404s at the API)
     const id = m.aliases[0] ?? m.id;
     if (selected) await live.setModel(selected.id, id, selected.effort ?? ui.composer.effort);
+    else if (onPick) onPick(id);
     else ui.updateComposer({ model: id });
     ui.closeAllPops();
   };

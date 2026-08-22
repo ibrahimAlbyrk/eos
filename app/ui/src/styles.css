@@ -1054,9 +1054,12 @@ html.native .pane-panel-slot.pane-slot.at-top { --ph-h: 32px; } /* native · spl
 .pane-dock .panel-shell {
   /* Full-height sibling of the transcript column: the pane header caps the
      transcript only, so the dock spans the pane top-to-bottom. Single-pane docks
-     carry the full frame themselves (no adjacent island), so they use 2× the
-     tiled-island inset — half the old --shell-gap, in step with the split docks. */
-  inset: calc(var(--dock-tile-inset) * 2);
+     lack the split path's other 3px (the .pane-grid margin + .panel-dock-grid
+     inset), so the viewer carries the full --shell-gap itself — 6px on every edge,
+     matching the split dock's 3px margin + 1.5px grid + 1.5px shell. Without this
+     the single-pane panel's top/bottom (and outer) inset was 3px, so it extended
+     past the split (2+ pane) layout's edges. */
+  inset: var(--shell-gap);
 }
 .pane {
   position: absolute;
@@ -5108,6 +5111,26 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   padding: 8px 8px 8px;
   overflow-y: auto;
 }
+/* project group: a header (name + its own +) above that project's agent rows */
+.agents-group { display: flex; flex-direction: column; }
+.agents-group + .agents-group { margin-top: 6px; }
+.agents-group__head {
+  display: flex; align-items: center;
+  gap: 8px;
+  padding: 6px 8px 2px;
+}
+.agents-group__name {
+  flex: 1; min-width: 0;
+  font-size: var(--text-xs); font-weight: 600;
+  letter-spacing: 0.03em; text-transform: uppercase;
+  color: var(--fg-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.agents-group__add {
+  width: 20px; height: 20px;
+  flex-shrink: 0;
+  color: var(--fg-faint);
+}
 .agents-row {
   display: flex; align-items: center;
   gap: 8px;
@@ -5135,6 +5158,18 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   background: var(--fg-faint);
   flex-shrink: 0;
 }
+/* Leading glyph on archived rows — an archive tray icon in place of the live dot. */
+.agents-row .ag-archive-icon {
+  display: inline-flex; align-items: center;
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+/* Archived rows read as softer than live rows — dim the whole row (tray icon +
+   name + timestamp together) so they stay distinguishable when interleaved with
+   active rows in the unified list; hover / selection restores full clarity. */
+.agents-row--archived { opacity: 0.55; }
+.agents-row--archived:hover,
+.agents-row--archived.on { opacity: 1; }
 .agents-row .ag-dot.run { background: var(--ok); box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 55%, transparent); }
 .agents-row .ag-dot.think { background: var(--warn); animation: ag-pulse 1.4s ease-in-out infinite; }
 .agents-row .ag-dot.wait { background: var(--fg-faint); }
@@ -5282,6 +5317,11 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   opacity: 0.55;
   border-radius: 1px;
 }
+/* Agents sidebar only: childless rows show no toggle glyph (no leaf dash) and
+   sit back into the freed toggle column via a narrower spacer. The Files tree
+   keeps the base spacer + dash. */
+.agents-row .tree-chev-spacer { width: 6px; }
+.agents-row .tree-chev-spacer::before { content: none; }
 .tree-node.collapsed > .tree-children {
   display: none;
 }
@@ -5489,6 +5529,47 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .ctx-menu .menu-item.active { background: rgba(var(--tint), 0.06); }
 .ctx-menu .menu-item.danger.active { background: color-mix(in srgb, var(--err) 10%, transparent); }
 .ctx-menu .menu-item .sub-chev { margin-left: auto; color: var(--fg-faint); flex-shrink: 0; }
+
+/* Sidebar settings popover (SidebarPrefsMenu) + its submenu flyouts. The flyouts
+   are portaled to <body> (see SidebarPrefsMenu / AgentContextMenu) so they're DOM
+   siblings of the panel, not nested inside it — that keeps the real .glass-pop
+   frosted blur (WebKit drops backdrop-filter on a blurred element nested in
+   another). No opaque fill needed: the shared glass surface reads fine. */
+.sb-prefs-menu { width: 212px; }
+.sb-prefs-flyout { width: 172px; }
+.sb-prefs-label { flex: 1; }
+.sb-prefs-val { color: var(--fg-faint); font-size: var(--text-xs); }
+.sb-prefs-menu .menu-item .sub-chev { margin-left: 6px; }
+
+/* Active / Archived section labels shown in the sidebar when Status = All. */
+.agents-status-label {
+  padding: 8px 10px 2px;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--fg-faint);
+}
+
+/* New-group modal field (NewGroupModal reuses the del-confirm surface). */
+.ng-field-label {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--fg-dim);
+  margin: 4px 0 6px;
+}
+.ng-field-input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid rgba(var(--tint), 0.14);
+  border-radius: 6px;
+  color: var(--fg);
+  font: inherit;
+  font-size: var(--text-sm);
+  padding: 7px 9px;
+  outline: none;
+}
+.ng-field-input:focus { border-color: var(--accent); }
 
 /* ============== Accept-edits popover (above composer Accept edits btn) ============== */
 .accept-popover {
@@ -10543,4 +10624,212 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top
   border-radius: 50%;
   background: var(--accent);
   pointer-events: none;
+}
+
+/* ===== Home tab (Claude-web-style single agent) ========================== */
+
+/* Conversation list in the Home sidebar. */
+.home-convs { display: flex; flex-direction: column; gap: 1px; overflow-y: auto; flex: 1; min-height: 0; padding: 4px 0; }
+.home-convs__empty { padding: 10px 12px; color: var(--fg-faint); font-size: var(--text-xs); }
+.home-conv {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border-radius: 7px; cursor: pointer;
+  color: var(--fg-dim); font-size: var(--text-sm);
+}
+.home-conv:hover { background: var(--surface-2); color: var(--fg); }
+.home-conv.is-active { background: var(--accent-soft); color: var(--fg); }
+.home-conv__name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-conv__del {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border: 0; background: transparent; border-radius: 5px;
+  color: var(--fg-faint); cursor: pointer; opacity: 0;
+}
+.home-conv:hover .home-conv__del { opacity: 1; }
+.home-conv__del:hover { background: var(--surface-3); color: var(--err); }
+
+/* ---- Center column ------------------------------------------------------
+   One reading column: a quiet title bar, the transcript, and a floating
+   composer card. The dock sits in flex flow (not over the transcript) so the
+   scroll area always ends exactly above the card however tall the input grows;
+   the fade strip above the card does the "content dissolves into it" part. */
+.home {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  /* The reading measure — ONE number both the transcript and the composer card
+     derive from, each adding its own inner padding, so the prose and the input
+     text sit on exactly the same left edge. */
+  --home-col: 720px;
+}
+
+/* Title bar rides .pane-head (window-drag strip, native traffic-light inset,
+   scroll scrim) — Home only styles what sits inside it. */
+.home-head__title {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg-mid);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.home-chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.home-chat__transcript { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Re-column the reused Code transcript for a single conversation, and set prose
+   one step larger/airier than the Code view's working surface. */
+/* Bottom padding clears the dock's 36px fade band, so a transcript pinned to
+   the bottom never has its last line veiled by it. */
+.home-chat .messages { max-width: calc(var(--home-col) + 48px); padding: 20px 24px 44px; }
+.home-chat .msg-asst { font-size: var(--text-md); line-height: 1.72; }
+.home-chat .msg-user .b { max-width: 85%; }
+
+/* ---- Composer dock ------------------------------------------------------ */
+.home-dock {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px 12px;
+}
+/* Fade at the transcript's bottom edge, stopping short of the scrollbar —
+   same idiom as .composer-wrap::before in the Code composer. */
+.home-chat .home-dock::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 12px;
+  bottom: 100%;
+  height: 36px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+}
+.home-dock__note {
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+  text-align: center;
+}
+
+.home-composer {
+  width: 100%;
+  max-width: calc(var(--home-col) + 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px 8px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 20px;
+  /* Solid, not glass: the model/effort popovers open as children of this card,
+     and WebKit flattens a backdrop-filter nested inside another one. */
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.30), 0 2px 6px rgba(0, 0, 0, 0.14);
+  transition: border-color 180ms ease, box-shadow 180ms ease;
+}
+.home-composer:focus-within {
+  border-color: color-mix(in srgb, var(--accent) 32%, var(--border-strong));
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.34), 0 0 0 2px var(--accent-soft);
+}
+.home-composer__input {
+  width: 100%;
+  /* No side padding: the input's text starts exactly on the card's 14px inset,
+     which is the transcript's prose edge (see --home-col). */
+  padding: 6px 0 2px;
+  color: var(--fg);
+  font-size: var(--text-md);
+  line-height: 1.55;
+  overflow-y: auto;
+}
+
+.home-composer__controls { display: flex; align-items: center; gap: 6px; }
+.home-composer__group { display: flex; align-items: center; gap: 4px; }
+.home-composer__group:first-child { margin-right: auto; }
+.home-ctl-wrap { position: relative; display: inline-flex; }
+
+/* Attach / model / effort share one control shape — the Code composer footer's
+   hover recipe (tint wash + inset rim) so both composers read as one family. */
+.home-ctl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 9px;
+  border-radius: 7px;
+  font-size: var(--text-sm);
+  color: var(--fg);
+  white-space: nowrap;
+  transition: color 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+.home-ctl:hover:not(:disabled),
+.home-ctl.open {
+  background: rgba(var(--tint), 0.05);
+  box-shadow:
+    inset 0 1px 1px rgba(var(--ink), 0.20),
+    inset 0 0 0 1px rgba(var(--tint), 0.09);
+}
+.home-ctl:disabled { opacity: 0.45; cursor: not-allowed; }
+.home-ctl--icon { width: 28px; padding: 0; color: var(--fg-dim); }
+.home-ctl--dim { color: var(--fg-dim); }
+.home-ctl--icon:hover, .home-ctl--dim:hover, .home-ctl--dim.open { color: var(--fg); }
+.home-ctl--ultra, .home-ctl--ultra:hover, .home-ctl--ultra.open { color: var(--violet); }
+
+.home-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: var(--solid-btn-bg);
+  color: var(--solid-btn-fg);
+  transition: background 160ms ease, color 160ms ease;
+}
+.home-send:hover:not(:disabled) { background: var(--solid-btn-bg-hover); }
+.home-send:disabled { background: rgba(var(--tint), 0.06); color: var(--fg-faint); cursor: default; }
+.home-send.is-stop { background: color-mix(in srgb, var(--err) 18%, transparent); color: var(--err); }
+.home-send.is-stop:hover { background: color-mix(in srgb, var(--err) 28%, transparent); }
+
+/* ---- Empty state — centered hero over the same composer ----------------- */
+.home-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* Optical centering: the hero + card read as centered when the block sits a
+     little above the true middle. */
+  padding-bottom: 10vh;
+}
+.home-empty__inner {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+.home-empty__hero {
+  margin: 0;
+  padding: 0 24px;
+  font-size: 1.6rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  text-align: center;
+  animation: home-rise 460ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.home-empty .home-dock {
+  width: 100%;
+  padding: 0 24px;
+  animation: home-rise 460ms cubic-bezier(0.2, 0.7, 0.2, 1) 70ms both;
+}
+@keyframes home-rise {
+  from { opacity: 0; transform: translateY(7px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-empty__hero, .home-empty .home-dock { animation: none; }
 }
