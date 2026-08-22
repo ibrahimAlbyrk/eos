@@ -15,6 +15,10 @@ export const killWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, KillWorke
     // Scope check before any side effect — a denied foreign kill must not touch
     // the subtree. CLI (operator) omits actorId; MCP passes session.selfId.
     if (actorId) assertOwnedBy(c.workers, actorId, id);
+    // Read before the cascade deletes the row: a session root's death tears
+    // down that session's browser (its profile dir persists for a relaunch).
+    const target = c.workers.findById(id);
+    const isSessionRoot = target != null && target.parent_id == null;
     const supervisorWithFind = c.supervisor as ReturnType<typeof createChildProcessSupervisor>;
     const result = killWorker(
       {
@@ -49,6 +53,7 @@ export const killWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, KillWorke
     c.pendingQuestions.cancelByWorker(id);
     c.pendingPeerRequests.cancelByWorker(id);
     c.backgroundActivity.clearWorker(id);
+    if (isSessionRoot) c.browser.disposeSession(id);
     return {
       status: 200,
       body: {

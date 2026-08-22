@@ -76,7 +76,7 @@ export function renderPreview(opts: PreviewOpts) {
     parentId: opts.subagent ? "orch-preview" : null,
     name: opts.role,
     workerId: opts.role === "orchestrator" ? "o-preview" : "w-preview",
-    model: identity.tiers.high,
+    model: identity.tiers.find((t) => t.name === "high")?.model,
     effort: null,
     permissionMode: "acceptEdits",
     cwd: REPO,

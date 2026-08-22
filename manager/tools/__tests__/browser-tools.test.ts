@@ -23,6 +23,8 @@ import { browserTabsDef } from "../defs/browser_tabs.ts";
 import { browserNewTabDef } from "../defs/browser_new_tab.ts";
 import { browserCloseTabDef } from "../defs/browser_close_tab.ts";
 import { browserMuteDef } from "../defs/browser_mute.ts";
+import { browserShowDef } from "../defs/browser_show.ts";
+import { ROUTES } from "../../../contracts/src/http.ts";
 
 function recording(
   tabs: Array<{ tabId: string }> = [{ tabId: "bt-1" }],
@@ -122,6 +124,19 @@ describe("browser_* handlers — verb → route + body", () => {
     const { ctx } = recording([{ tabId: "bt-1" }], { path: "/tmp/eos-paste-x/browser-bt-1.jpeg" });
     const res = await browserScreenshotDef.handler(ctx, {});
     assert.deepEqual(res, { path: "/tmp/eos-paste-x/browser-bt-1.jpeg" });
+  });
+
+  it("browser_show POSTs ROUTES.browserShow with the parsed body (tabId kept — the daemon resolves the session)", async () => {
+    const { ctx, calls } = recording([{ tabId: "bt-1" }], { ok: true, tabId: "bt-9" });
+    const res = await browserShowDef.handler(ctx, { tabId: "bt-9" });
+    assert.deepEqual(calls, [{ method: "POST", path: ROUTES.browserShow, body: { tabId: "bt-9" } }]);
+    assert.deepEqual(res, { ok: true, tabId: "bt-9" });
+  });
+
+  it("browser_show with no tabId POSTs an empty body (present the session's active tab) — no tabs lookup", async () => {
+    const { ctx, calls } = recording();
+    await browserShowDef.handler(ctx, {});
+    assert.deepEqual(calls, [{ method: "POST", path: ROUTES.browserShow, body: {} }]);
   });
 
   it("browser_navigate rejects an invalid action before any daemon call", async () => {

@@ -12,6 +12,7 @@ function harness() {
     pid: number | null; backend_kind: string; archived_at: number | null;
   };
   const rows: Row[] = [
+    { id: "orch-1", name: "root", parent_id: null, state: "IDLE", pid: null, backend_kind: "claude-sdk", archived_at: null },
     { id: "w1", name: "parent", parent_id: "orch-1", state: "WORKING", pid: 10, backend_kind: "claude-cli", archived_at: null },
     { id: "w2", name: "child", parent_id: "w1", state: "IDLE", pid: null, backend_kind: "claude-sdk", archived_at: null },
   ];
@@ -26,6 +27,7 @@ function harness() {
   const backendStopped: string[] = [];
   const cancelled: Record<string, string[]> = { questions: [], peers: [], activity: [] };
   const published: Array<{ topic: string; payload: unknown }> = [];
+  const browserDisposed: string[] = [];
 
   const session = { stop: () => {} };
   const c = {
@@ -53,11 +55,12 @@ function harness() {
     pendingQuestions: { cancelByWorker: (id: string) => { cancelled.questions.push(id); } },
     pendingPeerRequests: { cancelByWorker: (id: string) => { cancelled.peers.push(id); } },
     backgroundActivity: { clearWorker: (id: string) => { cancelled.activity.push(id); } },
+    browser: { disposeSession: (id: string) => { browserDisposed.push(id); } },
   } as unknown as Container;
 
   const run = (addr: { id: string; actorId?: string }) =>
     archiveWorkerHandler.run(addr, undefined as never, { c } as never);
-  return { run, setArchived, markedDone, runtimeCleared, pendingDeleted, queueDeleted, escalated, backendStopped, cancelled, published };
+  return { run, setArchived, markedDone, runtimeCleared, pendingDeleted, queueDeleted, escalated, backendStopped, cancelled, published, browserDisposed };
 }
 
 describe("archiveWorkerHandler", () => {
@@ -92,6 +95,15 @@ describe("archiveWorkerHandler", () => {
     await h.run({ id: "w1" });
     assert.deepEqual(h.escalated, ["w1"]);
     assert.deepEqual(h.backendStopped, ["w2"]);
+  });
+
+  it("archiving a SESSION ROOT disposes its browser session; a mid-tree archive does not", async (t) => {
+    t.mock.timers.enable({ apis: ["setTimeout"] });
+    const h = harness();
+    await h.run({ id: "w1" });
+    assert.deepEqual(h.browserDisposed, [], "w1 has a parent — not a session root");
+    await h.run({ id: "orch-1" });
+    assert.deepEqual(h.browserDisposed, ["orch-1"]);
   });
 
   it("cancels in-memory pendings per subtree row; queued_messages stay untouched", async (t) => {

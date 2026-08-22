@@ -21,7 +21,11 @@ const emptyControl = (): LaneTooling => ({ items: [], tools: new Map() });
 
 describe("built-in tool descriptions — sourced from the prompt library", () => {
   it("every BUILTIN_TOOL_NAMES entry renders a non-empty description from its tool/<Name> fragment", () => {
-    const names = [...new Set(Object.values(BUILTIN_TOOL_NAMES))];
+    // KillBash is a legacy permission-category ALIAS of KillShell (builtin-tools.ts) —
+    // both spellings the bundled binary has shipped route to the shell category, but
+    // only KillShell is authored (registry + tool/KillShell fragment). The alias has no
+    // dedicated fragment on purpose, so it is not expected to render its own description.
+    const names = [...new Set(Object.values(BUILTIN_TOOL_NAMES))].filter((n) => n !== BUILTIN_TOOL_NAMES.KillBash);
     const d = renderToolDescriptions(promptsDir, names);
     for (const name of names) {
       assert.ok(d[name] && d[name].length > 0, `${name} has a description`);

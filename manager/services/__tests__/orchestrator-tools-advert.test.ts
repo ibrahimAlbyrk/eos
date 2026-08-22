@@ -15,12 +15,10 @@ describe("orchestrator tool overview — dynamic_loop advertisement", () => {
     assert.equal(TOOL_NAME_VARS.DYNAMIC_LOOP_TOOL, "dynamic_loop");
   });
 
-  it("the rendered tool overview advertises dynamic_loop with goal-decomposition guidance", () => {
+  it("the rendered tool overview advertises dynamic_loop as the goal gate", () => {
     const out = prompts.render("role/orchestrator/02-your-tools");
     assert.match(out, /dynamic_loop/);    // {{DYNAMIC_LOOP_TOOL}} interpolated, not a blank
-    assert.match(out, /goal/i);
-    assert.match(out, /criteria/i);       // decompose into checkable criteria
-    assert.match(out, /verify/i);         // verify commands prevent reward-hacking
-    assert.match(out, /command|judge|hybrid/); // strategy choice
+    assert.match(out, /goal gate/i);      // advertised as the goal gate
+    assert.match(out, /at spawn/i);       // prefer arming `loop` at spawn; decomposition detail lives in the tool's own description
   });
 });

@@ -78,9 +78,9 @@ describe("Claude-lane tier/persona vocabulary renders byte-equivalent", () => {
     assert.doesNotMatch(r.text, /\{\{[A-Z]/);
   });
 
-  it("orchestrator §Available workers example uses tier vocabulary, not a Claude alias", async () => {
+  it("orchestrator §Available workers guides model/effort in tier vocabulary, not a Claude alias", async () => {
     const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "orchestrator", parentId: null });
-    assert.match(r.text, /model: "high", effort: "high"/); // EFFORT_SUPPORTED gate open on Claude
-    assert.doesNotMatch(r.text, /model: "opus"/);
+    assert.match(r.text, /model\/effort fitted to the work/); // fit tier + effort per §Model (the example block was trimmed)
+    assert.doesNotMatch(r.text, /model: "opus"/);             // no hardcoded Claude-alias example
   });
 });

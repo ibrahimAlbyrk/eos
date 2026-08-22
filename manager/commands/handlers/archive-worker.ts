@@ -15,6 +15,10 @@ export const archiveWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, Archiv
     // Scope check before any side effect — a denied foreign archive must not
     // touch the subtree. CLI (operator) omits actorId.
     if (actorId) assertOwnedBy(c.workers, actorId, id);
+    // An archived session root's browser dies with it (tabs are ephemeral);
+    // the profile dir persists, so a restore just relaunches with logins.
+    const target = c.workers.findById(id);
+    const isSessionRoot = target != null && target.parent_id == null;
     const supervisorWithFind = c.supervisor as ReturnType<typeof createChildProcessSupervisor>;
     const result = archiveWorker(
       {
@@ -40,6 +44,7 @@ export const archiveWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, Archiv
       c.pendingPeerRequests.cancelByWorker(wid);
       c.backgroundActivity.clearWorker(wid);
     }
+    if (isSessionRoot) c.browser.disposeSession(id);
     return {
       status: 200,
       body: { id: result.id, archived: result.archived, was_state: result.wasState },

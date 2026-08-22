@@ -25,7 +25,7 @@ const BROWSER_TOOLS = [
   "browser_navigate", "browser_snapshot", "browser_find", "browser_act",
   "browser_type", "browser_fill_form", "browser_press", "browser_scroll",
   "browser_wait", "browser_get", "browser_screenshot", "browser_tabs",
-  "browser_new_tab", "browser_close_tab", "browser_mute",
+  "browser_new_tab", "browser_close_tab", "browser_mute", "browser_show",
 ];
 
 describe("tool registration — byte-identical to the legacy MCP modules", () => {

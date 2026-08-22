@@ -3,7 +3,6 @@
 // into module-scope globals.
 
 import { DatabaseSync } from "node:sqlite";
-import { tmpdir } from "node:os";
 import { join, resolve, sep } from "node:path";
 import { randomBytes } from "node:crypto";
 import { writeFileSync, readFileSync, unlinkSync, existsSync, realpathSync } from "node:fs";
@@ -176,7 +175,7 @@ import { BackgroundActivityService } from "./services/BackgroundActivityService.
 import { PendingPeerRequestService } from "./services/PendingPeerRequestService.ts";
 import { TerminalRunService } from "./services/TerminalRunService.ts";
 import { PtySessionService } from "./services/PtySessionService.ts";
-import { BrowserService } from "./services/BrowserService.ts";
+import { BrowserService, browserProfileDirFor } from "./services/BrowserService.ts";
 import { CdpBrowserAdapter } from "../infra/src/browser/CdpBrowserAdapter.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
@@ -621,17 +620,18 @@ export function buildContainer() {
   // Interactive multi-tab PTY sessions (the `pty` feature). Default cwd = the
   // daemon project root; a create request may override it.
   const ptySessions = new PtySessionService({ bus, defaultCwd: config.paths.repoRoot });
-  // Browser panel subsystem — ONE shared out-of-process Chrome over CDP,
-  // opt-in via config.browser.enabled (routes/service refuse while off).
-  // persistProfile keeps logins in ~/.eos/browser/ across restarts; off → a
-  // throwaway per-boot profile in the OS temp dir.
-  const browserProfileDir = config.browser.persistProfile
-    ? join(config.daemon.home, "browser", "profile")
-    : join(tmpdir(), `eos-browser-${process.pid}`);
+  // Browser panel subsystem — ONE persistent Chrome PER SESSION (parent-chain
+  // root worker) over CDP, opt-in via config.browser.enabled (routes/service
+  // refuse while off). Engines launch lazily on a session's first browser use;
+  // each has its own on-disk profile dir (~/.eos/browser/<sessionKey>, the
+  // global session keeps the wave-1 ~/.eos/browser/profile) so logins survive
+  // daemon restarts. persistProfile=false → throwaway per-boot profiles in the
+  // OS temp dir. perSession=false collapses everything onto the one global
+  // engine (wave-1 behavior).
   const browser = new BrowserService({
-    engine: new CdpBrowserAdapter({
+    engineFactory: (sessionKey) => new CdpBrowserAdapter({
       chromePath: config.browser.chromePath,
-      profileDir: browserProfileDir,
+      profileDir: browserProfileDirFor(config.daemon.home, config.browser.persistProfile, sessionKey),
       notify: (msg, meta) => log.warn(msg, meta),
     }),
     getConfig: () => config.browser,
@@ -905,7 +905,9 @@ export function buildContainer() {
     selfId: spec.workerId,
     cwd: spec.cwd,
     isGitRepo: () => spawnSync("git", ["rev-parse", "--git-dir"], { cwd: spec.cwd, encoding: "utf8" }).status === 0,
-    api: (method: string, path: string, body?: unknown) => daemonApi(sdkDaemonUrl, method, path, body),
+    // Identity header parity with the MCP lanes: session-scoped routes
+    // (browser) derive the caller's session from it, never from a body field.
+    api: (method: string, path: string, body?: unknown) => daemonApi(sdkDaemonUrl, method, path, body, { "x-eos-agent-id": spec.workerId }),
   });
   // Bare-named built-in tool surface (Read/Write/Edit/Bash/Glob/Grep/…) for the
   // in-process lane: one registry, cwd-scoped per spawn. Gated for free by the

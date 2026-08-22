@@ -31,6 +31,7 @@ function containerWith(rows: Row[], opts: { purgeOnAppClose?: boolean } = {}) {
   const alive = new Set(rows.map((r) => r.id));
   let supervisorHasCalls = 0;
   let backendsHasCalls = 0;
+  const browserDisposed: string[] = [];
   const c = {
     config: { archive: { retention: "off", purgeOnAppClose: opts.purgeOnAppClose ?? false } },
     log: { info: () => {}, warn: () => {} },
@@ -61,9 +62,11 @@ function containerWith(rows: Row[], opts: { purgeOnAppClose?: boolean } = {}) {
     worktreeRemovals: { enqueue: () => {} },
     bus: { publish: () => {} },
     clock: { now: () => 1 },
+    browser: { disposeSession: (id: string) => { browserDisposed.push(id); } },
   } as unknown as Container;
   return {
     c,
+    browserDisposed,
     get supervisorHasCalls() { return supervisorHasCalls; },
     get backendsHasCalls() { return backendsHasCalls; },
   };
@@ -182,11 +185,13 @@ describe("POST /workers/archived/app-closed — purge-on-app-close hook", () => 
       row("arch-root", { archived_at: 4000 }),
       row("arch-child", { parent_id: "arch-root", archived_at: 4000 }),
     ];
-    const { c } = containerWith(rows, { purgeOnAppClose: true });
+    const { c, browserDisposed } = containerWith(rows, { purgeOnAppClose: true });
     const out = await dispatch(c, "POST", "/workers/archived/app-closed");
     assert.equal(out.status, 200);
     // Roots only in the response — arch-child went with its root's cascade.
     assert.deepEqual((out.payload as { purged: string[] }).purged.sort(), ["arch-root", "w-arch"]);
+    // Each purged root's browser session is torn down with it.
+    assert.deepEqual(browserDisposed.sort(), ["arch-root", "w-arch"]);
     const archived = await dispatch(c, "GET", "/workers/archived");
     assert.deepEqual(archived.payload, []);
     const live = await dispatch(c, "GET", "/workers");

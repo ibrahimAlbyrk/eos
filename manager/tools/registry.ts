@@ -34,6 +34,7 @@ import { browserTabsDef } from "./defs/browser_tabs.ts";
 import { browserNewTabDef } from "./defs/browser_new_tab.ts";
 import { browserCloseTabDef } from "./defs/browser_close_tab.ts";
 import { browserMuteDef } from "./defs/browser_mute.ts";
+import { browserShowDef } from "./defs/browser_show.ts";
 
 // Browser verbs (Phase 3) — appended to BOTH the worker and orchestrator
 // surfaces, in this order. They stay on the control-plane MCP servers (so the
@@ -56,6 +57,7 @@ const browserDefs: ToolDefinition[] = [
   browserNewTabDef,
   browserCloseTabDef,
   browserMuteDef,
+  browserShowDef,
 ];
 
 // Order matches the legacy tool-registry arrays exactly — registration order is

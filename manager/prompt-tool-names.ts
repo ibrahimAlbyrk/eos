@@ -38,6 +38,7 @@ import { browserTabsDef } from "./tools/defs/browser_tabs.ts";
 import { browserNewTabDef } from "./tools/defs/browser_new_tab.ts";
 import { browserCloseTabDef } from "./tools/defs/browser_close_tab.ts";
 import { browserMuteDef } from "./tools/defs/browser_mute.ts";
+import { browserShowDef } from "./tools/defs/browser_show.ts";
 
 export const TOOL_NAME_VARS: VariableScope = {
   SPAWN_WORKER_TOOL: spawnWorkerDef.name,
@@ -74,6 +75,7 @@ export const TOOL_NAME_VARS: VariableScope = {
   BROWSER_NEW_TAB_TOOL: browserNewTabDef.name,
   BROWSER_CLOSE_TAB_TOOL: browserCloseTabDef.name,
   BROWSER_MUTE_TOOL: browserMuteDef.name,
+  BROWSER_SHOW_TOOL: browserShowDef.name,
 
   // Literal mustache delimiters. The template engine is strict — a raw "{{…}}" in
   // a prompt body is always parsed as an interpolation token (and throws if it

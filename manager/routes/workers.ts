@@ -201,6 +201,9 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     const purged = c.config.archive.purgeOnAppClose
       ? purgeAllArchived(archivePurgeDeps(c))
       : [];
+    // Purged subtree roots are session roots — tear down their browsers too
+    // (usually a no-op: archive already disposed them).
+    for (const id of purged) c.browser.disposeSession(id);
     writeJson(res, 200, { ok: true, purged });
   });
 

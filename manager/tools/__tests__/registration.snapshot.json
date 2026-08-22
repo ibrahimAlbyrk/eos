@@ -862,6 +862,17 @@
       ],
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_show": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to present; omit for your session's active tab"
+        }
+      },
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
     }
   },
   "worker": {
@@ -1223,6 +1234,17 @@
       "required": [
         "muted"
       ],
+      "additionalProperties": false,
+      "$schema": "http://json-schema.org/draft-07/schema#"
+    },
+    "browser_show": {
+      "type": "object",
+      "properties": {
+        "tabId": {
+          "type": "string",
+          "description": "Tab to present; omit for your session's active tab"
+        }
+      },
       "additionalProperties": false,
       "$schema": "http://json-schema.org/draft-07/schema#"
     }
