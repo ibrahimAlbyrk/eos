@@ -10,6 +10,9 @@ export interface BuildCtx {
   eosHome: string;
   /** ~/.eos/daemon.pid */
   pidFile: string;
+  /** ~/.eos/daemon.sock — probed before TCP so a saturated local port range
+   *  can't make a healthy daemon look dead. */
+  socketFile: string;
   force: boolean;
   dryRun: boolean;
   noApp: boolean;

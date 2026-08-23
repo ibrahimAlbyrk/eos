@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 
 import type { Command } from "./Command.ts";
-import { spawnDaemonDetached, waitHealthy } from "../daemon-lifecycle.ts";
+import { daemonPidAlive, probeDaemon, spawnDaemonDetached, unreachableHint, waitHealthy } from "../daemon-lifecycle.ts";
 
 export const startCommand: Command = {
   name: "start",
@@ -11,11 +11,19 @@ export const startCommand: Command = {
   async run(args, ctx): Promise<void> {
     const foreground = args.includes("-f") || args.includes("--foreground");
 
+    const socketFile = ctx.config.daemon.socketFile;
+
     if (foreground) {
-      try {
-        const r = await fetch(`${ctx.daemonUrl}/health`);
-        if (r.ok) { console.error(`daemon already running at ${ctx.daemonUrl}`); process.exit(1); }
-      } catch {}
+      const probe = await probeDaemon(ctx.daemonUrl, socketFile);
+      if (probe.state === "up") { console.error(`daemon already running at ${ctx.daemonUrl}`); process.exit(1); }
+      // Never boot a second daemon on the strength of a probe that could not be
+      // made: the ports would already be taken by the healthy one (EADDRINUSE).
+      if (probe.state === "unreachable") {
+        console.error(`cannot tell whether the daemon is running — ${unreachableHint(probe.code)}`);
+        process.exit(1);
+      }
+      const pid = daemonPidAlive(ctx.config.daemon.pidFile);
+      if (pid) { console.error(`daemon pid=${pid} is alive but not answering /health — stop it first (eos stop)`); process.exit(1); }
       const child = spawn(
         "node",
         // Match spawnDaemonDetached: 1024MB runaway guard, generous over the
@@ -29,17 +37,25 @@ export const startCommand: Command = {
       return;
     }
 
-    let alive = false;
-    try {
-      const r = await fetch(`${ctx.daemonUrl}/health`);
-      alive = r.ok;
-    } catch {}
-
-    if (!alive) {
+    const probe = await probeDaemon(ctx.daemonUrl, socketFile);
+    if (probe.state === "unreachable") {
+      console.error(`cannot reach the daemon — ${unreachableHint(probe.code)}`);
+      process.exit(1);
+    }
+    if (probe.state === "down") {
+      const stale = daemonPidAlive(ctx.config.daemon.pidFile);
+      if (stale) {
+        console.error(`daemon pid=${stale} is alive but not answering /health — stop it first (eos stop)`);
+        process.exit(1);
+      }
       console.log("starting daemon…");
       spawnDaemonDetached(ctx.repoRoot, join(ctx.config.daemon.logDir, "daemon.log"));
-      alive = (await waitHealthy(ctx.daemonUrl, 40)) !== null;
-      if (!alive) {
+      const health = await waitHealthy(ctx.daemonUrl, 40, socketFile);
+      if (health.state === "unreachable") {
+        console.error(`daemon started but cannot be reached — ${unreachableHint(health.code)}`);
+        process.exit(1);
+      }
+      if (health.state !== "up") {
         console.error("daemon failed to start — run `eos start -f` for foreground diagnostics");
         process.exit(1);
       }

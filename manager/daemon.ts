@@ -11,7 +11,7 @@
 // the Router to an HTTP server, and handles process-level signals.
 
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { unlinkSync } from "node:fs";
+import { chmodSync, unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { buildContainer } from "./container.ts";
@@ -409,7 +409,7 @@ for (const topic of ["worker:spawn", "worker:change", "worker:exit", "worker:rem
   c.bus.subscribe(topic, () => c.gitWatchReconciler.schedule());
 }
 
-function makeHandler(router: Router, opts: { cors?: boolean } = {}) {
+function makeHandler(router: Router, opts: { cors?: boolean; unixSocket?: boolean } = {}) {
   return async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
     c.metrics.requests++;
     const url = new URL(req.url ?? "/", `http://${req.headers.host}`);
@@ -447,7 +447,10 @@ function makeHandler(router: Router, opts: { cors?: boolean } = {}) {
     // server "upgrade" event and never arrives here. Anything from a non-loopback
     // peer means the bind was widened; reject it so the only off-box surface is
     // the E2E-terminating WS. No-op while bound to loopback (today's default).
-    if (!isLoopbackRequest(req)) {
+    // A unix-socket peer has no address to check: reaching the socket at all
+    // means the caller is on this host and holds 0600 filesystem access to it,
+    // which is a strictly narrower gate than "connected from 127.0.0.1".
+    if (!opts.unixSocket && !isLoopbackRequest(req)) {
       writeJson(res, 403, { error: "remote REST access is disabled; the only remote surface is the /ws gateway" });
       return;
     }
@@ -516,11 +519,51 @@ registerFsRawRoutes(rawRouter, c);
 const rawServer = createServer(makeHandler(rawRouter));
 applyKeepAlive(rawServer);
 
+// Unix-socket twin of the app/API server. Every local client that is not a
+// browser (CLI, MCP servers, the permission hook) talks to the daemon here, and
+// a UDS connection costs no ephemeral port at all — the TCP path burned one per
+// call, and once the local port range saturates with TIME_WAIT sockets *every*
+// outbound connect on the machine fails with EADDRNOTAVAIL.
+const unixServer = createServer(makeHandler(router, { unixSocket: true }));
+applyKeepAlive(unixServer);
+
+// A bind failure must END this process. It used to land in the uncaughtException
+// handler below, which logs and keeps going: the loser of an EADDRINUSE race
+// stayed alive with no listener at all AND had already overwritten the pid file,
+// so `eos stop`/`restart` then signalled the wrong pid while the real daemon ran on.
+function exitOnBindError(s: Server, what: string): void {
+  s.on("error", (e: Error & { code?: string }) => {
+    c.log.error("bind failed", { what, error: e.message, code: e.code ?? "" });
+    if (e.code === "EADDRINUSE") {
+      c.log.error("another daemon owns this endpoint — exiting instead of running without a listener", { what });
+    }
+    process.exit(1);
+  });
+}
+exitOnBindError(server, "api");
+exitOnBindError(rawServer, "raw");
+exitOnBindError(unixServer, "socket");
+
 server.listen(c.config.daemon.port, c.config.daemon.host, () => {
+  // Written HERE, not at container build: the pid file means "the daemon that
+  // owns the API port", and writing it before the bind let a failed start
+  // clobber the entry of the daemon that was actually serving.
+  try { writeFileSync(c.config.daemon.pidFile, String(process.pid)); } catch {}
   c.log.info("listening", {
     url: `http://${c.config.daemon.host}:${c.config.daemon.port}`,
     state: c.config.daemon.dbFile,
     logs: c.config.daemon.logDir,
+  });
+  // Only the process that WON the API port owns the socket path. Opening it
+  // earlier would let a losing daemon unlink the live daemon's socket (a UDS
+  // bind needs the path free) and take over the endpoint seconds before its own
+  // TCP bind failed. A path left behind by a crash is not a live listener but
+  // still fails bind, so clear it here. 0600: the socket skips the loopback
+  // check, so the file mode IS its access boundary.
+  try { unlinkSync(c.config.daemon.socketFile); } catch {}
+  unixServer.listen(c.config.daemon.socketFile, () => {
+    try { chmodSync(c.config.daemon.socketFile, 0o600); } catch {}
+    c.log.info("socket listening", { path: c.config.daemon.socketFile });
   });
 });
 rawServer.listen(c.config.daemon.rawPort, c.config.daemon.host, () => {
@@ -558,6 +601,7 @@ function shutdown(sig: string): void {
   try { c.browser.dispose(); } catch {}
   for (const id of ids) c.supervisor.escalateKill(id, 0);
   try { unlinkSync(c.config.daemon.pidFile); } catch {}
+  try { unlinkSync(c.config.daemon.socketFile); } catch {}
   try { c.db.close(); } catch {}
   setTimeout(() => process.exit(0), 1500);
 }

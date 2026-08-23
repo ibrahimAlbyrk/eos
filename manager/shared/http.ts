@@ -1,6 +1,44 @@
 // Shared HTTP helper for talking to the daemon. Used by cli.ts and
 // orchestrator-mcp.ts — each adds its own error policy on top.
 
+import { Agent, request } from "node:http";
+
+// Unix-socket transport, taken whenever the daemon exported EOS_DAEMON_SOCK into
+// this process (CLI, MCP servers, spawned workers). A UDS call costs no ephemeral
+// port, so daemon chatter can never saturate the local port range — the failure
+// mode where every connect() on the machine dies with EADDRNOTAVAIL. Without the
+// variable this stays on TCP `fetch` (pooled by undici).
+const socketAgent = new Agent({ keepAlive: true, keepAliveMsecs: 30_000, maxSockets: 8 });
+
+function socketRequest(
+  socketPath: string,
+  method: string,
+  path: string,
+  payload: string | null,
+  headers: Record<string, string>,
+): Promise<{ status: number; text: string }> {
+  return new Promise((resolve, reject) => {
+    const req = request(
+      {
+        socketPath,
+        path,
+        method,
+        agent: socketAgent,
+        headers: payload ? { ...headers, "content-length": Buffer.byteLength(payload) } : headers,
+      },
+      (res) => {
+        let text = "";
+        res.setEncoding("utf8");
+        res.on("data", (chunk: string) => { text += chunk; });
+        res.on("end", () => resolve({ status: res.statusCode ?? 0, text }));
+      },
+    );
+    req.on("error", reject);
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
 export interface DaemonFetchResult {
   ok: boolean;
   status: number;
@@ -29,18 +67,30 @@ export async function daemonFetch(
   body?: unknown,
   headers?: Record<string, string>,
 ): Promise<DaemonFetchResult> {
-  let res: Response;
   const merged = { ...(body ? { "content-type": "application/json" } : {}), ...(headers ?? {}) };
+  const payload = body === undefined ? null : JSON.stringify(body);
+  const socketPath = process.env.EOS_DAEMON_SOCK;
+  let status: number | null = null;
+  let raw = "";
   try {
-    res = await fetch(`${daemonUrl}${path}`, {
-      method,
-      headers: Object.keys(merged).length ? merged : undefined,
-      body: body ? JSON.stringify(body) : undefined,
-    });
+    // A socket file that is gone (daemon restarting) or unusable must not be a
+    // hard failure while the TCP port is still there — try it, then fall back.
+    if (socketPath) {
+      const r = await socketRequest(socketPath, method, path, payload, merged).catch(() => null);
+      if (r) { status = r.status; raw = r.text; }
+    }
+    if (status === null) {
+      const res = await fetch(`${daemonUrl}${path}`, {
+        method,
+        headers: Object.keys(merged).length ? merged : undefined,
+        body: payload ?? undefined,
+      });
+      status = res.status;
+      raw = await res.text();
+    }
   } catch (e) {
     return { ok: false, status: 0, body: null, raw: "", networkError: e as Error };
   }
-  const raw = await res.text();
   let parsed: unknown = raw;
   if (raw) {
     try { parsed = JSON.parse(raw); } catch { /* leave as string */ }
@@ -48,8 +98,8 @@ export async function daemonFetch(
     parsed = {};
   }
   // Treat 201 as success; the daemon returns 201 from POST /workers.
-  const ok = res.ok || res.status === 201;
-  return { ok, status: res.status, body: parsed, raw, networkError: null };
+  const ok = status >= 200 && status < 300;
+  return { ok, status, body: parsed, raw, networkError: null };
 }
 
 /**

@@ -29,10 +29,24 @@ if [ -n "${EOS_SPAWNED:-}" ] && \
         '{worker_id: $wid, tool_name: .tool_name, input: (.tool_input // {}), tool_use_id: (.tool_use_id // null), agent_id: (.agent_id // null)}' \
         2>/dev/null || echo "")
   if [ -n "$body" ]; then
-    decision=$(curl -sS --max-time "${EOS_POLICY_TIMEOUT_SEC:-3600}" -X POST \
-      -H 'content-type: application/json' \
-      -d "$body" \
-      "${EOS_DAEMON_URL}/policy/decide" 2>/dev/null || true)
+    # One curl process per tool call cannot pool connections, so over TCP each
+    # decision burned an ephemeral port that then sat in TIME_WAIT — thousands of
+    # tool calls saturate the local port range and then EVERY connect() on the
+    # machine fails with EADDRNOTAVAIL. The unix socket costs no port; the TCP
+    # URL stays as the fallback for when the socket isn't there.
+    if [ -n "${EOS_DAEMON_SOCK:-}" ] && [ -S "${EOS_DAEMON_SOCK}" ]; then
+      decision=$(curl -sS --max-time "${EOS_POLICY_TIMEOUT_SEC:-3600}" -X POST \
+        --unix-socket "${EOS_DAEMON_SOCK}" \
+        -H 'content-type: application/json' \
+        -d "$body" \
+        "http://localhost/policy/decide" 2>/dev/null || true)
+    fi
+    if [ -z "${decision:-}" ]; then
+      decision=$(curl -sS --max-time "${EOS_POLICY_TIMEOUT_SEC:-3600}" -X POST \
+        -H 'content-type: application/json' \
+        -d "$body" \
+        "${EOS_DAEMON_URL}/policy/decide" 2>/dev/null || true)
+    fi
     wrapped=$(printf '%s' "$decision" | jq -c '
       if (type == "object") and (.behavior != null) and (.behavior == "allow" or .behavior == "deny") then {
         hookSpecificOutput: ({

@@ -172,8 +172,13 @@ export function buildContainer() {
   let config: DaemonConfig = loadConfig();
   const log = createLogger("daemon");
 
-  // PID file ----------------------------------------------------------------
-  try { writeFileSync(config.daemon.pidFile, String(process.pid)); } catch {}
+  // Unix-socket endpoint, published into the daemon's OWN env so every child
+  // that builds its environment by spreading process.env (PTY worker, SDK child,
+  // MCP servers, hooks) inherits it and talks to the daemon over the socket
+  // instead of spending an ephemeral port per call. The listener itself is
+  // opened in daemon.ts; daemonFetch falls back to TCP until it is up.
+  process.env.EOS_DAEMON_SOCK = config.daemon.socketFile;
+
 
   // User-data backup before opening the DB -----------------------------------
   try {
@@ -523,6 +528,9 @@ export function buildContainer() {
     const baseEnv = {
       ...process.env,
       EOS_DAEMON_URL: `http://127.0.0.1:${config.daemon.port}`,
+      // Preferred transport for everything that isn't a browser: no ephemeral
+      // port per call, so MCP/hook chatter can't exhaust the local port range.
+      EOS_DAEMON_SOCK: config.daemon.socketFile,
       EOS_WORKER_ID: input.id,
     };
     const node = (script: string, extraEnv?: Record<string, string>) => ({

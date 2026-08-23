@@ -3,6 +3,38 @@ import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Command } from "./Command.ts";
+import { probeDaemon, unreachableHint } from "../daemon-lifecycle.ts";
+import { parsePortPressure } from "../port-pressure.ts";
+
+// Ephemeral-port pressure. A saturated range is the failure that masquerades as
+// every other failure: health probes, worker spawns and API calls all die with
+// EADDRNOTAVAIL while the daemon itself is perfectly fine.
+function checkPortPressure(ok: (m: string) => void, warn: (m: string) => void): void {
+  if (process.platform !== "darwin") return;
+  let first: number;
+  let last: number;
+  let netstat: string;
+  try {
+    const sysctl = (key: string): number =>
+      Number(execSync(`sysctl -n ${key}`, { encoding: "utf8" }).trim());
+    first = sysctl("net.inet.ip.portrange.first");
+    last = sysctl("net.inet.ip.portrange.last");
+    netstat = execSync("netstat -an -p tcp", { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  } catch {
+    return;
+  }
+  if (!Number.isFinite(first) || !Number.isFinite(last) || last <= first) return;
+
+  const p = parsePortPressure(netstat, first, last);
+  const summary = `ephemeral ports ${p.pct}% held in TIME_WAIT (${p.timeWait}/${p.capacity}, range ${first}-${last})`;
+  if (p.pct < 70) {
+    ok(summary);
+    return;
+  }
+  warn(`${summary} — near exhaustion; at 100% every local connect fails with EADDRNOTAVAIL`);
+  for (const d of p.topDestinations) console.log(`      ${d.count} → ${d.dest}`);
+  console.log("      free the range: sudo sysctl -w net.inet.tcp.msl=1000   (TIME_WAIT 30s → 2s)");
+}
 
 export const doctorCommand: Command = {
   name: "doctor",
@@ -16,13 +48,15 @@ export const doctorCommand: Command = {
 
     console.log("eos doctor\n");
 
-    let daemonUp = false;
-    try {
-      const r = await fetch(`${ctx.daemonUrl}/health`);
-      daemonUp = r.ok;
-    } catch {}
+    // Socket-first: doctor is the tool you reach for when nothing connects, so it
+    // must not depend on the very thing that is broken (a TCP connect).
+    const probe = await probeDaemon(ctx.daemonUrl, ctx.config.daemon.socketFile);
+    const daemonUp = probe.state === "up";
     if (daemonUp) ok(`daemon reachable at ${ctx.daemonUrl}`);
+    else if (probe.state === "unreachable") warn(`daemon state unknown — ${unreachableHint(probe.code)}`);
     else warn(`daemon not reachable at ${ctx.daemonUrl} (start it with: eos start)`);
+
+    checkPortPressure(ok, warn);
 
     try {
       const s = statSync(home);

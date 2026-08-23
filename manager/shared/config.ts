@@ -44,6 +44,7 @@ export interface DaemonConfig {
     home: string;            // ~/.eos
     logDir: string;          // ~/.eos/logs
     pidFile: string;         // ~/.eos/daemon.pid
+    socketFile: string;      // ~/.eos/daemon.sock — unix-socket twin of the HTTP API
     dbFile: string;          // ~/.eos/state.db
     sseKeepaliveMs: number;
   };
@@ -331,6 +332,7 @@ export function defaults(): DaemonConfig {
       home,
       logDir: join(home, "logs"),
       pidFile: join(home, "daemon.pid"),
+      socketFile: join(home, "daemon.sock"),
       dbFile: join(home, "state.db"),
       sseKeepaliveMs: envNum("EOS_SSE_KEEPALIVE_MS", 25000),
     },

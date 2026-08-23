@@ -49,6 +49,7 @@ export const buildCommand: Command = {
         daemonUrl: ctx.daemonUrl,
         eosHome: ctx.config.daemon.home,
         pidFile: ctx.config.daemon.pidFile,
+        socketFile: ctx.config.daemon.socketFile,
         force: args.includes("--force"),
         dryRun: args.includes("--dry-run"),
         noApp: args.includes("--no-app"),

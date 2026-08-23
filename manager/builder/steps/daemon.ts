@@ -6,7 +6,7 @@
 import { join } from "node:path";
 
 import { HealthResponseSchema } from "../../../contracts/src/http.ts";
-import { spawnDaemonDetached, stopDaemonAndOrphans, waitHealthy } from "../../cli/daemon-lifecycle.ts";
+import { spawnDaemonDetached, stopDaemonAndOrphans, unreachableHint, waitHealthy } from "../../cli/daemon-lifecycle.ts";
 import { computeBackendStamp } from "../backend-stamp.ts";
 import type { BuildCtx, BuildStep } from "../BuildStep.ts";
 
@@ -49,11 +49,14 @@ export const daemonStep: BuildStep = {
     if (agents) ctx.log(`  ${agents} agent(s) will suspend and resume`);
     await stopDaemonAndOrphans(ctx.pidFile);
     spawnDaemonDetached(ctx.repoRoot, join(ctx.eosHome, "logs", "daemon.log"));
-    const body = await waitHealthy(ctx.daemonUrl, 40);
-    if (body === null) {
+    const health = await waitHealthy(ctx.daemonUrl, 40, ctx.socketFile);
+    if (health.state === "unreachable") {
+      throw new Error(`daemon spawned but cannot be reached — ${unreachableHint(health.code)}`);
+    }
+    if (health.state !== "up") {
       throw new Error("daemon failed to start — run `eos start -f` for foreground diagnostics");
     }
-    const parsed = HealthResponseSchema.safeParse(body);
+    const parsed = HealthResponseSchema.safeParse(health.body);
     const got = parsed.success ? parsed.data.sourceStamp : null;
     // One bounded recheck: apply may race a legitimate source edit.
     if (got !== desired && got !== computeBackendStamp(ctx.repoRoot, configJsonPath(ctx))) {

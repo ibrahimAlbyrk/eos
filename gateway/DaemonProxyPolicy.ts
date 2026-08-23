@@ -20,12 +20,20 @@ export function createDaemonProxyPolicy(opts: DaemonProxyOptions): PolicyResolve
       const timeoutMs = parseInt(process.env.EOS_POLICY_TIMEOUT_MS ?? "", 10) || 3_600_000;
       const timer = setTimeout(() => ac.abort(), timeoutMs);
       try {
-        const r = await fetch(`${opts.daemonUrl}/policy/decide`, {
+        // Prefer the daemon's unix socket: a decision is requested per tool call,
+        // and over TCP each one can spend an ephemeral port — once the local range
+        // saturates, fetch fails and this resolver fail-closes, i.e. every tool
+        // call is denied. `unix` is a Bun fetch option (this process is Bun);
+        // where it is absent the URL host is used, which is the old behavior.
+        const socketPath = process.env.EOS_DAEMON_SOCK;
+        const init: Record<string, unknown> = {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ worker_id: opts.workerId, tool_name, input, tool_use_id }),
           signal: ac.signal,
-        });
+        };
+        if (socketPath) init.unix = socketPath;
+        const r = await fetch(`${opts.daemonUrl}/policy/decide`, init as Parameters<typeof fetch>[1]);
         const parsed = ExternalDecisionSchema.safeParse(await r.json());
         if (!parsed.success)
           return { behavior: "deny", message: `invalid decision: ${parsed.error.message}` };

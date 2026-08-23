@@ -16,6 +16,7 @@ function makeCtx(overrides: Partial<BuildCtx> = {}): BuildCtx {
     daemonUrl: "http://127.0.0.1:0",
     eosHome: home,
     pidFile: join(home, "daemon.pid"),
+    socketFile: join(home, "daemon.sock"),
     force: false,
     dryRun: false,
     // noApp keeps the relaunch epilogue inert so tests never touch pgrep/osascript.

@@ -15,6 +15,11 @@ const CONFIG = loadConfig();
 // EOS_URL is kept as a separate override so callers can point the CLI
 // at a non-default daemon without writing a full config.json.
 const DAEMON_URL = process.env.EOS_URL ?? `http://${CONFIG.daemon.host}:${CONFIG.daemon.port}`;
+// Talk to the daemon over its unix socket: an `eos` invocation is short-lived,
+// so its TCP connection could never be reused and each call spent an ephemeral
+// port. daemonFetch reads this and falls back to TCP if the socket isn't there.
+// Skipped when EOS_URL points the CLI at some other daemon.
+if (!process.env.EOS_URL) process.env.EOS_DAEMON_SOCK = CONFIG.daemon.socketFile;
 const LOG_DIR = CONFIG.daemon.logDir;
 const REPO_ROOT = CONFIG.paths.repoRoot;
 
