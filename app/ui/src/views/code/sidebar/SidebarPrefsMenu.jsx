@@ -16,9 +16,9 @@ import { setArchiveViewing } from "../../../state/archiveStore.js";
 // data-popover so the outside-click plumbing treats it as part of the menu.
 
 const SECTIONS = [
-  { key: "groupBy", label: "Group by", options: [["folder", "Folder"], ["date", "Date"], ["custom", "Custom"]] },
-  { key: "sortBy", label: "Sort by", options: [["alpha", "Alphabetically"], ["created", "Created time"], ["recency", "Recency"]] },
   { key: "status", label: "Status", options: [["all", "All"], ["active", "Active"], ["archived", "Archived"]] },
+  { key: "sortBy", label: "Sort by", options: [["alpha", "Alphabetically"], ["created", "Created time"], ["recency", "Recency"]] },
+  { key: "groupBy", label: "Group by", options: [["folder", "Folder"], ["date", "Date"], ["custom", "Custom"]] },
 ];
 
 function CheckMark() {
