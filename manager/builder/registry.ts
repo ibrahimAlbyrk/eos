@@ -1,13 +1,13 @@
 // Ordered step list — same registry pattern as cli/commands/registry.ts.
-// Order is the deploy dependency order: deps before builds, daemon restart
-// after artifacts, app relaunch runs as the engine epilogue.
+// Order is the deploy dependency order: deps before the daemon restart. The GUI
+// app (formerly the Swift Eos.app rebuilt+relaunched here) is now the Electron
+// package at app/, which OWNS its own UI build — `cd app && npm run make` builds
+// app/ui/dist. eos build no longer builds the web UI, the app, or relaunches it.
 
 import type { BuildStep } from "./BuildStep.ts";
-import { appStep } from "./steps/app.ts";
 import { daemonStep } from "./steps/daemon.ts";
 import { depsSteps } from "./steps/deps.ts";
-import { webStep } from "./steps/web.ts";
 
 export function buildSteps(): BuildStep[] {
-  return [...depsSteps(), webStep, appStep, daemonStep];
+  return [...depsSteps(), daemonStep];
 }

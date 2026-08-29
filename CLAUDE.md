@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-`Eos` is an orchestration layer over Claude Code. A persistent "orchestrator" agent decomposes a task and spawns worker agents (via MCP tools), each in its own git worktree; workers may spawn sub-workers and consult peers. A daemon supervises everything; a React 18 + Vite web UI, an `eos` CLI, and a native macOS app (WKWebView in `app/`) observe and control it live. State + a full event log live in SQLite (WAL) and stream out over SSE in ~100ms.
+`Eos` is an orchestration layer over Claude Code. A persistent "orchestrator" agent decomposes a task and spawns worker agents (via MCP tools), each in its own git worktree; workers may spawn sub-workers and consult peers. A daemon supervises everything; a React 18 + Vite web UI, an `eos` CLI, and a native macOS app (Electron in `app/`) observe and control it live. State + a full event log live in SQLite (WAL) and stream out over SSE in ~100ms.
 
 ## Architecture
 
@@ -17,7 +17,7 @@ infra/       adapters for core ports (SQLite, child_process, chokidar, in-proces
 gateway/     MCP permission broker (Bun)
 spawner/     claude-cli (PTY) worker lifecycle: delivery, jsonl ingest, worktree (Node only)
 manager/     daemon · CLI · MCP tools (tools/defs/) · backends/ · routes/ · prompts/ · services/
-app/ · app/ui/   native macOS shell + the React dashboard (bundled into Eos.app, loaded via eos://app/)
+app/ · app/ui/   Electron desktop shell (Forge, main+preload) + the nested React dashboard (bundled into the app, loaded via eos://app/)
 ```
 
 **Backend abstraction** is the central concept (`core/src/ports/AgentBackend.ts`). An agent session is reached through an `AgentBackend` adapter with a `BackendDescriptor` + `AgentCapabilities`. Three lanes:
@@ -35,8 +35,9 @@ npm run lint                      # repo root — enforces dependency direction 
 cd manager && npm test            # tsx --test across manager/* suites, core, spawner
 cd contracts && npm test          # contracts/ · infra/ · core/ each have their own suite — run separately
 cd app/ui && npm test             # web suite (vitest run)
-cd app/ui && npm run build        # production build → dist/ (bundled into Eos.app)
-bash app/build.sh                 # native macOS app → /Applications/Eos.app
+cd app/ui && npm run build        # production build → dist/ (bundled into the Electron app)
+cd app && npm start               # run the Electron desktop app (dev) against the running daemon
+cd app && npm run make            # package the Electron app → app/out/ (see app/README.md)
 ```
 
 Single test: `cd manager && npx tsx --test --test-name-pattern="config" shared/__tests__/config.test.ts` · `cd app/ui && npx vitest run match`.

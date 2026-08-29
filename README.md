@@ -133,7 +133,7 @@ You talk to a persistent **orchestrator**. It breaks your instruction into piece
 | **In-app Git** | Branches, deterministic push / fast-forward pull (no agent turn spent), diff + commit viewers, a hunk-level conflict resolver, PRs via `gh`, a **Try** stack, and `integrate_workers` to merge a swarm's branches. |
 | **Policy gateway** | YAML decides every tool call: `allow` · `deny` · `ask` (long-poll a human, no timeout) · `rewrite`. Per-worker permission modes, inline approval banners, full audit log. |
 | **Assembled prompts (DPI)** | System prompts composed per-spawn from a central library, selected by role and context — never hardcoded. Project memory + reusable templates are first-class. |
-| **Three ways in, one daemon** | React 18 web UI · `eos` CLI · native macOS app (WKWebView). ⌘K palette, session resume that survives daemon restarts, per-worker token pricing (display-only). |
+| **Three ways in, one daemon** | React 18 web UI · `eos` CLI · native macOS app (Electron). ⌘K palette, session resume that survives daemon restarts, per-worker token pricing (display-only). |
 
 <!-- Optional screenshots — drop files in assets/ and uncomment any you like:
 <p align="center"><img src="assets/eos-split-screen.png" alt="Split-screen — four live transcripts" width="100%"></p>
@@ -207,8 +207,8 @@ infra/       adapters for core ports — SQLite, child_process, chokidar, …
 gateway/     MCP permission broker (runs on Bun)
 spawner/     worker.ts — PTY lifecycle, verified delivery, JSONL ingest (Node only)
 manager/     daemon · CLI · MCP tools · routes · prompt library
-app/         native macOS shell — main.swift WKWebView → Eos.app
-app/ui/      React 18 + Vite dashboard, bundled into Eos.app
+app/         native macOS shell — Electron (Forge, main+preload) → app/out/
+app/ui/      React 18 + Vite dashboard (nested), bundled into the Electron app
 ```
 
 User data lives in **`~/.eos`** — `state.db`, `policy.yaml`, `config.json`, `templates/`, `logs/`, startup `backups/`. Non-regenerable; never destroyed by tooling.

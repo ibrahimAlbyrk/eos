@@ -10,8 +10,9 @@ while [ -h "$src" ]; do
 done
 ROOT="$(cd -P "$(dirname "$src")/.." && pwd)"
 
-# Order matters: core/infra use file: deps on contracts/core.
-PACKAGES=(contracts core infra gateway spawner manager app/ui .)
+# Order matters: core/infra use file: deps on contracts/core. `app` is the
+# Electron desktop shell (installs electron/forge); `app/ui` is its nested React UI.
+PACKAGES=(contracts core infra gateway spawner manager app/ui app .)
 
 for pkg in "${PACKAGES[@]}"; do
   echo "==> installing $pkg"

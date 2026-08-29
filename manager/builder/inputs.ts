@@ -62,39 +62,6 @@ export function depsSpec(repoRoot: string, dir: string): StampSpec {
   };
 }
 
-export function webSpec(repoRoot: string): StampSpec {
-  const webRoot = join(repoRoot, "app", "ui");
-  return {
-    trees: [
-      { root: join(webRoot, "src"), prefix: "src", exclude: baseExclude },
-      { root: join(webRoot, "public"), prefix: "public", exclude: baseExclude },
-    ],
-    files: ["index.html", "vite.config.js", "package.json", "package-lock.json"].map((f) => ({
-      path: join(webRoot, f),
-      label: f,
-    })),
-    extra: { node: process.version },
-  };
-}
-
-export function appSpec(repoRoot: string): StampSpec {
-  // app/build.sh bundles the web build output into Resources/ui, so the app
-  // bundle is stale whenever the UI sources change — fold the web inputs in
-  // alongside the native shell (the icon source logo.png is covered by the
-  // web public tree).
-  const web = webSpec(repoRoot);
-  return {
-    trees: web.trees,
-    files: [
-      { path: join(repoRoot, "app", "main.swift"), label: "app/main.swift" },
-      { path: join(repoRoot, "app", "Info.plist"), label: "app/Info.plist" },
-      { path: join(repoRoot, "app", "build.sh"), label: "app/build.sh" },
-      ...web.files,
-    ],
-    extra: { node: process.version },
-  };
-}
-
 export function backendSpec(repoRoot: string, configJsonPath: string): StampSpec {
   return {
     trees: [
