@@ -5251,6 +5251,17 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 }
 @keyframes ag-pulse { 50% { opacity: 0.45; } }
 
+/* Saved-layout row: an unsaved-changes dot (current split diverged from the
+   active group) and the full-screen backdrop that dismisses the row's menu. */
+.agents-row .lg-dirty {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.lg-menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+
 /* ============================================================================
    Hierarchical tree (orchestrator → workers → sub-agents)
    ============================================================================ */
@@ -10284,6 +10295,10 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top
    letterbox. Mobile/Tablet keep .browser-canvas (aspect ratio) inside the
    DeviceFrame letterbox. */
 .browser-canvas.is-fill { width: 100%; height: 100%; }
+/* Embedded lane: a native WebContentsView is composited over this region by the
+   main process (it cannot be a DOM child). The placeholder just reserves the box
+   and carries the surface background so there is no flash before the view paints. */
+.browser-native-region { flex: 1; align-self: stretch; width: 100%; height: 100%; background: var(--surface-2, var(--bg)); }
 .browser-empty {
   position: absolute;
   inset: 0;
@@ -10420,9 +10435,15 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top
   position: absolute;
   inset: 0;
   z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The native view is hidden while annotating, so the layer carries its own
+     neutral backdrop around the contained still (matches the panel surface). */
+  background: var(--surface-2, var(--bg));
 }
-.annotation-surface { position: absolute; top: 0; left: 0; width: 100%; line-height: 0; }
-.annotation-freeze { display: block; width: 100%; height: auto; background: #fff; }
+.annotation-surface { position: relative; line-height: 0; }
+.annotation-freeze { display: block; width: 100%; height: 100%; background: #fff; }
 .annotation-draw { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
 .annotation-text-input {
   position: absolute;
@@ -10480,28 +10501,32 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top
     0 0 0 4px var(--accent);
 }
 
-/* ---- Element picker overlay (P7) — appended after the annotation block ----- */
-/* Transparent surface pinned over the canvas box (top-pinned, full width, same
-   aspect as the viewport), so the live page keeps streaming underneath while the
-   pointer is captured here for hover-highlight + click-to-attach. */
-.picker-surface {
+/* ---- Element picker overlay (P7) — reimplemented for the embedded view ------ */
+/* During picking the native WebContentsView is on top of this layer and Chromium
+   renders its own inspect highlight over the live page — so the layer is empty
+   then. Once an element is picked the native view is hidden and the layer shows
+   the result card over a light scrim (a click anywhere dismisses it). */
+.picker-layer {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
+  inset: 0;
   z-index: 3;
-  cursor: crosshair;
 }
-.picker-highlight {
+.picker-layer.has-result {
+  background: rgba(0, 0, 0, 0.16);
+  cursor: default;
+}
+.picker-added {
   position: absolute;
-  box-sizing: border-box;
-  pointer-events: none;
-  border: 2px solid var(--accent);
-  background: rgba(var(--tint), 0.14);
-  border-radius: 2px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
 }
-/* Hover card — same floating glass-pop plane as the composer's slash/paste
-   popovers; positioned by inline left/top from the cursor. */
+/* Result card — same floating glass-pop plane as the composer's slash/paste
+   popovers; positioned by inline left/top. */
 .picker-popover {
   position: absolute;
   z-index: 4;

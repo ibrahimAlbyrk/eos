@@ -7,6 +7,8 @@ import { groupAgents } from "../../../lib/agentGrouping.js";
 import { sortRoots } from "../../../lib/agentSorting.js";
 import { useSidebarPrefs } from "../../../state/sidebarPrefsStore.js";
 import { useCustomGroups } from "../../../state/customGroupsStore.js";
+import { setActiveGroup } from "../../../state/layoutGroupsStore.js";
+import { leaf } from "../../../lib/paneLayout.js";
 import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../../../state/loopCheckStore.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { ArchiveNode } from "./ArchiveNode.jsx";
@@ -134,9 +136,15 @@ function TreeNode({ node, onRename, variant = "full" }) {
   const isRenaming = renameActive && ui.renamingId === node.id;
 
   const onClick = (e) => {
-    // Cmd-click toggles the agent as a split pane; plain click selects it.
-    if (e.metaKey) ui.togglePaneForAgent(node.id);
+    // Cmd-click toggles the agent as a split pane (unchanged). Plain click yields
+    // a single-pane fullscreen of this agent (Plan B): in a split, collapse to one
+    // fresh leaf; already single-pane, swap the agent in place (keep-alive, no
+    // remount). Either way, drop the active layout-group marker — the tree no
+    // longer matches a saved group.
+    if (e.metaKey) { ui.togglePaneForAgent(node.id); return; }
+    if (ui.paneCount > 1) ui.setLayout(leaf(node.id));
     else ui.selectAgent(node.id);
+    setActiveGroup(null);
   };
   const onCtx = (e) => {
     e.preventDefault();
