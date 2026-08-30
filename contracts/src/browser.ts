@@ -1,9 +1,9 @@
 // Browser subsystem — every shape the daemon, the panel and the `browser_*`
-// agent tools share. The daemon owns ONE out-of-process Chrome over CDP; a
-// tabId is Eos-minted and the CDP targetId never leaves the daemon, so this
-// file is the entire surface a client (UI or agent) ever sees. Frame bytes are
-// deliberately absent: they ride the dedicated binary WebSocket
-// (/browser/stream), never JSON.
+// agent tools share. The human sees a real embedded WebContentsView in the app
+// (driven over /browser/host); a headless Chrome-over-CDP adapter is the
+// fallback. A tabId is Eos-minted and never leaks the CDP targetId, so this file
+// is the entire JSON surface a client (UI or agent) ever sees — there is no
+// pixel/frame path here.
 
 import { z } from "zod";
 

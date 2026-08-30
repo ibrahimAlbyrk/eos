@@ -1,8 +1,9 @@
 // CdpBrowserAdapter — the BrowserEngine port over one supervised Google Chrome
-// child, driven with raw CDP through --remote-debugging-pipe (cdpPipe.ts).
-// Screencast parameters and launch flags follow the measured spike
-// (browser-research/spike-cdp-screencast.md): jpeg only, everyNthFrame
-// strictly 1, --force-device-scale-factor=2 or every frame arrives 1x.
+// child, driven with raw CDP through --remote-debugging-pipe (cdpPipe.ts). This
+// is the HEADLESS FALLBACK: used when no Electron app has registered as browser
+// host (CI, cron, `eos start` with no GUI). It implements only the AUTOMATION
+// half of the port — the human sees the native embedded WebContentsView in the
+// app, never a screencast, so no frame streaming/input-forwarding lives here.
 //
 // Ref lifecycle (the load-bearing detail): `@eN` refs are minted per tab by
 // snapshot/find/elementAt, backed by backendNodeId, and the map is cleared on
@@ -18,14 +19,11 @@ import type {
   BrowserActVerb,
   BrowserEngine,
   BrowserEngineTabInfo,
-  BrowserFrame,
   BrowserGetWhat,
-  BrowserInputEvent,
   BrowserNavigateAction,
   BrowserScrollDirection,
   BrowserSnapshotOptions,
   BrowserSnapshotResult,
-  DisplaySize,
 } from "../../../core/src/ports/BrowserEngine.ts";
 import { StaleRefError } from "../../../core/src/ports/BrowserEngine.ts";
 import type { BrowserDevice, BrowserElement } from "../../../contracts/src/browser.ts";
@@ -69,40 +67,6 @@ const MAX_STITCHED_DEVICE_PX = 32000;
 const FIND_MATCH_CAP = 10;
 const TEXT_CAP = 40_000;
 
-// Screencast geometry. RESPONSIVE streams 1:1 with the panel (native device px)
-// at jpeg q85 — a loopback stream, so bytes are ~free and the spike sustained
-// q80/1440 at 60fps; this kills the "144p" upscale-plus-low-quality look.
-// Native px is capped so an enormous panel can't runaway the encoder.
-const RESPONSIVE_QUALITY = 85;
-const MAX_STREAM_PX = 2560;
-// Mobile/Tablet keep the P2 params EXACTLY — the human is happy with them; only
-// the Responsive branch changed.
-const FIXED_QUALITY = 60;
-const FIXED_MAX_WIDTH = 1024;
-const FIXED_MAX_HEIGHT = 4096;
-// devicePixelRatio → CDP deviceScaleFactor: guard a missing/absurd value.
-function clampDpr(dpr: number): number {
-  return Math.min(Math.max(dpr || 2, 1), 4);
-}
-
-// Pure screencast geometry from device + panel display. RESPONSIVE streams 1:1
-// with the panel at its native device px (cssWidth*dpr), capped, at q85 — no
-// upscale blur. Mobile/Tablet keep the P2 params unchanged. Exported for tests.
-export function streamGeometry(
-  device: BrowserDevice,
-  display: DisplaySize,
-): { quality: number; maxWidth: number; maxHeight: number } {
-  if (device !== "responsive") {
-    return { quality: FIXED_QUALITY, maxWidth: FIXED_MAX_WIDTH, maxHeight: FIXED_MAX_HEIGHT };
-  }
-  const dsf = clampDpr(display.dpr);
-  return {
-    quality: RESPONSIVE_QUALITY,
-    maxWidth: Math.min(Math.round(display.cssWidth * dsf), MAX_STREAM_PX),
-    maxHeight: Math.min(Math.round(display.cssHeight * dsf), MAX_STREAM_PX),
-  };
-}
-
 // LAUNCH MODE — every launch flag lives in this one function. AUDIO IS IN
 // SCOPE: Chrome plays straight to the system output device (never pass
 // --mute-audio); only pictures travel over CDP. The audio spike CONFIRMED
@@ -134,14 +98,10 @@ interface Tab {
   targetId: string;
   sessionId: string;
   loading: boolean;
-  screencast: ((frame: BrowserFrame) => void) | null;
   refs: Map<string, number>; // "@eN" -> backendNodeId; cleared on navigation
   refCounter: number;
   pendingHistoryReset: boolean; // erase the about:blank bootstrap on first real commit
-  screencastParams: { quality: number; maxWidth: number; maxHeight: number } | null; // last CDP screencast params, for the post-capture restart kick
-  display: DisplaySize | null; // last panel display size (drives RESPONSIVE viewport + native stream)
   userMuted: boolean;
-  silenced: boolean;
   device: BrowserDevice;
   viewport: { width: number; height: number };
   audioGuardId: string | null; // addScriptToEvaluateOnNewDocument identifier
@@ -191,11 +151,6 @@ export class CdpBrowserAdapter implements BrowserEngine {
     return this.cdp != null && !this.cdp.isClosed();
   }
 
-  viewport(tabId?: string): { width: number; height: number } {
-    const tab = tabId ? this.tabs.get(tabId) : undefined;
-    return tab ? { ...tab.viewport } : { ...VIEWPORT };
-  }
-
   // The foreground tab, iff it is still a live tab — the omitted-tabId default.
   // foregroundTabId is set by openTab/bringToFront (a subscribe brings its tab
   // to front) and cleared on close/crash; guard against a stale id anyway so a
@@ -234,7 +189,6 @@ export class CdpBrowserAdapter implements BrowserEngine {
       this.foregroundTabId = null;
       for (const cb of this.exitCbs) cb({ code });
     });
-    cdp.on("Page.screencastFrame", (params, sessionId) => this.onScreencastFrame(params, sessionId));
     // Loading state per tab — drives BrowserTab.loading (setLoading notifies).
     cdp.on("Page.frameStartedLoading", (_p, sessionId) => this.setLoading(sessionId, true));
     cdp.on("Page.frameStoppedLoading", (_p, sessionId) => this.setLoading(sessionId, false));
@@ -288,23 +242,15 @@ export class CdpBrowserAdapter implements BrowserEngine {
 
   async openTab(url: string): Promise<string> {
     const cdp = this.mustCdp();
-    // A live screencast means a panel is watching. A plain createTarget makes
-    // the new target the foreground, and a BACKGROUND TARGET EMITS ZERO FRAMES
-    // — the watched panel would freeze/white out the moment any tab opens
-    // (bugfix harness 11-fgloss: frames drop to 0 instantly). Open in the
-    // background instead; a panel that switches to the new tab foregrounds it
-    // through its subscribe (startScreencast → bringToFront).
-    const watched = this.streamingTab() != null;
     // Start at about:blank so the audio guard is registered BEFORE the first
     // real document — late injection provably fails (audio spike).
-    const { targetId } = (await cdp.send("Target.createTarget", { url: "about:blank", ...(watched ? { background: true } : {}) })) as { targetId: string };
+    const { targetId } = (await cdp.send("Target.createTarget", { url: "about:blank" })) as { targetId: string };
     const { sessionId } = (await cdp.send("Target.attachToTarget", { targetId, flatten: true })) as { sessionId: string };
     await cdp.send("Page.enable", {}, sessionId);
     await cdp.send("DOM.enable", {}, sessionId);
     await cdp.send("Accessibility.enable", {}, sessionId);
     const { identifier } = (await cdp.send("Page.addScriptToEvaluateOnNewDocument", { source: audioGuardSource(false), runImmediately: true }, sessionId)) as { identifier: string };
-    // Deterministic CSS viewport (the launch flag already fixes dsf=2; the
-    // spike verified the flag, not this override, is what governs frame scale).
+    // Deterministic CSS viewport so headless capture/scroll have a real box.
     await cdp.send("Emulation.setDeviceMetricsOverride", { ...VIEWPORT, deviceScaleFactor: 2, mobile: false }, sessionId);
     const tabId = `bt-${randomBytes(6).toString("hex")}`;
     // A blank tab (no real URL) stays on the createTarget's about:blank: no
@@ -314,16 +260,16 @@ export class CdpBrowserAdapter implements BrowserEngine {
     // audio guard is live before the first real document.
     const willNavigate = !!url && url !== "about:blank";
     this.tabs.set(tabId, {
-      tabId, targetId, sessionId, loading: willNavigate, screencast: null,
+      tabId, targetId, sessionId, loading: willNavigate,
       refs: new Map(), refCounter: 0, pendingHistoryReset: true,
-      screencastParams: null, display: null,
-      userMuted: false, silenced: false,
+      userMuted: false,
       device: "responsive", viewport: { ...VIEWPORT }, audioGuardId: identifier,
+      faviconDataUri: null, faviconForUrl: null, faviconFetching: false,
     });
     if (willNavigate) await cdp.send("Page.navigate", { url }, sessionId);
-    // Target.createTarget foregrounds the new target — unless a watched tab
-    // forced background creation, in which case the foreground never moved.
-    if (!watched) this.foregroundTabId = tabId;
+    // The most-recently-opened tab is the engine's foreground — the omitted-tabId
+    // "active tab" the agent resolves to in the headless lane.
+    this.foregroundTabId = tabId;
     return tabId;
   }
 
@@ -358,6 +304,7 @@ export class CdpBrowserAdapter implements BrowserEngine {
         canGoForward: hist.currentIndex < hist.entries.length - 1,
         audible: await this.isAudible(tab),
         muted: tab.userMuted,
+        faviconDataUri: tab.faviconDataUri,
       });
     }
     return out;
@@ -384,115 +331,25 @@ export class CdpBrowserAdapter implements BrowserEngine {
     await cdp.send("Page.navigateToHistoryEntry", { entryId: target.id }, tab.sessionId);
   }
 
-  async startScreencast(tabId: string, display: DisplaySize, onFrame: (frame: BrowserFrame) => void): Promise<void> {
-    const tab = this.mustTab(tabId);
-    tab.screencast = onFrame;
-    tab.display = display;
-    // A background target emits ZERO frames — subscribing IS switching the
-    // foreground (so the panel's tab switch switches it too).
-    await this.bringToFront(tab);
-    await this.applyStreamGeometry(tab, display);
-    await this.cdpStartScreencast(tab);
-  }
-
-  // Panel resized: re-emulate the RESPONSIVE viewport to the new size and
-  // restart the screencast at the new native resolution — without touching the
-  // service's subscriber refcount, so no audio-silence blip. Fixed profiles
-  // (Mobile/Tablet) ignore the panel size; a tab with no live stream is a no-op.
-  async setDisplaySize(tabId: string, display: DisplaySize): Promise<void> {
-    const tab = this.tabs.get(tabId);
-    if (!tab || !tab.screencast) return;
-    tab.display = display;
-    if (tab.device !== "responsive") return;
-    // The subscribed tab may have lost the foreground; a restart alone stays at
-    // 0 frames on a background target (bugfix harness 11-fgloss), which is how
-    // a resize used to leave the last wide frame squished into the new box.
-    await this.bringToFront(tab);
-    await this.applyStreamGeometry(tab, display);
-    await this.mustCdp().send("Page.stopScreencast", {}, tab.sessionId).catch(() => {});
-    await this.cdpStartScreencast(tab);
-  }
-
-  // Compute this tab's screencast params from its device + the panel display,
-  // and (RESPONSIVE only) emulate the viewport to the panel's exact CSS box so
-  // the frame aspect matches the panel (no letterbox) and streams 1:1.
-  private async applyStreamGeometry(tab: Tab, display: DisplaySize): Promise<void> {
-    // RESPONSIVE emulates the panel's exact CSS box so the frame aspect matches
-    // the panel (no letterbox) and streams 1:1. Mobile/Tablet keep the fixed
-    // profile set by setDevice — the panel size never touches their viewport.
-    if (tab.device === "responsive") {
-      const dsf = clampDpr(display.dpr);
-      const width = Math.max(1, Math.round(display.cssWidth));
-      const height = Math.max(1, Math.round(display.cssHeight));
-      await this.mustCdp().send(
-        "Emulation.setDeviceMetricsOverride",
-        { width, height, deviceScaleFactor: dsf, mobile: false },
-        tab.sessionId,
-      );
-      tab.viewport = { width, height };
-    }
-    tab.screencastParams = streamGeometry(tab.device, display);
-  }
-
-  // everyNthFrame MUST stay 1: it is a frame counter, not a rate limiter — at 2,
-  // half of all isolated clicks produce no frame at all (spike §7). Throttle
-  // with quality/maxWidth only.
-  private async cdpStartScreencast(tab: Tab): Promise<void> {
-    const p = tab.screencastParams!;
+  // Trusted mouse dispatch (pages see isTrusted:true) — the internal primitive
+  // for click/hover/scroll. Not a port method; the human uses the native
+  // embedded view, so there is no human-input forwarding here.
+  private async mouse(tab: Tab, p: { type: string; x: number; y: number; button?: string; buttons?: number; clickCount?: number; deltaX?: number; deltaY?: number }): Promise<void> {
     await this.mustCdp().send(
-      "Page.startScreencast",
-      { format: "jpeg", quality: p.quality, maxWidth: p.maxWidth, maxHeight: p.maxHeight, everyNthFrame: 1 },
+      "Input.dispatchMouseEvent",
+      {
+        type: p.type,
+        x: p.x,
+        y: p.y,
+        button: p.button ?? "none",
+        buttons: p.buttons ?? 0,
+        clickCount: p.clickCount ?? 0,
+        deltaX: p.deltaX ?? 0,
+        deltaY: p.deltaY ?? 0,
+        modifiers: 0,
+      },
       tab.sessionId,
     );
-  }
-
-  async stopScreencast(tabId: string): Promise<void> {
-    const tab = this.tabs.get(tabId);
-    if (!tab) return;
-    tab.screencast = null;
-    if (this.isRunning()) await this.mustCdp().send("Page.stopScreencast", {}, tab.sessionId);
-  }
-
-  async dispatchInput(tabId: string, event: BrowserInputEvent): Promise<void> {
-    const tab = this.mustTab(tabId);
-    const cdp = this.mustCdp();
-    if (event.kind === "mouse") {
-      await cdp.send(
-        "Input.dispatchMouseEvent",
-        {
-          type: event.type,
-          x: event.x,
-          y: event.y,
-          button: event.button ?? "none",
-          buttons: event.buttons ?? 0,
-          clickCount: event.clickCount ?? 0,
-          deltaX: event.deltaX ?? 0,
-          deltaY: event.deltaY ?? 0,
-          modifiers: event.modifiers ?? 0,
-        },
-        tab.sessionId,
-      );
-      return;
-    }
-    if (event.kind === "key") {
-      await cdp.send(
-        "Input.dispatchKeyEvent",
-        {
-          type: event.type,
-          key: event.key ?? "",
-          code: event.code ?? "",
-          text: event.text ?? "",
-          unmodifiedText: event.text ?? "",
-          modifiers: event.modifiers ?? 0,
-          ...(event.windowsVirtualKeyCode != null
-            ? { windowsVirtualKeyCode: event.windowsVirtualKeyCode, nativeVirtualKeyCode: event.windowsVirtualKeyCode }
-            : {}),
-        },
-        tab.sessionId,
-      );
-      return;
-    }
-    await cdp.send("Input.insertText", { text: event.text }, tab.sessionId);
   }
 
   // ---- snapshot / find ------------------------------------------------------
@@ -559,7 +416,7 @@ export class CdpBrowserAdapter implements BrowserEngine {
     }
     if (verb === "hover") {
       const { x, y } = await this.centerOf(tab, backendNodeId);
-      await this.dispatchInput(tabId, { kind: "mouse", type: "mouseMoved", x, y, button: "none" });
+      await this.mouse(tab, { type: "mouseMoved", x, y, button: "none" });
       return;
     }
     await this.trustedClick(tab, backendNodeId);
@@ -615,8 +472,8 @@ export class CdpBrowserAdapter implements BrowserEngine {
     }
     // Trusted wheel at the viewport centre (DOM sign convention: +deltaY down).
     const { width, height } = tab.viewport;
-    await this.dispatchInput(tabId, {
-      kind: "mouse", type: "mouseWheel", x: Math.round(width / 2), y: Math.round(height / 2),
+    await this.mouse(tab, {
+      type: "mouseWheel", x: Math.round(width / 2), y: Math.round(height / 2),
       button: "none", deltaX: 0, deltaY: (direction === "up" ? -0.8 : 0.8) * height,
     });
   }
@@ -647,15 +504,10 @@ export class CdpBrowserAdapter implements BrowserEngine {
 
   // ---- capture --------------------------------------------------------------
 
-  // JPEG only — png hangs forever on live pages and stalls the screencast with
-  // it (spike §4a). Full page clamps each clip to 8192 device px and stitches
-  // tiles in the keep-alive document (no image lib in Node needed).
-  //
-  // A background tab cannot be captured (same foreground rule as the
-  // screencast), so capturing a non-foreground tab flips it to front, shoots,
-  // then deterministically restores the previous foreground and kicks its
-  // screencast so the watching panel repaints — brief, and never leaves the
-  // foreground wherever the last call put it. No caller has to know.
+  // JPEG only — png hangs forever on live pages (spike §4a). Full page clamps
+  // each clip to 8192 device px and stitches tiles in the keep-alive document (no
+  // image lib in Node needed). A non-foreground headless target can't be
+  // captured, so flip it to front, shoot, then restore the previous foreground.
   async capture(tabId: string, fullPage: boolean): Promise<Uint8Array> {
     const tab = this.mustTab(tabId);
     const prevForegroundId = this.foregroundTabId;
@@ -666,19 +518,8 @@ export class CdpBrowserAdapter implements BrowserEngine {
     } finally {
       if (flip && prevForegroundId) {
         const prev = this.tabs.get(prevForegroundId);
-        if (prev) await this.restoreForeground(prev);
+        if (prev) await this.bringToFront(prev);
       }
-    }
-  }
-
-  private async restoreForeground(prev: Tab): Promise<void> {
-    await this.bringToFront(prev);
-    // Restart the tab's screencast so an idle page still emits a fresh frame —
-    // without the kick the panel would sit on the pre-flip picture until the
-    // next damage.
-    if (prev.screencast && prev.screencastParams) {
-      await this.mustCdp().send("Page.stopScreencast", {}, prev.sessionId).catch(() => {});
-      await this.cdpStartScreencast(prev);
     }
   }
 
@@ -756,16 +597,6 @@ export class CdpBrowserAdapter implements BrowserEngine {
     // The UA only takes effect on the next document — reload so "Mobile"
     // genuinely produces the mobile DOM (spike §5). frameNavigated clears refs.
     await cdp.send("Page.reload", {}, tab.sessionId);
-    // The screencast survives the reload (bugfix harness 12-navreload) but on
-    // the OLD device's params; frames mid-switch arrive at transitional sizes
-    // (13-dims measured a 296x640 frame claiming 375x812). Restart on the new
-    // geometry now instead of waiting for the panel's resubscribe.
-    if (tab.screencast && tab.display) {
-      await this.bringToFront(tab);
-      await this.applyStreamGeometry(tab, tab.display);
-      await cdp.send("Page.stopScreencast", {}, tab.sessionId).catch(() => {});
-      await this.cdpStartScreencast(tab);
-    }
   }
 
   // ---- element picker --------------------------------------------------------
@@ -843,23 +674,17 @@ export class CdpBrowserAdapter implements BrowserEngine {
 
   // ---- audio -----------------------------------------------------------------
 
+  // User-level mute (the browser_mute tool). The injected guard flips the page's
+  // audio and reports audibility back over the __eosNotify binding.
   async setMuted(tabId: string, muted: boolean): Promise<void> {
     const tab = this.mustTab(tabId);
     tab.userMuted = muted;
     await this.applyForceMuted(tab);
   }
 
-  // System-level: a tab nobody is viewing must not keep making sound — audio
-  // provably keeps playing after Page.stopScreencast (audio spike).
-  async setSilenced(tabId: string, silenced: boolean): Promise<void> {
-    const tab = this.mustTab(tabId);
-    tab.silenced = silenced;
-    await this.applyForceMuted(tab);
-  }
-
   private async applyForceMuted(tab: Tab): Promise<void> {
     const cdp = this.mustCdp();
-    const effective = tab.userMuted || tab.silenced;
+    const effective = tab.userMuted;
     // Re-register the guard with the new initial state so documents loaded
     // AFTER this call (navigations) inherit it, then flip the live one.
     if (tab.audioGuardId) {
@@ -896,30 +721,10 @@ export class CdpBrowserAdapter implements BrowserEngine {
 
   // ---- internals -------------------------------------------------------------
 
-  private onScreencastFrame(params: Record<string, unknown>, sessionId: string | undefined): void {
-    const frameSessionId = params.sessionId as number;
-    // Ack immediately and unconditionally (the spike's cadence): CDP's own
-    // max-frames-in-flight is the upstream flow control; the panel-facing
-    // drop-on-backpressure policy lives in manager/browser-ws.ts.
-    void this.cdp?.send("Page.screencastFrameAck", { sessionId: frameSessionId }, sessionId).catch(() => {});
-    const tab = [...this.tabs.values()].find((t) => t.sessionId === sessionId);
-    if (!tab?.screencast) return;
-    const data = Buffer.from(params.data as string, "base64");
-    const size = jpegSize(data);
-    tab.screencast({ tabId: tab.tabId, data, width: size?.width ?? 0, height: size?.height ?? 0 });
-  }
-
   private setLoading(sessionId: string | undefined, loading: boolean): void {
     for (const tab of this.tabs.values()) {
       if (tab.sessionId === sessionId) tab.loading = loading;
     }
-  }
-
-  // The tab a panel is currently streaming, if any — a live screencast is the
-  // signal that the foreground must not be stolen from under a viewer.
-  private streamingTab(): Tab | null {
-    for (const tab of this.tabs.values()) if (tab.screencast) return tab;
-    return null;
   }
 
   // Always sends — cheap and idempotent; the tracked id only drives capture's
@@ -970,10 +775,10 @@ export class CdpBrowserAdapter implements BrowserEngine {
   // see isTrusted:true, unlike element.click().
   private async trustedClick(tab: Tab, backendNodeId: number): Promise<void> {
     const { x, y } = await this.centerOf(tab, backendNodeId);
-    const base = { kind: "mouse" as const, x, y, button: "left" as const, clickCount: 1 };
-    await this.dispatchInput(tab.tabId, { ...base, type: "mouseMoved", button: "none", clickCount: 0 });
-    await this.dispatchInput(tab.tabId, { ...base, type: "mousePressed", buttons: 1 });
-    await this.dispatchInput(tab.tabId, { ...base, type: "mouseReleased", buttons: 0 });
+    const base = { x, y, button: "left" as const, clickCount: 1 };
+    await this.mouse(tab, { ...base, type: "mouseMoved", button: "none", clickCount: 0 });
+    await this.mouse(tab, { ...base, type: "mousePressed", buttons: 1 });
+    await this.mouse(tab, { ...base, type: "mouseReleased", buttons: 0 });
   }
 
   private async evaluate<T = unknown>(tab: Tab, expression: string): Promise<T | undefined> {
@@ -1007,28 +812,4 @@ export class CdpBrowserAdapter implements BrowserEngine {
     if (!tab) throw new Error(`unknown tab: ${tabId}`);
     return tab;
   }
-}
-
-// Bitmap pixel size from the JPEG SOF marker — the frame header carries it so
-// the client can size its canvas before decode. Returns null on a non-JPEG.
-export function jpegSize(data: Uint8Array): { width: number; height: number } | null {
-  if (data.length < 4 || data[0] !== 0xff || data[1] !== 0xd8) return null;
-  let i = 2;
-  while (i + 9 < data.length) {
-    if (data[i] !== 0xff) return null;
-    const marker = data[i + 1];
-    // SOF0/1/2 (baseline/extended/progressive) carry the frame dimensions.
-    if (marker === 0xc0 || marker === 0xc1 || marker === 0xc2) {
-      return {
-        height: (data[i + 5] << 8) | data[i + 6],
-        width: (data[i + 7] << 8) | data[i + 8],
-      };
-    }
-    if (marker === 0xd8 || (marker >= 0xd0 && marker <= 0xd9)) {
-      i += 2; // standalone marker, no length field
-      continue;
-    }
-    i += 2 + (((data[i + 2] << 8) | data[i + 3]));
-  }
-  return null;
 }
