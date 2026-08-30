@@ -60,7 +60,13 @@ export function createSplash(): BrowserWindow {
     skipTaskbar: true,
     webPreferences: { contextIsolation: true, sandbox: true },
   });
-  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  // skipTransformProcessType: WITHOUT it, setVisibleOnAllWorkspaces transforms the
+  // app's macOS process type ForegroundApplication→UIElementApplication (accessory),
+  // which HIDES the Dock icon — and it never transforms back, so the Dock stays gone
+  // for the whole session once this boot splash appears. Skipping the transform keeps
+  // the all-spaces collection behavior (splash still shows over fullscreen) while
+  // leaving the app a regular Dock-owning app.
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
   void win.loadURL("data:text/html;charset=utf-8," + encodeURIComponent(splashHtml()));
   win.once("ready-to-show", () => win.show());
   return win;

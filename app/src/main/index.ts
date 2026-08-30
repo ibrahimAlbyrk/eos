@@ -319,7 +319,16 @@ app.whenReady().then(async () => {
 
 // Clean shutdown: on real quit, stop ONLY the daemon we spawned. An adopted
 // daemon (spawnedDaemon === null) is deliberately left running.
+//
+// before-quit fires for every genuine app quit (Cmd+Q, Dock → Quit, the
+// `tell application "Eos" to quit` AppleEvent the installer sends, macOS logout)
+// but NOT for a plain window close. Set `quitting` here so the window's
+// close→hide interception (below) falls through to a real close: without this the
+// interception swallows Cmd+Q/Dock-Quit and the app can only be quit from the
+// tray or Activity Monitor — which is also why `eos build --app`'s graceful quit
+// never terminated the old instance.
 app.on("before-quit", () => {
+  quitting = true;
   stopSpawnedDaemon();
 });
 
