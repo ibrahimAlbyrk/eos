@@ -41,15 +41,16 @@ import type { WorkerRepo } from "../../core/src/ports/WorkerRepo.ts";
 //     perSession (unattributed calls must not land in someone's session), or
 //     GLOBAL_SESSION under perSession=false (wave-1 single shared browser).
 // The actor decides the EXPERIENCE (agents: nav allowlist + header redaction;
-// humans: unrestricted); the session decides WHICH Chrome. Per-tab routes
-// fence on the tab's owning session — acting on another session's tab is 403.
-// Frames never travel here: they ride the binary WS at /browser/stream
-// (manager/browser-ws.ts).
+// humans: unrestricted); the session decides WHICH browser (embedded app view
+// or headless fallback). Per-tab routes fence on the tab's owning session —
+// acting on another session's tab is 403.
 //
 // Error mapping: disabled subsystem → 409; unattributed agent → 409; a
 // stale/unknown `@eN` ref → 409 with the re-snapshot hint (never a silent
 // wrong click); a navigation refused by browser.allowedOrigins → 403; another
 // session's tab → 403; unknown tab → 404.
+// (The human sees the native embedded WebContentsView in the app; there is no
+// screencast — this REST surface carries JSON control + agent verbs only.)
 
 export class UnattributedAgentError extends Error {
   constructor() {

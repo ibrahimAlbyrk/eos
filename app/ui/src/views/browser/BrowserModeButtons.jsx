@@ -3,11 +3,13 @@ import { toggleMode, setDevice } from "../../state/browserPanelStore.js";
 import { BrowserDeviceMenu } from "./BrowserDeviceMenu.jsx";
 
 // Top-right panel controls: pencil (annotate), cursor (pick element) and phone
-// (device emulation), sitting in the PanelShell header's actions slot beside the
-// shared fullscreen/close pair. Pencil and cursor are ONE store enum, so lighting
-// one always clears the other; the phone is separate state and opens the device
-// menu. The overlay leaves these modes drive arrive in P6/P7/P8 — a press here
-// only flips the store and lights the button.
+// (device emulation), in the PanelShell header's actions slot beside the shared
+// fullscreen/close pair. Pencil and cursor are ONE store enum, so lighting one
+// always clears the other; the phone is separate state and opens the device menu.
+//
+// The browser page renders in a native WebContentsView floating above this DOM,
+// so the device dropdown would be occluded by it — opening the menu hides the
+// view (overlayOpen) for the menu's lifetime so the dropdown draws on top.
 export function BrowserModeButtons({ paneId, mode, device }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const ref = useRef(null);
@@ -19,6 +21,13 @@ export function BrowserModeButtons({ paneId, mode, device }) {
     };
     document.addEventListener("mousedown", close);
     return () => document.removeEventListener("mousedown", close);
+  }, [menuOpen]);
+
+  // Hide the native view while the dropdown is open so it isn't occluded; restore
+  // on close (and on unmount, so a menu left open never wedges the view hidden).
+  useEffect(() => {
+    window.eosBrowserView?.overlayOpen(menuOpen);
+    return () => window.eosBrowserView?.overlayOpen(false);
   }, [menuOpen]);
 
   return (

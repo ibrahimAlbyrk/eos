@@ -6,6 +6,7 @@ import { useArchiveAgent, useKillAgent } from "../../../hooks/useArchiveAgent.js
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog.jsx";
 import { NewGroupModal } from "./NewGroupModal.jsx";
 import { useCustomGroups, addGroup, moveAgent } from "../../../state/customGroupsStore.js";
+import { addGroup as addLayoutGroup, setActiveGroup } from "../../../state/layoutGroupsStore.js";
 import { fanoutLayout } from "../../../lib/paneLayout.js";
 import { isRunning } from "../../../lib/agentActivity.js";
 import { subtreeIds } from "../../../lib/tree.js";
@@ -25,6 +26,7 @@ export function AgentContextMenu({ live }) {
   const [confirmId, setConfirmId] = useState(null);
   const [busy, setBusy] = useState(false);
   const [newGroupFor, setNewGroupFor] = useState(null);
+  const [saveLayoutOpen, setSaveLayoutOpen] = useState(false);
   // Anchor rect of the "Move to group" row when its flyout is open (null =
   // closed). The flyout is portaled to <body> so it gets a real .glass-pop frost
   // instead of a flat fill (nested backdrop-filter is dropped by WebKit).
@@ -33,7 +35,7 @@ export function AgentContextMenu({ live }) {
   const open = ui.openPopover === "ctx-menu";
   const doomed = confirmId ? live.workers.find((w) => w.id === confirmId) ?? null : null;
   useEffect(() => { if (!open) setMoveAnchor(null); }, [open]);
-  if (!open && !doomed && !newGroupFor) return null;
+  if (!open && !doomed && !newGroupFor && !saveLayoutOpen) return null;
 
   const confirmKill = async (dontAskAgain) => {
     if (!doomed || busy) return;
@@ -132,6 +134,13 @@ export function AgentContextMenu({ live }) {
             <path d="m6 4 4 4-4 4" />
           </svg>
         </button>
+        <button className="menu-item" onClick={() => { setSaveLayoutOpen(true); ui.closeAllPops(); }}>
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+            <rect x="2" y="2" width="5" height="12" rx="1" />
+            <rect x="9" y="2" width="5" height="12" rx="1" />
+          </svg>
+          Save layout as group
+        </button>
         <div className="menu-sep"></div>
         <button className="menu-item" onClick={archive}>
           <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
@@ -205,6 +214,13 @@ export function AgentContextMenu({ live }) {
         <NewGroupModal
           onSave={(name) => { const id = addGroup(name); if (id) moveAgent(newGroupFor, id); setNewGroupFor(null); }}
           onCancel={() => setNewGroupFor(null)}
+        />
+      )}
+      {saveLayoutOpen && (
+        <NewGroupModal
+          title="Save layout"
+          onSave={(name) => { const id = addLayoutGroup(name, ui.tree); if (id) setActiveGroup(id); setSaveLayoutOpen(false); }}
+          onCancel={() => setSaveLayoutOpen(false)}
         />
       )}
     </>

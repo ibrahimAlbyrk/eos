@@ -167,32 +167,28 @@ describe("BrowserNavBar", () => {
 });
 
 describe("BrowserModeButtons", () => {
-  const render = (mode, device) => renderToStaticMarkup(<BrowserModeButtons paneId="A" mode={mode} device={device} />);
+  const render = (device, mode = "view") => renderToStaticMarkup(<BrowserModeButtons paneId="A" mode={mode} device={device} />);
 
-  it("lights only the active mode — the three are mutually exclusive", () => {
-    const annotating = render("annotate", "responsive");
-    expect(annotating.match(/fv-icon-btn on/g) ?? []).toHaveLength(1);
-    expect(buttonHtml(annotating, "Annotate")).toContain('aria-pressed="true"');
-    expect(buttonHtml(annotating, "Select element")).toContain('aria-pressed="false"');
-    const picking = render("pick", "responsive");
-    expect(picking.match(/fv-icon-btn on/g) ?? []).toHaveLength(1);
-    expect(buttonHtml(picking, "Select element")).toContain('aria-pressed="true"');
-    expect(buttonHtml(picking, "Annotate")).toContain('aria-pressed="false"');
-    expect(render("view", "responsive")).not.toContain("fv-icon-btn on");
-  });
-
-  it("renders the pencil, cursor and phone with the device menu closed", () => {
-    const html = render("view", "responsive");
+  // Annotate (pen), select-element (cursor) and device (phone) — reimplemented for
+  // the embedded WebContentsView (hide-on-overlay annotate; native CDP inspect pick).
+  it("renders the annotate, select-element and device controls with the menu closed", () => {
+    const html = render("responsive");
     expect(html).toContain('aria-label="Annotate"');
     expect(html).toContain('aria-label="Select element"');
     expect(html).toContain('aria-label="Device"');
     expect(html).not.toContain("browser-device-menu");
+    expect(html).not.toContain("fv-icon-btn on"); // Responsive + view → nothing lit
   });
 
-  it("lights the phone while a device is emulated, and nothing else", () => {
-    const html = render("view", "mobile");
+  it("lights the phone while a device is emulated", () => {
+    const html = render("mobile");
     expect(buttonHtml(html, "Device")).toContain("fv-icon-btn on");
     expect(html.match(/fv-icon-btn on/g) ?? []).toHaveLength(1);
+  });
+
+  it("lights the annotate button in annotate mode and pick in pick mode", () => {
+    expect(buttonHtml(render("responsive", "annotate"), "Annotate")).toContain("fv-icon-btn on");
+    expect(buttonHtml(render("responsive", "pick"), "Select element")).toContain("fv-icon-btn on");
   });
 });
 

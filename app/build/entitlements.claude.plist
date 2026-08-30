@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <!-- Entitlements for the SHIPPED `claude` binary (a self-contained JS-runtime
+       executable under Contents/Resources/daemon/node_modules/…/claude), signed
+       via forge.config.js optionsForFile. It is NOT Electron, so it needs a
+       broader Hardened Runtime set than the app itself:
+         - allow-jit: its JS engine JIT-compiles.
+         - allow-unsigned-executable-memory: JS runtimes map W^X-violating pages;
+           Electron doesn't need this but a bun/QuickJS-style packed binary does.
+         - disable-library-validation: it is a third-party binary not signed with
+           our Team ID and may dlopen its own unsigned/foreign-team libs.
+       Tune down during the real signed build if notarization succeeds without a key. -->
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>

@@ -1,44 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../../api/client.js";
+import { useEffect, useRef, useState } from "react";
 import { notify } from "../../lib/notify.js";
-import { browserFetch, toggleMode } from "../../state/browserPanelStore.js";
+import { toggleMode } from "../../state/browserPanelStore.js";
 import { pushHandoff } from "../../state/browserComposerHandoff.js";
 import { makeLabel } from "../../lib/attachmentTokens.js";
-import { canvasToPage } from "./paintFrame.js";
 import { ElementPopover } from "./ElementPopover.jsx";
 
-// PickerLayer — the cursor-mode overlay (plan §4 Phase 7). Unlike the annotation
-// overlay it does NOT freeze the frame: the live page keeps streaming underneath
-// while a transparent surface (pinned over the canvas box) captures the pointer,
-// highlights the element under the cursor and shows an ElementPopover. A click
-// attaches THAT element to this pane's composer as a compact chip — no HTML, no
-// screenshot, just the ~40-80 token BrowserElement.
+// PickerLayer — the cursor-mode overlay, reimplemented for the embedded
+// WebContentsView. The human's mouse is over the NATIVE view, not this DOM, so
+// there is no canvas surface to capture pointer events on. Instead the main
+// process drives Chromium's own inspect overlay over the live page (CDP
+// Overlay.setInspectMode via the tab's debugger): hovering highlights elements ON
+// the real page (native highlight), and a click resolves the chosen element —
+// the click is consumed by the overlay, never delivered to the page.
 //
-// The surface shares the canvas geometry (top-pinned, full width, same aspect),
-// so pointer offsets translate to viewport px with the SAME canvasToPage the
-// live canvas uses for input, and the highlight scales back as a percentage box.
+// On pick, the element's compact identity is attached to this pane's composer as
+// a ~40-80 token chip (never outerHTML, box, or a screenshot) and shown in an
+// ElementPopover result card. The @eN ref is minted in the same per-tab ref space
+// the agent resolves against, so the agent can act on the picked element.
 
-// Canvas CSS offset → a `{hover:[x,y]}` probe in viewport CSS px.
-export function pickerHoverRequest(offsetX, offsetY, cssW, cssH, viewport) {
-  const { x, y } = canvasToPage(offsetX, offsetY, cssW, cssH, viewport);
-  return { hover: [x, y] };
-}
-
-// BrowserElement.box (viewport CSS px) → a percentage rect over the surface —
-// the inverse of canvasToPage, so the highlight lands exactly on the element.
-export function boxToPercentRect([x, y, w, h], viewport) {
-  const pct = (v, total) => `${(v / total) * 100}%`;
-  return {
-    left: pct(x, viewport.width),
-    top: pct(y, viewport.height),
-    width: pct(w, viewport.width),
-    height: pct(h, viewport.height),
-  };
-}
-
-// The compact identity shown as the chip's [label] token. BrowserElement carries
-// no class list, so identity is the tag plus its accessible name (or the durable
-// locator when unnamed).
+// The compact identity shown as the chip's [label] token.
 export function elementLabel(el) {
   const detail = el.name || el.locator || el.role || "";
   return makeLabel(detail ? `${el.tag} · ${detail}` : el.tag);
@@ -51,106 +31,74 @@ export function elementPayload(el) {
 }
 
 // One hand-off attachment: kind "element", the identity label, and the compact
-// payload inline in the path-or-value slot (buildAttachmentSuffix writes it as
-// `- [label] (element): <json>`).
+// payload inline in the path-or-value slot.
 export function elementAttachment(el) {
   return { type: "element", label: elementLabel(el), path: JSON.stringify(elementPayload(el)) };
 }
 
-export function PickerLayer({ paneId, tabId, viewport }) {
-  const surfaceRef = useRef(null);
-  const [element, setElement] = useState(null);
-  const [cursor, setCursor] = useState(null); // { x, y } surface CSS px
-  const inFlightRef = useRef(false);
-  const pendingRef = useRef(null); // latest [x,y] viewport px awaiting a probe
+export function PickerLayer({ paneId, tabId }) {
+  const rootRef = useRef(null);
+  const [result, setResult] = useState(null); // the picked element, once resolved
 
-  // One in-flight probe at a time; the pointer fires far faster than the daemon
-  // should be polled, so coalesce to the LATEST position and fire again only
-  // when a newer one landed while the last was outstanding.
-  const probe = useCallback(async () => {
-    if (inFlightRef.current || !tabId) return;
-    const point = pendingRef.current;
-    if (!point) return;
-    pendingRef.current = null;
-    inFlightRef.current = true;
-    try {
-      const r = await browserFetch(api.routes.browserElements(tabId), {
-        method: "POST",
-        body: JSON.stringify({ hover: point }),
-      });
-      if (r.ok && r.body?.ref) setElement(r.body);
-      // A failed hover is transient (throttled, superseded by the next move) —
-      // stay quiet; the deliberate click path surfaces failures instead.
-    } finally {
-      inFlightRef.current = false;
-      if (pendingRef.current) void probe();
-    }
-  }, [tabId]);
+  // Start Chromium's inspect mode on the live view; resolve when the human clicks
+  // (element) or cancels (null). On unmount, abandon any in-flight pick.
+  useEffect(() => {
+    const view = window.eosBrowserView;
+    if (!view || !tabId || typeof view.pickElement !== "function") { toggleMode(paneId, "pick"); return; }
+    let cancelled = false;
+    notify.info("Click an element on the page to attach it to chat · Esc to cancel");
+    view.pickElement(tabId).then((el) => {
+      if (cancelled) return;
+      if (!el) { toggleMode(paneId, "pick"); return; }
+      // Hide the native view so the result card (DOM) isn't occluded by it, then
+      // attach the element to the composer.
+      view.overlayOpen(true);
+      pushHandoff(paneId, [elementAttachment(el)]);
+      setResult(el);
+    }).catch(() => { if (!cancelled) toggleMode(paneId, "pick"); });
+    return () => {
+      cancelled = true;
+      view.cancelPick?.();
+      view.overlayOpen(false);
+    };
+  }, [paneId, tabId]);
 
-  const onMove = (e) => {
-    if (!viewport) return;
-    const rect = surfaceRef.current.getBoundingClientRect();
-    const local = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    setCursor(local);
-    pendingRef.current = pickerHoverRequest(local.x, local.y, rect.width, rect.height, viewport).hover;
-    void probe();
-  };
-
-  const onLeave = () => {
-    pendingRef.current = null;
-    setElement(null);
-    setCursor(null);
-  };
-
-  // Click attaches the highlighted element; if none is resolved yet (clicked
-  // before a hover landed) mint one from the click point via `{at:[x,y]}`.
-  const attach = async (e) => {
-    e.preventDefault();
-    let el = element;
-    if (!el && viewport && tabId) {
-      const rect = surfaceRef.current.getBoundingClientRect();
-      const { x, y } = canvasToPage(e.clientX - rect.left, e.clientY - rect.top, rect.width, rect.height, viewport);
-      const r = await browserFetch(api.routes.browserElements(tabId), {
-        method: "POST",
-        body: JSON.stringify({ at: [x, y] }),
-      });
-      if (!r.ok || !r.body?.ref) {
-        notify.error(`Element pick failed: ${r.body?.error ?? r.status}`);
-        return;
-      }
-      el = r.body;
-    }
-    if (!el) return;
-    pushHandoff(paneId, [elementAttachment(el)]);
-    toggleMode(paneId, "pick"); // one-shot: attaching returns to plain view
-  };
-
-  // Escape leaves pick mode, matching the annotation overlay's Close.
+  // Escape cancels the pick / dismisses the result; a click on the result backdrop
+  // dismisses it. Both return to plain view.
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === "Escape") { e.preventDefault(); toggleMode(paneId, "pick"); }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        window.eosBrowserView?.cancelPick?.();
+        toggleMode(paneId, "pick");
+      }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [paneId]);
 
-  const highlight = element && viewport ? boxToPercentRect(element.box, viewport) : null;
-  const bounds = surfaceRef.current
-    ? { width: surfaceRef.current.clientWidth, height: surfaceRef.current.clientHeight }
-    : null;
+  // Centre the result card in the layer (ElementPopover positions by inline
+  // left/top from these coords; ~220x150 card).
+  const layer = rootRef.current;
+  const cx = layer ? Math.max(4, layer.clientWidth / 2 - 110) : 24;
+  const cy = layer ? Math.max(4, layer.clientHeight / 2 - 90) : 24;
 
+  // While picking, the native view is on top of this DOM (Chromium renders its own
+  // inspect highlight + cursor there), so the layer is empty — the feedback is the
+  // native highlight and the info toast. The result card shows only after the pick,
+  // once the native view is hidden.
   return (
     <div
-      ref={surfaceRef}
-      className="picker-surface"
-      style={{ aspectRatio: viewport ? `${viewport.width} / ${viewport.height}` : undefined }}
-      onMouseMove={onMove}
-      onMouseLeave={onLeave}
-      onClick={attach}
-      onContextMenu={(e) => e.preventDefault()}
+      className={"picker-layer" + (result ? " has-result" : "")}
+      ref={rootRef}
+      onClick={() => { if (result) toggleMode(paneId, "pick"); }}
     >
-      {highlight && <div className="picker-highlight" style={highlight} />}
-      {element && cursor && <ElementPopover element={element} x={cursor.x} y={cursor.y} bounds={bounds} />}
+      {result && (
+        <>
+          <div className="picker-added" style={{ left: cx, top: cy - 26 }}>Added to chat</div>
+          <ElementPopover element={result} x={cx} y={cy} bounds={{ width: layer?.clientWidth ?? 0, height: layer?.clientHeight ?? 0 }} />
+        </>
+      )}
     </div>
   );
 }

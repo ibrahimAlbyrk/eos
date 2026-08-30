@@ -16,13 +16,23 @@ export interface ClaudeArgsResult {
   syntheticMcpPath: string | null;
 }
 
+// Packaged mode (EOS_PACKAGED=1): run under Electron's Node against the shipped
+// bundle. Dev: system node + --experimental-strip-types against the repo .ts.
+// Kept inline (not imported from manager) so spawner stays env-driven and free
+// of a cross-package dependency — mirrors how the rest of this file reads env.
+const PACKAGED = process.env.EOS_PACKAGED === "1";
+
 function buildWorkerMcpEntry(workerEnv: { daemonUrl?: string; workerId?: string }): Record<string, unknown> {
   const repoRoot = process.env.EOS_REPO_ROOT || "";
+  const scriptPath = PACKAGED
+    ? join(process.env.EOS_BUNDLES_DIR || "", "worker-mcp.bundle.mjs")
+    : join(repoRoot, "manager", "worker-mcp.ts");
   return {
-    command: "node",
-    args: ["--no-warnings", "--experimental-strip-types", join(repoRoot, "manager", "worker-mcp.ts")],
+    command: PACKAGED ? process.execPath : "node",
+    args: PACKAGED ? ["--no-warnings", scriptPath] : ["--no-warnings", "--experimental-strip-types", scriptPath],
     env: {
       ...(process.env as Record<string, string>),
+      ...(PACKAGED ? { ELECTRON_RUN_AS_NODE: "1" } : {}),
       EOS_DAEMON_URL: workerEnv.daemonUrl ?? "",
       EOS_WORKER_ID: workerEnv.workerId ?? "",
     },
@@ -52,16 +62,16 @@ export function buildClaudeArgs(
     const servers: Record<string, unknown> = {};
 
     if (opts.withGateway) {
-      const bunBin = process.env.EOS_BUN_BIN || "bun";
+      // EOS_GATEWAY_SCRIPT is set by the daemon's buildEnv to the bundle when
+      // packaged, the repo .ts in dev — so this path is already correct for both.
       const gatewayScript = process.env.EOS_GATEWAY_SCRIPT
         || join(process.env.EOS_REPO_ROOT || "", "gateway", "server.ts");
-      servers.gateway = {
-        command: bunBin,
-        args: ["run", gatewayScript],
-        env: workerEnv.daemonUrl && workerEnv.workerId
-          ? { ...(process.env as Record<string, string>), EOS_DAEMON_URL: workerEnv.daemonUrl, EOS_WORKER_ID: workerEnv.workerId }
-          : { ...(process.env as Record<string, string>) },
-      };
+      const gwEnv = workerEnv.daemonUrl && workerEnv.workerId
+        ? { ...(process.env as Record<string, string>), EOS_DAEMON_URL: workerEnv.daemonUrl, EOS_WORKER_ID: workerEnv.workerId }
+        : { ...(process.env as Record<string, string>) };
+      servers.gateway = PACKAGED
+        ? { command: process.execPath, args: [gatewayScript], env: { ...gwEnv, ELECTRON_RUN_AS_NODE: "1" } }
+        : { command: process.env.EOS_BUN_BIN || "bun", args: ["run", gatewayScript], env: gwEnv };
     }
 
     if (opts.parentId) {

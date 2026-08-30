@@ -463,8 +463,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .side-island {
   position: relative;
   background: rgba(var(--glass), 0.42);
-  backdrop-filter: blur(var(--blur-md)) saturate(140%);
   -webkit-backdrop-filter: blur(var(--blur-md)) saturate(140%);
+  backdrop-filter: blur(var(--blur-md)) saturate(140%);
   border-radius: 12px;
   box-shadow:
     0 4px 16px rgba(0, 0, 0, 0.18),
@@ -588,8 +588,8 @@ html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
 .sb-settings__btn kbd { margin-left: auto; }
 .sb-settings__btn:hover {
   background: rgba(var(--tint), 0.05);
-  backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
+  backdrop-filter: blur(var(--blur-sm));
   color: var(--fg);
   box-shadow:
     inset 0 1px 1px rgba(var(--ink), 0.20),
@@ -1100,8 +1100,8 @@ html.native .pane-panel-slot.pane-slot.at-top { --ph-h: 32px; } /* native · spl
      Blur is the lightest token (--blur-sm) so the pane behind stays clearly
      readable — misted glass, not the heavy frost of a dropped-open panel. */
   background: color-mix(in srgb, var(--accent) 1.5%, transparent);
-  backdrop-filter: blur(var(--blur-sm)) saturate(140%);
   -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(140%);
+  backdrop-filter: blur(var(--blur-sm)) saturate(140%);
   border: 1.5px solid var(--accent);
   border-radius: var(--panel-radius);
   box-shadow: 0 0 0 3px var(--accent-soft);
@@ -1169,8 +1169,8 @@ html.native .pane-panel-slot.pane-slot.at-top { --ph-h: 32px; } /* native · spl
 .drag-affordance-label {
   color: var(--fg);
   background: color-mix(in srgb, var(--surface) 80%, transparent);
-  backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
+  backdrop-filter: blur(var(--blur-sm));
   border-radius: 6px;
   padding: 4px 9px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
@@ -1460,8 +1460,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   gap: 8px;
   padding: 12px;
   background: rgba(var(--glass), 0.5);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border-radius: var(--panel-radius);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.18);
   opacity: 0;
@@ -1687,8 +1687,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   gap: 6px;
   padding: 5px 8px;
   background: rgba(var(--glass), 0.92);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border-radius: 8px;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
 }
@@ -3453,8 +3453,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   border-radius: 12px;
   /* the pill carries the liquid glass (same recipe as the task pill) */
   background: rgba(var(--glass), 0.4);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   box-shadow:
     0 8px 28px rgba(0, 0, 0, 0.32),
     0 2px 6px rgba(0, 0, 0, 0.22),
@@ -3732,8 +3732,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   right: 0;
   min-width: 220px;
   background: rgba(var(--glass), 0.26);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border-radius: 8px;
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
   padding: 4px;
@@ -3771,8 +3771,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 }
 .cmd-names {
   background: rgba(var(--glass), 0.92);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border-radius: 8px;
   box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.4);
   position: relative;
@@ -3976,8 +3976,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   gap: 8px;
   padding: 10px 12px;
   background: rgba(var(--glass), 0.44);
-  backdrop-filter: blur(var(--blur-md)) saturate(150%);
   -webkit-backdrop-filter: blur(var(--blur-md)) saturate(150%);
+  backdrop-filter: blur(var(--blur-md)) saturate(150%);
   border-radius: 8px;
   min-height: 42px;
   position: relative;
@@ -4186,8 +4186,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .c-row3 .mode-pill .mode-ic { flex-shrink: 0; width: 13px; height: 13px; color: var(--fg-dim); }
 .c-row3 .mode-pill:hover {
   background: rgba(var(--tint), 0.05);
-  backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
+  backdrop-filter: blur(var(--blur-sm));
   box-shadow:
     inset 0 1px 1px rgba(var(--ink), 0.20),
     inset 0 0 0 1px rgba(var(--tint), 0.09);
@@ -4200,8 +4200,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 }
 .c-row3 .iconbtn:hover {
   background: rgba(var(--tint), 0.05);
-  backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
+  backdrop-filter: blur(var(--blur-sm));
   color: var(--fg);
   box-shadow:
     inset 0 1px 1px rgba(var(--ink), 0.20),
@@ -4218,8 +4218,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .c-row3 .model-pill:hover:not(:disabled),
 .c-row3 .model-pill.open {
   background: rgba(var(--tint), 0.05);
-  backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
+  backdrop-filter: blur(var(--blur-sm));
   box-shadow:
     inset 0 1px 1px rgba(var(--ink), 0.20),
     inset 0 0 0 1px rgba(var(--tint), 0.09);
@@ -4238,8 +4238,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .c-row3 .effort-pill:hover,
 .c-row3 .effort-pill.open {
   background: rgba(var(--tint), 0.05);
-  backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
+  backdrop-filter: blur(var(--blur-sm));
   box-shadow:
     inset 0 1px 1px rgba(var(--ink), 0.20),
     inset 0 0 0 1px rgba(var(--tint), 0.09);
@@ -4292,8 +4292,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .ctx-ring-btn:hover,
 .ctx-ring-btn.open {
   background: rgba(var(--tint), 0.05);
-  backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
+  backdrop-filter: blur(var(--blur-sm));
   color: var(--fg);
   box-shadow:
     inset 0 1px 1px rgba(var(--ink), 0.20),
@@ -4381,8 +4381,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .update-card {
   position: relative;
   background: rgba(var(--glass), 0.5);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.18);
   padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;
@@ -4447,8 +4447,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .q-card {
   position: relative;
   background: rgba(var(--glass), 0.5);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border-radius: 12px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.18);
   padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;
@@ -4567,8 +4567,11 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   right: 0;
   width: 360px;
   background: rgba(var(--glass), 0.26);
-  backdrop-filter: blur(var(--blur-md)) saturate(150%);
+  /* Blink aliases -webkit-backdrop-filter onto backdrop-filter but drops its
+     var() form as unparseable — so the prefixed line must come FIRST, letting the
+     working unprefixed line win as last writer (WebKit still honors either). */
   -webkit-backdrop-filter: blur(var(--blur-md)) saturate(150%);
+  backdrop-filter: blur(var(--blur-md)) saturate(150%);
   border-radius: 10px;
   box-shadow: 0 8px 28px rgba(0,0,0,0.32), 0 2px 6px rgba(0,0,0,0.18);
   padding: 4px;
@@ -4605,8 +4608,10 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
    must be positioned (these panels are absolute) for the ::after rim to seat. */
 .glass-pop {
   background: rgba(var(--glass), 0.26);
-  backdrop-filter: blur(var(--blur-md)) saturate(150%);
+  /* Prefixed line first so the unprefixed one wins as last writer — see the note
+     on .ctx-popover above (Blink drops the var() form of the -webkit- alias). */
   -webkit-backdrop-filter: blur(var(--blur-md)) saturate(150%);
+  backdrop-filter: blur(var(--blur-md)) saturate(150%);
   border-radius: 10px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.18);
 }
@@ -4815,8 +4820,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .tt-surface {
   position: relative;
   background: rgba(var(--glass), 0.4);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border-radius: 10px;
   box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.22);
 }
@@ -5111,6 +5116,16 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   padding: 8px 8px 8px;
   overflow-y: auto;
 }
+/* Saved-layout groups sit ABOVE the agents list as a content-sized block. It must
+   NOT be an .agents-section: that class is flex:1, so a second one splits the
+   sidebar 50/50 and opens a tall empty gap. Horizontal padding matches so rows
+   align with the Agents list; bottom padding is 0 (the agents-section below adds
+   its own 8px top) so the two sit flush. */
+.layout-groups {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column;
+  padding: 8px 8px 0;
+}
 /* project group: a header (name + its own +) above that project's agent rows */
 .agents-group { display: flex; flex-direction: column; }
 .agents-group + .agents-group { margin-top: 6px; }
@@ -5246,6 +5261,17 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 }
 @keyframes ag-pulse { 50% { opacity: 0.45; } }
 
+/* Saved-layout row: an unsaved-changes dot (current split diverged from the
+   active group) and the full-screen backdrop that dismisses the row's menu. */
+.agents-row .lg-dirty {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.lg-menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+
 /* ============================================================================
    Hierarchical tree (orchestrator → workers → sub-agents)
    ============================================================================ */
@@ -5335,8 +5361,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 /* Shared base for any glass surface popover */
 .glass-pop {
   background: rgba(var(--glass), 0.26);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border-radius: 10px;
   box-shadow:
     0 14px 38px rgba(0, 0, 0, 0.42),
@@ -6137,8 +6163,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   left: 0;
   width: 210px;
   background: rgba(var(--glass), 0.92);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border-radius: 7px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
   padding: 4px;
@@ -6264,8 +6290,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   display: inline-flex; align-items: center; gap: 6px;
   padding: 5px 9px;
   background: rgba(var(--tint), 0.07);
-  backdrop-filter: blur(var(--blur-sm)) saturate(140%);
   -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(140%);
+  backdrop-filter: blur(var(--blur-sm)) saturate(140%);
   border-radius: 6px;
   font-size: var(--text-sm);
   color: var(--fg);
@@ -6313,8 +6339,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   left: 0;
   width: 220px;
   background: rgba(var(--glass), 0.92);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border-radius: 7px;
   box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.42);
   padding: 4px;
@@ -6359,8 +6385,8 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .cb-chip-group {
   display: inline-flex;
   background: rgba(var(--tint), 0.07);
-  backdrop-filter: blur(var(--blur-sm)) saturate(140%);
   -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(140%);
+  backdrop-filter: blur(var(--blur-sm)) saturate(140%);
   border-radius: 6px;
   overflow: visible;
   position: relative;
@@ -7658,8 +7684,8 @@ html:not([data-theme="light"]) .fv-editor--md {
 .fv-editor .cm-nonmatchingBracket { background: color-mix(in srgb, var(--err) 25%, transparent); }
 .fv-editor .cm-tooltip {
   background: rgba(var(--glass), 0.92);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   border: none;
   border-radius: 8px;
   color: var(--fg);
@@ -8160,8 +8186,8 @@ html:not([data-theme="light"]) .fv-editor--md {
   flex-direction: column;
   overflow: hidden;
   background: rgba(var(--glass), 0.72);
-  backdrop-filter: blur(var(--blur-lg)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(180%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(180%);
   animation: cmdk-pop 140ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 @keyframes cmdk-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -8266,8 +8292,8 @@ html:not([data-theme="light"]) .fv-editor--md {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
+  backdrop-filter: blur(var(--blur-sm));
   animation: cmdk-fade 120ms ease-out;
 }
 .stg-modal {
@@ -8694,8 +8720,8 @@ html:not([data-theme="light"]) .fv-editor--md {
   justify-content: center;
   padding: 24px;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
+  backdrop-filter: blur(var(--blur-sm));
   animation: cmdk-fade 120ms ease-out;
 }
 .del-confirm {
@@ -8757,8 +8783,8 @@ html:not([data-theme="light"]) .fv-editor--md {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.45);
-  backdrop-filter: blur(var(--blur-sm));
   -webkit-backdrop-filter: blur(var(--blur-sm));
+  backdrop-filter: blur(var(--blur-sm));
   animation: cmdk-fade 120ms ease-out;
 }
 .rw-modal {
@@ -8768,8 +8794,8 @@ html:not([data-theme="light"]) .fv-editor--md {
   flex-direction: column;
   overflow: hidden;
   background: rgba(var(--glass), 0.72);
-  backdrop-filter: blur(var(--blur-lg)) saturate(180%);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(180%);
+  backdrop-filter: blur(var(--blur-lg)) saturate(180%);
   animation: cmdk-pop 140ms cubic-bezier(0.2, 0.8, 0.3, 1);
 }
 .rw-head {
@@ -9010,8 +9036,8 @@ html:not([data-theme="light"]) .fv-editor--md {
   height: 34px; padding: 0 10px;
   border-radius: 10px;
   background: rgba(var(--glass), 0.42);
-  backdrop-filter: blur(var(--blur-md)) saturate(150%);
   -webkit-backdrop-filter: blur(var(--blur-md)) saturate(150%);
+  backdrop-filter: blur(var(--blur-md)) saturate(150%);
   color: var(--accent);
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22), inset 0 0 0 1px rgba(var(--rim), 0.10);
   cursor: pointer;
@@ -10279,6 +10305,10 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top
    letterbox. Mobile/Tablet keep .browser-canvas (aspect ratio) inside the
    DeviceFrame letterbox. */
 .browser-canvas.is-fill { width: 100%; height: 100%; }
+/* Embedded lane: a native WebContentsView is composited over this region by the
+   main process (it cannot be a DOM child). The placeholder just reserves the box
+   and carries the surface background so there is no flash before the view paints. */
+.browser-native-region { flex: 1; align-self: stretch; width: 100%; height: 100%; background: var(--surface-2, var(--bg)); }
 .browser-empty {
   position: absolute;
   inset: 0;
@@ -10415,9 +10445,15 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top
   position: absolute;
   inset: 0;
   z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* The native view is hidden while annotating, so the layer carries its own
+     neutral backdrop around the contained still (matches the panel surface). */
+  background: var(--surface-2, var(--bg));
 }
-.annotation-surface { position: absolute; top: 0; left: 0; width: 100%; line-height: 0; }
-.annotation-freeze { display: block; width: 100%; height: auto; background: #fff; }
+.annotation-surface { position: relative; line-height: 0; }
+.annotation-freeze { display: block; width: 100%; height: 100%; background: #fff; }
 .annotation-draw { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; }
 .annotation-text-input {
   position: absolute;
@@ -10475,28 +10511,32 @@ html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top
     0 0 0 4px var(--accent);
 }
 
-/* ---- Element picker overlay (P7) — appended after the annotation block ----- */
-/* Transparent surface pinned over the canvas box (top-pinned, full width, same
-   aspect as the viewport), so the live page keeps streaming underneath while the
-   pointer is captured here for hover-highlight + click-to-attach. */
-.picker-surface {
+/* ---- Element picker overlay (P7) — reimplemented for the embedded view ------ */
+/* During picking the native WebContentsView is on top of this layer and Chromium
+   renders its own inspect highlight over the live page — so the layer is empty
+   then. Once an element is picked the native view is hidden and the layer shows
+   the result card over a light scrim (a click anywhere dismisses it). */
+.picker-layer {
   position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
+  inset: 0;
   z-index: 3;
-  cursor: crosshair;
 }
-.picker-highlight {
+.picker-layer.has-result {
+  background: rgba(0, 0, 0, 0.16);
+  cursor: default;
+}
+.picker-added {
   position: absolute;
-  box-sizing: border-box;
-  pointer-events: none;
-  border: 2px solid var(--accent);
-  background: rgba(var(--tint), 0.14);
-  border-radius: 2px;
+  padding: 2px 8px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: 600;
+  white-space: nowrap;
 }
-/* Hover card — same floating glass-pop plane as the composer's slash/paste
-   popovers; positioned by inline left/top from the cursor. */
+/* Result card — same floating glass-pop plane as the composer's slash/paste
+   popovers; positioned by inline left/top. */
 .picker-popover {
   position: absolute;
   z-index: 4;

@@ -1,40 +1,30 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { AnnotationLayer, COLORS, hasPaintedFrame } from "./AnnotationLayer.jsx";
+import { AnnotationLayer, COLORS, containBox } from "./AnnotationLayer.jsx";
 import { beginStroke } from "./annotationExport.js";
 
-// The annotate overlay freezes the live .browser-canvas the instant pencil mode
-// starts. The guard below is what stops it committing a blank freeze — the bug
-// that left a white band across the top of the panel on reopen, when the overlay
-// remounted over a canvas that had not painted its first frame yet.
-const canvas = (width, height, alpha) => ({
-  width,
-  height,
-  getContext: () => ({
-    // one centre pixel; a streamed JPEG frame is opaque, a fresh canvas transparent
-    getImageData: () => ({ data: new Uint8ClampedArray([12, 34, 56, alpha]) }),
-  }),
-});
-
-describe("hasPaintedFrame (freeze guard)", () => {
-  it("is false for a fresh canvas: default backing store, fully transparent", () => {
-    // A just-mounted <canvas> keeps the 300x150 default (so a size-only check
-    // would wrongly pass), yet every pixel is transparent — nothing to freeze.
-    expect(hasPaintedFrame(canvas(300, 150, 0))).toBe(false);
+// The annotate overlay now captures the embedded view to a still (hide-on-overlay)
+// instead of freezing a screencast canvas. The still + draw canvas share one
+// contain-fit box; containBox is that geometry, kept pure and testable.
+describe("containBox (still fit)", () => {
+  it("fits by width in a wide container and preserves the still aspect", () => {
+    const box = containBox({ width: 1000, height: 600 }, { width: 800, height: 600 });
+    // 1000/800 = 1.25 vs 600/600 = 1.0 → height-limited
+    expect(box.height).toBeCloseTo(600, 5);
+    expect(box.width).toBeCloseTo(800, 5);
+    expect(box.width / box.height).toBeCloseTo(800 / 600, 5);
   });
 
-  it("is false for a zero-sized canvas", () => {
-    expect(hasPaintedFrame(canvas(0, 0, 255))).toBe(false);
-    expect(hasPaintedFrame(canvas(1200, 0, 255))).toBe(false);
+  it("fits by the tighter axis and keeps the aspect", () => {
+    const box = containBox({ width: 400, height: 1000 }, { width: 800, height: 600 });
+    expect(box.width).toBeCloseTo(400, 5); // width-limited
+    expect(box.width / box.height).toBeCloseTo(800 / 600, 5);
   });
 
-  it("is true once a real, opaque frame has been painted", () => {
-    expect(hasPaintedFrame(canvas(1200, 800, 255))).toBe(true);
-  });
-
-  it("is false when the pixels cannot be read (missing/tainted canvas)", () => {
-    expect(hasPaintedFrame(null)).toBe(false);
-    expect(hasPaintedFrame({ width: 1200, height: 800, getContext: () => { throw new Error("tainted"); } })).toBe(false);
+  it("is null until both container and still are measured", () => {
+    expect(containBox({ width: 0, height: 0 }, { width: 800, height: 600 })).toBeNull();
+    expect(containBox({ width: 800, height: 600 }, null)).toBeNull();
+    expect(containBox(null, { width: 800, height: 600 })).toBeNull();
   });
 });
 
@@ -58,8 +48,6 @@ describe("pencil colour palette", () => {
   });
 
   it("selecting a swatch is what colours the stroke (colour state feeds beginStroke)", () => {
-    // The swatch onClick sets the colour state; a stroke started with that colour
-    // carries it verbatim, so picking a swatch changes the drawn colour.
     for (const c of ["#000000", "#ffffff", "#007aff"]) {
       expect(beginStroke("pen", c, { x: 1, y: 1 }).color).toBe(c);
     }

@@ -1,0 +1,12 @@
+node_modules/
+.forge-build/
+out/
+verify/
+*.log
+
+# The root .gitignore's `build/` rule also catches app/build/, but this dir holds
+# committed packaging assets (app icon + Hardened-Runtime entitlements plists),
+# not build output — that goes to .forge-build/ and out/ (both ignored above).
+# Re-include so signing/packaging inputs are tracked.
+!build/
+!build/**

@@ -19,10 +19,6 @@ function makeCtx(overrides: Partial<BuildCtx> = {}): BuildCtx {
     socketFile: join(home, "daemon.sock"),
     force: false,
     dryRun: false,
-    // noApp keeps the relaunch epilogue inert so tests never touch pgrep/osascript.
-    noApp: true,
-    noRelaunch: false,
-    open: false,
     log: () => {},
     ...overrides,
   };

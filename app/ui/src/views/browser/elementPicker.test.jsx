@@ -1,12 +1,12 @@
 import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { pickerHoverRequest, boxToPercentRect, elementLabel, elementAttachment } from "./PickerLayer.jsx";
+import { elementLabel, elementAttachment, elementPayload } from "./PickerLayer.jsx";
 import { ElementPopover } from "./ElementPopover.jsx";
 import { AttachmentChips } from "../code/center/AttachmentChips.jsx";
 import { buildAttachmentSuffix, parseAttachmentMessage, elementSummary } from "../../lib/attachmentTokens.js";
 
-// A representative BrowserElement (plan §3.1) as the daemon's /elements route
-// returns it: viewport-CSS-px box, accname, durable locator.
+// A representative BrowserElement (plan §3.1) as the native picker resolves it:
+// viewport-CSS-px box, accname, durable locator, a freshly-minted @eN ref.
 const EL = {
   ref: "e7",
   tag: "img",
@@ -16,25 +16,6 @@ const EL = {
   focusable: true,
   locator: 'role=img[name="Home"]',
 };
-
-describe("pickerHoverRequest", () => {
-  it("maps a canvas CSS offset to a {hover:[x,y]} probe in viewport px", () => {
-    // canvas shown at half the viewport's CSS size → coords double
-    expect(pickerHoverRequest(160, 100, 640, 400, { width: 1280, height: 800 }))
-      .toEqual({ hover: [320, 200] });
-  });
-  it("is identity when the surface matches the viewport", () => {
-    expect(pickerHoverRequest(40, 60, 1280, 800, { width: 1280, height: 800 }))
-      .toEqual({ hover: [40, 60] });
-  });
-});
-
-describe("boxToPercentRect", () => {
-  it("scales a viewport-px box back to a percentage highlight over the surface", () => {
-    expect(boxToPercentRect([64, 40, 128, 80], { width: 1280, height: 800 }))
-      .toEqual({ left: "5%", top: "5%", width: "10%", height: "10%" });
-  });
-});
 
 describe("elementAttachment", () => {
   it("carries the compact BrowserElement — never outerHTML, never a screenshot", () => {
@@ -51,6 +32,11 @@ describe("elementAttachment", () => {
   });
   it("labels the chip with the element identity (tag + name)", () => {
     expect(elementLabel(EL)).toBe("[img · Home]");
+  });
+  it("elementPayload is exactly the durable identity fields", () => {
+    expect(elementPayload(EL)).toEqual({
+      ref: "e7", tag: "img", role: "image", name: "Home", locator: 'role=img[name="Home"]',
+    });
   });
 });
 

@@ -3,6 +3,7 @@ import { TabBar } from "../../../components/TabBar.jsx";
 import { SettingsFooter } from "../../../components/SettingsFooter.jsx";
 import { SidebarHead } from "./SidebarHead.jsx";
 import { AgentsTree } from "./AgentsTree.jsx";
+import { LayoutGroups } from "./LayoutGroups.jsx";
 import { buildAgentTree } from "../../../lib/tree.js";
 import { archivedTree } from "../../../lib/archive.js";
 import { useSidebarPrefs } from "../../../state/sidebarPrefsStore.js";
@@ -41,6 +42,10 @@ export function CodeSidebar({ live, variant = "full" }) {
     return [...activeRoots, ...archivedRoots];
   }, [status, activeRoots, archivedRoots]);
 
+  // Live agent ids — layout restore keeps a dead agent's leaf empty (not stripped),
+  // and the dirty indicator treats such an empty pane as non-divergent.
+  const aliveIds = useMemo(() => new Set(live.workers.map((w) => w.id)), [live.workers]);
+
   // Empty-state gating + label reflect what's actually being shown.
   const loaded = showActive && showArchived ? (live.loaded && archivedLoaded)
     : showArchived ? archivedLoaded : live.loaded;
@@ -56,6 +61,7 @@ export function CodeSidebar({ live, variant = "full" }) {
     <>
       <TabBar variant={variant} />
       <SidebarHead total={live.workers.length} variant={variant} />
+      <LayoutGroups aliveIds={aliveIds} />
       <AgentsTree
         roots={roots}
         loaded={loaded}
