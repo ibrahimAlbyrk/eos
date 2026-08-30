@@ -62,7 +62,7 @@ export function LayoutGroups({ aliveIds }) {
   const menuGroup = menu ? groups.find((g) => g.id === menu.id) ?? null : null;
 
   return (
-    <div className="agents-section">
+    <div className="layout-groups">
       <div className="agents-group">
         <div className="agents-group__head">
           <span className="agents-group__name">Layouts</span>

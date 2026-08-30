@@ -5116,6 +5116,16 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
   padding: 8px 8px 8px;
   overflow-y: auto;
 }
+/* Saved-layout groups sit ABOVE the agents list as a content-sized block. It must
+   NOT be an .agents-section: that class is flex:1, so a second one splits the
+   sidebar 50/50 and opens a tall empty gap. Horizontal padding matches so rows
+   align with the Agents list; bottom padding is 0 (the agents-section below adds
+   its own 8px top) so the two sit flush. */
+.layout-groups {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column;
+  padding: 8px 8px 0;
+}
 /* project group: a header (name + its own +) above that project's agent rows */
 .agents-group { display: flex; flex-direction: column; }
 .agents-group + .agents-group { margin-top: 6px; }

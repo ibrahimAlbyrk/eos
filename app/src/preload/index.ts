@@ -17,6 +17,22 @@ const uiToken = argValue("eos-ui-token");
 if (daemonUrl) contextBridge.exposeInMainWorld("__EOS_DAEMON_URL", daemonUrl);
 if (uiToken) contextBridge.exposeInMainWorld("__EOS_UI_TOKEN", uiToken);
 
+// Embedded browser view — geometry/visibility channel ONLY (plan §C/§E). The
+// renderer measures the browser panel's placeholder rect and reports it; the main
+// process positions the native WebContentsView to track it. No webContents and no
+// navigation verbs cross here — those flow renderer → daemon REST → engine.
+contextBridge.exposeInMainWorld("eosBrowserView", {
+  setActiveView: (arg: { sessionKey: string; tabId: string }) => ipcRenderer.send("browserView:setActiveView", arg),
+  setBounds: (rect: { x: number; y: number; width: number; height: number }) => ipcRenderer.send("browserView:setBounds", rect),
+  setVisible: (visible: boolean) => ipcRenderer.send("browserView:setVisible", visible),
+  overlayOpen: (open: boolean) => ipcRenderer.send("browserView:overlay", open),
+  // Element picker (human): drive Chromium's native inspect overlay on the live
+  // view; resolves the picked element (or null if cancelled). cancelPick abandons
+  // an in-flight pick when the human leaves pick mode.
+  pickElement: (tabId: string) => ipcRenderer.invoke("browserView:pick", tabId),
+  cancelPick: () => ipcRenderer.send("browserView:pickCancel"),
+});
+
 // html.native gates ~30 CSS rules (titlebar/traffic-light insets, sidebar chrome).
 // The DOM is shared across isolated worlds, so setting it here is visible to the
 // page; guard for pre-documentElement timing (doc 20 §e-3, plan §C4 item 3).
