@@ -10,6 +10,7 @@ import { writeFileSync, readFileSync, unlinkSync, existsSync, realpathSync } fro
 import { loadConfig, reloadConfig as reloadConfigFromDisk, priceForModel, type DaemonConfig, type ModelPriceSpec } from "./shared/config.ts";
 import { expandPath } from "./shared/path.ts";
 import { buildWorkerArgs } from "./shared/worker-args.ts";
+import { isPackaged, nodeBin, nodeRunEnv, tsRuntimeFlags } from "./shared/packaging.ts";
 import { errMsg } from "../contracts/src/util.ts";
 
 import { systemClock } from "../infra/src/time/SystemClock.ts";
@@ -152,6 +153,8 @@ import { TerminalRunService } from "./services/TerminalRunService.ts";
 import { PtySessionService } from "./services/PtySessionService.ts";
 import { BrowserService, browserProfileDirFor } from "./services/BrowserService.ts";
 import { CdpBrowserAdapter } from "../infra/src/browser/CdpBrowserAdapter.ts";
+import { RemoteBrowserEngine } from "../infra/src/browser/RemoteBrowserEngine.ts";
+import { AppBrowserHost } from "./browser-host.ts";
 
 import type { SpawnWorkerSpec, SpawnWorkerDeps } from "../core/src/use-cases/SpawnWorker.ts";
 export { randomOrchestratorName } from "./shared/names.ts";
@@ -233,7 +236,9 @@ export function buildContainer() {
 
   // Process supervision + port allocator -----------------------------------
   const supervisor = createChildProcessSupervisor({
-    binary: "node",
+    // dev: system "node"; packaged: Electron's own binary run as Node (the child
+    // gets ELECTRON_RUN_AS_NODE=1 via buildEnv's nodeRunEnv()).
+    binary: nodeBin(),
     logger: log.child({ scope: "supervisor" }),
   });
   const portAllocator = createPortAllocator({
@@ -479,6 +484,7 @@ export function buildContainer() {
       model,
       spec: wiredSpec,
       workerScript: config.paths.workerScript,
+      stripTypes: !isPackaged(), // packaged: workerScript is a prebuilt bundle
       daemonPort: config.daemon.port,
       worker: {
         heartbeatMs: config.worker.heartbeatMs,
@@ -500,10 +506,13 @@ export function buildContainer() {
     // Scrub subscription-diverting provider keys so the claude-cli worker process
     // (and the PTY child it spawns) never inherits an API key (R3).
     ...scrubSubscriptionEnv(process.env),
+    // Packaged: make the worker process run under Electron's Node (no-op in dev).
+    ...nodeRunEnv(),
     EOS_CLAUDE_BIN: config.paths.claudeBin,
     EOS_BUN_BIN: config.paths.bunBin,
     EOS_REPO_ROOT: config.paths.repoRoot,
-    EOS_GATEWAY_SCRIPT: join(config.paths.repoRoot, "gateway", "server.ts"),
+    // Bundle path when packaged, repo .ts in dev; the worker's claude-args reads this.
+    EOS_GATEWAY_SCRIPT: config.paths.gatewayScript,
   });
 
   const logFileFor = (id: string): string => join(config.daemon.logDir, `${id}.log`);
@@ -533,28 +542,30 @@ export function buildContainer() {
       EOS_DAEMON_SOCK: config.daemon.socketFile,
       EOS_WORKER_ID: input.id,
     };
-    const node = (script: string, extraEnv?: Record<string, string>) => ({
-      command: "node",
-      args: ["--no-warnings", "--experimental-strip-types", join(config.paths.repoRoot, "manager", script)],
-      env: extraEnv ? { ...baseEnv, ...extraEnv } : baseEnv,
+    // dev: `node --experimental-strip-types <repo>/manager/*.ts`; packaged:
+    // Electron's Node against the shipped *.bundle.mjs (ELECTRON_RUN_AS_NODE=1).
+    const node = (scriptPath: string, extraEnv?: Record<string, string>) => ({
+      command: nodeBin(),
+      args: [...tsRuntimeFlags(), "--no-warnings", scriptPath],
+      env: { ...baseEnv, ...nodeRunEnv(), ...(extraEnv ?? {}) },
       alwaysLoad: true,
     });
     // Key set = EOS_BUILTIN_MCP_SERVERS — the subagent caller-scope deny
     // (core/domain/tool-scope.ts) matches on these server names.
     const builtins: Partial<Record<EosBuiltinMcpServer, unknown>> = {};
-    if (input.isOrchestrator) builtins.orchestrator = node("orchestrator-mcp.ts");
+    if (input.isOrchestrator) builtins.orchestrator = node(config.paths.orchestratorMcpScript);
     if (input.withGateway) {
-      builtins.gateway = {
-        command: config.paths.bunBin,
-        args: ["run", join(config.paths.repoRoot, "gateway", "server.ts")],
-        env: baseEnv,
-      };
+      // dev: `bun run gateway/server.ts`; packaged: Electron-node against the
+      // bundled gateway (Bun dropped — the gateway has zero Bun-specific APIs).
+      builtins.gateway = isPackaged()
+        ? { command: nodeBin(), args: [config.paths.gatewayScript], env: { ...baseEnv, ...nodeRunEnv() } }
+        : { command: config.paths.bunBin, args: ["run", config.paths.gatewayScript], env: baseEnv };
     }
     // EOS_COLLABORATE gates the peer MCP tools (list_peers / ask_peer /
     // respond_to_peer) inside the worker MCP server; EOS_ROLE selects the
     // workflow-worker tool surface — both read synchronously at its boot, so no
     // daemon round-trip / row-insert race.
-    if (input.parentId) builtins.worker = node("worker-mcp.ts", { EOS_COLLABORATE: input.collaborate ? "1" : "", EOS_ROLE: input.role ?? "" });
+    if (input.parentId) builtins.worker = node(config.paths.workerMcpScript, { EOS_COLLABORATE: input.collaborate ? "1" : "", EOS_ROLE: input.role ?? "" });
     return { builtins, permissionPromptTool: input.withGateway ? "mcp__gateway__decide" : undefined };
   };
 
@@ -611,16 +622,27 @@ export function buildContainer() {
   // daemon restarts. persistProfile=false → throwaway per-boot profiles in the
   // OS temp dir. perSession=false collapses everything onto the one global
   // engine (wave-1 behavior).
+  // Browser host registry for the embedded lane: when the Electron app registers
+  // itself as the browser host (over /browser/host), the engineFactory returns a
+  // RemoteBrowserEngine that RPCs the real WebContentsView in the app; with no
+  // host (headless daemon, CI, cron) it returns today's CdpBrowserAdapter. Choice
+  // is per-engine-launch. On host disconnect, resetEngines drops the dead remote
+  // engines so the next launch falls back to headless.
+  const appHost = new AppBrowserHost({ log });
   const browser = new BrowserService({
-    engineFactory: (sessionKey) => new CdpBrowserAdapter({
-      chromePath: config.browser.chromePath,
-      profileDir: browserProfileDirFor(config.daemon.home, config.browser.persistProfile, sessionKey),
-      notify: (msg, meta) => log.warn(msg, meta),
-    }),
+    engineFactory: (sessionKey) =>
+      appHost.isRegistered()
+        ? new RemoteBrowserEngine(appHost.channelFor(sessionKey))
+        : new CdpBrowserAdapter({
+            chromePath: config.browser.chromePath,
+            profileDir: browserProfileDirFor(config.daemon.home, config.browser.persistProfile, sessionKey),
+            notify: (msg, meta) => log.warn(msg, meta),
+          }),
     getConfig: () => config.browser,
     bus,
     log,
   });
+  appHost.onDeregister(() => browser.resetEngines());
   // Centralized prompt system (Layer 1) + DPI (Layer 2). Built-in library lives
   // in config.paths.promptsDir; ~/.eos/prompts overrides/extends it. Reads fresh
   // per reload so prompt edits apply on the next spawn without a daemon restart.
@@ -1316,6 +1338,7 @@ export function buildContainer() {
     terminalRuns,
     ptySessions,
     browser,
+    appHost,
     prompts,
     promptRegistry,
     listWorkerDefinitionRecords,

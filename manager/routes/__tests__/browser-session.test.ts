@@ -7,7 +7,7 @@ import { registerBrowserRoutes, resolveBrowserCaller, UnattributedAgentError } f
 import type { Container } from "../../container.ts";
 import { BrowserService } from "../../services/BrowserService.ts";
 import { GLOBAL_SESSION } from "../../../contracts/src/browser.ts";
-import type { BrowserEngine, BrowserEngineTabInfo, BrowserFrame, DisplaySize } from "../../../core/src/ports/BrowserEngine.ts";
+import type { BrowserEngine, BrowserEngineTabInfo } from "../../../core/src/ports/BrowserEngine.ts";
 import type { WorkerRow } from "../../../contracts/src/worker.ts";
 
 // Wave-2 session scoping of the browser REST surface: actor + session are
@@ -47,11 +47,6 @@ class FakeEngine implements BrowserEngine {
   async listTabs() { return this.tabs; }
   activeTabId() { return this.active; }
   async navigate() {}
-  async startScreencast(_t: string, _d: DisplaySize, _f: (_frame: BrowserFrame) => void) {}
-  async stopScreencast() {}
-  async setDisplaySize() {}
-  async dispatchInput() {}
-  viewport() { return { width: 1280, height: 800 }; }
   async snapshot() { return { url: "u", snapshot: "" }; }
   async find() { return []; }
   async act() {}
@@ -65,7 +60,6 @@ class FakeEngine implements BrowserEngine {
   async textPresent() { return false; }
   async refVisible() { return false; }
   async setMuted() {}
-  async setSilenced() {}
   onExit(cb: (_info: { code: number | null }) => void) { this.exitCb = cb; }
   onTabsChanged() {}
   dispose() { this.running = false; this.disposed = true; }

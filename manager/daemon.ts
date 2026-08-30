@@ -68,7 +68,7 @@ import { registerDatetimeRoutes } from "./routes/datetime.ts";
 import { registerUiConfigRoutes } from "./routes/uiConfig.ts";
 import { registerBackendsRoutes } from "./routes/backends.ts";
 import { registerBrowserRoutes } from "./routes/browser.ts";
-import { makeBrowserUpgradeHandler } from "./browser-ws.ts";
+import { makeBrowserHostUpgradeHandler } from "./browser-host.ts";
 import { registerFsRawRoutes } from "./routes/fs-raw.ts";
 import { registerCommandCatalog } from "./commands/register.ts";
 import { fdStats } from "../infra/src/util/fd-stats.ts";
@@ -497,10 +497,13 @@ const server = createServer(makeHandler(router, { cors: true }));
 // 65s outlives the slowest poll; headersTimeout must stay above it.
 applyKeepAlive(server);
 
-// Browser frame WebSocket (/browser/stream) — the only upgrade surface on the
-// app/API server (remote is relay-only and binds nothing here). Loopback +
-// ui-token gated inside the handler; unknown upgrade paths are destroyed.
-server.on("upgrade", makeBrowserUpgradeHandler({ browser: c.browser, uiToken: c.uiToken, log: c.log }));
+// The only WS upgrade surface on the app/API server: /browser/host — the
+// embedded-browser control channel where the Electron app registers as browser
+// host and the daemon drives its WebContentsView views. Loopback + ui-token
+// gated inside the handler; any other upgrade path is destroyed. (The old JPEG
+// screencast WS /browser/stream is gone — the human sees the native embedded
+// view, not piped frames.)
+server.on("upgrade", makeBrowserHostUpgradeHandler({ host: c.appHost, uiToken: c.uiToken, log: c.log }));
 
 // Remote edge (iOS, relay v3). The controller arms the outbound relay leg live:
 // the initial reconcile() arms ONLY when config.remote.enabled AND relay.url is

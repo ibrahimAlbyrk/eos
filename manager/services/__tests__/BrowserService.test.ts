@@ -10,10 +10,7 @@ import {
   browserProfileDirFor,
 } from "../BrowserService.ts";
 import { BrowserTabSchema, GLOBAL_SESSION } from "../../../contracts/src/browser.ts";
-import type { BrowserEngine, BrowserEngineTabInfo, BrowserFrame, DisplaySize } from "../../../core/src/ports/BrowserEngine.ts";
-
-// The panel's live display size the daemon streams against (Responsive 1:1).
-const DISPLAY: DisplaySize = { cssWidth: 1280, cssHeight: 800, dpr: 2 };
+import type { BrowserEngine, BrowserEngineTabInfo } from "../../../core/src/ports/BrowserEngine.ts";
 
 const log = { info: () => {}, warn: () => {} };
 
@@ -30,20 +27,11 @@ class FakeEngine implements BrowserEngine {
   running = false;
   disposed = false;
   tabs: BrowserEngineTabInfo[] = [];
-  screencasts = new Map<string, (f: BrowserFrame) => void>();
-  startCalls = 0;
-  startDisplays: DisplaySize[] = [];
-  failNextStart = false;
-  stopCalls = 0;
-  inputs: unknown[] = [];
-  silencedCalls: Array<[string, boolean]> = [];
-  displaySizeCalls: Array<[string, DisplaySize]> = [];
   textPresentResult = false;
   private exitCb: ((info: { code: number | null }) => void) | null = null;
   private static nextId = 0;
-  // Mirrors the adapter's foregroundTabId: set on openTab (new tab foregrounds)
-  // and on startScreencast (a subscribe brings its tab to front), cleared when
-  // the foreground tab closes.
+  // Mirrors the adapter's foregroundTabId: set on openTab (new tab foregrounds),
+  // cleared when the foreground tab closes.
   active: string | null = null;
 
   async launch() { this.running = true; }
@@ -62,20 +50,6 @@ class FakeEngine implements BrowserEngine {
   async listTabs() { return this.tabs; }
   activeTabId() { return this.active && this.tabs.some((t) => t.tabId === this.active) ? this.active : null; }
   async navigate() {}
-  async startScreencast(tabId: string, display: DisplaySize, onFrame: (f: BrowserFrame) => void) {
-    if (this.failNextStart) {
-      this.failNextStart = false;
-      throw new Error("start failed");
-    }
-    this.startCalls++;
-    this.startDisplays.push(display);
-    this.active = tabId;
-    this.screencasts.set(tabId, onFrame);
-  }
-  async stopScreencast(tabId: string) { this.stopCalls++; this.screencasts.delete(tabId); }
-  async setDisplaySize(tabId: string, display: DisplaySize) { this.displaySizeCalls.push([tabId, display]); }
-  async dispatchInput(_tabId: string, event: unknown) { this.inputs.push(event); }
-  viewport() { return { width: 1280, height: 800 }; }
   async snapshot() { return { url: "u", snapshot: "" }; }
   async find() { return []; }
   async act() {}
@@ -89,14 +63,13 @@ class FakeEngine implements BrowserEngine {
   async textPresent() { return this.textPresentResult; }
   async refVisible() { return false; }
   async setMuted() {}
-  async setSilenced(tabId: string, silenced: boolean) { this.silencedCalls.push([tabId, silenced]); }
   onExit(cb: (info: { code: number | null }) => void) { this.exitCb = cb; }
   onTabsChanged() {}
   dispose() { this.running = false; this.disposed = true; }
   crash() { this.running = false; this.exitCb?.({ code: 1 }); }
 }
 
-function make(enabled = true, allowedOrigins: string[] = [], watchdog?: { stallMs: number; tickMs: number }, perSession = true) {
+function make(enabled = true, allowedOrigins: string[] = [], perSession = true) {
   const engines = new Map<string, FakeEngine>();
   const bus = makeBus();
   const service = new BrowserService({
@@ -108,7 +81,6 @@ function make(enabled = true, allowedOrigins: string[] = [], watchdog?: { stallM
     getConfig: () => ({ enabled, chromePath: null, allowedOrigins, persistProfile: true, perSession }),
     bus,
     log,
-    watchdog,
   });
   // Wave-1-shaped accessor: most tests exercise the global session's engine.
   const engineFor = (key: string = GLOBAL_SESSION): FakeEngine => {
@@ -119,7 +91,6 @@ function make(enabled = true, allowedOrigins: string[] = [], watchdog?: { stallM
   return { engines, engineFor, bus, service };
 }
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 test("disabled config gates every entry point", async () => {
   const { service, engines } = make(false);
@@ -128,8 +99,6 @@ test("disabled config gates every entry point", async () => {
   await assert.rejects(() => service.openTab(), BrowserDisabledError);
   await assert.rejects(() => service.listTabs(), BrowserDisabledError);
   await assert.rejects(() => service.snapshot("bt-x", { interactiveOnly: true }), BrowserDisabledError);
-  await assert.rejects(() => service.subscribeFrames("bt-x", DISPLAY, () => {}), BrowserDisabledError);
-  await assert.rejects(() => service.input("bt-x", { kind: "insert", text: "x" }), BrowserDisabledError);
   assert.throws(() => service.activeTabId(), BrowserDisabledError);
   // Nothing launched — no session ever got a running engine (the status probe
   // may construct an engine object, but never launches it).
@@ -145,17 +114,19 @@ test("openTab launches once and opens a blank tab (no hardcoded start site)", as
   assert.equal(service.status().state, "running");
 });
 
-test("activeTabId is the session's pointer: newest open, follows a subscribe, cleared on its close", async () => {
+test("activeTabId: newest open, explicit setActiveTab pointer, cleared on close (no first-tab fallback)", async () => {
   const { service } = make();
   assert.equal(service.activeTabId(), null); // nothing open yet
   const a = await service.openTab();
   const b = await service.openTab();
   assert.equal(service.activeTabId(), b, "the newest open tab is the active one");
-  // Subscribing to A is the panel switching to A → it becomes the active tab.
-  await service.subscribeFrames(a, DISPLAY, () => {});
+  // The panel declaring it shows A (setActiveTab) makes A the session's active tab.
+  service.setActiveTab(GLOBAL_SESSION, a);
   assert.equal(service.activeTabId(), a);
-  await service.closeTab(a);
-  assert.equal(service.activeTabId(), null, "closing the active tab clears it — no first-tab fallback");
+  await service.closeTab(b); // A is still the pointer and open
+  assert.equal(service.activeTabId(), a);
+  await service.closeTab(a); // close the active tab itself
+  assert.equal(service.activeTabId(), null, "closing the active tab clears it — no fallback to a remaining tab");
 });
 
 test("tab objects parse against BrowserTabSchema (sessionId/audible/muted present)", async () => {
@@ -196,7 +167,7 @@ test("two session keys get distinct engines and disjoint listTabs", async () => 
 });
 
 test("perSession:false maps every session key onto the one global engine", async () => {
-  const { service, engines } = make(true, [], undefined, false);
+  const { service, engines } = make(true, [], false);
   const t1 = await service.openTab("about:blank", "agent", "o-a");
   const t2 = await service.openTab("about:blank", "agent", "o-b");
   assert.equal(engines.size, 1);
@@ -247,7 +218,7 @@ test("presentAllowed: one present per session per rate window", () => {
 });
 
 test("publishActivity collapses the session key under perSession:false", () => {
-  const { service, bus } = make(true, [], undefined, false);
+  const { service, bus } = make(true, [], false);
   service.publishActivity({ sessionId: "o-a", workerId: "w-1", kind: "use", tabId: "bt-1" });
   const msg = bus.published.find((p) => p.topic === "browser:activity");
   assert.ok(msg);
@@ -258,7 +229,6 @@ test("one session's engine crash clears only that session's state", async () => 
   const { service, engines } = make();
   const t1 = await service.openTab("about:blank", "agent", "o-a");
   const t2 = await service.openTab("about:blank", "agent", "o-b");
-  await service.subscribeFrames(t2, DISPLAY, () => {});
   engines.get("o-a")!.crash();
   assert.equal(service.status("o-a").state, "crashed");
   assert.equal(service.status("o-b").state, "running");
@@ -266,130 +236,9 @@ test("one session's engine crash clears only that session's state", async () => 
   assert.equal(service.sessionOfTab(t2), "o-b");
 });
 
-// ---- frames / watchdog (wave-1 behavior, now per engine) ----------------------
-
-test("frame subscription refcounts: one screencast per tab, stopped on last unsubscribe", async () => {
-  const { service, engineFor } = make();
-  const silenced: string[] = [];
-  service.silenceTab = (tabId: string) => silenced.push(tabId);
-  const tabId = await service.openTab();
-  const engine = engineFor();
-  const seen: BrowserFrame[] = [];
-  const un1 = await service.subscribeFrames(tabId, DISPLAY, (f) => seen.push(f));
-  const un2 = await service.subscribeFrames(tabId, DISPLAY, () => {});
-  assert.equal(engine.startCalls, 1);
-  // The first subscriber lifts the system-level silence (viewer is back).
-  assert.deepEqual(engine.silencedCalls, [[tabId, false]]);
-  engine.screencasts.get(tabId)?.({ tabId, data: new Uint8Array([1]), width: 2, height: 2 });
-  assert.equal(seen.length, 1);
-  un1();
-  assert.equal(engine.stopCalls, 0); // one subscriber left
-  assert.deepEqual(silenced, []);
-  un2();
-  assert.equal(engine.stopCalls, 1);
-  // Audio outlives the screencast (audio spike) — the last-viewer path must
-  // hit the silenceTab seam.
-  assert.deepEqual(silenced, [tabId]);
-});
-
-// The white-screen regression: a subscribed tab that stops delivering frames
-// (stolen foreground, dead screencast, zombie subscription) must be restarted
-// by the watchdog; a delivering stream must never be kicked.
-test("watchdog restarts a stalled subscribed stream and leaves a delivering one alone", async () => {
-  const { service, engineFor } = make(true, [], { stallMs: 100, tickMs: 25 });
-  const tabId = await service.openTab();
-  const engine = engineFor();
-  const un = await service.subscribeFrames(tabId, DISPLAY, () => {});
-  assert.equal(engine.startCalls, 1);
-
-  // No frames arrive → the watchdog re-issues startScreencast.
-  await sleep(350);
-  assert.ok(engine.startCalls >= 2, `stalled stream restarted (startCalls=${engine.startCalls})`);
-
-  // Frames flowing → no further kicks (feed 10x faster than the stall clock).
-  const feed = setInterval(() => {
-    engine.screencasts.get(tabId)?.({ tabId, data: new Uint8Array([1]), width: 2, height: 2 });
-  }, 10);
-  await sleep(100); // let a fed frame settle the stall clock before sampling
-  const stable = engine.startCalls;
-  await sleep(300);
-  clearInterval(feed);
-  assert.equal(engine.startCalls, stable, "a delivering stream is never kicked");
-
-  // Last unsubscribe stops the screencast AND the watchdog.
-  un();
-  const after = engine.startCalls;
-  await sleep(300);
-  assert.equal(engine.startCalls, after, "no watchdog restarts after the last unsubscribe");
-});
-
-test("watchdog watches each session's streams independently", async () => {
-  const { service, engines } = make(true, [], { stallMs: 100, tickMs: 25 });
-  const tA = await service.openTab("about:blank", "agent", "o-a");
-  const tB = await service.openTab("about:blank", "agent", "o-b");
-  await service.subscribeFrames(tA, DISPLAY, () => {});
-  await service.subscribeFrames(tB, DISPLAY, () => {});
-  const engineA = engines.get("o-a")!;
-  const engineB = engines.get("o-b")!;
-  // Feed only B — A stalls and is kicked in ITS engine; B is left alone.
-  const feed = setInterval(() => {
-    engineB.screencasts.get(tB)?.({ tabId: tB, data: new Uint8Array([1]), width: 2, height: 2 });
-  }, 10);
-  await sleep(100);
-  const stableB = engineB.startCalls;
-  await sleep(300);
-  clearInterval(feed);
-  assert.ok(engineA.startCalls >= 2, `stalled session restarted (startCalls=${engineA.startCalls})`);
-  assert.equal(engineB.startCalls, stableB, "the delivering session is never kicked");
-});
-
-test("watchdog restart keeps the panel-reported display size fresh (resize + resubscribe)", async () => {
-  const { service, engineFor } = make(true, [], { stallMs: 100, tickMs: 25 });
-  const tabId = await service.openTab();
-  const engine = engineFor();
-  await service.subscribeFrames(tabId, DISPLAY, () => {});
-  const resized = { cssWidth: 640, cssHeight: 480, dpr: 2 };
-  await service.resizeViewport(tabId, resized);
-  engine.startDisplays = [];
-  await sleep(350);
-  assert.ok(engine.startDisplays.length >= 1, "watchdog kicked");
-  assert.deepEqual(engine.startDisplays.at(-1), resized, "restart uses the latest panel size, not the subscribe-time one");
-});
-
-test("a failed startScreencast does not leave a dead stream record behind", async () => {
-  const { service, engineFor } = make();
-  const tabId = await service.openTab();
-  const engine = engineFor();
-  engine.failNextStart = true;
-  await assert.rejects(() => service.subscribeFrames(tabId, DISPLAY, () => {}));
-  // The next subscribe must start the engine screencast for real, not silently
-  // join a phantom record that never started.
-  const seen: BrowserFrame[] = [];
-  await service.subscribeFrames(tabId, DISPLAY, (f) => seen.push(f));
-  assert.equal(engine.startCalls, 1); // the failed attempt never counted
-  engine.screencasts.get(tabId)?.({ tabId, data: new Uint8Array([1]), width: 2, height: 2 });
-  assert.equal(seen.length, 1, "frames reach the recovered subscriber");
-});
-
-test("resizeViewport forwards the panel display size to the engine", async () => {
-  const { service, engineFor } = make();
-  const tabId = await service.openTab();
-  await service.resizeViewport(tabId, { cssWidth: 900, cssHeight: 600, dpr: 2 });
-  assert.deepEqual(engineFor().displaySizeCalls, [[tabId, { cssWidth: 900, cssHeight: 600, dpr: 2 }]]);
-});
-
-test("silenceTab drives engine.setSilenced(true)", async () => {
-  const { service, engineFor } = make();
-  const tabId = await service.openTab();
-  service.silenceTab(tabId);
-  await new Promise((r) => setImmediate(r));
-  assert.deepEqual(engineFor().silencedCalls, [[tabId, true]]);
-});
-
-test("engine crash flips status and clears subscribers", async () => {
+test("engine crash flips status to crashed and publishes it", async () => {
   const { service, engineFor, bus } = make();
-  const tabId = await service.openTab();
-  await service.subscribeFrames(tabId, DISPLAY, () => {});
+  await service.openTab();
   engineFor().crash();
   assert.equal(service.status().state, "crashed");
   assert.ok(bus.published.some((p) => p.topic === "browser:status"));
