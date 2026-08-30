@@ -4,42 +4,37 @@ import { api } from "../../api/client.js";
 import { notify } from "../../lib/notify.js";
 import {
   subscribe, getBrowserPanel, patchBrowserPanel, resetPanelView,
-  browserFetch, browserStreamUrl, withSession, refreshTabs, openTab, isBlankUrl,
-  bindPaneSession,
+  browserFetch, withSession, refreshTabs, openTab, isBlankUrl,
+  bindPaneSession, declareActiveTab,
 } from "../../state/browserPanelStore.js";
 import { notePanelOpened, seedRememberedTab } from "../../state/browserSessionState.js";
 import { sessionRootOf } from "../../lib/agentIndex.js";
 import { findLeaf } from "../../lib/paneLayout.js";
 import { PanelShell } from "../code/panes/PanelShell.jsx";
-import { BrowserCanvas } from "./BrowserCanvas.jsx";
 import { BrowserEmptyState } from "./BrowserEmptyState.jsx";
 import { BrowserTabStrip } from "./BrowserTabStrip.jsx";
 import { BrowserNavBar } from "./BrowserNavBar.jsx";
 import { BrowserModeButtons } from "./BrowserModeButtons.jsx";
 import { AnnotationLayer } from "./AnnotationLayer.jsx";
 import { PickerLayer } from "./PickerLayer.jsx";
-import { DeviceFrame } from "./DeviceFrame.jsx";
 
-// Browser docked panel: the shell header carries the tab strip and the three
-// mode buttons, a navigation row sits under it, and the body paints the live
-// page. Owns the frame-WS lifecycle: ensure Chrome is up → ensure one tab →
-// open ws://…/browser/stream → subscribe to the ACTIVE tab → hand the socket to
-// BrowserCanvas. Frames ride the dedicated binary WS, never SSE; hiding the app
-// pauses the stream (Page.stopScreencast daemon-side → ~0 cost while hidden).
-//
-// Tab metadata and engine lifecycle arrive on the browser:tabs / browser:status
-// SSE reasons (useLive.js → browserPanelStore); this panel only fetches on its
-// own actions, never on a timer.
+// Browser docked panel. The page renders in a REAL embedded WebContentsView owned
+// by the Electron main process — window.eosBrowserView is the narrow geometry/
+// visibility bridge (the renderer never touches webContents). The daemon drives
+// the SAME views for agents over /browser/host. There is no JPEG screencast /
+// canvas path: the browser is desktop-app-only, so a non-app (web) client shows a
+// message instead. Human verbs (open/close/navigate/device) flow renderer →
+// daemon REST via browserPanelStore.
 
-// Engine states that replace the canvas with a message body.
+// Native embedded view present ⇒ the app owns rendering. Absent (web) ⇒ no browser.
+const EMBEDDED = typeof window !== "undefined" && Boolean(window.eosBrowserView);
+
+// Engine states that replace the view with a message body.
 const LIVE_BLOCK = { disabled: "disabled", absent: "absent", crashed: "crashed" };
 
 export function BrowserPanel() {
   const ui = useUi();
   if (!ui.browserViewer) return <PanelShell type="browser" />;
-  // The session whose browser this panel shows: carried on the panel slot data
-  // by whoever opened it, else resolved from the pane's shown agent ("global"
-  // for an empty pane).
   const sessionKey = ui.browserViewer.sessionKey
     ?? sessionRootOf(findLeaf(ui.tree, ui.paneId)?.agentId);
   return <BrowserPanelInner paneId={ui.paneId} sessionKey={sessionKey} />;
@@ -50,31 +45,30 @@ function BrowserPanelInner({ paneId, sessionKey }) {
     useCallback((cb) => subscribe(sessionKey, cb), [sessionKey]),
     useCallback(() => getBrowserPanel(sessionKey), [sessionKey]),
   );
-  const [ws, setWs] = useState(null);
-  const [viewport, setViewport] = useState(null);
-  // "disabled" | "absent" | "error" | null — terminal boot states with a
-  // message body instead of a canvas.
   const [blocked, setBlocked] = useState(null);
-  const wsRef = useRef(null);
   const bodyRef = useRef(null);
 
-  // The panel's live pixel size — the daemon streams the RESPONSIVE tab 1:1 with
-  // this (native device px, no upscale blur) and emulates the viewport to match
-  // (frame aspect = panel aspect, so it fills with no letterbox). Mobile/Tablet
-  // ignore it daemon-side.
-  const readDisplay = useCallback(() => {
+  const activeTab = panel.tabs.find((t) => t.tabId === panel.activeTabId) ?? null;
+  const live = LIVE_BLOCK[panel.engineState] ?? null;
+  const block = blocked ?? live;
+  const blank = !activeTab || isBlankUrl(activeTab.url);
+
+  // Report the placeholder rect (window-content coordinates = CSS px = native
+  // points on macOS) so main setBounds-es the view to track it.
+  const reportBounds = useCallback(() => {
     const el = bodyRef.current;
-    return { cssWidth: el?.clientWidth ?? 0, cssHeight: el?.clientHeight ?? 0, dpr: window.devicePixelRatio || 1 };
+    if (!el || !window.eosBrowserView) return;
+    const r = el.getBoundingClientRect();
+    window.eosBrowserView.setBounds({ x: r.left, y: r.top, width: r.width, height: r.height });
   }, []);
 
-  // While mounted, the chrome children (tab strip, nav bar, overlays) key the
-  // store by this pane's id — alias it to the session entry.
   useEffect(() => bindPaneSession(paneId, sessionKey), [paneId, sessionKey]);
 
+  // Boot: only the embedded lane has a viewable browser. Ensure the engine is up
+  // and a tab exists; the geometry effects then position the native view.
   useEffect(() => {
+    if (!EMBEDDED) return;
     let cancelled = false;
-    // The human is looking now: clear the unseen badge, latch the session's
-    // panel memory open, and re-apply its remembered tab if the store is fresh.
     notePanelOpened(sessionKey);
     seedRememberedTab(sessionKey);
     patchBrowserPanel(sessionKey, { connState: "connecting" });
@@ -82,7 +76,6 @@ function BrowserPanelInner({ paneId, sessionKey }) {
       const status = await browserFetch(withSession(api.routes.browserStatus, sessionKey));
       if (cancelled) return;
       if (status.body?.state === "disabled" || status.status === 409) { setBlocked("disabled"); return; }
-      if (status.body?.state === "absent") { setBlocked("absent"); return; }
       const launched = await browserFetch(api.routes.browserLaunch, { method: "POST", body: "{}" });
       if (cancelled) return;
       if (!launched.ok) {
@@ -93,29 +86,11 @@ function BrowserPanelInner({ paneId, sessionKey }) {
       const tabs = await refreshTabs(sessionKey);
       if (cancelled) return;
       if (tabs && tabs.length === 0) {
-        // A fresh tab opens BLANK (about:blank) — no auto-navigation to any
-        // site; the empty state shows until the human types a URL.
         await openTab(sessionKey);
         if (cancelled) return;
       }
       if (!getBrowserPanel(sessionKey).activeTabId) { setBlocked("error"); return; }
-
-      const socket = new WebSocket(browserStreamUrl());
-      socket.binaryType = "arraybuffer";
-      wsRef.current = socket;
-      socket.addEventListener("open", () => {
-        patchBrowserPanel(sessionKey, { connState: "open" });
-        setWs(socket);
-      });
-      socket.addEventListener("message", (ev) => {
-        if (typeof ev.data !== "string") return;
-        try {
-          const msg = JSON.parse(ev.data);
-          if (msg.type === "subscribed" && msg.viewport) setViewport(msg.viewport);
-          if (msg.type === "error") notify.warning(`Browser stream: ${msg.message}`);
-        } catch { /* not a control message */ }
-      });
-      socket.addEventListener("close", () => patchBrowserPanel(sessionKey, { connState: "closed" }));
+      patchBrowserPanel(sessionKey, { connState: "open" });
     })().catch((e) => {
       if (cancelled) return;
       setBlocked("error");
@@ -123,69 +98,42 @@ function BrowserPanelInner({ paneId, sessionKey }) {
     });
     return () => {
       cancelled = true;
-      wsRef.current?.close();
-      wsRef.current = null;
-      // Reopening must start in live view: drop annotate/pick so the overlay
-      // (and its frozen frame) never remounts over a not-yet-painted canvas.
+      // Reopening must start in live view: drop annotate/pick so an overlay never
+      // remounts against a stale still, and clear any leftover overlay-hide.
       resetPanelView(sessionKey);
       patchBrowserPanel(sessionKey, { connState: "closed" });
+      window.eosBrowserView.setVisible(false);
+      window.eosBrowserView.overlayOpen(false);
     };
   }, [paneId, sessionKey]);
 
-  // Only the subscribed tab streams, so switching tabs re-subscribes on the same
-  // socket (the daemon stops the previous tab's screencast). A device switch also
-  // re-subscribes: the daemon only re-sends the emulated viewport on subscribe,
-  // so this is what refreshes `viewport` after emulation changes the page size —
-  // without it the canvas aspect and canvas→page mapping would keep the old size.
+  // Position the native view over the placeholder and show it only when a real
+  // page is loaded; hide it for the empty state, blocked states, or no tab.
+  const showEmbedded = EMBEDDED && !block && !blank && Boolean(panel.activeTabId);
   useEffect(() => {
-    if (!ws || ws.readyState !== WebSocket.OPEN || !panel.activeTabId) return;
-    // sessionKey rides the subscribe for the daemon's per-session active-tab
-    // bookkeeping (what the human is looking at IS the session's foreground).
-    ws.send(JSON.stringify({ type: "subscribe", tabId: panel.activeTabId, sessionKey, ...readDisplay() }));
-  }, [ws, panel.activeTabId, panel.device, sessionKey, readDisplay]);
+    if (!EMBEDDED) return;
+    if (showEmbedded) {
+      window.eosBrowserView.setActiveView({ sessionKey, tabId: panel.activeTabId });
+      reportBounds();
+      window.eosBrowserView.setVisible(true);
+      // Keep the daemon's active-tab pointer in sync with what the human sees.
+      void declareActiveTab(sessionKey, panel.activeTabId);
+    } else {
+      window.eosBrowserView.setVisible(false);
+    }
+  }, [showEmbedded, sessionKey, panel.activeTabId, reportBounds]);
 
-  // Panel resized → report the new pixel size (debounced ~150ms so a drag does
-  // not spam CDP). The daemon re-emulates the Responsive viewport and restarts
-  // the stream at the new native resolution; a plain setTimeout debounce, never
-  // a poll.
+  // Track the panel rect on resize + hide the native layer while the tab is hidden.
   useEffect(() => {
+    if (!EMBEDDED) return;
     const el = bodyRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
-    let timer = null;
-    const ro = new ResizeObserver(() => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(() => {
-        const socket = wsRef.current;
-        if (socket && socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: "resize", ...readDisplay() }));
-        }
-      }, 150);
-    });
+    const ro = new ResizeObserver(() => { if (showEmbedded) reportBounds(); });
     ro.observe(el);
-    return () => { if (timer) clearTimeout(timer); ro.disconnect(); };
-  }, [readDisplay]);
-
-  // App hidden → pause (daemon stops the screencast: 0 bytes, ~0 CPU); visible
-  // again → resume. The WS stays open so resume is instant.
-  useEffect(() => {
-    const onVisibility = () => {
-      const socket = wsRef.current;
-      if (!socket || socket.readyState !== WebSocket.OPEN) return;
-      socket.send(JSON.stringify({ type: document.hidden ? "pause" : "resume" }));
-    };
+    const onVisibility = () => window.eosBrowserView.setVisible(showEmbedded && !document.hidden);
     document.addEventListener("visibilitychange", onVisibility);
-    return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, []);
-
-  const activeTab = panel.tabs.find((t) => t.tabId === panel.activeTabId) ?? null;
-  // The boot probe decides the first body; after that browser:status keeps it
-  // honest — Chrome dying under the panel must not leave a frozen last frame.
-  const live = LIVE_BLOCK[panel.engineState] ?? null;
-  const block = blocked ?? live;
-  // A blank tab (about:blank, or none yet) shows the empty state instead of the
-  // live canvas — a new tab does not auto-navigate; the human types a URL above,
-  // and once a real page loads this flips false and the canvas takes over.
-  const blank = !activeTab || isBlankUrl(activeTab.url);
+    return () => { ro.disconnect(); document.removeEventListener("visibilitychange", onVisibility); };
+  }, [showEmbedded, reportBounds]);
 
   return (
     <PanelShell
@@ -195,26 +143,22 @@ function BrowserPanelInner({ paneId, sessionKey }) {
     >
       <BrowserNavBar paneId={paneId} tab={activeTab} urlDraft={panel.urlDraft} />
       <div className="browser-body" ref={bodyRef}>
-        {block === "disabled" && <div className="browser-empty">Browser subsystem is disabled — set <code>browser.enabled</code> in ~/.eos/config.json.</div>}
-        {block === "absent" && <div className="browser-empty">No Chrome binary found. Install Google Chrome or set <code>browser.chromePath</code>.</div>}
-        {block === "crashed" && <div className="browser-empty">Chrome stopped — reopen the panel to relaunch it.</div>}
-        {block === "error" && <div className="browser-empty">Browser panel failed to start — see notifications.</div>}
-        {!block && blank && <BrowserEmptyState />}
-        {!block && !blank && panel.connState !== "open" && <div className="browser-empty">Connecting…</div>}
-        {/* DeviceFrame letterboxes an emulated viewport (Mobile/Tablet) and is a
-            pass-through for Responsive. The canvas and the mode overlays are its
-            children so all three share the SAME emulated box — the picker/annotate
-            coordinate translation stays correct under emulation. */}
-        {!block && !blank && (
-          <DeviceFrame device={panel.device} busy={panel.deviceBusy}>
-            <BrowserCanvas ws={ws} viewport={viewport} fill={panel.device === "responsive"} />
-            {panel.mode === "annotate" && (
-              <AnnotationLayer paneId={paneId} tabId={panel.activeTabId} />
-            )}
-            {panel.mode === "pick" && (
-              <PickerLayer paneId={paneId} tabId={panel.activeTabId} viewport={viewport} />
-            )}
-          </DeviceFrame>
+        {!EMBEDDED && <div className="browser-empty">The browser panel is available in the Eos desktop app.</div>}
+        {EMBEDDED && block === "disabled" && <div className="browser-empty">Browser subsystem is disabled — set <code>browser.enabled</code> in ~/.eos/config.json.</div>}
+        {EMBEDDED && block === "absent" && <div className="browser-empty">Browser engine unavailable.</div>}
+        {EMBEDDED && block === "crashed" && <div className="browser-empty">The browser stopped — reopen the panel to relaunch it.</div>}
+        {EMBEDDED && block === "error" && <div className="browser-empty">Browser panel failed to start — see notifications.</div>}
+        {EMBEDDED && !block && blank && <BrowserEmptyState />}
+        {/* The native WebContentsView floats over this region; the body stays empty
+            (React HTML cannot draw on top of a native layer). The annotate/pick
+            overlays draw here once the native view is hidden (annotate) or picked
+            (pick) via the eosBrowserView overlay channel. */}
+        {EMBEDDED && !block && !blank && (
+          <>
+            <div className="browser-native-region" aria-hidden="true" />
+            {panel.mode === "annotate" && <AnnotationLayer paneId={paneId} tabId={panel.activeTabId} />}
+            {panel.mode === "pick" && <PickerLayer paneId={paneId} tabId={panel.activeTabId} />}
+          </>
         )}
       </div>
     </PanelShell>

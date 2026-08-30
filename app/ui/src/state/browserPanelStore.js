@@ -19,7 +19,7 @@ import { GLOBAL_SESSION } from "../lib/agentIndex.js";
 const EMPTY = {
   tabs: [],
   activeTabId: null,
-  mode: "view", // "view" | "annotate" | "pick" — mutually exclusive
+  mode: "view", // "view" | "annotate" | "pick" — mutually exclusive panel modes
   device: "responsive", // the ACTIVE tab's emulated device, mirrored from deviceByTab
   deviceByTab: {}, // tabId -> "mobile" | "tablet" | "responsive"; emulation is per-tab
   deviceBusy: false, // a device switch is in flight (the daemon reloads the page)
@@ -99,11 +99,6 @@ export async function browserFetch(path, opts = {}) {
   let body = null;
   try { body = await r.json(); } catch { /* non-JSON error body */ }
   return { ok: r.ok, status: r.status, body };
-}
-
-export function browserStreamUrl() {
-  const ws = api.daemon.replace(/^http/, "ws");
-  return `${ws}/browser/stream?uiToken=${encodeURIComponent(TOKEN)}`;
 }
 
 // The panel always declares the session it shows (?session=) — the daemon
@@ -281,22 +276,17 @@ export function setUrlDraft(sessionKey, urlDraft) {
   patchBrowserPanel(sessionKey, { urlDraft });
 }
 
-// ---- modes ----------------------------------------------------------------
-
-// One enum field, so picking a mode always clears the other two; pressing the
-// lit button returns to plain view.
-export function toggleMode(sessionKey, mode) {
-  const p = sessionOf(sessionKey);
-  patchBrowserPanel(sessionKey, { mode: p.state.mode === mode ? "view" : mode });
-}
-
-// Closing the panel (the mount effect's cleanup) drops the transient mode back
-// to plain view, so a reopen always starts in live view — never resuming a
-// half-finished annotate/pick against a stale frozen frame. The frozen frame,
-// in-progress strokes and pending capture all live in the overlay components,
-// so returning to "view" (which unmounts them) is the whole reset.
-export function resetPanelView(sessionKey) {
-  patchBrowserPanel(sessionKey, { mode: "view" });
+// Embedded lane only: tell the daemon which tab the human is now viewing so its
+// per-session active-tab pointer (what an omitted-tabId agent call resolves to)
+// stays correct. The headless lane does this implicitly via the frame-WS
+// subscribe; the embedded lane has no WS, so the panel declares it here. Human
+// actor ⇒ the daemon just records the pointer (no present-activity/nag).
+export async function declareActiveTab(sessionKey, tabId) {
+  if (!tabId) return;
+  await browserFetch(withSession("/browser/show", sessionKey), {
+    method: "POST",
+    body: JSON.stringify({ tabId }),
+  });
 }
 
 // Device emulation is per-tab and real: the daemon applies CDP metrics + reloads
@@ -326,6 +316,25 @@ export async function setDevice(sessionKey, device) {
     device: cur.state.activeTabId === tabId ? device : cur.state.device,
     deviceBusy: false,
   });
+}
+
+// ---- modes ----------------------------------------------------------------
+
+// One enum field, so picking a mode always clears the other; pressing the lit
+// button returns to plain view. annotate/pick are transient overlay modes over
+// the embedded view (annotate captures a still and hides the native view; pick
+// drives Chromium's native inspect on the live view).
+export function toggleMode(sessionKey, mode) {
+  const p = sessionOf(sessionKey);
+  patchBrowserPanel(sessionKey, { mode: p.state.mode === mode ? "view" : mode });
+}
+
+// Closing the panel (the mount effect's cleanup) drops the transient mode back
+// to plain view, so a reopen always starts in live view — never resuming a
+// half-finished annotate/pick. The still, strokes and pending capture all live
+// in the overlay components, so returning to "view" (which unmounts them) resets.
+export function resetPanelView(sessionKey) {
+  patchBrowserPanel(sessionKey, { mode: "view" });
 }
 
 // Test-only: reset the module singleton between cases.

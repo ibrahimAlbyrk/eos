@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { notify } from "../lib/notify.js";
 import {
   subscribe, getBrowserPanel, patchBrowserPanel, refreshTabs, openTab, closeTab, switchTab,
-  navigate, normalizeUrl, setUrlDraft, setMuted, toggleMode, resetPanelView, setDevice,
+  navigate, normalizeUrl, setUrlDraft, setMuted, setDevice,
   applyTabs, applyStatus, isBlankUrl, withSession, bindPaneSession, _resetBrowserPanel,
 } from "./browserPanelStore.js";
 
@@ -286,22 +286,21 @@ describe("browserPanelStore SSE relay", () => {
 
   it("bindPaneSession aliases a pane id onto the session entry for the untouched chrome children", () => {
     const unbind = bindPaneSession("l1", "A");
-    toggleMode("l1", "annotate"); // a chrome child keying by its pane id
-    expect(getBrowserPanel("A").mode).toBe("annotate");
-    expect(getBrowserPanel("l1").mode).toBe("annotate"); // reads resolve too
+    setUrlDraft("l1", "typed"); // a chrome child keying by its pane id
+    expect(getBrowserPanel("A").urlDraft).toBe("typed");
+    expect(getBrowserPanel("l1").urlDraft).toBe("typed"); // reads resolve too
     unbind();
-    expect(getBrowserPanel("l1").mode).toBe("view"); // unbound → its own (empty) entry
+    expect(getBrowserPanel("l1").urlDraft).toBe(""); // unbound → its own (empty) entry
   });
 
-  it("BrowserPanel reports its live pixel size on subscribe and on a debounced resize", () => {
+  it("BrowserPanel tracks the native view region via the eosBrowserView geometry bridge (no polling)", () => {
     const panel = readSrc("../views/browser/BrowserPanel.jsx");
-    // The daemon needs the panel's size to stream Responsive 1:1 and emulate the
-    // viewport: subscribe carries it; a ResizeObserver re-reports it, debounced.
-    expect(panel).toContain('type: "subscribe"');
-    expect(panel).toContain('type: "resize"');
+    // The embedded view is positioned to the panel rect: a ResizeObserver reports
+    // it via the setBounds IPC. No screencast subscribe/frame WS, no polling.
+    expect(panel).toContain("eosBrowserView");
+    expect(panel).toContain("setBounds");
     expect(panel).toContain("ResizeObserver");
-    expect(panel).toContain("devicePixelRatio");
-    expect(panel).toContain("150"); // debounce interval, not a poll
+    expect(panel).not.toContain("browser/stream");
     expect(panel).not.toMatch(/setInterval|startPolling/);
   });
 });
@@ -324,12 +323,12 @@ describe("browserPanelStore blank tabs (empty state)", () => {
     expect(getBrowserPanel("A").urlDraft).toBe("https://example.com/");
   });
 
-  it("BrowserPanel renders the empty state for a blank tab and the canvas only when not blank", () => {
+  it("BrowserPanel renders the empty state for a blank tab and the native region only when not blank", () => {
     const panel = readSrc("../views/browser/BrowserPanel.jsx");
     expect(panel).toContain("BrowserEmptyState");
     expect(panel).toContain("isBlankUrl");
     expect(panel).toMatch(/!block && blank &&/);   // empty state shown when blank
-    expect(panel).toMatch(/!block && !blank &&/);   // canvas mounted only when not blank
+    expect(panel).toMatch(/!block && !blank &&/);   // native region mounted only when not blank
   });
 });
 
@@ -371,45 +370,6 @@ describe("browserPanelStore audio", () => {
   });
 });
 
-describe("browserPanelStore modes", () => {
-  it("the three modes are one mutually-exclusive enum, and the lit one toggles off", () => {
-    expect(getBrowserPanel("A").mode).toBe("view");
-    toggleMode("A", "annotate");
-    expect(getBrowserPanel("A").mode).toBe("annotate");
-    toggleMode("A", "pick");
-    expect(getBrowserPanel("A").mode).toBe("pick"); // picking one clears the other
-    toggleMode("A", "pick");
-    expect(getBrowserPanel("A").mode).toBe("view");
-  });
-
-  it("mode is pane-scoped", () => {
-    toggleMode("A", "annotate");
-    expect(getBrowserPanel("B").mode).toBe("view");
-  });
-
-  // Regression: annotate (or pick) must not survive a close/reopen — resuming a
-  // half-finished overlay against a not-yet-painted canvas is what left a white
-  // band on reopen. Closing resets the transient mode so the fresh open mounts
-  // the live canvas with no overlay.
-  it("resetPanelView drops annotate/pick back to view, pane-scoped", () => {
-    toggleMode("A", "annotate");
-    toggleMode("B", "pick");
-    resetPanelView("A");
-    expect(getBrowserPanel("A").mode).toBe("view");
-    expect(getBrowserPanel("B").mode).toBe("pick"); // another pane is untouched
-    resetPanelView("B");
-    expect(getBrowserPanel("B").mode).toBe("view");
-  });
-
-  it("BrowserPanel resets the mode when the panel closes (its connection-effect cleanup)", () => {
-    const panel = readSrc("../views/browser/BrowserPanel.jsx");
-    // The cleanup runs on unmount (panel close). It must reset the transient mode
-    // alongside tearing down the socket, next to the connState reset.
-    expect(panel).toContain("resetPanelView");
-    expect(panel).toMatch(/resetPanelView\(sessionKey\)[\s\S]*connState: "closed"/);
-  });
-});
-
 describe("browserPanelStore device", () => {
   it("selecting a device POSTs {device} to the active tab and mirrors it into the store", async () => {
     const { fetchMock, calls } = mockDaemon();
@@ -418,7 +378,7 @@ describe("browserPanelStore device", () => {
     await setDevice("A", "mobile");
     const dev = calls.find((c) => c.path.endsWith("/device"));
     expect(dev).toMatchObject({ method: "POST", path: "/browser/tabs/t1/device", body: { device: "mobile" } });
-    expect(getBrowserPanel("A")).toMatchObject({ device: "mobile", mode: "view", deviceBusy: false });
+    expect(getBrowserPanel("A")).toMatchObject({ device: "mobile", deviceBusy: false });
   });
 
   it("device is remembered per tab and follows the active tab; a fresh tab is Responsive", async () => {
