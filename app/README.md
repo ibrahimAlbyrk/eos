@@ -56,6 +56,47 @@ M6 adds packaging: `npm run make` produces a packaged `Eos.app` in
 without the source tree — `resolveUiRoot` uses `process.resourcesPath/dist` when
 `app.isPackaged`). See `verify/m6-packaged.png`.
 
+## Daemon lifecycle (the app owns it)
+
+Opening the app brings the daemon up; quitting tears down only what the app
+started — no `eos start`/`restart` in a terminal.
+
+On launch the app probes the daemon socket-first (`~/.eos/daemon.sock`), then TCP
+(`probeDaemon` in `src/main/daemon.ts`, replicated from
+`manager/cli/daemon-lifecycle.ts`):
+
+- **up** → ADOPT the running daemon (`spawnedDaemon` stays null). No splash — the
+  window appears immediately.
+- **down** → SPAWN our own (`spawnDaemon`, the exact `ulimit -Sn "$(ulimit -Hn)";
+  exec node --experimental-strip-types …/manager/daemon.ts` fd-bump), show the
+  boot splash, and `waitHealthy` until it answers.
+- **unreachable** (port/fd exhaustion — the probe itself couldn't be made) → do
+  NOT spawn (a healthy daemon may just be unprobeable, and a 2nd daemon shares
+  `~/.eos` and corrupts state); show an error with Retry/Quit.
+
+On quit (`before-quit`) the app SIGTERMs ONLY the daemon it spawned, by its exact
+pid — never a process-group or pattern kill — and the daemon runs its own graceful
+shutdown (suspend workers, kill children, unlink pid + socket). An adopted daemon
+is left running. Non-critical init (tray, update check, fleet/SSE) is deferred
+past first paint so the window is interactive immediately.
+
+### Packaged standalone — follow-up (NOT done in this pass)
+
+`spawnDaemon` runs `node <repoRoot>/manager/daemon.ts`, where `repoRoot` is the
+parent of `app.getAppPath()` — correct in DEV (the repo + a system `node` are
+present), matching how the Swift app launched the daemon. A fully standalone
+PACKAGED app has no repo and cannot assume a system `node`, so before it can spawn
+its own daemon it needs, as a follow-up:
+
+- the daemon + its deps (`manager/`, `spawner/`, `core/`, …) bundled into the app
+  (e.g. `Contents/Resources/daemon`),
+- a `node` runtime bundled (or the daemon compiled to a single executable), and
+- `resolveRepoRoot()` resolving to `process.resourcesPath` when `app.isPackaged`.
+
+Until then the packaged app works only via the ADOPT path (an already-running
+daemon). The dev/repoRoot spawn behavior implemented now meets the goal on a dev
+machine.
+
 ## Packaging (M6)
 
 ```bash

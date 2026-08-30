@@ -16,6 +16,9 @@ export interface BuildWorkerArgsInput {
   model: string;
   spec: SpawnWorkerSpec;
   workerScript: string;
+  /** Whether to run the worker script via `--experimental-strip-types` (dev,
+   *  default). False in a packaged app where workerScript is a prebuilt bundle. */
+  stripTypes?: boolean;
   daemonPort: number;
   worker: {
     heartbeatMs: number;
@@ -33,7 +36,8 @@ export function buildWorkerArgs(input: BuildWorkerArgsInput): string[] {
     // ~20-40MB; this caps a pathological leak far below host memory. The heavy
     // RAM (the claude binary) lives in a separate process, unaffected.
     "--max-old-space-size=512",
-    "--experimental-strip-types",
+    // Dropped in a packaged app: workerScript is a prebuilt JS bundle, not .ts.
+    ...(input.stripTypes === false ? [] : ["--experimental-strip-types"]),
     "--no-warnings",
     input.workerScript,
     flagToken("--daemon-url", `http://127.0.0.1:${input.daemonPort}`),

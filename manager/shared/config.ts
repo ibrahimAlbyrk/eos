@@ -14,6 +14,7 @@ import { McpServerDefSchema } from "../../contracts/src/shared.ts";
 import { type BackendProfile, BackendProfileSchema } from "../../contracts/src/backend.ts";
 import { MemorySourceSchema, type MemorySourceSpec } from "../../contracts/src/memory.ts";
 import { RemoteConfigSchema, type RemoteConfig } from "../../contracts/src/remote.ts";
+import { workerScriptPath, gatewayScriptPath, workerMcpScriptPath, orchestratorMcpScriptPath } from "./packaging.ts";
 import { AnthropicConfigSchema, type AnthropicConfig } from "../../contracts/src/anthropic.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
@@ -51,8 +52,11 @@ export interface DaemonConfig {
   paths: {
     repoRoot: string;        // root of this repository
     claudeBin: string;       // path to `claude` CLI (or just "claude" for PATH lookup)
-    bunBin: string;          // path to `bun` (used by gateway MCP)
-    workerScript: string;    // <repoRoot>/spawner/worker.ts
+    bunBin: string;          // path to `bun` (used by gateway MCP in dev)
+    workerScript: string;    // dev: <repoRoot>/spawner/worker.ts · packaged: <bundles>/worker.bundle.mjs
+    gatewayScript: string;   // dev: <repoRoot>/gateway/server.ts · packaged: <bundles>/gateway.bundle.mjs
+    workerMcpScript: string; // dev: <repoRoot>/manager/worker-mcp.ts · packaged: <bundles>/worker-mcp.bundle.mjs
+    orchestratorMcpScript: string; // dev: <repoRoot>/manager/orchestrator-mcp.ts · packaged: <bundles>/orchestrator-mcp.bundle.mjs
     promptsDir: string;      // <repoRoot>/manager/prompts — DPI fragment + action-template library
     workerDefinitionsDir: string;  // <repoRoot>/manager/workers — built-in worker definition .md library
   };
@@ -340,7 +344,12 @@ export function defaults(): DaemonConfig {
       repoRoot,
       claudeBin: envStr("EOS_CLAUDE_BIN", "claude"),
       bunBin: envStr("EOS_BUN_BIN", "bun"),
-      workerScript: join(repoRoot, "spawner", "worker.ts"),
+      // Packaged mode (EOS_PACKAGED=1) resolves these to shipped esbuild bundles;
+      // dev resolves them to the repo .ts sources — see shared/packaging.ts.
+      workerScript: workerScriptPath(repoRoot),
+      gatewayScript: gatewayScriptPath(repoRoot),
+      workerMcpScript: workerMcpScriptPath(repoRoot),
+      orchestratorMcpScript: orchestratorMcpScriptPath(repoRoot),
       promptsDir: envStr("EOS_PROMPTS_DIR", join(repoRoot, "manager", "prompts")),
       workerDefinitionsDir: envStr("EOS_WORKER_DEFINITIONS_DIR", join(repoRoot, "manager", "workers")),
     },

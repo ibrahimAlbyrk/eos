@@ -1,17 +1,18 @@
 import { join } from "node:path";
 
 import type { Command } from "./Command.ts";
+import { buildAndInstallApp } from "../../builder/app-install.ts";
 import { runBuild } from "../../builder/engine.ts";
 import { buildSteps } from "../../builder/registry.ts";
 import { run } from "../../builder/proc.ts";
 
-const USAGE = "eos build [--dry-run] [--force] [--check]";
-const FLAGS = new Set(["--dry-run", "--force", "--check"]);
+const USAGE = "eos build [--dry-run] [--force] [--check] [--app]";
+const FLAGS = new Set(["--dry-run", "--force", "--check", "--app"]);
 
 export const buildCommand: Command = {
   name: "build",
   description:
-    "Converge deps + daemon to current source — only what changed (the Eos app is packaged separately via `cd app && npm run make`)",
+    "Converge deps + daemon to current source — only what changed. Add --app to also build + install the Electron Eos.app into /Applications and relaunch (destructive: replaces the running app + restarts its daemon)",
   usage: USAGE,
   async run(args, ctx): Promise<void> {
     for (const a of args) {
@@ -56,5 +57,17 @@ export const buildCommand: Command = {
       buildSteps(),
     );
     if (!ok) process.exit(1);
+
+    // --app is opt-in: normal `eos build` stays deps+daemon only. The app build +
+    // install is destructive (swaps /Applications/Eos.app + restarts its daemon,
+    // ending the current session), so it never runs without the explicit flag.
+    if (args.includes("--app")) {
+      await buildAndInstallApp({
+        repoRoot: ctx.repoRoot,
+        pidFile: ctx.config.daemon.pidFile,
+        dryRun: args.includes("--dry-run"),
+        log: (line) => console.log(line),
+      });
+    }
   },
 };
