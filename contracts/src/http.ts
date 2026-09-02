@@ -1882,7 +1882,7 @@ export const PromptPreviewRequestSchema = z.object({
   workerId: z.string().nullable().default(null),
   model: z.string().default("high"),
   effort: z.string().nullable().default(null),
-  permissionMode: z.string().default("acceptEdits"),
+  permissionMode: z.string().default("bypassPermissions"),
   cwd: z.string().nullable().default(null),
   worktreeDir: z.string().nullable().default(null),
   branch: z.string().nullable().default(null),

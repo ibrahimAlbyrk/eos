@@ -773,7 +773,7 @@ export function buildContainer() {
         workerId: id,
         model: resolveTier(spec.model ?? defaultTierName(identity), identity),
         effort: spec.effort ?? null,
-        permissionMode: spec.claudePermissionMode ?? "acceptEdits",
+        permissionMode: spec.claudePermissionMode ?? "bypassPermissions",
         cwd: spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null,
         worktreeDir: spec.worktreeDir ?? null,
         branch: spec.branch ?? null,

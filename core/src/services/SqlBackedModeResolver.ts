@@ -1,8 +1,8 @@
 // SqlBackedModeResolver — walks the worker tree (worker → parent_id) to find
 // the first ancestor with an explicit permission_mode. Falls back to
-// "acceptEdits" (the safe default) when nothing is set anywhere in the chain.
-// Legacy values no longer in the schema (old "default"/"plan" rows) fail the
-// asMode check and fall through to the same fallback.
+// "bypassPermissions" (the default: full access) when nothing is set anywhere
+// in the chain. Legacy values no longer in the schema (old "default"/"plan"
+// rows) fail the asMode check and fall through to the same fallback.
 //
 // O(depth) worst case; in practice we snapshot mode at spawn time, so a
 // single read usually wins.
@@ -38,6 +38,6 @@ export class SqlBackedModeResolver implements PermissionModeResolver {
       if (mode) return mode;
       cursor = w.parent_id ?? null;
     }
-    return "acceptEdits";
+    return "bypassPermissions";
   }
 }

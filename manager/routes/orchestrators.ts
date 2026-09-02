@@ -60,7 +60,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         nameSource: body.name?.trim() ? "user" : "default",
         fixedId: id,
         persistent: true,
-        claudePermissionMode: body.permissionMode ?? "acceptEdits",
+        claudePermissionMode: body.permissionMode ?? "bypassPermissions",
         // Profile-model providers carry their own (already tier-resolved) model;
         // request-model providers (claude-sdk/claude-cli) run the user-picked model,
         // routed through the provider tier gate (default "high") so a tier name /
