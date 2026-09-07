@@ -1,5 +1,6 @@
 import { useCallback, useState } from "react";
 import { api } from "../api/client.js";
+import { notify } from "../lib/notify.js";
 
 export function usePendingPermissions(scheduleRefetch) {
   const [pendingPermissions, setPendingPermissions] = useState([]);
@@ -12,7 +13,15 @@ export function usePendingPermissions(scheduleRefetch) {
 
   const alwaysAllowPending = useCallback(async (id, toolName, _workerId) => {
     await api.approvePending(id);
-    await api.addPolicyRule(toolName, "allow").catch(() => {});
+    try {
+      const res = await api.addPolicyRule(toolName, "allow");
+      if (!res?.ok) {
+        const reason = res?.body?.error ? `: ${res.body.error}` : "";
+        notify.error(`Couldn't save "always allow" for ${toolName}${reason}`, { title: "Permissions" });
+      }
+    } catch (e) {
+      notify.error(`Couldn't save "always allow" for ${toolName}: ${e instanceof Error ? e.message : String(e)}`, { title: "Permissions" });
+    }
     setPendingPermissions((prev) => prev.filter((p) => p.id !== id));
     scheduleRefetch();
   }, [scheduleRefetch]);
