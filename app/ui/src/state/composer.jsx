@@ -7,7 +7,7 @@ const DEFAULT_COMPOSER = {
   branch: null,
   model: "opus",
   effort: "xhigh",
-  permissionMode: "acceptEdits",
+  permissionMode: "bypassPermissions",
   // Selected provider NAME from the unified spawn picker (providerChoices):
   // a subscription kind ("claude-sdk" | "claude-cli") or an operator profile
   // name ("deepseek"), seeded from the provider setting. Resolved to

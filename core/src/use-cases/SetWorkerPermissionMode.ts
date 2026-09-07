@@ -2,7 +2,10 @@
 // through the entire subtree rooted at this worker. Runtime apply for the
 // primary target is still attempted via the `/permissions` slash command;
 // children pick up the new mode at their next tool-call (the hook reads
-// from the DB through the resolver).
+// from the DB through the resolver). Port-less in-process lanes (claude-sdk)
+// need no runtime apply at all: their canUseTool consults the gateway, which
+// resolves the mode from the DB per call — persisting IS the live apply
+// (runtimeApplied stays false here; it only tracks the PTY slash path).
 //
 // Persistence is authoritative. If the worker is dead, we still persist
 // (so the next session honors it) and report runtimeApplied=false.

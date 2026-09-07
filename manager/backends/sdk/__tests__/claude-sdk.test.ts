@@ -430,23 +430,46 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.deepEqual(capturedOptions!.systemPrompt, { type: "preset", preset: "claude_code", append: "EOS ORCHESTRATION PROTOCOL" });
   });
 
-  it("bypassPermissions sets the explicit allowDangerouslySkipPermissions safety flag", async () => {
+  it("never forwards the permission mode to the SDK — mode semantics live in the gateway", async () => {
+    // SDK-native bypass/acceptEdits auto-approve AHEAD of the canUseTool step
+    // (docs: "auto-approved tools never reach canUseTool"), which would freeze
+    // the mode at spawn. The lane must instead run the SDK in 'default' mode so
+    // every gated call consults the gateway's LIVE per-worker mode.
     let capturedOptions: Record<string, unknown> | null = null;
     const queryFn: SdkQueryFn = (params) => {
       capturedOptions = params.options as unknown as Record<string, unknown>;
       return (async function* () { /* idle */ })();
     };
+    let mode: "bypassPermissions" | "acceptEdits" = "bypassPermissions";
     const be = createClaudeSdkBackend({
       authResolver: { resolve: async () => ({ scheme: "none" }) },
-      policy: { decide: async () => ({ behavior: "allow" }) },
+      // Stands in for PolicyGatewayService: the verdict follows the CURRENT
+      // mode, exactly as the real gateway re-resolves it from the DB per call.
+      policy: { decide: async () => (mode === "bypassPermissions"
+        ? { behavior: "allow" as const }
+        : { behavior: "deny" as const, message: "denied by permission mode: acceptEdits" }) },
       toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
       daemonUrl: "http://x",
       makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
       queryFn,
     });
+
     await be.start(spec({ permissionMode: "bypassPermissions" }), {});
-    assert.equal(capturedOptions!.permissionMode, "bypassPermissions");
-    assert.equal(capturedOptions!.allowDangerouslySkipPermissions, true);
+    assert.equal(capturedOptions!.permissionMode, undefined);
+    assert.equal(capturedOptions!.allowDangerouslySkipPermissions, undefined);
+    const canUseTool = capturedOptions!.canUseTool as (name: string, input: Record<string, unknown>) => Promise<{ behavior: string }>;
+    assert.equal(typeof canUseTool, "function");
+    // Full access allows through the gateway…
+    assert.equal((await canUseTool("Bash", { command: "ls" })).behavior, "allow");
+    // …and taking the running worker OUT of full access really blocks the very
+    // next call of the SAME session — no relaunch, no SDK-side apply.
+    mode = "acceptEdits";
+    assert.equal((await canUseTool("Bash", { command: "ls" })).behavior, "deny");
+
+    capturedOptions = null;
+    await be.start(spec({ workerId: "w-2", permissionMode: "acceptEdits" }), {});
+    assert.equal(capturedOptions!.permissionMode, undefined);
+    assert.equal(capturedOptions!.allowDangerouslySkipPermissions, undefined);
   });
 
   it("runs the SDK session in the worker's cwd (not the daemon's)", async () => {

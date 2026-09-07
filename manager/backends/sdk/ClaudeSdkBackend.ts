@@ -41,7 +41,11 @@ const CAPS: AgentCapabilities = {
   // run) — wired in the session's setModel below. (effort IS applied at start()/
   // resume via the Options.effort field; only LIVE in-session switching is unwired.)
   runtimeModelSwitch: true,
-  runtimePermissionSwitch: false,
+  // No SDK-side apply needed: permission modes are enforced per call by
+  // canUseTool → PolicyGatewayService against the LIVE per-worker mode (the
+  // SDK itself always runs in 'default' mode — see baseOptions), so a DB mode
+  // change re-gates the very next tool call of a running session.
+  runtimePermissionSwitch: true,
   streamingThinking: true,
   resumable: true,
   // /clear restarts the query with a fresh session (no resume) — the conversation
@@ -422,10 +426,15 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         // effort maps 1:1 to the CLI `--effort` enum, already normalized by SpawnWorker.
         ...(spec.effort ? { effort: spec.effort as Options["effort"] } : {}),
         ...(append ? { systemPrompt: { type: "preset" as const, preset: "claude_code" as const, append } } : {}),
-        // bypassPermissions requires the explicit safety flag; else pass the mode through.
-        ...(spec.permissionMode === "bypassPermissions"
-              ? { permissionMode: "bypassPermissions" as const, allowDangerouslySkipPermissions: true }
-              : spec.permissionMode ? { permissionMode: spec.permissionMode as Options["permissionMode"] } : {}),
+        // spec.permissionMode is deliberately NOT forwarded (SDK runs in its
+        // 'default' mode, no auto-approvals): any SDK-side mode auto-approves
+        // ahead of the canUseTool step — bypassPermissions everything,
+        // acceptEdits every file edit + fs command — so those calls would never
+        // reach the gateway, freezing the mode at spawn (a DB switch out of
+        // full access couldn't re-gate a live session) and skipping the
+        // worker-definition editRegex/deny fences. Mode semantics live solely
+        // in canUseTool → PolicyGatewayService, which resolves the worker's
+        // mode from the DB on every call.
       } as Options;
 
       const rec: Live = { q: null, input: createPushStream(), abort: new AbortController(), alive: true, interrupting: false, onExit: cb?.onExit, ...(spec.cwd ? { cwd: spec.cwd } : {}) };

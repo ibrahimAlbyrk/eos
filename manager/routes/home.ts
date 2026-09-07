@@ -68,7 +68,7 @@ export function registerHomeRoutes(r: Router, c: Container): void {
         // Belt-and-suspenders over the empty home control surface: never offer an
         // Eos MCP tool even if a lane composes one in.
         toolScope: { allow: [], deny: ["mcp__orchestrator__*", "mcp__worker__*", "mcp__peer__*"] },
-        claudePermissionMode: body.permissionMode ?? "acceptEdits",
+        claudePermissionMode: body.permissionMode ?? "bypassPermissions",
         model: resolveTier(
           backend.descriptor.modelSource === "profile"
             ? rb.model
