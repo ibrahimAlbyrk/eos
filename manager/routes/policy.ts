@@ -9,7 +9,11 @@ import { readBody } from "../middleware/bodyReader.ts";
 import { validate } from "../middleware/validate.ts";
 
 import { PolicyDecideRequestSchema } from "../../contracts/src/http.ts";
-import { PolicyBehaviorSchema, type PolicyRule } from "../../contracts/src/policy.ts";
+import { PolicyBehaviorSchema } from "../../contracts/src/policy.ts";
+// Disk rules use the engine's authored shape ({ tool, action }) — the same
+// one the loader compiles (core/domain/policy). Writing the contracts
+// { match, behavior } shape here produced rules the engine never matched.
+import type { PolicyRule } from "../../core/src/domain/policy.ts";
 
 export function registerPolicyRoutes(r: Router, c: Container): void {
   r.post("/policy/decide", async ({ req, res }) => {
@@ -43,14 +47,14 @@ export function registerPolicyRoutes(r: Router, c: Container): void {
       const doc = (existingRaw ? parseYaml(existingRaw) : null) ?? {};
       const root = typeof doc === "object" && doc !== null ? doc as Record<string, unknown> : {};
       const rules: PolicyRule[] = Array.isArray(root.rules) ? root.rules as PolicyRule[] : [];
-      if (rules.some((rule) => rule?.match?.tool === tool)) {
+      if (rules.some((rule) => rule?.tool === tool)) {
         writeJson(res, 200, { ok: true, existed: true });
         return;
       }
       const next = {
         default: root.default ?? "ask",
         ...(root.ttlMs !== undefined ? { ttlMs: root.ttlMs } : {}),
-        rules: [...rules, { match: { tool }, behavior }],
+        rules: [...rules, { tool, action: behavior }],
       };
       writeFileSync(policyPath, stringifyYaml(next));
       c.reloadPolicy();
