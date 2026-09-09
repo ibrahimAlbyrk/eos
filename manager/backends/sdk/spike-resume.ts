@@ -1,5 +1,5 @@
 // SPIKE (manual, not a test) — the Faz 2 go/no-go: does a conversation hand off
-// between the claude-cli (interactive/PTY) lane and the claude-sdk lane via a
+// between the claude-cli (interactive/PTY) lane and the claude lane via a
 // shared transcript? Both lanes drive the SAME bundled `claude` binary writing
 // ~/.claude/projects/<cwd>/<sessionId>.jsonl, so a same-cwd resume SHOULD reload
 // the other lane's conversation — this proves it on YOUR subscription. No daemon.

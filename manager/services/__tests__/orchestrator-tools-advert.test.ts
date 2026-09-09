@@ -10,15 +10,17 @@ const noopLog = { debug() {}, info() {}, warn() {}, error() {}, child() { return
 const promptsDir = join(import.meta.dirname, "..", "..", "prompts");
 const prompts = new PromptService(new PromptRegistry(new FilePromptSource([promptsDir]), noopLog as never), TOOL_NAME_VARS);
 
-describe("orchestrator tool overview — dynamic_loop advertisement", () => {
-  it("DYNAMIC_LOOP_TOOL resolves to the real tool name", () => {
+// The loop system is TEMPORARILY disabled: dynamic_loop is not registered and the
+// tool overview no longer advertises it. The tool def + TOOL_NAME_VARS mapping are
+// kept intact so re-enabling is a revert. See manager/tools/registry.ts.
+describe("orchestrator tool overview — dynamic_loop is not advertised (loop system disabled)", () => {
+  it("DYNAMIC_LOOP_TOOL still resolves to the real tool name (def kept for reversibility)", () => {
     assert.equal(TOOL_NAME_VARS.DYNAMIC_LOOP_TOOL, "dynamic_loop");
   });
 
-  it("the rendered tool overview advertises dynamic_loop as the goal gate", () => {
+  it("the rendered tool overview no longer advertises the goal-gate loop", () => {
     const out = prompts.render("role/orchestrator/02-your-tools");
-    assert.match(out, /dynamic_loop/);    // {{DYNAMIC_LOOP_TOOL}} interpolated, not a blank
-    assert.match(out, /goal gate/i);      // advertised as the goal gate
-    assert.match(out, /at spawn/i);       // prefer arming `loop` at spawn; decomposition detail lives in the tool's own description
+    assert.doesNotMatch(out, /dynamic_loop/);
+    assert.doesNotMatch(out, /goal gate/i);
   });
 });

@@ -631,7 +631,7 @@ export const api = {
     return postJson(ROUTES.remotePair, {}, uiTokenHeader());
   },
 
-  // Anthropic credentials for the claude-sdk lane (Settings > Anthropic) — both
+  // Anthropic credentials for the claude lane (Settings > Anthropic) — both
   // routes are loopback + ui-token gated. getAnthropicConfig reads the REDACTED
   // set-state (never the secrets); setAnthropicConfig persists { apiKey?, authToken? }
   // to config.json (a blank value clears that field) and returns the new set-state.

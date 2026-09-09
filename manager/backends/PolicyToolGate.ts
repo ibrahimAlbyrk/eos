@@ -1,5 +1,5 @@
 // Lane B gate: ToolRuntime's ToolGate over the SAME PolicyGatewayService the
-// claude-cli (gateway hook) and claude-sdk (canUseTool) lanes use — per-worker,
+// claude-cli (gateway hook) and claude (canUseTool) lanes use — per-worker,
 // fail-closed via ToolRuntime.executeGated. The internal 'ask' verdict blocks as
 // an await inside policy.decide (no TTL). Reuses the PolicyDecider seam the SDK
 // permission bridge defines, so all three lanes share one decision engine.

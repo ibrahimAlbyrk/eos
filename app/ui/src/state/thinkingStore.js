@@ -1,4 +1,4 @@
-// Live reasoning/text deltas (claude-sdk, in-process lanes). Ephemeral by design:
+// Live reasoning/text deltas (claude, in-process lanes). Ephemeral by design:
 // tokens stream in over SSE (reason "agent:delta") while a block is in flight;
 // the durable record is the final canonical `message` event. Messages overlays
 // live blocks and drops one once its durable block (same blockId) lands, so the

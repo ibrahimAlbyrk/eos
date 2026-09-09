@@ -2,7 +2,7 @@
 // any AGENTS.md-style files declared under config.memory.sources): each source's
 // user-level paths plus its filename chain walked from the worker's cwd up to the
 // repo root. Backends that isolate themselves from filesystem settings — the
-// claude-sdk lane runs settingSources:[] — use it to supply the memory they would
+// claude lane runs settingSources:[] — use it to supply the memory they would
 // otherwise lose. Which sources to read is injected config; discovery + I/O live
 // in the infra adapter. Synchronous, mirroring the DPI assembly it feeds.
 

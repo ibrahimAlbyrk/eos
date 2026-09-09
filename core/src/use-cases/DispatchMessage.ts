@@ -63,7 +63,7 @@ function buildMessageRecord(
 }
 
 // Daemon-side chat event for backends that do NOT self-report (in-process:
-// claude-sdk/anthropic-api). Mirrors EXACTLY the shapes the PTY worker emits at
+// claude/anthropic-api). Mirrors EXACTLY the shapes the PTY worker emits at
 // its transcript sighting (spawner/worker.ts emitMessageEvent) so the web
 // renders agent-plane traffic identically across backends.
 //
@@ -189,7 +189,7 @@ export async function dispatchMessage(
   if (deps.requireOrchestrator && !deps.isLive(input.workerId)) {
     throw new ConflictError("orchestrator process not running (was killed)");
   }
-  const kind = w.backend_kind ?? "claude-cli";
+  const kind = w.backend_kind ?? "claude";
   const backend = deps.backends?.has(kind) ? deps.backends.get(kind) : undefined;
   const isInproc = backend?.descriptor.processModel === "in-process";
   if (!isInproc && !w.port) throw new ConflictError("worker has no port");

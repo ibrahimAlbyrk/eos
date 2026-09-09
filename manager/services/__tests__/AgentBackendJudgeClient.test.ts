@@ -11,8 +11,8 @@ function fakeBackend(descriptorOver: Partial<BackendDescriptor> = {}) {
   let recordedSpec: AgentLaunchSpec | null = null;
   let stopped = false;
   const backend = {
-    kind: "claude-sdk",
-    descriptor: { kind: "claude-sdk", processModel: "in-process", enabled: true, ...descriptorOver } as BackendDescriptor,
+    kind: "claude",
+    descriptor: { kind: "claude", processModel: "in-process", enabled: true, ...descriptorOver } as BackendDescriptor,
     start: async (spec: AgentLaunchSpec, cb?: { onEvent?: (e: AgentEvent) => void }) => {
       recordedSpec = spec;
       const session = { workerId: spec.workerId, stop: () => { stopped = true; }, isAlive: () => true } as unknown as AgentSession;

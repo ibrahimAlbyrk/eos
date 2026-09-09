@@ -121,7 +121,7 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
       let openT = false;
       try {
         // Prefer streaming so reasoning/text arrive as live canonical deltas (the
-        // SAME pipeline as the claude-sdk lane); fall back to one round-trip.
+        // SAME pipeline as the claude lane); fall back to one round-trip.
         turn = deps.model.streamTurn
           ? await deps.model.streamTurn(messages, {
               signal: deps.signal,
@@ -142,7 +142,7 @@ export async function runTurn(deps: ToolRuntimeDeps, conversation: ModelMessage[
       if (turn.usage) {
         // Each loop iteration is one API call, so this usage IS a per-request
         // footprint: emit it as billing (summed) AND as a context snapshot (latest
-        // wins). Same split the claude-sdk/claude-cli lanes use.
+        // wins). Same split the claude/claude-cli lanes use.
         const usage = { inputTokens: turn.usage.inputTokens, outputTokens: turn.usage.outputTokens, cacheReadTokens: turn.usage.cacheReadTokens ?? 0, cacheWriteTokens: {} };
         deps.emit({ type: "usage", usage });
         const tokens = contextTokensOf(usage);

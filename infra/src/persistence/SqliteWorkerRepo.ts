@@ -105,7 +105,7 @@ export class SqliteWorkerRepo implements WorkerRepo {
       input.model,
       input.effort,
       input.isOrchestrator ? 1 : 0,
-      input.backendKind ?? "claude-cli",
+      input.backendKind ?? "claude",
       input.backendProfile ?? null,
       input.agentRole ?? null,
       input.workerDefinition ?? null,

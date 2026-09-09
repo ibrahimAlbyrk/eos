@@ -22,7 +22,7 @@ type Row = {
 function row(id: string, over: Partial<Row> = {}): Row {
   return {
     id, name: null, parent_id: null, state: "IDLE", archived_at: null,
-    session_id: null, backend_kind: "claude-sdk",
+    session_id: null, backend_kind: "claude",
     worktree_from: null, branch: null, worktree_dir: null, ...over,
   };
 }

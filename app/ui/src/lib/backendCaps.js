@@ -46,7 +46,7 @@ export function providerOptions() {
 // backend infrastructure: both sides share a non-"none" conversation store AND
 // speak the same wire dialect (so a provider's stored reasoning replays cleanly).
 // That grouping is the descriptor DATA (sessionStore + wireDialect), never a kind
-// literal — claude-cli↔claude-sdk (claude-transcript) and openai↔codex
+// literal — claude-cli↔claude (claude-transcript) and openai↔codex
 // (eos-conversation / openai-chat) are same-infra; openai↔anthropic-api is a
 // cross-dialect block. The daemon (planBackendSwitch) is the final authority; this
 // only greys the obvious blocks so the menu doesn't offer a switch that will fail.
@@ -94,13 +94,13 @@ export function providerSwitchTargets(currentKind) {
 // shared by the composer and the Settings model section. Two sources, deduped by
 // name:
 //   • subscription Claude lanes from the descriptors (enabled + billing
-//     "subscription") → claude-sdk AND claude-cli, as bare-kind providers;
+//     "subscription") → claude AND claude-cli, as bare-kind providers;
 //   • the operator's configured non-subscription PROFILES (openai / anthropic-api
 //     / codex), e.g. deepseek.
-// The shipped per-model default profiles (claude-sdk-opus, claude-cli-*) are
+// The shipped per-model default profiles (claude-opus, claude-cli-*) are
 // subscription-kind → excluded from the profile half; they collapse into the kind
 // providers + model selection. A subscription kind that ALSO has an operator
-// profile of the same name (e.g. a tuned "claude-sdk") carries that profile so
+// profile of the same name (e.g. a tuned "claude") carries that profile so
 // the spawn preserves its config.
 // Entry: { name, label, kind, subscription, profile, model }
 //   profile != null → spawn via backendProfile (preserves the profile config);
@@ -124,7 +124,7 @@ export function providerChoices() {
 
 // Display name for a provider CHOICE in the spawn picker — the bare provider
 // NAME, never the model. A subscription choice shows its clean descriptor label
-// ("Claude SDK"); an operator profile shows its name ("deepseek") because the
+// ("Claude"); an operator profile shows its name ("deepseek") because the
 // profile label embeds the model ("deepseek (deepseek-chat)"), which belongs on
 // the separate model pill, not the provider pill.
 export function providerName(choice) {
@@ -149,7 +149,7 @@ export function runningProviderChoice(worker) {
 // Display label for a RUNNING worker's provider pill — the provider NAME (matching
 // the picker/panel), never the raw kind. A worker on a configured profile shows
 // that profile's name ("deepseek"); a bare subscription kind shows its clean label
-// ("Claude SDK"). Falls back to the kind label if no choice matches.
+// ("Claude"). Falls back to the kind label if no choice matches.
 export function runningProviderLabel(worker) {
   if (!worker) return "—";
   return providerName(runningProviderChoice(worker)) ?? backendLabel(worker.backend_kind);
@@ -180,7 +180,7 @@ export function backendBilled(kind) {
   return (kind ? DESCRIPTORS.get(kind)?.billing : null) === "metered";
 }
 
-// Display label for a provider kind (e.g. "Claude SDK"). Unknown/not-yet-loaded
+// Display label for a provider kind (e.g. "Claude"). Unknown/not-yet-loaded
 // → the raw kind, never blank, so the provider pill always reads sensibly.
 export function backendLabel(kind) {
   return (kind ? DESCRIPTORS.get(kind)?.label : null) ?? kind ?? "—";

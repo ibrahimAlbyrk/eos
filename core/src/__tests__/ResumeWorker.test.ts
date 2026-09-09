@@ -79,10 +79,10 @@ describe("resumeWorker — guards", () => {
     await assert.rejects(resumeWorker(deps, { workerId: "w1", spec: SPEC }), NotFoundError);
   });
 
-  it("resumes a claude-sdk worker too (in-process, session present)", async () => {
+  it("resumes a claude worker too (in-process, session present)", async () => {
     // Resumability is gated by the recorded session_id, not the backend kind:
-    // claude-sdk persists one (options.resume), so it revives like claude-cli.
-    const { deps, launches } = buildDeps({ id: "w1", state: "SUSPENDED", backend_kind: "claude-sdk" });
+    // claude persists one (options.resume), so it revives like claude-cli.
+    const { deps, launches } = buildDeps({ id: "w1", state: "SUSPENDED", backend_kind: "claude" });
     await resumeWorker(deps, { workerId: "w1", spec: SPEC });
     assert.equal(launches.length, 1);
   });
@@ -134,11 +134,11 @@ describe("resumeWorker — happy path", () => {
   });
 
   // claude-cli (out-of-process) stays SPAWNING until its PTY readiness gate
-  // self-reports IDLE (asserted above). An in-process backend (claude-sdk) has no
+  // self-reports IDLE (asserted above). An in-process backend (claude) has no
   // such gate and no boot turn on resume, so resumeWorker must settle it to IDLE
   // itself — otherwise a backend switch / explicit resume sits stuck in SPAWNING.
-  it("settles an in-process (claude-sdk) resume straight to IDLE", async () => {
-    const { deps, row } = buildDeps({ id: "w1", state: "SUSPENDED", backend_kind: "claude-sdk" }, { inProcess: true });
+  it("settles an in-process (claude) resume straight to IDLE", async () => {
+    const { deps, row } = buildDeps({ id: "w1", state: "SUSPENDED", backend_kind: "claude" }, { inProcess: true });
     const result = await resumeWorker(deps, { workerId: "w1", spec: SPEC });
     assert.equal(result.port, 0); // inproc handle → no port
     assert.equal(row.state, "IDLE");
@@ -156,7 +156,7 @@ describe("resumeWorker — happy path", () => {
   // onExit — so the worker stays revivable instead of flipping terminal DONE.
   it("suspends (not DONE) a resumable in-process session that dies after resume", async () => {
     const { deps, row, calls, fireExit } = buildDeps(
-      { id: "w1", state: "SUSPENDED", backend_kind: "claude-sdk" },
+      { id: "w1", state: "SUSPENDED", backend_kind: "claude" },
       { inProcess: true, resumable: true },
     );
     await resumeWorker(deps, { workerId: "w1", spec: SPEC }); // settles to IDLE

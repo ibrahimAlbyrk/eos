@@ -21,7 +21,7 @@ export type EventBusTopic =
   // state. pty:data is batched (200ms/8KB); the client dedups by seq.
   | "pty:data"
   | "pty:exit"
-  // Ephemeral live reasoning/text deltas (claude-sdk, in-process). Relayed to
+  // Ephemeral live reasoning/text deltas (claude, in-process). Relayed to
   // SSE like terminal:chunk; never persisted, never drives worker state.
   | "agent:delta"
   // A recalled (interrupt-before-response) message's text + key, pushed to SSE so

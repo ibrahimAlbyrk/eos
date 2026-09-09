@@ -6,11 +6,11 @@ import type { WorkerRepo } from "../ports/WorkerRepo.ts";
 import type { WorkerRow } from "../../../contracts/src/worker.ts";
 
 const PROFILES: Record<string, ResolvedBackend> = {
-  "claude-cli-opus": { kind: "claude-cli", model: "opus", profileName: "claude-cli-opus", costMode: "included" },
+  "claude-opus": { kind: "claude", model: "opus", profileName: "claude-opus", costMode: "included" },
   "sonnet-api": { kind: "anthropic-api", model: "claude-sonnet-4-6", profileName: "sonnet-api", costMode: "billed" },
 };
 
-function defaults(roleDefault: string | null = "claude-cli-opus"): BackendDefaults {
+function defaults(roleDefault: string | null = "claude-opus"): BackendDefaults {
   return {
     profile: (name) => PROFILES[name] ?? null,
     roleDefaultName: () => roleDefault,
@@ -53,16 +53,16 @@ describe("SqlBackedBackendResolver", () => {
   });
 
   it("3. falls back to the role default when no parent/explicit", () => {
-    const r = new SqlBackedBackendResolver(repo({}), defaults("claude-cli-opus"));
+    const r = new SqlBackedBackendResolver(repo({}), defaults("claude-opus"));
     const out = r.resolveForNewWorker({ isOrchestrator: true });
-    assert.equal(out.profileName, "claude-cli-opus");
-    assert.equal(out.kind, "claude-cli");
+    assert.equal(out.profileName, "claude-opus");
+    assert.equal(out.kind, "claude");
   });
 
-  it("4. falls back to the global claude-cli default when nothing is configured", () => {
+  it("4. falls back to the global claude default when nothing is configured", () => {
     const r = new SqlBackedBackendResolver(repo({}), defaults(null));
     const out = r.resolveForNewWorker({ isOrchestrator: false });
-    assert.deepEqual(out, { kind: "claude-cli", model: "opus", profileName: null });
+    assert.deepEqual(out, { kind: "claude", model: "opus", profileName: null });
   });
 
   it("is cycle-safe on a malformed parent chain", () => {
@@ -71,6 +71,6 @@ describe("SqlBackedBackendResolver", () => {
       defaults(null),
     );
     const out = r.resolveForNewWorker({ parentId: "a", isOrchestrator: false });
-    assert.equal(out.kind, "claude-cli"); // didn't hang; fell through to global default
+    assert.equal(out.kind, "claude"); // didn't hang; fell through to global default
   });
 });

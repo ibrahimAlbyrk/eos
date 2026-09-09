@@ -204,7 +204,7 @@ export const SETTINGS_SECTIONS = [
     label: "Anthropic",
     Icon: AnthropicIcon,
     // Custom Component: two masked credential inputs (OAuth token + API key) for
-    // the claude-sdk lane. Owns no settings.json keys (config.anthropic lives in
+    // the claude lane. Owns no settings.json keys (config.anthropic lives in
     // config.json); persisted via the /api/anthropic/config route.
     Component: AnthropicSettings,
   },

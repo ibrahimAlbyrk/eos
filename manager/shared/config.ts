@@ -14,7 +14,7 @@ import { McpServerDefSchema } from "../../contracts/src/shared.ts";
 import { type BackendProfile, BackendProfileSchema } from "../../contracts/src/backend.ts";
 import { MemorySourceSchema, type MemorySourceSpec } from "../../contracts/src/memory.ts";
 import { RemoteConfigSchema, type RemoteConfig } from "../../contracts/src/remote.ts";
-import { workerScriptPath, gatewayScriptPath, workerMcpScriptPath, orchestratorMcpScriptPath } from "./packaging.ts";
+import { gatewayScriptPath, workerMcpScriptPath, orchestratorMcpScriptPath } from "./packaging.ts";
 import { AnthropicConfigSchema, type AnthropicConfig } from "../../contracts/src/anthropic.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import type { AgentMcpConfig } from "../../core/src/domain/mcp-resolution.ts";
@@ -53,7 +53,6 @@ export interface DaemonConfig {
     repoRoot: string;        // root of this repository
     claudeBin: string;       // path to `claude` CLI (or just "claude" for PATH lookup)
     bunBin: string;          // path to `bun` (used by gateway MCP in dev)
-    workerScript: string;    // dev: <repoRoot>/spawner/worker.ts · packaged: <bundles>/worker.bundle.mjs
     gatewayScript: string;   // dev: <repoRoot>/gateway/server.ts · packaged: <bundles>/gateway.bundle.mjs
     workerMcpScript: string; // dev: <repoRoot>/manager/worker-mcp.ts · packaged: <bundles>/worker-mcp.bundle.mjs
     orchestratorMcpScript: string; // dev: <repoRoot>/manager/orchestrator-mcp.ts · packaged: <bundles>/orchestrator-mcp.bundle.mjs
@@ -124,7 +123,7 @@ export interface DaemonConfig {
     noProgressWindow: number;
     stopOnNoProgress: boolean;
     retryOnFailed: boolean;
-    // judge.temperature is IGNORED on the claude-sdk lane the judge runs on today
+    // judge.temperature is IGNORED on the claude lane the judge runs on today
     // (the agent SDK surfaces only model/effort/thinking, not per-call
     // temperature — see LlmJudgeStrategy / AgentBackendJudgeClient). It is passed
     // through and becomes live only if/when the metered anthropic-api lane ships
@@ -173,7 +172,7 @@ export interface DaemonConfig {
   // remote surface. The wire contract is
   // docs/mobile-redesign/01-plaintext-relay-protocol.md.
   remote: RemoteConfig;
-  // Anthropic credentials for the claude-sdk lane only (Settings > Anthropic).
+  // Anthropic credentials for the claude lane only (Settings > Anthropic).
   // Empty by default; when set, the SDK child env gets the OAuth token
   // (CLAUDE_CODE_OAUTH_TOKEN, preferred) or the metered key (ANTHROPIC_API_KEY).
   anthropic: AnthropicConfig;
@@ -310,17 +309,12 @@ export function billedProfileNeedsPrice(
 }
 
 const DEFAULT_BACKENDS: Record<string, BackendProfile> = {
-  // claude-sdk is the default: subscription-billed, live thinking, in-process tools.
-  // PTY (claude-cli) stays first-class and is the automatic fallback when the
-  // subscription credential is absent (resolveSpawnBackend) — never silent metered billing.
-  "claude-sdk-opus": {
-    kind: "claude-sdk", model: "claude-opus-5",
+  // claude is the sole Claude lane: subscription-billed, live thinking, in-process tools.
+  "claude-opus": {
+    kind: "claude", model: "claude-opus-5",
     auth: { kind: "subscription" }, costMode: "included",
     params: { thinking: { type: "adaptive", display: "summarized" } },
   },
-  "claude-cli-opus": { kind: "claude-cli", model: "opus", costMode: "included" },
-  "claude-cli-sonnet": { kind: "claude-cli", model: "sonnet", costMode: "included" },
-  "claude-cli-haiku": { kind: "claude-cli", model: "haiku", costMode: "included" },
 };
 
 // Exported for tests that must assert the BUILT-IN defaults independent of the
@@ -346,7 +340,6 @@ export function defaults(): DaemonConfig {
       bunBin: envStr("EOS_BUN_BIN", "bun"),
       // Packaged mode (EOS_PACKAGED=1) resolves these to shipped esbuild bundles;
       // dev resolves them to the repo .ts sources — see shared/packaging.ts.
-      workerScript: workerScriptPath(repoRoot),
       gatewayScript: gatewayScriptPath(repoRoot),
       workerMcpScript: workerMcpScriptPath(repoRoot),
       orchestratorMcpScript: orchestratorMcpScriptPath(repoRoot),
@@ -376,25 +369,24 @@ export function defaults(): DaemonConfig {
     memory: {
       enabled: true,
       sources: {
-        // The repo's only built-in source. Both claude lanes auto-load it now
-        // (assumeNativeFor): claude-cli always did, and claude-sdk does too since
-        // its settingSources include "project" — so selectInjectableMemory drops it
-        // for both and never double-injects. Add AGENTS.md or other sources by
-        // dropping entries here in ~/.eos/config.json — no code change.
+        // The repo's only built-in source. The claude lane auto-loads it
+        // (assumeNativeFor) since its settingSources include "project" — so
+        // selectInjectableMemory drops it and never double-injects. Add AGENTS.md
+        // or other sources by dropping entries here in ~/.eos/config.json — no code change.
         claude: {
           enabled: true,
           label: "CLAUDE.md",
           userPaths: ["~/.claude/CLAUDE.md"],
           projectFilenames: ["CLAUDE.md"],
           priority: 0,
-          assumeNativeFor: ["claude-cli", "claude-sdk"],
+          assumeNativeFor: ["claude"],
         },
       },
     },
     backends: { ...DEFAULT_BACKENDS },
     defaults: {
-      orchestrator: { backend: "claude-sdk-opus" },
-      worker: { backend: "claude-sdk-opus" },
+      orchestrator: { backend: "claude-opus" },
+      worker: { backend: "claude-opus" },
     },
     updates: {
       enabled: envStr("EOS_UPDATES_ENABLED", "1") !== "0",
@@ -438,7 +430,7 @@ export function defaults(): DaemonConfig {
       inactivityLeaseMs: envNum("EOS_REMOTE_LEASE_MS", 30 * 60 * 1000),
       rateLimit: { perDevicePerMin: 120, globalPerMin: 600, pairingPerMin: 5 },
     },
-    // No credentials by default — the claude-sdk lane falls back to the resolved
+    // No credentials by default — the claude lane falls back to the resolved
     // subscription token (SubscriptionAuthResolver). Set via Settings > Anthropic.
     anthropic: {},
     browser: {
@@ -459,6 +451,45 @@ export function defaults(): DaemonConfig {
 // written `enabled` always wins over a stale legacy `mode`; discard the old
 // low-entropy relay.room (the daemon mints a fresh ≥32-byte room at arm); drop
 // the lan block entirely (relay-only).
+// Backward-compat for a persisted config.json written by an older Eos: the
+// claude-cli lane was removed and claude-sdk was renamed to claude. Rewrite legacy
+// backend kinds (claude-cli|claude-sdk → claude) and per-model profile names
+// (claude-{cli,sdk}-{opus,sonnet,haiku} → claude-{opus,sonnet,haiku}) IN PLACE on
+// the raw json, and repoint role defaults that reference a renamed profile. Runs
+// before the schema parse so a legacy kind can't sink the whole file.
+const LEGACY_BACKEND_KINDS: Record<string, string> = { "claude-cli": "claude", "claude-sdk": "claude" };
+const LEGACY_BACKEND_PROFILES: Record<string, string> = {
+  "claude-sdk-opus": "claude-opus", "claude-sdk-sonnet": "claude-sonnet", "claude-sdk-haiku": "claude-haiku",
+  "claude-cli-opus": "claude-opus", "claude-cli-sonnet": "claude-sonnet", "claude-cli-haiku": "claude-haiku",
+};
+export function migrateLegacyBackends(raw: Record<string, unknown>): void {
+  const backends = raw.backends;
+  if (backends && typeof backends === "object" && !Array.isArray(backends)) {
+    const b = backends as Record<string, Record<string, unknown> | undefined>;
+    for (const key of Object.keys(b)) {
+      const prof = b[key];
+      if (prof && typeof prof === "object" && typeof prof.kind === "string" && LEGACY_BACKEND_KINDS[prof.kind]) {
+        prof.kind = LEGACY_BACKEND_KINDS[prof.kind];
+      }
+      const newKey = LEGACY_BACKEND_PROFILES[key];
+      if (newKey) {
+        if (!b[newKey]) b[newKey] = prof; // new name wins if the user already defined it
+        delete b[key];
+      }
+    }
+  }
+  const defaults = raw.defaults;
+  if (defaults && typeof defaults === "object" && !Array.isArray(defaults)) {
+    for (const role of ["orchestrator", "worker"] as const) {
+      const r = (defaults as Record<string, unknown>)[role];
+      if (r && typeof r === "object") {
+        const rr = r as Record<string, unknown>;
+        if (typeof rr.backend === "string" && LEGACY_BACKEND_PROFILES[rr.backend]) rr.backend = LEGACY_BACKEND_PROFILES[rr.backend];
+      }
+    }
+  }
+}
+
 export function migrateRemoteConfig(raw: unknown): unknown {
   if (!raw || typeof raw !== "object") return raw;
   const r = { ...(raw as Record<string, unknown>) };
@@ -737,6 +768,11 @@ export function loadConfig(): DaemonConfig {
       if (raw && typeof raw === "object" && "remote" in raw) {
         (raw as Record<string, unknown>).remote = migrateRemoteConfig((raw as Record<string, unknown>).remote);
       }
+      // Same idea for the removed claude-cli lane + the claude-sdk→claude rename:
+      // rewrite legacy backend kinds/profile-names in the RAW json before the
+      // schema parse (an unknown kind would otherwise fail BackendProfileSchema and
+      // sink the whole config.json).
+      if (raw && typeof raw === "object") migrateLegacyBackends(raw as Record<string, unknown>);
       const result = DaemonConfigOverrideSchema.safeParse(raw);
       if (!result.success) {
         console.log(`[config] invalid config in ${path}: ${result.error.message} — ignoring`);

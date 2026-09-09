@@ -20,11 +20,11 @@ export function resumeWorkerVia(c: Container, row: WorkerRow): Promise<{ id: str
       return t ? { body: t.body, persistent: t.persistent } : null;
     },
   });
-  const kind = row.backend_kind ?? "claude-cli";
+  const kind = row.backend_kind ?? "claude";
   return resumeWorker(
     {
       workers: c.workers, events: c.events, bus: c.bus, clock: c.clock, log: c.log,
-      backend: c.backends.has(kind) ? c.backends.get(kind) : c.claudeCliBackend,
+      backend: c.backends.has(kind) ? c.backends.get(kind) : c.backends.get("claude"),
       onAgentEvent: c.onAgentEvent,
       isLive: (id) => isWorkerLive(c, id),
       isSuspending: (id) => c.suspendGuard.isSuspending(id),
@@ -56,7 +56,7 @@ export async function resumeIfDead(c: Container, row: WorkerRow): Promise<void> 
   if (row.state !== "SUSPENDED" && row.state !== "DONE") return;
   if (!row.session_id || c.supervisor.has(row.id)) return;
   const { port } = await resumeWorkerVia(c, row);
-  // In-process backends (claude-sdk) have no HTTP ingest port — they're live in
+  // In-process backends (claude) have no HTTP ingest port — they're live in
   // the daemon the moment start() returns; only out-of-process workers need the wait.
   if (port > 0) await waitForWorkerHttp(port);
 }
@@ -90,8 +90,8 @@ export async function switchWorkerBackend(
   const row = c.workers.findById(id);
   if (!row) throw new NotFoundError("worker", id);
 
-  const sourceKind = row.backend_kind ?? "claude-cli";
-  const source = c.backends.has(sourceKind) ? c.backends.get(sourceKind) : c.claudeCliBackend;
+  const sourceKind = row.backend_kind ?? "claude";
+  const source = c.backends.has(sourceKind) ? c.backends.get(sourceKind) : c.backends.get("claude");
   if (!c.backends.has(targetKind)) throw new ConflictError(`unknown backend "${targetKind}"`);
   const target = c.backends.get(targetKind);
 

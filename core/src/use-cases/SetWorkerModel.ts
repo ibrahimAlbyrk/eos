@@ -1,6 +1,6 @@
 // SetWorkerModel — persist per-worker model + effort and try to apply it to the
 // LIVE session through the backend port (each adapter knows its own switch
-// mechanism: claude-cli → /model slash, claude-sdk → query.setModel). Gated on
+// mechanism: claude-cli → /model slash, claude → query.setModel). Gated on
 // the session's runtimeModelSwitch capability, never on a kind/port proxy. If the
 // worker is dead or the backend can't switch live, we still persist (used at the
 // next session) and report runtimeApplied=false.

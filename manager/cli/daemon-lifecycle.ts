@@ -13,7 +13,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-const ORPHAN_PATTERN = "manager/daemon.ts|spawner/worker.ts|orchestrator-mcp.ts|worker-mcp.ts|gateway/server.ts|claude --settings";
+const ORPHAN_PATTERN = "manager/daemon.ts|orchestrator-mcp.ts|worker-mcp.ts|gateway/server.ts|claude --settings";
 
 /** What a health probe could establish about the daemon. */
 export type DaemonHealth =

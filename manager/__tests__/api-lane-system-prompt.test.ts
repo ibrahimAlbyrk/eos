@@ -52,7 +52,7 @@ const MEMORY_MARKER = "MARKER_PROJECT_MEMORY_CLAUDEMD";
 
 // A CLAUDE.md memory doc, native to the claude lanes only (matches real config).
 const claudeMemory: MemoryDoc = {
-  sourceId: "claude", sourceLabel: "CLAUDE.md", nativeFor: ["claude-cli", "claude-sdk"],
+  sourceId: "claude", sourceLabel: "CLAUDE.md", nativeFor: ["claude-cli", "claude"],
   path: "/repo/CLAUDE.md", level: "project", content: MEMORY_MARKER,
 };
 
@@ -89,9 +89,9 @@ describe("B1/N1 — in-process lane system prompt (DPI delivery)", () => {
     assert.match(sys!, /send_message_to_parent/, "carries the Eos worker reporting protocol");
   });
 
-  it("shares the SAME DPI core as the claude-sdk lane (same agent), adding only the base harness + all memory", () => {
+  it("shares the SAME DPI core as the claude lane (same agent), adding only the base harness + all memory", () => {
     const inproc = assembleLike("in-process")!;
-    const sdk = assembleLike("claude-sdk")!;
+    const sdk = assembleLike("claude")!;
     // Same agent: both carry the worker protocol + the definition body byte-for-byte.
     assert.ok(inproc.includes(DEF_BODY) && sdk.includes(DEF_BODY), "both carry the definition body");
     assert.match(sdk, /send_message_to_parent/, "sdk lane carries the worker protocol too");

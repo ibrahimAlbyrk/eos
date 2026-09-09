@@ -60,7 +60,7 @@ export const SpawnWorkerRequestSchema = z
     // (list_peers / ask_peer / respond_to_peer) and a prompt section teaching
     // them. Its peers are the orchestrator's other collaborate-enabled workers.
     collaborate: z.boolean().optional(),
-    // Backend KIND to run this worker on ("claude-cli" | "claude-sdk"). The model
+    // Backend KIND to run this worker on ("claude-cli" | "claude"). The model
     // is chosen separately (the composer's model picker). Absent → inherit from
     // parent, else role default. Feeds the resolver's explicit-kind branch.
     backendKind: z.string().optional(),
@@ -1197,7 +1197,7 @@ export type SetModelResponse = z.infer<typeof SetModelResponseSchema>;
 
 // ---- PUT /workers/:id/backend ----------------------------------------------
 // Switch a running worker's provider (backend). Only valid between backends that
-// share a conversation store (claude-cli ↔ claude-sdk); the worker is stopped and
+// share a conversation store (claude-cli ↔ claude); the worker is stopped and
 // resumed under the new backend via its persisted session id.
 
 export const SetBackendRequestSchema = z.object({
@@ -2190,7 +2190,7 @@ export const ROUTES = {
   // app-facing WRITE the Settings toggle uses before arming (arm() reads config
   // from disk). Field-merges into the `remote` key, then reloads.
   remoteConfig: "/api/remote/config",
-  // Anthropic credentials for the claude-sdk lane (Settings > Anthropic). GET
+  // Anthropic credentials for the claude lane (Settings > Anthropic). GET
   // returns a REDACTED { apiKeySet, authTokenSet } — never the raw secrets; PUT
   // field-merges { apiKey?, authToken? } into ~/.eos/config.json's `anthropic`
   // key then reloads. Loopback + ui-token only (an agent can't self-write creds).

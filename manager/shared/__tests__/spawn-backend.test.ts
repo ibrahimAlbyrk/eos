@@ -9,7 +9,7 @@ import type { Container } from "../../container.ts";
 
 const caps: AgentCapabilities = { interrupt: true, keystroke: false, rewind: false, runtimeModelSwitch: false, runtimePermissionSwitch: false };
 function backend(over: { kind?: string; billing?: "subscription" | "metered"; enabled?: boolean }): AgentBackend {
-  const kind = over.kind ?? "claude-sdk";
+  const kind = over.kind ?? "claude";
   return {
     kind,
     descriptor: {
@@ -21,7 +21,7 @@ function backend(over: { kind?: string; billing?: "subscription" | "metered"; en
     attach: () => ({}) as never,
   };
 }
-const rb = (over: Partial<ResolvedBackend>): ResolvedBackend => ({ kind: "claude-sdk", model: "opus", profileName: null, ...over });
+const rb = (over: Partial<ResolvedBackend>): ResolvedBackend => ({ kind: "claude", model: "opus", profileName: null, ...over });
 
 describe("spawnBackendError — spawn-time backend guard", () => {
   it("allows a subscription backend regardless of how it was selected", () => {

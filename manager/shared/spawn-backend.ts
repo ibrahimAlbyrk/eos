@@ -1,9 +1,8 @@
-// Backend selection for a new spawn: the SqlBackedBackendResolver decision plus
-// the subscription-credential safety net. An explicit provider pick is resolved
-// straight from its descriptor; a subscription in-process provider (claude-sdk)
-// with NO usable subscription credential falls back to the data-derived PTY
-// provider rather than spawning a broken session or silently billing a metered
-// API — PTY is the sanctioned subscription path and uses the interactive login.
+// Backend selection for a new spawn: the SqlBackedBackendResolver decision. An
+// explicit provider pick is resolved straight from its descriptor; everything
+// else climbs the profile/inherit/role/global chain. The metered-without-billed-
+// intent guard (spawnBackendError) is the one remaining safety rail — subscription
+// billing is never silently diverted to a per-token API.
 
 import type { Container } from "../container.ts";
 import type { ResolvedBackend } from "../../core/src/ports/BackendDefaults.ts";
@@ -56,20 +55,6 @@ export async function resolveSpawnBackend(c: Container, input: ResolveBackendInp
       rb = { ...rb, model: input.explicitModel };
     } else {
       c.log.warn("cross_provider_model_override_dropped", { kind: rb.kind, profile: rb.profileName, model: input.explicitModel });
-    }
-  }
-
-  // Credential safety net (data-driven): a subscription in-process provider needs
-  // a usable subscription credential; with none, fall back to the subscription
-  // out-of-process (PTY) provider derived from the descriptors, never a kind literal.
-  if (d && d.auth === "subscription" && d.processModel === "in-process") {
-    const auth = await c.authResolver.resolve({ kind: "subscription" });
-    if (auth.scheme === "none") {
-      const pty = c.backends.descriptors().find((x) => x.billing === "subscription" && x.processModel === "out-of-process");
-      if (pty) {
-        c.log.warn("sdk_auth_unavailable_fell_back_to_pty", { kind: rb.kind });
-        rb = { kind: pty.kind as BackendKind, profileName: null, costMode: "included" };
-      }
     }
   }
 

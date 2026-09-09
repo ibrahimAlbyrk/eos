@@ -9,8 +9,7 @@ import { writeFileSync, readFileSync, unlinkSync, existsSync, realpathSync } fro
 
 import { loadConfig, reloadConfig as reloadConfigFromDisk, priceForModel, type DaemonConfig, type ModelPriceSpec } from "./shared/config.ts";
 import { expandPath } from "./shared/path.ts";
-import { buildWorkerArgs } from "./shared/worker-args.ts";
-import { isPackaged, nodeBin, nodeRunEnv, tsRuntimeFlags } from "./shared/packaging.ts";
+import { nodeBin } from "./shared/packaging.ts";
 import { errMsg } from "../contracts/src/util.ts";
 
 import { systemClock } from "../infra/src/time/SystemClock.ts";
@@ -20,7 +19,6 @@ import { createLogger } from "../infra/src/observability/StructLogger.ts";
 import { createInMemoryEventBus } from "../infra/src/eventbus/InMemoryEventBus.ts";
 import { createPortAllocator } from "../infra/src/net/PortAllocator.ts";
 import { createChildProcessSupervisor } from "../infra/src/supervision/ChildProcessSupervisor.ts";
-import { createClaudeCliBackend } from "./backends/ClaudeCliBackend.ts";
 import { createInProcessBackend } from "../infra/src/backends/InProcessBackend.ts";
 import { JsonlConversationStore } from "../infra/src/conversation/JsonlConversationStore.ts";
 import { DropOldestContextCompactor } from "../infra/src/conversation/DropOldestContextCompactor.ts";
@@ -29,7 +27,6 @@ import { createOpenAIModelClient } from "../infra/src/backends/OpenAIModelClient
 import { LiteLlmModelPricingCatalog } from "../infra/src/backends/ModelPricingCatalog.ts";
 import type { ProviderErrorInfo } from "../infra/src/backends/provider-error.ts";
 import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts";
-import { scrubSubscriptionEnv } from "../core/src/domain/env-allowlist.ts";
 import type { AgentEvent } from "../contracts/src/canonical.ts";
 import type { AgentBackend, AgentLaunchSpec } from "../core/src/ports/AgentBackend.ts";
 import { backendCollaborate, backendRole } from "../core/src/ports/AgentBackend.ts";
@@ -112,7 +109,6 @@ import { resolveMemorySources } from "../core/src/domain/memory-sources.ts";
 import { mergeAvailableWorkers } from "../core/src/domain/worker-definition-catalog.ts";
 import { selectInjectableMemory } from "../core/src/services/select-injectable-memory.ts";
 import { composeAppendedPrompt } from "../core/src/services/compose-appended-prompt.ts";
-import type { EosBuiltinMcpServer } from "../core/src/domain/tool-scope.ts";
 import { WorkerStateVO } from "../core/src/domain/value-objects.ts";
 
 import type { Policy } from "../core/src/domain/policy.ts";
@@ -464,132 +460,20 @@ export function buildContainer() {
     }
   }
 
-  // SpawnWorker dep builders -----------------------------------------------
-  const buildArgs: SpawnWorkerDeps["buildArgs"] = ({ id, port, spec, model }) => {
-    const wire = writeMcpConfig({
-      id,
-      cwd: spec.cwd ?? spec.worktreeFrom,
-      isOrchestrator: !!spec.isOrchestrator,
-      withGateway: !!spec.withGateway,
-      parentId: spec.parentId,
-      collaborate: !!spec.collaborate,
-      role: spec.role,
-    });
-    const wiredSpec: SpawnWorkerSpec = wire.path
-      ? { ...spec, mcpConfig: wire.path, mcpStrict: wire.strict, permissionPromptTool: wire.permissionPromptTool ?? spec.permissionPromptTool }
-      : spec;
-    return buildWorkerArgs({
-      id,
-      port,
-      model,
-      spec: wiredSpec,
-      workerScript: config.paths.workerScript,
-      stripTypes: !isPackaged(), // packaged: workerScript is a prebuilt bundle
-      daemonPort: config.daemon.port,
-      worker: {
-        heartbeatMs: config.worker.heartbeatMs,
-        heartbeatQuietMs: config.worker.heartbeatQuietMs,
-        shutdownGraceMs: config.worker.shutdownGraceMs,
-        ptyWriteDelayMs: config.worker.ptyWriteDelayMs,
-        hydrateEnvFiles: config.worker.hydrateEnvFiles,
-      },
-    });
-  };
-
-  // Mirrors the worker's own derivation (realpath'd repo root + the managed
-  // .eos/worktrees/<branch> layout) so the precomputed dir and the dir the
-  // worker actually creates are byte-identical.
+  // SpawnWorker dep builder — mirrors the worker's own derivation (realpath'd
+  // repo root + the managed .eos/worktrees/<branch> layout) so the precomputed
+  // dir and the dir the worker actually creates are byte-identical.
   const resolveWorktreeDir: SpawnWorkerDeps["resolveWorktreeDir"] = (repoRoot, branch) =>
     join(realpathSync(resolve(repoRoot)), ".eos", "worktrees", branch);
 
-  const buildEnv: SpawnWorkerDeps["buildEnv"] = () => ({
-    // Scrub subscription-diverting provider keys so the claude-cli worker process
-    // (and the PTY child it spawns) never inherits an API key (R3).
-    ...scrubSubscriptionEnv(process.env),
-    // Packaged: make the worker process run under Electron's Node (no-op in dev).
-    ...nodeRunEnv(),
-    EOS_CLAUDE_BIN: config.paths.claudeBin,
-    EOS_BUN_BIN: config.paths.bunBin,
-    EOS_REPO_ROOT: config.paths.repoRoot,
-    // Bundle path when packaged, repo .ts in dev; the worker's claude-args reads this.
-    EOS_GATEWAY_SCRIPT: config.paths.gatewayScript,
-  });
-
   const logFileFor = (id: string): string => join(config.daemon.logDir, `${id}.log`);
 
-  // Per-agent MCP config. Composes the agent-specific built-in servers
-  // (orchestrator / gateway / worker) with the user's inherited MCP servers
-  // (filtered per config.mcp) into one mcp.json. `strict` tells the spawner
-  // whether to isolate claude to this file — see core mcp-resolution. Written
-  // at spawn (buildArgs) and removed by KillWorker via postKillCleanup.
+  // Per-worker scratch-file paths under ~/.eos. The claude lane resolves its MCP
+  // servers in-process (resolveSdkMcpServers below), so nothing writes mcp-<id>.json
+  // anymore; cleanupMcpConfig still sweeps any stale file from an older session.
   const mcpCatalog = new FileMcpServerCatalog();
   const mcpConfigPathFor = (id: string): string => join(config.daemon.home, `mcp-${id}.json`);
   const systemPromptPathFor = (id: string): string => join(config.daemon.home, `system-prompt-${id}.md`);
-
-  const buildMcpBuiltins = (input: {
-    id: string;
-    isOrchestrator: boolean;
-    withGateway: boolean;
-    parentId: string | undefined;
-    collaborate: boolean;
-    role: string | undefined;
-  }): { builtins: Record<string, unknown>; permissionPromptTool: string | undefined } => {
-    const baseEnv = {
-      ...process.env,
-      EOS_DAEMON_URL: `http://127.0.0.1:${config.daemon.port}`,
-      // Preferred transport for everything that isn't a browser: no ephemeral
-      // port per call, so MCP/hook chatter can't exhaust the local port range.
-      EOS_DAEMON_SOCK: config.daemon.socketFile,
-      EOS_WORKER_ID: input.id,
-    };
-    // dev: `node --experimental-strip-types <repo>/manager/*.ts`; packaged:
-    // Electron's Node against the shipped *.bundle.mjs (ELECTRON_RUN_AS_NODE=1).
-    const node = (scriptPath: string, extraEnv?: Record<string, string>) => ({
-      command: nodeBin(),
-      args: [...tsRuntimeFlags(), "--no-warnings", scriptPath],
-      env: { ...baseEnv, ...nodeRunEnv(), ...(extraEnv ?? {}) },
-      alwaysLoad: true,
-    });
-    // Key set = EOS_BUILTIN_MCP_SERVERS — the subagent caller-scope deny
-    // (core/domain/tool-scope.ts) matches on these server names.
-    const builtins: Partial<Record<EosBuiltinMcpServer, unknown>> = {};
-    if (input.isOrchestrator) builtins.orchestrator = node(config.paths.orchestratorMcpScript);
-    if (input.withGateway) {
-      // dev: `bun run gateway/server.ts`; packaged: Electron-node against the
-      // bundled gateway (Bun dropped — the gateway has zero Bun-specific APIs).
-      builtins.gateway = isPackaged()
-        ? { command: nodeBin(), args: [config.paths.gatewayScript], env: { ...baseEnv, ...nodeRunEnv() } }
-        : { command: config.paths.bunBin, args: ["run", config.paths.gatewayScript], env: baseEnv };
-    }
-    // EOS_COLLABORATE gates the peer MCP tools (list_peers / ask_peer /
-    // respond_to_peer) inside the worker MCP server; EOS_ROLE selects the
-    // workflow-worker tool surface — both read synchronously at its boot, so no
-    // daemon round-trip / row-insert race.
-    if (input.parentId) builtins.worker = node(config.paths.workerMcpScript, { EOS_COLLABORATE: input.collaborate ? "1" : "", EOS_ROLE: input.role ?? "" });
-    return { builtins, permissionPromptTool: input.withGateway ? "mcp__gateway__decide" : undefined };
-  };
-
-  const writeMcpConfig = (input: {
-    id: string;
-    cwd: string | undefined;
-    isOrchestrator: boolean;
-    withGateway: boolean;
-    parentId: string | undefined;
-    collaborate: boolean;
-    role: string | undefined;
-  }): { path: string | null; strict: boolean; permissionPromptTool: string | undefined } => {
-    const agentCfg = input.isOrchestrator ? config.mcp.orchestrator : config.mcp.worker;
-    const { builtins, permissionPromptTool } = buildMcpBuiltins(input);
-    const inherited = input.cwd ? mcpCatalog.listInherited(input.cwd) : {};
-    const { servers, strict } = resolveMcpServers({ inherited, builtins, config: agentCfg });
-    // Additive + nothing of ours to add → no file; claude inherits natively.
-    if (!strict && Object.keys(servers).length === 0) {
-      return { path: null, strict: false, permissionPromptTool };
-    }
-    const path = mcpConfigPathFor(input.id);
-    writeFileSync(path, JSON.stringify({ mcpServers: servers }));
-    return { path, strict, permissionPromptTool };
-  };
 
   const cleanupMcpConfig = (id: string): void => {
     for (const p of [mcpConfigPathFor(id), systemPromptPathFor(id)]) {
@@ -691,7 +575,7 @@ export function buildContainer() {
   // Configured memory sources (CLAUDE.md, plus any AGENTS.md-style files declared
   // under config.memory.sources). Read for backends that don't load a source
   // natively (assumeNativeFor): the claude-cli binary auto-loads CLAUDE.md, the
-  // claude-sdk lane (settingSources:[]) loads nothing.
+  // claude lane (settingSources:[]) loads nothing.
   const memoryProvider = new FileMemoryProvider(resolveMemorySources(config.memory.sources));
   // Agent Skills (§5c) — discovery + body load for the in-process lane. Skill
   // trigger metadata (name+description) is folded into the in-process DPI prompt
@@ -701,7 +585,7 @@ export function buildContainer() {
   const skillCatalog = createFileSkillCatalog();
   // DPI assembly (shared): derive the appended system-prompt TEXT from the
   // fragments that match the spawn facts. Both backend lanes need the same text —
-  // claude-cli writes it to a file for --append-system-prompt-file, claude-sdk
+  // claude-cli writes it to a file for --append-system-prompt-file, claude
   // passes it as systemPrompt.append — so it is built in exactly one place here.
   // null → no append (a top-level worker with no role fragment).
   const assembleAppendText = (spec: SpawnWorkerSpec, id: string, lane: string): string | null => {
@@ -804,7 +688,7 @@ export function buildContainer() {
   };
   // DPI text + the memory this backend kind does NOT load itself
   // (selectInjectableMemory drops sources whose assumeNativeFor includes the kind).
-  // Shared by both lanes: claude-cli writes it to the append file, claude-sdk
+  // Shared by both lanes: claude-cli writes it to the append file, claude
   // passes it inline. Memory disabled / no cwd → plain DPI text, verbatim.
   const assembleAppendFor = (spec: SpawnWorkerSpec, id: string, backendKind: string): string | null => {
     const dpi = assembleAppendText(spec, id, backendKind);
@@ -813,16 +697,6 @@ export function buildContainer() {
     if (!cwd) return dpi;
     const snapshot = memoryProvider.load({ cwd, repoRoot: spec.worktreeFrom ?? null });
     return composeAppendedPrompt(dpi, selectInjectableMemory(snapshot, backendKind));
-  };
-  // claude-cli projection: write the assembled text per-worker, return the path
-  // (cleanupMcpConfig removes the file on exit). "claude-cli" filters out its native
-  // CLAUDE.md (the binary loads it); only non-native sources are injected.
-  const assembleSystemPromptFile = (spec: SpawnWorkerSpec, id: string): string | null => {
-    const text = assembleAppendFor(spec, id, "claude-cli");
-    if (!text) return null;
-    const path = systemPromptPathFor(id);
-    writeFileSync(path, text);
-    return path;
   };
   const userTemplates = new UserTemplateService(join(config.daemon.home, "templates"));
   const projectMemory = new FileProjectMemoryStore();
@@ -843,21 +717,7 @@ export function buildContainer() {
   });
   updates.start(config.updates.checkIntervalMs);
 
-
-  // The claude-cli AgentBackend — wraps the existing supervisor + port allocator
-  // + worker client + argv builders behind the backend-agnostic port. SpawnWorker
-  // (and later DispatchMessage/KillWorker) drive execution through this.
-  const claudeCliBackend = createClaudeCliBackend({
-    supervisor,
-    ports: portAllocator,
-    client: httpWorkerClient,
-    buildArgs,
-    buildEnv,
-    logFileFor,
-    assembleSystemPromptFile,
-  });
-
-  // Shared in-process tooling, used by BOTH the claude-sdk lane and the Eos-hosted
+  // Shared in-process tooling, used by BOTH the claude lane and the Eos-hosted
   // ToolRuntime lane (anthropic-api / openai / deepseek / kimi): the daemon-loopback
   // ToolContext, the one policy engine, and the prompt-library descriptions.
   const sdkDaemonUrl = `http://127.0.0.1:${config.daemon.port}`;
@@ -869,7 +729,7 @@ export function buildContainer() {
   };
   // Credential resolver — defined here (before the in-process backends) because the
   // async in-process env factory resolves provider creds BY REFERENCE at start().
-  // Shared with the claude-sdk lane below.
+  // Shared with the claude lane below.
   const authResolver = createSubscriptionAuthResolver();
 
   // Subscription usage (Settings > Usage). Token resolution mirrors the billing
@@ -1042,7 +902,7 @@ export function buildContainer() {
       // UI's agentRun is keyed by) — the callId threaded into execute. A depth-2+
       // child parents to its immediate parent Task's callId, itself an inner activity
       // with no agentRun, so the UI's timestamp-proximity fallback flattens it onto
-      // the outermost Task's agentRun (same shape as claude-sdk's nested subagents).
+      // the outermost Task's agentRun (same shape as claude's nested subagents).
       const taskCallId = ctx?.callId ?? childId;
       let finalText = "";
       const childEmit = (e: AgentEvent): void => {
@@ -1138,7 +998,7 @@ export function buildContainer() {
   const openaiBackend = createInProcessBackend("openai", makeOpenAiEnvFactory(), inProcessDurability);
   const codexBackend = createInProcessBackend("codex", makeOpenAiEnvFactory(), inProcessDurability);
 
-  // claude-sdk (Lane A): subscription-billed, live thinking. Reuses the shared
+  // claude (Lane A): subscription-billed, live thinking. Reuses the shared
   // policy engine + loopback ToolContext + prompt-library descriptions.
   // SDK-lane emit adapter, symmetric to writeMcpConfig's JSON path: enumerate the
   // worker's inherited servers (the SDK can't self-discover with settingSources:[],
@@ -1163,13 +1023,13 @@ export function buildContainer() {
     resolveSdkMcpServers,
     // Same DPI text the CLI lane writes to --append-system-prompt-file, plus the
     // injected memory: the SDK spec carries the SpawnWorkerSpec in backendOptions.spec
-    // (SpawnWorker.ts). "claude-sdk" loads nothing natively → every enabled source
+    // (SpawnWorker.ts). "claude" loads nothing natively → every enabled source
     // is folded into the inline systemPrompt append.
-    assembleAppendPrompt: (spec) => assembleAppendFor((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId, "claude-sdk"),
+    assembleAppendPrompt: (spec) => assembleAppendFor((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId, "claude"),
     log,
   });
 
-  // Appendless judge backend — a claude-sdk session with NO assembleAppendPrompt
+  // Appendless judge backend — a claude session with NO assembleAppendPrompt
   // and EMPTY tool defs, so the LLM judge sees ONLY the rubric (no Eos DPI
   // protocol, no injected memory, no Eos tools). A DISTINCT instance from
   // claudeSdkBackend above, which bakes the worker protocol in.
@@ -1229,15 +1089,15 @@ export function buildContainer() {
     pauseMaxMs: () => config.microTasks.pauseMaxMs,
   });
 
+  // claude is the sole Claude lane (subscription-billed, in-process, live
+  // thinking); the metered lanes stay disabled by default. Selection is driven
+  // by config (a claude profile + defaults).
   const backendMap = new Map<string, AgentBackend>([
-    ["claude-cli", claudeCliBackend],
+    ["claude", claudeSdkBackend],
     ["anthropic-api", anthropicBackend],
     ["openai", openaiBackend],
     ["codex", codexBackend],
   ]);
-  // claude-sdk is GA — registered unconditionally; selection is driven by config
-  // (a claude-sdk profile + defaults). claude-cli stays the default until a profile points elsewhere.
-  backendMap.set("claude-sdk", claudeSdkBackend);
   const backends = {
     get(kind: string) { const b = backendMap.get(kind); if (!b) throw new Error(`unknown backend: ${kind}`); return b; },
     has(kind: string) { return backendMap.has(kind); },
@@ -1319,11 +1179,8 @@ export function buildContainer() {
     remoteSync,
     uiToken,
     recents,
-    buildArgs,
-    buildEnv,
     resolveWorktreeDir,
     logFileFor,
-    claudeCliBackend,
     backends,
     slashCommands,
     expandSlashTemplate,

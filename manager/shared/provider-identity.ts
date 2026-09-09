@@ -61,7 +61,7 @@ function resolveBaseIdentity(descriptor: BackendDescriptor, profile?: IdentityPr
     }
     return { persona: descriptor.label, tiers: profile.tiers, effortSupported: false };
   }
-  // (2) Claude-family catalog (claude-cli, claude-sdk, and the metered anthropic-api
+  // (2) Claude-family catalog (claude-cli, claude, and the metered anthropic-api
   // lane all declare models.kind "claude") → the Claude identity (returned as-is so
   // callers keep reference identity when no config override applies).
   if (isClaude) return CLAUDE_IDENTITY;

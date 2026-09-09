@@ -52,10 +52,10 @@ describe("loadConfig — defaults", () => {
     const fs = await import("node:fs");
     assert.ok(fs.existsSync(`${cfg.paths.repoRoot}/manager/daemon.ts`), `unexpected repoRoot: ${cfg.paths.repoRoot}`);
   });
-  it("derives workerScript from repoRoot", async () => {
+  it("derives gatewayScript from repoRoot", async () => {
     delete process.env.EOS_REPO_ROOT;
     const cfg = await freshLoad();
-    assert.ok(cfg.paths.workerScript.endsWith("spawner/worker.ts"));
+    assert.ok(cfg.paths.gatewayScript.endsWith("gateway/server.ts"));
   });
   it("seeds Anthropic-style model prices", async () => {
     const cfg = await freshLoad();
@@ -219,22 +219,22 @@ describe("DaemonConfigOverrideSchema — Zod validation", () => {
       path.join(tmpHome, "config.json"),
       JSON.stringify({
         backends: {
-          "claude-sdk": {
-            kind: "claude-sdk", model: "opus",
+          "claude": {
+            kind: "claude", model: "opus",
             auth: { kind: "subscription" }, costMode: "included",
             params: { thinking: { type: "adaptive", display: "summarized" } },
           },
         },
-        defaults: { orchestrator: { backend: "claude-sdk" }, worker: { backend: "claude-sdk" } },
+        defaults: { orchestrator: { backend: "claude" }, worker: { backend: "claude" } },
       }),
     );
     const cfg = await freshLoad();
-    assert.equal(cfg.backends["claude-sdk"]?.kind, "claude-sdk");
-    assert.equal(cfg.backends["claude-sdk"]?.model, "opus");
-    assert.equal(cfg.defaults.orchestrator.backend, "claude-sdk");
-    assert.equal(cfg.defaults.worker.backend, "claude-sdk");
-    // Built-in claude-cli profiles still present (per-profile merge, not replace).
-    assert.ok(cfg.backends["claude-cli-opus"]);
+    assert.equal(cfg.backends["claude"]?.kind, "claude");
+    assert.equal(cfg.backends["claude"]?.model, "opus");
+    assert.equal(cfg.defaults.orchestrator.backend, "claude");
+    assert.equal(cfg.defaults.worker.backend, "claude");
+    // Built-in claude-opus profile still present (per-profile merge, not replace).
+    assert.ok(cfg.backends["claude-opus"]);
   });
 
   it("partial config.archive override field-merges over the defaults", async () => {

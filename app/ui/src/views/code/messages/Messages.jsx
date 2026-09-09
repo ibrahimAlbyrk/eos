@@ -505,7 +505,7 @@ export function Messages({ live, agentId, isActive = true }) {
           const isLast = i === blocks.length - 1;
           const key = blockKey(b, i);
           // Rewind is a backend CAPABILITY, decoupled from keystroke (claude-cli
-          // realizes it via PTY choreography, claude-sdk via a native fork) — gate
+          // realizes it via PTY choreography, claude via a native fork) — gate
           // it on the backend's `rewind` flag, never on keystroke or kind.
           const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).rewind
             ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)

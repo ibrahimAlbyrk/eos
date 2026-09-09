@@ -15,10 +15,10 @@ export const interruptWorkerHandler: CommandHandler<WorkerIdAddr, NoBody, Interr
     const worker = c.workers.findById(id);
     if (!worker) return { status: 404, body: { error: "worker not found" } };
     // Route through the backend session so interrupt works on every lane: CLI →
-    // httpWorkerClient.sendInterrupt(port); in-process (claude-sdk / API) → the
+    // httpWorkerClient.sendInterrupt(port); in-process (claude / API) → the
     // session's own interrupt (SDK query / agent-loop abort). No port assumption.
-    const kind = worker.backend_kind ?? "claude-cli";
-    const backend = c.backends.has(kind) ? c.backends.get(kind) : c.claudeCliBackend;
+    const kind = worker.backend_kind ?? "claude";
+    const backend = c.backends.has(kind) ? c.backends.get(kind) : c.backends.get("claude");
     const handle = backend.descriptor.processModel === "out-of-process"
       ? { kind: "http" as const, port: worker.port, pid: worker.pid ?? null }
       : { kind: "inproc" as const, ref: id };

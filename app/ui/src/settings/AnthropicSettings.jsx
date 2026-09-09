@@ -1,5 +1,5 @@
 // Anthropic credentials panel — the Settings "Anthropic" tab. Two masked inputs
-// (OAuth token + API key) that feed ONLY the in-process Claude SDK sessions; the
+// (OAuth token + API key) that feed ONLY the in-process Claude sessions; the
 // claude-cli (terminal) lane is untouched. Priority when both are set: the OAuth
 // token wins (exported as CLAUDE_CODE_OAUTH_TOKEN, which sidesteps the SDK's
 // mid-session token refresh); the API key applies only when no OAuth token is set.
@@ -131,11 +131,11 @@ export function AnthropicSettings() {
       <h2 className="stg-title">Anthropic</h2>
 
       <div className="stg-group">
-        <div className="stg-group__title">Claude SDK credentials</div>
+        <div className="stg-group__title">Claude credentials</div>
 
         <div className="stg-row stg-row--stack">
           <div className="stg-row__desc">
-            Used only by the in-process Claude SDK sessions. If both are set, the OAuth
+            Used only by the in-process Claude sessions. If both are set, the OAuth
             token takes precedence. The claude-cli (terminal) lane is unaffected.
           </div>
         </div>

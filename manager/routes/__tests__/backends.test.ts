@@ -9,7 +9,7 @@ import type { AddBackendRequest } from "../../../contracts/src/http.ts";
 
 const caps: AgentCapabilities = { interrupt: true, keystroke: false, rewind: false, runtimeModelSwitch: false, runtimePermissionSwitch: false };
 
-// Mirrors the real openai + claude-sdk descriptors (modelSource + wireDialect are
+// Mirrors the real openai + claude descriptors (modelSource + wireDialect are
 // the DATA the endpoint branches on — never a kind literal).
 const openaiDescriptor: BackendDescriptor = {
   kind: "openai", label: "OpenAI API", processModel: "in-process", billing: "metered",
@@ -17,7 +17,7 @@ const openaiDescriptor: BackendDescriptor = {
   auth: "apikey", enabled: true, sessionStore: "eos-conversation", wireDialect: "openai-chat",
 };
 const claudeSdkDescriptor: BackendDescriptor = {
-  kind: "claude-sdk", label: "Claude SDK", processModel: "in-process", billing: "subscription",
+  kind: "claude", label: "Claude", processModel: "in-process", billing: "subscription",
   modelSource: "request", capabilities: caps, models: { kind: "claude" },
   auth: "subscription", enabled: true, sessionStore: "claude-transcript",
 };
@@ -116,7 +116,7 @@ describe("fetchBackendModels", () => {
   });
 
   it("subscription (request-model) profile returns the Claude catalog ids without a provider call", async () => {
-    const claudeSdkProfile: BackendProfile = { kind: "claude-sdk", model: "opus", auth: { kind: "subscription" }, costMode: "included" };
+    const claudeSdkProfile: BackendProfile = { kind: "claude", model: "opus", auth: { kind: "subscription" }, costMode: "included" };
     const res = await fetchBackendModels({
       profile: claudeSdkProfile,
       descriptor: claudeSdkDescriptor,

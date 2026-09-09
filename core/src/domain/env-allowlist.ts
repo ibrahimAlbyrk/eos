@@ -1,5 +1,5 @@
 // Env vars that must NEVER reach a subscription-billed child (the claude-cli PTY
-// worker or the claude-sdk OAuth child): their mere presence silently diverts
+// worker or the claude OAuth child): their mere presence silently diverts
 // billing off the user's Max/Pro subscription — an API key / auth token onto a
 // metered API pool, a base URL onto a proxy that disables subscription auth.
 // Stripped at every site that spreads the daemon's process.env into such a child.

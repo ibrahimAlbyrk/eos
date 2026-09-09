@@ -167,7 +167,7 @@ export function useLive() {
           // An agent used (tab/navigate) or presented (browser_show) its
           // session's browser — badge/auto-open rules live in the session store.
           if (data.reason === "browser:activity") { applyBrowserActivity(data.payload ?? {}); return; }
-          // Live reasoning/text deltas (claude-sdk / in-process) — high-frequency
+          // Live reasoning/text deltas (claude / in-process) — high-frequency
           // live data, not a state delta; route to the thinking store, skip refetch.
           if (data.reason === "agent:delta") { applyDelta(data.payload ?? {}); return; }
           // Transient goal-check progress (loop tick) — drive the live "checking"

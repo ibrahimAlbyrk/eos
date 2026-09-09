@@ -117,9 +117,9 @@ export interface SpawnWorkerDeps {
   /** Builds the argv array for the worker child process given identity +
    * spec. The composition root injects the real builder which knows the
    * worker script path. Keeps SpawnWorker free of any FS knowledge. */
-  buildArgs(input: { id: string; port: number; spec: SpawnWorkerSpec; model: string }): string[];
+  buildArgs?(input: { id: string; port: number; spec: SpawnWorkerSpec; model: string }): string[];
   /** Builds the env map (the daemon-aware EOS_* triplet + bin paths). */
-  buildEnv(input: { id: string; spec: SpawnWorkerSpec }): Record<string, string>;
+  buildEnv?(input: { id: string; spec: SpawnWorkerSpec }): Record<string, string>;
   /** Derives the worktree dir for a fresh worktree spawn (realpath'd repo root
    * + the managed .eos/worktrees/<branch> layout) so the row is complete at
    * insert — no enrichment window. The worker creates the worktree at exactly
@@ -135,7 +135,7 @@ export interface SpawnWorkerDeps {
    *  (events.append + reduceAgentSignal). Unused by out-of-process backends
    *  (claude-cli posts events over HTTP). Injected by the composition root. */
   onAgentEvent?(workerId: string, event: AgentEvent): void;
-  /** Write-capable worktree port. Used ONLY for in-process backends (claude-sdk):
+  /** Write-capable worktree port. Used ONLY for in-process backends (claude):
    *  the daemon materializes the worktree before launch since there is no boot
    *  child to create it (claude-cli creates its own in worker.ts). Absent (unit
    *  tests / out-of-process) → no creation here. */
@@ -294,7 +294,7 @@ export async function spawnWorker(
   // wrapped bootPrompt rides here too so the PTY lane's argv/paste is tagged.
   const withBranch = { ...resolved, branch, worktreeDir, effort, prompt: bootPrompt };
 
-  // In-process backends (claude-sdk) have no boot child to create the worktree,
+  // In-process backends (claude) have no boot child to create the worktree,
   // so the daemon materializes it HERE — before launch — so the session starts in
   // the isolated tree, not the source repo. claude-cli creates its own in
   // worker.ts (out-of-process). Attach mode reuses an existing tree (no create).
@@ -359,7 +359,10 @@ export async function spawnWorker(
     port = session.handle.kind === "http" ? session.handle.port : 0;
     pid = session.handle.kind === "http" ? session.handle.pid : null;
   } else {
-    // Legacy supervisor path (kill switch: no backend injected; unit tests).
+    // Legacy supervisor path (kill switch: no backend injected). Production always
+    // injects a backend, so this runs only in unit tests, which supply their own
+    // argv/env builders — guard so a missing builder fails loudly, never silently.
+    if (!deps.buildArgs || !deps.buildEnv) throw new Error("spawn requires a backend or legacy argv/env builders");
     port = await deps.ports.allocate();
     logArgs = deps.buildArgs({ id, port, spec: withBranch, model });
     const env = deps.buildEnv({ id, spec: withBranch });
@@ -392,7 +395,7 @@ export async function spawnWorker(
     model,
     effort: effort ?? null,
     isOrchestrator: !!resolved.isOrchestrator,
-    backendKind: deps.backend?.kind ?? "claude-cli",
+    backendKind: deps.backend?.kind ?? "claude",
     backendProfile: resolved.backendProfile ?? null,
     agentRole: resolved.role ?? null,
     workerDefinition: resolved.workerDefinition ?? null,

@@ -2,7 +2,7 @@
 // (assumeNativeFor → MemoryDoc.nativeFor), so Eos never injects a backend's own
 // memory twice. The claude-cli binary auto-loads CLAUDE.md, so the "claude" source
 // carries nativeFor:["claude-cli"] and is filtered out for that lane; the
-// claude-sdk lane loads nothing itself, so everything is injectable. Pure.
+// claude lane loads nothing itself, so everything is injectable. Pure.
 
 import type { MemorySnapshot } from "../ports/MemoryProvider.ts";
 

@@ -35,7 +35,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
     const split = resolveCombinedModel(body.model, body.backendProfile, new Set(Object.keys(c.config.backends)));
     const explicitProfileName = split.backendProfile;
     const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, explicitProfileName, explicitModel: split.model, isOrchestrator: true });
-    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
+    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.backends.get("claude");
     const explicit = !!(body.backendKind || explicitProfileName);
     const backendErr = spawnBackendError(backend, rb, explicit);
     if (backendErr) { writeJson(res, 400, { error: backendErr }); return; }
@@ -44,7 +44,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         workers: c.workers, events: c.events, bus: c.bus,
         supervisor: c.supervisor, ports: c.portAllocator,
         clock: c.clock, ids: c.ids, log: c.log,
-        buildArgs: c.buildArgs, buildEnv: c.buildEnv, logFileFor: c.logFileFor,
+        logFileFor: c.logFileFor,
         backend,
         worktrees: c.worktrees,
         onAgentEvent: c.onAgentEvent,
@@ -62,7 +62,7 @@ export function registerOrchestratorRoutes(r: Router, c: Container): void {
         persistent: true,
         claudePermissionMode: body.permissionMode ?? "bypassPermissions",
         // Profile-model providers carry their own (already tier-resolved) model;
-        // request-model providers (claude-sdk/claude-cli) run the user-picked model,
+        // request-model providers (claude/claude-cli) run the user-picked model,
         // routed through the provider tier gate (default "high") so a tier name /
         // legacy alias resolves to a concrete id before it is persisted.
         model: resolveTier(

@@ -13,8 +13,8 @@ describe("selectInjectableMemory — drop sources the backend loads natively", (
     assert.deepEqual(selectInjectableMemory(snap, "claude-cli").docs.map((d) => d.sourceId), ["agents"]);
   });
 
-  it("keeps everything for a kind that loads nothing natively (claude-sdk)", () => {
+  it("keeps everything for a kind that loads nothing natively (claude)", () => {
     const snap: MemorySnapshot = { docs: [doc("claude", ["claude-cli"]), doc("agents", [])] };
-    assert.deepEqual(selectInjectableMemory(snap, "claude-sdk").docs.map((d) => d.sourceId), ["claude", "agents"]);
+    assert.deepEqual(selectInjectableMemory(snap, "claude").docs.map((d) => d.sourceId), ["claude", "agents"]);
   });
 });

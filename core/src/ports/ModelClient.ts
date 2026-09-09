@@ -38,7 +38,7 @@ export interface ModelTurn {
 
 // Streaming callbacks — reasoning/text arrive incrementally so the in-process
 // lane (DeepSeek/Kimi/OpenAI) streams live thinking through the SAME canonical
-// delta pipeline as the claude-sdk lane (R4: no forked thinking pipeline).
+// delta pipeline as the claude lane (R4: no forked thinking pipeline).
 export interface ModelStreamCallbacks {
   onTextDelta?(text: string): void;
   onReasoningDelta?(text: string): void;

@@ -1,5 +1,5 @@
 // Canonical, backend-agnostic agent event model. Every AgentBackend adapter
-// (claude-cli today; anthropic-api / claude-sdk / codex later) emits these, so
+// (claude-cli today; anthropic-api / claude / codex later) emits these, so
 // the daemon, state machine, event log and web UI can stay backend-neutral.
 //
 // The primitives are universal: assistant text, reasoning, tool calls, tool
@@ -13,8 +13,7 @@ import { UnknownRecordSchema } from "./shared.ts";
 // Which agent runtime produced an event. Kept here because the envelope needs
 // it; a later contracts/src/backend.ts re-exports rather than redefines it.
 export const BackendKindSchema = z.enum([
-  "claude-cli",
-  "claude-sdk",
+  "claude",
   "anthropic-api",
   "openai",
   "codex",
@@ -26,7 +25,7 @@ export type BackendKind = z.infer<typeof BackendKindSchema>;
 export const TextBlockSchema = z.object({
   type: z.literal("text"),
   text: z.string(),
-  // Synthesized live-stream id (claude-sdk: `${assistantMsgUuid}:${index}`) so a
+  // Synthesized live-stream id (claude: `${assistantMsgUuid}:${index}`) so a
   // durable block reconciles with its live delta buffer; absent for non-streaming
   // backends (claude-cli).
   blockId: z.string().optional(),
@@ -67,7 +66,7 @@ export const PatchHunkSchema = z.object({
 export type PatchHunk = z.infer<typeof PatchHunkSchema>;
 
 // Slim an incoming structuredPatch (the claude-cli transcript sidecar OR the
-// claude-sdk tool_use_result sidecar) down to the fields the UI diff needs.
+// claude tool_use_result sidecar) down to the fields the UI diff needs.
 // Pure + defensive: returns undefined for absent/empty/garbage input so both
 // anti-corruption layers can attach `patch` ONLY when it parses to valid hunks
 // and degrade silently otherwise — the SDK's runtime shape is unverified, so
@@ -202,7 +201,7 @@ export const SubagentUsageSchema = z.object({
 });
 export type SubagentUsage = z.infer<typeof SubagentUsageSchema>;
 
-// Fired when the lane sees the true completion carrier (claude-sdk: the
+// Fired when the lane sees the true completion carrier (claude: the
 // "task_notification" system message; claude-cli: the <task-notification>
 // XML inside queue-operation/queued_command jsonl lines).
 export const SubagentCompletedEventSchema = z.object({
@@ -228,7 +227,7 @@ export const UsageEventSchema = z.object({
 // from it (latest wins, never summed). Backends emit it per assistant message /
 // API request: the last one of a turn is the live occupancy. Kept separate from
 // `usage` because a backend's billing usage can be a per-turn aggregate
-// (claude-sdk's result.usage sums every tool round-trip's tokens, incl. repeated
+// (claude's result.usage sums every tool round-trip's tokens, incl. repeated
 // cache reads), which would balloon the ring far past the window.
 export const ContextEventSchema = z.object({
   type: z.literal("context"),
@@ -242,7 +241,7 @@ export const SessionEventSchema = z.object({
   type: z.literal("session"),
   phase: z.enum(["started", "ready", "ended", "cleared"]),
   outcome: z.enum(["success", "killed", "crashed"]).optional(),
-  // Backend session id (claude-sdk: the SDK init session_id) — persisted to the
+  // Backend session id (claude: the SDK init session_id) — persisted to the
   // worker row on `ready` so the session is resumable (options.resume) after a
   // daemon restart. Absent for backends with no resumable session.
   sessionId: z.string().optional(),
@@ -262,7 +261,7 @@ export const QuestionRequestEventSchema = z.object({
 });
 
 // Live streaming delta — interim reasoning/text tokens for backends that stream
-// (claude-sdk, in-process). NEVER persisted per-token: the daemon filters these
+// (claude, in-process). NEVER persisted per-token: the daemon filters these
 // at the onAgentEvent sink and relays them on the ephemeral `agent:delta` bus
 // topic; the durable record stays the final `message` event. `blockId` matches
 // the durable block's blockId so the UI swaps the live buffer for the persisted

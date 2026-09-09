@@ -1,6 +1,6 @@
 // Is this worker's session live, across backends? Out-of-process (claude-cli)
 // workers are supervised PTY children (the supervisor map); in-process
-// (claude-sdk/…) workers have no child — their liveness is the backend
+// (claude/…) workers have no child — their liveness is the backend
 // session's own aliveness. Single source for the message / report / peer /
 // resume paths so none re-derives it and forgets the in-process branch (the
 // old `!port || !supervisor.has` checks dropped every in-process target).

@@ -7,7 +7,7 @@
 // Live on two paths: (1) the daemon translates the claude-cli worker's legacy wire
 // events to canonical and drives state via reduceAgentSignal (ProcessWorkerEvent's
 // toCanonical hybrid, wired in manager/routes/workers.ts); (2) the in-process and
-// claude-sdk backends emit canonical events that container.ts's onAgentEvent sink
+// claude backends emit canonical events that container.ts's onAgentEvent sink
 // feeds straight into processAgentSignal. The remaining split is persistence + the
 // UI decoder (claude-cli still logs legacy jsonl/hook rows), not state.
 
@@ -92,7 +92,7 @@ export function reduceAgentSignal(
 
     case "session":
       if (event.phase === "ready" && event.sessionId) {
-        // Persist the backend session id (claude-sdk) so the worker is resumable
+        // Persist the backend session id (claude) so the worker is resumable
         // after a daemon restart (boot reconcile gates SUSPENDED on session_id).
         deps.workers.setSessionId(workerId, event.sessionId);
       } else if (event.phase === "ended") {

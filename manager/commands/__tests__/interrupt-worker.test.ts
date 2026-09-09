@@ -48,7 +48,7 @@ function harness(opts: { reportsMessageEvents?: boolean } = {}) {
   const backend = { descriptor: { processModel: "in-process" }, attach: () => session };
 
   const workers = {
-    findById: (id: string) => (id === "w1" ? { id: "w1", backend_kind: "claude-sdk", port: null, pid: null, state: workerState, is_orchestrator: 0 } : undefined),
+    findById: (id: string) => (id === "w1" ? { id: "w1", backend_kind: "claude", port: null, pid: null, state: workerState, is_orchestrator: 0 } : undefined),
     updateState: (_id: string, next: string) => { workerState = next; },
     setTurnStartedAt: () => {},
   };

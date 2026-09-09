@@ -135,7 +135,7 @@ export function sortBlocksByTs(blocks) {
 }
 
 // One content decoder. claude-cli (after the canonical persistence switch) and the
-// in-process / claude-sdk lanes all persist canonical agent_event rows; expand each
+// in-process / claude lanes all persist canonical agent_event rows; expand each
 // into the legacy content shapes buildBlocks already understands (jsonl +
 // tool_running/tool_done + turn/exit barriers) so the entire rich pipeline below —
 // subagent agentSpans, skill bodies, tool lifecycle, grouping lanes — is reused

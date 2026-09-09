@@ -27,12 +27,12 @@ describe("isWorkerLive — backend-agnostic liveness", () => {
   });
 
   it("an in-process backend with a live session is live (no supervised child)", () => {
-    const c = fakeContainer({ backendKind: "claude-sdk", processModel: "in-process", alive: true });
+    const c = fakeContainer({ backendKind: "claude", processModel: "in-process", alive: true });
     assert.equal(isWorkerLive(c, "w1"), true);
   });
 
   it("an in-process backend with a dead session is not live", () => {
-    const c = fakeContainer({ backendKind: "claude-sdk", processModel: "in-process", alive: false });
+    const c = fakeContainer({ backendKind: "claude", processModel: "in-process", alive: false });
     assert.equal(isWorkerLive(c, "w1"), false);
   });
 

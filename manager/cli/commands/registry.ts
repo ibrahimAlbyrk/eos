@@ -1,5 +1,4 @@
 import type { Command } from "./Command.ts";
-import { hooksCommand } from "./hooks.ts";
 import { listCommand } from "./list.ts";
 import { spawnCommand } from "./spawn.ts";
 import { showCommand } from "./show.ts";
@@ -25,7 +24,6 @@ const COMMANDS: Command[] = [
   restartCommand,
   buildCommand,
   statusCommand,
-  hooksCommand,
   orchestratorCommand,
   chatCommand,
   listCommand,

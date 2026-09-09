@@ -303,7 +303,7 @@ const pumpPeerFor = (workerId: string): boolean => {
     `${next.question}\n\n` +
     `Answer this from your area, then call respond_to_peer with your answer — that is the only thing that reaches ${fromName}; plain text in this turn does not.`;
   // Backend-aware delivery + settle-clear + WORKING lift, same path as the
-  // dashboard and report flows — a port-less in-process (claude-sdk) peer is
+  // dashboard and report flows — a port-less in-process (claude) peer is
   // reachable too (the old httpWorkerClient.sendMessage(w.port,…) silently
   // skipped them). PTY peer self-reports peer_request at its transcript
   // sighting; in-process gets the daemon-side append. displayText = the bare

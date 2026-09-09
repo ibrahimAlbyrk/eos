@@ -21,7 +21,7 @@ export function RewindPanel({ live }) {
   // is still in flight (double-Esc lands here mid-stop) — treat that as busy.
   const busy = worker && (worker.state === "WORKING" || worker.state === "SPAWNING" || live.interruptedId === workerId);
   // Rewind is a backend capability — claude-cli drives the native TUI panel, but
-  // claude-sdk's query() has no fork primitive. Gate on the data, never on kind.
+  // claude's query() has no fork primitive. Gate on the data, never on kind.
   const canRewind = backendCaps(worker?.backend_kind).rewind;
 
   useEffect(() => {

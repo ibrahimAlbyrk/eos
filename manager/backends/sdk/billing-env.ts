@@ -1,4 +1,4 @@
-// Env for the SDK-spawned `claude` child (the claude-sdk backend drives the
+// Env for the SDK-spawned `claude` child (the claude backend drives the
 // bundled claude binary as a subprocess; that child resolves billing auth from
 // the env it receives). buildSubscriptionChildEnv strips the silent billing
 // winners (ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN / ANTHROPIC_BASE_URL) so they

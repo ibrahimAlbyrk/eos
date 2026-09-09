@@ -40,7 +40,7 @@ export function registerHomeRoutes(r: Router, c: Container): void {
     const split = resolveCombinedModel(body.model, body.backendProfile, new Set(Object.keys(c.config.backends)));
     const explicitProfileName = split.backendProfile;
     const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind, explicitProfileName, explicitModel: split.model, isOrchestrator: false });
-    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
+    const backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.backends.get("claude");
     const explicit = !!(body.backendKind || explicitProfileName);
     const backendErr = spawnBackendError(backend, rb, explicit);
     if (backendErr) { writeJson(res, 400, { error: backendErr }); return; }
@@ -50,7 +50,7 @@ export function registerHomeRoutes(r: Router, c: Container): void {
         workers: c.workers, events: c.events, bus: c.bus,
         supervisor: c.supervisor, ports: c.portAllocator,
         clock: c.clock, ids: c.ids, log: c.log,
-        buildArgs: c.buildArgs, buildEnv: c.buildEnv, logFileFor: c.logFileFor,
+        logFileFor: c.logFileFor,
         backend,
         worktrees: c.worktrees,
         onAgentEvent: c.onAgentEvent,

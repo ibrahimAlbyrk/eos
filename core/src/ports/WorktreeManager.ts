@@ -45,7 +45,7 @@ export interface WorktreeCreateResult {
 export interface WorktreeManager {
   /** Materialize a fresh worktree on a new branch. The out-of-process claude-cli
    *  child creates its own during boot (spawner/worktree.ts); an IN-PROCESS backend
-   *  (claude-sdk) has no such child, so the daemon creates it here before launch.
+   *  (claude) has no such child, so the daemon creates it here before launch.
    *  Fails cleanly (created:false + reason) on a non-repo / git error, never throws. */
   create(input: WorktreeCreateInput): Promise<WorktreeCreateResult>;
   /** Force-remove the worktree dir + delete its branch, regardless of

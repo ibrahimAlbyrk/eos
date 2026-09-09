@@ -65,7 +65,7 @@ export class SqlBackedBackendResolver {
     const roleName = this.defaults.roleDefaultName(input.isOrchestrator);
     const role = roleName ? this.defaults.profile(roleName) : null;
     if (role) return role;
-    // 4. global default — preserves today's behavior when nothing is configured
-    return { kind: "claude-cli", model: "opus", profileName: null };
+    // 4. global default — the sole Claude lane when nothing is configured
+    return { kind: "claude", model: "opus", profileName: null };
   }
 }

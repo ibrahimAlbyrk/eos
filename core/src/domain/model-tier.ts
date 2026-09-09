@@ -46,7 +46,7 @@ export interface ProviderIdentity {
 }
 
 // Claude is request-model (the composer picks the alias directly), so its tiers ARE
-// the aliases and effort is supported. Shared by claude-cli, claude-sdk, and the
+// the aliases and effort is supported. Shared by claude-cli, claude, and the
 // metered anthropic-api lane (all Claude-family — descriptor.models.kind "claude").
 export const CLAUDE_IDENTITY: ProviderIdentity = {
   persona: "Claude",

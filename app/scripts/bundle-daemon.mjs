@@ -31,7 +31,6 @@ export const DAEMON_EXTERNALS = [
 const ENTRIES = [
   { entry: "manager/daemon.ts", out: "daemon.bundle.mjs" },
   { entry: "gateway/server.ts", out: "gateway.bundle.mjs" },
-  { entry: "spawner/worker.ts", out: "worker.bundle.mjs" },
   { entry: "manager/worker-mcp.ts", out: "worker-mcp.bundle.mjs" },
   { entry: "manager/orchestrator-mcp.ts", out: "orchestrator-mcp.bundle.mjs" },
 ];

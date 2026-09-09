@@ -29,7 +29,7 @@ export interface KillWorkerDeps {
   supervisor: ProcessSupervisor;
   log: Logger;
   findOrphanPids(safeName: string): number[];
-  // Stop the worker's backend session for an in-process backend (claude-sdk /
+  // Stop the worker's backend session for an in-process backend (claude /
   // anthropic-api / …) — it has no supervised PTY child to escalate, so without
   // this its in-process query / agent loop would leak. CLI workers terminate via
   // the supervisor branch; absent in unit tests.

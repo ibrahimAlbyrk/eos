@@ -13,7 +13,7 @@ function desc(over: Partial<BackendDescriptor> = {}): BackendDescriptor {
 }
 
 const cli = desc({ kind: "claude-cli", sessionStore: "claude-transcript" });
-const sdk = desc({ kind: "claude-sdk", sessionStore: "claude-transcript" });
+const sdk = desc({ kind: "claude", sessionStore: "claude-transcript" });
 // Enabled so these fixtures isolate the sessionStore check (the disabled case has
 // its own dedicated test); metered API lanes keep no resumable store.
 const api = desc({ kind: "anthropic-api", sessionStore: "none", billing: "metered", enabled: true });
@@ -31,7 +31,7 @@ describe("canHandoffBackend", () => {
   });
 
   it("rejects a disabled target", () => {
-    const r = canHandoffBackend(cli, desc({ kind: "claude-sdk", enabled: false }));
+    const r = canHandoffBackend(cli, desc({ kind: "claude", enabled: false }));
     assert.equal(r.ok, false);
     assert.match(r.ok === false ? r.reason : "", /not enabled/);
   });

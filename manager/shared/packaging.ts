@@ -46,8 +46,6 @@ function entry(bundleName: string, repoRoot: string, ...devSegments: string[]): 
   return isPackaged() ? join(bundlesDir(), bundleName) : join(repoRoot, ...devSegments);
 }
 
-export const workerScriptPath = (repoRoot: string): string =>
-  entry("worker.bundle.mjs", repoRoot, "spawner", "worker.ts");
 export const gatewayScriptPath = (repoRoot: string): string =>
   entry("gateway.bundle.mjs", repoRoot, "gateway", "server.ts");
 export const workerMcpScriptPath = (repoRoot: string): string =>

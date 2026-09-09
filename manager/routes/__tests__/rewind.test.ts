@@ -76,16 +76,16 @@ async function dispatch(c: Container, method: "GET" | "POST", path: string, body
 
 describe("rewind routes — capability-gated (DIP)", () => {
   it("SDK worker (caps.rewind=false): GET /rewind-targets → 200 {targets:[]}, NOT 404", async () => {
-    const { backend } = fakeBackend({ kind: "claude-sdk", rewind: false, processModel: "in-process" });
-    const { c } = containerWith({ backend_kind: "claude-sdk", port: 0, pid: null }, backend);
+    const { backend } = fakeBackend({ kind: "claude", rewind: false, processModel: "in-process" });
+    const { c } = containerWith({ backend_kind: "claude", port: 0, pid: null }, backend);
     const out = await dispatch(c, "GET", "/workers/w1/rewind-targets");
     assert.equal(out.status, 200);
     assert.deepEqual(out.payload, { targets: [] });
   });
 
   it("SDK worker (caps.rewind=false): POST /rewind → 409 unsupported, no event", async () => {
-    const { backend, calls } = fakeBackend({ kind: "claude-sdk", rewind: false, processModel: "in-process" });
-    const { c, events } = containerWith({ backend_kind: "claude-sdk", port: 0, pid: null }, backend);
+    const { backend, calls } = fakeBackend({ kind: "claude", rewind: false, processModel: "in-process" });
+    const { c, events } = containerWith({ backend_kind: "claude", port: 0, pid: null }, backend);
     const out = await dispatch(c, "POST", "/workers/w1/rewind", { uuid: "u1", mode: "conversation" });
     assert.equal(out.status, 409);
     assert.equal(out.payload?.ok, false);

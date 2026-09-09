@@ -4,7 +4,7 @@ import { PolicyGatewayService, type PolicyGatewayServiceDeps } from "../services
 import type { Policy } from "../domain/policy.ts";
 import type { PermissionMode } from "../domain/permission-mode.ts";
 
-// The claude-sdk lane never applies a mode to the live session — the gateway IS
+// The claude lane never applies a mode to the live session — the gateway IS
 // the enforcement point, re-resolving the worker's mode on every decision.
 // These tests pin the contract that makes runtime full-access switches real:
 // the same service, asked across a mode flip, gates the next call.

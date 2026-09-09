@@ -18,7 +18,7 @@ export interface LlmJudgeStrategyDeps {
   judge: JudgeClient;
   evidence: EvidenceCollector;
   renderer: PromptRenderer;
-  // From config.loop.judge.temperature (default 0.1). NOTE: the claude-sdk lane
+  // From config.loop.judge.temperature (default 0.1). NOTE: the claude lane
   // the judge runs on does not expose a per-call temperature (the agent SDK
   // surfaces only model/effort/thinking), so this is passed through but ignored
   // there — see AgentBackendJudgeClient.

@@ -5,7 +5,7 @@ import type { SpawnWorkerSpec } from "../use-cases/SpawnWorker.ts";
 
 // Regression guard for the peer-mesh threading. SpawnWorker / ResumeWorker build
 // backendOptions as { spec: withBranch }, so the collaborate opt-in lives ONLY
-// inside spec. A structured lane (claude-sdk / in-process) that read a top-level
+// inside spec. A structured lane (claude / in-process) that read a top-level
 // backendOptions.collaborate saw undefined and silently dropped all peer tools on
 // a collaborate=true worker. backendCollaborate is the one resolver every lane
 // shares.

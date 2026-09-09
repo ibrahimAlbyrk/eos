@@ -1,4 +1,4 @@
-// SPIKE (manual, not a test) — runs the REAL claude-sdk backend against your
+// SPIKE (manual, not a test) — runs the REAL claude backend against your
 // logged-in Claude subscription. Makes ONE real, subscription-billed turn that
 // also exercises a custom in-process tool through the policy gate.
 //

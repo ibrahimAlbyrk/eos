@@ -1,6 +1,6 @@
 // Transport-agnostic tool model. One ToolDefinition is projected onto three
 // transports (Adapter pattern, see projections.ts): the claude-cli MCP subprocess
-// (toMcpModule), the in-process claude-sdk server (toSdkTool, added with the SDK),
+// (toMcpModule), the in-process claude server (toSdkTool, added with the SDK),
 // and the in-process Eos ToolRuntime (toRuntimeTool). The definition carries no
 // transport detail: a name, a Zod input shape, and a pure handler that returns a
 // value (string passed through; objects JSON-stringified by each projection,

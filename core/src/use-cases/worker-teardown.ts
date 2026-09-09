@@ -18,7 +18,7 @@ import type { WorkerRow } from "../../../contracts/src/worker.ts";
 export interface StopWorkerProcessDeps {
   supervisor: ProcessSupervisor;
   findOrphanPids(safeName: string): number[];
-  // Stop the worker's backend session for an in-process backend (claude-sdk /
+  // Stop the worker's backend session for an in-process backend (claude /
   // anthropic-api / …) — it has no supervised PTY child to escalate, so without
   // this its in-process query / agent loop would leak. CLI workers terminate via
   // the supervisor branch; absent in unit tests.
@@ -52,7 +52,7 @@ export function stopWorkerProcess(
       seen.add(row.pid);
     }
   } else {
-    // No supervised PTY child → an in-process backend session (claude-sdk /
+    // No supervised PTY child → an in-process backend session (claude /
     // anthropic-api / …). Stop it through the backend so the in-process query /
     // agent loop actually ends; the pid/pgrep belt below is a no-op for it.
     deps.stopBackendSession?.(row.id);

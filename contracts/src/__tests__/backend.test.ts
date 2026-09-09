@@ -3,9 +3,9 @@ import assert from "node:assert/strict";
 import { BackendProfileSchema, AuthRefSchema, BackendDefaultsSchema } from "../backend.ts";
 
 describe("BackendProfileSchema", () => {
-  it("accepts a minimal claude-cli profile", () => {
-    const p = BackendProfileSchema.parse({ kind: "claude-cli", model: "opus" });
-    assert.equal(p.kind, "claude-cli");
+  it("accepts a minimal claude profile", () => {
+    const p = BackendProfileSchema.parse({ kind: "claude", model: "opus" });
+    assert.equal(p.kind, "claude");
     assert.equal(p.model, "opus");
   });
 
@@ -61,7 +61,7 @@ describe("BackendProfileSchema", () => {
     });
     assert.equal(p.defaultTier, "high");
     // Omitted defaultTier stays undefined (⇒ tiers[0]) — zero-config unchanged.
-    const q = BackendProfileSchema.parse({ kind: "claude-cli", model: "opus" });
+    const q = BackendProfileSchema.parse({ kind: "claude", model: "opus" });
     assert.equal(q.defaultTier, undefined);
   });
 });

@@ -1,5 +1,5 @@
-// Anthropic credentials for the claude-sdk backend lane, persisted in
-// ~/.eos/config.json under `anthropic`. Both optional. When the claude-sdk lane
+// Anthropic credentials for the claude backend lane, persisted in
+// ~/.eos/config.json under `anthropic`. Both optional. When the claude lane
 // spawns a session it injects ONE of these into the child env: authToken (the
 // Max/Pro OAuth setup-token → CLAUDE_CODE_OAUTH_TOKEN) WINS over apiKey (the
 // metered key → ANTHROPIC_API_KEY). Exporting the OAuth token up front sidesteps

@@ -23,7 +23,7 @@ const openaiDescriptor: BackendDescriptor = {
   auth: "apikey", enabled: true, sessionStore: "eos-conversation", wireDialect: "openai-chat",
 };
 const claudeDescriptor: BackendDescriptor = {
-  kind: "claude-cli", label: "Claude CLI", processModel: "out-of-process", billing: "subscription",
+  kind: "claude", label: "Claude", processModel: "in-process", billing: "subscription",
   modelSource: "request", capabilities: caps, models: { kind: "claude" },
   auth: "subscription", enabled: true, sessionStore: "claude-transcript",
 };
@@ -63,7 +63,7 @@ function fakeContainer(def: Partial<WorkerDefinitionRecord>, sink: StartSink) {
   const record = { name: "w", description: "", whenToUse: "", body: "", source: "project", ...def } as WorkerDefinitionRecord;
   const openaiBackend = capturingBackend(openaiDescriptor, sink);
   const claudeCliBackend = capturingBackend(claudeDescriptor, sink);
-  const backendMap = new Map<string, AgentBackend>([["openai", openaiBackend]]);
+  const backendMap = new Map<string, AgentBackend>([["openai", openaiBackend], ["claude", claudeCliBackend]]);
   const backends = {
     get: (k: string) => { const b = backendMap.get(k); if (!b) throw new Error(k); return b; },
     has: (k: string) => backendMap.has(k),
@@ -113,7 +113,7 @@ describe("spawnWorkerHandler — model override on the worker-spawn path (PART A
 
   it("a non-profile claude def's model flows unchanged (override never fires)", async () => {
     const sink = await run({ model: "sonnet" }, {});
-    assert.equal(sink.kind, "claude-cli");
+    assert.equal(sink.kind, "claude");
     assert.equal(sink.model, "sonnet");
     assert.equal(sink.backendProfile, undefined);
   });
@@ -131,7 +131,7 @@ describe("spawnWorkerHandler — combined provider/model def form (PART B)", () 
 
   it("an unconfigured-prefix model stays a plain claude model id (no false split)", async () => {
     const sink = await run({ model: "anthropic/claude-opus-4" }, {});
-    assert.equal(sink.kind, "claude-cli");
+    assert.equal(sink.kind, "claude");
     assert.equal(sink.model, "anthropic/claude-opus-4");
     assert.equal(sink.backendProfile, undefined);
   });
@@ -173,7 +173,7 @@ describe("spawnWorkerHandler — cross-provider model poisoning fix (PART C)", (
 
   it("no regression: a normal Claude worker's inherited body.model still flows to the claude lane", async () => {
     const sink = await run({}, { model: "sonnet" });
-    assert.equal(sink.kind, "claude-cli");
+    assert.equal(sink.kind, "claude");
     assert.equal(sink.model, "sonnet");
     assert.equal(sink.backendProfile, undefined);
   });
@@ -205,7 +205,7 @@ describe("spawnWorkerHandler — combined body.model split + cross-provider guar
 
   it("a matching Claude model on a Claude backend passes unchanged", async () => {
     const sink = await run({}, { model: "sonnet" });
-    assert.equal(sink.kind, "claude-cli");
+    assert.equal(sink.kind, "claude");
     assert.equal(sink.model, "sonnet");
     assert.equal(sink.backendProfile, undefined);
   });
@@ -219,7 +219,7 @@ describe("spawnWorkerHandler — combined body.model split + cross-provider guar
 });
 
 // Belt-and-suspenders: a bare cross-provider model on a request-model backend
-// (e.g. claude-cli/sdk) must be rejected BEFORE reaching the API — never send
+// (e.g. claude/sdk) must be rejected BEFORE reaching the API — never send
 // "deepseek-v4-pro" to the Claude endpoint. The runSentinel helper catches
 // SENTINEL (spawn passed), so rejection tests use a raw handler call.
 describe("spawnWorkerHandler — belt-and-suspenders cross-provider rejection (PART E)", () => {

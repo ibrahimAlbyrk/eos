@@ -9,7 +9,7 @@ const DEFAULT_COMPOSER = {
   effort: "xhigh",
   permissionMode: "bypassPermissions",
   // Selected provider NAME from the unified spawn picker (providerChoices):
-  // a subscription kind ("claude-sdk" | "claude-cli") or an operator profile
+  // a subscription kind ("claude" | "claude-cli") or an operator profile
   // name ("deepseek"), seeded from the provider setting. Resolved to
   // backendKind/backendProfile at spawn time (providerSpawn); a same-name operator
   // profile wins so the spawn preserves its config. null → server default.

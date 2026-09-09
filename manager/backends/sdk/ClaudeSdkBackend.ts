@@ -1,4 +1,4 @@
-// Lane A: the claude-sdk AgentBackend. Drives @anthropic-ai/claude-agent-sdk's
+// Lane A: the claude AgentBackend. Drives @anthropic-ai/claude-agent-sdk's
 // query() in streaming-input mode (one query per session; sendMessage pushes a
 // new user turn), maps SDK messages to canonical AgentEvents via SdkEventMapper,
 // and bills the Max/Pro subscription via the billing-env guard. Subscription
@@ -57,7 +57,7 @@ const CAPS: AgentCapabilities = {
 };
 
 const SDK_DESCRIPTOR: BackendDescriptor = {
-  kind: "claude-sdk", label: "Claude SDK", processModel: "in-process",
+  kind: "claude", label: "Claude", processModel: "in-process",
   billing: "subscription", modelSource: "request", capabilities: CAPS,
   models: { kind: "claude" }, auth: "subscription", enabled: true,
   sessionStore: "claude-transcript",
@@ -347,7 +347,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
   });
 
   return {
-    kind: "claude-sdk",
+    kind: "claude",
     descriptor: SDK_DESCRIPTOR,
     async start(spec: AgentLaunchSpec, cb?: AgentStartCallbacks): Promise<AgentSession> {
       const opts = spec.backendOptions ?? {};
@@ -499,7 +499,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
             // !rec.alive here means stop() already tore the session down — the
             // abort's own error is expected, not a crash worth logging.
             if (rec.alive) {
-              deps.log?.warn("claude-sdk query failed", { workerId: spec.workerId, error: e instanceof Error ? e.message : String(e) });
+              deps.log?.warn("claude query failed", { workerId: spec.workerId, error: e instanceof Error ? e.message : String(e) });
               rec.alive = false;
               live.delete(spec.workerId);
               // onExit BEFORE the ended event: the exit handler reads the row

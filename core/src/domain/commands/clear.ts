@@ -1,6 +1,6 @@
 // /clear — reset the conversation on whichever backend the worker runs on.
 // Resolves to the per-backend contextClear capability (CLI: native /clear over
-// the PTY; claude-sdk: query restart; in-process: drop the message buffer), then
+// the PTY; claude: query restart; in-process: drop the message buffer), then
 // runs the shared daemon-side side effects (pending-queue clear, peer cancel,
 // conversation_cleared marker) so both lanes converge on the same observable
 // outcome. The command carries no message record → no user_message chat event.

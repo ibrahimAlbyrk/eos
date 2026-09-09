@@ -22,7 +22,7 @@ export const WorkerDefinitionSchema = z.object({
   model: z.string().optional(),                    // "high"|"medium"|"low"|concrete id; omit ⇒ inherit
   effort: z.enum(EFFORT_LEVELS).optional(),
   permissionMode: PermissionModeSchema.optional(), // "acceptEdits"|"bypassPermissions"
-  backendKind: z.string().optional(),              // "claude-cli"|"claude-sdk"; omit ⇒ resolver default
+  backendKind: z.string().optional(),              // "claude-cli"|"claude"; omit ⇒ resolver default
   backendProfile: z.string().optional(),           // pin a config `backends` profile (provider+model) on any scope; omit ⇒ resolver default
   persistent: z.boolean().optional(),
   collaborate: z.boolean().optional(),

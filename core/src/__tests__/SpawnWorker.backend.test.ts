@@ -101,7 +101,7 @@ describe("spawnWorker — dangling parentId guard", () => {
   });
 });
 
-// In-process backends (claude-sdk) have no boot child to create the worktree, so
+// In-process backends (claude) have no boot child to create the worktree, so
 // the daemon materializes it in SpawnWorker before launch. Out-of-process
 // (claude-cli) creates its own in worker.ts, so SpawnWorker must NOT create here.
 describe("spawnWorker — in-process worktree bootstrap", () => {

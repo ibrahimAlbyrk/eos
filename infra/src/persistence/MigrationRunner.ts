@@ -351,6 +351,10 @@ export const MIGRATIONS: Migration[] = [
       PRIMARY KEY (worker_id, stage)
     )
   ` },
+  // The claude-cli lane was removed and claude-sdk renamed to claude — the sole
+  // Claude backend kind. Rekey any persisted rows so resume/boot-reconcile resolves
+  // a registered backend instead of throwing "unknown backend" on an old kind.
+  { id: "058_rekey_backend_kind_claude", sql: "UPDATE workers SET backend_kind = 'claude' WHERE backend_kind IN ('claude-cli', 'claude-sdk')" },
 ];
 
 export function runMigrations(db: DatabaseSync, log: Logger): number {

@@ -12,9 +12,9 @@ function harness() {
     pid: number | null; backend_kind: string; archived_at: number | null;
   };
   const rows: Row[] = [
-    { id: "orch-1", name: "root", parent_id: null, state: "IDLE", pid: null, backend_kind: "claude-sdk", archived_at: null },
+    { id: "orch-1", name: "root", parent_id: null, state: "IDLE", pid: null, backend_kind: "claude", archived_at: null },
     { id: "w1", name: "parent", parent_id: "orch-1", state: "WORKING", pid: 10, backend_kind: "claude-cli", archived_at: null },
-    { id: "w2", name: "child", parent_id: "w1", state: "IDLE", pid: null, backend_kind: "claude-sdk", archived_at: null },
+    { id: "w2", name: "child", parent_id: "w1", state: "IDLE", pid: null, backend_kind: "claude", archived_at: null },
   ];
   const byId = (id: string) => rows.find((r) => r.id === id) ?? null;
 

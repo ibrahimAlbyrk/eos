@@ -8,7 +8,7 @@ import { filterBackendProfiles, readOnDiskBackendKeys } from "../uiConfig.ts";
 // The merged set the picker starts from: shipped DEFAULT_BACKENDS plus the operator's
 // own. Only `name` matters to the filter.
 const merged = [
-  { name: "claude-sdk-opus" },
+  { name: "claude-opus" },
   { name: "claude-cli-opus" },
   { name: "claude-cli-sonnet" },
   { name: "claude-cli-haiku" },

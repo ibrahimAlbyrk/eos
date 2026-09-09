@@ -27,7 +27,7 @@ export interface ResumeWorkerDeps {
   isLive(workerId: string): boolean;
   pathExists(path: string): boolean;
   /** Routes a resumed in-process backend's canonical events into the daemon
-   *  pipeline (claude-sdk). Unused by out-of-process (claude-cli) resume. */
+   *  pipeline (claude). Unused by out-of-process (claude-cli) resume. */
   onAgentEvent?(workerId: string, event: AgentEvent): void;
   /** True while an intentional suspend for this worker is in flight — onExit
    *  then skips markDone so SUSPENDED survives the stop (see SuspendGuardService). */
@@ -47,7 +47,7 @@ export async function resumeWorker(
   const w = deps.workers.findById(input.workerId);
   if (!w) throw new NotFoundError("worker", input.workerId);
   // Resumability is gated by the recorded session_id below — every lane persists
-  // one (claude-cli --resume, claude-sdk options.resume, and the metered
+  // one (claude-cli --resume, claude options.resume, and the metered
   // in-process lanes via the ConversationStore since M3).
   if (w.state !== "SUSPENDED" && w.state !== "DONE") {
     throw new ConflictError(`worker is not resumable (state ${w.state})`);
@@ -107,7 +107,7 @@ export async function resumeWorker(
   deps.bus.publish("worker:spawn", { workerId: w.id, rowId });
   deps.log.info("resumed worker", { workerId: w.id, sessionId: w.session_id, port });
 
-  // In-process backends (claude-sdk) resume with no boot prompt and have no PTY
+  // In-process backends (claude) resume with no boot prompt and have no PTY
   // readiness gate to self-report IDLE — without this they'd sit in SPAWNING
   // until the first message drives a turn. The session is live + idle the moment
   // start() returns (empty prompt ⇒ no turn), so settle to IDLE now. Out-of-process

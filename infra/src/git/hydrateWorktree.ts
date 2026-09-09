@@ -9,7 +9,7 @@
 //
 // Lives in infra/ (not spawner/) so BOTH lanes share one impl: the claude-cli
 // worker child (spawner/worktree.ts) and the daemon's ChildProcessWorktreeManager
-// (the in-process claude-sdk lane, which has no boot child to hydrate for it).
+// (the in-process claude lane, which has no boot child to hydrate for it).
 // Subprocesses run async (execFile): the daemon lane executes this on its own
 // event loop mid-spawn, and a blocking copy would freeze every HTTP/SSE surface.
 

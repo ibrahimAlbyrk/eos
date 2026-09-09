@@ -135,7 +135,7 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       ? bodyModel
       : (requestHas("backendProfile") ? bodyModel : def.model);
     const rb = await resolveSpawnBackend(c, { explicitKind: body.backendKind ?? dd.backendKind, explicitProfileName, explicitModel, parentId: body.parentId ?? null, isOrchestrator: false });
-    let backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.claudeCliBackend;
+    let backend = c.backends.has(rb.kind) ? c.backends.get(rb.kind) : c.backends.get("claude");
     // Provider tier gate — the ONE-WAY resolution boundary for the request/definition
     // model. Resolve the tier name / legacy alias to this backend's concrete id BEFORE
     // the family guard + persistence, so nothing downstream sees a tier name. (Profile-
@@ -190,7 +190,7 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
       ...(dd.persistent !== undefined ? { persistent: dd.persistent } : {}),
       ...(dd.collaborate !== undefined ? { collaborate: dd.collaborate } : {}),
       // Profile-model providers (metered lanes: deepseek/kimi/openai) carry the
-      // profile's model; request-model providers (claude-sdk/claude-cli) run the
+      // profile's model; request-model providers (claude/claude-cli) run the
       // Claude model the user picked. Persist the resolved profile name for inheritance.
       ...(backend.descriptor.modelSource === "profile" ? { model: rb.model } : {}),
       backendProfile: rb.profileName ?? undefined,
@@ -221,8 +221,6 @@ export const spawnWorkerHandler: CommandHandler<NoAddr, SpawnWorkerRequest, Spaw
         clock: c.clock,
         ids: c.ids,
         log: c.log,
-        buildArgs: c.buildArgs,
-        buildEnv: c.buildEnv,
         resolveWorktreeDir: c.resolveWorktreeDir,
         logFileFor: c.logFileFor,
         backend,

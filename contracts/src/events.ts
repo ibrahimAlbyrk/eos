@@ -80,7 +80,7 @@ export const WorkerEventTypeSchema = z.enum([
   "peer_consult",
   "peer_request",
   "conversation_rewound",
-  // Interrupt-before-response (claude-sdk lane): the daemon recalls the
+  // Interrupt-before-response (claude lane): the daemon recalls the
   // just-sent user_message the agent never answered. The UI folds this like
   // conversation_rewound — hides the matching user bubble (never deletes the
   // row) and returns the text to the composer. SDK-only (the daemon owns the
@@ -95,7 +95,7 @@ export const WorkerEventTypeSchema = z.enum([
   "workers_integrated",
   "conflict_resolved",
   "terminal",
-  // Canonical agent-event row (in-process / claude-sdk backends): the payload is
+  // Canonical agent-event row (in-process / claude backends): the payload is
   // the full AgentEvent (contracts/src/canonical.ts). Daemon-synthesized via
   // processAgentSignal's logEvent; the row type is stored free-form so logging
   // already works, but the enum lists it so consumers are type-complete.

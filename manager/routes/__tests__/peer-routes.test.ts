@@ -8,7 +8,7 @@ import type { RouteContext } from "../Router.ts";
 import type { AgentBackend } from "../../../core/src/ports/AgentBackend.ts";
 
 // Backend doubles whose descriptors carry just what canLazyResume reads
-// (processModel + capabilities.resumable). claude-sdk = in-process + resumable
+// (processModel + capabilities.resumable). claude = in-process + resumable
 // (a SUSPENDED session revives in-process on demand); claude-cli = out-of-process
 // (stays declined while SUSPENDED).
 function backend(kind: string, processModel: "in-process" | "out-of-process", resumable: boolean): AgentBackend {
@@ -19,7 +19,7 @@ function backend(kind: string, processModel: "in-process" | "out-of-process", re
   } as unknown as AgentBackend;
 }
 const BACKENDS: Record<string, AgentBackend> = {
-  "claude-sdk": backend("claude-sdk", "in-process", true),
+  "claude": backend("claude", "in-process", true),
   "claude-cli": backend("claude-cli", "out-of-process", false),
 };
 
@@ -65,13 +65,13 @@ async function dispatch(c: Container, method: "GET" | "POST", path: string, body
 
 describe("peer routes — SUSPENDED workers are consultable when their backend revives in-process", () => {
   const mesh = (): Row[] => [
-    { id: "A", parent_id: "orch", collaborate: 1, state: "IDLE", backend_kind: "claude-sdk" },
+    { id: "A", parent_id: "orch", collaborate: 1, state: "IDLE", backend_kind: "claude" },
     { id: "B", parent_id: "orch", collaborate: 1, state: "IDLE", backend_kind: "claude-cli" },          // live → always shown
-    { id: "S", name: "sleeper", parent_id: "orch", collaborate: 1, state: "SUSPENDED", backend_kind: "claude-sdk", session_id: "sess-1" }, // SUSPENDED sdk → shown
+    { id: "S", name: "sleeper", parent_id: "orch", collaborate: 1, state: "SUSPENDED", backend_kind: "claude", session_id: "sess-1" }, // SUSPENDED sdk → shown
     { id: "Z", parent_id: "orch", collaborate: 1, state: "SUSPENDED", backend_kind: "claude-cli", session_id: "sess-2" }, // SUSPENDED cli → hidden
   ];
 
-  it("GET /peers includes a SUSPENDED claude-sdk sibling but not a SUSPENDED claude-cli one", async () => {
+  it("GET /peers includes a SUSPENDED claude sibling but not a SUSPENDED claude-cli one", async () => {
     const { c } = containerWith(mesh());
     const out = await dispatch(c, "GET", "/workers/A/peers");
     assert.equal(out.status, 200);
@@ -87,7 +87,7 @@ describe("peer routes — SUSPENDED workers are consultable when their backend r
     assert.equal(registered.length, 0);
   });
 
-  it("ask_peer to a SUSPENDED claude-sdk peer resolves + registers (no decline)", async () => {
+  it("ask_peer to a SUSPENDED claude peer resolves + registers (no decline)", async () => {
     // supervised so resumeIfDead is a no-op here — the resolve/register decision
     // is what this asserts; the actual revive is the shared resumeIfDead helper.
     const { c, registered } = containerWith(mesh(), new Set(["S"]));

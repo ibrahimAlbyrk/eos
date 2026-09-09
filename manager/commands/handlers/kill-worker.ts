@@ -35,7 +35,7 @@ export const killWorkerHandler: CommandHandler<KillWorkerAddr, NoBody, KillWorke
         log: c.log,
         clock: c.clock,
         findOrphanPids: (safeName) => supervisorWithFind.findPidsByPattern(`eos-${safeName}-`),
-        // In-process backends (claude-sdk / API) have no supervised PTY child —
+        // In-process backends (claude / API) have no supervised PTY child —
         // stop the session directly so its query/agent loop ends.
         stopBackendSession: (wid) => {
           const k = c.workers.findById(wid)?.backend_kind;

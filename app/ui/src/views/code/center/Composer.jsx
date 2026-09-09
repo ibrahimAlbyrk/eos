@@ -654,7 +654,7 @@ export function Composer({ live, worker, paneId, focused }) {
     if (!cwdFallback) { alert("Pick a folder first."); return; }
     // Resolve the picked provider to spawn fields: a name backed by an operator
     // profile spawns via backendProfile (carrying its kind/baseUrl/auth/params —
-    // e.g. claude-sdk's thinking, deepseek's endpoint); a bare subscription kind
+    // e.g. claude's thinking, deepseek's endpoint); a bare subscription kind
     // via backendKind. The operator-chosen model rides along as an OVERRIDE on a
     // profile lane (its pinned model is the default).
     const { backendKind, backendProfile } = providerSpawn(ui.composer.provider);

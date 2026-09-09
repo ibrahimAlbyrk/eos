@@ -1,4 +1,4 @@
-// Cross-transport parity: the MCP (claude-cli subprocess), SDK (claude-sdk in-
+// Cross-transport parity: the MCP (claude-cli subprocess), SDK (claude in-
 // process), and ToolRuntime (in-process API) lanes must expose the SAME tool set
 // — identical fully-qualified names and identical input JSON Schemas — derived
 // from the one registry. This is the executable guarantee behind "every tool

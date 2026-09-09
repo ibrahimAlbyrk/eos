@@ -26,7 +26,7 @@ export interface ResolveMcpInput {
   inherited: Record<string, unknown>;
   builtins: Record<string, unknown>;
   config: AgentMcpConfig;
-  // Lanes that cannot self-discover MCP scopes (claude-sdk runs with
+  // Lanes that cannot self-discover MCP scopes (claude runs with
   // settingSources:[], so the binary inherits nothing on its own). false →
   // ALWAYS materialize the filtered inherited set (strict), since the additive
   // shortcut relies on a native discovery that lane does not have and would

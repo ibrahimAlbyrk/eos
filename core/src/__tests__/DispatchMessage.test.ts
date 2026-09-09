@@ -82,7 +82,7 @@ const userMessages = (events: AppendedEvent[]) => events.filter((e) => e.type ==
 describe("dispatchMessage — transcript-anchored message events", () => {
   it("self-reporting backend: no dispatch-time append, record rides to the worker", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
-    const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    const { deps, events } = buildDeps({ backend: fakeBackend("claude", true, sends) });
     await dispatchMessage(deps, { workerId: "w1", text: "hello" });
     assert.deepEqual(userMessages(events), []);
     assert.deepEqual(sends, [{ text: "hello", record: { as: "user_message", sentAt: 1234 } }]);
@@ -90,7 +90,7 @@ describe("dispatchMessage — transcript-anchored message events", () => {
 
   it("self-reporting backend: displayText rides in the record, full text to the PTY", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
-    const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    const { deps, events } = buildDeps({ backend: fakeBackend("claude", true, sends) });
     await dispatchMessage(deps, { workerId: "w1", text: "full action prompt", displayText: "/commit" });
     assert.deepEqual(userMessages(events), []);
     assert.deepEqual(sends, [{ text: "full action prompt", record: { as: "user_message", sentAt: 1234, displayText: "/commit" } }]);
@@ -104,7 +104,7 @@ describe("dispatchMessage — transcript-anchored message events", () => {
     assert.deepEqual(sends, [{ text: "hello", record: undefined }]);
   });
 
-  it("legacy port path (no backends) behaves as claude-cli: record sent, no append", async () => {
+  it("legacy port path (no backends) behaves as claude: record sent, no append", async () => {
     const { deps, events, clientSends } = buildDeps();
     await dispatchMessage(deps, { workerId: "w1", text: "hello" });
     assert.deepEqual(userMessages(events), []);
@@ -113,7 +113,7 @@ describe("dispatchMessage — transcript-anchored message events", () => {
 
   it("still lifts the worker to WORKING eagerly", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
-    const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    const { deps, events } = buildDeps({ backend: fakeBackend("claude", true, sends) });
     await dispatchMessage(deps, { workerId: "w1", text: "hello" });
     const states = events.filter((e) => e.type === "state").map((e) => e.payload as { state?: string });
     assert.equal(states.length, 1);
@@ -195,14 +195,14 @@ describe("dispatchMessage — daemon-side queue + idempotency", () => {
 
   it("record carries clientMsgIds to the worker", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
-    const { deps } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    const { deps } = buildDeps({ backend: fakeBackend("claude", true, sends) });
     await dispatchMessage(deps, { workerId: "w1", text: "hello", clientMsgId: "c1" });
     assert.deepEqual(sends[0].record, { as: "user_message", sentAt: 1234, clientMsgIds: ["c1"] });
   });
 
   it("recordClientMsgIds (drain path) ride the record without claiming", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
-    const { deps, queueRows } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    const { deps, queueRows } = buildDeps({ backend: fakeBackend("claude", true, sends) });
     await dispatchMessage(deps, { workerId: "w1", text: "a\n\nb", recordClientMsgIds: ["c1", "c2"] });
     assert.deepEqual(sends[0].record, { as: "user_message", sentAt: 1234, clientMsgIds: ["c1", "c2"] });
     // no claim row for the drain dispatch itself — only the unkeyed audit row
@@ -274,10 +274,10 @@ describe("dispatchMessage — turn-output tracker (recall window)", () => {
     assert.deepEqual(calls, [{ op: "reset" }]);
   });
 
-  it("self-reporting lane (claude-cli): reset only — the daemon appends no row to target", async () => {
+  it("self-reporting lane (claude): reset only — the daemon appends no row to target", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
     const { calls, tracker } = spyTracker();
-    const { deps } = withTracker(buildDeps({ backend: fakeBackend("claude-cli", true, sends) }), tracker);
+    const { deps } = withTracker(buildDeps({ backend: fakeBackend("claude", true, sends) }), tracker);
     await dispatchMessage(deps, { workerId: "w1", text: "hello", clientMsgId: "c1" });
     assert.deepEqual(calls, [{ op: "reset" }]);
   });
@@ -300,9 +300,9 @@ describe("dispatchMessage — turn-output tracker (recall window)", () => {
 describe("dispatchMessage — agent-plane envelopes (report/directive/peer)", () => {
   const byType = (events: AppendedEvent[], type: string) => events.filter((e) => e.type === type);
 
-  it("worker_report, self-reporting parent (claude-cli): tagged body to the model, record rides, no daemon append", async () => {
+  it("worker_report, self-reporting parent (claude): tagged body to the model, record rides, no daemon append", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
-    const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    const { deps, events } = buildDeps({ backend: fakeBackend("claude", true, sends) });
     // The caller passes the CLEAN body + envelope; DispatchMessage wraps it in the
     // <agent_message …> the model reads. The record's displayText stays the bare body.
     await dispatchMessage(deps, {
@@ -354,9 +354,9 @@ describe("dispatchMessage — agent-plane envelopes (report/directive/peer)", ()
     ]);
   });
 
-  it("report_reminder, self-reporting worker (claude-cli): record rides, tagged system body, no daemon append", async () => {
+  it("report_reminder, self-reporting worker (claude): record rides, tagged system body, no daemon append", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
-    const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    const { deps, events } = buildDeps({ backend: fakeBackend("claude", true, sends) });
     await dispatchMessage(deps, {
       workerId: "w1", text: "report now", displayText: "report now",
       envelope: { kind: "report_reminder" },
@@ -383,7 +383,7 @@ describe("dispatchMessage — agent-plane envelopes (report/directive/peer)", ()
 
   it("envelope kind drives the state-transition reason", async () => {
     const sends: Array<{ text: string; record?: MessageRecord }> = [];
-    const { deps, events } = buildDeps({ backend: fakeBackend("claude-cli", true, sends) });
+    const { deps, events } = buildDeps({ backend: fakeBackend("claude", true, sends) });
     await dispatchMessage(deps, {
       workerId: "w1", text: "r", envelope: { kind: "worker_report", fromWorker: "w2" },
     });

@@ -1,5 +1,5 @@
 // Pure transcript analysis for the rewind panel — the JSONL parse shared by both
-// backend lanes (claude-cli reads the PTY session file, claude-sdk the SDK's
+// backend lanes (claude-cli reads the PTY session file, claude the SDK's
 // transcript store). Zero Node imports: the caller supplies the already-read
 // JSONL text; all fs/path reading stays in spawner and the manager backend.
 

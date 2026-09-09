@@ -332,7 +332,7 @@ describe("ProcessAgentSignal — delta events are ephemeral", () => {
   });
 });
 
-describe("ProcessAgentSignal — session id persistence (claude-sdk resume)", () => {
+describe("ProcessAgentSignal — session id persistence (claude resume)", () => {
   it("persists the session id on session:ready", () => {
     const { deps, sessionIds } = buildDeps("WORKING");
     processAgentSignal(deps, "w1", { type: "session", phase: "ready", sessionId: "sdk-sess-1" });

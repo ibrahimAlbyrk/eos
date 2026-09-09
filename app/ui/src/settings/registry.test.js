@@ -35,7 +35,7 @@ describe("settings registry", () => {
     const model = section("model");
     expect(model.groups).toBeUndefined();
     expect(typeof model.Component).toBe("function"); // ModelSettings — same picker as the composer
-    expect(SETTING_DEFAULTS["model.provider"]).toBe("claude-sdk");
+    expect(SETTING_DEFAULTS["model.provider"]).toBe("claude");
     expect(SETTING_DEFAULTS["model.default"]).toBe("opus");
   });
 

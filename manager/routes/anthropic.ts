@@ -1,7 +1,7 @@
 // Anthropic credentials routes (Settings > Anthropic) — LOOPBACK + ui-token only,
 // so an agent holding the daemon URL can't read whether creds are set or write its
 // own. Persists { apiKey?, authToken? } to ~/.eos/config.json's `anthropic` key,
-// then reloads so the next claude-sdk spawn picks it up (the CLI/PTY lane is
+// then reloads so the next claude spawn picks it up (the CLI/PTY lane is
 // unaffected). GET/PUT both return a REDACTED view — the raw secrets never leave
 // the daemon. Mirrors the archive config-write idiom in settings.ts.
 

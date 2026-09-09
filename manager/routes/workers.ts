@@ -39,7 +39,6 @@ import type { AgentBackend, WorkerHandle } from "../../core/src/ports/AgentBacke
 import { dispatchMessage } from "../../core/src/use-cases/DispatchMessage.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 import { processWorkerEvent } from "../../core/src/use-cases/ProcessWorkerEvent.ts";
-import { toCanonicalEvents } from "../../spawner/canonical-map.ts";
 import { setWorkerPermissionMode } from "../../core/src/use-cases/SetWorkerPermissionMode.ts";
 import { assertOwnedBy } from "../../core/src/services/WorkerOwnership.ts";
 import { listPeersOf, resolvePeerRef } from "../../core/src/services/Peers.ts";
@@ -152,18 +151,18 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   // legacy/null rows. Lets capability-gated routes branch on the descriptor's
   // capabilities, never on a port or a kind literal.
   const backendOf = (w: WorkerRow): AgentBackend => {
-    const kind = w.backend_kind ?? "claude-cli";
-    return c.backends.has(kind) ? c.backends.get(kind) : c.claudeCliBackend;
+    const kind = w.backend_kind ?? "claude";
+    return c.backends.has(kind) ? c.backends.get(kind) : c.backends.get("claude");
   };
   // The handle backend.attach() reconstructs a session from — same shape
   // DispatchMessage builds: a loopback port for out-of-process (claude-cli), an
-  // opaque ref for in-process (claude-sdk).
+  // opaque ref for in-process (claude).
   const handleOf = (w: WorkerRow, backend: AgentBackend): WorkerHandle =>
     backend.descriptor.processModel === "in-process"
       ? { kind: "inproc", ref: w.id }
       : { kind: "http", port: w.port ?? 0, pid: w.pid ?? null };
   // A SUSPENDED peer is consultable only when its backend revives into a live
-  // in-process session on demand (the claude-sdk lane): the peer-request route
+  // in-process session on demand (the claude lane): the peer-request route
   // then resumes it before delivering, mirroring resumeIfDead on the
   // orchestrator message route. Reads the descriptor (processModel + resumable),
   // never a kind literal — claude-cli is out-of-process, so it stays declined.
@@ -245,7 +244,6 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
         clock: c.clock, models: c.models, log: c.log,
         isSettling: (id) => c.turnSettle.isSettling(id),
         markSettling: (id) => c.turnSettle.mark(id),
-        toCanonical: toCanonicalEvents,
       },
       { workerId: params.id, type: body.type, payload: body.payload },
     );
@@ -317,7 +315,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
       const parentName = parent?.name ?? fromParent;
       try {
         // Backend-aware: routes through the AgentBackend the worker runs on, so a
-        // port-less in-process (claude-sdk) worker is reachable too — the old
+        // port-less in-process (claude) worker is reachable too — the old
         // direct httpWorkerClient.sendMessage(worker.port,…) 404'd for them. The
         // PTY worker self-reports orchestrator_message at its transcript sighting;
         // in-process gets the daemon-side append. dispatchMessage also gives the
@@ -570,7 +568,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   r.post(/^\/workers\/(?<id>[^/]+)\/keystroke$/, async ({ params, req, res }) => {
     const worker = c.workers.findById(params.id);
     // OUT OF SCOPE (flagged for follow-up): this `!worker?.port` gate has the same
-    // latent port=0 bug the rewind routes had — an in-process (claude-sdk) worker
+    // latent port=0 bug the rewind routes had — an in-process (claude) worker
     // 404s here before any backend dispatch. Keystrokes are a PTY-only capability,
     // so it's not user-visible today; route it through caps.keystroke + the session
     // when the keystroke channel is generalized.
@@ -587,7 +585,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   });
 
   // Rewind is a backend CAPABILITY, not a port: resolve the worker's backend and
-  // route through its AgentSession (DIP), so a port-less in-process (claude-sdk)
+  // route through its AgentSession (DIP), so a port-less in-process (claude)
   // worker degrades honestly to an empty list instead of the old `!worker?.port`
   // 404. The panel renders an "unavailable" state when caps.rewind is false.
   r.get(/^\/workers\/(?<id>[^/]+)\/rewind-targets$/, async ({ params, res }) => {
@@ -686,7 +684,7 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
     }
     try {
       // Backend-aware delivery to the parent through its AgentBackend — a
-      // port-less in-process (claude-sdk) orchestrator is reachable too (the old
+      // port-less in-process (claude) orchestrator is reachable too (the old
       // direct httpWorkerClient.sendMessage(parent.port,…) silently dropped every
       // report to one). PTY parent self-reports worker_report at its transcript
       // sighting; in-process gets the daemon-side append. The body IS the worker's
@@ -750,8 +748,8 @@ export function registerWorkerRoutes(r: Router, c: Container): void {
   r.put(/^\/workers\/(?<id>[^/]+)\/model$/, async ({ params, req, res }) => {
     const body = validate(SetModelRequestSchema, await readBody(req));
     const w = c.workers.findById(params.id);
-    const kind = w?.backend_kind ?? "claude-cli";
-    const backend = c.backends.has(kind) ? c.backends.get(kind) : c.claudeCliBackend;
+    const kind = w?.backend_kind ?? "claude";
+    const backend = c.backends.has(kind) ? c.backends.get(kind) : c.backends.get("claude");
     try {
       const out = await setWorkerModel(
         {

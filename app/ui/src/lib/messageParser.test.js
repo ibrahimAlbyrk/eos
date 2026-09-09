@@ -830,7 +830,7 @@ describe("creation-domain ordering (tsTranscript / anchorTs)", () => {
   });
 });
 
-describe("buildBlocks canonical agent_event decoder (claude-sdk / in-process lanes)", () => {
+describe("buildBlocks canonical agent_event decoder (claude / in-process lanes)", () => {
   const ae = (ts, event) => ({ type: "agent_event", ts, payload: event });
 
   it("renders a finished durable turn from agent_event rows alone (reload path)", () => {

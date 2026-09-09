@@ -14,7 +14,7 @@ import { applyDescriptors, applyProfiles, providerChoices } from "../lib/backend
 // Kept here so the registry + composer spawn defaults still work even though the
 // Model tab no longer surfaces these pickers visually.
 export const MODEL_SETTING_DEFAULTS = {
-  "model.provider": "claude-sdk",
+  "model.provider": "claude",
   "model.default": "opus",
 };
 

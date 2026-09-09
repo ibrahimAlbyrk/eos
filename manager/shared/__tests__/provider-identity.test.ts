@@ -16,7 +16,7 @@ const descriptor = (over: { kind?: string; label?: string; models?: ModelCatalog
 
 describe("resolveProviderIdentity", () => {
   it("a claude-family descriptor → the Claude identity (regardless of profile)", () => {
-    const id = resolveProviderIdentity(descriptor({ kind: "claude-sdk", label: "Claude SDK", models: { kind: "claude" } }));
+    const id = resolveProviderIdentity(descriptor({ kind: "claude", label: "Claude", models: { kind: "claude" } }));
     assert.equal(id, CLAUDE_IDENTITY);
     // The metered anthropic-api lane is also claude-family.
     const api = resolveProviderIdentity(descriptor({ kind: "anthropic-api", label: "Anthropic API", models: { kind: "claude" } }));
@@ -70,7 +70,7 @@ describe("resolveProviderIdentity", () => {
       { name: "cheap", model: "haiku" },
     ];
     const id = resolveProviderIdentity(
-      descriptor({ kind: "claude-sdk", label: "Claude SDK", models: { kind: "claude" } }),
+      descriptor({ kind: "claude", label: "Claude", models: { kind: "claude" } }),
       { tiers: custom },
     );
     assert.deepEqual(id.tiers, custom);
@@ -110,7 +110,7 @@ describe("resolveProviderIdentity — config defaultTier", () => {
   });
 
   it("keeps CLAUDE_IDENTITY reference identity when no config defaultTier is supplied", () => {
-    const id = resolveProviderIdentity(descriptor({ kind: "claude-sdk", label: "Claude SDK", models: { kind: "claude" } }));
+    const id = resolveProviderIdentity(descriptor({ kind: "claude", label: "Claude", models: { kind: "claude" } }));
     assert.equal(id, CLAUDE_IDENTITY); // reference preserved
     assert.equal(defaultTierName(id), "high"); // its own decoupled default
   });

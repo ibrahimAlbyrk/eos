@@ -79,10 +79,10 @@ describe("resolveMcpServers — strict (filter active)", () => {
   });
 });
 
-// The claude-sdk lane runs with settingSources:[] so the binary discovers no MCP
+// The claude lane runs with settingSources:[] so the binary discovers no MCP
 // scopes itself — nativeDiscovery:false makes the resolver materialize the
 // inherited set instead of relying on a discovery that lane lacks.
-describe("resolveMcpServers — nativeDiscovery:false (claude-sdk lane)", () => {
+describe("resolveMcpServers — nativeDiscovery:false (claude lane)", () => {
   it("materializes inherited + builtins under the inherit-all default (NOT the additive omit)", () => {
     const { servers, strict } = resolveMcpServers({ inherited, builtins, config: INHERIT_ALL, nativeDiscovery: false });
     assert.equal(strict, true);

@@ -152,7 +152,7 @@ function toNum(v: unknown): number | null {
 }
 
 // A configured provider's available model ids for the two-level composer picker.
-// A request-model lane (claude-cli/claude-sdk) shares the Claude catalog — no
+// A request-model lane (claude-cli/claude) shares the Claude catalog — no
 // provider call. A profile-model lane (openai/anthropic-api/codex) fetches its
 // provider's /v1/models with the resolved key + dialect auth header. Branches on
 // the descriptor's DATA (modelSource/wireDialect), never a kind literal. fetch is

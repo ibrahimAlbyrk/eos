@@ -24,7 +24,7 @@ function harness(lane: "cli" | "sdk") {
   const c = {
     workers: {
       findById: (id: string) => (id === "w1"
-        ? { id: "w1", backend_kind: lane === "cli" ? "claude-cli" : "claude-sdk", pid: 123, port: 456, state: workerState }
+        ? { id: "w1", backend_kind: lane === "cli" ? "claude-cli" : "claude", pid: 123, port: 456, state: workerState }
         : undefined),
       updateState: (_id: string, next: string) => { workerState = next; },
       setTurnStartedAt: () => {},
@@ -103,9 +103,9 @@ describe("suspendWorker", () => {
 describe("suspendResumableWorkersForShutdown", () => {
   function shutdownHarness() {
     const rows = [
-      { id: "sdk-live", state: "WORKING", session_id: "s1", backend_kind: "claude-sdk" },
-      { id: "sdk-nosession", state: "WORKING", session_id: null, backend_kind: "claude-sdk" },
-      { id: "sdk-done", state: "DONE", session_id: "s2", backend_kind: "claude-sdk" },
+      { id: "sdk-live", state: "WORKING", session_id: "s1", backend_kind: "claude" },
+      { id: "sdk-nosession", state: "WORKING", session_id: null, backend_kind: "claude" },
+      { id: "sdk-done", state: "DONE", session_id: "s2", backend_kind: "claude" },
       { id: "cli-live", state: "WORKING", session_id: "s3", backend_kind: "claude-cli" },
       { id: "api-nonresumable", state: "IDLE", session_id: "s4", backend_kind: "fake-api" },
     ];
@@ -118,7 +118,7 @@ describe("suspendResumableWorkersForShutdown", () => {
       attach: (id: string) => ({ stop: () => { stopped.push({ id, stateAtStop: states.get(id) }); }, isAlive: () => true }),
     });
     const backends = new Map([
-      ["claude-sdk", mkBackend("in-process", true)],
+      ["claude", mkBackend("in-process", true)],
       ["claude-cli", mkBackend("out-of-process", true)],
       ["fake-api", mkBackend("in-process", false)],
     ]);
