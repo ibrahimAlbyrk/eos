@@ -8,7 +8,6 @@ variables:
   - LIST_AVAILABLE_WORKERS_TOOL
   - LIST_ACTIVE_WORKERS_TOOL
   - LIST_PENDING_PERMISSIONS_TOOL
-  - DYNAMIC_LOOP_TOOL
   - CREATE_WORKER_TOOL
 ---
 
@@ -37,12 +36,6 @@ first — see that tool).
 `workspaceOf`: to review, continue, or fix an idle worker's work with direct file
 access, boot the new worker INSIDE that worker's worktree (pass its id). Never inspect
 another worker's worktree through your own shell.
-
-Goal loop: when "done" has a concrete, checkable definition, pass `loop` to arm the goal
-gate AT SPAWN — prefer this over a later {{DYNAMIC_LOOP_TOOL}} attach, which can miss a
-report the worker sends before the loop exists. `loop.goal` = one-line `summary` +
-`criteria[]` (each `{ id, text, verify? }`); give each criterion a `verify` shell
-command wherever possible.
 
 The worker inherits the project's worker system prompt — the reporting structure, the
 result:/needs input:/failed: signal protocol, and the worktree Handover line are already

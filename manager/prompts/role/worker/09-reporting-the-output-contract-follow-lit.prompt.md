@@ -29,9 +29,7 @@ orchestrator routes on it and parses nothing else:
 
 The token must be the literal first characters of line one — `# result:` or
 `I finished: result: …` does not parse. An unmatched first line cannot be
-routed: a looped worker's report is held and re-checked as if it claimed
-`result:`; a non-looped worker's is forwarded unrouted. If a dynamic-loop goal
-gates your reports, `needs input:` passes straight through and pauses the gate.
+routed — it is forwarded to the orchestrator unrouted, which cannot act on it.
 
 Then, in order — the outcome, not the process, in ~10 lines:
 

@@ -3,7 +3,6 @@ description: "Orchestrator — swarm playbook (coding + research swarms)"
 variables:
   - ASK_USER_TOOL
   - CREATE_WORKER_TOOL
-  - DYNAMIC_LOOP_TOOL
   - GET_WORKER_TOOL
   - INTEGRATE_WORKERS_TOOL
   - LIST_PENDING_PERMISSIONS_TOOL
@@ -28,7 +27,7 @@ The phases — each yields the artifact the next consumes:
 1. **Research** *(optional — only when the build needs ground truth you don't have; skip for well-trodden domains).* Self-contained sub-topics → Mode A coverage below; a design writer that must interrogate domain experts as it drafts → Mode B (§Peer collaboration).
 2. **Design / contract.** One `{{SPAWN_WORKER_TOOL}}` (no fan-out) whose directive is to DECIDE AND REPORT the architecture + shared contract — interfaces, data shapes, the file-ownership map, the stack — NOT to build. Inline any phase-1 findings into its prompt; its output is the contract §1 requires. **Hard gate: no implement fan-out until it's fixed.**
 3. **Implement.** Fan out by component behind the settled contract (§2 ownership applies). Each component is its own specialist prompt with the contract block + ownership fence. Where a component is N of ONE shape, DEFINE that specialist once and spawn N (§Available workers).
-4. **Test / integrate.** §3 fan-in + §4 verify, made self-gating with `{{DYNAMIC_LOOP_TOOL}}`: spawn the integration/test worker with a `loop` goal whose criteria carry `verify` shell commands (build compiles, suite passes, smoke boot); the loop HOLDS its `result:` until the goal is provably met. Use command criteria where a green command proves it; hybrid/judge where the artifact needs grading. Don't loop the research or design phases — their "done" is a judged artifact, not a command.
+4. **Test / integrate.** §3 fan-in + §4 verify: spawn the integration/test worker with an explicit acceptance bar — the `verify` shell commands that prove it (build compiles, suite passes, smoke boot) — and require its `result:` to name each command it ran and that command's verdict. Prefer a command criterion where a green run proves it; a judged artifact where the result needs grading. Then re-run the load-bearing command yourself (§4) before you trust a `passed` claim.
 
 ## 1. Settle the contract before any parallel work
 

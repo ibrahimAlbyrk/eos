@@ -3,7 +3,6 @@ description: "MCP tool — kill_worker"
 variables:
   - LIST_PENDING_PERMISSIONS_TOOL
   - INTEGRATE_WORKERS_TOOL
-  - DYNAMIC_LOOP_TOOL
 ---
 
 Terminate a worker via SIGTERM AND delete its worktree — its `eos-*` branch and every
@@ -23,8 +22,6 @@ When NOT to use:
   un-integrated work is lost irreversibly.
 - To "free resources" or tidy the roster — an idle worker costs nothing and stays
   consultable; that reason alone never justifies the data loss.
-- Only to stop a goal loop — that is {{DYNAMIC_LOOP_TOOL}} `op:"stop"`, which keeps the
-  worker and its work.
 - Right after a report the operator may want to follow up on — let the exchange
   conclude.
 - During an active permission ask (worker in {{LIST_PENDING_PERMISSIONS_TOOL}}) — decide

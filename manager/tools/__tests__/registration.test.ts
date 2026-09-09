@@ -35,7 +35,8 @@ describe("tool registration — byte-identical to the legacy MCP modules", () =>
     assert.deepEqual(Object.keys(fp), [
       "spawn_worker", "list_active_workers", "get_worker", "kill_worker",
       "message_worker", "list_pending_permissions", "notify_user", "ask_user",
-      "list_available_workers", "create_worker", "integrate_workers", "dynamic_loop",
+      // dynamic_loop TEMPORARILY not registered (loop system disabled) — see registry.ts.
+      "list_available_workers", "create_worker", "integrate_workers",
       "current_datetime", "get_worker_messages",
       ...BROWSER_TOOLS,
     ]);

@@ -14,7 +14,10 @@ import { respondToPeerDef } from "./defs/respond_to_peer.ts";
 import { listAvailableWorkersDef } from "./defs/list_available_workers.ts";
 import { createWorkerDef } from "./defs/create_worker.ts";
 import { integrateWorkersDef } from "./defs/integrate_workers.ts";
-import { dynamicLoopDef } from "./defs/dynamic_loop.ts";
+// TEMPORARY DISABLE (loop system): dynamic_loop is not registered for now. The
+// def in ./defs/dynamic_loop.ts is intact — re-enable by restoring this import
+// and the orchestratorDefs entry below.
+// import { dynamicLoopDef } from "./defs/dynamic_loop.ts";
 import { currentDatetimeDef } from "./defs/current_datetime.ts";
 import { getWorkerMessagesDef } from "./defs/get_worker_messages.ts";
 import { browserNavigateDef } from "./defs/browser_navigate.ts";
@@ -72,7 +75,9 @@ export const orchestratorDefs: ToolDefinition[] = [
   listAvailableWorkersDef,
   createWorkerDef,
   integrateWorkersDef,
-  dynamicLoopDef,
+  // TEMPORARY DISABLE (loop system): dynamicLoopDef withheld from registration.
+  // Restore this entry (and the import above) to re-expose the tool.
+  // dynamicLoopDef,
   currentDatetimeDef,
   getWorkerMessagesDef,
   ...browserDefs,

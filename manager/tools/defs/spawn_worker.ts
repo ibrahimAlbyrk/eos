@@ -39,25 +39,15 @@ export const spawnWorkerDef: ToolDefinition = {
     editRegex: z.string().optional().describe(
       "Confine THIS one-off worker's file edits to paths matching this regex (e.g. '(^|/)src/.*\\\\.ts$'). Claude Code passes ABSOLUTE file paths, so anchor with `(^|/)path`, not `^path` (a `^`-anchored relative pattern never matches). Enforced at the gate. Wins over a `from` definition's editRegex.",
     ),
-    loop: z.object({
-      goal: z.object({
-        summary: z.string().describe("One-line definition of done."),
-        criteria: z.array(z.object({
-          id: z.string().describe("Stable short id for this criterion."),
-          text: z.string().describe("The checkable condition in plain language."),
-          verify: z.string().optional().describe("Deterministic shell command that proves it, if any."),
-        })).min(1),
-      }),
-      strategy: z.enum(["command", "judge", "hybrid"]).optional(),
-      limit: z.number().int().positive().nullable().optional(),
-    }).optional().describe(
-      "Arm a dynamic loop on this worker AT SPAWN so it can't finish until the goal is provably met. strategy: command / judge / hybrid (default hybrid). limit: a positive number caps attempts; omit or null = unbounded.",
-    ),
+    // TEMPORARY DISABLE (loop system): the spawn-time `loop` arg is withheld so
+    // the goal gate can't be armed. The backend (SpawnWorkerRequest.loop) is
+    // untouched — restore this schema block and the two `loop` lines in the
+    // handler below to re-expose it.
   },
   handler: async (ctx, args) => {
-    const { prompt, name, model, effort, workspaceOf, collaborate, from, toolsAllow, toolsDeny, editRegex, loop } = args as {
+    const { prompt, name, model, effort, workspaceOf, collaborate, from, toolsAllow, toolsDeny, editRegex } = args as {
       prompt: string; name?: string; model?: string; effort?: string; workspaceOf?: string; collaborate?: boolean; from?: string;
-      toolsAllow?: string[]; toolsDeny?: string[]; editRegex?: string; loop?: SpawnWorkerRequest["loop"];
+      toolsAllow?: string[]; toolsDeny?: string[]; editRegex?: string;
     };
     const data: SpawnWorkerRequest = {
       prompt, name, model,
@@ -70,7 +60,7 @@ export const spawnWorkerDef: ToolDefinition = {
     if (toolsAllow) data.toolsAllow = toolsAllow;
     if (toolsDeny) data.toolsDeny = toolsDeny;
     if (editRegex) data.editRegex = editRegex;
-    if (loop) data.loop = loop;
+    // TEMPORARY DISABLE (loop system): re-add `if (loop) data.loop = loop;` here.
     if (workspaceOf) data.workspaceOf = workspaceOf;
     else if (ctx.isGitRepo()) data.worktreeFrom = ctx.cwd;
     else data.cwd = ctx.cwd;

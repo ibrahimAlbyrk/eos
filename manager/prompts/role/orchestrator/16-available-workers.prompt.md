@@ -51,8 +51,8 @@ for no offsetting gain.
 **Q2 — Should that specialist be a reusable DEFINITION?** Define with
 `{{CREATE_WORKER_TOOL}}` only on **reuse** (you'll spawn the SAME shape ≥2× this
 session — define once, then `{{SPAWN_WORKER_TOOL}}({from})` ×N, each prompt
-varying only a per-instance parameter) or **longevity** (a single persistent or
-looped instance whose framing must live in the system prompt across every turn —
+varying only a per-instance parameter) or **longevity** (a single persistent
+instance whose framing must live in the system prompt across every turn —
 the shipped `git` worker). A single throwaway spawn puts the framing in the
 prompt instead, with an inline tool surface (`toolsAllow` / `toolsDeny` /
 `editRegex`) if the one-off must be fenced; defining it is wasted ceremony that
