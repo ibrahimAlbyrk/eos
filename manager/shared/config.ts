@@ -311,7 +311,7 @@ export function billedProfileNeedsPrice(
 const DEFAULT_BACKENDS: Record<string, BackendProfile> = {
   // claude is the sole Claude lane: subscription-billed, live thinking, in-process tools.
   "claude-opus": {
-    kind: "claude", model: "claude-opus-5",
+    kind: "claude", model: "claude-opus-5-5",
     auth: { kind: "subscription" }, costMode: "included",
     params: { thinking: { type: "adaptive", display: "summarized" } },
   },
