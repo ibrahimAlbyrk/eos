@@ -284,9 +284,8 @@
    expanding never pushes the git bar / input up. */
 .integration-wrap { position: relative; display: flex; flex-direction: column; gap: 6px; }
 .diff-stack { display: flex; flex-direction: column; gap: 6px; }
-/* ambient rail: tasks (left) + worktree fleet pill (right) share ONE line and
-   FLOAT as liquid glass just above the git bar — out of flow, so the transcript
-   reaches down behind the pills and the pills (and their expanded panels) overlay
+/* ambient rail: the worktree fleet pill FLOATS as liquid glass just above the
+   git bar — out of flow, so the transcript reaches down behind the pills and the pills (and their expanded panels) overlay
    it instead of pushing the composer up. Anchored to .integration-wrap; hidden
    entirely when a blocking banner holds the slot, so it can't collide with it. */
 .ambient-rail {
@@ -304,11 +303,10 @@
 .ambient-rail:empty { display: none; }
 /* Bare, NON-glass anchor — the glass lives on the .cint-toggle pill (below), not
    here, so the floating .child-int-list has NO backdrop-filter ancestor and its
-   own blur actually works. Mirrors the task tray, where the pill and the expanded
-   card are siblings under a plain .task-tray. */
+   own blur actually works. */
 .child-int-panel {
   position: relative;
-  align-self: flex-end;      /* baseline-align with the task pill in the rail */
+  align-self: flex-end;
   margin-left: auto;         /* push to the right of the ambient rail */
   width: max-content;
   max-width: 100%;
@@ -350,7 +348,7 @@
   padding: 6px 11px;
   border: 0;
   border-radius: 12px;
-  /* the pill carries the liquid glass (same recipe as the task pill) */
+  /* the pill carries the liquid glass */
   background: rgba(var(--glass), 0.4);
   -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
   backdrop-filter: blur(var(--blur-lg)) saturate(170%);
@@ -1534,10 +1532,7 @@
   box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 55%, transparent);
 }
 
-/* TaskTray styling now lives entirely in the charcoal-aurora block below
-   (search ".tt-card"); the old liquid-glass rules were removed. Only this
-   keyframe stays here — the child-interrupt list (.child-int-panel) still
-   references it for its rise-in. */
+/* Rise-in for the child-interrupt list (.child-int-panel). */
 @keyframes tt-card-in {
   from { opacity: 0; transform: translateY(8px) scale(0.97); }
   to   { opacity: 1; transform: none; }
@@ -3208,14 +3203,16 @@
 }
 
 .git-tray {
-  position: relative; z-index: 1;
+  position: relative;
   height: 21px; /* 8px lip + 13px under the card */
   margin: 0 20px -13px;
 }
-/* invisible hover band above the thin lip so it's easy to catch */
+/* invisible hover bands around the thin lip so a fast pointer still catches it:
+   10px above, and 16px down over the card's top padding (z above the card) */
 .git-tray::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 10px; }
+.git-tray::after { content: ""; position: absolute; left: 0; right: 0; top: 8px; height: 16px; z-index: 3; }
 .git-tray-body {
-  position: absolute; left: 0; right: 0; bottom: 0;
+  position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
   display: flex; align-items: center;
   padding: 8px 12px 21px;
   transform: translateY(calc(100% - 21px));
@@ -3470,7 +3467,7 @@
 
 /* ============================================================================
    Composer banners + ambient row — charcoal-aurora
-   UpdateBanner · TryDeck · PermissionBanner · QuestionBanner · TaskTray · WorktreeHub
+   UpdateBanner · TryDeck · PermissionBanner · QuestionBanner · WorktreeHub
    ========================================================================== */
 
 @keyframes d-breathe { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
@@ -3676,49 +3673,9 @@
 .cir-name { color: var(--fg); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .diff-grow { flex: 1; }
 
-/* ── TaskTray pill (right of the ambient rail) ── */
-.task-tray-row { display: flex; justify-content: flex-end; width: max-content; max-width: 100%; margin-left: auto; }
-.task-tray { position: relative; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
-.tt-surface { position: relative; }
-.tt-pill {
-  display: inline-flex; align-items: center; gap: 8px; height: 30px; max-width: 380px;
-  padding: 0 12px 0 9px; border: 0; border-radius: var(--r-pill); background: var(--pop); color: var(--fg-mid);
-  font-family: var(--font-ui); font-size: 12.5px; cursor: pointer; user-select: none;
-  white-space: nowrap; transition: background 120ms ease;
-}
-.tt-pill:hover, .tt-pill.open { background: var(--row-on); }
-.tt-pill-label { min-width: 0; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--fg-mid); }
-.tt-count { flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint); font-variant-numeric: tabular-nums; }
-.tt-chev { color: var(--fg-dim2); flex-shrink: 0; }
-.tt-ring { width: 16px; height: 16px; transform: rotate(-90deg); flex-shrink: 0; }
-.tt-ring-track { fill: none; stroke: var(--fg-mute); stroke-width: 2; }
-.tt-ring-fill { fill: none; stroke: var(--ok); stroke-width: 2; stroke-linecap: round; transition: stroke-dasharray 350ms cubic-bezier(0.2, 0.7, 0.3, 1); }
-.tt-ring-core { fill: var(--accent); }
-.tt-card {
-  position: absolute; bottom: calc(100% + 6px); right: 0; z-index: 40;
-  width: 360px; max-width: 92cqi; padding: 10px 8px;
-  background: var(--pop); border-radius: var(--r-pop); box-shadow: var(--sh-pop);
-  animation: banner-rise 160ms ease-out;
-}
-.tt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; }
-.tt-item { position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 5px 8px; }
-.tt-item::after { content: ""; position: absolute; left: 15px; top: 21px; bottom: -6px; width: 1.5px; border-radius: 1px; background: var(--line); }
-.tt-item:last-child::after { display: none; }
-.tt-item.completed::after { background: var(--ok); }
-.tt-node { position: relative; width: 15px; height: 15px; margin-top: 2px; flex-shrink: 0; display: inline-flex; }
-.tt-ic { width: 15px; height: 15px; display: block; }
-.tt-ic-done circle { fill: var(--ok); stroke: none; }
-.tt-ic-done .tt-check { fill: none; stroke: var(--accent-fg); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.tt-ic-active circle { fill: none; stroke: var(--accent); stroke-width: 1.5; }
-.tt-ic-active .tt-core { fill: var(--accent); stroke: none; animation: d-breathe 2.2s ease-in-out infinite; }
-.tt-ic-pending circle { fill: var(--pop); stroke: var(--fg-mute); stroke-width: 1.5; }
-.tt-item-label { font-size: 13px; line-height: 1.45; color: var(--fg-mid); min-width: 0; }
-.tt-item.in_progress .tt-item-label { color: var(--fg-strong); }
-.tt-item.completed .tt-item-label { color: var(--fg-dim2); }
-
 @media (prefers-reduced-motion: reduce) {
-  .update-dot, .try-dot, .q-dot, .tt-ic-active .tt-core { animation: none; }
-  .update-card, .q-card, .tt-card, .child-int-panel.open .child-int-list { animation: none; }
+  .update-dot, .try-dot, .q-dot { animation: none; }
+  .update-card, .q-card, .child-int-panel.open .child-int-list { animation: none; }
   .me-p-drift, .me-p-dot { animation: none; }
 }
 /* END banners + ambient */

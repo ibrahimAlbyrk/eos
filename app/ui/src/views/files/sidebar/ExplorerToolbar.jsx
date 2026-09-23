@@ -28,14 +28,14 @@ export function ExplorerToolbar() {
 
   const togglePicker = (e) => {
     if (pickerOpen) { ui.closeAllPops(); return; }
-    const bar = e.currentTarget.parentElement.getBoundingClientRect();
-    ui.openPop("fx-folder", { x: bar.left, y: bar.bottom + 4, data: { width: bar.width } });
+    const chip = e.currentTarget.getBoundingClientRect();
+    ui.openPop("fx-folder", { x: chip.left, y: chip.bottom + 6 });
   };
 
   return (
     <div className="fx-toolbar">
       <button
-        className="fx-root-chip"
+        className={"fx-root-chip" + (pickerOpen ? " on" : "")}
         data-popover-trigger="fx-folder"
         title={root ?? "Open a folder"}
         onClick={togglePicker}

@@ -7,6 +7,7 @@ import { api } from "../../../api/client.js";
 import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { SplitMenu } from "../popovers/SplitMenu.jsx";
 import { EnvironmentPopover } from "../popovers/EnvironmentPopover.jsx";
+import { PlanChip } from "./PlanChip.jsx";
 
 // Per-pane top bar: breadcrumb + agent menu on the left, and — on the right —
 // exactly the reference's three chrome buttons: Environment & changes (git
@@ -170,6 +171,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
           </button>
           <HeaderAgentMenu live={live} agent={worker} onRename={startRename} anchor={vWrapRef} />
         </span>
+        <PlanChip worker={worker} />
       </div>
       {split && (needsInput
         ? <span className="pane-input-label" title="Needs your input — click the pane to answer">needs input</span>

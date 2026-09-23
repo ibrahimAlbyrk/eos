@@ -93,7 +93,7 @@ function ChildIntegrationRow({ child, ui, live, onDirty }) {
 }
 
 // Ambient worktree-fleet pill for an orchestrator: docked in-flow on the right of
-// the ambient rail (next to the TaskTray), it reports the dirty-child summary up
+// the ambient rail, it reports the dirty-child summary up
 // (drives the git row's "Merge all" + the footer mirror) and, when open, floats
 // the child list up over the transcript so expanding never pushes the input.
 // Hidden — but kept mounted so the git-status pollers keep reporting — when a

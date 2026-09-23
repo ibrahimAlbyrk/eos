@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EMPTY_TABS, openTab, openNewTab, closeTab, tabType } from "./panelTabs.js";
+import { EMPTY_TABS, openTab, openNewTab, closeTab, tabType, fileTabId, filePathOf } from "./panelTabs.js";
 
 describe("panelTabs", () => {
   it("opens tabs in order and activates the opened one", () => {
@@ -63,5 +63,17 @@ describe("panelTabs instances", () => {
   it("openNewTab treats non-multi types as singletons (re-activates)", () => {
     const s = openNewTab({ openTabs: ["files"], activeTab: "files" }, "files");
     expect(s).toEqual({ openTabs: ["files"], activeTab: "files" });
+  });
+
+  it("each opened file is its own tab, keyed by path", () => {
+    let s = openTab(EMPTY_TABS, "files");
+    s = openTab(s, fileTabId("/a/x.md"));
+    s = openTab(s, fileTabId("/b/y.png"));
+    s = openTab(s, fileTabId("/a/x.md"));
+    expect(s).toEqual({ openTabs: ["files", "file:/a/x.md", "file:/b/y.png"], activeTab: "file:/a/x.md" });
+    expect(tabType("file:/a/x.md")).toBe("file");
+    expect(filePathOf("file:/a/b:c.md")).toBe("/a/b:c.md");
+    expect(filePathOf("files")).toBe(null);
+    expect(filePathOf(null)).toBe(null);
   });
 });

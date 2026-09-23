@@ -545,19 +545,35 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   border-left: none;
 }
 .side-panel--fullscreen .sp-resize { display: none; }
-/* 6px invisible col-resize strip straddling the panel's left edge — cursor only,
-   no visible highlight (reference). */
+/* Invisible col-resize strip along the panel's left edge. It sits inside the
+   panel because .side-panel's overflow:hidden clips anything past the edge.
+   Hovering it brightens the panel's own border line. */
 .sp-resize {
   position: absolute;
-  left: -3px;
+  left: 0;
   top: 0;
   bottom: 0;
-  width: 6px;
+  width: 8px;
   z-index: 30;
   cursor: col-resize;
   touch-action: none;
   background: transparent;
 }
+/* The border is a gradient whose middle stop animates: plain --line at rest,
+   a shine that fades out toward top and bottom on hover. @property makes the
+   color stop transitionable. */
+@property --sp-shine {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+.side-panel {
+  --sp-shine: var(--line);
+  border-image: linear-gradient(to bottom, var(--line), var(--sp-shine) 50%, var(--line)) 1;
+  transition: --sp-shine 200ms;
+}
+.side-panel:has(> .sp-resize:hover),
+.side-panel:has(> .sp-resize:active) { --sp-shine: rgba(var(--tint), 0.28); }
 /* Tab bar: pills + new-tab + fullscreen/close. No border underneath, tight gap. */
 .sp-tabbar {
   position: relative;
@@ -682,7 +698,6 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 /* Tab-with-no-data empty states now use the shared .empty-state recipe
    (styles/menus.css); the old .panel-empty* duplicates were retired. */
 /* Back button in the nested file viewer header (Files tab). */
-.fv-back { margin-right: 2px; }
 
 /* Keep-alive transcript panes: one <Messages> per recently-viewed agent stays
    mounted; only the active one paints. */
@@ -945,6 +960,32 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .pane-head .crumb .v:hover { background: var(--chip); color: var(--fg-mid); }
 .pane-head .crumb .v[aria-expanded="true"],
 .pane-head .crumb .v.on { background: var(--row-on); color: var(--fg); }
+/* Plan chip (PlanChip.jsx) — TodoWrite progress ring + count beside the crumb. */
+.pane-head .crumb .plan-chip {
+  align-self: center;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px 0 6px;
+  margin-left: -3px;
+  border-radius: var(--r-pill);
+  color: var(--fg-dim2);
+  cursor: pointer;
+}
+.pane-head .crumb .plan-chip:hover { background: var(--chip); color: var(--fg-mid); }
+.pane-head .crumb .plan-chip.on { background: var(--row-on); color: var(--fg); }
+.plan-chip-count { font-family: var(--font-mono); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.plan-ring { width: 14px; height: 14px; transform: rotate(-90deg); flex-shrink: 0; }
+.plan-ring-track { fill: none; stroke: var(--fg-mute); stroke-width: 2; }
+.plan-ring-fill {
+  fill: none;
+  stroke: var(--ok);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke-dasharray 350ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
 .pane-head .crumb .ag-rename-input {
   background: var(--raised);
   border: 1px solid var(--accent);

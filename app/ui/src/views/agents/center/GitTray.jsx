@@ -175,7 +175,7 @@ export function GitTray({ live, worker, wtStatus, pinned }) {
             />
           )}
           {gs?.pullable && <PullButton workerId={worker.id} onSettled={refresh} />}
-          {worker.is_orchestrator && dirtyChildren.length >= 2 && (
+          {Boolean(worker.is_orchestrator) && dirtyChildren.length >= 2 && (
             <button
               className="pr-create-btn pr-solo"
               disabled={integrating}

@@ -1,11 +1,12 @@
 import { useUi } from "../../state/ui.jsx";
 import { relToRoot, kindGlyph } from "../../lib/symbols.js";
+import { filePathOf } from "../../lib/panelTabs.js";
 
 // Flat symbol-name search results (the Symbols search mode). Parallel to the
 // filename search rows; each opens path+line in the pane's file editor panel.
 export function SymbolSearchList({ search, root }) {
   const ui = useUi();
-  const openPath = ui.panelFile?.path ?? null;
+  const openPath = filePathOf(ui.activeTab);
   const results = search.results ?? [];
   if (results.length === 0) {
     const msg = search.loading ? "Searching…" : search.unavailable ? "Symbol index unavailable" : "No symbols";

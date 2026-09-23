@@ -1,15 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
 import { loadCollapsedNodes, saveCollapsedNodes } from "../lib/collapseMemory.js";
-import { openTab as openTabReducer, openNewTab as openNewTabReducer, closeTab as closeTabReducer } from "../lib/panelTabs.js";
+import { openTab as openTabReducer, openNewTab as openNewTabReducer, closeTab as closeTabReducer, fileTabId } from "../lib/panelTabs.js";
 
 const SelectionContext = createContext(null);
 
 // One pane's side-panel: an open flag, an ordered set of open tabs + the active
-// one, a width, a fullscreen flag, per-tab data, and the file open inside the
-// Files tab. Frozen shared default so empty panes resolve to a stable identity.
+// one, a width, a fullscreen flag, and per-tab data. Frozen shared default so empty panes resolve to a stable identity.
 export const EMPTY_PANEL = Object.freeze({
-  open: false, openTabs: [], activeTab: null, width: null, fullscreen: false, data: {}, file: null,
+  open: false, openTabs: [], activeTab: null, width: null, fullscreen: false, data: {},
 });
 
 // Per-pane panels persist keyed by leaf id (the pane tree persists the same
@@ -120,15 +119,15 @@ export function SelectionProvider({ children }) {
   const [expandedTools, setExpandedTools] = useState(() => new Set());
   // ── Per-pane right side panels (open-tabs model) ──
   // Each pane (keyed by leaf id) owns its OWN panel: an open flag, an ordered
-  // set of open tabs + the active one, a width, a fullscreen flag, per-tab data,
-  // and the file open INSIDE the Files tab. In split view every pane opens and
+  // set of open tabs + the active one, a width, a fullscreen flag, and per-tab
+  // data (an opened file is its own tab). In split view every pane opens and
   // resizes its panel independently. Opening a tab appends+activates it and
   // reveals that pane's panel; the active pill's × closes just THAT tab
   // (activating a neighbor), leaving the panel open — empty when the last tab
   // goes. Raw pane-explicit ops live here; useUi wraps them into the scope-aware
   // openPanel/setTab/closeTab/… every call site uses (they resolve to the owning
   // or focused pane). Open tabs + open flag + width persist per pane; per-tab
-  // data + the open file are session-only. Default: no open tabs, panel hidden.
+  // data is session-only. Default: no open tabs, panel hidden.
   const [panelsByPane, setPanelsByPane] = useState(loadPanels);
   useEffect(() => { savePanels(panelsByPane); }, [panelsByPane]);
   // Monotonic reveal seq so re-opening the same file+line re-centers the editor.
@@ -165,8 +164,8 @@ export function SelectionProvider({ children }) {
     setPanelsByPane((m) => {
       const cur = m[paneId] ?? EMPTY_PANEL;
       const tabs = closeTabReducer(cur, tab);
-      if (tabs === cur && !(tab === "files" && cur.file)) return m;
-      return { ...m, [paneId]: { ...cur, ...tabs, file: tab === "files" ? null : cur.file } };
+      if (tabs === cur) return m;
+      return { ...m, [paneId]: { ...cur, ...tabs } };
     });
   }, []);
   // Closing the whole panel also drops fullscreen, so a later re-open comes back
@@ -206,16 +205,11 @@ export function SelectionProvider({ children }) {
     if (!paneId) return;
     setPanelsByPane((m) => {
       const cur = m[paneId] ?? EMPTY_PANEL;
-      const file = { path, reveal: reveal ? { line: reveal.line, column: reveal.column, seq: ++fileRevealSeq.current } : null };
-      return { ...m, [paneId]: { ...cur, ...openTabReducer(cur, "files"), open: true, file } };
-    });
-  }, []);
-  const closeFileIn = useCallback((paneId) => {
-    if (!paneId) return;
-    setPanelsByPane((m) => {
-      const cur = m[paneId];
-      if (!cur?.file) return m;
-      return { ...m, [paneId]: { ...cur, file: null } };
+      const id = fileTabId(path);
+      const data = reveal
+        ? { ...cur.data, [id]: { reveal: { line: reveal.line, column: reveal.column, seq: ++fileRevealSeq.current } } }
+        : cur.data;
+      return { ...m, [paneId]: { ...cur, ...openTabReducer(cur, id), open: true, data } };
     });
   }, []);
   const [renamingId, setRenamingId] = useState(null);
@@ -341,7 +335,7 @@ export function SelectionProvider({ children }) {
     // owning/focused pane and exposes the scope-aware reads (openTabs/activeTab/
     // showSidePanel/…) + actions (openPanel/setTab/closeTab/…) every call uses.
     panelsByPane,
-    openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, closeFileIn,
+    openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
@@ -352,7 +346,7 @@ export function SelectionProvider({ children }) {
     openPopoverByPane, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict,
     panelsByPane,
-    openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, closeFileIn,
+    openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPopoverIn, openPopIn, closePopsIn, closeAllPopsEverywhere, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
     registerEscapeIdle,

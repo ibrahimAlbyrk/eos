@@ -38,6 +38,9 @@ import { GoalCheckLine, LoopCheckBlock } from "./LoopCheck.jsx";
 import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
 import { NewTaskHero } from "./NewTaskHero.jsx";
+import { TurnRail } from "./TurnRail.jsx";
+import { deriveTurns } from "../../../lib/turnIndex.js";
+import { glideToBlock } from "../../../lib/glideTo.js";
 import { newSessionProject } from "../../../lib/breadcrumb.js";
 import { TerminalCard } from "./TerminalCard.jsx";
 import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceRuns } from "../../../state/terminalStore.js";
@@ -57,24 +60,17 @@ const MAX_RESTORE_PAGES = 3;
 // memos don't churn while a switch is in flight.
 const NO_EVENTS = [];
 
-// Scroll the transcript to the user message that first carried `path` (a "Files
-// in Chat" jump). Matches on the rendered attachment's title (MessageUser sets
-// title={att.path}); the block may be outside the bounded live window, in which
-// case there is nothing to scroll to. Centers the block and flashes it, reusing
-// the usePageFind scroll math so stick-to-bottom unpins cleanly.
-function scrollToAttachment(wrap, content, path) {
-  if (!wrap || !content) return;
-  let el = null;
-  for (const att of content.querySelectorAll(".msg-att")) {
-    if (att.getAttribute("title") === path) { el = att.closest("[data-bkey]"); break; }
+// Where a turn-rail jump parks the prompt: just below the scroller's top edge.
+const TURN_JUMP_OFFSET = 24;
+
+// The user message that first carried `path` (a "Files in Chat" jump). Matches
+// on the rendered attachment's title (MessageUser sets title={att.path}); the
+// block may be outside the bounded live window, in which case it's null.
+function findAttachmentBlock(content, path) {
+  for (const att of content?.querySelectorAll(".msg-att") ?? []) {
+    if (att.getAttribute("title") === path) return att.closest("[data-bkey]");
   }
-  if (!el) return;
-  const rect = el.getBoundingClientRect();
-  const wrapRect = wrap.getBoundingClientRect();
-  const top = wrap.scrollTop + (rect.top - wrapRect.top) - wrap.clientHeight / 2;
-  wrap.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-  el.classList.add("msg-jump-flash");
-  setTimeout(() => el.classList.remove("msg-jump-flash"), 1200);
+  return null;
 }
 
 export function Messages({ live, agentId, isActive = true }) {
@@ -132,12 +128,29 @@ export function Messages({ live, agentId, isActive = true }) {
     stick.scrollToBottom();
   }, [stick.scrollToBottom, selectedId]);
 
+  // Glide a block to `offset` px below the scroller's top and flash it. hold()
+  // first: while pinned, the glide's first small upward steps stay under the
+  // unpin threshold and the follow loop would yank the view back to the bottom.
+  const cancelGlideRef = useRef(null);
+  const revealBlock = useCallback((el, offset) => {
+    const wrap = wrapRef.current;
+    if (!wrap || !el) return;
+    stick.hold();
+    cancelGlideRef.current?.();
+    cancelGlideRef.current = glideToBlock(wrap, el, offset);
+    el.classList.add("msg-jump-flash");
+    setTimeout(() => el.classList.remove("msg-jump-flash"), 1200);
+  }, [wrapRef, stick.hold]);
+  useEffect(() => () => cancelGlideRef.current?.(), []);
+
   // "Files in Chat" jump-to-message: the panel signals this worker's transcript
   // (which owns the scroller refs) to scroll a given attachment into view.
   useEffect(() => {
     if (!selectedId) return;
-    return onReveal(selectedId, (path) => scrollToAttachment(wrapRef.current, contentRef.current, path));
-  }, [selectedId, wrapRef, contentRef]);
+    return onReveal(selectedId, (path) => {
+      revealBlock(findAttachmentBlock(contentRef.current, path), wrapRef.current?.clientHeight / 2);
+    });
+  }, [selectedId, wrapRef, contentRef, revealBlock]);
 
   const restorePagesRef = useRef(0);
   // Layout effect ON PURPOSE, and declared before the restore effect below:
@@ -340,6 +353,12 @@ export function Messages({ live, agentId, isActive = true }) {
     return sortBlocksByTs(base);
   }, [baseBlocks, selectedId, termTick, outboxTick, thinkTick]);
 
+  const turns = useMemo(() => deriveTurns(blocks, blockKey), [blocks]);
+  const jumpToTurn = useCallback((key) => {
+    const el = contentRef.current?.querySelector(`[data-bkey="${CSS.escape(key)}"]`);
+    revealBlock(el, TURN_JUMP_OFFSET);
+  }, [contentRef, revealBlock]);
+
   const rewindToMessage = useRewind(selectedId);
   // Duplicate user texts must map to the n-th identical transcript target —
   // each bubble's occurrence index among same-text bubbles, oldest first.
@@ -478,6 +497,7 @@ export function Messages({ live, agentId, isActive = true }) {
 
   return (
     <ScrollHoldContext.Provider value={stick.hold}>
+    <div className="messages-frame">
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
       <div className={selectedId ? "messages" : "messages messages-empty"} ref={contentRef}>
@@ -505,7 +525,7 @@ export function Messages({ live, agentId, isActive = true }) {
           const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).rewind
             ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
             : null;
-          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId);
+          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, blocks[i - 1]?.ts);
           if (!block) return null;
           // The wrapper carries the block's scroll-anchor identity
           // (lib/scrollAnchor.js) so every block kind is anchorable without
@@ -536,6 +556,10 @@ export function Messages({ live, agentId, isActive = true }) {
         </button>
       )}
     </div>
+    {selectedId && turns.length > 1 && (
+      <TurnRail turns={turns} scrollerRef={wrapRef} contentRef={contentRef} busy={agentBusy} onJump={jumpToTurn} />
+    )}
+    </div>
     </ScrollHoldContext.Provider>
   );
 }
@@ -555,7 +579,9 @@ function blockKey(b, i) {
 // Such blocks must NOT get content-visibility, whose paint containment clips it.
 const MESSAGE_ROW_KINDS = new Set(["user", "report", "directive", "peer-request", "loop", "assistant"]);
 
-function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled, sessionId) {
+// prevTs: the preceding block's ts — reasoning has no start time of its own, so
+// the gap since the previous transcript event approximates how long it thought.
+function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled, sessionId, prevTs) {
   switch (b.kind) {
     case "user":      return <MessageRow key={key} ts={b.ts} copyText={b.text} align="right" onRewind={onRewind} rewindDisabled={rewindDisabled}><MessageUser text={b.text} cwd={cwd} /></MessageRow>;
     case "report":    return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageReport text={b.text} agentId={b.fromWorker} agentName={b.workerName} workers={workers} direction="in" /></MessageRow>;
@@ -564,7 +590,7 @@ function renderBlock(b, key, cwd, ui, workers, parent, onRewind, rewindDisabled,
     case "loop":      return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageLoop text={b.text} /></MessageRow>;
     case "loopCheck": return <LoopCheckBlock key={key} block={b} />;
     case "assistant": return <MessageRow key={key} ts={b.ts} copyText={b.text}><MessageAssistant text={b.text} /></MessageRow>;
-    case "thinking":  return <ThinkingLine key={key} text={b.text} live={b.live} interrupted={b.interrupted} streamId={b.blockId} sessionId={sessionId} />;
+    case "thinking":  return <ThinkingLine key={key} text={b.text} live={b.live} interrupted={b.interrupted} streamId={b.blockId} sessionId={sessionId} durationMs={prevTs != null ? b.ts - prevTs : undefined} />;
     case "toolGroup": {
       const groupKey = "g:" + (b.tools[0]?.id ?? b.ts);
       // expandedTools holds toggles against the settings-driven default (XOR)

@@ -984,16 +984,18 @@
 /* Toolbar */
 .fx-toolbar { display: flex; align-items: center; gap: 4px; padding: 0 8px; position: relative; }
 .fx-root-chip {
-  display: flex; align-items: center; gap: 6px;
-  flex: 1; min-width: 0;
-  padding: 4px 7px; border-radius: 6px;
-  color: var(--fg-mid); font-size: var(--text-sm);
-  transition: background 120ms ease, color 120ms ease;
+  display: flex; align-items: center; gap: 7px;
+  flex: 0 1 auto; min-width: 0; height: 28px;
+  padding: 0 9px; border-radius: var(--r-row);
+  background: var(--row-on); color: var(--fg);
+  font-size: var(--text-sm);
+  transition: filter 120ms ease;
 }
-.fx-root-chip:hover { background: var(--row-on); color: var(--fg); }
+.fx-root-chip svg { flex: 0 0 auto; color: var(--fg-mid); }
+.fx-root-chip:hover, .fx-root-chip.on { filter: brightness(1.18); }
 .fx-root-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .fx-root-chev { flex: 0 0 auto; color: var(--fg-faint); }
-.fx-tb-actions { display: flex; align-items: center; gap: 1px; }
+.fx-tb-actions { margin-left: auto; display: flex; align-items: center; gap: 1px; }
 .fx-tb-btn {
   width: 24px; height: 24px; flex: 0 0 auto;
   display: flex; align-items: center; justify-content: center;
@@ -1098,26 +1100,9 @@
 }
 .fx-sym-kind { font-family: var(--font-mono); color: var(--fg-mid); width: 14px; text-align: center; }
 
-/* Folder picker popover — a floating overlay (fixed, positioned from the toolbar
-   chip) so its glass blur isn't flattened by the island's backdrop-filter. */
-.fx-picker {
-  position: fixed; z-index: 200;
-  display: flex; flex-direction: column;
-  padding: 6px; border-radius: var(--r-menu);
-  max-height: 50vh; overflow-y: auto;
-}
-.fx-picker-label {
-  padding: 6px 8px 3px;
-  font-family: var(--font-mono); font-size: var(--text-xs);
-  text-transform: uppercase; letter-spacing: 0.1em; color: var(--fg-faint);
-}
-.fx-picker-item { display: flex; flex-direction: column; gap: 1px; padding: 6px 8px; border-radius: 6px; text-align: left; color: var(--fg); }
-.fx-picker-item:hover { background: var(--row-on); }
-.fx-picker-name { font-size: var(--text-sm); }
-.fx-picker-sub {
-  font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-}
+/* Folder picker popover — rows come from the shared .split-menu recipe
+   (menus.css); only the width + left anchor differ. */
+.split-menu.fx-picker { width: 272px; max-height: 50vh; overflow-y: auto; }
 
 /* ── Workflows tab: view host (Editor / Library / Runs sub-tabs) ──────────── */
 .wf-host { display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bg); }

@@ -1,5 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { subscribe as subscribeThinking, getBlock } from "../../../state/thinkingStore.js";
+import { fmtElapsedShort } from "../../../lib/format.js";
+import { DisclosureRow } from "./DisclosureRow.jsx";
 
 // Inline reasoning line rendered as part of the assistant's turn — the raw
 // reasoning text only, with no "thinking" label/prefix (the activity anchor
@@ -12,11 +14,13 @@ import { subscribe as subscribeThinking, getBlock } from "../../../state/thinkin
 // innerHTML reset of the accumulated text. The durable block reuses this same
 // instance by blockId; when the streamed DOM already equals the durable text
 // the flip touches nothing, so the handoff has no reflash.
-export function ThinkingLine({ text, live = false, interrupted = false, streamId, sessionId }) {
+export function ThinkingLine({ text, live = false, interrupted = false, streamId, sessionId, durationMs }) {
   const ref = useRef(null);
   const lenRef = useRef(0); // chars already appended to the DOM
-  // Durable reasoning collapses to 2 lines; click expands. Live text is never
-  // clamped (the tail must stay visible while it streams).
+  // Durable reasoning collapses fully behind a "Thought for Xs" row; click
+  // expands. Live text is always shown (the tail must stay visible while it
+  // streams). The text span stays mounted while collapsed so the imperative
+  // DOM survives the live → durable flip.
   const [expanded, setExpanded] = useState(false);
 
   // Live streaming: subscribe to the store's coalesced flushes, append the tail.
@@ -55,13 +59,19 @@ export function ThinkingLine({ text, live = false, interrupted = false, streamId
     }
   }, [live, text]);
 
-  const cls = "thinking-line" + (live ? " is-live" : expanded ? " is-expanded" : "");
+  const label = durationMs >= 1000 ? `Thought for ${fmtElapsedShort(durationMs)}` : "Thought";
   return (
-    <div className={cls} onClick={live ? undefined : () => setExpanded((e) => !e)}>
-      <span className="mono">
+    <div className={"thinking-line" + (live ? " is-live" : "")}>
+      {!live && (
+        <DisclosureRow expanded={expanded} onToggle={() => setExpanded((e) => !e)} className="thinking-header">
+          <span>{label}</span>
+          {interrupted && <span className="thinking-interrupted">interrupted</span>}
+        </DisclosureRow>
+      )}
+      <div className="thinking-body mono" hidden={!live && !expanded}>
         <span ref={ref} />
-        {interrupted && <span className="thinking-interrupted">interrupted</span>}
-      </span>
+        {live && interrupted && <span className="thinking-interrupted">interrupted</span>}
+      </div>
     </div>
   );
 }

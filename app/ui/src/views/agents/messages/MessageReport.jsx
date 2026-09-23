@@ -10,7 +10,6 @@ export function MessageReport({ text, agentId, agentName, workers, direction, la
   return (
     <div className="tool-item standalone">
       <DisclosureRow expanded={open} onToggle={() => setOpen((o) => !o)} className="tool-item-header">
-        <span className={"row-dot " + (direction === "out" ? "row-dot--accent" : "row-dot--ok")} aria-hidden />
         <span className="ti-verb">{prefix}</span>
         <AgentLink id={agentId} name={agentName} workers={workers} fallback={fallback} />
       </DisclosureRow>

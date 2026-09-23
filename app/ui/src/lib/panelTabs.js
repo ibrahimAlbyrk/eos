@@ -16,6 +16,17 @@ export function tabType(id) {
   return i === -1 ? id : id.slice(0, i);
 }
 
+// A file opened from anywhere gets its OWN tab, keyed by its absolute path, so
+// several files sit side by side as separate pills.
+export function fileTabId(path) {
+  return `file:${path}`;
+}
+
+// The file path behind a file tab id, or null for any other tab (or none).
+export function filePathOf(id) {
+  return id && tabType(id) === "file" ? id.slice("file:".length) : null;
+}
+
 // The instance number in a tab id, or 1 for a bare/singleton id.
 function tabNumber(id) {
   const i = id.indexOf(":");

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { getPanel } from "../../../lib/panelRegistry.js";
-import { tabType } from "../../../lib/panelTabs.js";
+import { tabType, filePathOf } from "../../../lib/panelTabs.js";
+import { shortenHome } from "../../../lib/fileUtils.jsx";
+import { FileIcon } from "../../files/FileIcon.jsx";
 import { sessionRootOf } from "../../../lib/agentIndex.js";
 import { closePane as closePtyPane } from "../../../state/ptyPanelStore.js";
 import { terminalPaneKey } from "../messages/TerminalViewer.jsx";
@@ -12,7 +14,7 @@ import "./registerPanels.js";
 // via PaneScopeContext), so every read/action here resolves to that pane; it
 // returns null when that pane's panel is closed. Pills render ONLY the open tabs
 // (default: none — a quiet empty state); the + menu opens Terminal / Files / Chat
-// files, the active pill's × closes just that tab, and the chrome × hides the
+// files (every opened file gets its own pill), the active pill's × closes just that tab, and the chrome × hides the
 // panel. Width is that pane's own --sp-w; double-click the edge resets to default.
 
 const ICONS = {
@@ -38,16 +40,23 @@ const TAB_LABELS = {
   chatfiles: "Chat files",
 };
 
-// Pill label for a tab id. Multi-instance types are numbered ("Terminal 1",
+const baseName = (path) => path.slice(path.lastIndexOf("/") + 1);
+
+// Pill label for a tab id. A file tab shows its file name. Multi-instance types are numbered ("Terminal 1",
 // "Terminal 2") only when more than one is open; a lone one keeps the bare name.
 function labelFor(id, openTabs) {
+  const filePath = filePathOf(id);
+  if (filePath) return baseName(filePath);
   const type = tabType(id);
   const base = TAB_LABELS[type] ?? type;
   const sameType = openTabs.filter((t) => tabType(t) === type);
   return sameType.length > 1 ? `${base} ${sameType.indexOf(id) + 1}` : base;
 }
 
-function TabPill({ type, label, active, onSelect, onClose }) {
+function TabPill({ id, label, active, onSelect, onClose }) {
+  const filePath = filePathOf(id);
+  const icon = filePath ? <FileIcon type="file" name={baseName(filePath)} /> : ICONS[tabType(id)];
+  const title = filePath ? shortenHome(filePath) : undefined;
   // Every pill carries its ×: always shown on the active pill, revealed on hover
   // for inactive ones (CSS-gated) so any open tab is closable. stopPropagation
   // keeps the × from also selecting an inactive pill.
@@ -62,18 +71,24 @@ function TabPill({ type, label, active, onSelect, onClose }) {
       <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
     </span>
   );
+  // Middle-click closes the tab, like browser tabs; preventDefault on mousedown
+  // suppresses the OS autoscroll cursor.
+  const middle = {
+    onMouseDown: (e) => { if (e.button === 1) e.preventDefault(); },
+    onAuxClick: (e) => { if (e.button === 1) { e.preventDefault(); onClose(); } },
+  };
   if (active) {
     return (
-      <span className="sp-tab is-active">
-        <span className="sp-tab-icon">{ICONS[type]}</span>
+      <span className="sp-tab is-active" title={title} {...middle}>
+        <span className="sp-tab-icon">{icon}</span>
         <span className="sp-tab-label">{label}</span>
         {closeX}
       </span>
     );
   }
   return (
-    <span className="sp-tab" onClick={onSelect} role="button" tabIndex={0}>
-      <span className="sp-tab-icon">{ICONS[type]}</span>
+    <span className="sp-tab" onClick={onSelect} role="button" tabIndex={0} title={title} {...middle}>
+      <span className="sp-tab-icon">{icon}</span>
       <span className="sp-tab-label">{label}</span>
       {closeX}
     </span>
@@ -82,7 +97,7 @@ function TabPill({ type, label, active, onSelect, onClose }) {
 
 function PlusMenu({ onPick }) {
   const item = (type, label, kbd) => (
-    <div className="sp-plus-item" onClick={() => onPick(type)}>
+    <div className="sp-plus-item" onClick={(e) => { e.stopPropagation(); onPick(type); }}>
       <span className="sp-tab-icon">{ICONS[type]}</span>
       <span className="sp-plus-label">{label}</span>
       {kbd && <span className="sp-plus-kbd">{kbd}</span>}
@@ -186,7 +201,7 @@ export function SidePanel({ live }) {
         {openTabs.map((id) => (
           <TabPill
             key={id}
-            type={tabType(id)}
+            id={id}
             label={labelFor(id, openTabs)}
             active={id === activeTab}
             onSelect={() => ui.setTab(id)}

@@ -56,6 +56,18 @@ describe("PaneHeader", () => {
     expect(html).not.toContain("Toggle terminal panel");
   });
 
+  it("shows the plan chip with done/total only when the agent has a task list", () => {
+    expect(renderHeader({ canClose: false })).not.toContain("plan-chip");
+    const tasks = JSON.stringify([
+      { content: "a", status: "completed" },
+      { content: "b", status: "in_progress" },
+      { content: "c", status: "pending" },
+    ]);
+    const html = renderHeader({ canClose: false, worker: { ...alpha, tasks } });
+    expect(html).toContain("Plan: 1 of 3 done");
+    expect(html).toContain("1/3");
+  });
+
   it("split panes carry Environment + Open side panel but not the Split menu button", () => {
     const html = renderHeader({ canClose: true, split: true, topRow: true });
     expect(html).toContain("Environment &amp; changes");

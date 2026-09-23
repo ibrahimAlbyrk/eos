@@ -14,20 +14,20 @@ import { PreviewToggle } from "./PreviewToggle.jsx";
 import { getFileViewer } from "./fileViewers.jsx";
 import { SymbolRefsPanel } from "./SymbolRefsPanel.jsx";
 import { useFileWatch } from "../../../state/fileWatchStore.js";
+import { filePathOf } from "../../../lib/panelTabs.js";
 
 // Above this size the editor opens read-only with the lightweight extension
 // set — editing affordances (history, autocomplete) cost too much on huge docs.
 const HEAVY_TEXT_CHARS = 2 * 1024 * 1024;
 
-// Nested inside the Files tab: FilesPanel shows the explorer until a file is
-// opened (ui.panelFile), then swaps in this editor with a back button.
-export function FileViewer({ live }) {
-  const ui = useUi();
-  if (!ui.panelFile) return null;
-  return <FileViewerInner path={ui.panelFile.path} live={live} />;
+// A `file:<path>` side-panel tab: one opened file per tab, beside the Files tree.
+export function FileViewer({ live, tabId }) {
+  const path = filePathOf(tabId);
+  if (!path) return null;
+  return <FileViewerInner path={path} tabId={tabId} live={live} />;
 }
 
-function FileViewerInner({ path, live }) {
+function FileViewerInner({ path, tabId, live }) {
   const ui = useUi();
   const [content, setContent] = useState(null);
   const [editContent, setEditContent] = useState("");
@@ -90,7 +90,7 @@ function FileViewerInner({ path, live }) {
   const [refs, setRefs] = useState(null); // { name, occurrences, loading } | null
   const refsRef = useRef(refs);
   refsRef.current = refs;
-  const revealTarget = ui.panelFile?.reveal;
+  const revealTarget = ui.panelData?.[tabId]?.reveal;
 
   // Definitions + lazy reference counts come from the shared hook (also used by
   // the Files-tab editor); the references drawer + go-to-def stay local here.
@@ -164,21 +164,21 @@ function FileViewerInner({ path, live }) {
     }
   };
 
-  // ⌘F while the side panel's Files tab (with a file open) is the focused region
+  // ⌘F while this file's tab is active in the focused side panel
   // → this find bar outranks the chat's (priority 10 vs 0). Unlike the button's
   // toggle, a repeat ⌘F re-opens + selects the query (chat semantics). Non-text
   // files have no find bar, so their `when` fails and ⌘F falls through to chat.
   useKeybinding({
     match: combo("mod+f"),
     priority: 10,
-    when: () => isText && ui.activeTab === "files" && ui.panelFile != null && ui.focusedRegion === "panel",
+    when: () => isText && ui.activeTab === tabId && ui.focusedRegion === "panel",
     run: (ctx, e) => {
       e.preventDefault();
       setShowOpenWith(false);
       setShowFind(true);
       requestAnimationFrame(() => { findRef.current?.focus(); findRef.current?.select(); });
     },
-  }, [isText, ui.activeTab, ui.panelFile, ui.focusedRegion]);
+  }, [isText, ui.activeTab, tabId, ui.focusedRegion]);
 
   const togglePreview = () => {
     setViewMode((m) => (m === "preview" ? "source" : "preview"));
@@ -193,18 +193,15 @@ function FileViewerInner({ path, live }) {
   const dirty = isText && content !== null && editContent !== content;
 
   // Live-refresh on a disk change of THIS file (agent edit, git op, …). Refetch
-  // unless the buffer is dirty or a save is in flight; close the panel on unlink.
+  // unless the buffer is dirty or a save is in flight; close the tab on unlink.
   useFileWatch(path, {
     onChange: () => { if (!dirty && !saving) setReloadTick((t) => t + 1); },
-    onRemove: () => ui.closeFile(),
+    onRemove: () => ui.closeTab(tabId),
   });
 
   return (
     <div className="panel-shell panel-shell--file">
       <div className="fv-row2">
-        <button className="fv-icon-btn fv-back" onClick={() => ui.closeFile()} title="Back to files" aria-label="Back to files">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M10 3 5 8l5 5" /></svg>
-        </button>
         <span className="fv-path" title={shortPath}>
           {pathDir && <span className="fv-path-dir">{pathDir}</span>}
           {pathBase}

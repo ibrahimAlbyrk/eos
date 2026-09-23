@@ -6,6 +6,7 @@ import {
   useSearchState, useSelection,
 } from "../../../state/explorerStore.js";
 import { flattenVisible } from "../../../lib/explorerNodes.js";
+import { filePathOf } from "../../../lib/panelTabs.js";
 import { isDescendant, parentDir } from "../../../lib/explorerApi.js";
 import { relToRoot, kindGlyph } from "../../../lib/symbols.js";
 import { FileRow } from "./FileRow.jsx";
@@ -19,7 +20,7 @@ export function FileTree() {
   const cache = useChildrenCache();
   const selection = useSelection();
   const search = useSearchState();
-  const openPath = ui.panelFile?.path ?? null;
+  const openPath = filePathOf(ui.activeTab);
   const draft = useDraft();
   const renaming = useRenaming();
 

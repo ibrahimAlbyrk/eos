@@ -100,6 +100,108 @@
 }
 .scroll-to-bottom:hover { background: var(--row-on); color: var(--fg); }
 
+/* ── turn rail — left-edge minimap, one tick per turn (TurnRail.jsx) ──── */
+/* Positioning frame so the rail + card float over the scroller, not in it. */
+.messages-frame {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.turn-rail {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 3;
+  width: 40px;
+  display: flex;
+  flex-direction: column;
+}
+/* --k (0…1) = length boost by distance from the selected tick (TurnRail
+   FALLOFF). Only .is-hot turns white. The whole row is the hit target; the
+   visible line is ::before. */
+.turn-rail__tick {
+  --k: 0;
+  --tick: var(--fg-mute);
+  height: var(--pitch);
+  width: 100%;
+  padding: 0 0 0 8px;
+  display: flex;
+  align-items: center;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+.turn-rail__tick::before {
+  content: "";
+  width: 8px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--tick);
+  transform: scaleX(calc(1 + 2.25 * var(--k)));
+  transform-origin: left center;
+  transition: transform 0.12s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.turn-rail__tick.is-in-view { --tick: var(--fg-dim); }
+.turn-rail__tick.is-live { --tick: var(--accent); }
+.turn-rail__tick.is-live::before { animation: d-breathe 2.3s ease-in-out infinite; }
+.turn-rail__tick.is-hot { --tick: var(--fg-strong); }
+.turn-rail__tick.is-hot::before { animation: none; }
+
+.turn-card {
+  position: absolute;
+  top: 0;
+  left: 52px;
+  z-index: 4;
+  width: min(320px, calc(100% - 68px));
+  padding: 10px 12px 9px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: color-mix(in srgb, var(--pop) 86%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
+  box-shadow: var(--sh-pop);
+  pointer-events: none;
+  opacity: 0;
+  translate: -4px 0;
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.14s ease, translate 0.14s ease;
+}
+.turn-card.is-on { opacity: 1; translate: 0 0; }
+/* Re-entering from hidden: land at the tick instead of gliding from the last one. */
+.turn-card[data-snap] { transition: opacity 0.14s ease, translate 0.14s ease; }
+.turn-card__title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--fg-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.turn-card__body {
+  margin-top: 4px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--fg-dim);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.turn-card__body strong { color: var(--fg-mid); font-weight: 600; }
+.turn-card__meta {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+.turn-card__meta > span + span::before { content: "·"; margin-right: 6px; color: var(--fg-mute); }
+.turn-card__live { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  .turn-rail__tick::before, .turn-card { transition: none; }
+}
+
 /* ── page find (⌘F) — floating --pop pill, top-right of the scroll area ── */
 .page-find-anchor {
   position: sticky;
@@ -260,19 +362,7 @@
 .disclosure-row[role="button"] { cursor: pointer; }
 .disclosure-row[aria-expanded="true"] .ti-chev { transform: rotate(90deg); }
 
-/* ── quiet verb rows: 4px dot · verb · object · meta · chevron ─────────── */
-.row-dot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--fg-mute);
-  flex-shrink: 0;
-}
-.row-dot--warn { background: var(--warn); }
-.row-dot--ok { background: var(--ok); }
-.row-dot--accent { background: var(--accent); }
-.row-dot--err { background: var(--err); }
-
+/* ── quiet verb rows: verb · object · meta · chevron ─────────── */
 .tool-group-header,
 .tool-item-header {
   display: flex;
@@ -865,24 +955,23 @@
 .loop-check-line.escalated .lc-icon { color: var(--warn); }
 .loop-check-line .lc-reason { color: var(--fg-faint); word-break: break-word; }
 
-/* ── thinking line — faint 13.5px, clamp 2, click to expand ────────────── */
+/* ── thinking line — live: faint streaming text; done: "Thought for Xs" row ─ */
 .thinking-line {
   font-size: 13.5px;
   line-height: 1.65;
   color: var(--fg-faint);
-  cursor: pointer;
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
 }
-.thinking-line.is-expanded,
-.thinking-line.is-live {
-  display: block;
-  -webkit-line-clamp: unset;
-  cursor: default;
+.thinking-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-block: 3px;
+  font-size: var(--text-base);
+  color: var(--fg-dim2);
 }
-.thinking-line .mono { white-space: pre-wrap; word-break: break-word; }
+.disclosure-row[role="button"].thinking-header:hover { color: var(--fg-mid); }
+.thinking-header + .thinking-body { padding-left: 14px; }
+.thinking-line .thinking-body { white-space: pre-wrap; word-break: break-word; }
 .thinking-line .thinking-interrupted {
   margin-left: 8px;
   font-size: var(--text-xs);

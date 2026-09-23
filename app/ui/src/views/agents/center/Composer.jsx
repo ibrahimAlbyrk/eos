@@ -38,7 +38,6 @@ import { SlashInfoPopover } from "../popovers/SlashInfoPopover.jsx";
 import { PasteInfoPopover } from "../popovers/PasteInfoPopover.jsx";
 import { QuestionBanner } from "./QuestionBanner.jsx";
 import { TryDeck } from "./TryBanner.jsx";
-import { TaskTray } from "./TaskTray.jsx";
 import { WorktreeHub } from "./WorktreeHub.jsx";
 import { CollapsedComposer } from "./CollapsedComposer.jsx";
 
@@ -1036,12 +1035,11 @@ export function Composer({ live, worker, paneId, focused }) {
         ) : null}
         {!blockingActive && (
           <div className="integration-wrap">
-            {/* Ambient rail: worktree fleet (left) + tasks (right) on one line,
-                docked flush above the context strip. Both yield to a visible
-                queued-pill list (railYields). */}
+            {/* Ambient rail: worktree fleet pill, docked flush above the
+                context strip. Yields to a visible queued-pill list
+                (railYields). The task list lives in the pane header (PlanChip). */}
             <div className="ambient-rail">
               <WorktreeHub live={live} selected={selected} blockingActive={railYields} onStatus={setWtStatus} />
-              <TaskTray selected={selected} blockingActive={railYields} />
             </div>
             <TryDeck live={live} selected={selected} />
           </div>

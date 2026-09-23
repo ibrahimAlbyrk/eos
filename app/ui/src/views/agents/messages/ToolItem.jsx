@@ -43,7 +43,6 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
         onToggle={() => ui.toggleToolExpanded(expandKey)}
         className={"tool-item-header" + (isRunning ? " ti-running" : "")}
       >
-        <span className={"row-dot" + (failure ? " row-dot--err" : isRunning ? " row-dot--warn" : "")} aria-hidden />
         <span className={"ti-verb" + (isRunning ? " ti-shimmer" : "")}>{label.verb}</span>
         {" "}
         {agentRef ? (

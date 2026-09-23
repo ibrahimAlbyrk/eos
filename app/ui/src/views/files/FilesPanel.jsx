@@ -5,7 +5,6 @@ import { explorer, useExplorerRoot } from "../../state/explorerStore.js";
 import { workerGitDir } from "../../lib/workerGitDir.js";
 import { projectPathFor } from "../../lib/breadcrumb.js";
 import { PanelShell } from "../agents/panes/PanelShell.jsx";
-import { FileViewer } from "../agents/messages/FileViewer.jsx";
 import { ExplorerToolbar } from "./sidebar/ExplorerToolbar.jsx";
 import { ExplorerSearch } from "./sidebar/ExplorerSearch.jsx";
 import { FileTree } from "./tree/FileTree.jsx";
@@ -18,8 +17,7 @@ import { useExplorerKeys } from "./useExplorerKeys.js";
 let mounted = 0;
 
 // Files tab of the single side panel: the explorer (toolbar / search / tree)
-// until a file is opened (ui.panelFile) — then the nested FileViewer takes over
-// with a Back button. Root seeds from the panel's `cwd` data or, when absent,
+// only — opening a file adds its own `file:<path>` tab. Root seeds from the panel's `cwd` data or, when absent,
 // the selected agent's worktree / project path.
 export function FilesPanel({ live }) {
   const ui = useUi();
@@ -27,9 +25,9 @@ export function FilesPanel({ live }) {
   const root = useExplorerRoot();
 
   const worker = (live?.workers ?? []).find((w) => w.id === ui.selectedId) ?? null;
+  const agentDir = workerGitDir(worker) ?? projectPathFor(live?.workers ?? [], ui.selectedId);
   const cwd = ui.panelData?.files?.cwd
-    ?? workerGitDir(worker)
-    ?? projectPathFor(live?.workers ?? [], ui.selectedId)
+    ?? agentDir
     ?? ui.composer?.cwd
     ?? null;
   useEffect(() => {
@@ -49,8 +47,6 @@ export function FilesPanel({ live }) {
       if (mounted === 0) explorer.pauseWatches();
     };
   }, []);
-
-  if (ui.panelFile) return <FileViewer live={live} />;
 
   // No folder open (and none to seed) → the shared empty-state recipe with an
   // Open folder ⌘O chip. Gated on `!cwd` too so a folder that will seed on mount
@@ -78,7 +74,7 @@ export function FilesPanel({ live }) {
       <ExplorerSearch />
       <FileTree />
       <FilesContextMenu />
-      <FolderPicker live={live} />
+      <FolderPicker live={live} agentDir={agentDir} />
     </PanelShell>
   );
 }
