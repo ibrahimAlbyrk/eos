@@ -595,11 +595,14 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 }
 .sp-plus:hover, .sp-chrome-btn:hover { background: var(--chip); color: var(--fg-mid); }
 .sp-plus.on { background: var(--row-on); color: var(--fg); }
+.sp-plus { position: relative; }
 .sp-spacer { flex: 1; }
+/* Dropped from the + button (its anchor), so it tracks the button wherever the
+   open-tab count pushes it along the bar. */
 .sp-plus-menu {
   position: absolute;
-  top: 46px;
-  left: 232px;
+  top: calc(100% + 6px);
+  left: 0;
   width: 232px;
   background: var(--pop);
   border-radius: 13px;

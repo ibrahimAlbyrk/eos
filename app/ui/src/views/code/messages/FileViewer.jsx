@@ -171,14 +171,14 @@ function FileViewerInner({ path, live }) {
   useKeybinding({
     match: combo("mod+f"),
     priority: 10,
-    when: () => isText && ui.panelTab === "files" && ui.panelFile != null && ui.focusedRegion === "panel",
+    when: () => isText && ui.activeTab === "files" && ui.panelFile != null && ui.focusedRegion === "panel",
     run: (ctx, e) => {
       e.preventDefault();
       setShowOpenWith(false);
       setShowFind(true);
       requestAnimationFrame(() => { findRef.current?.focus(); findRef.current?.select(); });
     },
-  }, [isText, ui.panelTab, ui.panelFile, ui.focusedRegion]);
+  }, [isText, ui.activeTab, ui.panelFile, ui.focusedRegion]);
 
   const togglePreview = () => {
     setViewMode((m) => (m === "preview" ? "source" : "preview"));

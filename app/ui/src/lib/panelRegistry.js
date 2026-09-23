@@ -1,7 +1,7 @@
 // Tab registry for the single right side panel — maps a tab type to its content
 // component + label. The five tabs (review / files / terminal / browser /
 // chatfiles) register once at module load (side-effect of importing
-// panes/registerPanels.js); SidePanel reads getPanel(panelTab).Component.
+// panes/registerPanels.js); SidePanel reads getPanel(activeTab).Component.
 //
 // descriptor: { type, label, Component }
 

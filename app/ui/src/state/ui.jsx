@@ -49,7 +49,7 @@ export function useUi() {
   // null for shared chrome → fall back to the focused pane. Scopes the per-pane
   // composer popover so one pane's menu doesn't render in the others. The right
   // side panel is now a single shared surface (see SidePanel), not per pane, so
-  // its state lives directly on `selection` (panelTab / showSidePanel / …).
+  // its state lives directly on `selection` (openTabs / activeTab / showSidePanel / …).
   const originPane = useContext(PaneScopeContext);
   const scopePane = originPane ?? pane.focusedLeafId;
   const scopeRef = useRef(scopePane);

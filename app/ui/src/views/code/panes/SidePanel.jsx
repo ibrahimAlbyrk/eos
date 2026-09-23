@@ -3,12 +3,13 @@ import { useUi } from "../../../state/ui.jsx";
 import { getPanel } from "../../../lib/panelRegistry.js";
 import "./registerPanels.js";
 
-// The ONE shared right side panel: a tab bar (Review / Files / Terminal /
-// Browser, + Chat files when active) over a single content area, plus a 6px
-// invisible col-resize handle on its left edge. Replaces the old per-pane tiling
-// dock — it is a grid sibling of the pane area (AppLayout column 3), keyed to the
-// selected agent, not per pane. Width persists (cm:sidePanelWidth); double-click
-// the edge resets to min(620px, 40vw).
+// The ONE shared right side panel: a tab bar over a single content area, plus a
+// 6px invisible col-resize handle on its left edge. It is a grid sibling of the
+// pane area (AppLayout column 3), keyed to the selected agent, not per pane.
+// Pills render ONLY the open tabs (default: none — a quiet empty state); the +
+// menu opens Terminal / Files / Chat files, the active pill's × closes just that
+// tab, and the chrome × hides the whole panel. Width persists
+// (cm:sidePanelWidth); double-click the edge resets to min(620px, 40vw).
 
 const ICONS = {
   review: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="2.5" y="2.5" width="11" height="11" rx="2" /><path d="M5.5 8h5M8 5.5v5" /></svg>,
@@ -18,14 +19,15 @@ const ICONS = {
   chatfiles: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M10.5 4.5 5.8 9.2a1.5 1.5 0 0 0 2.1 2.1l5-5a3 3 0 0 0-4.2-4.2l-5 5a4.5 4.5 0 0 0 6.4 6.4L13 10.6" /></svg>,
 };
 
-// The four always-visible tabs. Chat files only appears when it is the active
-// tab (reference: it has no inactive pill).
-const TABS = [
-  { type: "review", label: "Review" },
-  { type: "files", label: "Files" },
-  { type: "terminal", label: "Terminal" },
-  { type: "browser", label: "Browser" },
-];
+// Tab labels for every openable panel type. Pills render only the currently
+// open tabs (ui.openTabs), in the order they were opened.
+const TAB_LABELS = {
+  review: "Review",
+  files: "Files",
+  terminal: "Terminal",
+  browser: "Browser",
+  chatfiles: "Chat files",
+};
 
 function TabPill({ type, label, active, onSelect, onClose }) {
   if (active) {
@@ -33,7 +35,7 @@ function TabPill({ type, label, active, onSelect, onClose }) {
       <span className="sp-tab is-active">
         <span className="sp-tab-icon">{ICONS[type]}</span>
         <span className="sp-tab-label">{label}</span>
-        <span className="sp-tab-x" onClick={onClose} title="Close panel" role="button" aria-label="Close panel">
+        <span className="sp-tab-x" onClick={onClose} title="Close tab" role="button" aria-label="Close tab">
           <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
         </span>
       </span>
@@ -64,10 +66,25 @@ function PlusMenu({ onPick }) {
   );
 }
 
+// Quiet resting state when the panel is open with no tabs (the last one was
+// closed, or a fresh session). Points at the + menu, the way tabs are opened.
+function EmptyPanel() {
+  return (
+    <div className="empty-state">
+      <span className="empty-state__icon">
+        <svg width="40" height="40" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="12" height="10" rx="2" /><line x1="10.5" y1="3" x2="10.5" y2="13" /></svg>
+      </span>
+      <span className="empty-state__title">No panel open</span>
+      <span className="empty-state__subtitle">Open Terminal, Files or Chat files from the + menu.</span>
+    </div>
+  );
+}
+
 export function SidePanel({ live }) {
   const ui = useUi();
-  const tab = ui.panelTab ?? "review";
-  const panel = getPanel(tab);
+  const openTabs = ui.openTabs ?? [];
+  const activeTab = ui.activeTab ?? null;
+  const panel = activeTab ? getPanel(activeTab) : null;
   const asideRef = useRef(null);
   const [plusOpen, setPlusOpen] = useState(false);
 
@@ -125,21 +142,19 @@ export function SidePanel({ live }) {
     <aside className="side-panel" ref={asideRef} onMouseDownCapture={() => ui.setFocusedRegion("panel")}>
       <div className="sp-resize" onPointerDown={onDragStart} onDoubleClick={() => ui.setSidePanelWidth(null)} title="Drag to resize" />
       <div className="sp-tabbar">
-        {TABS.map((t) => (
+        {openTabs.map((type) => (
           <TabPill
-            key={t.type}
-            type={t.type}
-            label={t.label}
-            active={tab === t.type}
-            onSelect={() => ui.setTab(t.type)}
-            onClose={ui.closePanel}
+            key={type}
+            type={type}
+            label={TAB_LABELS[type] ?? type}
+            active={type === activeTab}
+            onSelect={() => ui.setTab(type)}
+            onClose={() => ui.closeTab(type)}
           />
         ))}
-        {tab === "chatfiles" && (
-          <TabPill type="chatfiles" label="Chat files" active onSelect={() => {}} onClose={ui.closePanel} />
-        )}
         <span className={"sp-plus" + (plusOpen ? " on" : "")} onClick={() => setPlusOpen((v) => !v)} title="New tab" role="button">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
+          {plusOpen && <PlusMenu onPick={pickTab} />}
         </span>
         <span className="sp-spacer" />
         <span className="sp-chrome-btn" onClick={onFullscreen} title="Fullscreen" role="button">
@@ -148,10 +163,9 @@ export function SidePanel({ live }) {
         <span className="sp-chrome-btn" onClick={ui.closePanel} title="Close" role="button">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 4 8 8M12 4l-8 8" /></svg>
         </span>
-        {plusOpen && <PlusMenu onPick={pickTab} />}
       </div>
       <div className="sp-content">
-        {panel ? <panel.Component live={live} /> : null}
+        {panel ? <panel.Component live={live} /> : <EmptyPanel />}
       </div>
     </aside>
   );

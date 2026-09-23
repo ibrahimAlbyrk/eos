@@ -44,8 +44,8 @@ export function PaneProvider({ children }) {
   // selection + panel view without re-registering).
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
-  const panelViewRef = useRef({ show: selection.showSidePanel, tab: selection.panelTab });
-  panelViewRef.current = { show: selection.showSidePanel, tab: selection.panelTab };
+  const panelViewRef = useRef({ show: selection.showSidePanel, tab: selection.activeTab });
+  panelViewRef.current = { show: selection.showSidePanel, tab: selection.activeTab };
   const [tree, setTree] = useState(loadTree);
   const [focusedLeafId, setFocusedLeafId] = useState(() => loadFocusedLeaf(loadTree()));
   // Which region of the focused pane owns region-scoped shortcuts (⌘F): the

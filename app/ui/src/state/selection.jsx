@@ -1,8 +1,33 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
 import { loadCollapsedNodes, saveCollapsedNodes } from "../lib/collapseMemory.js";
+import { EMPTY_TABS, openTab as openTabReducer, closeTab as closeTabReducer } from "../lib/panelTabs.js";
 
 const SelectionContext = createContext(null);
+
+// Panel open-tabs persist as one JSON blob ({openTabs, activeTab}); a fresh
+// session (no stored value) is EMPTY so the panel comes up with no tabs.
+function loadPanelTabs() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("cm:sidePanelTabs") ?? "null");
+    if (raw && Array.isArray(raw.openTabs)) {
+      const openTabs = raw.openTabs.filter((t) => typeof t === "string");
+      const activeTab = openTabs.includes(raw.activeTab) ? raw.activeTab : (openTabs[openTabs.length - 1] ?? null);
+      return { openTabs, activeTab };
+    }
+  } catch {
+    // corrupt/absent storage — start empty
+  }
+  return { ...EMPTY_TABS };
+}
+function savePanelTabs(s) {
+  try {
+    if (s.openTabs.length) localStorage.setItem("cm:sidePanelTabs", JSON.stringify(s));
+    else localStorage.removeItem("cm:sidePanelTabs");
+  } catch {
+    // storage disabled or over quota — best-effort
+  }
+}
 
 export function SelectionProvider({ children }) {
   const [selectedId, _setSelectedId] = useState(() => localStorage.getItem("cm:selectedId"));
@@ -74,13 +99,15 @@ export function SelectionProvider({ children }) {
   const [collapsedNodes, setCollapsedNodes] = useState(() => loadCollapsedNodes());
   useEffect(() => { saveCollapsedNodes(collapsedNodes); }, [collapsedNodes]);
   const [expandedTools, setExpandedTools] = useState(() => new Set());
-  // ── Single shared right side panel (replaces the per-pane tiling dock) ──
-  // ONE panel for the whole workspace, not per pane: an active tab, an open
-  // flag, a width, and per-tab data keyed by tab. `panelFile` is the file open
-  // INSIDE the Files tab (nested viewer) — the explorer shows when it's null.
-  // Tab + open flag + width persist; per-tab data and the open file are
-  // session-only (they derive from the selected agent).
-  const [panelTab, setPanelTab] = useState(() => localStorage.getItem("cm:sidePanelTab") || "review");
+  // ── Single shared right side panel (open-tabs model) ──
+  // ONE panel for the whole workspace: an ORDERED set of open tabs + the active
+  // one, an open flag, a width, and per-tab data keyed by tab. Opening a tab
+  // appends+activates it and reveals the panel; the active pill's × closes just
+  // THAT tab (activating a neighbor) and leaves the panel open — empty when the
+  // last tab goes. `panelFile` is the file open INSIDE the Files tab. Open tabs
+  // + open flag + width persist; per-tab data and the open file are session-only
+  // (they derive from the selected agent). Default: no open tabs, panel hidden.
+  const [panelTabs, setPanelTabs] = useState(loadPanelTabs);
   const [showSidePanel, setShowSidePanel] = useState(() => localStorage.getItem("cm:showSidePanel") === "1");
   const [sidePanelWidth, _setSidePanelWidth] = useState(() => {
     const v = Number(localStorage.getItem("cm:sidePanelWidth"));
@@ -88,26 +115,36 @@ export function SelectionProvider({ children }) {
   });
   const [panelData, setPanelData] = useState({});
   const [panelFile, setPanelFile] = useState(null);
-  useEffect(() => { localStorage.setItem("cm:sidePanelTab", panelTab); }, [panelTab]);
+  const openTabs = panelTabs.openTabs;
+  const activeTab = panelTabs.activeTab;
+  useEffect(() => { savePanelTabs(panelTabs); }, [panelTabs]);
   useEffect(() => { localStorage.setItem("cm:showSidePanel", showSidePanel ? "1" : "0"); }, [showSidePanel]);
   useEffect(() => {
     if (sidePanelWidth) localStorage.setItem("cm:sidePanelWidth", String(sidePanelWidth));
     else localStorage.removeItem("cm:sidePanelWidth");
   }, [sidePanelWidth]);
-  // Setting a tab always reveals the panel (reference: setTab ⇒ showSidePanel:true).
-  const setTab = useCallback((tab) => { setPanelTab(tab); setShowSidePanel(true); }, []);
+  // Open (or re-activate) a tab; always reveals the panel and merges any data.
   const openPanel = useCallback((tab, data) => {
-    setPanelTab(tab);
+    setPanelTabs((s) => openTabReducer(s, tab));
     setShowSidePanel(true);
     if (data) setPanelData((m) => ({ ...m, [tab]: { ...m[tab], ...data } }));
   }, []);
+  // Tab pills + the + menu: activate an open tab / open a new one (no data).
+  const setTab = useCallback((tab) => openPanel(tab), [openPanel]);
+  // Pill × — close ONE tab, keeping the panel open (empty when the last goes).
+  const closeTab = useCallback((tab) => {
+    setPanelTabs((s) => closeTabReducer(s, tab));
+    if (tab === "files") setPanelFile(null);
+  }, []);
+  // Chrome × / header toggle — hide the whole panel; open tabs are kept so a
+  // re-open restores them.
   const closePanel = useCallback(() => setShowSidePanel(false), []);
   const toggleSidePanel = useCallback(() => setShowSidePanel((v) => !v), []);
   const setSidePanelWidth = useCallback((px) => _setSidePanelWidth(px && px > 0 ? Math.round(px) : null), []);
   // Monotonic reveal seq so re-opening the same file+line re-centers the editor.
   const fileRevealSeq = useRef(0);
   const openFile = useCallback((path, reveal) => {
-    setPanelTab("files");
+    setPanelTabs((s) => openTabReducer(s, "files"));
     setShowSidePanel(true);
     setPanelFile({ path, reveal: reveal ? { line: reveal.line, column: reveal.column, seq: ++fileRevealSeq.current } : null });
   }, []);
@@ -231,11 +268,11 @@ export function SelectionProvider({ children }) {
     renamingId, setRenamingId,
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
     verdict, setVerdict,
-    // Single shared side panel — tab/open/width state + actions. useUi derives
-    // the per-tab reads (reviewViewer/filesViewer/...) from panelData + the
-    // selected agent.
-    panelTab, showSidePanel, sidePanelWidth, panelData, panelFile,
-    setTab, openPanel, closePanel, toggleSidePanel, setSidePanelWidth, openFile, closeFile,
+    // Single shared side panel — open-tabs/open/width state + actions. useUi
+    // derives the per-tab reads (reviewViewer/filesViewer/...) from panelData +
+    // the selected agent.
+    openTabs, activeTab, showSidePanel, sidePanelWidth, panelData, panelFile,
+    setTab, openPanel, closeTab, closePanel, toggleSidePanel, setSidePanelWidth, openFile, closeFile,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
@@ -245,8 +282,8 @@ export function SelectionProvider({ children }) {
     collapseSidebar, expandSidebar, hoverSidebarIn, hoverSidebarKeep, hoverSidebarOut,
     openPopoverByPane, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict,
-    panelTab, showSidePanel, sidePanelWidth, panelData, panelFile,
-    setTab, openPanel, closePanel, toggleSidePanel, setSidePanelWidth, openFile, closeFile,
+    openTabs, activeTab, showSidePanel, sidePanelWidth, panelData, panelFile,
+    setTab, openPanel, closeTab, closePanel, toggleSidePanel, setSidePanelWidth, openFile, closeFile,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPopoverIn, openPopIn, closePopsIn, closeAllPopsEverywhere, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
     registerEscapeIdle,
