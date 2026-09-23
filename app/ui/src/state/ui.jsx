@@ -64,10 +64,11 @@ export function useUi() {
   // Scope-aware side-panel: resolve THIS consumer's pane state + wrap the raw
   // pane-explicit ops so every call site (ui.openPanel/ui.setTab/…) targets the
   // owning/focused pane with no prop-drilling.
-  const { openPanelIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, closeFileIn, panelsByPane } = selection;
+  const { openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, closeFileIn, panelsByPane } = selection;
   const panelState = panelsByPane[scopePane] ?? EMPTY_PANEL;
   const openPanel = useCallback((tab, data) => openPanelIn(scopeRef.current, tab, data), [openPanelIn]);
-  const setTab = useCallback((tab) => setTabIn(scopeRef.current, tab), [setTabIn]);
+  const openNewTab = useCallback((type) => openNewTabIn(scopeRef.current, type), [openNewTabIn]);
+  const setTab = useCallback((id) => setTabIn(scopeRef.current, id), [setTabIn]);
   const closeTab = useCallback((tab) => closeTabIn(scopeRef.current, tab), [closeTabIn]);
   const closePanel = useCallback(() => closePanelIn(scopeRef.current), [closePanelIn]);
   const toggleSidePanel = useCallback(() => toggleSidePanelIn(scopeRef.current), [toggleSidePanelIn]);
@@ -100,10 +101,10 @@ export function useUi() {
     panelFullscreen: panelState.fullscreen,
     panelData: panelState.data,
     panelFile: panelState.file,
-    openPanel, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile, closeFile,
+    openPanel, openNewTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile, closeFile,
   }), [
     navigation, selection, pane, composer, attention, search, settings, scopePane,
     openPopoverIn, openPop, closeAllPops,
-    panelState, openPanel, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile, closeFile,
+    panelState, openPanel, openNewTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile, closeFile,
   ]);
 }

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
 import { loadCollapsedNodes, saveCollapsedNodes } from "../lib/collapseMemory.js";
-import { openTab as openTabReducer, closeTab as closeTabReducer } from "../lib/panelTabs.js";
+import { openTab as openTabReducer, openNewTab as openNewTabReducer, closeTab as closeTabReducer } from "../lib/panelTabs.js";
 
 const SelectionContext = createContext(null);
 
@@ -143,7 +143,23 @@ export function SelectionProvider({ children }) {
       return { ...m, [paneId]: next };
     });
   }, []);
-  const setTabIn = useCallback((paneId, tab) => openPanelIn(paneId, tab), [openPanelIn]);
+  // + menu: open a NEW tab (multi types get a fresh instance; singletons reopen).
+  const openNewTabIn = useCallback((paneId, type) => {
+    if (!paneId) return;
+    setPanelsByPane((m) => {
+      const cur = m[paneId] ?? EMPTY_PANEL;
+      return { ...m, [paneId]: { ...cur, ...openNewTabReducer(cur, type), open: true } };
+    });
+  }, []);
+  // Pill click: activate an already-open tab by id (never opens a new instance).
+  const setTabIn = useCallback((paneId, id) => {
+    if (!paneId) return;
+    setPanelsByPane((m) => {
+      const cur = m[paneId] ?? EMPTY_PANEL;
+      if (!cur.openTabs.includes(id) || cur.activeTab === id) return m;
+      return { ...m, [paneId]: { ...cur, activeTab: id, open: true } };
+    });
+  }, []);
   const closeTabIn = useCallback((paneId, tab) => {
     if (!paneId) return;
     setPanelsByPane((m) => {
@@ -325,7 +341,7 @@ export function SelectionProvider({ children }) {
     // owning/focused pane and exposes the scope-aware reads (openTabs/activeTab/
     // showSidePanel/…) + actions (openPanel/setTab/closeTab/…) every call uses.
     panelsByPane,
-    openPanelIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, closeFileIn,
+    openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, closeFileIn,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
@@ -336,7 +352,7 @@ export function SelectionProvider({ children }) {
     openPopoverByPane, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict,
     panelsByPane,
-    openPanelIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, closeFileIn,
+    openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, closeFileIn,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPopoverIn, openPopIn, closePopsIn, closeAllPopsEverywhere, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
     registerEscapeIdle,

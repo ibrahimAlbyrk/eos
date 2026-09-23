@@ -17,14 +17,20 @@ import { TerminalView } from "../../../components/terminal/TerminalView.jsx";
 // across unmount); only when the pane has none does it spawn one fresh (in the
 // selected orchestrator's project path). TerminalView replays its session's
 // scrollback buffer on remount.
-export function TerminalViewer({ live }) {
+// One PTY session per top-level Terminal tab: the pane store key combines the
+// selected agent's session root (terminals stay per-project) with the tab id, so
+// each "Terminal N" pill owns an independent session. SidePanel uses the same
+// helper to kill that session when its tab is closed.
+export function terminalPaneKey(root, tabId) {
+  return tabId ? `${root}::${tabId}` : root;
+}
+
+export function TerminalViewer({ live, tabId }) {
   const ui = useUi();
   // undefined (not null) when unknown, so it's dropped from the POST body.
   const cwd = projectPathFor(live?.workers ?? [], ui.selectedId) ?? undefined;
-  // The single panel shares ONE terminal set per SESSION (like the browser tab),
-  // so its PTY store key is the selected agent's session root, not a pane id.
-  const key = sessionRootOf(ui.selectedId) ?? "global";
-  return <TerminalViewerInner paneId={key} cwd={cwd} />;
+  const root = sessionRootOf(ui.selectedId) ?? "global";
+  return <TerminalViewerInner paneId={terminalPaneKey(root, tabId)} cwd={cwd} />;
 }
 
 function TerminalViewerInner({ paneId, cwd }) {

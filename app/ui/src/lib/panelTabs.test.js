@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EMPTY_TABS, openTab, closeTab } from "./panelTabs.js";
+import { EMPTY_TABS, openTab, openNewTab, closeTab, tabType } from "./panelTabs.js";
 
 describe("panelTabs", () => {
   it("opens tabs in order and activates the opened one", () => {
@@ -37,5 +37,31 @@ describe("panelTabs", () => {
   it("closing an absent tab is a no-op (same reference)", () => {
     const s0 = { openTabs: ["review"], activeTab: "review" };
     expect(closeTab(s0, "files")).toBe(s0);
+  });
+});
+
+describe("panelTabs instances", () => {
+  it("tabType strips the instance suffix", () => {
+    expect(tabType("terminal")).toBe("terminal");
+    expect(tabType("terminal:2")).toBe("terminal");
+    expect(tabType("files")).toBe("files");
+  });
+
+  it("openNewTab adds a fresh terminal instance each time", () => {
+    let s = openNewTab(EMPTY_TABS, "terminal");
+    expect(s).toEqual({ openTabs: ["terminal:1"], activeTab: "terminal:1" });
+    s = openNewTab(s, "terminal");
+    expect(s).toEqual({ openTabs: ["terminal:1", "terminal:2"], activeTab: "terminal:2" });
+  });
+
+  it("openNewTab fills the lowest free terminal number after a close", () => {
+    const s = openNewTab({ openTabs: ["terminal:2"], activeTab: "terminal:2" }, "terminal");
+    expect(s.openTabs).toEqual(["terminal:2", "terminal:1"]);
+    expect(s.activeTab).toBe("terminal:1");
+  });
+
+  it("openNewTab treats non-multi types as singletons (re-activates)", () => {
+    const s = openNewTab({ openTabs: ["files"], activeTab: "files" }, "files");
+    expect(s).toEqual({ openTabs: ["files"], activeTab: "files" });
   });
 });

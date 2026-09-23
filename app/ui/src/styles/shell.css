@@ -594,6 +594,9 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   flex-shrink: 0;
 }
 .sp-tab-x:hover { color: var(--fg); }
+/* Inactive pills reveal their × only on hover; the active pill's × stays visible. */
+.sp-tab:not(.is-active) .sp-tab-x { visibility: hidden; }
+.sp-tab:not(.is-active):hover .sp-tab-x { visibility: visible; }
 .sp-plus, .sp-chrome-btn {
   width: 26px;
   height: 26px;

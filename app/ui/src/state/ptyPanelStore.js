@@ -93,6 +93,17 @@ export async function closeTab(paneId, sessionId, { cwd } = {}) {
   emit(p);
 }
 
+// Close a whole pane: kill every session it owns and drop the slot. Used when a
+// top-level Terminal tab (one pane = one terminal) is closed from the side panel,
+// so its PTY dies with the tab rather than lingering until the next boot reap.
+export async function closePane(paneId) {
+  const p = panes.get(paneId);
+  if (!p) return;
+  const ids = p.tabs.map((t) => t.sessionId);
+  panes.delete(paneId);
+  await Promise.all(ids.map((id) => api.killPty(id).catch(() => {})));
+}
+
 export function switchTab(paneId, sessionId) {
   const p = panes.get(paneId);
   if (!p || p.activeId === sessionId) return;

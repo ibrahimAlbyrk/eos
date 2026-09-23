@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { getPanel } from "../../../lib/panelRegistry.js";
+import { tabType } from "../../../lib/panelTabs.js";
+import { sessionRootOf } from "../../../lib/agentIndex.js";
+import { closePane as closePtyPane } from "../../../state/ptyPanelStore.js";
+import { terminalPaneKey } from "../messages/TerminalViewer.jsx";
 import "./registerPanels.js";
 
 // A pane's right side panel: a tab bar over a single content area, plus a 6px
@@ -34,15 +38,36 @@ const TAB_LABELS = {
   chatfiles: "Chat files",
 };
 
+// Pill label for a tab id. Multi-instance types are numbered ("Terminal 1",
+// "Terminal 2") only when more than one is open; a lone one keeps the bare name.
+function labelFor(id, openTabs) {
+  const type = tabType(id);
+  const base = TAB_LABELS[type] ?? type;
+  const sameType = openTabs.filter((t) => tabType(t) === type);
+  return sameType.length > 1 ? `${base} ${sameType.indexOf(id) + 1}` : base;
+}
+
 function TabPill({ type, label, active, onSelect, onClose }) {
+  // Every pill carries its ×: always shown on the active pill, revealed on hover
+  // for inactive ones (CSS-gated) so any open tab is closable. stopPropagation
+  // keeps the × from also selecting an inactive pill.
+  const closeX = (
+    <span
+      className="sp-tab-x"
+      onClick={(e) => { e.stopPropagation(); onClose(); }}
+      title="Close tab"
+      role="button"
+      aria-label="Close tab"
+    >
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+    </span>
+  );
   if (active) {
     return (
       <span className="sp-tab is-active">
         <span className="sp-tab-icon">{ICONS[type]}</span>
         <span className="sp-tab-label">{label}</span>
-        <span className="sp-tab-x" onClick={onClose} title="Close tab" role="button" aria-label="Close tab">
-          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"><path d="M4 4l8 8M12 4l-8 8" /></svg>
-        </span>
+        {closeX}
       </span>
     );
   }
@@ -50,6 +75,7 @@ function TabPill({ type, label, active, onSelect, onClose }) {
     <span className="sp-tab" onClick={onSelect} role="button" tabIndex={0}>
       <span className="sp-tab-icon">{ICONS[type]}</span>
       <span className="sp-tab-label">{label}</span>
+      {closeX}
     </span>
   );
 }
@@ -66,6 +92,7 @@ function PlusMenu({ onPick }) {
     <div className="sp-plus-menu" data-pop="sidepanel-plus">
       {item("terminal", "Terminal", "⌃`")}
       {item("files", "Files", "⌘P")}
+      {item("browser", "Browser")}
       {item("chatfiles", "Chat files")}
     </div>
   );
@@ -89,7 +116,7 @@ export function SidePanel({ live }) {
   const ui = useUi();
   const openTabs = ui.openTabs ?? [];
   const activeTab = ui.activeTab ?? null;
-  const panel = activeTab ? getPanel(activeTab) : null;
+  const panel = activeTab ? getPanel(tabType(activeTab)) : null;
   const asideRef = useRef(null);
   const [plusOpen, setPlusOpen] = useState(false);
 
@@ -131,7 +158,16 @@ export function SidePanel({ live }) {
     window.addEventListener("pointerup", up);
   }, [clampFor, ui]);
 
-  const pickTab = (t) => { ui.setTab(t); setPlusOpen(false); };
+  const pickTab = (t) => { ui.openNewTab(t); setPlusOpen(false); };
+
+  // Closing a Terminal pill kills its PTY session (one session per top-level tab);
+  // other panel types have nothing session-bound to tear down here.
+  const closeTabById = (id) => {
+    if (tabType(id) === "terminal") {
+      closePtyPane(terminalPaneKey(sessionRootOf(ui.selectedId) ?? "global", id));
+    }
+    ui.closeTab(id);
+  };
 
   // All hooks above run every render; only the JSX is gated on open.
   if (!ui.showSidePanel) return null;
@@ -147,14 +183,14 @@ export function SidePanel({ live }) {
     >
       <div className="sp-resize" onPointerDown={onDragStart} onDoubleClick={() => ui.setSidePanelWidth(null)} title="Drag to resize" />
       <div className="sp-tabbar">
-        {openTabs.map((type) => (
+        {openTabs.map((id) => (
           <TabPill
-            key={type}
-            type={type}
-            label={TAB_LABELS[type] ?? type}
-            active={type === activeTab}
-            onSelect={() => ui.setTab(type)}
-            onClose={() => ui.closeTab(type)}
+            key={id}
+            type={tabType(id)}
+            label={labelFor(id, openTabs)}
+            active={id === activeTab}
+            onSelect={() => ui.setTab(id)}
+            onClose={() => closeTabById(id)}
           />
         ))}
         <span className={"sp-plus" + (plusOpen ? " on" : "")} onClick={() => setPlusOpen((v) => !v)} title="New tab" role="button">
@@ -174,7 +210,7 @@ export function SidePanel({ live }) {
         </span>
       </div>
       <div className="sp-content">
-        {panel ? <panel.Component live={live} /> : <EmptyPanel />}
+        {panel ? <panel.Component key={activeTab} live={live} tabId={activeTab} /> : <EmptyPanel />}
       </div>
     </aside>
   );
