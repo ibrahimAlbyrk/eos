@@ -7,9 +7,9 @@
 // ad-hoc re-signs with the correct identifier) → verify the signature identifier
 // → RELIABLY terminate the running GUI app (graceful quit → poll → SIGTERM →
 // SIGKILL) → stop its daemon → verify BOTH dead → swap the bundle in /Applications
-// → force a clean LaunchServices re-registration + drop the icon cache + restart
-// the Dock (guarantees the Dock icon) → relaunch a guaranteed-fresh instance →
-// verify the new bundle is running.
+// → force a clean LaunchServices re-registration + drop the icon cache → relaunch
+// a guaranteed-fresh instance → verify the new bundle is running → restart the
+// Dock once the app has checked in (guarantees the Dock icon).
 //
 // dryRun previews every command (including the build) and executes NONE — the
 // safe way to inspect the install path without touching /Applications.
@@ -92,6 +92,12 @@ function guiAppPids(): number[] {
 /** Daemon process(es) running out of the installed bundle. */
 function daemonPids(): number[] {
   return pidsMatching(`${BUNDLE_PROC}.*daemon\\.bundle\\.mjs`);
+}
+
+/** The app finished launching and registered itself (lsappinfo prints a check-in time). */
+function appCheckedIn(): boolean {
+  const r = spawnSync("lsappinfo", ["info", "-app", APP_BUNDLE_ID], { encoding: "utf8" });
+  return /checkin time/.test(r.stdout ?? "");
 }
 
 /** Poll `cond` until it holds or the deadline passes. */
@@ -203,8 +209,8 @@ export async function buildAndInstallApp(ctx: AppInstallCtx): Promise<void> {
   //    even though nothing in the source or Info.plist requests it — a stale LS
   //    registration, not a code/config cause (a freshly-signed bundle registers as
   //    a normal foreground/Dock app). Force a clean re-registration, bump the
-  //    bundle mtime so LS re-reads it, drop the per-user icon cache, and restart
-  //    the Dock so the icon re-resolves.
+  //    bundle mtime so LS re-reads it, and drop the per-user icon cache. The Dock
+  //    restart that re-resolves the icon runs AFTER relaunch (step 8).
   step(ctx, `lsregister -f ${INSTALL_DEST}`, () => {
     execFileSync(LSREGISTER, ["-f", INSTALL_DEST]);
   });
@@ -216,11 +222,6 @@ export async function buildAndInstallApp(ctx: AppInstallCtx): Promise<void> {
   step(ctx, `rm -rf ${ICON_CACHE}`, () => {
     try {
       execFileSync("rm", ["-rf", ICON_CACHE]);
-    } catch {}
-  });
-  step(ctx, `killall Dock`, () => {
-    try {
-      execFileSync("killall", ["Dock"]);
     } catch {}
   });
 
@@ -239,6 +240,23 @@ export async function buildAndInstallApp(ctx: AppInstallCtx): Promise<void> {
       throw new Error("relaunched app did not appear — check ~/.eos/logs/daemon.log");
     }
     ctx.log(`  ✓ new bundle running (pid ${guiAppPids()[0]})`);
+  }
+
+  // 8. Restart the Dock only once the new app has checked in with LaunchServices.
+  //    `killall Dock` returns before the Dock is back; an app launched into that
+  //    window never gets a Dock tile for its whole session. A Dock that restarts
+  //    while the app is already registered picks it up on its startup scan.
+  if (ctx.dryRun) {
+    ctx.log(`● would wait for LaunchServices check-in (up to ${RELAUNCH_WAIT_MS}ms), then run: killall Dock`);
+  } else {
+    if (!(await pollUntil(appCheckedIn, RELAUNCH_WAIT_MS))) {
+      ctx.log(`  ! app did not check in with LaunchServices — restarting Dock anyway`);
+    }
+    step(ctx, `killall Dock`, () => {
+      try {
+        execFileSync("killall", ["Dock"]);
+      } catch {}
+    });
   }
 
   ctx.log(ctx.dryRun ? "app install: dry-run (nothing changed)" : "app installed + relaunched");

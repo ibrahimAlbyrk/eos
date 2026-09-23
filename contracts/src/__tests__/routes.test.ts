@@ -7,7 +7,6 @@ const EXPECTED_KEYS = [
   "workerQueue", "workerQueueItem",
   "workerAction", "workerPush", "workerPushState", "workerPull",
   "orchestrators", "orchestratorMessage", "orchestratorIntegrate",
-  "home", "homeMessage", "homeDelete",
   "orchestratorLoop", "orchestratorLoopStop", "policyDecide", "policyRule",
   "pending", "pendingDecision", "metrics", "datetime", "uiConfig",
   "pickDirectory", "pickFile", "fsDefaultApp", "fsOpen", "fsIcon",

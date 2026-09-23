@@ -29,7 +29,7 @@ import type { ProviderErrorInfo } from "../infra/src/backends/provider-error.ts"
 import { processAgentSignal } from "../core/src/use-cases/ProcessAgentSignal.ts";
 import type { AgentEvent } from "../contracts/src/canonical.ts";
 import type { AgentBackend, AgentLaunchSpec } from "../core/src/ports/AgentBackend.ts";
-import { backendCollaborate, backendRole } from "../core/src/ports/AgentBackend.ts";
+import { backendCollaborate } from "../core/src/ports/AgentBackend.ts";
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
 import { createSubscriptionAuthResolver, readSubscriptionTokenCandidates } from "../infra/src/auth/SubscriptionAuthResolver.ts";
 import { createClaudeUsageProvider } from "../infra/src/usage/ClaudeUsageProvider.ts";
@@ -45,7 +45,7 @@ import { buildBuiltinSurface, buildLaneSurface, taskToolItem, type LaneTooling }
 import { SKILL_TOOL_NAME, skillToolItem, buildSkillTool, renderAvailableSkills } from "./backends/skill-tooling.ts";
 import { createFileSkillCatalog } from "../infra/src/skills/FileSkillCatalog.ts";
 import { createCommandTemplateExpander } from "./backends/command-expander.ts";
-import { orchestratorDefs, workerDefs, peerDefs, homeDefs } from "./tools/registry.ts";
+import { orchestratorDefs, workerDefs, peerDefs } from "./tools/registry.ts";
 import { toRuntimeTool, prefixedToolName, mcpServerForRole, toolJsonSchema } from "./tools/projections.ts";
 import { renderToolDescriptions } from "./tool-descriptions.ts";
 import { daemonApi } from "./shared/http.ts";
@@ -591,7 +591,6 @@ export function buildContainer() {
   const assembleAppendText = (spec: SpawnWorkerSpec, id: string, lane: string): string | null => {
     const role = spec.isOrchestrator ? "orchestrator"
       : spec.role === "git" ? "git"
-      : spec.role === "home" ? "home"
       : "worker";
     const lookupCwd = spec.cwd ?? spec.worktreeDir ?? spec.worktreeFrom ?? null;
     // The resolved definition body becomes one synthetic role/20 fragment (built-in,
@@ -814,8 +813,7 @@ export function buildContainer() {
   const buildLaneTooling = (spec: AgentLaunchSpec): { items: Array<{ name: string; description: string; schema: Record<string, unknown> }>; tools: Map<string, { name: string; execute(input: Record<string, unknown>): Promise<string> }> } => {
     const ctx = makeToolContext(spec);
     const collaborate = backendCollaborate(spec.backendOptions);
-    const defs = backendRole(spec.backendOptions) === "home" ? homeDefs
-      : spec.isOrchestrator ? orchestratorDefs
+    const defs = spec.isOrchestrator ? orchestratorDefs
       : [...workerDefs, ...(collaborate ? peerDefs : [])];
     const server = mcpServerForRole(spec.isOrchestrator);
     const descriptions = renderInprocToolDescriptions();
@@ -1014,7 +1012,7 @@ export function buildContainer() {
   const claudeSdkBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
-    toolHost: { orchestratorDefs, workerDefs, peerDefs, homeDefs, renderDescriptions: renderInprocToolDescriptions },
+    toolHost: { orchestratorDefs, workerDefs, peerDefs, renderDescriptions: renderInprocToolDescriptions },
     daemonUrl: sdkDaemonUrl,
     // Read live (config is reassigned by reloadConfig) so a Settings > Anthropic
     // save is picked up on the next spawn without restarting the daemon.
@@ -1036,7 +1034,7 @@ export function buildContainer() {
   const judgeBackend = createClaudeSdkBackend({
     authResolver,
     policy: sdkPolicy,
-    toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], homeDefs: [], renderDescriptions: () => ({}) },
+    toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
     daemonUrl: sdkDaemonUrl,
     getAnthropicConfig: () => config.anthropic,
     makeToolContext,

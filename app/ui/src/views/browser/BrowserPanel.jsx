@@ -9,8 +9,7 @@ import {
 } from "../../state/browserPanelStore.js";
 import { notePanelOpened, seedRememberedTab } from "../../state/browserSessionState.js";
 import { sessionRootOf } from "../../lib/agentIndex.js";
-import { findLeaf } from "../../lib/paneLayout.js";
-import { PanelShell } from "../code/panes/PanelShell.jsx";
+import { PanelShell } from "../agents/panes/PanelShell.jsx";
 import { BrowserEmptyState } from "./BrowserEmptyState.jsx";
 import { BrowserTabStrip } from "./BrowserTabStrip.jsx";
 import { BrowserNavBar } from "./BrowserNavBar.jsx";
@@ -32,12 +31,15 @@ const EMBEDDED = typeof window !== "undefined" && Boolean(window.eosBrowserView)
 // Engine states that replace the view with a message body.
 const LIVE_BLOCK = { disabled: "disabled", absent: "absent", crashed: "crashed" };
 
+// The single side panel hosts ONE browser view, so its geometry key is a
+// constant; the browser STATE (tabs/url) is still keyed per session, derived
+// from the panel's `browser` data or the selected agent's session root.
+const PANEL_ID = "sidepanel";
+
 export function BrowserPanel() {
   const ui = useUi();
-  if (!ui.browserViewer) return <PanelShell type="browser" />;
-  const sessionKey = ui.browserViewer.sessionKey
-    ?? sessionRootOf(findLeaf(ui.tree, ui.paneId)?.agentId);
-  return <BrowserPanelInner paneId={ui.paneId} sessionKey={sessionKey} />;
+  const sessionKey = ui.panelData?.browser?.sessionKey ?? sessionRootOf(ui.selectedId);
+  return <BrowserPanelInner paneId={PANEL_ID} sessionKey={sessionKey} />;
 }
 
 function BrowserPanelInner({ paneId, sessionKey }) {

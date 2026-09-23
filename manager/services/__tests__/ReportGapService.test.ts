@@ -93,7 +93,6 @@ describe("ReportGapService", () => {
       { live: false },
       { agentRole: "orchestrator" },
       { agentRole: "git" },
-      { agentRole: "home" },
       { agentRole: null },
       { parentId: null },
       { activeLoop: { id: "l-1" } },

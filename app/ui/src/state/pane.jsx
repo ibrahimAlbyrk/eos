@@ -1,6 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { useSelection } from "./selection.jsx";
-import { isDockFullscreen, setDockFullscreen } from "./dockFullscreenStore.js";
+import { useSelection, EMPTY_PANEL } from "./selection.jsx";
 import {
   MAX_PANES, leaf, leaves, leafCount, findLeaf, leafOfAgent, isValidTree,
   splitLeaf, removeLeaf, setRatio, setLeafAgent, removeDeadLeaves,
@@ -39,11 +38,17 @@ function loadFocusedLeaf(tree) {
 }
 
 export function PaneProvider({ children }) {
-  const {
-    selectedId, setSelectedId,
-    topPanelTypeIn, popPanelIn, clearPanelsIn, retainPanelsFor, registerEscapePanel,
-    hasPanelIn, openPanelIn,
-  } = useSelection();
+  const selection = useSelection();
+  const { selectedId, setSelectedId, openPanelIn, panelsByPane } = selection;
+  // Live mirrors for the imperative browser-session bridge (reads current
+  // selection + per-pane panel state without re-registering).
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const panelsRef = useRef(panelsByPane);
+  panelsRef.current = panelsByPane;
+  // The focused pane's panel view (open + active tab), for the session-switch
+  // stash below; set once focusedLeafId is known (just under the refs).
+  const panelViewRef = useRef({ show: false, tab: null });
   const [tree, setTree] = useState(loadTree);
   const [focusedLeafId, setFocusedLeafId] = useState(() => loadFocusedLeaf(loadTree()));
   // Which region of the focused pane owns region-scoped shortcuts (⌘F): the
@@ -57,6 +62,8 @@ export function PaneProvider({ children }) {
   treeRef.current = tree;
   const focusedRef = useRef(focusedLeafId);
   focusedRef.current = focusedLeafId;
+  const focusedPanel = panelsByPane[focusedLeafId] ?? EMPTY_PANEL;
+  panelViewRef.current = { show: focusedPanel.open, tab: focusedPanel.activeTab };
 
   const leafList = useMemo(() => leaves(tree), [tree]);
   const paneAgents = useMemo(() => leafList.map((l) => l.agentId), [leafList]);
@@ -73,52 +80,21 @@ export function PaneProvider({ children }) {
     setTree((t) => setLeafAgent(t, focusedLeafId, selectedId));
   }, [selectedId, focusedLeafId]);
 
-  // Escape pops the FOCUSED pane's panel stack. SelectionProvider owns the
-  // keydown but can't see focus, so we register a focus-aware popper (reads live
-  // focus + selection's stable ops, so this registers once).
+  // When the focused pane's selection moves to a different session, stash whether
+  // the leaving session's Browser tab was showing in that pane, then re-open the
+  // arriving session's Browser tab (in the pane the selection landed in) when it
+  // was last seen open (or owes its deferred first-use auto-open).
+  const prevSelRef = useRef(selectedId);
   useEffect(() => {
-    registerEscapePanel(() => {
-      const id = focusedRef.current;
-      if (!id) return false;
-      // A fullscreen dock eats the first Esc (exit fullscreen); a second Esc
-      // then falls through to the normal panel-close chain below.
-      if (isDockFullscreen(id)) { setDockFullscreen(id, false); return true; }
-      if (topPanelTypeIn(id)) { popPanelIn(id); return true; }
-      return false;
-    });
-  }, [registerEscapePanel, topPanelTypeIn, popPanelIn]);
-
-  // Clear-on-rebuild: on every tree change, drop any panel whose pane no longer
-  // exists. Covers close / prune / preset reapply (fillAgents mints fresh leaf
-  // ids → all old-keyed panels orphan and are pruned). No-op when all live.
-  const liveLeafIds = useMemo(() => leafList.map((l) => l.id), [leafList]);
-  useEffect(() => {
-    retainPanelsFor(new Set(liveLeafIds));
-  }, [liveLeafIds, retainPanelsFor]);
-
-  // Clear a pane's panel when its shown AGENT changes — single-pane parity with
-  // the old global clear-on-select (switching agents drops the stale viewer),
-  // without nuking another pane's panel on a focus move. New panes (no prior
-  // entry) and removed panes (handled above) are skipped; reuseLeafIds keeps
-  // id↔agent stable across follow rebuilds so survivors don't churn.
-  // The BROWSER slot is exempt-by-restore: its open/tab state is remembered per
-  // SESSION (browserSessionState) — stashed before the clear, re-opened after
-  // when the arriving agent's session was last seen open (or owes its deferred
-  // first-use auto-open). Other panel types clear as before.
-  const paneAgentsRef = useRef(null);
-  useEffect(() => {
-    const cur = new Map(leafList.map((l) => [l.id, l.agentId ?? null]));
-    const prev = paneAgentsRef.current;
-    paneAgentsRef.current = cur;
-    if (!prev) return;
-    for (const [id, agentId] of cur) {
-      if (!prev.has(id) || prev.get(id) === agentId) continue;
-      stashBrowserSession(sessionRootOf(prev.get(id)), hasPanelIn(id, "browser"));
-      clearPanelsIn(id);
-      const sessionKey = sessionRootOf(agentId);
-      if (shouldRestoreBrowser(sessionKey)) openPanelIn(id, "browser", { sessionKey });
-    }
-  }, [leafList, clearPanelsIn, hasPanelIn, openPanelIn]);
+    const prev = prevSelRef.current;
+    const next = selectedId;
+    prevSelRef.current = next;
+    if (prev === next) return;
+    const { show, tab } = panelViewRef.current;
+    stashBrowserSession(sessionRootOf(prev), show && tab === "browser");
+    const sessionKey = sessionRootOf(next);
+    if (shouldRestoreBrowser(sessionKey)) openPanelIn(focusedRef.current, "browser", { sessionKey });
+  }, [selectedId, openPanelIn]);
 
   const focusLeaf = useCallback((id) => {
     const l = findLeaf(treeRef.current, id);
@@ -185,28 +161,32 @@ export function PaneProvider({ children }) {
     setSelectedId(id);
   }, [focusLeaf, setSelectedId]);
 
-  // Pane-layout bridge for the browser session store's activity rules (find the
-  // panes showing a session, open the browser panel there, and — for the
-  // clickable "present" toast — jump to a session not currently on screen).
-  // Stable ops + the live tree ref, so this registers once. Registered here,
-  // after selectAgent, so openSessionBrowser can reuse it.
+  // Browser session bridge for the activity rules — per pane now: a session may
+  // be shown in several panes, each with its own browser panel. Stable ops +
+  // live refs, so it registers once.
   useEffect(() => {
     registerBrowserSessionUi({
+      // Real leaf ids whose shown agent belongs to the session.
       panesShowing: (sessionKey) =>
-        leaves(treeRef.current).filter((l) => sessionRootOf(l.agentId) === sessionKey).map((l) => l.id),
-      isBrowserOpenIn: (paneId) => hasPanelIn(paneId, "browser"),
+        leaves(treeRef.current)
+          .filter((l) => l.agentId && sessionRootOf(l.agentId) === sessionKey)
+          .map((l) => l.id),
+      isBrowserOpenIn: (paneId) => {
+        const p = panelsRef.current[paneId];
+        return p?.open === true && p.activeTab === "browser";
+      },
       openBrowserIn: (paneId, sessionKey) => openPanelIn(paneId, "browser", { sessionKey }),
-      // Select the session's root agent (focusing an existing pane or writing it
-      // into the focused one), then open the browser panel there — on whichever
-      // pane now owns the session. The presented tab was already set on the
-      // session-keyed browserPanelStore by applyActivity before the toast fired.
+      // Select the session's root agent, then bring its Browser tab up in the
+      // pane that shows it (else the pane the selection landed in). The presented
+      // tab was already set on the session-keyed browserPanelStore by
+      // applyActivity before the toast fired.
       openSessionBrowser: (sessionKey) => {
         selectAgent(sessionKey);
         const l = leafOfAgent(treeRef.current, sessionKey);
-        openPanelIn(l ? l.id : focusedRef.current, "browser", { sessionKey });
+        openPanelIn(l?.id ?? focusedRef.current, "browser", { sessionKey });
       },
     });
-  }, [hasPanelIn, openPanelIn, selectAgent]);
+  }, [openPanelIn, selectAgent]);
 
   // Cmd-click toggles an agent as a pane: remove it if shown (never the last),
   // else split the focused pane to add it (capped in splitLeaf).

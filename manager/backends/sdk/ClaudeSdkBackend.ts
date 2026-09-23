@@ -17,7 +17,7 @@ import type { DroppedServer } from "./SdkMcpTranslator.ts";
 import type {
   AgentBackend, AgentSession, AgentLaunchSpec, AgentStartCallbacks, AgentCapabilities, BackendDescriptor, WorkerHandle,
 } from "../../../core/src/ports/AgentBackend.ts";
-import { backendCollaborate, backendRole } from "../../../core/src/ports/AgentBackend.ts";
+import { backendCollaborate } from "../../../core/src/ports/AgentBackend.ts";
 import type { RewindResult } from "../../../core/src/ports/WorkerClient.ts";
 import { computeRewindTargets, rewindSliceAnchor, type RewindTarget } from "../../../core/src/domain/rewind-targets.ts";
 import { encodeCwd } from "../../../core/src/domain/claude-paths.ts";
@@ -368,7 +368,6 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         const built = buildSdkToolServers(deps.toolHost, {
           isOrchestrator: spec.isOrchestrator,
           collaborate: backendCollaborate(opts),
-          role: backendRole(opts),
           ctx,
         });
         // Default: just the in-process Eos builtins (judge / no resolver). With the

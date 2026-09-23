@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { keymap } from "./index.js";
 
-// Mount ONCE (CodeView). One capture-phase window listener routes every keydown
+// Mount ONCE (AgentsView). One capture-phase window listener routes every keydown
 // through the keymap; the matched binding decides what runs and whether to
 // preventDefault. Replaces N per-hook window listeners with one.
 export function useGlobalKeymap(getCtx) {

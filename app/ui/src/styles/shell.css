@@ -1,0 +1,1169 @@
+/* shell.css — sidebar, header/PaneHeader, collapsed sidebar, native titlebar,
+   split/pane grid and AppLayout. charcoal-aurora: depth is a
+   surface step (bg → panel → raised → row-on → chip), the ONLY border color is
+   --line, and floating layers get --sh-pop / --sh-palette / --sh-modal. Fills —
+   never borders or shadows — mark hover/selected; the only animation is d-breathe
+   on status dots. Tokens, base reset, scrollbars, keyframes and the .app grid
+   live in styles.css. */
+
+/* Sidebar is 300px in the prototype; the styles.css .app grid ships 280px, so
+   widen it here without touching the base (collapsed still wins by source order). */
+.app:not(.side-collapsed) { grid-template-columns: 300px 1fr 0fr; }
+
+/* The right side panel is per-pane now (rendered beside a pane's transcript, not
+   in a window column), so the grid never resizes for a panel — column 3 stays a
+   dead 0fr track. */
+
+/* ============================================================================
+   NATIVE macOS TITLEBAR — visible only inside WKWebView (html.native).
+   The fixed toggle tracks the traffic lights; the sidebar is a flat --panel
+   column, so only its top strip drags the window.
+   ============================================================================ */
+.native-toggle-zone { display: none !important; }
+html.native .native-toggle-zone {
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+  position: fixed;
+  left: 92px;
+  top: 11px;
+  z-index: 300;
+  --app-region: no-drag;
+}
+.native-toggle { display: none !important; }
+html.native .native-toggle {
+  display: inline-flex !important;
+  position: relative;
+  width: 26px; height: 26px;
+  border-radius: var(--r-icon);
+  align-items: center; justify-content: center;
+  color: var(--fg-dim2);
+  --app-region: no-drag;
+}
+html.native .native-toggle:hover { background: var(--chip); color: var(--fg-mid); }
+html.native .native-toggle.on { background: var(--row-on); color: var(--fg); }
+
+/* Sidebar drag region: only the top strip drags; content opts out. */
+html.native .side { --app-region: no-drag; -webkit-user-select: none; }
+html.native .agents-section,
+html.native .side-eos,
+html.native .sb-nav,
+html.native .sb-iconbtn { --app-region: no-drag; }
+html.native .agents-section { -webkit-user-select: text; }
+
+/* Native draws the OS traffic lights and NativeToggleZone owns collapse, so the
+   sidebar's own top strip (.side-top) is hidden and content clears the titlebar. */
+html.native .side-top { display: none !important; }
+/* Clears the traffic lights + toggle (top 11px, 26px tall) with breathing room. */
+html.native .side-island--agents { padding-top: 54px; flex: 1; }
+html.native .empty-tree { padding: 6px 14px !important; }
+html.native .side-handle-zone { display: none !important; }
+html.native.fullscreen .native-toggle-zone { left: 16px; top: 10px; }
+html.native.fullscreen .side-island--agents { padding-top: 16px; }
+
+/* ============================================================================
+   COLLAPSED SIDEBAR — the expand handle (web) + hover flyout card.
+   ============================================================================ */
+.side-handle-zone {
+  position: absolute;
+  top: 20px; left: 14px;
+  z-index: 60;
+  display: block;
+}
+.side-handle {
+  width: 26px; height: 26px;
+  border-radius: var(--r-icon);
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  color: var(--fg-dim2);
+  cursor: pointer;
+}
+.side-handle:hover { background: var(--chip); color: var(--fg-mid); }
+.side-handle.on { background: var(--row-on); color: var(--fg); }
+
+/* New-output cue on the collapsed toggle: a small breathing accent dot — the one
+   allowed animation — rather than tinting the icon. */
+.native-toggle, .side-handle { position: relative; }
+.sb-new-dot {
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: d-breathe 2.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .sb-new-dot { animation: none; } }
+
+/* Hover flyout: the full sidebar floats as a 300px --panel card with a popover
+   shadow — the one place the collapsed sidebar shows a floating layer. */
+.side-handle-popup {
+  position: fixed;
+  left: 10px; top: 52px; bottom: 10px;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: 16px;
+  background: var(--panel);
+  border-radius: var(--r-pop);
+  box-shadow: var(--sh-pop);
+  z-index: 230;
+}
+.side-handle-popup .agents-section {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ============================================================================
+   SIDEBAR
+   ============================================================================ */
+.side {
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 50;
+}
+
+/* ── Top chrome: traffic lights + collapse (web; hidden in native) ────────── */
+.side-top {
+  display: flex; align-items: center; gap: 8px;
+  padding: 16px 16px 20px 18px;
+  flex-shrink: 0;
+}
+.side-dot { width: 11px; height: 11px; border-radius: 50%; background: var(--dot-idle); }
+.side-collapse {
+  width: 26px; height: 26px;
+  margin-left: 8px;
+  border-radius: 7px;
+  color: var(--fg-dim2);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.side-collapse:hover { background: var(--chip); color: var(--fg-mid); }
+
+/* ── Eos ▾ switcher row + search ──────────────────────────────────────────── */
+.side-eos {
+  display: flex; align-items: center; gap: 7px;
+  padding: 0 16px 20px;
+  flex-shrink: 0;
+}
+.side-eos__spacer { flex: 1; }
+.eos-switch {
+  position: relative;
+  display: inline-flex; align-items: center; gap: 7px;
+  margin: -4px -8px;
+  padding: 4px 8px;
+  border-radius: var(--r-row);
+  cursor: pointer;
+  user-select: none;
+}
+.eos-switch:hover, .eos-switch.on { background: var(--row-on); }
+.eos-switch__mark {
+  font-size: var(--text-xl);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--fg);
+}
+.eos-switch__chev { display: inline-flex; color: var(--fg-faint); }
+.eos-search {
+  width: 28px; height: 28px;
+  border-radius: var(--r-row);
+  color: var(--fg-dim2);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.eos-search:hover { background: var(--chip); color: var(--fg-mid); }
+
+/* ── Primary nav rows: New task / Changes / Archive ───────────────────────── */
+.sb-nav {
+  display: flex; flex-direction: column; gap: 1px;
+  padding: 0 8px 22px;
+  flex-shrink: 0;
+}
+.sb-nav-row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 8px 10px;
+  border-radius: var(--r-row);
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.sb-nav-row:hover { background: var(--row-on); }
+.sb-nav-row.strong { color: var(--fg); }
+.sb-nav-row.on { background: var(--row-on); color: var(--fg-strong); }
+.sb-nav-row__ic { display: inline-flex; flex-shrink: 0; }
+.sb-nav-row__label { min-width: 0; }
+.sb-nav-row.strong .sb-nav-row__label,
+.sb-nav-row.on .sb-nav-row__label { font-weight: 500; }
+.sb-nav-row__meta {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+
+/* ── Section label (Projects / Recent / Groups) + view-options filter ─────── */
+.sb-seclabel {
+  position: relative;
+  display: flex; align-items: center;
+  padding: 0 4px 10px 10px;
+  flex-shrink: 0;
+}
+.sb-seclabel__text { font-size: var(--text-xs); color: var(--fg-faint); }
+.sb-seclabel__filter {
+  margin-left: auto; margin-top: -3px;
+  width: 22px; height: 22px;
+  border-radius: 7px;
+  color: var(--fg-faint);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.sb-seclabel__filter:hover { background: var(--chip); color: var(--fg); }
+.sb-seclabel__filter.on { background: var(--row-on); color: var(--fg); }
+
+/* Flat container — no card/glass/border; the panel background carries it. */
+.side-island { position: relative; }
+.side-island--agents {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Settings footer — profile row (avatar + name + gear), above a 1px --line. */
+.sb-settings {
+  margin-top: auto;
+  display: flex; align-items: center; gap: 11px;
+  padding: 14px 16px 16px;
+  border-top: 1px solid var(--line);
+  color: var(--fg-mid);
+  font-size: var(--text-base);
+}
+.sb-settings__avatar {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, var(--fg-mute), var(--chip));
+  flex-shrink: 0;
+}
+.sb-settings__name {
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.sb-settings__gear {
+  color: var(--fg-dim2);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.sb-settings__gear:hover { color: var(--fg-mid); }
+
+/* ============================================================================
+   SIDEBAR · AGENTS SECTION
+   ============================================================================ */
+.sb-head {
+  display: flex; align-items: center;
+  gap: 8px;
+  padding: 12px 12px 8px;
+}
+.sb-head__title {
+  font-size: var(--text-sm); font-weight: 600;
+  color: var(--fg-dim);
+  display: inline-flex; align-items: baseline; gap: 7px;
+}
+.sb-head__count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--fg-faint);
+}
+.sb-head__actions {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 2px;
+}
+.sb-iconbtn {
+  width: 26px; height: 26px;
+  border-radius: var(--r-icon);
+  color: var(--fg-dim2);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sb-iconbtn:hover { background: var(--chip); color: var(--fg-mid); }
+
+/* Agents list — scrolls to fill. */
+.agents-section {
+  flex: 1;
+  display: flex; flex-direction: column;
+  padding: 4px 8px 8px;
+  overflow-y: auto;
+}
+/* Saved-layout groups sit above the list as a content-sized block. */
+.layout-groups {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column;
+  padding: 8px 8px 0;
+}
+.empty-tree { color: var(--fg-faint); text-wrap: pretty; }
+
+/* Project group: a folder header (folder icon + name) above that project's rows. */
+.agents-group { display: flex; flex-direction: column; gap: 1px; }
+.agents-group + .agents-group { margin-top: 12px; }
+.agents-group__head {
+  display: flex; align-items: center;
+  gap: 9px;
+  padding: 5px 8px 3px 10px;
+}
+.agents-group__icon { display: inline-flex; color: var(--fg-dim2); flex-shrink: 0; }
+.agents-group__name {
+  flex: 1; min-width: 0;
+  font-size: var(--text-sm); font-weight: 500;
+  color: var(--fg-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.agents-group__add {
+  width: 20px; height: 20px;
+  flex-shrink: 0;
+  color: var(--fg-faint);
+}
+
+.agents-row {
+  display: flex; align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: var(--r-row);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  position: relative;
+  color: var(--fg-dim);
+}
+.agents-row:hover { background: var(--row-on); }
+.agents-row.on { background: var(--row-on); }
+/* Selected row shows as a --row-on fill only — no accent rail, no border. */
+.agents-row .ag-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  flex-shrink: 0;
+}
+.agents-row .ag-archive-icon {
+  display: inline-flex; align-items: center;
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+/* Archived rows read softer than live rows; hover/selection restores clarity. */
+.agents-row--archived { opacity: 0.6; }
+.agents-row--archived:hover,
+.agents-row--archived.on { opacity: 1; }
+.agents-row .ag-dot.run { background: var(--ok); }
+.agents-row .ag-dot.think { background: var(--warn); width: 6px; height: 6px; animation: d-breathe 2.4s ease-in-out infinite; }
+.agents-row .ag-dot.wait { background: var(--fg-faint); }
+.agents-row .ag-dot.queue { background: transparent; border: 1px dashed var(--fg-faint); width: 7px; height: 7px; }
+@media (prefers-reduced-motion: reduce) { .agents-row .ag-dot.think { animation: none; } }
+.agents-row .ag-name {
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.agents-row.on .ag-name { color: var(--fg-strong); }
+.agents-row .ag-name.main { font-weight: 500; }
+.agents-row.on .ag-name.main { font-weight: 500; }
+.ag-def { color: var(--fg-faint); font-weight: 400; }
+.ag-git-badge { display: inline-flex; align-items: center; color: var(--fg-dim2); flex-shrink: 0; }
+.agents-row .ag-rename-input {
+  flex: 1; min-width: 0;
+  background: var(--raised);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-kbd);
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  padding: 1px 4px;
+  outline: none;
+}
+.agents-row .ag-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+.agents-row.on .ag-status { color: var(--fg-dim); }
+
+/* Compact "loop" badge after an agent name; status tints the pill. */
+.agents-row .ag-loop-badge {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: var(--r-kbd);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.agents-row .ag-loop-badge.st-passed {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+.agents-row .ag-loop-badge.st-exhausted,
+.agents-row .ag-loop-badge.st-stopped {
+  color: var(--fg-faint);
+  background: color-mix(in srgb, var(--fg-faint) 14%, transparent);
+}
+.agents-row .ag-loop-badge.st-checking {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  animation: d-breathe 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .agents-row .ag-loop-badge.st-checking { animation: none; } }
+
+/* New-output cue: a static 7px accent dot in place of the meta text. */
+.agents-row .ag-notify, .pane-head .ag-notify {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+/* Sidebar row for an agent shown in a non-focused split pane — a quiet fill. */
+.agents-row.in-pane { background: color-mix(in srgb, var(--row-on) 55%, transparent); }
+
+/* Saved-layout dirty dot + its menu backdrop. */
+.agents-row .lg-dirty {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.lg-menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+
+/* ============================================================================
+   Hierarchical tree (orchestrator → workers → sub-agents)
+   ============================================================================ */
+.tree-node { display: flex; flex-direction: column; }
+.tree-children {
+  position: relative;
+  padding-left: 14px;
+}
+/* Vertical guide line — ends where the elbow curve begins. */
+.tree-children::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 20px;
+  width: 1px;
+  background: var(--line);
+  pointer-events: none;
+}
+.tree-children > .tree-node > .agents-row { position: relative; }
+.tree-children > .tree-node > .agents-row::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: calc(50% - 8px);
+  width: 8px;
+  height: 8px;
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-bottom-left-radius: 4px;
+  pointer-events: none;
+}
+
+.tree-chev {
+  width: 14px; height: 14px;
+  border-radius: var(--r-kbd);
+  color: var(--fg-faint);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-right: -2px;
+  cursor: pointer;
+}
+.tree-chev:hover { background: var(--chip); color: var(--fg); }
+.tree-chev svg { transition: transform 160ms ease; }
+.tree-node.collapsed > .agents-row .tree-chev svg { transform: rotate(-90deg); }
+.tree-chev-spacer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  flex-shrink: 0;
+  margin-right: -2px;
+}
+.tree-chev-spacer::before {
+  content: "";
+  width: 4px;
+  height: 1px;
+  background: var(--fg-mute);
+  border-radius: 1px;
+}
+/* Agents sidebar: childless rows drop the leaf dash and sit back into the freed
+   toggle column. The Files tree keeps the base spacer + dash. */
+.agents-row .tree-chev-spacer { width: 6px; }
+.agents-row .tree-chev-spacer::before { content: none; }
+.tree-node.collapsed > .tree-children { display: none; }
+
+/* ============================================================================
+   CENTER COLUMN
+   ============================================================================ */
+.center {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+  background: var(--bg);
+}
+
+/* ============================================================================
+   RIGHT SIDE PANEL — a per-pane tabbed surface rendered beside each pane's
+   transcript column (PaneGrid/SinglePane). Its width is that pane's own
+   --sp-w (set inline); depth is the surface step above the --bg pane area + a
+   single --line border, never a shadow.
+   ============================================================================ */
+.side-panel {
+  flex: 0 0 auto;
+  width: var(--sp-w, min(620px, 50%));
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  overflow: hidden;
+}
+/* Fullscreen: maximize over the whole pane (its transcript column stays mounted
+   underneath). The owning pane is the positioning context — .pane is absolute,
+   .single-pane relative — so inset:0 fills exactly that pane, sidebar untouched.
+   Toggling off drops back to the docked --sp-w width. */
+.side-panel--fullscreen {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  z-index: 20;
+  border-left: none;
+}
+.side-panel--fullscreen .sp-resize { display: none; }
+/* Invisible col-resize strip along the panel's left edge. It sits inside the
+   panel because .side-panel's overflow:hidden clips anything past the edge.
+   Hovering it brightens the panel's own border line. */
+.sp-resize {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 30;
+  cursor: col-resize;
+  touch-action: none;
+  background: transparent;
+}
+/* The border is a gradient whose middle stop animates: plain --line at rest,
+   a shine that fades out toward top and bottom on hover. @property makes the
+   color stop transitionable. */
+@property --sp-shine {
+  syntax: "<color>";
+  inherits: false;
+  initial-value: transparent;
+}
+.side-panel {
+  --sp-shine: var(--line);
+  border-image: linear-gradient(to bottom, var(--line), var(--sp-shine) 50%, var(--line)) 1;
+  transition: --sp-shine 200ms;
+}
+.side-panel:has(> .sp-resize:hover),
+.side-panel:has(> .sp-resize:active) { --sp-shine: rgba(var(--tint), 0.28); }
+/* Tab bar: pills + new-tab + fullscreen/close. No border underneath, tight gap. */
+.sp-tabbar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 12px 12px 6px 14px;
+  flex-shrink: 0;
+}
+.sp-tab {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 8px;
+  padding: 4px 10px;
+  min-width: 0;
+  flex: 1 1 110px;
+  max-width: 146px;
+  border-radius: var(--r-btn, 8px);
+  font-size: var(--text-sm, 13px);
+  color: var(--fg-dim);
+  cursor: pointer;
+  user-select: none;
+}
+.sp-tab:hover { background: var(--chip); color: var(--fg-mid); }
+.sp-tab.is-active { background: var(--row-on); color: var(--fg); cursor: default; }
+.sp-tab.is-active:hover { background: var(--row-on); }
+.sp-tab-icon { display: inline-flex; flex-shrink: 0; }
+.sp-tab-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-tab-x {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--fg-dim2);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.sp-tab-x:hover { color: var(--fg); }
+/* Inactive pills reveal their × only on hover; the active pill's × stays visible. */
+.sp-tab:not(.is-active) .sp-tab-x { visibility: hidden; }
+.sp-tab:not(.is-active):hover .sp-tab-x { visibility: visible; }
+.sp-plus, .sp-chrome-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  color: var(--fg-dim2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.sp-plus:hover, .sp-chrome-btn:hover { background: var(--chip); color: var(--fg-mid); }
+.sp-plus.on, .sp-chrome-btn.on { background: var(--row-on); color: var(--fg); }
+.sp-plus { position: relative; }
+.sp-spacer { flex: 1; }
+/* Dropped from the + button (its anchor), so it tracks the button wherever the
+   open-tab count pushes it along the bar. */
+.sp-plus-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 232px;
+  background: var(--pop);
+  border-radius: 13px;
+  padding: 7px;
+  box-shadow: var(--sh-pop, 0 16px 40px rgba(0, 0, 0, 0.5));
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+}
+.sp-plus-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: var(--text-base, 14px);
+  color: var(--fg);
+  cursor: pointer;
+}
+.sp-plus-item:hover { background: var(--row-on); }
+.sp-plus-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sp-plus-kbd {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs, 11px);
+  color: var(--fg-faint);
+}
+/* Single content area — the active tab's component fills it. */
+.sp-content {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* The per-tab island fills sp-content (no longer an absolute dock tile). */
+.panel-shell {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  overflow: clip;
+}
+.panel-shell__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  min-height: 38px;
+  flex-shrink: 0;
+}
+.panel-shell__title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* Tab-with-no-data empty states now use the shared .empty-state recipe
+   (styles/menus.css); the old .panel-empty* duplicates were retired. */
+/* Back button in the nested file viewer header (Files tab). */
+
+/* Keep-alive transcript panes: one <Messages> per recently-viewed agent stays
+   mounted; only the active one paints. */
+.tx-host { position: relative; flex: 1; min-height: 0; }
+.tx-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  content-visibility: hidden;
+  pointer-events: none;
+}
+.tx-pane.on {
+  content-visibility: visible;
+  pointer-events: auto;
+  z-index: 1;
+}
+/* Single-pane bottom fade — stops short of the transcript scrollbar. */
+.tx-pane.on::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 14px;
+  bottom: 0;
+  height: 48px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ============================================================================
+   SPLIT VIEW · 2-4 transcripts side by side (PaneGrid). Panes are absolutely
+   positioned from the layout tree's %-rects; the sidebar + composer stay shared.
+   ============================================================================ */
+.pane-grid {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  margin: 4px;
+}
+.single-pane {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: row;
+}
+.sp-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Eased reflow: survivors glide from old %-rect → new on any split/close. */
+.pane-slot {
+  position: absolute;
+  transition:
+    left 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    top 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    width 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    height 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.pane-grid.is-resizing .pane-slot { transition: none; }
+.pane-tx {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Pane card: --bg surface, the only border is 1px --line, radius 12. A row now
+   so the pane's own side panel can sit beside the transcript column. */
+.pane {
+  position: absolute;
+  inset: 4px;
+  contain: layout paint;
+  display: flex;
+  flex-direction: row;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-menu);
+  overflow: clip;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+/* Transcript column inside a pane (header + messages + composer); the side panel
+   is its flex sibling. */
+.pane-col {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* Focused pane: a subtle inset accent ring (22% accent). */
+.pane.is-focused {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+/* Non-focused pane with unseen output: a quiet static accent-tinted border. */
+.pane.pane--attention { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+/* Non-focused pane blocked on input: a warn-tinted border. */
+.pane.pane--needs-input { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+
+/* Drag-to-split preview: a light accent-tinted overlay showing where the drop
+   lands. pointer-events off so dragover keeps hitting the pane underneath. */
+.pane-drop-preview {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--r-menu);
+  inset: 0;
+  transition: inset 150ms ease-out;
+}
+.pane-drop-preview--replace { inset: 0; }
+.pane-drop-preview--left   { inset: 0 50% 0 0; }
+.pane-drop-preview--right  { inset: 0 0 0 50%; }
+.pane-drop-preview--top    { inset: 0 0 50% 0; }
+.pane-drop-preview--bottom { inset: 50% 0 0 0; }
+
+/* Per-split resize dividers — invisible grab strips; a 2px line lights on hover. */
+.pane-divider { position: absolute; z-index: 5; touch-action: none; }
+.pane-divider--v { width: 14px; transform: translateX(-50%); cursor: ew-resize; }
+.pane-divider--h { height: 14px; transform: translateY(-50%); cursor: ns-resize; }
+.pane-divider::after {
+  content: "";
+  position: absolute;
+  background: transparent;
+  border-radius: 2px;
+  transition: background 120ms;
+}
+.pane-divider--v::after { left: 50%; top: 8px; bottom: 8px; width: 2px; transform: translateX(-50%); }
+.pane-divider--h::after { top: 50%; left: 8px; right: 8px; height: 2px; transform: translateY(-50%); }
+.pane-divider:hover::after, .pane-divider:active::after { background: var(--accent); }
+
+.pane-slot.is-leaving { pointer-events: none; }
+
+/* Cursor-tracking drag affordance (portaled to <body>): a neutral label trailing
+   the pointer + an accent pill on the target region's centroid. */
+.drag-affordance-label,
+.drag-affordance-pill {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+.drag-affordance-label {
+  color: var(--fg);
+  background: var(--pop);
+  border-radius: var(--r-icon);
+  padding: 4px 9px;
+  box-shadow: var(--sh-pop);
+}
+.drag-affordance-pill {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-radius: var(--r-pill);
+  padding: 4px 10px;
+  font-weight: 600;
+  transition: transform 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane-slot { transition: none; }
+  .drag-affordance-pill { transition: none; }
+  .pane-drop-preview { transition: none; }
+}
+
+/* ============================================================================
+   PANE HEADER — single/new-task get the 32px-inset title bar with a 1px
+   --line rule; split panes (inside .pane) get the tighter card header, no rule.
+   The bar is the native window-drag strip; its buttons/inputs opt out.
+   ============================================================================ */
+.pane-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 16px 20px 16px 32px;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+  --app-region: drag;
+  -webkit-user-select: none;
+}
+.pane-head button,
+.pane-head input { --app-region: no-drag; }
+html.native .pane-head { padding-top: 12px; padding-bottom: 12px; }
+/* Top-row split panes align their bar to the window top line. */
+.pane-head--toprow { padding-top: 12px; }
+.pane-head .ag-dot { flex-shrink: 0; }
+
+/* Split-pane header: tighter, no rule (it sits inside the pane card). */
+.pane .pane-head {
+  padding: 12px 12px 12px 16px;
+  border-bottom: none;
+}
+
+/* Left inset that clears the native window chrome (traffic lights + toggle) for
+   the top-left pane once the sidebar is collapsed. Real element (inherits the
+   drag region), present only while collapsed. */
+.pane-head-inset { display: none; }
+.app.side-collapsed .pane-head--topleft .pane-head-inset {
+  display: block;
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 12px;
+}
+html.native .app.side-collapsed .pane-head--topleft .pane-head-inset { width: 86px; }
+html.native.fullscreen .app.side-collapsed .pane-head--topleft .pane-head-inset { width: 6px; }
+.app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 21px; }
+html.native .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 95px; }
+html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 15px; }
+
+/* Breadcrumb (project / chain / current agent) — truncates, never wraps. */
+.pane-head .crumb {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  cursor: default;
+}
+.pane-head .crumb .scope { color: var(--fg-faint); flex-shrink: 0; }
+.pane-head .crumb .sep { color: var(--fg-faint); flex-shrink: 0; }
+.pane-head .crumb .cur {
+  color: var(--fg-strong);
+  font-size: var(--text-md);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pane:not(.is-focused) .pane-head .crumb .cur { color: var(--fg-dim); }
+.pane-head .crumb .crumb-link { color: var(--fg-dim); font-size: inherit; white-space: nowrap; flex-shrink: 0; }
+.pane-head .crumb .crumb-link:hover { color: var(--fg); }
+.pane-head .crumb .v-wrap { position: relative; align-self: center; display: inline-flex; flex-shrink: 0; margin-left: -5px; }
+/* 22px chevron opening the agent menu; --row-on fill while open. */
+.pane-head .crumb .v {
+  width: 22px; height: 22px;
+  border-radius: var(--r-icon);
+  color: var(--fg-faint);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pane-head .crumb .v:hover { background: var(--chip); color: var(--fg-mid); }
+.pane-head .crumb .v[aria-expanded="true"],
+.pane-head .crumb .v.on { background: var(--row-on); color: var(--fg); }
+/* Plan chip (PlanChip.jsx) — TodoWrite progress ring + count beside the crumb. */
+.pane-head .crumb .plan-chip {
+  align-self: center;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px 0 6px;
+  margin-left: -3px;
+  border-radius: var(--r-pill);
+  color: var(--fg-dim2);
+  cursor: pointer;
+}
+.pane-head .crumb .plan-chip:hover { background: var(--chip); color: var(--fg-mid); }
+.pane-head .crumb .plan-chip.on { background: var(--row-on); color: var(--fg); }
+.plan-chip-count { font-family: var(--font-mono); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.plan-ring { width: 14px; height: 14px; transform: rotate(-90deg); flex-shrink: 0; }
+.plan-ring-track { fill: none; stroke: var(--fg-mute); stroke-width: 2; }
+.plan-ring-fill {
+  fill: none;
+  stroke: var(--ok);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke-dasharray 350ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.pane-head .crumb .ag-rename-input {
+  background: var(--raised);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-kbd);
+  color: var(--fg);
+  font-size: var(--text-md);
+  font-family: inherit;
+  padding: 1px 4px;
+  outline: none;
+  min-width: 0;
+  width: 180px;
+}
+.pane-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.pane-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg-dim);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pane.is-focused .pane-name { color: var(--fg); }
+.pane-status {
+  flex-shrink: 0;
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.pane-input-label {
+  flex-shrink: 0;
+  color: var(--warn);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.pane-close {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-icon);
+  color: var(--fg-dim2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  --app-region: no-drag;
+  cursor: pointer;
+}
+.pane-close:hover { background: var(--row-on); color: var(--fg); }
+
+/* Header icon buttons (terminal / git / files / …): 30px in the single/main
+   header, 24px inside split panes; active = --row-on fill. */
+.pane-split-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-row);
+  color: var(--fg-dim2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pane-split-btn:hover { background: var(--chip); color: var(--fg-mid); }
+.pane-split-btn:disabled { opacity: 0.4; cursor: default; }
+.pane-split-btn:disabled:hover { background: transparent; color: var(--fg-dim2); }
+.pane-split-btn.is-active { background: var(--row-on); color: var(--fg); }
+.pane-split-btn.is-active:hover { background: var(--row-on); color: var(--fg); }
+.pane .pane-split-btn { width: 24px; height: 24px; border-radius: var(--r-icon); }
+/* New-task header shows the Environment icon decoratively (no worker → nothing
+   to open); inert = dimmed, no hover, no pointer. Matches the reference. */
+.pane-split-btn--inert { cursor: default; }
+.pane-split-btn--inert:hover { background: transparent; color: var(--fg-dim2); }
+
+/* The composer's own ::before fade IS the per-pane bottom fade in split view;
+   single-pane keeps its transcript-scoped fade, so scope the scrim to split. */
+.app:not(.split) .composer-wrap::before { content: none; }
+
+/* ============== In-pane agent picker (empty split panes) ==============
+   A hover-triggered --pop card with the picker; a resting hint sits in the empty
+   pane body. Floating layer → popover shadow. */
+.pane-picker-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.pane-picker-hint {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+.pane-picker-hint.is-hidden { opacity: 0; }
+.pane-picker-hint svg { color: var(--fg-mute); }
+.pane-picker {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--pop);
+  border-radius: var(--r-pop);
+  box-shadow: var(--sh-pop);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+.pane-picker.is-open { opacity: 1; pointer-events: auto; }
+.pane-picker-head { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; }
+.pane-picker-title { flex: 1; color: var(--fg); font-weight: 500; font-size: var(--text-base); }
+.pane-picker-count {
+  font-size: var(--text-xs); font-family: var(--font-mono); color: var(--fg-dim);
+  background: var(--chip);
+  padding: 1px 7px; border-radius: var(--r-kbd);
+}
+.pane-picker-filter {
+  position: relative; z-index: 1; width: 100%;
+  padding: 7px 10px; border-radius: var(--r-row);
+  background: var(--raised);
+  color: var(--fg); font-size: var(--text-sm);
+  transition: box-shadow 0.12s;
+}
+.pane-picker-filter::placeholder { color: var(--fg-faint); }
+.pane-picker-filter:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.pane-picker-list {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; gap: 2px;
+  overflow-y: auto; min-height: 0;
+}
+.pane-picker-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 8px 10px;
+  border-radius: var(--r-row); cursor: pointer; text-align: left;
+  transition: background 0.12s;
+}
+.pane-picker-item:hover { background: var(--row-on); }
+.pane-picker-item.is-active { background: var(--row-on); }
+.pane-picker-item.is-shown { opacity: 0.55; }
+.pane-picker-name {
+  flex: 1; min-width: 0; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pane-picker-name.main { font-weight: 600; }
+.pane-picker-status, .pane-picker-shown {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint);
+}
+.pane-picker-shown { color: var(--fg-dim); }
+.pp-num {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: var(--text-xs);
+  color: var(--fg-dim); background: var(--chip);
+  min-width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-kbd);
+}
+.pane-picker-item.is-active .pp-num {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.pane-picker-empty { padding: 14px; text-align: center; color: var(--fg-faint); font-size: var(--text-sm); }
+.pane-picker .ag-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg-faint); flex-shrink: 0; }
+.pane-picker .ag-dot.run { background: var(--ok); }
+.pane-picker .ag-dot.think { background: var(--warn); }
+.pane-picker .ag-dot.wait { background: var(--fg-faint); }
+.pane-picker .ag-dot.queue { background: transparent; border: 1px dashed var(--fg-faint); }
+@media (prefers-reduced-motion: reduce) { .pane-picker, .pane-picker-hint { transition: none; } }

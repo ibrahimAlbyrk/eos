@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { elementLabel, elementAttachment, elementPayload } from "./PickerLayer.jsx";
 import { ElementPopover } from "./ElementPopover.jsx";
-import { AttachmentChips } from "../code/center/AttachmentChips.jsx";
+import { AttachmentChips } from "../agents/center/AttachmentChips.jsx";
 import { buildAttachmentSuffix, parseAttachmentMessage, elementSummary } from "../../lib/attachmentTokens.js";
 
 // A representative BrowserElement (plan §3.1) as the native picker resolves it:

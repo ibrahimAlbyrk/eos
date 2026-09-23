@@ -14,8 +14,8 @@ export function useExplorerKeys() {
   const ui = useUi();
   const paneId = useOriginPane() ?? ui.focusedLeafId;
   const enabled = paneId === ui.focusedLeafId && ui.focusedRegion === "panel";
-  const openFileRef = useRef(ui.openFileViewer);
-  openFileRef.current = ui.openFileViewer;
+  const openFileRef = useRef(ui.openFile);
+  openFileRef.current = ui.openFile;
 
   useEffect(() => {
     if (!enabled) return;

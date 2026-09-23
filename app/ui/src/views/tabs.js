@@ -1,7 +1,7 @@
-import { homeMeta } from "./home/meta.jsx";
+import { agentsMeta } from "./agents/meta.jsx";
 import { codeMeta } from "./code/meta.jsx";
 
-// Component-free tab descriptors consumed by TabBar. Kept separate from
-// registry.js (which pulls in the heavy view Components) so TabBar — rendered
-// inside every view via AppLayout — does not create an import cycle.
-export const TABS = [homeMeta, codeMeta];
+// Workspace targets for the Eos ▾ switcher. Order is the switcher's display
+// order. Kept separate from registry.js (which pulls in the heavy view
+// Components) so the switcher — shared chrome — does not create an import cycle.
+export const TABS = [agentsMeta, codeMeta];

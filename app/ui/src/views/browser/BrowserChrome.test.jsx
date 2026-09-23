@@ -195,7 +195,7 @@ describe("BrowserModeButtons", () => {
 describe("BrowserEmptyState", () => {
   it("renders the globe, heading and subtitle — and holds no input (the address bar owns it)", () => {
     const html = renderToStaticMarkup(<BrowserEmptyState />);
-    expect(html).toContain("browser-empty-state");
+    expect(html).toContain("empty-state"); // shared recipe
     expect(html).toContain("Browse and verify");
     expect(html).toContain("Enter a URL above to start");
     expect(html).toContain("<svg"); // the globe icon

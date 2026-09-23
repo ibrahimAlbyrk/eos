@@ -131,7 +131,11 @@ export function dismissPill(workerId, itemId) {
   if (!item) return;
   setItems(workerId, list.filter((i) => i.id !== itemId));
   if (item.queueId != null) {
-    void api.dismissQueuedMessage(workerId, item.queueId).then(() => syncQueue(workerId));
+    // Resolves to the DELETE result — a 404 means the drain already sent it.
+    return api.dismissQueuedMessage(workerId, item.queueId).then((r) => {
+      void syncQueue(workerId);
+      return r;
+    });
   } else {
     // The 202 is still in flight — record the intent so settleSend deletes
     // the row once the response names it.

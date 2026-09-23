@@ -93,12 +93,32 @@ export async function closeTab(paneId, sessionId, { cwd } = {}) {
   emit(p);
 }
 
+// Close a whole pane: kill every session it owns and drop the slot. Used when a
+// top-level Terminal tab (one pane = one terminal) is closed from the side panel,
+// so its PTY dies with the tab rather than lingering until the next boot reap.
+export async function closePane(paneId) {
+  const p = panes.get(paneId);
+  if (!p) return;
+  const ids = p.tabs.map((t) => t.sessionId);
+  panes.delete(paneId);
+  await Promise.all(ids.map((id) => api.killPty(id).catch(() => {})));
+}
+
 export function switchTab(paneId, sessionId) {
   const p = panes.get(paneId);
   if (!p || p.activeId === sessionId) return;
   if (!p.tabs.some((t) => t.sessionId === sessionId)) return;
   p.activeId = sessionId;
   emit(p);
+}
+
+// Other PTY owners (the Code view's terminal workspace) register their live
+// session ids here so the reap below never kills a session it doesn't own.
+const trackers = new Set(); // () => Iterable<sessionId>
+
+export function registerSessionTracker(getIds) {
+  trackers.add(getIds);
+  return () => trackers.delete(getIds);
 }
 
 // Boot clean-slate reap: DELETE server sessions NO pane tracks (e.g. left over
@@ -114,6 +134,7 @@ export async function reapUntrackedSessions() {
   if (!Array.isArray(server)) return;
   const tracked = new Set();
   for (const p of panes.values()) for (const t of p.tabs) tracked.add(t.sessionId);
+  for (const getIds of trackers) for (const id of getIds()) tracked.add(id);
   const stale = server.map((s) => s.sessionId).filter((id) => !tracked.has(id));
   await Promise.all(stale.map((id) => api.killPty(id).catch(() => {})));
 }

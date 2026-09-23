@@ -20,30 +20,58 @@ export class ErrorBoundary extends Component {
 
   render() {
     if (this.state.error) {
+      // Full-window crash screen (charcoal-aurora). Inline styles on purpose:
+      // the boundary must render even if a stylesheet is what broke.
+      const stack = String(this.state.error?.stack ?? this.state.error ?? "");
+      const nl = stack.indexOf("\n");
+      const firstLine = nl === -1 ? stack : stack.slice(0, nl);
+      const rest = nl === -1 ? "" : stack.slice(nl);
+      const trafficDot = { width: 11, height: 11, borderRadius: "50%", background: "var(--dot-idle)" };
       return (
         <div style={{
-          padding: 32, color: "var(--fg)", maxWidth: 720, margin: "40px auto",
-          fontFamily: "var(--font-ui)",
+          position: "absolute", inset: 0, zIndex: 600, background: "var(--bg)",
+          display: "flex", flexDirection: "column", fontFamily: "var(--font-ui)",
         }}>
-          <h2 style={{ color: "var(--err)", marginTop: 0 }}>UI crashed</h2>
-          <p style={{ color: "var(--fg-dim)" }}>
-            A component threw during render. The daemon is still running — reset to recover.
-          </p>
-          <pre style={{
-            background: "var(--surface)", padding: 12, borderRadius: 8,
-            color: "var(--fg-dim)", fontSize: "var(--text-sm)", overflow: "auto",
-            border: "1px solid var(--border)",
-          }}>{String(this.state.error?.stack ?? this.state.error)}</pre>
-          <button
-            onClick={() => this.setState({ error: null })}
-            style={{
-              marginTop: 12, padding: "8px 14px",
-              background: "var(--accent)", color: "var(--on-accent)", border: 0,
-              borderRadius: 6, cursor: "pointer", fontSize: "var(--text-base)",
-            }}
-          >
-            Reset
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "16px 18px", flexShrink: 0 }}>
+            <span style={trafficDot} /><span style={trafficDot} /><span style={trafficDot} />
+          </div>
+          <div style={{
+            flex: 1, minHeight: 0, display: "flex", alignItems: "center",
+            justifyContent: "center", padding: "0 32px 10vh",
+          }}>
+            <div style={{ width: "100%", maxWidth: 640, display: "flex", flexDirection: "column", gap: 10 }}>
+              <span style={{
+                display: "inline-flex", alignItems: "center", gap: 9,
+                fontSize: 17, fontWeight: 600, letterSpacing: "-0.01em", color: "var(--fg-strong)",
+              }}>
+                <span style={{ width: 7, height: 7, borderRadius: "50%", background: "var(--err)" }} />
+                UI crashed
+              </span>
+              <span style={{ fontSize: 14, color: "var(--fg-dim)", textWrap: "pretty" }}>
+                A component threw during render. The daemon is still running — reset to recover.
+              </span>
+              <pre style={{
+                margin: "8px 0 0", maxHeight: 260, overflow: "hidden", padding: "14px 16px",
+                borderRadius: 12, background: "var(--panel)", fontFamily: "var(--font-mono)",
+                fontSize: 12, lineHeight: 1.7, color: "var(--fg-dim)",
+                whiteSpace: "pre-wrap", wordBreak: "break-word",
+              }}>
+                <span style={{ color: "var(--err)" }}>{firstLine}</span>{rest}
+              </pre>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button
+                  onClick={() => this.setState({ error: null })}
+                  style={{
+                    display: "inline-flex", alignItems: "center", height: 32, padding: "0 16px",
+                    background: "var(--accent)", color: "var(--accent-fg)", border: 0,
+                    borderRadius: 8, cursor: "pointer", fontSize: 13, fontWeight: 500,
+                  }}
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       );
     }

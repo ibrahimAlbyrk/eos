@@ -1,20 +1,12 @@
 import { useCallback, useContext, useMemo, useRef } from "react";
 import { NavigationProvider, useNavigation } from "./navigation.jsx";
-import { SelectionProvider, useSelection } from "./selection.jsx";
+import { SelectionProvider, useSelection, EMPTY_PANEL } from "./selection.jsx";
 import { PaneProvider, usePane } from "./pane.jsx";
 import { PaneScopeContext } from "./paneScope.js";
 import { ComposerProvider, useComposer } from "./composer.jsx";
 import { AttentionProvider, useAttention } from "./attention.jsx";
 import { SearchProvider, useSearch } from "./search.jsx";
 import { SettingsProvider, useSettings } from "./settings.jsx";
-import { canFitColumns, columnize, PANEL_CAP } from "../lib/panelTiling.js";
-import { panelMinSize } from "../lib/panelRegistry.js";
-import { getDockWidth } from "./dockMetrics.js";
-import { notify } from "../lib/notify.js";
-
-// Monotonic reveal token: a scroll-to-line target carries a seq so re-navigating
-// to the same file+line still re-centers the editor (see EditView revealSeq).
-let revealSeq = 0;
 
 export { useNavigation } from "./navigation.jsx";
 export { useSelection } from "./selection.jsx";
@@ -53,136 +45,64 @@ export function useUi() {
   const search = useSearch();
   const settings = useSettings();
 
-  // The pane this subtree renders inside (transcript click / docked viewer) or
-  // null for shared chrome → fall back to the focused pane. This single line is
-  // what makes ui.openFileViewer(...) / ui.topPanelType target the right pane
-  // with ZERO call-site changes: a viewer reads its own pane, the composer the
-  // focused one.
+  // The pane this subtree renders inside (a transcript click / the side panel) or
+  // null for shared chrome → fall back to the focused pane. Scopes the per-pane
+  // composer popover AND the per-pane right side panel, so one pane's menu/panel
+  // doesn't render in the others; chrome outside a pane resolves to the focused
+  // pane. See selection.jsx for the raw pane-explicit ops wrapped below.
   const originPane = useContext(PaneScopeContext);
   const scopePane = originPane ?? pane.focusedLeafId;
   const scopeRef = useRef(scopePane);
   scopeRef.current = scopePane;
 
-  const { topPanelTypeIn, panelDataIn, openPanelTypesIn, hasPanelIn, hasAnyPanelIn, dockRatiosIn } = selection;
-  const { openPanelIn, closePanelIn, updatePanelDataIn, setDockRatioIn } = selection;
   const { openPopoverIn, openPopIn, closePopsIn } = selection;
-
-  // Open into the scoped pane's dock, with the degenerate-fit guard: a NEW distinct
-  // type that STARTS a new column (an even count under cap → 2 opens column 2, 4
-  // opens column 3) needs every column to fit side by side at its min width. Refuse
-  // + notify when the dock can't (like splitLeaf at MAX_PANES). A reuse (same type),
-  // a stack into the last column (odd count), or an at-cap evict never adds a
-  // column, so those are unguarded.
-  const openScoped = useCallback((type, data) => {
-    const paneId = scopeRef.current;
-    const types = openPanelTypesIn(paneId);
-    const n = types.length;
-    if (!types.includes(type) && n >= 2 && n < PANEL_CAP && n % 2 === 0) {
-      const w = getDockWidth(paneId);
-      const colMins = columnize(n).map((idxs) => Math.max(...idxs.map((i) => panelMinSize(types[i]).minW)));
-      colMins.push(panelMinSize(type).minW);
-      if (w > 0 && !canFitColumns(w, colMins)) {
-        notify.warning("Not enough room for another column — close a panel first.");
-        return;
-      }
-    }
-    openPanelIn(paneId, type, data);
-  }, [openPanelTypesIn, openPanelIn]);
-
   // Scope-aware popover open/close: a composer targets its OWN pane, chrome the
-  // focused pane. Keeps every call site (ui.openPop(id)/ui.closeAllPops()) intact
-  // while making the open state per pane — one pane's menu no longer opens in all.
+  // focused pane. Keeps every call site (ui.openPop(id)/ui.closeAllPops()) intact.
   const openPop = useCallback((id, opts = {}) => openPopIn(scopeRef.current, id, opts), [openPopIn]);
   const closeAllPops = useCallback(() => closePopsIn(scopeRef.current), [closePopsIn]);
 
-  // Scope-aware actions. Read scope from a ref so identities stay stable across
-  // renders — some viewers list these in useCallback deps.
-  // reveal (optional) = { line, column } → scroll the editor to that spot on open.
-  // A fresh seq each call re-fires the editor's reveal even for the same target.
-  const openFileViewer = useCallback((path, reveal) => openScoped("file", reveal
-    ? { path, reveal: { line: reveal.line, column: reveal.column, seq: ++revealSeq } }
-    : { path }), [openScoped]);
-  const closeFileViewer = useCallback(() => closePanelIn(scopeRef.current, "file"), [closePanelIn]);
-  const openAgentViewer = useCallback((block) => openScoped("agent", block), [openScoped]);
-  const closeAgentViewer = useCallback(() => closePanelIn(scopeRef.current, "agent"), [closePanelIn]);
-  const syncAgentViewer = useCallback((block) => updatePanelDataIn(scopeRef.current, "agent", (prev) => prev.toolUseId === block.toolUseId ? block : prev), [updatePanelDataIn]);
-  const openDiffViewer = useCallback((workerId) => openScoped("diff", { workerId }), [openScoped]);
-  const closeDiffViewer = useCallback(() => closePanelIn(scopeRef.current, "diff"), [closePanelIn]);
-  const openCommitsViewer = useCallback((cwd) => openScoped("commits", { cwd }), [openScoped]);
-  const closeCommitsViewer = useCallback(() => closePanelIn(scopeRef.current, "commits"), [closePanelIn]);
-  // workerId is optional — carried alongside cwd so the folded conflicts section
-  // can reach the worker-scoped resolve endpoints; absent when opened on a bare
-  // dir (a new-session pane), where the conflicts section stays hidden.
-  const openGitDiffViewer = useCallback((cwd, workerId) => openScoped("gitdiff", { cwd, workerId }), [openScoped]);
-  const closeGitDiffViewer = useCallback(() => closePanelIn(scopeRef.current, "gitdiff"), [closePanelIn]);
-  const openTerminalViewer = useCallback(() => openScoped("terminal", {}), [openScoped]);
-  const closeTerminalViewer = useCallback(() => closePanelIn(scopeRef.current, "terminal"), [closePanelIn]);
-  // data (optional) = { sessionKey } — which session's browser the panel shows;
-  // BrowserPanel falls back to resolving its pane's agent when absent.
-  const openBrowserViewer = useCallback((data) => openScoped("browser", data ?? {}), [openScoped]);
-  const closeBrowserViewer = useCallback(() => closePanelIn(scopeRef.current, "browser"), [closePanelIn]);
-  const openFilesViewer = useCallback((cwd) => openScoped("files", { cwd }), [openScoped]);
-  const closeFilesViewer = useCallback(() => closePanelIn(scopeRef.current, "files"), [closePanelIn]);
-  const openChatFilesViewer = useCallback((workerId) => openScoped("chatfiles", { workerId }), [openScoped]);
-  const closeChatFilesViewer = useCallback(() => closePanelIn(scopeRef.current, "chatfiles"), [closePanelIn]);
-  const setDockRatio = useCallback((key, value) => setDockRatioIn(scopeRef.current, key, value), [setDockRatioIn]);
+  // Scope-aware side-panel: resolve THIS consumer's pane state + wrap the raw
+  // pane-explicit ops so every call site (ui.openPanel/ui.setTab/…) targets the
+  // owning/focused pane with no prop-drilling.
+  const { openPanelIn, openNewTabIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, panelsByPane } = selection;
+  const panelState = panelsByPane[scopePane] ?? EMPTY_PANEL;
+  const openPanel = useCallback((tab, data) => openPanelIn(scopeRef.current, tab, data), [openPanelIn]);
+  const openNewTab = useCallback((type) => openNewTabIn(scopeRef.current, type), [openNewTabIn]);
+  const setTab = useCallback((id) => setTabIn(scopeRef.current, id), [setTabIn]);
+  const closeTab = useCallback((tab) => closeTabIn(scopeRef.current, tab), [closeTabIn]);
+  const closePanel = useCallback(() => closePanelIn(scopeRef.current), [closePanelIn]);
+  const toggleSidePanel = useCallback(() => toggleSidePanelIn(scopeRef.current), [toggleSidePanelIn]);
+  const toggleFullscreen = useCallback(() => toggleFullscreenIn(scopeRef.current), [toggleFullscreenIn]);
+  const setSidePanelWidth = useCallback((px) => setWidthIn(scopeRef.current, px), [setWidthIn]);
+  const openFile = useCallback((path, reveal) => openFileIn(scopeRef.current, path, reveal), [openFileIn]);
 
-  return useMemo(() => {
-    // Per-pane resolved reads (recompute when the dock map or scope changes).
-    const panels = {
-      // The resolved pane this consumer renders in — for pane-keyed stores
-      // (ptyPanelStore) and registry close handlers.
-      paneId: scopePane,
-      topPanelType: topPanelTypeIn(scopePane),
-      openPanelTypes: openPanelTypesIn(scopePane),
-      isPanelOpen: (type) => hasPanelIn(scopePane, type),
-      hasAnyPanelIn,
-      dockRatios: dockRatiosIn(scopePane),
-      setDockRatio,
-      fileViewer: panelDataIn(scopePane, "file"),
-      agentViewer: panelDataIn(scopePane, "agent"),
-      diffViewer: panelDataIn(scopePane, "diff"),
-      commitsViewer: panelDataIn(scopePane, "commits"),
-      gitDiffViewer: panelDataIn(scopePane, "gitdiff"),
-      terminalViewer: panelDataIn(scopePane, "terminal"),
-      filesViewer: panelDataIn(scopePane, "files"),
-      chatFilesViewer: panelDataIn(scopePane, "chatfiles"),
-      browserViewer: panelDataIn(scopePane, "browser"),
-      openFileViewer, closeFileViewer,
-      openAgentViewer, closeAgentViewer, syncAgentViewer,
-      openDiffViewer, closeDiffViewer,
-      openCommitsViewer, closeCommitsViewer,
-      openGitDiffViewer, closeGitDiffViewer,
-      openTerminalViewer, closeTerminalViewer,
-      openFilesViewer, closeFilesViewer,
-      openChatFilesViewer, closeChatFilesViewer,
-      openBrowserViewer, closeBrowserViewer,
-    };
-    return {
-      ...navigation,
-      ...selection,
-      ...pane,
-      ...composer,
-      ...attention,
-      ...search,
-      ...settings,
-      ...panels,
-      // Scope-resolved popover state — overrides the raw paneId-explicit ops
-      // spread from selection, so consumers read/act on their own pane's popover.
-      openPopover: openPopoverIn(scopePane),
-      openPop,
-      closeAllPops,
-    };
-  }, [
+  return useMemo(() => ({
+    ...navigation,
+    ...selection,
+    ...pane,
+    ...composer,
+    ...attention,
+    ...search,
+    ...settings,
+    // The resolved pane this consumer renders in — for pane-keyed stores and
+    // region focus.
+    paneId: scopePane,
+    // Scope-resolved popover state — overrides the raw paneId-explicit ops
+    // spread from selection, so consumers read/act on their own pane's popover.
+    openPopover: openPopoverIn(scopePane),
+    openPop,
+    closeAllPops,
+    // Scope-resolved side panel — reads + actions for the owning/focused pane.
+    openTabs: panelState.openTabs,
+    activeTab: panelState.activeTab,
+    showSidePanel: panelState.open,
+    sidePanelWidth: panelState.width,
+    panelFullscreen: panelState.fullscreen,
+    panelData: panelState.data,
+    openPanel, openNewTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile,
+  }), [
     navigation, selection, pane, composer, attention, search, settings, scopePane,
-    topPanelTypeIn, panelDataIn, openPanelTypesIn, hasPanelIn, hasAnyPanelIn, dockRatiosIn, setDockRatio,
     openPopoverIn, openPop, closeAllPops,
-    openFileViewer, closeFileViewer, openAgentViewer, closeAgentViewer, syncAgentViewer,
-    openDiffViewer, closeDiffViewer, openCommitsViewer, closeCommitsViewer,
-    openGitDiffViewer, closeGitDiffViewer,
-    openTerminalViewer, closeTerminalViewer,
-    openFilesViewer, closeFilesViewer,
-    openChatFilesViewer, closeChatFilesViewer,
-    openBrowserViewer, closeBrowserViewer,
+    panelState, openPanel, openNewTab, setTab, closeTab, closePanel, toggleSidePanel, toggleFullscreen, setSidePanelWidth, openFile,
   ]);
 }

@@ -9,7 +9,6 @@ import { MonitorWidget } from "./components/monitor/MonitorWidget.jsx";
 import { NativeToggleZone } from "./components/layout/NativeToggleZone.jsx";
 import { SideHandle } from "./components/layout/SideHandle.jsx";
 import { SidebarPopup } from "./components/layout/SidebarPopup.jsx";
-import { ToastViewport } from "./components/toast/ToastViewport.jsx";
 import { getViewComponent, getViewSidebar } from "./views/registry.js";
 
 function Shell() {
@@ -30,7 +29,7 @@ function Shell() {
 
   // Native app notification tap → jump to the Code tab and select the worker.
   useEffect(() => {
-    window.__nativeNavigate = (id) => { ui.setActiveView("code"); ui.setSelectedId(id); };
+    window.__nativeNavigate = (id) => { ui.setActiveView("agents"); ui.setSelectedId(id); };
     return () => { delete window.__nativeNavigate; };
   }, [ui.setActiveView, ui.setSelectedId]);
 
@@ -55,7 +54,6 @@ function Shell() {
       <CommandPalette live={live} />
       <MonitorWidget live={live} />
       <SettingsModal />
-      <ToastViewport />
     </>
   );
 }

@@ -89,7 +89,3 @@ export const workerDefs: ToolDefinition[] = [sendMessageToParentDef, currentDate
 // Registered only when the worker was spawned with collaborate=true (the
 // worker-mcp entrypoint composes them in).
 export const peerDefs: ToolDefinition[] = [listPeersDef, askPeerDef, respondToPeerDef];
-
-// A Home session (Claude-web-style single agent) gets NO Eos control tools — only
-// the standard built-ins are offered (assembled separately from the tool registry).
-export const homeDefs: ToolDefinition[] = [];

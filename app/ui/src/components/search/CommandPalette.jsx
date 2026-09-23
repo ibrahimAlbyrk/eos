@@ -25,9 +25,9 @@ export function CommandPalette({ live }) {
       setSelectedId: ui.setSelectedId,
       updateComposer: ui.updateComposer,
       openSettings: ui.openSettings,
-      openDiffViewer: ui.openDiffViewer,
+      openPanel: ui.openPanel,
     }),
-    [live?.workers, templates, ui.selectedId, ui.setActiveView, ui.setSelectedId, ui.updateComposer, ui.openSettings, ui.openDiffViewer],
+    [live?.workers, templates, ui.selectedId, ui.setActiveView, ui.setSelectedId, ui.updateComposer, ui.openSettings, ui.openPanel],
   );
 
   const groups = useMemo(
@@ -101,7 +101,7 @@ export function CommandPalette({ live }) {
             className="cmdk__input"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search agents and templates…"
+            placeholder="Search agents"
             spellCheck={false}
           />
           <button className="cmdk__close" title="Close (Esc)" onClick={() => ui.closeSearch()}>
@@ -134,7 +134,8 @@ export function CommandPalette({ live }) {
                       <span className="cmdk__item-icon"><ResultIcon name={item.icon} /></span>
                       <span className="cmdk__item-title">{item.title}</span>
                       {item.subtitle && <span className="cmdk__item-sub">{item.subtitle}</span>}
-                      {isActive && (
+                      {item.meta && <span className="cmdk__item-kbd">{item.meta}</span>}
+                      {isActive && !item.meta && (
                         <svg className="cmdk__enter" width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                           <path d="M13 4v3a2 2 0 0 1-2 2H4" />
                           <path d="M6.5 6.5 4 9l2.5 2.5" />

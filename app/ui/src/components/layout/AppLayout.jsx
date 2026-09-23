@@ -11,10 +11,11 @@ import { useUi } from "../../state/ui.jsx";
 //                   the panel's cards here; the Shell renders "popup" into the
 //                   collapsed-hover flyout, so both stay in sync by construction.
 //   main          — center column (header / body / composer)
-//   rightPanel    — explicit grid-column:3 panels (pinned, may render null)
 //   gridClass     — view-derived classes that drive grid-template (e.g. file-open)
 //   children      — floating overlays (absolute/fixed; out of grid flow)
-export function AppLayout({ sidebar, main, rightPanel, gridClass, children }) {
+// The right side panel is no longer a shell column — it renders per pane inside
+// `main` (PaneGrid/SinglePane), so the grid is just sidebar | center.
+export function AppLayout({ sidebar, main, gridClass, children }) {
   const ui = useUi();
   const cls = ["app", gridClass, ui.sideCollapsed ? "side-collapsed" : ""]
     .filter(Boolean)
@@ -28,7 +29,6 @@ export function AppLayout({ sidebar, main, rightPanel, gridClass, children }) {
 
       <section className="center">{main}</section>
 
-      {rightPanel}
       {children}
     </div>
   );

@@ -21,7 +21,9 @@ function harness() {
     subscribe(_t: EventBusTopic | "*", _fn: (m: EventBusMessage) => void): () => void { return () => {}; },
   };
   const hosts: FakeHost[] = [];
-  const spawn: SpawnPtyHost = () => {
+  const spawnOpts: Parameters<SpawnPtyHost>[0][] = [];
+  const spawn: SpawnPtyHost = (opts) => {
+    spawnOpts.push(opts);
     let onData: (d: string) => void = () => {};
     let onExit: (c: number) => void = () => {};
     const host: FakeHost = {
@@ -38,13 +40,22 @@ function harness() {
     return host;
   };
   const svc = new PtySessionService({ bus, defaultCwd: "/proj", spawn });
-  return { svc, bus, published, hosts };
+  return { svc, bus, published, hosts, spawnOpts };
 }
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const dataFrames = (p: { topic: EventBusTopic }[]) => p.filter((x) => x.topic === "pty:data");
 
 describe("PtySessionService", () => {
+  it("passes an optional startup command through to the host", () => {
+    const { svc, spawnOpts } = harness();
+    svc.create({ cols: 80, rows: 24, cwd: "/w", command: "claude --model opus" });
+    svc.create({ cols: 80, rows: 24 });
+    assert.equal(spawnOpts[0].command, "claude --model opus");
+    assert.equal(spawnOpts[0].cwd, "/w");
+    assert.equal(spawnOpts[1].command, undefined);
+  });
+
   it("assigns a monotonic tab number at create and never reuses it", () => {
     const { svc, hosts } = harness();
     const a = svc.create({ cols: 80, rows: 24 });

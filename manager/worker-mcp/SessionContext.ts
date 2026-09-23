@@ -7,9 +7,6 @@ export interface WorkerSession {
   // daemon as EOS_COLLABORATE on the worker MCP child's env (container.ts), so
   // it's known synchronously at boot with no daemon round-trip.
   readonly collaborate: boolean;
-  // The DPI role (EOS_ROLE) → selects the tool surface. "home" gets NO Eos
-  // control tools (built-ins only); "" / absent ⇒ the general worker surface.
-  readonly role: string;
   api(method: string, path: string, body?: unknown): Promise<unknown>;
 }
 
@@ -21,10 +18,9 @@ export function resolveSession(): WorkerSession {
     process.exit(1);
   }
   const collaborate = process.env.EOS_COLLABORATE === "1";
-  const role = process.env.EOS_ROLE ?? "";
   // Identity rides every daemon call — session-scoped routes (browser) derive
   // the caller's session from this header, never from a body field.
   const api = (method: string, path: string, body?: unknown): Promise<unknown> =>
     daemonApi(daemonUrl, method, path, body, { "x-eos-agent-id": selfId });
-  return { selfId, daemonUrl, collaborate, role, api };
+  return { selfId, daemonUrl, collaborate, api };
 }

@@ -11,7 +11,7 @@ import { MonitorPanel } from "./MonitorPanel.jsx";
 // ("monitor") so Escape closes it for free (selection.jsx). Renders nothing
 // when there is no live background activity — no idle chrome.
 export function MonitorWidget({ live }) {
-  const { openPopover, openPop, closeAllPops, setSelectedId, topPanelType } = useUi();
+  const { openPopover, openPop, closeAllPops, setSelectedId, showSidePanel } = useUi();
   const items = selectBackgroundActivity(live.workers);
   const open = openPopover === "monitor";
 
@@ -28,14 +28,14 @@ export function MonitorWidget({ live }) {
     if (open && !items.length) closeAllPops();
   }, [open, items.length, closeAllPops]);
 
-  // A right-panel viewer (file/diff/agent/…) owns the right side — keep the
-  // corner widget beneath it by not rendering while one is open, and drop a
-  // stale-open monitor popover so it doesn't pop back when the viewer closes.
+  // The right side panel owns the right side — keep the corner widget beneath it
+  // by not rendering while it's open, and drop a stale-open monitor popover so it
+  // doesn't pop back when the panel closes.
   useEffect(() => {
-    if (topPanelType && open) closeAllPops();
-  }, [topPanelType, open, closeAllPops]);
+    if (showSidePanel && open) closeAllPops();
+  }, [showSidePanel, open, closeAllPops]);
 
-  if (!items.length || topPanelType) return null;
+  if (!items.length || showSidePanel) return null;
 
   const toggle = () => (open ? closeAllPops() : openPop("monitor"));
 
