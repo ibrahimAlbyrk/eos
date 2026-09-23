@@ -532,6 +532,18 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   border-left: 1px solid var(--line);
   overflow: hidden;
 }
+/* Fullscreen: maximize over the whole pane (its transcript column stays mounted
+   underneath). The owning pane is the positioning context — .pane is absolute,
+   .single-pane relative — so inset:0 fills exactly that pane, sidebar untouched.
+   Toggling off drops back to the docked --sp-w width. */
+.side-panel--fullscreen {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  z-index: 20;
+  border-left: none;
+}
+.side-panel--fullscreen .sp-resize { display: none; }
 /* 6px invisible col-resize strip straddling the panel's left edge — cursor only,
    no visible highlight (reference). */
 .sp-resize {
@@ -594,7 +606,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   flex-shrink: 0;
 }
 .sp-plus:hover, .sp-chrome-btn:hover { background: var(--chip); color: var(--fg-mid); }
-.sp-plus.on { background: var(--row-on); color: var(--fg); }
+.sp-plus.on, .sp-chrome-btn.on { background: var(--row-on); color: var(--fg); }
 .sp-plus { position: relative; }
 .sp-spacer { flex: 1; }
 /* Dropped from the + button (its anchor), so it tracks the button wherever the

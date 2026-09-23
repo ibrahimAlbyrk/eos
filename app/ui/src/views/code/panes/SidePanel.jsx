@@ -131,24 +131,16 @@ export function SidePanel({ live }) {
     window.addEventListener("pointerup", up);
   }, [clampFor, ui]);
 
-  // Fullscreen = widen to the max clamp within the pane; toggle back to default.
-  // (Item 8 replaces this with a flag that fills the whole pane content area.)
-  const onFullscreen = useCallback(() => {
-    const pane = asideRef.current?.closest(".pane, .single-pane");
-    if (!pane) return;
-    const R = pane.getBoundingClientRect();
-    const max = Math.max(MIN_PANEL_W, Math.round(R.width - MIN_TX_W));
-    ui.setSidePanelWidth(ui.sidePanelWidth && ui.sidePanelWidth >= max - 1 ? null : max);
-  }, [ui]);
-
   const pickTab = (t) => { ui.setTab(t); setPlusOpen(false); };
 
   // All hooks above run every render; only the JSX is gated on open.
   if (!ui.showSidePanel) return null;
 
+  const fullscreen = ui.panelFullscreen;
+
   return (
     <aside
-      className="side-panel"
+      className={"side-panel" + (fullscreen ? " side-panel--fullscreen" : "")}
       ref={asideRef}
       style={{ "--sp-w": ui.sidePanelWidth ? ui.sidePanelWidth + "px" : "min(620px, 50%)" }}
       onMouseDownCapture={() => ui.setFocusedRegion("panel")}
@@ -170,8 +162,12 @@ export function SidePanel({ live }) {
           {plusOpen && <PlusMenu onPick={pickTab} />}
         </span>
         <span className="sp-spacer" />
-        <span className="sp-chrome-btn" onClick={onFullscreen} title="Fullscreen" role="button">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h4v4M7 13H3V9M8 8l5-5M8 8l-5 5" /></svg>
+        <span className={"sp-chrome-btn" + (fullscreen ? " on" : "")} onClick={ui.toggleFullscreen} title={fullscreen ? "Exit fullscreen" : "Fullscreen"} role="button">
+          {fullscreen ? (
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 3 9 7V3M9 7h4M3 13l4-4v4M7 9H3" /></svg>
+          ) : (
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h4v4M7 13H3V9M8 8l5-5M8 8l-5 5" /></svg>
+          )}
         </span>
         <span className="sp-chrome-btn" onClick={ui.closePanel} title="Close" role="button">
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 4 8 8M12 4l-8 8" /></svg>

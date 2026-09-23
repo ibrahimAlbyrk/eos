@@ -153,19 +153,30 @@ export function SelectionProvider({ children }) {
       return { ...m, [paneId]: { ...cur, ...tabs, file: tab === "files" ? null : cur.file } };
     });
   }, []);
+  // Closing the whole panel also drops fullscreen, so a later re-open comes back
+  // at its normal docked width, not maximized.
   const closePanelIn = useCallback((paneId) => {
     if (!paneId) return;
     setPanelsByPane((m) => {
       const cur = m[paneId];
       if (!cur?.open) return m;
-      return { ...m, [paneId]: { ...cur, open: false } };
+      return { ...m, [paneId]: { ...cur, open: false, fullscreen: false } };
     });
   }, []);
   const toggleSidePanelIn = useCallback((paneId) => {
     if (!paneId) return;
     setPanelsByPane((m) => {
       const cur = m[paneId] ?? EMPTY_PANEL;
-      return { ...m, [paneId]: { ...cur, open: !cur.open } };
+      return { ...m, [paneId]: cur.open ? { ...cur, open: false, fullscreen: false } : { ...cur, open: true } };
+    });
+  }, []);
+  // Fullscreen = maximize this pane's panel over its transcript column; toggling
+  // back restores the prior docked width (width is untouched by this flag).
+  const toggleFullscreenIn = useCallback((paneId) => {
+    if (!paneId) return;
+    setPanelsByPane((m) => {
+      const cur = m[paneId] ?? EMPTY_PANEL;
+      return { ...m, [paneId]: { ...cur, fullscreen: !cur.fullscreen } };
     });
   }, []);
   const setWidthIn = useCallback((paneId, px) => {
@@ -314,7 +325,7 @@ export function SelectionProvider({ children }) {
     // owning/focused pane and exposes the scope-aware reads (openTabs/activeTab/
     // showSidePanel/…) + actions (openPanel/setTab/closeTab/…) every call uses.
     panelsByPane,
-    openPanelIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, setWidthIn, openFileIn, closeFileIn,
+    openPanelIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, closeFileIn,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
@@ -325,7 +336,7 @@ export function SelectionProvider({ children }) {
     openPopoverByPane, popoverPos, popoverData,
     collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict,
     panelsByPane,
-    openPanelIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, setWidthIn, openFileIn, closeFileIn,
+    openPanelIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, toggleFullscreenIn, setWidthIn, openFileIn, closeFileIn,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPopoverIn, openPopIn, closePopsIn, closeAllPopsEverywhere, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
     registerEscapeIdle,
