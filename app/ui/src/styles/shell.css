@@ -1015,6 +1015,10 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .pane-split-btn.is-active { background: var(--row-on); color: var(--fg); }
 .pane-split-btn.is-active:hover { background: var(--row-on); color: var(--fg); }
 .pane .pane-split-btn { width: 24px; height: 24px; border-radius: var(--r-icon); }
+/* New-task header shows the Environment icon decoratively (no worker → nothing
+   to open); inert = dimmed, no hover, no pointer. Matches the reference. */
+.pane-split-btn--inert { cursor: default; }
+.pane-split-btn--inert:hover { background: transparent; color: var(--fg-dim2); }
 
 /* The composer's own ::before fade IS the per-pane bottom fade in split view;
    single-pane keeps its transcript-scoped fade, so scope the scrim to split. */

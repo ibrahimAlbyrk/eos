@@ -45,8 +45,9 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   };
 
   // Right-side actions. worker headers: Environment · (Split when not split) ·
-  // Open side panel; no-agent header: just Open side panel. × closes non-primary
-  // split panes.
+  // Open side panel; no-agent header: inert Environment · Open side panel (the
+  // reference new-task header shows the checklist icon decoratively — no worker,
+  // nothing to open). × closes non-primary split panes.
   const actions = (
     <div className="pane-head-actions" ref={actionsRef}>
       {worker && (
@@ -79,6 +80,16 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
           </svg>
         </button>
       )}
+      {!worker && (
+        <span className="pane-split-btn pane-split-btn--inert" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+            <path d="M6.5 4h7M6.5 8h7M6.5 12h7" />
+            <path d="M2.6 3.4 3.4 4.2 4.8 2.8" />
+            <path d="M2.6 7.4 3.4 8.2 4.8 6.8" />
+            <path d="M2.6 11.4 3.4 12.2 4.8 10.8" />
+          </svg>
+        </span>
+      )}
       <button
         className={"pane-split-btn" + (ui.showSidePanel ? " is-active" : "")}
         title="Open side panel"
@@ -96,9 +107,9 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
     </div>
   );
 
-  // No agent → the new-session state: the "new orchestrator" breadcrumb + only
-  // the Open-side-panel action (reference new-task header). The input bar lives in
-  // the pane body below (PaneGrid renders the no-agent Composer there).
+  // No agent → the new-session state: the "new orchestrator" breadcrumb + the
+  // reference new-task header's two icons (inert Environment + Open side panel).
+  // The input bar lives in the pane body below (PaneGrid renders the Composer).
   if (!worker) {
     // Reference new-task header: "new orchestrator" (strong) + the faint project
     // name, which disappears entirely when no folder is set.
