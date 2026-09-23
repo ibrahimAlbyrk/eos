@@ -19,7 +19,14 @@
   box-shadow: var(--sh-pop);
   font-size: var(--text-sm);
   pointer-events: auto;
+  /* Canonical flat layer: no blur, no gradient rim. Reset both here (menus.css
+     is @imported last) so the pre-redesign .glass-pop recipe in composer.css —
+     backdrop-blur + a diagonal masked ::after rim — can't leak onto any floating
+     layer that didn't already patch it away per-popover. */
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
 }
+.glass-pop::after { content: none; }
 
 /* slash-pill info popover — same plane as the autocomplete menu.
    Must come after .glass-pop: both are single-class, so source order is
