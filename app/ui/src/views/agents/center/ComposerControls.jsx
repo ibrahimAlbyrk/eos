@@ -19,7 +19,7 @@ import { SubmitButton } from "./SubmitButton.jsx";
 // "Extra"; ultracode is folded into Max since the rail drops it).
 const TRIGGER_LEVEL = { low: "Low", medium: "Medium", high: "High", xhigh: "xHigh", max: "Max", ultracode: "Max" };
 
-export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAttach, demoted, wtStatus, submit }) {
+export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAttach, historyNav, demoted, wtStatus, submit }) {
   const ui = useUi();
   // The pane's own worker (null on the no-agent spawn composer), not the global
   // selection — a non-focused pane's controls must read ITS agent's config.
@@ -171,7 +171,17 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
           />
         </div>
       </div>
-      <div className="grow"></div>
+      <div className="grow">
+        {historyNav && (
+          <span className="history-pos" title="Input history — ↑ older · ↓ newer">
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 6.5 8 3.5l3 3M5 9.5l3 3 3-3" />
+            </svg>
+            <span className="hp-pos">{historyNav.pos}</span>
+            <span className="hp-total">/{historyNav.total}</span>
+          </span>
+        )}
+      </div>
       <div className="right">
         {showProvider && (
           <div className="provider-wrap" style={{ position: "relative" }}>
