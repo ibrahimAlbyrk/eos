@@ -1617,272 +1617,13 @@
   box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 55%, transparent);
 }
 
-/* ============================================================================
-   TASK TRAY — liquid-glass capsule docked IN-FLOW at the top of the band above
-   the input (left-aligned). It reserves its own height instead of overlaying the
-   transcript, so it never collides with a banner or the worktree hub. Collapsed:
-   ambient capsule (progress ring + active task, blur-roll label). Expanded: the
-   capsule grows upward into a connected card whose tasks hang off a vertical
-   timeline spine that fills as the agent advances. Shares the composer's own card
-   language (subtle tint + masked hairline).
-   ============================================================================ */
-.task-tray-row {
-  display: flex;
-  justify-content: flex-start;
-  width: max-content;
-  max-width: 100%;
-}
-.task-tray {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;   /* card sits above the pill, both left-aligned; pill keeps its own width */
-  gap: 6px;
-  transform-origin: bottom left;
-}
-
-/* liquid-glass surface shared by capsule + expanded card — now that the tray
-   floats over the transcript it needs a frosted fill + lift (same recipe as the
-   worktree hub), or the chat text behind it would bleed through and be unreadable. */
-.tt-surface {
-  position: relative;
-  background: rgba(var(--glass), 0.4);
-  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
-  border-radius: 10px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.32), 0 2px 6px rgba(0, 0, 0, 0.22);
-}
-.tt-surface::after {
-  content: "";
-  position: absolute; inset: 0;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(180deg, rgba(var(--tint), 0.07) 0%, rgba(var(--tint), 0.015) 100%);
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-  pointer-events: none;
-}
-
-/* ── collapsed capsule ── */
-.tt-pill {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 28px;
-  padding: 0 10px 0 11px;
-  white-space: nowrap;
-  transition: background 140ms ease;
-  animation: tt-pill-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
-}
-.tt-pill:hover,
-.tt-pill.open { background: rgba(var(--glass), 0.5); }
-@keyframes tt-pill-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: none; }
-}
-.tt-pill .tt-pill-label {
-  max-width: 220px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: var(--text-xs);
-  color: var(--fg-mid);
-  transition: color 120ms ease;
-}
-.tt-pill:hover .tt-pill-label { color: var(--fg); }
-.tt-pill .tt-chev { color: var(--fg-faint); transition: color 120ms ease, transform 160ms ease; }
-.tt-pill:hover .tt-chev { color: var(--fg-mid); transform: translateY(-1px); }
-
-/* shared count — mono tabular, faint */
-.task-tray .tt-count {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  font-variant-numeric: tabular-nums;
-  color: var(--fg-faint);
-  flex-shrink: 0;
-}
-
-/* progress ring on the capsule — same geometry as the ctx ring */
-.tt-ring { width: 14px; height: 14px; transform: rotate(-90deg); flex-shrink: 0; }
-.tt-ring .tt-ring-track { fill: none; stroke: rgba(var(--tint), 0.16); stroke-width: 1.8; }
-.tt-ring .tt-ring-fill {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  transition: stroke-dasharray 350ms cubic-bezier(0.2, 0.7, 0.3, 1), stroke 250ms ease;
-}
-.tt-ring.done .tt-ring-fill { stroke: var(--ok); }
-.tt-ring .tt-ring-core {
-  fill: var(--accent);
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: tt-core-pulse 1.8s ease-in-out infinite;
-}
-
-/* ── expanded list — FLOATS up over the transcript, anchored just above the
-   in-flow pill, so opening it never pushes the composer/input up ── */
-.tt-card {
-  position: relative;        /* in-flow, directly above the pill — the bottom-anchored
-                                rail grows UPWARD so it overlays the transcript without
-                                pushing the input. relative seats the glass rim. */
-  width: max-content;
-  min-width: 240px;
-  max-width: min(520px, 92cqi);
-  padding: 4px;
-  transform-origin: bottom left;
-  animation: tt-card-in 200ms cubic-bezier(0.2, 0.7, 0.3, 1);
-}
+/* TaskTray styling now lives entirely in the charcoal-aurora block below
+   (search ".tt-card"); the old liquid-glass rules were removed. Only this
+   keyframe stays here — the child-interrupt list (.child-int-panel) still
+   references it for its rise-in. */
 @keyframes tt-card-in {
   from { opacity: 0; transform: translateY(8px) scale(0.97); }
   to   { opacity: 1; transform: none; }
-}
-/* timeline list — nodes hang off a vertical spine in the rail column.
-   --tt-rail-x = item left padding (4px) + node column (16px) / 2.
-   --tt-node-r = where each connector stops short of the node center, so the
-   thread ends right at the node's ring instead of crossing its interior.
-   --tt-node-y = node CENTER measured from the row's top (row padding + half a
-   text line). The node is pinned to the FIRST text line, not vertically
-   centred, so this offset is constant no matter how many lines a label wraps
-   to — that constant is what lets one connector span correctly between rows of
-   unequal height (see ::after). */
-.tt-list {
-  --tt-rail-x: 12px;
-  --tt-node-r: 6px;
-  --tt-row-pad: 6px;
-  --tt-line-h: calc(var(--text-sm) * 1.45);
-  --tt-node-y: calc(var(--tt-row-pad) + var(--tt-line-h) / 2);
-  list-style: none;
-  margin: 0;
-  padding: 2px 8px 6px;
-  display: flex;
-  flex-direction: column;
-  max-height: 264px;
-  overflow-y: auto;
-}
-.tt-item {
-  position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 11px;
-  padding: var(--tt-row-pad) 4px;
-  min-height: 30px;
-  animation: tt-item-in 220ms ease both;
-}
-@keyframes tt-item-in {
-  from { opacity: 0; transform: translateY(5px); }
-  to   { opacity: 1; transform: none; }
-}
-/* The spine is one connector per item: ::after spans from this node down to the
-   next, centered on the rail and stopping a node-radius short of each node so it
-   never enters one. The faint track is the background COLOR (always visible);
-   the travelled fill is a background IMAGE revealed by growing its background-
-   size from height 0 → 100%. Because background-size is animatable, a completing
-   task fills its segment downward in one smooth front instead of snapping.
-   Row-height-independent: the node sits a CONSTANT --tt-node-y below each row's
-   top (not at 50%), so top = node-y + r and height = 100% - 2r run the segment
-   from this node's edge to exactly the next node's edge even when adjacent rows
-   wrap to different line counts. */
-.tt-item::after {
-  content: "";
-  position: absolute;
-  left: var(--tt-rail-x);
-  transform: translateX(-50%);
-  width: 2px;
-  top: calc(var(--tt-node-y) + var(--tt-node-r));
-  height: calc(100% - var(--tt-node-r) * 2);
-  background-color: rgba(var(--tint), 0.14);
-  background-repeat: no-repeat;
-  background-position: top;
-  background-size: 100% 0%;
-  transition: background-size 480ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-.tt-item:last-child::after { display: none; }
-/* A completed node's outgoing segment fills GREEN; how far depends on the next
-   node. Next completed → fill fully (the path connects two done tasks). Next
-   active → green→blue gradient, fully (the path reaches into the active node).
-   Next still pending → stop HALFWAY, so the green frontier rests between the
-   last done task and the not-yet-started one. */
-.tt-item.completed::after {
-  background-image: linear-gradient(var(--ok), var(--ok));
-  background-size: 100% 50%;
-}
-.tt-item.completed:has(+ .tt-item.completed)::after {
-  background-size: 100% 100%;
-}
-.tt-item.completed:has(+ .tt-item.in_progress)::after {
-  background-image: linear-gradient(180deg, var(--ok), var(--accent));
-  background-size: 100% 100%;
-}
-
-/* node — the marker sitting on the spine, painted above the connectors */
-.tt-node {
-  position: relative;
-  z-index: 1;
-  width: 16px;
-  height: var(--tt-line-h);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.tt-ic { width: 15px; height: 15px; display: block; overflow: visible; }
-.tt-ic circle, .tt-ic path { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.tt-ic-pending { color: rgba(var(--tint), 0.30); }
-.tt-ic-active { color: var(--accent); }
-.tt-ic-active .tt-core {
-  fill: var(--accent);
-  stroke: none;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: tt-core-pulse 1.8s ease-in-out infinite;
-}
-/* soft halo around the active node */
-.tt-ic-active .tt-halo {
-  fill: var(--accent);
-  stroke: none;
-  opacity: 0.16;
-  transform-box: fill-box;
-  transform-origin: center;
-  animation: tt-halo-pulse 1.8s ease-in-out infinite;
-}
-@keyframes tt-core-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%      { opacity: 0.45; transform: scale(0.6); }
-}
-@keyframes tt-halo-pulse {
-  0%, 100% { opacity: 0.16; transform: scale(1); }
-  50%      { opacity: 0.04; transform: scale(1.5); }
-}
-.tt-ic-done { color: var(--ok); }
-.tt-check {
-  stroke-dasharray: 11;
-  stroke-dashoffset: 11;
-  animation: tt-check-draw 260ms ease-out 60ms forwards;
-}
-@keyframes tt-check-draw { to { stroke-dashoffset: 0; } }
-
-.tt-item-label {
-  font-size: var(--text-sm);
-  line-height: 1.45;
-  color: var(--fg-mid);
-  min-width: 0;
-  align-self: flex-start;
-  transition: color 160ms ease;
-}
-.tt-item.in_progress .tt-item-label { color: var(--fg); font-weight: 500; }
-.tt-item.completed .tt-item-label {
-  color: var(--fg-faint);
-  text-decoration: line-through;
-  text-decoration-color: rgba(var(--tint), 0.22);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .tt-pill, .tt-card, .tt-item, .child-int-panel.open .child-int-list { animation: none; }
-  .tt-ring .tt-ring-core, .tt-ic-active .tt-core, .tt-ic-active .tt-halo { animation: none; }
-  .tt-check { animation: none; stroke-dashoffset: 0; }
-  .tt-item::after { transition: none; }
 }
 
 /* ============== Accept-edits popover (above composer Accept edits btn) ============== */
@@ -3953,7 +3694,7 @@
 .tt-surface { position: relative; }
 .tt-pill {
   display: inline-flex; align-items: center; gap: 8px; height: 30px; max-width: 380px;
-  padding: 0 12px 0 9px; border: 0; border-radius: var(--r-pill); background: transparent; color: var(--fg-mid);
+  padding: 0 12px 0 9px; border: 0; border-radius: var(--r-pill); background: var(--pop); color: var(--fg-mid);
   font-family: var(--font-ui); font-size: 12.5px; cursor: pointer; user-select: none;
   white-space: nowrap; transition: background 120ms ease;
 }
@@ -3973,7 +3714,7 @@
 }
 .tt-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-height: 300px; overflow-y: auto; }
 .tt-item { position: relative; display: flex; align-items: flex-start; gap: 10px; padding: 5px 8px; }
-.tt-item::after { content: ""; position: absolute; left: 15px; top: 21px; bottom: -6px; width: 1.5px; border-radius: 1px; background: var(--fg-mute); }
+.tt-item::after { content: ""; position: absolute; left: 15px; top: 21px; bottom: -6px; width: 1.5px; border-radius: 1px; background: var(--line); }
 .tt-item:last-child::after { display: none; }
 .tt-item.completed::after { background: var(--ok); }
 .tt-node { position: relative; width: 15px; height: 15px; margin-top: 2px; flex-shrink: 0; display: inline-flex; }
@@ -3982,11 +3723,10 @@
 .tt-ic-done .tt-check { fill: none; stroke: var(--accent-fg); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .tt-ic-active circle { fill: none; stroke: var(--accent); stroke-width: 1.5; }
 .tt-ic-active .tt-core { fill: var(--accent); stroke: none; animation: d-breathe 2.2s ease-in-out infinite; }
-.tt-ic-active .tt-halo { fill: var(--accent); stroke: none; opacity: 0.14; }
 .tt-ic-pending circle { fill: var(--pop); stroke: var(--fg-mute); stroke-width: 1.5; }
-.tt-item-label { font-size: 13px; line-height: 1.45; color: var(--fg-dim); min-width: 0; }
-.tt-item.in_progress .tt-item-label { color: var(--fg); font-weight: 500; }
-.tt-item.completed .tt-item-label { color: var(--fg-mid); }
+.tt-item-label { font-size: 13px; line-height: 1.45; color: var(--fg-mid); min-width: 0; }
+.tt-item.in_progress .tt-item-label { color: var(--fg-strong); }
+.tt-item.completed .tt-item-label { color: var(--fg-dim2); }
 
 @media (prefers-reduced-motion: reduce) {
   .update-dot, .try-dot, .q-dot, .tt-ic-active .tt-core { animation: none; }

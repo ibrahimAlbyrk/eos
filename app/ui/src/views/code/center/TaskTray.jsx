@@ -3,9 +3,10 @@ import { RollingLabel } from "../../../components/RollingLabel.jsx";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
 
 // TaskTray — docked into the composer card stack as a right-aligned row that
-// sits just above the input. Collapsed: an ambient capsule (progress ring +
-// active task). Expanded: it grows upward into a connected card whose tasks
-// hang off a vertical timeline spine that fills as the agent advances.
+// sits just above the input. Collapsed: an ambient pill (progress ring +
+// active task). Expanded: an absolute card floats up over the composer, right-
+// anchored above the pill (never reflowing the input), its tasks hanging off a
+// vertical timeline spine whose completed segments read green.
 //
 // Data is the selected worker's `tasks` column — a JSON snapshot of Claude's
 // TodoWrite list, daemon-stamped on every TodoWrite call and nulled on /clear
@@ -43,7 +44,6 @@ function Node({ status }) {
     return (
       <span className="tt-node">
         <svg className="tt-ic tt-ic-active" viewBox="0 0 15 15" aria-hidden="true">
-          <circle className="tt-halo" cx="7.5" cy="7.5" r="7" />
           <circle cx="7.5" cy="7.5" r="6" />
           <circle className="tt-core" cx="7.5" cy="7.5" r="2.6" />
         </svg>
@@ -99,10 +99,10 @@ export function TaskTray({ selected, blockingActive }) {
     <div className="task-tray-row">
       <div className="task-tray">
         {open && (
-          <div className="tt-card glass-pop">
+          <div className="tt-card">
             <ul className="tt-list">
               {tasks.map((t, i) => (
-                <li key={i} className={`tt-item ${t.status}`} style={{ animationDelay: `${i * 28}ms` }}>
+                <li key={i} className={`tt-item ${t.status}`}>
                   <Node status={t.status} />
                   <span className="tt-item-label">{t.content}</span>
                 </li>
