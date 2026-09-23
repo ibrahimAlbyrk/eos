@@ -47,7 +47,7 @@ function ModelMenu({ live, ui, worker, config, onPick }) {
 
   return (
     <div
-      className="model-popover glass-pop open"
+      className="model-popover open"
       id="modelPopover"
       data-popover="model"
       ref={paneRef}
