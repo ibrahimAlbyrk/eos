@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { subscribe as subscribeThinking, getBlock } from "../../../state/thinkingStore.js";
 
 // Inline reasoning line rendered as part of the assistant's turn — the raw
@@ -15,6 +15,9 @@ import { subscribe as subscribeThinking, getBlock } from "../../../state/thinkin
 export function ThinkingLine({ text, live = false, interrupted = false, streamId, sessionId }) {
   const ref = useRef(null);
   const lenRef = useRef(0); // chars already appended to the DOM
+  // Durable reasoning collapses to 2 lines; click expands. Live text is never
+  // clamped (the tail must stay visible while it streams).
+  const [expanded, setExpanded] = useState(false);
 
   // Live streaming: subscribe to the store's coalesced flushes, append the tail.
   useLayoutEffect(() => {
@@ -52,8 +55,9 @@ export function ThinkingLine({ text, live = false, interrupted = false, streamId
     }
   }, [live, text]);
 
+  const cls = "thinking-line" + (live ? " is-live" : expanded ? " is-expanded" : "");
   return (
-    <div className="thinking-line">
+    <div className={cls} onClick={live ? undefined : () => setExpanded((e) => !e)}>
       <span className="mono">
         <span ref={ref} />
         {interrupted && <span className="thinking-interrupted">interrupted</span>}

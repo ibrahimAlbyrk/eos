@@ -916,7 +916,7 @@ export function GenericToolCard({ tool }) {
 export function MessageDetail({ tool }) {
   const text = tool.input?.text ?? "";
   return (
-    <div className="report-detail" style={{ marginLeft: 0 }}>
+    <div className="report-detail">
       <div className="report-detail-text">{text}</div>
     </div>
   );
@@ -949,7 +949,7 @@ export function PeerAskDetail({ tool }) {
 export function PeerRespondDetail({ tool }) {
   const answer = tool.input?.answer ?? "";
   return (
-    <div className="report-detail" style={{ marginLeft: 0 }}>
+    <div className="report-detail">
       <div className="report-detail-text">{answer}</div>
     </div>
   );
@@ -976,7 +976,7 @@ export function PeerListDetail({ tool }) {
         })
         .join("\n\n");
   return (
-    <div className="report-detail" style={{ marginLeft: 0 }}>
+    <div className="report-detail">
       <div className="report-detail-text">{body}</div>
     </div>
   );

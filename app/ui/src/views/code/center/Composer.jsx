@@ -26,8 +26,7 @@ import { escChord, ESC_CHORD_WINDOW_MS } from "../../../lib/escapeChord.js";
 import { composerMode, modeFlags, nextGitMode } from "../../../lib/composerModes.js";
 import { shouldApplyPendingText } from "../../../lib/composerRestore.js";
 import { gitAgentName, gitTaskLabel } from "../../../lib/gitAgentName.js";
-import { ComposerConfigRow } from "./ComposerConfigRow.jsx";
-import { ComposerDiffRow } from "./ComposerDiffRow.jsx";
+import { ContextStrip } from "./ContextStrip.jsx";
 import { ComposerControls } from "./ComposerControls.jsx";
 import { CommandMenu } from "./CommandMenu.jsx";
 import { FileMenu } from "./FileMenu.jsx";
@@ -40,7 +39,7 @@ import { QuestionBanner } from "./QuestionBanner.jsx";
 import { TryDeck } from "./TryBanner.jsx";
 import { TaskTray } from "./TaskTray.jsx";
 import { WorktreeHub } from "./WorktreeHub.jsx";
-import { SubmitButton } from "./SubmitButton.jsx";
+import { CollapsedComposer } from "./CollapsedComposer.jsx";
 
 function QueuedPill({ text, onDismiss }) {
   return (
@@ -1033,6 +1032,14 @@ export function Composer({ live, worker, paneId, focused }) {
   // would sit over the queued list). The footer mirror stays gated on this
   // wider condition too, so tasks/worktree status is still visible somewhere.
   const railYields = blockingActive || queuedList.length > 0;
+  // Send button lives in the controls row now; dim it when there's nothing to
+  // send (empty draft + no attachments), never while it's the Stop affordance.
+  const canSend = !!text.trim() || attachmentItems.length > 0;
+  const submit = {
+    stop: showStop,
+    dim: !showStop && !canSend,
+    onClick: showStop ? () => live.interruptAgent(selected.id) : send,
+  };
 
   return (
     <div className="composer-wrap">
@@ -1060,86 +1067,94 @@ export function Composer({ live, worker, paneId, focused }) {
             onClose={() => ui.dismissQuestion(ui.pendingQuestion.toolUseId)}
           />
         ) : null}
-        <div className="integration-wrap">
-          {/* Ambient rail: tasks (left) + worktree fleet (right) on one line,
-              docked flush above the git bar. Both yield to a blocking banner
-              or a visible queued-pill list (railYields). */}
-          <div className="ambient-rail">
-            <TaskTray selected={selected} blockingActive={railYields} />
-            <WorktreeHub live={live} selected={selected} blockingActive={railYields} onStatus={setWtStatus} />
+        {!blockingActive && (
+          <div className="integration-wrap">
+            {/* Ambient rail: worktree fleet (left) + tasks (right) on one line,
+                docked flush above the context strip. Both yield to a visible
+                queued-pill list (railYields). */}
+            <div className="ambient-rail">
+              <WorktreeHub live={live} selected={selected} blockingActive={railYields} onStatus={setWtStatus} />
+              <TaskTray selected={selected} blockingActive={railYields} />
+            </div>
+            <TryDeck live={live} selected={selected} />
           </div>
-          <TryDeck live={live} selected={selected} />
-          {selected ? (
-            <ComposerDiffRow live={live} worker={selected} wtStatus={wtStatus} />
-          ) : (
-            <ComposerConfigRow live={live} />
-          )}
-        </div>
+        )}
 
-        <div className="c-row2-wrap">
-          {showMenu && (
-            <CommandMenu
-              commands={filtered}
-              selectedIndex={menuIndex}
-              onSelect={selectCommand}
-              query={slashCtx?.query ?? ""}
-            />
-          )}
-          {showFileMenu && (
-            <FileMenu
-              entries={atResults}
-              selectedIndex={fileMenuIndex}
-              onSelect={selectFile}
-              onDescend={descendInto}
-              onCrumb={jumpToCrumb}
-              query={atIntent?.filter ?? atCtx?.query ?? ""}
-              dir={atIntent?.mode === "browse" ? atIntent.dir : ""}
-            />
-          )}
-          <SlashInfoPopover />
-          <PasteInfoPopover onMouseEnter={keepPasteInfo} onMouseLeave={closePasteInfoSoon} />
-          <div className={[
-            "c-row2",
-            termMode ? "term-mode" : gitMode ? "git-mode" : "",
-            dropActive ? "drop-active" : "",
-          ].filter(Boolean).join(" ")}>
-            {attachmentItems.length > 0 && (
-              <AttachmentChips attachments={attachmentItems} onRemove={removeAttachmentToken} />
-            )}
-            {termMode && <span className="term-prompt" aria-hidden>❯</span>}
-            <div
-              ref={editorRef}
-              className={escArmed ? "composer-editor esc-armed" : "composer-editor"}
-              contentEditable
-              role="textbox"
-              data-placeholder={termMode ? "Run a shell command — Enter to run, Esc to exit" : gitMode ? "Describe the git task — commit, rebase, merge…" : "Type / for commands, @ for files"}
-              data-empty={!text ? "" : undefined}
-              data-hint={activeHint || undefined}
-              onInput={(e) => { recallRef.current = false; handleInput(e); }}
-              onKeyDown={onKey}
-              onPaste={handlePaste}
-              onClick={onEditorClick}
-              onPointerOver={onEditorPointerOver}
-              onPointerOut={onEditorPointerOut}
-              onKeyUp={() => { const el = editorRef.current; if (el) setCursorPos(getCursorOffset(el)); }}
-            />
-            <SubmitButton
-              stop={showStop}
-              onClick={showStop ? () => live.interruptAgent(selected.id) : send}
-            />
-          </div>
-        </div>
+        {blockingActive ? (
+          <CollapsedComposer
+            worker={selected}
+            hasQuestion={hasQuestion}
+            onAttach={addAttachments}
+            submit={submit}
+          />
+        ) : (
+          <>
+            <ContextStrip live={live} worker={selected} />
+            <div className="composer-card">
+              <div className="c-row2-wrap">
+                {showMenu && (
+                  <CommandMenu
+                    commands={filtered}
+                    selectedIndex={menuIndex}
+                    onSelect={selectCommand}
+                    query={slashCtx?.query ?? ""}
+                  />
+                )}
+                {showFileMenu && (
+                  <FileMenu
+                    entries={atResults}
+                    selectedIndex={fileMenuIndex}
+                    onSelect={selectFile}
+                    onDescend={descendInto}
+                    onCrumb={jumpToCrumb}
+                    query={atIntent?.filter ?? atCtx?.query ?? ""}
+                    dir={atIntent?.mode === "browse" ? atIntent.dir : ""}
+                  />
+                )}
+                <SlashInfoPopover />
+                <PasteInfoPopover onMouseEnter={keepPasteInfo} onMouseLeave={closePasteInfoSoon} />
+                <div className={[
+                  "c-row2",
+                  termMode ? "term-mode" : gitMode ? "git-mode" : "",
+                  dropActive ? "drop-active" : "",
+                ].filter(Boolean).join(" ")}>
+                  {attachmentItems.length > 0 && (
+                    <AttachmentChips attachments={attachmentItems} onRemove={removeAttachmentToken} />
+                  )}
+                  {termMode && <span className="term-prompt" aria-hidden>❯</span>}
+                  <div
+                    ref={editorRef}
+                    className={escArmed ? "composer-editor esc-armed" : "composer-editor"}
+                    contentEditable
+                    role="textbox"
+                    data-placeholder={termMode ? "Run a shell command — Enter to run, Esc to exit" : gitMode ? "Describe the git task — commit, rebase, merge…" : "What should we do?"}
+                    data-empty={!text ? "" : undefined}
+                    data-hint={activeHint || undefined}
+                    onInput={(e) => { recallRef.current = false; handleInput(e); }}
+                    onKeyDown={onKey}
+                    onPaste={handlePaste}
+                    onClick={onEditorClick}
+                    onPointerOver={onEditorPointerOver}
+                    onPointerOut={onEditorPointerOut}
+                    onKeyUp={() => { const el = editorRef.current; if (el) setCursorPos(getCursorOffset(el)); }}
+                  />
+                </div>
+              </div>
 
-        <ComposerControls
-          live={live}
-          worker={selected}
-          gitMode={gitMode}
-          onToggleGitMode={toggleGitMode}
-          onAttach={addAttachments}
-          historyNav={history.nav && text === history.nav.entry.text ? history.nav : null}
-          demoted={railYields}
-          wtStatus={wtStatus}
-        />
+              <ComposerControls
+                live={live}
+                worker={selected}
+                gitMode={gitMode}
+                onToggleGitMode={toggleGitMode}
+                onAttach={addAttachments}
+                historyNav={history.nav && text === history.nav.entry.text ? history.nav : null}
+                demoted={railYields}
+                wtStatus={wtStatus}
+                submit={submit}
+              />
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

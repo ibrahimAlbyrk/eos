@@ -65,16 +65,5 @@ export function HomeSidebar({ live, variant = "full" }) {
 
   if (variant === "popup") return body;
 
-  return (
-    <>
-      <div className="side-island side-island--agents">{body}</div>
-      <div className="side-island side-island--status">
-        <span className="lab">Daemon</span>
-        <span className="val">
-          <span className="status-dot" style={!live?.health ? { background: "var(--err)" } : {}}></span>
-          {live?.health ? "online" : "offline"}
-        </span>
-      </div>
-    </>
-  );
+  return <div className="side-island side-island--agents">{body}</div>;
 }

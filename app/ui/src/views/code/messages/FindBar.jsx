@@ -27,13 +27,13 @@ export function FindBar({ find }) {
             {find.matchCount > 0 ? `${find.idx + 1}/${find.matchCount}` : "0/0"}
           </span>
         )}
-        <button className="fv-find-nav" onClick={find.prev} title="Previous match">
+        <button className="page-find-nav" onClick={find.prev} title="Previous match">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 10 4-4 4 4" /></svg>
         </button>
-        <button className="fv-find-nav" onClick={find.next} title="Next match">
+        <button className="page-find-nav" onClick={find.next} title="Next match">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 6 4 4 4-4" /></svg>
         </button>
-        <button className="fv-find-nav" onClick={find.close} title="Close">
+        <button className="page-find-nav" onClick={find.close} title="Close">
           <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 4 8 8M12 4l-8 8" /></svg>
         </button>
       </div>

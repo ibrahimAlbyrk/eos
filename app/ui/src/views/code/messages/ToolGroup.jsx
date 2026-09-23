@@ -5,6 +5,7 @@ export function ToolGroup({ summary, tools, open, onToggle, cwd, workers }) {
   return (
     <div className="tool-group">
       <DisclosureRow expanded={open} onToggle={onToggle} className="tool-group-header">
+        <span className="row-dot" aria-hidden />
         <span className="tg-summary">{summary}</span>
       </DisclosureRow>
       {open && (

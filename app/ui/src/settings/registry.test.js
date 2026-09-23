@@ -5,11 +5,9 @@ const section = (id) => SETTINGS_SECTIONS.find((s) => s.id === id);
 const keysOf = (s) => (s?.groups ?? []).flatMap((g) => g.items).map((i) => i.key);
 
 describe("settings registry", () => {
-  it("theme lives in General and defaults to system", () => {
-    expect(keysOf(section("general"))).toContain("appearance.theme");
-    expect(SETTING_DEFAULTS["appearance.theme"]).toBe("system");
-    const item = section("general").groups.flatMap((g) => g.items).find((i) => i.key === "appearance.theme");
-    expect(item.control.options.map((o) => o.value)).toEqual(["system", "light", "dark"]);
+  it("has no appearance/theme setting (dark only)", () => {
+    expect(keysOf(section("general"))).not.toContain("appearance.theme");
+    expect(SETTING_DEFAULTS["appearance.theme"]).toBeUndefined();
   });
 
   it("verbose settings moved to the Code section, keys unchanged", () => {

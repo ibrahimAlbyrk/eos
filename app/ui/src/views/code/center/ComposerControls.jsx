@@ -6,6 +6,7 @@ import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { ModelPopover } from "../popovers/ModelPopover.jsx";
 import { BackendPopover, SpawnModelPopover } from "../popovers/BackendPopover.jsx";
 import { EffortPopover } from "../popovers/EffortPopover.jsx";
+import { ModelEffortPanel } from "../popovers/ModelEffortPanel.jsx";
 import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
@@ -13,8 +14,13 @@ import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
 import { providerChoices, providerName, runningProviderLabel, runningProviderChoice, hasProviderSwitchTarget } from "../../../lib/backendCaps.js";
 import { pickerLocked, modelPickerLocked, workerBusy } from "../../../lib/composerPickerLock.js";
 import { parseWorkerTasks } from "../../../lib/workerTasks.js";
+import { SubmitButton } from "./SubmitButton.jsx";
 
-export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAttach, historyNav, demoted, wtStatus }) {
+// The combined Model·Effort trigger's level word (xHigh, not the model catalog's
+// "Extra"; ultracode is folded into Max since the rail drops it).
+const TRIGGER_LEVEL = { low: "Low", medium: "Medium", high: "High", xhigh: "xHigh", max: "Max", ultracode: "Max" };
+
+export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAttach, historyNav, demoted, wtStatus, submit }) {
   const ui = useUi();
   // The pane's own worker (null on the no-agent spawn composer), not the global
   // selection — a non-focused pane's controls must read ITS agent's config.
@@ -51,6 +57,13 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   const selectedChoice = selected ? runningProviderChoice(selected) : null;
   const selectedIsApi = !!selectedChoice && !selectedChoice.subscription;
   const modelPopId = spawnIsApi || selectedIsApi ? "spawnModel" : "model";
+  // The Claude lane folds Model + Effort into one rail trigger; an API lane keeps
+  // its provider-specific model list + effort as separate pills.
+  const hasEffort = effortChoicesFor(model).length > 0;
+  const isApiLane = spawnIsApi || selectedIsApi;
+  const useRail = hasEffort && !isApiLane;
+  const levelLabel = TRIGGER_LEVEL[effort] ?? "High";
+  const levelIsMax = effort === "max" || effort === "ultracode";
 
   // Provider switcher: only for a selected worker, and only when there's another
   // CONFIGURED provider to switch to (the same providerChoices the menu lists, so
@@ -191,32 +204,55 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             <BackendPopover live={live} worker={selected} />
           </div>
         )}
-        <div className="model-wrap" style={{ position: "relative" }}>
-          <button
-            className={"model-pill" + (ui.openPopover === modelPopId ? " open" : "")}
-            id="modelPill"
-            disabled={modelLocked}
-            title={modelLocked ? "Model switch needs the worker idle" : "Model for this provider"}
-            onClick={(e) => toggle(modelPopId, e)}
-            data-popover-trigger={modelPopId}
-          >
-            <span>{modelInfo.name}</span>
-            {modelInfo.ctx && <span className="ctx">({modelInfo.ctx} context)</span>}
-          </button>
-          <ModelPopover live={live} worker={selected} />
-          <SpawnModelPopover live={live} worker={selected} />
-        </div>
-        {effortChoicesFor(model).length > 0 && (
-          <div className="effort-wrap" style={{ position: "relative" }}>
+        {useRail ? (
+          <div className="me-wrap" style={{ position: "relative" }}>
             <button
-              className={"effort-pill" + (effort === "ultracode" ? " ultra" : "") + (ui.openPopover === "effort" ? " open" : "")}
+              className={"model-effort-trigger" + (ui.openPopover === "effort" ? " open" : "")}
+              disabled={modelLocked}
+              title={modelLocked ? "Model switch needs the worker idle" : "Model & effort"}
               onClick={(e) => toggle("effort", e)}
               data-popover-trigger="effort"
             >
-              {EFFORT_LABELS[effort] ?? "Extra"}
+              <span className="me-t-model">{modelInfo.name}</span>
+              <span className="me-t-level" style={levelIsMax ? { color: "var(--violet)" } : undefined}>{levelLabel}</span>
+              <span className="me-t-caret">
+                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m3.5 6 4.5 4.5L12.5 6" />
+                </svg>
+              </span>
             </button>
-            <EffortPopover live={live} worker={selected} />
+            <ModelEffortPanel live={live} worker={selected} />
           </div>
+        ) : (
+          <>
+            <div className="model-wrap" style={{ position: "relative" }}>
+              <button
+                className={"model-pill" + (ui.openPopover === modelPopId ? " open" : "")}
+                id="modelPill"
+                disabled={modelLocked}
+                title={modelLocked ? "Model switch needs the worker idle" : "Model for this provider"}
+                onClick={(e) => toggle(modelPopId, e)}
+                data-popover-trigger={modelPopId}
+              >
+                <span>{modelInfo.name}</span>
+                {modelInfo.ctx && <span className="ctx">({modelInfo.ctx} context)</span>}
+              </button>
+              <ModelPopover live={live} worker={selected} />
+              <SpawnModelPopover live={live} worker={selected} />
+            </div>
+            {hasEffort && (
+              <div className="effort-wrap" style={{ position: "relative" }}>
+                <button
+                  className={"effort-pill" + (effort === "ultracode" ? " ultra" : "") + (ui.openPopover === "effort" ? " open" : "")}
+                  onClick={(e) => toggle("effort", e)}
+                  data-popover-trigger="effort"
+                >
+                  {EFFORT_LABELS[effort] ?? "Extra"}
+                </button>
+                <EffortPopover live={live} worker={selected} />
+              </div>
+            )}
+          </>
         )}
         <div className="ctx-ring-wrap">
           <button
@@ -258,6 +294,7 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             )}
           </div>
         )}
+        {submit && <SubmitButton stop={submit.stop} dim={submit.dim} onClick={submit.onClick} />}
       </div>
     </div>
   );

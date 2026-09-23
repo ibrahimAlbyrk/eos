@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../api/client.js";
 import { SETTINGS_SECTIONS, SETTING_DEFAULTS } from "../settings/registry.jsx";
-import { THEME_KEY, THEME_STORAGE_KEY, resolveTheme, setTheme, watchSystemTheme } from "../settings/theme.js";
+import { THEME_STORAGE_KEY, setTheme } from "../settings/theme.js";
 import { useComposer } from "./composer.jsx";
 import { useSelection } from "./selection.jsx";
 
@@ -18,7 +18,6 @@ export function SettingsProvider({ children }) {
   const [settingsSection, setSettingsSection] = useState(SETTINGS_SECTIONS[0]?.id ?? null);
   const [settings, setSettings] = useState(SETTING_DEFAULTS);
   const loaded = useRef(false);
-  const themeChangedByUser = useRef(false);
 
   const openSettings = useCallback((sectionId) => {
     if (sectionId) setSettingsSection(sectionId);
@@ -48,7 +47,6 @@ export function SettingsProvider({ children }) {
   // row inverted to the new default, so drop the toggles with the change.
   const { resetToolToggles } = useSelection();
   const setSetting = useCallback((key, value) => {
-    if (key === THEME_KEY) themeChangedByUser.current = true;
     if (key.startsWith("verbose.")) resetToolToggles();
     setSettings((v) => ({ ...v, [key]: value }));
     // archive.* persists to config.json (see the load above), never settings.json.
@@ -87,17 +85,12 @@ export function SettingsProvider({ children }) {
     updateComposer({ provider: defaultProvider || null });
   }, [defaultProvider, updateComposer]);
 
-  // Apply theme whenever the setting changes; animate only user-initiated
-  // switches (not the load merge or a macOS appearance flip in system mode).
+  // Dark only — apply once on mount and persist so index.html's pre-bundle
+  // bootstrap paints dark too. The Appearance setting was removed.
   useEffect(() => {
-    const setting = settings[THEME_KEY] ?? "system";
-    try { localStorage.setItem(THEME_STORAGE_KEY, setting); } catch { /* private mode */ }
-    const animate = themeChangedByUser.current;
-    themeChangedByUser.current = false;
-    setTheme(resolveTheme(setting), { animate });
-    if (setting !== "system") return;
-    return watchSystemTheme(() => setTheme(resolveTheme("system"), { animate: false }));
-  }, [settings]);
+    try { localStorage.setItem(THEME_STORAGE_KEY, "dark"); } catch { /* private mode */ }
+    setTheme("dark");
+  }, []);
 
   useEffect(() => {
     const onKey = (e) => {

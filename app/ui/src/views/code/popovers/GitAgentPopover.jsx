@@ -156,14 +156,14 @@ export function GitAgentPopover({ live, worker, cwd }) {
 
   if (!cwd || info.isGit === false) {
     return (
-      <div className="git-agent-popover glass-pop open" data-popover="git-agent">
+      <div className="git-agent-popover glass-pop ca-pop ca-git-agent open" data-popover="git-agent">
         <div className="gap-empty">{!cwd ? "Pick a folder first" : "Not a git repository"}</div>
       </div>
     );
   }
 
   return (
-    <div className="git-agent-popover glass-pop open" data-popover="git-agent">
+    <div className="git-agent-popover glass-pop ca-pop ca-git-agent open" data-popover="git-agent">
       <div className="gap-head">
         <BranchIcon />
         <span className="gap-branch">{current ?? "—"}</span>

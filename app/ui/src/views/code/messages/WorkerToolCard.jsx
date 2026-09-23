@@ -146,7 +146,7 @@ export function WorkerToolBody({ tool, workers }) {
   // the prompt — the static goal/strategy/limit the worker was born with.
   const loopText = !failure && tool.input?.loop ? spawnLoopDetails(tool.input.loop) : "";
   return (
-    <div className="report-detail" style={{ marginLeft: 0 }}>
+    <div className="report-detail">
       {loopText && <div className="report-detail-text ti-loop-detail">{loopText}</div>}
       {!failure && body?.rows
         ? <RowsBody rows={body.rows(tool, workers)} emptyText={body.emptyText} workers={workers} />

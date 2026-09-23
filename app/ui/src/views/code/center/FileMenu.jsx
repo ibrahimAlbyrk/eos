@@ -84,7 +84,7 @@ export function FileMenu({ entries, selectedIndex, onSelect, onDescend, onCrumb,
   const crumbs = mentionCrumbs(dir);
 
   return (
-    <div className="cmd-menu">
+    <div className="cmd-menu file-menu">
       <div className="cmd-names">
         {crumbs.length > 0 && (
           <div className="file-crumbs">

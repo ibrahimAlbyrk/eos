@@ -27,7 +27,7 @@ export function AcceptPopover({ live, worker }) {
           <span className="ap-radio"></span>
           <div className="ap-text">
             <div className="ap-label">
-              <m.Icon className="ap-ic" />
+              <m.Icon className={"ap-ic ap-ic--" + m.id} />
               {m.label}
             </div>
             <div className="ap-desc">{m.desc}</div>

@@ -37,11 +37,11 @@ export function TerminalView({ sessionId, active }) {
     if (!host) return;
 
     // Resolve the panel's theme colors to concrete values for xterm's ITheme
-    // (xterm can't read CSS vars): match the diff/panel island bg (--surface-2)
-    // and foreground (--fg) so the terminal follows the app theme in both modes.
+    // (xterm can't read CSS vars): the terminal body shares the side panel
+    // background (--panel) with --fg text, so it reads as one surface.
     const root = getComputedStyle(document.documentElement);
     const cssVar = (name, fallback) => root.getPropertyValue(name).trim() || fallback;
-    const bg = cssVar("--surface-2", cssVar("--bg", "#252525"));
+    const bg = cssVar("--panel", cssVar("--bg", "#171717"));
     const fg = cssVar("--fg", "#ebebeb");
     const accent = cssVar("--accent", fg);
     const term = new Terminal({
@@ -50,7 +50,7 @@ export function TerminalView({ sessionId, active }) {
       fontFamily:
         getComputedStyle(document.documentElement).getPropertyValue("--font-mono").trim() ||
         "monospace",
-      fontSize: 12,
+      fontSize: 11.5,
       theme: { background: bg, foreground: fg, cursor: accent },
     });
     const fit = new FitAddon();

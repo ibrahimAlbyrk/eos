@@ -31,6 +31,14 @@ function PlusIcon() {
   );
 }
 
+function FolderIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.3l1.2 1.5h5.5A1.5 1.5 0 0 1 14 6v5.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z" />
+    </svg>
+  );
+}
+
 // A project section: the project-name header with its own "+" (spawns a new
 // orchestrator pre-seated to this project's path) above that project's rows.
 // Rows are a MIX of live (TreeNode) and archived (ArchiveNode) agents — the
@@ -51,6 +59,7 @@ function AgentGroup({ group, onRename, variant, archivedSelectedId }) {
   return (
     <div className="agents-group">
       <div className="agents-group__head">
+        <span className="agents-group__icon" aria-hidden="true"><FolderIcon /></span>
         <span className="agents-group__name" title={group.path ?? undefined}>{group.name}</span>
         {group.path && (
           <button
@@ -85,7 +94,7 @@ export function AgentsTree({ roots, loaded = true, onRename, variant = "full", a
     return (
       <div className="agents-section">
         <div className="empty-tree" style={{ padding: "24px 14px", color: "var(--fg-faint)", fontSize: "var(--text-sm)" }}>
-          {loaded ? (emptyLabel ?? "No agents yet — click + to spawn an orchestrator") : "Loading agents…"}
+          {loaded ? (emptyLabel ?? "No agents yet — start one with New task.") : "Loading agents…"}
         </div>
       </div>
     );

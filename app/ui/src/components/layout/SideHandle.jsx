@@ -17,14 +17,15 @@ export function SideHandle({ popup, hasAttention }) {
       onMouseLeave={onMouseLeave}
     >
       <button
-        className={`side-handle${hasAttention ? " attention-blink" : ""}`}
+        className="side-handle"
         onClick={() => ui.setSideCollapsed(false)}
         title="Show sidebar"
       >
-        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+        <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
           <rect x="2" y="3" width="12" height="10" rx="1.5" />
           <line x1="6" y1="3" x2="6" y2="13" />
         </svg>
+        {hasAttention && <span className="sb-new-dot" aria-label="new output" />}
       </button>
 
       {open && popup}

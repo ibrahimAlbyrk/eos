@@ -9,6 +9,7 @@ export function MessageLoop({ text }) {
   return (
     <div className="tool-item standalone">
       <DisclosureRow expanded={open} onToggle={() => setOpen((o) => !o)} className="tool-item-header">
+        <span className="row-dot" aria-hidden />
         <span className="ti-verb">Dynamic loop — automated goal-check</span>
       </DisclosureRow>
       {open && (

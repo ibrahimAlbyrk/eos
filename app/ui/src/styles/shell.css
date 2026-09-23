@@ -1,0 +1,1180 @@
+/* shell.css — sidebar, header/PaneHeader, collapsed sidebar, native titlebar,
+   split/pane grid, AppLayout, and the Home screen. charcoal-aurora: depth is a
+   surface step (bg → panel → raised → row-on → chip), the ONLY border color is
+   --line, and floating layers get --sh-pop / --sh-palette / --sh-modal. Fills —
+   never borders or shadows — mark hover/selected; the only animation is d-breathe
+   on status dots. Tokens, base reset, scrollbars, keyframes and the .app grid
+   live in styles.css. */
+
+/* Sidebar is 300px in the prototype; the styles.css .app grid ships 280px, so
+   widen it here without touching the base (collapsed still wins by source order). */
+.app:not(.side-collapsed) { grid-template-columns: 300px 1fr 0fr; }
+
+/* ============================================================================
+   NATIVE macOS TITLEBAR — visible only inside WKWebView (html.native).
+   The fixed toggle tracks the traffic lights; the sidebar is a flat --panel
+   column, so only its top strip drags the window.
+   ============================================================================ */
+.native-toggle-zone { display: none !important; }
+html.native .native-toggle-zone {
+  display: flex !important;
+  align-items: center;
+  gap: 4px;
+  position: fixed;
+  left: 92px;
+  top: 11px;
+  z-index: 300;
+  --app-region: no-drag;
+}
+.native-toggle { display: none !important; }
+html.native .native-toggle {
+  display: inline-flex !important;
+  position: relative;
+  width: 26px; height: 26px;
+  border-radius: var(--r-icon);
+  align-items: center; justify-content: center;
+  color: var(--fg-dim2);
+  --app-region: no-drag;
+}
+html.native .native-toggle:hover { background: var(--chip); color: var(--fg-mid); }
+
+/* Sidebar drag region: only the top strip drags; content opts out. */
+html.native .side { --app-region: no-drag; -webkit-user-select: none; }
+html.native .tabbar,
+html.native .agents-section,
+html.native .sb-iconbtn { --app-region: no-drag; }
+html.native .agents-section { -webkit-user-select: text; }
+
+/* Native compacts the sidebar head into the traffic-light row. */
+html.native .side .sb-head { display: none; }
+html.native .side-island--agents { padding-top: 30px; flex: 1; }
+html.native .side .sb-divider { display: none; }
+html.native .empty-tree { padding: 6px 14px !important; }
+html.native .side-handle-zone { display: none !important; }
+html.native.fullscreen .native-toggle-zone { left: 16px; top: 10px; }
+html.native.fullscreen .side-island--agents { padding-top: 16px; }
+html.native.fullscreen .sb-section { padding-left: 12px; }
+
+/* "Agents" section header — native only. */
+.sb-section { display: none; }
+html.native .sb-section {
+  display: flex;
+  align-items: center;
+  padding: 6px 12px 4px;
+}
+html.native .sb-section__title {
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--fg-dim);
+  letter-spacing: 0.03em;
+}
+html.native .sb-section > .sb-iconbtn:first-of-type { margin-left: auto; }
+html.native .sb-section .sb-iconbtn.on { background: var(--row-on); color: var(--fg); }
+
+/* ============================================================================
+   COLLAPSED SIDEBAR — the expand handle (web) + hover flyout card.
+   ============================================================================ */
+.side-handle-zone {
+  position: absolute;
+  top: 20px; left: 14px;
+  z-index: 60;
+  display: block;
+}
+.side-handle {
+  width: 26px; height: 26px;
+  border-radius: var(--r-icon);
+  display: inline-flex;
+  align-items: center; justify-content: center;
+  color: var(--fg-dim2);
+  cursor: pointer;
+}
+.side-handle:hover { background: var(--chip); color: var(--fg-mid); }
+
+/* New-output cue on the collapsed toggle: a small breathing accent dot — the one
+   allowed animation — rather than tinting the icon. */
+.native-toggle, .side-handle { position: relative; }
+.sb-new-dot {
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: d-breathe 2.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .sb-new-dot { animation: none; } }
+
+/* Hover flyout: the full sidebar floats as a 300px --panel card with a popover
+   shadow — the one place the collapsed sidebar shows a floating layer. */
+.side-handle-popup {
+  position: absolute;
+  top: 34px; left: 0;
+  width: 300px;
+  max-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--panel);
+  border-radius: var(--r-pop);
+  box-shadow: var(--sh-pop);
+}
+.side-handle-popup .agents-section {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+html.native .native-toggle-zone .side-handle-popup { position: absolute; left: -86px; top: 36px; }
+html.native.fullscreen .native-toggle-zone .side-handle-popup { left: -10px; }
+
+/* ============================================================================
+   SIDEBAR
+   ============================================================================ */
+.side {
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: visible;
+  position: relative;
+  z-index: 50;
+}
+
+/* Workspace switcher (Code / Home) — a flat segmented control. The track is the
+   panel itself; the active tab is a --row-on pill that slides between slots. */
+.tabbar {
+  position: relative;
+  display: flex;
+  gap: 2px;
+  margin: 14px 12px 6px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.tabbar__indicator {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 0;
+  border-radius: var(--r-row);
+  background: var(--row-on);
+  transition: left 150ms ease, width 150ms ease;
+  pointer-events: none;
+  z-index: 0;
+}
+.tabbar__tab {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 6px;
+  border-radius: var(--r-row);
+  color: var(--fg-dim);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: color 150ms ease;
+}
+.tabbar__tab:not(.is-active):hover { color: var(--fg-mid); }
+.tabbar__tab.is-active { color: var(--fg-strong); }
+.tabbar__tab svg { flex-shrink: 0; }
+
+/* Flat container — no card/glass/border; the panel background carries it. */
+.side-island { position: relative; }
+.side-island--agents {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Settings footer — bottom row, above a 1px --line rule. */
+.sb-settings {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  padding: 8px 10px 10px;
+  border-top: 1px solid var(--line);
+}
+.sb-settings__btn {
+  flex: 1;
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 8px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--fg-dim);
+  border-radius: var(--r-row);
+  text-align: left;
+}
+.sb-settings__btn svg { flex-shrink: 0; color: var(--fg-dim2); }
+.sb-settings__btn kbd { margin-left: auto; }
+.sb-settings__btn:hover { background: var(--row-on); color: var(--fg); }
+
+/* ============================================================================
+   SIDEBAR · AGENTS SECTION
+   ============================================================================ */
+.sb-head {
+  display: flex; align-items: center;
+  gap: 8px;
+  padding: 12px 12px 8px;
+}
+.sb-head__title {
+  font-size: var(--text-sm); font-weight: 600;
+  color: var(--fg-dim);
+  display: inline-flex; align-items: baseline; gap: 7px;
+}
+.sb-head__count {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--fg-faint);
+}
+.sb-head__actions {
+  margin-left: auto;
+  display: flex; align-items: center; gap: 2px;
+}
+.sb-iconbtn {
+  width: 26px; height: 26px;
+  border-radius: var(--r-icon);
+  color: var(--fg-dim2);
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.sb-iconbtn:hover { background: var(--chip); color: var(--fg-mid); }
+
+.sb-divider { display: none; }
+
+/* Agents list — scrolls to fill. */
+.agents-section {
+  flex: 1;
+  display: flex; flex-direction: column;
+  padding: 4px 8px 8px;
+  overflow-y: auto;
+}
+/* Saved-layout groups sit above the list as a content-sized block. */
+.layout-groups {
+  flex: 0 0 auto;
+  display: flex; flex-direction: column;
+  padding: 8px 8px 0;
+}
+.empty-tree { color: var(--fg-faint); text-wrap: pretty; }
+
+/* Project group: a folder header (folder icon + name) above that project's rows. */
+.agents-group { display: flex; flex-direction: column; gap: 1px; }
+.agents-group + .agents-group { margin-top: 12px; }
+.agents-group__head {
+  display: flex; align-items: center;
+  gap: 9px;
+  padding: 5px 8px 3px 10px;
+}
+.agents-group__icon { display: inline-flex; color: var(--fg-dim2); flex-shrink: 0; }
+.agents-group__name {
+  flex: 1; min-width: 0;
+  font-size: var(--text-sm); font-weight: 500;
+  color: var(--fg-dim);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.agents-group__add {
+  width: 20px; height: 20px;
+  flex-shrink: 0;
+  color: var(--fg-faint);
+}
+
+.agents-row {
+  display: flex; align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border-radius: var(--r-row);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  position: relative;
+  color: var(--fg-dim);
+}
+.agents-row:hover { background: var(--row-on); }
+.agents-row.on { background: var(--row-on); }
+/* Selected row shows as a --row-on fill only — no accent rail, no border. */
+.agents-row .ag-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  flex-shrink: 0;
+}
+.agents-row .ag-archive-icon {
+  display: inline-flex; align-items: center;
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+/* Archived rows read softer than live rows; hover/selection restores clarity. */
+.agents-row--archived { opacity: 0.6; }
+.agents-row--archived:hover,
+.agents-row--archived.on { opacity: 1; }
+.agents-row .ag-dot.run { background: var(--ok); }
+.agents-row .ag-dot.think { background: var(--warn); width: 6px; height: 6px; animation: d-breathe 2.4s ease-in-out infinite; }
+.agents-row .ag-dot.wait { background: var(--fg-faint); }
+.agents-row .ag-dot.queue { background: transparent; border: 1px dashed var(--fg-faint); width: 7px; height: 7px; }
+@media (prefers-reduced-motion: reduce) { .agents-row .ag-dot.think { animation: none; } }
+.agents-row .ag-name {
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.agents-row.on .ag-name { color: var(--fg-strong); }
+.agents-row .ag-name.main { font-weight: 500; }
+.agents-row.on .ag-name.main { font-weight: 500; }
+.ag-def { color: var(--fg-faint); font-weight: 400; }
+.ag-git-badge { display: inline-flex; align-items: center; color: var(--fg-dim2); flex-shrink: 0; }
+.agents-row .ag-rename-input {
+  flex: 1; min-width: 0;
+  background: var(--raised);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-kbd);
+  color: var(--fg);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  padding: 1px 4px;
+  outline: none;
+}
+.agents-row .ag-status {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+  flex-shrink: 0;
+}
+.agents-row.on .ag-status { color: var(--fg-dim); }
+
+/* Compact "loop" badge after an agent name; status tints the pill. */
+.agents-row .ag-loop-badge {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: var(--r-kbd);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.agents-row .ag-loop-badge.st-passed {
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+}
+.agents-row .ag-loop-badge.st-exhausted,
+.agents-row .ag-loop-badge.st-stopped {
+  color: var(--fg-faint);
+  background: color-mix(in srgb, var(--fg-faint) 14%, transparent);
+}
+.agents-row .ag-loop-badge.st-checking {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  animation: d-breathe 2.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .agents-row .ag-loop-badge.st-checking { animation: none; } }
+
+/* New-output cue: a static 7px accent dot in place of the meta text. */
+.agents-row .ag-notify, .pane-head .ag-notify {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+/* Sidebar row for an agent shown in a non-focused split pane — a quiet fill. */
+.agents-row.in-pane { background: color-mix(in srgb, var(--row-on) 55%, transparent); }
+
+/* Saved-layout dirty dot + its menu backdrop. */
+.agents-row .lg-dirty {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--warn);
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+.lg-menu-backdrop { position: fixed; inset: 0; z-index: 40; }
+
+/* ============================================================================
+   Hierarchical tree (orchestrator → workers → sub-agents)
+   ============================================================================ */
+.tree-node { display: flex; flex-direction: column; }
+.tree-children {
+  position: relative;
+  padding-left: 14px;
+}
+/* Vertical guide line — ends where the elbow curve begins. */
+.tree-children::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 20px;
+  width: 1px;
+  background: var(--line);
+  pointer-events: none;
+}
+.tree-children > .tree-node > .agents-row { position: relative; }
+.tree-children > .tree-node > .agents-row::before {
+  content: "";
+  position: absolute;
+  left: -8px;
+  top: calc(50% - 8px);
+  width: 8px;
+  height: 8px;
+  border-left: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  border-bottom-left-radius: 4px;
+  pointer-events: none;
+}
+
+.tree-chev {
+  width: 14px; height: 14px;
+  border-radius: var(--r-kbd);
+  color: var(--fg-faint);
+  display: inline-flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-right: -2px;
+  cursor: pointer;
+}
+.tree-chev:hover { background: var(--chip); color: var(--fg); }
+.tree-chev svg { transition: transform 160ms ease; }
+.tree-node.collapsed > .agents-row .tree-chev svg { transform: rotate(-90deg); }
+.tree-chev-spacer {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  flex-shrink: 0;
+  margin-right: -2px;
+}
+.tree-chev-spacer::before {
+  content: "";
+  width: 4px;
+  height: 1px;
+  background: var(--fg-mute);
+  border-radius: 1px;
+}
+/* Agents sidebar: childless rows drop the leaf dash and sit back into the freed
+   toggle column. The Files tree keeps the base spacer + dash. */
+.agents-row .tree-chev-spacer { width: 6px; }
+.agents-row .tree-chev-spacer::before { content: none; }
+.tree-node.collapsed > .tree-children { display: none; }
+
+/* ============================================================================
+   CENTER COLUMN
+   ============================================================================ */
+.center {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+  background: var(--bg);
+}
+
+/* Right-panel surface — the framed --panel island every docked viewer fills. It
+   is a docked surface (not a floating layer): depth comes from the surface step
+   above the --bg pane gap, not a shadow. */
+.panel-shell {
+  position: absolute;
+  inset: var(--dock-tile-inset);
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-radius: var(--r-menu);
+  min-width: 0;
+  min-height: 0;
+  overflow: clip;
+}
+.panel-shell__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  height: var(--ph-h, 38px);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--line);
+}
+.panel-shell__title {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.panel-shell__label {
+  font-size: var(--text-base);
+  font-weight: 500;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* Keep-alive transcript panes: one <Messages> per recently-viewed agent stays
+   mounted; only the active one paints. */
+.tx-host { position: relative; flex: 1; min-height: 0; }
+.tx-pane {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  content-visibility: hidden;
+  pointer-events: none;
+}
+.tx-pane.on {
+  content-visibility: visible;
+  pointer-events: auto;
+  z-index: 1;
+}
+/* Single-pane bottom fade — stops short of the transcript scrollbar. */
+.tx-pane.on::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 14px;
+  bottom: 0;
+  height: 48px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* ============================================================================
+   SPLIT VIEW · 2-4 transcripts side by side (PaneGrid). Panes are absolutely
+   positioned from the layout tree's %-rects; the sidebar + composer stay shared.
+   ============================================================================ */
+.pane-grid {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  margin: 4px;
+}
+.single-pane {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: row;
+}
+.sp-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* Eased reflow: survivors glide from old %-rect → new on any split/close. */
+.pane-slot {
+  position: absolute;
+  transition:
+    left 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    top 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    width 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    height 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.pane-grid.is-resizing .pane-slot { transition: none; }
+.pane-panel-slot.pane-slot { transition: none; }
+.pane-panel-slot { min-width: 0; min-height: 0; z-index: 2; }
+/* Panel-head vertical alignment across dock layouts (see original derivation). */
+.pane-panel-slot                  { --ph-h: 70px; }
+.pane-panel-slot.pane-slot        { --ph-h: 78px; }
+.pane-panel-slot.pane-slot.at-top { --ph-h: 64px; }
+html.native .pane-panel-slot                  { --ph-h: 38px; }
+html.native .pane-panel-slot.pane-slot        { --ph-h: 46px; }
+html.native .pane-panel-slot.pane-slot.at-top { --ph-h: 32px; }
+.pane-tx {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.pane-dock {
+  position: relative;
+  flex-grow: 0;
+  flex-shrink: 0;
+}
+.pane-dock.is-fullscreen { z-index: 3; }
+.pane-dock .panel-dock-grid { right: auto; width: 100%; }
+.pane-dock.is-fullscreen .panel-dock-grid { left: var(--fs-left, 0); width: var(--fs-width, 100%); }
+
+/* Docked-panel drag handle: a slim hit strip with a centered pill that lights on
+   hover/drag. */
+.panel-resize-handle {
+  position: absolute;
+  left: -2px;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  z-index: 6;
+  cursor: ew-resize;
+  touch-action: none;
+}
+.panel-resize-handle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 2px;
+  height: 40px;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: transparent;
+  transition: background 120ms;
+}
+.panel-resize-handle:hover::after { background: var(--chip); }
+.panel-resize-handle:active::after,
+.pane-dock.is-resizing .panel-resize-handle::after { background: var(--fg-dim); }
+
+/* Tiling dock (PanelDock): up to 3 panels tiled in absolute %-rect slots. */
+.panel-dock-grid { position: absolute; inset: 0; }
+.pane-grid .panel-dock-grid { inset: var(--dock-tile-inset); }
+.panel-tile-slot {
+  position: absolute;
+  transition:
+    left 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    top 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    width 240ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    height 240ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+.panel-dock-grid.is-resizing .panel-tile-slot { transition: none; }
+.panel-dock-grid.is-fs-switching .panel-tile-slot { transition: none; }
+.panel-tile-slot.is-hidden { display: none; }
+.panel-divider { position: absolute; z-index: 6; touch-action: none; }
+.panel-divider--v { width: 8px; transform: translateX(-50%); cursor: ew-resize; }
+.panel-divider--h { height: 8px; transform: translateY(-50%); cursor: ns-resize; }
+.panel-divider::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 2px;
+  background: transparent;
+  transition: background 120ms;
+}
+.panel-divider--v::after { width: 2px; height: 40px; }
+.panel-divider--h::after { width: 40px; height: 2px; }
+.panel-divider:hover::after { background: var(--chip); }
+.panel-divider:active::after,
+.panel-dock-grid.is-resizing .panel-divider::after { background: var(--fg-dim); }
+.pane-dock .panel-shell { inset: 6px; }
+
+/* Pane card: --bg surface, the only border is 1px --line, radius 12. */
+.pane {
+  position: absolute;
+  inset: 4px;
+  contain: layout paint;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-menu);
+  overflow: clip;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+/* Focused pane: a subtle inset accent ring (22% accent). */
+.pane.is-focused {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+/* Non-focused pane with unseen output: a quiet static accent-tinted border. */
+.pane.pane--attention { border-color: color-mix(in srgb, var(--accent) 30%, var(--line)); }
+/* Non-focused pane blocked on input: a warn-tinted border. */
+.pane.pane--needs-input { border-color: color-mix(in srgb, var(--warn) 45%, var(--line)); }
+
+/* Drag-to-split preview: a light accent-tinted overlay showing where the drop
+   lands. pointer-events off so dragover keeps hitting the pane underneath. */
+.pane-drop-preview {
+  position: absolute;
+  z-index: 3;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1.5px solid var(--accent);
+  border-radius: var(--r-menu);
+  inset: 0;
+  transition: inset 150ms ease-out;
+}
+.pane-drop-preview--replace { inset: 0; }
+.pane-drop-preview--left   { inset: 0 50% 0 0; }
+.pane-drop-preview--right  { inset: 0 0 0 50%; }
+.pane-drop-preview--top    { inset: 0 0 50% 0; }
+.pane-drop-preview--bottom { inset: 50% 0 0 0; }
+
+/* Per-split resize dividers — invisible grab strips; a 2px line lights on hover. */
+.pane-divider { position: absolute; z-index: 5; touch-action: none; }
+.pane-divider--v { width: 14px; transform: translateX(-50%); cursor: ew-resize; }
+.pane-divider--h { height: 14px; transform: translateY(-50%); cursor: ns-resize; }
+.pane-divider::after {
+  content: "";
+  position: absolute;
+  background: transparent;
+  border-radius: 2px;
+  transition: background 120ms;
+}
+.pane-divider--v::after { left: 50%; top: 8px; bottom: 8px; width: 2px; transform: translateX(-50%); }
+.pane-divider--h::after { top: 50%; left: 8px; right: 8px; height: 2px; transform: translateY(-50%); }
+.pane-divider:hover::after, .pane-divider:active::after { background: var(--accent); }
+
+.pane-slot.is-leaving { pointer-events: none; }
+
+/* Cursor-tracking drag affordance (portaled to <body>): a neutral label trailing
+   the pointer + an accent pill on the target region's centroid. */
+.drag-affordance-label,
+.drag-affordance-pill {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1000;
+  pointer-events: none;
+  white-space: nowrap;
+  font-size: var(--text-sm);
+}
+.drag-affordance-label {
+  color: var(--fg);
+  background: var(--pop);
+  border-radius: var(--r-icon);
+  padding: 4px 9px;
+  box-shadow: var(--sh-pop);
+}
+.drag-affordance-pill {
+  background: var(--accent);
+  color: var(--accent-fg);
+  border-radius: var(--r-pill);
+  padding: 4px 10px;
+  font-weight: 600;
+  transition: transform 120ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pane-slot { transition: none; }
+  .panel-tile-slot { transition: none; }
+  .drag-affordance-pill { transition: none; }
+  .pane-drop-preview { transition: none; }
+}
+
+/* ============================================================================
+   PANE HEADER — single/new-task/home get the 32px-inset title bar with a 1px
+   --line rule; split panes (inside .pane) get the tighter card header, no rule.
+   The bar is the native window-drag strip; its buttons/inputs opt out.
+   ============================================================================ */
+.pane-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 16px 20px 16px 32px;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--text-sm);
+  --app-region: drag;
+  -webkit-user-select: none;
+}
+.pane-head button,
+.pane-head input { --app-region: no-drag; }
+html.native .pane-head { padding-top: 12px; padding-bottom: 12px; }
+/* Top-row split panes align their bar to the window top line. */
+.pane-head--toprow { padding-top: 12px; }
+.pane-head .ag-dot { flex-shrink: 0; }
+
+/* Split-pane header: tighter, no rule (it sits inside the pane card). */
+.pane .pane-head {
+  padding: 12px 12px 12px 16px;
+  border-bottom: none;
+}
+
+/* Left inset that clears the native window chrome (traffic lights + toggle) for
+   the top-left pane once the sidebar is collapsed. Real element (inherits the
+   drag region), present only while collapsed. */
+.pane-head-inset { display: none; }
+.app.side-collapsed .pane-head--topleft .pane-head-inset {
+  display: block;
+  flex-shrink: 0;
+  align-self: stretch;
+  width: 12px;
+}
+html.native .app.side-collapsed .pane-head--topleft .pane-head-inset { width: 86px; }
+html.native.fullscreen .app.side-collapsed .pane-head--topleft .pane-head-inset { width: 6px; }
+.app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 21px; }
+html.native .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 95px; }
+html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-inset { width: 15px; }
+
+/* Breadcrumb (project / chain / current agent) — truncates, never wraps. */
+.pane-head .crumb {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  cursor: default;
+}
+.pane-head .crumb .scope { color: var(--fg-faint); flex-shrink: 0; }
+.pane-head .crumb .sep { color: var(--fg-faint); flex-shrink: 0; }
+.pane-head .crumb .cur {
+  color: var(--fg-strong);
+  font-size: var(--text-md);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pane:not(.is-focused) .pane-head .crumb .cur { color: var(--fg-dim); }
+.pane-head .crumb .crumb-link { color: var(--fg-dim); font-size: inherit; white-space: nowrap; flex-shrink: 0; }
+.pane-head .crumb .crumb-link:hover { color: var(--fg); }
+.pane-head .crumb .v-wrap { position: relative; align-self: center; display: inline-flex; flex-shrink: 0; margin-left: -5px; }
+/* 22px chevron opening the agent menu; --row-on fill while open. */
+.pane-head .crumb .v {
+  width: 22px; height: 22px;
+  border-radius: var(--r-icon);
+  color: var(--fg-faint);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pane-head .crumb .v:hover { background: var(--chip); color: var(--fg-mid); }
+.pane-head .crumb .v[aria-expanded="true"],
+.pane-head .crumb .v.on { background: var(--row-on); color: var(--fg); }
+.pane-head .crumb .ag-rename-input {
+  background: var(--raised);
+  border: 1px solid var(--accent);
+  border-radius: var(--r-kbd);
+  color: var(--fg);
+  font-size: var(--text-md);
+  font-family: inherit;
+  padding: 1px 4px;
+  outline: none;
+  min-width: 0;
+  width: 180px;
+}
+.pane-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+.pane-name {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg-dim);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pane.is-focused .pane-name { color: var(--fg); }
+.pane-status {
+  flex-shrink: 0;
+  color: var(--fg-faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.pane-input-label {
+  flex-shrink: 0;
+  color: var(--warn);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.pane-close {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-icon);
+  color: var(--fg-dim2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  --app-region: no-drag;
+  cursor: pointer;
+}
+.pane-close:hover { background: var(--row-on); color: var(--fg); }
+
+/* Header icon buttons (terminal / git / files / …): 30px in the single/main
+   header, 24px inside split panes; active = --row-on fill. */
+.pane-split-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-row);
+  color: var(--fg-dim2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.pane-split-btn:hover { background: var(--chip); color: var(--fg-mid); }
+.pane-split-btn:disabled { opacity: 0.4; cursor: default; }
+.pane-split-btn:disabled:hover { background: transparent; color: var(--fg-dim2); }
+.pane-split-btn.is-active { background: var(--row-on); color: var(--fg); }
+.pane-split-btn.is-active:hover { background: var(--row-on); color: var(--fg); }
+.pane .pane-split-btn { width: 24px; height: 24px; border-radius: var(--r-icon); }
+
+/* The composer's own ::before fade IS the per-pane bottom fade in split view;
+   single-pane keeps its transcript-scoped fade, so scope the scrim to split. */
+.app:not(.split) .composer-wrap::before { content: none; }
+
+/* ============== In-pane agent picker (empty split panes) ==============
+   A hover-triggered --pop card with the picker; a resting hint sits in the empty
+   pane body. Floating layer → popover shadow. */
+.pane-picker-host {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.pane-picker-hint {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+.pane-picker-hint.is-hidden { opacity: 0; }
+.pane-picker-hint svg { color: var(--fg-mute); }
+.pane-picker {
+  position: relative;
+  width: min(420px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  background: var(--pop);
+  border-radius: var(--r-pop);
+  box-shadow: var(--sh-pop);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease;
+}
+.pane-picker.is-open { opacity: 1; pointer-events: auto; }
+.pane-picker-head { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; }
+.pane-picker-title { flex: 1; color: var(--fg); font-weight: 500; font-size: var(--text-base); }
+.pane-picker-count {
+  font-size: var(--text-xs); font-family: var(--font-mono); color: var(--fg-dim);
+  background: var(--chip);
+  padding: 1px 7px; border-radius: var(--r-kbd);
+}
+.pane-picker-filter {
+  position: relative; z-index: 1; width: 100%;
+  padding: 7px 10px; border-radius: var(--r-row);
+  background: var(--raised);
+  color: var(--fg); font-size: var(--text-sm);
+  transition: box-shadow 0.12s;
+}
+.pane-picker-filter::placeholder { color: var(--fg-faint); }
+.pane-picker-filter:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent); }
+.pane-picker-list {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; gap: 2px;
+  overflow-y: auto; min-height: 0;
+}
+.pane-picker-item {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%; padding: 8px 10px;
+  border-radius: var(--r-row); cursor: pointer; text-align: left;
+  transition: background 0.12s;
+}
+.pane-picker-item:hover { background: var(--row-on); }
+.pane-picker-item.is-active { background: var(--row-on); }
+.pane-picker-item.is-shown { opacity: 0.55; }
+.pane-picker-name {
+  flex: 1; min-width: 0; color: var(--fg);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.pane-picker-name.main { font-weight: 600; }
+.pane-picker-status, .pane-picker-shown {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: 11px; color: var(--fg-faint);
+}
+.pane-picker-shown { color: var(--fg-dim); }
+.pp-num {
+  flex-shrink: 0; font-family: var(--font-mono); font-size: var(--text-xs);
+  color: var(--fg-dim); background: var(--chip);
+  min-width: 18px; height: 18px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: var(--r-kbd);
+}
+.pane-picker-item.is-active .pp-num {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+.pane-picker-empty { padding: 14px; text-align: center; color: var(--fg-faint); font-size: var(--text-sm); }
+.pane-picker .ag-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--fg-faint); flex-shrink: 0; }
+.pane-picker .ag-dot.run { background: var(--ok); }
+.pane-picker .ag-dot.think { background: var(--warn); }
+.pane-picker .ag-dot.wait { background: var(--fg-faint); }
+.pane-picker .ag-dot.queue { background: transparent; border: 1px dashed var(--fg-faint); }
+@media (prefers-reduced-motion: reduce) { .pane-picker, .pane-picker-hint { transition: none; } }
+
+/* ============================================================================
+   HOME · Claude-web-style single agent
+   ============================================================================ */
+.home-convs { display: flex; flex-direction: column; gap: 1px; overflow-y: auto; flex: 1; min-height: 0; padding: 4px 8px; }
+.home-convs__empty { padding: 24px 14px; color: var(--fg-faint); font-size: var(--text-sm); text-wrap: pretty; }
+.home-conv {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px; border-radius: var(--r-row); cursor: pointer;
+  color: var(--fg-dim); font-size: var(--text-sm);
+}
+.home-conv:hover { background: var(--row-on); color: var(--fg); }
+.home-conv.is-active { background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--fg); }
+.home-conv__name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-conv__del {
+  flex: none; display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: var(--r-kbd);
+  color: var(--fg-faint); cursor: pointer; opacity: 0;
+}
+.home-conv:hover .home-conv__del { opacity: 1; }
+.home-conv__del:hover { background: var(--chip); color: var(--err); }
+
+.home {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  --home-col: 720px;
+}
+/* Home header has no bottom rule (unlike single/new-task). */
+.pane-head.home-head { border-bottom: none; }
+.home-head__title {
+  flex: 1;
+  min-width: 0;
+  color: var(--fg-mid);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.home-chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.home-chat__transcript { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.home-chat .messages { max-width: calc(var(--home-col) + 48px); padding: 20px 24px 44px; }
+.home-chat .msg-asst { font-size: var(--text-md); line-height: 1.72; }
+.home-chat .msg-user .b { max-width: 85%; }
+
+.home-dock {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 0 24px 12px;
+}
+.home-chat .home-dock::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 12px;
+  bottom: 100%;
+  height: 36px;
+  background: linear-gradient(to bottom, transparent, var(--bg));
+  pointer-events: none;
+}
+.home-dock__note {
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+  text-align: center;
+}
+
+/* Solid --raised card (its model/effort popovers open as children, so no glass). */
+.home-composer {
+  width: 100%;
+  max-width: calc(var(--home-col) + 28px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 12px 10px 16px;
+  background: var(--raised);
+  border-radius: 20px;
+  transition: box-shadow 160ms ease;
+}
+.home-composer:focus-within { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
+.home-composer__input {
+  width: 100%;
+  padding: 6px 0 2px;
+  color: var(--fg);
+  font-size: var(--text-md);
+  line-height: 1.55;
+  overflow-y: auto;
+}
+.home-composer__input::placeholder { color: var(--fg-dim2); }
+
+.home-composer__controls { display: flex; align-items: center; gap: 6px; }
+.home-composer__group { display: flex; align-items: center; gap: 4px; }
+.home-composer__group:first-child { margin-right: auto; }
+.home-ctl-wrap { position: relative; display: inline-flex; }
+
+/* Attach / model / effort: plain text/icon, no resting fill; hover/open = --row-on. */
+.home-ctl {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: var(--r-row);
+  font-size: var(--text-sm);
+  color: var(--fg);
+  white-space: nowrap;
+  transition: color 150ms ease, background 150ms ease;
+}
+.home-ctl:hover:not(:disabled),
+.home-ctl.open { background: var(--row-on); }
+.home-ctl:disabled { opacity: 0.45; cursor: not-allowed; }
+.home-ctl--icon { width: 30px; padding: 0; color: var(--fg-dim2); }
+.home-ctl--dim { color: var(--fg-dim2); }
+.home-ctl--icon:hover, .home-ctl--dim:hover, .home-ctl--dim.open { color: var(--fg-mid); }
+.home-ctl--ultra, .home-ctl--ultra:hover, .home-ctl--ultra.open { color: var(--violet); }
+
+/* Only the send button is filled (accent), dimming to 45% when nothing to send. */
+.home-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin-left: 2px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-fg);
+  transition: opacity 160ms ease, background 160ms ease;
+}
+.home-send:hover:not(:disabled) { background: var(--accent-hover); }
+.home-send:disabled { opacity: 0.45; cursor: default; }
+.home-send.is-stop { background: color-mix(in srgb, var(--err) 20%, transparent); color: var(--err); }
+.home-send.is-stop:hover { background: color-mix(in srgb, var(--err) 30%, transparent); }
+
+/* Empty state — centered hero over the same composer. */
+.home-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding-bottom: 10vh;
+}
+.home-empty__inner {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 22px;
+}
+.home-empty__hero {
+  margin: 0;
+  padding: 0 24px;
+  font-size: 26px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+  text-align: center;
+}
+.home-empty .home-dock { width: 100%; padding: 0 24px; }

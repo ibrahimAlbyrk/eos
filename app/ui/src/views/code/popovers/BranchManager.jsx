@@ -214,7 +214,7 @@ export function BranchManager({ live, cwd }) {
   const confirmDanger = Boolean(confirm) && confirm.kind !== "stash-switch";
 
   return (
-    <div className="cb-chip-dd cb-chip-dd--branch branch-mgr open" id="cbBranchDD" data-popover="branch-dd">
+    <div className="cb-chip-dd cb-chip-dd--branch branch-mgr ca-pop ca-branch-mgr open" id="cbBranchDD" data-popover="branch-dd">
       <div className="bm-header">
         <span className="bm-title">Branches</span>
         <span className="bm-grow" />

@@ -44,7 +44,6 @@ export function MonitorRow({ item, now, onSelect }) {
         </div>
         <div className="mon-label" title={item.label}>{item.label}</div>
       </div>
-      <span className="mon-live-dot" title="running" />
     </button>
   );
 }

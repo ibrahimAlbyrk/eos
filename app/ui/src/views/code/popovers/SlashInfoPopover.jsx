@@ -12,7 +12,7 @@ export function SlashInfoPopover() {
 
   return (
     <div
-      className="slash-info glass-pop open"
+      className="slash-info open"
       data-popover="slashinfo"
       role="dialog"
       aria-label={`/${cmd.name} command info`}

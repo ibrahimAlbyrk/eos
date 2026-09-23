@@ -45,7 +45,7 @@ export function NewGroupModal({ onSave, onCancel, title = "New group", initialNa
           />
           <div className="del-confirm__actions">
             <button className="del-confirm__cancel" onClick={onCancel}>Cancel</button>
-            <button className="perm-btn perm-allow" disabled={!name.trim()} onClick={save}>Save</button>
+            <button className="del-confirm__save" disabled={!name.trim()} onClick={save}>Save</button>
           </div>
         </div>
       </div>

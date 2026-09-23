@@ -1,8 +1,8 @@
 import { useState } from "react";
 
-// Update banner — the dedicated server has a newer build. "Güncelle" applies
+// Update banner — the dedicated server has a newer build. "Update" applies
 // now (full `eos build` → the running app relaunches itself once the rebuilt
-// daemon is up); "Daha sonra" hides it for this daemon session. The
+// daemon is up); "Later" hides it for this daemon session. The
 // reopen-updates path is handled natively by the launch splash, not here —
 // this is purely the in-app affordance for a running session.
 export function UpdateBanner({ update, onApply, onDefer }) {
@@ -27,7 +27,7 @@ export function UpdateBanner({ update, onApply, onDefer }) {
         <div className="update-header">
           <span className="update-dot" />
           <span className="update-title">
-            {applying ? "Güncelleniyor…" : "Yeni güncelleme hazır"}
+            {applying ? "Updating…" : "New update ready"}
           </span>
           <span className="update-count">
             {behind} commit{behind === 1 ? "" : "s"}
@@ -44,10 +44,10 @@ export function UpdateBanner({ update, onApply, onDefer }) {
         )}
         <div className="update-actions">
           <button className="update-btn update-later" onClick={onDefer} disabled={applying}>
-            Daha sonra
+            Later
           </button>
           <button className="update-btn update-now" onClick={apply} disabled={applying}>
-            {applying ? "Güncelleniyor…" : "Güncelle"}
+            {applying ? "Updating…" : "Update"}
           </button>
         </div>
       </div>

@@ -1,6 +1,15 @@
 import { useUi } from "../../../state/ui.jsx";
 import { modelName as getModelName } from "../../../lib/models.js";
 
+const AgentIcon = () => (
+  <span className="agent-icon" aria-hidden>
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="8" cy="5" r="3" />
+      <path d="M2.5 14a5.5 5.5 0 0 1 11 0" />
+    </svg>
+  </span>
+);
+
 export function AgentBlock({ block }) {
   const ui = useUi();
   const desc = block.description || "agent";
@@ -13,6 +22,7 @@ export function AgentBlock({ block }) {
     return (
       <div className="agent-block agent-block--done">
         <div className="agent-done-line">
+          <AgentIcon />
           <span className="agent-done-text agent-done-clickable" onClick={openPanel}>
             Ran agent{modelLabel ? ` ${modelLabel}` : ""} {desc}
           </span>
@@ -30,6 +40,7 @@ export function AgentBlock({ block }) {
   return (
     <div className="agent-block agent-block--running">
       <div className="agent-header">
+        <AgentIcon />
         <span className="agent-header-label">{isDone ? `Agent ${block.status}` : (block.background ? "Background agent started" : "Running agent")}</span>
         <span className="agent-header-desc">{desc}</span>
         <svg className="agent-header-chev" width="8" height="8" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">

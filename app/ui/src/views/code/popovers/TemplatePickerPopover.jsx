@@ -76,7 +76,7 @@ export function TemplatePickerPopover() {
   return (
     <>
       {open && (
-        <div className="tpl-popover glass-pop open" data-popover="templates">
+        <div className="tpl-popover open" data-popover="templates">
           <div className="tpl-head">
             <TemplateIcon />
             <span className="tpl-head-label">Templates</span>

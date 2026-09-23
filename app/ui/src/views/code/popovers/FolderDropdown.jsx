@@ -37,7 +37,7 @@ export function FolderDropdown({ live }) {
   const hasRecents = live.recents.length > 0;
 
   return (
-    <div className="cb-chip-dd open" id="cbFolderDD" data-popover="folder-dd">
+    <div className="cb-chip-dd ca-pop ca-folder-dd open" id="cbFolderDD" data-popover="folder-dd">
       <div className="cb-chip-dd-scroll">
         <div className="sp-chip-dd-head">Recent</div>
         {recents.length === 0 && (

@@ -2,8 +2,8 @@
 // owns the decision (which mode) and the wiring (what each click does); this
 // just renders the matching icon and forwards the click.
 const SendIcon = (
-  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M12 4v5H4m3-3l-3 3 3 3" />
+  <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M8 13V4M4.5 7.5 8 4l3.5 3.5" />
   </svg>
 );
 
@@ -13,10 +13,10 @@ const StopIcon = (
   </svg>
 );
 
-export function SubmitButton({ stop, onClick }) {
+export function SubmitButton({ stop, dim, onClick }) {
   return (
     <button
-      className={stop ? "submit stop" : "submit"}
+      className={"submit" + (stop ? " stop" : "") + (dim ? " dim" : "")}
       title={stop ? "Stop (Esc)" : "Send"}
       onClick={onClick}
     >

@@ -189,6 +189,9 @@ function FileViewerInner({ path, live }) {
   };
 
   const shortPath = shortenHome(path);
+  const slashIdx = shortPath.lastIndexOf("/");
+  const pathDir = slashIdx < 0 ? "" : shortPath.slice(0, slashIdx + 1);
+  const pathBase = shortPath.slice(slashIdx + 1);
   const dirty = isText && content !== null && editContent !== content;
 
   // Live-refresh on a disk change of THIS file (agent edit, git op, …). Refetch
@@ -201,7 +204,11 @@ function FileViewerInner({ path, live }) {
   return (
     <PanelShell type="file">
       <div className="fv-row2">
-        <span className="fv-path">{shortPath}</span>
+        <span className="fv-path" title={shortPath}>
+          {pathDir && <span className="fv-path-dir">{pathDir}</span>}
+          {pathBase}
+          {dirty && <span className="fv-path-dirty"> ●</span>}
+        </span>
         {(isText || baseKind === "html") && (
           <div className="fv-actions">
             {previewable && <PreviewToggle mode={viewMode} onToggle={togglePreview} />}

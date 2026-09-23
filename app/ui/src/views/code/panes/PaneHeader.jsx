@@ -104,7 +104,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
           );
         })}
         <span className="v-wrap" ref={vWrapRef}>
-          <button className="v" data-popover-trigger="head-menu" onClick={toggleMenu} aria-label="Agent menu">
+          <button className={`v${menuOpen ? " on" : ""}`} data-popover-trigger="head-menu" onClick={toggleMenu} aria-label="Agent menu">
             <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
               <path d="m4 6 4 4 4-4" />
             </svg>

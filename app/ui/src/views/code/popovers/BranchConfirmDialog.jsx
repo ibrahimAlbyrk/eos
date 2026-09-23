@@ -18,11 +18,11 @@ export function BranchConfirmDialog({ message, confirmLabel, danger, busy, onCon
 
   return createPortal(
     <div
-      className="branch-confirm-backdrop"
+      className="branch-confirm-backdrop ca-modal-backdrop"
       data-popover="branch-dd"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div className="branch-confirm glass-pop" role="dialog" aria-modal="true">
+      <div className="branch-confirm glass-pop ca-pop ca-modal" role="dialog" aria-modal="true">
         <p className="bc-msg">{message}</p>
         <div className="bc-actions">
           <button className="ghost-btn" onClick={onCancel} disabled={busy}>Cancel</button>

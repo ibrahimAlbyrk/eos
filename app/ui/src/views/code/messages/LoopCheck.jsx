@@ -14,11 +14,10 @@ export function GoalCheckLine({ check, now }) {
   if (!check) return null;
   const elapsed = fmtClock((now ?? check.startedAt) - check.startedAt);
   return (
-    <div className="thinking-line goal-check-line">
-      <span className="spark"></span>
+    <div className="activity-line is-check goal-check-line">
+      <span className="al-dot" aria-hidden></span>
       <span className="gc-text">Goal check · attempt {loopCheckAttemptText(check)} · {loopCheckPhaseLabel(check)}</span>
-      <span className="thinking-sep" aria-hidden="true"></span>
-      <span className="mono">{elapsed}</span>
+      <span className="mono"> · {elapsed}</span>
     </div>
   );
 }

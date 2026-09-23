@@ -29,7 +29,7 @@ export function AttachPopover({ onAttach }) {
   };
 
   return (
-    <div className="attach-popover glass-pop open" id="attachPopover" data-popover="attach">
+    <div className="attach-popover open" id="attachPopover" data-popover="attach">
       <button className="menu-item" onClick={pickFiles}>
         <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
           <path d="M4 2h6l3 3v9H4z" /><path d="M10 2v3h3" />

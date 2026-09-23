@@ -24,13 +24,13 @@ export function BranchContextMenu({ x, y, items, onClose }) {
   }, [onClose]);
 
   const rows = items.filter(Boolean);
-  const left = Math.min(x, window.innerWidth - 200);
+  const left = Math.min(x, window.innerWidth - 232);
   const top = Math.min(y, window.innerHeight - (rows.length * 32 + 16));
 
   return createPortal(
     <div
       ref={ref}
-      className="ctx-menu glass-pop open branch-ctx"
+      className="ctx-menu glass-pop open branch-ctx ca-pop ca-ctx"
       data-popover="branch-dd"
       style={{ display: "block", left, top }}
     >

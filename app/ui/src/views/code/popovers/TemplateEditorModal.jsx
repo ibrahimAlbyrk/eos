@@ -169,7 +169,7 @@ export function TemplateEditorModal({ initial, onClose }) {
 
   return (
     <div className="spawn-overlay open" onMouseDown={onClose}>
-      <div className="spawn-modal glass-pop" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="spawn-modal tpl-modal" role="dialog" aria-modal="true" onMouseDown={(e) => e.stopPropagation()}>
         <div className="spawn-modal__head">
           <div className="spawn-modal__title">{initial ? "Edit template" : "New template"}</div>
           <button className="spawn-modal__close" title="Close (Esc)" onClick={onClose}>

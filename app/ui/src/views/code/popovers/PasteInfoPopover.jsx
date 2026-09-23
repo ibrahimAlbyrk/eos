@@ -13,7 +13,7 @@ export function PasteInfoPopover({ onMouseEnter, onMouseLeave }) {
 
   return (
     <div
-      className="paste-info glass-pop open"
+      className="paste-info open"
       data-popover="pasteinfo"
       role="dialog"
       aria-label="Pasted text preview"

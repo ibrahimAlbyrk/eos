@@ -22,7 +22,6 @@ export function PlanUsageLimits({ usage, onOpenSettings }) {
           <button
             type="button"
             className="cp-arrow"
-            style={{ marginLeft: "auto", background: "none", border: 0, padding: "0 2px", cursor: "pointer" }}
             onClick={onOpenSettings}
             title="Open Usage settings"
             aria-label="Open Usage settings"

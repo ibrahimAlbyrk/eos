@@ -24,12 +24,18 @@ export function ArchiveView({ live }) {
   const selected = rows.find((w) => w.id === selectedId) ?? null;
 
   if (!selected) {
+    const isEmpty = loaded && rows.length === 0;
     return (
       <div className="archive-main">
-        <div className="archive-empty">
-          {loaded && rows.length === 0
-            ? "Archive is empty — ⌘W archives an agent instead of deleting it"
-            : "Select an archived agent"}
+        <div className="empty-state">
+          <span className="empty-state__icon">
+            <svg width="40" height="40" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="12" height="4" rx="1" />
+              <path d="M3.5 7v5.5h9V7M6.5 9.5h3" />
+            </svg>
+          </span>
+          <span className="empty-state__title">{isEmpty ? "Archive is empty" : "Select an archived agent"}</span>
+          {isEmpty && <span className="empty-state__subtitle">⌘W archives an agent instead of deleting it.</span>}
         </div>
       </div>
     );
