@@ -99,8 +99,10 @@
 .composer-inner {
   width: 100%;
   /* Centered max-width column — caps the composer inside its pane (centered by
-     .composer-wrap align-items) rather than spanning the full pane width. */
-  max-width: 1134px;
+     .composer-wrap align-items) rather than spanning the full pane width.
+     820px = the transcript column measure (transcript.css), so the card aligns
+     1:1 with the message column above it (reference EOS.dc.html). */
+  max-width: 820px;
   display: flex;
   flex-direction: column;
   gap: 6px;
