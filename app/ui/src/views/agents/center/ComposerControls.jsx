@@ -7,6 +7,7 @@ import { ModelPopover } from "../popovers/ModelPopover.jsx";
 import { BackendPopover, SpawnModelPopover } from "../popovers/BackendPopover.jsx";
 import { ModelEffortPanel } from "../popovers/ModelEffortPanel.jsx";
 import { CtxPopover } from "../popovers/CtxPopover.jsx";
+import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
 import { providerChoices, providerName, runningProviderLabel, runningProviderChoice, hasProviderSwitchTarget } from "../../../lib/backendCaps.js";
@@ -18,7 +19,7 @@ import { SubmitButton } from "./SubmitButton.jsx";
 // "Extra"; ultracode is folded into Max since the rail drops it).
 const TRIGGER_LEVEL = { low: "Low", medium: "Medium", high: "High", xhigh: "xHigh", max: "Max", ultracode: "Max" };
 
-export function ComposerControls({ live, worker, onAttach, demoted, wtStatus, submit }) {
+export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAttach, demoted, wtStatus, submit }) {
   const ui = useUi();
   // The pane's own worker (null on the no-agent spawn composer), not the global
   // selection — a non-focused pane's controls must read ITS agent's config.
@@ -115,6 +116,17 @@ export function ComposerControls({ live, worker, onAttach, demoted, wtStatus, su
           </button>
           <AttachPopover onAttach={onAttach} />
         </div>
+        <div className="accept-wrap" style={{ position: "relative" }}>
+          <button
+            className="mode-pill"
+            onClick={(e) => toggle("accept", e)}
+            data-popover-trigger="accept"
+          >
+            <ModeIcon className={"mode-ic mode-ic--" + mode} />
+            <span className="mode-label">{modeMeta.label}</span>
+          </button>
+          <AcceptPopover live={live} worker={selected} />
+        </div>
         <div className="tpl-wrap" style={{ position: "relative" }}>
           <button
             className="iconbtn"
@@ -130,16 +142,33 @@ export function ComposerControls({ live, worker, onAttach, demoted, wtStatus, su
           </button>
           <TemplatePickerPopover />
         </div>
-        <div className="accept-wrap" style={{ position: "relative" }}>
+        <div className="git-wrap" style={{ position: "relative" }}>
           <button
-            className="mode-pill"
-            onClick={(e) => toggle("accept", e)}
-            data-popover-trigger="accept"
+            className={"iconbtn git-agent-btn" + (gitMode ? " on" : "")}
+            title={gitMode ? "Exit git mode (⌘G)" : "Git agent (⌘G)"}
+            onClick={(e) => {
+              if (gitMode) {
+                e.stopPropagation();
+                onToggleGitMode(false);
+                ui.closeAllPops();
+                return;
+              }
+              toggle("git-agent", e);
+            }}
+            data-popover-trigger="git-agent"
           >
-            <ModeIcon className={"mode-ic mode-ic--" + mode} />
-            <span className="mode-label">{modeMeta.label}</span>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="4.5" cy="3.5" r="1.5" />
+              <circle cx="4.5" cy="12.5" r="1.5" />
+              <circle cx="11.5" cy="5" r="1.5" />
+              <path d="M4.5 5v6M11.5 6.5c0 2.2-2.7 2.6-4.5 3.2" />
+            </svg>
           </button>
-          <AcceptPopover live={live} worker={selected} />
+          <GitAgentPopover
+            live={live}
+            worker={selected}
+            cwd={selected ? (selected.cwd ?? selected.worktree_from) : (ui.composer.cwd ?? live.recents[0] ?? null)}
+          />
         </div>
       </div>
       <div className="grow"></div>

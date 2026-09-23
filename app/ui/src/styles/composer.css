@@ -79,7 +79,7 @@
      waste horizontal space. */
   align-items: center;
   gap: 6px;
-  padding: 0 14px 12px;
+  padding: 0 14px 18px;
   flex-shrink: 0;
 }
 /* Top fade above the composer — sits at the transcript's bottom edge (bottom:100%
@@ -908,14 +908,6 @@
     inset 0 0 0 1px color-mix(in srgb, var(--ok) 28%, transparent),
     0 4px 14px rgba(0, 0, 0, 0.18),
     0 1px 3px rgba(0, 0, 0, 0.12);
-}
-.c-row2 .term-prompt {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  color: var(--amber);
-  user-select: none;
-  position: relative;
-  z-index: 1;
 }
 .c-row2.term-mode .composer-editor {
   font-family: var(--font-mono);
@@ -2492,7 +2484,7 @@
 }
 .git-agent-popover {
   position: absolute;
-  bottom: calc(100% + 6px);
+  bottom: calc(100% + 10px);
   left: 0;
   width: 232px;
   padding: 4px;
@@ -3225,7 +3217,7 @@
   transition: opacity 160ms ease;
 }
 .git-tray-body .diff-actions {
-  margin-left: 0; width: 100%; justify-content: flex-start;
+  margin-left: 0; width: 100%; justify-content: flex-end;
   opacity: 0; transition: opacity 160ms ease 140ms;
 }
 .git-tray:hover .git-tray-body, .git-tray.pinned .git-tray-body { transform: none; transition-delay: 0ms; }
@@ -3289,6 +3281,77 @@
 }
 .composer-card .composer-editor[data-empty]::before { color: var(--fg-dim2); }
 .composer-card .c-row2.term-mode .composer-editor { font-family: var(--font-mono); font-size: var(--text-sm); }
+
+/* ── git / bash mode ("bloom"): a color wash spreads out of the mode orb, a lit
+   edge wraps the bottom-left corner (fading right along the bottom and up the
+   left side), and the card settles tinted + ringed.
+   .mode-fx sits at z-index -1 inside the card's stacking context — above its
+   background, under every row — and is re-keyed per mode so a switch replays. ── */
+.composer-card { transition: background-color 420ms ease, box-shadow 420ms ease; }
+.composer-card.git-mode { --mode-c: var(--git); }
+.composer-card.term-mode { --mode-c: var(--amber); }
+.composer-card.git-mode, .composer-card.term-mode {
+  background: color-mix(in srgb, var(--mode-c) 4%, var(--raised));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--mode-c) 30%, transparent);
+}
+/* orb centre inside the card: 20px padding + half the 24px orb, first line */
+.mode-fx {
+  --orb-x: 32px; --orb-y: 30px;
+  position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit; overflow: hidden; pointer-events: none;
+}
+.mode-bloom {
+  position: absolute;
+  left: calc(var(--orb-x) - 900px); top: calc(var(--orb-y) - 900px);
+  width: 1800px; height: 1800px; border-radius: 50%;
+  background: radial-gradient(closest-side,
+    color-mix(in srgb, var(--mode-c) 30%, transparent),
+    color-mix(in srgb, var(--mode-c) 10%, transparent) 55%,
+    transparent);
+  animation: mode-bloom 1000ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.mode-tint {
+  position: absolute; inset: 0;
+  background: radial-gradient(320px 110px at var(--orb-x) var(--orb-y),
+    color-mix(in srgb, var(--mode-c) 16%, transparent), transparent 72%);
+  animation: mode-fade-in 700ms ease-out 300ms both;
+}
+.mode-edge {
+  position: absolute; inset: 0; border-radius: inherit; padding: 1.5px;
+  background: radial-gradient(ellipse 60% 160% at 0% 100%,
+    var(--mode-c),
+    color-mix(in srgb, var(--mode-c) 45%, transparent) 40%,
+    transparent 100%);
+  /* keep only the 1.5px border ring of the box */
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: mode-edge-in 900ms cubic-bezier(0.2, 0.7, 0.2, 1) 100ms both;
+}
+.mode-orb {
+  width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--mode-c);
+  background: color-mix(in srgb, var(--mode-c) 18%, transparent);
+  font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 600;
+  user-select: none;
+  animation: mode-pop 520ms cubic-bezier(0.3, 1.4, 0.5, 1) both;
+}
+.composer-card.git-mode .composer-editor[data-empty]::before,
+.composer-card.term-mode .composer-editor[data-empty]::before {
+  animation: mode-ph-in 420ms ease-out 120ms both;
+}
+.composer-inner .composer-card.git-mode .c-row3 .iconbtn.git-agent-btn.on { background: var(--git-soft); color: var(--git); }
+@keyframes mode-bloom { 0% { transform: scale(0); opacity: 1; } 65% { opacity: 0.85; } 100% { transform: scale(1); opacity: 0; } }
+@keyframes mode-fade-in { from { opacity: 0; } }
+@keyframes mode-edge-in { from { clip-path: circle(0 at 0 100%); } to { clip-path: circle(150% at 0 100%); } }
+@keyframes mode-pop { from { transform: scale(0.2); opacity: 0; } }
+@keyframes mode-ph-in { from { opacity: 0; filter: blur(4px); } }
+@media (prefers-reduced-motion: reduce) {
+  .mode-bloom { display: none; }
+  .mode-tint, .mode-edge, .mode-orb,
+  .composer-card .composer-editor[data-empty]::before { animation: none; }
+}
 
 /* ── controls row: plain text/icon, no resting fill (except the send circle) ── */
 .composer-card .c-row3 { padding: 0; height: auto; gap: 8px; }
@@ -3868,7 +3931,7 @@
 .ca-folder-dd .sp-chip-dd-sep { height: 1px; background: var(--line); margin: 6px 8px; }
 
 /* GitAgentPopover */
-.ca-git-agent { width: 232px; border-radius: var(--r-pop); padding: 6px; font-size: var(--text-base); line-height: 1.4; }
+.ca-git-agent { width: 232px; border-radius: var(--r-menu); padding: 6px; font-size: var(--text-base); line-height: 1.4; }
 .ca-git-agent .gap-head { display: flex; align-items: center; gap: 6px; padding: 6px 10px 6px; font-size: var(--text-xs); color: var(--fg-dim); }
 .ca-git-agent .gap-head svg { color: var(--fg-dim2); flex-shrink: 0; }
 .ca-git-agent .gap-branch { color: var(--fg); font-family: var(--font-mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 110px; }

@@ -29,6 +29,7 @@ import { gitAgentName, gitTaskLabel } from "../../../lib/gitAgentName.js";
 import { ContextStrip } from "./ContextStrip.jsx";
 import { SessionTray } from "./SessionTray.jsx";
 import { ComposerControls } from "./ComposerControls.jsx";
+import { ModeFx, ModeOrb } from "./ComposerModeFx.jsx";
 import { CommandMenu } from "./CommandMenu.jsx";
 import { FileMenu } from "./FileMenu.jsx";
 import { AttachmentChips } from "./AttachmentChips.jsx";
@@ -983,6 +984,8 @@ export function Composer({ live, worker, paneId, focused }) {
   // and the user hasn't typed a follow-up to queue — term/git modes keep send
   // semantics. Same action as the Esc key.
   const showStop = agentBusy && !text.trim() && !termMode && !gitMode;
+  const inputMode = composerMode({ gitMode, termMode });
+  const modeClass = inputMode === "chat" ? "" : inputMode + "-mode";
   const queuedList = selected ? outbox.itemsFor(selected.id).filter((i) => i.state === "queued") : [];
 
   // Priority slot: exactly one blocking banner holds the band, Permission first
@@ -1067,7 +1070,8 @@ export function Composer({ live, worker, paneId, focused }) {
             ) : (
               <ContextStrip live={live} />
             )}
-            <div className="composer-card">
+            <div className={modeClass ? "composer-card " + modeClass : "composer-card"}>
+              {modeClass && <ModeFx key={inputMode} />}
               <div className="c-row2-wrap">
                 {showMenu && (
                   <CommandMenu
@@ -1092,13 +1096,13 @@ export function Composer({ live, worker, paneId, focused }) {
                 <PasteInfoPopover onMouseEnter={keepPasteInfo} onMouseLeave={closePasteInfoSoon} />
                 <div className={[
                   "c-row2",
-                  termMode ? "term-mode" : gitMode ? "git-mode" : "",
+                  modeClass,
                   dropActive ? "drop-active" : "",
                 ].filter(Boolean).join(" ")}>
                   {attachmentItems.length > 0 && (
                     <AttachmentChips attachments={attachmentItems} onRemove={removeAttachmentToken} />
                   )}
-                  {termMode && <span className="term-prompt" aria-hidden>❯</span>}
+                  {modeClass && <ModeOrb key={inputMode} mode={inputMode} />}
                   <div
                     ref={editorRef}
                     className={escArmed ? "composer-editor esc-armed" : "composer-editor"}
