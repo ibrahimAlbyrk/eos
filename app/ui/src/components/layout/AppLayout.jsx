@@ -11,30 +11,24 @@ import { useUi } from "../../state/ui.jsx";
 //                   the panel's cards here; the Shell renders "popup" into the
 //                   collapsed-hover flyout, so both stay in sync by construction.
 //   main          — center column (header / body / composer)
-//   rightPanel    — explicit grid-column:3 panels (pinned, may render null)
 //   gridClass     — view-derived classes that drive grid-template (e.g. file-open)
 //   children      — floating overlays (absolute/fixed; out of grid flow)
-export function AppLayout({ sidebar, main, rightPanel, gridClass, children }) {
+// The right side panel is no longer a shell column — it renders per pane inside
+// `main` (PaneGrid/SinglePane), so the grid is just sidebar | center.
+export function AppLayout({ sidebar, main, gridClass, children }) {
   const ui = useUi();
   const cls = ["app", gridClass, ui.sideCollapsed ? "side-collapsed" : ""]
     .filter(Boolean)
     .join(" ");
 
-  // The side panel's width drives grid column 3 (via .side-open). Always defined
-  // so React controls it — a drag writes --sp-w straight onto this element for
-  // live feedback and commits to sidePanelWidth on release; a null width falls
-  // back to the default here (never a stale inline value from the last drag).
-  const style = { "--sp-w": ui.sidePanelWidth ? ui.sidePanelWidth + "px" : "min(620px, 40vw)" };
-
   return (
-    <div className={cls} style={style}>
+    <div className={cls}>
       <aside className="side">
         {sidebar("full")}
       </aside>
 
       <section className="center">{main}</section>
 
-      {rightPanel}
       {children}
     </div>
   );

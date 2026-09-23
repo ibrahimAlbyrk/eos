@@ -10,11 +10,9 @@
    widen it here without touching the base (collapsed still wins by source order). */
 .app:not(.side-collapsed) { grid-template-columns: 300px 1fr 0fr; }
 
-/* Side panel open → grid column 3 becomes the resizable panel width (AppLayout
-   sets --sp-w inline). Higher specificity than the no-panel rules above/base, so
-   these win when the panel is showing; sidebar collapses to 0 alongside it. */
-.app.side-open:not(.side-collapsed) { grid-template-columns: 300px 1fr var(--sp-w, min(620px, 40vw)); }
-.app.side-open.side-collapsed { grid-template-columns: 0 1fr var(--sp-w, min(620px, 40vw)); }
+/* The right side panel is per-pane now (rendered beside a pane's transcript, not
+   in a window column), so the grid never resizes for a panel — column 3 stays a
+   dead 0fr track. */
 
 /* ============================================================================
    NATIVE macOS TITLEBAR — visible only inside WKWebView (html.native).
@@ -518,12 +516,14 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 }
 
 /* ============================================================================
-   RIGHT SIDE PANEL — ONE shared tabbed surface in grid column 3 (SidePanel).
-   Depth is the surface step above the --bg pane area + a single --line border,
-   never a shadow. Replaces the old per-pane tiling dock.
+   RIGHT SIDE PANEL — a per-pane tabbed surface rendered beside each pane's
+   transcript column (PaneGrid/SinglePane). Its width is that pane's own
+   --sp-w (set inline); depth is the surface step above the --bg pane area + a
+   single --line border, never a shadow.
    ============================================================================ */
 .side-panel {
-  grid-column: 3;
+  flex: 0 0 auto;
+  width: var(--sp-w, min(620px, 50%));
   position: relative;
   display: flex;
   flex-direction: column;
@@ -740,13 +740,14 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   display: flex;
   flex-direction: column;
 }
-/* Pane card: --bg surface, the only border is 1px --line, radius 12. */
+/* Pane card: --bg surface, the only border is 1px --line, radius 12. A row now
+   so the pane's own side panel can sit beside the transcript column. */
 .pane {
   position: absolute;
   inset: 4px;
   contain: layout paint;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   min-width: 0;
   min-height: 0;
   background: var(--bg);
@@ -754,6 +755,16 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   border-radius: var(--r-menu);
   overflow: clip;
   transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+/* Transcript column inside a pane (header + messages + composer); the side panel
+   is its flex sibling. */
+.pane-col {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 /* Focused pane: a subtle inset accent ring (22% accent). */
 .pane.is-focused {

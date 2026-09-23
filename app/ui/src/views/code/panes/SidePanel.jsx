@@ -3,13 +3,13 @@ import { useUi } from "../../../state/ui.jsx";
 import { getPanel } from "../../../lib/panelRegistry.js";
 import "./registerPanels.js";
 
-// The ONE shared right side panel: a tab bar over a single content area, plus a
-// 6px invisible col-resize handle on its left edge. It is a grid sibling of the
-// pane area (AppLayout column 3), keyed to the selected agent, not per pane.
-// Pills render ONLY the open tabs (default: none — a quiet empty state); the +
-// menu opens Terminal / Files / Chat files, the active pill's × closes just that
-// tab, and the chrome × hides the whole panel. Width persists
-// (cm:sidePanelWidth); double-click the edge resets to min(620px, 40vw).
+// A pane's right side panel: a tab bar over a single content area, plus a 6px
+// invisible col-resize handle on its left edge. Rendered INSIDE its pane (scoped
+// via PaneScopeContext), so every read/action here resolves to that pane; it
+// returns null when that pane's panel is closed. Pills render ONLY the open tabs
+// (default: none — a quiet empty state); the + menu opens Terminal / Files / Chat
+// files, the active pill's × closes just that tab, and the chrome × hides the
+// panel. Width is that pane's own --sp-w; double-click the edge resets to default.
 
 const ICONS = {
   review: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="2.5" y="2.5" width="11" height="11" rx="2" /><path d="M5.5 8h5M8 5.5v5" /></svg>,
@@ -18,6 +18,11 @@ const ICONS = {
   browser: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><circle cx="8" cy="8" r="6" /><ellipse cx="8" cy="8" rx="2.6" ry="6" /><path d="M2.4 6h11.2M2.4 10h11.2" /></svg>,
   chatfiles: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"><path d="M10.5 4.5 5.8 9.2a1.5 1.5 0 0 0 2.1 2.1l5-5a3 3 0 0 0-4.2-4.2l-5 5a4.5 4.5 0 0 0 6.4 6.4L13 10.6" /></svg>,
 };
+
+// Resize bounds within the owning pane: the panel keeps ≥MIN_PANEL_W, the
+// transcript column keeps ≥MIN_TX_W.
+const MIN_PANEL_W = 280;
+const MIN_TX_W = 320;
 
 // Tab labels for every openable panel type. Pills render only the currently
 // open tabs (ui.openTabs), in the order they were opened.
@@ -99,47 +104,55 @@ export function SidePanel({ live }) {
   }, [plusOpen]);
 
   // Clamp helper shared by drag + fullscreen: width = distance from pointer to
-  // the panel's right edge, bounded [360, window − sidebar − 420] (420 = main
-  // min). Sidebar is 0 when collapsed (grid drops its column).
-  const clampFor = useCallback((root, clientX) => {
-    const R = root.getBoundingClientRect();
-    const side = root.classList.contains("side-collapsed") ? 0 : 300;
-    return Math.round(Math.max(360, Math.min(R.right - clientX, R.width - side - 420)));
+  // the OWNING pane's right edge, bounded [MIN_PANEL, pane − MIN_TX] so the
+  // transcript column always keeps a usable minimum.
+  const clampFor = useCallback((pane, clientX) => {
+    const R = pane.getBoundingClientRect();
+    return Math.round(Math.max(MIN_PANEL_W, Math.min(R.right - clientX, R.width - MIN_TX_W)));
   }, []);
 
   const onDragStart = useCallback((e) => {
     if (e.button) return;
     e.preventDefault();
-    const root = asideRef.current?.closest(".app");
-    if (!root) return;
+    const pane = asideRef.current?.closest(".pane, .single-pane");
+    const aside = asideRef.current;
+    if (!pane || !aside) return;
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
-    const move = (ev) => { root.style.setProperty("--sp-w", clampFor(root, ev.clientX) + "px"); };
+    const move = (ev) => { aside.style.setProperty("--sp-w", clampFor(pane, ev.clientX) + "px"); };
     const up = (ev) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      ui.setSidePanelWidth(clampFor(root, ev.clientX));
+      ui.setSidePanelWidth(clampFor(pane, ev.clientX));
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   }, [clampFor, ui]);
 
-  // Fullscreen = expand to the max clamp; toggle back to the default width.
+  // Fullscreen = widen to the max clamp within the pane; toggle back to default.
+  // (Item 8 replaces this with a flag that fills the whole pane content area.)
   const onFullscreen = useCallback(() => {
-    const root = asideRef.current?.closest(".app");
-    if (!root) return;
-    const R = root.getBoundingClientRect();
-    const side = root.classList.contains("side-collapsed") ? 0 : 300;
-    const max = Math.max(360, Math.round(R.width - side - 420));
+    const pane = asideRef.current?.closest(".pane, .single-pane");
+    if (!pane) return;
+    const R = pane.getBoundingClientRect();
+    const max = Math.max(MIN_PANEL_W, Math.round(R.width - MIN_TX_W));
     ui.setSidePanelWidth(ui.sidePanelWidth && ui.sidePanelWidth >= max - 1 ? null : max);
   }, [ui]);
 
   const pickTab = (t) => { ui.setTab(t); setPlusOpen(false); };
 
+  // All hooks above run every render; only the JSX is gated on open.
+  if (!ui.showSidePanel) return null;
+
   return (
-    <aside className="side-panel" ref={asideRef} onMouseDownCapture={() => ui.setFocusedRegion("panel")}>
+    <aside
+      className="side-panel"
+      ref={asideRef}
+      style={{ "--sp-w": ui.sidePanelWidth ? ui.sidePanelWidth + "px" : "min(620px, 50%)" }}
+      onMouseDownCapture={() => ui.setFocusedRegion("panel")}
+    >
       <div className="sp-resize" onPointerDown={onDragStart} onDoubleClick={() => ui.setSidePanelWidth(null)} title="Drag to resize" />
       <div className="sp-tabbar">
         {openTabs.map((type) => (

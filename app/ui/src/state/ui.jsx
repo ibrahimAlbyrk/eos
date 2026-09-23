@@ -1,6 +1,6 @@
 import { useCallback, useContext, useMemo, useRef } from "react";
 import { NavigationProvider, useNavigation } from "./navigation.jsx";
-import { SelectionProvider, useSelection } from "./selection.jsx";
+import { SelectionProvider, useSelection, EMPTY_PANEL } from "./selection.jsx";
 import { PaneProvider, usePane } from "./pane.jsx";
 import { PaneScopeContext } from "./paneScope.js";
 import { ComposerProvider, useComposer } from "./composer.jsx";
@@ -47,9 +47,9 @@ export function useUi() {
 
   // The pane this subtree renders inside (a transcript click / the side panel) or
   // null for shared chrome → fall back to the focused pane. Scopes the per-pane
-  // composer popover so one pane's menu doesn't render in the others. The right
-  // side panel is now a single shared surface (see SidePanel), not per pane, so
-  // its state lives directly on `selection` (openTabs / activeTab / showSidePanel / …).
+  // composer popover AND the per-pane right side panel, so one pane's menu/panel
+  // doesn't render in the others; chrome outside a pane resolves to the focused
+  // pane. See selection.jsx for the raw pane-explicit ops wrapped below.
   const originPane = useContext(PaneScopeContext);
   const scopePane = originPane ?? pane.focusedLeafId;
   const scopeRef = useRef(scopePane);
@@ -60,6 +60,20 @@ export function useUi() {
   // focused pane. Keeps every call site (ui.openPop(id)/ui.closeAllPops()) intact.
   const openPop = useCallback((id, opts = {}) => openPopIn(scopeRef.current, id, opts), [openPopIn]);
   const closeAllPops = useCallback(() => closePopsIn(scopeRef.current), [closePopsIn]);
+
+  // Scope-aware side-panel: resolve THIS consumer's pane state + wrap the raw
+  // pane-explicit ops so every call site (ui.openPanel/ui.setTab/…) targets the
+  // owning/focused pane with no prop-drilling.
+  const { openPanelIn, setTabIn, closeTabIn, closePanelIn, toggleSidePanelIn, setWidthIn, openFileIn, closeFileIn, panelsByPane } = selection;
+  const panelState = panelsByPane[scopePane] ?? EMPTY_PANEL;
+  const openPanel = useCallback((tab, data) => openPanelIn(scopeRef.current, tab, data), [openPanelIn]);
+  const setTab = useCallback((tab) => setTabIn(scopeRef.current, tab), [setTabIn]);
+  const closeTab = useCallback((tab) => closeTabIn(scopeRef.current, tab), [closeTabIn]);
+  const closePanel = useCallback(() => closePanelIn(scopeRef.current), [closePanelIn]);
+  const toggleSidePanel = useCallback(() => toggleSidePanelIn(scopeRef.current), [toggleSidePanelIn]);
+  const setSidePanelWidth = useCallback((px) => setWidthIn(scopeRef.current, px), [setWidthIn]);
+  const openFile = useCallback((path, reveal) => openFileIn(scopeRef.current, path, reveal), [openFileIn]);
+  const closeFile = useCallback(() => closeFileIn(scopeRef.current), [closeFileIn]);
 
   return useMemo(() => ({
     ...navigation,
@@ -77,8 +91,18 @@ export function useUi() {
     openPopover: openPopoverIn(scopePane),
     openPop,
     closeAllPops,
+    // Scope-resolved side panel — reads + actions for the owning/focused pane.
+    openTabs: panelState.openTabs,
+    activeTab: panelState.activeTab,
+    showSidePanel: panelState.open,
+    sidePanelWidth: panelState.width,
+    panelFullscreen: panelState.fullscreen,
+    panelData: panelState.data,
+    panelFile: panelState.file,
+    openPanel, setTab, closeTab, closePanel, toggleSidePanel, setSidePanelWidth, openFile, closeFile,
   }), [
     navigation, selection, pane, composer, attention, search, settings, scopePane,
     openPopoverIn, openPop, closeAllPops,
+    panelState, openPanel, setTab, closeTab, closePanel, toggleSidePanel, setSidePanelWidth, openFile, closeFile,
   ]);
 }

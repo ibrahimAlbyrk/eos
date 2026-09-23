@@ -8,6 +8,7 @@ import { TranscriptHost } from "../messages/TranscriptHost.jsx";
 import { Composer } from "../center/Composer.jsx";
 import { DragAffordance } from "./DragAffordance.jsx";
 import { PaneHeader } from "./PaneHeader.jsx";
+import { SidePanel } from "./SidePanel.jsx";
 import { PaneScopeContext } from "../../../state/paneScope.js";
 
 const pctStyle = (r) => ({ left: `${r.left}%`, top: `${r.top}%`, width: `${r.width}%`, height: `${r.height}%` });
@@ -68,9 +69,9 @@ function DropPreview({ zone }) {
 // Panes are keyed by leaf id, decoupled from the tree's nesting, so a structural
 // edit (split/close) never remounts a surviving pane — only its rect moves
 // (keep-alive). Each pane renders ONE agent via the shared <Messages>; only the
-// focused pane is isActive and drives the shared UI. The right side panel is a
-// single shared surface (AppLayout column 3), NOT per pane, so panes always fill
-// their whole rect now.
+// focused pane is isActive and drives the shared UI. Each pane owns its OWN right
+// side panel (rendered beside its transcript column, scoped to the pane), so it
+// opens/closes/resizes independently of the other panes.
 export function PaneGrid({ live }) {
   const ui = useUi();
   const gridRef = useRef(null);
@@ -158,11 +159,12 @@ export function SinglePane({ live }) {
     <div className="single-pane" {...handlers}>
       {zone && <DropPreview zone={zone} />}
       {zone && pointer && <DragAffordance pointer={pointer} zone={zone} />}
-      {/* Transcript + its per-pane composer stack. The docked panel is no longer
-          here — it lives once at the shell (SidePanel). Region handler still
-          claims ⌘F for the transcript (state/pane.jsx focusedRegion). */}
-      <div className="sp-main" onMouseDownCapture={() => ui.setFocusedRegion("transcript")}>
-        <PaneScopeContext.Provider value={leafId}>
+      {/* Transcript + composer stack on the left, this pane's own side panel on
+          the right (null when closed). Both share the pane scope so the header's
+          Open-side-panel / Environment actions and the panel resolve to it. The
+          region handlers claim ⌘F for the transcript vs the panel. */}
+      <PaneScopeContext.Provider value={leafId}>
+        <div className="sp-main" onMouseDownCapture={() => ui.setFocusedRegion("transcript")}>
           <PaneHeader
             worker={selected}
             live={live}
@@ -176,8 +178,9 @@ export function SinglePane({ live }) {
             <TranscriptHost live={live} activeId={ui.selectedId} />
           </div>
           <Composer live={live} worker={selected} paneId={leafId} focused />
-        </PaneScopeContext.Provider>
-      </div>
+        </div>
+        <SidePanel live={live} />
+      </PaneScopeContext.Provider>
     </div>
   );
 }
@@ -238,28 +241,33 @@ function Pane({ id, agentId, worker, live, focused, topLeft, topRow, attention, 
     >
       {zone && <DropPreview zone={zone} />}
       {zone && pointer && <DragAffordance pointer={pointer} zone={zone} />}
-      {/* Header + body share ONE pane scope: the header's split/menu and the
-          composer's actions all resolve to THIS pane, zero prop-drilling. */}
+      {/* Header + body + panel share ONE pane scope: the header's split/menu, the
+          composer's actions and this pane's side panel all resolve to THIS pane,
+          zero prop-drilling. The transcript column and the panel sit side by side
+          (the panel is a no-op null when this pane's panel is closed). */}
       <PaneScopeContext.Provider value={id}>
-        <PaneHeader
-          worker={worker}
-          live={live}
-          attention={attention}
-          needsInput={needsInput}
-          canClose={canClose}
-          onClose={onClose}
-          topLeft={topLeft}
-          topRow={topRow}
-          split
-        />
-        {/* Every split pane is rendered on screen regardless of focus, so all are
-            visible (and may animate); only the focused one is isActive (shared UI).
-            An EMPTY pane (no agent) shows the SAME new-session transcript + composer
-            as the single-pane new-session state: agentId/worker are null, so the
-            composer drops into its no-agent spawn flow — type a prompt and it spawns
-            an orchestrator into this (focused) pane. No separate agent picker. */}
-        <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
-        <Composer live={live} worker={worker} paneId={id} focused={focused} />
+        <div className="pane-col">
+          <PaneHeader
+            worker={worker}
+            live={live}
+            attention={attention}
+            needsInput={needsInput}
+            canClose={canClose}
+            onClose={onClose}
+            topLeft={topLeft}
+            topRow={topRow}
+            split
+          />
+          {/* Every split pane is rendered on screen regardless of focus, so all are
+              visible (and may animate); only the focused one is isActive (shared UI).
+              An EMPTY pane (no agent) shows the SAME new-session transcript + composer
+              as the single-pane new-session state: agentId/worker are null, so the
+              composer drops into its no-agent spawn flow — type a prompt and it spawns
+              an orchestrator into this (focused) pane. No separate agent picker. */}
+          <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
+          <Composer live={live} worker={worker} paneId={id} focused={focused} />
+        </div>
+        <SidePanel live={live} />
       </PaneScopeContext.Provider>
     </div>
   );

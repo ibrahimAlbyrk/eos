@@ -12,7 +12,6 @@ import { isTerminalFocused } from "../../components/terminal/terminalBridge.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { PaneGrid, SinglePane } from "./panes/PaneGrid.jsx";
-import { SidePanel } from "./panes/SidePanel.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { SidebarPrefsMenu } from "./sidebar/SidebarPrefsMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
@@ -110,17 +109,15 @@ export function CodeView({ live }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [ui.openPopover, ui]);
 
-  // The single shared right side panel lives in the window's third grid column
-  // (AppLayout) — no longer docked inside a pane. It hides in archive mode and
-  // when there are no agents (mirrors the reference `panelOn` gate).
-  const showPanel = ui.showSidePanel && !archiveMode && live.workers.length > 0;
-  const gridClass = [ui.paneCount > 1 ? "split" : "", showPanel ? "side-open" : ""].filter(Boolean).join(" ");
+  // The right side panel is per-pane now (rendered inside each pane by
+  // PaneGrid/SinglePane), not a shared shell column. The grid is just
+  // sidebar | center; split view only toggles the `split` class.
+  const gridClass = ui.paneCount > 1 ? "split" : "";
 
   return (
     <AppLayout
       gridClass={gridClass}
       sidebar={(variant) => <CodeSidebar live={live} variant={variant} />}
-      rightPanel={showPanel ? <SidePanel live={live} /> : null}
       main={
         archiveMode ? (
           // Archive mode replaces the main area with the archive panel; the
