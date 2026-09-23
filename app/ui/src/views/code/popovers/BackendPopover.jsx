@@ -50,7 +50,7 @@ function BackendSwitchMenu({ live, ui, selected }) {
   };
 
   return (
-    <div className="model-popover glass-pop open" data-popover="backend" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
+    <div className="model-popover open" data-popover="backend" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
       <div className="mp-head">Provider</div>
       <div className="mp-scroll">
         {targets.map((p, i) => (
@@ -102,7 +102,7 @@ function SpawnBackendMenu({ ui }) {
   };
 
   return (
-    <div className="model-popover glass-pop open" data-popover="backend" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
+    <div className="model-popover open" data-popover="backend" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
       <div className="mp-head">Provider</div>
       <div className="mp-scroll">
         {choices.map((p, i) => (
@@ -165,7 +165,7 @@ function SpawnModelMenu({ ui, live, worker }) {
   };
 
   return (
-    <div className="model-popover glass-pop open" data-popover="spawnModel" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
+    <div className="model-popover open" data-popover="spawnModel" ref={paneRef} tabIndex={-1} role="menu" onKeyDown={onKeyDown}>
       <div className="mp-head">Model</div>
       <div className="mp-scroll">
         {loading && <div className="mp-sub mp-muted">Loading models…</div>}

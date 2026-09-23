@@ -4000,6 +4000,10 @@
    SpawnModelPopover · CtxPopover. Flat dark surface (--pop + --sh-pop),
    --row-on hover/selected fills, per-mode icon tones, ≥80% warn bar. Surface is
    applied directly to each popover (not a global .glass-pop override).
+   These must NOT carry the .glass-pop class: menus.css (@imported last) gives
+   .glass-pop position:relative, which — at equal specificity — beats the
+   position:absolute below and drops the popover back into flow, growing the
+   composer card when it opens. Each rule sets position:absolute directly.
    ============================================================================ */
 
 /* AcceptPopover */

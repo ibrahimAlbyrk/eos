@@ -16,7 +16,7 @@ export function AcceptPopover({ live, worker }) {
   };
 
   return (
-    <div className="accept-popover glass-pop open" id="acceptPopover" data-popover="accept">
+    <div className="accept-popover open" id="acceptPopover" data-popover="accept">
       <div className="ap-head">Permission mode</div>
       {PERMISSION_MODES.map((m) => (
         <button
