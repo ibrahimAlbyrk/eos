@@ -881,9 +881,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 12px;
-  background: rgba(var(--glass), 0.44);
-  -webkit-backdrop-filter: blur(var(--blur-md)) saturate(150%);
-  backdrop-filter: blur(var(--blur-md)) saturate(150%);
+  background: transparent;
   border-radius: 8px;
   min-height: 42px;
   position: relative;
@@ -925,24 +923,6 @@
   font-family: var(--font-mono);
   font-size: var(--text-sm);
   line-height: 1.6;
-}
-.c-row2::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg,
-    rgba(var(--rim), 0.19),
-    rgba(var(--rim), 0.04) 38%,
-    rgba(var(--rim), 0.04) 62%,
-    rgba(var(--rim), 0.12)) border-box;
-  -webkit-mask:
-    linear-gradient(#000, #000) content-box,
-    linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
 }
 .c-row2 .composer-editor, .c-row2 .submit { position: relative; z-index: 1; }
 .c-row2 .submit { transition: color 180ms, opacity 180ms; }
@@ -1282,32 +1262,6 @@
    UPDATE BANNER — a newer build is available on the dedicated server
    ============================================================================ */
 .update-banner { margin-bottom: 6px; }
-/* Liquid-glass pane, same recipe as .q-card (blur + rim ::after), accented in
-   --accent (blue) to read as a positive system affordance, not a warning. */
-.update-card {
-  position: relative;
-  background: rgba(var(--glass), 0.5);
-  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.18);
-  padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;
-  animation: q-rise 180ms ease-out;
-}
-.update-card::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  border-radius: inherit; padding: 1px;
-  background: linear-gradient(135deg,
-    rgba(var(--rim), 0.36),
-    rgba(var(--rim), 0.07) 38%,
-    rgba(var(--rim), 0.07) 62%,
-    rgba(var(--rim), 0.22)) border-box;
-  -webkit-mask:
-    linear-gradient(#000, #000) content-box,
-    linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-}
 .update-header { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; font-size: var(--text-base); }
 .update-dot {
   width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
@@ -1346,39 +1300,6 @@
    QUESTION BANNER — AskUserQuestion interactive form
    ============================================================================ */
 .q-banner { margin-bottom: 6px; }
-/* liquid-glass pane — same recipe as .glass-pop / .side-island. Denser glass
-   (0.5) than a floating menu so long option text stays readable over the
-   transcript behind it. Content layers (.q-header/.q-options/.q-actions) ride
-   z-index:1 above the rim ::after. */
-.q-card {
-  position: relative;
-  background: rgba(var(--glass), 0.5);
-  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.18);
-  padding: 12px 16px; display: flex; flex-direction: column; gap: 10px;
-  animation: q-rise 180ms ease-out;
-}
-.q-card::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  border-radius: inherit; padding: 1px;
-  background: linear-gradient(135deg,
-    rgba(var(--rim), 0.36),
-    rgba(var(--rim), 0.07) 38%,
-    rgba(var(--rim), 0.07) 62%,
-    rgba(var(--rim), 0.22)) border-box;
-  -webkit-mask:
-    linear-gradient(#000, #000) content-box,
-    linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-}
-@keyframes q-rise {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-
 .q-header { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; font-size: var(--text-base); }
 .q-dot {
   width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
@@ -2529,9 +2450,7 @@
   top: calc(100% + 5px);
   left: 0;
   width: 210px;
-  background: rgba(var(--glass), 0.92);
-  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  background: var(--pop);
   border-radius: 7px;
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
   padding: 4px;
@@ -2539,21 +2458,6 @@
   z-index: 200;
   max-height: 280px;
   overflow-y: auto;
-}
-.sp-chip-dd::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg,
-    rgba(var(--rim), 0.32),
-    rgba(var(--rim), 0.06) 38%,
-    rgba(var(--rim), 0.06) 62%,
-    rgba(var(--rim), 0.18)) border-box;
-  -webkit-mask:
-    linear-gradient(#000, #000) content-box,
-    linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
 }
 .sp-chip-dd.open { display: block; }
 .sp-chip-dd-head {
@@ -2657,8 +2561,6 @@
   display: inline-flex; align-items: center; gap: 6px;
   padding: 5px 9px;
   background: rgba(var(--tint), 0.07);
-  -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(140%);
-  backdrop-filter: blur(var(--blur-sm)) saturate(140%);
   border-radius: 6px;
   font-size: var(--text-sm);
   color: var(--fg);
@@ -2666,24 +2568,6 @@
   white-space: nowrap;
   position: relative;
   border: 0;
-}
-.cb-chip::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg,
-    rgba(var(--rim), 0.14),
-    rgba(var(--rim), 0.03) 38%,
-    rgba(var(--rim), 0.03) 62%,
-    rgba(var(--rim), 0.08)) border-box;
-  -webkit-mask:
-    linear-gradient(#000, #000) content-box,
-    linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
 }
 .cb-chip:hover { background: rgba(var(--tint), 0.11); }
 .cb-chip > svg, .cb-chip > span { position: relative; z-index: 1; }
@@ -2705,9 +2589,7 @@
   bottom: calc(100% + 5px);
   left: 0;
   width: 220px;
-  background: rgba(var(--glass), 0.92);
-  -webkit-backdrop-filter: blur(var(--blur-lg)) saturate(170%);
-  backdrop-filter: blur(var(--blur-lg)) saturate(170%);
+  background: var(--pop);
   border-radius: 7px;
   box-shadow: 0 -10px 28px rgba(0, 0, 0, 0.42);
   padding: 4px;
@@ -2715,21 +2597,6 @@
   z-index: 200;
   max-height: 280px;
   overflow: hidden;
-}
-.cb-chip-dd::after {
-  content: ""; position: absolute; inset: 0; pointer-events: none;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg,
-    rgba(var(--rim), 0.32),
-    rgba(var(--rim), 0.06) 38%,
-    rgba(var(--rim), 0.06) 62%,
-    rgba(var(--rim), 0.18)) border-box;
-  -webkit-mask:
-    linear-gradient(#000, #000) content-box,
-    linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
 }
 .cb-chip-dd.open { display: flex; flex-direction: column; }
 .cb-chip-dd-scroll { overflow-y: auto; min-height: 0; }
@@ -2752,29 +2619,9 @@
 .cb-chip-group {
   display: inline-flex;
   background: rgba(var(--tint), 0.07);
-  -webkit-backdrop-filter: blur(var(--blur-sm)) saturate(140%);
-  backdrop-filter: blur(var(--blur-sm)) saturate(140%);
   border-radius: 6px;
   overflow: visible;
   position: relative;
-}
-.cb-chip-group::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg,
-    rgba(var(--rim), 0.14),
-    rgba(var(--rim), 0.03) 38%,
-    rgba(var(--rim), 0.03) 62%,
-    rgba(var(--rim), 0.08)) border-box;
-  -webkit-mask:
-    linear-gradient(#000, #000) content-box,
-    linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
 }
 .cb-chip-group .cb-chip-wrap { display: inline-flex; }
 .cb-chip-group .cb-chip.cb-chip--in-group {
