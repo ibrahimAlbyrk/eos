@@ -535,9 +535,10 @@
   gap: 6px;
 }
 .bash-prompt { color: var(--fg-faint); user-select: none; }
-.bash-cmd-text { color: var(--fg); }
+.bash-cmd-text { color: var(--fg); font-size: 12.5px; }
 .bash-output {
   padding: 6px 14px 11px;
+  font-size: 11.5px;
   line-height: 1.6;
   color: var(--fg-dim);
   white-space: pre-wrap;
@@ -591,6 +592,7 @@
 .tc-stop:hover { color: var(--fg); background: var(--chip); }
 .tc-out {
   padding: 0 14px 11px;
+  font-size: 11.5px;
   line-height: 1.6;
   color: var(--fg-dim);
   white-space: pre-wrap;
@@ -1151,11 +1153,10 @@
 .md-prose > *:last-child { margin-bottom: 0; }
 .md-prose p { margin: 0 0 10px; }
 .md-prose h1, .md-prose h2, .md-prose h3,
-.md-prose h4, .md-prose h5, .md-prose h6 { margin: 16px 0 8px; font-weight: 600; color: var(--fg-strong); }
-.md-prose h1 { font-size: var(--text-2xl); }
-.md-prose h2 { font-size: var(--text-xl); }
-.md-prose h3 { font-size: var(--text-md); }
-.md-prose h4, .md-prose h5, .md-prose h6 { font-size: var(--text-base); }
+.md-prose h4, .md-prose h5, .md-prose h6 { margin: 16px 0 8px; font-weight: 600; letter-spacing: -0.015em; color: var(--fg-strong); }
+.md-prose h1 { font-size: var(--text-xl); }
+.md-prose h2 { font-size: var(--text-lg); }
+.md-prose h3, .md-prose h4, .md-prose h5, .md-prose h6 { font-size: var(--text-md); }
 .md-prose ul, .md-prose ol { margin: 4px 0 10px; padding-left: 22px; }
 .md-prose li { margin: 2px 0; }
 .md-prose li::marker { color: var(--fg-faint); }
@@ -1172,8 +1173,9 @@
   margin: 8px 0 12px;
   padding: 10px 14px;
   font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  line-height: 1.6;
+  font-size: var(--text-xs);
+  line-height: 1.65;
+  color: var(--fg-mid);
   background: var(--panel);
   border-radius: var(--r-card);
   overflow-x: auto;
