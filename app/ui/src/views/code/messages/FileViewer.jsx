@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useUi } from "../../../state/ui.jsx";
-import { useOriginPane } from "../../../state/paneScope.js";
 import { combo } from "../../../keymap/index.js";
 import { useKeybinding } from "../../../keymap/useKeymap.js";
 import { api } from "../../../api/client.js";
@@ -13,7 +12,6 @@ import { EditView } from "./EditViewLazy.jsx";
 import { MarkdownPreview } from "./MarkdownPreview.jsx";
 import { PreviewToggle } from "./PreviewToggle.jsx";
 import { getFileViewer } from "./fileViewers.jsx";
-import { PanelShell } from "../panes/PanelShell.jsx";
 import { SymbolRefsPanel } from "./SymbolRefsPanel.jsx";
 import { useFileWatch } from "../../../state/fileWatchStore.js";
 
@@ -21,10 +19,12 @@ import { useFileWatch } from "../../../state/fileWatchStore.js";
 // set — editing affordances (history, autocomplete) cost too much on huge docs.
 const HEAVY_TEXT_CHARS = 2 * 1024 * 1024;
 
+// Nested inside the Files tab: FilesPanel shows the explorer until a file is
+// opened (ui.panelFile), then swaps in this editor with a back button.
 export function FileViewer({ live }) {
   const ui = useUi();
-  if (!ui.fileViewer) return <PanelShell type="file" />;
-  return <FileViewerInner path={ui.fileViewer.path} live={live} />;
+  if (!ui.panelFile) return null;
+  return <FileViewerInner path={ui.panelFile.path} live={live} />;
 }
 
 function FileViewerInner({ path, live }) {
@@ -90,7 +90,7 @@ function FileViewerInner({ path, live }) {
   const [refs, setRefs] = useState(null); // { name, occurrences, loading } | null
   const refsRef = useRef(refs);
   refsRef.current = refs;
-  const revealTarget = ui.fileViewer?.reveal;
+  const revealTarget = ui.panelFile?.reveal;
 
   // Definitions + lazy reference counts come from the shared hook (also used by
   // the Files-tab editor); the references drawer + go-to-def stay local here.
@@ -120,9 +120,9 @@ function FileViewerInner({ path, live }) {
     if (!root) return;
     api.symbolsLookup(root, word, "definitions", path).then((res) => {
       const occ = res?.occurrences ?? [];
-      if (occ.length) ui.openFileViewer(occ[0].path, { line: occ[0].line, column: occ[0].column });
+      if (occ.length) ui.openFile(occ[0].path, { line: occ[0].line, column: occ[0].column });
     }).catch(() => {});
-  }, [root, path, ui.openFileViewer]);
+  }, [root, path, ui.openFile]);
 
   const symbolNav = useMemo(() => (root ? {
     onDefinition: goToDef,
@@ -130,8 +130,8 @@ function FileViewerInner({ path, live }) {
   } : null), [root, goToDef, fetchRefs]);
 
   const openOccurrence = useCallback(
-    (occ) => ui.openFileViewer(occ.path, { line: occ.line, column: occ.column }),
-    [ui.openFileViewer],
+    (occ) => ui.openFile(occ.path, { line: occ.line, column: occ.column }),
+    [ui.openFile],
   );
 
   const handleSave = async () => {
@@ -164,23 +164,21 @@ function FileViewerInner({ path, live }) {
     }
   };
 
-  // ⌘F while this pane's docked panel is the focused region → this find bar
-  // outranks the chat's (priority 10 vs 0). Unlike the button's toggle, a repeat
-  // ⌘F re-opens + selects the query (chat semantics). Non-text files have no
-  // find bar, so their `when` fails and ⌘F falls through to the chat search.
-  const paneId = useOriginPane() ?? ui.focusedLeafId;
-  const paneFocused = paneId === ui.focusedLeafId;
+  // ⌘F while the side panel's Files tab (with a file open) is the focused region
+  // → this find bar outranks the chat's (priority 10 vs 0). Unlike the button's
+  // toggle, a repeat ⌘F re-opens + selects the query (chat semantics). Non-text
+  // files have no find bar, so their `when` fails and ⌘F falls through to chat.
   useKeybinding({
     match: combo("mod+f"),
     priority: 10,
-    when: () => isText && ui.isPanelOpen("file") && paneFocused && ui.focusedRegion === "panel",
+    when: () => isText && ui.panelTab === "files" && ui.panelFile != null && ui.focusedRegion === "panel",
     run: (ctx, e) => {
       e.preventDefault();
       setShowOpenWith(false);
       setShowFind(true);
       requestAnimationFrame(() => { findRef.current?.focus(); findRef.current?.select(); });
     },
-  }, [isText, ui.isPanelOpen, paneFocused, ui.focusedRegion]);
+  }, [isText, ui.panelTab, ui.panelFile, ui.focusedRegion]);
 
   const togglePreview = () => {
     setViewMode((m) => (m === "preview" ? "source" : "preview"));
@@ -198,12 +196,15 @@ function FileViewerInner({ path, live }) {
   // unless the buffer is dirty or a save is in flight; close the panel on unlink.
   useFileWatch(path, {
     onChange: () => { if (!dirty && !saving) setReloadTick((t) => t + 1); },
-    onRemove: () => ui.closeFileViewer(),
+    onRemove: () => ui.closeFile(),
   });
 
   return (
-    <PanelShell type="file">
+    <div className="panel-shell panel-shell--file">
       <div className="fv-row2">
+        <button className="fv-icon-btn fv-back" onClick={() => ui.closeFile()} title="Back to files" aria-label="Back to files">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M10 3 5 8l5 5" /></svg>
+        </button>
         <span className="fv-path" title={shortPath}>
           {pathDir && <span className="fv-path-dir">{pathDir}</span>}
           {pathBase}
@@ -296,7 +297,7 @@ function FileViewerInner({ path, live }) {
             {content === null && !error && <div className="fv-loading">Loading...</div>}
             {content !== null && (
               showMarkdownPreview ? (
-                <MarkdownPreview content={content} path={path} onOpenPath={ui.openFileViewer} />
+                <MarkdownPreview content={content} path={path} onOpenPath={ui.openFile} />
               ) : (
                 <EditView
                   editContent={editContent}
@@ -328,6 +329,6 @@ function FileViewerInner({ path, live }) {
           onClose={() => setRefs(null)}
         />
       )}
-    </PanelShell>
+    </div>
   );
 }

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { basename } from "../../../lib/path.js";
+import { workerGitDir } from "../../../lib/workerGitDir.js";
+import { projectPathFor } from "../../../lib/breadcrumb.js";
 import { truncateBranch } from "../../../lib/branchDisplay.js";
 import { useGitScopeChanges } from "../../../hooks/useGitScopeChanges.js";
 import { scopeKeyOf } from "../../../state/gitDiffStore.js";
@@ -17,14 +19,41 @@ import { GitDiffFileMenu } from "./GitDiffFileMenu.jsx";
 // collapsed and the hint row appears (DiffViewer's threshold).
 const LARGE_DIFF_LINES = 1000;
 
+// Review-tab empty state on the shared recipe (check glyph + title). Used for
+// both "no repo to review" and the clean-tree state ("Working tree clean").
+function ReviewEmpty({ title }) {
+  return (
+    <div className="empty-state">
+      <span className="empty-state__icon">
+        <svg width="40" height="40" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><circle cx="8" cy="8" r="6" /><path d="m5.4 8.2 1.8 1.8 3.5-3.7" /></svg>
+      </span>
+      <span className="empty-state__title">{title}</span>
+    </div>
+  );
+}
+
 // Git Diff docked panel — any repo dir's local changes (staged+unstaged+
 // untracked vs HEAD) or one commit's scope, with a file-tree + commit-history
 // sidebar. Read-only; worker-specific actions
 // (discard/Try/Apply/verdict) live in the DiffViewer.
+// Review tab — the selected agent's working-tree diff (summary + conflicts +
+// history + stashes + file cards), or an explicit {cwd, workerId} when opened
+// from a specific worktree (e.g. a WorktreeHub child). Falls back to deriving
+// the repo dir from the selected worker.
 export function GitDiffViewer({ live }) {
   const ui = useUi();
-  if (!ui.gitDiffViewer) return <PanelShell type="gitdiff" />;
-  return <GitDiffViewerInner cwd={ui.gitDiffViewer.cwd} workerId={ui.gitDiffViewer.workerId} live={live} />;
+  const d = ui.panelData?.review ?? null;
+  const workerId = d?.workerId ?? ui.selectedId ?? null;
+  const worker = workerId ? (live?.workers ?? []).find((w) => w.id === workerId) ?? null : null;
+  const cwd = d?.cwd ?? workerGitDir(worker) ?? projectPathFor(live?.workers ?? [], workerId) ?? null;
+  if (!cwd) {
+    return (
+      <PanelShell type="gitdiff">
+        <ReviewEmpty title="Nothing to review" />
+      </PanelShell>
+    );
+  }
+  return <GitDiffViewerInner cwd={cwd} workerId={workerId} live={live} />;
 }
 
 function GitDiffViewerInner({ cwd, workerId, live }) {
@@ -74,6 +103,18 @@ function GitDiffViewerInner({ cwd, workerId, live }) {
     e.preventDefault();
     ui.openPop("gitdiff-file-ctx", { x: e.clientX, y: e.clientY, data: { cwd, path } });
   }, [ui, cwd]);
+
+  // Clean working tree → the shared "Working tree clean" recipe fills the tab
+  // (reference: no heading/history chrome while clean). Only for the working-tree
+  // "all" scope and only once the first snapshot has loaded (changes non-null).
+  const cleanTree = scope.kind === "all" && changes && Array.isArray(changes.files) && changes.files.length === 0;
+  if (cleanTree) {
+    return (
+      <PanelShell type="gitdiff">
+        <ReviewEmpty title="Working tree clean" />
+      </PanelShell>
+    );
+  }
 
   // "repo · branch" like the composer git ribbon (an arrow would falsely imply
   // a ref range — the "all" scope is now local changes vs HEAD).

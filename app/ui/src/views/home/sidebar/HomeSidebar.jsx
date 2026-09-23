@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { TabBar } from "../../../components/TabBar.jsx";
+import { EosSwitcher } from "../../../components/EosSwitcher.jsx";
 import { SettingsFooter } from "../../../components/SettingsFooter.jsx";
 import { useHome, refreshHome, selectHome, createHome, removeHome } from "../../../state/homeStore.js";
 
@@ -22,7 +22,7 @@ export function HomeSidebar({ live, variant = "full" }) {
 
   const body = (
     <>
-      <TabBar variant={variant} />
+      <EosSwitcher />
       <div className="sb-head">
         <div className="sb-head__title">Chats <span className="sb-head__count">{conversations.length}</span></div>
         <div className="sb-head__actions">

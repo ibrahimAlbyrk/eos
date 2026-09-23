@@ -37,6 +37,8 @@ import { ProcessingLine } from "./ProcessingLine.jsx";
 import { GoalCheckLine, LoopCheckBlock } from "./LoopCheck.jsx";
 import { MessageTask } from "./MessageTask.jsx";
 import { MessageRow } from "./MessageRow.jsx";
+import { NewTaskHero } from "./NewTaskHero.jsx";
+import { newSessionProject } from "../../../lib/breadcrumb.js";
 import { TerminalCard } from "./TerminalCard.jsx";
 import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceRuns } from "../../../state/terminalStore.js";
 import { subscribe as subscribeThinking, liveBlocksFor as liveThinkingFor, dropBlock as dropThinkingBlock } from "../../../state/thinkingStore.js";
@@ -380,14 +382,6 @@ export function Messages({ live, agentId, isActive = true }) {
     }
   }, [blocks, selectedId]);
 
-  useEffect(() => {
-    if (!isActive || !ui.agentViewer) return;
-    const match = blocks.find(b => b.kind === "agentRun" && b.toolUseId === ui.agentViewer.toolUseId);
-    if (match) ui.syncAgentViewer(match);
-    // ui.agentViewer dep: re-sync when the agent panel returns to the top of
-    // the panel stack (its block may have gone stale while buried).
-  }, [blocks, ui.agentViewer, isActive]);
-
   // expandedTools/settings in deps: expanding a tool mounts new text the ranges must cover.
   const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools, ui.settings], isActive);
 
@@ -487,6 +481,7 @@ export function Messages({ live, agentId, isActive = true }) {
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
       <div className={selectedId ? "messages" : "messages messages-empty"} ref={contentRef}>
+        {!selectedId && <NewTaskHero project={newSessionProject(ui.composer.cwd, live.recents).project} />}
         {selectedId && hasOlder && (
           <div className="load-older" ref={setSentinelEl}>
             {loadingOlder && <span className="load-older-skel" aria-label="loading earlier messages" />}

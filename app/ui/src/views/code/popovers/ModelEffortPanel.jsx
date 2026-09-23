@@ -80,8 +80,6 @@ function RailPanel({ live, ui, worker, config, onPick }) {
 
   useEffect(() => { paneRef.current?.focus(); }, []);
 
-  if (!levels.length) return null;
-
   const fracFromIdx = (i) => (count > 1 ? i / (count - 1) : 0);
   const idxFromFrac = (f) => (count > 1 ? Math.round(clamp01(f) * (count - 1)) : 0);
   const colorIdxOf = (i) => (count > 1 ? Math.round((i / (count - 1)) * 4) : 0);
@@ -162,6 +160,10 @@ function RailPanel({ live, ui, worker, config, onPick }) {
       }
     }
   }, [spd, particles]);
+
+  // Model supports no effort levels → nothing to show. Placed AFTER every hook so
+  // the hook order is identical on every render (react-hooks/rules-of-hooks).
+  if (!levels.length) return null;
 
   const noAnim = dragging;
   const fillW = `calc(${2 * INSET}px + ${shownFrac} * (100% - ${2 * INSET}px))`;

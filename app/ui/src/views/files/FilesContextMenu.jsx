@@ -26,7 +26,7 @@ export function FilesContextMenu() {
   const close = () => ui.closeAllPops();
   const act = (fn) => { fn(); close(); };
 
-  const open = () => act(() => (primaryIsDir ? explorer.toggleExpand(primary) : ui.openFileViewer(primary)));
+  const open = () => act(() => (primaryIsDir ? explorer.toggleExpand(primary) : ui.openFile(primary)));
   const rename = () => act(() => explorer.startRename(primary));
   const reveal = () => act(() => api.revealFile(primary));
   const copyPath = async () => {

@@ -21,6 +21,15 @@ export function breadcrumbFor(workers, selectedId, fallbackCwd) {
   return { project, chain: chain.map((w) => ({ id: w.id, label: nameOf(w), worker: w })) };
 }
 
+// The pre-spawn folder for the new-task / new-session screen: the composer's
+// chosen cwd, else the most recent project. Returns project=null when no folder
+// is available at all — the new-task headline drops its "in <project>" clause and
+// the header omits the faint project name entirely.
+export function newSessionProject(composerCwd, recents) {
+  const cwd = composerCwd ?? recents?.[0] ?? null;
+  return { cwd, project: cwd ? basename(cwd) : null };
+}
+
 // Full project PATH (not just the basename) of the selected agent's chain root —
 // the orchestrator's own cwd. Worktree workers carry a null cwd, so the path
 // comes from the root, exactly as breadcrumbFor derives the project name. Returns

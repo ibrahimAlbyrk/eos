@@ -2061,24 +2061,10 @@
 }
 .browser-device-menu .pr-menu-check { margin-left: 8px; }
 
-/* Empty state — shown instead of the canvas when the active tab is blank
-   (about:blank). A new tab does not auto-navigate; this is the resting state
-   until the human types a URL in the address bar above. */
-.browser-empty-state {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  padding: 24px;
-  text-align: center;
-  user-select: none;
-}
-.browser-empty-state__icon { color: var(--fg-mute); margin-bottom: 6px; }
-.browser-empty-state__title { font-size: var(--text-md); font-weight: 500; color: var(--fg-mid); }
-.browser-empty-state__subtitle { font-size: var(--text-sm); color: var(--fg-faint); }
+/* Blank-tab resting state uses the shared .empty-state recipe (BrowserEmptyState).
+   .browser-body is a flex row centering the native canvas region, so stretch the
+   recipe to fill its height — its own justify-content then centers vertically. */
+.browser-body > .empty-state { align-self: stretch; user-select: none; }
 
 /* ---- Annotation overlay (P6) — appended after the browser block ---------- */
 /* Covers the body so the frozen frame swallows all page input (nothing shifts

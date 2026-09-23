@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { projectPathFor } from "../../../lib/breadcrumb.js";
+import { sessionRootOf } from "../../../lib/agentIndex.js";
 import { subscribe, getPtyPanel, openTab, reapUntrackedSessions } from "../../../state/ptyPanelStore.js";
 import { PanelShell } from "../panes/PanelShell.jsx";
 import { TerminalTabBar } from "../../../components/terminal/TerminalTabBar.jsx";
@@ -20,8 +21,10 @@ export function TerminalViewer({ live }) {
   const ui = useUi();
   // undefined (not null) when unknown, so it's dropped from the POST body.
   const cwd = projectPathFor(live?.workers ?? [], ui.selectedId) ?? undefined;
-  if (!ui.terminalViewer) return <PanelShell type="terminal" />;
-  return <TerminalViewerInner paneId={ui.paneId} cwd={cwd} />;
+  // The single panel shares ONE terminal set per SESSION (like the browser tab),
+  // so its PTY store key is the selected agent's session root, not a pane id.
+  const key = sessionRootOf(ui.selectedId) ?? "global";
+  return <TerminalViewerInner paneId={key} cwd={cwd} />;
 }
 
 function TerminalViewerInner({ paneId, cwd }) {

@@ -174,9 +174,6 @@ kbd {
   --glass: 23, 23, 23;
   --rim: 255, 255, 255;
   --ink: 0, 0, 0;
-  --shimmer: #fff;
-  --bubble-user-bg: var(--bubble);
-  --bubble-user-fg: var(--bubble-fg);
   --queued-bg: #212b35;
   --queued-fg: #0099ff;
   --solid-btn-bg: #e8e8e8;

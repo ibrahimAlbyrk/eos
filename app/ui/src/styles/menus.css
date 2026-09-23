@@ -107,6 +107,43 @@
   top: calc(100% + 8px);
 }
 
+/* ============== Eos ▾ workspace switcher dropdown ============== */
+.eos-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  width: 200px;
+  padding: 6px;
+  background: var(--pop);
+  border-radius: var(--r-menu);
+  box-shadow: var(--sh-pop);
+  z-index: 250;
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-base);
+  font-weight: 400;
+  line-height: 1.4;
+  letter-spacing: 0;
+  cursor: default;
+}
+.eos-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border-radius: var(--r-row);
+  color: var(--fg);
+  cursor: pointer;
+}
+.eos-menu__item:hover { background: var(--row-on); }
+.eos-menu__check {
+  margin-left: auto;
+  display: inline-flex;
+  color: var(--fg-mid);
+  opacity: 0;
+}
+.eos-menu__check.on { opacity: 1; }
+
 /* ============== Agent right-click context menu ============== */
 .ctx-menu {
   position: fixed;
@@ -119,6 +156,8 @@
   line-height: 1.4;
 }
 .ctx-menu.open { display: block; }
+/* Move-to-group flyout is narrower than the parent menu (reference: 190px). */
+.ctx-menu.ctx-flyout { width: 190px; }
 .ctx-menu .menu-item {
   display: flex;
   align-items: center;
@@ -197,6 +236,97 @@
 .sb-prefs-label { flex: 1; }
 .sb-prefs-val { color: var(--fg-faint); font-size: var(--text-xs); }
 .sb-prefs-menu .menu-item .sub-chev { margin-left: 6px; }
+
+/* ============== Header Split menu (PaneHeader → SplitMenu) ============== */
+/* Portal'd to <body>, positioned inline (top/right measured from the header's
+   action cluster). Reference: 260px, --r-menu, --pop, anchored to header bottom. */
+.split-menu {
+  position: fixed;
+  z-index: 400;
+  width: 260px;
+  padding: 6px;
+  background: var(--pop);
+  border-radius: var(--r-menu);
+  box-shadow: var(--sh-pop);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-base);
+  --app-region: no-drag;
+}
+.split-menu .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 7px 10px;
+  border-radius: var(--r-row);
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+.split-menu .menu-item:hover,
+.split-menu .menu-item.on { background: var(--row-on); }
+.split-menu .menu-item:disabled { opacity: 0.4; cursor: default; }
+.split-menu .menu-item:disabled:hover { background: transparent; }
+.split-menu .menu-item svg { flex-shrink: 0; color: var(--fg-dim2); }
+.split-menu .menu-sep { height: 1px; background: var(--line); margin: 5px 8px; }
+.sm-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sm-check { display: inline-flex; color: var(--fg-mid); opacity: 0; flex-shrink: 0; }
+.sm-check.on { opacity: 1; }
+.split-menu .kbd { color: var(--fg-faint); font-family: var(--font-mono); font-size: 11px; flex-shrink: 0; }
+.sm-sec { padding: 8px 10px 3px; font-size: var(--text-sm); color: var(--fg-faint); }
+.sm-empty { padding: 4px 10px 8px; font-size: var(--text-sm); color: var(--fg-faint); }
+
+/* ============== Environment & changes popover (PaneHeader → EnvironmentPopover) */
+/* Portal'd to <body>; reference: 290px, --r-pop, --pop, anchored to header bottom
+   line, right-aligned to the action cluster. Flat surface-step + shadow (floats). */
+.env-pop {
+  position: fixed;
+  z-index: 400;
+  width: 290px;
+  padding: 8px;
+  background: var(--pop);
+  border-radius: var(--r-pop);
+  box-shadow: var(--sh-pop);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-base);
+  --app-region: no-drag;
+}
+.env-head {
+  display: flex;
+  align-items: center;
+  padding: 8px 10px 6px;
+  font-size: var(--text-sm);
+  color: var(--fg-dim2);
+}
+.env-head--sources { padding-top: 14px; }
+.env-head .env-plus { margin-left: auto; color: var(--fg-dim2); }
+.env-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: var(--r-row);
+  color: var(--fg);
+  text-align: left;
+  cursor: pointer;
+}
+.env-row.env-static,
+.env-row.env-fx-row { cursor: default; }
+.env-row:not(.env-static):not(.env-fx-row):hover { background: var(--row-on); }
+.env-row > svg { flex-shrink: 0; color: var(--fg-dim2); }
+.env-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.env-count { flex-shrink: 0; font-family: var(--font-mono); font-size: var(--text-sm); }
+.env-add { color: var(--ok); }
+.env-del { color: var(--err); }
+.env-chev { flex-shrink: 0; color: var(--fg-dim2); }
+.env-sync { flex-shrink: 0; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--fg-dim2); }
+.env-row .kbd { flex-shrink: 0; color: var(--fg-faint); font-family: var(--font-mono); font-size: 11px; }
+.env-dim { color: var(--fg-mid); }
+.env-faint { color: var(--fg-faint); }
+.env-fx-row { gap: 8px; }
 
 /* Active / Archived section labels shown in the sidebar when Status = All. */
 .agents-status-label {
@@ -324,6 +454,12 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+.cmdk__item-kbd {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
   flex-shrink: 0;
 }
 .cmdk__enter {
@@ -761,6 +897,8 @@
   border-radius: var(--r-modal);
   box-shadow: var(--sh-modal);
 }
+/* New-group / save-layout prompt reuses this surface but is narrower (400px). */
+.del-confirm.del-confirm--narrow { width: 400px; }
 .del-confirm__body { display: flex; flex-direction: column; }
 .del-confirm .stg-title { color: var(--fg-strong); margin-bottom: 8px; }
 .del-confirm__msg {
@@ -1162,11 +1300,9 @@
    inert + dimmed (the app's disabled-control opacity idiom). List rows reuse
    the Code sidebar's .agents-row. */
 
-.archive-main {
-  flex: 1; min-height: 0;
-  display: flex; align-items: center; justify-content: center;
-  padding: 24px;
-}
+/* Archive now reuses the single-pane column (.single-pane/.sp-main) + the shared
+   .pane-head title bar + .empty-state recipe, so the old .archive-main wrapper
+   was retired. */
 
 .archive-empty {
   color: var(--fg-faint);
@@ -1176,11 +1312,15 @@
 
 .archive-hint {
   flex-shrink: 0;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   color: var(--fg-faint);
   font-size: var(--text-sm);
   padding: 2px 0 6px;
 }
+.archive-hint__icon { display: inline-flex; }
 
 .composer-archived {
   flex-shrink: 0;
@@ -1194,6 +1334,8 @@
    import these class names (drop any local *-empty-state duplicates onto them).
    ============================================================================ */
 .empty-state {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1246,28 +1388,6 @@
    xterm body sharing the island bg (identical to the xterm theme background).
    No card chrome, no layout split of its own — the shell owns positioning/
    radius/shadow/header. */
-/* Only a fullscreen dock panel in the TOP-LEFT pane (.at-top-left — always true for
-   the single pane, only the origin pane in a split) sits under the window chrome;
-   with the sidebar collapsed its header (terminal tab bar, git diff branch row, …)
-   would otherwise render under the macOS traffic lights + sidebar-expand toggle.
-   <DockChromeInset/> is a left spacer that reserves the SAME clearance the top-left
-   pane header uses (.pane-head-inset) — identical class signals and widths.
-   Normalizing the header's left padding to 16px + the inset's 4px margin land the
-   first control at the collapsed breadcrumb's x (each header keeps its own flex gap
-   on top). Hidden in every other state (sidebar open, non-fullscreen, a fullscreen
-   panel in a non-top-left split pane) so layout is untouched; shared by every
-   fullscreen-capable dock header. */
-.dock-chrome-inset { display: none; }
-.app.side-collapsed .pane-panel-slot.is-fullscreen.at-top-left .panel-shell__head { padding-left: 16px; }
-.app.side-collapsed .pane-panel-slot.is-fullscreen.at-top-left .dock-chrome-inset {
-  display: block;
-  flex-shrink: 0;
-  align-self: stretch;
-  width: 28px;
-  margin-right: 4px;
-}
-html.native .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top-left .dock-chrome-inset { width: 102px; }
-html.native.fullscreen .app.side-collapsed .pane-panel-slot.is-fullscreen.at-top-left .dock-chrome-inset { width: 22px; }
 .pty-tabs {
   display: flex;
   align-items: center;

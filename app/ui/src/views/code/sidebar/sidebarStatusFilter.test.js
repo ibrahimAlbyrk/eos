@@ -18,9 +18,11 @@ describe("archive is a status filter, not a standalone toggle", () => {
     }
   });
 
-  it("the standalone ArchiveToggle button is gone from the header", () => {
+  it("the standalone ArchiveToggle button is gone; view-options filter lives on the Projects label", () => {
     expect(sidebarHeadSrc).not.toContain("ArchiveToggle");
-    expect(sidebarHeadSrc).toContain('data-popover-trigger="sidebar-prefs"');
+    // The sliders/view-options trigger moved out of SidebarHead onto the
+    // CodeSidebar's Projects/Recent/Groups section label.
+    expect(codeSidebarSrc).toContain('data-popover-trigger="sidebar-prefs"');
   });
 
   it("feeds ONE unified list, filtered by the persisted status pref", () => {

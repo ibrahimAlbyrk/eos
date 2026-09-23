@@ -12,6 +12,7 @@ import { isTerminalFocused } from "../../components/terminal/terminalBridge.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { PaneGrid, SinglePane } from "./panes/PaneGrid.jsx";
+import { SidePanel } from "./panes/SidePanel.jsx";
 import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
 import { SidebarPrefsMenu } from "./sidebar/SidebarPrefsMenu.jsx";
 import { RewindPanel } from "./center/RewindPanel.jsx";
@@ -109,15 +110,17 @@ export function CodeView({ live }) {
     return () => document.removeEventListener("mousedown", handler);
   }, [ui.openPopover, ui]);
 
-  // The right panels dock as a sibling surface immediately right of the FOCUSED
-  // pane, INSIDE the pane grid (see PaneGrid/SinglePane) — not the window's right
-  // column — so the window grid never resizes for a panel. Only `split` remains.
-  const gridClass = ui.paneCount > 1 ? "split" : "";
+  // The single shared right side panel lives in the window's third grid column
+  // (AppLayout) — no longer docked inside a pane. It hides in archive mode and
+  // when there are no agents (mirrors the reference `panelOn` gate).
+  const showPanel = ui.showSidePanel && !archiveMode && live.workers.length > 0;
+  const gridClass = [ui.paneCount > 1 ? "split" : "", showPanel ? "side-open" : ""].filter(Boolean).join(" ");
 
   return (
     <AppLayout
       gridClass={gridClass}
       sidebar={(variant) => <CodeSidebar live={live} variant={variant} />}
+      rightPanel={showPanel ? <SidePanel live={live} /> : null}
       main={
         archiveMode ? (
           // Archive mode replaces the main area with the archive panel; the
@@ -129,8 +132,6 @@ export function CodeView({ live }) {
           // and fills its full height, so each pane's own PaneHeader is the topmost
           // row of the window. Single pane keeps the keep-alive multiplexer (instant
           // switch-back); split view (2-4 panes) lays the transcripts side by side.
-          // The composer lives INSIDE each pane; each pane renders its own docked
-          // panel adjacent to it (see PaneViewers).
           ui.paneCount > 1
             ? <PaneGrid live={live} />
             : <SinglePane live={live} />

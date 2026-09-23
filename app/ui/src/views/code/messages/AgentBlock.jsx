@@ -1,5 +1,6 @@
-import { useUi } from "../../../state/ui.jsx";
+import { useState } from "react";
 import { modelName as getModelName } from "../../../lib/models.js";
+import { DisclosureRow } from "./DisclosureRow.jsx";
 
 const AgentIcon = () => (
   <span className="agent-icon" aria-hidden>
@@ -11,22 +12,32 @@ const AgentIcon = () => (
 );
 
 export function AgentBlock({ block }) {
-  const ui = useUi();
+  const [open, setOpen] = useState(false);
   const desc = block.description || "agent";
   const toolCount = block.tools?.length ?? 0;
   const modelLabel = getModelName(block.model);
 
-  const openPanel = () => ui.openAgentViewer(block);
-
-  if (block.status === "completed" && block.result) {
+  if (block.status === "completed") {
+    const meta = `Agent completed${toolCount > 0 ? ` · ${toolCount} tool${toolCount > 1 ? "s" : ""}` : ""}`;
     return (
       <div className="agent-block agent-block--done">
-        <div className="agent-done-line">
+        <DisclosureRow
+          expanded={open}
+          expandable={!!block.result}
+          onToggle={() => setOpen((o) => !o)}
+          className="tool-item-header"
+        >
           <AgentIcon />
-          <span className="agent-done-text agent-done-clickable" onClick={openPanel}>
-            Ran agent{modelLabel ? ` ${modelLabel}` : ""} {desc}
-          </span>
-        </div>
+          <span className="ti-verb">Ran agent</span>
+          {modelLabel && <span className="agent-done-model">{modelLabel}</span>}
+          <span className="agent-done-desc">{desc}</span>
+          <span className="agent-done-meta">{meta}</span>
+        </DisclosureRow>
+        {open && block.result && (
+          <div className="report-detail">
+            <div className="report-detail-text">{block.result}</div>
+          </div>
+        )}
       </div>
     );
   }
@@ -47,7 +58,7 @@ export function AgentBlock({ block }) {
           <path d="m6 4 4 4-4 4" />
         </svg>
       </div>
-      <div className="agent-card" onClick={openPanel}>
+      <div className="agent-card">
         <div className="agent-card-body">
           <div className={"agent-card-title" + (isDone ? "" : " ti-shimmer")}>{desc}</div>
           <div className="agent-card-status">{statusText}</div>

@@ -79,7 +79,7 @@ export function ContextStrip({ live, worker }) {
           onClick={(e) => toggle("folder-dd", e)}
           data-popover-trigger="folder-dd"
         >
-          <span className="strip-brace">{"{ }"}</span>
+          <span className="strip-brace">{"{}"}</span>
           <span className="strip-project-name">{folderLabel}</span>
         </button>
         <FolderDropdown live={live} />

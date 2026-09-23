@@ -1,14 +1,12 @@
 import { useUi } from "../../../state/ui.jsx";
 import { contextUsage } from "../../../lib/contextWindow.js";
-import { modelName, modelCtx, EFFORT_LABELS, effortChoicesFor } from "../../../lib/models.js";
+import { modelName, modelCtx, effortChoicesFor } from "../../../lib/models.js";
 import { AcceptPopover } from "../popovers/AcceptPopover.jsx";
 import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { ModelPopover } from "../popovers/ModelPopover.jsx";
 import { BackendPopover, SpawnModelPopover } from "../popovers/BackendPopover.jsx";
-import { EffortPopover } from "../popovers/EffortPopover.jsx";
 import { ModelEffortPanel } from "../popovers/ModelEffortPanel.jsx";
 import { CtxPopover } from "../popovers/CtxPopover.jsx";
-import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
 import { providerChoices, providerName, runningProviderLabel, runningProviderChoice, hasProviderSwitchTarget } from "../../../lib/backendCaps.js";
@@ -20,7 +18,7 @@ import { SubmitButton } from "./SubmitButton.jsx";
 // "Extra"; ultracode is folded into Max since the rail drops it).
 const TRIGGER_LEVEL = { low: "Low", medium: "Medium", high: "High", xhigh: "xHigh", max: "Max", ultracode: "Max" };
 
-export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAttach, historyNav, demoted, wtStatus, submit }) {
+export function ComposerControls({ live, worker, onAttach, demoted, wtStatus, submit }) {
   const ui = useUi();
   // The pane's own worker (null on the no-agent spawn composer), not the global
   // selection — a non-focused pane's controls must read ITS agent's config.
@@ -57,11 +55,11 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   const selectedChoice = selected ? runningProviderChoice(selected) : null;
   const selectedIsApi = !!selectedChoice && !selectedChoice.subscription;
   const modelPopId = spawnIsApi || selectedIsApi ? "spawnModel" : "model";
-  // The Claude lane folds Model + Effort into one rail trigger; an API lane keeps
-  // its provider-specific model list + effort as separate pills.
+  // Reference shows ONE combined Model·Effort trigger for every lane — fold model
+  // + effort into the rail whenever the model exposes effort (API/profile lanes
+  // included); a no-effort model falls back to the plain model pill below.
   const hasEffort = effortChoicesFor(model).length > 0;
-  const isApiLane = spawnIsApi || selectedIsApi;
-  const useRail = hasEffort && !isApiLane;
+  const useRail = hasEffort;
   const levelLabel = TRIGGER_LEVEL[effort] ?? "High";
   const levelIsMax = effort === "max" || effort === "ultracode";
 
@@ -104,66 +102,27 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   return (
     <div className="c-row3">
       <div className="left">
-        <div className="accept-wrap" style={{ position: "relative" }}>
-          <button
-            className="mode-pill"
-            onClick={(e) => toggle("accept", e)}
-            data-popover-trigger="accept"
-          >
-            <ModeIcon className="mode-ic" />
-            <span className="mode-label">{modeMeta.label}</span>
-          </button>
-          <AcceptPopover live={live} worker={selected} />
-        </div>
         <div className="plus-wrap" style={{ position: "relative" }}>
           <button
-            className="iconbtn"
+            className="iconbtn attach-btn"
             title="Attach"
             onClick={(e) => toggle("attach", e)}
             data-popover-trigger="attach"
           >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
               <path d="M8 3v10M3 8h10" />
             </svg>
           </button>
           <AttachPopover onAttach={onAttach} />
         </div>
-        <div className="git-wrap" style={{ position: "relative" }}>
-          <button
-            className={"iconbtn git-agent-btn" + (gitMode ? " on" : "")}
-            title={gitMode ? "Exit git mode (⌘G)" : "Git agent (⌘G)"}
-            onClick={(e) => {
-              if (gitMode) {
-                e.stopPropagation();
-                onToggleGitMode(false);
-                ui.closeAllPops();
-                return;
-              }
-              toggle("git-agent", e);
-            }}
-            data-popover-trigger="git-agent"
-          >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="4.5" cy="3.5" r="1.5" />
-              <circle cx="4.5" cy="12.5" r="1.5" />
-              <circle cx="11.5" cy="5" r="1.5" />
-              <path d="M4.5 5v6M11.5 6.5c0 2.2-2.7 2.6-4.5 3.2" />
-            </svg>
-          </button>
-          <GitAgentPopover
-            live={live}
-            worker={selected}
-            cwd={selected ? (selected.cwd ?? selected.worktree_from) : (ui.composer.cwd ?? live.recents[0] ?? null)}
-          />
-        </div>
-<div className="tpl-wrap" style={{ position: "relative" }}>
+        <div className="tpl-wrap" style={{ position: "relative" }}>
           <button
             className="iconbtn"
             title="Prompt templates"
             onClick={(e) => toggle("templates", e)}
             data-popover-trigger="templates"
           >
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9.5 1.5h-5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V4.5z" />
               <path d="M9.5 1.5V4.5h3" />
               <path d="M6 8.5h4M6 11h2.5" />
@@ -171,9 +130,17 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
           </button>
           <TemplatePickerPopover />
         </div>
-        {historyNav && (
-          <div className="history-badge">history {historyNav.pos}/{historyNav.total}</div>
-        )}
+        <div className="accept-wrap" style={{ position: "relative" }}>
+          <button
+            className="mode-pill"
+            onClick={(e) => toggle("accept", e)}
+            data-popover-trigger="accept"
+          >
+            <ModeIcon className={"mode-ic mode-ic--" + mode} />
+            <span className="mode-label">{modeMeta.label}</span>
+          </button>
+          <AcceptPopover live={live} worker={selected} />
+        </div>
       </div>
       <div className="grow"></div>
       <div className="right">
@@ -240,18 +207,6 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
               <ModelPopover live={live} worker={selected} />
               <SpawnModelPopover live={live} worker={selected} />
             </div>
-            {hasEffort && (
-              <div className="effort-wrap" style={{ position: "relative" }}>
-                <button
-                  className={"effort-pill" + (effort === "ultracode" ? " ultra" : "") + (ui.openPopover === "effort" ? " open" : "")}
-                  onClick={(e) => toggle("effort", e)}
-                  data-popover-trigger="effort"
-                >
-                  {EFFORT_LABELS[effort] ?? "Extra"}
-                </button>
-                <EffortPopover live={live} worker={selected} />
-              </div>
-            )}
           </>
         )}
         <div className="ctx-ring-wrap">

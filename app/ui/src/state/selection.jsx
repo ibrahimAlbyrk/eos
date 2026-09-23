@@ -1,11 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
-import {
-  emptyDock, openPanelTile, closePanelTile, updatePanelTileData,
-  hasPanelTile, panelTileData, panelTypes, setDockRatio,
-} from "../lib/panelTiling.js";
-import { getPanel } from "../lib/panelRegistry.js";
-import { loadPanelDocks, savePanelDocks } from "../lib/panelPersist.js";
 import { loadCollapsedNodes, saveCollapsedNodes } from "../lib/collapseMemory.js";
 
 const SelectionContext = createContext(null);
@@ -31,9 +25,42 @@ export function SelectionProvider({ children }) {
     historyRef.current = history;
     return id;
   }, []);
-  const [sideCollapsed, setSideCollapsed] = useState(() => localStorage.getItem("cm:sideCollapsed") === "1");
-
-  useEffect(() => { localStorage.setItem("cm:sideCollapsed", sideCollapsed ? "1" : "0"); }, [sideCollapsed]);
+  // Sidebar collapse is tri-state: 'expanded' | 'collapsed' | 'collapsed-hover'.
+  // Only the expanded↔collapsed axis persists; 'collapsed-hover' is a transient
+  // pointer state (the floating flyout) that always resolves back to 'collapsed'.
+  // A 240ms leave delay lets the pointer cross the gap from the header hamburger
+  // to the floating card without it snapping shut. Later phases (the header
+  // hamburger + traffic lights, split-pane headers) read `sidebarMode` directly;
+  // `sideCollapsed`/`setSideCollapsed` stay as the boolean back-compat shim every
+  // current consumer (grid class, rename gate) already uses.
+  const [sidebarMode, setSidebarMode] = useState(
+    () => (localStorage.getItem("cm:sideCollapsed") === "1" ? "collapsed" : "expanded"),
+  );
+  useEffect(() => {
+    localStorage.setItem("cm:sideCollapsed", sidebarMode === "expanded" ? "0" : "1");
+  }, [sidebarMode]);
+  const hoverLeaveTimer = useRef(null);
+  const collapseSidebar = useCallback(() => { clearTimeout(hoverLeaveTimer.current); setSidebarMode("collapsed"); }, []);
+  const expandSidebar = useCallback(() => { clearTimeout(hoverLeaveTimer.current); setSidebarMode("expanded"); }, []);
+  const hoverSidebarIn = useCallback(() => {
+    clearTimeout(hoverLeaveTimer.current);
+    setSidebarMode((m) => (m === "collapsed" ? "collapsed-hover" : m));
+  }, []);
+  const hoverSidebarKeep = useCallback(() => { clearTimeout(hoverLeaveTimer.current); }, []);
+  const hoverSidebarOut = useCallback(() => {
+    clearTimeout(hoverLeaveTimer.current);
+    hoverLeaveTimer.current = setTimeout(() => {
+      // Keep the flyout up while a menu opened from inside it is still open
+      // (right-click an agent row → context menu portaled to <body>).
+      if (Object.values(openPopByPaneRef.current).some(Boolean)) return;
+      setSidebarMode((m) => (m === "collapsed-hover" ? "collapsed" : m));
+    }, 240);
+  }, []);
+  const sideCollapsed = sidebarMode !== "expanded";
+  const setSideCollapsed = useCallback((v) => {
+    clearTimeout(hoverLeaveTimer.current);
+    setSidebarMode(v ? "collapsed" : "expanded");
+  }, []);
   // Popover open state is PER PANE, keyed by leaf id: { [paneId]: id }. Each
   // pane owns its own Composer, so opening one pane's menu must not render it in
   // the others (they gated on a single global string before). Chrome outside a
@@ -47,131 +74,44 @@ export function SelectionProvider({ children }) {
   const [collapsedNodes, setCollapsedNodes] = useState(() => loadCollapsedNodes());
   useEffect(() => { saveCollapsedNodes(collapsedNodes); }, [collapsedNodes]);
   const [expandedTools, setExpandedTools] = useState(() => new Set());
-  // Right-panel docks, keyed by paneId: { [leafId]: dock } where a dock is the
-  // { slots, nextSeq, ratios } object lib/panelTiling manages. Each pane owns its
-  // own dock (see PanelDock); the tiling engine lays its ≤6 open panels out. The
-  // pane-aware reads/wrappers live in useUi (it resolves the pane via
-  // PaneScopeContext); this provider owns the map + the raw paneId-explicit ops.
-  // Slot structure + ratios persist across reloads (cm:panelDocks); terminal is
-  // session-only and stripped on save.
-  const [docksByPane, setDocksByPane] = useState(loadPanelDocks);
-  const docksRef = useRef(docksByPane);
-  docksRef.current = docksByPane;
-  useEffect(() => { savePanelDocks(docksByPane); }, [docksByPane]);
-  // Closing a dock's LAST panel lingers one width-transition (COLLAPSE_MS) with the
-  // viewer STILL mounted, so the dock shrinks out in sync with the space closing
-  // instead of the panel vanishing and THEN the empty space collapsing. The panel
-  // stays in docksByPane (content keeps rendering) while `collapsingPanes` marks the
-  // pane; layout geometry treats a collapsing pane as closed (useUi.isDockCollapsing
-  // → PaneGrid), so the width animates to 0 around the live viewer. The slot leaves
-  // state when the timer fires; any later open/close on the pane finalizes it early.
-  const COLLAPSE_MS = 240;
-  const [collapsingPanes, setCollapsingPanes] = useState(() => new Set());
-  const collapsingRef = useRef(collapsingPanes);
-  collapsingRef.current = collapsingPanes;
-  const collapseTimers = useRef(new Map()); // paneId -> { timer, type }
-  const isDockCollapsing = useCallback((paneId) => paneId != null && collapsingRef.current.has(paneId), []);
-  // Apply a pane's deferred last-panel removal now (also the collapse timer's body).
-  const flushCollapse = useCallback((paneId) => {
-    const pending = collapseTimers.current.get(paneId);
-    if (!pending) return;
-    clearTimeout(pending.timer);
-    collapseTimers.current.delete(paneId);
-    setCollapsingPanes((s) => { if (!s.has(paneId)) return s; const n = new Set(s); n.delete(paneId); return n; });
-    setDocksByPane((m) => {
-      const dock = m[paneId];
-      if (!dock) return m;
-      const { dock: next, closed } = closePanelTile(dock, pending.type);
-      return closed ? { ...m, [paneId]: next } : m;
-    });
+  // ── Single shared right side panel (replaces the per-pane tiling dock) ──
+  // ONE panel for the whole workspace, not per pane: an active tab, an open
+  // flag, a width, and per-tab data keyed by tab. `panelFile` is the file open
+  // INSIDE the Files tab (nested viewer) — the explorer shows when it's null.
+  // Tab + open flag + width persist; per-tab data and the open file are
+  // session-only (they derive from the selected agent).
+  const [panelTab, setPanelTab] = useState(() => localStorage.getItem("cm:sidePanelTab") || "review");
+  const [showSidePanel, setShowSidePanel] = useState(() => localStorage.getItem("cm:showSidePanel") === "1");
+  const [sidePanelWidth, _setSidePanelWidth] = useState(() => {
+    const v = Number(localStorage.getItem("cm:sidePanelWidth"));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  });
+  const [panelData, setPanelData] = useState({});
+  const [panelFile, setPanelFile] = useState(null);
+  useEffect(() => { localStorage.setItem("cm:sidePanelTab", panelTab); }, [panelTab]);
+  useEffect(() => { localStorage.setItem("cm:showSidePanel", showSidePanel ? "1" : "0"); }, [showSidePanel]);
+  useEffect(() => {
+    if (sidePanelWidth) localStorage.setItem("cm:sidePanelWidth", String(sidePanelWidth));
+    else localStorage.removeItem("cm:sidePanelWidth");
+  }, [sidePanelWidth]);
+  // Setting a tab always reveals the panel (reference: setTab ⇒ showSidePanel:true).
+  const setTab = useCallback((tab) => { setPanelTab(tab); setShowSidePanel(true); }, []);
+  const openPanel = useCallback((tab, data) => {
+    setPanelTab(tab);
+    setShowSidePanel(true);
+    if (data) setPanelData((m) => ({ ...m, [tab]: { ...m[tab], ...data } }));
   }, []);
-  const dockOf = (paneId) => docksRef.current[paneId] ?? emptyDock();
-  // topPanelType compat: the most-recently-opened type (max seq), or null. Used by
-  // shared chrome that only needs "is a panel open / which is active" (monitor,
-  // Escape-pops-a-panel), NOT for per-panel visibility (the dock shows all open).
-  const topPanelTypeIn = useCallback((paneId) => {
-    if (paneId == null) return null;
-    const { slots } = dockOf(paneId);
-    if (!slots.length) return null;
-    let m = slots[0];
-    for (const s of slots) if (s.seq > m.seq) m = s;
-    return m.type;
+  const closePanel = useCallback(() => setShowSidePanel(false), []);
+  const toggleSidePanel = useCallback(() => setShowSidePanel((v) => !v), []);
+  const setSidePanelWidth = useCallback((px) => _setSidePanelWidth(px && px > 0 ? Math.round(px) : null), []);
+  // Monotonic reveal seq so re-opening the same file+line re-centers the editor.
+  const fileRevealSeq = useRef(0);
+  const openFile = useCallback((path, reveal) => {
+    setPanelTab("files");
+    setShowSidePanel(true);
+    setPanelFile({ path, reveal: reveal ? { line: reveal.line, column: reveal.column, seq: ++fileRevealSeq.current } : null });
   }, []);
-  const openPanelTypesIn = useCallback((paneId) => (paneId == null ? [] : panelTypes(dockOf(paneId))), []);
-  const hasPanelIn = useCallback((paneId, type) => paneId != null && hasPanelTile(dockOf(paneId), type), []);
-  const hasAnyPanelIn = useCallback((paneId) => paneId != null && dockOf(paneId).slots.length > 0, []);
-  const panelDataIn = useCallback((paneId, type) => (paneId == null ? null : panelTileData(dockOf(paneId), type)), []);
-  const dockRatiosIn = useCallback((paneId) => (paneId == null ? emptyDock().ratios : dockOf(paneId).ratios), []);
-  const openPanelIn = useCallback((paneId, type, data) => {
-    if (paneId == null) return;
-    flushCollapse(paneId); // a (re)open supersedes an in-flight collapse of this pane
-    setDocksByPane((m) => {
-      const { dock, evicted } = openPanelTile(m[paneId] ?? emptyDock(), type, data);
-      if (evicted) getPanel(evicted)?.dispose?.(paneId); // generic eviction hook; no panel type uses it today
-      return { ...m, [paneId]: dock };
-    });
-  }, [flushCollapse]);
-  const closePanelIn = useCallback((paneId, type) => {
-    if (paneId == null) return;
-    if (collapsingRef.current.has(paneId)) return; // already animating closed
-    const dock = docksRef.current[paneId];
-    if (!dock || !hasPanelTile(dock, type)) return;
-    // Last open panel → defer removal so the dock width can animate to 0 with the
-    // viewer still mounted; a multi-panel close reflows the remaining tiles at once.
-    if (dock.slots.length === 1) {
-      setCollapsingPanes((s) => { const n = new Set(s); n.add(paneId); return n; });
-      const timer = setTimeout(() => flushCollapse(paneId), COLLAPSE_MS);
-      collapseTimers.current.set(paneId, { timer, type });
-      return;
-    }
-    setDocksByPane((m) => {
-      const d = m[paneId];
-      if (!d) return m;
-      const { dock: next, closed } = closePanelTile(d, type);
-      return closed ? { ...m, [paneId]: next } : m;
-    });
-  }, [flushCollapse]);
-  // Escape closes the most-recently-opened panel in the focused pane's dock.
-  const popPanelIn = useCallback((paneId) => {
-    const type = topPanelTypeIn(paneId);
-    if (type) closePanelIn(paneId, type);
-  }, [topPanelTypeIn, closePanelIn]);
-  const updatePanelDataIn = useCallback((paneId, type, updater) => {
-    if (paneId == null) return;
-    setDocksByPane((m) => {
-      const dock = m[paneId];
-      if (!dock) return m;
-      const next = updatePanelTileData(dock, type, updater);
-      return next === dock ? m : { ...m, [paneId]: next };
-    });
-  }, []);
-  const setDockRatioIn = useCallback((paneId, key, value) => {
-    if (paneId == null) return;
-    setDocksByPane((m) => {
-      const dock = m[paneId] ?? emptyDock();
-      const next = setDockRatio(dock, key, value);
-      return next === dock ? m : { ...m, [paneId]: next };
-    });
-  }, []);
-  // Clear-on-rebuild hooks, driven by PaneProvider (which owns the tree).
-  const clearPanelsIn = useCallback((paneId) => setDocksByPane((m) => {
-    if (!(paneId in m)) return m;
-    const next = { ...m };
-    delete next[paneId];
-    return next;
-  }), []);
-  const retainPanelsFor = useCallback((liveIds) => setDocksByPane((m) => {
-    const keys = Object.keys(m);
-    if (keys.every((k) => liveIds.has(k))) return m;
-    const next = {};
-    for (const k of keys) if (liveIds.has(k)) next[k] = m[k];
-    return next;
-  }), []);
-  // Escape pops the FOCUSED pane's stack. The keydown lives here but this
-  // provider can't see pane focus, so PaneProvider registers a focus-aware
-  // popper (mirrors registerEscapeGitMode). Returns true when it consumed Esc.
-  const escapePanelRef = useRef(null);
-  const registerEscapePanel = useCallback((fn) => { escapePanelRef.current = fn; }, []);
+  const closeFile = useCallback(() => setPanelFile(null), []);
   const [renamingId, setRenamingId] = useState(null);
   const [pendingQuestion, setPendingQuestion] = useState(null);
   // {workerId, verdict, command, ts} — derived by Messages from the loaded
@@ -233,7 +173,6 @@ export function SelectionProvider({ children }) {
       // macOS fullscreen. Closing a panel must not also drop fullscreen.
       if (rewindPanel) { e.preventDefault(); setRewindPanel(null); return; }
       if (Object.keys(openPopByPaneRef.current).length) { e.preventDefault(); closeAllPopsEverywhere(); return; }
-      if (escapePanelRef.current?.()) { e.preventDefault(); return; }
       if (escapeGitModeRef.current?.()) { e.preventDefault(); return; }
       // Double-Esc with an agent selected → rewind panel (Claude Code parity:
       // composer's own double-Esc-clears-text path preventDefaults, so this
@@ -285,29 +224,31 @@ export function SelectionProvider({ children }) {
   const value = useMemo(() => ({
     selectedId, setSelectedId, takePreviousSelection,
     sideCollapsed, setSideCollapsed,
+    sidebarMode, collapseSidebar, expandSidebar, hoverSidebarIn, hoverSidebarKeep, hoverSidebarOut,
     openPopoverIn, openPopIn, closePopsIn, closeAllPopsEverywhere, popoverPos, popoverData,
     collapsedNodes, toggleNodeCollapsed, removeCollapsedNodes,
     expandedTools, toggleToolExpanded, resetToolToggles,
     renamingId, setRenamingId,
     pendingQuestion, setPendingQuestion, dismissedQuestions, dismissQuestion,
     verdict, setVerdict,
-    // Raw paneId-explicit panel ops + reads. useUi wraps these into the
-    // scope-aware openFileViewer/isPanelOpen/... that every consumer calls.
-    topPanelTypeIn, panelDataIn, openPanelTypesIn, hasPanelIn, hasAnyPanelIn, dockRatiosIn, isDockCollapsing,
-    openPanelIn, closePanelIn, popPanelIn, updatePanelDataIn, setDockRatioIn,
-    clearPanelsIn, retainPanelsFor, registerEscapePanel,
+    // Single shared side panel — tab/open/width state + actions. useUi derives
+    // the per-tab reads (reviewViewer/filesViewer/...) from panelData + the
+    // selected agent.
+    panelTab, showSidePanel, sidePanelWidth, panelData, panelFile,
+    setTab, openPanel, closePanel, toggleSidePanel, setSidePanelWidth, openFile, closeFile,
     rewindPanel, openRewindPanel, closeRewindPanel,
     registerEscapeIdle,
     registerEscapeGitMode,
   }), [
     selectedId, setSelectedId, takePreviousSelection,
-    sideCollapsed, openPopoverByPane, popoverPos, popoverData,
-    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict, docksByPane, collapsingPanes,
+    sideCollapsed, setSideCollapsed, sidebarMode,
+    collapseSidebar, expandSidebar, hoverSidebarIn, hoverSidebarKeep, hoverSidebarOut,
+    openPopoverByPane, popoverPos, popoverData,
+    collapsedNodes, expandedTools, renamingId, pendingQuestion, dismissedQuestions, verdict,
+    panelTab, showSidePanel, sidePanelWidth, panelData, panelFile,
+    setTab, openPanel, closePanel, toggleSidePanel, setSidePanelWidth, openFile, closeFile,
     rewindPanel, openRewindPanel, closeRewindPanel,
     openPopoverIn, openPopIn, closePopsIn, closeAllPopsEverywhere, toggleNodeCollapsed, removeCollapsedNodes, toggleToolExpanded, resetToolToggles,
-    topPanelTypeIn, panelDataIn, openPanelTypesIn, hasPanelIn, hasAnyPanelIn, dockRatiosIn,
-    openPanelIn, closePanelIn, popPanelIn, updatePanelDataIn, setDockRatioIn,
-    clearPanelsIn, retainPanelsFor, registerEscapePanel,
     registerEscapeIdle,
     registerEscapeGitMode,
   ]);

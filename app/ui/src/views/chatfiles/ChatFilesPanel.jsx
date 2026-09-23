@@ -59,8 +59,8 @@ function FileRow({ att, section, workerId, gallery, galleryIndex }) {
   const showThumb = section === "image" && !broken;
 
   const open = useCallback(() => {
-    if (att.kind === "folder") ui.openFilesViewer(att.path);
-    else ui.openFileViewer(att.path);
+    if (att.kind === "folder") ui.openPanel("files", { cwd: att.path });
+    else ui.openFile(att.path);
   }, [att.kind, att.path, ui]);
 
   const inner = (
@@ -124,7 +124,7 @@ function Section({ title, section, items, workerId, gallery }) {
 
 export function ChatFilesPanel() {
   const ui = useUi();
-  const workerId = ui.chatFilesViewer?.workerId ?? null;
+  const workerId = ui.panelData?.chatfiles?.workerId ?? ui.selectedId ?? null;
 
   const snap = useSyncExternalStore(
     useCallback((cb) => (workerId ? subscribe(workerId, cb) : () => {}), [workerId]),

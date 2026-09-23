@@ -760,14 +760,6 @@
 .composer-editor.esc-armed {
   opacity: 0.35;
 }
-/* history navigation counter in the controls row, plain text */
-.history-badge {
-  padding: 0 4px;
-  font-size: var(--text-sm);
-  color: var(--fg-dim);
-  white-space: nowrap;
-  pointer-events: none;
-}
 .composer-editor[data-empty]::before {
   content: attr(data-placeholder);
   color: var(--fg-faint);
@@ -3714,7 +3706,7 @@
   background: var(--raised);
   border-radius: var(--r-composer);
   padding: 18px 20px 14px;
-  display: flex; flex-direction: column; gap: 12px;
+  display: flex; flex-direction: column; gap: 16px;
 }
 .composer-card .c-row2-wrap { position: relative; }
 .composer-card .c-row2 {
@@ -3743,6 +3735,7 @@
   color: var(--fg-dim2); background: transparent;
   -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
 }
+.composer-inner .c-row3 .iconbtn.attach-btn { color: var(--fg-mid); }
 .composer-inner .c-row3 .iconbtn:hover {
   background: var(--row-on); color: var(--fg-mid);
   -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
@@ -3758,6 +3751,8 @@
   -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
 }
 .composer-inner .c-row3 .mode-pill .mode-ic { width: 13px; height: 13px; color: var(--fg-dim); }
+.composer-inner .c-row3 .mode-pill .mode-ic--acceptEdits { color: var(--ok); }
+.composer-inner .c-row3 .mode-pill .mode-ic--bypassPermissions { color: var(--warn); }
 
 .composer-inner .c-row3 .model-pill {
   gap: 7px; padding: 6px 12px; border-radius: var(--r-pill);
@@ -3788,7 +3783,7 @@
 .model-effort-trigger:hover, .model-effort-trigger.open { background: var(--row-on); }
 .model-effort-trigger:disabled { opacity: 0.45; cursor: not-allowed; }
 .me-t-model { font-size: var(--text-sm); color: var(--fg-mid); padding: 4px 4px 4px 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.me-t-level { font-size: var(--text-sm); color: var(--fg-mid); padding: 4px 3px 4px 4px; white-space: nowrap; flex-shrink: 0; }
+.me-t-level { font-size: var(--text-sm); color: var(--fg-dim2); padding: 4px 3px 4px 4px; white-space: nowrap; flex-shrink: 0; }
 .me-t-caret { display: inline-flex; padding-right: 8px; color: var(--fg-dim2); flex-shrink: 0; }
 
 .composer-inner .ctx-ring-btn {
@@ -3844,9 +3839,9 @@
 
 /* ── combined Model & Effort rail panel ── */
 .me-panel {
-  position: absolute; bottom: calc(100% + 72px); right: 0;
+  position: absolute; bottom: calc(100% + 10px); right: 0;
   width: 272px; padding: 10px 12px 12px;
-  background: var(--pop); border-radius: var(--r-pop); box-shadow: var(--sh-pop);
+  background: var(--pop); border-radius: 16px; box-shadow: var(--sh-pop);
   z-index: 60;
 }
 .me-panel:focus { outline: none; }
@@ -3881,7 +3876,7 @@
 
 .me-bar {
   position: relative; height: 32px; border-radius: var(--r-pill);
-  background: #0d0d0d; cursor: pointer; touch-action: none; user-select: none;
+  background: var(--bg); cursor: pointer; touch-action: none; user-select: none;
   overflow: hidden;
 }
 .me-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--r-pill); }

@@ -20,8 +20,14 @@ export function AppLayout({ sidebar, main, rightPanel, gridClass, children }) {
     .filter(Boolean)
     .join(" ");
 
+  // The side panel's width drives grid column 3 (via .side-open). Always defined
+  // so React controls it — a drag writes --sp-w straight onto this element for
+  // live feedback and commits to sidePanelWidth on release; a null width falls
+  // back to the default here (never a stale inline value from the last drag).
+  const style = { "--sp-w": ui.sidePanelWidth ? ui.sidePanelWidth + "px" : "min(620px, 40vw)" };
+
   return (
-    <div className={cls}>
+    <div className={cls} style={style}>
       <aside className="side">
         {sidebar("full")}
       </aside>

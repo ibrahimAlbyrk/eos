@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { TabBar } from "../../../components/TabBar.jsx";
+import { useUi } from "../../../state/ui.jsx";
 import { SettingsFooter } from "../../../components/SettingsFooter.jsx";
 import { SidebarHead } from "./SidebarHead.jsx";
 import { AgentsTree } from "./AgentsTree.jsx";
@@ -8,6 +8,16 @@ import { buildAgentTree } from "../../../lib/tree.js";
 import { archivedTree } from "../../../lib/archive.js";
 import { useSidebarPrefs } from "../../../state/sidebarPrefsStore.js";
 import { subscribe, getArchive, refreshArchived } from "../../../state/archiveStore.js";
+
+// The dynamic section label mirrors the grouping (Projects / Recent / Groups),
+// or "Archived" when the archived-only list is showing.
+function FilterIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2.5 4h11M4.5 8h7M6.5 12h3" />
+    </svg>
+  );
+}
 
 // Single definition of the Code view's sidebar content. "full" renders the
 // panel cards; "popup" reuses the same sections inside the collapsed-hover popup.
@@ -21,8 +31,9 @@ import { subscribe, getArchive, refreshArchived } from "../../../state/archiveSt
 // tag; selection/kind routing stays per-renderer. archiveStore remains the source
 // of truth for archived rows/selection.
 export function CodeSidebar({ live, variant = "full" }) {
-  const { status } = useSidebarPrefs();
-  const { rows: archivedRows, loaded: archivedLoaded, selectedId: archivedSelectedId } =
+  const ui = useUi();
+  const { status, groupBy } = useSidebarPrefs();
+  const { rows: archivedRows, loaded: archivedLoaded, selectedId: archivedSelectedId, archiveMode } =
     useSyncExternalStore(subscribe, getArchive);
 
   const showActive = status !== "archived";
@@ -57,11 +68,33 @@ export function CodeSidebar({ live, variant = "full" }) {
     if (showArchived) refreshArchived();
   }, [showArchived, live.eventSignal.tick]);
 
+  const sectionLabel = status === "archived"
+    ? "Archived"
+    : groupBy === "date" ? "Recent" : groupBy === "custom" ? "Groups" : "Projects";
+
+  const handlePrefs = (e) => {
+    e.stopPropagation();
+    if (ui.openPopover === "sidebar-prefs") { ui.closeAllPops(); return; }
+    ui.openPop("sidebar-prefs", { x: e.clientX, y: e.clientY });
+  };
+
   const body = (
     <>
-      <TabBar variant={variant} />
-      <SidebarHead total={live.workers.length} variant={variant} />
+      <SidebarHead live={live} variant={variant} archiveMode={archiveMode} />
       <LayoutGroups aliveIds={aliveIds} />
+      {roots.length > 0 && (
+        <div className="sb-seclabel">
+          <span className="sb-seclabel__text">{sectionLabel}</span>
+          <button
+            className={"sb-seclabel__filter" + (ui.openPopover === "sidebar-prefs" ? " on" : "")}
+            title="View options"
+            data-popover-trigger="sidebar-prefs"
+            onClick={handlePrefs}
+          >
+            <FilterIcon />
+          </button>
+        </div>
+      )}
       <AgentsTree
         roots={roots}
         loaded={loaded}

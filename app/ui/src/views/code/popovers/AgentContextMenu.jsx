@@ -166,7 +166,7 @@ export function AgentContextMenu({ live }) {
       </div>
       {moveAnchor && createPortal(
         <div
-          className="ctx-menu glass-pop open"
+          className="ctx-menu ctx-flyout glass-pop open"
           data-popover="ctx-menu"
           style={{
             display: "block",

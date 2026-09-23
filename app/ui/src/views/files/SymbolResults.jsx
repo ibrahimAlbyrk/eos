@@ -5,7 +5,7 @@ import { relToRoot, kindGlyph } from "../../lib/symbols.js";
 // filename search rows; each opens path+line in the pane's file editor panel.
 export function SymbolSearchList({ search, root }) {
   const ui = useUi();
-  const openPath = ui.fileViewer?.path ?? null;
+  const openPath = ui.panelFile?.path ?? null;
   const results = search.results ?? [];
   if (results.length === 0) {
     const msg = search.loading ? "Searching…" : search.unavailable ? "Symbol index unavailable" : "No symbols";
@@ -17,7 +17,7 @@ export function SymbolSearchList({ search, root }) {
         <div
           key={`${occ.path}:${occ.line}:${occ.column}:${i}`}
           className={"fx-row fx-search-row" + (occ.path === openPath ? " on" : "")}
-          onClick={() => ui.openFileViewer(occ.path, { line: occ.line, column: occ.column })}
+          onClick={() => ui.openFile(occ.path, { line: occ.line, column: occ.column })}
         >
           <span className="fx-ic fx-sym-kind" title={occ.kind}>{kindGlyph(occ.kind)}</span>
           <span className="fx-name">{occ.name}</span>

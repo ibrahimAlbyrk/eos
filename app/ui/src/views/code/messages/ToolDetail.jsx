@@ -24,7 +24,7 @@ export function ReadDetail({ tool }) {
   };
 
   const openInViewer = () => {
-    if (filePath) ui.openFileViewer(filePath);
+    if (filePath) ui.openFile(filePath);
   };
 
   return (
@@ -198,7 +198,7 @@ export function WriteDetail({ tool }) {
   };
 
   const openInViewer = () => {
-    if (filePath) ui.openFileViewer(filePath);
+    if (filePath) ui.openFile(filePath);
   };
 
   return (
@@ -316,7 +316,7 @@ export function SkillDetail({ tool }) {
   };
 
   const openInViewer = () => {
-    if (skillFile) ui.openFileViewer(skillFile);
+    if (skillFile) ui.openFile(skillFile);
   };
 
   const copyBtn = body ? (

@@ -18,8 +18,7 @@ export function TerminalCard({ block }) {
   return (
     <div className="terminal-card mono">
       <div className="tc-head">
-        <span className="tc-prompt" aria-hidden>❯</span>
-        <span className="tc-cmd">{block.command}</span>
+        <span className="tc-cmd"><span className="tc-prompt" aria-hidden>$ </span>{block.command}</span>
         {running ? (
           <>
             <span className="tc-spin" aria-label="running" />

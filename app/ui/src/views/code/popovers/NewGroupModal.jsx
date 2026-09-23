@@ -27,7 +27,7 @@ export function NewGroupModal({ onSave, onCancel, title = "New group", initialNa
       className="del-confirm-overlay"
       onMouseDown={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div className="del-confirm glass-pop" role="dialog" aria-modal="true">
+      <div className="del-confirm del-confirm--narrow glass-pop" role="dialog" aria-modal="true">
         <div className="del-confirm__body">
           <h2 className="stg-title">{title}</h2>
           <label className="ng-field-label" htmlFor="newGroupName">Group name</label>

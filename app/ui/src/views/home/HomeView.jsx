@@ -67,7 +67,10 @@ export function HomeView({ live }) {
             <div className="home-empty">
               <div className="home-empty__inner">
                 <h1 className="home-empty__hero">How can I help you today?</h1>
-                <HomeComposer conversationId={null} worker={null} live={live} />
+                <div className="home-empty__composer">
+                  <HomeComposer conversationId={null} worker={null} live={live} />
+                  <p className="home-empty__note">One agent, one thread — no workers, no worktrees.</p>
+                </div>
               </div>
             </div>
           )}

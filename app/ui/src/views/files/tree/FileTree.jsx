@@ -19,7 +19,7 @@ export function FileTree() {
   const cache = useChildrenCache();
   const selection = useSelection();
   const search = useSearchState();
-  const openPath = ui.fileViewer?.path ?? null;
+  const openPath = ui.panelFile?.path ?? null;
   const draft = useDraft();
   const renaming = useRenaming();
 
@@ -45,7 +45,7 @@ export function FileTree() {
   const selRef = useRef(selection); selRef.current = selection;
   const dragRef = useRef([]);
   const openPopRef = useRef(ui.openPop); openPopRef.current = ui.openPop;
-  const openFileRef = useRef(ui.openFileViewer); openFileRef.current = ui.openFileViewer;
+  const openFileRef = useRef(ui.openFile); openFileRef.current = ui.openFile;
 
   const activate = useCallback((node) => {
     if (node.type === "directory") explorer.toggleExpand(node.path);

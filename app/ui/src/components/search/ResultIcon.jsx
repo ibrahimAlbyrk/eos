@@ -25,6 +25,24 @@ export function ResultIcon({ name }) {
           <path d="M11 8.5 13 11l-2 2.5M9 4.5h5" />
         </svg>
       );
+    case "newtask":
+      return (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M11.2 2.6 13.4 4.8 5.6 12.6 2.6 13.4l.8-3z" />
+        </svg>
+      );
+    case "folder":
+      return (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M2 4.4a1 1 0 0 1 1-1h2.8l1.3 1.5H13a1 1 0 0 1 1 1V12a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4.4Z" />
+        </svg>
+      );
+    case "search":
+      return (
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+          <circle cx="7" cy="7" r="5" /><path d="m13 13-2.5-2.5" />
+        </svg>
+      );
     case "agent":
     default:
       return (

@@ -48,8 +48,8 @@ function ChildIntegrationRow({ child, ui, live, onDirty }) {
   const passed = verdict?.verdict === "passed";
   if (!dirty) return null;
 
-  // The diff panel is "viewing" this child when it's open for that worker.
-  const viewing = ui.isPanelOpen("diff") && ui.diffViewer?.workerId === child.id;
+  // The Review tab is "viewing" this child when it's open for that worker.
+  const viewing = ui.showSidePanel && ui.panelTab === "review" && ui.panelData?.review?.workerId === child.id;
   return (
     <div className="child-int-row">
       <span className="cir-name" title={child.branch ?? undefined}><AgentName worker={child} /></span>
@@ -77,7 +77,7 @@ function ChildIntegrationRow({ child, ui, live, onDirty }) {
       <button
         className={"diff-badge diff-badge-btn" + (viewing ? " on" : "")}
         title="Review, verify and try this worker's changes"
-        onClick={() => (viewing ? ui.closeDiffViewer() : ui.openDiffViewer(child.id))}
+        onClick={() => (viewing ? ui.closePanel() : ui.openPanel("review", { workerId: child.id }))}
       >
         {diff.insertions > 0 || diff.deletions > 0 ? (
           <>

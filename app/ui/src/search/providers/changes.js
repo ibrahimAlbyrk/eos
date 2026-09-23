@@ -12,7 +12,7 @@ export const changesProvider = {
       keywords: ["diff", "git", "changes", "patch"],
       onSelect: (c) => {
         c.setActiveView("code");
-        c.openDiffViewer(c.selectedId);
+        c.openPanel("review", { workerId: c.selectedId });
       },
     }];
   },
