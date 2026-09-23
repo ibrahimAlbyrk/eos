@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { api } from "../../api/client.js";
-import { PanelShell } from "../code/panes/PanelShell.jsx";
-import { ImageLightbox } from "../code/ImageLightbox.jsx";
+import { PanelShell } from "../agents/panes/PanelShell.jsx";
+import { ImageLightbox } from "../agents/ImageLightbox.jsx";
 import { subscribe, getSnapshot, attach } from "../../state/chatAttachmentsStore.js";
 import { requestReveal } from "../../state/transcriptReveal.js";
 

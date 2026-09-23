@@ -61,14 +61,14 @@ export class PtySessionService {
     this.spawn = deps.spawn ?? spawnPtyHost;
   }
 
-  create(input: { cols: number; rows: number; cwd?: string }): PtySession {
+  create(input: { cols: number; rows: number; cwd?: string; command?: string }): PtySession {
     if (this.sessions.size >= MAX_SESSIONS) {
       throw new PtyCapError(`too many terminal sessions (max ${MAX_SESSIONS})`);
     }
     const id = randomUUID();
     const number = this.nextNumber++;
     const cwd = input.cwd ?? this.defaultCwd;
-    const host = this.spawn({ cwd, cols: input.cols, rows: input.rows });
+    const host = this.spawn({ cwd, cols: input.cols, rows: input.rows, command: input.command });
     const session: Session = {
       id, number, host, cwd, cols: input.cols, rows: input.rows,
       alive: true, buffer: "", seq: 0, pending: "", flushTimer: null,

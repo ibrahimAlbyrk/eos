@@ -31,10 +31,6 @@ export const ROUTES = {
   workerPull: (id) => `/workers/${id}/pull`,
   orchestrators: "/orchestrators",
   orchestratorMessage: (id) => `/orchestrators/${id}/message`,
-  // Home single-agent sessions (Claude-web-style chat).
-  home: "/home",
-  homeMessage: (id) => `/home/${id}/message`,
-  homeDelete: (id) => `/home/${id}`,
   policyDecide: "/policy/decide",
   pending: "/pending",
   pendingDecision: (id) => `/pending/${id}/decision`,

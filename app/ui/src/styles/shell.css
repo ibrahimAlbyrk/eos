@@ -1,5 +1,5 @@
 /* shell.css — sidebar, header/PaneHeader, collapsed sidebar, native titlebar,
-   split/pane grid, AppLayout, and the Home screen. charcoal-aurora: depth is a
+   split/pane grid and AppLayout. charcoal-aurora: depth is a
    surface step (bg → panel → raised → row-on → chip), the ONLY border color is
    --line, and floating layers get --sh-pop / --sh-palette / --sh-modal. Fills —
    never borders or shadows — mark hover/selected; the only animation is d-breathe
@@ -54,7 +54,8 @@ html.native .agents-section { -webkit-user-select: text; }
 /* Native draws the OS traffic lights and NativeToggleZone owns collapse, so the
    sidebar's own top strip (.side-top) is hidden and content clears the titlebar. */
 html.native .side-top { display: none !important; }
-html.native .side-island--agents { padding-top: 30px; flex: 1; }
+/* Clears the traffic lights + toggle (top 11px, 26px tall) with breathing room. */
+html.native .side-island--agents { padding-top: 54px; flex: 1; }
 html.native .empty-tree { padding: 6px 14px !important; }
 html.native .side-handle-zone { display: none !important; }
 html.native.fullscreen .native-toggle-zone { left: 16px; top: 10px; }
@@ -860,7 +861,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 }
 
 /* ============================================================================
-   PANE HEADER — single/new-task/home get the 32px-inset title bar with a 1px
+   PANE HEADER — single/new-task get the 32px-inset title bar with a 1px
    --line rule; split panes (inside .pane) get the tighter card header, no rule.
    The bar is the native window-drag strip; its buttons/inputs opt out.
    ============================================================================ */
@@ -1125,181 +1126,3 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 .pane-picker .ag-dot.wait { background: var(--fg-faint); }
 .pane-picker .ag-dot.queue { background: transparent; border: 1px dashed var(--fg-faint); }
 @media (prefers-reduced-motion: reduce) { .pane-picker, .pane-picker-hint { transition: none; } }
-
-/* ============================================================================
-   HOME · Claude-web-style single agent
-   ============================================================================ */
-.home-convs { display: flex; flex-direction: column; gap: 1px; overflow-y: auto; flex: 1; min-height: 0; padding: 4px 8px; }
-.home-convs__empty { padding: 24px 14px; color: var(--fg-faint); font-size: var(--text-sm); text-wrap: pretty; }
-.home-conv {
-  display: flex; align-items: center; gap: 6px;
-  padding: 7px 10px; border-radius: var(--r-row); cursor: pointer;
-  color: var(--fg-dim); font-size: var(--text-sm);
-}
-.home-conv:hover { background: var(--row-on); color: var(--fg); }
-.home-conv.is-active { background: color-mix(in srgb, var(--accent) 13%, transparent); color: var(--fg); }
-.home-conv__name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.home-conv__del {
-  flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 20px; height: 20px; border-radius: var(--r-kbd);
-  color: var(--fg-faint); cursor: pointer; opacity: 0;
-}
-.home-conv:hover .home-conv__del { opacity: 1; }
-.home-conv__del:hover { background: var(--chip); color: var(--err); }
-
-.home {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  --home-col: 720px;
-}
-/* Home header has no bottom rule (unlike single/new-task). */
-.pane-head.home-head { border-bottom: none; }
-.home-head__title {
-  flex: 1;
-  min-width: 0;
-  color: var(--fg-mid);
-  font-size: var(--text-sm);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.home-chat { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.home-chat__transcript { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.home-chat .messages { max-width: calc(var(--home-col) + 48px); padding: 20px 24px 44px; }
-.home-chat .msg-asst { font-size: var(--text-md); line-height: 1.72; }
-.home-chat .msg-user .b { max-width: 85%; }
-
-.home-dock {
-  position: relative;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  padding: 0 24px 12px;
-}
-.home-chat .home-dock::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 12px;
-  bottom: 100%;
-  height: 36px;
-  background: linear-gradient(to bottom, transparent, var(--bg));
-  pointer-events: none;
-}
-.home-dock__note {
-  font-size: var(--text-xs);
-  color: var(--fg-faint);
-  text-align: center;
-}
-
-/* Solid --raised card (its model/effort popovers open as children, so no glass). */
-.home-composer {
-  width: 100%;
-  max-width: calc(var(--home-col) + 28px);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  padding: 12px 12px 10px 16px;
-  background: var(--raised);
-  border-radius: 20px;
-  transition: box-shadow 160ms ease;
-}
-.home-composer:focus-within { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent); }
-.home-composer__input {
-  width: 100%;
-  padding: 6px 0 2px;
-  color: var(--fg);
-  font-size: var(--text-md);
-  line-height: 1.55;
-  overflow-y: auto;
-}
-.home-composer__input::placeholder { color: var(--fg-dim2); }
-
-.home-composer__controls { display: flex; align-items: center; gap: 6px; }
-.home-composer__group { display: flex; align-items: center; gap: 4px; }
-.home-composer__group:first-child { margin-right: auto; }
-.home-ctl-wrap { position: relative; display: inline-flex; }
-
-/* Attach / model / effort: plain text/icon, no resting fill; hover/open = --row-on. */
-.home-ctl {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 28px;
-  padding: 0 9px;
-  border-radius: var(--r-row);
-  font-size: var(--text-sm);
-  color: var(--fg);
-  white-space: nowrap;
-  transition: color 150ms ease, background 150ms ease;
-}
-.home-ctl:hover:not(:disabled),
-.home-ctl.open { background: var(--row-on); }
-.home-ctl:disabled { opacity: 0.45; cursor: not-allowed; }
-.home-ctl--icon { width: 30px; padding: 0; color: var(--fg-dim2); }
-.home-ctl--dim { color: var(--fg-dim2); }
-.home-ctl--icon:hover, .home-ctl--dim:hover, .home-ctl--dim.open { color: var(--fg-mid); }
-.home-ctl--ultra, .home-ctl--ultra:hover, .home-ctl--ultra.open { color: var(--violet); }
-
-/* Only the send button is filled (accent), dimming to 45% when nothing to send. */
-.home-send {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  margin-left: 2px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-fg);
-  transition: opacity 160ms ease, background 160ms ease;
-}
-.home-send:hover:not(:disabled) { background: var(--accent-hover); }
-.home-send:disabled { opacity: 0.45; cursor: default; }
-.home-send.is-stop { background: color-mix(in srgb, var(--err) 20%, transparent); color: var(--err); }
-.home-send.is-stop:hover { background: color-mix(in srgb, var(--err) 30%, transparent); }
-
-/* Empty state — centered hero over the same composer. */
-.home-empty {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding-bottom: 10vh;
-}
-.home-empty__inner {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 22px;
-}
-.home-empty__hero {
-  margin: 0;
-  padding: 0 24px;
-  font-size: 26px;
-  font-weight: 500;
-  letter-spacing: -0.02em;
-  color: var(--fg);
-  text-align: center;
-}
-/* Composer + its faint one-liner, grouped tighter (8px) under the 22px hero gap. */
-.home-empty__composer {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-.home-empty__note {
-  margin: 0;
-  font-size: 12px;
-  color: var(--fg-faint);
-  text-align: center;
-}
-.home-empty .home-dock { width: 100%; padding: 0 24px; }

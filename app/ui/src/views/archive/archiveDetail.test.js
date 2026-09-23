@@ -3,7 +3,7 @@ import { describe, it, expect } from "vitest";
 // detail view + menu actions are wiring contracts; rendering isn't feasible in
 // the node test env.
 import archiveViewSrc from "./ArchiveView.jsx?raw";
-import archiveNodeSrc from "../code/sidebar/ArchiveNode.jsx?raw";
+import archiveNodeSrc from "../agents/sidebar/ArchiveNode.jsx?raw";
 import archiveCtxSrc from "./ArchiveContextMenu.jsx?raw";
 
 describe("archived selection renders the normal agent view", () => {

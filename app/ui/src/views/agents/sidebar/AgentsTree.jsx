@@ -43,7 +43,7 @@ function FolderIcon() {
 // orchestrator pre-seated to this project's path) above that project's rows.
 // Rows are a MIX of live (TreeNode) and archived (ArchiveNode) agents — the
 // grouping/sort pipeline interleaves both kinds, and each root is dispatched to
-// its renderer by the __archived tag CodeSidebar stamps on it.
+// its renderer by the __archived tag AgentsSidebar stamps on it.
 function AgentGroup({ group, onRename, variant, archivedSelectedId }) {
   const ui = useUi();
   const onAdd = useCallback((e) => {

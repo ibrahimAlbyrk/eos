@@ -27,10 +27,20 @@ import { createReplayGate } from "./replayGate.js";
 // block lands after motion stops (where it's invisible), and the first fit
 // happens at the final size — one render at the right cols/rows. Later fits
 // (divider drags, panel switches) stay debounced behind a ResizeObserver.
-export function TerminalView({ sessionId, active }) {
+//
+// Optional (Code view workspace): `visible` (shown while not `active` — split
+// panes are all on screen, only the focused one takes keyboard focus),
+// `fontSize`, `surface` (the CSS var the body sits on), `palette` (ANSI colors),
+// `onTitle` (OSC title changes) and `shiftEnter` (bytes Shift+Enter sends —
+// Claude Code reads ESC+CR as a newline, not submit).
+export function TerminalView({
+  sessionId, active, visible = active, fontSize = 11.5, surface = "--panel", palette, onTitle, shiftEnter,
+}) {
   const hostRef = useRef(null);
   const ctl = useRef(null); // { scheduleFit, focus } — for the active-tab effect
   const lastSize = useRef({ cols: 0, rows: 0 });
+  const onTitleRef = useRef(onTitle);
+  onTitleRef.current = onTitle;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -41,7 +51,7 @@ export function TerminalView({ sessionId, active }) {
     // background (--panel) with --fg text, so it reads as one surface.
     const root = getComputedStyle(document.documentElement);
     const cssVar = (name, fallback) => root.getPropertyValue(name).trim() || fallback;
-    const bg = cssVar("--panel", cssVar("--bg", "#171717"));
+    const bg = cssVar(surface, cssVar("--bg", "#171717"));
     const fg = cssVar("--fg", "#ebebeb");
     const accent = cssVar("--accent", fg);
     const term = new Terminal({
@@ -50,8 +60,8 @@ export function TerminalView({ sessionId, active }) {
       fontFamily:
         getComputedStyle(document.documentElement).getPropertyValue("--font-mono").trim() ||
         "monospace",
-      fontSize: 11.5,
-      theme: { background: bg, foreground: fg, cursor: accent },
+      fontSize,
+      theme: { background: bg, foreground: fg, cursor: accent, ...palette },
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
@@ -63,6 +73,11 @@ export function TerminalView({ sessionId, active }) {
     // native selectors (main.swift) drive the same paths — this is the
     // browser/dev fallback.
     term.attachCustomKeyEventHandler((e) => {
+      if (shiftEnter && e.key === "Enter" && e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (e.type === "keydown") { inputBuf += shiftEnter; flushInput(); }
+        e.preventDefault();
+        return false;
+      }
       if (e.type !== "keydown") return true;
       if (!(e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey)) return true;
       const key = e.key.toLowerCase();
@@ -81,6 +96,7 @@ export function TerminalView({ sessionId, active }) {
       return true;
     });
     const unregisterTerm = registerTerminal({ term, host });
+    const titleDisposable = term.onTitleChange((t) => onTitleRef.current?.(t));
 
     let opened = false;
     let fitTimer = null;
@@ -173,6 +189,7 @@ export function TerminalView({ sessionId, active }) {
       offData();
       offExit();
       onDataDisposable?.dispose();
+      titleDisposable.dispose();
       term.dispose();
       ctl.current = null;
     };
@@ -185,5 +202,5 @@ export function TerminalView({ sessionId, active }) {
     ctl.current?.focus();
   }, [active, sessionId]);
 
-  return <div className="pty-view" style={{ display: active ? "block" : "none" }} ref={hostRef} />;
+  return <div className="pty-view" style={{ display: visible ? "block" : "none" }} ref={hostRef} />;
 }

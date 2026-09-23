@@ -112,6 +112,15 @@ export function switchTab(paneId, sessionId) {
   emit(p);
 }
 
+// Other PTY owners (the Code view's terminal workspace) register their live
+// session ids here so the reap below never kills a session it doesn't own.
+const trackers = new Set(); // () => Iterable<sessionId>
+
+export function registerSessionTracker(getIds) {
+  trackers.add(getIds);
+  return () => trackers.delete(getIds);
+}
+
 // Boot clean-slate reap: DELETE server sessions NO pane tracks (e.g. left over
 // from an app quit-while-open). A persisted, still-tracked session is never
 // touched, so reopening a terminal never kills another pane's — or this pane's
@@ -125,6 +134,7 @@ export async function reapUntrackedSessions() {
   if (!Array.isArray(server)) return;
   const tracked = new Set();
   for (const p of panes.values()) for (const t of p.tabs) tracked.add(t.sessionId);
+  for (const getIds of trackers) for (const id of getIds()) tracked.add(id);
   const stale = server.map((s) => s.sessionId).filter((id) => !tracked.has(id));
   await Promise.all(stale.map((id) => api.killPty(id).catch(() => {})));
 }

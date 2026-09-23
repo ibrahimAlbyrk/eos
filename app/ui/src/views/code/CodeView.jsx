@@ -1,144 +1,70 @@
-import { useEffect, useSyncExternalStore } from "react";
-import { useUi } from "../../state/ui.jsx";
-import { subscribe, getArchive } from "../../state/archiveStore.js";
-import { useAgentSwitchHotkeys } from "../../hooks/useAgentSwitchHotkeys.js";
-import { usePaneFocusHotkeys } from "../../hooks/usePaneFocusHotkeys.js";
-import { useArchiveAgentHotkey } from "../../hooks/useArchiveAgentHotkey.js";
-import { useGitModeHotkey } from "../../hooks/useGitModeHotkey.js";
-import { useOpenEmptySplitHotkey } from "../../hooks/useOpenEmptySplitHotkey.js";
-import { useGlobalKeymap, useKeybinding } from "../../keymap/useKeymap.js";
-import { combo } from "../../keymap/index.js";
+import { useEffect } from "react";
+import { useGlobalKeymap } from "../../keymap/useKeymap.js";
+import { keymap, combo } from "../../keymap/index.js";
 import { isTerminalFocused } from "../../components/terminal/terminalBridge.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
+import { leafCount } from "../../lib/paneLayout.js";
+import {
+  KINDS, openTerminal, splitPane, closePane, focusPaneByIndex, reconcile, setCwd, getWorkspace,
+} from "../../state/codeWorkspaceStore.js";
+import { useCodeWorkspace } from "./useCodeWorkspace.js";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
-import { PaneGrid, SinglePane } from "./panes/PaneGrid.jsx";
-import { AgentContextMenu } from "./popovers/AgentContextMenu.jsx";
-import { SidebarPrefsMenu } from "./sidebar/SidebarPrefsMenu.jsx";
-import { RewindPanel } from "./center/RewindPanel.jsx";
-import { ArchiveView } from "../archive/ArchiveView.jsx";
-import { ArchiveContextMenu } from "../archive/ArchiveContextMenu.jsx";
+import { TermGrid } from "./TermGrid.jsx";
+import { projectFolders } from "./FolderMenu.jsx";
 
-export function CodeView({ live }) {
-  const ui = useUi();
-  const { archiveMode } = useSyncExternalStore(subscribe, getArchive);
+// Workspace hotkeys. All terminalSafe — in this view the terminal IS the
+// focus — and each stops the event so the key never also reaches xterm.
+const HOTKEYS = [
+  { keys: "mod+t", run: () => openTerminal(KINDS.claude) },
+  { keys: "mod+shift+t", run: () => openTerminal(KINDS.shell) },
+  { keys: "mod+d", run: () => splitFocused("row") },
+  { keys: "mod+shift+d", run: () => splitFocused("col") },
+  { keys: "mod+w", run: () => closePane(getWorkspace().focusedId) },
+];
 
-  // One capture-phase window listener for every keymap binding below (and any
-  // future view binding) — replaces the per-hook listeners one at a time. The
-  // terminalFocused fact lets app hotkeys yield to a focused right-panel terminal.
+function splitFocused(dir) {
+  const { focusedId, terms } = getWorkspace();
+  splitPane(focusedId, dir, terms[focusedId]?.kind ?? KINDS.claude);
+}
+
+function useCodeHotkeys() {
   useGlobalKeymap(() => ({ terminalFocused: isTerminalFocused() }));
-
-  // Cmd+1..9 → select Nth visible agent in the sidebar.
-  useAgentSwitchHotkeys(live);
-
-  // Cmd+Ctrl+1..4 → focus the Nth split pane.
-  usePaneFocusHotkeys();
-
-  // Cmd+W → archive the selected agent (falls back to the previous selection).
-  useArchiveAgentHotkey(live);
-
-  // Cmd+G → toggle the composer's git custom-task mode.
-  useGitModeHotkey();
-
-  // Cmd+Ctrl+T → open an empty split pane.
-  useOpenEmptySplitHotkey();
-
-  // Cmd+T → new empty session (mirrors the + button).
-  useKeybinding({
-    match: combo("mod+t"),
-    run: (ctx, e) => {
-      e.preventDefault();
-      ui.setSelectedId(null);
-    },
-  }, [ui.setSelectedId]);
-
-  // Last agent removed → reset to the clean new-session state, in ANY layout.
-  // `live.loaded` so an empty list during the initial fetch isn't mistaken for
-  // "all deleted". Both cleanup effects below bail when the list is empty, so
-  // this is the single owner of that transition (single-pane archive already
-  // self-heals via useArchiveAgent; this covers the split case whose multi-pane
-  // path defers to prunePanes — which can't run once the list is empty).
   useEffect(() => {
-    if (!live.loaded || live.workers.length > 0) return;
-    ui.resetToEmpty();
-  }, [live.loaded, live.workers.length, ui.resetToEmpty]);
-
-  // Clear selection if the selected worker no longer exists. Leaving
-  // selectedId null is intentional (user pressed +, or first launch) and
-  // must not auto-fallback to another orchestrator. Skip when workers is
-  // empty — it can't tell "not loaded yet" from "no workers", and clearing
-  // a persisted selection during the initial fetch would lose it.
-  useEffect(() => {
-    if (!ui.selectedId) return;
-    if (live.workers.length === 0) return;
-    const exists = live.workers.some((w) => w.id === ui.selectedId);
-    // Single pane only: empty it when its agent dies. In split, prunePanes owns
-    // death — it removes the dead pane and focuses a survivor (so we must not
-    // null selectedId here and turn the focused pane empty before it runs).
-    if (!exists && ui.paneCount <= 1) ui.setSelectedId(null);
-  }, [ui.selectedId, live.workers, ui.setSelectedId, ui.paneCount]);
-
-  // Drop dead agents from the non-focused split panes (the focused pane rides
-  // the selectedId cleanup above). Same guard: an empty list can't tell "not
-  // loaded yet" from "no workers".
-  useEffect(() => {
-    if (live.workers.length === 0) return;
-    const alive = new Set(live.workers.map((w) => w.id));
-    ui.prunePanes((id) => alive.has(id));
-  }, [live.workers, ui.prunePanes]);
-
-  useEffect(() => {
-    ui.registerEscapeIdle(() => {
-      const w = live.workers.find((x) => x.id === ui.selectedId);
-      if (w && (w.state === "SPAWNING" || w.state === "WORKING")) {
-        // The interrupt route also clears the daemon-side message queue, so
-        // Esc still cancels everything the user queued.
-        live.interruptAgent(w.id);
-      }
+    const bindings = HOTKEYS.map(({ keys, run }) => ({ match: combo(keys), run }));
+    // ⌘⌃1..9 → focus the Nth pane (same chord as the Agents split view).
+    bindings.push({
+      match: (e) => e.metaKey && e.ctrlKey && !e.altKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code),
+      run: (e) => focusPaneByIndex(Number(e.code.slice(5)) - 1),
     });
-  }, [ui.selectedId, live.workers, live.interruptAgent, ui.registerEscapeIdle]);
+    const offs = bindings.map(({ match, run }) => keymap.register({
+      terminalSafe: true,
+      match,
+      run: (ctx, e) => { e.preventDefault(); e.stopPropagation(); run(e); },
+    }));
+    return () => offs.forEach((off) => off());
+  }, []);
+}
 
-  // Outside-click closes any open popover (except the popover itself + trigger)
+// Code — a terminal workspace: split panes, each running Claude Code (or a
+// plain shell) in the chosen folder.
+export function CodeView({ live }) {
+  const ws = useCodeWorkspace();
+  useCodeHotkeys();
+
+  // Drop panes whose session died while this view wasn't mounted.
+  useEffect(() => { reconcile(); }, []);
+
+  // First run: default the folder to the most recent one.
   useEffect(() => {
-    if (!ui.openPopover) return;
-    const handler = (e) => {
-      const inside = e.target.closest(`[data-popover="${ui.openPopover}"]`)
-        || e.target.closest(`[data-popover-trigger="${ui.openPopover}"]`);
-      if (!inside) ui.closeAllPops();
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [ui.openPopover, ui]);
-
-  // The right side panel is per-pane now (rendered inside each pane by
-  // PaneGrid/SinglePane), not a shared shell column. The grid is just
-  // sidebar | center; split view only toggles the `split` class.
-  const gridClass = ui.paneCount > 1 ? "split" : "";
+    const first = projectFolders(live.recents)[0];
+    if (!ws.cwd && first) setCwd(first);
+  }, [ws.cwd, live.recents]);
 
   return (
     <AppLayout
-      gridClass={gridClass}
+      gridClass={leafCount(ws.tree) > 1 ? "split" : ""}
       sidebar={(variant) => <CodeSidebar live={live} variant={variant} />}
-      main={
-        archiveMode ? (
-          // Archive mode replaces the main area with the archive panel; the
-          // pane tree below stays untouched in ui state, so toggling off
-          // remounts the exact layout/selection the user left.
-          <ArchiveView live={live} />
-        ) : (
-          // No global header strip: the pane area is the first child of the center
-          // and fills its full height, so each pane's own PaneHeader is the topmost
-          // row of the window. Single pane keeps the keep-alive multiplexer (instant
-          // switch-back); split view (2-4 panes) lays the transcripts side by side.
-          ui.paneCount > 1
-            ? <PaneGrid live={live} />
-            : <SinglePane live={live} />
-        )
-      }
-    >
-      <AgentContextMenu live={live} />
-      <ArchiveContextMenu live={live} />
-      <SidebarPrefsMenu />
-      {ui.rewindPanel && <RewindPanel live={live} />}
-    </AppLayout>
+      main={<TermGrid live={live} ws={ws} />}
+    />
   );
 }

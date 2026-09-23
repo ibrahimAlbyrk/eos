@@ -9,7 +9,7 @@ import { createPortal } from "react-dom";
 //
 // `items` is a list of { label, icon?, kbd?, danger?, onClick } or the string
 // "sep" for a divider.
-export function BranchContextMenu({ x, y, items, onClose }) {
+export function BranchContextMenu({ x, y, items, onClose, popover = "branch-dd" }) {
   const ref = useRef(null);
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export function BranchContextMenu({ x, y, items, onClose }) {
     <div
       ref={ref}
       className="ctx-menu glass-pop open branch-ctx ca-pop ca-ctx"
-      data-popover="branch-dd"
+      data-popover={popover}
       style={{ display: "block", left, top }}
     >
       {rows.map((it, i) =>

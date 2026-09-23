@@ -1,7 +1,7 @@
 // archiveStore — archive mode flag + archived workers list + selection. A module
 // singleton (like recallStore / outboxStore) because the Code sidebar renders
 // twice (full sidebar + collapsed-hover popup) and both instances — plus the
-// CodeView main area — must share the mode, data, and selection. The archive
+// AgentsView main area — must share the mode, data, and selection. The archive
 // panel drives refreshArchived on mount and on each SSE change ping; the daemon
 // emits worker:change / worker:removed for archive, restore, and purge, so the
 // list self-heals on every mutation.
@@ -52,7 +52,7 @@ export async function refreshArchived() {
 
 export function selectArchived(id) {
   // Selecting an archived row means the user wants archived work in the main
-  // area (CodeView gates on archiveMode). Picking a live agent flips it back off
+  // area (AgentsView gates on archiveMode). Picking a live agent flips it back off
   // via setArchiveViewing(false) in pane.jsx.
   if (selectedId === id && archiveMode) return;
   selectedId = id;

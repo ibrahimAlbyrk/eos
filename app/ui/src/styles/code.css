@@ -1,0 +1,272 @@
+/* code.css — the Code view: a terminal workspace (split panes of PTY sessions),
+   its launcher, folder menu and sidebar. Reuses the Agents split view's pane /
+   pane-head / divider rules (shell.css); only the terminal-specific surfaces
+   live here. charcoal-aurora: depth is a surface step, fills mark hover/selected. */
+
+/* ── Grid: one pane is full-bleed (like the Agents single pane); splits are cards ── */
+.cw-grid.is-single { margin: 0; }
+.cw-grid.is-single .pane {
+  inset: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.cw-grid.is-single .pane .pane-head {
+  padding: 16px 20px 16px 32px;
+  border-bottom: 1px solid var(--line);
+}
+html.native .cw-grid.is-single .pane .pane-head { padding-top: 12px; padding-bottom: 12px; }
+
+/* ── Pane header ─────────────────────────────────────────────────────────── */
+.cw-head .cw-crumb { align-items: center; gap: 9px; }
+.cw-num {
+  flex-shrink: 0;
+  min-width: 18px; height: 18px;
+  padding: 0 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-kbd);
+  background: var(--chip);
+  color: var(--fg-dim);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.pane.is-focused .cw-num {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent);
+}
+.cw-kind { display: inline-flex; flex-shrink: 0; color: var(--fg-dim2); }
+.pane.is-focused .cw-kind,
+.cw-grid.is-single .cw-kind { color: var(--accent); }
+.cw-head .crumb .cur { font-size: var(--text-base); }
+.cw-grid.is-single .cw-head .crumb .cur { font-size: var(--text-md); }
+.cw-head .crumb .scope {
+  min-width: 0;
+  flex-shrink: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+/* ── Terminal body ───────────────────────────────────────────────────────── */
+.cw-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+  transition: opacity 150ms ease;
+}
+/* Gutters via inset, not padding: FitAddon sizes from the host's box, so host
+   padding would overestimate cols/rows and clip the right/bottom edge. */
+.cw-body .pty-view { padding: 0; inset: 10px 6px 8px 16px; }
+.cw-grid.is-single .cw-body .pty-view { inset: 14px 10px 10px 30px; }
+/* Unfocused split panes recede a little, like an inactive terminal split. */
+.cw-grid:not(.is-single) .pane:not(.is-focused) .cw-body { opacity: 0.72; }
+.cw-grid:not(.is-single) .pane:not(.is-focused):hover .cw-body { opacity: 0.88; }
+
+/* ── Launcher (empty pane) ───────────────────────────────────────────────── */
+.cw-launch {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.cw-launch__inner {
+  width: 100%;
+  max-width: 440px;
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 6vh;
+}
+.cw-launch__mark {
+  width: 46px; height: 46px;
+  border-radius: 14px;
+  display: grid; place-items: center;
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel));
+  color: var(--accent);
+}
+.cw-launch__title {
+  margin: 4px 0 0;
+  font-size: var(--text-3xl);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--fg);
+}
+.cw-launch__where {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: -4px;
+  color: var(--fg-faint);
+  font-size: var(--text-sm);
+}
+.cw-launch__cards {
+  width: 100%;
+  display: flex; flex-direction: column; gap: 8px;
+  margin-top: 10px;
+}
+.cw-card {
+  width: 100%;
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--r-card);
+  background: var(--panel);
+  text-align: left;
+  transition: background 150ms ease, box-shadow 150ms ease;
+}
+.cw-card:hover:not(:disabled) { background: var(--raised); }
+.cw-card:focus-visible {
+  outline: none;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.cw-card:disabled { opacity: 0.45; cursor: default; }
+.cw-card__ic {
+  width: 32px; height: 32px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  display: grid; place-items: center;
+  background: var(--chip);
+  color: var(--fg-mid);
+}
+.cw-card--primary .cw-card__ic {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent);
+}
+.cw-card__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cw-card__label { color: var(--fg); font-size: var(--text-base); font-weight: 500; }
+.cw-card__sub {
+  color: var(--fg-faint);
+  font-size: var(--text-xs);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cw-card__kbd { flex-shrink: 0; }
+.cw-launch__err {
+  max-width: 100%;
+  color: var(--err);
+  font-size: var(--text-sm);
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+/* A split pane's launcher: same card, less ceremony. */
+.cw-launch.is-compact .cw-launch__mark { display: none; }
+.cw-launch.is-compact .cw-launch__title { font-size: var(--text-lg); }
+.cw-launch.is-compact .cw-launch__inner { max-width: 360px; gap: 10px; padding-bottom: 0; }
+
+/* ── Folder chip + menu ──────────────────────────────────────────────────── */
+.cw-folder-wrap { position: relative; display: inline-flex; }
+.cw-folder-chip {
+  max-width: 260px;
+  height: 28px;
+  padding: 0 10px 0 11px;
+  display: inline-flex; align-items: center; gap: 7px;
+  border-radius: var(--r-pill);
+  background: var(--raised);
+  color: var(--fg-mid);
+  font-size: var(--text-sm);
+  transition: background 150ms ease, color 150ms ease;
+}
+.cw-folder-chip:hover, .cw-folder-chip.on { background: var(--row-on); color: var(--fg); }
+.cw-folder-chip.is-empty { color: var(--accent); }
+.cw-folder-chip__name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.cw-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  width: 300px;
+  padding: 6px;
+  display: flex; flex-direction: column;
+  background: var(--pop);
+  border-radius: var(--r-menu);
+  box-shadow: var(--sh-pop);
+  z-index: 260;
+  text-align: left;
+}
+.cw-menu__head { padding: 6px 10px 4px; color: var(--fg-faint); font-size: var(--text-xs); }
+.cw-menu__list { max-height: 280px; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
+.cw-menu__empty { padding: 10px; color: var(--fg-faint); font-size: var(--text-sm); }
+.cw-menu__item {
+  width: 100%;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
+  padding: 7px 10px;
+  border-radius: var(--r-row);
+  text-align: left;
+}
+.cw-menu__item:hover { background: var(--row-on); }
+.cw-menu__name { color: var(--fg); font-size: var(--text-sm); }
+.cw-menu__item.on .cw-menu__name { color: var(--accent); }
+.cw-menu__path {
+  max-width: 100%;
+  color: var(--fg-faint);
+  font-size: 11px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cw-menu__item--action { flex-direction: row; align-items: center; gap: 9px; color: var(--fg-mid); }
+.cw-menu__item--action .cw-menu__name { color: inherit; }
+.cw-menu__sep { height: 1px; margin: 6px 4px; background: var(--line); }
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.cw-side-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 12px; }
+.cw-side-scroll .sb-seclabel { padding-left: 18px; }
+.cw-seclabel-gap { margin-top: 18px; }
+.cw-side-scroll > .cw-seclabel-gap:first-child { margin-top: 0; }
+.cw-count {
+  margin-left: 7px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+.cw-list { display: flex; flex-direction: column; gap: 1px; padding: 0 8px; }
+.cw-row {
+  position: relative;
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 8px 7px 10px;
+  border-radius: var(--r-row);
+  color: var(--fg-dim);
+  cursor: pointer;
+  outline: none;
+}
+.cw-row:hover, .cw-row:focus-visible { background: var(--row-on); }
+.cw-row.on { background: var(--row-on); color: var(--fg-strong); }
+.cw-row__ic { display: inline-flex; flex-shrink: 0; color: var(--fg-dim2); }
+.cw-row.on .cw-row__ic { color: var(--accent); }
+.cw-row__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.cw-row__name {
+  font-size: var(--text-sm);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cw-row.on .cw-row__name { font-weight: 500; }
+.cw-row__sub {
+  color: var(--fg-faint);
+  font-size: 11px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cw-row__meta {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+.cw-row__act {
+  flex-shrink: 0;
+  width: 22px; height: 22px;
+  border-radius: var(--r-icon);
+  display: none; align-items: center; justify-content: center;
+  color: var(--fg-dim2);
+}
+.cw-row:hover .cw-row__act { display: inline-flex; }
+.cw-row:hover .cw-row__meta { display: none; }
+.cw-row__act:hover { background: var(--chip); color: var(--fg); }
+.cw-row__act--go:hover { color: var(--accent); }
+.cw-row--folder.on .cw-row__name { color: var(--fg-strong); }
+
+@media (prefers-reduced-motion: reduce) {
+  .cw-body, .cw-card, .cw-folder-chip { transition: none; }
+}

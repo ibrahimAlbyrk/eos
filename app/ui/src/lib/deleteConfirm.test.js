@@ -4,10 +4,10 @@ import { SETTINGS_SECTIONS, SETTING_DEFAULTS } from "../settings/registry.jsx";
 // Raw-source wiring assertions (the archiveFunnel.test.js precedent): rendering
 // the menus isn't feasible in the node test env, so the suppress wiring is
 // asserted at the source level.
-import ctxMenuSrc from "../views/code/popovers/AgentContextMenu.jsx?raw";
-import headMenuSrc from "../views/code/popovers/HeaderAgentMenu.jsx?raw";
+import ctxMenuSrc from "../views/agents/popovers/AgentContextMenu.jsx?raw";
+import headMenuSrc from "../views/agents/popovers/HeaderAgentMenu.jsx?raw";
 import archiveCtxSrc from "../views/archive/ArchiveContextMenu.jsx?raw";
-import dialogSrc from "../views/code/popovers/DeleteConfirmDialog.jsx?raw";
+import dialogSrc from "../views/agents/popovers/DeleteConfirmDialog.jsx?raw";
 
 const generalItem = (key) => SETTINGS_SECTIONS
   .find((s) => s.id === "general")

@@ -9,9 +9,9 @@ import hotkeySrc from "./useArchiveAgentHotkey.js?raw";
 import useLiveSrc from "./useLive.js?raw";
 import clientSrc from "../api/client.js?raw";
 import settingsSrc from "../state/settings.jsx?raw";
-import ctxMenuSrc from "../views/code/popovers/AgentContextMenu.jsx?raw";
-import headMenuSrc from "../views/code/popovers/HeaderAgentMenu.jsx?raw";
-import codeViewSrc from "../views/code/CodeView.jsx?raw";
+import ctxMenuSrc from "../views/agents/popovers/AgentContextMenu.jsx?raw";
+import headMenuSrc from "../views/agents/popovers/HeaderAgentMenu.jsx?raw";
+import codeViewSrc from "../views/agents/AgentsView.jsx?raw";
 
 describe("Cmd+W funnel archives; delete is menu-only and shares the funnel", () => {
   it("archive and kill are the same removal core wired to different actions", () => {

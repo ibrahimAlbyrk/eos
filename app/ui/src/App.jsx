@@ -29,7 +29,7 @@ function Shell() {
 
   // Native app notification tap → jump to the Code tab and select the worker.
   useEffect(() => {
-    window.__nativeNavigate = (id) => { ui.setActiveView("code"); ui.setSelectedId(id); };
+    window.__nativeNavigate = (id) => { ui.setActiveView("agents"); ui.setSelectedId(id); };
     return () => { delete window.__nativeNavigate; };
   }, [ui.setActiveView, ui.setSelectedId]);
 

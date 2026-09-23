@@ -269,21 +269,6 @@ export const api = {
     return postJson(ROUTES.orchestratorMessage(id), { text, clientMsgId, queueWhenBusy });
   },
 
-  // Home — Claude-web-style single-agent sessions.
-  async listHomeSessions() {
-    const r = await getJson(ROUTES.home);
-    return r.ok ? r.body : [];
-  },
-  async spawnHome({ name, model, effort, prompt, permissionMode, backendKind, backendProfile } = {}) {
-    return postJson(ROUTES.home, { name, model, effort, prompt, permissionMode, backendKind, backendProfile });
-  },
-  async sendHomeMessage(id, text, { clientMsgId, queueWhenBusy } = {}) {
-    return postJson(ROUTES.homeMessage(id), { text, clientMsgId, queueWhenBusy });
-  },
-  async deleteHome(id) {
-    return del(ROUTES.homeDelete(id));
-  },
-
   // Pending
   async listPending() {
     const r = await getJson(ROUTES.pending);
@@ -751,8 +736,8 @@ export const api = {
   // UI-token gated daemon-side (a raw shell is arbitrary exec), so list + buffer
   // carry the token too — not just the mutations; without it reattach and
   // scrollback replay 403.
-  async createPty({ cols, rows, cwd } = {}) {
-    return postJson(ROUTES.pty, { cols, rows, cwd }, uiTokenHeader());
+  async createPty({ cols, rows, cwd, command } = {}) {
+    return postJson(ROUTES.pty, { cols, rows, cwd, command }, uiTokenHeader());
   },
   async listPty() {
     return getJson(ROUTES.pty, { headers: uiTokenHeader() });

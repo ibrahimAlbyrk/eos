@@ -2,10 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigation, useSearch } from "../state/ui.jsx";
 import { TABS } from "../views/tabs.js";
 
-// The sidebar's top workspace switcher, shared by the Code and Home sidebars:
-// an "Eos ▾" wordmark whose click opens a Code / Home menu that drives
-// navigation, plus a search icon (⌘K / command palette) at the row's right.
-// Replaces the old Home|Code TabBar — navigation is now a dropdown, not tabs.
+// The sidebar's top workspace switcher, shared by the Agents and Code sidebars:
+// the active view's name ("Agents ▾" / "Code ▾") whose click opens the view menu, plus a search icon (⌘K / command palette) at the row's right.
 function ChevronDown() {
   return (
     <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -38,6 +36,7 @@ export function EosSwitcher() {
   }, [open]);
 
   const pick = (id) => { setActiveView(id); setOpen(false); };
+  const active = TABS.find((t) => t.id === activeViewId) ?? TABS[0];
 
   return (
     <div className="side-eos">
@@ -50,7 +49,7 @@ export function EosSwitcher() {
         aria-haspopup="menu"
         aria-expanded={open}
       >
-        <span className="eos-switch__mark">Eos</span>
+        <span className="eos-switch__mark">{active.label}</span>
         <span className="eos-switch__chev"><ChevronDown /></span>
         {open && (
           <div className="eos-menu" role="menu">
@@ -62,6 +61,7 @@ export function EosSwitcher() {
                 aria-checked={activeViewId === t.id}
                 onClick={(e) => { e.stopPropagation(); pick(t.id); }}
               >
+                <span className="eos-menu__ic"><t.Icon /></span>
                 <span>{t.label}</span>
                 <span className={"eos-menu__check" + (activeViewId === t.id ? " on" : "")}><Check /></span>
               </div>

@@ -2,35 +2,27 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { basename } from "../../../lib/path.js";
-import { workerGitDir } from "../../../lib/workerGitDir.js";
-import { useGitStatus } from "../../../hooks/useGitStatus.js";
 import { subscribeGitChange, BRANCH_KINDS } from "../../../state/gitChangeBus.js";
 import { FolderDropdown } from "../popovers/FolderDropdown.jsx";
 import { BranchManager } from "../popovers/BranchManager.jsx";
 
 // The context strip: a --pop tab tucked behind the composer card holding a {}
-// project pill and a branch pill. Both open the existing pickers; project/branch
-// come from the pane's worker when one is selected, else from ui.composer (the
-// pre-spawn config the folder picker writes).
-export function ContextStrip({ live, worker }) {
+// project pill and a branch pill for the next spawn (no session yet — once one
+// exists SessionTray takes this slot). Both open the existing pickers and
+// read/write ui.composer, the pre-spawn config.
+export function ContextStrip({ live }) {
   const ui = useUi();
-  const selected = worker ?? null;
-
-  const cwd = selected
-    ? (selected.cwd ?? selected.worktree_from ?? null)
-    : (ui.composer.cwd ?? live.recents[0] ?? null);
+  const cwd = ui.composer.cwd ?? live.recents[0] ?? null;
   const folderLabel = cwd ? basename(cwd) : "pick folder…";
 
-  // No-agent spawn: seed ui.composer.cwd from the first recent so a spawn has a
-  // folder without the operator opening the picker (was in ComposerConfigRow).
+  // Seed ui.composer.cwd from the first recent so a spawn has a folder without
+  // the operator opening the picker (was in ComposerConfigRow).
   useEffect(() => {
-    if (!selected && !ui.composer.cwd && live.recents[0]) ui.updateComposer({ cwd: live.recents[0] });
+    if (!ui.composer.cwd && live.recents[0]) ui.updateComposer({ cwd: live.recents[0] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected, live.recents, ui.selectedId]);
+  }, [live.recents, ui.selectedId]);
 
-  const gs = useGitStatus(selected?.id, { gitDir: workerGitDir(selected) }).status;
-
-  // No-agent spawn config: fetch the current branch for the chosen folder and
+  // Fetch the current branch for the chosen folder and
   // keep it live (any commit/checkout in that folder refreshes the pill).
   const cwdRef = useRef(cwd);
   cwdRef.current = cwd;
@@ -47,23 +39,21 @@ export function ContextStrip({ live, worker }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   useEffect(() => {
-    if (selected || !cwd) return;
+    if (!cwd) return;
     refreshBranch();
-  }, [selected, cwd, refreshBranch]);
+  }, [cwd, refreshBranch]);
   useEffect(() => {
-    if (selected || !cwd) return;
+    if (!cwd) return;
     const onFocus = () => refreshBranch();
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [selected, cwd, refreshBranch]);
+  }, [cwd, refreshBranch]);
   useEffect(() => {
-    if (selected || !cwd) return;
+    if (!cwd) return;
     return subscribeGitChange(cwd, BRANCH_KINDS, refreshBranch);
-  }, [selected, cwd, refreshBranch]);
+  }, [cwd, refreshBranch]);
 
-  const branch = selected
-    ? (gs?.currentBranch ?? selected.branch ?? null)
-    : (isGit ? (ui.composer.branch ?? "main") : null);
+  const branch = isGit ? (ui.composer.branch ?? "main") : null;
 
   const toggle = (id, e) => {
     e.stopPropagation();

@@ -1,7 +1,7 @@
 import { useState, useSyncExternalStore } from "react";
 import { useUi } from "../../state/ui.jsx";
 import { useSettings } from "../../state/settings.jsx";
-import { DeleteConfirmDialog } from "../code/popovers/DeleteConfirmDialog.jsx";
+import { DeleteConfirmDialog } from "../agents/popovers/DeleteConfirmDialog.jsx";
 import { subscribe, getArchive, refreshArchived } from "../../state/archiveStore.js";
 import { subtreeIds } from "../../lib/tree.js";
 import { nameOf } from "../../lib/agentName.js";

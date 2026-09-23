@@ -96,17 +96,6 @@ describe("DPI assembles per-role system prompts", () => {
     assert.match(r.text, /# Git Agent/);
   });
 
-  it("home agent → home preamble first, only role/home/*, no orchestration/report machinery", async () => {
-    const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "home" });
-    assert.equal(r.activeFragmentIds[0], "system-preamble-home");
-    assert.ok(!r.activeFragmentIds.includes("system-preamble-worker"));
-    assert.ok(!r.activeFragmentIds.includes("system-preamble-orchestrator"));
-    assert.ok(r.activeFragmentIds.slice(1).every((id) => id.startsWith("role/home/")));
-    assert.match(r.text, /# Home/);
-    assert.doesNotMatch(r.text, /send_message_to_parent/);
-    assert.doesNotMatch(r.text, /\{\{/); // no unresolved variables
-  });
-
   it("subagent worker → assembled prompt carries the report obligation: tool name + three signals + stop-condition", async () => {
     const r = await assembleSystemPrompt(deps(), { ...baseCtx, role: "worker" });
     // The reporting tool must be named (resolves from {{SEND_MESSAGE_TO_PARENT_TOOL}}).

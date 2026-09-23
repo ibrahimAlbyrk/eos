@@ -11,7 +11,7 @@ export const changesProvider = {
       subtitle: "working tree diff",
       keywords: ["diff", "git", "changes", "patch"],
       onSelect: (c) => {
-        c.setActiveView("code");
+        c.setActiveView("agents");
         c.openPanel("review", { workerId: c.selectedId });
       },
     }];

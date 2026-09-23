@@ -109,23 +109,6 @@ export const SpawnOrchestratorResponseSchema = SpawnWorkerResponseSchema.extend(
 });
 export type SpawnOrchestratorResponse = z.infer<typeof SpawnOrchestratorResponseSchema>;
 
-// ---- POST /home (Claude-web-style single agent) ----------------------------
-// A Home session has NO caller-supplied cwd — the daemon auto-creates a private
-// working folder (~/.eos/home/<id>) and runs the agent there. Otherwise mirrors
-// the orchestrator spawn shape (name/model/effort/prompt/backend selection).
-export const SpawnHomeRequestSchema = z.object({
-  name: z.string().optional(),
-  model: z.string().optional(),
-  effort: z.string().optional(),
-  prompt: z.string().optional(),
-  permissionMode: PermissionModeSchema.optional(),
-  backendKind: z.string().optional(),
-  backendProfile: z.string().optional(),
-});
-export type SpawnHomeRequest = z.infer<typeof SpawnHomeRequestSchema>;
-
-export const HomeListResponseSchema = z.array(WorkerRowSchema);
-
 // ---- GET /workers, /orchestrators ------------------------------------------
 
 export const WorkerListResponseSchema = z.array(WorkerRowSchema);
@@ -347,6 +330,9 @@ export const PtyCreateRequestSchema = z.object({
   cols: z.number().int().positive().max(1000),
   rows: z.number().int().positive().max(1000),
   cwd: z.string().min(1).optional(),
+  // Run this in the login shell first (e.g. `claude …`); when it exits the tab
+  // drops into a normal interactive shell in the same folder.
+  command: z.string().min(1).max(2000).optional(),
 });
 export type PtyCreateRequest = z.infer<typeof PtyCreateRequestSchema>;
 
@@ -2059,10 +2045,6 @@ export const ROUTES = {
   orchestrators: "/orchestrators",
   orchestratorMessage: (id: string): string => `/orchestrators/${id}/message`,
   orchestratorIntegrate: (id: string): string => `/orchestrators/${id}/integrate`,
-  // Home single-agent sessions (Claude-web-style chat).
-  home: "/home",
-  homeMessage: (id: string): string => `/home/${id}/message`,
-  homeDelete: (id: string): string => `/home/${id}`,
   orchestratorLoop: (id: string): string => `/orchestrators/${id}/loop`,
   orchestratorLoopStop: (id: string): string => `/orchestrators/${id}/loop/stop`,
   policyDecide: "/policy/decide",

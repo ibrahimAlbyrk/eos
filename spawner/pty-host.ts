@@ -16,6 +16,7 @@ export interface PtyHostOptions {
   cwd: string;
   cols: number;
   rows: number;
+  command?: string;
 }
 
 export interface PtyHost {
@@ -28,7 +29,12 @@ export interface PtyHost {
 
 export function spawnPtyHost(opts: PtyHostOptions): PtyHost {
   const shell = process.env.SHELL || "/bin/bash";
-  const pty: IPty = ptySpawn(shell, ["-l"], {
+  // With a command: an interactive login shell (so rc files set PATH/aliases)
+  // runs it, then execs a plain login shell so the tab outlives the command.
+  const args = opts.command
+    ? ["-l", "-i", "-c", `${opts.command}; exec ${shellQuote(shell)} -l`]
+    : ["-l"];
+  const pty: IPty = ptySpawn(shell, args, {
     cwd: opts.cwd,
     cols: opts.cols,
     rows: opts.rows,
@@ -42,6 +48,10 @@ export function spawnPtyHost(opts: PtyHostOptions): PtyHost {
     resize: (cols, rows) => { pty.resize(cols, rows); },
     kill: () => { try { pty.kill(); } catch {} },
   };
+}
+
+function shellQuote(s: string): string {
+  return `'${s.replace(/'/g, `'\\''`)}'`;
 }
 
 export type SpawnPtyHost = typeof spawnPtyHost;

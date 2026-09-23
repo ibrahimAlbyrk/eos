@@ -87,7 +87,7 @@ export type PromptFrontmatter = z.infer<typeof PromptFrontmatterSchema>;
 
 export const SessionFactsSchema = z
   .object({
-    role: z.enum(["orchestrator", "worker", "git", "home"]),
+    role: z.enum(["orchestrator", "worker", "git"]),
     isSubagent: z.boolean(),
     isGitRepo: z.boolean(),
     isWorktree: z.boolean(),

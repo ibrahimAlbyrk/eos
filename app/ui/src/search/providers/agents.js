@@ -18,7 +18,7 @@ export const agentsProvider = {
         subtitle: [modelShort(w.model), status].filter(Boolean).join(" · "),
         keywords: [w.model, w.state, w.id].filter(Boolean),
         onSelect: (ctx) => {
-          ctx.setActiveView("code");
+          ctx.setActiveView("agents");
           ctx.setSelectedId(w.id);
         },
       };

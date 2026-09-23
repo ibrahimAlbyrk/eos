@@ -1,6 +1,6 @@
 // Shared subscription-usage formatting + row derivation. Used by the Settings
 // "Usage" pane (settings/UsageSettings.jsx) and the context popover's "Plan
-// usage limits" section (views/code/popovers/CtxPopover.jsx) so the two never
+// usage limits" section (views/agents/popovers/CtxPopover.jsx) so the two never
 // drift. Data source is GET /api/usage (utilization normalized 0–100, resetsAt
 // ISO); the daemon owns the upstream cache + 180s floor.
 

@@ -3,8 +3,8 @@
    dark only · Geist + IBM Plex Mono · 14px base
    Design foundation (phase 0): tokens, base reset, scrollbars, the two allowed
    keyframes and the .app grid live here. Everything area-specific lives in the
-   five partials @imported at the TOP (shell / composer / transcript / panel /
-   menus) — CSS requires @import to precede all other rules. The base/reset/token
+   partials @imported at the TOP (shell / composer / transcript / panel /
+   menus / code) — CSS requires @import to precede all other rules. The base/reset/token
    layer below still wins correctly: it is universal/element-level, lower
    specificity than the partials' class rules (verified: no same-selector
    collisions). Depth is a surface step (bg → panel → raised → row-on → chip),
@@ -18,6 +18,7 @@
 @import "./styles/transcript.css";
 @import "./styles/panel.css";
 @import "./styles/menus.css";
+@import "./styles/code.css";
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }
@@ -174,8 +175,6 @@ kbd {
   --glass: 23, 23, 23;
   --rim: 255, 255, 255;
   --ink: 0, 0, 0;
-  --queued-bg: #212b35;
-  --queued-fg: #0099ff;
   --solid-btn-bg: #e8e8e8;
   --solid-btn-fg: #1a1a1a;
   --solid-btn-bg-hover: #fff;

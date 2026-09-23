@@ -22,14 +22,15 @@ const AGENT_TYPE = "application/x-eos-agent";
 
 // Shared drag-to-split behavior: tracks the live drop zone under the cursor and
 // fires onDropZone on drop. Used by every pane AND the single-pane view so the
-// edge-split + preview works identically whether you're at 1 pane or 9.
-function useDropSplit(canSplit, onDropZone) {
+// edge-split + preview works identically whether you're at 1 pane or 9. `type`
+// is the dataTransfer type accepted (the Code view drags terminal panes).
+export function useDropSplit(canSplit, onDropZone, type = AGENT_TYPE) {
   const [zone, setZone] = useState(null);
   // Live pointer + the hovered pane's rect, captured on dragover, drives the
   // portaled DragAffordance (label trails the cursor; pill snaps to the region
   // centroid computed from the rect). Null whenever no drag is over this pane.
   const [pointer, setPointer] = useState(null);
-  const isAgentDrag = (e) => e.dataTransfer.types.includes(AGENT_TYPE);
+  const isAgentDrag = (e) => e.dataTransfer.types.includes(type);
   const zoneFrom = (e, r) => {
     const z = dropZoneFromPoint((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height);
     // Splitting (adding a pane) is capped → replace only past the cap.
@@ -53,14 +54,14 @@ function useDropSplit(canSplit, onDropZone) {
       if (!isAgentDrag(e)) return;
       const z = zone ?? zoneFrom(e, e.currentTarget.getBoundingClientRect());
       clear();
-      const id = e.dataTransfer.getData(AGENT_TYPE);
+      const id = e.dataTransfer.getData(type);
       if (id) { e.preventDefault(); onDropZone(z, id); }
     },
   };
   return { zone, pointer, handlers };
 }
 
-function DropPreview({ zone }) {
+export function DropPreview({ zone }) {
   return <div className={"pane-drop-preview pane-drop-preview--" + (zone.kind === "split" ? zone.edge : "replace")} />;
 }
 
@@ -188,7 +189,7 @@ export function SinglePane({ live }) {
 // Per-split resize handle. Pointer-capture drag (EffortPopover idiom): the ratio
 // is computed within the SPLIT's own rect, so dragging only resizes that split's
 // two children. Double-click resets to 0.5.
-function Divider({ d, gridRef, onRatio, onResizeStart, onResizeEnd }) {
+export function Divider({ d, gridRef, onRatio, onResizeStart, onResizeEnd }) {
   const start = (e) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); onResizeStart(); };
   const move = (e) => {
     if (!(e.buttons & 1)) return;

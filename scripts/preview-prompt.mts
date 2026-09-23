@@ -51,7 +51,7 @@ export function resolveIdentity(provider: string): ProviderIdentity {
 }
 
 export interface PreviewOpts {
-  role: "orchestrator" | "worker" | "home";
+  role: "orchestrator" | "worker";
   provider: string;      // "claude" | preset id
   subagent: boolean;     // isSubagent fact
   worktree: boolean;     // isWorktree fact
@@ -101,8 +101,8 @@ function parseArgs(argv: string[]): PreviewOpts & { out: string | null } {
     else positional.push(a);
   }
   opts.role = positional[0] as any;
-  if (opts.role !== "orchestrator" && opts.role !== "worker" && opts.role !== "home") {
-    throw new Error(`role must be "orchestrator", "worker", or "home" (got "${opts.role ?? ""}")`);
+  if (opts.role !== "orchestrator" && opts.role !== "worker") {
+    throw new Error(`role must be "orchestrator" or "worker" (got "${opts.role ?? ""}")`);
   }
   // A worker is canonically a subagent — its role fragments require it. Default it on
   // unless caller is previewing the (near-empty) non-subagent case explicitly.

@@ -27,6 +27,7 @@ import { composerMode, modeFlags, nextGitMode } from "../../../lib/composerModes
 import { shouldApplyPendingText } from "../../../lib/composerRestore.js";
 import { gitAgentName, gitTaskLabel } from "../../../lib/gitAgentName.js";
 import { ContextStrip } from "./ContextStrip.jsx";
+import { SessionTray } from "./SessionTray.jsx";
 import { ComposerControls } from "./ComposerControls.jsx";
 import { CommandMenu } from "./CommandMenu.jsx";
 import { FileMenu } from "./FileMenu.jsx";
@@ -40,48 +41,6 @@ import { TryDeck } from "./TryBanner.jsx";
 import { TaskTray } from "./TaskTray.jsx";
 import { WorktreeHub } from "./WorktreeHub.jsx";
 import { CollapsedComposer } from "./CollapsedComposer.jsx";
-
-function QueuedPill({ text, onDismiss }) {
-  return (
-    <div className="queued-pill">
-      <div className="queued-pill-text">{text}</div>
-      <button className="queued-pill-x" onClick={onDismiss} title="Cancel queued message">
-        <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-          <path d="M4 4l8 8M12 4l-8 8" />
-        </svg>
-      </button>
-    </div>
-  );
-}
-
-// Bounded backlog box: past the CSS max-height the pills scroll; the gradient
-// masks soften an edge only when more pills continue past it, and an enqueue
-// keeps the newest pill (bottom — next in dispatch order is the top) in view.
-function QueuedList({ items, onDismiss }) {
-  const ref = useRef(null);
-
-  const syncFades = () => {
-    const el = ref.current;
-    if (!el) return;
-    el.classList.toggle("qfade-top", el.scrollTop > 2);
-    el.classList.toggle("qfade-bot", el.scrollTop + el.clientHeight < el.scrollHeight - 2);
-  };
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    el.scrollTop = el.scrollHeight; // smooth via CSS scroll-behavior
-    syncFades();
-  }, [items.length]);
-
-  return (
-    <div className="queued-list" ref={ref} onScroll={syncFades}>
-      {items.map((q) => (
-        <QueuedPill key={q.id} text={q.text} onDismiss={() => onDismiss(q.id)} />
-      ))}
-    </div>
-  );
-}
 
 export function Composer({ live, worker, paneId, focused }) {
   const ui = useUi();
@@ -543,12 +502,13 @@ export function Composer({ live, worker, paneId, focused }) {
 
   // Optimistic send of one prepared message to one agent. The daemon decides
   // queue-vs-dispatch; settleSend reconciles the optimistic bubble/pill.
-  const dispatchTo = async (worker, displayText, agentText) => {
+  // steer skips the queue: the message lands in the running turn.
+  const dispatchTo = async (worker, displayText, agentText, { steer = false } = {}) => {
     const clientMsgId = crypto.randomUUID();
-    const busy = worker.state === "WORKING";
+    const busy = !steer && worker.state === "WORKING";
     const itemId = outbox.beginSend(worker.id, { text: displayText, agentText, clientMsgId, busy });
     try {
-      const r = await live.sendToAgent(worker.id, agentText, { clientMsgId, queueWhenBusy: true });
+      const r = await live.sendToAgent(worker.id, agentText, { clientMsgId, queueWhenBusy: !steer });
       outbox.settleSend(worker.id, itemId, r);
       if (!r?.ok && !r?.body?.queued) {
         console.error("send rejected:", r?.body?.error ?? `status ${r?.status ?? "?"}`);
@@ -557,6 +517,20 @@ export function Composer({ live, worker, paneId, focused }) {
       outbox.settleSend(worker.id, itemId, { ok: false });
       console.error("send failed:", e);
     }
+  };
+
+  const steerQueued = async (item) => {
+    const r = await outbox.dismissPill(selected.id, item.id);
+    if (r && !r.ok) return; // drained into a turn meanwhile — already sent
+    await dispatchTo(selected, item.text, item.agentText, { steer: true });
+  };
+
+  const editQueued = (item) => {
+    outbox.dismissPill(selected.id, item.id);
+    const cur = text.trim();
+    const next = cur ? `${cur}\n${item.text}` : item.text;
+    setTextAndSync(next, next.length);
+    editorRef.current?.focus();
   };
 
   const send = async () => {
@@ -1027,9 +1001,8 @@ export function Composer({ live, worker, paneId, focused }) {
     focused && ui.pendingQuestion && selected && !ui.dismissedQuestions?.has(ui.pendingQuestion.toolUseId)
   );
   const blockingActive = hasPermission || hasQuestion;
-  // The ambient rail also yields while queued pills are visible (same overlap
-  // risk as a blocking banner — the rail floats up from .integration-wrap and
-  // would sit over the queued list). The footer mirror stays gated on this
+  // The ambient rail also yields while queued rows fill the tray slot, so only
+  // one thing stacks above the input. The footer mirror stays gated on this
   // wider condition too, so tasks/worktree status is still visible somewhere.
   const railYields = blockingActive || queuedList.length > 0;
   // Send button lives in the controls row now; dim it when there's nothing to
@@ -1045,12 +1018,6 @@ export function Composer({ live, worker, paneId, focused }) {
     <div className="composer-wrap">
       <div className="composer-inner">
         <UpdateBanner update={live.update} onApply={live.applyUpdate} onDefer={live.deferUpdate} />
-        {queuedList.length > 0 && (
-          <QueuedList
-            items={queuedList}
-            onDismiss={(itemId) => outbox.dismissPill(selected.id, itemId)}
-          />
-        )}
         {hasPermission ? (
           <PermissionBanner
             permissions={slotPermissions}
@@ -1089,7 +1056,19 @@ export function Composer({ live, worker, paneId, focused }) {
           />
         ) : (
           <>
-            <ContextStrip live={live} worker={selected} />
+            {selected ? (
+              <SessionTray
+                live={live}
+                worker={selected}
+                wtStatus={wtStatus}
+                queued={queuedList}
+                onSteer={steerQueued}
+                onEdit={editQueued}
+                onDismiss={(item) => outbox.dismissPill(selected.id, item.id)}
+              />
+            ) : (
+              <ContextStrip live={live} />
+            )}
             <div className="composer-card">
               <div className="c-row2-wrap">
                 {showMenu && (

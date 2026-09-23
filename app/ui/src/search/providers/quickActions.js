@@ -16,7 +16,7 @@ export const quickActionsProvider = {
         meta: "⌘T",
         keywords: ["new", "task", "spawn", "orchestrator"],
         onSelect: (ctx) => {
-          ctx.setActiveView("code");
+          ctx.setActiveView("agents");
           ctx.setSelectedId(null);
         },
       },
@@ -27,7 +27,7 @@ export const quickActionsProvider = {
         meta: "⌘O",
         keywords: ["open", "folder", "directory", "project"],
         onSelect: async (ctx) => {
-          ctx.setActiveView("code");
+          ctx.setActiveView("agents");
           const r = await api.pickDirectory().catch(() => null);
           if (r?.path) {
             explorer.setRoot(r.path);
@@ -42,7 +42,7 @@ export const quickActionsProvider = {
         meta: "⌘P",
         keywords: ["search", "files", "symbols", "find"],
         onSelect: (ctx) => {
-          ctx.setActiveView("code");
+          ctx.setActiveView("agents");
           ctx.openPanel("files");
           // Wait for the Files panel to mount+paint, then focus its search input.
           requestAnimationFrame(() =>

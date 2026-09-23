@@ -9,7 +9,7 @@ import {
 } from "../../state/browserPanelStore.js";
 import { notePanelOpened, seedRememberedTab } from "../../state/browserSessionState.js";
 import { sessionRootOf } from "../../lib/agentIndex.js";
-import { PanelShell } from "../code/panes/PanelShell.jsx";
+import { PanelShell } from "../agents/panes/PanelShell.jsx";
 import { BrowserEmptyState } from "./BrowserEmptyState.jsx";
 import { BrowserTabStrip } from "./BrowserTabStrip.jsx";
 import { BrowserNavBar } from "./BrowserNavBar.jsx";

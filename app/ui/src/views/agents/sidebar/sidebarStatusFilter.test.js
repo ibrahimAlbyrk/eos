@@ -4,10 +4,10 @@ import { describe, it, expect } from "vitest";
 // the sidebar Status filter. The sidebar list is chosen by the persisted status
 // pref; the main-area archive view stays gated on archiveMode (now driven by the
 // status filter + selection instead of the removed button).
-import codeSidebarSrc from "./CodeSidebar.jsx?raw";
+import agentsSidebarSrc from "./AgentsSidebar.jsx?raw";
 import sidebarHeadSrc from "./SidebarHead.jsx?raw";
 import prefsMenuSrc from "./SidebarPrefsMenu.jsx?raw";
-import codeViewSrc from "../CodeView.jsx?raw";
+import codeViewSrc from "../AgentsView.jsx?raw";
 import registrySrc from "../../registry.js?raw";
 import tabsSrc from "../../tabs.js?raw";
 
@@ -21,22 +21,22 @@ describe("archive is a status filter, not a standalone toggle", () => {
   it("the standalone ArchiveToggle button is gone; view-options filter lives on the Projects label", () => {
     expect(sidebarHeadSrc).not.toContain("ArchiveToggle");
     // The sliders/view-options trigger moved out of SidebarHead onto the
-    // CodeSidebar's Projects/Recent/Groups section label.
-    expect(codeSidebarSrc).toContain('data-popover-trigger="sidebar-prefs"');
+    // AgentsSidebar's Projects/Recent/Groups section label.
+    expect(agentsSidebarSrc).toContain('data-popover-trigger="sidebar-prefs"');
   });
 
   it("feeds ONE unified list, filtered by the persisted status pref", () => {
-    expect(codeSidebarSrc).toContain("useSidebarPrefs");
-    expect(codeSidebarSrc).toContain('status !== "archived"');
-    expect(codeSidebarSrc).toContain('status !== "active"');
+    expect(agentsSidebarSrc).toContain("useSidebarPrefs");
+    expect(agentsSidebarSrc).toContain('status !== "archived"');
+    expect(agentsSidebarSrc).toContain('status !== "active"');
     // Live + archived are normalized into one tagged root list through a single
     // AgentsTree — no separate ArchiveSidebar section anymore.
-    expect(codeSidebarSrc).toContain("buildAgentTree");
-    expect(codeSidebarSrc).toContain("archivedTree");
-    expect(codeSidebarSrc).toContain("__archived");
-    expect(codeSidebarSrc).toContain("<AgentsTree");
-    expect(codeSidebarSrc).not.toContain("<ArchiveSidebar");
-    expect(codeSidebarSrc).not.toContain("ArchiveToggle");
+    expect(agentsSidebarSrc).toContain("buildAgentTree");
+    expect(agentsSidebarSrc).toContain("archivedTree");
+    expect(agentsSidebarSrc).toContain("__archived");
+    expect(agentsSidebarSrc).toContain("<AgentsTree");
+    expect(agentsSidebarSrc).not.toContain("<ArchiveSidebar");
+    expect(agentsSidebarSrc).not.toContain("ArchiveToggle");
   });
 
   it("the settings popover exposes group-by / sort-by / status and drives archive viewing", () => {

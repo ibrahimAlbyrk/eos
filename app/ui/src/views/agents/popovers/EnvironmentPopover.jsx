@@ -40,7 +40,7 @@ function EnvPopover({ ui, worker, anchor }) {
   const pullable = gs?.pullable ?? false;
 
   const openReview = () => { ui.openPanel("review", { workerId: worker.id, cwd: gitDir }); ui.closeAllPops(); };
-  // Reuse the composer strip's Branch manager (popover id "branch-dd") — already
+  // Reuse the session tray's Branch manager (popover id "branch-dd") — already
   // mounted for this pane's folder and knows how to checkout/create branches.
   const openBranch = () => { ui.closeAllPops(); ui.openPop("branch-dd"); };
   const createPr = () => { api.sendWorkerAction(worker.id, "pr"); ui.closeAllPops(); };

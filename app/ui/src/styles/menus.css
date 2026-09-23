@@ -143,6 +143,8 @@
   cursor: pointer;
 }
 .eos-menu__item:hover { background: var(--row-on); }
+.eos-menu__ic { display: inline-flex; color: var(--fg-dim2); }
+.eos-menu__item[aria-checked="true"] .eos-menu__ic { color: var(--fg-mid); }
 .eos-menu__check {
   margin-left: auto;
   display: inline-flex;

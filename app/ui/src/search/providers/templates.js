@@ -12,7 +12,7 @@ export const templatesProvider = {
       subtitle: t.description || "template",
       keywords: ["template", "prompt"],
       onSelect: (ctx) => {
-        ctx.setActiveView("code");
+        ctx.setActiveView("agents");
         ctx.updateComposer({ pendingTemplate: { content: t.content, attachments: t.attachments, ts: Date.now() } });
       },
     }));

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { TranscriptHost } from "../code/messages/TranscriptHost.jsx";
-import { Composer } from "../code/center/Composer.jsx";
+import { TranscriptHost } from "../agents/messages/TranscriptHost.jsx";
+import { Composer } from "../agents/center/Composer.jsx";
 import { breadcrumbFor } from "../../lib/breadcrumb.js";
 import { nameOf } from "../../lib/agentName.js";
 import { fmtTimeAgo } from "../../lib/format.js";
@@ -32,7 +32,7 @@ function TrayIcon() {
   );
 }
 
-// Archive panel — fills the CodeView main area while archive mode is on. The
+// Archive panel — fills the AgentsView main area while archive mode is on. The
 // selected archived root gets the SAME single-pane view a live agent gets
 // (title bar + TranscriptHost + per-pane Composer). Those components resolve the
 // worker row and its subtree from `live.workers`, which excludes archived rows —
