@@ -1,8 +1,10 @@
 import { createPortal } from "react-dom";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { workerGitDir } from "../../../lib/workerGitDir.js";
 import { useGitStatus } from "../../../hooks/useGitStatus.js";
+import { subscribe, getSnapshot, attach } from "../../../state/chatAttachmentsStore.js";
 import { PushButton } from "../center/PushButton.jsx";
 import { PullButton } from "../center/PullButton.jsx";
 
@@ -103,23 +105,54 @@ function EnvPopover({ ui, worker, anchor }) {
         <span className="kbd">⌘G</span>
       </button>
 
-      <div className="env-head env-head--sources"><span>Sources</span><PlusGlyph /></div>
-
-      <div className="env-row env-static env-dim">
-        <DocIcon />
-        <span className="env-label">source docs</span>
-      </div>
-      <div className="env-row env-static env-dim">
-        <GlobeIcon />
-        <span className="env-label">Web search</span>
-      </div>
-      <button className="env-row env-faint" onClick={openReview}>
-        <ExternalIcon />
-        <span className="env-label">View all</span>
-      </button>
+      <SourcesSection ui={ui} workerId={worker.id} />
     </div>,
     document.body,
   );
+}
+
+// Sources = the files attached to this chat. Same module-singleton store the
+// "Chat files" side-panel tab reads, so the two always agree. Row click opens
+// the file (or the Files panel for a folder) and dismisses the popover.
+function SourcesSection({ ui, workerId }) {
+  const snap = useSyncExternalStore(
+    useCallback((cb) => (workerId ? subscribe(workerId, cb) : () => {}), [workerId]),
+    useCallback(() => getSnapshot(workerId), [workerId]),
+  );
+  useEffect(() => {
+    if (!workerId) return;
+    return attach(workerId);
+  }, [workerId]);
+
+  const attachments = snap.attachments;
+  const open = (att) => {
+    if (att.kind === "folder") ui.openPanel("files", { cwd: att.path });
+    else ui.openFile(att.path);
+    ui.closeAllPops();
+  };
+
+  return (
+    <>
+      <div className="env-head env-head--sources"><span>Sources</span></div>
+      {attachments.length === 0 ? (
+        <div className="env-row env-static env-dim">
+          <span className="env-label">No files attached</span>
+        </div>
+      ) : (
+        attachments.map((att) => (
+          <button key={att.path} className="env-row" onClick={() => open(att)} title={att.path}>
+            {att.kind === "folder" ? <FolderGlyph /> : <DocIcon />}
+            <span className="env-label">{basename(att.path)}</span>
+          </button>
+        ))
+      )}
+    </>
+  );
+}
+
+function basename(path) {
+  const p = path.endsWith("/") ? path.slice(0, -1) : path;
+  return p.split("/").pop() || p;
 }
 
 function PlusGlyph() {
@@ -193,18 +226,10 @@ function DocIcon() {
     </svg>
   );
 }
-function GlobeIcon() {
+function FolderGlyph() {
   return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="8" cy="8" r="6" /><ellipse cx="8" cy="8" rx="2.6" ry="6" /><path d="M2 8h12" />
-    </svg>
-  );
-}
-function ExternalIcon() {
-  return (
-    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-      <path d="M6 3H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-2" />
-      <path d="M9 2h5v5M14 2 7 9" />
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M2 4.5a1 1 0 0 1 1-1h3l1.5 1.5H13a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1z" />
     </svg>
   );
 }
