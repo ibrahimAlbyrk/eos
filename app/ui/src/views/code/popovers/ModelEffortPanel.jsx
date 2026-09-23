@@ -208,7 +208,7 @@ function RailPanel({ live, ui, worker, config, onPick }) {
               <span className="me-model-cur">{modelName(currentModel) || currentModel}</span>
             </div>
             <button className="me-reset" onClick={reset} title="Reset to Medium" aria-label="Reset effort">
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3.5 8.5" />
                 <path d="M3.5 3.5v5h5" />
               </svg>
