@@ -1390,65 +1390,12 @@
 
 /* ─── Embedded PTY terminal panel (interior) ───────────────────────────────
    The panel docks as one of the pane's right-side island cards (chrome via the
-   shared PanelShell; the tab strip rides the shell header's title slot). This
-   is only the interior that FILLS that card: pill tabs + trailing "+", and the
-   xterm body sharing the island bg (identical to the xterm theme background).
-   No card chrome, no layout split of its own — the shell owns positioning/
-   radius/shadow/header. */
-.pty-tabs {
-  display: flex;
-  align-items: center;
-  gap: 3px;
-  min-width: 0;
-  flex: 1;
-  overflow-x: auto;
-  scrollbar-width: none;
-}
-.pty-tabs::-webkit-scrollbar { display: none; }
-
-.pty-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  min-width: 0;
-  max-width: 140px;
-  padding: 2px 4px 2px 8px;
-  border-radius: 6px;
-  border: 0.5px solid transparent;
-  color: var(--fg-mid);
-  font-size: 11px;
-  font-weight: 500;
-  cursor: pointer;
-  user-select: none;
-  transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
-}
-.pty-tab:not(.is-active):hover { color: var(--fg); background: rgba(var(--tint), 0.06); }
-.pty-tab.is-active {
-  color: var(--fg);
-  background: rgba(var(--tint), 0.12);
-  border-color: rgba(var(--tint), 0.24);
-}
-.pty-tab.is-exited .pty-tab__label { opacity: 0.55; text-decoration: line-through; }
-.pty-tab__label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pty-tab__close,
-.pty-tab__add {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: var(--fg-faint);
-  cursor: pointer;
-  border-radius: 4px;
-}
-.pty-tab__close { width: 13px; height: 13px; opacity: 0.7; }
-.pty-tab__close:hover { background: rgba(var(--tint), 0.12); color: var(--fg); opacity: 1; }
-.pty-tab__add { width: 18px; height: 18px; }
-.pty-tab__add:hover { background: rgba(var(--tint), 0.08); color: var(--fg); }
-
-/* Body: stacked xterm hosts, only the active one visible; each fills the body
-   and shares the panel bg so header→content is seamless. */
+   shared PanelShell). A SINGLE terminal, no inner tab strip: the interior is
+   just the xterm body sharing the island bg (identical to the xterm theme
+   background). No card chrome, no layout split of its own — the shell owns
+   positioning/radius/shadow/header.
+   Body: the xterm host fills the panel and shares the panel bg so the
+   header→content transition is seamless. */
 .pty-body {
   position: relative;
   flex: 1;
