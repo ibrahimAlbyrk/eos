@@ -38,8 +38,7 @@ export function spawnPtyHost(opts: PtyHostOptions): PtyHost {
     cwd: opts.cwd,
     cols: opts.cols,
     rows: opts.rows,
-    // The user's real env, nothing stripped — this is the operator's own shell.
-    env: { ...process.env, TERM: "xterm-256color" },
+    env: ptyEnv(process.env),
   });
   return {
     onData: (cb) => { pty.onData(cb); },
@@ -48,6 +47,17 @@ export function spawnPtyHost(opts: PtyHostOptions): PtyHost {
     resize: (cols, rows) => { pty.resize(cols, rows); },
     kill: () => { try { pty.kill(); } catch {} },
   };
+}
+
+// The user's real env (this is the operator's own shell) with the terminal
+// identity overridden: an inherited TERM_PROGRAM (daemon launched from Ghostty or
+// iTerm) makes TUIs apply that terminal's quirks to our xterm.js. COLORTERM keeps
+// truecolor on (xterm.js supports it; without it TUIs fall back to 256 colors).
+// FORCE_HYPERLINK makes Claude Code and other supports-hyperlinks tools emit
+// clickable OSC 8 links.
+export function ptyEnv(base: Record<string, string | undefined>): Record<string, string | undefined> {
+  const { TERM_PROGRAM_VERSION: _version, ...env } = base;
+  return { ...env, TERM: "xterm-256color", TERM_PROGRAM: "eos", COLORTERM: "truecolor", FORCE_HYPERLINK: "1" };
 }
 
 function shellQuote(s: string): string {
