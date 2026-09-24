@@ -402,7 +402,7 @@ export function Messages({ live, agentId, isActive = true }) {
   }, [blocks, selectedId]);
 
   // expandedTools/settings in deps: expanding a tool mounts new text the ranges must cover.
-  const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools, ui.settings], isActive);
+  const find = usePageFind(contentRef, wrapRef, [blocks, ui.expandedTools, ui.settings], isActive, stick.hold);
 
   const parentWorker = selectedWorker?.parent_id
     ? live.workers.find((w) => w.id === selectedWorker.parent_id)

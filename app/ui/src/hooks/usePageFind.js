@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { findAll } from "../lib/fileUtils.jsx";
 import { combo } from "../keymap/index.js";
 import { useKeybinding } from "../keymap/useKeymap.js";
+import { glideToBlock } from "../lib/glideTo.js";
 
 const highlights = typeof CSS !== "undefined" ? CSS.highlights : null;
 
@@ -51,7 +52,9 @@ function collectRanges(root, query) {
   return ranges;
 }
 
-export function usePageFind(contentRef, wrapRef, deps, enabled = true) {
+// `hold` unpins the scroller's stick-to-bottom before a jump; without it the
+// follow loop drags a pinned view straight back to the bottom.
+export function usePageFind(contentRef, wrapRef, deps, enabled = true, hold = null) {
   const [open, setOpen] = useState(false);
   const [query, setQueryRaw] = useState("");
   const [idx, setIdx] = useState(0);
@@ -60,6 +63,7 @@ export function usePageFind(contentRef, wrapRef, deps, enabled = true) {
   const lastScrollKeyRef = useRef(null);
   const paintedRef = useRef(0);
   const inputRef = useRef(null);
+  const cancelGlideRef = useRef(null);
 
   // Only the active transcript pane owns ⌘F (parked keep-alive panes stay
   // mounted, so without the `when` gate every pane would grab it at once).
@@ -78,23 +82,20 @@ export function usePageFind(contentRef, wrapRef, deps, enabled = true) {
   const scrollToRange = useCallback((range) => {
     const wrap = wrapRef.current;
     if (!wrap) return;
-    let rect = range.getBoundingClientRect();
+    hold?.();
+    cancelGlideRef.current?.();
+    const rect = range.getBoundingClientRect();
     // A match inside a content-visibility-skipped block has no layout (zero
     // rect). Bring the block itself into view first — that renders its
-    // contents — then the range measures true.
+    // contents — then the glide measures the range true.
     if (rect.width === 0 && rect.height === 0) {
       const host = range.startContainer instanceof Element
         ? range.startContainer
         : range.startContainer.parentElement;
       host?.closest("[data-bkey]")?.scrollIntoView({ block: "center" });
-      rect = range.getBoundingClientRect();
     }
-    const wrapRect = wrap.getBoundingClientRect();
-    const top = wrap.scrollTop + (rect.top - wrapRect.top) - wrap.clientHeight / 2;
-    // Plain scrollTo (not the programmatic-scroll guard): moving away from the
-    // bottom must unpin stick-to-bottom or the next poll yanks back down.
-    wrap.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
-  }, [wrapRef]);
+    cancelGlideRef.current = glideToBlock(wrap, range, wrap.clientHeight / 2);
+  }, [wrapRef, hold]);
 
   useEffect(() => {
     // CSS.highlights is a global registry — a parked pane must not touch it or it
@@ -129,7 +130,7 @@ export function usePageFind(contentRef, wrapRef, deps, enabled = true) {
     }
   }, [enabled, open, query, idx, contentRef, scrollToRange, ...deps]);
 
-  useEffect(() => clearHighlights, []);
+  useEffect(() => () => { clearHighlights(); cancelGlideRef.current?.(); }, []);
 
   const move = useCallback((d) => {
     const n = rangesRef.current.length;
