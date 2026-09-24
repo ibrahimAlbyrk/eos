@@ -24,8 +24,8 @@ const COMMIT_OPTIONS = [
 
 // The session's git actions (changes, commit, push/pull, PR) on a tray tucked
 // behind the composer card: only its top edge peeks out, hovering slides it up.
-// `pinned` (or an open split menu) holds it up so a menu never slides away.
-export function GitTray({ live, worker, wtStatus, pinned }) {
+// An open split menu holds it up so a menu never slides away.
+export function GitTray({ live, worker, wtStatus }) {
   const ui = useUi();
   const [prMode, setPrMode] = useState("pr");
   const [commitMode, setCommitMode] = useState("commit");
@@ -89,7 +89,7 @@ export function GitTray({ live, worker, wtStatus, pinned }) {
   };
 
   return (
-    <div className={"git-tray" + (pinned || menusOpen > 0 ? " pinned" : "")}>
+    <div className={"git-tray" + (menusOpen > 0 ? " pinned" : "")}>
       <div className="git-tray-body">
         <span className="git-tray-grip" aria-hidden="true" />
         <div className="diff-actions">

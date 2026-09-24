@@ -3198,17 +3198,24 @@
 .strip-branch { color: var(--fg-dim); max-width: 230px; }
 .strip-branch.on { color: var(--fg); }
 .strip-branch-ic { flex-shrink: 0; color: var(--fg-dim2); }
+/* Fade only when the name is actually cut off: a self scroll-timeline is
+   inactive when nothing overflows, so the masking animation never applies. */
 .strip-branch-name {
   overflow: hidden; white-space: nowrap; min-width: 0;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
-          mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
+  animation: strip-branch-fade linear both;
+  animation-timeline: scroll(self inline);
+}
+@keyframes strip-branch-fade {
+  from, to {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
+            mask-image: linear-gradient(to right, #000 calc(100% - 26px), transparent);
+  }
 }
 
 /* ── session tray: the strip slot once a session exists. Queued messages sit
    in it fully; otherwise the git actions hide behind the card with only an 8px
    lip showing, and slide up on hover (or while one of their menus is open). ── */
 .session-tray { position: relative; }
-.session-tray-anchor { position: absolute; left: 20px; top: 0; }
 .git-tray-body, .queue-tray {
   background: linear-gradient(180deg, #272727 0, var(--pop) 16px);
   border-radius: var(--r-pop) var(--r-pop) 0 0;
@@ -3448,7 +3455,7 @@
 
 /* accent send circle — the ONE control with a resting fill */
 .composer-inner .submit, .composer-compact .submit {
-  width: 32px; height: 32px; border-radius: 50%;
+  width: 24px; height: 24px; border-radius: 50%;
   background: var(--accent); color: var(--accent-fg);
   display: inline-flex; align-items: center; justify-content: center;
   flex-shrink: 0; align-self: center; border: 0; cursor: pointer;
@@ -3456,8 +3463,7 @@
 }
 .composer-inner .submit:hover, .composer-compact .submit:hover { background: var(--accent); color: var(--accent-fg); }
 .composer-inner .submit.dim, .composer-compact .submit.dim { opacity: 0.45; }
-.composer-inner .submit.stop, .composer-compact .submit.stop { background: var(--err); color: var(--accent-fg); opacity: 1; }
-.composer-inner .submit.stop:hover, .composer-compact .submit.stop:hover { background: var(--err); }
+.composer-inner .submit.stop, .composer-compact .submit.stop { opacity: 1; }
 
 /* ── collapsed composer (a permission/question card is showing) ── */
 .composer-compact {

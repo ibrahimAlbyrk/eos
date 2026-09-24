@@ -1,35 +1,32 @@
-import { createPortal } from "react-dom";
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { workerGitDir } from "../../../lib/workerGitDir.js";
 import { useGitStatus } from "../../../hooks/useGitStatus.js";
 import { subscribe, getSnapshot, attach } from "../../../state/chatAttachmentsStore.js";
+import { useEnvPanelOpen } from "../../../state/envPanelStore.js";
 import { PushButton } from "../center/PushButton.jsx";
 import { PullButton } from "../center/PullButton.jsx";
+import { BranchManager } from "../popovers/BranchManager.jsx";
 
-// Environment & changes popover (charcoal-aurora). Opened from the header's
-// checklist button, anchored under the header's bottom line (top: header bottom;
-// right-aligned to the button cluster). New home for the quick git affordances
-// that used to live in the orphaned ComposerDiffRow — Changes counts, Push ↑n /
-// Pull ↓n (rehomed PushButton/PullButton with their ring FX), Commit-or-push and
-// View-all (open the Review side panel), branch (opens the strip's Branch
-// manager), Create PR, and Custom git task (⌘G). Portal'd to <body> so a split
-// pane's contain:paint can't clip it (HeaderAgentMenu idiom). Wrapper/inner split
-// (ModelEffortPanel idiom) so the git-status subscription only runs while open.
-export function EnvironmentPopover({ worker, anchor }) {
+// Environment & changes panel, toggled from the header's checklist button. Opens
+// in the pane's right gutter; the transcript + composer column slides left only
+// when it would otherwise run under the panel (see .env-dock in menus.css).
+// Wrapper/inner split so the git-status subscription only runs while open.
+export function EnvDock({ live, worker, children }) {
   const ui = useUi();
-  if (ui.openPopover !== "env" || !worker) return null;
-  return <EnvPopover ui={ui} worker={worker} anchor={anchor} />;
+  const open = useEnvPanelOpen(ui.paneId) && Boolean(worker);
+  return (
+    <div className={"env-dock" + (open ? " is-open" : "")}>
+      <div className="env-dock-main">{children}</div>
+      {open && <EnvPanel ui={ui} live={live} worker={worker} />}
+    </div>
+  );
 }
 
-function EnvPopover({ ui, worker, anchor }) {
+function EnvPanel({ ui, live, worker }) {
   const gitDir = workerGitDir(worker);
   const { status: gs, refresh } = useGitStatus(worker.id, { gitDir });
-
-  const rect = anchor?.current?.getBoundingClientRect();
-  if (!rect) return null;
-  const pos = { top: Math.round(rect.bottom + 26), right: Math.max(8, Math.round(window.innerWidth - rect.right)) };
 
   const diff = gs?.diff ?? { insertions: 0, deletions: 0, files: 0 };
   const branch = gs?.currentBranch ?? worker.branch ?? "main";
@@ -39,42 +36,34 @@ function EnvPopover({ ui, worker, anchor }) {
   const pushKind = gs?.pushKind ?? "noop";
   const pullable = gs?.pullable ?? false;
 
-  const openReview = () => { ui.openPanel("review", { workerId: worker.id, cwd: gitDir }); ui.closeAllPops(); };
-  // Reuse the session tray's Branch manager (popover id "branch-dd") — already
-  // mounted for this pane's folder and knows how to checkout/create branches.
-  const openBranch = () => { ui.closeAllPops(); ui.openPop("branch-dd"); };
-  const createPr = () => { api.sendWorkerAction(worker.id, "pr"); ui.closeAllPops(); };
-  // Same path GitAgentPopover.startCustom used: flip the composer into git mode so
-  // the next prompt spawns a git agent (Composer owns the spawnGitAgent call).
-  const customGit = () => { ui.closeAllPops(); ui.toggleGitMode?.(true); };
+  const branchOpen = ui.openPopover === "branch-dd";
+  const toggleBranch = () => (branchOpen ? ui.closeAllPops() : ui.openPop("branch-dd"));
+  const createPr = () => api.sendWorkerAction(worker.id, "pr");
+  const openReview = () => ui.openPanel("review", { workerId: worker.id, cwd: gitDir });
 
-  return createPortal(
-    <div className="env-pop" data-popover="env" style={pos}>
+  return (
+    <div className="env-pop">
       <div className="env-head"><span>Environment</span><PlusGlyph /></div>
 
-      <div className="env-row env-static">
+      <button className="env-row" onClick={openReview}>
         <ChangesIcon />
         <span className="env-label">Changes</span>
         <span className="env-count env-add">+{diff.insertions.toLocaleString()}</span>
         <span className="env-count env-del">−{diff.deletions.toLocaleString()}</span>
-      </div>
-
-      <div className="env-row env-static">
-        <LocalIcon />
-        <span className="env-label">Local</span>
-        <ChevronDown />
-      </div>
-
-      <button className="env-row" onClick={openBranch}>
-        <BranchIcon />
-        <span className="env-label env-branch" title={branch}>{branch}</span>
-        <ChevronDown />
       </button>
 
-      <button className="env-row" onClick={openReview}>
-        <CommitIcon />
-        <span className="env-label">Commit or push</span>
-      </button>
+      <div className="env-branch-wrap">
+        <button
+          className={"env-row" + (branchOpen ? " is-active" : "")}
+          onClick={toggleBranch}
+          data-popover-trigger="branch-dd"
+        >
+          <BranchIcon />
+          <span className="env-label env-branch" title={branch}>{branch}</span>
+          <ChevronDown />
+        </button>
+        <BranchManager live={live} cwd={gitDir} />
+      </div>
 
       {pushable && (
         <div className="env-row env-fx-row">
@@ -99,21 +88,14 @@ function EnvPopover({ ui, worker, anchor }) {
         <span className="env-label">Create pull request</span>
       </button>
 
-      <button className="env-row" onClick={customGit}>
-        <PencilIcon />
-        <span className="env-label">Custom git task</span>
-        <span className="kbd">⌘G</span>
-      </button>
-
       <SourcesSection ui={ui} workerId={worker.id} />
-    </div>,
-    document.body,
+    </div>
   );
 }
 
 // Sources = the files attached to this chat. Same module-singleton store the
 // "Chat files" side-panel tab reads, so the two always agree. Row click opens
-// the file (or the Files panel for a folder) and dismisses the popover.
+// the file (or the Files panel for a folder). Capped at 8 visible rows, rest scroll.
 function SourcesSection({ ui, workerId }) {
   const snap = useSyncExternalStore(
     useCallback((cb) => (workerId ? subscribe(workerId, cb) : () => {}), [workerId]),
@@ -128,7 +110,6 @@ function SourcesSection({ ui, workerId }) {
   const open = (att) => {
     if (att.kind === "folder") ui.openPanel("files", { cwd: att.path });
     else ui.openFile(att.path);
-    ui.closeAllPops();
   };
 
   return (
@@ -139,12 +120,14 @@ function SourcesSection({ ui, workerId }) {
           <span className="env-label">No files attached</span>
         </div>
       ) : (
-        attachments.map((att) => (
-          <button key={att.path} className="env-row" onClick={() => open(att)} title={att.path}>
-            {att.kind === "folder" ? <FolderGlyph /> : <DocIcon />}
-            <span className="env-label">{basename(att.path)}</span>
-          </button>
-        ))
+        <div className="env-sources">
+          {attachments.map((att) => (
+            <button key={att.path} className="env-row" onClick={() => open(att)} title={att.path}>
+              {att.kind === "folder" ? <FolderGlyph /> : <DocIcon />}
+              <span className="env-label">{basename(att.path)}</span>
+            </button>
+          ))}
+        </div>
       )}
     </>
   );
@@ -177,15 +160,6 @@ function ChangesIcon() {
     </svg>
   );
 }
-function LocalIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round">
-      <rect x="2" y="5.5" width="10" height="6.5" rx="1" />
-      <line x1="3.5" y1="3.5" x2="10.5" y2="3.5" />
-      <line x1="4.5" y1="1.5" x2="9.5" y2="1.5" />
-    </svg>
-  );
-}
 function BranchIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
@@ -194,26 +168,11 @@ function BranchIcon() {
     </svg>
   );
 }
-function CommitIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3">
-      <circle cx="8" cy="8" r="2.5" />
-      <line x1="1.5" y1="8" x2="5.5" y2="8" /><line x1="10.5" y1="8" x2="14.5" y2="8" />
-    </svg>
-  );
-}
 function PrIcon() {
   return (
     <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="4" cy="4" r="1.5" /><circle cx="4" cy="12" r="1.5" /><circle cx="12" cy="8" r="1.5" />
       <path d="M4 5.5v5M5.5 8h5" />
-    </svg>
-  );
-}
-function PencilIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 2.5l2.5 2.5M3 13l1-3.2 6.7-6.7 2.2 2.2L6.2 12 3 13z" />
     </svg>
   );
 }

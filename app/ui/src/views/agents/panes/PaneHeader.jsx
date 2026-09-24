@@ -6,12 +6,13 @@ import { RenameInput } from "../../../components/RenameInput.jsx";
 import { api } from "../../../api/client.js";
 import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { SplitMenu } from "../popovers/SplitMenu.jsx";
-import { EnvironmentPopover } from "../popovers/EnvironmentPopover.jsx";
+import { toggleEnvPanel, useEnvPanelOpen } from "../../../state/envPanelStore.js";
 import { PlanChip } from "./PlanChip.jsx";
 
 // Per-pane top bar: breadcrumb + agent menu on the left, and — on the right —
 // exactly the reference's three chrome buttons: Environment & changes (git
-// popover), Split (layout menu, single/primary header only), and Open side panel.
+// docked panel), Split (layout menu, single/primary header only), and a slot for
+// the Open-side-panel toggle (drawn by SidePanel as a pane overlay).
 // Owned by each pane and rendered INSIDE its PaneScopeContext.Provider, so every
 // scoped ui read/action (openPop, toggleSidePanel) targets THIS pane with no
 // prop-drilling. The header is the native window-drag strip (--app-region: drag
@@ -30,9 +31,10 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   // (overflow:hidden) and split panes paint-contain, so the menu can't render
   // in place — it measures this wrap and portals to <body> instead.
   const vWrapRef = useRef(null);
-  // Anchor for the portal'd Environment / Split popovers — they measure this
-  // button cluster and drop from the header's bottom line, right-aligned.
+  // Anchor for the portal'd Split popover — it measures this
+  // button cluster and drops from the header's bottom line, right-aligned.
   const actionsRef = useRef(null);
+  const envOpen = useEnvPanelOpen(ui.paneId);
 
   const rootClass = ["pane-head", topRow ? "pane-head--toprow" : "", topLeft ? "pane-head--topleft" : ""]
     .filter(Boolean)
@@ -53,11 +55,10 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
     <div className="pane-head-actions" ref={actionsRef}>
       {worker && (
         <button
-          className={"pane-split-btn" + (ui.openPopover === "env" ? " is-active" : "")}
+          className={"pane-split-btn" + (envOpen ? " is-active" : "")}
           title="Environment & changes"
           aria-label="Environment & changes"
-          onClick={(e) => togglePop("env", e)}
-          data-popover-trigger="env"
+          onClick={(e) => { e.stopPropagation(); toggleEnvPanel(ui.paneId); }}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
             <path d="M6.5 4h7M6.5 8h7M6.5 12h7" />
@@ -91,19 +92,11 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
           </svg>
         </span>
       )}
-      <button
-        className={"pane-split-btn" + (ui.showSidePanel ? " is-active" : "")}
-        title="Open side panel"
-        aria-label="Open side panel"
-        onClick={(e) => { e.stopPropagation(); ui.toggleSidePanel(); }}
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
-          <rect x="2" y="3" width="12" height="10" rx="2" />
-          <line x1="10.5" y1="3" x2="10.5" y2="13" />
-        </svg>
-      </button>
+      {/* The side-panel toggle is a pane-level overlay (SidePanel's
+          SidePanelToggle) so it stays put while the panel slides open; this
+          empty slot holds its spot in the row while the panel is closed. */}
+      {!ui.showSidePanel && <span className="pane-split-btn" aria-hidden="true" />}
       {canClose && <CloseButton onClose={onClose} />}
-      {worker && <EnvironmentPopover worker={worker} anchor={actionsRef} />}
       {worker && !split && <SplitMenu live={live} worker={worker} anchor={actionsRef} />}
     </div>
   );

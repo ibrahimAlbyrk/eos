@@ -8,8 +8,8 @@ const SendIcon = (
 );
 
 const StopIcon = (
-  <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
-    <rect x="4.5" y="4.5" width="7" height="7" rx="1.5" />
+  <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+    <rect x="1" y="1" width="14" height="14" rx="3" />
   </svg>
 );
 

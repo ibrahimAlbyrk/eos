@@ -1,12 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { getPanel } from "../../../lib/panelRegistry.js";
 import { tabType, filePathOf } from "../../../lib/panelTabs.js";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
 import { FileIcon } from "../../files/FileIcon.jsx";
-import { sessionRootOf } from "../../../lib/agentIndex.js";
 import { closePane as closePtyPane } from "../../../state/ptyPanelStore.js";
-import { terminalPaneKey } from "../messages/TerminalViewer.jsx";
+import { terminalPaneKey, useTerminalRoot } from "../messages/TerminalViewer.jsx";
 import "./registerPanels.js";
 
 // A pane's right side panel: a tab bar over a single content area, plus a 6px
@@ -14,8 +13,10 @@ import "./registerPanels.js";
 // via PaneScopeContext), so every read/action here resolves to that pane; it
 // returns null when that pane's panel is closed. Pills render ONLY the open tabs
 // (default: none — a quiet empty state); the + menu opens Terminal / Files / Chat
-// files (every opened file gets its own pill), the active pill's × closes just that tab, and the chrome × hides the
-// panel. Width is that pane's own --sp-w; double-click the edge resets to default.
+// files (every opened file gets its own pill), the active pill's × closes just that tab. The
+// panel is shown/hidden by SidePanelToggle, a pane-level overlay pinned to the
+// header's top-right, so it stays put while the panel slides open/closed under
+// it. Width is that pane's own --sp-w; double-click the edge resets to default.
 
 const ICONS = {
   review: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="2.5" y="2.5" width="11" height="11" rx="2" /><path d="M5.5 8h5M8 5.5v5" /></svg>,
@@ -39,6 +40,11 @@ const TAB_LABELS = {
   browser: "Browser",
   chatfiles: "Chat files",
 };
+
+// + menu entries, in order. The Code view passes its own subset (no agent-bound
+// tabs); menu shortcut hints per type.
+const AGENT_TABS = ["terminal", "files", "browser", "chatfiles"];
+const TAB_KBD = { terminal: "⌃`", files: "⌘P" };
 
 const baseName = (path) => path.slice(path.lastIndexOf("/") + 1);
 
@@ -95,20 +101,16 @@ function TabPill({ id, label, active, onSelect, onClose }) {
   );
 }
 
-function PlusMenu({ onPick }) {
-  const item = (type, label, kbd) => (
-    <div className="sp-plus-item" onClick={(e) => { e.stopPropagation(); onPick(type); }}>
-      <span className="sp-tab-icon">{ICONS[type]}</span>
-      <span className="sp-plus-label">{label}</span>
-      {kbd && <span className="sp-plus-kbd">{kbd}</span>}
-    </div>
-  );
+function PlusMenu({ tabs, onPick }) {
   return (
     <div className="sp-plus-menu" data-pop="sidepanel-plus">
-      {item("terminal", "Terminal", "⌃`")}
-      {item("files", "Files", "⌘P")}
-      {item("browser", "Browser")}
-      {item("chatfiles", "Chat files")}
+      {tabs.map((type) => (
+        <div key={type} className="sp-plus-item" onClick={(e) => { e.stopPropagation(); onPick(type); }}>
+          <span className="sp-tab-icon">{ICONS[type]}</span>
+          <span className="sp-plus-label">{TAB_LABELS[type]}</span>
+          {TAB_KBD[type] && <span className="sp-plus-kbd">{TAB_KBD[type]}</span>}
+        </div>
+      ))}
     </div>
   );
 }
@@ -122,13 +124,14 @@ function EmptyPanel() {
         <svg width="40" height="40" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="12" height="10" rx="2" /><line x1="10.5" y1="3" x2="10.5" y2="13" /></svg>
       </span>
       <span className="empty-state__title">No panel open</span>
-      <span className="empty-state__subtitle">Open Terminal, Files or Chat files from the + menu.</span>
+      <span className="empty-state__subtitle">Open a tab from the + menu.</span>
     </div>
   );
 }
 
-export function SidePanel({ live }) {
+export function SidePanel({ live, tabs = AGENT_TABS }) {
   const ui = useUi();
+  const terminalRoot = useTerminalRoot();
   const openTabs = ui.openTabs ?? [];
   const activeTab = ui.activeTab ?? null;
   const panel = activeTab ? getPanel(tabType(activeTab)) : null;
@@ -156,7 +159,7 @@ export function SidePanel({ live }) {
   const onDragStart = useCallback((e) => {
     if (e.button) return;
     e.preventDefault();
-    const pane = asideRef.current?.closest(".pane, .single-pane");
+    const pane = asideRef.current?.closest(".pane, .single-pane, .sp-host");
     const aside = asideRef.current;
     if (!pane || !aside) return;
     document.body.style.cursor = "col-resize";
@@ -179,54 +182,99 @@ export function SidePanel({ live }) {
   // other panel types have nothing session-bound to tear down here.
   const closeTabById = (id) => {
     if (tabType(id) === "terminal") {
-      closePtyPane(terminalPaneKey(sessionRootOf(ui.selectedId) ?? "global", id));
+      closePtyPane(terminalPaneKey(terminalRoot, id));
     }
     ui.closeTab(id);
   };
 
+  // Slide open/closed: `slide` is set on each open↔closed flip (render-time, so
+  // the closing panel never unmounts before its animation) and cleared when the
+  // animation ends. A panel already open on mount appears without sliding.
+  const open = ui.showSidePanel;
+  const [wasOpen, setWasOpen] = useState(open);
+  const [slide, setSlide] = useState(null);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    setSlide(open ? "open" : "close");
+  }
+
+  // While sliding, the contents hold the final width (right-anchored, clipped by
+  // the growing/shrinking panel) so terminals and files don't reflow every frame.
+  useLayoutEffect(() => {
+    const aside = asideRef.current;
+    const pane = aside?.closest(".pane, .single-pane, .sp-host");
+    if (!slide || !pane) return;
+    const w = ui.sidePanelWidth || Math.min(620, pane.clientWidth / 2);
+    aside.style.setProperty("--sp-final", w + "px");
+  }, [slide, ui.sidePanelWidth]);
+
+  const toggle = <SidePanelToggle open={open} onToggle={ui.toggleSidePanel} />;
+
   // All hooks above run every render; only the JSX is gated on open.
-  if (!ui.showSidePanel) return null;
+  if (!open && slide !== "close") return toggle;
 
   const fullscreen = ui.panelFullscreen;
 
   return (
-    <aside
-      className={"side-panel" + (fullscreen ? " side-panel--fullscreen" : "")}
-      ref={asideRef}
-      style={{ "--sp-w": ui.sidePanelWidth ? ui.sidePanelWidth + "px" : "min(620px, 50%)" }}
-      onMouseDownCapture={() => ui.setFocusedRegion("panel")}
+    <>
+      <aside
+        className={"side-panel" + (fullscreen ? " side-panel--fullscreen" : "") + (slide ? ` side-panel--${slide}` : "")}
+        ref={asideRef}
+        style={{ "--sp-w": ui.sidePanelWidth ? ui.sidePanelWidth + "px" : "min(620px, 50%)" }}
+        onMouseDownCapture={() => ui.setFocusedRegion("panel")}
+        onAnimationEnd={(e) => { if (e.target === e.currentTarget) setSlide(null); }}
+      >
+        <div className="sp-resize" onPointerDown={onDragStart} onDoubleClick={() => ui.setSidePanelWidth(null)} title="Drag to resize" />
+        <div className="sp-tabbar">
+          {openTabs.map((id) => (
+            <TabPill
+              key={id}
+              id={id}
+              label={labelFor(id, openTabs)}
+              active={id === activeTab}
+              onSelect={() => ui.setTab(id)}
+              onClose={() => closeTabById(id)}
+            />
+          ))}
+          <span className={"sp-plus" + (plusOpen ? " on" : "")} onClick={() => setPlusOpen((v) => !v)} title="New tab" role="button">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
+            {plusOpen && <PlusMenu tabs={tabs} onPick={pickTab} />}
+          </span>
+          <span className="sp-spacer" />
+          <span className={"sp-chrome-btn" + (fullscreen ? " on" : "")} onClick={ui.toggleFullscreen} title={fullscreen ? "Exit fullscreen" : "Fullscreen"} role="button">
+            {fullscreen ? (
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 3 9 7V3M9 7h4M3 13l4-4v4M7 9H3" /></svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h4v4M7 13H3V9M8 8l5-5M8 8l-5 5" /></svg>
+            )}
+          </span>
+        </div>
+        <div className="sp-content">
+          {panel ? <panel.Component key={activeTab} live={live} tabId={activeTab} /> : <EmptyPanel />}
+        </div>
+      </aside>
+      {toggle}
+    </>
+  );
+}
+
+// Open/close button pinned over the pane's top-right corner, exactly where the
+// header reserves its slot — it never moves; open = lit fill + filled-rail icon.
+function SidePanelToggle({ open, onToggle }) {
+  const label = open ? "Close side panel" : "Open side panel";
+  return (
+    <button
+      className={"pane-split-btn sp-toggle" + (open ? " is-active" : "")}
+      title={label}
+      aria-label={label}
+      aria-pressed={open}
+      onClick={(e) => { e.stopPropagation(); onToggle(); }}
     >
-      <div className="sp-resize" onPointerDown={onDragStart} onDoubleClick={() => ui.setSidePanelWidth(null)} title="Drag to resize" />
-      <div className="sp-tabbar">
-        {openTabs.map((id) => (
-          <TabPill
-            key={id}
-            id={id}
-            label={labelFor(id, openTabs)}
-            active={id === activeTab}
-            onSelect={() => ui.setTab(id)}
-            onClose={() => closeTabById(id)}
-          />
-        ))}
-        <span className={"sp-plus" + (plusOpen ? " on" : "")} onClick={() => setPlusOpen((v) => !v)} title="New tab" role="button">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"><path d="M8 3v10M3 8h10" /></svg>
-          {plusOpen && <PlusMenu onPick={pickTab} />}
-        </span>
-        <span className="sp-spacer" />
-        <span className={"sp-chrome-btn" + (fullscreen ? " on" : "")} onClick={ui.toggleFullscreen} title={fullscreen ? "Exit fullscreen" : "Fullscreen"} role="button">
-          {fullscreen ? (
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 3 9 7V3M9 7h4M3 13l4-4v4M7 9H3" /></svg>
-          ) : (
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 3h4v4M7 13H3V9M8 8l5-5M8 8l-5 5" /></svg>
-          )}
-        </span>
-        <span className="sp-chrome-btn" onClick={ui.closePanel} title="Close" role="button">
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2"><path d="m4 4 8 8M12 4l-8 8" /></svg>
-        </span>
-      </div>
-      <div className="sp-content">
-        {panel ? <panel.Component key={activeTab} live={live} tabId={activeTab} /> : <EmptyPanel />}
-      </div>
-    </aside>
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4">
+        {open && <path d="M10.5 3H12a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-1.5z" fill="currentColor" stroke="none" />}
+        <rect x="2" y="3" width="12" height="10" rx="2" />
+        <line x1="10.5" y1="3" x2="10.5" y2="13" />
+      </svg>
+    </button>
   );
 }

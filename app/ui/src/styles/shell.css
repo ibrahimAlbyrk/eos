@@ -95,8 +95,10 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
 @media (prefers-reduced-motion: reduce) { .sb-new-dot { animation: none; } }
 
 /* Hover flyout: the full sidebar floats as a 300px --panel card with a popover
-   shadow — the one place the collapsed sidebar shows a floating layer. */
-.side-handle-popup {
+   shadow — the one place the collapsed sidebar shows a floating layer.
+   Compound selector so the later `.side-island { position: relative }` can't
+   override `fixed` and drop the card into the toggle zone's flex row. */
+.side-handle-popup.side-island {
   position: fixed;
   left: 10px; top: 52px; bottom: 10px;
   width: 300px;
@@ -545,6 +547,33 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   border-left: none;
 }
 .side-panel--fullscreen .sp-resize { display: none; }
+/* Slide open/closed (SidePanel sets the class per flip): the panel's width eases
+   from/to 0 while its tab bar + content hold --sp-final, right-anchored, so they
+   are revealed like a drawer instead of reflowing every frame. */
+@keyframes sp-open { from { width: 0; } }
+@keyframes sp-close { to { width: 0; } }
+.side-panel--open { animation: sp-open 240ms cubic-bezier(0.2, 0.7, 0.3, 1); }
+.side-panel--close { animation: sp-close 200ms cubic-bezier(0.2, 0.7, 0.3, 1) forwards; }
+.side-panel--open > .sp-tabbar, .side-panel--open > .sp-content,
+.side-panel--close > .sp-tabbar, .side-panel--close > .sp-content {
+  width: var(--sp-final);
+  flex-shrink: 0;
+  align-self: flex-end;
+}
+/* Open/close toggle: pinned over the pane's top-right at the exact spot the
+   header's empty slot holds (header padding-top/right; split panes with a close
+   × sit one button further in), so it never moves as the panel opens under it.
+   The tab bar reserves the same spot and centers its row on it. */
+.single-pane { --spt-top: 16px; --spt-right: 20px; --spt-size: 30px; }
+html.native .single-pane { --spt-top: 12px; }
+.pane { --spt-top: 12px; --spt-right: 12px; --spt-size: 24px; }
+.pane:has(.pane-close) { --spt-right: 40px; }
+.sp-toggle {
+  position: absolute;
+  top: var(--spt-top);
+  right: var(--spt-right);
+  z-index: 25;
+}
 /* Invisible col-resize strip along the panel's left edge. It sits inside the
    panel because .side-panel's overflow:hidden clips anything past the edge.
    Hovering it brightens the panel's own border line. */
@@ -580,7 +609,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 12px 12px 6px 14px;
+  padding: calc(var(--spt-top) + (var(--spt-size) - 26px) / 2) calc(var(--spt-right) + var(--spt-size) + 4px) 6px 14px;
   flex-shrink: 0;
 }
 .sp-tab {

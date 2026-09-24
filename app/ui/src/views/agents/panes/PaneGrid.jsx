@@ -9,6 +9,7 @@ import { Composer } from "../center/Composer.jsx";
 import { DragAffordance } from "./DragAffordance.jsx";
 import { PaneHeader } from "./PaneHeader.jsx";
 import { SidePanel } from "./SidePanel.jsx";
+import { EnvDock } from "./EnvironmentPanel.jsx";
 import { PaneScopeContext } from "../../../state/paneScope.js";
 
 const pctStyle = (r) => ({ left: `${r.left}%`, top: `${r.top}%`, width: `${r.width}%`, height: `${r.height}%` });
@@ -175,10 +176,12 @@ export function SinglePane({ live }) {
             onClose={() => {}}
             topLeft
           />
-          <div className="pane-tx">
-            <TranscriptHost live={live} activeId={ui.selectedId} />
-          </div>
-          <Composer live={live} worker={selected} paneId={leafId} focused />
+          <EnvDock live={live} worker={selected}>
+            <div className="pane-tx">
+              <TranscriptHost live={live} activeId={ui.selectedId} />
+            </div>
+            <Composer live={live} worker={selected} paneId={leafId} focused />
+          </EnvDock>
         </div>
         <SidePanel live={live} />
       </PaneScopeContext.Provider>
@@ -265,8 +268,10 @@ function Pane({ id, agentId, worker, live, focused, topLeft, topRow, attention, 
               as the single-pane new-session state: agentId/worker are null, so the
               composer drops into its no-agent spawn flow — type a prompt and it spawns
               an orchestrator into this (focused) pane. No separate agent picker. */}
-          <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
-          <Composer live={live} worker={worker} paneId={id} focused={focused} />
+          <EnvDock live={live} worker={worker}>
+            <Messages live={live} agentId={agentId} isActive={focused} visible={true} />
+            <Composer live={live} worker={worker} paneId={id} focused={focused} />
+          </EnvDock>
         </div>
         <SidePanel live={live} />
       </PaneScopeContext.Provider>

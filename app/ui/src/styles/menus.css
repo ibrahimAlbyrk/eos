@@ -286,9 +286,11 @@
 .sm-sec { padding: 8px 10px 3px; font-size: var(--text-sm); color: var(--fg-faint); }
 .sm-empty { padding: 4px 10px 8px; font-size: var(--text-sm); color: var(--fg-faint); }
 
-/* ============== Environment & changes popover (PaneHeader → EnvironmentPopover) */
-/* Portal'd to <body>; reference: 290px, --r-pop, --pop, anchored to header bottom
-   line, right-aligned to the action cluster. Flat surface-step + shadow (floats). */
+/* ============== Environment & changes panel (PaneHeader toggle → EnvironmentPanel) */
+/* Sits in the pane's right gutter below the header; reference: 290px card,
+   --r-pop, --pop. The scroller keeps its full width (scrollbar never moves) and
+   the centered message/composer column only slides left when its right edge
+   would run under the panel — with enough free space nothing moves. */
 /* Plan popover + hover peek (PlanChip.jsx) — portal'd under the header chip. */
 .plan-pop {
   position: fixed;
@@ -354,9 +356,41 @@
   .plan-ic-active .plan-core { animation: none; }
 }
 
+.env-dock {
+  /* Clearance the column keeps from the dock's right edge: 14px inset + 290px
+     panel + 12px gap. */
+  --env-reserve: 316px;
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+}
+.env-dock-main {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.env-dock.is-open .messages {
+  /* .messages' own 32px padding may tuck under the panel; its content may not. */
+  margin-right: max(calc((100% - 820px) / 2), calc(var(--env-reserve) - 32px));
+  margin-left: auto;
+}
+.env-dock.is-open .composer-inner {
+  /* 100% = .composer-wrap's content box, already 14px in from the right edge. */
+  --env-mr: max(calc((100% - 820px) / 2), calc(var(--env-reserve) - 14px));
+  width: calc(100% - var(--env-mr));
+  margin-right: var(--env-mr);
+  margin-left: auto;
+}
 .env-pop {
-  position: fixed;
-  z-index: 400;
+  position: absolute;
+  top: 8px;
+  right: 14px;
+  z-index: 3;
   width: 290px;
   padding: 8px;
   background: var(--pop);
@@ -382,6 +416,7 @@
   gap: 10px;
   width: 100%;
   padding: 8px 10px;
+  line-height: 20px;
   border-radius: var(--r-row);
   color: var(--fg);
   text-align: left;
@@ -389,7 +424,8 @@
 }
 .env-row.env-static,
 .env-row.env-fx-row { cursor: default; }
-.env-row:not(.env-static):not(.env-fx-row):hover { background: var(--row-on); }
+.env-row:not(.env-static):not(.env-fx-row):hover,
+.env-row.is-active { background: var(--row-on); }
 .env-row > svg { flex-shrink: 0; color: var(--fg-dim2); }
 .env-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .env-count { flex-shrink: 0; font-family: var(--font-mono); font-size: var(--text-sm); }
@@ -397,10 +433,14 @@
 .env-del { color: var(--err); }
 .env-chev { flex-shrink: 0; color: var(--fg-dim2); }
 .env-sync { flex-shrink: 0; font-family: var(--font-mono); font-size: var(--text-sm); color: var(--fg-dim2); }
-.env-row .kbd { flex-shrink: 0; color: var(--fg-faint); font-family: var(--font-mono); font-size: 11px; }
 .env-dim { color: var(--fg-mid); }
 .env-faint { color: var(--fg-faint); }
 .env-fx-row { gap: 8px; }
+/* Rows are 36px (8px padding + 20px line); show 8, scroll the rest. */
+.env-sources { max-height: calc(8 * 36px); overflow-y: auto; }
+/* Branch manager opens to the left of the panel, top-aligned with the branch row. */
+.env-branch-wrap { position: relative; }
+.env-branch-wrap .cb-chip-dd { top: -8px; bottom: auto; left: auto; right: calc(100% + 16px); }
 
 /* Active / Archived section labels shown in the sidebar when Status = All. */
 .agents-status-label {
