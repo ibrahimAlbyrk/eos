@@ -2035,6 +2035,7 @@ export const ROUTES = {
   worker: (id: string): string => `/workers/${id}`,
   workerEvents: (id: string): string => `/workers/${id}/events`,
   workerAttachments: (id: string): string => `/workers/${id}/attachments`,
+  workerPromptEvents: (id: string): string => `/workers/${id}/prompt-events`,
   workerMessage: (id: string): string => `/workers/${id}/message`,
   workerQueue: (id: string): string => `/workers/${id}/queue`,
   workerQueueItem: (id: string, queueId: number): string => `/workers/${id}/queue/${queueId}`,

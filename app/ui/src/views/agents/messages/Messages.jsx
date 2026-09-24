@@ -40,6 +40,7 @@ import { MessageRow } from "./MessageRow.jsx";
 import { NewTaskHero } from "./NewTaskHero.jsx";
 import { TurnRail } from "./TurnRail.jsx";
 import { deriveTurns } from "../../../lib/turnIndex.js";
+import { useConversationTurns } from "../../../hooks/useConversationTurns.js";
 import { glideToBlock } from "../../../lib/glideTo.js";
 import { newSessionProject } from "../../../lib/breadcrumb.js";
 import { TerminalCard } from "./TerminalCard.jsx";
@@ -153,6 +154,7 @@ export function Messages({ live, agentId, isActive = true }) {
   }, [selectedId, wrapRef, contentRef, revealBlock]);
 
   const restorePagesRef = useRef(0);
+  const pendingJumpRef = useRef(null);
   // Layout effect ON PURPOSE, and declared before the restore effect below:
   // an in-place agent switch (split pane swaps agentId on this same instance)
   // commits new content and must reset→restore within that one commit, before
@@ -162,6 +164,7 @@ export function Messages({ live, agentId, isActive = true }) {
   useLayoutEffect(() => {
     initialScrollDone.current = false;
     restorePagesRef.current = 0;
+    pendingJumpRef.current = null;
     stick.reset();
   }, [selectedId, stick.reset]);
 
@@ -353,11 +356,36 @@ export function Messages({ live, agentId, isActive = true }) {
     return sortBlocksByTs(base);
   }, [baseBlocks, selectedId, termTick, outboxTick, thinkTick]);
 
-  const turns = useMemo(() => deriveTurns(blocks, blockKey), [blocks]);
+  const windowTurns = useMemo(() => deriveTurns(blocks, blockKey), [blocks]);
+  const turns = useConversationTurns(selectedId, events, windowTurns, { hasOlder, bootPromptOffset, keyOf: blockKey });
+  // A turn outside the loaded window pages older rows in until its prompt
+  // renders (the effect below), then glides there.
   const jumpToTurn = useCallback((key) => {
     const el = contentRef.current?.querySelector(`[data-bkey="${CSS.escape(key)}"]`);
-    revealBlock(el, TURN_JUMP_OFFSET);
-  }, [contentRef, revealBlock]);
+    if (el) {
+      pendingJumpRef.current = null;
+      revealBlock(el, TURN_JUMP_OFFSET);
+      return;
+    }
+    pendingJumpRef.current = key;
+    // Stop tail trimming so the hunt's prepends aren't undone mid-way.
+    setFollowing(false);
+    triggerLoadOlderRef.current();
+  }, [contentRef, revealBlock, setFollowing]);
+  useEffect(() => {
+    const key = pendingJumpRef.current;
+    if (!key) return;
+    const el = contentRef.current?.querySelector(`[data-bkey="${CSS.escape(key)}"]`);
+    if (el) {
+      pendingJumpRef.current = null;
+      revealBlock(el, TURN_JUMP_OFFSET);
+    } else if (!hasOlder) {
+      pendingJumpRef.current = null;
+      setFollowing(!stick.showJumpBtn);
+    } else if (!loadingOlder) {
+      triggerLoadOlderRef.current();
+    }
+  }, [blocks, hasOlder, loadingOlder]);
 
   const rewindToMessage = useRewind(selectedId);
   // Duplicate user texts must map to the n-th identical transcript target —

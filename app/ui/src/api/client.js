@@ -201,6 +201,11 @@ export const api = {
       return [];
     }
   },
+  async getWorkerPromptEvents(id) {
+    const r = await getJson(ROUTES.workerPromptEvents(id));
+    if (!r.ok) throw new Error(`getWorkerPromptEvents → ${r.status}`);
+    return r.body;
+  },
   async sendWorkerMessage(id, text, { clientMsgId, queueWhenBusy } = {}) {
     return postJson(ROUTES.workerMessage(id), { text, clientMsgId, queueWhenBusy });
   },

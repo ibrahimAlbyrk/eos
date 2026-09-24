@@ -22,6 +22,9 @@ export const ROUTES = {
   // Whole-conversation "Files in Chat": every attachment referenced across the
   // transcript, unioned by path server-side (earliest sighting wins).
   workerAttachments: (id) => `/workers/${id}/attachments`,
+  // Every prompt (+ clear/rewind/recall marker) across the whole conversation —
+  // the turn rail indexes turns the paged window hasn't loaded yet.
+  workerPromptEvents: (id) => `/workers/${id}/prompt-events`,
   workerMessage: (id) => `/workers/${id}/message`,
   workerQueue: (id) => `/workers/${id}/queue`,
   workerQueueItem: (id, queueId) => `/workers/${id}/queue/${queueId}`,

@@ -44,3 +44,12 @@ export function plainPreview(md) {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+// The window holds only the newest pages, so its turns are a suffix of the
+// conversation. Prepend every whole-conversation turn that starts before the
+// window's first one (title-only — no preview or tool count) to index it all.
+export function withOlderTurns(allTurns, windowTurns) {
+  const firstTs = windowTurns[0]?.startTs ?? Infinity;
+  const older = allTurns.filter((t) => t.startTs < firstTs);
+  return older.length ? [...older, ...windowTurns] : windowTurns;
+}
