@@ -70,6 +70,35 @@ describe("SdkEventMapper — SDK stream -> canonical sequence", () => {
     });
   });
 
+  // The SDK persists a block only once it completes — a thought cut off by an
+  // interrupt never gets a durable assistant message. The mapper persists what
+  // streamed (same blockId, flagged interrupted) so it outlives the UI buffer.
+  it("persists a reasoning block still streaming at turn end as an interrupted durable block", () => {
+    const mapper = createSdkEventMapper();
+    const script: unknown[] = [
+      { type: "stream_event", event: { type: "message_start", message: { id: "msg_I" } } },
+      { type: "stream_event", event: { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "done thought" } } },
+      { type: "stream_event", event: { type: "content_block_stop", index: 0 } },
+      { type: "assistant", message: { id: "msg_I", content: [{ type: "thinking", thinking: "done thought" }] } },
+      { type: "stream_event", event: { type: "content_block_delta", index: 1, delta: { type: "thinking_delta", thinking: "half a " } } },
+      { type: "stream_event", event: { type: "content_block_delta", index: 1, delta: { type: "thinking_delta", thinking: "thou" } } },
+      { type: "stream_event", event: { type: "content_block_delta", index: 2, delta: { type: "text_delta", text: "partial answer" } } },
+      { type: "result", subtype: "error_during_execution", usage: {} },
+    ];
+    const out: AgentEvent[] = [];
+    for (const m of script) out.push(...mapper.map(m as never));
+    const msgs = out.filter((e) => e.type === "message");
+    assert.equal(msgs.length, 2, "the completed block's durable message + one for the cut-off thought");
+    const cut = msgs[1];
+    assert.deepEqual(cut.type === "message" ? cut.blocks : null, [
+      { type: "reasoning", text: "half a thou", blockId: "msg_I:1", interrupted: true },
+    ], "only the open reasoning block — text is never persisted partial");
+    assert.deepEqual(out.slice(-3).map(tag), ["msg:assistant:reasoning", "usage", "turn:error"]);
+    // The next turn starts clean — nothing left open to re-persist.
+    const next = mapper.map({ type: "result", subtype: "success", usage: {} } as never);
+    assert.equal(next.filter((e) => e.type === "message").length, 0);
+  });
+
   // Two assistant messages in one turn (a tool call between them) both stream a
   // block at index 0. They MUST get distinct blockIds — keyed on the message id,
   // not the index alone — or the second message's live block would be suppressed

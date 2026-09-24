@@ -38,6 +38,8 @@ export const ReasoningBlockSchema = z.object({
   text: z.string(),
   redacted: z.boolean().optional(),
   blockId: z.string().optional(), // see TextBlockSchema.blockId
+  // The turn was interrupted mid-thought: `text` is only what streamed before it.
+  interrupted: z.boolean().optional(),
 });
 
 export const ToolCallBlockSchema = z.object({

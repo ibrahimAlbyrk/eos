@@ -188,7 +188,9 @@ export function createSdkEventMapper(): SdkEventMapper {
   let turnActive = false;
   let sessionId: string | null = null;
   let lastAssistantUuid: string | null = null;
-  const openedBlocks = new Map<string, "reasoning" | "text">(); // blockId -> channel of open live blocks
+  // blockId -> channel + streamed text of open live blocks. The text is kept so a
+  // block the turn cut off (no durable message will come) can still be persisted.
+  const openedBlocks = new Map<string, { channel: "reasoning" | "text"; text: string }>();
   // The blockId must be stable across every delta of one content block AND match
   // the durable assistant block (UI handoff). The SDK's per-partial `uuid` is NOT
   // stable (a fresh UUID per stream_event), so it can't anchor the id — the
@@ -296,8 +298,8 @@ export function createSdkEventMapper(): SdkEventMapper {
           }
           if (ev.type === "content_block_stop" && ev.index !== undefined) {
             const stopId = `${blockBase()}:${ev.index}`;
-            const ch = openedBlocks.get(stopId);
-            if (ch) { openedBlocks.delete(stopId); out.push({ type: "delta", channel: ch, phase: "stop", blockId: stopId, text: "" }); }
+            const open = openedBlocks.get(stopId);
+            if (open) { openedBlocks.delete(stopId); out.push({ type: "delta", channel: open.channel, phase: "stop", blockId: stopId, text: "" }); }
             return out;
           }
           if (ev.type !== "content_block_delta" || ev.index === undefined || !ev.delta) return out;
@@ -308,11 +310,13 @@ export function createSdkEventMapper(): SdkEventMapper {
           const channel = d.type === "thinking_delta" ? "reasoning" : d.type === "text_delta" ? "text" : null;
           if (!channel) return out;
           const text = channel === "reasoning" ? (d.thinking ?? "") : (d.text ?? "");
-          if (!openedBlocks.has(blockId)) {
+          const open = openedBlocks.get(blockId);
+          if (!open) {
             if (!text) return out; // lazy-open: defer until the first non-empty token
-            openedBlocks.set(blockId, channel);
+            openedBlocks.set(blockId, { channel, text });
             out.push({ type: "delta", channel, phase: "start", blockId, text });
           } else {
+            open.text += text;
             out.push({ type: "delta", channel, phase: "append", blockId, text });
           }
           return out;
@@ -341,8 +345,8 @@ export function createSdkEventMapper(): SdkEventMapper {
           // Close any live blocks this message finalizes (the durable block takes over).
           content.forEach((_b, i) => {
             const blockId = `${msgId}:${startIdx + i}`;
-            const ch = openedBlocks.get(blockId);
-            if (ch) { openedBlocks.delete(blockId); out.push({ type: "delta", channel: ch, phase: "stop", blockId, text: "" }); }
+            const open = openedBlocks.get(blockId);
+            if (open) { openedBlocks.delete(blockId); out.push({ type: "delta", channel: open.channel, phase: "stop", blockId, text: "" }); }
           });
           msgBlockCount.set(msgId, startIdx + content.length);
           // Top-level tools surface FULLY as the tool_call block here (and a
@@ -454,6 +458,18 @@ export function createSdkEventMapper(): SdkEventMapper {
           // result.usage is the TURN aggregate (summed over every API request +
           // subagents) — correct for cumulative billing, NOT context occupancy.
           // Occupancy rides per-message `context` events from the assistant case.
+          //
+          // The SDK persists a block only once it completes, so a thought still
+          // streaming when the turn ends (an interrupt) never gets a durable
+          // message and would live only in the UI's in-memory buffer — gone on
+          // the next send or a reload. Persist what streamed, same blockId, so
+          // the UI hands the live buffer off to it.
+          const cut: ContentBlock[] = [];
+          for (const [blockId, open] of openedBlocks) {
+            if (open.channel === "reasoning" && open.text.trim()) cut.push({ type: "reasoning", text: open.text, blockId, interrupted: true });
+          }
+          openedBlocks.clear();
+          if (cut.length) out.push({ type: "message", role: "assistant", blocks: cut });
           out.push({ type: "usage", usage: toCanonicalUsage(msg.usage ?? {}, msg.model ?? null) });
           turnActive = false;
           currentMsgId = null; // next turn's message_start re-anchors
