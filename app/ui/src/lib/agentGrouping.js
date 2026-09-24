@@ -74,9 +74,9 @@ export function groupByCustom(roots, groups, assignments) {
   return out;
 }
 
-// Dispatch. ctx = { now, groups, assignments }; unknown modes fall back to folder.
+// Dispatch. ctx = { now, groups, assignments, projects }; unknown modes fall back to folder.
 export function groupAgents(roots, mode, ctx = {}) {
   if (mode === "date") return groupByDate(roots, ctx.now ?? Date.now());
   if (mode === "custom") return groupByCustom(roots, ctx.groups ?? [], ctx.assignments ?? {});
-  return groupRootsByProject(roots);
+  return groupRootsByProject(roots, ctx.projects ?? []);
 }

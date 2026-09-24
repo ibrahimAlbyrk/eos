@@ -1,5 +1,6 @@
 import { basename } from "./path.js";
 import { nameOf } from "./agentName.js";
+import { projectForPath, projectLabel } from "./projects.js";
 
 // Breadcrumb model for the center header: project name + the selected agent's
 // ancestor chain, root-first (orchestrator → … → selected). The project name
@@ -24,10 +25,11 @@ export function breadcrumbFor(workers, selectedId, fallbackCwd) {
 // The pre-spawn folder for the new-task / new-session screen: the composer's
 // chosen cwd, else the most recent project. Returns project=null when no folder
 // is available at all — the new-task headline drops its "in <project>" clause and
-// the header omits the faint project name entirely.
-export function newSessionProject(composerCwd, recents) {
+// the header omits the faint project name entirely. A registered project owning
+// the folder lends its name.
+export function newSessionProject(composerCwd, recents, projects = []) {
   const cwd = composerCwd ?? recents?.[0] ?? null;
-  return { cwd, project: cwd ? basename(cwd) : null };
+  return { cwd, project: cwd ? projectLabel(projectForPath(projects, cwd), cwd) : null };
 }
 
 // Full project PATH (not just the basename) of the selected agent's chain root —

@@ -8,6 +8,7 @@ import { buildAgentTree } from "../../../lib/tree.js";
 import { archivedTree } from "../../../lib/archive.js";
 import { useSidebarPrefs } from "../../../state/sidebarPrefsStore.js";
 import { subscribe, getArchive, refreshArchived } from "../../../state/archiveStore.js";
+import { useProjects } from "../../../state/projectsStore.js";
 
 // The dynamic section label mirrors the grouping (Projects / Recent / Groups),
 // or "Archived" when the archived-only list is showing.
@@ -33,6 +34,7 @@ function FilterIcon() {
 export function AgentsSidebar({ live, variant = "full" }) {
   const ui = useUi();
   const { status, groupBy } = useSidebarPrefs();
+  const { projects } = useProjects();
   const { rows: archivedRows, loaded: archivedLoaded, selectedId: archivedSelectedId, archiveMode } =
     useSyncExternalStore(subscribe, getArchive);
 
@@ -82,7 +84,7 @@ export function AgentsSidebar({ live, variant = "full" }) {
     <>
       <SidebarHead live={live} variant={variant} archiveMode={archiveMode} />
       <LayoutGroups aliveIds={aliveIds} />
-      {roots.length > 0 && (
+      {(roots.length > 0 || (groupBy === "folder" && status !== "archived" && projects.length > 0)) && (
         <div className="sb-seclabel">
           <span className="sb-seclabel__text">{sectionLabel}</span>
           <button
@@ -103,7 +105,7 @@ export function AgentsSidebar({ live, variant = "full" }) {
         archivedSelectedId={archivedSelectedId}
         emptyLabel={emptyLabel}
       />
-      <SettingsFooter />
+      <SettingsFooter live={live} />
     </>
   );
 

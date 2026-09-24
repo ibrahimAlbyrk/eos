@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { statusFromState } from "../../../lib/format.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
@@ -12,6 +12,9 @@ import { leaf } from "../../../lib/paneLayout.js";
 import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../../../state/loopCheckStore.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { ArchiveNode } from "./ArchiveNode.jsx";
+import { ProjectHoverCard } from "./ProjectHoverCard.jsx";
+import { ProjectIcon } from "../../../components/project/ProjectIcon.jsx";
+import { useProjects } from "../../../state/projectsStore.js";
 import { api } from "../../../api/client.js";
 
 // A fully transparent 1×1 image to suppress the browser's native drag ghost — the
@@ -31,21 +34,40 @@ function PlusIcon() {
   );
 }
 
-function FolderIcon() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M2 4.5A1.5 1.5 0 0 1 3.5 3h2.3l1.2 1.5h5.5A1.5 1.5 0 0 1 14 6v5.5A1.5 1.5 0 0 1 12.5 13h-9A1.5 1.5 0 0 1 2 11.5z" />
-    </svg>
-  );
+const HOVER_OPEN_MS = 350;
+const HOVER_CLOSE_MS = 150;
+
+// Open/close timers for a hover card that must survive the pointer crossing the
+// gap between its anchor and the card itself.
+function useHoverCard() {
+  const [anchor, setAnchor] = useState(null);
+  const timer = useRef(null);
+  const clear = () => clearTimeout(timer.current);
+  useEffect(() => clear, []);
+  return {
+    anchor,
+    enterAnchor: (el) => { clear(); timer.current = setTimeout(() => setAnchor(el.getBoundingClientRect()), HOVER_OPEN_MS); },
+    enterCard: clear,
+    leave: () => { clear(); timer.current = setTimeout(() => setAnchor(null), HOVER_CLOSE_MS); },
+    close: () => { clear(); setAnchor(null); },
+  };
 }
 
-// A project section: the project-name header with its own "+" (spawns a new
-// orchestrator pre-seated to this project's path) above that project's rows.
+// A project section: the project header (icon, name, its own "+" that spawns a
+// new orchestrator pre-seated to the project's primary folder) above that
+// project's rows. Clicking the header folds the rows; hovering a folder group
+// shows its ProjectHoverCard. While composing a new task in this project the
+// header wears the selected style.
 // Rows are a MIX of live (TreeNode) and archived (ArchiveNode) agents — the
 // grouping/sort pipeline interleaves both kinds, and each root is dispatched to
 // its renderer by the __archived tag AgentsSidebar stamps on it.
 function AgentGroup({ group, onRename, variant, archivedSelectedId }) {
   const ui = useUi();
+  const hover = useHoverCard();
+  const collapseId = `group:${group.key}`;
+  const collapsed = ui.collapsedNodes.has(collapseId);
+  const selected = !!group.path && ui.selectedId == null && ui.composer.cwd === group.path;
+
   const onAdd = useCallback((e) => {
     e.stopPropagation();
     // Pre-seat the composer's cwd with this project's path, then enter spawn
@@ -58,9 +80,14 @@ function AgentGroup({ group, onRename, variant, archivedSelectedId }) {
 
   return (
     <div className="agents-group">
-      <div className="agents-group__head">
-        <span className="agents-group__icon" aria-hidden="true"><FolderIcon /></span>
-        <span className="agents-group__name" title={group.path ?? undefined}>{group.name}</span>
+      <div
+        className={"agents-group__head agents-group__head--toggle" + (selected ? " on" : "")}
+        onClick={() => { hover.close(); ui.toggleNodeCollapsed(collapseId); }}
+        onMouseEnter={group.path ? (e) => hover.enterAnchor(e.currentTarget) : undefined}
+        onMouseLeave={group.path ? hover.leave : undefined}
+      >
+        <span className="agents-group__icon" aria-hidden="true"><ProjectIcon icon={group.project?.icon} /></span>
+        <span className="agents-group__name">{group.name}</span>
         {group.path && (
           <button
             className="sb-iconbtn agents-group__add"
@@ -71,11 +98,20 @@ function AgentGroup({ group, onRename, variant, archivedSelectedId }) {
           </button>
         )}
       </div>
-      {group.roots.map((n) => (
-        n.__archived
-          ? <ArchiveNode key={n.id} node={n} selectedId={archivedSelectedId} isRoot />
-          : <TreeNode key={n.id} node={n} onRename={onRename} variant={variant} />
-      ))}
+      {hover.anchor && (
+        <ProjectHoverCard group={group} anchor={hover.anchor} onEnter={hover.enterCard} onLeave={hover.leave} onDone={hover.close} />
+      )}
+      {/* Rows stay mounted so fold/unfold can animate; inert keeps folded rows
+          out of the tab order. */}
+      <div className={"agents-group__body" + (collapsed ? " collapsed" : "")} inert={collapsed ? "" : undefined}>
+        <div className="agents-group__rows">
+          {group.roots.map((n) => (
+            n.__archived
+              ? <ArchiveNode key={n.id} node={n} selectedId={archivedSelectedId} isRoot />
+              : <TreeNode key={n.id} node={n} onRename={onRename} variant={variant} />
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -83,11 +119,14 @@ function AgentGroup({ group, onRename, variant, archivedSelectedId }) {
 export function AgentsTree({ roots, loaded = true, onRename, variant = "full", archivedSelectedId = null, emptyLabel }) {
   const prefs = useSidebarPrefs();
   const { groups: customGroups, assignments } = useCustomGroups();
+  const { projects } = useProjects();
   const groups = useMemo(() => {
-    const raw = groupAgents(roots, prefs.groupBy, { now: Date.now(), groups: customGroups, assignments });
-    return raw.map((g) => ({ ...g, roots: sortRoots(g.roots, prefs.sortBy) }));
-  }, [roots, prefs.groupBy, prefs.sortBy, customGroups, assignments]);
-  if (roots.length === 0) {
+    const raw = groupAgents(roots, prefs.groupBy, { now: Date.now(), groups: customGroups, assignments, projects });
+    // Registered projects show even when empty — except in the archived-only list.
+    const shown = prefs.status === "archived" ? raw.filter((g) => g.roots.length > 0) : raw;
+    return shown.map((g) => ({ ...g, roots: sortRoots(g.roots, prefs.sortBy) }));
+  }, [roots, prefs.groupBy, prefs.sortBy, prefs.status, customGroups, assignments, projects]);
+  if (groups.length === 0) {
     // `loaded` gates the definitive empty state: until the first /workers fetch
     // resolves (or after a swallowed failure) an empty list only means "still
     // loading" — rendering "No agents yet" there reads as zero agents existing.

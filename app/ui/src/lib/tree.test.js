@@ -56,6 +56,24 @@ describe("subtreeIds", () => {
 describe("groupRootsByProject", () => {
   const root = (id, cwd, worktree_from = null) => ({ id, cwd, worktree_from });
 
+  it("registered projects claim roots in any of their folders, even when empty", () => {
+    const projects = [
+      { id: "p1", name: "Dear Souls", folders: ["/u/ds", "/u/lib"] },
+      { id: "p2", name: "Empty", folders: ["/u/empty"] },
+    ];
+    const groups = groupRootsByProject([root("a", "/u/other"), root("b", "/u/lib"), root("c", "/u/ds")], projects);
+    expect(groups.map((g) => g.name)).toEqual(["other", "Dear Souls", "Empty"]);
+    expect(groups[1].path).toBe("/u/ds");
+    expect(groups[1].roots.map((r) => r.id)).toEqual(["b", "c"]);
+    expect(groups[2].roots).toEqual([]);
+  });
+
+  it("pinned projects sort first, Other stays last", () => {
+    const projects = [{ id: "p", name: "Pinned", folders: ["/u/p"], pinned: true }];
+    const groups = groupRootsByProject([root("a", null), root("b", "/u/x"), root("c", "/u/p")], projects);
+    expect(groups.map((g) => g.name)).toEqual(["Pinned", "x", "Other"]);
+  });
+
   it("groups roots by project dir and names groups by basename", () => {
     const groups = groupRootsByProject([
       root("a", "/Users/me/claude-manager"),
