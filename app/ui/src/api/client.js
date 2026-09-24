@@ -428,6 +428,19 @@ export const api = {
   async openPathIn(path, target) {
     return postJson(ROUTES.fsOpenIn, { path, target }, uiTokenHeader());
   },
+  async listProjects() {
+    const r = await getJson(ROUTES.projects);
+    if (!r.ok) throw new Error(`listProjects → ${r.status}`);
+    return r.body;
+  },
+  // Create (no id) or update a project. UI-token gated: extra folders widen what
+  // agents may touch.
+  async saveProject(project) {
+    return putJson(ROUTES.projects, project, uiTokenHeader());
+  },
+  async deleteProject(id) {
+    return postJson(ROUTES.projectsDelete, { id }, uiTokenHeader());
+  },
   async listRecents() {
     try {
       const r = await getJson(ROUTES.fsRecents);

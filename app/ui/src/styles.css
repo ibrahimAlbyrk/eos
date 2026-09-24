@@ -19,6 +19,7 @@
 @import "./styles/panel.css";
 @import "./styles/menus.css";
 @import "./styles/code.css";
+@import "./styles/project.css";
 
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; overscroll-behavior: none; }

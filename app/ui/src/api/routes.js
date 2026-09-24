@@ -66,6 +66,8 @@ export const ROUTES = {
   fsFetch: "/fs/fetch",
   fsRemoteBranchDelete: "/fs/remote-branch/delete",
   fsRecents: "/fs/recents",
+  projects: "/projects",
+  projectsDelete: "/projects/delete",
   fsRead: "/fs/read",
   fsWrite: "/fs/write",
   fsPaste: "/fs/paste",
