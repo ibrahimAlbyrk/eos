@@ -18,8 +18,10 @@ export class JsonRecentsRepo implements RecentsRepo {
     this.cache = this.read();
   }
 
+  // Folders deleted since they were recorded are hidden, not forgotten — they
+  // reappear if recreated.
   list(): string[] {
-    return [...this.cache];
+    return this.cache.filter((p) => existsSync(p));
   }
 
   push(path: string): void {

@@ -5,12 +5,13 @@ import { isTerminalFocused } from "../../components/terminal/terminalBridge.js";
 import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { leafCount } from "../../lib/paneLayout.js";
 import {
-  KINDS, openTerminal, splitPane, closePane, focusPaneByIndex, reconcile, setCwd, getWorkspace,
+  KINDS, openTerminal, splitPane, closePane, focusPaneByIndex, reconcile, setCwd, clearCwd, getWorkspace,
 } from "../../state/codeWorkspaceStore.js";
 import { useCodeWorkspace } from "./useCodeWorkspace.js";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { TermGrid } from "./TermGrid.jsx";
 import { projectFolders } from "./FolderMenu.jsx";
+import { api } from "../../api/client.js";
 
 // Workspace hotkeys. All terminalSafe — in this view the terminal IS the
 // focus — and each stops the event so the key never also reaches xterm.
@@ -53,6 +54,17 @@ export function CodeView({ live }) {
 
   // Drop panes whose session died while this view wasn't mounted.
   useEffect(() => { reconcile(); }, []);
+
+  // A remembered folder that was deleted since can't host a session — drop it
+  // so the default below falls back to an existing one. A network failure
+  // (TypeError) says nothing about the folder, so it's kept.
+  useEffect(() => {
+    const cwd = ws.cwd;
+    if (!cwd) return;
+    api.statPath(cwd)
+      .then((s) => { if (s?.type !== "directory") clearCwd(cwd); })
+      .catch((e) => { if (!(e instanceof TypeError)) clearCwd(cwd); });
+  }, [ws.cwd]);
 
   // First run: default the folder to the most recent one.
   useEffect(() => {

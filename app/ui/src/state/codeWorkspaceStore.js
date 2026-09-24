@@ -86,6 +86,10 @@ export function setCwd(cwd) {
   if (cwd && cwd !== state.cwd) set({ cwd });
 }
 
+export function clearCwd(cwd) {
+  if (cwd === state.cwd) set({ cwd: null });
+}
+
 export function focusPane(leafId) {
   if (leafId !== state.focusedId && findLeaf(state.tree, leafId)) set({ focusedId: leafId });
 }
