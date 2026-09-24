@@ -78,7 +78,6 @@ export function BashDetail({ tool }) {
 
   return (
     <div className="tool-detail bash-detail">
-      <div className="bash-label">Bash</div>
       <div className="bash-cmd">
         <span className="bash-prompt">$</span>
         <span className="bash-cmd-text">{cmd}</span>
@@ -382,16 +381,21 @@ export function NotifyDetail({ tool }) {
 
 // current_datetime (worker + orchestrator MCP) — the device's wall-clock time.
 // The tool returns the full {epochMs,iso,utc,timeZone,utcOffsetMinutes,formatted}
-// object; only the ready-to-show `formatted` string is surfaced, on one line.
+// object; only the ready-to-show `formatted` string is surfaced (the header shows
+// it too — this body only renders when opened on a failed call).
+export function datetimeFormatted(tool) {
+  try {
+    const parsed = JSON.parse(tool.result?.text ?? "");
+    if (parsed && typeof parsed === "object") return parsed.formatted ?? "";
+  } catch { /* running or non-JSON — nothing to show yet */ }
+  return "";
+}
+
 export function DatetimeDetail({ tool }) {
   if (tool.result?.isError) {
     return <div className="tool-detail generic-detail"><FailureBanner tool={tool} /></div>;
   }
-  let formatted = "";
-  try {
-    const parsed = JSON.parse(tool.result?.text ?? "");
-    if (parsed && typeof parsed === "object") formatted = parsed.formatted ?? "";
-  } catch { /* running or non-JSON — nothing to show yet */ }
+  const formatted = datetimeFormatted(tool);
   if (!formatted) return null;
   return (
     <div className="tool-detail datetime-detail">

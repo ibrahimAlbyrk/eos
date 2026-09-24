@@ -89,6 +89,13 @@ function killWorkerDetail(tool) {
   return joinDot([res.state, res.branch]);
 }
 
+// The killed worker's branch — kill_worker's header meta (its only fact the
+// "Killed <name>" row doesn't already state).
+export function killedBranch(tool) {
+  const res = parseResultJson(tool);
+  return res && !Array.isArray(res) ? res.branch ?? null : null;
+}
+
 function pendingRows(tool, workers) {
   const res = parseResultJson(tool);
   if (!Array.isArray(res)) return null;

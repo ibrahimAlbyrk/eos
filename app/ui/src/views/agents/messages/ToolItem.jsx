@@ -4,6 +4,8 @@ import { getToolView } from "./toolViews.jsx";
 import { failureKind } from "../../../lib/toolFailure.js";
 import { AgentLink } from "./AgentLink.jsx";
 import { DisclosureRow } from "./DisclosureRow.jsx";
+import { ToolIcon } from "./ToolIcon.jsx";
+import { Collapse } from "./Collapse.jsx";
 
 // The single tool-render dispatcher: every tool (bespoke or generic fallback,
 // including the worker-management tools) resolves through getToolView and renders
@@ -43,12 +45,14 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
         onToggle={() => ui.toggleToolExpanded(expandKey)}
         className={"tool-item-header" + (isRunning ? " ti-running" : "")}
       >
+        <span className="ti-icon">
+          <ToolIcon name={isRunning ? "spin" : failure ? "ban" : view.icon} className={isRunning ? "ti-spin" : ""} />
+        </span>
         <span className={"ti-verb" + (isRunning ? " ti-shimmer" : "")}>{label.verb}</span>
-        {" "}
         {agentRef ? (
           <AgentLink id={agentRef.id} name={agentRef.name} workers={workers} fallback={label.file} />
         ) : (
-          <span className={"ti-file" + (filePath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
+          <span className={"ti-file" + (view.mono ? " ti-mono" : "") + (filePath ? " ti-link" : "")} onClick={onFileClick}>{label.file}</span>
         )}
         {summary && <span className="ti-arg-summary">{summary}</span>}
         {headerBadge}
@@ -61,7 +65,7 @@ export function ToolItem({ tool, standalone, cwd, workers, parent }) {
           </span>
         )}
       </DisclosureRow>
-      {expanded && <view.Detail tool={tool} cwd={cwd} workers={workers} />}
+      <Collapse open={expanded}><view.Detail tool={tool} cwd={cwd} workers={workers} /></Collapse>
     </div>
   );
 }

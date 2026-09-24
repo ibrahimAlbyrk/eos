@@ -11,7 +11,13 @@ describe("getToolView", () => {
     expect(v.runningLabel({ name: "mcp__context7__query-docs" })).toEqual({ verb: "Running", file: "context7 · query-docs" });
     expect(v.filePath({ input: {} })).toBe(null);
     expect(v.stats({ input: {} })).toBe(null);
-    expect(v.expandable({}, {})).toBe(true);
+    // nothing beyond the header → stays a single line
+    expect(v.expandable({}, {})).toBe(false);
+    expect(v.expandable({ input: { query: "hello" } }, {})).toBe(false);
+    // output, extra params, or a failure → opens
+    expect(v.expandable({ input: { query: "hello" }, result: { text: "3 docs" } }, {})).toBe(true);
+    expect(v.expandable({ input: { query: "hello", limit: 3 } }, {})).toBe(true);
+    expect(v.expandable({ input: {}, result: { isError: true, text: "" } }, {})).toBe(true);
   });
 
   it("surfaces an args summary only on the fallback, not on bespoke views", () => {
@@ -136,10 +142,12 @@ describe("getToolView", () => {
     expect(kill.runningLabel({}).verb).toBe("Killing");
     expect(kill.agentRef({ name: "mcp__orchestrator__kill_worker", input: { id: "w1", name: "alice" } }, { workers: [] }))
       .toEqual({ id: "w1", name: "alice" });
-    // expand gate: detail text present → expandable; running w/ no result → not
+    // kill's one-line body moved into the header: branch as meta, row never opens unless it failed
     const ctx = { workers: [] };
-    expect(kill.expandable({ name: "mcp__orchestrator__kill_worker", result: { text: JSON.stringify({ state: "killed", branch: "eos-x" }) } }, ctx)).toBe(true);
-    expect(kill.expandable({ name: "mcp__orchestrator__kill_worker" }, ctx)).toBe(false);
+    const killed = { name: "mcp__orchestrator__kill_worker", result: { text: JSON.stringify({ state: "killed", branch: "eos-x" }) } };
+    expect(kill.summary(killed)).toBe("eos-x");
+    expect(kill.expandable(killed, ctx)).toBe(false);
+    expect(kill.expandable({ name: "mcp__orchestrator__kill_worker", result: { isError: true, text: "no such worker" } }, ctx)).toBe(true);
 
     // list tools → count/label target, no agentRef
     const listActive = getToolView("mcp__orchestrator__list_active_workers");
@@ -159,6 +167,11 @@ describe("getToolView", () => {
       expect(v.Detail).not.toBe(GenericToolCard);
       expect(v.label({})).toEqual({ verb: "Checked", file: "date & time" });
       expect(v.runningLabel({})).toEqual({ verb: "Checking", file: "date & time" });
+      // the formatted time is the header object; the row never opens unless it failed
+      const done = { result: { text: JSON.stringify({ formatted: "Thu 24 Sep 2026, 21:04" }) } };
+      expect(v.label(done)).toEqual({ verb: "Checked", file: "Thu 24 Sep 2026, 21:04" });
+      expect(v.expandable(done)).toBe(false);
+      expect(v.expandable({ result: { isError: true, text: "boom" } })).toBe(true);
     }
   });
 
@@ -276,5 +289,44 @@ describe("getToolView", () => {
     // no loop arg → no badge; other worker tools never carry one
     expect(spawn.headerBadge({ input: {} })).toBe(null);
     expect(getToolView("mcp__orchestrator__kill_worker").headerBadge({ input: { loop: {} } })).toBe(null);
+  });
+
+  it("hides bodies that only repeat the header", () => {
+    const bash = getToolView("Bash");
+    expect(bash.expandable({ input: { command: "mkdir -p out" }, result: { text: "" } })).toBe(false);
+    expect(bash.expandable({ input: { command: "ls" }, result: { text: "a\nb" } })).toBe(true);
+    expect(bash.expandable({ input: { command: "x".repeat(61) }, result: { text: "" } })).toBe(true);
+    expect(bash.expandable({ input: { command: "a &&\nb" }, result: { text: "" } })).toBe(true);
+    expect(bash.expandable({ input: { command: "ls" }, running: true })).toBe(true);
+
+    const create = getToolView("TaskCreate");
+    expect(create.expandable({ input: { subject: "x" } })).toBe(false);
+    expect(create.expandable({ input: { subject: "x", description: "why" } })).toBe(true);
+
+    const update = getToolView("TaskUpdate");
+    expect(update.expandable({ input: { taskId: "3", status: "completed" } })).toBe(false);
+    expect(update.expandable({ input: { taskId: "3", owner: "w" } })).toBe(true);
+
+    const get = getToolView("TaskGet");
+    expect(get.expandable({ result: { text: "Task #1: foo\nStatus: pending" } })).toBe(false);
+    expect(get.expandable({ result: { text: "Task #1: foo\nStatus: pending\nDescription: bar" } })).toBe(true);
+
+    const skill = getToolView("Skill");
+    expect(skill.expandable({ input: { skill: "run" }, result: { text: "Launching skill: run" } })).toBe(false);
+    expect(skill.expandable({ input: { skill: "run" }, skillBody: "# Run" })).toBe(true);
+
+    const search = getToolView("ToolSearch");
+    const fns = (...names) => ({ text: names.map((n) => `<function>{"name": "${n}"}</function>`).join("") });
+    expect(search.expandable({ input: { query: "select:Read,Edit" }, result: fns("Edit", "Read") })).toBe(false);
+    expect(search.expandable({ input: { query: "notebook" }, result: fns("NotebookEdit") })).toBe(true);
+    expect(search.expandable({ input: { query: "x" } })).toBe(false);
+  });
+
+  it("names an icon for every registered tool and shows search patterns in the header", () => {
+    expect(getToolView("Read").icon).toBe("file");
+    expect(getToolView("Bash").icon).toBe("terminal");
+    expect(getToolView("mcp__x__y").icon).toBe("tool");
+    expect(getToolView("Grep").label({ input: { pattern: "foo" } })).toEqual({ verb: "Grep", file: "foo" });
+    expect(getToolView("Glob").mono).toBe(true);
   });
 });
