@@ -1,37 +1,57 @@
 import { describe, it, expect } from "vitest";
-import { EMPTY_TABS, openTab, openNewTab, closeTab, tabType, fileTabId, filePathOf } from "./panelTabs.js";
+import { EMPTY_TABS, openTab, openNewTab, closeTab, activateTab, tabType, fileTabId, filePathOf } from "./panelTabs.js";
 
 describe("panelTabs", () => {
   it("opens tabs in order and activates the opened one", () => {
     let s = openTab(EMPTY_TABS, "review");
-    expect(s).toEqual({ openTabs: ["review"], activeTab: "review" });
+    expect(s).toEqual({ openTabs: ["review"], activeTab: "review", tabHistory: ["review"] });
     s = openTab(s, "files");
-    expect(s).toEqual({ openTabs: ["review", "files"], activeTab: "files" });
+    expect(s).toEqual({ openTabs: ["review", "files"], activeTab: "files", tabHistory: ["review", "files"] });
   });
 
   it("re-opening an open tab only re-activates it (no duplicate)", () => {
     const s = openTab({ openTabs: ["review", "files"], activeTab: "files" }, "review");
-    expect(s).toEqual({ openTabs: ["review", "files"], activeTab: "review" });
+    expect(s.openTabs).toEqual(["review", "files"]);
+    expect(s.activeTab).toBe("review");
   });
 
   it("closing the active tab activates the right neighbor", () => {
     const s = closeTab({ openTabs: ["review", "files", "terminal"], activeTab: "files" }, "files");
-    expect(s).toEqual({ openTabs: ["review", "terminal"], activeTab: "terminal" });
+    expect(s).toEqual({ openTabs: ["review", "terminal"], activeTab: "terminal", tabHistory: [] });
+  });
+
+  it("closing the active tab goes back to the previously active one", () => {
+    let s = openTab(EMPTY_TABS, "review");
+    s = openTab(s, "files");
+    s = openTab(s, "terminal");
+    s = activateTab(s, "review");
+    s = activateTab(s, "files");
+    s = closeTab(s, "files");
+    expect(s.activeTab).toBe("review");
+    s = closeTab(s, "review");
+    expect(s.activeTab).toBe("terminal");
+  });
+
+  it("activateTab ignores absent or already-active tabs", () => {
+    const s0 = { openTabs: ["review"], activeTab: "review", tabHistory: ["review"] };
+    expect(activateTab(s0, "review")).toBe(s0);
+    expect(activateTab(s0, "files")).toBe(s0);
   });
 
   it("closing the last (active) tab activates the new last", () => {
     const s = closeTab({ openTabs: ["review", "files"], activeTab: "files" }, "files");
-    expect(s).toEqual({ openTabs: ["review"], activeTab: "review" });
+    expect(s).toEqual({ openTabs: ["review"], activeTab: "review", tabHistory: [] });
   });
 
   it("closing the only tab leaves an empty panel", () => {
     const s = closeTab({ openTabs: ["review"], activeTab: "review" }, "review");
-    expect(s).toEqual({ openTabs: [], activeTab: null });
+    expect(s).toEqual({ openTabs: [], activeTab: null, tabHistory: [] });
   });
 
   it("closing a non-active tab keeps the active one", () => {
     const s = closeTab({ openTabs: ["review", "files", "terminal"], activeTab: "terminal" }, "files");
-    expect(s).toEqual({ openTabs: ["review", "terminal"], activeTab: "terminal" });
+    expect(s.openTabs).toEqual(["review", "terminal"]);
+    expect(s.activeTab).toBe("terminal");
   });
 
   it("closing an absent tab is a no-op (same reference)", () => {
@@ -49,9 +69,9 @@ describe("panelTabs instances", () => {
 
   it("openNewTab adds a fresh terminal instance each time", () => {
     let s = openNewTab(EMPTY_TABS, "terminal");
-    expect(s).toEqual({ openTabs: ["terminal:1"], activeTab: "terminal:1" });
+    expect(s).toMatchObject({ openTabs: ["terminal:1"], activeTab: "terminal:1" });
     s = openNewTab(s, "terminal");
-    expect(s).toEqual({ openTabs: ["terminal:1", "terminal:2"], activeTab: "terminal:2" });
+    expect(s).toMatchObject({ openTabs: ["terminal:1", "terminal:2"], activeTab: "terminal:2" });
   });
 
   it("openNewTab fills the lowest free terminal number after a close", () => {
@@ -62,7 +82,7 @@ describe("panelTabs instances", () => {
 
   it("openNewTab treats non-multi types as singletons (re-activates)", () => {
     const s = openNewTab({ openTabs: ["files"], activeTab: "files" }, "files");
-    expect(s).toEqual({ openTabs: ["files"], activeTab: "files" });
+    expect(s).toMatchObject({ openTabs: ["files"], activeTab: "files" });
   });
 
   it("each opened file is its own tab, keyed by path", () => {
@@ -70,7 +90,7 @@ describe("panelTabs instances", () => {
     s = openTab(s, fileTabId("/a/x.md"));
     s = openTab(s, fileTabId("/b/y.png"));
     s = openTab(s, fileTabId("/a/x.md"));
-    expect(s).toEqual({ openTabs: ["files", "file:/a/x.md", "file:/b/y.png"], activeTab: "file:/a/x.md" });
+    expect(s).toMatchObject({ openTabs: ["files", "file:/a/x.md", "file:/b/y.png"], activeTab: "file:/a/x.md" });
     expect(tabType("file:/a/x.md")).toBe("file");
     expect(filePathOf("file:/a/b:c.md")).toBe("/a/b:c.md");
     expect(filePathOf("files")).toBe(null);

@@ -1,9 +1,10 @@
 // Pure open-tabs reducers for the right side panel. A panel holds an ordered
-// list of open tab types + the active one; opening a tab appends and activates
-// it, closing removes it and activates a neighbor. Shared by the global panel
+// list of open tab types + the active one + an activation history (most recent
+// last); opening a tab appends and activates it, closing the active one goes
+// back to the previously active tab. Shared by the global panel
 // state and the per-pane panels so the tab logic lives in exactly one place.
 
-export const EMPTY_TABS = { openTabs: [], activeTab: null };
+export const EMPTY_TABS = { openTabs: [], activeTab: null, tabHistory: [] };
 
 // Types that can have MULTIPLE independent instances open at once (each its own
 // session). Their tab id is `${type}:${n}`; every other type is a singleton
@@ -33,10 +34,20 @@ function tabNumber(id) {
   return i === -1 ? 1 : Number(id.slice(i + 1)) || 1;
 }
 
+function pushHistory(history = [], tab) {
+  return [...history.filter((t) => t !== tab), tab];
+}
+
+// Activate an already-open tab (pill click); absent or already-active is a no-op.
+export function activateTab(state, tab) {
+  if (!state.openTabs.includes(tab) || state.activeTab === tab) return state;
+  return { openTabs: state.openTabs, activeTab: tab, tabHistory: pushHistory(state.tabHistory, tab) };
+}
+
 // Open (or re-activate) a tab: append when absent, always make it active.
 export function openTab(state, tab) {
   const openTabs = state.openTabs.includes(tab) ? state.openTabs : [...state.openTabs, tab];
-  return { openTabs, activeTab: tab };
+  return { openTabs, activeTab: tab, tabHistory: pushHistory(state.tabHistory, tab) };
 }
 
 // Open a NEW tab from the + menu. Multi types always get a fresh instance (the
@@ -50,15 +61,17 @@ export function openNewTab(state, type) {
   return openTab(state, `${type}:${n}`);
 }
 
-// Close a tab: drop it. When it was the active one, activate the neighbor that
-// slides into its slot (its old right neighbor), else the new last tab, else
-// none. Closing a non-active tab leaves the active one untouched.
+// Close a tab: drop it. When it was the active one, activate the most recently
+// active tab still open; with no history, the neighbor that slides into its
+// slot, else the new last tab, else none. Closing a non-active tab leaves the
+// active one untouched.
 export function closeTab(state, tab) {
   const i = state.openTabs.indexOf(tab);
   if (i === -1) return state;
   const openTabs = state.openTabs.filter((t) => t !== tab);
+  const tabHistory = (state.tabHistory ?? []).filter((t) => t !== tab && openTabs.includes(t));
   const activeTab = state.activeTab === tab
-    ? (openTabs[i] ?? openTabs[openTabs.length - 1] ?? null)
+    ? (tabHistory[tabHistory.length - 1] ?? openTabs[i] ?? openTabs[openTabs.length - 1] ?? null)
     : state.activeTab;
-  return { openTabs, activeTab };
+  return { openTabs, activeTab, tabHistory };
 }

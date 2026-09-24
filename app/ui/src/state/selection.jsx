@@ -1,14 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { pushSelection, takePrevious } from "../lib/selectionHistory.js";
 import { loadCollapsedNodes, saveCollapsedNodes } from "../lib/collapseMemory.js";
-import { openTab as openTabReducer, openNewTab as openNewTabReducer, closeTab as closeTabReducer, fileTabId } from "../lib/panelTabs.js";
+import { openTab as openTabReducer, openNewTab as openNewTabReducer, closeTab as closeTabReducer, activateTab, fileTabId } from "../lib/panelTabs.js";
 
 const SelectionContext = createContext(null);
 
 // One pane's side-panel: an open flag, an ordered set of open tabs + the active
 // one, a width, a fullscreen flag, and per-tab data. Frozen shared default so empty panes resolve to a stable identity.
 export const EMPTY_PANEL = Object.freeze({
-  open: false, openTabs: [], activeTab: null, width: null, fullscreen: false, data: {},
+  open: false, openTabs: [], activeTab: null, tabHistory: [], width: null, fullscreen: false, data: {},
 });
 
 // Per-pane panels persist keyed by leaf id (the pane tree persists the same
@@ -23,8 +23,9 @@ function loadPanels() {
         if (!v || !Array.isArray(v.openTabs)) continue;
         const openTabs = v.openTabs.filter((t) => typeof t === "string");
         const activeTab = openTabs.includes(v.activeTab) ? v.activeTab : (openTabs[openTabs.length - 1] ?? null);
+        const tabHistory = Array.isArray(v.tabHistory) ? v.tabHistory.filter((t) => openTabs.includes(t)) : [];
         const width = Number.isFinite(v.width) && v.width > 0 ? v.width : null;
-        out[id] = { ...EMPTY_PANEL, open: v.open === true, openTabs, activeTab, width };
+        out[id] = { ...EMPTY_PANEL, open: v.open === true, openTabs, activeTab, tabHistory, width };
       }
       return out;
     }
@@ -38,7 +39,7 @@ function savePanels(map) {
     const out = {};
     for (const [id, s] of Object.entries(map)) {
       if (!s.open && !s.openTabs.length && !s.width) continue;
-      out[id] = { open: s.open, openTabs: s.openTabs, activeTab: s.activeTab, width: s.width };
+      out[id] = { open: s.open, openTabs: s.openTabs, activeTab: s.activeTab, tabHistory: s.tabHistory, width: s.width };
     }
     if (Object.keys(out).length) localStorage.setItem("cm:sidePanels", JSON.stringify(out));
     else localStorage.removeItem("cm:sidePanels");
@@ -155,8 +156,9 @@ export function SelectionProvider({ children }) {
     if (!paneId) return;
     setPanelsByPane((m) => {
       const cur = m[paneId] ?? EMPTY_PANEL;
-      if (!cur.openTabs.includes(id) || cur.activeTab === id) return m;
-      return { ...m, [paneId]: { ...cur, activeTab: id, open: true } };
+      const tabs = activateTab(cur, id);
+      if (tabs === cur) return m;
+      return { ...m, [paneId]: { ...cur, ...tabs, open: true } };
     });
   }, []);
   const closeTabIn = useCallback((paneId, tab) => {
