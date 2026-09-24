@@ -109,6 +109,9 @@ export interface ClaudeSdkBackendDeps {
     spec: AgentLaunchSpec,
     builtins: Record<string, McpServerConfig>,
   ): { mcpServers: Record<string, McpServerConfig>; dropped: DroppedServer[] };
+  /** Extra source folders granted beyond cwd (the worker's project's non-primary
+   *  folders) → SDK additionalDirectories. Absent/empty → cwd only. */
+  resolveAdditionalDirs?(spec: AgentLaunchSpec): string[];
   queryFn?: SdkQueryFn;
   /** Recall (Layer 2) transcript-slice primitive — defaults to the SDK's
    *  forkSession. Overridden in tests. */
@@ -387,6 +390,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       // below drops the binary's own memory auto-load, so this is the SDK lane's
       // only memory channel.
       const append = deps.assembleAppendPrompt?.(spec) ?? null;
+      const additionalDirectories = deps.resolveAdditionalDirs?.(spec) ?? [];
 
       // Options shared by the initial launch AND any /clear restart. `resume` is
       // added per-launch — the initial honors backendOptions.resume; a clear
@@ -398,6 +402,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         // the materialized worktree). Without this the SDK defaults to the
         // daemon's process.cwd() and the agent reads/edits the wrong tree.
         ...(spec.cwd ? { cwd: spec.cwd } : {}),
+        ...(additionalDirectories.length ? { additionalDirectories } : {}),
         env,
         // Hard-remove AskUserQuestion regardless of permission mode (it has no answer
         // surface in Eos; redirect to mcp__orchestrator__ask_user) — platform-wide deny.

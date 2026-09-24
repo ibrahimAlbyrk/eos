@@ -424,6 +424,31 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.deepEqual(capturedOptions!.disallowedTools, ["AskUserQuestion", "Workflow"]);
   });
 
+  it("additionalDirectories: forwarded from resolveAdditionalDirs, omitted when empty", async () => {
+    let capturedOptions: Record<string, unknown> | null = null;
+    const queryFn: SdkQueryFn = (params) => {
+      capturedOptions = params.options as unknown as Record<string, unknown>;
+      return (async function* () { /* idle session */ })();
+    };
+    let dirs: string[] = ["/p/extra"];
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "none" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s: AgentLaunchSpec): ToolContext => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      resolveAdditionalDirs: () => dirs,
+      queryFn,
+    });
+
+    await be.start(spec({ workerId: "a" }), {});
+    assert.deepEqual(capturedOptions!.additionalDirectories, ["/p/extra"]);
+
+    dirs = [];
+    await be.start(spec({ workerId: "b" }), {});
+    assert.equal("additionalDirectories" in capturedOptions!, false);
+  });
+
   it("per-spec tool context: concurrent workers never share identity", async () => {
     const seen: string[] = [];
     const queryFn: SdkQueryFn = () => (async function* () { /* idle session */ })();
