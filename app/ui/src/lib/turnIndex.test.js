@@ -20,6 +20,17 @@ describe("deriveTurns", () => {
     ]);
   });
 
+  it("seeds a boot turn that owns the blocks before the first prompt", () => {
+    const turns = deriveTurns([
+      { kind: "assistant", text: "done with task", ts: 5 },
+      { kind: "directive", text: "follow-up", ts: 30 },
+    ], keyOf, { key: "task", text: "build the thing", ts: 1 });
+    expect(turns).toEqual([
+      { key: "task", title: "build the thing", preview: "done with task", tools: 0, startTs: 1, endTs: 5 },
+      { key: "directive-1", title: "follow-up", preview: "", tools: 0, startTs: 30, endTs: 30 },
+    ]);
+  });
+
   it("collapses whitespace in the title and handles empty prompts", () => {
     const [a, b] = deriveTurns([
       { kind: "user", text: "  line one\n\nline two ", ts: 1 },

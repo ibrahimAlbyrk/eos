@@ -14,7 +14,7 @@ const PROMPT_EVENT_TYPES = new Set([
   "conversation_cleared", "conversation_rewound", "message_recalled",
 ]);
 
-export function useConversationTurns(workerId, events, windowTurns, { hasOlder, bootPromptOffset, keyOf }) {
+export function useConversationTurns(workerId, events, windowTurns, { hasOlder, bootPromptOffset, bootTurn, keyOf }) {
   const [all, setAll] = useState({ workerId: null, turns: [] });
 
   // Refetch only when a new prompt or marker lands in the window.
@@ -30,10 +30,10 @@ export function useConversationTurns(workerId, events, windowTurns, { hasOlder, 
     api.getWorkerPromptEvents(workerId).then((rows) => {
       if (stale || !Array.isArray(rows)) return;
       const blocks = sortBlocksByTs(buildBlocks(applyRecalls(applyRewinds(applyClears(rows), { bootPromptOffset }))));
-      setAll({ workerId, turns: deriveTurns(blocks, keyOf) });
+      setAll({ workerId, turns: deriveTurns(blocks, keyOf, bootTurn) });
     }).catch(() => {});
     return () => { stale = true; };
-  }, [workerId, hasOlder, promptSig, bootPromptOffset, keyOf]);
+  }, [workerId, hasOlder, promptSig, bootPromptOffset, bootTurn, keyOf]);
 
   return useMemo(
     () => (hasOlder && all.workerId === workerId ? withOlderTurns(all.turns, windowTurns) : windowTurns),

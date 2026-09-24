@@ -3,17 +3,23 @@
 // for a worker) and runs until the next prompt; its preview is the LAST
 // assistant text in the span — intermediate "let me check…" lines are noise,
 // the final answer is what the reader is looking for.
+// `boot` seeds the first turn for a prompt that has no block (a dispatched
+// worker's task, rendered as a card from worker.prompt): { key, text, ts }.
 
 import { parseAttachmentMessage } from "./attachmentTokens.js";
 
 const TURN_KINDS = new Set(["user", "directive"]);
 
-export function deriveTurns(blocks, keyOf) {
+export function deriveTurns(blocks, keyOf, boot = null) {
   const turns = [];
   let cur = null;
+  if (boot) {
+    cur = openTurn(boot.key, boot.text, boot.ts);
+    turns.push(cur);
+  }
   blocks.forEach((b, i) => {
     if (TURN_KINDS.has(b.kind)) {
-      cur = { key: keyOf(b, i), title: promptTitle(b.text), preview: "", tools: 0, startTs: b.ts, endTs: b.ts };
+      cur = openTurn(keyOf(b, i), b.text, b.ts);
       turns.push(cur);
       return;
     }
@@ -24,6 +30,10 @@ export function deriveTurns(blocks, keyOf) {
     else if (b.kind === "tool" || b.kind === "agentRun") cur.tools += 1;
   });
   return turns;
+}
+
+function openTurn(key, text, ts) {
+  return { key, title: promptTitle(text), preview: "", tools: 0, startTs: ts, endTs: ts };
 }
 
 function promptTitle(text) {
