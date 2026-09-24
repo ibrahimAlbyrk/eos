@@ -13,16 +13,17 @@ import { useUi } from "../../state/ui.jsx";
 //   main          — center column (header / body / composer)
 //   gridClass     — view-derived classes that drive grid-template (e.g. file-open)
 //   children      — floating overlays (absolute/fixed; out of grid flow)
+//   hidden        — kept mounted but not shown (a keep-mounted view in the background)
 // The right side panel is no longer a shell column — it renders per pane inside
 // `main` (PaneGrid/SinglePane), so the grid is just sidebar | center.
-export function AppLayout({ sidebar, main, gridClass, children }) {
+export function AppLayout({ sidebar, main, gridClass, children, hidden = false }) {
   const ui = useUi();
   const cls = ["app", gridClass, ui.sideCollapsed ? "side-collapsed" : ""]
     .filter(Boolean)
     .join(" ");
 
   return (
-    <div className={cls}>
+    <div className={cls} style={hidden ? { display: "none" } : undefined}>
       <aside className="side">
         {sidebar("full")}
       </aside>

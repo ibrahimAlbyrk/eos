@@ -9,6 +9,7 @@ import {
 } from "../../state/browserPanelStore.js";
 import { notePanelOpened, seedRememberedTab } from "../../state/browserSessionState.js";
 import { sessionRootOf } from "../../lib/agentIndex.js";
+import { usePanelHost } from "../../state/panelHost.js";
 import { PanelShell } from "../agents/panes/PanelShell.jsx";
 import { BrowserEmptyState } from "./BrowserEmptyState.jsx";
 import { BrowserTabStrip } from "./BrowserTabStrip.jsx";
@@ -16,6 +17,7 @@ import { BrowserNavBar } from "./BrowserNavBar.jsx";
 import { BrowserModeButtons } from "./BrowserModeButtons.jsx";
 import { AnnotationLayer } from "./AnnotationLayer.jsx";
 import { PickerLayer } from "./PickerLayer.jsx";
+import { useOcclusion } from "./useOcclusion.js";
 
 // Browser docked panel. The page renders in a REAL embedded WebContentsView owned
 // by the Electron main process — window.eosBrowserView is the narrow geometry/
@@ -33,12 +35,14 @@ const LIVE_BLOCK = { disabled: "disabled", absent: "absent", crashed: "crashed" 
 
 // The single side panel hosts ONE browser view, so its geometry key is a
 // constant; the browser STATE (tabs/url) is still keyed per session, derived
-// from the panel's `browser` data or the selected agent's session root.
+// from the panel's `browser` data or the selected agent's session root. A Code
+// view pane has no agent session, so it uses the global (human) browser.
 const PANEL_ID = "sidepanel";
 
 export function BrowserPanel() {
   const ui = useUi();
-  const sessionKey = ui.panelData?.browser?.sessionKey ?? sessionRootOf(ui.selectedId);
+  const host = usePanelHost();
+  const sessionKey = ui.panelData?.browser?.sessionKey ?? (host ? null : sessionRootOf(ui.selectedId));
   return <BrowserPanelInner paneId={PANEL_ID} sessionKey={sessionKey} />;
 }
 
@@ -48,6 +52,7 @@ function BrowserPanelInner({ paneId, sessionKey }) {
     useCallback(() => getBrowserPanel(sessionKey), [sessionKey]),
   );
   const [blocked, setBlocked] = useState(null);
+  const [still, setStill] = useState(null); // { url, rect } standing in for the hidden live view
   const bodyRef = useRef(null);
 
   const activeTab = panel.tabs.find((t) => t.tabId === panel.activeTabId) ?? null;
@@ -61,7 +66,10 @@ function BrowserPanelInner({ paneId, sessionKey }) {
     const el = bodyRef.current;
     if (!el || !window.eosBrowserView) return;
     const r = el.getBoundingClientRect();
-    window.eosBrowserView.setBounds({ x: r.left, y: r.top, width: r.width, height: r.height });
+    // Stop short of the side panel's resize strip, or the native view swallows its hover/drag.
+    const handle = el.closest(".side-panel")?.querySelector(":scope > .sp-resize");
+    const left = Math.max(r.left, handle?.getBoundingClientRect().right ?? 0);
+    window.eosBrowserView.setBounds({ x: left, y: r.top, width: r.right - left, height: r.height });
   }, []);
 
   useEffect(() => bindPaneSession(paneId, sessionKey), [paneId, sessionKey]);
@@ -106,6 +114,7 @@ function BrowserPanelInner({ paneId, sessionKey }) {
       patchBrowserPanel(sessionKey, { connState: "closed" });
       window.eosBrowserView.setVisible(false);
       window.eosBrowserView.overlayOpen(false);
+      window.eosBrowserView.setOccluded?.(false);
     };
   }, [paneId, sessionKey]);
 
@@ -124,6 +133,26 @@ function BrowserPanelInner({ paneId, sessionKey }) {
       window.eosBrowserView.setVisible(false);
     }
   }, [showEmbedded, sessionKey, panel.activeTabId, reportBounds]);
+
+  // A DOM layer over the body would sit under the native view: swap in a still of
+  // the page (captured while still visible), then hide the live view until clear.
+  const occluded = useOcclusion(bodyRef, showEmbedded);
+  useEffect(() => {
+    if (!EMBEDDED || !window.eosBrowserView.setOccluded) return;
+    if (!occluded) {
+      window.eosBrowserView.setOccluded(false);
+      setStill(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const snap = await window.eosBrowserView.snapshot().catch(() => null);
+      if (cancelled) return;
+      setStill(snap);
+      window.eosBrowserView.setOccluded(true);
+    })();
+    return () => { cancelled = true; };
+  }, [occluded]);
 
   // Track the panel rect on resize + hide the native layer while the tab is hidden.
   useEffect(() => {
@@ -157,12 +186,31 @@ function BrowserPanelInner({ paneId, sessionKey }) {
             (pick) via the eosBrowserView overlay channel. */}
         {EMBEDDED && !block && !blank && (
           <>
-            <div className="browser-native-region" aria-hidden="true" />
+            <div className="browser-native-region" aria-hidden="true">
+              {still && <StillFrame still={still} bodyRef={bodyRef} />}
+            </div>
             {panel.mode === "annotate" && <AnnotationLayer paneId={paneId} tabId={panel.activeTabId} />}
             {panel.mode === "pick" && <PickerLayer paneId={paneId} tabId={panel.activeTabId} />}
           </>
         )}
       </div>
     </PanelShell>
+  );
+}
+
+// The captured page, drawn exactly where the native view sat (main reports its
+// window rect; the body is the positioned ancestor).
+function StillFrame({ still, bodyRef }) {
+  const body = bodyRef.current?.getBoundingClientRect();
+  if (!body) return null;
+  const { x, y, width, height } = still.rect;
+  return (
+    <img
+      className="browser-still"
+      src={still.url}
+      alt=""
+      draggable={false}
+      style={{ left: x - body.left, top: y - body.top, width, height }}
+    />
   );
 }

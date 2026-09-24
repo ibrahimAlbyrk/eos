@@ -45,6 +45,15 @@ export function initBrowserHost(deps: { win: BaseWindow; daemonUrl: string; uiTo
   });
   ipcMain.on("browserView:setVisible", (_e, visible: unknown) => views.setVisible(Boolean(visible)));
   ipcMain.on("browserView:overlay", (_e, open: unknown) => views.setOverlay(Boolean(open)));
+  ipcMain.on("browserView:occluded", (_e, occluded: unknown) => views.setOccluded(Boolean(occluded)));
+  ipcMain.handle("browserView:snapshot", async () => {
+    try {
+      return await views.snapshot();
+    } catch (e) {
+      console.error("[eos-browser] snapshot failed:", e instanceof Error ? e.message : String(e));
+      return null;
+    }
+  });
 
   // Native element picker (human): drive Chromium's inspect overlay on the live
   // view and return the picked element to the renderer. Cancel abandons an

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useUi, UiProvider, useAttentionSync } from "./state/ui.jsx";
 import { useLive } from "./hooks/useLive.js";
 import { useStorePrune } from "./hooks/useStorePrune.js";
@@ -10,7 +10,7 @@ import { MonitorWidget } from "./components/monitor/MonitorWidget.jsx";
 import { NativeToggleZone } from "./components/layout/NativeToggleZone.jsx";
 import { SideHandle } from "./components/layout/SideHandle.jsx";
 import { SidebarPopup } from "./components/layout/SidebarPopup.jsx";
-import { getViewComponent, getViewSidebar } from "./views/registry.js";
+import { getViewComponent, getViewSidebar, keepsMounted } from "./views/registry.js";
 
 function Shell() {
   const ui = useUi();
@@ -43,6 +43,13 @@ function Shell() {
 
   const ActiveView = getViewComponent(ui.activeViewId);
 
+  // Keep-mounted views opened so far; they stay rendered (hidden) after the user
+  // switches away. Adjusting state during render is React's derive-from-props idiom.
+  const [keptIds, setKeptIds] = useState([]);
+  if (keepsMounted(ui.activeViewId) && !keptIds.includes(ui.activeViewId)) {
+    setKeptIds([...keptIds, ui.activeViewId]);
+  }
+
   // Shell chrome (collapsed-rail handle + native toggle + hover flyout) lives
   // here, not inside the per-view AppLayout, so it stays mounted across view
   // switches and the flyout no longer remounts/flickers. Only the flyout's
@@ -52,7 +59,11 @@ function Shell() {
 
   return (
     <>
-      <ActiveView live={live} />
+      {!keepsMounted(ui.activeViewId) && <ActiveView live={live} />}
+      {keptIds.map((id) => {
+        const View = getViewComponent(id);
+        return <View key={id} live={live} active={id === ui.activeViewId} />;
+      })}
       <NativeToggleZone popup={popup} hasAttention={hasAttention} />
       <SideHandle popup={popup} hasAttention={hasAttention} />
       <CommandPalette live={live} />

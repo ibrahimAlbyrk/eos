@@ -83,6 +83,8 @@ export class ViewManager {
   private bounds = { x: 0, y: 0, width: 0, height: 0 };
   private visible = true;
   private overlay = false;
+  private occluded = false;
+  private shown = false;
 
   constructor(deps: { win: BaseWindow; notify: Notify }) {
     this.win = deps.win;
@@ -251,10 +253,29 @@ export class ViewManager {
     this.applyGeometry();
   }
 
+  // A DOM layer (lightbox, modal, another pane's panel) overlaps the view. Kept
+  // apart from `overlay` so the two owners never clear each other's hide.
+  setOccluded(occluded: boolean): void {
+    this.occluded = occluded;
+    this.applyGeometry();
+  }
+
+  // A still of the on-screen view, so the renderer can stand it in for the live
+  // view while it is hidden under a DOM layer. Null when nothing is showing.
+  async snapshot(): Promise<{ url: string; rect: { x: number; y: number; width: number; height: number } } | null> {
+    const t = this.currentTabId ? this.tabs.get(this.currentTabId) : null;
+    if (!t || !this.shown) return null;
+    const rect = t.view.getBounds();
+    const img = await t.view.webContents.capturePage();
+    if (img.isEmpty()) return null;
+    return { url: `data:image/jpeg;base64,${img.toJPEG(90).toString("base64")}`, rect };
+  }
+
   private applyGeometry(): void {
     const t = this.currentTabId ? this.tabs.get(this.currentTabId) : null;
     if (!t) return;
-    const show = this.visible && !this.overlay && this.bounds.width > 0 && this.bounds.height > 0;
+    const show = this.visible && !this.overlay && !this.occluded && this.bounds.width > 0 && this.bounds.height > 0;
+    this.shown = show;
     t.view.setVisible(show);
     // Silence a view the human can't see (native equivalent of the headless
     // "silence when unviewed").

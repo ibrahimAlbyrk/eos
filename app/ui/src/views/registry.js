@@ -19,6 +19,15 @@ const SIDEBARS = {
   code: CodeSidebar,
 };
 
+// Views that stay mounted (hidden) after their first visit. Code holds live
+// xterm instances; unmounting them meant rebuilding and replaying every
+// terminal on each return, which showed as a black screen.
+const KEEP_MOUNTED = new Set(["code"]);
+
+export function keepsMounted(id) {
+  return KEEP_MOUNTED.has(id);
+}
+
 export function getViewComponent(id) {
   return COMPONENTS[id] ?? AgentsView;
 }

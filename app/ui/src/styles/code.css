@@ -17,6 +17,26 @@
 }
 html.native .cw-grid.is-single .pane .pane-head { padding-top: 12px; padding-bottom: 12px; }
 
+/* ── Grid + the view's one side panel, docked at the far right ───────────── */
+.cw-main {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: row;
+}
+/* Side-panel toggle spot (shell.css .sp-toggle). Open: over the panel's tab bar.
+   Closed: the top-right pane's header slot — a split card sits 4px grid margin +
+   4px inset + 1px border + 12px header padding in; the full-bleed single pane
+   uses its header padding. A close × pushes it one 24px button + 4px gap in. */
+.cw-main { --spt-size: 24px; --spt-top: 16px; --spt-right: 20px; }
+html.native .cw-main { --spt-top: 12px; }
+.cw-main:not(.is-panel-open):has(> .cw-grid:not(.is-single)) { --spt-top: 21px; --spt-right: 21px; }
+.cw-main:not(.is-panel-open):has(> .cw-grid:not(.is-single) .cw-corner .pane-close) { --spt-right: 49px; }
+.cw-main:not(.is-panel-open):has(> .cw-grid.is-single .pane-close) { --spt-right: 48px; }
+/* Sized like the pane header buttons it lines up with (it renders outside .pane). */
+.cw-main > .sp-toggle { width: var(--spt-size); height: var(--spt-size); border-radius: var(--r-icon); }
+
 /* ── Pane header ─────────────────────────────────────────────────────────── */
 .cw-head .cw-crumb { align-items: center; gap: 9px; }
 .cw-num {

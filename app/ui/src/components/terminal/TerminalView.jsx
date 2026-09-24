@@ -9,6 +9,7 @@ import { onPtyData, onPtyExit } from "../../state/ptyBus.js";
 import { markExited } from "../../state/ptyPanelStore.js";
 import { registerTerminal } from "./terminalBridge.js";
 import { createReplayGate } from "./replayGate.js";
+import { createOutputQueue } from "./outputQueue.js";
 import { macEditBytes, shellEscapePath } from "./terminalKeys.js";
 import { createWheelAccumulator, sgrWheelReports } from "./mouseWheel.js";
 import { openTerminalLink, oscLinkHandler } from "./terminalLinks.js";
@@ -41,11 +42,20 @@ import { CLAUDE_SESSION_OSC, parseClaudeSessionOsc } from "../../lib/claudeSessi
 // `onTitle` (OSC title changes), `onClaudeSession` (Claude Code session id
 // reported by its session hook — lib/claudeSessionOsc) and `shiftEnter` (bytes Shift+Enter sends —
 // Claude Code reads ESC+CR as a newline, not submit).
+//
+// `paused` (the whole view is hidden but kept mounted): output is queued instead
+// of parsed, so a background terminal costs nothing; it's written on resume. A
+// queue past PAUSED_QUEUE_CAP (twice the server's 256KB ring buffer, so a normal
+// open's replay never trips it) is dropped and the terminal re-syncs from the
+// server buffer instead — the same output a reattach would show.
+const PAUSED_QUEUE_CAP = 512 * 1024;
+
 export function TerminalView({
-  sessionId, active, visible = active, fontSize = 11.5, surface = "--panel", palette, onTitle, onClaudeSession, shiftEnter,
+  sessionId, active, visible = active, paused = false, fontSize = 11.5, surface = "--panel", palette, onTitle, onClaudeSession, shiftEnter,
 }) {
   const hostRef = useRef(null);
-  const ctl = useRef(null); // { scheduleFit, focus } — for the active-tab effect
+  const ctl = useRef(null); // { scheduleFit, focus, pause, resume } — for the active-tab / pause effects
+  const pausedRef = useRef(paused);
   const lastSize = useRef({ cols: 0, rows: 0 });
   const onTitleRef = useRef(onTitle);
   onTitleRef.current = onTitle;
@@ -188,24 +198,31 @@ export function TerminalView({
     };
     let onDataDisposable = null;
 
-    // Single write sink: bytes queue in `pending` until xterm's deferred open
-    // (below), then flush in order. `disposed` guards the async buffer fetch
-    // resolving after unmount — the promise can't be cancelled.
+    // Single write sink: output queues until xterm's deferred open (below) and
+    // while paused, then flushes in order. `disposed` guards the async buffer
+    // fetch resolving after unmount — the promise can't be cancelled.
     let disposed = false;
-    const pending = [];
-    const writeBytes = (data) => {
-      if (disposed || !data) return;
-      if (opened) term.write(data);
-      else pending.push(data);
-    };
+    const queue = createOutputQueue((data) => term.write(data), PAUSED_QUEUE_CAP);
+    const writeBytes = (data) => { if (!disposed) queue.push(data); };
     // Reattach: replay the server scrollback first, then live frames deduped by
     // seq. Live frames arriving before the buffer resolves are held by the gate
-    // so scrollback never interleaves with (or double-renders) live output.
-    const gate = createReplayGate(writeBytes);
+    // so scrollback never interleaves with (or double-renders) live output. A
+    // re-sync swaps in a fresh gate; the old one's late replay is ignored.
+    let gate = null;
+    const attach = () => {
+      const g = createReplayGate((data) => { if (gate === g) writeBytes(data); });
+      gate = g;
+      api.getPtyBuffer(sessionId)
+        .then((r) => g.replay(r?.ok ? r.body : null))
+        .catch(() => g.replay(null));
+    };
     const offData = onPtyData(sessionId, (f) => gate.frame(f));
-    api.getPtyBuffer(sessionId)
-      .then((r) => gate.replay(r?.ok ? r.body : null))
-      .catch(() => gate.replay(null));
+    attach();
+    // An overflowed queue re-syncs: clear the screen and replay the server buffer.
+    const flushPending = () => {
+      if (!opened || pausedRef.current) return;
+      if (queue.release()) { term.reset(); attach(); }
+    };
     const offExit = onPtyExit(sessionId, (f) => {
       term.write(`\r\n\x1b[2m[process exited${f?.exitCode != null ? ` (${f.exitCode})` : ""}]\x1b[0m\r\n`);
       markExited(sessionId);
@@ -242,6 +259,8 @@ export function TerminalView({
     let lastW = -1;
     let stableFrames = 0;
     const openWhenSettled = () => {
+      // Paused while hidden: stop polling; resume() restarts the loop.
+      if (pausedRef.current) { raf = 0; return; }
       const w = host.getBoundingClientRect().width;
       stableFrames = w > 0 && w === lastW ? stableFrames + 1 : 0;
       lastW = w;
@@ -250,14 +269,17 @@ export function TerminalView({
       opened = true;
       setGpu(onScreen);
       settleFit();
-      for (const d of pending) term.write(d);
-      pending.length = 0;
+      flushPending();
       onDataDisposable = term.onData((data) => { inputBuf += data; flushInput(); });
       if (active) term.focus();
     };
     raf = requestAnimationFrame(openWhenSettled);
 
-    ctl.current = { scheduleFit, focus: () => { if (opened) term.focus(); } };
+    const resume = () => {
+      if (opened) flushPending();
+      else if (!raf) raf = requestAnimationFrame(openWhenSettled);
+    };
+    ctl.current = { scheduleFit, focus: () => { if (opened) term.focus(); }, pause: () => queue.hold(), resume };
 
     const ro = new ResizeObserver(() => scheduleFit());
     ro.observe(host);
@@ -288,6 +310,14 @@ export function TerminalView({
     ctl.current?.scheduleFit();
     ctl.current?.focus();
   }, [active, sessionId]);
+
+  // Pausing holds output; resuming writes what queued and hands focus back.
+  useEffect(() => {
+    pausedRef.current = paused;
+    if (paused) { ctl.current?.pause(); return; }
+    ctl.current?.resume();
+    if (active) ctl.current?.focus();
+  }, [paused]);
 
   return <div className="pty-view" style={{ display: visible ? "block" : "none" }} ref={hostRef} />;
 }

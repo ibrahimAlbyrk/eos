@@ -8,6 +8,7 @@ import {
 } from "../../state/codeWorkspaceStore.js";
 import { TerminalView } from "../../components/terminal/TerminalView.jsx";
 import { useDropSplit, DropPreview, Divider } from "../agents/panes/PaneGrid.jsx";
+import { useUi } from "../../state/ui.jsx";
 import { TermLauncher } from "./TermLauncher.jsx";
 import { KindGlyph, SplitRightGlyph, SplitDownGlyph, CloseGlyph } from "./icons.jsx";
 
@@ -35,8 +36,9 @@ export function paneTitle(term) {
 
 // The Code view's split layout: the Agents view's BSP renderer (flat %-rects keyed
 // by leaf id, so a split/close never remounts a surviving terminal) with a PTY
-// session per pane instead of an agent transcript.
-export function TermGrid({ live, ws }) {
+// session per pane instead of an agent transcript. `paused`: the view is hidden,
+// so terminals hold their output until it's shown again.
+export function TermGrid({ live, ws, paused }) {
   const gridRef = useRef(null);
   const [resizing, setResizing] = useState(false);
   const rects = computeRects(ws.tree);
@@ -58,6 +60,8 @@ export function TermGrid({ live, ws }) {
         canSplit={rects.length < MAX_PANES}
         topLeft={rect.left === 0 && rect.top === 0}
         topRow={rect.top === 0}
+        corner={rect.top === 0 && Math.abs(rect.left + rect.width - 100) < 0.01}
+        paused={paused}
       />
     </div>
   );
@@ -84,7 +88,7 @@ export function TermGrid({ live, ws }) {
   );
 }
 
-function TermPane({ live, leafId, index, term, cwd, error, focused, single, canSplit, topLeft, topRow }) {
+function TermPane({ live, leafId, index, term, cwd, error, focused, single, canSplit, topLeft, topRow, corner, paused }) {
   const sessionId = term?.sessionId ?? null;
   const { zone, handlers } = useDropSplit(true, (z, srcId) => {
     if (srcId !== leafId) dropPaneOn(leafId, z, srcId);
@@ -96,7 +100,7 @@ function TermPane({ live, leafId, index, term, cwd, error, focused, single, canS
     return onPtyExit(sessionId, () => sessionExited(sessionId));
   }, [sessionId]);
 
-  const cls = ["pane", focused && !single ? "is-focused" : ""].filter(Boolean).join(" ");
+  const cls = ["pane", focused && !single ? "is-focused" : "", corner ? "cw-corner" : ""].filter(Boolean).join(" ");
   const headCls = ["pane-head", "cw-head", topRow ? "pane-head--toprow" : "", topLeft ? "pane-head--topleft" : ""]
     .filter(Boolean)
     .join(" ");
@@ -132,6 +136,7 @@ function TermPane({ live, leafId, index, term, cwd, error, focused, single, canS
             >
               <SplitDownGlyph />
             </button>
+            {corner && <SidePanelSlot />}
             {(term || !single) && (
               <button
                 className="pane-close"
@@ -151,6 +156,7 @@ function TermPane({ live, leafId, index, term, cwd, error, focused, single, canS
               sessionId={term.sessionId}
               active={focused}
               visible
+              paused={paused}
               fontSize={13}
               surface="--bg"
               palette={PALETTE}
@@ -165,4 +171,11 @@ function TermPane({ live, leafId, index, term, cwd, error, focused, single, canS
       </div>
     </div>
   );
+}
+
+// Holds the header spot the view's side-panel toggle (an overlay drawn by
+// SidePanel) sits on while the panel is closed — only in the top-right pane.
+function SidePanelSlot() {
+  const ui = useUi();
+  return ui.showSidePanel ? null : <span className="pane-split-btn" aria-hidden="true" />;
 }

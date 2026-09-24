@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { projectPathFor } from "../../../lib/breadcrumb.js";
 import { sessionRootOf } from "../../../lib/agentIndex.js";
+import { usePanelHost } from "../../../state/panelHost.js";
 import { subscribe, getPtyPanel, openTab, reapUntrackedSessions } from "../../../state/ptyPanelStore.js";
 import { PanelShell } from "../panes/PanelShell.jsx";
 import { TerminalView } from "../../../components/terminal/TerminalView.jsx";
@@ -25,11 +26,20 @@ export function terminalPaneKey(root, tabId) {
   return tabId ? `${root}::${tabId}` : root;
 }
 
+// The session root a pane's terminals group under: the Code view pane's host
+// key, else the selected agent's session root.
+export function useTerminalRoot() {
+  const ui = useUi();
+  const host = usePanelHost();
+  return host ? host.key : sessionRootOf(ui.selectedId) ?? "global";
+}
+
 export function TerminalViewer({ live, tabId }) {
   const ui = useUi();
+  const host = usePanelHost();
+  const root = useTerminalRoot();
   // undefined (not null) when unknown, so it's dropped from the POST body.
-  const cwd = projectPathFor(live?.workers ?? [], ui.selectedId) ?? undefined;
-  const root = sessionRootOf(ui.selectedId) ?? "global";
+  const cwd = (host ? host.cwd : projectPathFor(live?.workers ?? [], ui.selectedId)) ?? undefined;
   return <TerminalViewerInner paneId={terminalPaneKey(root, tabId)} cwd={cwd} />;
 }
 

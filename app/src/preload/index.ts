@@ -26,6 +26,10 @@ contextBridge.exposeInMainWorld("eosBrowserView", {
   setBounds: (rect: { x: number; y: number; width: number; height: number }) => ipcRenderer.send("browserView:setBounds", rect),
   setVisible: (visible: boolean) => ipcRenderer.send("browserView:setVisible", visible),
   overlayOpen: (open: boolean) => ipcRenderer.send("browserView:overlay", open),
+  // A DOM layer overlaps the view: snapshot() fetches a still to stand in for it,
+  // setOccluded hides/restores the live view.
+  setOccluded: (occluded: boolean) => ipcRenderer.send("browserView:occluded", occluded),
+  snapshot: () => ipcRenderer.invoke("browserView:snapshot"),
   // Element picker (human): drive Chromium's native inspect overlay on the live
   // view; resolves the picked element (or null if cancelled). cancelPick abandons
   // an in-flight pick when the human leaves pick mode.
