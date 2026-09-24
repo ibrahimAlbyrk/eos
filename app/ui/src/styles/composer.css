@@ -983,8 +983,7 @@
 .c-row3 .right { flex-shrink: 1; min-width: 0; }
 .c-row3 .iconbtn,
 .c-row3 .mode-pill,
-.c-row3 .effort-pill,
-.c-row3 .ctx-ring-wrap { flex-shrink: 0; }
+.c-row3 .effort-pill { flex-shrink: 0; }
 .c-row3 .mode-pill,
 .c-row3 .model-pill,
 .c-row3 .effort-pill { white-space: nowrap; }
@@ -1094,45 +1093,6 @@
   .c-row3 .left, .c-row3 .right { gap: 3px; }
   .c-row3 .tpl-wrap, .c-row3 .mem-wrap, .c-row3 .history-pos { display: none; }
 }
-/* separate ring button next to model pill */
-.ctx-ring-wrap { position: relative; display: inline-flex; }
-.ctx-ring-btn {
-  width: 26px; height: 22px;
-  border-radius: 5px;
-  color: var(--fg-dim);
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 0;
-}
-.ctx-ring-btn:hover,
-.ctx-ring-btn.open {
-  background: rgba(var(--tint), 0.05);
-  -webkit-backdrop-filter: blur(var(--blur-sm));
-  backdrop-filter: blur(var(--blur-sm));
-  color: var(--fg);
-  box-shadow:
-    inset 0 1px 1px rgba(var(--ink), 0.20),
-    inset 0 0 0 1px rgba(var(--tint), 0.09);
-}
-.ctx-ring-btn svg {
-  width: 14px; height: 14px;
-  transform: rotate(-90deg);
-}
-.ctx-ring-btn .ring-track {
-  fill: none;
-  stroke: rgba(var(--tint), 0.16);
-  stroke-width: 1.6;
-}
-.ctx-ring-btn .ring-fill {
-  fill: none;
-  stroke: var(--accent);
-  stroke-width: 1.6;
-  stroke-linecap: round;
-  transition: stroke 0.25s ease;
-}
-
-/* ============================================================================
-   CONTEXT POPOVER (opens above the model pill)
-   ============================================================================ */
 .composer-wrap { position: relative; }
 
 /* ── permission banner (above composer) ── */
@@ -1316,55 +1276,15 @@
   .q-dot { animation: none; }
 }
 
-.ctx-popover {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  right: 0;
-  width: 360px;
+/* shared liquid-glass surface: translucent fill + medium blur + a diagonal
+   masked rim. Used by the composer's expanded ambient panels (the task list +
+   the worktree list). The host must be positioned (these panels are absolute)
+   for the ::after rim to seat. */
+.glass-pop {
   background: rgba(var(--glass), 0.26);
   /* Blink aliases -webkit-backdrop-filter onto backdrop-filter but drops its
      var() form as unparseable — so the prefixed line must come FIRST, letting the
      working unprefixed line win as last writer (WebKit still honors either). */
-  -webkit-backdrop-filter: blur(var(--blur-md)) saturate(150%);
-  backdrop-filter: blur(var(--blur-md)) saturate(150%);
-  border-radius: 10px;
-  box-shadow: 0 8px 28px rgba(0,0,0,0.32), 0 2px 6px rgba(0,0,0,0.18);
-  padding: 4px;
-  font-size: var(--text-sm);
-  z-index: 60;
-  display: none;
-  pointer-events: auto;
-}
-/* glass rim */
-.ctx-popover::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  border-radius: inherit;
-  padding: 1px;
-  background: linear-gradient(135deg,
-    rgba(var(--rim), 0.36),
-    rgba(var(--rim), 0.07) 38%,
-    rgba(var(--rim), 0.07) 62%,
-    rgba(var(--rim), 0.22)) border-box;
-  -webkit-mask:
-    linear-gradient(#000, #000) content-box,
-    linear-gradient(#000, #000);
-  -webkit-mask-composite: xor;
-          mask-composite: exclude;
-}
-.ctx-popover.open { display: block; }
-
-/* shared liquid-glass surface — same recipe as the .ctx-popover above (the
-   context window opened from the footer): translucent fill + medium blur + a
-   diagonal masked rim. Used by the composer's expanded ambient panels (the task
-   list + the worktree list) so they read identically to that popover. The host
-   must be positioned (these panels are absolute) for the ::after rim to seat. */
-.glass-pop {
-  background: rgba(var(--glass), 0.26);
-  /* Prefixed line first so the unprefixed one wins as last writer — see the note
-     on .ctx-popover above (Blink drops the var() form of the -webkit- alias). */
   -webkit-backdrop-filter: blur(var(--blur-md)) saturate(150%);
   backdrop-filter: blur(var(--blur-md)) saturate(150%);
   border-radius: 10px;
@@ -1388,163 +1308,6 @@
   -webkit-mask-composite: xor;
           mask-composite: exclude;
 }
-.ctx-popover .cp-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 14px;
-  border-radius: 7px;
-  position: relative;
-  z-index: 1;
-  cursor: default;
-}
-.ctx-popover .cp-context { padding-bottom: 6px; }
-.ctx-popover .cp-context-bar-wrap {
-  padding: 0 14px 12px;
-  position: relative;
-  z-index: 1;
-}
-.ctx-popover .cp-context-bar {
-  height: 4px;
-  background: rgba(var(--tint), 0.08);
-  border-radius: 3px;
-  overflow: hidden;
-}
-.ctx-popover .cp-context-bar i {
-  display: block; height: 100%;
-  background: var(--accent);
-  border-radius: 3px;
-}
-.ctx-popover .cp-label { color: var(--fg-dim); flex: 0 0 auto; }
-.ctx-popover .cp-sublabel {
-  color: var(--fg-faint);
-  font-size: var(--text-xs);
-  flex: 0 0 auto;
-}
-.ctx-popover .cp-context-sub {
-  padding-top: 0;
-  padding-bottom: 10px;
-  cursor: default;
-}
-.ctx-popover .cp-context-sub:hover { background: transparent; }
-.ctx-popover .cp-target {
-  font-family: var(--font-ui);
-  color: var(--fg);
-  font-size: var(--text-sm);
-  font-weight: 500;
-}
-.ctx-popover .cp-value {
-  margin-left: auto;
-  color: var(--fg);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-}
-.ctx-popover .cp-pct { color: var(--fg-dim); margin-left: 2px; }
-.ctx-popover .cp-arrow {
-  color: var(--fg-faint);
-  font-size: var(--text-md);
-  line-height: 1;
-}
-.ctx-popover .cp-section-meta {
-  margin-left: auto;
-  color: var(--fg-faint);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-}
-.ctx-popover .cp-divider {
-  height: 1px;
-  background: rgba(var(--tint), 0.06);
-  margin: 2px 14px;
-}
-.ctx-popover .cp-section {
-  padding-bottom: 4px;
-  cursor: default;
-}
-.ctx-popover .cp-section:hover { background: transparent; }
-
-/* Agents list inside popover */
-.ctx-popover .cp-agents {
-  padding: 0 6px 6px;
-  display: flex; flex-direction: column;
-  position: relative;
-  z-index: 1;
-}
-.ctx-popover .cp-agent-row {
-  display: grid;
-  grid-template-columns: 7px 1fr 48px 48px 36px 32px;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  border-radius: 5px;
-  font-size: var(--text-sm);
-  color: var(--fg);
-  cursor: pointer;
-}
-.ctx-popover .cp-agent-row:hover { background: rgba(var(--tint), 0.04); }
-.ctx-popover .cp-agent-dot {
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: var(--fg-faint);
-  justify-self: center;
-}
-.ctx-popover .cp-agent-dot.run { background: var(--ok); box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 55%, transparent); }
-.ctx-popover .cp-agent-dot.think { background: var(--warn); }
-.ctx-popover .cp-agent-dot.wait { background: var(--fg-faint); }
-.ctx-popover .cp-agent-dot.queue { background: transparent; border: 1px dashed var(--warn); width: 7px; height: 7px; }
-.ctx-popover .cp-agent-name { color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ctx-popover .cp-agent-model {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--fg-faint);
-  text-align: right;
-}
-.ctx-popover .cp-agent-bar {
-  height: 3px;
-  background: rgba(var(--tint), 0.08);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.ctx-popover .cp-agent-bar i {
-  display: block; height: 100%;
-  background: var(--accent);
-  border-radius: 2px;
-}
-.ctx-popover .cp-agent-tok {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--fg-dim);
-  text-align: right;
-}
-.ctx-popover .cp-agent-pct {
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  color: var(--fg);
-  text-align: right;
-}
-
-/* Foot rows */
-.ctx-popover .cp-foot {
-  padding: 7px 14px;
-  cursor: default;
-}
-.ctx-popover .cp-foot:hover { background: transparent; }
-.ctx-popover .cp-costs { justify-content: space-between; }
-.ctx-popover .cp-costs .cp-cost { display: inline-flex; align-items: center; gap: 8px; }
-.ctx-popover .cp-cost-val {
-  color: var(--fg);
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-}
-.ctx-popover .cp-daemon {
-  color: var(--ok);
-  display: inline-flex; align-items: center; gap: 6px;
-  font-family: var(--font-ui);
-  font-size: var(--text-sm);
-}
-.ctx-popover .cp-daemon-dot {
-  width: 6px; height: 6px; border-radius: 50%;
-  background: var(--ok);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--ok) 55%, transparent);
-}
-
 /* Rise-in for the child-interrupt list (.child-int-panel). */
 @keyframes tt-card-in {
   from { opacity: 0; transform: translateY(8px) scale(0.97); }
@@ -3190,10 +2953,7 @@
   white-space: nowrap; min-width: 0;
 }
 .strip-pill:hover, .strip-pill.on { background: var(--chip); }
-.strip-brace {
-  font-family: var(--font-mono); font-size: 12px; font-weight: 500;
-  color: var(--accent); letter-spacing: -0.04em; flex-shrink: 0;
-}
+.strip-brace { display: inline-flex; color: var(--fg-mid); flex-shrink: 0; }
 .strip-project-name { overflow: hidden; text-overflow: ellipsis; }
 .strip-branch { color: var(--fg-dim); max-width: 230px; }
 .strip-branch.on { color: var(--fg); }
@@ -3213,8 +2973,9 @@
 }
 
 /* ── session tray: the strip slot once a session exists. Queued messages sit
-   in it fully; otherwise the git actions hide behind the card with only an 8px
-   lip showing, and slide up on hover (or while one of their menus is open). ── */
+   in it fully; otherwise the git actions hide entirely behind the card, marked
+   only by a lit seam on its top edge, and slide up on hover (or while one of
+   their menus is open). ── */
 .session-tray { position: relative; }
 .git-tray-body, .queue-tray {
   background: linear-gradient(180deg, #272727 0, var(--pop) 16px);
@@ -3224,25 +2985,39 @@
 
 .git-tray {
   position: relative;
-  height: 21px; /* 8px lip + 13px under the card */
+  height: 13px; /* all of it under the card — nothing sticks out */
   margin: 0 20px -13px;
 }
-/* invisible hover bands around the thin lip so a fast pointer still catches it:
+/* invisible hover bands around the seam so a fast pointer still catches it:
    10px above, and 16px down over the card's top padding (z above the card) */
 .git-tray::before { content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 10px; }
-.git-tray::after { content: ""; position: absolute; left: 0; right: 0; top: 8px; height: 16px; z-index: 3; }
+.git-tray::after { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 16px; z-index: 3; }
+/* The lit seam marking the hidden tray is drawn by the card itself, inside its
+   stacking context: above the card surface, yet under any popover rising out of
+   the card. Spans the tray's middle 56% (tray is inset 20px each side). */
+.session-tray:has(> .git-tray) + .composer-card { --seam: rgba(var(--tint), 0.2); }
+.session-tray:has(> .git-tray.has-work) + .composer-card { --seam: color-mix(in srgb, var(--ok) 70%, transparent); }
+.session-tray:has(> .git-tray) + .composer-card::before,
+.session-tray:has(> .git-tray) + .composer-card::after {
+  content: ""; position: absolute; z-index: 1; pointer-events: none;
+  left: calc(20px + (100% - 40px) * 0.22); right: calc(20px + (100% - 40px) * 0.22);
+  transition: opacity 200ms ease;
+}
+.session-tray:has(> .git-tray) + .composer-card::before {
+  top: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--seam), transparent);
+}
+.session-tray:has(> .git-tray) + .composer-card::after {
+  top: -3px; height: 7px; margin: 0 calc((100% - 40px) * 0.56 * 0.18);
+  background: radial-gradient(closest-side, var(--seam), transparent);
+  opacity: 0.35; filter: blur(3px);
+}
 .git-tray-body {
   position: absolute; left: 0; right: 0; bottom: 0; z-index: 1;
   display: flex; align-items: center;
   padding: 8px 12px 21px;
-  transform: translateY(calc(100% - 21px));
+  transform: translateY(calc(100% - 13px));
   transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1) 140ms;
-}
-.git-tray-grip {
-  position: absolute; top: 3px; left: 50%;
-  width: 28px; height: 3px; margin-left: -14px; border-radius: 2px;
-  background: rgba(var(--tint), 0.16);
-  transition: opacity 160ms ease;
 }
 .git-tray-body .diff-actions {
   margin-left: 0; width: 100%; justify-content: flex-end;
@@ -3250,7 +3025,8 @@
 }
 .git-tray:hover .git-tray-body, .git-tray.pinned .git-tray-body { transform: none; transition-delay: 0ms; }
 .git-tray:hover .diff-actions, .git-tray.pinned .diff-actions { opacity: 1; transition-delay: 60ms; }
-.git-tray:hover .git-tray-grip, .git-tray.pinned .git-tray-grip { opacity: 0; }
+.session-tray:has(> .git-tray:hover, > .git-tray.pinned) + .composer-card::before,
+.session-tray:has(> .git-tray:hover, > .git-tray.pinned) + .composer-card::after { opacity: 0; }
 /* the raised tray takes the band the ambient rail floats in */
 .composer-inner .ambient-rail { transition: opacity 160ms ease; }
 .composer-inner:has(.git-tray:hover, .git-tray.pinned) .ambient-rail { opacity: 0; pointer-events: none; }
@@ -3292,6 +3068,9 @@
   padding: 18px 20px 14px;
   display: flex; flex-direction: column; gap: 16px;
 }
+/* An open popover/menu rises out of the card over the tray's hover band (z 3) —
+   lift the card above it so the band can't swallow clicks on the popover. */
+.composer-card:has([data-popover], .cmd-menu) { z-index: 4; }
 .composer-card .c-row2-wrap { position: relative; }
 .composer-card .c-row2 {
   display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
@@ -3440,18 +3219,6 @@
 .me-t-model { font-size: var(--text-sm); color: var(--fg-mid); padding: 4px 4px 4px 9px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .me-t-level { font-size: var(--text-sm); color: var(--fg-dim2); padding: 4px 3px 4px 4px; white-space: nowrap; flex-shrink: 0; }
 .me-t-caret { display: inline-flex; padding-right: 8px; color: var(--fg-dim2); flex-shrink: 0; }
-
-.composer-inner .ctx-ring-btn {
-  width: 30px; height: 30px; border-radius: var(--r-row);
-  color: var(--fg-dim2); background: transparent; padding: 0;
-}
-.composer-inner .ctx-ring-btn:hover, .composer-inner .ctx-ring-btn.open {
-  background: var(--row-on); color: var(--fg-mid);
-  -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: none;
-}
-.composer-inner .ctx-ring-btn svg { width: 18px; height: 18px; transform: rotate(-90deg); }
-.composer-inner .ctx-ring-btn .ring-track { stroke: var(--fg-mute); stroke-width: 2; }
-.composer-inner .ctx-ring-btn .ring-fill { stroke: var(--accent); stroke-width: 2; }
 
 /* accent send circle — the ONE control with a resting fill */
 .composer-inner .submit, .composer-compact .submit {
@@ -3839,36 +3606,6 @@
 .mp-sub.mp-muted { padding: 6px 10px; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint); }
 .mp-sub.mp-err { color: var(--err); white-space: normal; }
 
-/* CtxPopover */
-.ctx-popover {
-  position: absolute; bottom: calc(100% + 12px); right: -40px; width: 320px; padding: 12px 14px;
-  display: none; flex-direction: column; gap: 8px;
-  background: var(--pop); border-radius: var(--r-pop); box-shadow: var(--sh-pop);
-  font-size: var(--text-sm); color: var(--fg-mid); z-index: 60; pointer-events: auto;
-}
-.ctx-popover::after { content: none; }
-.ctx-popover.open { display: flex; }
-.ctx-popover .cp-row { display: flex; align-items: baseline; gap: 8px; }
-.ctx-popover .cp-label { color: var(--fg-mid); flex: 0 0 auto; }
-.ctx-popover .cp-value { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg); }
-.ctx-popover .cp-pct { color: var(--fg-faint); margin-left: 2px; }
-.ctx-popover .cp-context-bar-wrap { padding: 0; }
-.ctx-popover .cp-context-bar { height: 4px; background: var(--chip); border-radius: 999px; overflow: hidden; }
-.ctx-popover .cp-context-bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
-.ctx-popover .cp-divider { height: 1px; background: var(--line); margin: 4px 0; }
-.ctx-popover .cp-section { display: flex; align-items: center; }
-.ctx-popover .cp-section .cp-label { font-size: var(--text-xs); color: var(--fg-faint); }
-.ctx-popover .cp-arrow {
-  margin-left: auto; padding: 0 4px; border-radius: 5px; background: none; border: 0;
-  color: var(--fg-dim2); font-size: var(--text-md); line-height: 1; cursor: pointer;
-}
-.ctx-popover .cp-arrow:hover { background: var(--chip); color: var(--fg); }
-.ctx-popover .cp-context .cp-value > span:first-child { color: var(--fg-faint); }
-.ctx-popover .cp-foot { padding: 0; }
-.ctx-popover .cp-costs { display: flex; gap: 16px; }
-.ctx-popover .cp-costs .cp-cost { flex: 1; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
-.ctx-popover .cp-costs .cp-cost .cp-label { font-size: var(--text-xs); color: var(--fg-faint); }
-.ctx-popover .cp-cost-val { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--fg); }
 /* END composer popovers A */
 
 /* ============================================================================

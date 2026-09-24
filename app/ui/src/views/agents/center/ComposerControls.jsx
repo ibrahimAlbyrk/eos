@@ -1,12 +1,10 @@
 import { useUi } from "../../../state/ui.jsx";
-import { contextUsage } from "../../../lib/contextWindow.js";
 import { modelName, modelCtx, effortChoicesFor } from "../../../lib/models.js";
 import { AcceptPopover } from "../popovers/AcceptPopover.jsx";
 import { AttachPopover } from "../popovers/AttachPopover.jsx";
 import { ModelPopover } from "../popovers/ModelPopover.jsx";
 import { BackendPopover, SpawnModelPopover } from "../popovers/BackendPopover.jsx";
 import { ModelEffortPanel } from "../popovers/ModelEffortPanel.jsx";
-import { CtxPopover } from "../popovers/CtxPopover.jsx";
 import { GitAgentPopover } from "../popovers/GitAgentPopover.jsx";
 import { TemplatePickerPopover } from "../popovers/TemplatePickerPopover.jsx";
 import { MODE_BY_ID } from "../../../lib/permissionModes.jsx";
@@ -83,16 +81,6 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
   // configured API profiles). Picking one sets composer.provider + a model.
   const showSpawnProvider = !selected && providerChoices().length > 0;
   const spawnProviderLabel = providerName(spawnChoice) ?? ui.composer.provider ?? "Provider";
-
-  const { used, total, pct } = contextUsage(selected, model);
-  const r = 7;
-  const C = 2 * Math.PI * r;
-  const filled = (pct / 100) * C;
-  const dashArray = `${filled.toFixed(2)} ${(C - filled).toFixed(2)}`;
-  const warn = Math.max(0, Math.min(1, (pct - 50) / 30));
-  // oklch keeps chroma while the hue rotates blue→teal→green→yellow; srgb
-  // mixing of complementary blue+yellow washes out to gray in the middle.
-  const ringColor = `color-mix(in oklch, var(--accent), #f0b429 ${Math.round(warn * 100)}%)`;
 
   const toggle = (id, e) => {
     e.stopPropagation();
@@ -248,30 +236,6 @@ export function ComposerControls({ live, worker, gitMode, onToggleGitMode, onAtt
             </div>
           </>
         )}
-        <div className="ctx-ring-wrap">
-          <button
-            className={"ctx-ring-btn" + (ui.openPopover === "ctx" ? " open" : "")}
-            id="ctxRingBtn"
-            onClick={(e) => toggle("ctx", e)}
-            title="Context usage"
-            data-popover-trigger="ctx"
-          >
-            <svg viewBox="0 0 18 18" aria-hidden="true">
-              <circle className="ring-track" cx="9" cy="9" r="7" />
-              {pct > 0 && (
-                <circle className="ring-fill" cx="9" cy="9" r="7" strokeDasharray={dashArray} style={{ stroke: ringColor }} />
-              )}
-            </svg>
-          </button>
-          <CtxPopover
-            used={used}
-            total={total}
-            pct={pct}
-            costUsd={selected ? (selected.cost_usd ?? 0) : null}
-            totalCostUsd={live.workers.reduce((sum, w) => sum + (w.cost_usd ?? 0), 0)}
-            backendKind={selected?.backend_kind}
-          />
-        </div>
         {showAmbientMini && (
           <div className="ambient-mini" title="Tasks and worktree changes — shown above once no prompt is pending">
             {taskTotal > 0 && (
