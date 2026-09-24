@@ -1,5 +1,6 @@
 import { ipcMain, clipboard, shell, BrowserWindow } from "electron";
 import type { WebContents } from "electron";
+import { execFile } from "node:child_process";
 import { writeFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import path from "node:path";
@@ -33,21 +34,44 @@ async function statEntries(paths: string[]): Promise<DirEntry[]> {
   return out;
 }
 
-// Best-effort read of file paths from the macOS pasteboard (⌘V of Finder items).
-// Electron's clipboard exposes the file-url flavor; multi-file reads are not
-// reliably surfaced, so this returns 0-or-1 entry. The UI treats [] as "no native
-// paths" and Chromium's own paste/DnD covers the common cases (doc 10 §f1).
-async function readClipboardFilePaths(): Promise<DirEntry[]> {
-  const paths: string[] = [];
+// Finder's ⌘C lists every copied item's real POSIX path here, as a plist (binary
+// or XML) — plutil turns either form into a JSON string array.
+async function readFilenamesPlist(): Promise<string[]> {
+  try {
+    const plist = clipboard.readBuffer("NSFilenamesPboardType");
+    if (!plist.length) return [];
+    const json = await new Promise<string>((resolve, reject) => {
+      const child = execFile("/usr/bin/plutil", ["-convert", "json", "-o", "-", "-"], (err, stdout) =>
+        err ? reject(err) : resolve(stdout),
+      );
+      child.stdin?.end(plist);
+    });
+    const parsed: unknown = JSON.parse(json);
+    return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+// Finder writes a file REFERENCE url here (file:///.file/id=<vol>.<inode>), which
+// doesn't resolve as a path — only a plain file url is usable.
+function readFileUrl(): string[] {
   try {
     const fileUrl = clipboard.read("public.file-url");
-    if (fileUrl && fileUrl.startsWith("file://")) {
-      paths.push(decodeURIComponent(fileUrl.slice("file://".length)));
-    }
+    if (!fileUrl.startsWith("file://")) return [];
+    const p = decodeURIComponent(new URL(fileUrl).pathname);
+    return p.startsWith("/.file/") ? [] : [p];
   } catch {
-    /* type not present */
+    return [];
   }
-  return statEntries(paths);
+}
+
+// Best-effort read of file paths from the macOS pasteboard (⌘V of Finder items).
+// The UI treats [] as "no native paths" and uploads the pasted bytes instead
+// (doc 10 §f1).
+async function readClipboardFilePaths(): Promise<DirEntry[]> {
+  const names = await readFilenamesPlist();
+  return statEntries(names.length ? names : readFileUrl());
 }
 
 // All inbound web→main handlers (the six webkit.messageHandlers, doc 10 §d 1–6)
