@@ -257,12 +257,17 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
   flex: 1; min-width: 0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.sb-settings__gear {
-  color: var(--fg-dim2);
-  display: inline-flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
+/* Avatar + name open the Account menu (AccountMenu.jsx). */
+.sb-settings__account {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 11px;
+  margin: -6px -8px;
+  padding: 6px 8px;
+  border-radius: var(--r-row);
+  text-align: left;
 }
-.sb-settings__gear:hover { color: var(--fg-mid); }
+.sb-settings__account:hover,
+.sb-settings__account.on { background: var(--row-on); color: var(--fg); }
 
 /* ============================================================================
    SIDEBAR · AGENTS SECTION
@@ -577,12 +582,13 @@ html.native .single-pane { --spt-top: 12px; }
 /* Invisible col-resize strip along the panel's left edge. It sits inside the
    panel because .side-panel's overflow:hidden clips anything past the edge.
    Hovering it brightens the panel's own border line. */
+.side-panel { --sp-resize-w: 8px; }
 .sp-resize {
   position: absolute;
   left: 0;
   top: 0;
   bottom: 0;
-  width: 8px;
+  width: var(--sp-resize-w);
   z-index: 30;
   cursor: col-resize;
   touch-action: none;
@@ -1005,6 +1011,25 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 }
 .pane-head .crumb .plan-chip:hover { background: var(--chip); color: var(--fg-mid); }
 .pane-head .crumb .plan-chip.on { background: var(--row-on); color: var(--fg); }
+/* Context chip (ContextChip.jsx) — hairline context meter + % beside the crumb. */
+.pane-head .crumb .ctx-chip {
+  align-self: center;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 24px;
+  padding: 0 8px;
+  margin-left: -3px;
+  border-radius: var(--r-icon);
+  color: var(--fg-dim2);
+  cursor: pointer;
+}
+.pane-head .crumb .ctx-chip:hover { background: var(--chip); color: var(--fg-mid); }
+.pane-head .crumb .ctx-chip.on { background: var(--row-on); color: var(--fg); }
+.ctx-chip .usage-meter { width: 28px; height: 2px; }
+.ctx-chip-pct { font-family: var(--font-mono); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
+.ctx-chip.is-warn .ctx-chip-pct { color: var(--warn); }
 .plan-chip-count { font-family: var(--font-mono); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 .plan-ring { width: 14px; height: 14px; transform: rotate(-90deg); flex-shrink: 0; }
 .plan-ring-track { fill: none; stroke: var(--fg-mute); stroke-width: 2; }

@@ -291,6 +291,121 @@
    --r-pop, --pop. The scroller keeps its full width (scrollbar never moves) and
    the centered message/composer column only slides left when its right edge
    would run under the panel — with enough free space nothing moves. */
+/* Usage meter — the one bar shared by the context chip/card and the Account
+   menu's plan rows. Accent fill; --warn at ≥80% (.is-warn on it or a parent). */
+.usage-meter {
+  display: block;
+  height: 3px;
+  border-radius: var(--r-pill);
+  background: rgba(var(--tint), 0.08);
+  overflow: hidden;
+}
+.usage-meter > i { display: block; height: 100%; border-radius: inherit; background: var(--accent); }
+.usage-meter.is-warn > i,
+.is-warn .usage-meter > i { background: var(--warn); }
+
+/* Context card (ContextChip.jsx) — portal'd under the crumb chip. */
+.ctx-card {
+  position: fixed;
+  z-index: 400;
+  width: 248px;
+  box-sizing: border-box;
+  padding: 14px 16px;
+  background: var(--pop);
+  border-radius: var(--r-pop);
+  box-shadow: var(--sh-pop);
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  font-size: var(--text-sm);
+  color: var(--fg-mid);
+  --app-region: no-drag;
+}
+.ctx-card .usage-meter { height: 4px; }
+.ctx-card-head { display: flex; align-items: baseline; justify-content: space-between; }
+.ctx-card-pct { font-size: var(--text-2xl); color: var(--fg-strong); font-variant-numeric: tabular-nums; }
+.ctx-card-pct small { font-size: var(--text-xs); color: var(--fg-faint); margin-left: 1px; }
+.ctx-card.is-warn .ctx-card-pct { color: var(--warn); }
+.ctx-card-sub { font-size: var(--text-xs); color: var(--fg-faint); }
+.ctx-card-sub b { font-family: var(--font-mono); font-weight: 400; color: var(--fg-dim); }
+.ctx-card-cost {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-top: 3px;
+  padding-top: 11px;
+  border-top: 1px solid var(--line);
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+.ctx-card-cost b { font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 400; color: var(--fg); }
+
+/* Account menu (AccountMenu.jsx) — portal'd above the sidebar's Account row.
+   Plan rows share one grid (label · meter · %) so the meters line up. */
+.acct-menu {
+  position: fixed;
+  z-index: 400;
+  width: 272px;
+  box-sizing: border-box;
+  padding: 6px;
+  background: var(--pop);
+  border-radius: var(--r-pop);
+  box-shadow: var(--sh-pop);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--text-sm);
+}
+.acct-usage {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 10px;
+  row-gap: 3px;
+  padding: 10px 8px 0;
+}
+.acct-usage-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+.acct-plan { padding: 1px 8px; border-radius: var(--r-pill); background: var(--chip); color: var(--fg-dim); }
+.acct-limit-label { color: var(--fg-mid); }
+.acct-limit-pct {
+  min-width: 32px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--fg);
+  font-variant-numeric: tabular-nums;
+}
+.acct-limit-pct.is-warn { color: var(--warn); }
+.acct-limit-reset { grid-column: 2 / -1; margin-bottom: 9px; font-size: var(--text-xs); color: var(--fg-faint); }
+.acct-total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 10px 8px 12px;
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+}
+.acct-usage + .acct-total { padding-top: 2px; }
+.acct-total b { font-family: var(--font-mono); font-size: var(--text-sm); font-weight: 400; color: var(--fg); }
+.acct-sep { height: 1px; margin: 0 8px 4px; background: var(--line); }
+.acct-item {
+  display: flex;
+  align-items: center;
+  padding: 7px 8px;
+  border-radius: var(--r-row);
+  text-align: left;
+  color: var(--fg-mid);
+}
+.acct-item:hover { background: var(--row-on); color: var(--fg); }
+.acct-kbd { margin-left: auto; font-family: var(--font-mono); font-size: var(--text-xs); color: var(--fg-faint); }
+
 /* Plan popover + hover peek (PlanChip.jsx) — portal'd under the header chip. */
 .plan-pop {
   position: fixed;

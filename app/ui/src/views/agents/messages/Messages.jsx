@@ -43,6 +43,7 @@ import { deriveTurns } from "../../../lib/turnIndex.js";
 import { useConversationTurns } from "../../../hooks/useConversationTurns.js";
 import { glideToBlock } from "../../../lib/glideTo.js";
 import { newSessionProject } from "../../../lib/breadcrumb.js";
+import { useProjects } from "../../../state/projectsStore.js";
 import { TerminalCard } from "./TerminalCard.jsx";
 import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceRuns } from "../../../state/terminalStore.js";
 import { subscribe as subscribeThinking, liveBlocksFor as liveThinkingFor, dropBlock as dropThinkingBlock } from "../../../state/thinkingStore.js";
@@ -63,6 +64,8 @@ const NO_EVENTS = [];
 
 // Where a turn-rail jump parks the prompt: just below the scroller's top edge.
 const TURN_JUMP_OFFSET = 24;
+// Rail/jump key of a dispatched worker's task card (not a block of its own).
+const TASK_BKEY = "task";
 
 // The user message that first carried `path` (a "Files in Chat" jump). Matches
 // on the rendered attachment's title (MessageUser sets title={att.path}); the
@@ -76,6 +79,7 @@ function findAttachmentBlock(content, path) {
 
 export function Messages({ live, agentId, isActive = true }) {
   const ui = useUi();
+  const { projects } = useProjects();
   // This pane renders exactly ONE agent. The host passes agentId explicitly so
   // several panes can stay mounted at once (keep-alive); a lone <Messages> with
   // no host falls back to the global selection. isActive marks the focused pane —
@@ -311,6 +315,13 @@ export function Messages({ live, agentId, isActive = true }) {
   // A primitive on purpose: live.workers churns on every state ping, but the
   // parse only cares whether the boot prompt renders as a task card.
   const bootPromptOffset = selectedWorker?.parent_id && selectedWorker?.prompt ? 1 : 0;
+  // The task card has no block, so the turn rail gets it as a seeded first turn.
+  const bootPrompt = bootPromptOffset ? selectedWorker.prompt : null;
+  const bootTs = selectedWorker?.started_at;
+  const bootTurn = useMemo(
+    () => (bootPrompt ? { key: TASK_BKEY, text: bootPrompt, ts: bootTs } : null),
+    [bootPrompt, bootTs],
+  );
 
   // Parse is the expensive half (full-transcript scan) — it re-runs only when
   // durable rows change. Overlays join in the second memo so terminal chunks
@@ -356,8 +367,10 @@ export function Messages({ live, agentId, isActive = true }) {
     return sortBlocksByTs(base);
   }, [baseBlocks, selectedId, termTick, outboxTick, thinkTick]);
 
-  const windowTurns = useMemo(() => deriveTurns(blocks, blockKey), [blocks]);
-  const turns = useConversationTurns(selectedId, events, windowTurns, { hasOlder, bootPromptOffset, keyOf: blockKey });
+  // With older pages unloaded the window starts mid-conversation, so the boot
+  // turn comes from the whole-conversation index instead.
+  const windowTurns = useMemo(() => deriveTurns(blocks, blockKey, hasOlder ? null : bootTurn), [blocks, hasOlder, bootTurn]);
+  const turns = useConversationTurns(selectedId, events, windowTurns, { hasOlder, bootPromptOffset, bootTurn, keyOf: blockKey });
   // A turn outside the loaded window pages older rows in until its prompt
   // renders (the effect below), then glides there.
   const jumpToTurn = useCallback((key) => {
@@ -529,19 +542,21 @@ export function Messages({ live, agentId, isActive = true }) {
     <div className="messages-wrap" ref={wrapRef}>
       {find.open && <FindBar find={find} />}
       <div className={selectedId ? "messages" : "messages messages-empty"} ref={contentRef}>
-        {!selectedId && <NewTaskHero project={newSessionProject(ui.composer.cwd, live.recents).project} />}
+        {!selectedId && <NewTaskHero project={newSessionProject(ui.composer.cwd, live.recents, projects).project} />}
         {selectedId && hasOlder && (
           <div className="load-older" ref={setSentinelEl}>
             {loadingOlder && <span className="load-older-skel" aria-label="loading earlier messages" />}
           </div>
         )}
         {selectedWorker?.parent_id && selectedWorker.prompt && (
-          <MessageTask
-            prompt={selectedWorker.prompt}
-            parentId={selectedWorker.parent_id}
-            parentName={parentWorker?.name || "orchestrator"}
-            workers={live.workers}
-          />
+          <div data-bkey={TASK_BKEY}>
+            <MessageTask
+              prompt={selectedWorker.prompt}
+              parentId={selectedWorker.parent_id}
+              parentName={parentWorker?.name || "orchestrator"}
+              workers={live.workers}
+            />
+          </div>
         )}
         {selectedWorker?.loop && <LoopStatus loop={selectedWorker.loop} history={loopChecks} />}
         {blocks.map((b, i) => {

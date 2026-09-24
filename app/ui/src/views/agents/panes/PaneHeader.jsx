@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { breadcrumbFor, newSessionProject } from "../../../lib/breadcrumb.js";
+import { useProjects } from "../../../state/projectsStore.js";
 import { nameOf, AgentName } from "../../../lib/agentName.js";
 import { RenameInput } from "../../../components/RenameInput.jsx";
 import { api } from "../../../api/client.js";
@@ -8,6 +9,7 @@ import { HeaderAgentMenu } from "../popovers/HeaderAgentMenu.jsx";
 import { SplitMenu } from "../popovers/SplitMenu.jsx";
 import { toggleEnvPanel, useEnvPanelOpen } from "../../../state/envPanelStore.js";
 import { PlanChip } from "./PlanChip.jsx";
+import { ContextChip } from "./ContextChip.jsx";
 
 // Per-pane top bar: breadcrumb + agent menu on the left, and — on the right —
 // exactly the reference's three chrome buttons: Environment & changes (git
@@ -23,6 +25,7 @@ import { PlanChip } from "./PlanChip.jsx";
 // overlays that sit over `.pane-head-inset`; see App.jsx.
 export function PaneHeader({ worker, live, attention, needsInput, canClose, onClose, topLeft, topRow, split }) {
   const ui = useUi();
+  const { projects } = useProjects();
   // Header-local rename (breadcrumb inline edit), reset when the pane's agent
   // changes so a stale editor never carries over to a different worker.
   const [renaming, setRenaming] = useState(false);
@@ -107,7 +110,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
   if (!worker) {
     // Reference new-task header: "new orchestrator" (strong) + the faint project
     // name, which disappears entirely when no folder is set.
-    const { project } = newSessionProject(ui.composer.cwd, live.recents);
+    const { project } = newSessionProject(ui.composer.cwd, live.recents, projects);
     return (
       <div className={rootClass}>
         {insetEl}
@@ -165,6 +168,7 @@ export function PaneHeader({ worker, live, attention, needsInput, canClose, onCl
           <HeaderAgentMenu live={live} agent={worker} onRename={startRename} anchor={vWrapRef} />
         </span>
         <PlanChip worker={worker} />
+        <ContextChip worker={worker} />
       </div>
       {split && (needsInput
         ? <span className="pane-input-label" title="Needs your input — click the pane to answer">needs input</span>

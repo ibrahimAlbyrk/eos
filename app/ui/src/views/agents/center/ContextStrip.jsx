@@ -1,19 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
-import { basename } from "../../../lib/path.js";
+import { projectForPath, projectLabel } from "../../../lib/projects.js";
+import { useProjects } from "../../../state/projectsStore.js";
+import { ProjectIcon } from "../../../components/project/ProjectIcon.jsx";
 import { subscribeGitChange, BRANCH_KINDS } from "../../../state/gitChangeBus.js";
 import { FolderDropdown } from "../popovers/FolderDropdown.jsx";
 import { BranchManager } from "../popovers/BranchManager.jsx";
 
-// The context strip: a --pop tab tucked behind the composer card holding a {}
-// project pill and a branch pill for the next spawn (no session yet — once one
+// The context strip: a --pop tab tucked behind the composer card holding a
+// project pill (the project's icon + name, folder icon by default) and a branch pill for the next spawn (no session yet — once one
 // exists SessionTray takes this slot). Both open the existing pickers and
 // read/write ui.composer, the pre-spawn config.
 export function ContextStrip({ live }) {
   const ui = useUi();
   const cwd = ui.composer.cwd ?? live.recents[0] ?? null;
-  const folderLabel = cwd ? basename(cwd) : "pick folder…";
+  const { projects } = useProjects();
+  const project = projectForPath(projects, cwd);
+  const folderLabel = cwd ? projectLabel(project, cwd) : "pick project…";
 
   // Seed ui.composer.cwd from the first recent so a spawn has a folder without
   // the operator opening the picker (was in ComposerConfigRow).
@@ -69,7 +73,7 @@ export function ContextStrip({ live }) {
           onClick={(e) => toggle("folder-dd", e)}
           data-popover-trigger="folder-dd"
         >
-          <span className="strip-brace">{"{}"}</span>
+          <span className="strip-brace"><ProjectIcon icon={project?.icon} /></span>
           <span className="strip-project-name">{folderLabel}</span>
         </button>
         <FolderDropdown live={live} />
