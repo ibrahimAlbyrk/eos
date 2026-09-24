@@ -30,7 +30,7 @@ export function AgentsView({ live }) {
   // Cmd+1..9 → select Nth visible agent in the sidebar.
   useAgentSwitchHotkeys(live);
 
-  // Cmd+Ctrl+1..4 → focus the Nth split pane.
+  // Cmd+Opt+1..4 → focus the Nth split pane.
   usePaneFocusHotkeys();
 
   // Cmd+W → archive the selected agent (falls back to the previous selection).

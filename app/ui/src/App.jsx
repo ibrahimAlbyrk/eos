@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useUi, UiProvider, useAttentionSync } from "./state/ui.jsx";
 import { useLive } from "./hooks/useLive.js";
 import { useStorePrune } from "./hooks/useStorePrune.js";
+import { useViewSwitchHotkeys } from "./hooks/useViewSwitchHotkeys.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { CommandPalette } from "./components/search/CommandPalette.jsx";
 import { SettingsModal } from "./components/settings/SettingsModal.jsx";
@@ -23,6 +24,9 @@ function Shell() {
   // cascade death, daemon-restart disappearance) — the explicit-delete purge
   // can't catch those.
   useStorePrune(live.workers);
+
+  // Cmd+Ctrl+1/2 → Agents / Code.
+  useViewSwitchHotkeys();
 
   // Panel-level attention for the collapsed-sidebar expand button pip.
   const hasAttention = ui.anyNeedsAttention(live.workers);

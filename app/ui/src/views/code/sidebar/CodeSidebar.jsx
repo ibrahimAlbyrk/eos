@@ -147,7 +147,7 @@ function SessionRow({ leafId, index, term, focused }) {
         <span className="cw-row__name">{paneTitle(term)}</span>
         <span className="cw-row__sub">{basename(term.cwd)}</span>
       </span>
-      <span className="cw-row__meta">⌃⌘{index + 1}</span>
+      <span className="cw-row__meta">⌘{index + 1}</span>
       <button
         className="cw-row__act"
         title="Close session"

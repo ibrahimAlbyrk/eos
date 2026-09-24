@@ -32,9 +32,9 @@ function useCodeHotkeys() {
   useGlobalKeymap(() => ({ terminalFocused: isTerminalFocused() }));
   useEffect(() => {
     const bindings = HOTKEYS.map(({ keys, run }) => ({ match: combo(keys), run }));
-    // ⌘⌃1..9 → focus the Nth pane (same chord as the Agents split view).
+    // ⌘1..9 → focus the Nth pane.
     bindings.push({
-      match: (e) => e.metaKey && e.ctrlKey && !e.altKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code),
+      match: (e) => e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code),
       run: (e) => focusPaneByIndex(Number(e.code.slice(5)) - 1),
     });
     const offs = bindings.map(({ match, run }) => keymap.register({
