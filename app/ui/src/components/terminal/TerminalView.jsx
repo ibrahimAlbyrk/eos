@@ -1,12 +1,18 @@
 import { useEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { WebglAddon } from "@xterm/addon-webgl";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import "@xterm/xterm/css/xterm.css";
 import { api } from "../../api/client.js";
 import { onPtyData, onPtyExit } from "../../state/ptyBus.js";
 import { markExited } from "../../state/ptyPanelStore.js";
 import { registerTerminal } from "./terminalBridge.js";
 import { createReplayGate } from "./replayGate.js";
+import { macEditBytes, shellEscapePath } from "./terminalKeys.js";
+import { createWheelAccumulator, sgrWheelReports } from "./mouseWheel.js";
+import { openTerminalLink, oscLinkHandler } from "./terminalLinks.js";
+import { claimNextDrop } from "../../lib/nativeBridge.js";
 
 // ONE xterm.js instance per PTY session. Stays MOUNTED while inactive (parent
 // hides it with display:none) so scrollback survives tab switches client-side.
@@ -62,9 +68,11 @@ export function TerminalView({
         "monospace",
       fontSize,
       theme: { background: bg, foreground: fg, cursor: accent, ...palette },
+      linkHandler: oscLinkHandler,
     });
     const fit = new FitAddon();
     term.loadAddon(fit);
+    term.loadAddon(new WebLinksAddon(openTerminalLink)); // plain-text URLs
 
     // Clipboard shortcuts inside the terminal. On macOS ⌘ is the clipboard
     // modifier (Ctrl+C/V stay control bytes for the shell), so only intercept
@@ -79,6 +87,8 @@ export function TerminalView({
         return false;
       }
       if (e.type !== "keydown") return true;
+      const editBytes = macEditBytes(e);
+      if (editBytes) { inputBuf += editBytes; flushInput(); e.preventDefault(); return false; }
       if (!(e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey)) return true;
       const key = e.key.toLowerCase();
       if (key === "c" || key === "x") {
@@ -95,8 +105,47 @@ export function TerminalView({
       if (key === "a") { term.selectAll(); e.preventDefault(); return false; }
       return true;
     });
+
+    // Wheel inside a mouse-tracking TUI (Claude Code): Ghostty-rate SGR reports
+    // (see mouseWheel.js). xterm keeps the wheel for its own scrollback, and for
+    // non-SGR encodings we can't emit — only this path is overridden.
+    let sgrMouse = false;
+    const trackSgr = (on) => (params) => { if (params.includes(1006)) sgrMouse = on; return false; };
+    const sgrOn = term.parser.registerCsiHandler({ prefix: "?", final: "h" }, trackSgr(true));
+    const sgrOff = term.parser.registerCsiHandler({ prefix: "?", final: "l" }, trackSgr(false));
+    const wheelSteps = createWheelAccumulator();
+    term.attachCustomWheelEventHandler((e) => {
+      const mode = term.modes.mouseTrackingMode;
+      if (!sgrMouse || mode === "none" || mode === "x10" || e.shiftKey || e.altKey || e.ctrlKey || e.metaKey) return true;
+      const screen = term.element?.querySelector(".xterm-screen");
+      if (!screen) return true;
+      e.preventDefault();
+      const r = screen.getBoundingClientRect();
+      const cellH = r.height / term.rows;
+      const steps = wheelSteps(e, cellH, term.rows);
+      if (!steps) return false;
+      const col = Math.min(term.cols, Math.max(1, Math.floor((e.clientX - r.left) / (r.width / term.cols)) + 1));
+      const row = Math.min(term.rows, Math.max(1, Math.floor((e.clientY - r.top) / cellH) + 1));
+      inputBuf += sgrWheelReports(steps, col, row);
+      flushInput();
+      return false;
+    });
     const unregisterTerm = registerTerminal({ term, host });
     const titleDisposable = term.onTitleChange((t) => onTitleRef.current?.(t));
+
+    // Finder drop → paste the escaped paths, like Ghostty. The preload resolves
+    // real paths and delivers them via the native bridge after this DOM event.
+    const onDrop = (e) => {
+      if (!Array.from(e.dataTransfer?.types ?? []).includes("Files")) return;
+      e.preventDefault();
+      claimNextDrop((entries) => {
+        const paths = entries.map((x) => x.path).filter(Boolean);
+        if (!paths.length) return;
+        term.paste(paths.map(shellEscapePath).join(" ") + " ");
+        term.focus();
+      });
+    };
+    host.addEventListener("drop", onDrop);
 
     let opened = false;
     let fitTimer = null;
@@ -157,6 +206,29 @@ export function TerminalView({
     // equality — sub-pixel movement near the ease's tail keeps it "unstable"
     // until the transition truly ends). A hidden host (width 0: inactive tab,
     // buried panel) never settles, so the mount also waits for visibility.
+    // GPU renderer: Claude Code repaints the whole screen per scroll step, which
+    // the DOM renderer can't keep up with. Held only while the terminal is on
+    // screen — a hidden one (inactive tab, other view) releases its WebGL context
+    // (browsers cap live contexts at ~16) and falls back to the DOM renderer,
+    // which xterm pauses while hidden anyway. Context loss → DOM renderer too.
+    let webgl = null;
+    let onScreen = false;
+    const setGpu = (on) => {
+      if (!opened || on === Boolean(webgl)) return;
+      if (!on) { webgl.dispose(); webgl = null; return; }
+      try {
+        const addon = new WebglAddon();
+        addon.onContextLoss(() => { addon.dispose(); if (webgl === addon) webgl = null; });
+        term.loadAddon(addon);
+        webgl = addon;
+      } catch { /* no WebGL2 → DOM renderer */ }
+    };
+    const io = new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting;
+      setGpu(onScreen);
+    });
+    io.observe(host);
+
     let raf = 0;
     let lastW = -1;
     let stableFrames = 0;
@@ -167,6 +239,7 @@ export function TerminalView({
       if (stableFrames < 2) { raf = requestAnimationFrame(openWhenSettled); return; }
       term.open(host);
       opened = true;
+      setGpu(onScreen);
       settleFit();
       for (const d of pending) term.write(d);
       pending.length = 0;
@@ -185,11 +258,15 @@ export function TerminalView({
       cancelAnimationFrame(raf);
       if (fitTimer) clearTimeout(fitTimer);
       ro.disconnect();
+      io.disconnect();
+      host.removeEventListener("drop", onDrop);
       unregisterTerm();
       offData();
       offExit();
       onDataDisposable?.dispose();
       titleDisposable.dispose();
+      sgrOn.dispose();
+      sgrOff.dispose();
       term.dispose();
       ctl.current = null;
     };

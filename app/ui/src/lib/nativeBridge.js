@@ -23,10 +23,21 @@ export async function readPasteboardPaths() {
 
 const dropSubs = new Set();
 const dragSubs = new Set();
+let dropClaim = null;
 
 window.__eosNativeDrop = (entries) => {
+  const claim = dropClaim;
+  dropClaim = null;
+  if (claim) return claim(entries);
   for (const cb of dropSubs) cb(entries);
 };
+
+// The native paths arrive async, after the DOM drop event. A surface that saw the
+// DOM drop land on it (e.g. a terminal) claims the next native drop, so the paths
+// go to it instead of the composer subscribers.
+export function claimNextDrop(cb) {
+  dropClaim = cb;
+}
 window.__eosDragState = (active) => {
   for (const cb of dragSubs) cb(active);
 };
