@@ -69,6 +69,12 @@ describe("Cmd+W funnel archives; delete is menu-only and shares the funnel", () 
     }
     expect(clientSrc).toContain("killWorker");
   });
+
+  it("archive and kill drop the subtree from the snapshot before the funnel clears collapsed state", () => {
+    // Waiting for the debounced refetch let removeCollapsedNodes land first —
+    // the doomed subtree flashed expanded before vanishing.
+    expect(useLiveSrc.match(/if \(r\?\.ok\) dropSubtree\(id\);/g)?.length).toBe(2);
+  });
 });
 
 describe("archive settings persist to config.json, not the settings.json store", () => {

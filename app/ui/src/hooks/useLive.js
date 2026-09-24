@@ -18,8 +18,9 @@ import { markExited } from "../state/ptyPanelStore.js";
 import { applyTabs as applyBrowserTabs, applyStatus as applyBrowserStatus } from "../state/browserPanelStore.js";
 import { applyActivity as applyBrowserActivity } from "../state/browserSessionState.js";
 import { updateAgentIndex, updateAgentNames } from "../lib/agentIndex.js";
-import { applyDelta, dropWorker as dropThinking, finalizeWorker as finalizeThinking } from "../state/thinkingStore.js";
+import { applyDelta, dropInterrupted as dropInterruptedThinking, finalizeWorker as finalizeThinking } from "../state/thinkingStore.js";
 import { isRunning } from "../lib/agentActivity.js";
+import { subtreeIds } from "../lib/tree.js";
 import { applyProgress as applyLoopCheck } from "../state/loopCheckStore.js";
 import { cancelQueued, retract } from "../state/outboxStore.js";
 import { setRecall } from "../state/recallStore.js";
@@ -260,7 +261,7 @@ export function useLive() {
   const sendToAgent = useCallback(async (id, text, { clientMsgId, queueWhenBusy } = {}) => {
     setInterruptedId(null);
     // New turn starting — retire the previous turn's finalized thinking buffers.
-    dropThinking(id);
+    dropInterruptedThinking(id);
     const worker = workersRef.current.find((w) => w.id === id);
     if (!worker) return { ok: false, status: 404, body: { error: "not found" } };
     const opts = { clientMsgId, queueWhenBusy };
@@ -281,14 +282,25 @@ export function useLive() {
     return r;
   }, [scheduleRefetch, setInterruptedId]);
 
+  // Drop a removed agent's subtree from the snapshot right away instead of
+  // waiting for the debounced refetch — otherwise the caller's collapsed-state
+  // cleanup lands first and the subtree briefly renders expanded before it
+  // vanishes. Taking a fresh seq also discards any older in-flight fetch that
+  // would bring the rows back.
+  const dropSubtree = useCallback((id) => {
+    const doomed = new Set(subtreeIds(workersRef.current, id));
+    applyWorkers(++workersSeqRef.current, workersRef.current.filter((w) => !doomed.has(w.id)));
+  }, [applyWorkers]);
+
   // Archive replaces the old hard delete for every UI entry point. The row
-  // (and its subtree) leaves the next /workers payload, so downstream vanish
-  // handling (prunePanes, selection cleanup, useStorePrune) is unchanged.
+  // (and its subtree) leaves the snapshot, so downstream vanish handling
+  // (prunePanes, selection cleanup, useStorePrune) is unchanged.
   const archiveAgent = useCallback(async (id) => {
     const r = await api.archiveWorker(id);
+    if (r?.ok) dropSubtree(id);
     scheduleRefetch();
     return r;
-  }, [scheduleRefetch]);
+  }, [scheduleRefetch, dropSubtree]);
 
   const restoreAgent = useCallback(async (id) => {
     const r = await api.restoreWorker(id);
@@ -306,9 +318,10 @@ export function useLive() {
   // site; Cmd+W stays archive-only.
   const killAgent = useCallback(async (id) => {
     const r = await api.killWorker(id);
+    if (r?.ok) dropSubtree(id);
     scheduleRefetch();
     return r;
-  }, [scheduleRefetch]);
+  }, [scheduleRefetch, dropSubtree]);
 
   const renameAgent = useCallback(async (id, name) => {
     // Optimistic — avoid flashing the old name between input close and
