@@ -5,4 +5,5 @@
 export interface RecentsRepo {
   list(): string[];
   push(path: string): void;
+  remove(path: string): void;
 }

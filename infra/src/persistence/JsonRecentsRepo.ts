@@ -32,6 +32,12 @@ export class JsonRecentsRepo implements RecentsRepo {
     this.write(next);
   }
 
+  remove(path: string): void {
+    if (!this.cache.includes(path)) return;
+    this.cache = this.cache.filter((p) => p !== path);
+    this.write(this.cache);
+  }
+
   private read(): string[] {
     try {
       if (!existsSync(this.file)) return [];

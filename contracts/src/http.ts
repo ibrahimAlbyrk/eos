@@ -907,6 +907,37 @@ export type RemoteBranchDeleteResponse = z.infer<typeof RemoteBranchDeleteRespon
 export const RecentsResponseSchema = z.object({ paths: z.array(z.string()) });
 export type RecentsResponse = z.infer<typeof RecentsResponseSchema>;
 
+// ---- Projects (~/.eos/projects.json) -----------------------------------------
+// A named set of source folders. folders[0] is the PRIMARY: agents run (and git
+// is tracked) there; the rest reach the session as SDK additionalDirectories.
+// GET /projects lists; PUT /projects upserts (no id → create); POST
+// /projects/delete forgets the record (agents are untouched).
+
+export const ProjectIconSchema = z.object({
+  kind: z.enum(["emoji", "icon"]),
+  value: z.string().min(1).max(64),
+  color: z.string().max(32).optional(),
+});
+export type ProjectIcon = z.infer<typeof ProjectIconSchema>;
+
+export const ProjectSchema = z.object({
+  id: z.string().min(1),
+  name: z.string().trim().min(1).max(200),
+  icon: ProjectIconSchema.nullable().optional(),
+  folders: z.array(z.string().min(1)).min(1),
+  pinned: z.boolean().optional(),
+});
+export type Project = z.infer<typeof ProjectSchema>;
+
+export const ProjectsResponseSchema = z.object({ projects: z.array(ProjectSchema) });
+export type ProjectsResponse = z.infer<typeof ProjectsResponseSchema>;
+
+export const ProjectUpsertRequestSchema = ProjectSchema.extend({ id: z.string().min(1).optional() });
+export type ProjectUpsertRequest = z.infer<typeof ProjectUpsertRequestSchema>;
+
+export const ProjectDeleteRequestSchema = z.object({ id: z.string().min(1) });
+export type ProjectDeleteRequest = z.infer<typeof ProjectDeleteRequestSchema>;
+
 // ---- POST /fs/reveal -------------------------------------------------------
 
 export const FsRevealRequestSchema = z.object({ path: z.string() });
@@ -2071,6 +2102,8 @@ export const ROUTES = {
   fsStashApply: "/fs/stash/apply",
   fsStashDrop: "/fs/stash/drop",
   fsRecents: "/fs/recents",
+  projects: "/projects",
+  projectsDelete: "/projects/delete",
   fsReveal: "/fs/reveal",
   fsOpenIn: "/fs/open-in",
   fsRead: "/fs/read",

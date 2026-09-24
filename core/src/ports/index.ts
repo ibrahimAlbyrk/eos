@@ -20,5 +20,6 @@ export * from "./ModelCatalog.ts";
 export * from "./GitInfo.ts";
 export * from "./ConflictResolution.ts";
 export * from "./RecentsRepo.ts";
+export * from "./ProjectsRepo.ts";
 export * from "./PromptSource.ts";
 export * from "./ProjectMemoryStore.ts";

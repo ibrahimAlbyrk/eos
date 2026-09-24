@@ -20,6 +20,8 @@ export const USER_DATA_ENTRIES = [
   // session ("profile" = the global session, <sessionKey> = per-session
   // Chromes). Non-regenerable: losing it logs the user out everywhere.
   "browser",
+  // User projects (~/.eos/projects.json) — names, icons, source folders.
+  "projects.json",
   "policy.yaml",
   "config.json",
   // Files-explorer trash fallback (used only when the macOS Finder Trash is

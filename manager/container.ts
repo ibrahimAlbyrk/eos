@@ -91,6 +91,7 @@ import { childProcessRemoteSync } from "../infra/src/git/ChildProcessRemoteSync.
 import { gitUpdateSource } from "../infra/src/updates/GitUpdateSource.ts";
 import { createDetachedBuildApplier } from "../infra/src/updates/DetachedBuildApplier.ts";
 import { JsonRecentsRepo } from "../infra/src/persistence/JsonRecentsRepo.ts";
+import { JsonProjectsRepo } from "../infra/src/persistence/JsonProjectsRepo.ts";
 import { FileMcpServerCatalog } from "../infra/src/mcp/FileMcpServerCatalog.ts";
 import { createRuntimeMcpClient } from "../infra/src/mcp/RuntimeMcpClient.ts";
 import { connectRuntimeMcpTools } from "./backends/runtime-mcp.ts";
@@ -101,6 +102,7 @@ import { purgeExpiredArchives } from "../core/src/use-cases/PurgeExpiredArchives
 import { archivePurgeDeps } from "./shared/archive-purge.ts";
 import { reconcileWorkersOnBoot } from "../core/src/use-cases/ReconcileWorkersOnBoot.ts";
 import { resolveMcpServers } from "../core/src/domain/mcp-resolution.ts";
+import { additionalDirsFor } from "../core/src/domain/projects.ts";
 import { toSdkMcpServers } from "./backends/sdk/SdkMcpTranslator.ts";
 import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { createSlashCommandRegistry } from "../core/src/domain/slash-command.ts";
@@ -437,6 +439,7 @@ export function buildContainer() {
   setInterval(reapWorktreesTick, WORKTREE_REAP_INTERVAL_MS).unref();
 
   const recents = new JsonRecentsRepo(join(config.daemon.home, "recents.json"));
+  const projects = new JsonProjectsRepo(join(config.daemon.home, "projects.json"));
 
   // UI-origin token. Required as the x-eos-ui-token header on every
   // checkout-mutating endpoint (/workers/:id/try*) so agents holding
@@ -1019,6 +1022,8 @@ export function buildContainer() {
     getAnthropicConfig: () => config.anthropic,
     makeToolContext,
     resolveSdkMcpServers,
+    // Looked up per launch, so a project edit reaches the next spawn/resume/clear.
+    resolveAdditionalDirs: (spec) => additionalDirsFor(projects.list(), [spec.cwd, spec.backendOptions?.spec?.worktreeFrom]),
     // Same DPI text the CLI lane writes to --append-system-prompt-file, plus the
     // injected memory: the SDK spec carries the SpawnWorkerSpec in backendOptions.spec
     // (SpawnWorker.ts). "claude" loads nothing natively → every enabled source
@@ -1177,6 +1182,7 @@ export function buildContainer() {
     remoteSync,
     uiToken,
     recents,
+    projects,
     resolveWorktreeDir,
     logFileFor,
     backends,
