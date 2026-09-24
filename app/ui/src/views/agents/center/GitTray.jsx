@@ -22,8 +22,9 @@ const COMMIT_OPTIONS = [
   { id: "commit-push", label: "Commit & push", icon: "push" },
 ];
 
-// The session's git actions (changes, commit, push/pull, PR) on a tray tucked
-// behind the composer card: only its top edge peeks out, hovering slides it up.
+// The session's git actions (changes, commit, push/pull, PR) on a tray hidden
+// behind the composer card: only a lit seam on the card's top edge marks it
+// (green while there's work to integrate), hovering slides it up.
 // An open split menu holds it up so a menu never slides away.
 export function GitTray({ live, worker, wtStatus }) {
   const ui = useUi();
@@ -56,6 +57,7 @@ export function GitTray({ live, worker, wtStatus }) {
 
   const dirtyChildren = wtStatus?.children ?? [];
   const onMenu = (open) => setMenusOpen((n) => n + (open ? 1 : -1));
+  const dirty = hasUnintegratedWork(diff);
   const openReview = () => ui.openPanel("review", { workerId: worker.id, cwd: gitDir });
 
   const handlePrAction = (id) => {
@@ -89,9 +91,8 @@ export function GitTray({ live, worker, wtStatus }) {
   };
 
   return (
-    <div className={"git-tray" + (menusOpen > 0 ? " pinned" : "")}>
+    <div className={"git-tray" + (menusOpen > 0 ? " pinned" : "") + (dirty || ahead > 0 ? " has-work" : "")}>
       <div className="git-tray-body">
-        <span className="git-tray-grip" aria-hidden="true" />
         <div className="diff-actions">
           {(ahead > 0 || behind > 0) && (
             <button
@@ -141,7 +142,7 @@ export function GitTray({ live, worker, wtStatus }) {
               <span className="lbl">{conflicts === 1 ? "conflict" : "conflicts"}</span>
             </button>
           )}
-          {hasUnintegratedWork(diff) && (
+          {dirty && (
             <>
               <button className="diff-badge diff-badge-btn" title="View changes" onClick={openReview}>
                 {diff.insertions > 0 || diff.deletions > 0 ? (
