@@ -36,7 +36,7 @@ export function elementAttachment(el) {
   return { type: "element", label: elementLabel(el), path: JSON.stringify(elementPayload(el)) };
 }
 
-export function PickerLayer({ paneId, tabId }) {
+export function PickerLayer({ paneId, composerPane, tabId }) {
   const rootRef = useRef(null);
   const [result, setResult] = useState(null); // the picked element, once resolved
 
@@ -53,7 +53,7 @@ export function PickerLayer({ paneId, tabId }) {
       // Hide the native view so the result card (DOM) isn't occluded by it, then
       // attach the element to the composer.
       view.overlayOpen(true);
-      pushHandoff(paneId, [elementAttachment(el)]);
+      pushHandoff(composerPane, [elementAttachment(el)]);
       setResult(el);
     }).catch(() => { if (!cancelled) toggleMode(paneId, "pick"); });
     return () => {
@@ -61,7 +61,7 @@ export function PickerLayer({ paneId, tabId }) {
       view.cancelPick?.();
       view.overlayOpen(false);
     };
-  }, [paneId, tabId]);
+  }, [paneId, composerPane, tabId]);
 
   // Escape cancels the pick / dismisses the result; a click on the result backdrop
   // dismisses it. Both return to plain view.

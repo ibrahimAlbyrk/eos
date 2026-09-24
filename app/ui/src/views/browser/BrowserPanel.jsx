@@ -10,6 +10,7 @@ import {
 import { notePanelOpened, seedRememberedTab } from "../../state/browserSessionState.js";
 import { sessionRootOf } from "../../lib/agentIndex.js";
 import { usePanelHost } from "../../state/panelHost.js";
+import { useOriginPane } from "../../state/paneScope.js";
 import { PanelShell } from "../agents/panes/PanelShell.jsx";
 import { BrowserEmptyState } from "./BrowserEmptyState.jsx";
 import { BrowserTabStrip } from "./BrowserTabStrip.jsx";
@@ -43,10 +44,16 @@ export function BrowserPanel() {
   const ui = useUi();
   const host = usePanelHost();
   const sessionKey = ui.panelData?.browser?.sessionKey ?? (host ? null : sessionRootOf(ui.selectedId));
-  return <BrowserPanelInner paneId={PANEL_ID} sessionKey={sessionKey} />;
+  // Annotate/pick results go to the composer of the pane this panel lives in,
+  // which listens on that pane's leaf id — not the constant geometry key.
+  const composerPane = useOriginPane();
+  // The panel stays mounted through its slide-out animation, but the native view
+  // ignores DOM clipping — hide it the moment closing starts.
+  const closing = !ui.showSidePanel;
+  return <BrowserPanelInner paneId={PANEL_ID} sessionKey={sessionKey} composerPane={composerPane} closing={closing} />;
 }
 
-function BrowserPanelInner({ paneId, sessionKey }) {
+function BrowserPanelInner({ paneId, sessionKey, composerPane, closing }) {
   const panel = useSyncExternalStore(
     useCallback((cb) => subscribe(sessionKey, cb), [sessionKey]),
     useCallback(() => getBrowserPanel(sessionKey), [sessionKey]),
@@ -66,10 +73,7 @@ function BrowserPanelInner({ paneId, sessionKey }) {
     const el = bodyRef.current;
     if (!el || !window.eosBrowserView) return;
     const r = el.getBoundingClientRect();
-    // Stop short of the side panel's resize strip, or the native view swallows its hover/drag.
-    const handle = el.closest(".side-panel")?.querySelector(":scope > .sp-resize");
-    const left = Math.max(r.left, handle?.getBoundingClientRect().right ?? 0);
-    window.eosBrowserView.setBounds({ x: left, y: r.top, width: r.right - left, height: r.height });
+    window.eosBrowserView.setBounds({ x: r.left, y: r.top, width: r.width, height: r.height });
   }, []);
 
   useEffect(() => bindPaneSession(paneId, sessionKey), [paneId, sessionKey]);
@@ -120,7 +124,7 @@ function BrowserPanelInner({ paneId, sessionKey }) {
 
   // Position the native view over the placeholder and show it only when a real
   // page is loaded; hide it for the empty state, blocked states, or no tab.
-  const showEmbedded = EMBEDDED && !block && !blank && Boolean(panel.activeTabId);
+  const showEmbedded = EMBEDDED && !block && !blank && !closing && Boolean(panel.activeTabId);
   useEffect(() => {
     if (!EMBEDDED) return;
     if (showEmbedded) {
@@ -189,8 +193,8 @@ function BrowserPanelInner({ paneId, sessionKey }) {
             <div className="browser-native-region" aria-hidden="true">
               {still && <StillFrame still={still} bodyRef={bodyRef} />}
             </div>
-            {panel.mode === "annotate" && <AnnotationLayer paneId={paneId} tabId={panel.activeTabId} />}
-            {panel.mode === "pick" && <PickerLayer paneId={paneId} tabId={panel.activeTabId} />}
+            {panel.mode === "annotate" && <AnnotationLayer paneId={paneId} sessionKey={sessionKey} composerPane={composerPane} tabId={panel.activeTabId} />}
+            {panel.mode === "pick" && <PickerLayer paneId={paneId} composerPane={composerPane} tabId={panel.activeTabId} />}
           </>
         )}
       </div>

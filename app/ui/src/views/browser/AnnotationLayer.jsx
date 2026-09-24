@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { api } from "../../api/client.js";
 import { notify } from "../../lib/notify.js";
-import { toggleMode, browserFetch } from "../../state/browserPanelStore.js";
+import { toggleMode, browserFetch, withSession } from "../../state/browserPanelStore.js";
 import { pushHandoff } from "../../state/browserComposerHandoff.js";
 import {
   TOOLS, TEXT_SIZE,
@@ -48,7 +48,7 @@ export function containBox(container, natural) {
   return { width: natural.width * scale, height: natural.height * scale };
 }
 
-export function AnnotationLayer({ paneId, tabId }) {
+export function AnnotationLayer({ paneId, sessionKey, composerPane, tabId }) {
   const rootRef = useRef(null);
   const freezeRef = useRef(null); // <canvas> the captured still is painted on
   const drawRef = useRef(null); // <canvas> the strokes render on
@@ -82,7 +82,9 @@ export function AnnotationLayer({ paneId, tabId }) {
     let cancelled = false;
     let bmp = null;
     (async () => {
-      const r = await browserFetch(api.routes.browserCapture(tabId), {
+      // The daemon fences a tab to its owning session; without ?session= it
+      // assumes the global one and refuses an agent session's tab (403).
+      const r = await browserFetch(withSession(api.routes.browserCapture(tabId), sessionKey), {
         method: "POST",
         body: JSON.stringify({ fullPage: false }),
       });
@@ -102,7 +104,7 @@ export function AnnotationLayer({ paneId, tabId }) {
     })();
     return () => { cancelled = true; bmp?.close?.(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabId]);
+  }, [tabId, sessionKey]);
 
   const failCapture = () => {
     notify.error("Couldn’t capture the page to annotate.");
@@ -227,7 +229,7 @@ export function AnnotationLayer({ paneId, tabId }) {
         display: { width: box.width, height: box.height },
         name: `annotation-${Date.now()}.png`,
       });
-      pushHandoff(paneId, [{ type: "image", path }]);
+      pushHandoff(composerPane, [{ type: "image", path }]);
       close();
     } catch (e) {
       notify.error(`Add to chat failed: ${e instanceof Error ? e.message : String(e)}`);

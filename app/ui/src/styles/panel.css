@@ -1935,6 +1935,9 @@
    main process (it cannot be a DOM child). The placeholder just reserves the box
    and carries the surface background so there is no flash before the view paints. */
 .browser-native-region { flex: 1; align-self: stretch; width: 100%; height: 100%; background: var(--panel); }
+/* The native page view ignores DOM stacking, so the body starts right of the
+   side panel's resize strip — otherwise the page swallows the strip's hover/drag. */
+.side-panel:not(.side-panel--fullscreen) .browser-body { margin-left: var(--sp-resize-w); }
 /* Still of the page shown while the native view is hidden under a DOM layer. */
 .browser-still { position: absolute; pointer-events: none; user-select: none; }
 .browser-empty {
