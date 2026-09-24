@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { subscribe as subscribeThinking, getBlock } from "../../../state/thinkingStore.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { DisclosureRow } from "./DisclosureRow.jsx";
@@ -14,14 +14,34 @@ import { DisclosureRow } from "./DisclosureRow.jsx";
 // innerHTML reset of the accumulated text. The durable block reuses this same
 // instance by blockId; when the streamed DOM already equals the durable text
 // the flip touches nothing, so the handoff has no reflash.
+// Covers the longest settle transition in transcript.css (body collapse 80+760ms,
+// header absorb 1260ms) so the class never drops mid-motion.
+const SETTLE_MS = 1300;
+
 export function ThinkingLine({ text, live = false, interrupted = false, streamId, sessionId, durationMs }) {
   const ref = useRef(null);
   const lenRef = useRef(0); // chars already appended to the DOM
   // Durable reasoning collapses fully behind a "Thought for Xs" row; click
   // expands. Live text is always shown (the tail must stay visible while it
-  // streams). The text span stays mounted while collapsed so the imperative
-  // DOM survives the live → durable flip.
+  // streams). The text span stays mounted while collapsed (CSS hides it) so
+  // the imperative DOM survives the live → durable flip.
   const [expanded, setExpanded] = useState(false);
+  // The first collapse, right as streaming ends, plays a slower "settle": the
+  // text glides up and is absorbed under the header, so the reader's eye
+  // follows it instead of seeing it vanish. Later toggles use the quick motion.
+  // Derived during render so the settle class lands in the same commit as the
+  // collapse — a separate effect could let the default transition start first.
+  const [settling, setSettling] = useState(false);
+  const [prevLive, setPrevLive] = useState(live);
+  if (live !== prevLive) {
+    setPrevLive(live);
+    if (!live) setSettling(true);
+  }
+  useEffect(() => {
+    if (!settling) return;
+    const t = setTimeout(() => setSettling(false), SETTLE_MS);
+    return () => clearTimeout(t);
+  }, [settling]);
 
   // Live streaming: subscribe to the store's coalesced flushes, append the tail.
   useLayoutEffect(() => {
@@ -60,18 +80,30 @@ export function ThinkingLine({ text, live = false, interrupted = false, streamId
   }, [live, text]);
 
   const label = durationMs >= 1000 ? `Thought for ${fmtElapsedShort(durationMs)}` : "Thought";
+  const cls = "thinking-line"
+    + (live ? " is-live" : "")
+    + (!live && !expanded ? " is-collapsed" : "")
+    + (settling ? " is-settling" : "");
+  const toggle = () => {
+    setSettling(false);
+    setExpanded((e) => !e);
+  };
   return (
-    <div className={"thinking-line" + (live ? " is-live" : "")}>
-      {!live && (
-        <DisclosureRow expanded={expanded} onToggle={() => setExpanded((e) => !e)} className="thinking-header">
-          <span>{label}</span>
-          {interrupted && <span className="thinking-interrupted">interrupted</span>}
-        </DisclosureRow>
-      )}
-      <div className="thinking-body mono" hidden={!live && !expanded}>
-        <span ref={ref} />
-        {live && interrupted && <span className="thinking-interrupted">interrupted</span>}
-      </div>
+    <div className={cls}>
+      <div className="thinking-head-wrap"><div>
+        {!live && (
+          <DisclosureRow expanded={expanded} onToggle={toggle} className="thinking-header">
+            <span>{label}</span>
+            {interrupted && <span className="thinking-interrupted">interrupted</span>}
+          </DisclosureRow>
+        )}
+      </div></div>
+      <div className="thinking-body-wrap"><div className="thinking-body-in">
+        <div className="thinking-body mono">
+          <span ref={ref} />
+          {live && interrupted && <span className="thinking-interrupted">interrupted</span>}
+        </div>
+      </div></div>
     </div>
   );
 }

@@ -972,8 +972,83 @@
   color: var(--fg-dim2);
 }
 .disclosure-row[role="button"].thinking-header:hover { color: var(--fg-mid); }
-.thinking-header + .thinking-body { padding-left: 14px; }
 .thinking-line .thinking-body { white-space: pre-wrap; word-break: break-word; }
+
+/* Collapse motion. Heights animate via grid rows 0fr ↔ 1fr (no JS measuring).
+   Default (click toggle): height, fade, blur and a small lift move together.
+   Collapsed text ends display:none so ⌘F skips it (it matches only rendered
+   text); allow-discrete holds it visible until the collapse finishes. */
+.thinking-head-wrap {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 300ms cubic-bezier(.32, .72, 0, 1);
+}
+.thinking-line.is-live .thinking-head-wrap { grid-template-rows: 0fr; }
+.thinking-head-wrap > div { min-height: 0; overflow: clip; overflow-clip-margin: 4px; }
+.thinking-body-wrap {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 620ms cubic-bezier(.32, .72, 0, 1);
+}
+.thinking-line.is-collapsed .thinking-body-wrap { grid-template-rows: 0fr; }
+.thinking-body-in {
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: display 0s allow-discrete;
+}
+.thinking-line.is-collapsed .thinking-body-in {
+  display: none;
+  transition: display 0s linear 620ms allow-discrete;
+}
+.thinking-line .thinking-body {
+  transform-origin: 0 0;
+  transition: opacity 380ms ease, filter 480ms ease, transform 620ms cubic-bezier(.32, .72, 0, 1);
+}
+.thinking-line.is-collapsed .thinking-body { opacity: 0; filter: blur(4px); transform: translateY(-8px) scale(.985); }
+/* reopening leaves display:none, which has no prior style to transition from */
+@starting-style {
+  .thinking-line:not(.is-live):not(.is-collapsed) .thinking-body {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(-8px) scale(.985);
+  }
+}
+
+/* Settle — the first collapse as streaming ends. The text is pinned to its
+   bottom edge, so the line just read glides up under a feathered edge and is
+   absorbed into the header, which brightens once as it lands. */
+@property --thinking-feather { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.thinking-line.is-settling .thinking-body-wrap {
+  transition: grid-template-rows 760ms cubic-bezier(.7, 0, .2, 1) 80ms;
+}
+.thinking-line.is-settling .thinking-body-in {
+  justify-content: flex-end;
+  mask-image: linear-gradient(to bottom, transparent 0, #000 var(--thinking-feather));
+}
+.thinking-line.is-settling.is-collapsed .thinking-body-in {
+  --thinking-feather: 44px;
+  transition: display 0s linear 900ms allow-discrete, --thinking-feather 260ms ease;
+}
+.thinking-line.is-settling.is-collapsed .thinking-body {
+  opacity: 0;
+  filter: none;
+  transform: none;
+  transition: opacity 220ms ease 620ms;
+}
+.thinking-line.is-settling .thinking-header { animation: thinking-absorb 1260ms ease; }
+@keyframes thinking-absorb {
+  0%   { opacity: 0; }
+  21%  { opacity: 1; color: var(--fg-dim2); }
+  29%  { color: var(--fg-dim2); }
+  54%  { color: var(--fg); }
+  100% { color: var(--fg-dim2); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .thinking-head-wrap, .thinking-body-wrap, .thinking-body-in,
+  .thinking-line .thinking-body, .thinking-line .thinking-header { transition: none !important; animation: none !important; }
+}
 .thinking-line .thinking-interrupted {
   margin-left: 8px;
   font-size: var(--text-xs);
