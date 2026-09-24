@@ -6,6 +6,7 @@ import { useViewSwitchHotkeys } from "./hooks/useViewSwitchHotkeys.js";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { CommandPalette } from "./components/search/CommandPalette.jsx";
 import { SettingsModal } from "./components/settings/SettingsModal.jsx";
+import { ProjectModalHost } from "./components/project/ProjectModal.jsx";
 import { MonitorWidget } from "./components/monitor/MonitorWidget.jsx";
 import { NativeToggleZone } from "./components/layout/NativeToggleZone.jsx";
 import { SideHandle } from "./components/layout/SideHandle.jsx";
@@ -69,6 +70,7 @@ function Shell() {
       <CommandPalette live={live} />
       <MonitorWidget live={live} />
       <SettingsModal />
+      <ProjectModalHost />
     </>
   );
 }
