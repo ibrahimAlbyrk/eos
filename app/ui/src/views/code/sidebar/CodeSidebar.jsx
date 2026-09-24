@@ -1,7 +1,6 @@
 import { useUi } from "../../../state/ui.jsx";
 import { EosSwitcher } from "../../../components/EosSwitcher.jsx";
 import { SettingsFooter } from "../../../components/SettingsFooter.jsx";
-import { basename } from "../../../lib/path.js";
 import { shortenHome } from "../../../lib/fileUtils.jsx";
 import { leaves } from "../../../lib/paneLayout.js";
 import {
@@ -10,8 +9,17 @@ import {
 import { api } from "../../../api/client.js";
 import { useCodeWorkspace } from "../useCodeWorkspace.js";
 import { projectFolders } from "../FolderMenu.jsx";
+import { folderGroups } from "./folderGroups.js";
 import { paneTitle, TERM_PANE_TYPE } from "../TermGrid.jsx";
 import { ClaudeGlyph, TerminalGlyph, FolderGlyph, KindGlyph, CloseGlyph } from "../icons.jsx";
+
+function PlusIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M8 3v10M3 8h10" />
+    </svg>
+  );
+}
 
 function CollapseIcon() {
   return (
@@ -21,9 +29,10 @@ function CollapseIcon() {
   );
 }
 
-// The Code view's sidebar: new-session actions, the open sessions (one per
-// pane, in pane order — draggable onto a pane to rearrange the split), and the
-// recent folders new sessions start in.
+// The Code view's sidebar: new-session actions, then project folders — each
+// folder header (click selects it as the workspace folder, + starts Claude Code
+// there) above its open sessions (one per pane, draggable onto a pane to
+// rearrange the split). Recent folders without a session show as empty groups.
 export function CodeSidebar({ live, variant = "full" }) {
   const ui = useUi();
   const ws = useCodeWorkspace();
@@ -31,6 +40,7 @@ export function CodeSidebar({ live, variant = "full" }) {
   const panes = allPanes.filter((l) => ws.terms[l.id]);
   const recents = projectFolders(live.recents);
   const folders = ws.cwd && !recents.includes(ws.cwd) ? [ws.cwd, ...recents] : recents;
+  const groups = folderGroups(panes.map((l) => ({ id: l.id, cwd: ws.terms[l.id].cwd, term: ws.terms[l.id] })), folders);
 
   // Start Claude Code in a folder: it becomes the workspace folder, and the
   // session opens in the focused pane (or a new split beside it).
@@ -68,47 +78,38 @@ export function CodeSidebar({ live, variant = "full" }) {
       </div>
 
       <div className="cw-side-scroll">
-        {panes.length > 0 && (
+        {groups.length > 0 && (
           <>
             <div className="sb-seclabel">
-              <span className="sb-seclabel__text">Sessions</span>
-              <span className="cw-count">{panes.length}</span>
+              <span className="sb-seclabel__text">Projects</span>
+              {panes.length > 0 && <span className="cw-count">{panes.length}</span>}
             </div>
             <div className="cw-list">
-              {panes.map((l) => (
-                <SessionRow
-                  key={l.id}
-                  leafId={l.id}
-                  index={allPanes.indexOf(l)}
-                  term={ws.terms[l.id]}
-                  focused={l.id === ws.focusedId}
-                />
-              ))}
-            </div>
-          </>
-        )}
-
-        {folders.length > 0 && (
-          <>
-            <div className="sb-seclabel cw-seclabel-gap">
-              <span className="sb-seclabel__text">Folders</span>
-            </div>
-            <div className="cw-list">
-              {folders.map((p) => (
-                <FolderRow
-                  key={p}
-                  path={p}
-                  current={p === ws.cwd}
-                  onSelect={() => setCwd(p)}
-                  onStart={() => startIn(p)}
-                />
+              {groups.map((g) => (
+                <FolderGroup
+                  key={g.key}
+                  group={g}
+                  current={g.path === ws.cwd}
+                  onSelect={() => setCwd(g.path)}
+                  onStart={() => startIn(g.path)}
+                >
+                  {g.roots.map((s) => (
+                    <SessionRow
+                      key={s.id}
+                      leafId={s.id}
+                      index={allPanes.findIndex((l) => l.id === s.id)}
+                      term={s.term}
+                      focused={s.id === ws.focusedId}
+                    />
+                  ))}
+                </FolderGroup>
               ))}
             </div>
           </>
         )}
       </div>
 
-      <SettingsFooter />
+      <SettingsFooter live={live} />
     </>
   );
 
@@ -145,7 +146,6 @@ function SessionRow({ leafId, index, term, focused }) {
       <span className="cw-row__ic"><KindGlyph kind={term.kind} size={14} /></span>
       <span className="cw-row__text">
         <span className="cw-row__name">{paneTitle(term)}</span>
-        <span className="cw-row__sub">{basename(term.cwd)}</span>
       </span>
       <span className="cw-row__meta">⌘{index + 1}</span>
       <button
@@ -160,30 +160,33 @@ function SessionRow({ leafId, index, term, focused }) {
   );
 }
 
-function FolderRow({ path, current, onSelect, onStart }) {
+function FolderGroup({ group, current, onSelect, onStart, children }) {
+  const { path, name } = group;
   return (
-    <div
-      className={"cw-row cw-row--folder" + (current ? " on" : "")}
-      role="button"
-      tabIndex={0}
-      onClick={onSelect}
-      onDoubleClick={onStart}
-      onKeyDown={(e) => { if (e.key === "Enter") onStart(); }}
-      title={`${path}\nDouble-click to start Claude Code here`}
-    >
-      <span className="cw-row__ic"><FolderGlyph size={14} /></span>
-      <span className="cw-row__text">
-        <span className="cw-row__name">{basename(path)}</span>
-        <span className="cw-row__sub">{shortenHome(path)}</span>
-      </span>
-      <button
-        className="cw-row__act cw-row__act--go"
-        title="Start Claude Code here"
-        aria-label="Start Claude Code here"
-        onClick={(e) => { e.stopPropagation(); onStart(); }}
+    <div className="agents-group cw-group">
+      <div
+        className={"agents-group__head cw-group__head" + (current ? " on" : "")}
+        role="button"
+        tabIndex={0}
+        onClick={path ? onSelect : undefined}
+        onDoubleClick={path ? onStart : undefined}
+        onKeyDown={(e) => { if (path && e.key === "Enter") onStart(); }}
+        title={path ? `${shortenHome(path)}\nDouble-click to start Claude Code here` : undefined}
       >
-        <ClaudeGlyph size={12} />
-      </button>
+        <span className="agents-group__icon" aria-hidden="true"><FolderGlyph size={14} /></span>
+        <span className="agents-group__name">{name}</span>
+        {path && (
+          <button
+            className="sb-iconbtn agents-group__add"
+            title={`New Claude Code in ${name}`}
+            aria-label={`New Claude Code in ${name}`}
+            onClick={(e) => { e.stopPropagation(); onStart(); }}
+          >
+            <PlusIcon />
+          </button>
+        )}
+      </div>
+      {children}
     </div>
   );
 }

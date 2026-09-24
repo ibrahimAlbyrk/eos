@@ -235,8 +235,6 @@ html.native .cw-main { --spt-top: 12px; }
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .cw-side-scroll { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 12px; }
 .cw-side-scroll .sb-seclabel { padding-left: 18px; }
-.cw-seclabel-gap { margin-top: 18px; }
-.cw-side-scroll > .cw-seclabel-gap:first-child { margin-top: 0; }
 .cw-count {
   margin-left: 7px;
   font-family: var(--font-mono);
@@ -263,11 +261,6 @@ html.native .cw-main { --spt-top: 12px; }
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .cw-row.on .cw-row__name { font-weight: 500; }
-.cw-row__sub {
-  color: var(--fg-faint);
-  font-size: 11px;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
 .cw-row__meta {
   flex-shrink: 0;
   font-family: var(--font-mono);
@@ -285,7 +278,12 @@ html.native .cw-main { --spt-top: 12px; }
 .cw-row:hover .cw-row__meta { display: none; }
 .cw-row__act:hover { background: var(--chip); color: var(--fg); }
 .cw-row__act--go:hover { color: var(--accent); }
-.cw-row--folder.on .cw-row__name { color: var(--fg-strong); }
+/* Folder group header: selects the workspace folder; the current one is accented. */
+.cw-group__head { border-radius: var(--r-row); cursor: pointer; outline: none; }
+.cw-group__head:hover, .cw-group__head:focus-visible { background: var(--row-on); }
+.cw-group__head.on .agents-group__icon { color: var(--accent); }
+.cw-group__head.on .agents-group__name { color: var(--fg-strong); }
+.cw-group .cw-row { margin-left: 16px; }
 
 @media (prefers-reduced-motion: reduce) {
   .cw-body, .cw-card, .cw-folder-chip { transition: none; }
