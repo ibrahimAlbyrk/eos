@@ -4,7 +4,7 @@ import { basename } from "../../lib/path.js";
 import { usePaneTransitions } from "../../hooks/usePaneTransitions.js";
 import { onPtyExit } from "../../state/ptyBus.js";
 import {
-  KINDS, focusPane, splitPane, closePane, setSplitRatio, sessionExited, setTitle, dropPaneOn,
+  KINDS, focusPane, splitPane, closePane, setSplitRatio, sessionExited, setTitle, setClaudeSession, dropPaneOn,
 } from "../../state/codeWorkspaceStore.js";
 import { TerminalView } from "../../components/terminal/TerminalView.jsx";
 import { useDropSplit, DropPreview, Divider } from "../agents/panes/PaneGrid.jsx";
@@ -156,6 +156,7 @@ function TermPane({ live, leafId, index, term, cwd, error, focused, single, canS
               palette={PALETTE}
               shiftEnter={term.kind === KINDS.claude ? SHIFT_ENTER : undefined}
               onTitle={(t) => setTitle(leafId, t)}
+              onClaudeSession={(id) => setClaudeSession(leafId, id)}
             />
           ) : (
             <TermLauncher live={live} leafId={leafId} cwd={cwd} error={error} compact={!single} />

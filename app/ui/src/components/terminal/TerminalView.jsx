@@ -13,6 +13,7 @@ import { macEditBytes, shellEscapePath } from "./terminalKeys.js";
 import { createWheelAccumulator, sgrWheelReports } from "./mouseWheel.js";
 import { openTerminalLink, oscLinkHandler } from "./terminalLinks.js";
 import { claimNextDrop } from "../../lib/nativeBridge.js";
+import { CLAUDE_SESSION_OSC, parseClaudeSessionOsc } from "../../lib/claudeSessionOsc.js";
 
 // ONE xterm.js instance per PTY session. Stays MOUNTED while inactive (parent
 // hides it with display:none) so scrollback survives tab switches client-side.
@@ -37,16 +38,19 @@ import { claimNextDrop } from "../../lib/nativeBridge.js";
 // Optional (Code view workspace): `visible` (shown while not `active` — split
 // panes are all on screen, only the focused one takes keyboard focus),
 // `fontSize`, `surface` (the CSS var the body sits on), `palette` (ANSI colors),
-// `onTitle` (OSC title changes) and `shiftEnter` (bytes Shift+Enter sends —
+// `onTitle` (OSC title changes), `onClaudeSession` (Claude Code session id
+// reported by its session hook — lib/claudeSessionOsc) and `shiftEnter` (bytes Shift+Enter sends —
 // Claude Code reads ESC+CR as a newline, not submit).
 export function TerminalView({
-  sessionId, active, visible = active, fontSize = 11.5, surface = "--panel", palette, onTitle, shiftEnter,
+  sessionId, active, visible = active, fontSize = 11.5, surface = "--panel", palette, onTitle, onClaudeSession, shiftEnter,
 }) {
   const hostRef = useRef(null);
   const ctl = useRef(null); // { scheduleFit, focus } — for the active-tab effect
   const lastSize = useRef({ cols: 0, rows: 0 });
   const onTitleRef = useRef(onTitle);
   onTitleRef.current = onTitle;
+  const onClaudeSessionRef = useRef(onClaudeSession);
+  onClaudeSessionRef.current = onClaudeSession;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -132,6 +136,11 @@ export function TerminalView({
     });
     const unregisterTerm = registerTerminal({ term, host });
     const titleDisposable = term.onTitleChange((t) => onTitleRef.current?.(t));
+    const claudeSessionDisposable = term.parser.registerOscHandler(CLAUDE_SESSION_OSC, (data) => {
+      const id = parseClaudeSessionOsc(data);
+      if (id) onClaudeSessionRef.current?.(id);
+      return true;
+    });
 
     // Finder drop → paste the escaped paths, like Ghostty. The preload resolves
     // real paths and delivers them via the native bridge after this DOM event.
@@ -267,6 +276,7 @@ export function TerminalView({
       titleDisposable.dispose();
       sgrOn.dispose();
       sgrOff.dispose();
+      claudeSessionDisposable.dispose();
       term.dispose();
       ctl.current = null;
     };

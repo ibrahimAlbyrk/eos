@@ -5,8 +5,8 @@
 // hotkeys render in different subtrees and must share one source of truth.
 //
 // Persisted to localStorage so a reload reattaches: the daemon keeps every PTY
-// alive, TerminalView replays its scrollback, and reconcile() drops panes whose
-// session died meanwhile (e.g. a daemon restart).
+// alive, TerminalView replays its scrollback, and reconcile() restarts panes
+// whose session died meanwhile (daemon restart, app quit, reboot).
 
 import { api } from "../api/client.js";
 import {
@@ -14,9 +14,18 @@ import {
   splitLeaf, removeLeaf, setRatio, moveLeaf, swapLeaves,
 } from "../lib/paneLayout.js";
 import { registerSessionTracker } from "./ptyPanelStore.js";
+import { withSessionHook } from "../lib/claudeSessionOsc.js";
 
-// Expansion of the user's `cc` shell alias — Claude Code starts with it.
+// Expansion of the user's `cc` shell alias — Claude Code starts with it. Each
+// pane pins its conversation id up front, and the session hook keeps it current
+// (/clear, /resume), so reconcile() can resume that conversation after the PTY
+// dies.
 export const CLAUDE_COMMAND = "claude --model opus --dangerously-skip-permissions";
+export const claudeCommand = (id) => withSessionHook(`${CLAUDE_COMMAND} --session-id ${id}`);
+// A conversation that never got a message has no transcript to resume — then
+// it starts fresh under the same id.
+export const claudeResumeCommand = (id) =>
+  `${withSessionHook(`${CLAUDE_COMMAND} --resume ${id}`)} || ${claudeCommand(id)}`;
 
 export const KINDS = { claude: "claude", shell: "shell" };
 
@@ -24,7 +33,7 @@ const STORAGE_KEY = "cm:codeWorkspace";
 // Seed size for a new PTY; TerminalView refits and resizes it on mount.
 const SEED = { cols: 120, rows: 32 };
 
-// terms: leafId -> { sessionId, kind, cwd, title }
+// terms: leafId -> { sessionId, kind, cwd, title, claudeSessionId }
 // errors: leafId -> message (a failed launch, shown by that pane's launcher)
 let state = load();
 const launching = new Set(); // leafIds with a create in flight
@@ -92,18 +101,23 @@ export function setSplitRatio(splitId, ratio) {
 }
 
 // Start a session in an EMPTY pane. `cwd` defaults to the workspace folder.
-export async function launch(leafId, kind = KINDS.claude, cwd = state.cwd) {
-  if (!cwd || launching.has(leafId) || state.terms[leafId]) return;
+export function launch(leafId, kind = KINDS.claude, cwd = state.cwd) {
+  const claudeSessionId = kind === KINDS.claude ? crypto.randomUUID() : null;
+  const command = claudeSessionId ? claudeCommand(claudeSessionId) : undefined;
+  return start(leafId, { kind, cwd, title: null, claudeSessionId }, command);
+}
+
+async function start(leafId, term, command) {
+  if (!term.cwd || launching.has(leafId) || state.terms[leafId]) return;
   launching.add(leafId);
   set({ errors: without(state.errors, leafId) });
   try {
-    const command = kind === KINDS.claude ? CLAUDE_COMMAND : undefined;
-    const r = await api.createPty({ ...SEED, cwd, command });
+    const r = await api.createPty({ ...SEED, cwd: term.cwd, command });
     const s = r?.body;
     if (!r?.ok || !s?.sessionId) throw new Error(s?.error ?? `could not start terminal (${r?.status ?? "no response"})`);
     // The pane may have been closed while the create was in flight.
     if (!findLeaf(state.tree, leafId)) { api.killPty(s.sessionId).catch(() => {}); return; }
-    set({ terms: { ...state.terms, [leafId]: { sessionId: s.sessionId, kind, cwd, title: null } } });
+    set({ terms: { ...state.terms, [leafId]: { ...term, sessionId: s.sessionId } } });
   } catch (e) {
     set({ errors: { ...state.errors, [leafId]: e instanceof Error ? e.message : String(e) } });
   } finally {
@@ -173,6 +187,13 @@ export function setTitle(leafId, raw) {
   set({ terms: { ...state.terms, [leafId]: { ...t, title } } });
 }
 
+// The pane's Claude Code conversation changed (reported by the session hook).
+export function setClaudeSession(leafId, claudeSessionId) {
+  const t = state.terms[leafId];
+  if (!t || t.claudeSessionId === claudeSessionId) return;
+  set({ terms: { ...state.terms, [leafId]: { ...t, claudeSessionId } } });
+}
+
 // Drag a pane (from the sidebar list) onto another: an edge zone moves it there
 // as a new split, the center swaps the two.
 export function dropPaneOn(targetId, zone, srcId) {
@@ -182,8 +203,10 @@ export function dropPaneOn(targetId, zone, srcId) {
   if (tree !== state.tree) set({ tree, focusedId: srcId });
 }
 
-// Drop panes whose session no longer exists daemon-side (daemon restart, or a
-// shell that exited while this view wasn't mounted).
+// Restart, in place, panes whose session no longer exists daemon-side (daemon
+// restart, app quit, reboot): Claude panes resume their pinned conversation,
+// shells reopen in the same folder. A Claude pane with no pinned id (persisted
+// before ids were pinned) has nothing to resume and is dropped.
 export async function reconcile() {
   let sessions;
   try {
@@ -193,7 +216,10 @@ export async function reconcile() {
   if (!Array.isArray(sessions)) return;
   const alive = new Set(sessions.filter((s) => s.alive).map((s) => s.sessionId));
   for (const [leafId, t] of Object.entries(state.terms)) {
-    if (!alive.has(t.sessionId)) dropPane(leafId);
+    if (alive.has(t.sessionId)) continue;
+    if (t.kind === KINDS.claude && !t.claudeSessionId) { dropPane(leafId); continue; }
+    set({ terms: without(state.terms, leafId) });
+    start(leafId, t, t.claudeSessionId ? claudeResumeCommand(t.claudeSessionId) : undefined);
   }
 }
 

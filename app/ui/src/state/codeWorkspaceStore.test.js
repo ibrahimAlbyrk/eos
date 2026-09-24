@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  CLAUDE_COMMAND, KINDS, getWorkspace, setCwd, openTerminal, splitPane, closePane,
-  sessionExited, setTitle, reconcile, dropPaneOn, _resetCodeWorkspace,
+  claudeCommand, claudeResumeCommand, KINDS, getWorkspace, setCwd, openTerminal, splitPane, closePane,
+  sessionExited, setTitle, setClaudeSession, reconcile, dropPaneOn, _resetCodeWorkspace,
 } from "./codeWorkspaceStore.js";
 import { reapUntrackedSessions } from "./ptyPanelStore.js";
 import { leaves } from "../lib/paneLayout.js";
@@ -45,13 +45,15 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("codeWorkspaceStore", () => {
-  it("starts Claude Code (the cc expansion) in the empty focused pane, in the workspace folder", async () => {
+  it("starts Claude Code (the cc expansion) under a pinned conversation id, in the workspace folder", async () => {
     openTerminal(KINDS.claude);
     await flush();
-    expect(server.creates[0]).toMatchObject({ cwd: "/proj", command: CLAUDE_COMMAND });
     const ws = getWorkspace();
+    const term = ws.terms[ws.focusedId];
     expect(paneIds()).toHaveLength(1);
-    expect(ws.terms[ws.focusedId]).toMatchObject({ sessionId: "s1", kind: "claude", cwd: "/proj" });
+    expect(term).toMatchObject({ sessionId: "s1", kind: "claude", cwd: "/proj" });
+    expect(term.claudeSessionId).toMatch(/^[0-9a-f-]{36}$/);
+    expect(server.creates[0]).toMatchObject({ cwd: "/proj", command: claudeCommand(term.claudeSessionId) });
   });
 
   it("a plain terminal sends no startup command", async () => {
@@ -103,12 +105,67 @@ describe("codeWorkspaceStore", () => {
     expect(ws.terms[ws.focusedId].sessionId).toBe("s1");
   });
 
-  it("reconcile drops panes whose session died daemon-side", async () => {
+  it("reconcile resumes a dead Claude pane's conversation in place, in its folder", async () => {
     openTerminal(KINDS.claude);
     await flush();
+    const leafId = getWorkspace().focusedId;
+    const { claudeSessionId } = getWorkspace().terms[leafId];
     server.sessions.clear();
     await reconcile();
+    await flush();
+    expect(server.creates[1]).toMatchObject({ cwd: "/proj", command: claudeResumeCommand(claudeSessionId) });
+    expect(getWorkspace().terms[leafId]).toMatchObject({ sessionId: "s2", kind: "claude", claudeSessionId });
+  });
+
+  it("the session hook's id replaces the pinned one, so a resume follows /clear", async () => {
+    openTerminal(KINDS.claude);
+    await flush();
+    const leafId = getWorkspace().focusedId;
+    const next = "11111111-2222-4333-8444-555555555555";
+    setClaudeSession(leafId, next);
+    expect(getWorkspace().terms[leafId].claudeSessionId).toBe(next);
+    const before = getWorkspace();
+    setClaudeSession(leafId, next);
+    expect(getWorkspace()).toBe(before);
+    server.sessions.clear();
+    await reconcile();
+    await flush();
+    expect(server.creates[1].command).toBe(claudeResumeCommand(next));
+  });
+
+  it("reconcile reopens a dead shell pane as a plain shell and keeps the layout", async () => {
+    openTerminal(KINDS.claude);
+    await flush();
+    openTerminal(KINDS.shell);
+    await flush();
+    const before = paneIds();
+    server.sessions.clear();
+    await reconcile();
+    await flush();
+    expect(paneIds()).toEqual(before);
+    expect(server.creates.slice(2).some((c) => c.command === undefined)).toBe(true);
+    expect(Object.keys(getWorkspace().terms)).toHaveLength(2);
+  });
+
+  it("reconcile leaves live panes alone", async () => {
+    openTerminal(KINDS.claude);
+    await flush();
+    await reconcile();
+    await flush();
+    expect(server.creates).toHaveLength(1);
+    expect(getWorkspace().terms[getWorkspace().focusedId].sessionId).toBe("s1");
+  });
+
+  it("reconcile drops a dead Claude pane with no pinned conversation id", async () => {
+    openTerminal(KINDS.claude);
+    await flush();
+    const leafId = getWorkspace().focusedId;
+    delete getWorkspace().terms[leafId].claudeSessionId;
+    server.sessions.clear();
+    await reconcile();
+    await flush();
     expect(getWorkspace().terms).toEqual({});
+    expect(server.creates).toHaveLength(1);
   });
 
   it("the boot reap never kills workspace sessions", async () => {
