@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { applyDelta, liveBlocksFor, dropBlock, dropWorker, finalizeWorker, pruneExcept, subscribe, getBlock } from "./thinkingStore.js";
+import { applyDelta, liveBlocksFor, dropBlock, dropWorker, dropInterrupted, finalizeWorker, pruneExcept, subscribe, getBlock } from "./thinkingStore.js";
 
 // Module-level state — keep worker ids unique per assertion to avoid bleed.
 let n = 0;
@@ -81,6 +81,22 @@ describe("thinkingStore", () => {
     finalizeWorker(w);
     dropWorker(w);
     expect(liveBlocksFor(w)).toHaveLength(0);
+  });
+
+  it("dropInterrupted clears finalized blocks (next turn started via sendToAgent)", () => {
+    const w = wid();
+    applyDelta({ workerId: w, blockId: "b0", channel: "reasoning", phase: "append", text: "x" });
+    finalizeWorker(w);
+    dropInterrupted(w);
+    expect(liveBlocksFor(w)).toHaveLength(0);
+  });
+
+  it("dropInterrupted keeps a still-streaming block whole (message sent to a busy agent)", () => {
+    const w = wid();
+    applyDelta({ workerId: w, blockId: "b0", channel: "reasoning", phase: "start", text: "first " });
+    dropInterrupted(w);
+    applyDelta({ workerId: w, blockId: "b0", channel: "reasoning", phase: "append", text: "second" });
+    expect(getBlock(w, "b0").text).toBe("first second");
   });
 
   it("does not classify an unknown/missing channel as reasoning", () => {

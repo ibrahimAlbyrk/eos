@@ -151,7 +151,7 @@ function normalizeEvents(events) {
     if (e?.type === "message" && e.role === "assistant") {
       for (const b of e.blocks ?? []) {
         if (b.type === "text") out.push({ type: "jsonl", ts, payload: { kind: "assistant_text", text: b.text ?? "", blockId: b.blockId } });
-        else if (b.type === "reasoning") out.push({ type: "jsonl", ts, payload: { kind: "thinking", text: b.text ?? "", blockId: b.blockId } });
+        else if (b.type === "reasoning") out.push({ type: "jsonl", ts, payload: { kind: "thinking", text: b.text ?? "", blockId: b.blockId, ...(b.interrupted ? { interrupted: true } : {}) } });
         else if (b.type === "tool_call") out.push({ type: "jsonl", ts, payload: { kind: "tool_use", id: b.callId, name: b.name ?? "", input: b.input ?? {}, ...(b.spawnsSubagent ? { spawnsSubagent: true } : {}) } });
         else if (b.type === "tool_result") out.push({ type: "jsonl", ts, payload: { kind: "tool_result", toolUseId: b.callId, isError: !!b.isError, text: b.content ?? "", patch: b.patch } });
         else if (b.type === "skill") out.push({ type: "jsonl", ts, payload: { kind: "skill_body", toolUseId: b.callId, text: b.text ?? "" } });
@@ -548,7 +548,7 @@ export function buildBlocks(rawEvents) {
       if (!p.text?.trim()) continue; // signature-only blocks already persisted as text:""
       flushTools();
       lastAsst = null;
-      out.push({ kind: "thinking", text: p.text, ts: p.tsTranscript ?? ev.ts, ...(p.blockId ? { blockId: p.blockId } : {}) });
+      out.push({ kind: "thinking", text: p.text, ts: p.tsTranscript ?? ev.ts, ...(p.blockId ? { blockId: p.blockId } : {}), ...(p.interrupted ? { interrupted: true } : {}) });
     } else if (p.kind === "tool_use") {
       lastAsst = null;
       if (isSubagentToolUse(p)) {

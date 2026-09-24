@@ -75,9 +75,7 @@ export function applyDelta({ workerId, blockId, channel, phase, text }) {
     // A new block means a new turn is streaming — retire the previous turn's
     // finalized (interrupted) buffers now. This covers turns that start on the
     // agent plane (queue drain, directives) and never pass through sendToAgent.
-    for (const [pk, prev] of [...blocks]) {
-      if (prev.workerId === workerId && prev.interrupted) blocks.delete(pk);
-    }
+    removeInterrupted(workerId);
     b = { workerId, blockId, channel: KNOWN_CHANNELS.has(channel) ? channel : "text", text: "", done: false, interrupted: false, ts: Date.now() };
     blocks.set(k, b);
     structural = true;
@@ -101,7 +99,7 @@ export function dropBlock(workerId, blockId) {
 // Turn ended without a durable block landing (interrupt / error) — KEEP the
 // buffers so the streamed text survives in the transcript, but mark them
 // done+interrupted. Stale finalized blocks drop at the next turn start
-// (sendToAgent's dropWorker, or applyDelta's new-block sweep above).
+// (sendToAgent's dropInterrupted, or applyDelta's new-block sweep above).
 export function finalizeWorker(workerId) {
   let changed = false;
   for (const b of blocks.values()) {
@@ -112,6 +110,22 @@ export function finalizeWorker(workerId) {
     }
   }
   if (changed) scheduleEmit(workerId, true);
+}
+
+function removeInterrupted(workerId) {
+  let changed = false;
+  for (const [k, b] of [...blocks]) {
+    if (b.workerId === workerId && b.interrupted) { blocks.delete(k); changed = true; }
+  }
+  return changed;
+}
+
+// A new message was sent — retire the previous turn's finalized (interrupted)
+// buffers only. A block still streaming must survive: a message sent to a busy
+// agent (queue / steer) would otherwise wipe it mid-stream, and the next token
+// would restart the buffer from that point — cutting off the text before it.
+export function dropInterrupted(workerId) {
+  if (removeInterrupted(workerId)) scheduleEmit(workerId, true);
 }
 
 // Turn ended / worker idled / cleared — drop all live buffers for the worker.

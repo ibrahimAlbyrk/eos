@@ -858,6 +858,13 @@ describe("buildBlocks canonical agent_event decoder (claude / in-process lanes)"
     expect(tool.result).toMatchObject({ text: "file contents", isError: false });
   });
 
+  it("carries an interrupted reasoning block's flag through to the thinking block", () => {
+    const blocks = buildBlocks([ae(100, { type: "message", role: "assistant", blocks: [
+      { type: "reasoning", text: "half a thou", blockId: "m:0", interrupted: true },
+    ] })]);
+    expect(blocks[0]).toMatchObject({ kind: "thinking", text: "half a thou", blockId: "m:0", interrupted: true });
+  });
+
   it("skips empty/signature-only reasoning blocks", () => {
     const blocks = buildBlocks([ae(100, { type: "message", role: "assistant", blocks: [
       { type: "reasoning", text: "   " },
