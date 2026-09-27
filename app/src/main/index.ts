@@ -1,5 +1,4 @@
 import { app, BrowserWindow, shell, dialog } from "electron";
-import type { ChildProcess } from "node:child_process";
 import path from "node:path";
 import { registerEosSchemePrivileges, installEosProtocol } from "./scheme";
 import { resolveUiRoot, resolveDaemonUrl, themeBackground } from "./config";
@@ -7,7 +6,8 @@ import {
   readUiToken,
   probeDaemon,
   waitHealthy,
-  spawnDaemon,
+  startDaemon,
+  stopDaemon,
   resolveRepoRoot,
   daemonSocketPath,
   daemonLogPath,
@@ -76,10 +76,14 @@ else app.on("second-instance", () => {
 let mainWindow: BrowserWindow | null = null;
 let tray: TrayController | null = null;
 let quitting = false;
-// The daemon THIS app spawned (null when we adopted an already-running one). Only
-// this exact child is ever stopped on quit — never an adopted daemon.
-let spawnedDaemon: ChildProcess | null = null;
+// True when THIS app started the daemon (false when we adopted an already-running
+// one). Only a daemon we started is ever stopped on quit.
+let ownsDaemon = false;
 let splashWin: BrowserWindow | null = null;
+// Resolves once a healthy daemon is confirmed. The main window may load before
+// that (in parallel with the daemon boot) but stays hidden until then.
+let markDaemonReady!: () => void;
+const daemonReady = new Promise<void>((resolve) => { markDaemonReady = resolve; });
 
 function showMainWindow(): void {
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -158,20 +162,23 @@ async function createWindow(token: string): Promise<BrowserWindow> {
     win.hide();
   });
   win.once("ready-to-show", () => {
-    win.show();
-    // The boot splash (only created when we had to spawn the daemon) hands off to
-    // the real window here.
-    if (splashWin) {
-      dismissSplash(splashWin);
-      splashWin = null;
-    }
+    void daemonReady.then(() => {
+      if (win.isDestroyed()) return;
+      win.show();
+      // The boot splash (only created when we had to spawn the daemon) hands off to
+      // the real window here.
+      if (splashWin) {
+        dismissSplash(splashWin);
+        splashWin = null;
+      }
+    });
   });
   await win.loadURL("eos://app/index.html");
   return win;
 }
 
 // Own the daemon lifecycle. Probe socket-first, then TCP:
-//   UP          → adopt it (spawnedDaemon stays null → we never stop it).
+//   UP          → adopt it (ownsDaemon stays false → we never stop it).
 //   DOWN        → spawn OUR daemon, show the boot splash, wait until healthy.
 //   UNREACHABLE → never spawn (a healthy daemon may just be unprobeable — a 2nd
 //                 daemon shares ~/.eos and corrupts state); surface + offer retry.
@@ -203,16 +210,22 @@ async function ensureDaemon(): Promise<boolean> {
     // DOWN → boot our own. The splash appears ONLY here (a real wait); the adopt
     // path above never flashes it.
     if (!splashWin) splashWin = createSplash();
-    console.log("[eos-electron] daemon down — spawning ours");
-    spawnedDaemon = spawnDaemon(resolveRepoRoot(), daemonLogPath());
-    health = await waitHealthy(DAEMON_URL, 160, socket); // ~40s of 250ms polls
+    console.log("[eos-electron] daemon down — starting ours");
+    try {
+      await startDaemon(resolveRepoRoot(), daemonLogPath());
+      ownsDaemon = true;
+      health = await waitHealthy(DAEMON_URL, 40_000, socket);
+    } catch (e) {
+      console.error("[eos-electron] daemon start failed:", e instanceof Error ? e.message : String(e));
+      health = { state: "down" };
+    }
     if (health.state === "up") {
-      console.log(`[eos-electron] spawned daemon healthy (pid ${spawnedDaemon.pid ?? "?"})`);
+      console.log("[eos-electron] started daemon healthy");
       return true;
     }
 
-    // Boot failed — tear down ONLY our spawned daemon, then surface + offer retry.
-    stopSpawnedDaemon();
+    // Boot failed — tear down ONLY our daemon, then surface + offer retry.
+    stopOwnedDaemon();
     const detail =
       health.state === "unreachable"
         ? unreachableHint(health.code)
@@ -230,20 +243,14 @@ async function ensureDaemon(): Promise<boolean> {
   }
 }
 
-// Stop ONLY the daemon this app spawned, by its exact pid. SIGTERM lets the
-// daemon run its own graceful shutdown (suspend workers, kill children, unlink
-// pid + socket). Never a process-group (-pid) or pattern kill — either could hit
-// an adopted daemon's workers. No-op when we adopted (spawnedDaemon is null).
-function stopSpawnedDaemon(): void {
-  const child = spawnedDaemon;
-  spawnedDaemon = null;
-  if (!child || child.pid == null) return;
-  try {
-    process.kill(child.pid, "SIGTERM");
-    console.log(`[eos-electron] stopped our spawned daemon pid=${child.pid}`);
-  } catch {
-    /* already gone */
-  }
+// Stop ONLY a daemon this app started. launchd sends SIGTERM, which runs the
+// daemon's own graceful shutdown (suspend workers, unlink pid + socket), then
+// reaps its process group. No-op when we adopted (ownsDaemon is false).
+function stopOwnedDaemon(): void {
+  if (!ownsDaemon) return;
+  ownsDaemon = false;
+  stopDaemon();
+  console.log("[eos-electron] stopped our daemon");
 }
 
 // Non-critical, main-process, read-only wiring — deferred past first paint so the
@@ -289,14 +296,29 @@ app.whenReady().then(async () => {
   if (!gotLock) return; // a second instance already handed off to the first
   installEosProtocol(UI_ROOT, CSP);
 
+  // The UI mounts only once /health answers (app/ui/src/main.jsx), so with the
+  // token already on disk the window loads WHILE the daemon boots instead of
+  // after it. First run has no token yet (the daemon writes it) → load after.
+  const earlyToken = await readUiToken().catch(() => null);
+  const earlyWin = earlyToken ? createWindow(earlyToken) : null;
+  earlyWin?.catch(() => {}); // awaited below only when the daemon comes up
+
   const ready = await ensureDaemon();
   if (!ready) {
     quitApp();
     return;
   }
+  markDaemonReady();
 
   const token = await readUiToken();
-  const win = await createWindow(token); // shows on ready-to-show + dismisses the splash
+  let win: BrowserWindow; // shows on ready-to-show + dismisses the splash
+  if (earlyWin && token === earlyToken) {
+    win = await earlyWin;
+  } else {
+    // The daemon minted a new token while booting — the early window holds a stale one.
+    if (earlyWin) (await earlyWin).destroy();
+    win = await createWindow(token);
+  }
   buildAppMenu(() => (mainWindow && !mainWindow.isDestroyed() ? mainWindow.webContents : null));
 
   // Embedded-browser lane: register this app as the daemon's browser host and own
@@ -313,12 +335,12 @@ app.whenReady().then(async () => {
   });
 }).catch((e) => {
   console.error("[eos-electron] startup failed:", e instanceof Error ? e.message : String(e));
-  stopSpawnedDaemon(); // never orphan a daemon we started
+  stopOwnedDaemon(); // never orphan a daemon we started
   app.exit(1);
 });
 
-// Clean shutdown: on real quit, stop ONLY the daemon we spawned. An adopted
-// daemon (spawnedDaemon === null) is deliberately left running.
+// Clean shutdown: on real quit, stop ONLY the daemon we started. An adopted
+// daemon (ownsDaemon === false) is deliberately left running.
 //
 // before-quit fires for every genuine app quit (Cmd+Q, Dock → Quit, the
 // `tell application "Eos" to quit` AppleEvent the installer sends, macOS logout)
@@ -329,7 +351,7 @@ app.whenReady().then(async () => {
 // never terminated the old instance.
 app.on("before-quit", () => {
   quitting = true;
-  stopSpawnedDaemon();
+  stopOwnedDaemon();
 });
 
 // macOS: keep the app alive when the window closes (parity, doc 10 §e).

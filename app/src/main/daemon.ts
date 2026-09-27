@@ -1,10 +1,11 @@
 import { app } from "electron";
-import { spawn, type ChildProcess } from "node:child_process";
-import { existsSync, mkdirSync, openSync, renameSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, renameSync, rmSync, statSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { request } from "node:http";
 import { homedir } from "node:os";
 import path from "node:path";
+
+import { DAEMON_LABEL, bootoutLaunchAgent, startLaunchAgent } from "../../../infra/src/daemon/launchd";
 
 export interface Health {
   ok: boolean;
@@ -46,7 +47,7 @@ export function resolveRepoRoot(): string {
 }
 
 // ── Daemon lifecycle ─────────────────────────────────────────────────────────
-// probeDaemon / waitHealthy / spawnDaemon are REPLICATED from
+// probeDaemon / waitHealthy / the daemon command are REPLICATED from
 // manager/cli/daemon-lifecycle.ts (the proven `eos start`/`eos restart`
 // mechanism). They are replicated, not imported, because that module uses
 // .ts-extension import specifiers + manager's TS config, which the app's tsc
@@ -120,20 +121,19 @@ export async function probeDaemon(daemonUrl: string, socketPath?: string): Promi
 }
 
 /**
- * Polls /health every 250ms until the daemon answers. Returns the probe result so
+ * Polls /health — at once, then every 50ms, since a fresh daemon listens within
+ * ~150ms — until it answers or `timeoutMs` passes. Returns the probe result so
  * the caller can tell "the daemon never came up" (down) apart from "this machine
  * cannot make a local connection at all" (unreachable).
  */
-export async function waitHealthy(daemonUrl: string, tries: number, socketPath?: string): Promise<DaemonHealth> {
-  let last: DaemonHealth = { state: "down" };
-  for (let i = 0; i < tries; i++) {
-    await delay(250);
-    last = await probeDaemon(daemonUrl, socketPath);
-    if (last.state === "up") return last;
-    // A blocked probe will not un-block by polling harder; report it now.
-    if (last.state === "unreachable") return last;
+export async function waitHealthy(daemonUrl: string, timeoutMs: number, socketPath?: string): Promise<DaemonHealth> {
+  const giveUpAt = Date.now() + timeoutMs;
+  for (;;) {
+    const last = await probeDaemon(daemonUrl, socketPath);
+    // "unreachable" will not un-block by polling harder; report it now.
+    if (last.state !== "down" || Date.now() >= giveUpAt) return last;
+    await delay(50);
   }
-  return last;
 }
 
 /** Operator-facing explanation for an `unreachable` probe (from daemon-lifecycle.ts). */
@@ -168,29 +168,42 @@ function rotateDaemonLog(logPath: string): void {
 }
 
 /**
- * Spawn the daemon detached, EXACTLY as manager/cli/daemon-lifecycle.ts does, and
- * return the child so the app can SIGTERM only this pid on quit. Runs under bash
- * to lift the fd soft limit to the hard ceiling before node starts (the macOS GUI
- * default of 256 is far too low for a process supervising many PTYs + watches);
- * the ulimit + node flags are kept byte-identical to the source. Only difference:
- * this returns the child and does not unref() it, so the app can track + stop it.
+ * Start the daemon as a launchd agent, with the same command manager/cli/daemon-lifecycle.ts
+ * uses (launchd restarts it after a crash and reaps its process group on stop).
+ * Runs under bash to lift the fd soft limit to the hard ceiling before node starts
+ * (the macOS GUI default of 256 is far too low for a process supervising many
+ * PTYs + watches); the ulimit + node flags are kept byte-identical to the source.
  */
-export function spawnDaemon(repoRoot: string, logPath?: string): ChildProcess {
-  let out: number | "ignore" = "ignore";
-  if (logPath) {
-    try {
-      mkdirSync(path.dirname(logPath), { recursive: true });
-      rotateDaemonLog(logPath);
-      out = openSync(logPath, "a");
-    } catch {
-      out = "ignore";
-    }
-  }
+export async function startDaemon(repoRoot: string, logPath: string): Promise<void> {
+  try {
+    mkdirSync(path.dirname(logPath), { recursive: true });
+    rotateDaemonLog(logPath);
+  } catch {}
+  const { cmd, env } = daemonLaunch(repoRoot);
+  await startLaunchAgent({
+    label: DAEMON_LABEL,
+    plistPath: path.join(eosHome(), "daemon.plist"),
+    programArguments: ["/bin/bash", "-c", cmd],
+    env,
+    logPath,
+  }, DAEMON_STOP_TIMEOUT_MS);
+}
+
+/** Asks launchd to stop the daemon; returns at once (the app is quitting). */
+export function stopDaemon(): void {
+  bootoutLaunchAgent(DAEMON_LABEL);
+}
+
+// Above the daemon's own shutdown deadline (5s) and launchd's ExitTimeOut (10s).
+const DAEMON_STOP_TIMEOUT_MS = 12_000;
+
+function daemonLaunch(repoRoot: string): { cmd: string; env: NodeJS.ProcessEnv } {
   // PACKAGED: run the shipped daemon BUNDLE off Electron's own Node
   // (process.execPath + ELECTRON_RUN_AS_NODE=1) — no repo, no system node/bun.
   // The EOS_* env points the daemon (and every subprocess it spawns) at the
   // shipped bundles + node_modules + prompts + worker templates under Resources.
-  // NODE_OPTIONS carries the memory cap (ELECTRON_RUN_AS_NODE honors it).
+  // Node flags go on argv: Electron ignores NODE_OPTIONS when the process is
+  // started by another app (launchd), so the memory cap would silently vanish.
   if (app.isPackaged) {
     const resources = process.resourcesPath;
     const bundlesDir = path.join(resources, "daemon");
@@ -199,32 +212,27 @@ export function spawnDaemon(repoRoot: string, logPath?: string): ChildProcess {
     const claudeBin = path.join(
       bundlesDir, "node_modules", "@anthropic-ai", "claude-agent-sdk-darwin-arm64", "claude",
     );
-    const env: NodeJS.ProcessEnv = {
-      ...process.env,
-      ELECTRON_RUN_AS_NODE: "1",
-      NODE_OPTIONS: `--max-old-space-size=1024 --no-warnings ${process.env.NODE_OPTIONS ?? ""}`.trim(),
-      EOS_PACKAGED: "1",
-      EOS_BUNDLES_DIR: bundlesDir,
-      EOS_REPO_ROOT: resources,
-      EOS_PROMPTS_DIR: path.join(resources, "prompts"),
-      EOS_WORKER_DEFINITIONS_DIR: path.join(resources, "workers"),
-      EOS_CLAUDE_BIN: claudeBin,
+    return {
+      cmd: `ulimit -Sn "$(ulimit -Hn)" 2>/dev/null; exec ${JSON.stringify(process.execPath)} --max-old-space-size=1024 --no-warnings ${JSON.stringify(entry)}`,
+      env: {
+        ...process.env,
+        ELECTRON_RUN_AS_NODE: "1",
+        EOS_PACKAGED: "1",
+        EOS_BUNDLES_DIR: bundlesDir,
+        EOS_REPO_ROOT: resources,
+        EOS_PROMPTS_DIR: path.join(resources, "prompts"),
+        EOS_WORKER_DEFINITIONS_DIR: path.join(resources, "workers"),
+        EOS_CLAUDE_BIN: claudeBin,
+      },
     };
-    const cmd = `ulimit -Sn "$(ulimit -Hn)" 2>/dev/null; exec ${JSON.stringify(process.execPath)} ${JSON.stringify(entry)}`;
-    return spawn("/bin/bash", ["-c", cmd], {
-      stdio: ["ignore", out, out],
-      detached: true,
-      env,
-    });
   }
 
   // DEV: system node + strip-types against the repo .ts (unchanged).
   const entry = path.join(repoRoot, "manager", "daemon.ts");
-  const cmd = `ulimit -Sn "$(ulimit -Hn)" 2>/dev/null; exec node --max-old-space-size=1024 --no-warnings --experimental-strip-types ${JSON.stringify(entry)}`;
-  return spawn("/bin/bash", ["-c", cmd], {
-    stdio: ["ignore", out, out],
-    detached: true,
-  });
+  return {
+    cmd: `ulimit -Sn "$(ulimit -Hn)" 2>/dev/null; exec node --max-old-space-size=1024 --no-warnings --experimental-strip-types ${JSON.stringify(entry)}`,
+    env: process.env,
+  };
 }
 
 function delay(ms: number): Promise<void> {
