@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebglAddon } from "@xterm/addon-webgl";
@@ -279,7 +279,8 @@ export function TerminalView({
       if (opened) flushPending();
       else if (!raf) raf = requestAnimationFrame(openWhenSettled);
     };
-    ctl.current = { scheduleFit, focus: () => { if (opened) term.focus(); }, pause: () => queue.hold(), resume };
+    const restoreGpu = () => { if (host.clientWidth) setGpu(true); };
+    ctl.current = { scheduleFit, focus: () => { if (opened) term.focus(); }, pause: () => queue.hold(), resume, restoreGpu };
 
     const ro = new ResizeObserver(() => scheduleFit());
     ro.observe(host);
@@ -310,6 +311,14 @@ export function TerminalView({
     ctl.current?.scheduleFit();
     ctl.current?.focus();
   }, [active, sessionId]);
+
+  // Shown again (view, group or tab): put the GPU renderer back before the
+  // browser paints. The IntersectionObserver only reports after the first frame,
+  // and until then the DOM fallback renderer — laid out while hidden, where every
+  // glyph measured 0px wide — paints stretched text that overflows to the right.
+  useLayoutEffect(() => {
+    if (visible && !paused) ctl.current?.restoreGpu();
+  }, [visible, paused]);
 
   // Pausing holds output; resuming writes what queued and hands focus back.
   useEffect(() => {

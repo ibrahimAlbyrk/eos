@@ -764,8 +764,9 @@ export const api = {
   // UI-token gated daemon-side (a raw shell is arbitrary exec), so list + buffer
   // carry the token too — not just the mutations; without it reattach and
   // scrollback replay 403.
-  async createPty({ cols, rows, cwd, command } = {}) {
-    return postJson(ROUTES.pty, { cols, rows, cwd, command }, uiTokenHeader());
+  // `claude`: start Claude Code instead of a shell ({} fresh, { resume: id }).
+  async createPty({ cols, rows, cwd, command, claude } = {}) {
+    return postJson(ROUTES.pty, { cols, rows, cwd, command, claude }, uiTokenHeader());
   },
   async listPty() {
     return getJson(ROUTES.pty, { headers: uiTokenHeader() });

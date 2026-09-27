@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  claudeCommand, claudeResumeCommand, KINDS, getWorkspace, setCwd, openTerminal, splitPane, closePane,
+  adoptRemote, KINDS, getWorkspace, setCwd, openTerminal, splitPane, closePane,
   sessionExited, setTitle, setClaudeSession, reconcile, dropPaneOn, _resetCodeWorkspace,
   createGroup, switchGroup, switchGroupByIndex, cycleGroup, renameGroup, setGroupColor, deleteGroup,
 } from "./codeWorkspaceStore.js";
@@ -21,7 +21,8 @@ function mockServer() {
       n += 1;
       const body = JSON.parse(opts.body);
       creates.push(body);
-      const s = { sessionId: `s${n}`, number: n, cwd: body.cwd, cols: 80, rows: 24, alive: true };
+      const claudeSessionId = body.claude ? body.claude.resume ?? crypto.randomUUID() : null;
+      const s = { sessionId: `s${n}`, number: n, cwd: body.cwd, cols: 80, rows: 24, alive: true, claudeSessionId };
       sessions.set(s.sessionId, s);
       return res(s);
     }
@@ -46,7 +47,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("codeWorkspaceStore", () => {
-  it("starts Claude Code (the cc expansion) under a pinned conversation id, in the workspace folder", async () => {
+  it("has the daemon start Claude Code, keeping its pinned conversation id, in the workspace folder", async () => {
     openTerminal(KINDS.claude);
     await flush();
     const ws = getWorkspace();
@@ -54,13 +55,14 @@ describe("codeWorkspaceStore", () => {
     expect(paneIds()).toHaveLength(1);
     expect(term).toMatchObject({ sessionId: "s1", kind: "claude", cwd: "/proj" });
     expect(term.claudeSessionId).toMatch(/^[0-9a-f-]{36}$/);
-    expect(server.creates[0]).toMatchObject({ cwd: "/proj", command: claudeCommand(term.claudeSessionId) });
+    expect(server.creates[0]).toMatchObject({ cwd: "/proj", claude: {} });
   });
 
   it("a plain terminal sends no startup command", async () => {
     openTerminal(KINDS.shell);
     await flush();
     expect(server.creates[0].command).toBeUndefined();
+    expect(server.creates[0].claude).toBeUndefined();
   });
 
   it("a busy focused pane is split, and the new pane takes focus", async () => {
@@ -114,7 +116,7 @@ describe("codeWorkspaceStore", () => {
     server.sessions.clear();
     await reconcile();
     await flush();
-    expect(server.creates[1]).toMatchObject({ cwd: "/proj", command: claudeResumeCommand(claudeSessionId) });
+    expect(server.creates[1]).toMatchObject({ cwd: "/proj", claude: { resume: claudeSessionId } });
     expect(getWorkspace().terms[leafId]).toMatchObject({ sessionId: "s2", kind: "claude", claudeSessionId });
   });
 
@@ -131,7 +133,7 @@ describe("codeWorkspaceStore", () => {
     server.sessions.clear();
     await reconcile();
     await flush();
-    expect(server.creates[1].command).toBe(claudeResumeCommand(next));
+    expect(server.creates[1].claude).toEqual({ resume: next });
   });
 
   it("reconcile reopens a dead shell pane as a plain shell and keeps the layout", async () => {
@@ -144,7 +146,7 @@ describe("codeWorkspaceStore", () => {
     await reconcile();
     await flush();
     expect(paneIds()).toEqual(before);
-    expect(server.creates.slice(2).some((c) => c.command === undefined)).toBe(true);
+    expect(server.creates.slice(2).some((c) => c.claude === undefined)).toBe(true);
     expect(Object.keys(getWorkspace().terms)).toHaveLength(2);
   });
 
@@ -174,6 +176,30 @@ describe("codeWorkspaceStore", () => {
     await flush();
     await reapUntrackedSessions();
     expect(server.sessions.has("s1")).toBe(true);
+  });
+
+  it("adopts a phone-opened session into its own group, leaving the screen as is", async () => {
+    openTerminal(KINDS.claude);
+    await flush();
+    const active = getWorkspace().activeGroupId;
+    const phone = { sessionId: "p1", alive: true, remote: true, kind: "claude", cwd: "/work/eos", title: null, claudeSessionId: "c-1" };
+    server.sessions.set("p1", phone);
+    adoptRemote(phone);
+    adoptRemote(phone); // a later metadata update adds nothing
+    adoptRemote({ ...phone, sessionId: "local", remote: false });
+    const ws = getWorkspace();
+    expect(ws.activeGroupId).toBe(active);
+    expect(ws.groups.map((g) => g.name)).toEqual(["Group 1", "Phone · eos"]);
+    const leafId = leaves(ws.groups[1].tree)[0].id;
+    expect(ws.terms[leafId]).toMatchObject({ sessionId: "p1", kind: "claude", claudeSessionId: "c-1" });
+  });
+
+  it("reconcile adopts phone sessions opened while the desktop was away, and the reap spares them", async () => {
+    server.sessions.set("p1", { sessionId: "p1", alive: true, remote: true, kind: "shell", cwd: "/w", title: null, claudeSessionId: null });
+    await reapUntrackedSessions();
+    expect(server.sessions.has("p1")).toBe(true);
+    await reconcile();
+    expect(Object.values(getWorkspace().terms).map((t) => t.sessionId)).toEqual(["p1"]);
   });
 
   it("titles drop leading status glyphs and only change on a real change", async () => {

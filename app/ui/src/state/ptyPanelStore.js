@@ -135,7 +135,8 @@ export async function reapUntrackedSessions() {
   const tracked = new Set();
   for (const p of panes.values()) for (const t of p.tabs) tracked.add(t.sessionId);
   for (const getIds of trackers) for (const id of getIds()) tracked.add(id);
-  const stale = server.map((s) => s.sessionId).filter((id) => !tracked.has(id));
+  // A phone-opened session belongs to the Code workspace, which adopts it.
+  const stale = server.filter((s) => !s.remote).map((s) => s.sessionId).filter((id) => !tracked.has(id));
   await Promise.all(stale.map((id) => api.killPty(id).catch(() => {})));
 }
 

@@ -18,18 +18,13 @@ import {
 } from "../lib/paneLayout.js";
 import { GROUP_COLORS, nextGroupColor } from "../lib/groupColors.js";
 import { registerSessionTracker } from "./ptyPanelStore.js";
-import { withSessionHook } from "../lib/claudeSessionOsc.js";
 
-// Expansion of the user's `cc` shell alias — Claude Code starts with it. Each
-// pane pins its conversation id up front, and the session hook keeps it current
-// (/clear, /resume), so reconcile() can resume that conversation after the PTY
-// dies.
+// Shown on the launcher; the daemon builds the actual command line (mirrors
+// CLAUDE_COMMAND in contracts/src/http.ts — the user's `cc` alias). Each pane's
+// conversation id is pinned daemon-side at launch, and the session hook keeps it
+// current (/clear, /resume), so reconcile() can resume that conversation after
+// the PTY dies.
 export const CLAUDE_COMMAND = "claude --model opus --dangerously-skip-permissions";
-export const claudeCommand = (id) => withSessionHook(`${CLAUDE_COMMAND} --session-id ${id}`);
-// A conversation that never got a message has no transcript to resume — then
-// it starts fresh under the same id.
-export const claudeResumeCommand = (id) =>
-  `${withSessionHook(`${CLAUDE_COMMAND} --resume ${id}`)} || ${claudeCommand(id)}`;
 
 export const KINDS = { claude: "claude", shell: "shell" };
 
@@ -154,22 +149,21 @@ export function setSplitRatio(splitId, ratio) {
 
 // Start a session in an EMPTY pane. `cwd` defaults to the workspace folder.
 export function launch(leafId, kind = KINDS.claude, cwd = state.cwd) {
-  const claudeSessionId = kind === KINDS.claude ? crypto.randomUUID() : null;
-  const command = claudeSessionId ? claudeCommand(claudeSessionId) : undefined;
-  return start(leafId, { kind, cwd, title: null, claudeSessionId }, command);
+  return start(leafId, { kind, cwd, title: null, claudeSessionId: null }, kind === KINDS.claude ? {} : undefined);
 }
 
-async function start(leafId, term, command) {
+// `claude`: start Claude Code (`{ resume }` continues a conversation) instead of a shell.
+async function start(leafId, term, claude) {
   if (!term.cwd || launching.has(leafId) || state.terms[leafId]) return;
   launching.add(leafId);
   set({ errors: without(state.errors, leafId) });
   try {
-    const r = await api.createPty({ ...SEED, cwd: term.cwd, command });
+    const r = await api.createPty({ ...SEED, cwd: term.cwd, claude });
     const s = r?.body;
     if (!r?.ok || !s?.sessionId) throw new Error(s?.error ?? `could not start terminal (${r?.status ?? "no response"})`);
     // The pane may have been closed while the create was in flight.
     if (!groupOfLeaf(leafId)) { api.killPty(s.sessionId).catch(() => {}); return; }
-    set({ terms: { ...state.terms, [leafId]: { ...term, sessionId: s.sessionId } } });
+    set({ terms: { ...state.terms, [leafId]: { ...term, sessionId: s.sessionId, claudeSessionId: s.claudeSessionId ?? null } } });
   } catch (e) {
     set({ errors: { ...state.errors, [leafId]: e instanceof Error ? e.message : String(e) } });
   } finally {
@@ -275,8 +269,28 @@ export async function reconcile() {
     if (alive.has(t.sessionId)) continue;
     if (t.kind === KINDS.claude && !t.claudeSessionId) { dropPane(leafId); continue; }
     set({ terms: without(state.terms, leafId) });
-    start(leafId, t, t.claudeSessionId ? claudeResumeCommand(t.claudeSessionId) : undefined);
+    start(leafId, t, t.kind === KINDS.claude ? { resume: t.claudeSessionId } : undefined);
   }
+  for (const s of sessions) adoptRemote(s);
+}
+
+// A session opened from a paired phone becomes a pane in a group of its own,
+// named for its folder — without taking the screen from what is open now.
+export function adoptRemote(session) {
+  if (!session?.remote || !session.alive) return;
+  if (Object.values(state.terms).some((t) => t.sessionId === session.sessionId)) return;
+  const g = newGroup(state.groups);
+  const folder = session.cwd.split("/").filter(Boolean).pop() ?? session.cwd;
+  set({
+    groups: [...state.groups, { ...g, name: `Phone · ${folder}` }],
+    terms: {
+      ...state.terms,
+      [g.focusedId]: {
+        sessionId: session.sessionId, kind: session.kind, cwd: session.cwd,
+        title: session.title, claudeSessionId: session.claudeSessionId,
+      },
+    },
+  });
 }
 
 // ── Groups ──────────────────────────────────────────────────────────────────

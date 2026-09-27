@@ -15,6 +15,7 @@ import { applyDescriptors, applyProfiles } from "../lib/backendCaps.js";
 import { applyChunk, applyDone } from "../state/terminalStore.js";
 import { emitPtyData, emitPtyExit } from "../state/ptyBus.js";
 import { markExited } from "../state/ptyPanelStore.js";
+import { adoptRemote } from "../state/codeWorkspaceStore.js";
 import { applyTabs as applyBrowserTabs, applyStatus as applyBrowserStatus } from "../state/browserPanelStore.js";
 import { applyActivity as applyBrowserActivity } from "../state/browserSessionState.js";
 import { updateAgentIndex, updateAgentNames } from "../lib/agentIndex.js";
@@ -160,6 +161,10 @@ export function useLive() {
           // pty:exit also flags the tab. Not a worker delta, so skip the refetch.
           if (data.reason === "pty:data") { emitPtyData(data.payload ?? {}); return; }
           if (data.reason === "pty:exit") { const p = data.payload ?? {}; emitPtyExit(p); if (p.sessionId) markExited(p.sessionId); return; }
+          // PTY metadata / a claude pane's transcript changed — not worker deltas.
+          // A session opened from a paired phone lands in the Code workspace.
+          if (data.reason === "pty:session") { adoptRemote(data.payload); return; }
+          if (data.reason === "pty:conversation") return;
           // Browser panel: the daemon's tab lists (per session) and engine
           // lifecycle. Panel state, not a worker delta — route to the session-
           // keyed browser store and skip the refetch. Frames never come this way.
