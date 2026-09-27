@@ -79,11 +79,7 @@ struct PermissionBanner: View {
             }
             actionRow(p)
         }
-        .padding(EosSpacing.md)
-        .background(EosColor.surface2,
-                    in: RoundedRectangle(cornerRadius: EosRadius.banner, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: EosRadius.banner, style: .continuous)
-            .strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline))
+        .bannerCard()
     }
 
     // "Allow <worker> to run <tool>?" — worker/tool in SemiBold (no EosFont token carries the
@@ -115,17 +111,32 @@ struct PermissionBanner: View {
     private func actionRow(_ p: Pending) -> some View {
         let busy = busyId != nil
         return HStack(spacing: EosSpacing.xs) {
-            actionButton("Deny", tint: EosColor.danger, filled: false) { busyId = p.id; onDeny(p) }
+            BannerActionButton("Deny", tint: EosColor.danger, filled: false) { busyId = p.id; onDeny(p) }
             Spacer()
-            actionButton("Always allow", tint: EosColor.ink, filled: false) { busyId = p.id; onAlwaysAllow(p) }
-            actionButton("Allow once", tint: EosColor.onAccent, filled: true) { busyId = p.id; onAllow(p) }
+            BannerActionButton("Always allow", tint: EosColor.ink, filled: false) { busyId = p.id; onAlwaysAllow(p) }
+            BannerActionButton("Allow once", tint: EosColor.onAccent, filled: true) { busyId = p.id; onAllow(p) }
         }
         .disabled(busy)
         .opacity(busy ? 0.55 : 1)
     }
+}
 
-    private func actionButton(_ title: String, tint: Color, filled: Bool,
-                              action: @escaping () -> Void) -> some View {
+// Banner card chrome + action capsule, shared with the terminal question/plan card
+// (PtyPromptCard): surface2 fill, banner radius, hairline; ghost or coral-filled capsules.
+struct BannerActionButton: View {
+    let title: String
+    let tint: Color
+    let filled: Bool
+    let action: () -> Void
+
+    init(_ title: String, tint: Color, filled: Bool, action: @escaping () -> Void) {
+        self.title = title
+        self.tint = tint
+        self.filled = filled
+        self.action = action
+    }
+
+    var body: some View {
         Button(action: action) {
             Text(title)
                 .font(EosFont.label)
@@ -141,6 +152,16 @@ struct PermissionBanner: View {
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+    }
+}
+
+extension View {
+    func bannerCard() -> some View {
+        padding(EosSpacing.md)
+            .background(EosColor.surface2,
+                        in: RoundedRectangle(cornerRadius: EosRadius.banner, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: EosRadius.banner, style: .continuous)
+                .strokeBorder(EosColor.hairline, lineWidth: EosLine.hairline))
     }
 }
 

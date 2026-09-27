@@ -31,9 +31,9 @@ struct AttachmentChipVM: Identifiable {
 struct ChatComposer: View {
     @Binding var text: String
     let placeholder: String
-    let mode: PermissionModeUI
+    let mode: PermissionModeUI?              // nil hides the ModePill
     let onModeTap: () -> Void
-    let attachMenu: () -> AnyView
+    let attachMenu: (() -> AnyView)?         // nil hides the ⊕ attach button
     let chips: [AttachmentChipVM]
     let onRemoveChip: (String) -> Void
     let onRetryChip: (String) -> Void
@@ -48,10 +48,10 @@ struct ChatComposer: View {
     @State private var pull: CGSize = .zero
 
     init(text: Binding<String>, placeholder: String,
-         mode: PermissionModeUI, onModeTap: @escaping () -> Void,
-         attachMenu: @escaping () -> AnyView,
-         chips: [AttachmentChipVM], onRemoveChip: @escaping (String) -> Void,
-         onRetryChip: @escaping (String) -> Void,
+         mode: PermissionModeUI? = nil, onModeTap: @escaping () -> Void = {},
+         attachMenu: (() -> AnyView)? = nil,
+         chips: [AttachmentChipVM] = [], onRemoveChip: @escaping (String) -> Void = { _ in },
+         onRetryChip: @escaping (String) -> Void = { _ in },
          trailing: ComposerAction,
          focused: FocusState<Bool>.Binding) {
         self._text = text
@@ -79,8 +79,8 @@ struct ChatComposer: View {
                     .frame(minHeight: 24, alignment: .topLeading)
                     .focused(focused)
                 HStack(spacing: EosSpacing.sm) {            // control row (content-on-glass)
-                    attachButton
-                    ModePill(mode: mode, action: onModeTap)
+                    if let attachMenu { attachButton(attachMenu) }
+                    if let mode { ModePill(mode: mode, action: onModeTap) }
                     Spacer()
                     trailingButton
                 }
@@ -119,9 +119,9 @@ struct ChatComposer: View {
 
     // Send-sized (40pt) soft-lifted interactive glass — clearly lighter than the card, never a
     // black hole. controlWash (ink-based) because dark-gray tints read near-black on device.
-    private var attachButton: some View {
+    private func attachButton(_ menu: @escaping () -> AnyView) -> some View {
         Menu {
-            attachMenu()
+            menu()
         } label: {
             Image(systemName: "plus")
                 .font(.system(size: 16, weight: .regular))

@@ -23,7 +23,8 @@ struct MessageRowView<Content: View>: View {
     @State private var rewindFailed = false
 
     private var worker: Worker? { workerId.flatMap { id in model.workers.first { $0.id == id } } }
-    private var canRewind: Bool { isUser && BackendCaps.of(worker?.backendKind ?? "claude-cli").rewind }
+    // Unknown ids (a terminal pane's transcript) have no /workers/:id/rewind to call.
+    private var canRewind: Bool { isUser && worker.map { BackendCaps.of($0.backendKind).rewind } == true }
 
     var body: some View {
         VStack(alignment: trailing ? .trailing : .leading, spacing: EosSpacing.xxs) {

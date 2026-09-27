@@ -16,6 +16,13 @@ packages:
   swift-markdown:
     url: https://github.com/apple/swift-markdown.git
     revision: c519011e10582d5585f20b2b38dfb4920ae03b13
+  # SwiftTerm is the Terminals mirror's emulator. Pinned to the last release without extra build
+  # requirements: 1.12+ compiles Metal shaders (needs the separately downloaded Metal Toolchain) and
+  # 1.19+ adds a build-tool plugin Xcode won't run until trusted. MirrorMetrics mirrors this
+  # version's cell math — re-check it when bumping.
+  SwiftTerm:
+    url: https://github.com/migueldeicaza/SwiftTerm.git
+    exactVersion: "1.11.2"
 
 settings:
   base:
@@ -82,6 +89,8 @@ targets:
         product: Highlightr
       - package: swift-markdown
         product: Markdown
+      - package: SwiftTerm
+        product: SwiftTerm
 
   EosRemoteKitTests:
     type: bundle.unit-test

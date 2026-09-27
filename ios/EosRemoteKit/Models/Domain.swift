@@ -97,4 +97,29 @@ public struct Pending: Identifiable, Sendable, Equatable {
     public static func == (a: Pending, b: Pending) -> Bool { a.raw == b.raw }
 }
 
+// A daemon PTY session (contracts PtySessionSchema) — a desktop Code-view pane, usually running
+// Claude Code. The phone mirrors it at the PTY's own cols×rows and never resizes it.
+public struct PtySession: Identifiable, Sendable, Equatable {
+    public let raw: JSONValue
+    public var id: String { raw["sessionId"]?.stringValue ?? "" }
+    public var number: Int { raw["number"]?.intValue ?? 0 }
+    public var cwd: String { raw["cwd"]?.stringValue ?? "" }
+    public var cols: Int { raw["cols"]?.intValue ?? 120 }
+    public var rows: Int { raw["rows"]?.intValue ?? 32 }
+    public var alive: Bool { raw["alive"]?.boolValue ?? true }
+    public var isClaude: Bool { raw["kind"]?.stringValue == "claude" }
+    public var claudeSessionId: String? { raw["claudeSessionId"]?.stringValue }
+    public var title: String? { raw["title"]?.stringValue }
+    public var remote: Bool { raw["remote"]?.boolValue ?? false }
+
+    // Desktop paneTitle rule: the terminal's OSC title, else what the pane runs.
+    public var displayTitle: String {
+        if let title, !title.isEmpty { return title }
+        return isClaude ? "Claude Code" : "Terminal \(number)"
+    }
+
+    public init(raw: JSONValue) { self.raw = raw }
+    public static func == (a: PtySession, b: PtySession) -> Bool { a.raw == b.raw }
+}
+
 // The transcript `Block` model lives in Block.swift (spec 03 §4.2 — the typed-payload rewrite).

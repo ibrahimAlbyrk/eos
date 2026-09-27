@@ -2,7 +2,7 @@ import SwiftUI
 import UIKit
 
 // Which root surface the drawer selects (contract §B1). Drives RootView's root content.
-enum SidebarSection: String { case code, devices }
+enum SidebarSection: String { case code, terminals, devices }
 
 // Presentational-only shell state shared between the drawer, its container, and the per-screen top
 // chrome. Kept separate from AppModel — this holds no domain data, only which section is selected

@@ -2,11 +2,11 @@ import SwiftUI
 import EosRemoteKit
 
 // Drawer contents (contract §C1, ref IMG_4423 — no avatar, no spawn pill): left-pinned wordmark as
-// the drawer's title mark, Code / Devices nav rows, a Recents list of the active device's workers,
-// and a floating footer row — device chip (opens the device switcher) leading, "+ New" pill
-// trailing. Full-height edge-to-edge (§E3): the opaque bg ignores the safe area while the content
-// stays inside it (reading geo.safeAreaInsets under .ignoresSafeArea() returns zeros and lands
-// content in the status-bar/home strips). Navigation + sheet presentation live in RootView
+// the drawer's title mark, Code / Terminals / Devices nav rows, a Recents list of the active
+// device's workers, and a floating footer row — device chip (opens the device switcher) leading,
+// "+ New" pill trailing. Full-height edge-to-edge (§E3): the opaque bg ignores the safe area while
+// the content stays inside it (reading geo.safeAreaInsets under .ignoresSafeArea() returns zeros and
+// lands content in the status-bar/home strips). Navigation + sheet presentation live in RootView
 // (callbacks).
 struct DrawerView: View {
     @EnvironmentObject var model: AppModel
@@ -43,6 +43,8 @@ struct DrawerView: View {
             VStack(spacing: 0) {
                 SidebarRow("chevron.left.forwardslash.chevron.right", "Code",
                            isSelected: sidebar.section == .code) { select(.code) }
+                SidebarRow("terminal", "Terminals",
+                           isSelected: sidebar.section == .terminals) { select(.terminals) }
                 SidebarRow("laptopcomputer", "Devices",
                            isSelected: sidebar.section == .devices) { select(.devices) }
             }

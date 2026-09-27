@@ -253,4 +253,12 @@ public actor WSConnection {
         guard let json = try? JSONEncoder().encode(hello) else { return }
         task.send(.data(session.frameToEnvelope(json))) { _ in }
     }
+
+    // Replace the set of PTY sessions whose pty:data this device receives. Fire-and-forget; the
+    // daemon forgets it with the socket, so the owner re-sends it after every reconnect.
+    public func sendSubscription(pty ids: [String]) {
+        guard let session, let task else { return }
+        guard let json = try? JSONEncoder().encode(SubFrame(pty: ids)) else { return }
+        task.send(.data(session.frameToEnvelope(json))) { _ in }
+    }
 }

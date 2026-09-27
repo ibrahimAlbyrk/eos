@@ -88,6 +88,13 @@ public struct HelloFrame: Codable, Sendable {
     public var lastContentId: Int?
 }
 
+// The PTY sessions whose raw output (pty:data) this device wants — replaces the previous set.
+public struct SubFrame: Codable, Sendable {
+    public var t = "sub"
+    public var pty: [String]
+    public init(pty: [String]) { self.pty = pty }
+}
+
 public struct ControlFrame: Codable, Sendable {
     public var t = "control"
     public var correlationId: String

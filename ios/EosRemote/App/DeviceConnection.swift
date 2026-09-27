@@ -42,6 +42,14 @@ final class DeviceConnection: NSObject {
     private(set) var uiConfig: UiConfig?
     private(set) var archived: [Worker] = []
 
+    // Terminals: the daemon's PTY sessions (desktop Code-view panes), fetched per connect and kept
+    // live by pty:session / pty:exit. pty:conversation / pty:data go to `onPtyEvent` (the open
+    // terminal screen); `ptySubscription` is re-sent after every reconnect.
+    private(set) var ptySessions: [PtySession] = []
+    private(set) var ptySessionsLoaded = false
+    var onPtyEvent: ((EventFrame) -> Void)?
+    private var ptySubscription: [String] = []
+
     // Server-relative clock for the thinking/elapsed timer (round 5, item D):
     // sampled from every event frame's daemon-stamped ts.
     private(set) var turnClock = TurnClock()
@@ -282,6 +290,113 @@ final class DeviceConnection: NSObject {
         return (await controlReply("POST", "/fs/paste-b64", body))?.body?["path"]?.stringValue
     }
 
+    // MARK: terminals (PTY sessions) — tunneled /pty routes
+
+    func fetchPtySessions() async {                               // GET /pty
+        guard let connection,
+              let rows = (try? await connection.sendControl(method: "GET", path: "/pty",
+                                                             bodyData: Data("{}".utf8)))?.body?["sessions"]?.arrayValue
+        else { return }
+        applyPtySessions(rows)
+    }
+
+    func createPty(cwd: String, claude: Bool) async -> PtySession? {             // POST /pty
+        var body: [String: JSONValue] = [
+            "cols": .number(120), "rows": .number(32), "cwd": .string(cwd), "remote": .bool(true),
+        ]
+        if claude { body["claude"] = .object([:]) }
+        guard let raw = (await controlReply("POST", "/pty", .object(body)))?.body,
+              raw["sessionId"]?.stringValue != nil else { return nil }
+        let session = PtySession(raw: raw)
+        upsertPty(session)
+        return session
+    }
+
+    func killPty(_ id: String) async -> Bool {                    // DELETE /pty/:id
+        guard await controlReply("DELETE", "/pty/\(id)", .object([:])) != nil else { return false }
+        ptySessions.removeAll { $0.id == id }
+        onChange?()
+        return true
+    }
+
+    func ptyBuffer(_ id: String) async -> (seq: Int, data: String)? {           // GET /pty/:id/buffer
+        guard let body = (await controlReply("GET", "/pty/\(id)/buffer", .object([:])))?.body else { return nil }
+        return (body["seq"]?.intValue ?? 0, body["data"]?.stringValue ?? "")
+    }
+
+    func ptyInput(_ id: String, data: String) async -> Bool {                    // POST /pty/:id/input
+        await controlReply("POST", "/pty/\(id)/input", .object(["data": .string(data)])) != nil
+    }
+
+    func ptyConversation(_ id: String, afterId: Int) async -> JSONValue? {       // GET /pty/:id/conversation
+        (await controlReply("GET", "/pty/\(id)/conversation?afterId=\(afterId)", .object([:])))?.body
+    }
+
+    enum PtyMessageResult { case sent, rejected, failed }
+
+    // 409 = Claude isn't taking a prompt (a question is pending, or it exited to the shell) — the
+    // screen explains it inline, so it doesn't count as a connection error.
+    func ptyMessage(_ id: String, text: String) async -> PtyMessageResult {      // POST /pty/:id/message
+        guard let connection else { setError("not connected"); return .failed }
+        do {
+            _ = try await connection.sendControl(method: "POST", path: "/pty/\(id)/message",
+                                                 bodyData: encodeOnce(.object(["text": .string(text)])))
+            return .sent
+        } catch WSConnection.WSError.controlFailed(409) {
+            return .rejected
+        } catch {
+            setError(error.localizedDescription)
+            return .failed
+        }
+    }
+
+    func ptyAnswer(_ id: String, toolUseId: String, answers: [PendingAnswer]) async -> Bool {   // POST /pty/:id/answer
+        await controlReply("POST", "/pty/\(id)/answer",
+                           .object(["toolUseId": .string(toolUseId), "answers": .array(answers.map(\.json))])) != nil
+    }
+
+    func ptyApprovePlan(_ id: String, toolUseId: String) async -> Bool {         // POST /pty/:id/answer
+        await controlReply("POST", "/pty/\(id)/answer",
+                           .object(["toolUseId": .string(toolUseId), "approve": .bool(true)])) != nil
+    }
+
+    func setPtySubscription(_ ids: [String]) async {
+        guard ids != ptySubscription else { return }
+        ptySubscription = ids
+        await connection?.sendSubscription(pty: ids)
+    }
+
+    private func applyPtySessions(_ rows: [JSONValue]) {
+        ptySessions = rows.map(PtySession.init(raw:)).sorted { $0.number < $1.number }
+        ptySessionsLoaded = true
+        onChange?()
+    }
+
+    private func upsertPty(_ session: PtySession) {
+        if let i = ptySessions.firstIndex(where: { $0.id == session.id }) {
+            ptySessions[i] = session
+        } else {
+            ptySessions.append(session)
+            ptySessions.sort { $0.number < $1.number }
+        }
+        onChange?()
+    }
+
+    func handlePtyEvent(_ event: EventFrame) {
+        switch event.reason {
+        case "pty:session":
+            if let raw = event.payload, raw["sessionId"]?.stringValue != nil { upsertPty(PtySession(raw: raw)) }
+        case "pty:exit":
+            guard let id = event.payload?["sessionId"]?.stringValue else { return }
+            ptySessions.removeAll { $0.id == id }
+            onChange?()
+        case "pty:conversation", "pty:data":
+            onPtyEvent?(event)
+        default:
+            break
+        }
+    }
+
     // MARK: file viewer fetch (round 4) — GET /fs/stat → /fs/read | /fs/image
 
     enum FileFetchResult: Sendable {
@@ -431,6 +546,7 @@ final class DeviceConnection: NSObject {
         guard let connection else { return }
         async let w = try? connection.sendControl(method: "GET", path: "/workers", bodyData: Data("{}".utf8))
         async let p = try? connection.sendControl(method: "GET", path: "/pending", bodyData: Data("{}".utf8))
+        async let t = try? connection.sendControl(method: "GET", path: "/pty", bodyData: Data("{}".utf8))
         let workers = (await w)?.body?.arrayValue
         let pending = (await p)?.body?.arrayValue ?? []
         // A failed workers GET must not flip the loaded phase (or clobber a cached
@@ -438,6 +554,8 @@ final class DeviceConnection: NSObject {
         if let workers {
             await store.applyBootstrap(workers: workers, pending: pending)
         }
+        if let ptys = (await t)?.body?["sessions"]?.arrayValue { applyPtySessions(ptys) }
+        if !ptySubscription.isEmpty { await connection.sendSubscription(pty: ptySubscription) }
         // C6: ui-config is fetched once per connect (covers reconnects too) and cached above.
         await fetchUiConfig()
     }
@@ -761,6 +879,7 @@ extension DeviceConnection: WSConnectionDelegate {
         if await store.applyEvent(event) == .seqGap { await recoverFromGap() }
         await handleTranscriptEvent(event)
         await handleListEvent(event)
+        await handlePtyEvent(event)
     }
     nonisolated func wsDidReceive(error: ErrorFrame) async {
         await MainActor.run { self.setError("\(error.code): \(error.message ?? "")") }

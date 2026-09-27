@@ -6,6 +6,7 @@ import EosRemoteKit
 enum Route: Hashable {
     case conversation(String)   // workerId
     case newSession
+    case terminal(String)       // PTY sessionId
 }
 
 // Root shell (contract §B1): SidebarContainer { DrawerView | NavigationStack }. Stack root is the
@@ -71,6 +72,9 @@ struct RootView: View {
                             NewSessionView(onDeviceTap: { showDeviceSwitcher = true },
                                            onSpawned: { replaceWithConversation($0) })
                                 .navigationBarHidden(true)
+                        case .terminal(let id):
+                            TerminalSessionView(sessionId: id)
+                                .navigationBarHidden(true)
                         }
                     }
             }
@@ -109,12 +113,14 @@ struct RootView: View {
         .onChange(of: model.needsPairing) { _, needs in if needs { showPairing = true } }
     }
 
-    // Root surface selected by the drawer (§B1): Code list or Devices.
+    // Root surface selected by the drawer (§B1): Code list, Terminals or Devices.
     @ViewBuilder private var rootContent: some View {
         switch sidebar.section {
         case .code:
             CodeListView(onOpenWorker: { openWorker($0) },
                          onNewSession: { path.append(Route.newSession) })
+        case .terminals:
+            TerminalsListView(onOpen: { path.append(Route.terminal($0)) })
         case .devices:
             DevicesView(onSwitched: { select(.code) })
                 .eosTopChrome { EmptyView() }

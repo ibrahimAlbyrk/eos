@@ -61,6 +61,10 @@ final class AppModel: ObservableObject {
     @Published var uiConfig: UiConfig?
     @Published var archived: [Worker] = []
 
+    // Terminals: the active device's PTY sessions (desktop Code-view panes).
+    @Published var ptySessions: [PtySession] = []
+    @Published var ptySessionsLoaded = false
+
     // Devices UI surface (Phase 5b consumes these). `devices` is the ordered paired list;
     // `activeDeviceId` selects which device the mirror + all control actions target.
     @Published private(set) var devices: [Device] = []
@@ -126,6 +130,11 @@ final class AppModel: ObservableObject {
                 self.objectWillChange.send()
             }
         }
+        conn.onPtyEvent = { [weak self, weak conn] event in
+            guard let self, conn?.deviceId == self.activeDeviceId,
+                  let id = event.payload?["sessionId"]?.stringValue else { return }
+            self.ptyListeners[id]?(event)
+        }
         connections[device.id] = conn
         return conn
     }
@@ -139,6 +148,7 @@ final class AppModel: ObservableObject {
             workersLoaded = false
             hasOlder = false; loadingOlder = false
             uiConfig = nil; archived = []
+            ptySessions = []; ptySessionsLoaded = false
             needsPairing = devices.isEmpty
             return
         }
@@ -153,6 +163,8 @@ final class AppModel: ObservableObject {
         loadingOlder = a.loadingOlder
         uiConfig = a.uiConfig
         archived = a.archived
+        ptySessions = a.ptySessions
+        ptySessionsLoaded = a.ptySessionsLoaded
         needsPairing = false
         seedAttention(workers)
     }
@@ -322,6 +334,36 @@ final class AppModel: ObservableObject {
     }
     func fetchFile(path: String) async -> DeviceConnection.FileFetchResult {
         await active?.fetchFile(path: path) ?? .failure("Not connected")
+    }
+
+    // MARK: terminals — forwarders to the active device
+
+    func fetchPtySessions() async { await active?.fetchPtySessions() }
+    func createPty(cwd: String, claude: Bool) async -> PtySession? {
+        await active?.createPty(cwd: cwd, claude: claude)
+    }
+    func killPty(_ id: String) async -> Bool { await active?.killPty(id) ?? false }
+    func ptyBuffer(_ id: String) async -> (seq: Int, data: String)? { await active?.ptyBuffer(id) }
+    func ptyInput(_ id: String, data: String) async -> Bool { await active?.ptyInput(id, data: data) ?? false }
+    func ptyConversation(_ id: String, afterId: Int) async -> JSONValue? {
+        await active?.ptyConversation(id, afterId: afterId)
+    }
+    func ptyMessage(_ id: String, text: String) async -> DeviceConnection.PtyMessageResult {
+        await active?.ptyMessage(id, text: text) ?? .failed
+    }
+    func ptyAnswer(_ id: String, toolUseId: String, answers: [PendingAnswer]) async -> Bool {
+        await active?.ptyAnswer(id, toolUseId: toolUseId, answers: answers) ?? false
+    }
+    func ptyApprovePlan(_ id: String, toolUseId: String) async -> Bool {
+        await active?.ptyApprovePlan(id, toolUseId: toolUseId) ?? false
+    }
+    func setPtySubscription(_ ids: [String]) async { await active?.setPtySubscription(ids) }
+
+    // pty:conversation / pty:data of the active device, routed to the open terminal screen by
+    // session id (one screen per session; nil unregisters).
+    private var ptyListeners: [String: (EventFrame) -> Void] = [:]
+    func setPtyListener(_ sessionId: String, _ handler: ((EventFrame) -> Void)?) {
+        ptyListeners[sessionId] = handler
     }
 
     // MARK: UI state restoration (round 7) — per-device keys, written on change
