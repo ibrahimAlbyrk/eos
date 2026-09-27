@@ -32,6 +32,7 @@ function harness() {
       write: (d) => { host.writes.push(d); },
       resize: (c, r) => { host.resizes.push([c, r]); },
       kill: () => { host.killed = true; },
+      foreground: () => "claude",
       emit: (d) => onData(d),
       fireExit: (c) => onExit(c),
       writes: [], resizes: [], killed: false,
@@ -39,8 +40,10 @@ function harness() {
     hosts.push(host);
     return host;
   };
-  const svc = new PtySessionService({ bus, defaultCwd: "/proj", spawn });
-  return { svc, bus, published, hosts, spawnOpts };
+  const sleeps: number[] = [];
+  const sleep = async (ms: number): Promise<void> => { sleeps.push(ms); };
+  const svc = new PtySessionService({ bus, defaultCwd: "/proj", spawn, sleep });
+  return { svc, bus, published, hosts, spawnOpts, sleeps };
 }
 
 const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -138,10 +141,11 @@ describe("PtySessionService", () => {
     hosts[0].emit("y"); // arrives inside the window → buffered, not yet flushed
     hosts[0].fireExit(7); // exit drains "y" (seq 2) before the exit frame
 
-    assert.deepEqual(published.map((p) => p.topic), ["pty:data", "pty:data", "pty:exit"]);
-    assert.deepEqual(published[0].payload, { sessionId: s.sessionId, number: 1, seq: 1, data: "x" });
-    assert.deepEqual(published[1].payload, { sessionId: s.sessionId, number: 1, seq: 2, data: "y" });
-    assert.deepEqual(published[2].payload, { sessionId: s.sessionId, number: 1, exitCode: 7 });
+    const frames = published.filter((p) => p.topic !== "pty:session");
+    assert.deepEqual(frames.map((p) => p.topic), ["pty:data", "pty:data", "pty:exit"]);
+    assert.deepEqual(frames[0].payload, { sessionId: s.sessionId, number: 1, seq: 1, data: "x" });
+    assert.deepEqual(frames[1].payload, { sessionId: s.sessionId, number: 1, seq: 2, data: "y" });
+    assert.deepEqual(frames[2].payload, { sessionId: s.sessionId, number: 1, exitCode: 7 });
 
     // Session is gone: buffer/list/input all report absence.
     assert.equal(svc.buffer(s.sessionId), null);
@@ -184,5 +188,57 @@ describe("PtySessionService", () => {
     for (let i = 0; i < 32; i++) svc.create({ cols: 80, rows: 24 });
     assert.throws(() => svc.create({ cols: 80, rows: 24 }), PtyCapError);
     assert.equal(svc.list().length, 32);
+  });
+
+  it("launches Claude itself for a claude session and announces it", () => {
+    const { svc, spawnOpts, published } = harness();
+    const s = svc.create({ cols: 80, rows: 24, claude: {}, remote: true });
+    assert.equal(s.kind, "claude");
+    assert.ok(s.claudeSessionId);
+    assert.equal(s.remote, true);
+    assert.ok(spawnOpts[0].command?.includes(`--session-id ${s.claudeSessionId}`));
+    assert.deepEqual(published.filter((p) => p.topic === "pty:session").map((p) => p.payload), [s]);
+    assert.equal(svc.create({ cols: 80, rows: 24 }).kind, "shell");
+  });
+
+  it("follows the pane's title and Claude conversation from its output", () => {
+    const { svc, hosts, published } = harness();
+    const s = svc.create({ cols: 80, rows: 24, claude: {} });
+    const next = "123e4567-e89b-42d3-a456-426614174000";
+    hosts[0].emit("\x1b]0;⠂ Fix login\x07");
+    hosts[0].emit("\x1b]0;✳ Fix login\x07"); // spinner frame only — no change
+    hosts[0].emit(`\x1b]7777;eos-claude-session=${next}\x07`);
+    const updates = published.filter((p) => p.topic === "pty:session").slice(1).map((p) => p.payload);
+    assert.deepEqual(updates.map((u) => [u.title, u.claudeSessionId]), [["Fix login", s.claudeSessionId], ["Fix login", next]]);
+    assert.equal(svc.get(s.sessionId)?.claudeSessionId, next);
+  });
+
+  it("remembers the dialog tool call the pane reports and announces a conversation change", () => {
+    const { svc, hosts, published } = harness();
+    const s = svc.create({ cols: 80, rows: 24, claude: {} });
+    const hook = { tool_name: "ExitPlanMode", tool_use_id: "p1", tool_input: { plan: "x" } };
+    hosts[0].emit(`\x1b]7777;eos-claude-tool=${Buffer.from(JSON.stringify(hook)).toString("base64")}\x07`);
+    assert.deepEqual(svc.dialogCall(s.sessionId), { toolUseId: "p1", name: "ExitPlanMode", input: { plan: "x" }, at: svc.dialogCall(s.sessionId)?.at });
+    assert.deepEqual(published.filter((p) => p.topic === "pty:conversation").map((p) => p.payload), [{ sessionId: s.sessionId, claudeSessionId: s.claudeSessionId }]);
+  });
+
+  it("announces a real resize so mirrors redraw at the new grid", () => {
+    const { svc, published } = harness();
+    const s = svc.create({ cols: 80, rows: 24 });
+    svc.resize(s.sessionId, 80, 24);
+    svc.resize(s.sessionId, 100, 30);
+    const sizes = published.filter((p) => p.topic === "pty:session").map((p) => [p.payload.cols, p.payload.rows]);
+    assert.deepEqual(sizes, [[80, 24], [100, 30]]);
+  });
+
+  it("writes steps one at a time, in order, never interleaving two sequences", async () => {
+    const { svc, hosts, sleeps } = harness();
+    const s = svc.create({ cols: 80, rows: 24 });
+    const a = svc.sendSteps(s.sessionId, ["\x1b[200~hi\x1b[201~", "\r"]);
+    const b = svc.sendSteps(s.sessionId, ["1", "2"]);
+    assert.deepEqual(await Promise.all([a, b]), [true, true]);
+    assert.deepEqual(hosts[0].writes, ["\x1b[200~hi\x1b[201~", "\r", "1", "2"]);
+    assert.deepEqual(sleeps, [300, 150, 150, 150]);
+    assert.equal(await svc.sendSteps("nope", ["x"]), false);
   });
 });
