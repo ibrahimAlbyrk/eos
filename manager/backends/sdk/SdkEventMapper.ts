@@ -10,7 +10,7 @@ import { contextTokensOf, parseStructuredPatch } from "../../../contracts/src/ca
 
 // --- the SDK message subset we read (structural) ---------------------------
 interface RawDelta { type: string; text?: string; thinking?: string }
-interface RawBlock { type: string; text?: string; thinking?: string; id?: string; name?: string; input?: Record<string, unknown>; tool_use_id?: string; content?: unknown; is_error?: boolean }
+export interface RawBlock { type: string; text?: string; thinking?: string; id?: string; name?: string; input?: Record<string, unknown>; tool_use_id?: string; content?: unknown; is_error?: boolean }
 // message_start carries the stable Anthropic message id (msg_…); content_block_*
 // events do not, so the mapper tracks it across the message's stream.
 interface RawStreamEvent { type: string; index?: number; delta?: RawDelta; content_block?: RawBlock; message?: { id?: string } }
@@ -74,7 +74,7 @@ function toCanonicalUsage(u: SdkUsage, model: string | null): CanonicalUsage {
   };
 }
 
-function blockText(content: unknown): string {
+export function blockText(content: unknown): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content)) {
     return content.map((c) => (c && typeof c === "object" && "text" in c ? String((c as RawBlock).text ?? "") : "")).join("");
@@ -159,7 +159,7 @@ function toSubagentUsage(u: SdkTaskUsage | undefined): SubagentUsage | undefined
 // not its position in this SDKMessage's content array — the SDK can split one
 // message into several `assistant` SDKMessages (one per block), each a length-1
 // array, so the array position would collide every split block at 0.
-function durableBlocks(msgId: string, content: RawBlock[], startIdx: number): ContentBlock[] {
+export function durableBlocks(msgId: string, content: RawBlock[], startIdx: number): ContentBlock[] {
   const blocks: ContentBlock[] = [];
   content.forEach((b, i) => {
     const blockId = `${msgId}:${startIdx + i}`;

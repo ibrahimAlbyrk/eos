@@ -8,9 +8,7 @@
 // means Eos's tool host + event sink, not the model loop. The queryFn seam lets
 // tests drive a scripted SDK stream (FakeSdkQuery) with no real model / no billing.
 
-import { readFileSync, realpathSync } from "node:fs";
-import { homedir } from "node:os";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { query as realQuery, forkSession as realForkSession } from "@anthropic-ai/claude-agent-sdk";
 import type { Options, McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import type { DroppedServer } from "./SdkMcpTranslator.ts";
@@ -20,8 +18,8 @@ import type {
 import { backendCollaborate } from "../../../core/src/ports/AgentBackend.ts";
 import type { RewindResult } from "../../../core/src/ports/WorkerClient.ts";
 import { computeRewindTargets, rewindSliceAnchor, type RewindTarget } from "../../../core/src/domain/rewind-targets.ts";
-import { encodeCwd } from "../../../core/src/domain/claude-paths.ts";
 import { parseClaudeTranscript } from "../../../core/src/domain/claude-transcript.ts";
+import { claudeTranscriptPath } from "../../shared/claude-transcript-path.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { ToolContext } from "../../tools/types.ts";
 import { createSdkEventMapper, type SdkEventMapper } from "./SdkEventMapper.ts";
@@ -195,15 +193,8 @@ interface Live {
 export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend {
   const queryFn: SdkQueryFn = deps.queryFn ?? ((p) => realQuery(p as never) as unknown as SdkQueryHandle);
   const forkSessionFn: ForkSessionFn = deps.forkSessionFn ?? ((sid, opts) => realForkSession(sid, opts));
-  // The claude-transcript store lives at ~/.claude/projects/<encodeCwd(realpath
-  // cwd)>/<sessionId>.jsonl — the same scheme the CLI-lane tail derives (spawner/
-  // tail.ts). encodeCwd needs a realpath'd cwd; fall back to the raw cwd if it
-  // can't be resolved. Missing file → null (no transcript yet).
-  const transcriptPath = (cwd: string, sessionId: string): string => {
-    let dir = cwd;
-    try { dir = realpathSync(cwd); } catch { /* keep the raw cwd */ }
-    return join(homedir(), ".claude", "projects", encodeCwd(dir), `${sessionId}.jsonl`);
-  };
+  // Missing transcript file → null (no transcript yet).
+  const transcriptPath = claudeTranscriptPath;
   const readTranscriptFn: (cwd: string, sessionId: string) => string | null =
     deps.readTranscriptFn ?? ((cwd, sessionId) => {
       try { return readFileSync(transcriptPath(cwd, sessionId), "utf8"); } catch { return null; }

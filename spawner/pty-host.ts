@@ -25,6 +25,8 @@ export interface PtyHost {
   write(data: string): void;
   resize(cols: number, rows: number): void;
   kill(): void;
+  // Name of the terminal's foreground process (e.g. the shell, or Claude).
+  foreground(): string;
 }
 
 export function spawnPtyHost(opts: PtyHostOptions): PtyHost {
@@ -46,6 +48,7 @@ export function spawnPtyHost(opts: PtyHostOptions): PtyHost {
     write: (data) => { pty.write(data); },
     resize: (cols, rows) => { pty.resize(cols, rows); },
     kill: () => { try { pty.kill(); } catch {} },
+    foreground: () => pty.process,
   };
 }
 
