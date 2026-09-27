@@ -13,7 +13,7 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 export class SSEClient {
   private stopped = false;
-  private backoff = 1000;
+  private backoff = 250;
 
   constructor(private readonly url: string, private readonly token: string, private readonly h: SSEHandlers) {}
 
@@ -34,7 +34,7 @@ export class SSEClient {
         });
         if (!res.ok || !res.body) throw new Error(`stream ${res.status}`);
         this.h.onConnectivity(true);
-        this.backoff = 1000;
+        this.backoff = 250;
         const reader = res.body.getReader();
         const dec = new TextDecoder();
         let buf = "";
@@ -54,7 +54,7 @@ export class SSEClient {
       if (this.stopped) break;
       this.h.onConnectivity(false);
       await delay(this.backoff);
-      this.backoff = Math.min(this.backoff * 2, 30000);
+      this.backoff = Math.min(this.backoff * 2, 5000);
     }
   }
 

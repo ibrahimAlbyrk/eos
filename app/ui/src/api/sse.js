@@ -1,27 +1,23 @@
 // SSE wrapper with reconnect-on-error. The native EventSource auto-retries
 // for transport drops, but if the daemon restarts mid-session it can fail
 // to recover cleanly. We watch onerror and explicitly tear down + recreate
-// after a backoff window.
+// after a backoff window. It never gives up, and the backoff stays short, so
+// the dashboard is live again within a few seconds of a daemon restart.
 
 import { api } from "./client.js";
 
-const MAX_BACKOFF_MS = 60_000;
-const MAX_RECONNECT_ATTEMPTS = 50;
+// First retry fast: a restarted daemon is listening again in well under a second.
+const INITIAL_BACKOFF_MS = 250;
+const MAX_BACKOFF_MS = 5_000;
 
 export function createReconnectingStream(handlers) {
   let es = null;
   let reconnectTimer = null;
   let closed = false;
-  let backoffMs = 1000;
-  let attempts = 0;
+  let backoffMs = INITIAL_BACKOFF_MS;
 
   function attach() {
     if (closed) return;
-    if (attempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.warn(`[SSE] max reconnect attempts (${MAX_RECONNECT_ATTEMPTS}) reached, giving up`);
-      handlers.onClose?.();
-      return;
-    }
     try {
       es = api.newEventStream();
     } catch {
@@ -29,8 +25,7 @@ export function createReconnectingStream(handlers) {
       return;
     }
     es.onopen = () => {
-      backoffMs = 1000;
-      attempts = 0;
+      backoffMs = INITIAL_BACKOFF_MS;
       handlers.onOpen?.();
     };
     es.addEventListener("change", (e) => handlers.onChange?.(e));
@@ -48,7 +43,6 @@ export function createReconnectingStream(handlers) {
 
   function schedule() {
     if (closed || reconnectTimer) return;
-    attempts++;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       backoffMs = Math.min(backoffMs * 2, MAX_BACKOFF_MS);
