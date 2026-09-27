@@ -41,6 +41,7 @@ import { QuestionBanner } from "./QuestionBanner.jsx";
 import { TryDeck } from "./TryBanner.jsx";
 import { WorktreeHub } from "./WorktreeHub.jsx";
 import { CollapsedComposer } from "./CollapsedComposer.jsx";
+import { useCompacting } from "../../../state/compactionStore.js";
 
 export function Composer({ live, worker, paneId, focused }) {
   const ui = useUi();
@@ -72,6 +73,7 @@ export function Composer({ live, worker, paneId, focused }) {
   // two coincide (the focused leaf mirrors selectedId); other panes drive their
   // own agent.
   const selected = worker;
+  const compacting = useCompacting(selected?.id);
 
   // git↔term are mutually exclusive; entering git while term is active is a
   // no-op (nextGitMode encodes it). Shared by the git button, startCustom and
@@ -538,9 +540,9 @@ export function Composer({ live, worker, paneId, focused }) {
     if (!t) return;
     const mode = composerMode({ gitMode, termMode });
 
-    // "/clear" targets an existing agent's session — spawning a fresh agent
-    // (orchestrator/git) with it as the boot prompt would be meaningless.
-    if (mode !== "term" && t === "/clear" && (!selected || gitMode)) return;
+    // "/clear" and "/compact" target an existing agent's session — spawning a
+    // fresh agent (orchestrator/git) with one as the boot prompt is meaningless.
+    if (mode !== "term" && (t === "/clear" || /^\/compact(\s|$)/.test(t)) && (!selected || gitMode)) return;
 
     // "/export" triggers a conversation download — never sends to any worker.
     if (mode !== "term" && t === "/export") {
@@ -1108,7 +1110,7 @@ export function Composer({ live, worker, paneId, focused }) {
                     className={escArmed ? "composer-editor esc-armed" : "composer-editor"}
                     contentEditable
                     role="textbox"
-                    data-placeholder={termMode ? "Run a shell command — Enter to run, Esc to exit" : gitMode ? "Describe the git task — commit, rebase, merge…" : "What should we do?"}
+                    data-placeholder={termMode ? "Run a shell command — Enter to run, Esc to exit" : gitMode ? "Describe the git task — commit, rebase, merge…" : compacting ? "Compacting… messages you send now will queue" : "What should we do?"}
                     data-empty={!text ? "" : undefined}
                     data-hint={activeHint || undefined}
                     onInput={(e) => { recallRef.current = false; handleInput(e); }}

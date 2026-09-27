@@ -10,7 +10,7 @@ import { useUi } from "../../../state/ui.jsx";
 import { api } from "../../../api/client.js";
 import { fmtElapsedShort } from "../../../lib/format.js";
 import { deriveActivity } from "../../../lib/agentActivity.js";
-import { buildBlocks, applyRewinds, applyClears, applyRecalls, sortBlocksByTs } from "../../../lib/messageParser.js";
+import { buildBlocks, applyRewinds, applyClears, applyRecalls, splitAtCompaction, compactionStatus, sortBlocksByTs } from "../../../lib/messageParser.js";
 import { backendCaps } from "../../../lib/backendCaps.js";
 import { normRewindText } from "../../../lib/rewindMatch.js";
 import { deriveVerdict, deriveChildVerdicts } from "../../../lib/verdict.js";
@@ -45,6 +45,9 @@ import { glideToBlock } from "../../../lib/glideTo.js";
 import { newSessionProject } from "../../../lib/breadcrumb.js";
 import { useProjects } from "../../../state/projectsStore.js";
 import { TerminalCard } from "./TerminalCard.jsx";
+import { CompactionCard, CompactionFailedLine } from "./CompactionCard.jsx";
+import { NebulaOverlay } from "./compaction/NebulaOverlay.jsx";
+import { setCompacting } from "../../../state/compactionStore.js";
 import { subscribe as subscribeTerminal, liveRunsFor, removeRun, clearWorkspaceRuns } from "../../../state/terminalStore.js";
 import { subscribe as subscribeThinking, liveBlocksFor as liveThinkingFor, dropBlock as dropThinkingBlock } from "../../../state/thinkingStore.js";
 import { subscribe as subscribeLoopCheck, checkFor as loopCheckFor } from "../../../state/loopCheckStore.js";
@@ -192,7 +195,22 @@ export function Messages({ live, agentId, isActive = true }) {
   );
   const owned = eventsFor === selectedId;
   const events = owned ? windowEvents : NO_EVENTS;
-  const hasOlder = owned && windowHasOlder;
+
+  // Context compaction folds the conversation before the latest completed
+  // compaction behind its card; "earlier conversation" on the card unfolds it
+  // (remembered per boundary, so a newer compaction starts folded again). While
+  // folded there is nothing older to page in.
+  const cleared = useMemo(() => applyClears(events), [events]);
+  const compactionSplit = useMemo(() => splitAtCompaction(cleared), [cleared]);
+  const compaction = useMemo(() => compactionStatus(events), [events]);
+  const boundaryId = compactionSplit.current[0]?.type === "compaction_completed" ? compactionSplit.current[0].id : null;
+  const [openHistoryAt, setOpenHistoryAt] = useState(null);
+  const historyOpen = boundaryId != null && openHistoryAt === boundaryId;
+  const folded = compactionSplit.history.length > 0 && !historyOpen;
+  const hasOlder = owned && windowHasOlder && !folded;
+  useEffect(() => {
+    if (selectedId) setCompacting(selectedId, compaction.pending != null);
+  }, [selectedId, compaction.pending]);
 
   useEffect(() => {
     if (live.eventSignal.workerId !== selectedId) return;
@@ -327,8 +345,8 @@ export function Messages({ live, agentId, isActive = true }) {
   // durable rows change. Overlays join in the second memo so terminal chunks
   // and outbox ticks re-sort without re-parsing everything.
   const baseBlocks = useMemo(
-    () => buildBlocks(applyRecalls(applyRewinds(applyClears(events), { bootPromptOffset }))),
-    [events, bootPromptOffset],
+    () => buildBlocks(applyRecalls(applyRewinds(folded ? compactionSplit.current : cleared, { bootPromptOffset }))),
+    [cleared, compactionSplit, folded, bootPromptOffset],
   );
 
   const blocks = useMemo(() => {
@@ -369,7 +387,8 @@ export function Messages({ live, agentId, isActive = true }) {
 
   // With older pages unloaded the window starts mid-conversation, so the boot
   // turn comes from the whole-conversation index instead.
-  const windowTurns = useMemo(() => deriveTurns(blocks, blockKey, hasOlder ? null : bootTurn), [blocks, hasOlder, bootTurn]);
+  // A folded boundary hides the task card too, so it gets no turn of its own.
+  const windowTurns = useMemo(() => deriveTurns(blocks, blockKey, hasOlder || folded ? null : bootTurn), [blocks, hasOlder, folded, bootTurn]);
   const turns = useConversationTurns(selectedId, events, windowTurns, { hasOlder, bootPromptOffset, bootTurn, keyOf: blockKey });
   // A turn outside the loaded window pages older rows in until its prompt
   // renders (the effect below), then glides there.
@@ -548,7 +567,7 @@ export function Messages({ live, agentId, isActive = true }) {
             {loadingOlder && <span className="load-older-skel" aria-label="loading earlier messages" />}
           </div>
         )}
-        {selectedWorker?.parent_id && selectedWorker.prompt && (
+        {selectedWorker?.parent_id && selectedWorker.prompt && !folded && (
           <div data-bkey={TASK_BKEY}>
             <MessageTask
               prompt={selectedWorker.prompt}
@@ -568,7 +587,19 @@ export function Messages({ live, agentId, isActive = true }) {
           const onRewind = b.kind === "user" && !b.optimistic && backendCaps(selectedWorker?.backend_kind).rewind
             ? () => rewindToMessage(b.text, rewindOccurrence.get(b) ?? 0)
             : null;
-          const block = renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, blocks[i - 1]?.ts);
+          const block = b.kind === "compacted"
+            ? (
+              <CompactionCard
+                block={b}
+                workerId={selectedId}
+                hasHistory={b.id === boundaryId && compactionSplit.history.length > 0}
+                historyOpen={historyOpen}
+                onToggleHistory={() => setOpenHistoryAt(historyOpen ? null : b.id)}
+              />
+            )
+            : b.kind === "compactionFailed"
+              ? <CompactionFailedLine block={b} />
+              : renderBlock(b, key, selectedWorker?.cwd, ui, live.workers, parentWorker, onRewind, agentBusy, selectedId, blocks[i - 1]?.ts);
           if (!block) return null;
           // The wrapper carries the block's scroll-anchor identity
           // (lib/scrollAnchor.js) so every block kind is anchorable without
@@ -584,7 +615,7 @@ export function Messages({ live, agentId, isActive = true }) {
           return <div key={key} data-bkey={key} className={cls}>{block}</div>;
         })}
         {showCheck && <GoalCheckLine check={liveCheck} now={live.now} />}
-        {showAnchor && !showCheck && (
+        {showAnchor && !showCheck && !compaction.pending && (
           <ProcessingLine
             busy={agentBusy}
             elapsed={turnElapsedMs >= 1000 ? fmtElapsedShort(turnElapsedMs) : null}
@@ -599,6 +630,9 @@ export function Messages({ live, agentId, isActive = true }) {
         </button>
       )}
     </div>
+    {selectedId && isActive && (
+      <NebulaOverlay workerId={selectedId} wrapRef={wrapRef} contentRef={contentRef} status={compaction} />
+    )}
     {selectedId && turns.length > 1 && (
       <TurnRail turns={turns} scrollerRef={wrapRef} contentRef={contentRef} busy={agentBusy} onJump={jumpToTurn} />
     )}

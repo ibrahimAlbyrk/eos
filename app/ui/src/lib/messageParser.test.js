@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { buildBlocks, buildSummary, buildWorkerSummary, gitActions, applyRewinds, applyClears, sortBlocksByTs, providerErrorMessage } from "./messageParser.js";
+import { buildBlocks, buildSummary, buildWorkerSummary, gitActions, applyRewinds, applyClears, splitAtCompaction, compactionStatus, sortBlocksByTs, providerErrorMessage } from "./messageParser.js";
 
 function agentRow(id, ts) {
   return { type: "jsonl", ts, payload: { kind: "tool_use", id, name: "Agent", input: { description: id } } };
@@ -737,6 +737,40 @@ describe("applyClears", () => {
   it("renders the marker as a divider block via buildBlocks", () => {
     const blocks = buildBlocks(applyClears([user("old", 1), cleared(2), user("new", 3)]));
     expect(blocks.map((b) => b.kind)).toEqual(["cleared", "user"]);
+  });
+});
+
+describe("context compaction", () => {
+  const user = (text, ts) => ({ type: "user_message", ts, payload: JSON.stringify({ text }) });
+  const started = (id, ts) => ({ id, type: "compaction_started", ts, payload: JSON.stringify({ trigger: "auto", beforeTokens: 142100, pct: 71 }) });
+  const completed = (id, ts) => ({
+    id, type: "compaction_completed", ts,
+    payload: JSON.stringify({ trigger: "auto", beforeTokens: 142100, afterTokens: 11400, pct: 71, turns: 38, summary: "1. Primary Request:\n   x", durationMs: 9000 }),
+  });
+  const failed = (id, ts) => ({ id, type: "compaction_failed", ts, payload: JSON.stringify({ trigger: "manual", error: "timed out" }) });
+
+  it("folds everything before the latest completed compaction into history", () => {
+    const events = [user("a", 1), started(2, 2), completed(3, 3), user("b", 4), started(5, 5), completed(6, 6), user("c", 7)];
+    const { history, current } = splitAtCompaction(events);
+    expect(history.map((e) => e.ts)).toEqual([1, 2, 3, 4, 5]);
+    expect(current.map((e) => e.ts)).toEqual([6, 7]);
+    expect(splitAtCompaction([user("a", 1)])).toEqual({ history: [], current: [user("a", 1)] });
+  });
+
+  it("renders the completed run as the boundary card and a failure as its own line", () => {
+    const blocks = buildBlocks([user("a", 1), started(2, 2), completed(3, 3), started(4, 4), failed(5, 5)]);
+    expect(blocks.map((b) => b.kind)).toEqual(["user", "compacted", "compactionFailed"]);
+    expect(blocks[1]).toMatchObject({ id: 3, trigger: "auto", turns: 38, beforeTokens: 142100, afterTokens: 11400, pct: 71, summary: "1. Primary Request:\n   x" });
+    expect(blocks[2]).toMatchObject({ error: "timed out", trigger: "manual" });
+  });
+
+  it("reports a running compaction as pending until its outcome lands", () => {
+    expect(compactionStatus([user("a", 1)])).toEqual({ pending: null, last: null });
+    const running = compactionStatus([user("a", 1), started(2, 2), user("queued", 3)]);
+    expect(running.pending).toMatchObject({ id: 2, type: "compaction_started", payload: { beforeTokens: 142100 } });
+    const done = compactionStatus([started(2, 2), completed(3, 3)]);
+    expect(done.pending).toBeNull();
+    expect(done.last).toMatchObject({ id: 3, type: "compaction_completed" });
   });
 });
 

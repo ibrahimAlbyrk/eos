@@ -1422,3 +1422,111 @@
 .tbl .tc { padding: 7px 12px; font-size: var(--text-sm); color: var(--fg); }
 .tbl .thead .tc { font-weight: 500; color: var(--fg-mid); }
 .tbl .tc.mono { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--fg-dim); }
+
+/* ── context compaction ────────────────────────────────────────────────────
+   The nebula overlay (compaction/NebulaOverlay.jsx) draws on canvases over the
+   messages frame while the transcript underneath is hidden; the boundary card
+   (CompactionCard.jsx) is where its dust lands. */
+.messages[data-compacting="hidden"] > * { opacity: 0; }
+.messages[data-compacting="restoring"] > * { opacity: 1; transition: opacity 450ms ease; }
+.nb-canvas { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
+.nb-label {
+  position: absolute; z-index: 3; translate: -50% 0; pointer-events: none;
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  white-space: nowrap; text-align: center;
+}
+.nb-title { font-size: var(--text-base); font-weight: 500; color: var(--fg-strong); letter-spacing: -0.005em; }
+.nb-roll { position: relative; width: 200px; height: 21px; overflow: hidden; font-size: var(--text-sm); color: var(--accent); }
+.nb-roll span { position: absolute; inset: 0; text-align: center; }
+.nb-meta { font-family: var(--font-mono); font-size: 11.5px; color: var(--fg-faint); font-variant-numeric: tabular-nums; }
+.nb-label--quiet .nb-title { color: var(--fg-mid); }
+
+.cmp-wrap { display: flex; flex-direction: column; container-type: inline-size; }
+.cmp-history {
+  align-self: center; margin-bottom: 12px; padding: 4px 10px; border-radius: var(--r-icon);
+  font-size: 12.5px; color: var(--fg-faint); transition: background-color 150ms ease, color 150ms ease;
+}
+.cmp-history:hover { background: var(--chip); color: var(--fg); }
+.cmp-history:focus-visible, .cmp-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Every glow is pinned to the header row in px (never %), so opening the summary
+   grows the card without dragging the light down with it. */
+.cmp-card {
+  position: relative; overflow: hidden; padding: 12px 14px; border-radius: 12px;
+  background:
+    radial-gradient(140px 64px at 29px 25px, rgba(110, 164, 232, 0.12), transparent 70%),
+    radial-gradient(220px 70px at 84% 18px, rgba(110, 164, 232, 0.085), transparent 72%),
+    radial-gradient(120px 46px at 64% 44px, rgba(118, 196, 214, 0.045), transparent 70%),
+    var(--panel);
+  box-shadow: inset 0 0 0 1px rgba(110, 164, 232, 0.1);
+}
+.cmp-card > :not(.cmp-star-cv) { position: relative; }
+.cmp-star-cv { position: absolute; left: 0; top: 0; width: 100%; height: 50px; pointer-events: none; }
+.cmp-seal-cv { display: block; width: 30px; height: 30px; }
+.cmp-seal-cv, .cmp-star-cv { transition: opacity 500ms ease; }
+/* While the dust writes it: background fades in, text and sky stay blank. */
+.cmp-card.is-assembling { animation: cmp-bg-in 800ms ease 250ms both; }
+@keyframes cmp-bg-in { from { opacity: 0; } }
+.cmp-card.is-assembling, .cmp-card.is-assembling *,
+.cmp-card.is-settling, .cmp-card.is-settling * { color: transparent !important; }
+.cmp-card.is-assembling .cmp-seal-cv, .cmp-card.is-assembling .cmp-star-cv { opacity: 0; }
+:where(.cmp-card) :where(*) { transition: color 350ms ease; }
+
+.cmp-head { display: flex; align-items: center; gap: 10px; min-height: 26px; font-size: var(--text-sm); white-space: nowrap; }
+.cmp-ic {
+  width: 30px; height: 30px; margin: -2px 0; flex-shrink: 0; display: grid; place-items: center;
+  border-radius: 50%; background: radial-gradient(circle, rgba(110, 164, 232, 0.16), transparent 70%);
+}
+.cmp-title { color: var(--fg-strong); font-weight: 500; }
+.cmp-meta { color: var(--fg-faint); overflow: hidden; text-overflow: ellipsis; }
+.cmp-tok { margin-left: auto; display: inline-flex; align-items: baseline; font-size: var(--text-xs); font-variant-numeric: tabular-nums; color: var(--fg-mid); }
+.cmp-tok__from, .cmp-tok__arr {
+  display: inline-block; max-width: 0; overflow: hidden; opacity: 0;
+  transition: max-width 500ms cubic-bezier(0.16, 1, 0.3, 1), opacity 500ms ease, margin 500ms ease;
+}
+.cmp-tok__from { color: var(--fg-faint); text-decoration: line-through; text-decoration-color: rgba(115, 115, 115, 0.7); }
+.cmp-tok__arr { color: var(--fg-mute); }
+.cmp-tok.settled .cmp-tok__from { max-width: 7ch; opacity: 1; }
+.cmp-tok.settled .cmp-tok__arr { max-width: 2ch; opacity: 1; margin: 0 6px; }
+.cmp-toggle {
+  display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 6px 0 8px; margin-right: -4px;
+  border-radius: var(--r-icon); font-size: 12.5px; color: var(--fg-dim);
+  transition: background-color 150ms ease, color 150ms ease;
+}
+.cmp-toggle:hover { background: var(--chip); color: var(--fg); }
+.cmp-toggle svg { transition: transform 350ms cubic-bezier(0.16, 1, 0.3, 1); }
+.cmp-card.open .cmp-toggle svg { transform: rotate(90deg); }
+
+.cmp-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 450ms cubic-bezier(0.16, 1, 0.3, 1); }
+.cmp-card.open .cmp-body { grid-template-rows: 1fr; }
+.cmp-body-in { overflow: hidden; min-height: 0; }
+.cmp-focus { margin: 12px 0 0 40px; font-size: 12.5px; color: var(--fg-dim); }
+/* Open: the sections hang off a faint constellation line dropping from the
+   galaxy, one star per section. */
+.cmp-secs { position: relative; margin: 10px 0 0; padding-top: 6px; border-top: 1px solid rgba(110, 164, 232, 0.08); }
+.cmp-secs::before {
+  content: ""; position: absolute; left: 14.5px; top: 0; bottom: 12px; width: 1px;
+  background: linear-gradient(rgba(110, 164, 232, 0.3), rgba(110, 164, 232, 0.04));
+}
+.cmp-sec {
+  display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 12px; padding: 8px 0 0 40px;
+  opacity: 0; transform: translateY(-4px); transition: opacity 300ms ease, transform 400ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.cmp-card.open .cmp-sec { opacity: 1; transform: none; }
+.cmp-sec dt { position: relative; font-size: 13px; line-height: 1.55; color: var(--fg-faint); }
+.cmp-sec dt::before {
+  content: ""; position: absolute; left: -27px; top: 0.55em; width: 4px; height: 4px; border-radius: 50%;
+  background: #cfe2ff; box-shadow: 0 0 6px 1px rgba(110, 164, 232, 0.55);
+}
+.cmp-sec dd { margin: 0; font-size: 13px; line-height: 1.55; color: var(--fg-mid); }
+.cmp-sec dd > :first-child { margin-top: 0; }
+.cmp-sec dd > :last-child { margin-bottom: 0; }
+@container (max-width: 520px) {
+  .cmp-meta, .cmp-toggle__lbl, .cmp-tok__from, .cmp-tok__arr { display: none; }
+  .cmp-sec { grid-template-columns: 1fr; gap: 1px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cmp-card.is-assembling { animation: none; }
+  .cmp-body, .cmp-sec, .cmp-tok__from, .cmp-tok__arr, .cmp-toggle svg { transition: none; }
+}
+

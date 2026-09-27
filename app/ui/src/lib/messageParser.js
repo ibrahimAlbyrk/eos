@@ -52,6 +52,29 @@ export function applyClears(events) {
   return events;
 }
 
+// Context compaction folds everything before the latest completed compaction
+// behind its card: `history` renders only when the card's "earlier turns" is
+// opened (display-only — the events store keeps every row, like applyClears).
+export function splitAtCompaction(events) {
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].type === "compaction_completed") return { history: events.slice(0, i), current: events.slice(i) };
+  }
+  return { history: [], current: events };
+}
+
+// Where the latest compaction stands: `pending` is a started run with no
+// completed/failed after it (the live nebula runs while it's set); `last` is the
+// newest compaction event of any kind (its id tells a fresh outcome from an old one).
+export function compactionStatus(events) {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    if (e.type !== "compaction_started" && e.type !== "compaction_completed" && e.type !== "compaction_failed") continue;
+    const last = { type: e.type, id: e.id, ts: e.ts, payload: parsePayload(e.payload) };
+    return { pending: e.type === "compaction_started" ? last : null, last };
+  }
+  return { pending: null, last: null };
+}
+
 // conversation_rewound (double-Esc rewind) hides the abandoned branch: every
 // event from the rewound-to user message (it returns to the composer) up to
 // the rewind marker is dropped, mirroring Claude Code's in-memory fork. The
@@ -470,6 +493,28 @@ export function buildBlocks(rawEvents) {
       flushTools();
       lastAsst = null;
       out.push({ kind: "cleared", ts: ev.ts });
+      continue;
+    }
+    // A running compaction renders nothing in flow (the nebula overlay owns it);
+    // its outcome is the boundary card or a failure line.
+    if (ev.type === "compaction_started") continue;
+    if (ev.type === "compaction_completed") {
+      flushTools();
+      lastAsst = null;
+      const p = parsePayload(ev.payload);
+      out.push({
+        kind: "compacted", id: ev.id, ts: ev.ts,
+        trigger: p.trigger ?? "auto", pct: p.pct ?? null, turns: p.turns ?? 0,
+        beforeTokens: p.beforeTokens ?? 0, afterTokens: p.afterTokens ?? 0,
+        summary: p.summary ?? "", instructions: p.instructions ?? null,
+      });
+      continue;
+    }
+    if (ev.type === "compaction_failed") {
+      flushTools();
+      lastAsst = null;
+      const p = parsePayload(ev.payload);
+      out.push({ kind: "compactionFailed", ts: ev.ts, error: p.error ?? "", trigger: p.trigger ?? "auto" });
       continue;
     }
     if (ev.type === "terminal") {

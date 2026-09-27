@@ -258,6 +258,8 @@ function applySnapshot(workerId, rows) {
 // settle path broke must not survive until a page reload). The id echo also
 // covers pills directly: the drain dispatched them, so syncQueue would
 // convert-then-drop a moment later anyway.
+const isCompactCommand = (text) => /^\/compact(\s|$)/.test((text ?? "").trim());
+
 export function reconcileEvents(workerId, rows) {
   if (!workerId || !Array.isArray(rows)) return;
   const list = itemsFor(workerId);
@@ -266,6 +268,7 @@ export function reconcileEvents(workerId, rows) {
   const ids = new Set();
   const failures = [];
   let clearedTs = 0;
+  let compactTs = 0;
   for (const e of rows) {
     const p = parsePayload(e.payload);
     if (e.type === "user_message") {
@@ -282,10 +285,15 @@ export function reconcileEvents(workerId, rows) {
     // path — drop anything from before the clear boundary, mirroring the chat's
     // history slice (messageParser hides everything before conversation_cleared).
     if (e.type === "conversation_cleared" && e.ts > clearedTs) clearedTs = e.ts;
+    // /compact is a command too (no user_message): the compaction it started
+    // settles its bubble/pill. Only /compact items — anything queued behind a
+    // running compaction must survive it.
+    if (e.type === "compaction_started" && e.ts > compactTs) compactTs = e.ts;
   }
   const now = Date.now();
   const kept = list.filter((i) =>
     (!clearedTs || i.ts > clearedTs) &&
+    !(compactTs && i.ts <= compactTs && isCompactCommand(i.text)) &&
     // Pills skip the text fallback entirely: a server-materialized pill is
     // unkeyed, and an old same-text message would drop it on every fetch
     // while syncQueue re-creates it from the still-pending row — a flicker
