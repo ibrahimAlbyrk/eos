@@ -133,6 +133,15 @@ describe("dispatchMessage — daemon-side queue + idempotency", () => {
     assert.ok(published.some((p) => p.topic === "worker:change"));
   });
 
+  it("while compacting, even a steer (queueWhenBusy:false) queues — nothing reaches the old session", async () => {
+    const { deps, clientSends, queueRows } = buildDeps({ state: "WORKING" });
+    deps.isCompacting = (id) => id === "w1";
+    const r = await dispatchMessage(deps, { workerId: "w1", text: "steer", clientMsgId: "c1", queueWhenBusy: false });
+    assert.equal(r.status, 202);
+    assert.equal(clientSends.length, 0);
+    assert.equal(queueRows.length, 1);
+  });
+
   it("queueWhenBusy + IDLE: dispatches directly, claim row recorded as dispatched", async () => {
     const { deps, clientSends, queueRows } = buildDeps();
     const r = await dispatchMessage(deps, { workerId: "w1", text: "now", clientMsgId: "c1", queueWhenBusy: true });

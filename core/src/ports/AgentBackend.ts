@@ -12,6 +12,7 @@ import type { AuthRef } from "../../../contracts/src/backend.ts";
 import type { ProviderCapabilities } from "../../../contracts/src/provider-capabilities.ts";
 import type { MessageRecord, RewindResult } from "./WorkerClient.ts";
 import type { SpawnWorkerSpec } from "../use-cases/SpawnWorker.ts";
+import type { SessionTranscript } from "../domain/transcript.ts";
 
 export type WorkerHandle =
   | { readonly kind: "http"; readonly port: number; readonly pid: number | null }
@@ -49,6 +50,11 @@ export interface AgentCapabilities {
    *  Commands gate on this flag, never on kind — a backend without it never gets
    *  clearContext() called. */
   readonly contextClear?: boolean;
+  /** True when the backend can hand its live conversation to a summarizer and
+   *  continue from the summary (context compaction): readTranscript() exposes the
+   *  conversation, replaceContext() restarts the session seeded with a message
+   *  that does not run a turn. Callers gate on this flag, never on kind. */
+  readonly contextCompaction?: boolean;
   /** True when the backend expands prompt-template `.md` slash-commands itself
    *  (the bundled claude binary does; the in-process lane does not). DispatchMessage
    *  gates an Eos-side template expander on this flag, never on kind. Consumed in M6. */
@@ -166,6 +172,12 @@ export interface AgentSession {
   // claude: restart the query with a fresh session. in-process: drop the
   // message buffer + clear the abort flag. An incapable session omits it.
   clearContext?(): Promise<{ ok: boolean }>;
+  // Context compaction (capabilities.contextCompaction). readTranscript returns
+  // the live conversation lane-neutrally (null = nothing recorded yet);
+  // replaceContext starts a fresh session whose first input is `seed`, appended
+  // WITHOUT running a turn — it rides along with the next real message.
+  readTranscript?(): Promise<SessionTranscript | null>;
+  replaceContext?(seed: string): Promise<{ ok: boolean; reason?: string }>;
   // Rewind the live conversation to a prior user message (the double-Esc panel).
   // Only meaningful when capabilities.rewind is true — callers gate on that flag;
   // an incapable session omits BOTH methods. CLI: getRewindTargets reads the

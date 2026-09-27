@@ -7,13 +7,14 @@ import {
   type SlashCommandContext,
 } from "../domain/slash-command.ts";
 import { clearCommand } from "../domain/commands/clear.ts";
+import { compactCommand } from "../domain/commands/compact.ts";
 import { dispatchMessage, type DispatchMessageDeps } from "../use-cases/DispatchMessage.ts";
 import type { AgentBackend, AgentSession, AgentCapabilities } from "../ports/AgentBackend.ts";
 import type { MessageRecord } from "../ports/WorkerClient.ts";
 import type { WorkerRow } from "../../../contracts/src/worker.ts";
 import { fakeQueue } from "./helpers/fakeMessageQueue.ts";
 
-const registry = createSlashCommandRegistry([clearCommand]);
+const registry = createSlashCommandRegistry([clearCommand, compactCommand]);
 
 describe("parseSlash — exact-allowlist matching", () => {
   it("matches a registered command and splits args", () => {
@@ -28,9 +29,42 @@ describe("parseSlash — exact-allowlist matching", () => {
     assert.equal(parseSlash("hello", registry), null);
     assert.equal(parseSlash("/cle", registry), null);       // partial
     assert.equal(parseSlash("/clearx", registry), null);    // not an exact name
-    assert.equal(parseSlash("/compact", registry), null);   // claude-native, not Eos-owned
+    assert.equal(parseSlash("/context", registry), null);   // claude-native, not Eos-owned
     assert.equal(parseSlash("/", registry), null);          // empty name
     assert.equal(parseSlash("not /clear", registry), null); // slash not at start
+  });
+});
+
+describe("compactCommand", () => {
+  const caps = (over: Partial<AgentCapabilities> = {}): AgentCapabilities =>
+    ({ interrupt: true, keystroke: false, rewind: false, runtimeModelSwitch: false, runtimePermissionSwitch: false, ...over });
+  const ctxWith = (startCompaction: SlashSideEffects["startCompaction"], args = ""): SlashCommandContext => ({
+    workerId: "w1", args, session: {} as AgentSession, caps: caps({ contextCompaction: true }),
+    services: { clearPendingQueue: () => 0, cancelPeerRequests: () => {}, appendConversationCleared: () => {}, startCompaction },
+  });
+
+  it("parses with free-text focus instructions", () => {
+    assert.equal(parseSlash("/compact", registry)?.command.name, "compact");
+    assert.equal(parseSlash("/compact keep the test output", registry)?.args, "keep the test output");
+  });
+
+  it("accepts any args, but only on a compaction-capable backend", () => {
+    assert.equal(compactCommand.accepts("", caps({ contextCompaction: true })), true);
+    assert.equal(compactCommand.accepts("focus on the API", caps({ contextCompaction: true })), true);
+    assert.equal(compactCommand.accepts("", caps({ contextClear: true })), false);
+    assert.equal(compactCommand.accepts("", caps()), false);
+  });
+
+  it("starts the background run with the instructions and answers 202", async () => {
+    const started: Array<[string, string]> = [];
+    const r = await compactCommand.execute(ctxWith((id, instr) => { started.push([id, instr]); return { ok: true }; }, "keep the diff"));
+    assert.deepEqual(started, [["w1", "keep the diff"]]);
+    assert.deepEqual(r, { status: 202, body: { ok: true, compacting: true } });
+  });
+
+  it("reports a refused start as 409 with the reason", async () => {
+    const r = await compactCommand.execute(ctxWith(() => ({ ok: false, reason: "a compaction is already running" })));
+    assert.deepEqual(r, { status: 409, body: { ok: false, error: "a compaction is already running" } });
   });
 });
 
@@ -51,6 +85,7 @@ describe("clearCommand", () => {
       clearPendingQueue: (id) => { calls.push(`queue:${id}`); return 2; },
       cancelPeerRequests: (id) => { calls.push(`peers:${id}`); },
       appendConversationCleared: (id) => { calls.push(`cleared:${id}`); },
+      startCompaction: () => ({ ok: true }),
     };
     let cleared = 0;
     const session = { clearContext: async () => { cleared++; return { ok: true }; } } as unknown as AgentSession;
@@ -73,7 +108,7 @@ interface Harness {
   effects: string[];
 }
 
-function harness(opts: { state?: string; contextClear?: boolean } = {}): Harness {
+function harness(opts: { state?: string; contextClear?: boolean; contextCompaction?: boolean } = {}): Harness {
   const events: Array<{ type: string }> = [];
   const sends: string[] = [];
   const effects: string[] = [];
@@ -84,7 +119,7 @@ function harness(opts: { state?: string; contextClear?: boolean } = {}): Harness
   const session = {
     workerId: "w1",
     handle: { kind: "http", port: 7501, pid: 42 },
-    capabilities: { interrupt: true, keystroke: true, rewind: true, runtimeModelSwitch: false, runtimePermissionSwitch: false, reportsMessageEvents: true, contextClear: opts.contextClear ?? true },
+    capabilities: { interrupt: true, keystroke: true, rewind: true, runtimeModelSwitch: false, runtimePermissionSwitch: false, reportsMessageEvents: true, contextClear: opts.contextClear ?? true, contextCompaction: opts.contextCompaction ?? true },
     sendMessage: async (text: string) => { sends.push(text); return { ok: true, status: 200, body: { ok: true } }; },
     clearContext: async () => { clears++; return { ok: true }; },
   } as unknown as AgentSession;
@@ -108,6 +143,7 @@ function harness(opts: { state?: string; contextClear?: boolean } = {}): Harness
       clearPendingQueue: (id: string) => { effects.push(`queue:${id}`); return 0; },
       cancelPeerRequests: (id: string) => { effects.push(`peers:${id}`); },
       appendConversationCleared: (id: string) => { effects.push(`cleared:${id}`); },
+      startCompaction: (id: string, instructions: string) => { effects.push(`compact:${id}:${instructions}`); return { ok: true }; },
     } satisfies SlashSideEffects,
     log: { info: () => {}, warn: () => {}, error: () => {} },
     isLive: () => true,
@@ -141,6 +177,22 @@ describe("dispatchMessage — slash interception", () => {
     await dispatchMessage(h.deps, { workerId: "w1", text: "/clear", origin: "dashboard" });
     assert.equal(h.clears, 0, "clearContext never called when accepts() is false");
     assert.deepEqual(h.sends, ["/clear"], "text delivered as a normal message");
+  });
+
+  it("runs /compact as a command: starts compaction with its instructions, no turn, no chat event", async () => {
+    const h = harness();
+    const r = await dispatchMessage(h.deps, { workerId: "w1", text: "/compact focus on auth", origin: "dashboard" });
+    assert.deepEqual(h.effects, ["compact:w1:focus on auth"]);
+    assert.deepEqual(h.sends, [], "no message turn dispatched");
+    assert.deepEqual(h.events.filter((e) => e.type === "user_message"), []);
+    assert.equal(r.status, 202);
+  });
+
+  it("an incapable backend falls through: /compact flows on as a normal message", async () => {
+    const h = harness({ contextCompaction: false });
+    await dispatchMessage(h.deps, { workerId: "w1", text: "/compact", origin: "dashboard" });
+    assert.deepEqual(h.effects, []);
+    assert.deepEqual(h.sends, ["/compact"]);
   });
 
   it("/clear sent to a WORKING worker queues instead of intercepting", async () => {

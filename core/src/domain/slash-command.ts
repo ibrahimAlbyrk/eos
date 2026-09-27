@@ -6,7 +6,7 @@
 // registry idioms.
 //
 // The registry is an ALLOWLIST of Eos-owned commands. Anything not registered
-// (plain text, partial "/cle", claude-native "/compact", unknown "/foo") is NOT
+// (plain text, partial "/cle", claude-native "/context", unknown "/foo") is NOT
 // intercepted and flows on as a normal message — parseSlash returns null for it.
 
 import type { AgentSession, AgentCapabilities } from "../ports/AgentBackend.ts";
@@ -22,6 +22,9 @@ export interface SlashSideEffects {
   /** Append the conversation_cleared timeline marker (the web hides everything
    *  before it) and publish the change. */
   appendConversationCleared(workerId: string, payload: Record<string, unknown>): void;
+  /** Kick off a context compaction (runs in the background). `instructions` is
+   *  the text after `/compact`. Refused when one is already running. */
+  startCompaction(workerId: string, instructions: string): { ok: boolean; reason?: string };
 }
 
 export interface SlashCommandContext {

@@ -128,6 +128,10 @@ export interface DispatchMessageDeps {
    *  command. Absent → no Eos-side expansion (the claude lanes self-expand). Gated on
    *  the capability, never on backend kind. */
   expandTemplate?(text: string, cwd: string | null): Promise<string | null>;
+  /** True while the worker's context is being compacted. Every message then
+   *  queues — a steer (queueWhenBusy:false) too — so nothing reaches a session
+   *  that is about to be replaced. */
+  isCompacting?(workerId: string): boolean;
   log: Logger;
   /** When true and the worker has no live supervised child, the use-case
    * throws ConflictError instead of forwarding. Used for orchestrators —
@@ -210,7 +214,8 @@ export async function dispatchMessage(
   // reach IDLE through a turn (with queued rows, nothing would start one).
   const state = String(w.state).toUpperCase();
   const hasBacklog = (): boolean => deps.queue.listPending(input.workerId).length > 0;
-  if (input.queueWhenBusy && (state === "WORKING" || (state === "IDLE" && hasBacklog()))) {
+  const mustQueue = input.queueWhenBusy || deps.isCompacting?.(input.workerId) === true;
+  if (mustQueue && (state === "WORKING" || (state === "IDLE" && hasBacklog()))) {
     const queueId = deps.queue.insert({
       workerId: input.workerId,
       clientMsgId: input.clientMsgId ?? null,

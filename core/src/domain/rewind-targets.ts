@@ -3,6 +3,8 @@
 // transcript store). Zero Node imports: the caller supplies the already-read
 // JSONL text; all fs/path reading stays in spawner and the manager backend.
 
+import { activeBranchEntries, type ClaudeJsonlEntry } from "./claude-transcript.ts";
+
 export interface RewindTarget {
   uuid: string;
   text: string;
@@ -13,17 +15,7 @@ export interface RewindTarget {
 
 // ---- transcript walk -------------------------------------------------------
 
-interface TranscriptEntry {
-  type?: unknown;
-  uuid?: unknown;
-  parentUuid?: unknown;
-  isSidechain?: unknown;
-  isMeta?: unknown;
-  timestamp?: unknown;
-  message?: { role?: unknown; content?: unknown };
-}
-
-function promptText(e: TranscriptEntry): string | null {
+function promptText(e: ClaudeJsonlEntry): string | null {
   const m = e.message;
   if (!m || m.role !== "user" || e.isMeta === true) return null;
   let text: string;
@@ -62,31 +54,9 @@ interface ActivePrompt { uuid: string; parentUuid: string | null; text: string; 
  * navigation drifts (the row needle verification catches drift).
  */
 function activeBranchPrompts(jsonl: string): ActivePrompt[] {
-  const entries: TranscriptEntry[] = [];
-  for (const line of jsonl.split("\n")) {
-    if (!line.trim()) continue;
-    try { entries.push(JSON.parse(line) as TranscriptEntry); } catch { /* torn line */ }
-  }
-
-  const byUuid = new Map<string, TranscriptEntry>();
-  let tip: TranscriptEntry | null = null;
-  for (const e of entries) {
-    if (typeof e.uuid !== "string") continue;
-    byUuid.set(e.uuid, e);
-    if ((e.type === "user" || e.type === "assistant") && e.isSidechain !== true) tip = e;
-  }
-  if (!tip) return [];
-
-  const onPath = new Set<string>();
-  let cur: TranscriptEntry | null = tip;
-  while (cur && typeof cur.uuid === "string" && !onPath.has(cur.uuid)) {
-    onPath.add(cur.uuid);
-    cur = typeof cur.parentUuid === "string" ? byUuid.get(cur.parentUuid) ?? null : null;
-  }
-
   const prompts: ActivePrompt[] = [];
-  for (const e of entries) {
-    if (e.type !== "user" || typeof e.uuid !== "string" || !onPath.has(e.uuid)) continue;
+  for (const e of activeBranchEntries(jsonl)) {
+    if (e.type !== "user" || typeof e.uuid !== "string") continue;
     const text = promptText(e);
     if (text === null) continue;
     prompts.push({
