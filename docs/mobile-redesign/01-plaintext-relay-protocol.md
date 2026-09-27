@@ -453,8 +453,23 @@ export const ControlFrameSchema = z.object({
 
 `KaFrameSchema` unchanged.
 
-`ClientFrameSchema` = discriminated union of `hello | control | ka` (unchanged
-membership; the per-frame shapes lost their crypto fields).
+#### 5.2.5 `sub` (terminal output subscription)
+
+| Field | Type | Req | Meaning |
+|---|---|---|---|
+| `t` | `"sub"` | ✔ | Discriminator. |
+| `pty` | string[] (≤ 32) | ✔ | PTY session ids whose raw output (`pty:data` events) this device receives. Replaces the previous set; `[]` stops the stream. |
+
+```jsonc
+{ "t": "sub", "pty": ["3f2c…"] }
+```
+
+`pty:data` is the only bus topic not fanned out to every device. It rides the
+bridge's current `seq` without taking a new one, so devices that never receive
+it read no gap. A reconnect starts with an empty set — the device re-sends it.
+
+`ClientFrameSchema` = discriminated union of `hello | control | ka | sub` (the
+per-frame shapes lost their crypto fields).
 
 ### 5.3 Client → server: the `join` relay frame vs `data` frames
 
