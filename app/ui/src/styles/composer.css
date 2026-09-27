@@ -676,6 +676,7 @@
 }
 .cmd-item {
   display: block;
+  flex-shrink: 0;
   width: 100%; padding: 7px 10px;
   border-radius: var(--r-row); cursor: pointer;
   text-align: left;
@@ -3569,7 +3570,7 @@
   display: inline-flex; align-items: center; justify-content: center;
 }
 .ap-option.on .ap-radio { border-color: var(--accent); }
-.ap-option.on .ap-radio::after { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.ap-option.on .ap-radio::after { content: ""; position: static; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
 .ap-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .ap-label { display: inline-flex; align-items: center; gap: 7px; font-size: var(--text-sm); color: var(--fg); line-height: 1.3; }
 .ap-ic { flex-shrink: 0; color: var(--fg-dim); }

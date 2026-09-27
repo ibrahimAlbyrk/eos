@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { api } from "../../api/client.js";
+import { useDismiss } from "../../hooks/useDismiss.js";
 import { basename } from "../../lib/path.js";
 import { shortenHome } from "../../lib/fileUtils.jsx";
 import { FolderGlyph } from "./icons.jsx";
@@ -14,14 +15,7 @@ export function projectFolders(recents) {
 // click / Escape.
 export function FolderMenu({ live, current, onPick, onClose }) {
   const ref = useRef(null);
-
-  useEffect(() => {
-    const onDown = (e) => { if (!ref.current?.parentElement?.contains(e.target)) onClose(); };
-    const onKey = (e) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
-  }, [onClose]);
+  useDismiss(ref, onClose);
 
   const pick = (path) => { onPick(path); onClose(); };
 
