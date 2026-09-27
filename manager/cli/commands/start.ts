@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { join } from "node:path";
 
 import type { Command } from "./Command.ts";
-import { daemonPidAlive, probeDaemon, spawnDaemonDetached, unreachableHint, waitHealthy } from "../daemon-lifecycle.ts";
+import { daemonPidAlive, HEALTH_WAIT_MS, probeDaemon, startDaemon, unreachableHint, waitHealthy } from "../daemon-lifecycle.ts";
 
 export const startCommand: Command = {
   name: "start",
@@ -26,7 +26,7 @@ export const startCommand: Command = {
       if (pid) { console.error(`daemon pid=${pid} is alive but not answering /health — stop it first (eos stop)`); process.exit(1); }
       const child = spawn(
         "node",
-        // Match spawnDaemonDetached: 1024MB runaway guard, generous over the
+        // Match startDaemon: 1024MB runaway guard, generous over the
         // ~80MB baseline so it never OOMs under normal load.
         ["--max-old-space-size=1024", "--no-warnings", "--experimental-strip-types", join(ctx.repoRoot, "manager", "daemon.ts")],
         { stdio: "inherit" },
@@ -49,8 +49,8 @@ export const startCommand: Command = {
         process.exit(1);
       }
       console.log("starting daemon…");
-      spawnDaemonDetached(ctx.repoRoot, join(ctx.config.daemon.logDir, "daemon.log"));
-      const health = await waitHealthy(ctx.daemonUrl, 40, socketFile);
+      await startDaemon({ repoRoot: ctx.repoRoot, eosHome: ctx.config.daemon.home, logPath: join(ctx.config.daemon.logDir, "daemon.log") });
+      const health = await waitHealthy(ctx.daemonUrl, HEALTH_WAIT_MS, socketFile);
       if (health.state === "unreachable") {
         console.error(`daemon started but cannot be reached — ${unreachableHint(health.code)}`);
         process.exit(1);

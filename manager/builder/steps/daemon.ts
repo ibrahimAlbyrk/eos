@@ -1,12 +1,12 @@
 // The daemon "artifact" is the running process; its stamp lives in /health
 // (computed by the daemon itself at boot from the same backendSpec). Restart
-// is disruptive — agents get pkilled and recover via session resume — so the
+// is disruptive — agents are suspended and recover via session resume — so the
 // step warns with the live agent count first.
 
 import { join } from "node:path";
 
 import { HealthResponseSchema } from "../../../contracts/src/http.ts";
-import { spawnDaemonDetached, stopDaemonAndOrphans, unreachableHint, waitHealthy } from "../../cli/daemon-lifecycle.ts";
+import { HEALTH_WAIT_MS, startDaemon, stopDaemon, unreachableHint, waitHealthy } from "../../cli/daemon-lifecycle.ts";
 import { computeBackendStamp } from "../backend-stamp.ts";
 import type { BuildCtx, BuildStep } from "../BuildStep.ts";
 
@@ -47,9 +47,9 @@ export const daemonStep: BuildStep = {
   async apply(ctx, desired): Promise<void> {
     const agents = await countAgents(ctx.daemonUrl);
     if (agents) ctx.log(`  ${agents} agent(s) will suspend and resume`);
-    await stopDaemonAndOrphans(ctx.pidFile);
-    spawnDaemonDetached(ctx.repoRoot, join(ctx.eosHome, "logs", "daemon.log"));
-    const health = await waitHealthy(ctx.daemonUrl, 40, ctx.socketFile);
+    await stopDaemon(ctx.pidFile);
+    await startDaemon({ repoRoot: ctx.repoRoot, eosHome: ctx.eosHome, logPath: join(ctx.eosHome, "logs", "daemon.log") });
+    const health = await waitHealthy(ctx.daemonUrl, HEALTH_WAIT_MS, ctx.socketFile);
     if (health.state === "unreachable") {
       throw new Error(`daemon spawned but cannot be reached — ${unreachableHint(health.code)}`);
     }

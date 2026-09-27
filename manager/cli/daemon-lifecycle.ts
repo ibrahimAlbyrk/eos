@@ -2,18 +2,28 @@
 // the build engine's daemon step, so the kill/spawn/wait mechanics can't
 // drift between them. Extracted from restart.ts; behavior is unchanged.
 
-import { execSync, spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { existsSync, mkdirSync, openSync, readFileSync, rmSync } from "node:fs";
 import { request } from "node:http";
 import { dirname, join } from "node:path";
 
 import { rotateIfLarge } from "./log-rotate.ts";
+import {
+  DAEMON_LABEL, isLaunchAgentLoaded, launchAgentPid, startLaunchAgent, stopLaunchAgent,
+} from "../../infra/src/daemon/launchd.ts";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-const ORPHAN_PATTERN = "manager/daemon.ts|orchestrator-mcp.ts|worker-mcp.ts|gateway/server.ts|claude --settings";
+/** How long start/restart/build wait for a freshly started daemon to answer. */
+export const HEALTH_WAIT_MS = 30_000;
+const HEALTH_POLL_MS = 50;
+
+// Above both the daemon's own shutdown deadline (5s) and launchd's ExitTimeOut (10s).
+const STOP_TIMEOUT_MS = 12_000;
+
+const useLaunchd = process.platform === "darwin";
 
 /** What a health probe could establish about the daemon. */
 export type DaemonHealth =
@@ -109,42 +119,58 @@ export function unreachableHint(code: string): string {
   return `cannot open a local connection (${code}).`;
 }
 
-export async function stopDaemonAndOrphans(pidFile: string): Promise<void> {
-  if (existsSync(pidFile)) {
-    const pid = Number(readFileSync(pidFile, "utf8").trim());
-    if (pid && !isNaN(pid)) {
-      try {
-        process.kill(pid, "SIGTERM");
-        console.log(`stopped daemon pid=${pid}`);
-      } catch {}
-    }
+function isDaemonProcess(pid: number): boolean {
+  try {
+    const cmd = execFileSync("ps", ["-p", String(pid), "-o", "command="], { encoding: "utf8" });
+    return /manager\/daemon\.ts|daemon\.bundle\.mjs/.test(cmd);
+  } catch {
+    return false;
   }
-  await sleep(1000);
-  try {
-    execSync(`pkill -9 -f "${ORPHAN_PATTERN}"`, { stdio: "ignore" });
-  } catch {}
-  await sleep(1000);
-  try {
-    rmSync(pidFile, { force: true });
-  } catch {}
 }
 
-export function spawnDaemonDetached(repoRoot: string, logPath?: string): void {
-  // Capture stdout/stderr to a log instead of /dev/null — the daemon's
-  // StructLogger writes there, so otherwise every line (including an EMFILE /
-  // spawn storm) is discarded and the daemon's troubles are invisible.
-  let out: number | "ignore" = "ignore";
-  if (logPath) {
-    try {
-      mkdirSync(dirname(logPath), { recursive: true });
-      // Rotate before the new daemon inherits the fd — the only moment nobody
-      // holds an append offset into the file.
-      rotateIfLarge(logPath);
-      out = openSync(logPath, "a");
-    } catch {
-      out = "ignore";
-    }
+async function waitForExit(pid: number, timeoutMs: number): Promise<boolean> {
+  const giveUpAt = Date.now() + timeoutMs;
+  while (Date.now() < giveUpAt) {
+    try { process.kill(pid, 0); } catch { return true; }
+    await sleep(100);
   }
+  return false;
+}
+
+/** SIGTERM, wait for the graceful shutdown, then SIGKILL the process group. A
+ *  detached daemon leads its own group, so that takes down a hung leader plus any
+ *  children it left behind (SDK claude, MCP servers) — and nothing else. */
+async function stopProcessGroup(pid: number): Promise<void> {
+  try { process.kill(pid, "SIGTERM"); } catch { return; }
+  const exited = await waitForExit(pid, STOP_TIMEOUT_MS);
+  try { process.kill(-pid, "SIGKILL"); } catch {}
+  if (!exited) {
+    try { process.kill(pid, "SIGKILL"); } catch {}
+  }
+  console.log(`stopped daemon pid=${pid}${exited ? "" : " (forced)"}`);
+}
+
+/** Stops the daemon and waits until it is really gone (ports released).
+ *  Returns false when no daemon was running. */
+export async function stopDaemon(pidFile: string): Promise<boolean> {
+  let found = false;
+  if (useLaunchd && isLaunchAgentLoaded(DAEMON_LABEL)) {
+    found = true;
+    const pid = launchAgentPid(DAEMON_LABEL);
+    const stopped = await stopLaunchAgent(DAEMON_LABEL, STOP_TIMEOUT_MS);
+    console.log(stopped ? `stopped daemon${pid ? ` pid=${pid}` : ""}` : "daemon did not stop in time");
+  }
+  // A daemon started outside launchd: an older eos build, or `eos start -f`.
+  const pid = daemonPidAlive(pidFile);
+  if (pid && isDaemonProcess(pid)) {
+    found = true;
+    await stopProcessGroup(pid);
+  }
+  try { rmSync(pidFile, { force: true }); } catch {}
+  return found;
+}
+
+function daemonCommand(repoRoot: string): string {
   // Run under bash to lift the fd soft limit to the hard ceiling BEFORE node
   // starts: the macOS GUI default soft limit is 256, far too low for a process
   // supervising many PTYs + git/file watches — exhausting it breaks ALL
@@ -153,28 +179,49 @@ export function spawnDaemonDetached(repoRoot: string, logPath?: string): void {
   // number so large checkouts don't hit a low ceiling; lifting soft up to hard
   // never fails. --max-old-space-size: runaway guard (~80MB baseline; 1024 caps a leak).
   const entry = join(repoRoot, "manager", "daemon.ts");
-  const cmd = `ulimit -Sn "$(ulimit -Hn)" 2>/dev/null; exec node --max-old-space-size=1024 --no-warnings --experimental-strip-types ${JSON.stringify(entry)}`;
-  const child = spawn("/bin/bash", ["-c", cmd], {
-    stdio: ["ignore", out, out],
-    detached: true,
-  });
-  child.unref();
+  return `ulimit -Sn "$(ulimit -Hn)" 2>/dev/null; exec node --max-old-space-size=1024 --no-warnings --experimental-strip-types ${JSON.stringify(entry)}`;
+}
+
+/** Starts the daemon in the background: a launchd agent on macOS (crash restart,
+ *  group reaping), a detached child elsewhere. */
+export async function startDaemon(opts: { repoRoot: string; eosHome: string; logPath: string }): Promise<void> {
+  // Rotate before the new daemon inherits the fd — the only moment nobody holds
+  // an append offset into the file.
+  try {
+    mkdirSync(dirname(opts.logPath), { recursive: true });
+    rotateIfLarge(opts.logPath);
+  } catch {}
+  const cmd = daemonCommand(opts.repoRoot);
+  if (useLaunchd) {
+    await startLaunchAgent({
+      label: DAEMON_LABEL,
+      plistPath: join(opts.eosHome, "daemon.plist"),
+      programArguments: ["/bin/bash", "-c", cmd],
+      env: process.env,
+      logPath: opts.logPath,
+    }, STOP_TIMEOUT_MS);
+    return;
+  }
+  // Capture stdout/stderr to the log instead of /dev/null — the daemon's
+  // StructLogger writes there, so otherwise every line is discarded.
+  let out: number | "ignore" = "ignore";
+  try { out = openSync(opts.logPath, "a"); } catch {}
+  spawn("/bin/bash", ["-c", cmd], { stdio: ["ignore", out, out], detached: true }).unref();
 }
 
 /**
- * Polls /health every 250ms until the daemon answers. Returns the probe result so
+ * Polls /health — at once, then every 50ms, since a fresh daemon listens within
+ * ~150ms — until it answers or `timeoutMs` passes. Returns the probe result so
  * the caller can tell "the daemon never came up" (down) apart from "this machine
  * cannot make a local connection at all" (unreachable) — reporting the latter as
  * a failed start sent operators hunting a daemon bug that was never there.
  */
-export async function waitHealthy(daemonUrl: string, tries: number, socketPath?: string): Promise<DaemonHealth> {
-  let last: DaemonHealth = { state: "down" };
-  for (let i = 0; i < tries; i++) {
-    await sleep(250);
-    last = await probeDaemon(daemonUrl, socketPath);
-    if (last.state === "up") return last;
-    // A blocked probe will not un-block by polling harder; report it now.
-    if (last.state === "unreachable") return last;
+export async function waitHealthy(daemonUrl: string, timeoutMs: number, socketPath?: string): Promise<DaemonHealth> {
+  const giveUpAt = Date.now() + timeoutMs;
+  for (;;) {
+    const last = await probeDaemon(daemonUrl, socketPath);
+    // "unreachable" will not un-block by polling harder; report it now.
+    if (last.state !== "down" || Date.now() >= giveUpAt) return last;
+    await sleep(HEALTH_POLL_MS);
   }
-  return last;
 }

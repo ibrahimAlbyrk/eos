@@ -19,7 +19,7 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-import { stopDaemonAndOrphans } from "../cli/daemon-lifecycle.ts";
+import { stopDaemon } from "../cli/daemon-lifecycle.ts";
 
 export interface AppInstallCtx {
   repoRoot: string;
@@ -83,7 +83,7 @@ function pidCommand(pid: number): string {
  * Live GUI-app processes of the installed bundle: the main Eos binary + its
  * "Eos Helper" processes — but NOT the daemon/workers, which exec the SAME
  * Electron binary as node on a *.bundle.mjs entry. Those are stopped separately
- * by stopDaemonAndOrphans so the daemon shuts its workers down gracefully.
+ * by stopDaemon so the daemon shuts its workers down gracefully.
  */
 function guiAppPids(): number[] {
   return pidsMatching(BUNDLE_PROC).filter((pid) => !pidCommand(pid).includes(".bundle.mjs"));
@@ -171,13 +171,12 @@ export async function buildAndInstallApp(ctx: AppInstallCtx): Promise<void> {
     ctx.log(`  ✓ signature Identifier=${id}`);
   }
 
-  // 3. Terminate the running GUI app (reliably), then stop its daemon by pid (the
-  //    daemon is spawned detached, so quitting the app does NOT reap it unless the
-  //    app spawned it). Reuses the same stop/orphan-reap `eos restart` uses. Both
-  //    come back from the new bundle.
+  // 3. Terminate the running GUI app (reliably), then stop its daemon (quitting
+  //    the app does NOT stop a daemon it adopted rather than started). Reuses the
+  //    same stop `eos restart` uses. Both come back from the new bundle.
   await terminateGuiApp(ctx);
-  if (ctx.dryRun) ctx.log(`● would run: stopDaemonAndOrphans(${ctx.pidFile})`);
-  else await stopDaemonAndOrphans(ctx.pidFile);
+  if (ctx.dryRun) ctx.log(`● would run: stopDaemon(${ctx.pidFile})`);
+  else await stopDaemon(ctx.pidFile);
 
   // 3b. Verify BOTH the GUI and the daemon are truly gone before the swap — never
   //     replace a bundle a live process is still executing from.

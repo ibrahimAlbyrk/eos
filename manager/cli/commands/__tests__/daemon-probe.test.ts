@@ -84,7 +84,7 @@ describe("waitHealthy", () => {
   it("gives up immediately on an unreachable probe instead of polling", async () => {
     let calls = 0;
     setFetch(async () => { calls++; throw fetchError("EADDRNOTAVAIL"); });
-    const r = await waitHealthy("http://x", 20);
+    const r = await waitHealthy("http://x", 5000);
     assert.equal(r.state, "unreachable");
     assert.equal(calls, 1);
   });
@@ -96,7 +96,7 @@ describe("waitHealthy", () => {
       if (calls < 3) throw fetchError("ECONNREFUSED");
       return new Response("{}", { status: 200 });
     });
-    const r = await waitHealthy("http://x", 20);
+    const r = await waitHealthy("http://x", 5000);
     assert.equal(r.state, "up");
     assert.equal(calls, 3);
   });

@@ -2,16 +2,16 @@ import { readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import type { Command } from "./Command.ts";
-import { spawnDaemonDetached, stopDaemonAndOrphans, unreachableHint, waitHealthy } from "../daemon-lifecycle.ts";
+import { HEALTH_WAIT_MS, startDaemon, stopDaemon, unreachableHint, waitHealthy } from "../daemon-lifecycle.ts";
 
 export const restartCommand: Command = {
   name: "restart",
-  description: "Stop daemon, kill orphans, restart. Pass --db to also wipe state.db",
+  description: "Stop daemon (and its child processes), restart. Pass --db to also wipe state.db",
   usage: "eos restart [--db]",
   async run(args, ctx): Promise<void> {
     const wipeDb = args.includes("--db");
 
-    await stopDaemonAndOrphans(ctx.config.daemon.pidFile);
+    await stopDaemon(ctx.config.daemon.pidFile);
 
     if (wipeDb) {
       try {
@@ -22,9 +22,9 @@ export const restartCommand: Command = {
     }
     console.log(wipeDb ? "cleaned db + pid" : "cleaned pid");
 
-    spawnDaemonDetached(ctx.repoRoot, join(ctx.config.daemon.logDir, "daemon.log"));
+    await startDaemon({ repoRoot: ctx.repoRoot, eosHome: ctx.config.daemon.home, logPath: join(ctx.config.daemon.logDir, "daemon.log") });
 
-    const health = await waitHealthy(ctx.daemonUrl, 20, ctx.config.daemon.socketFile);
+    const health = await waitHealthy(ctx.daemonUrl, HEALTH_WAIT_MS, ctx.config.daemon.socketFile);
     if (health.state === "up") {
       console.log(`daemon up at ${ctx.daemonUrl}`);
       return;
