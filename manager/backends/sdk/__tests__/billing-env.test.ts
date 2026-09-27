@@ -24,6 +24,12 @@ describe("buildBillingGuardEnv — SDK child billing guard", () => {
     assert.equal(env.EOS_DAEMON_URL, "http://127.0.0.1:7400");
   });
 
+  it("switches the binary's auto-compaction off only when asked", () => {
+    const base = { auth: { scheme: "none" } as const, workerId: "w", daemonUrl: "http://x" };
+    assert.equal(buildBillingGuardEnv({ ...base, disableAutoCompact: true }).DISABLE_AUTO_COMPACT, "1");
+    assert.equal(buildBillingGuardEnv(base).DISABLE_AUTO_COMPACT, undefined);
+  });
+
   it("injects no token when the auth scheme is not oauth", () => {
     const env = buildBillingGuardEnv({ auth: { scheme: "none" }, workerId: "w-2", daemonUrl: "http://x" });
     assert.equal(env.CLAUDE_CODE_OAUTH_TOKEN, undefined);

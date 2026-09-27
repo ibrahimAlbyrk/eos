@@ -1105,3 +1105,103 @@ describe("ClaudeSdkBackend — FakeSdkQuery (no real model, no billing)", () => 
     assert.equal(exitCode, 0);
   });
 });
+
+// Context compaction on the SDK lane: the summarizer reads the session's own
+// transcript store, and the swap is a /clear-style relaunch whose fresh session
+// is SEEDED with the summary — pushed with shouldQuery:false so it runs no turn.
+describe("ClaudeSdkBackend — context compaction", () => {
+  const TRANSCRIPT = [
+    { type: "user", uuid: "u1", parentUuid: null, message: { role: "user", content: "build it" } },
+    { type: "assistant", uuid: "a1", parentUuid: "u1", message: { role: "assistant", content: [{ type: "text", text: "built" }] } },
+  ].map((e) => JSON.stringify(e)).join("\n");
+
+  function start(over: { disableAutoCompact?: () => boolean; noInit?: boolean; seen?: string[] } = {}) {
+    const launched: Array<{ options: Record<string, unknown>; inputs: unknown[] }> = [];
+    const ready = { hit: false };
+    const queryFn: SdkQueryFn = (params) => {
+      const launch = { options: params.options as unknown as Record<string, unknown>, inputs: [] as unknown[] };
+      launched.push(launch);
+      void (async () => { for await (const m of params.prompt) launch.inputs.push(m); })();
+      const first = launched.length === 1;
+      let sent = false;
+      return {
+        interrupt: async () => {},
+        [Symbol.asyncIterator]() {
+          return {
+            next: () => {
+              if (first && !sent && !over.noInit) { sent = true; return Promise.resolve({ done: false, value: { type: "system", subtype: "init", session_id: "sess-1" } }); }
+              if (first) ready.hit = true;
+              return new Promise<IteratorResult<unknown>>(() => {});
+            },
+          };
+        },
+      } as never;
+    };
+    const be = createClaudeSdkBackend({
+      authResolver: { resolve: async () => ({ scheme: "oauth", token: "t" }) },
+      policy: { decide: async () => ({ behavior: "allow" }) },
+      toolHost: { orchestratorDefs: [], workerDefs: [], peerDefs: [], renderDescriptions: () => ({}) },
+      daemonUrl: "http://x",
+      makeToolContext: (s) => ({ selfId: s.workerId, cwd: s.cwd, isGitRepo: () => false, api: async () => ({}) }),
+      queryFn,
+      readTranscriptFn: (_cwd, sessionId) => { over.seen?.push(sessionId); return TRANSCRIPT; },
+      ...(over.disableAutoCompact ? { disableAutoCompact: over.disableAutoCompact } : {}),
+    });
+    return { be, launched, ready };
+  }
+  const spec = (): AgentLaunchSpec => ({ workerId: "w-c", cwd: "/repo", model: "opus", prompt: "", persistent: true, parentId: null, isOrchestrator: false });
+
+  it("exposes the live transcript as lane-neutral entries plus its on-disk path", async () => {
+    const { be, ready } = start();
+    const session = await be.start(spec(), {});
+    assert.equal(session.capabilities.contextCompaction, true);
+    while (!ready.hit) await new Promise((r) => setTimeout(r, 1));
+    const t = await session.readTranscript!();
+    assert.deepEqual(t?.entries, [{ kind: "user", text: "build it" }, { kind: "assistant", text: "built" }]);
+    assert.match(t?.path ?? "", /\.claude\/projects\/.+\/sess-1\.jsonl$/);
+    session.stop();
+  });
+
+  // A daemon restart resumes the session with no turn yet, so no init message has
+  // named it — /compact right then must still read the resumed transcript.
+  it("reads the resumed session's transcript before its first turn", async () => {
+    const seen: string[] = [];
+    const { be, launched } = start({ noInit: true, seen });
+    const session = await be.start({ ...spec(), backendOptions: { resume: "sess-old" } }, {});
+    assert.equal(launched[0].options.resume, "sess-old");
+    const t = await session.readTranscript!();
+    assert.deepEqual(seen, ["sess-old"]);
+    assert.equal(t?.entries.length, 2);
+    session.stop();
+  });
+
+  it("replaceContext relaunches fresh and pushes the seed without running a turn", async () => {
+    const { be, launched, ready } = start();
+    let exitCode: number | null = -1;
+    const session = await be.start(spec(), { onExit: (c) => { exitCode = c; } });
+    while (!ready.hit) await new Promise((r) => setTimeout(r, 1));
+
+    assert.deepEqual(await session.replaceContext!("SUMMARY SEED"), { ok: true });
+    await new Promise((r) => setTimeout(r, 5));
+
+    assert.equal(launched.length, 2, "a fresh query was launched");
+    assert.equal(launched[1].options.resume, undefined, "never resumes the compacted session");
+    assert.deepEqual(launched[1].inputs, [{
+      type: "user", message: { role: "user", content: "SUMMARY SEED" }, parent_tool_use_id: null, session_id: "", shouldQuery: false,
+    }]);
+    assert.equal(session.isAlive(), true);
+    assert.equal(exitCode, -1, "the superseded stream reports no exit");
+    session.stop();
+  });
+
+  it("turns the binary's own auto-compaction off while Eos compaction is enabled", async () => {
+    const on = start({ disableAutoCompact: () => true });
+    const s1 = await on.be.start(spec(), {});
+    assert.equal((on.launched[0].options.env as Record<string, string>).DISABLE_AUTO_COMPACT, "1");
+    s1.stop();
+    const off = start({ disableAutoCompact: () => false });
+    const s2 = await off.be.start(spec(), {});
+    assert.equal((off.launched[0].options.env as Record<string, string>).DISABLE_AUTO_COMPACT, undefined);
+    s2.stop();
+  });
+});

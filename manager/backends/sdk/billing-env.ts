@@ -18,6 +18,10 @@ export interface BillingGuardInput {
   /** Operator-configured Anthropic credentials (Settings > Anthropic). When set,
    *  they win over the ambient resolved token — see anthropicCredentialEnv. */
   readonly anthropic?: { apiKey?: string; authToken?: string };
+  /** Eos compaction is on → switch off the binary's own silent auto-compaction
+   *  (DISABLE_AUTO_COMPACT also covers its prompt-too-long retry), so the only
+   *  compaction is the visible one. Manual native /compact stays available. */
+  readonly disableAutoCompact?: boolean;
 }
 
 // The ONE credential env var operator-set Anthropic creds contribute to the SDK
@@ -43,6 +47,7 @@ export function buildBillingGuardEnv(input: BillingGuardInput): Record<string, s
     // child onto the metered API. Spread AFTER the strip so the apiKey survives.
     ...anthropicCredentialEnv(input.anthropic ?? {}),
     ENABLE_TOOL_SEARCH: "false",
+    ...(input.disableAutoCompact ? { DISABLE_AUTO_COMPACT: "1" } : {}),
     EOS_SPAWNED: "1",
     EOS_WORKER_ID: input.workerId,
     EOS_DAEMON_URL: input.daemonUrl,

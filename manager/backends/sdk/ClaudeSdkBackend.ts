@@ -21,6 +21,7 @@ import { backendCollaborate } from "../../../core/src/ports/AgentBackend.ts";
 import type { RewindResult } from "../../../core/src/ports/WorkerClient.ts";
 import { computeRewindTargets, rewindSliceAnchor, type RewindTarget } from "../../../core/src/domain/rewind-targets.ts";
 import { encodeCwd } from "../../../core/src/domain/claude-paths.ts";
+import { parseClaudeTranscript } from "../../../core/src/domain/claude-transcript.ts";
 import type { AuthResolver } from "../../../core/src/ports/AuthResolver.ts";
 import type { ToolContext } from "../../tools/types.ts";
 import { createSdkEventMapper, type SdkEventMapper } from "./SdkEventMapper.ts";
@@ -51,6 +52,9 @@ const CAPS: AgentCapabilities = {
   // /clear restarts the query with a fresh session (no resume) — the conversation
   // lives in the SDK subprocess, so there is no buffer to drop. See clearContext.
   contextClear: true,
+  // Compaction reads the SDK's own transcript store and restarts the query seeded
+  // with the summary — see readTranscript / replaceContext.
+  contextCompaction: true,
   // The bundled binary (driven by the SDK) expands prompt-template .md slash-commands
   // itself — Eos must NOT double-expand (DispatchMessage gates on this, never kind).
   expandsSlashTemplates: true,
@@ -121,11 +125,16 @@ export interface ClaudeSdkBackendDeps {
    *  overridden in tests so getRewindTargets/rewind assert against scripted JSONL
    *  without touching disk (mirrors forkSessionFn). null = no transcript yet. */
   readTranscriptFn?: (cwd: string, sessionId: string) => string | null;
+  /** Read per session start: true → the child gets DISABLE_AUTO_COMPACT (Eos
+   *  compaction owns it). Absent → the binary's default auto-compaction. */
+  disableAutoCompact?(): boolean;
   log?: { warn(msg: string, meta?: Record<string, unknown>): void };
 }
 
 interface PushStream {
-  push(text: string): void;
+  // shouldQuery:false appends the message to the transcript WITHOUT running a
+  // turn; the SDK merges it into the next message that does (compaction seed).
+  push(text: string, opts?: { shouldQuery?: boolean }): void;
   close(): void;
   iterable: AsyncIterable<unknown>;
 }
@@ -134,9 +143,12 @@ function createPushStream(): PushStream {
   const queue: unknown[] = [];
   let wake: (() => void) | null = null;
   let closed = false;
-  const userMessage = (text: string) => ({ type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, session_id: "" });
+  const userMessage = (text: string, shouldQuery?: boolean) => ({
+    type: "user", message: { role: "user", content: text }, parent_tool_use_id: null, session_id: "",
+    ...(shouldQuery === false ? { shouldQuery: false } : {}),
+  });
   return {
-    push(text: string) { queue.push(userMessage(text)); wake?.(); wake = null; },
+    push(text: string, opts?: { shouldQuery?: boolean }) { queue.push(userMessage(text, opts?.shouldQuery)); wake?.(); wake = null; },
     close() { closed = true; wake?.(); wake = null; },
     iterable: (async function* () {
       while (!closed || queue.length) {
@@ -166,6 +178,13 @@ interface Live {
   // Recall (Layer 2): like relaunch() but RESUMES the given (forked, sliced)
   // session instead of starting empty.
   relaunchResume?: (resume: string) => void;
+  // Compaction: like relaunch() but the fresh session's first input is `seed`,
+  // appended without running a turn.
+  relaunchSeeded?: (seed: string) => void;
+  // The session id this launch resumed. The mapper learns the id only from the
+  // first turn's init message, so right after a resume (daemon restart) this is
+  // the only record of which transcript the live session continues.
+  resumedFrom?: string;
   // The current turn's mapper — surfaces sessionId + lastAssistantUuid (the
   // recall anchor). Re-created on every (re)launch.
   mapper?: SdkEventMapper;
@@ -180,12 +199,14 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
   // cwd)>/<sessionId>.jsonl — the same scheme the CLI-lane tail derives (spawner/
   // tail.ts). encodeCwd needs a realpath'd cwd; fall back to the raw cwd if it
   // can't be resolved. Missing file → null (no transcript yet).
+  const transcriptPath = (cwd: string, sessionId: string): string => {
+    let dir = cwd;
+    try { dir = realpathSync(cwd); } catch { /* keep the raw cwd */ }
+    return join(homedir(), ".claude", "projects", encodeCwd(dir), `${sessionId}.jsonl`);
+  };
   const readTranscriptFn: (cwd: string, sessionId: string) => string | null =
     deps.readTranscriptFn ?? ((cwd, sessionId) => {
-      let dir = cwd;
-      try { dir = realpathSync(cwd); } catch { /* keep the raw cwd */ }
-      const path = join(homedir(), ".claude", "projects", encodeCwd(dir), `${sessionId}.jsonl`);
-      try { return readFileSync(path, "utf8"); } catch { return null; }
+      try { return readFileSync(transcriptPath(cwd, sessionId), "utf8"); } catch { return null; }
     });
   const live = new Map<string, Live>();
 
@@ -218,6 +239,31 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const oldInput = s.input;
       const oldQ = s.q;
       s.relaunch?.();
+      oldInput.close();
+      if (oldQ?.interrupt) { try { await oldQ.interrupt(); } catch { /* best-effort */ } }
+      return { ok: true };
+    },
+    // Compaction: the summarizer reads the SDK's own transcript store — the ground
+    // truth of what the model saw — as lane-neutral entries. The file stays on
+    // disk after the swap; its path lets the continued agent look details up.
+    async readTranscript() {
+      const s = live.get(workerId);
+      const sessionId = s?.mapper?.sessionId ?? s?.resumedFrom ?? null;
+      if (!s || !sessionId || !s.cwd) return null;
+      const jsonl = readTranscriptFn(s.cwd, sessionId);
+      if (!jsonl) return null;
+      return { entries: parseClaudeTranscript(jsonl), path: transcriptPath(s.cwd, sessionId) };
+    },
+    // Sibling of clearContext (same relaunch + teardown discipline), but the fresh
+    // session starts from the compaction seed instead of empty. The seed runs no
+    // turn; the new session id is captured by the relaunch's mapper on its first
+    // real turn.
+    async replaceContext(seed: string) {
+      const s = live.get(workerId);
+      if (!s || !s.alive) return { ok: false, reason: "session gone" };
+      const oldInput = s.input;
+      const oldQ = s.q;
+      s.relaunchSeeded?.(seed);
       oldInput.close();
       if (oldQ?.interrupt) { try { await oldQ.interrupt(); } catch { /* best-effort */ } }
       return { ok: true };
@@ -356,7 +402,10 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       const opts = spec.backendOptions ?? {};
       const auth = await deps.authResolver.resolve(opts.auth);
       const anthropic = deps.getAnthropicConfig?.() ?? {};
-      const env = buildBillingGuardEnv({ auth, anthropic, workerId: spec.workerId, daemonUrl: deps.daemonUrl });
+      const env = buildBillingGuardEnv({
+        auth, anthropic, workerId: spec.workerId, daemonUrl: deps.daemonUrl,
+        disableAutoCompact: deps.disableAutoCompact?.() ?? false,
+      });
       const ctx = deps.makeToolContext(spec);
       // MCP servers are built PER LAUNCH, never shared across queries: the Eos
       // builtins are live McpServer instances (createSdkMcpServer), and the MCP
@@ -450,7 +499,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
       // stream + mapper; the consume loop guards on `rec.input === input`, so a
       // launch superseded by a clear-restart ends SILENTLY (no spurious onExit) —
       // the new query owns the session row.
-      const spawn = (resume?: string, initialPrompt?: string): void => {
+      const spawn = (resume?: string, initialPrompt?: string, seed?: string): void => {
         const input = createPushStream();
         rec.input = input;
         // Fresh controller per launch — /clear and recall relaunches must not
@@ -461,9 +510,11 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
         const options = { ...baseOptions, mcpServers, allowedTools, abortController: abort, ...(resume ? { resume } : {}) } as Options;
         const mapper = createSdkEventMapper();
         rec.mapper = mapper;
+        rec.resumedFrom = resume;
         const q = queryFn({ prompt: input.iterable, options });
         rec.q = q;
         if (initialPrompt) input.push(initialPrompt);
+        if (seed) input.push(seed, { shouldQuery: false });
         const isCurrent = (): boolean => rec.input === input;
         // Consume the SDK stream in the background — the session is "started", not
         // "settled"; turn completion is observed via the event stream (turn:ended).
@@ -520,6 +571,7 @@ export function createClaudeSdkBackend(deps: ClaudeSdkBackendDeps): AgentBackend
 
       rec.relaunch = () => spawn(undefined, undefined);
       rec.relaunchResume = (resume: string) => spawn(resume, undefined);
+      rec.relaunchSeeded = (seed: string) => spawn(undefined, undefined, seed);
       spawn(typeof opts.resume === "string" ? opts.resume : undefined, spec.prompt || undefined);
 
       return session(spec.workerId);
