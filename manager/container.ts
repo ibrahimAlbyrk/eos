@@ -181,9 +181,16 @@ export function buildContainer() {
   process.env.EOS_DAEMON_SOCK = config.daemon.socketFile;
 
 
+  // Boot work that must not delay listen() — daemon.ts runs these via
+  // runDeferredBoot() once the API port is bound.
+  const deferredBoot: Array<{ name: string; run: () => void | Promise<void> }> = [];
+
   // User-data backup before opening the DB -----------------------------------
+  // Only the fast part runs here; the browser profiles + prune are deferred.
+  const backup = new StartupBackupService({ home: config.daemon.home, backupsDir: join(config.daemon.home, "backups") });
   try {
-    new StartupBackupService(config.daemon.home, join(config.daemon.home, "backups")).run();
+    const snapshot = backup.run();
+    if (snapshot) deferredBoot.push({ name: "backup", run: () => backup.finish(snapshot) });
   } catch (e) {
     process.stderr.write(`[daemon] backup skipped: ${errMsg(e)}\n`);
   }
@@ -192,7 +199,7 @@ export function buildContainer() {
   const db = new DatabaseSync(config.daemon.dbFile);
   db.exec("PRAGMA journal_mode = WAL");
   runMigrations(db, log);
-  maybeVacuum(db, log, "startup");
+  deferredBoot.push({ name: "vacuum", run: () => maybeVacuum(db, log, "startup") });
   setInterval(() => maybeVacuum(db, log, "scheduled"), 60 * 60 * 1000).unref();
 
   // Repos -------------------------------------------------------------------
@@ -1228,10 +1235,15 @@ export function buildContainer() {
     },
     getPolicy(): Policy { return policy; },
     reloadConfig(): void { config = reloadConfigFromDisk(); },
+    async runDeferredBoot(): Promise<void> {
+      for (const task of deferredBoot) {
+        try { await task.run(); } catch (e) { log.warn("deferred boot task failed", { task: task.name, error: errMsg(e) }); }
+      }
+    },
   };
 
   // Archive retention sweeper — age-based auto-purge of archived subtree roots
-  // through the real purgeWorker cascade. Boot tick + hourly interval (the
+  // through the real purgeWorker cascade. Deferred boot tick + hourly interval (the
   // worktree reaper pattern); retention is read from config at each tick, so a
   // config.json edit + reloadConfig takes effect without a restart. Fully
   // synchronous, so no in-flight guard is needed. "off" (the default) no-ops.
@@ -1244,7 +1256,7 @@ export function buildContainer() {
       log.warn("archive retention sweep failed", { error: errMsg(e) });
     }
   };
-  archiveSweepTick();
+  deferredBoot.push({ name: "archive-sweep", run: archiveSweepTick });
   setInterval(archiveSweepTick, ARCHIVE_SWEEP_INTERVAL_MS).unref();
 
   return container;

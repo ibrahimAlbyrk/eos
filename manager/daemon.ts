@@ -536,13 +536,15 @@ applyKeepAlive(unixServer);
 // handler below, which logs and keeps going: the loser of an EADDRINUSE race
 // stayed alive with no listener at all AND had already overwritten the pid file,
 // so `eos stop`/`restart` then signalled the wrong pid while the real daemon ran on.
+// Exit 0: launchd respawns any non-zero exit, and a daemon that cannot bind would
+// fail the same way on every respawn.
 function exitOnBindError(s: Server, what: string): void {
   s.on("error", (e: Error & { code?: string }) => {
     c.log.error("bind failed", { what, error: e.message, code: e.code ?? "" });
     if (e.code === "EADDRINUSE") {
       c.log.error("another daemon owns this endpoint — exiting instead of running without a listener", { what });
     }
-    process.exit(1);
+    process.exit(0);
   });
 }
 exitOnBindError(server, "api");
@@ -559,6 +561,7 @@ server.listen(c.config.daemon.port, c.config.daemon.host, () => {
     state: c.config.daemon.dbFile,
     logs: c.config.daemon.logDir,
   });
+  void c.runDeferredBoot();
   // Only the process that WON the API port owns the socket path. Opening it
   // earlier would let a losing daemon unlink the live daemon's socket (a UDS
   // bind needs the path free) and take over the endpoint seconds before its own
@@ -589,12 +592,38 @@ void reArmLoops({
   log: c.log,
 });
 
+const CHILD_GRACE_MS = 2000;
+// Backstop for a stuck close; stays under launchd's ExitTimeOut. Every deliberate
+// stop exits 0 — launchd treats any other exit as a crash and respawns.
+const SHUTDOWN_DEADLINE_MS = 5000;
+
+// db.close() and exit in the SAME tick: no timer, bus callback or request handler
+// can run in between and hit a closed DB ("statement has been finalized").
+function exitNow(): never {
+  try { c.db.close(); } catch {}
+  process.exit(0);
+}
+
 let shuttingDown = false;
-function shutdown(sig: string): void {
+async function shutdown(sig: string): Promise<void> {
   if (shuttingDown) return;
   shuttingDown = true;
   const ids = c.supervisor.listIds();
   c.log.info("shutting down", { signal: sig, workers: ids.length });
+  setTimeout(() => {
+    c.log.error("shutdown deadline hit — forcing exit", { ms: SHUTDOWN_DEADLINE_MS });
+    exitNow();
+  }, SHUTDOWN_DEADLINE_MS).unref();
+  // Drop the pid + socket entries while they are certainly still ours: once the
+  // listeners close, a successor daemon may bind and write its own.
+  try { unlinkSync(c.config.daemon.pidFile); } catch {}
+  try { unlinkSync(c.config.daemon.socketFile); } catch {}
+  // Stop taking requests before any teardown, so no handler or SSE stream is
+  // mid-flight against a half-closed daemon.
+  for (const s of [server, rawServer, unixServer]) {
+    s.close();
+    s.closeAllConnections();
+  }
   try { remoteController?.disarm(); } catch {}
   // Suspend resumable in-process sessions BEFORE killing children and closing
   // the DB: their exit callbacks write rows, so this is the last safe moment —
@@ -604,11 +633,14 @@ function shutdown(sig: string): void {
   // Chrome is a plain child (not supervisor-managed) — kill it here or it
   // outlives the daemon.
   try { c.browser.dispose(); } catch {}
-  for (const id of ids) c.supervisor.escalateKill(id, 0);
-  try { unlinkSync(c.config.daemon.pidFile); } catch {}
-  try { unlinkSync(c.config.daemon.socketFile); } catch {}
-  try { c.db.close(); } catch {}
-  setTimeout(() => process.exit(0), 1500);
+  // SIGTERM now, SIGKILL after the grace; their exit callbacks write rows, so
+  // wait for them while the DB is still open.
+  for (const id of ids) c.supervisor.escalateKill(id, CHILD_GRACE_MS);
+  const giveUpAt = Date.now() + CHILD_GRACE_MS + 200;
+  while (c.supervisor.listIds().length > 0 && Date.now() < giveUpAt) {
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  exitNow();
 }
 // fd pressure early-warning. The daemon climbs toward RLIMIT_NOFILE silently
 // (pipes per worker + a kqueue fd per watched dir + sockets); past the ceiling,
@@ -622,8 +654,8 @@ const fdWarnTimer = setInterval(() => {
 }, 30_000);
 fdWarnTimer.unref?.();
 
-process.on("SIGINT", () => shutdown("SIGINT"));
-process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
 
 // Surface but don't crash on async bugs — a SQLite throw inside an exit
 // handler or a buggy interval callback used to kill the whole daemon and
