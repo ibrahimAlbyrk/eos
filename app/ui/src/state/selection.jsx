@@ -24,7 +24,8 @@ function loadPanels() {
         const openTabs = v.openTabs.filter((t) => typeof t === "string");
         const activeTab = openTabs.includes(v.activeTab) ? v.activeTab : (openTabs[openTabs.length - 1] ?? null);
         const tabHistory = Array.isArray(v.tabHistory) ? v.tabHistory.filter((t) => openTabs.includes(t)) : [];
-        const width = Number.isFinite(v.width) && v.width > 0 ? v.width : null;
+        // Width is a fraction of the pane; legacy px values (>1) fall back to default.
+        const width = Number.isFinite(v.width) && v.width > 0 && v.width < 1 ? v.width : null;
         out[id] = { ...EMPTY_PANEL, open: v.open === true, openTabs, activeTab, tabHistory, width };
       }
       return out;
@@ -196,11 +197,11 @@ export function SelectionProvider({ children }) {
       return { ...m, [paneId]: { ...cur, fullscreen: !cur.fullscreen } };
     });
   }, []);
-  const setWidthIn = useCallback((paneId, px) => {
+  const setWidthIn = useCallback((paneId, frac) => {
     if (!paneId) return;
     setPanelsByPane((m) => {
       const cur = m[paneId] ?? EMPTY_PANEL;
-      return { ...m, [paneId]: { ...cur, width: px && px > 0 ? Math.round(px) : null } };
+      return { ...m, [paneId]: { ...cur, width: frac > 0 && frac < 1 ? frac : null } };
     });
   }, []);
   const openFileIn = useCallback((paneId, path, reveal) => {

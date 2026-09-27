@@ -16,7 +16,8 @@ import "./registerPanels.js";
 // files (every opened file gets its own pill), the active pill's × closes just that tab. The
 // panel is shown/hidden by SidePanelToggle, a pane-level overlay pinned to the
 // header's top-right, so it stays put while the panel slides open/closed under
-// it. Width is that pane's own --sp-w; double-click the edge resets to default.
+// it. Width is that pane's own --sp-w, stored as a fraction of the pane so it keeps
+// the same proportion at any window size; double-click the edge resets to default.
 
 const ICONS = {
   review: <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3"><rect x="2.5" y="2.5" width="11" height="11" rx="2" /><path d="M5.5 8h5M8 5.5v5" /></svg>,
@@ -30,6 +31,7 @@ const ICONS = {
 // transcript column keeps ≥MIN_TX_W.
 const MIN_PANEL_W = 280;
 const MIN_TX_W = 320;
+const DEFAULT_PANEL_FRAC = 0.4;
 
 // Tab labels for every openable panel type. Pills render only the currently
 // open tabs (ui.openTabs), in the order they were opened.
@@ -148,12 +150,12 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
     return () => window.removeEventListener("pointerdown", onDown);
   }, [plusOpen]);
 
-  // Clamp helper shared by drag + fullscreen: width = distance from pointer to
-  // the OWNING pane's right edge, bounded [MIN_PANEL, pane − MIN_TX] so the
-  // transcript column always keeps a usable minimum.
-  const clampFor = useCallback((pane, clientX) => {
+  // Width fraction = distance from pointer to the OWNING pane's right edge over
+  // the pane width, bounded [MIN_PANEL, pane − MIN_TX] so the transcript column
+  // always keeps a usable minimum.
+  const fracFor = useCallback((pane, clientX) => {
     const R = pane.getBoundingClientRect();
-    return Math.round(Math.max(MIN_PANEL_W, Math.min(R.right - clientX, R.width - MIN_TX_W)));
+    return Math.max(MIN_PANEL_W, Math.min(R.right - clientX, R.width - MIN_TX_W)) / R.width;
   }, []);
 
   const onDragStart = useCallback((e) => {
@@ -164,17 +166,17 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
     if (!pane || !aside) return;
     document.body.style.cursor = "col-resize";
     document.body.style.userSelect = "none";
-    const move = (ev) => { aside.style.setProperty("--sp-w", clampFor(pane, ev.clientX) + "px"); };
+    const move = (ev) => { aside.style.setProperty("--sp-w", fracFor(pane, ev.clientX) * 100 + "%"); };
     const up = (ev) => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       document.body.style.cursor = "";
       document.body.style.userSelect = "";
-      ui.setSidePanelWidth(clampFor(pane, ev.clientX));
+      ui.setSidePanelWidth(fracFor(pane, ev.clientX));
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
-  }, [clampFor, ui]);
+  }, [fracFor, ui]);
 
   const pickTab = (t) => { ui.openNewTab(t); setPlusOpen(false); };
 
@@ -204,8 +206,8 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
     const aside = asideRef.current;
     const pane = aside?.closest(".pane, .single-pane, .sp-host");
     if (!slide || !pane) return;
-    const w = ui.sidePanelWidth || Math.min(620, pane.clientWidth / 2);
-    aside.style.setProperty("--sp-final", w + "px");
+    const frac = ui.sidePanelWidth || DEFAULT_PANEL_FRAC;
+    aside.style.setProperty("--sp-final", frac * pane.clientWidth + "px");
   }, [slide, ui.sidePanelWidth]);
 
   const toggle = <SidePanelToggle open={open} onToggle={ui.toggleSidePanel} />;
@@ -220,7 +222,7 @@ export function SidePanel({ live, tabs = AGENT_TABS }) {
       <aside
         className={"side-panel" + (fullscreen ? " side-panel--fullscreen" : "") + (slide ? ` side-panel--${slide}` : "")}
         ref={asideRef}
-        style={{ "--sp-w": ui.sidePanelWidth ? ui.sidePanelWidth + "px" : "min(620px, 50%)" }}
+        style={{ "--sp-w": (ui.sidePanelWidth || DEFAULT_PANEL_FRAC) * 100 + "%" }}
         onMouseDownCapture={() => ui.setFocusedRegion("panel")}
         onAnimationEnd={(e) => { if (e.target === e.currentTarget) setSlide(null); }}
       >

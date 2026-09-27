@@ -73,7 +73,7 @@ export function useUi() {
   const closePanel = useCallback(() => closePanelIn(scopeRef.current), [closePanelIn]);
   const toggleSidePanel = useCallback(() => toggleSidePanelIn(scopeRef.current), [toggleSidePanelIn]);
   const toggleFullscreen = useCallback(() => toggleFullscreenIn(scopeRef.current), [toggleFullscreenIn]);
-  const setSidePanelWidth = useCallback((px) => setWidthIn(scopeRef.current, px), [setWidthIn]);
+  const setSidePanelWidth = useCallback((frac) => setWidthIn(scopeRef.current, frac), [setWidthIn]);
   const openFile = useCallback((path, reveal) => openFileIn(scopeRef.current, path, reveal), [openFileIn]);
 
   return useMemo(() => ({

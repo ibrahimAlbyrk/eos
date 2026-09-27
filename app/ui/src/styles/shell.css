@@ -531,7 +531,7 @@ html.native.fullscreen .side-island--agents { padding-top: 16px; }
    ============================================================================ */
 .side-panel {
   flex: 0 0 auto;
-  width: var(--sp-w, min(620px, 50%));
+  width: var(--sp-w, 40%);
   position: relative;
   display: flex;
   flex-direction: column;
