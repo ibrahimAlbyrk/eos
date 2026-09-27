@@ -2192,6 +2192,9 @@ export const ROUTES = {
   // Archive lifecycle config — lives in ~/.eos/config.json (daemon sweeper +
   // app-closed purge read it live), so it bypasses the settings.json store.
   settingsArchive: "/api/settings/archive",
+  // Context compaction config — also ~/.eos/config.json (the daemon's idle-edge
+  // compaction trigger reads config.compaction live).
+  settingsCompaction: "/api/settings/compaction",
   updateStatus: "/api/updates/status",
   updateCheck: "/api/updates/check",
   updateApply: "/api/updates/apply",

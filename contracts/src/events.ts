@@ -87,6 +87,13 @@ export const WorkerEventTypeSchema = z.enum([
   // user_message row there).
   "message_recalled",
   "conversation_cleared",
+  // Context compaction: a summarizer condensed the conversation and the agent's
+  // session was replaced by one seeded with the summary. started → completed |
+  // failed. The UI renders completed as the boundary card; history before it
+  // stays in the log (collapsed behind the card), never deleted.
+  "compaction_started",
+  "compaction_completed",
+  "compaction_failed",
   "try_applied",
   "try_kept",
   "try_discarded",
@@ -116,6 +123,38 @@ export const MessageRecalledPayloadSchema = z.object({
   recalledRowId: z.number().optional(),
 });
 export type MessageRecalledPayload = z.infer<typeof MessageRecalledPayloadSchema>;
+
+// Context compaction timeline payloads. trigger: "auto" (turn ended at/over the
+// threshold) or "manual" (/compact). Token figures are context-window occupancy;
+// afterTokens is an estimate until the next turn reports the real footprint.
+export const CompactionTriggerSchema = z.enum(["auto", "manual"]);
+export type CompactionTrigger = z.infer<typeof CompactionTriggerSchema>;
+
+export const CompactionStartedPayloadSchema = z.object({
+  trigger: CompactionTriggerSchema,
+  beforeTokens: z.number().nonnegative(),
+  pct: z.number().nullable(),
+  instructions: z.string().optional(),
+});
+export type CompactionStartedPayload = z.infer<typeof CompactionStartedPayloadSchema>;
+
+export const CompactionCompletedPayloadSchema = z.object({
+  trigger: CompactionTriggerSchema,
+  beforeTokens: z.number().nonnegative(),
+  afterTokens: z.number().nonnegative(),
+  pct: z.number().nullable(),
+  turns: z.number().int().nonnegative(),
+  summary: z.string(),
+  durationMs: z.number().nonnegative(),
+  instructions: z.string().optional(),
+});
+export type CompactionCompletedPayload = z.infer<typeof CompactionCompletedPayloadSchema>;
+
+export const CompactionFailedPayloadSchema = z.object({
+  trigger: CompactionTriggerSchema,
+  error: z.string(),
+});
+export type CompactionFailedPayload = z.infer<typeof CompactionFailedPayloadSchema>;
 
 export const UsagePayloadSchema = z.object({
   in: z.number().nonnegative().default(0),

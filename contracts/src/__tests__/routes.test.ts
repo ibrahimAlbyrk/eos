@@ -30,7 +30,7 @@ const EXPECTED_KEYS = [
   "workerTryPreview", "workerTryState", "workerTry", "workerTryKeep", "workerTryDiscard",
   "commands",
   "templates", "template", "prompts", "promptPreview", "workerDefinitions",
-  "settings", "settingsArchive",
+  "settings", "settingsArchive", "settingsCompaction",
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
   "remotePair", "remoteStatus", "remoteArm", "remoteConfig",
   "anthropicConfig", "usage",
