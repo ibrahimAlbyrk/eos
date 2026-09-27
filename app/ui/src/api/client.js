@@ -615,6 +615,16 @@ export const api = {
   async patchArchiveConfig(patch) {
     return putJson(ROUTES.settingsArchive, patch);
   },
+  // Context compaction config — also config.json (the daemon's idle-edge trigger
+  // reads config.compaction live).
+  async getCompactionConfig() {
+    const r = await getJson(ROUTES.settingsCompaction);
+    if (!r.ok) throw new Error(`getCompactionConfig → ${r.status}`);
+    return r.body?.compaction ?? {};
+  },
+  async patchCompactionConfig(patch) {
+    return putJson(ROUTES.settingsCompaction, patch);
+  },
 
   // Remote access (iOS relay v3) — all four routes are loopback + ui-token gated.
   // status is a read; setRemoteConfig persists config.remote to config.json, arm

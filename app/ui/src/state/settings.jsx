@@ -7,6 +7,15 @@ import { useSelection } from "./selection.jsx";
 
 const SettingsContext = createContext(null);
 
+// Settings the DAEMON reads live from ~/.eos/config.json (archive sweeper, the
+// compaction trigger) — they load/persist through their own endpoints and sit in
+// the flat map under their block prefix ("archive.retention", "compaction.threshold").
+const CONFIG_BLOCKS = {
+  archive: { load: () => api.getArchiveConfig(), patch: (p) => api.patchArchiveConfig(p) },
+  compaction: { load: () => api.getCompactionConfig(), patch: (p) => api.patchCompactionConfig(p) },
+};
+const configBlockOf = (key) => Object.keys(CONFIG_BLOCKS).find((b) => key.startsWith(`${b}.`));
+
 // Owns the settings modal's open state, the global ⌘, / Ctrl+, shortcut and
 // the daemon-persisted settings map. Values load once on mount (settings like
 // verbose mode drive rendering, not just the modal) and are written
@@ -31,15 +40,16 @@ export function SettingsProvider({ children }) {
     api.getSettings()
       .then((s) => setSettings((v) => ({ ...v, ...s })))
       .catch(() => { loaded.current = false; });
-    // Archive lifecycle keys live in ~/.eos/config.json (the daemon sweeper +
-    // app-closed purge read them), so they load from their own endpoint and
-    // merge in flat-key form. A failed load keeps the registry defaults.
-    api.getArchiveConfig()
-      .then((a) => setSettings((v) => ({
-        ...v,
-        ...Object.fromEntries(Object.entries(a).map(([k, val]) => [`archive.${k}`, val])),
-      })))
-      .catch(() => {});
+    // config.json-backed blocks merge in flat-key form. A failed load keeps the
+    // registry defaults.
+    for (const [block, io] of Object.entries(CONFIG_BLOCKS)) {
+      io.load()
+        .then((cfg) => setSettings((v) => ({
+          ...v,
+          ...Object.fromEntries(Object.entries(cfg).map(([k, val]) => [`${block}.${k}`, val])),
+        })))
+        .catch(() => {});
+    }
   }, []);
 
   // Manual expand/collapse clicks are XOR overrides against the verbose
@@ -49,9 +59,10 @@ export function SettingsProvider({ children }) {
   const setSetting = useCallback((key, value) => {
     if (key.startsWith("verbose.")) resetToolToggles();
     setSettings((v) => ({ ...v, [key]: value }));
-    // archive.* persists to config.json (see the load above), never settings.json.
-    if (key.startsWith("archive.")) {
-      api.patchArchiveConfig({ [key.slice("archive.".length)]: value }).catch(() => {});
+    // Config-backed blocks persist to config.json (see the load above), never settings.json.
+    const block = configBlockOf(key);
+    if (block) {
+      CONFIG_BLOCKS[block].patch({ [key.slice(block.length + 1)]: value }).catch(() => {});
       return;
     }
     api.patchSettings({ [key]: value }).catch(() => {});
@@ -109,6 +120,13 @@ export function SettingsProvider({ children }) {
     [settingsOpen, openSettings, closeSettings, settingsSection, setSettingsSection, settings, setSetting],
   );
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
+}
+
+// One value for leaf components that may render outside the provider (tests,
+// previews): the registry default when there is no provider.
+export function useSettingOr(key, fallback) {
+  const c = useContext(SettingsContext);
+  return c ? (c.settings[key] ?? fallback) : fallback;
 }
 
 export function useSettings() {

@@ -30,6 +30,10 @@ describe("ContextChip", () => {
     expect(html).not.toContain("is-warn");
   });
 
+  it("marks the auto-compact threshold on the meter", () => {
+    expect(render({ id: "a", last_context_tokens: 76_000 })).toContain("usage-meter__thr\" style=\"left:70%");
+  });
+
   it("tints warn at ≥80%", () => {
     const html = render({ id: "a", last_context_tokens: 170_000 });
     expect(html).toContain("85%");

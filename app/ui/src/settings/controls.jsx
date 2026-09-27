@@ -235,8 +235,36 @@ function TextControl({ value, onChange, placeholder, secret }) {
   );
 }
 
+// Range slider for a bounded number. The label shows the draft while dragging;
+// the value commits once on release (every change is a PUT to the daemon).
+// `format` renders the value (e.g. a ratio as "70%").
+function SliderControl({ value, onChange, min, max, step, format = String }) {
+  const [draft, setDraft] = useState(value ?? min);
+  useEffect(() => { setDraft(value ?? min); }, [value, min]);
+  const commit = () => { if (draft !== value) onChange(draft); };
+  const fill = ((draft - min) / (max - min)) * 100;
+  return (
+    <div className="stg-slider">
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={draft}
+        style={{ "--fill": `${fill}%` }}
+        onChange={(e) => setDraft(Number(e.target.value))}
+        onPointerUp={commit}
+        onKeyUp={commit}
+        onBlur={commit}
+      />
+      <span className="stg-slider__value">{format(draft)}</span>
+    </div>
+  );
+}
+
 export const CONTROLS = {
   toggle: ToggleControl,
+  slider: SliderControl,
   select: SelectControl,
   segmented: SegmentedControl,
   toolPicker: ToolPickerControl,

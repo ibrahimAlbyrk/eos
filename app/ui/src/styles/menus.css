@@ -1629,3 +1629,40 @@
 .pty-view .xterm-viewport { height: 100% !important; }
 .pty-view .xterm-viewport { background: transparent !important; }
 
+
+/* Slider (slider control) — accent fill up to the thumb, value readout beside it */
+.stg-slider {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.stg-slider input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 160px;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent) var(--fill), rgba(255, 255, 255, 0.12) var(--fill));
+  cursor: pointer;
+}
+.stg-slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--fg);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  transition: transform 120ms ease;
+}
+.stg-slider input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.15); }
+.stg-slider input[type="range"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.stg-slider__value {
+  min-width: 3ch;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg-mid);
+  text-align: right;
+}

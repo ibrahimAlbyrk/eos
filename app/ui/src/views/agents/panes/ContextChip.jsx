@@ -5,6 +5,7 @@ import { contextUsage } from "../../../lib/contextWindow.js";
 import { fmtCost, fmtTokens } from "../../../lib/format.js";
 import { backendBilled } from "../../../lib/backendCaps.js";
 import { WARN_THRESHOLD } from "../../../lib/usageFormat.js";
+import { useSettingOr } from "../../../state/settings.jsx";
 
 // Context chip — the agent's context-window fill as a hairline meter + "38%"
 // beside the breadcrumb: quiet until asked. Click opens a small card with the
@@ -17,6 +18,10 @@ export function ContextChip({ worker }) {
   const open = ui.openPopover === "ctx";
 
   const { used, total, pct } = contextUsage(worker, worker.model);
+  // Where auto-compaction kicks in — a tick on the meter.
+  const compactOn = useSettingOr("compaction.enabled", true);
+  const compactRatio = useSettingOr("compaction.threshold", 0.7);
+  const compactAt = compactOn ? Math.round(compactRatio * 100) : null;
   const warn = pct >= WARN_THRESHOLD ? " is-warn" : "";
 
   const toggle = (e) => {
@@ -41,7 +46,10 @@ export function ContextChip({ worker }) {
         aria-expanded={open}
         aria-label={`Context window: ${pct}% used`}
       >
-        <span className="usage-meter"><i style={{ width: pct + "%" }} /></span>
+        <span className="usage-meter">
+          <i style={{ width: pct + "%" }} />
+          {compactAt != null && <b className="usage-meter__thr" style={{ left: compactAt + "%" }} />}
+        </span>
         <span className="ctx-chip-pct">{pct}%</span>
       </button>
       {pos && createPortal(

@@ -85,8 +85,31 @@ export const SETTINGS_SECTIONS = [
         ],
       },
       {
+        // compaction.* persists to ~/.eos/config.json (the daemon's idle-edge
+        // trigger reads it live) — see CONFIG_BLOCKS in state/settings.jsx.
+        title: "Context",
+        items: [
+          {
+            key: "compaction.enabled",
+            label: "Auto-compact",
+            description:
+              "When an agent finishes a turn with its context window at or above the threshold, summarize the conversation and continue in a fresh context. Type /compact to do it any time.",
+            control: { type: "toggle" },
+            defaultValue: true,
+          },
+          {
+            key: "compaction.threshold",
+            label: "Compact at",
+            description: "How full the context window gets before an agent is compacted.",
+            control: { type: "slider", min: 0.5, max: 0.95, step: 0.05, format: (v) => `${Math.round(v * 100)}%` },
+            defaultValue: 0.7,
+            visibleWhen: (s) => s["compaction.enabled"] !== false,
+          },
+        ],
+      },
+      {
         // archive.* persists to ~/.eos/config.json (the daemon reads it), not
-        // the settings.json store — see the archive branch in state/settings.jsx.
+        // the settings.json store — see CONFIG_BLOCKS in state/settings.jsx.
         title: "Archive",
         items: [
           {

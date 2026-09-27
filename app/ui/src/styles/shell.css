@@ -1027,7 +1027,11 @@ html.native.fullscreen .app.split.side-collapsed .pane-head--topleft .pane-head-
 }
 .pane-head .crumb .ctx-chip:hover { background: var(--chip); color: var(--fg-mid); }
 .pane-head .crumb .ctx-chip.on { background: var(--row-on); color: var(--fg); }
-.ctx-chip .usage-meter { width: 28px; height: 2px; }
+.ctx-chip .usage-meter { position: relative; width: 28px; height: 2px; overflow: visible; }
+/* Drains visibly when a compaction drops occupancy. */
+.ctx-chip .usage-meter > i { transition: width 1200ms cubic-bezier(0.65, 0, 0.35, 1); }
+/* Auto-compact threshold tick. */
+.usage-meter__thr { position: absolute; top: -2px; width: 1px; height: 6px; background: var(--fg-faint); opacity: 0.8; pointer-events: none; }
 .ctx-chip-pct { font-family: var(--font-mono); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 .ctx-chip.is-warn .ctx-chip-pct { color: var(--warn); }
 .plan-chip-count { font-family: var(--font-mono); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }

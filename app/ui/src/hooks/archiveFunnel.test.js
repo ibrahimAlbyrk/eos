@@ -78,14 +78,20 @@ describe("Cmd+W funnel archives; delete is menu-only and shares the funnel", () 
 });
 
 describe("archive settings persist to config.json, not the settings.json store", () => {
+  // archive.* and compaction.* share one config-block table (CONFIG_BLOCKS).
   it("setSetting routes archive.* keys to the archive-config endpoint", () => {
-    expect(settingsSrc).toContain('key.startsWith("archive.")');
-    expect(settingsSrc).toContain('api.patchArchiveConfig({ [key.slice("archive.".length)]: value })');
+    expect(settingsSrc).toContain("archive: { load: () => api.getArchiveConfig(), patch: (p) => api.patchArchiveConfig(p) }");
+    expect(settingsSrc).toContain("const configBlockOf = (key) => Object.keys(CONFIG_BLOCKS).find((b) => key.startsWith(`${b}.`));");
+    expect(settingsSrc).toContain("CONFIG_BLOCKS[block].patch({ [key.slice(block.length + 1)]: value })");
   });
 
   it("archive config loads alongside settings and merges in flat-key form", () => {
-    expect(settingsSrc).toContain("api.getArchiveConfig()");
-    expect(settingsSrc).toContain("`archive.${k}`");
+    expect(settingsSrc).toContain("for (const [block, io] of Object.entries(CONFIG_BLOCKS))");
+    expect(settingsSrc).toContain("`${block}.${k}`");
+  });
+
+  it("compaction.* rides the same config.json route", () => {
+    expect(settingsSrc).toContain("compaction: { load: () => api.getCompactionConfig(), patch: (p) => api.patchCompactionConfig(p) }");
   });
 
   it("client reads and writes /api/settings/archive", () => {
