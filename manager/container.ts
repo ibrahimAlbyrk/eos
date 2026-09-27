@@ -153,6 +153,7 @@ import { BackgroundActivityService } from "./services/BackgroundActivityService.
 import { PendingPeerRequestService } from "./services/PendingPeerRequestService.ts";
 import { TerminalRunService } from "./services/TerminalRunService.ts";
 import { PtySessionService } from "./services/PtySessionService.ts";
+import { PtyConversationService } from "./services/PtyConversationService.ts";
 import { BrowserService, browserProfileDirFor } from "./services/BrowserService.ts";
 import { CdpBrowserAdapter } from "../infra/src/browser/CdpBrowserAdapter.ts";
 import { RemoteBrowserEngine } from "../infra/src/browser/RemoteBrowserEngine.ts";
@@ -512,6 +513,7 @@ export function buildContainer() {
   // Interactive multi-tab PTY sessions (the `pty` feature). Default cwd = the
   // daemon project root; a create request may override it.
   const ptySessions = new PtySessionService({ bus, defaultCwd: config.paths.repoRoot });
+  const ptyConversations = new PtyConversationService({ bus, sessions: ptySessions });
   // Browser panel subsystem — ONE persistent Chrome PER SESSION (parent-chain
   // root worker) over CDP, opt-in via config.browser.enabled (routes/service
   // refuse while off). Engines launch lazily on a session's first browser use;
@@ -1236,6 +1238,7 @@ export function buildContainer() {
     pendingPeerRequests,
     terminalRuns,
     ptySessions,
+    ptyConversations,
     browser,
     appHost,
     prompts,
