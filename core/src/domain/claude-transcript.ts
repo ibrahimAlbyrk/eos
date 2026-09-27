@@ -18,12 +18,21 @@ export interface ClaudeJsonlEntry {
 
 /** Entries on the active branch, oldest first (file order). */
 export function activeBranchEntries(jsonl: string): ClaudeJsonlEntry[] {
+  return activeBranchOf(parseJsonlEntries(jsonl));
+}
+
+/** Every parseable entry, file order. A torn line (mid-write tail) is skipped. */
+export function parseJsonlEntries(jsonl: string): ClaudeJsonlEntry[] {
   const entries: ClaudeJsonlEntry[] = [];
   for (const line of jsonl.split("\n")) {
     if (!line.trim()) continue;
     try { entries.push(JSON.parse(line) as ClaudeJsonlEntry); } catch { /* torn line */ }
   }
+  return entries;
+}
 
+/** The subset of `entries` on the active branch (same objects), file order. */
+export function activeBranchOf(entries: ClaudeJsonlEntry[]): ClaudeJsonlEntry[] {
   const byUuid = new Map<string, ClaudeJsonlEntry>();
   let tip: ClaudeJsonlEntry | null = null;
   for (const e of entries) {

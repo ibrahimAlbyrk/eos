@@ -51,10 +51,19 @@ export type ControlFrame = z.infer<typeof ControlFrameSchema>;
 
 export const KaFrameSchema = z.object({ t: z.literal("ka"), ts: z.number().int() });
 
+// The PTY sessions whose raw output (pty:data) this device wants — replaces the
+// previous set. Terminal output is only streamed to a device that is showing it.
+export const SubFrameSchema = z.object({
+  t: z.literal("sub"),
+  pty: z.array(z.string()).max(32),
+});
+export type SubFrame = z.infer<typeof SubFrameSchema>;
+
 export const ClientFrameSchema = z.discriminatedUnion("t", [
   HelloFrameSchema,
   ControlFrameSchema,
   KaFrameSchema,
+  SubFrameSchema,
 ]);
 export type ClientFrame = z.infer<typeof ClientFrameSchema>;
 

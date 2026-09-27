@@ -26,7 +26,7 @@ const EXPECTED_KEYS = [
   "workerPeers", "workerPeerRequest", "workerPeerRequestPoll", "workerPeerResponse",
   "workerNotify", "workerReport", "workerExport", "workerRewindTargets", "workerRewind",
   "workerTerminal", "terminal", "terminalKill",
-  "pty", "ptySession", "ptyInput", "ptyResize", "ptyBuffer",
+  "pty", "ptySession", "ptyInput", "ptyResize", "ptyBuffer", "ptyConversation", "ptyMessage", "ptyAnswer",
   "workerTryPreview", "workerTryState", "workerTry", "workerTryKeep", "workerTryDiscard",
   "commands",
   "templates", "template", "prompts", "promptPreview", "workerDefinitions",

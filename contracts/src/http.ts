@@ -326,6 +326,9 @@ export type WorkspaceTerminalRunRequest = z.infer<typeof WorkspaceTerminalRunReq
 // server-owned monotonic tab counter (never reused). All routes UI-token gated
 // — a raw shell is arbitrary exec, off-limits to agents holding EOS_DAEMON_URL.
 
+// The Claude Code command line a `claude` PTY runs (the user's `cc` alias).
+export const CLAUDE_COMMAND = "claude --model opus --dangerously-skip-permissions";
+
 export const PtyCreateRequestSchema = z.object({
   cols: z.number().int().positive().max(1000),
   rows: z.number().int().positive().max(1000),
@@ -333,8 +336,17 @@ export const PtyCreateRequestSchema = z.object({
   // Run this in the login shell first (e.g. `claude …`); when it exits the tab
   // drops into a normal interactive shell in the same folder.
   command: z.string().min(1).max(2000).optional(),
-});
+  // Start Claude Code instead of `command` — the daemon builds the command line,
+  // so every client (desktop, phone) launches it the same way. `resume`
+  // continues that conversation (a fresh one under the same id if it has none).
+  claude: z.object({ resume: z.string().uuid().optional() }).optional(),
+  // Opened from a remote device: the desktop Code workspace adopts it as a pane.
+  remote: z.boolean().optional(),
+}).refine((r) => !(r.command && r.claude), { message: "command and claude are mutually exclusive" });
 export type PtyCreateRequest = z.infer<typeof PtyCreateRequestSchema>;
+
+export const PtyKindSchema = z.enum(["claude", "shell"]);
+export type PtyKind = z.infer<typeof PtyKindSchema>;
 
 export const PtySessionSchema = z.object({
   sessionId: z.string(),
@@ -343,6 +355,13 @@ export const PtySessionSchema = z.object({
   cols: z.number().int().positive(),
   rows: z.number().int().positive(),
   alive: z.boolean(),
+  kind: PtyKindSchema,
+  // The Claude Code conversation running in a claude pane — follows /clear and
+  // /resume (reported by the pane's session hook).
+  claudeSessionId: z.string().nullable(),
+  // Latest terminal title (OSC 0/2), leading status glyphs stripped.
+  title: z.string().nullable(),
+  remote: z.boolean(),
 });
 export type PtySession = z.infer<typeof PtySessionSchema>;
 
@@ -366,6 +385,58 @@ export const PtyBufferResponseSchema = z.object({
   data: z.string(),
 });
 export type PtyBufferResponse = z.infer<typeof PtyBufferResponseSchema>;
+
+// GET /pty/:id/conversation?afterId=N — a claude pane's Claude Code transcript
+// as event rows in the GET /workers/:id/events shape (`agent_event` /
+// `user_message`), so a client renders it with its worker conversation view.
+// Row ids are stable while the transcript only grows; a new `claudeSessionId`
+// (/clear, /resume) starts a new id space.
+export const PtyConversationRowSchema = z.object({
+  id: z.number().int().positive(),
+  ts: z.number(),
+  type: z.string(),
+  payload: z.unknown(),
+});
+export type PtyConversationRow = z.infer<typeof PtyConversationRowSchema>;
+
+// A tool call waiting on the user in the terminal dialog — answer it with
+// POST /pty/:id/answer.
+export const PtyPendingSchema = z.object({
+  toolUseId: z.string(),
+  name: z.enum(["AskUserQuestion", "ExitPlanMode"]),
+  input: z.record(z.string(), z.unknown()),
+});
+export type PtyPending = z.infer<typeof PtyPendingSchema>;
+
+export const PtyConversationResponseSchema = z.object({
+  claudeSessionId: z.string().nullable(),
+  rows: z.array(PtyConversationRowSchema),
+  // A turn is in flight: the last prompt has no turn end yet.
+  running: z.boolean(),
+  pending: PtyPendingSchema.nullable(),
+});
+export type PtyConversationResponse = z.infer<typeof PtyConversationResponseSchema>;
+
+// POST /pty/:id/message — submit a prompt to the pane's Claude Code composer.
+export const PtyMessageRequestSchema = z.object({ text: z.string().min(1).max(100_000) });
+export type PtyMessageRequest = z.infer<typeof PtyMessageRequestSchema>;
+
+// POST /pty/:id/answer — answer the pane's pending AskUserQuestion (one entry per
+// question, in order: picked option indices, or free text) or approve its
+// pending ExitPlanMode plan. The daemon reads the question shapes from the
+// transcript and drives the terminal dialog.
+export const PtyQuestionAnswerSchema = z.union([
+  z.object({ options: z.array(z.number().int().nonnegative()).min(1) }),
+  z.object({ text: z.string().min(1).max(10_000) }),
+]);
+export type PtyQuestionAnswer = z.infer<typeof PtyQuestionAnswerSchema>;
+
+export const PtyAnswerRequestSchema = z.object({
+  toolUseId: z.string().min(1),
+  answers: z.array(PtyQuestionAnswerSchema).optional(),
+  approve: z.literal(true).optional(),
+});
+export type PtyAnswerRequest = z.infer<typeof PtyAnswerRequestSchema>;
 
 // ---- POST /workers/:id/open --------------------------------------------------
 // Open the agent's working directory (worktree dir when isolated, else cwd)
@@ -2176,6 +2247,9 @@ export const ROUTES = {
   ptyInput: (id: string): string => `/pty/${id}/input`,
   ptyResize: (id: string): string => `/pty/${id}/resize`,
   ptyBuffer: (id: string): string => `/pty/${id}/buffer`,
+  ptyConversation: (id: string): string => `/pty/${id}/conversation`,
+  ptyMessage: (id: string): string => `/pty/${id}/message`,
+  ptyAnswer: (id: string): string => `/pty/${id}/answer`,
   workerTryPreview: (id: string): string => `/workers/${id}/try/preview`,
   workerTryState: (id: string): string => `/workers/${id}/try/state`,
   workerTry: (id: string): string => `/workers/${id}/try`,

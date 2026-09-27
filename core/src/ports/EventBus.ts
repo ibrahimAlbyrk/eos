@@ -21,6 +21,11 @@ export type EventBusTopic =
   // state. pty:data is batched (200ms/8KB); the client dedups by seq.
   | "pty:data"
   | "pty:exit"
+  // A PTY session was created or its metadata (title, Claude conversation id)
+  // changed — payload is the full PtySession.
+  | "pty:session"
+  // A claude pane's transcript changed — clients refetch GET /pty/:id/conversation.
+  | "pty:conversation"
   // Ephemeral live reasoning/text deltas (claude, in-process). Relayed to
   // SSE like terminal:chunk; never persisted, never drives worker state.
   | "agent:delta"
