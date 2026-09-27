@@ -140,6 +140,16 @@ export interface DaemonConfig {
     warnRatio: number;
     fullRatio: number;
   };
+  // Context compaction. When enabled, a worker whose turn ends at or above
+  // `threshold` (fraction of its model window) is compacted: a summarizer
+  // condenses the transcript and the session restarts seeded with the summary.
+  // Enabled also turns off the claude binary's own silent auto-compaction, so
+  // ours is the only one. timeoutMs caps one summarizer run.
+  compaction: {
+    enabled: boolean;
+    threshold: number;
+    timeoutMs: number;
+  };
   // Peer collaboration (collaborate: true workers). awaitTimeoutMs: how long an
   // ask_peer consult to a not-yet-spawned peer waits for that peer to join
   // before it declines (so a consumer spawned before its providers blocks rather
@@ -405,6 +415,11 @@ export function defaults(): DaemonConfig {
       warnRatio: 0.9,
       fullRatio: 0.95,
     },
+    compaction: {
+      enabled: true,
+      threshold: 0.7,
+      timeoutMs: 300000,
+    },
     collaborate: {
       awaitTimeoutMs: envNum("EOS_COLLABORATE_AWAIT_TIMEOUT_MS", 120000),
     },
@@ -543,6 +558,13 @@ const TieredModelPriceSchema = z.object({
 // ordering tiered first is what disambiguates a tiered entry from a flat one.
 const ModelPriceOverrideSchema = z.union([TieredModelPriceSchema, FlatModelPriceOverrideSchema]);
 
+// Shared by the config.json override and the Settings patch route.
+export const CompactionConfigSchema = z.object({
+  enabled: z.boolean(),
+  threshold: z.number().min(0.1).max(0.99),
+  timeoutMs: z.number().int().positive(),
+});
+
 const AgentMcpConfigOverrideSchema = z.object({
   inheritDefaults: z.boolean(),
   include: z.array(z.string()),
@@ -616,6 +638,7 @@ export const DaemonConfigOverrideSchema = z.object({
     warnRatio: z.number().positive().max(1),
     fullRatio: z.number().positive().max(1),
   }).partial().optional(),
+  compaction: CompactionConfigSchema.partial().optional(),
   collaborate: z.object({
     awaitTimeoutMs: z.number().int().positive(),
   }).partial().optional(),

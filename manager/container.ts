@@ -31,6 +31,7 @@ import type { AgentEvent } from "../contracts/src/canonical.ts";
 import type { AgentBackend, AgentLaunchSpec } from "../core/src/ports/AgentBackend.ts";
 import { backendCollaborate } from "../core/src/ports/AgentBackend.ts";
 import { createClaudeSdkBackend } from "./backends/sdk/ClaudeSdkBackend.ts";
+import { createSdkSummarizer } from "./backends/sdk/SdkSummarizer.ts";
 import { createSubscriptionAuthResolver, readSubscriptionTokenCandidates } from "../infra/src/auth/SubscriptionAuthResolver.ts";
 import { createClaudeUsageProvider } from "../infra/src/usage/ClaudeUsageProvider.ts";
 import { makePolicyToolGate } from "./backends/PolicyToolGate.ts";
@@ -66,6 +67,7 @@ import { HybridStrategy } from "../core/src/services/HybridStrategy.ts";
 import { makeStrategyFor } from "../core/src/services/goal-strategy-registry.ts";
 import { AgentBackendJudgeClient } from "./services/AgentBackendJudgeClient.ts";
 import { MicroTaskRunner } from "./services/MicroTaskRunner.ts";
+import { CompactionService } from "./services/CompactionService.ts";
 import { buildMicroTasks } from "./services/micro-tasks/registry.ts";
 import type { OneShotClient } from "../core/src/ports/OneShotClient.ts";
 import { httpWorkerClient } from "../infra/src/ipc/HttpWorkerClient.ts";
@@ -107,6 +109,8 @@ import { toSdkMcpServers } from "./backends/sdk/SdkMcpTranslator.ts";
 import type { McpServerConfig } from "@anthropic-ai/claude-agent-sdk";
 import { createSlashCommandRegistry } from "../core/src/domain/slash-command.ts";
 import { clearCommand } from "../core/src/domain/commands/clear.ts";
+import { compactCommand } from "../core/src/domain/commands/compact.ts";
+import { compactContext, compactionSession } from "../core/src/use-cases/CompactContext.ts";
 import { resolveMemorySources } from "../core/src/domain/memory-sources.ts";
 import { mergeAvailableWorkers } from "../core/src/domain/worker-definition-catalog.ts";
 import { selectInjectableMemory } from "../core/src/services/select-injectable-memory.ts";
@@ -1036,6 +1040,8 @@ export function buildContainer() {
     // (SpawnWorker.ts). "claude" loads nothing natively → every enabled source
     // is folded into the inline systemPrompt append.
     assembleAppendPrompt: (spec) => assembleAppendFor((spec.backendOptions?.spec ?? {}) as SpawnWorkerSpec, spec.workerId, "claude"),
+    // Eos compaction owns context compaction while enabled (read per launch).
+    disableAutoCompact: () => config.compaction.enabled,
     log,
   });
 
@@ -1116,7 +1122,31 @@ export function buildContainer() {
   // Slash-command allowlist — intercepted at the dispatch chokepoint. Adding a
   // command is one entry here (the registry is open/closed); the side effects it
   // may touch are wired in dispatch-deps from the services below.
-  const slashCommands = createSlashCommandRegistry([clearCommand]);
+  const slashCommands = createSlashCommandRegistry([clearCommand, compactCommand]);
+
+  // Context compaction — a tool-less summarizer on the agent's own model condenses
+  // the transcript; the session restarts seeded with the summary. Triggered on the
+  // IDLE edge (daemon) at the configured threshold, or by /compact.
+  const summarizer = createSdkSummarizer({
+    authResolver,
+    daemonUrl: sdkDaemonUrl,
+    getAnthropicConfig: () => config.anthropic,
+    defaultModel: "sonnet",
+    cwd: config.paths.repoRoot,
+  });
+  const contextWindowFor = (model: string | null | undefined): number | null => modelCatalog.contextWindowFor(model);
+  const compaction = new CompactionService({
+    workers,
+    config: () => config.compaction,
+    contextWindowFor,
+    canCompact: (id, kind) => compactionSession({ backends }, id, kind) !== null,
+    run: (input) => compactContext({
+      workers, events, bus, clock: systemClock, backends, summarizer, prompts, contextWindowFor, log,
+      timeoutMs: () => config.compaction.timeoutMs,
+      rearmContextMarks: (id) => contextMarks.clear(id),
+    }, input),
+    log,
+  });
   // Route an in-process backend's canonical events into the daemon pipeline
   // (log as agent_event + drive the state machine), mirroring the HTTP ingest
   // path that out-of-process (claude-cli) workers use.
@@ -1194,6 +1224,7 @@ export function buildContainer() {
     logFileFor,
     backends,
     slashCommands,
+    compaction,
     expandSlashTemplate,
     onAgentEvent,
     backendResolver,

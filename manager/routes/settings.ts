@@ -9,6 +9,7 @@ import { validate } from "../middleware/validate.ts";
 import { errMsg } from "../../contracts/src/util.ts";
 
 import { SettingsPatchRequestSchema } from "../../contracts/src/http.ts";
+import { CompactionConfigSchema } from "../shared/config.ts";
 
 // Partial archive-config patch (Settings > General). Mirrors the archive
 // section of DaemonConfigOverrideSchema; strict so a typoed key 400s instead
@@ -40,21 +41,45 @@ export function registerSettingsRoutes(r: Router, c: Container): void {
 
   r.put("/api/settings/archive", async ({ req, res }) => {
     const patch = validate(ArchiveConfigPatchSchema, await readBody(req));
-    try {
-      const path = join(c.config.daemon.home, "config.json");
-      const existing = readConfigJson(path);
-      const archive = existing.archive && typeof existing.archive === "object"
-        ? (existing.archive as Record<string, unknown>)
-        : {};
-      existing.archive = { ...archive, ...patch };
-      writeFileSync(path, JSON.stringify(existing, null, 2));
-      c.reloadConfig();
-    } catch (e) {
-      writeJson(res, 500, { error: `failed to write config: ${errMsg(e)}` });
-      return;
-    }
+    if (!patchConfigBlock(c, "archive", patch, res)) return;
     writeJson(res, 200, { archive: c.config.archive });
   });
+
+  // Context compaction (Settings > General): same config.json idiom — the
+  // idle-edge trigger reads config.compaction live after the reload.
+  r.get("/api/settings/compaction", ({ res }) => {
+    writeJson(res, 200, { compaction: c.config.compaction });
+  });
+
+  r.put("/api/settings/compaction", async ({ req, res }) => {
+    const patch = validate(CompactionConfigSchema.partial().strict(), await readBody(req));
+    if (!patchConfigBlock(c, "compaction", patch, res)) return;
+    writeJson(res, 200, { compaction: c.config.compaction });
+  });
+}
+
+// Field-merges `patch` into the on-disk config.json block `key`, then reloads —
+// the backends route idiom. Writes the 500 itself and returns false on failure.
+function patchConfigBlock(
+  c: Container,
+  key: string,
+  patch: Record<string, unknown>,
+  res: Parameters<typeof writeJson>[0],
+): boolean {
+  try {
+    const path = join(c.config.daemon.home, "config.json");
+    const existing = readConfigJson(path);
+    const block = existing[key] && typeof existing[key] === "object"
+      ? (existing[key] as Record<string, unknown>)
+      : {};
+    existing[key] = { ...block, ...patch };
+    writeFileSync(path, JSON.stringify(existing, null, 2));
+    c.reloadConfig();
+    return true;
+  } catch (e) {
+    writeJson(res, 500, { error: `failed to write config: ${errMsg(e)}` });
+    return false;
+  }
 }
 
 function readConfigJson(path: string): Record<string, unknown> {

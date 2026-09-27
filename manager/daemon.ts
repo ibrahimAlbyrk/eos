@@ -266,6 +266,10 @@ const drainFor = (workerId: string): void => {
     // worker has no active loop). "dispatched"/"not-idle"/"failed" never reach
     // here, so a drained message or a busy worker is never preempted.
     if (outcome === "empty") {
+      // Context compaction goes first: a worker at/over the threshold is
+      // compacted before the loop or a nudge hands it more work. It holds the
+      // worker in WORKING and settles to IDLE, which re-enters this branch.
+      if (c.compaction.checkOnIdle(workerId)) return;
       goalLoop.loopTickFor(workerId);
       // Sibling of the loop tick: nudge a worker that went idle having never
       // reported this life. Self-excludes looped and already-reported workers,
