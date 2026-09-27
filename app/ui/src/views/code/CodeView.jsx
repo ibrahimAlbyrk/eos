@@ -6,7 +6,9 @@ import { AppLayout } from "../../components/layout/AppLayout.jsx";
 import { leafCount } from "../../lib/paneLayout.js";
 import {
   KINDS, openTerminal, splitPane, closePane, focusPaneByIndex, reconcile, setCwd, clearCwd, getWorkspace,
+  switchGroupByIndex, cycleGroup,
 } from "../../state/codeWorkspaceStore.js";
+import { groupColorHex } from "../../lib/groupColors.js";
 import { useCodeWorkspace } from "./useCodeWorkspace.js";
 import { CodeSidebar } from "./sidebar/CodeSidebar.jsx";
 import { TermGrid } from "./TermGrid.jsx";
@@ -31,6 +33,8 @@ const HOTKEYS = [
   { keys: "mod+d", run: () => splitFocused("row") },
   { keys: "mod+shift+d", run: () => splitFocused("col") },
   { keys: "mod+w", run: () => closePane(getWorkspace().focusedId) },
+  { keys: "ctrl+tab", run: () => cycleGroup(1) },
+  { keys: "ctrl+shift+tab", run: () => cycleGroup(-1) },
 ];
 
 function splitFocused(dir) {
@@ -47,6 +51,11 @@ function useCodeHotkeys() {
       match: (e) => e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code),
       run: (e) => focusPaneByIndex(Number(e.code.slice(5)) - 1),
     });
+    // ⌃1..9 → show the Nth pane group.
+    bindings.push({
+      match: (e) => e.ctrlKey && !e.altKey && !e.metaKey && !e.shiftKey && /^Digit[1-9]$/.test(e.code),
+      run: (e) => switchGroupByIndex(Number(e.code.slice(5)) - 1),
+    });
     const offs = bindings.map(({ match, run }) => keymap.register({
       terminalSafe: true,
       match,
@@ -57,7 +66,7 @@ function useCodeHotkeys() {
 }
 
 // Mounted only while the view is shown: the view itself stays mounted in the
-// background, and its bindings (⌘W, ⌘T, ⌘1..9) must not fire over Agents.
+// background, and its bindings (⌘W, ⌘T, ⌘1..9, ⌃1..9) must not fire over Agents.
 function CodeHotkeys() {
   useCodeHotkeys();
   return null;
@@ -116,14 +125,19 @@ function CodeMain({ live, ws, active }) {
   );
 }
 
-// While hidden the grid's terminals pause but stay mounted; the side panel
-// unmounts instead — its browser drives the app's single native view, which a
-// hidden copy would fight with the Agents view's panel.
+// Every group's grid stays mounted — only the active one is shown — so a group
+// switch never rebuilds a terminal. While the view is hidden the terminals pause
+// too; the side panel unmounts instead — its browser drives the app's single
+// native view, which a hidden copy would fight with the Agents view's panel.
+// --cw-group tints the focused pane with the active group's color.
 function CodeMainBody({ live, ws, active }) {
   const ui = useUi();
+  const color = groupColorHex(ws.groups.find((g) => g.id === ws.activeGroupId).color);
   return (
-    <div className={"cw-main sp-host" + (ui.showSidePanel ? " is-panel-open" : "")}>
-      <TermGrid live={live} ws={ws} paused={!active} />
+    <div className={"cw-main sp-host" + (ui.showSidePanel ? " is-panel-open" : "")} style={{ "--cw-group": color }}>
+      {ws.groups.map((g) => (
+        <TermGrid key={g.id} live={live} ws={ws} group={g} paused={!active} away={g.id !== ws.activeGroupId} />
+      ))}
       {active && <SidePanel live={live} tabs={PANEL_TABS} />}
     </div>
   );

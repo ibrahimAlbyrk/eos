@@ -1,6 +1,9 @@
-// codeWorkspaceStore — the Code view's terminal workspace: a split layout (the
-// same BSP tree the Agents view uses, lib/paneLayout) whose panes each hold ONE
-// interactive PTY session, plus the folder new terminals open in. A module
+// codeWorkspaceStore — the Code view's terminal workspace: named, colored pane
+// groups, each a split layout (the same BSP tree the Agents view uses,
+// lib/paneLayout) whose panes each hold ONE interactive PTY session, plus the
+// folder new terminals open in. One group is on screen at a time; `tree` and
+// `focusedId` on the snapshot are the active group's, so pane actions without a
+// leaf id (⌘T, ⌘1..9, drag-rearrange) act on what's visible. A module
 // singleton (ptyPanelStore idiom) because the sidebar, the pane grid and the
 // hotkeys render in different subtrees and must share one source of truth.
 //
@@ -13,6 +16,7 @@ import {
   MAX_PANES, leaf, leaves, leafCount, findLeaf, isValidTree,
   splitLeaf, removeLeaf, setRatio, moveLeaf, swapLeaves,
 } from "../lib/paneLayout.js";
+import { GROUP_COLORS, nextGroupColor } from "../lib/groupColors.js";
 import { registerSessionTracker } from "./ptyPanelStore.js";
 import { withSessionHook } from "../lib/claudeSessionOsc.js";
 
@@ -33,31 +37,68 @@ const STORAGE_KEY = "cm:codeWorkspace";
 // Seed size for a new PTY; TerminalView refits and resizes it on mount.
 const SEED = { cols: 120, rows: 32 };
 
-// terms: leafId -> { sessionId, kind, cwd, title, claudeSessionId }
+// groups: [{ id, name, color, tree, focusedId }] in sidebar order
+// terms: leafId -> { sessionId, kind, cwd, title, claudeSessionId } (all groups)
 // errors: leafId -> message (a failed launch, shown by that pane's launcher)
 let state = load();
 const launching = new Set(); // leafIds with a create in flight
 const subs = new Set();
 
+function newGroup(groups) {
+  const t = leaf();
+  const names = new Set(groups.map((g) => g.name));
+  let n = groups.length + 1;
+  while (names.has(`Group ${n}`)) n += 1;
+  return { id: crypto.randomUUID(), name: `Group ${n}`, color: nextGroupColor(groups.map((g) => g.color)), tree: t, focusedId: t.id };
+}
+
+// Function declarations, not arrows: load() runs at module init, before any const is set.
+function isValidGroup(g) {
+  return g && typeof g.id === "string" && typeof g.name === "string" && isValidTree(g.tree);
+}
+
+function normalizeGroup(g) {
+  return {
+    id: g.id,
+    name: g.name,
+    color: typeof g.color === "string" ? g.color : GROUP_COLORS[0].id,
+    tree: g.tree,
+    focusedId: findLeaf(g.tree, g.focusedId) ? g.focusedId : leaves(g.tree)[0].id,
+  };
+}
+
+// Mirror the active group's layout onto the snapshot (see the header).
+function withActive(s) {
+  const g = s.groups.find((x) => x.id === s.activeGroupId) ?? s.groups[0];
+  return { ...s, activeGroupId: g.id, tree: g.tree, focusedId: g.focusedId };
+}
+
+function fresh() {
+  return withActive({ cwd: null, groups: [newGroup([])], activeGroupId: null, terms: {}, errors: {} });
+}
+
 function load() {
   try {
     const s = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null");
-    if (s && isValidTree(s.tree)) {
-      const focusedId = findLeaf(s.tree, s.focusedId) ? s.focusedId : leaves(s.tree)[0].id;
-      return { cwd: s.cwd ?? null, tree: s.tree, focusedId, terms: s.terms ?? {}, errors: {} };
+    // A workspace saved before groups existed is one layout: it becomes the first group.
+    const raw = Array.isArray(s?.groups) ? s.groups
+      : isValidTree(s?.tree) ? [{ ...newGroup([]), tree: s.tree, focusedId: s.focusedId }]
+      : [];
+    const groups = raw.filter(isValidGroup).map(normalizeGroup);
+    if (groups.length) {
+      return withActive({ cwd: s.cwd ?? null, groups, activeGroupId: s.activeGroupId, terms: s.terms ?? {}, errors: {} });
     }
   } catch {
     // corrupt entry → fresh workspace
   }
-  const t = leaf();
-  return { cwd: null, tree: t, focusedId: t.id, terms: {}, errors: {} };
+  return fresh();
 }
 
 function set(patch) {
-  state = { ...state, ...patch };
+  state = withActive({ ...state, ...patch });
   try {
-    const { cwd, tree, focusedId, terms } = state;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ cwd, tree, focusedId, terms }));
+    const { cwd, groups, activeGroupId, terms } = state;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ cwd, groups, activeGroupId, terms }));
   } catch {
     // storage full/blocked — the in-memory workspace still works
   }
@@ -70,6 +111,13 @@ const without = (obj, key) => {
   delete next[key];
   return next;
 };
+
+const groupOfLeaf = (leafId) => state.groups.find((g) => findLeaf(g.tree, leafId)) ?? null;
+
+// Patch one group's fields (and, optionally, top-level state in the same emit).
+function setGroup(id, groupPatch, patch = {}) {
+  set({ ...patch, groups: state.groups.map((g) => (g.id === id ? { ...g, ...groupPatch } : g)) });
+}
 
 export function subscribe(cb) {
   subs.add(cb);
@@ -91,7 +139,7 @@ export function clearCwd(cwd) {
 }
 
 export function focusPane(leafId) {
-  if (leafId !== state.focusedId && findLeaf(state.tree, leafId)) set({ focusedId: leafId });
+  if (leafId !== state.focusedId && findLeaf(state.tree, leafId)) setGroup(state.activeGroupId, { focusedId: leafId });
 }
 
 export function focusPaneByIndex(i) {
@@ -101,7 +149,7 @@ export function focusPaneByIndex(i) {
 
 export function setSplitRatio(splitId, ratio) {
   const tree = setRatio(state.tree, splitId, ratio);
-  if (tree !== state.tree) set({ tree });
+  if (tree !== state.tree) setGroup(state.activeGroupId, { tree });
 }
 
 // Start a session in an EMPTY pane. `cwd` defaults to the workspace folder.
@@ -120,7 +168,7 @@ async function start(leafId, term, command) {
     const s = r?.body;
     if (!r?.ok || !s?.sessionId) throw new Error(s?.error ?? `could not start terminal (${r?.status ?? "no response"})`);
     // The pane may have been closed while the create was in flight.
-    if (!findLeaf(state.tree, leafId)) { api.killPty(s.sessionId).catch(() => {}); return; }
+    if (!groupOfLeaf(leafId)) { api.killPty(s.sessionId).catch(() => {}); return; }
     set({ terms: { ...state.terms, [leafId]: { ...term, sessionId: s.sessionId } } });
   } catch (e) {
     set({ errors: { ...state.errors, [leafId]: e instanceof Error ? e.message : String(e) } });
@@ -132,10 +180,12 @@ async function start(leafId, term, command) {
 // Split `leafId` and start a session in the new pane, in the source pane's
 // folder (like splitting a terminal in iTerm) — else the workspace folder.
 export function splitPane(leafId, dir, kind = KINDS.claude) {
-  const { tree, newId } = splitLeaf(state.tree, leafId, dir, "after", null);
+  const g = groupOfLeaf(leafId);
+  if (!g) return false;
+  const { tree, newId } = splitLeaf(g.tree, leafId, dir, "after", null);
   if (!newId) return false;
   const cwd = state.terms[leafId]?.cwd ?? state.cwd;
-  set({ tree, focusedId: newId });
+  setGroup(g.id, { tree, focusedId: newId });
   launch(newId, kind, cwd);
   return true;
 }
@@ -146,27 +196,29 @@ export function openTerminal(kind = KINDS.claude) {
   if (!state.terms[id]) { launch(id, kind); return true; }
   const { tree, newId } = splitLeaf(state.tree, id, "row", "after", null);
   if (!newId) return false;
-  set({ tree, focusedId: newId });
+  setGroup(state.activeGroupId, { tree, focusedId: newId });
   launch(newId, kind);
   return true;
 }
 
 export const canSplit = () => leafCount(state.tree) < MAX_PANES;
 
-// Remove a pane (its parent split collapses to the sibling). The last pane is
-// never removed — it's emptied back to the launcher instead.
+// Remove a pane from whichever group holds it (its parent split collapses to
+// the sibling). A group's last pane is never removed — it's emptied back to the
+// launcher instead.
 function dropPane(leafId) {
   const terms = without(state.terms, leafId);
   const errors = without(state.errors, leafId);
-  if (leafCount(state.tree) <= 1) { set({ terms, errors }); return; }
-  const prevIdx = leaves(state.tree).findIndex((l) => l.id === leafId);
-  const tree = removeLeaf(state.tree, leafId);
-  let focusedId = state.focusedId;
+  const g = groupOfLeaf(leafId);
+  if (!g || leafCount(g.tree) <= 1) { set({ terms, errors }); return; }
+  const prevIdx = leaves(g.tree).findIndex((l) => l.id === leafId);
+  const tree = removeLeaf(g.tree, leafId);
+  let focusedId = g.focusedId;
   if (!findLeaf(tree, focusedId)) {
     const list = leaves(tree);
     focusedId = (list[Math.min(Math.max(prevIdx, 0), list.length - 1)] ?? list[0]).id;
   }
-  set({ tree, focusedId, terms, errors });
+  setGroup(g.id, { tree, focusedId }, { terms, errors });
 }
 
 export function closePane(leafId) {
@@ -204,7 +256,7 @@ export function dropPaneOn(targetId, zone, srcId) {
   const tree = zone.kind === "split"
     ? moveLeaf(state.tree, srcId, targetId, zone.dir, zone.side)
     : swapLeaves(state.tree, srcId, targetId);
-  if (tree !== state.tree) set({ tree, focusedId: srcId });
+  if (tree !== state.tree) setGroup(state.activeGroupId, { tree, focusedId: srcId });
 }
 
 // Restart, in place, panes whose session no longer exists daemon-side (daemon
@@ -227,9 +279,64 @@ export async function reconcile() {
   }
 }
 
+// ── Groups ──────────────────────────────────────────────────────────────────
+// A new group starts as one empty pane (the launcher) and comes on screen.
+export function createGroup() {
+  const g = newGroup(state.groups);
+  set({ groups: [...state.groups, g], activeGroupId: g.id });
+  return g.id;
+}
+
+export function switchGroup(id) {
+  if (id !== state.activeGroupId && state.groups.some((g) => g.id === id)) set({ activeGroupId: id });
+}
+
+export function switchGroupByIndex(i) {
+  const g = state.groups[i];
+  if (g) switchGroup(g.id);
+}
+
+// ⌃⇥ / ⌃⇧⇥: step to the next / previous group, wrapping around.
+export function cycleGroup(step) {
+  const n = state.groups.length;
+  const i = state.groups.findIndex((g) => g.id === state.activeGroupId);
+  switchGroup(state.groups[(i + step + n) % n].id);
+}
+
+function updateGroup(id, patch) {
+  const g = state.groups.find((x) => x.id === id);
+  if (g && Object.keys(patch).some((k) => g[k] !== patch[k])) setGroup(id, patch);
+}
+
+export function renameGroup(id, name) {
+  const trimmed = String(name ?? "").trim();
+  if (trimmed) updateGroup(id, { name: trimmed });
+}
+
+export function setGroupColor(id, color) {
+  updateGroup(id, { color });
+}
+
+// Deleting a group ends its sessions. The last group is replaced by a fresh one,
+// so there is always a group on screen.
+export function deleteGroup(id) {
+  const g = state.groups.find((x) => x.id === id);
+  if (!g) return;
+  let { terms, errors } = state;
+  for (const l of leaves(g.tree)) {
+    if (terms[l.id]) api.killPty(terms[l.id].sessionId).catch(() => {});
+    terms = without(terms, l.id);
+    errors = without(errors, l.id);
+  }
+  const idx = state.groups.indexOf(g);
+  const rest = state.groups.filter((x) => x !== g);
+  const groups = rest.length ? rest : [newGroup([])];
+  const activeGroupId = id === state.activeGroupId ? groups[Math.min(idx, groups.length - 1)].id : state.activeGroupId;
+  set({ groups, activeGroupId, terms, errors });
+}
+
 // Test-only: reset the singleton to a fresh workspace.
 export function _resetCodeWorkspace() {
-  const t = leaf();
-  state = { cwd: null, tree: t, focusedId: t.id, terms: {}, errors: {} };
+  state = fresh();
   launching.clear();
 }

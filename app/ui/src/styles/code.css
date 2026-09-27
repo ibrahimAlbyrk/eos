@@ -5,6 +5,8 @@
 
 /* ── Grid: one pane is full-bleed (like the Agents single pane); splits are cards ── */
 .cw-grid.is-single { margin: 0; }
+/* Background pane groups stay mounted (their terminals keep state), just unseen. */
+.cw-grid.is-away { display: none; }
 .cw-grid.is-single .pane {
   inset: 0;
   border: 0;
@@ -31,9 +33,9 @@ html.native .cw-grid.is-single .pane .pane-head { padding-top: 12px; padding-bot
    uses its header padding. A close × pushes it one 24px button + 4px gap in. */
 .cw-main { --spt-size: 24px; --spt-top: 16px; --spt-right: 20px; }
 html.native .cw-main { --spt-top: 12px; }
-.cw-main:not(.is-panel-open):has(> .cw-grid:not(.is-single)) { --spt-top: 21px; --spt-right: 21px; }
-.cw-main:not(.is-panel-open):has(> .cw-grid:not(.is-single) .cw-corner .pane-close) { --spt-right: 49px; }
-.cw-main:not(.is-panel-open):has(> .cw-grid.is-single .pane-close) { --spt-right: 48px; }
+.cw-main:not(.is-panel-open):has(> .cw-grid:not(.is-single):not(.is-away)) { --spt-top: 21px; --spt-right: 21px; }
+.cw-main:not(.is-panel-open):has(> .cw-grid:not(.is-single):not(.is-away) .cw-corner .pane-close) { --spt-right: 49px; }
+.cw-main:not(.is-panel-open):has(> .cw-grid.is-single:not(.is-away) .pane-close) { --spt-right: 48px; }
 /* Sized like the pane header buttons it lines up with (it renders outside .pane). */
 .cw-main > .sp-toggle { width: var(--spt-size); height: var(--spt-size); border-radius: var(--r-icon); }
 
@@ -50,13 +52,17 @@ html.native .cw-main { --spt-top: 12px; }
   font-family: var(--font-mono);
   font-size: 11px;
 }
+/* The focused pane wears its group's color (--cw-group, set on .cw-main). */
+.cw-grid .pane.is-focused {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cw-group, var(--accent)) 40%, transparent);
+}
 .pane.is-focused .cw-num {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
-  color: var(--accent);
+  background: color-mix(in srgb, var(--cw-group, var(--accent)) 14%, transparent);
+  color: var(--cw-group, var(--accent));
 }
 .cw-kind { display: inline-flex; flex-shrink: 0; color: var(--fg-dim2); }
 .pane.is-focused .cw-kind,
-.cw-grid.is-single .cw-kind { color: var(--accent); }
+.cw-grid.is-single .cw-kind { color: var(--cw-group, var(--accent)); }
 .cw-head .crumb .cur { font-size: var(--text-base); }
 .cw-grid.is-single .cw-head .crumb .cur { font-size: var(--text-md); }
 .cw-head .crumb .scope {
@@ -285,6 +291,110 @@ html.native .cw-main { --spt-top: 12px; }
 .cw-group__head.on .agents-group__name { color: var(--fg-strong); }
 .cw-group .cw-row { margin-left: 16px; }
 
+/* ── Sidebar: pane groups ────────────────────────────────────────────────── */
+/* Each row carries its color as --cw-group (inline). The active row is tinted
+   with it; the thumbnail is the group's split layout, focused pane solid. */
+.cw-seclabel__act { margin-left: auto; margin-top: -3px; margin-bottom: -3px; }
+.cw-seclabel__group {
+  margin-left: auto;
+  min-width: 0;
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--text-xs);
+  color: var(--fg-faint);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cw-seclabel__group::before {
+  content: "";
+  flex-shrink: 0;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--cw-group);
+}
+.cw-groups { margin-bottom: 16px; }
+.cw-grp-wrap { position: relative; }
+.cw-grp {
+  display: flex; align-items: center;
+  border-radius: var(--r-row);
+  color: var(--fg-dim);
+}
+.cw-grp:hover, .cw-grp.is-menu { background: var(--row-on); }
+.cw-grp.on { background: color-mix(in srgb, var(--cw-group) 12%, transparent); color: var(--fg-strong); }
+.cw-grp__main {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 11px;
+  padding: 8px 4px 8px 10px;
+  border-radius: var(--r-row);
+  font-size: var(--text-sm);
+  text-align: left;
+  outline: none;
+}
+.cw-grp__main:focus-visible { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cw-group) 50%, transparent); }
+.cw-grp__name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cw-grp.on .cw-grp__name { font-weight: 500; }
+.cw-grp__count, .cw-grp__key {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-faint);
+}
+.cw-grp__key { margin-left: auto; }
+.cw-grp__thumb { position: relative; flex-shrink: 0; width: 22px; height: 16px; }
+.cw-grp__cell { position: absolute; }
+.cw-grp__cell::after {
+  content: "";
+  position: absolute;
+  inset: 1px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--cw-group) 35%, transparent);
+  transition: background 150ms ease;
+}
+.cw-grp.on .cw-grp__cell::after { background: color-mix(in srgb, var(--cw-group) 55%, transparent); }
+.cw-grp.on .cw-grp__cell.on::after { background: var(--cw-group); }
+.cw-grp__more {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  margin-right: 4px;
+  border-radius: var(--r-icon);
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--fg-dim2);
+  opacity: 0;
+}
+.cw-grp:hover .cw-grp__more, .cw-grp.is-menu .cw-grp__more, .cw-grp__more:focus-visible { opacity: 1; }
+.cw-grp__more:hover { background: var(--chip); color: var(--fg); }
+
+/* Group options: name, color, delete. Opens under its row. */
+.cw-grp-menu {
+  left: 8px;
+  transform: none;
+  width: 248px;
+  padding: 12px;
+  gap: 10px;
+}
+.cw-grp-menu__field { display: flex; flex-direction: column; gap: 6px; }
+.cw-grp-menu__label { color: var(--fg-faint); font-size: var(--text-xs); }
+.cw-grp-menu__input {
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-row);
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--fg-strong);
+  font-size: var(--text-sm);
+}
+.cw-grp-menu__input:focus { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cw-group) 55%, transparent); }
+.cw-grp-menu__swatches { display: flex; justify-content: space-between; }
+.cw-swatch {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--cw-group);
+  transition: transform 150ms ease;
+}
+.cw-swatch:hover { transform: scale(1.12); }
+.cw-swatch.on { box-shadow: 0 0 0 2px var(--pop), 0 0 0 4px var(--cw-group); }
+.cw-swatch:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--pop), 0 0 0 4px var(--fg-dim); }
+.cw-grp-menu .cw-menu__sep { margin: 2px 0; }
+.cw-grp-menu__delete { color: var(--err); }
+
 @media (prefers-reduced-motion: reduce) {
-  .cw-body, .cw-card, .cw-folder-chip { transition: none; }
+  .cw-body, .cw-card, .cw-folder-chip, .cw-grp__cell::after, .cw-swatch { transition: none; }
 }

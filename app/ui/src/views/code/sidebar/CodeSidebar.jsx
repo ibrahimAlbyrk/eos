@@ -11,15 +11,9 @@ import { useCodeWorkspace } from "../useCodeWorkspace.js";
 import { projectFolders } from "../FolderMenu.jsx";
 import { folderGroups } from "./folderGroups.js";
 import { paneTitle, TERM_PANE_TYPE } from "../TermGrid.jsx";
-import { ClaudeGlyph, TerminalGlyph, FolderGlyph, KindGlyph, CloseGlyph } from "../icons.jsx";
-
-function PlusIcon() {
-  return (
-    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-      <path d="M8 3v10M3 8h10" />
-    </svg>
-  );
-}
+import { groupColorHex } from "../../../lib/groupColors.js";
+import { GroupList } from "./GroupList.jsx";
+import { ClaudeGlyph, TerminalGlyph, FolderGlyph, KindGlyph, CloseGlyph, PlusGlyph } from "../icons.jsx";
 
 function CollapseIcon() {
   return (
@@ -29,9 +23,10 @@ function CollapseIcon() {
   );
 }
 
-// The Code view's sidebar: new-session actions, then project folders — each
-// folder header (click selects it as the workspace folder, + starts Claude Code
-// there) above its open sessions (one per pane, draggable onto a pane to
+// The Code view's sidebar: new-session actions, the pane groups (GroupList),
+// then the active group's project folders — each folder header (click selects
+// it as the workspace folder, double-click or + starts Claude Code there, in the
+// active group) above its open sessions (one per pane, draggable onto a pane to
 // rearrange the split). Recent folders without a session show as empty groups.
 export function CodeSidebar({ live, variant = "full" }) {
   const ui = useUi();
@@ -40,7 +35,8 @@ export function CodeSidebar({ live, variant = "full" }) {
   const panes = allPanes.filter((l) => ws.terms[l.id]);
   const recents = projectFolders(live.recents);
   const folders = ws.cwd && !recents.includes(ws.cwd) ? [ws.cwd, ...recents] : recents;
-  const groups = folderGroups(panes.map((l) => ({ id: l.id, cwd: ws.terms[l.id].cwd, term: ws.terms[l.id] })), folders);
+  const activeGroup = ws.groups.find((g) => g.id === ws.activeGroupId);
+  const projectGroups = folderGroups(panes.map((l) => ({ id: l.id, cwd: ws.terms[l.id].cwd, term: ws.terms[l.id] })), folders);
 
   // Start Claude Code in a folder: it becomes the workspace folder, and the
   // session opens in the focused pane (or a new split beside it).
@@ -78,14 +74,18 @@ export function CodeSidebar({ live, variant = "full" }) {
       </div>
 
       <div className="cw-side-scroll">
-        {groups.length > 0 && (
+        <GroupList ws={ws} />
+        {projectGroups.length > 0 && (
           <>
             <div className="sb-seclabel">
               <span className="sb-seclabel__text">Projects</span>
               {panes.length > 0 && <span className="cw-count">{panes.length}</span>}
+              <span className="cw-seclabel__group" style={{ "--cw-group": groupColorHex(activeGroup.color) }}>
+                {activeGroup.name}
+              </span>
             </div>
             <div className="cw-list">
-              {groups.map((g) => (
+              {projectGroups.map((g) => (
                 <FolderGroup
                   key={g.key}
                   group={g}
@@ -182,7 +182,7 @@ function FolderGroup({ group, current, onSelect, onStart, children }) {
             aria-label={`New Claude Code in ${name}`}
             onClick={(e) => { e.stopPropagation(); onStart(); }}
           >
-            <PlusIcon />
+            <PlusGlyph />
           </button>
         )}
       </div>

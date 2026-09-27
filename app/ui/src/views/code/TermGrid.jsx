@@ -34,15 +34,16 @@ export function paneTitle(term) {
   return term.title || (term.kind === KINDS.shell ? "Terminal" : "Claude Code");
 }
 
-// The Code view's split layout: the Agents view's BSP renderer (flat %-rects keyed
-// by leaf id, so a split/close never remounts a surviving terminal) with a PTY
-// session per pane instead of an agent transcript. `paused`: the view is hidden,
-// so terminals hold their output until it's shown again.
-export function TermGrid({ live, ws, paused }) {
+// One pane group's split layout: the Agents view's BSP renderer (flat %-rects
+// keyed by leaf id, so a split/close never remounts a surviving terminal) with a
+// PTY session per pane instead of an agent transcript. `paused`: the view is
+// hidden; `away`: another group is on screen. Either way the terminals stay
+// mounted and hold their output until shown again, so switching back is instant.
+export function TermGrid({ live, ws, group, paused, away }) {
   const gridRef = useRef(null);
   const [resizing, setResizing] = useState(false);
-  const rects = computeRects(ws.tree);
-  const dividers = computeDividers(ws.tree);
+  const rects = computeRects(group.tree);
+  const dividers = computeDividers(group.tree);
   const { leaving, setNode } = usePaneTransitions(rects);
   const single = rects.length === 1;
 
@@ -55,19 +56,23 @@ export function TermGrid({ live, ws, paused }) {
         term={ws.terms[id] ?? null}
         cwd={ws.terms[id]?.cwd ?? ws.cwd}
         error={ws.errors[id]}
-        focused={id === ws.focusedId}
+        focused={!away && id === group.focusedId}
         single={single}
         canSplit={rects.length < MAX_PANES}
         topLeft={rect.left === 0 && rect.top === 0}
         topRow={rect.top === 0}
         corner={rect.top === 0 && Math.abs(rect.left + rect.width - 100) < 0.01}
-        paused={paused}
+        paused={paused || away}
       />
     </div>
   );
 
   return (
-    <div className={"pane-grid cw-grid" + (single ? " is-single" : "") + (resizing ? " is-resizing" : "")} ref={gridRef}>
+    <div
+      className={"pane-grid cw-grid" + (single ? " is-single" : "") + (resizing ? " is-resizing" : "") + (away ? " is-away" : "")}
+      ref={gridRef}
+      aria-hidden={away || undefined}
+    >
       {rects.map(renderSlot)}
       {leaving.map(({ id, rect }) => (
         <div key={id} ref={setNode(id)} className="pane-slot is-leaving" style={pctStyle(rect)}>

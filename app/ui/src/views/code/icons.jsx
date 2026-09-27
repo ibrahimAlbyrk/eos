@@ -51,6 +51,22 @@ export function CloseGlyph({ size = 11 }) {
   );
 }
 
+export function PlusGlyph() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+      <path d="M8 3v10M3 8h10" />
+    </svg>
+  );
+}
+
+export function MoreGlyph() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+      <circle cx="3.5" cy="8" r="1.2" /><circle cx="8" cy="8" r="1.2" /><circle cx="12.5" cy="8" r="1.2" />
+    </svg>
+  );
+}
+
 export function ChevronGlyph() {
   return (
     <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">

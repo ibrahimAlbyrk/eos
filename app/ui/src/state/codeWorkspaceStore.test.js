@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
   claudeCommand, claudeResumeCommand, KINDS, getWorkspace, setCwd, openTerminal, splitPane, closePane,
   sessionExited, setTitle, setClaudeSession, reconcile, dropPaneOn, _resetCodeWorkspace,
+  createGroup, switchGroup, switchGroupByIndex, cycleGroup, renameGroup, setGroupColor, deleteGroup,
 } from "./codeWorkspaceStore.js";
 import { reapUntrackedSessions } from "./ptyPanelStore.js";
 import { leaves } from "../lib/paneLayout.js";
@@ -194,5 +195,123 @@ describe("codeWorkspaceStore", () => {
     const [a, b] = paneIds();
     dropPaneOn(a, { kind: "replace" }, b);
     expect(paneIds()).toEqual([b, a]);
+  });
+});
+
+describe("codeWorkspaceStore groups", () => {
+  const groupIds = () => getWorkspace().groups.map((g) => g.id);
+
+  it("a new group comes on screen empty, and new panes open there", async () => {
+    openTerminal(KINDS.claude);
+    await flush();
+    const first = getWorkspace().activeGroupId;
+    const second = createGroup();
+    expect(getWorkspace().activeGroupId).toBe(second);
+    expect(paneIds()).toHaveLength(1);
+    expect(getWorkspace().terms[getWorkspace().focusedId]).toBeUndefined();
+    openTerminal(KINDS.shell);
+    await flush();
+    const g1 = getWorkspace().groups.find((g) => g.id === first);
+    expect(leaves(g1.tree)).toHaveLength(1);
+    expect(Object.keys(getWorkspace().terms)).toHaveLength(2);
+  });
+
+  it("new groups get distinct names and colors", () => {
+    createGroup();
+    createGroup();
+    const { groups } = getWorkspace();
+    expect(groups.map((g) => g.name)).toEqual(["Group 1", "Group 2", "Group 3"]);
+    expect(new Set(groups.map((g) => g.color)).size).toBe(3);
+  });
+
+  it("switching restores each group's own layout and focus", async () => {
+    openTerminal(KINDS.claude);
+    await flush();
+    openTerminal(KINDS.claude);
+    await flush();
+    const [first] = groupIds();
+    const before = { tree: getWorkspace().tree, focusedId: getWorkspace().focusedId };
+    createGroup();
+    expect(paneIds()).toHaveLength(1);
+    switchGroup(first);
+    expect(getWorkspace().tree).toBe(before.tree);
+    expect(getWorkspace().focusedId).toBe(before.focusedId);
+  });
+
+  it("⌃N and ⌃⇥ switch by position, wrapping around", () => {
+    createGroup();
+    createGroup();
+    const ids = groupIds();
+    switchGroupByIndex(0);
+    expect(getWorkspace().activeGroupId).toBe(ids[0]);
+    switchGroupByIndex(7);
+    expect(getWorkspace().activeGroupId).toBe(ids[0]);
+    cycleGroup(-1);
+    expect(getWorkspace().activeGroupId).toBe(ids[2]);
+    cycleGroup(1);
+    expect(getWorkspace().activeGroupId).toBe(ids[0]);
+  });
+
+  it("a shell exiting in a background group closes its pane there", async () => {
+    openTerminal(KINDS.claude);
+    await flush();
+    openTerminal(KINDS.shell);
+    await flush();
+    const [first] = groupIds();
+    createGroup();
+    sessionExited("s2");
+    const g1 = getWorkspace().groups.find((g) => g.id === first);
+    expect(leaves(g1.tree)).toHaveLength(1);
+    expect(getWorkspace().terms[g1.focusedId].sessionId).toBe("s1");
+    expect(paneIds()).toHaveLength(1);
+  });
+
+  it("deleting a group kills its sessions and shows a neighbour", async () => {
+    const [first] = groupIds();
+    const second = createGroup();
+    openTerminal(KINDS.claude);
+    await flush();
+    deleteGroup(second);
+    await flush();
+    expect(server.sessions.size).toBe(0);
+    expect(getWorkspace().terms).toEqual({});
+    expect(groupIds()).toEqual([first]);
+    expect(getWorkspace().activeGroupId).toBe(first);
+  });
+
+  it("deleting the last group leaves a fresh one", () => {
+    const [only] = groupIds();
+    deleteGroup(only);
+    expect(groupIds()).toHaveLength(1);
+    expect(groupIds()[0]).not.toBe(only);
+  });
+
+  it("rename trims and ignores blanks; color is stored by id", () => {
+    const [id] = groupIds();
+    renameGroup(id, "  Backend  ");
+    renameGroup(id, "   ");
+    setGroupColor(id, "violet");
+    expect(getWorkspace().groups[0]).toMatchObject({ name: "Backend", color: "violet" });
+    const before = getWorkspace();
+    setGroupColor(id, "violet");
+    expect(getWorkspace()).toBe(before);
+  });
+});
+
+describe("codeWorkspaceStore persistence", () => {
+  afterEach(() => vi.resetModules());
+
+  it("a workspace saved before groups loads as the first group", async () => {
+    const { leaf: mkLeaf } = await import("../lib/paneLayout.js");
+    const tree = mkLeaf();
+    const saved = { cwd: "/proj", tree, focusedId: tree.id, terms: { [tree.id]: { sessionId: "s9", kind: "shell", cwd: "/proj" } } };
+    vi.stubGlobal("localStorage", { getItem: () => JSON.stringify(saved), setItem: () => {} });
+    vi.resetModules();
+    const store = await import("./codeWorkspaceStore.js");
+    const ws = store.getWorkspace();
+    expect(ws.groups).toHaveLength(1);
+    expect(ws.groups[0]).toMatchObject({ name: "Group 1", tree, focusedId: tree.id });
+    expect(ws.tree).toEqual(tree);
+    expect(ws.terms[tree.id].sessionId).toBe("s9");
   });
 });
