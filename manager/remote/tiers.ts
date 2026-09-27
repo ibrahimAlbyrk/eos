@@ -114,6 +114,17 @@ const RULES: TierRule[] = [
   R("POST", "/api/updates/check", "HIGH"),
   R("POST", "/api/updates/defer", "HIGH"),
 
+  // ---- Code-view terminals (✦ — the handlers are ui-token gated) ----
+  // No resize: a device mirrors the PTY at the desktop's size, never reshapes it.
+  R("GET", "/pty", "READ", true),
+  R("GET", "/pty/:id/buffer", "READ", true),
+  R("GET", "/pty/:id/conversation", "READ", true),
+  R("POST", "/pty", "HIGH", true),
+  R("POST", "/pty/:id/input", "HIGH", true),
+  R("POST", "/pty/:id/message", "HIGH", true),
+  R("POST", "/pty/:id/answer", "HIGH", true),
+  R("DELETE", "/pty/:id", "HIGH", true),
+
   // ---- REFUSED (never remote) ----
   ...[
     ["POST", "/workers/:id/events"], ["POST", "/policy/decide"], ["POST", "/workers/:id/question"],

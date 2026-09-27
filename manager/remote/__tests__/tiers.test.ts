@@ -32,6 +32,18 @@ describe("classifyTier (§8)", () => {
     assert.deepEqual(classifyTier("GET", "/api/backends/deepseek/models"), { tier: "READ", uiToken: false });
   });
 
+  it("exposes Code-view terminals with the ui token, but never resize", () => {
+    for (const [m, p] of [["GET", "/pty"], ["GET", "/pty/s1/buffer"], ["GET", "/pty/s1/conversation?afterId=3"]] as const) {
+      assert.deepEqual(classifyTier(m, p), { tier: "READ", uiToken: true }, `${m} ${p}`);
+    }
+    for (const [m, p] of [
+      ["POST", "/pty"], ["POST", "/pty/s1/input"], ["POST", "/pty/s1/message"], ["POST", "/pty/s1/answer"], ["DELETE", "/pty/s1"],
+    ] as const) {
+      assert.deepEqual(classifyTier(m, p), { tier: "HIGH", uiToken: true }, `${m} ${p}`);
+    }
+    assert.equal(classifyTier("POST", "/pty/s1/resize").tier, "REFUSED");
+  });
+
   it("classifies on the path portion, ignoring the query string (§4.2)", () => {
     assert.deepEqual(classifyTier("GET", "/fs/read?path=/a/b.txt"), { tier: "READ", uiToken: false });
     assert.deepEqual(classifyTier("GET", "/workers/abc/changes/file?p=x&y=1"), { tier: "READ", uiToken: false });

@@ -28,6 +28,8 @@ export interface RemoteSession {
   readonly id: string; // clientId (relay-assigned)
   send(frame: ServerFrame): void;
   close(reason?: string): void;
+  // Whether this device is showing that PTY (its `sub` frame) and wants its raw output.
+  wantsPty?(ptySessionId: string): boolean;
 }
 
 export interface WsBridgeOptions {
@@ -78,6 +80,18 @@ export class WsBridge {
 
   private onBusMessage(msg: EventBusMessage): void {
     if (this.sessions.size === 0) return; // nothing to fan out to
+    // Raw terminal output goes only to devices showing that terminal. It carries
+    // the current seq without taking a new one, so devices that never see it
+    // don't read a gap.
+    if (msg.topic === "pty:data") {
+      const ptyId = (msg.payload as { sessionId?: string }).sessionId ?? "";
+      const frame: ServerFrame = { t: "event", seq: this.seq, reason: msg.topic, ts: this.opts.now(), payload: msg.payload };
+      for (const s of this.sessions.values()) {
+        if (!s.wantsPty?.(ptyId)) continue;
+        try { s.send(frame); } catch { this.sessions.delete(s.id); }
+      }
+      return;
+    }
     const frame: ServerFrame = {
       t: "event",
       seq: this.nextSeq(),

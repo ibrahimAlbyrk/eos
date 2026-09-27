@@ -46,6 +46,7 @@ export class GatewayConnection {
   private readonly clientId: Buffer;
   private readonly dispatcher: ControlDispatcher;
   private session: RemoteSession | null = null;
+  private ptySubs = new Set<string>(); // PTY sessions whose raw output this device shows (sub frame)
   private readonly joinAck: boolean;
   // The relay never tells the daemon a device left (its error frames carry no
   // clientId), so liveness is inferred from inbound traffic: the phone sends a
@@ -91,6 +92,7 @@ export class GatewayConnection {
       id: this.clientId.toString("hex"),
       send: (f: ServerFrame) => this.send(encodeServerFrame({ room: this.deps.room, clientId: this.clientId, frame: f })),
       close: (reason?: string) => this.close(reason),
+      wantsPty: (id: string) => this.ptySubs.has(id),
     };
     this.bridge.add(this.session);
     this.deps.log?.("remote device live", { clientId: this.session.id });
@@ -117,6 +119,7 @@ export class GatewayConnection {
     if (!frame) { this.deps.log?.("remote frame rejected (bad shape)", {}); return; }
     if (frame.t === "ka") return;
     if (frame.t === "hello") { await this.sendSnapshot(); return; } // §5.4.3: resume / seq-gap recovery
+    if (frame.t === "sub") { this.ptySubs = new Set(frame.pty); return; }
     const ds: DispatchSession = { devId: this.clientId.toString("hex"), hasCap: (c) => SESSION_CAPS.includes(c as typeof SESSION_CAPS[number]) };
     const reply = await this.dispatcher.handle(ds, frame);
     this.deps.log?.("remote control", { method: frame.method, path: frame.path, status: reply.t === "reply" ? reply.status : reply.t });

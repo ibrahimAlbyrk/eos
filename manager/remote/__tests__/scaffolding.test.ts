@@ -105,6 +105,18 @@ describe("WsBridge fan-out", () => {
     assert.equal(bridge.currentSeq(), 2);
   });
 
+  it("streams terminal output only to devices showing that terminal, without taking a seq", () => {
+    const watching = Object.assign(new CaptureSession("c1"), { wantsPty: (id: string) => id === "p1" });
+    const other = new CaptureSession("c2");
+    bridge.add(watching); bridge.add(other);
+    bus.publish("worker:change", { id: "w1" });
+    bus.publish("pty:data", { sessionId: "p1", seq: 1, data: "x" });
+    bus.publish("pty:data", { sessionId: "p2", seq: 1, data: "y" });
+    assert.deepEqual(watching.frames.map((f) => f.t === "event" && [f.reason, f.seq]), [["worker:change", 1], ["pty:data", 1]]);
+    assert.deepEqual(other.frames.map((f) => f.t === "event" && f.reason), ["worker:change"]);
+    assert.equal(bridge.currentSeq(), 1);
+  });
+
   it("does not allocate a seq when no sessions are connected", () => {
     bus.publish("worker:change", { id: "w1" });
     assert.equal(bridge.currentSeq(), 0);
