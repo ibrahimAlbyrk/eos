@@ -13,5 +13,6 @@ export * from "./hooks.ts";
 export * from "./ipc.ts";
 export * from "./remote.ts";
 export * from "./anthropic.ts";
+export * from "./accounts.ts";
 export * from "./usage.ts";
 export * from "./util.ts";

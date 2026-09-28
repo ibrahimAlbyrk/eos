@@ -17,6 +17,11 @@ export const BackendKindSchema = z.enum([
   "anthropic-api",
   "openai",
   "codex",
+  // The Codex CLI's app-server, run on the user's ChatGPT plan (the `codex` kind
+  // above is the metered OpenAI-API lane).
+  "codex-cli",
+  // The Gemini CLI's ACP server, run on the user's Google plan.
+  "gemini-cli",
 ]);
 export type BackendKind = z.infer<typeof BackendKindSchema>;
 

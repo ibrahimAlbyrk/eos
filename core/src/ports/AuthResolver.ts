@@ -8,7 +8,9 @@ import type { AuthRef } from "../../../contracts/src/backend.ts";
 
 export interface ResolvedAuth {
   readonly scheme: "oauth" | "apikey" | "none";
-  /** oauth: the Claude subscription / setup-token (bills the Max/Pro plan). */
+  /** oauth: the Claude subscription / setup-token (bills the Max/Pro plan). Absent
+   *  on oauth when the only credential is a refreshable login the claude binary
+   *  reads from its own store. */
   readonly token?: string;
   /** apikey: the provider API key (bills the provider's metered API). */
   readonly apiKey?: string;
@@ -19,6 +21,6 @@ export interface ResolvedAuth {
 export interface AuthResolver {
   /** Resolve credentials for an AuthRef. Omitted ref ⇒ subscription. Returns
    *  scheme:"none" when the referenced credential is absent — the caller then
-   *  falls back (e.g. to the claude-cli PTY path) rather than billing silently. */
+   *  refuses or falls back explicitly rather than billing silently. */
   resolve(auth: AuthRef | undefined): Promise<ResolvedAuth>;
 }

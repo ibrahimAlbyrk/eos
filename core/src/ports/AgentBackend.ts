@@ -89,8 +89,10 @@ export interface BackendDescriptor {
   // backend-switch source or target. Consumed by canHandoffBackend (domain).
   // "eos-conversation" is the durable in-process store (JSONL under ~/.eos, landed
   // in M3) — intentionally NOT loadable by the claude lanes, so cross-lane handoff
-  // stays correctly blocked.
-  readonly sessionStore: "claude-transcript" | "none" | "eos-conversation";
+  // stays correctly blocked. "codex-thread" is a Codex app-server thread (stored
+  // under the Codex home), loadable only by the codex-cli lane; "gemini-session" is
+  // a Gemini CLI chat (stored under ~/.gemini), loadable only by the gemini-cli lane.
+  readonly sessionStore: "claude-transcript" | "none" | "eos-conversation" | "codex-thread" | "gemini-session";
   // The request wire dialect this backend speaks. The three in-process kinds share
   // one "eos-conversation" store (dialect-NEUTRAL messages), so a same-dialect
   // resume is safe — but a LIVE cross-dialect handoff (openai↔anthropic-api) is a
@@ -218,6 +220,10 @@ export interface AgentBackend {
   // it does today via the port column; no in-memory session registry). Used by
   // the message / kill / interrupt / keystroke paths.
   attach(workerId: string, handle: WorkerHandle): AgentSession;
+  // The models this lane offers right now, default first — for a lane whose
+  // catalog is its provider's live list (e.g. the account's plan), not a static
+  // one. Absent → the catalog is `descriptor.models`.
+  listModels?(): Promise<string[]>;
 }
 
 // Multi-backend selection — resolves a profile's kind to its adapter.

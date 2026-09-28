@@ -562,8 +562,11 @@ export const UiBackendDescriptorSchema = z.object({
   // whether two providers share the same underlying backend infrastructure (so a
   // LIVE provider switch can hand the conversation off). The UI groups "same
   // infrastructure" on THIS data (canSwitchProvider), never on kind literals.
-  sessionStore: z.enum(["claude-transcript", "none", "eos-conversation"]),
+  sessionStore: z.enum(["claude-transcript", "none", "eos-conversation", "codex-thread", "gemini-session"]),
   wireDialect: z.enum(["anthropic", "openai-chat"]).optional(),
+  // Where the lane's models come from (descriptor.models.kind): "claude" → the
+  // Claude catalog; anything else → GET /api/backends/:kind/models.
+  catalog: z.enum(["claude", "static", "openai-compatible"]).optional(),
   capabilities: z.object({
     interrupt: z.boolean(),
     keystroke: z.boolean(),
@@ -2306,6 +2309,16 @@ export const ROUTES = {
   apiBackendTest: "/api/backends/test",
   // Delete a configured provider profile by name.
   apiBackendDelete: (name: string): string => `/api/backends/${name}`,
+  // ---- accounts --------------------------------------------------------
+  // Settings › Accounts — loopback + ui-token only, redacted (contracts/src/
+  // accounts.ts). GET lists every provider's AccountStatus.
+  accounts: "/api/accounts",
+  // POST starts a browser sign-in (→ SignInSession); DELETE signs the provider out.
+  accountSignIn: (provider: string): string => `/api/accounts/${provider}/sign-in`,
+  // GET polls a sign-in in flight; DELETE cancels it.
+  signIn: (id: string): string => `/api/sign-ins/${id}`,
+  // POST { code } — the code the provider's page shows when its redirect fails.
+  signInCode: (id: string): string => `/api/sign-ins/${id}/code`,
   // ---- browser ---------------------------------------------------------
   // The daemon's single Chrome, over CDP. Loopback + ui-token gated like /pty:
   // these are the panel's surface, and the browser_* MCP verbs' internal target

@@ -34,6 +34,7 @@ const EXPECTED_KEYS = [
   "updateStatus", "updateCheck", "updateApply", "updateDefer",
   "remotePair", "remoteStatus", "remoteArm", "remoteConfig",
   "anthropicConfig", "usage",
+  "accounts", "accountSignIn", "signIn", "signInCode",
   "apiBackends", "apiBackendPresets", "apiBackendModels", "apiBackendTest", "apiBackendDelete",
   "browserStatus", "browserLaunch", "browserTabs", "browserActiveTab", "browserShow", "browserTab", "browserNavigate",
   "browserSnapshot", "browserFind", "browserWait", "browserAct", "browserGet",
