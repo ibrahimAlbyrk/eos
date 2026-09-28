@@ -644,16 +644,33 @@ export const api = {
     return postJson(ROUTES.remotePair, {}, uiTokenHeader());
   },
 
-  // Anthropic credentials for the claude lane (Settings > Anthropic) — both
-  // routes are loopback + ui-token gated. getAnthropicConfig reads the REDACTED
-  // set-state (never the secrets); setAnthropicConfig persists { apiKey?, authToken? }
-  // to config.json (a blank value clears that field) and returns the new set-state.
-  async getAnthropicConfig() {
-    const r = await getJson(ROUTES.anthropicConfig, { headers: uiTokenHeader() });
-    return r.ok ? r.body : { apiKeySet: false, authTokenSet: false };
-  },
+  // Claude credentials for the claude lane — loopback + ui-token gated. Persists
+  // { apiKey?, authToken? } to config.json (a blank value clears that field) and
+  // returns the REDACTED set-state, never the secrets.
   async setAnthropicConfig(patch) {
     return putJson(ROUTES.anthropicConfig, patch, uiTokenHeader());
+  },
+
+  // Settings › Accounts — loopback + ui-token gated, redacted. listAccounts
+  // resolves null when the daemon can't answer (an older daemon has no route).
+  async listAccounts() {
+    const r = await getJson(ROUTES.accounts, { headers: uiTokenHeader() });
+    return r.ok ? (r.body?.accounts ?? null) : null;
+  },
+  async startSignIn(provider) {
+    return postJson(ROUTES.accountSignIn(provider), {}, uiTokenHeader());
+  },
+  async signOut(provider) {
+    return del(ROUTES.accountSignIn(provider), uiTokenHeader());
+  },
+  async getSignIn(id) {
+    return getJson(ROUTES.signIn(id), { headers: uiTokenHeader() });
+  },
+  async cancelSignIn(id) {
+    return del(ROUTES.signIn(id), uiTokenHeader());
+  },
+  async submitSignInCode(id, code) {
+    return postJson(ROUTES.signInCode(id), { code }, uiTokenHeader());
   },
 
   // Auto-update — status is an open read; apply is uiToken-gated (an agent must

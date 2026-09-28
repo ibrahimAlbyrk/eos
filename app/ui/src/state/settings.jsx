@@ -26,6 +26,9 @@ export function SettingsProvider({ children }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState(SETTINGS_SECTIONS[0]?.id ?? null);
   const [settings, setSettings] = useState(SETTING_DEFAULTS);
+  // The daemon-persisted values have arrived (or failed to — defaults stand), so
+  // a one-shot decision on a stored flag (the first-run welcome) can't misfire.
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
   const loaded = useRef(false);
 
   const openSettings = useCallback((sectionId) => {
@@ -39,7 +42,8 @@ export function SettingsProvider({ children }) {
     loaded.current = true;
     api.getSettings()
       .then((s) => setSettings((v) => ({ ...v, ...s })))
-      .catch(() => { loaded.current = false; });
+      .catch(() => { loaded.current = false; })
+      .finally(() => setSettingsLoaded(true));
     // config.json-backed blocks merge in flat-key form. A failed load keeps the
     // registry defaults.
     for (const [block, io] of Object.entries(CONFIG_BLOCKS)) {
@@ -116,8 +120,8 @@ export function SettingsProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ settingsOpen, openSettings, closeSettings, settingsSection, setSettingsSection, settings, setSetting }),
-    [settingsOpen, openSettings, closeSettings, settingsSection, setSettingsSection, settings, setSetting],
+    () => ({ settingsOpen, openSettings, closeSettings, settingsSection, setSettingsSection, settings, settingsLoaded, setSetting }),
+    [settingsOpen, openSettings, closeSettings, settingsSection, setSettingsSection, settings, settingsLoaded, setSetting],
   );
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

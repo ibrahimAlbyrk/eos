@@ -133,7 +133,7 @@ export const ROUTES = {
   remoteConfig: "/api/remote/config",
   remoteArm: "/api/remote/arm",
   remotePair: "/api/remote/pair",
-  // Anthropic creds for the claude lane (Settings > Anthropic) — loopback +
+  // Claude creds for the claude lane (Settings › Accounts) — loopback +
   // ui-token only. GET returns redacted { apiKeySet, authTokenSet }; PUT persists.
   anthropicConfig: "/api/anthropic/config",
   // Subscription usage snapshot (Settings > Usage) — open read; daemon serves a
@@ -154,6 +154,11 @@ export const ROUTES = {
   apiBackendTest: "/api/backends/test",
   // Delete a configured provider profile by name.
   apiBackendDelete: (name) => `/api/backends/${name}`,
+  // Settings › Accounts — loopback + ui-token only, redacted.
+  accounts: "/api/accounts",
+  accountSignIn: (provider) => `/api/accounts/${provider}/sign-in`,
+  signIn: (id) => `/api/sign-ins/${id}`,
+  signInCode: (id) => `/api/sign-ins/${id}/code`,
   // Browser panel — the daemon's single Chrome over CDP. Loopback + ui-token
   // gated like /pty. Frames never come through here; they ride the binary
   // WebSocket at /browser/stream.

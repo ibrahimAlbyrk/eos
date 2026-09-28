@@ -12,6 +12,10 @@ import { NativeToggleZone } from "./components/layout/NativeToggleZone.jsx";
 import { SideHandle } from "./components/layout/SideHandle.jsx";
 import { SidebarPopup } from "./components/layout/SidebarPopup.jsx";
 import { getViewComponent, getViewSidebar, keepsMounted } from "./views/registry.js";
+import { useSettings } from "./state/settings.jsx";
+import { useAccounts, ensureAccountsLoaded, noAccountConnected } from "./state/accountsStore.js";
+import { WelcomeScreen } from "./components/accounts/WelcomeScreen.jsx";
+import { ConnectSheetHost } from "./components/accounts/ConnectSheet.jsx";
 
 function Shell() {
   const ui = useUi();
@@ -28,6 +32,19 @@ function Shell() {
 
   // Cmd+Ctrl+1/2 → Agents / Code.
   useViewSwitchHotkeys();
+
+  // First-run welcome: decided ONCE, when both the stored skip flag and the
+  // accounts have loaded — shown only when nothing is connected at all and the
+  // user never skipped it. It then stays up through the sign-ins it starts (an
+  // account turning connected must not yank it away) until Continue / Skip.
+  const { settings, settingsLoaded, setSetting, openSettings } = useSettings();
+  const { accounts } = useAccounts();
+  const [welcome, setWelcome] = useState("pending"); // pending → open | closed
+  useEffect(() => { ensureAccountsLoaded(); }, []);
+  useEffect(() => {
+    if (welcome !== "pending" || !settingsLoaded || !accounts) return;
+    setWelcome(!settings["onboarding.dismissed"] && noAccountConnected(accounts) ? "open" : "closed");
+  }, [welcome, settingsLoaded, accounts, settings]);
 
   // Panel-level attention for the collapsed-sidebar expand button pip.
   const hasAttention = ui.anyNeedsAttention(live.workers);
@@ -71,6 +88,14 @@ function Shell() {
       <MonitorWidget live={live} />
       <SettingsModal />
       <ProjectModalHost />
+      <ConnectSheetHost />
+      {welcome === "open" && (
+        <WelcomeScreen
+          onContinue={() => setWelcome("closed")}
+          onSkip={() => { setSetting("onboarding.dismissed", true); setWelcome("closed"); }}
+          onUseKeys={() => { setWelcome("closed"); openSettings("accounts"); }}
+        />
+      )}
     </>
   );
 }
