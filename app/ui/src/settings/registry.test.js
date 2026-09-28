@@ -29,19 +29,19 @@ describe("settings registry", () => {
       .toEqual(["archive", "delete"]);
   });
 
-  it("model section renders a custom Component (the shared provider/model picker) and keeps its defaults", () => {
-    const model = section("model");
-    expect(model.groups).toBeUndefined();
-    expect(typeof model.Component).toBe("function"); // ModelSettings — same picker as the composer
-    expect(SETTING_DEFAULTS["model.provider"]).toBe("claude");
-    expect(SETTING_DEFAULTS["model.default"]).toBe("opus");
+  it("accounts section renders a custom Component and owns no settings.json keys", () => {
+    const accounts = section("accounts");
+    expect(accounts.groups).toBeUndefined();
+    expect(typeof accounts.Component).toBe("function"); // AccountsSettings — accounts live in config.json + Keychain
+    expect(keysOf(accounts)).toEqual([]);
   });
 
-  it("anthropic section renders a custom Component and owns no settings.json keys", () => {
-    const anthropic = section("anthropic");
-    expect(anthropic.groups).toBeUndefined();
-    expect(typeof anthropic.Component).toBe("function"); // AnthropicSettings — creds live in config.json
-    expect(keysOf(anthropic)).toEqual([]);
+  it("the old model + anthropic sections are gone; composer defaults stay", () => {
+    expect(section("model")).toBeUndefined();
+    expect(section("anthropic")).toBeUndefined();
+    expect(SETTING_DEFAULTS["model.provider"]).toBe("claude");
+    expect(SETTING_DEFAULTS["model.default"]).toBe("opus");
+    expect(SETTING_DEFAULTS["onboarding.dismissed"]).toBe(false);
   });
 
   it("usage section renders a custom Component and owns no settings.json keys", () => {

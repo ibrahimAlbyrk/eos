@@ -5,7 +5,7 @@
 // the manager flow end to end: setRemoteConfig (persist config.remote) → armRemote
 // (reload + reconcile the edge live) → pairRemote (mint the v3 QR). OFF disarms.
 //
-// Custom Component (no registry `groups`), like ModelSettings — so its one default
+// Custom Component (no registry `groups`), like AccountsSettings — so its one default
 // (the relay URL, empty) is merged into SETTING_DEFAULTS explicitly below.
 
 import { useEffect, useRef, useState } from "react";
